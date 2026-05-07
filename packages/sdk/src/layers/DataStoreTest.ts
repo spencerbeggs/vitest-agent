@@ -4,9 +4,6 @@ import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Layer } from "effect";
 import migration0001 from "../migrations/0001_initial.js";
 import migration0002 from "../migrations/0002_comprehensive.js";
-import migration0003 from "../migrations/0003_idempotent_responses.js";
-import migration0004 from "../migrations/0004_test_cases_created_turn_id.js";
-import migration0005 from "../migrations/0005_failure_signatures_last_seen_at.js";
 import { DataReaderLive } from "./DataReaderLive.js";
 import { DataStoreLive } from "./DataStoreLive.js";
 
@@ -17,9 +14,6 @@ const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
 		"0001_initial": migration0001,
 		"0002_comprehensive": migration0002,
-		"0003_idempotent_responses": migration0003,
-		"0004_test_cases_created_turn_id": migration0004,
-		"0005_failure_signatures_last_seen_at": migration0005,
 	}),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 

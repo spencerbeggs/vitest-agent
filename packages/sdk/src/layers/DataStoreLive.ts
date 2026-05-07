@@ -513,12 +513,18 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 									)
 								`;
 							} else {
-								// tool_result
+								// tool_result — normalize MCP-prefixed names to short names
+								// (CC sends "mcp__<server>__<name>"; store just "<name>")
+								const rawToolName = payload.tool_name as string;
+								const toolName =
+									typeof rawToolName === "string" && rawToolName.startsWith("mcp__")
+										? (rawToolName.split("__").at(-1) ?? rawToolName)
+										: rawToolName;
 								yield* sql`
 									INSERT INTO tool_invocations (turn_id, tool_name, params_hash, result_summary, duration_ms, success)
 									VALUES (
 										${turnId},
-										${payload.tool_name as string},
+										${toolName},
 										${null},
 										${(payload.result_summary as string | undefined) ?? null},
 										${(payload.duration_ms as number | undefined) ?? null},
@@ -627,37 +633,71 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 						yield* Effect.logDebug("writeTddSession").pipe(
 							Effect.annotateLogs({ sessionId: input.sessionId, goal: input.goal }),
 						);
+						// INSERT OR IGNORE lets SQLite atomically skip the row when the
+						// partial unique index (session_id, run_id WHERE run_id IS NOT NULL)
+						// fires, instead of a SELECT-then-INSERT which is vulnerable to a
+						// write-write race (two concurrent transactions can both SELECT empty
+						// then both attempt INSERT before either commits).
 						const rows = yield* sql<{ id: number }>`
-							INSERT INTO tdd_sessions (session_id, goal, started_at, parent_tdd_session_id)
+							INSERT OR IGNORE INTO tdd_sessions (session_id, goal, started_at, parent_tdd_session_id, run_id)
 							VALUES (
 								${input.sessionId},
 								${input.goal},
 								${input.startedAt},
-								${input.parentTddSessionId ?? null}
+								${input.parentTddSessionId ?? null},
+								${input.runId ?? null}
 							)
 							RETURNING id
 						`;
-						const tddSessionId = rows[0].id;
+
+						let tddSessionId: number;
+						let isNewSession: boolean;
+
+						if (rows.length > 0) {
+							tddSessionId = rows[0].id;
+							isNewSession = true;
+						} else {
+							// INSERT was ignored — only reachable when runId is provided and
+							// a concurrent writer already committed the same (session_id, run_id).
+							const existing = yield* sql<{ id: number; goal: string }>`
+								SELECT id, goal FROM tdd_sessions
+								WHERE session_id = ${input.sessionId} AND run_id = ${input.runId}
+								LIMIT 1
+							`;
+							if (existing.length === 0) {
+								return yield* Effect.fail(new Error("writeTddSession: INSERT was ignored but no existing row found"));
+							}
+							if (existing[0].goal !== input.goal) {
+								return yield* Effect.fail(
+									new Error(
+										`writeTddSession: runId conflict — existing session has goal "${existing[0].goal}", caller provided "${input.goal}"`,
+									),
+								);
+							}
+							tddSessionId = existing[0].id;
+							isNewSession = false;
+						}
 
 						// Open the initial `spike` phase in the same transaction as the
 						// session row so `getCurrentTddPhase` returns Some immediately after
 						// start and there is never a window where the session exists without
-						// an open phase. If either insert fails the whole transaction rolls
-						// back. Older `tdd_sessions` rows that predate this change still get
-						// a lazy open from `record tdd-artifact`'s defensive fallback.
-						yield* sql`
-							INSERT INTO tdd_phases
-								(tdd_session_id, behavior_id, phase, started_at, transition_reason, parent_phase_id)
-							VALUES
-								(
-									${tddSessionId},
-									${null},
-									${"spike"},
-									${input.startedAt},
-									${"opened by tdd_session_start"},
-									${null}
-								)
-						`;
+						// an open phase. Only insert for genuinely new sessions — retries
+						// that return an existing id must not create a duplicate spike phase.
+						if (isNewSession) {
+							yield* sql`
+								INSERT INTO tdd_phases
+									(tdd_session_id, behavior_id, phase, started_at, transition_reason, parent_phase_id)
+								VALUES
+									(
+										${tddSessionId},
+										${null},
+										${"spike"},
+										${input.startedAt},
+										${"opened by tdd_session_start"},
+										${null}
+									)
+							`;
+						}
 
 						return tddSessionId;
 					}),

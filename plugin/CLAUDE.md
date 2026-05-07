@@ -75,6 +75,7 @@ Hook scripts in `hooks/` are POSIX shell. All source shared helpers from `hooks/
 | `post-tool-use-test-quality.sh` | `PostToolUse` (Write/Edit, tdd-task) | Detects test-weakening edits (`it.skip`, `.todo`, snapshot mutations); records `test_weakened` artifact |
 | `subagent-start-tdd.sh` | `SubagentStart` | Creates a synthetic subagent session row in `sessions` (key: `${cc_session_id}-subagent-<ts>-<pid>`) |
 | `subagent-stop-tdd.sh` | `SubagentStop` | Runs `vitest-agent wrapup --kind tdd_handoff` and records the handoff note on the parent session |
+| `session-end-record.sh` | `SessionEnd` | Records a `hook_fire` turn (so `computeAcceptanceMetrics` counts SessionEnd events), records the session-end timestamp, then emits the session-end wrap-up prompt |
 | `post-tool-use-record.sh` | `PostToolUse` (all) | Records tool-call turns for session analytics |
 | `user-prompt-submit-record.sh` | `UserPromptSubmit` | Records user prompt turns |
 

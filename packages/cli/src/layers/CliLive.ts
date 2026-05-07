@@ -13,9 +13,6 @@ import {
 	ProjectDiscoveryLive,
 	migration0001,
 	migration0002,
-	migration0003,
-	migration0004,
-	migration0005,
 } from "vitest-agent-sdk";
 
 export const CliLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
@@ -25,9 +22,6 @@ export const CliLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: 
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
 			"0002_comprehensive": migration0002,
-			"0003_idempotent_responses": migration0003,
-			"0004_test_cases_created_turn_id": migration0004,
-			"0005_failure_signatures_last_seen_at": migration0005,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 

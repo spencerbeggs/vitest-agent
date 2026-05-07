@@ -319,6 +319,7 @@ export const TddSessionRow = Schema.Struct({
 	outcome: Schema.NullOr(Schema.String),
 	parent_tdd_session_id: Schema.NullOr(Schema.Number),
 	summary_note_id: Schema.NullOr(Schema.Number),
+	run_id: Schema.NullOr(Schema.String),
 });
 
 export const TddSessionGoalRow = Schema.Struct({

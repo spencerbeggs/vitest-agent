@@ -6,9 +6,6 @@ import { Effect, Layer, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import migration0001 from "../migrations/0001_initial.js";
 import migration0002 from "../migrations/0002_comprehensive.js";
-import migration0003 from "../migrations/0003_idempotent_responses.js";
-import migration0004 from "../migrations/0004_test_cases_created_turn_id.js";
-import migration0005 from "../migrations/0005_failure_signatures_last_seen_at.js";
 import { DataReader } from "../services/DataReader.js";
 import { DataStore } from "../services/DataStore.js";
 import { DataReaderLive } from "./DataReaderLive.js";
@@ -21,9 +18,6 @@ const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
 		"0001_initial": migration0001,
 		"0002_comprehensive": migration0002,
-		"0003_idempotent_responses": migration0003,
-		"0004_test_cases_created_turn_id": migration0004,
-		"0005_failure_signatures_last_seen_at": migration0005,
 	}),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 90
 related:
   - ./architecture.md
@@ -263,7 +263,8 @@ The notable ones:
 
 - **`SessionSummary`** / **`ListSessionsOptions`** — backs `session_list`.
 - **`FailureSignatureDetail`** — `lastSeenAt` is nullable because it has no
-  backfill for rows written before `0005_failure_signatures_last_seen_at`.
+  backfill for rows written before the `failure_signatures.last_seen_at`
+  column was added (now part of `0002_comprehensive`).
   See `failure_signatures` in the table inventory below for the recurrence
   semantics.
 - **`TddSessionDetail`** — carries the full goal+behavior tree alongside
@@ -301,12 +302,15 @@ frame, runs `findFunctionBoundary` on the resolved source, and calls
 
 ## SQLite table inventory
 
-The canonical schema lives in `packages/sdk/src/migrations/0002_comprehensive.ts`
-plus the additive migrations `0003_idempotent_responses.ts`,
-`0004_test_cases_created_turn_id.ts`, and
-`0005_failure_signatures_last_seen_at.ts`. All run via
-`@effect/sql-sqlite-node`'s `SqliteMigrator` with WAL journal mode and
-foreign keys enabled.
+The canonical schema lives entirely in two migration files:
+`packages/sdk/src/migrations/0001_initial.ts` (legacy 1.x schema) and
+`packages/sdk/src/migrations/0002_comprehensive.ts` (drop-and-recreate
+that now folds in all 2.0 additions: goal/behavior hierarchy,
+`mcp_idempotent_responses`, the `test_cases.created_turn_id` FK,
+`failure_signatures.last_seen_at`, and `tdd_sessions.run_id`). The
+former separate files `0003`–`0006` were deleted and merged into `0002`
+in-place. All migrations run via `@effect/sql-sqlite-node`'s
+`SqliteMigrator` with WAL journal mode and foreign keys enabled.
 
 The migration ledger has no content hash, so editing an existing migration
 in place does not auto-replay on existing dev DBs. This is fine for pre-1.0
@@ -362,7 +366,7 @@ read the already-updated row and accumulate stale tokens.
 | `run_changed_files` | Files changed for a run; `run_id NOT NULL` |
 | `run_triggers` | 1:1 with `test_runs`; CHECK over the trigger taxonomy |
 | `build_artifacts` | Captured tsc/biome/eslint output |
-| `tdd_sessions` | TDD session goal + outcome; `session_id` FK to `sessions(id)` |
+| `tdd_sessions` | TDD session goal + outcome; `session_id` FK to `sessions(id)`; `run_id TEXT` (nullable, unique-per-session-id when set) |
 | `tdd_session_goals` | Tier-2 goals decomposed from a session objective |
 | `tdd_session_behaviors` | Tier-3 atomic red-green-refactor units; `goal_id` FK |
 | `tdd_behavior_dependencies` | Junction table for behavior ordering, replacing the old JSON-in-TEXT column |

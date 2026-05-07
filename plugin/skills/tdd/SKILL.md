@@ -12,9 +12,10 @@ Three MCP calls are required protocol. Skipping any one of them is a named viola
 If you are the main agent, complete these steps before spawning:
 
 1. Call `session_list({ agentKind: "main", limit: 1 })` — capture the `cc_session_id` field from the first row as `ccSessionId`. (The DB value comes directly from the SessionStart hook payload and is immune to in-memory contamination from prior subagent runs. Do **not** use `get_current_session_id()` — that in-memory ref can be stale if a prior subagent called `set_current_session_id` with its own key.)
-2. Call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
-3. Initialize: `goalById = new Map()` (keyed by goal ID, each entry `{ ordinal, taskId? }`), `behaviorById = new Map()` (keyed by behavior ID, each entry `{ goalOrdinal, behaviorOrdinal, taskId }`).
-4. Spawn `vitest-agent:tdd-task` **in the background**, passing `goal`, `ccSessionId`, and `parentTaskId` in the launch prompt.
+2. Generate a `runId`: `` `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` ``. Do **not** reuse a `runId` across dispatches — a fresh id per dispatch is the invariant.
+3. Call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
+4. Initialize: `goalById = new Map()` (keyed by goal ID, each entry `{ ordinal, taskId? }`), `behaviorById = new Map()` (keyed by behavior ID, each entry `{ goalOrdinal, behaviorOrdinal, taskId }`).
+5. Spawn `vitest-agent:tdd-task` **in the background**, passing `goal`, `ccSessionId`, `runId`, and `parentTaskId` in the launch prompt.
 
 Do not attempt TDD yourself — the tdd-task agent carries the required MCP tools and skill context for evidence-based phase transitions.
 
@@ -55,12 +56,12 @@ If no `<channel>` events arrive (channels not active or not enabled), wait for t
 Skipping this gate is the **UNREGISTERED SESSION** violation. This is the first action. Before any file read or write toward the goal:
 
 ```text
-tdd_session_start({ goal, ccSessionId })
+tdd_session_start({ goal, ccSessionId, runId })
 ```
 
 Without a session ID there is no TDD session. Every phase artifact is homeless. RED-phase test failures are misclassified as flaky (the DB sees repeated failures with no session context and computes a low pass rate). `acceptance_metrics` returns 0% because zero evidence is bound to any session.
 
-The `ccSessionId` is passed in your launch prompt. Use it exactly. Do not call `session_list` to derive it — that risks picking up a stale row from a concurrent session.
+The `ccSessionId` and `runId` are passed in your launch prompt. Use both exactly as given. Do not call `session_list` to derive `ccSessionId` and do not generate a new `runId` — both values come from the main agent.
 
 ## Hard Gate 2 — `hypothesis_record` before every production edit
 

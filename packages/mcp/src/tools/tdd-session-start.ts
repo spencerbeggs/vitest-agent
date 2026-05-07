@@ -11,6 +11,7 @@ export const tddSessionStart = idempotentProcedure
 				ccSessionId: Schema.optional(Schema.String),
 				parentTddSessionId: Schema.optional(Schema.Number),
 				startedAt: Schema.optional(Schema.String),
+				runId: Schema.optional(Schema.String),
 			}),
 		),
 	)
@@ -35,14 +36,19 @@ export const tddSessionStart = idempotentProcedure
 					return yield* Effect.fail(new Error("tdd_session_start: provide sessionId or ccSessionId"));
 				}
 
+				if (input.runId !== undefined && input.runId.trim().length === 0) {
+					return yield* Effect.fail(new Error("tdd_session_start: runId must not be blank"));
+				}
+
 				const id = yield* store.writeTddSession({
 					sessionId,
 					goal: input.goal,
 					startedAt: input.startedAt ?? new Date().toISOString(),
+					...(input.runId !== undefined && { runId: input.runId }),
 					...(input.parentTddSessionId !== undefined && { parentTddSessionId: input.parentTddSessionId }),
 				});
 
-				return { id, sessionId, goal: input.goal };
+				return { id, sessionId, goal: input.goal, runId: input.runId };
 			}),
 		);
 	});

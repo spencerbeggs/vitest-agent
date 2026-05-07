@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 90
 related:
   - ../architecture.md
@@ -186,6 +186,12 @@ The non-obvious pieces:
   `tool_result` payload types, also fans out to per-turn detail tables
   (`file_edits`, `tool_invocations`) inside the same SQL transaction via
   `sql.withTransaction`. Other payload types write only to `turns`.
+- **MCP tool-name normalization.** For `tool_result` turns, the live layer
+  strips the Claude Code MCP prefix before inserting into
+  `tool_invocations`. Claude Code sends tool names in the form
+  `mcp__<server>__<name>`; only the bare `<name>` suffix is stored (e.g.
+  `note_create` rather than `mcp__plugin_vitest-agent_mcp__note_create`).
+  Any name that does not start with `mcp__` is stored as-is.
 - **Tool-pair caveat.** `tool_invocations` rows derive from `tool_result`
   turns, **not** from `tool_call` turns. Consumers needing strict
   request/response pairing must join through `payload.tool_use_id`.
@@ -261,7 +267,12 @@ The non-obvious pieces:
 - **Acceptance metrics are derived, not stored.** `computeAcceptanceMetrics`
   computes the four spec-Annex-A ratios (phase-evidence integrity,
   compliance-hook responsiveness, orientation usefulness, anti-pattern
-  detection rate) on demand from the row history.
+  detection rate) on demand from the row history. Metric 2
+  (compliance-hook responsiveness) counts `hook_fire` turns whose
+  `hook_kind` is `'SessionEnd'`, `'PreCompact'`, **or `'Stop'`** — the
+  `Stop` kind is included because the session-end-record hook fires before
+  the session-end write and records a `hook_fire` turn regardless of the
+  triggering event.
 
 ## Formatters
 
@@ -368,9 +379,16 @@ themselves.
 which feeds them to `@effect/sql-sqlite-node`'s `SqliteMigrator` (WAL
 journal mode, foreign keys enabled).
 
-The current migration set includes the initial schema, a comprehensive
-recreate, and additive ALTERs for `mcp_idempotent_responses`, the
-`test_cases.created_turn_id` link, and `failure_signatures.last_seen_at`.
+The current migration set is two files: `0001_initial.ts` (the legacy
+1.x 25-table schema) and `0002_comprehensive.ts` (the drop-and-recreate
+that folds in all 2.0 additions — the goal/behavior hierarchy,
+`mcp_idempotent_responses`, the `test_cases.created_turn_id` link,
+`failure_signatures.last_seen_at`, and `tdd_sessions.run_id`).
+The former separate migration files `0003`–`0006` were deleted and their
+content merged into `0002_comprehensive.ts` in-place. `ensureMigrated`'s
+`fromRecord` now references only `"0001_initial"` and
+`"0002_comprehensive"` — the four numeric keys that once pointed to
+`0003`–`0006` are gone.
 
 **Migration discipline.** Per D9, the comprehensive migration is the **last
 drop-and-recreate**; future migrations are ALTER-only. The migration

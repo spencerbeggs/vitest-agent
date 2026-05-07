@@ -258,6 +258,7 @@ export interface TddSessionInput {
 	readonly goal: string;
 	readonly startedAt: string;
 	readonly parentTddSessionId?: number;
+	readonly runId?: string;
 }
 
 export interface EndTddSessionInput {

@@ -6,8 +6,6 @@ import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import migration0001 from "../migrations/0001_initial.js";
 import migration0002 from "../migrations/0002_comprehensive.js";
-import migration0004 from "../migrations/0004_test_cases_created_turn_id.js";
-import migration0005 from "../migrations/0005_failure_signatures_last_seen_at.js";
 import { DataStore } from "../services/DataStore.js";
 import { DataStoreLive } from "./DataStoreLive.js";
 
@@ -18,8 +16,6 @@ const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
 		"0001_initial": migration0001,
 		"0002_comprehensive": migration0002,
-		"0004_test_cases_created_turn_id": migration0004,
-		"0005_failure_signatures_last_seen_at": migration0005,
 	}),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
@@ -1088,6 +1084,74 @@ describe("DataStoreLive", () => {
 				expect(result[0].success).toBe(1);
 			});
 
+			it("strips MCP prefix from tool_name in tool_invocations", async () => {
+				const result = await run(
+					Effect.gen(function* () {
+						const ds = yield* DataStore;
+						const sql = yield* SqlClient;
+
+						const sessionId = yield* ds.writeSession({
+							cc_session_id: "cc-mcp-tool-norm",
+							project: "p",
+							cwd: "/tmp/p",
+							agent_kind: "main",
+							started_at: "2026-04-29T00:00:00Z",
+						});
+
+						const turnId = yield* ds.writeTurn({
+							session_id: sessionId,
+							type: "tool_result",
+							payload: JSON.stringify({
+								type: "tool_result",
+								tool_name: "mcp__plugin_vitest-agent_mcp__note_create",
+								success: true,
+							}),
+							occurred_at: "2026-04-29T00:00:01Z",
+						});
+
+						return yield* sql<{
+							tool_name: string;
+						}>`SELECT tool_name FROM tool_invocations WHERE turn_id = ${turnId}`;
+					}),
+				);
+
+				expect(result[0].tool_name).toBe("note_create");
+			});
+
+			it("preserves non-MCP tool names that contain double underscores unchanged", async () => {
+				const result = await run(
+					Effect.gen(function* () {
+						const ds = yield* DataStore;
+						const sql = yield* SqlClient;
+
+						const sessionId = yield* ds.writeSession({
+							cc_session_id: "cc-non-mcp-tool",
+							project: "p",
+							cwd: "/tmp/p",
+							agent_kind: "main",
+							started_at: "2026-04-29T00:00:00Z",
+						});
+
+						const turnId = yield* ds.writeTurn({
+							session_id: sessionId,
+							type: "tool_result",
+							payload: JSON.stringify({
+								type: "tool_result",
+								tool_name: "my__custom_tool",
+								success: true,
+							}),
+							occurred_at: "2026-04-29T00:00:01Z",
+						});
+
+						return yield* sql<{
+							tool_name: string;
+						}>`SELECT tool_name FROM tool_invocations WHERE turn_id = ${turnId}`;
+					}),
+				);
+
+				expect(result[0].tool_name).toBe("my__custom_tool");
+			});
+
 			it("does not fan out for non-fanout payload types", async () => {
 				const result = await run(
 					Effect.gen(function* () {
@@ -1320,25 +1384,64 @@ describe("DataStoreLive", () => {
 			expect(result[0].goal).toBe("add login validation");
 		});
 
-		it("rejects duplicate (sessionId, goal) via the UNIQUE constraint", async () => {
-			const exit = await Effect.runPromiseExit(
-				Effect.provide(
-					Effect.gen(function* () {
-						const ds = yield* DataStore;
-						const sessionId = yield* ds.writeSession({
-							cc_session_id: "cc-tdd-2",
-							project: "demo",
-							cwd: "/tmp/demo",
-							agent_kind: "subagent",
-							started_at: "2026-04-29T00:00:00Z",
-						});
-						yield* ds.writeTddSession({ sessionId, goal: "g", startedAt: "2026-04-29T00:00:01Z" });
-						yield* ds.writeTddSession({ sessionId, goal: "g", startedAt: "2026-04-29T00:00:02Z" });
-					}),
-					TestLayer,
-				),
+		it("returns the existing id on duplicate (sessionId, runId) with the same goal", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sessionId = yield* ds.writeSession({
+						cc_session_id: "cc-tdd-2",
+						project: "demo",
+						cwd: "/tmp/demo",
+						agent_kind: "subagent",
+						started_at: "2026-04-29T00:00:00Z",
+					});
+					const id1 = yield* ds.writeTddSession({
+						sessionId,
+						goal: "g1",
+						startedAt: "2026-04-29T00:00:01Z",
+						runId: "run-abc",
+					});
+					const id2 = yield* ds.writeTddSession({
+						sessionId,
+						goal: "g1",
+						startedAt: "2026-04-29T00:00:02Z",
+						runId: "run-abc",
+					});
+					return { id1, id2 };
+				}),
 			);
-			expect(exit._tag).toBe("Failure");
+			expect(result.id1).toBe(result.id2);
+		});
+
+		it("fails when the same runId is reused with a different goal", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sessionId = yield* ds.writeSession({
+						cc_session_id: "cc-tdd-runid-conflict",
+						project: "demo",
+						cwd: "/tmp/demo",
+						agent_kind: "subagent",
+						started_at: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.writeTddSession({
+						sessionId,
+						goal: "original goal",
+						startedAt: "2026-04-29T00:00:01Z",
+						runId: "run-conflict",
+					});
+					return yield* ds.writeTddSession({
+						sessionId,
+						goal: "different goal",
+						startedAt: "2026-04-29T00:00:02Z",
+						runId: "run-conflict",
+					});
+				}).pipe(Effect.either),
+			);
+			expect(result._tag).toBe("Left");
+			if (result._tag === "Left") {
+				expect(result.left.message).toMatch(/runId conflict/);
+			}
 		});
 
 		it("opens an initial spike phase tied to the new tdd_session id", async () => {

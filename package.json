@@ -35,7 +35,7 @@
 	},
 	"devDependencies": {
 		"@savvy-web/changesets": "^0.8.0",
-		"@savvy-web/commitlint": "^0.7.1",
+		"@savvy-web/commitlint": "^0.8.0",
 		"@savvy-web/lint-staged": "^1.0.0",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",

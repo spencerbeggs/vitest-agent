@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 90
 related:
   - ../architecture.md
@@ -160,6 +160,23 @@ registered. The phase-transition tool, every `*_update`/`*_delete`/
 registered — see [../decisions.md](../decisions.md). State-dependent
 reads, intentional state transitions, and destructive ops are not
 idempotent in the cache-replay sense.
+
+**`tdd_session_start` idempotency key.** The key is derived from
+`runId` when present: `sid:<sessionId>:run:<runId>` or
+`cc:<ccSessionId>:run:<runId>`. When `runId` is absent (legacy callers),
+the key falls back to goal text: `sid:<sessionId>:<goal>` or
+`cc:<ccSessionId>:<goal>`. The `runId`-based keying lets the same goal
+be retried within the same CC session (the main agent generates a fresh
+`runId` at each dispatch) without triggering the cache replay.
+
+**`tdd_session_start` accepts `runId`.** The tool's optional `runId`
+input is forwarded to `DataStore.writeTddSession`. When provided,
+`run_id` is stored in `tdd_sessions` and the partial unique index on
+`(session_id, run_id)` gives database-level deduplication. When omitted,
+`run_id` is stored as NULL; the partial index does not cover NULL rows,
+so only the middleware goal-text cache (`cc:<ccSessionId>:<goal>`)
+provides idempotency. The tool returns `runId: undefined` when the caller
+did not supply one.
 
 ## Channel-event resolution
 

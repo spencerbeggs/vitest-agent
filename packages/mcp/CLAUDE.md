@@ -1,7 +1,7 @@
 # vitest-agent-mcp
 
 The Model Context Protocol server (`vitest-agent-mcp` bin)
-exposing 50 tools to LLM agents over stdio via `@modelcontextprotocol/sdk`.
+exposing 53 tools to LLM agents over stdio via `@modelcontextprotocol/sdk`.
 Routes tool calls through a tRPC router; runs as a long-lived process with
 a `ManagedRuntime`. Also surfaces four MCP resources under two URI schemes
 (vendored Vitest docs + curated patterns; per-page titles and
@@ -150,7 +150,7 @@ lib/
   - `run_tests`: returns text (raw vitest output).
   - Notes: list/search return markdown; create/get/update/delete
     return JSON.
-- **50 tools, 1 router.** New tools register in `server.ts` AND
+- **53 tools, 1 router.** New tools register in `server.ts` AND
   `router.ts`. The Claude Code plugin's allowlist
   (`plugin/hooks/lib/safe-mcp-vitest-agent-ops.txt`) must
   also be updated for auto-allow to work without a permission prompt.

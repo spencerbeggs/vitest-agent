@@ -1,23 +1,45 @@
 ---
 name: commit-cycle
-description: At every successful red→green and green→refactor, write a git commit with a structured message including tdd_session_id. Use to keep TDD cycles atomic in git history.
+description: At every TDD phase transition — spike, red→green, green→refactor, or discard — write a git commit using the tdd({goalId}:{state}): prefix convention. Keeps TDD cycles atomic and greppable in git history.
 ---
 
-# Commit at every successful TDD cycle transition
+# Commit at every TDD phase transition
 
 Each accepted phase transition is a checkpoint. Commit at:
 
-- **red→green**: the test now passes. Commit message:
-  `feat(<scope>): <test name> [tdd:<tdd_session_id>:red→green]`
-- **green→refactor**: refactoring is complete and all tests still pass. Commit message:
-  `refactor(<scope>): <what changed> [tdd:<tdd_session_id>:green→refactor]`
+- **spike**: exploratory work before writing a failing test. Commit message:
+  `tdd(<goalId>:spike): <imperative summary of exploration>`
+- **red→green**: test passes after the production fix. Commit message:
+  `tdd(<goalId>:green): <imperative summary>`
+- **green→refactor**: cleanup done, all tests still pass. Commit message:
+  `tdd(<goalId>:refactor): <what changed>`
+- **discard (red)**: goal or behavior abandoned with uncommitted production code in the working tree. Commit message:
+  `tdd(<goalId>:red): discard — <reason>`
+
+`<goalId>` is the bare numeric DB id returned by `tdd_goal_create` (e.g., `7`).
+
+**Examples:**
+
+```text
+tdd(7:spike): explore lifecycle.ts shape before writing test
+tdd(7:green): implement sum() to pass failing assertion
+tdd(7:refactor): extract add-three helper
+tdd(8:green): handle negative inputs in sum()
+tdd(8:red): discard — step too large, re-decomposing
+```
 
 ## Rules
 
-1. The commit hash is captured by the post-commit hook (which records `commits` and `run_changed_files` rows). The hook reads the bracketed `[tdd:<id>:<phase>→<phase>]` tag to associate the commit with the TDD session.
-2. Never commit during `red` itself — by definition the suite is failing.
-3. If you have to skip a refactor (because none was needed), commit the green state directly: `feat(<scope>): <test name> [tdd:<tdd_session_id>:green]`.
+1. Never commit during `red` itself — by definition the suite is failing. The `red` state is for discard only: commit after abandoning the goal or behavior with uncommitted production code still in the tree.
+2. If no refactor is needed after green, skip the `refactor` commit and move on.
+3. The post-commit hook captures the commit hash and writes a `commits` row to the DB. It records changed files against the most-recent test run — no message-tag parsing.
 
-## Reusable outside TDD
+## Squash after the goal is complete
 
-Other workflows can adopt the bracketed-tag convention to make their git history machine-queryable.
+After the main agent runs the seven-step audit, squash all `tdd(<goalId>:*)` commits for the goal into a single conventional commit whose type (`fix`, `feat`, `refactor`, `test`) reflects what the goal actually delivered:
+
+```text
+fix(playground): sum handles negative inputs and off-by-one
+
+Signed-off-by: ...
+```

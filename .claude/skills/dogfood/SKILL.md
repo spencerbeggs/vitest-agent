@@ -134,10 +134,11 @@ If any check fails, append findings to `docs/superpowers/dogfood/lifecycle-check
 Before spawning, complete the standard pre-dispatch setup (mirrors the `tdd` skill):
 
 1. Call `session_list({ agentKind: "main", limit: 1 })` — capture the `cc_session_id` field from the first row as `ccSessionId`. Do **not** use `get_current_session_id()` — that in-memory ref can be stale after a prior subagent overwrote it.
-2. Call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
-3. Initialize: `goalById = new Map()`, `behaviorById = new Map()`.
+2. Generate a `runId`: `` `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` ``.
+3. Call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
+4. Initialize: `goalById = new Map()`, `behaviorById = new Map()`.
 
-Dispatch with **`run_in_background: true`** and `subagent_type: "vitest-agent:tdd-task"`. Pass `ccSessionId` and `parentTaskId` in the launch prompt alongside the task. The dispatch prompt body contains **only** the contents of the handoff's `# Task for the TDD orchestrator` section — never the frontmatter, never the `# What the orchestrator MUST NOT know` section, never the verification checklist, never the cheatsheet.
+Dispatch with **`run_in_background: true`** and `subagent_type: "vitest-agent:tdd-task"`. Pass `ccSessionId`, `runId`, and `parentTaskId` in the launch prompt alongside the task. The dispatch prompt body contains **only** the contents of the handoff's `# Task for the TDD orchestrator` section — never the frontmatter, never the `# What the orchestrator MUST NOT know` section, never the verification checklist, never the cheatsheet.
 
 Immediately after dispatching (the background call returns before the agent completes), capture the session id:
 
@@ -158,7 +159,7 @@ Run the seven-step audit. Skipping any step defeats the experiment.
 3. `test_history({ project: "playground" })` — flaky / new-failure / persistent classifications.
 4. `turn_search({ sessionId: <subagent numeric id>, type: "tool_call" })` and grep for Bash `vitest` invocations — confirm the orchestrator used `run_tests` MCP, not Bash workarounds.
 5. `failure_signature_get` for any signatures the run produced — cross-check against past dogfood runs in the chain.
-6. `git diff playground/` and `git status` — code change matches what the cheatsheet says is the right fix; no unintended files outside `playground/`; no untracked files left behind.
+6. `git diff playground/` and `git status` — code change matches what the cheatsheet says is the right fix; no unintended files outside `playground/`; no untracked files left behind. `git log --oneline` and grep for `tdd(` — confirm the orchestrator's commits use the `tdd(<goalId>:<state>):` prefix format, not the legacy `[tdd:` bracket-tag format.
 7. `hypothesis_list({ sessionId: <subagent cc id> })` — the orchestrator recorded hypotheses before non-test edits (Gate 2).
 
 For channel-event work, additionally inspect `tdd_progress_push` payloads in the turn log: `goalId` and `sessionId` resolved server-side correctly, `goal_completed` carried `behaviorIds[]`, `session_complete` carried `goalIds[]`.

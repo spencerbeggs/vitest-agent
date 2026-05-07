@@ -12,16 +12,18 @@ arguments:
 
 I'll help you implement {{ goal }} using test-driven development.
 
-Before spawning, complete two setup steps:
+Before spawning, complete three setup steps:
 
 1. Call `session_list({ agentKind: "main", limit: 1 })` — capture the `cc_session_id` field from the first row as `ccSessionId`. Do **not** use `get_current_session_id()` — that in-memory ref can be stale if a prior subagent overwrote it.
-2. Call `TaskCreate({ subject: "TDD Session: {{ goal }}", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
+2. Generate a `runId`: `` `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` ``. Do **not** reuse a `runId` across dispatches — a fresh id per dispatch is the invariant.
+3. Call `TaskCreate({ subject: "TDD Session: {{ goal }}", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
 
 Then spawn `vitest-agent:tdd-task` **in the background** (`run_in_background: true`) with a prompt that includes:
 
 - The goal: `{{ goal }}`
 - The `ccSessionId` from step 1
-- The `parentTaskId` from step 2
+- The `runId` from step 2
+- The `parentTaskId` from step 3
 
 Tell the user that behavior tasks will appear in the task panel as the orchestrator decomposes the goal, then return control.
 

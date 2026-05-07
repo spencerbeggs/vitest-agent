@@ -1488,14 +1488,14 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				`;
 
 				// Metric 2: compliance-hook responsiveness — sessions that
-				// fired SessionEnd or PreCompact and produced a follow-up
+				// fired SessionEnd, PreCompact, or Stop and produced a follow-up
 				// note/hypothesis/tdd_session_end tool call.
 				const m2 = yield* sql<{ total: number; with_followup: number }>`
 					WITH wrap_up_fires AS (
 						SELECT t.session_id
 						FROM turns t
 						WHERE t.type = 'hook_fire'
-							AND json_extract(t.payload, '$.hook_kind') IN ('SessionEnd', 'PreCompact')
+							AND json_extract(t.payload, '$.hook_kind') IN ('SessionEnd', 'PreCompact', 'Stop')
 					),
 					followups AS (
 						SELECT DISTINCT t.session_id
@@ -1885,8 +1885,9 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					started_at: string;
 					ended_at: string | null;
 					outcome: string | null;
+					run_id: string | null;
 				}>`
-					SELECT id, session_id, goal, started_at, ended_at, outcome
+					SELECT id, session_id, goal, started_at, ended_at, outcome, run_id
 					FROM tdd_sessions WHERE id = ${id} LIMIT 1
 				`;
 				if (sessionRows.length === 0) return Option.none<TddSessionDetail>();
@@ -1925,6 +1926,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					startedAt: tddSession.started_at,
 					endedAt: tddSession.ended_at,
 					outcome: tddSession.outcome,
+					runId: tddSession.run_id,
 					goals,
 					phases: phaseRows.map((p) => ({
 						id: p.id,
