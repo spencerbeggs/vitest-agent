@@ -202,6 +202,9 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+      workspaces-effect:
+        specifier: ^0.6.0
+        version: 0.6.0(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2)
     devDependencies:
       '@savvy-web/rslib-builder':
         specifier: ^0.20.3

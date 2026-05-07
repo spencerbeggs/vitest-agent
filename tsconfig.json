@@ -12,5 +12,6 @@
 		"target": "es2023"
 	},
 	"exclude": ["node_modules", "dist"],
-	"include": ["lib/**/*.ts", "types/**/*.d.ts"]
+	"include": ["*.ts", "lib/**/*.ts", "types/**/*.d.ts"],
+	"types": ["node"]
 }

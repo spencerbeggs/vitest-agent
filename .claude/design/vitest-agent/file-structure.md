@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 90
 related:
   - ./architecture.md
@@ -54,9 +54,10 @@ plugin/        file-based Claude Code plugin (NOT a pnpm workspace)
   plans/                        implementation plans
 ```
 
-Each `packages/<name>/` follows the standard layout: `src/` for source
-(co-located with `*.test.ts`), `lib/` for build/maintenance scripts where
-applicable, `dist/dev/` and `dist/npm/` produced by `@savvy-web/rslib-builder`.
+Each `packages/<name>/` follows the standard layout: `src/` for source,
+`__test__/` for test files (flat layout, not co-located with source), `lib/`
+for build/maintenance scripts where applicable, `dist/dev/` and `dist/npm/`
+produced by `@savvy-web/rslib-builder`.
 
 The `mcp` package additionally vendors content under `src/`:
 
@@ -82,10 +83,13 @@ For per-package source breakdown see the corresponding
 
 ## Test files
 
-Test files are co-located with their sources at
-`packages/<name>/src/**/*.test.ts`. See
-[./testing-strategy.md](./testing-strategy.md) for testing patterns and per-
-project counts.
+Test files live under `packages/<name>/__test__/*.test.ts` (flat layout).
+The `discoverProjects` scanner in `vitest-agent-plugin` also picks up any
+`packages/<name>/src/**/*.test.ts` co-located files when present. Helper
+files are separated into `__test__/utils/`, `__test__/fixtures/`, and
+`__test__/snapshots/` subdirectories which the scanner excludes
+automatically. See [./testing-strategy.md](./testing-strategy.md) for
+testing patterns and per-project counts.
 
 ## Data path
 

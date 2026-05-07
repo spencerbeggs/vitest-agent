@@ -5,7 +5,7 @@ category: architecture
 created: 2026-05-06
 updated: 2026-05-07
 last-synced: 2026-05-07
-completeness: 90
+completeness: 95
 related:
   - ../architecture.md
   - ../components.md
@@ -149,7 +149,8 @@ encode/decode.
 | `Baselines.ts` | Coverage baseline shapes |
 | `Trends.ts` | Coverage trend shapes |
 | `CacheManifest.ts` | Cache manifest shapes (legacy file-based manifest discovery) |
-| `Options.ts` | `AgentReporterOptions`, `AgentPluginOptions`, `CoverageOptions`, `FormatterOptions` |
+| `CoverageLevel.ts` | `CoverageLevel` Effect Schema class with five named presets (`none`, `basic`, `standard`, `strict`, `full`), `.withPerFile()` builder, and `.extend({})` override method. Also exports `CoverageLevelName`, `CoverageInput`, `resolveCoverageInput`, and `validateCoverageConfig` |
+| `Options.ts` | `AgentReporterOptions`, `AgentPluginOptions`, `CoverageOptions`, `FormatterOptions`. `AgentPluginOptions` carries top-level `coverageThresholds` and `coverageTargets` fields (type `Schema.Unknown`) in addition to `reporterOptions` |
 | `History.ts` | `TestRun`, `TestHistory`, `HistoryRecord` |
 | `Config.ts` | `VitestAgentConfig` for the optional `vitest-agent.config.toml`. Both fields (`cacheDir?`, `projectKey?`) are optional; absence falls back to deriving the path from the workspace's `package.json` `name` |
 | `Tdd.ts` | Application-level (camelCase) shapes for the three-tier hierarchy: `GoalStatus`/`BehaviorStatus`, `GoalRow`, `BehaviorRow`, `GoalDetail`, `BehaviorDetail`. SQL row shapes (snake_case) live in `sql/rows.ts`; these are the API shapes |
@@ -405,6 +406,39 @@ hierarchy live in `schemas/Tdd.ts`.
 
 For the table inventory and column-level details see
 [../data-structures.md](../data-structures.md).
+
+## Testing subpath
+
+`packages/sdk/src/testing/` — exported via the `vitest-agent-sdk/testing`
+subpath (`"./testing": "./src/testing/index.ts"` in `package.json`).
+
+Provides in-process SQLite test infrastructure without requiring the full
+Effect runtime. Two layers:
+
+- **`makeTestLayer(filename)`** — builds a fully-migrated SQLite layer from
+  a path or `:memory:`. Composes `DataStoreLive`, `DataReaderLive`,
+  `SqliteMigrator` (running both migrations), `SqliteClient`, and
+  `NodeContext`. Tests pass this as the `provide` argument to `Effect.runPromise`
+  or as the layer in `it.effect`.
+- **`DataStoreTestLayer`** — `makeTestLayer(":memory:")`. The shared in-memory
+  convenience for tests that don't need a persistent file.
+
+Five preset factories seed representative DB states for use across test
+files. Each accepts `filename` and internally calls `makeTestLayer`, then
+seeds data via `Layer.effectDiscard`:
+
+| Factory | Seeds |
+| ------- | ----- |
+| `empty(filename)` | Migrated DB, no rows |
+| `singlePassingRun(filename)` | One run, one module, three passing tests |
+| `withFailures(filename)` | One run, one module, two failing tests |
+| `flaky(filename)` | Two runs with opposing outcomes (flaky classification) |
+| `withTddSession(filename)` | One session, one TDD session, one goal, two behaviors |
+
+**When to use.** Import from `vitest-agent-sdk/testing`. The preset layers
+remove boilerplate from per-test fixture setup. Use `empty` for tests that
+need precise control; use the named presets when the scenario matches to
+keep tests concise.
 
 ## Output pipeline
 

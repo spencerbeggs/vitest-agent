@@ -50,7 +50,7 @@ The "Next steps" section prioritizes actions based on classifications:
 2. **Persistent failures** -- pre-existing, may not be yours
 3. **Flaky tests** -- may pass on retry
 4. Re-run commands for affected files
-5. Hint to run `vitest-agent-reporter history` for deeper analysis
+5. Hint to run `vitest-agent history` for deeper analysis
 6. MCP tool hints (when `mcp: true` is set)
 
 ## CLI History Command
@@ -58,7 +58,7 @@ The "Next steps" section prioritizes actions based on classifications:
 For a deeper view of failure trends:
 
 ```bash
-npx vitest-agent-reporter history
+npx vitest-agent history
 ```
 
 This shows flaky tests (sorted by fail rate), persistent failures
@@ -89,7 +89,7 @@ import {
   TestRun,
   HistoryTracker,
   HistoryTrackerLive,
-} from "vitest-agent-reporter";
+} from "vitest-agent-sdk";
 ```
 
 See [Schemas](schemas.md) for the full schema reference.

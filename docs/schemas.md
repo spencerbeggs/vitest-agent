@@ -1,6 +1,6 @@
 # Effect Schemas
 
-All data structures in `vitest-agent-reporter` are defined as
+All data structures in `vitest-agent-sdk` are defined as
 [Effect Schema](https://effect.website/docs/schema/introduction)
 definitions. TypeScript types are derived via `typeof Schema.Type`.
 JSON encode/decode uses `Schema.decodeUnknownSync` and
@@ -24,6 +24,7 @@ JSON encode/decode uses `Schema.decodeUnknownSync` and
 | `TestHistory` | Single test's pass/fail history |
 | `TestRun` | Single run outcome (passed or failed) |
 | `TestClassification` | Failure classification literal |
+| `CoverageLevel` | Named coverage preset class with `lines`, `branches`, `functions`, `statements` fields and `.withPerFile()` / `.extend({})` methods |
 | `MetricThresholds` | Per-metric threshold values (lines, functions, branches, statements) |
 | `PatternThresholds` | A glob pattern paired with metric thresholds |
 | `ResolvedThresholds` | Fully resolved thresholds with global, perFile, and patterns |
@@ -48,13 +49,13 @@ import type {
   ModuleReportType,
   TestReportType,
   ReportErrorType,
-} from "vitest-agent-reporter";
+} from "vitest-agent-sdk";
 ```
 
 Or derive types directly from schemas:
 
 ```typescript
-import { AgentReport } from "vitest-agent-reporter";
+import { AgentReport } from "vitest-agent-sdk";
 
 type AgentReportType = typeof AgentReport.Type;
 ```
@@ -70,7 +71,7 @@ import {
   DataReader,
   DataReaderLive,
   DataStoreError,
-} from "vitest-agent-reporter";
+} from "vitest-agent-sdk";
 import { Effect, Layer } from "effect";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { NodeContext } from "@effect/platform-node";
@@ -99,7 +100,7 @@ build a private composition layer that adds the SQLite client, the
 migrator, and `NodeContext`; programmatic consumers need to do the
 same. To resolve the right database file, use `resolveDataPath` from
 `vitest-agent-sdk` or read it from
-`vitest-agent-reporter cache path`.
+`vitest-agent cache path`.
 
 For write operations, swap `DataReader`/`DataReaderLive` for
 `DataStore`/`DataStoreLive` (same `SqlClient` requirement).
@@ -113,12 +114,12 @@ import {
   OutputRenderer,
   OutputPipelineLive,
   EnvironmentDetector,
-} from "vitest-agent-reporter";
+} from "vitest-agent-sdk";
 import type {
   Formatter,
   FormatterContext,
   RenderedOutput,
-} from "vitest-agent-reporter";
+} from "vitest-agent-sdk";
 ```
 
 ## Schema Reference
@@ -370,3 +371,28 @@ A tuple of glob pattern and metric thresholds:
 ```typescript
 "minimal" | "neutral" | "standard" | "verbose"
 ```
+
+### CoverageLevel
+
+A class providing named coverage threshold presets. Import from `vitest-agent-sdk`:
+
+```typescript
+import { CoverageLevel } from "vitest-agent-sdk";
+```
+
+Each preset has `lines`, `branches`, `functions`, and `statements` numeric fields:
+
+| Preset | lines | branches | functions | statements |
+| --- | --- | --- | --- | --- |
+| `none` | 0 | 0 | 0 | 0 |
+| `basic` | 50 | 50 | 50 | 50 |
+| `standard` | 80 | 75 | 80 | 80 |
+| `strict` | 90 | 85 | 90 | 90 |
+| `full` | 100 | 100 | 100 | 100 |
+
+Methods:
+
+- `.withPerFile()` — returns a new `CoverageLevel` with `perFile: true`, applying thresholds per file rather than in aggregate.
+- `.extend({ lines?, branches?, functions?, statements? })` — returns a new `CoverageLevel` with the specified fields overridden.
+
+Pass a preset name string to `coverageThresholds` or `coverageTargets` on `AgentPlugin`, or use the `AgentPlugin.COVERAGE_LEVELS` / `AgentPlugin.COVERAGE_LEVELS_PER_FILE` namespace constants directly.

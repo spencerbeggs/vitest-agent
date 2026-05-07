@@ -13,7 +13,7 @@ produce identical output -- the difference is who manages the options.
 ## Constructor Options
 
 ```typescript
-import { AgentReporter } from "vitest-agent-reporter";
+import { AgentReporter } from "vitest-agent-plugin";
 
 const reporter = new AgentReporter({
   cacheDir: ".vitest-agent-reporter",
@@ -62,7 +62,7 @@ same way in 2.0 — by deriving an XDG path from the root workspace
 literal path. See
 [Configuration > Cache Directory Resolution](configuration.md#cache-directory-resolution)
 for the full priority order, including the optional
-`vitest-agent-reporter.config.toml` overrides.
+`vitest-agent.config.toml` overrides.
 
 ## Lifecycle Hooks
 
@@ -102,7 +102,7 @@ Database write failures are logged to stderr but never crash the test run.
 ### Basic Setup
 
 ```typescript
-import { AgentReporter } from "vitest-agent-reporter";
+import { AgentReporter } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -121,7 +121,7 @@ This keeps Vitest's default reporter for human-readable output and adds
 ### Agent-Only Setup
 
 ```typescript
-import { AgentReporter } from "vitest-agent-reporter";
+import { AgentReporter } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -145,7 +145,7 @@ No special configuration needed. The reporter groups results by Vitest
 project name automatically:
 
 ```typescript
-import { AgentReporter } from "vitest-agent-reporter";
+import { AgentReporter } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -163,7 +163,7 @@ data is stored in the same SQLite database, organized by project name.
 ### With Coverage
 
 ```typescript
-import { AgentReporter } from "vitest-agent-reporter";
+import { AgentReporter } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -186,7 +186,7 @@ coverage map interface at runtime.
 ### GitHub Actions
 
 ```typescript
-import { AgentReporter } from "vitest-agent-reporter";
+import { AgentReporter } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({

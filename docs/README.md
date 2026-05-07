@@ -3,11 +3,11 @@
 ## Installation
 
 ```bash
-npm install vitest-agent-reporter
+npm install vitest-agent-plugin
 # or
-pnpm add vitest-agent-reporter
+pnpm add vitest-agent-plugin
 # or
-yarn add vitest-agent-reporter
+yarn add vitest-agent-plugin
 ```
 
 **Requirements:** Vitest >= 4.1.0 | Node.js >= 22
@@ -17,12 +17,16 @@ yarn add vitest-agent-reporter
 Add `AgentPlugin` to your Vitest config:
 
 ```typescript
-import { AgentPlugin } from "vitest-agent-reporter";
+import { AgentPlugin } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
-  plugins: [AgentPlugin()],
-});
+export default async () => {
+  const projects = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [AgentPlugin()],
+    test: { projects, pool: "forks" },
+  });
+};
 ```
 
 The plugin auto-detects the environment using

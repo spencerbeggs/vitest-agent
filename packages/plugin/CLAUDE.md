@@ -44,19 +44,55 @@ src/
     capture-settings.ts      -- captures Vitest config snapshot + hash
     resolve-thresholds.ts    -- parses Vitest-native coverage threshold format
     strip-console-reporters.ts -- removes built-in console reporters in own mode
+    vitest-project.ts        -- VitestProject class: typed builder for
+                               TestProjectInlineConfiguration with static
+                               factories (.unit, .e2e, .int, .custom) and
+                               fluent mutators (override, addInclude,
+                               addExclude, addCoverageExclude)
+    discover-projects.ts     -- discoverProjects() async scanner: walks
+                               workspace packages, detects __test__/ and
+                               src/ test files by kind suffix, emits
+                               VitestProject[] with per-process result cache
 ```
 
 ## Key files
 
 | File | Purpose |
 | ---- | ------- |
-| `plugin.ts` | `agentPlugin(options?)` factory. Resolves env + cacheDir + coverage options; suppresses Vitest's coverage table in agent/own mode; injects `AgentReporter` per project via `configureVitest` |
+| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + cacheDir + coverage options; suppresses Vitest's coverage table in agent/own mode; injects `AgentReporter` per project via `configureVitest`. Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, and `discover()` |
 | `reporter.ts` | Internal `AgentReporter` class. `onInit` resolves `dbPath` async; `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline, then calls `opts.reporter(kit)` and routes `RenderedOutput[]` |
 | `services/CoverageAnalyzer.ts` | Effect service tag for coverage processing. Only lives here because the reporter lifecycle class feeds it coverage data; CLI/MCP read pre-processed coverage from SQLite |
 | `utils/process-failure.ts` | Per-error signature pipeline. Called from `onTestRunEnd` for each error before `DataStore.writeErrors`. Returns `frames: StackFrameInput[]` and `signatureHash` |
 | `utils/build-reporter-kit.ts` | Constructs `ReporterKit` from resolved config + detected environment + `noColor` flag. `stdOsc8` is enabled when `!noColor && (env === "terminal" \|\| env === "agent-shell")` |
 | `utils/route-rendered-output.ts` | Dispatches a single `RenderedOutput` to its target: `stdout`, `github-summary` (append), or `file` (no-op) |
+| `utils/vitest-project.ts` | `VitestProject` builder class. Static factories: `.unit`, `.e2e`, `.int`, `.custom`. Fluent mutators: `override`, `addInclude`, `addExclude`, `addCoverageExclude`. Call `.toConfig()` to get a `TestProjectInlineConfiguration` |
+| `utils/discover-projects.ts` | `discoverProjects(options?, cwd?)` walks workspace packages, scans `src/` and `__test__/` for test files classified by filename suffix (`.e2e.`, `.int.`, or plain), and returns `VitestProject[]`. Results are cached per workspace root within the process |
 | `layers/ReporterLive.ts` | Composition layer for `AgentReporter`. Used per-run via `Effect.runPromise` (not ManagedRuntime — the reporter is short-lived per run) |
+
+## AgentPlugin.discover()
+
+`AgentPlugin.discover(options?)` is the canonical way to populate
+`test.projects` in `vitest.config.ts`. Use an async config export:
+
+```ts
+export default async () => {
+  const projects = await AgentPlugin.discover();
+  return defineConfig({ plugins: [AgentPlugin()], test: { projects } });
+};
+```
+
+Internally calls `discoverProjects()`, then maps each `VitestProject`
+to a `TestProjectInlineConfiguration` via `.toConfig()`. The optional
+`options` argument accepts either:
+
+- A callback `({ projects }) => void | Promise<void>` to mutate the
+  full list in-place after discovery.
+- An object `{ unit?, int?, e2e? }` where each key is either a
+  per-kind config override (merged into `test.*`) or a
+  `(projectsMap) => void | Promise<void>` callback scoped to that kind.
+
+`coverageThresholds` and `coverageTargets` are top-level options on
+`AgentPluginConstructorOptions` — there is no `discovery` field.
 
 ## Conventions
 
@@ -92,6 +128,13 @@ src/
   `AgentReporterOptions`) in `vitest-agent-sdk`'s `schemas/Options.ts`,
   then thread it through `plugin.ts` -> `reporter.ts` ->
   `build-reporter-kit.ts` -> `ResolvedReporterConfig` as needed.
+  `coverageThresholds` and `coverageTargets` are top-level options on
+  `AgentPluginConstructorOptions`; there is no `discovery` field.
+- Changing project discovery: edit `utils/discover-projects.ts`.
+  `VitestProject` builders live in `utils/vitest-project.ts`. The
+  scanner accepts both `src/` (legacy) and `__test__/` (canonical)
+  test directories. Helper subdirs (`utils/`, `fixtures/`,
+  `snapshots/`) inside `__test__/` are excluded automatically.
 - Adding a new utility that only this package uses: put it in
   `utils/`. If the utility is needed by MCP or CLI too, it belongs
   in `vitest-agent-sdk/utils/` or `vitest-agent-sdk/lib/`.
@@ -120,3 +163,9 @@ src/
   Load when you need rationale (especially D34 plugin/reporter split,
   D7 per-call `Effect.runPromise`, D28 `ensureMigrated` globalThis
   cache, D10 failure signatures).
+- `.claude/design/vitest-agent/components/discover.md`
+  Load when working on `AgentPlugin.discover()`, `discoverProjects()`,
+  `VitestProject`, `DiscoveryOptions`, or the override system.
+- `.claude/design/vitest-agent/testing-strategy.md`
+  Load when writing tests for this package, including the `__test__/`
+  layout and helper subdirectory exclusion conventions.

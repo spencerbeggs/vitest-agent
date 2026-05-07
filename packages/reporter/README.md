@@ -37,7 +37,7 @@ tools.
 Install the package:
 
 ```bash
-npm install vitest-agent
+npm install vitest-agent-plugin
 ```
 
 Modern pnpm and npm auto-install the required peer dependencies
@@ -47,31 +47,34 @@ Modern pnpm and npm auto-install the required peer dependencies
 manager is configured to skip peers, install them explicitly:
 
 ```bash
-pnpm add -D vitest-agent vitest-agent-reporter vitest-agent-cli vitest-agent-mcp
+pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-cli vitest-agent-mcp
 ```
 
-Add `agentPlugin` to your Vitest config with coverage thresholds and
+Add `AgentPlugin` to your Vitest config with coverage thresholds and
 aspirational targets:
 
 ```typescript
-import { agentPlugin } from "vitest-agent";
+import { AgentPlugin } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
-  plugins: [
-    agentPlugin({
-      reporter: {
+export default async () => {
+  const projects = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [
+      AgentPlugin({
         coverageThresholds: { lines: 80, branches: 80 },
         coverageTargets: { lines: 95, branches: 90 },
+      }),
+    ],
+    test: {
+      projects,
+      pool: "forks",
+      coverage: {
+        provider: "v8",
       },
-    }),
-  ],
-  test: {
-    coverage: {
-      provider: "v8",
     },
-  },
-});
+  });
+};
 ```
 
 Install the Claude Code plugin for the full agent experience:
@@ -81,7 +84,7 @@ Install the Claude Code plugin for the full agent experience:
 /plugin marketplace add spencerbeggs/bot
 
 # Install the plugin for this project
-/plugin install vitest-agent-reporter@spencerbeggs-bot --scope project
+/plugin install vitest-agent@spencerbeggs-bot --scope project
 ```
 
 That's it. The plugin detects whether an agent, CI, or human is running
@@ -125,8 +128,8 @@ Coverage regressing over 3 runs
 - 1 new failure since last run
 - 1 persistent failure across 3 runs
 - Re-run: `pnpm vitest run src/utils.test.ts`
-- Run `pnpm vitest-agent-reporter coverage` for gap analysis
-- Run `pnpm vitest-agent-reporter trends` for coverage trajectory
+- Run `npx vitest-agent coverage` for gap analysis
+- Run `npx vitest-agent trends` for coverage trajectory
 ````
 
 When all tests pass and targets are met, output collapses to a single
@@ -171,7 +174,7 @@ plugin provides the full agent-native experience:
 /plugin marketplace add spencerbeggs/bot
 
 # Install the plugin for this project
-/plugin install vitest-agent-reporter@spencerbeggs-bot --scope project
+/plugin install vitest-agent@spencerbeggs-bot --scope project
 ```
 
 The plugin provides:
@@ -318,8 +321,8 @@ lifecycle), `vitest-agent-reporter` (named renderer factory implementations),
 and `vitest-agent-mcp` (the MCP server bin). The reporter, CLI and MCP
 packages are required peer dependencies of `vitest-agent`, auto-installed
 by pnpm and npm 7+. If your package manager skips peers, install them
-explicitly. The `vitest-agent-reporter` and `vitest-agent-mcp`
-bin names are unchanged.
+explicitly. The `vitest-agent-mcp` bin name is unchanged; the CLI
+bin was renamed from `vitest-agent-reporter` to `vitest-agent`.
 
 ### `AgentReporter.onInit` is now async
 

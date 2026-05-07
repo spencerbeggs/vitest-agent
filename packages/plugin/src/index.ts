@@ -25,6 +25,29 @@ export { AgentPlugin } from "./plugin.js";
 export type { AgentReporterConstructorOptions } from "./reporter.js";
 export { AgentReporter } from "./reporter.js";
 
+// --- Discovery ---
+
+export type {
+	DiscoveryOptions,
+	ProjectKindCallback,
+	ProjectKindConfig,
+	ProjectKindOverride,
+	ProjectsCallback,
+} from "./utils/discover-projects.js";
+export { discoverProjects } from "./utils/discover-projects.js";
+export type { VitestProjectKind, VitestProjectOptions } from "./utils/vitest-project.js";
+export { VitestProject } from "./utils/vitest-project.js";
+
+// --- Coverage level API (re-exported from SDK so users only need one import) ---
+
+export type { CoverageInput, CoverageLevelName } from "vitest-agent-sdk";
+export { CoverageLevel, resolveCoverageInput, validateCoverageConfig } from "vitest-agent-sdk";
+
+// Expose the AgentPlugin namespace statics as standalone named exports for convenience
+import { AgentPlugin as _AgentPlugin } from "./plugin.js";
+export const COVERAGE_LEVELS = _AgentPlugin.COVERAGE_LEVELS;
+export const COVERAGE_LEVELS_PER_FILE = _AgentPlugin.COVERAGE_LEVELS_PER_FILE;
+
 // --- Composition layer ---
 
 export { ReporterLive } from "./layers/ReporterLive.js";

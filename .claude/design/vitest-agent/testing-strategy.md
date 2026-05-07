@@ -3,12 +3,13 @@ status: current
 module: vitest-agent-reporter
 category: testing
 created: 2026-04-29
-updated: 2026-05-05
-last-synced: 2026-05-05
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 95
 related:
   - ./architecture.md
   - ./components.md
+  - ./components/discover.md
 dependencies: []
 ---
 
@@ -23,29 +24,18 @@ monorepo.
 
 ## Test Layout
 
-Tests are co-located with their sources under
-`packages/<name>/src/**/*.test.ts`. The root `vitest.config.ts`
-declares one named project per package plus `example-basic`, with
-explicit `include` globs per project.
+Tests live in flat `packages/<name>/__test__/` directories. The
+root `vitest.config.ts` uses `AgentPlugin.discover()` to auto-generate
+one Vitest project per package from the workspace layout; `__test__/`
+files are picked up alongside `src/**/*.test.ts` files by the scanner.
 
-| Project (vitest name) | Package | Tests |
-| --- | --- | --- |
-| `vitest-agent-sdk` | `packages/sdk/` | 621 |
-| `vitest-agent-plugin` | `packages/plugin/` | 107 |
-| `vitest-agent-cli` | `packages/cli/` | 65 |
-| `vitest-agent-mcp` | `packages/mcp/` | 146 |
-| `example-basic` | `examples/basic/` | 9 |
-| **Total** | | **948** |
-
-The MCP suite jumped from 84 to 146 in the resources/prompts
-work: 21 new tests cover `paths.ts` (path-traversal rejections),
-the per-scheme readers (`upstream-docs.test.ts`,
-`patterns.test.ts`), the index renderers (`indexes.test.ts`), the
-patterns inventory (`patterns-inventory.test.ts`), and one prompt
-factory test per prompt (`triage.test.ts`,
-`why-flaky.test.ts`, `regression-since-pass.test.ts`,
-`explain-failure.test.ts`, `tdd-resume.test.ts`,
-`wrapup.test.ts`).
+| Package | `__test__/` files |
+| --- | --- |
+| `packages/sdk/` | 58 |
+| `packages/plugin/` | 12 |
+| `packages/cli/` | 10 |
+| `packages/mcp/` | 17 |
+| **Total** | **97** |
 
 All four coverage metrics (statements, branches, functions, lines)
 are above 80%. The root `vitest.config.ts` `coverage.exclude` list
@@ -205,17 +195,12 @@ Integration tests verify behavior that unit tests can't reach:
 
 ---
 
-## Test File Discovery
+## Test Discovery
 
-Test discovery globs are scoped per Vitest project to keep
-unrelated tests from running. Each project's `include` pattern is
-roughly:
-
-```text
-packages/<name>/src/**/*.test.ts
-```
-
-`example-basic` uses `examples/basic/src/**/*.test.ts`.
+Project configuration is driven by `AgentPlugin.discover()`. For the full
+algorithm, file classification rules, override system, and glob construction,
+see [components/discover.md](./components/discover.md). The root
+`vitest.config.ts` uses the canonical async-export pattern documented there.
 
 Tests that need real SQLite databases use `:memory:` rather than
 disk-backed DBs to avoid concurrent-test isolation issues.

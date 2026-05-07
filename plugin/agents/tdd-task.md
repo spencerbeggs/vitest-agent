@@ -77,6 +77,7 @@ skills:
   - commit-cycle
   - revert-on-extended-red
   - decompose-goal-into-behaviors
+  - test-discovery
 color: purple
 context: fork
 model: sonnet

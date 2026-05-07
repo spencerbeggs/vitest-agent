@@ -194,7 +194,7 @@ turbo run build:dev build:prod --filter='./packages/mcp'
 ### Running a Specific Test
 
 ```bash
-pnpm vitest run packages/sdk/src/utils/resolve-data-path.test.ts
+pnpm vitest run packages/sdk/__test__/resolve-data-path.test.ts
 ```
 
 ## Code Quality and Hooks
@@ -250,7 +250,19 @@ release workflow. Releases happen in lockstep.
 - **Framework**: [Vitest](https://vitest.dev/) `^4.1.5` with v8
   coverage provider.
 - **Pool**: Uses `forks` (not threads) for broader compatibility.
-- **Config**: `vitest.config.ts` at the repo root uses plain
-  `defineConfig` from `vitest/config` with project-based filtering via
-  `--project`.
+- **Config**: `vitest.config.ts` at the repo root is an async function
+  that calls `AgentPlugin.discover()` to auto-detect projects, then
+  returns `defineConfig(...)`. Project-based filtering is still
+  available via `--project`.
+- **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
+  (flat directory). The `discoverProjects` scanner also recognises
+  tests co-located under `src/` for backward compatibility.
 - **CI**: `pnpm run ci:test` sets `CI=true` and enables coverage.
+
+**For detailed testing and discovery guidance:**
+
+- `.claude/design/vitest-agent/testing-strategy.md`
+  Load when writing tests, reviewing patterns, or understanding coverage targets.
+- `.claude/design/vitest-agent/components/discover.md`
+  Load when working on `AgentPlugin.discover()`, `discoverProjects()`,
+  `VitestProject`, or `DiscoveryOptions`.

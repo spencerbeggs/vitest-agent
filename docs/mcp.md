@@ -25,13 +25,13 @@ configuration needed:
 
 ```bash
 /plugin marketplace add spencerbeggs/bot
-/plugin install vitest-agent-reporter@spencerbeggs-bot --scope project
+/plugin install vitest-agent@spencerbeggs-bot --scope project
 ```
 
 The plugin declares the MCP server inline in
 `.claude-plugin/plugin.json` and ships a small loader at
 `bin/mcp-server.mjs` that resolves and launches the server from
-`vitest-agent-reporter` installed in your project's `node_modules`.
+`vitest-agent-plugin` installed in your project's `node_modules`.
 This means the package **must be installed as a project dependency**
 for the plugin's MCP server to start; the loader fails fast with
 explicit install instructions if it's missing.
@@ -39,7 +39,7 @@ explicit install instructions if it's missing.
 ### Manual
 
 The MCP server lives in its own package (`vitest-agent-mcp`),
-which auto-installs as a peer dependency of `vitest-agent-reporter` on
+which auto-installs as a peer dependency of `vitest-agent-plugin` on
 modern pnpm and npm. Start the server directly:
 
 ```bash
@@ -61,8 +61,8 @@ Or add it to your `.mcp.json` manually:
 
 The server reads the SQLite database from the same XDG-derived path the
 reporter writes to (default
-`$XDG_DATA_HOME/vitest-agent-reporter/<workspaceName>/data.db`,
-fallback `~/.local/share/vitest-agent-reporter/<workspaceName>/data.db`),
+`$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db`,
+fallback `~/.local/share/vitest-agent/<workspaceName>/data.db`),
 so a single test run populates data for the MCP tools, the CLI, and the
 reporter's own console output.
 

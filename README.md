@@ -163,7 +163,7 @@ The plugin works the same without this flag, but has better observability betwee
 
 ## Package documentation
 
-See [packages/reporter/README.md](packages/reporter/README.md) for the main user-facing documentation, including installation, configuration, MCP tools, and Claude Code plugin setup.
+See [packages/reporter/README.md](packages/reporter/README.md) for the main user-facing documentation, including installation, configuration, MCP tools, and Claude Code plugin setup. See [packages/plugin/README.md](packages/plugin/README.md) for `AgentPlugin.discover()`, coverage level presets, and `AgentPlugin.runScript()` reference.
 
 ## License
 
