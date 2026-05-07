@@ -1350,25 +1350,33 @@ describe("DataStoreLive", () => {
 			expect(result[0].goal).toBe("add login validation");
 		});
 
-		it("rejects duplicate (sessionId, runId) via the partial UNIQUE index when run_id is set", async () => {
-			const exit = await Effect.runPromiseExit(
-				Effect.provide(
-					Effect.gen(function* () {
-						const ds = yield* DataStore;
-						const sessionId = yield* ds.writeSession({
-							cc_session_id: "cc-tdd-2",
-							project: "demo",
-							cwd: "/tmp/demo",
-							agent_kind: "subagent",
-							started_at: "2026-04-29T00:00:00Z",
-						});
-						yield* ds.writeTddSession({ sessionId, goal: "g1", startedAt: "2026-04-29T00:00:01Z", runId: "run-abc" });
-						yield* ds.writeTddSession({ sessionId, goal: "g2", startedAt: "2026-04-29T00:00:02Z", runId: "run-abc" });
-					}),
-					TestLayer,
-				),
+		it("returns the existing id on duplicate (sessionId, runId) rather than failing", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sessionId = yield* ds.writeSession({
+						cc_session_id: "cc-tdd-2",
+						project: "demo",
+						cwd: "/tmp/demo",
+						agent_kind: "subagent",
+						started_at: "2026-04-29T00:00:00Z",
+					});
+					const id1 = yield* ds.writeTddSession({
+						sessionId,
+						goal: "g1",
+						startedAt: "2026-04-29T00:00:01Z",
+						runId: "run-abc",
+					});
+					const id2 = yield* ds.writeTddSession({
+						sessionId,
+						goal: "g2",
+						startedAt: "2026-04-29T00:00:02Z",
+						runId: "run-abc",
+					});
+					return { id1, id2 };
+				}),
 			);
-			expect(exit._tag).toBe("Failure");
+			expect(result.id1).toBe(result.id2);
 		});
 
 		it("opens an initial spike phase tied to the new tdd_session id", async () => {

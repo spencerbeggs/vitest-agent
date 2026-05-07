@@ -37,7 +37,7 @@ export const tddSessionStart = idempotentProcedure
 					return yield* Effect.fail(new Error("tdd_session_start: provide sessionId or ccSessionId"));
 				}
 
-				const runId = input.runId ?? randomUUID().slice(0, 8);
+				const runId = input.runId ?? randomUUID();
 
 				const id = yield* store.writeTddSession({
 					sessionId,

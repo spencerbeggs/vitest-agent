@@ -68,9 +68,11 @@ TDD goal CRUD (`tdd_goal_create`, `tdd_goal_get`, `tdd_goal_update`,
 
 `tdd_session_start` accepts an optional `runId` string; when provided,
 it is stored on the session and returned in `tdd_session_get` output as
-`run_id`. The idempotency cache is keyed on `run_id` when present,
-letting the same goal text be retried in the same session with a fresh
-run ID rather than replaying the old result.
+`run_id`. When `runId` is present the idempotency key includes both the
+session identifier and `runId` (e.g. `cc:<ccSessionId>:run:<runId>`),
+letting the same goal text be retried with a fresh `runId` to create a
+new session rather than replaying the old result. Callers that omit
+`runId` fall back to goal-text-based keying.
 
 `tdd_session_get` returns a markdown digest of a TDD session that
 includes the `run_id` field, a Goals and Behaviors section when goal

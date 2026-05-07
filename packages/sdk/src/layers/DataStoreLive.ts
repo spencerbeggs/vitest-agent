@@ -632,6 +632,18 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 						yield* Effect.logDebug("writeTddSession").pipe(
 							Effect.annotateLogs({ sessionId: input.sessionId, goal: input.goal }),
 						);
+						// If runId is present, guard against a second insert hitting the
+						// partial unique index when the idempotency cache missed but the
+						// session was already created (e.g. cache write failed silently).
+						if (input.runId !== undefined) {
+							const existing = yield* sql<{ id: number }>`
+							SELECT id FROM tdd_sessions
+							WHERE session_id = ${input.sessionId} AND run_id = ${input.runId}
+							LIMIT 1
+						`;
+							if (existing.length > 0) return existing[0].id;
+						}
+
 						const rows = yield* sql<{ id: number }>`
 							INSERT INTO tdd_sessions (session_id, goal, started_at, parent_tdd_session_id, run_id)
 							VALUES (
