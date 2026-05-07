@@ -191,7 +191,7 @@ The non-obvious pieces:
   `tool_invocations`. Claude Code sends tool names in the form
   `mcp__<server>__<name>`; only the bare `<name>` suffix is stored (e.g.
   `note_create` rather than `mcp__plugin_vitest-agent_mcp__note_create`).
-  Any name that does not contain `__` is stored as-is.
+  Any name that does not start with `mcp__` is stored as-is.
 - **Tool-pair caveat.** `tool_invocations` rows derive from `tool_result`
   turns, **not** from `tool_call` turns. Consumers needing strict
   request/response pairing must join through `payload.tool_use_id`.

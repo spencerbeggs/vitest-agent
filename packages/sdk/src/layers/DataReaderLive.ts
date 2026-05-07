@@ -1488,7 +1488,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				`;
 
 				// Metric 2: compliance-hook responsiveness — sessions that
-				// fired SessionEnd or PreCompact and produced a follow-up
+				// fired SessionEnd, PreCompact, or Stop and produced a follow-up
 				// note/hypothesis/tdd_session_end tool call.
 				const m2 = yield* sql<{ total: number; with_followup: number }>`
 					WITH wrap_up_fires AS (
