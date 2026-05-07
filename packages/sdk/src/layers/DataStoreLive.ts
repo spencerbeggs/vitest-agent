@@ -659,13 +659,20 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 						} else {
 							// INSERT was ignored — only reachable when runId is provided and
 							// a concurrent writer already committed the same (session_id, run_id).
-							const existing = yield* sql<{ id: number }>`
-								SELECT id FROM tdd_sessions
+							const existing = yield* sql<{ id: number; goal: string }>`
+								SELECT id, goal FROM tdd_sessions
 								WHERE session_id = ${input.sessionId} AND run_id = ${input.runId}
 								LIMIT 1
 							`;
 							if (existing.length === 0) {
 								return yield* Effect.fail(new Error("writeTddSession: INSERT was ignored but no existing row found"));
+							}
+							if (existing[0].goal !== input.goal) {
+								return yield* Effect.fail(
+									new Error(
+										`writeTddSession: runId conflict — existing session has goal "${existing[0].goal}", caller provided "${input.goal}"`,
+									),
+								);
 							}
 							tddSessionId = existing[0].id;
 							isNewSession = false;

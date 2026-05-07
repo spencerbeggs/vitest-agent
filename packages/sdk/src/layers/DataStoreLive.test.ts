@@ -1384,7 +1384,7 @@ describe("DataStoreLive", () => {
 			expect(result[0].goal).toBe("add login validation");
 		});
 
-		it("returns the existing id on duplicate (sessionId, runId) rather than failing", async () => {
+		it("returns the existing id on duplicate (sessionId, runId) with the same goal", async () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
@@ -1403,7 +1403,7 @@ describe("DataStoreLive", () => {
 					});
 					const id2 = yield* ds.writeTddSession({
 						sessionId,
-						goal: "g2",
+						goal: "g1",
 						startedAt: "2026-04-29T00:00:02Z",
 						runId: "run-abc",
 					});
@@ -1411,6 +1411,37 @@ describe("DataStoreLive", () => {
 				}),
 			);
 			expect(result.id1).toBe(result.id2);
+		});
+
+		it("fails when the same runId is reused with a different goal", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sessionId = yield* ds.writeSession({
+						cc_session_id: "cc-tdd-runid-conflict",
+						project: "demo",
+						cwd: "/tmp/demo",
+						agent_kind: "subagent",
+						started_at: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.writeTddSession({
+						sessionId,
+						goal: "original goal",
+						startedAt: "2026-04-29T00:00:01Z",
+						runId: "run-conflict",
+					});
+					return yield* ds.writeTddSession({
+						sessionId,
+						goal: "different goal",
+						startedAt: "2026-04-29T00:00:02Z",
+						runId: "run-conflict",
+					});
+				}).pipe(Effect.either),
+			);
+			expect(result._tag).toBe("Left");
+			if (result._tag === "Left") {
+				expect(result.left.message).toMatch(/runId conflict/);
+			}
 		});
 
 		it("opens an initial spike phase tied to the new tdd_session id", async () => {
