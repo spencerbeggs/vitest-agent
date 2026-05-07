@@ -37,6 +37,9 @@ export const tddSessionStart = idempotentProcedure
 					return yield* Effect.fail(new Error("tdd_session_start: provide sessionId or ccSessionId"));
 				}
 
+				if (input.runId !== undefined && input.runId.trim().length === 0) {
+					return yield* Effect.fail(new Error("tdd_session_start: runId must not be blank"));
+				}
 				const runId = input.runId ?? randomUUID();
 
 				const id = yield* store.writeTddSession({

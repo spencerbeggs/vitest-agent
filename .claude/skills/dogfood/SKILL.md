@@ -134,7 +134,7 @@ If any check fails, append findings to `docs/superpowers/dogfood/lifecycle-check
 Before spawning, complete the standard pre-dispatch setup (mirrors the `tdd` skill):
 
 1. Call `session_list({ agentKind: "main", limit: 1 })` — capture the `cc_session_id` field from the first row as `ccSessionId`. Do **not** use `get_current_session_id()` — that in-memory ref can be stale after a prior subagent overwrote it.
-2. Generate a `runId`: `Date.now().toString(36)`.
+2. Generate a `runId`: `` `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` ``.
 3. Call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
 4. Initialize: `goalById = new Map()`, `behaviorById = new Map()`.
 
