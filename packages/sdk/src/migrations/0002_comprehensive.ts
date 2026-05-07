@@ -199,7 +199,8 @@ const migration = Effect.gen(function* () {
 			timeout INTEGER,
 			skip_note TEXT,
 			location_line INTEGER,
-			location_column INTEGER
+			location_column INTEGER,
+			created_turn_id INTEGER REFERENCES turns(id) ON DELETE SET NULL
 		)
 	`;
 	yield* sql`CREATE INDEX idx_test_cases_module ON test_cases(module_id)`;
@@ -207,6 +208,7 @@ const migration = Effect.gen(function* () {
 	yield* sql`CREATE INDEX idx_test_cases_full_name ON test_cases(full_name)`;
 	yield* sql`CREATE INDEX idx_test_cases_state ON test_cases(state)`;
 	yield* sql`CREATE INDEX idx_test_cases_module_state ON test_cases(module_id, state)`;
+	yield* sql`CREATE INDEX idx_test_cases_created_turn ON test_cases(created_turn_id)`;
 
 	// 9. test_errors
 	yield* sql`
@@ -646,17 +648,18 @@ const migration = Effect.gen(function* () {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 			goal TEXT NOT NULL,
+			run_id TEXT,
 			started_at TEXT NOT NULL,
 			ended_at TEXT,
 			outcome TEXT CHECK (outcome IS NULL OR outcome IN (
 				'succeeded', 'blocked', 'abandoned'
 			)),
 			parent_tdd_session_id INTEGER REFERENCES tdd_sessions(id) ON DELETE SET NULL,
-			summary_note_id INTEGER REFERENCES notes(id) ON DELETE SET NULL,
-			UNIQUE (session_id, goal)
+			summary_note_id INTEGER REFERENCES notes(id) ON DELETE SET NULL
 		)
 	`;
 	yield* sql`CREATE INDEX idx_tdd_sessions_session ON tdd_sessions(session_id, ended_at)`;
+	yield* sql`CREATE UNIQUE INDEX idx_tdd_sessions_session_run ON tdd_sessions(session_id, run_id) WHERE run_id IS NOT NULL`;
 
 	// 36. tdd_session_goals
 	yield* sql`
@@ -751,9 +754,11 @@ const migration = Effect.gen(function* () {
 			signature_hash TEXT PRIMARY KEY,
 			first_seen_run_id INTEGER REFERENCES test_runs(id) ON DELETE SET NULL,
 			first_seen_at TEXT NOT NULL,
+			last_seen_at TEXT,
 			occurrence_count INTEGER NOT NULL DEFAULT 1
 		)
 	`;
+	yield* sql`CREATE INDEX idx_failure_signatures_last_seen ON failure_signatures(last_seen_at DESC)`;
 
 	// Augment test_errors with signature_hash
 	yield* sql`ALTER TABLE test_errors ADD COLUMN signature_hash TEXT REFERENCES failure_signatures(signature_hash) ON DELETE SET NULL`;
@@ -786,7 +791,19 @@ const migration = Effect.gen(function* () {
 	`;
 	yield* sql`CREATE INDEX idx_hook_executions_run ON hook_executions(run_id)`;
 
-	// 41. notes_fts (FTS5 virtual table with corrected trigger pattern).
+	// 41. mcp_idempotent_responses
+	yield* sql`
+		CREATE TABLE mcp_idempotent_responses (
+			procedure_path TEXT NOT NULL,
+			key TEXT NOT NULL,
+			result_json TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			PRIMARY KEY (procedure_path, key)
+		)
+	`;
+	yield* sql`CREATE INDEX idx_mcp_idempotent_responses_path ON mcp_idempotent_responses(procedure_path, created_at DESC)`;
+
+	// 42. notes_fts (FTS5 virtual table with corrected trigger pattern).
 	// Indexes both title and content so searchNotes can match either. The 1.x
 	// schema also indexed both; dropping title here would silently break
 	// title-based search.

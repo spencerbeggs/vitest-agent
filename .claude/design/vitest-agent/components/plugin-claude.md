@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 90
 related:
   - ../architecture.md
@@ -126,7 +126,11 @@ categories:
 - **Recording hooks.** Capture session, prompt, tool-call, file-edit, and
   hook-fire turns into the SQLite database via `vitest-agent record`. These
   drive session analytics and the wrap-up nudges. They run on every event,
-  unscoped — every turn in every session is captured.
+  unscoped — every turn in every session is captured. `session-end-record.sh`
+  additionally records a `hook_fire` turn (kind `SessionEnd`) **before** the
+  session-end write so that `computeAcceptanceMetrics` metric 2 counts the
+  event regardless of whether the wrap-up note was produced; hook errors are
+  logged to `hook_error` rather than silently swallowed.
 - **Context-injection hooks.** Run on `SessionStart`, `UserPromptSubmit`,
   `Stop`, `SessionEnd`, and `PreCompact`, calling the `triage` and `wrapup`
   CLIs and emitting their output back to Claude Code as session context or
@@ -263,9 +267,14 @@ state.
 calls `session_list({ agentKind: "main", limit: 1 })` to capture the
 `cc_session_id` from the DB row — not `get_current_session_id()`, which can
 hold a stale in-memory reference if a prior subagent called
-`set_current_session_id` with its own key. The agent then calls `TaskCreate` to
-create the parent `TDD Session: <objective>` task and initializes the
-`goalById` and `behaviorById` state maps before spawning.
+`set_current_session_id` with its own key. The agent generates a fresh
+`runId` (`Date.now().toString(36)`) for each dispatch and passes both
+`ccSessionId` and `runId` to the orchestrator in the launch prompt. The
+`runId` is forwarded to `tdd_session_start` where it becomes the idempotency
+key (so retry dispatches with new `runId` values are not collapsed to the
+cached session). The agent then calls `TaskCreate` to create the parent
+`TDD Session: <objective>` task and initializes the `goalById` and
+`behaviorById` state maps before spawning.
 
 **Channel-event flow.** When the orchestrator hits a lifecycle transition
 (goal/behavior created, started, phase changed, completed, abandoned, blocked,

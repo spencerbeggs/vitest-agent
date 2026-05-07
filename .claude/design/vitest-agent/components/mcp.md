@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 90
 related:
   - ../architecture.md
@@ -160,6 +160,21 @@ registered. The phase-transition tool, every `*_update`/`*_delete`/
 registered — see [../decisions.md](../decisions.md). State-dependent
 reads, intentional state transitions, and destructive ops are not
 idempotent in the cache-replay sense.
+
+**`tdd_session_start` idempotency key.** The key is derived from
+`runId` when present: `sid:<sessionId>:run:<runId>` or
+`cc:<ccSessionId>:run:<runId>`. When `runId` is absent (legacy callers),
+the key falls back to goal text: `sid:<sessionId>:<goal>` or
+`cc:<ccSessionId>:<goal>`. The `runId`-based keying lets the same goal
+be retried within the same CC session (the main agent generates a fresh
+`runId` at each dispatch) without triggering the cache replay.
+
+**`tdd_session_start` accepts `runId`.** The tool's optional `runId`
+input is forwarded to `DataStore.writeTddSession`. If omitted, the tool
+generates a short UUID prefix (`randomUUID().slice(0, 8)`) and stores it
+in `tdd_sessions.run_id`. The `run_id` is returned in the tool's output
+so the main agent can pass it through the launch prompt to the
+orchestrator subagent.
 
 ## Channel-event resolution
 

@@ -513,12 +513,17 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 									)
 								`;
 							} else {
-								// tool_result
+								// tool_result — normalize MCP-prefixed names to short names
+								// (CC sends "mcp__<server>__<name>"; store just "<name>")
+								const rawToolName = payload.tool_name as string;
+								const toolName = rawToolName.includes("__")
+									? (rawToolName.split("__").at(-1) ?? rawToolName)
+									: rawToolName;
 								yield* sql`
 									INSERT INTO tool_invocations (turn_id, tool_name, params_hash, result_summary, duration_ms, success)
 									VALUES (
 										${turnId},
-										${payload.tool_name as string},
+										${toolName},
 										${null},
 										${(payload.result_summary as string | undefined) ?? null},
 										${(payload.duration_ms as number | undefined) ?? null},
@@ -628,12 +633,13 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 							Effect.annotateLogs({ sessionId: input.sessionId, goal: input.goal }),
 						);
 						const rows = yield* sql<{ id: number }>`
-							INSERT INTO tdd_sessions (session_id, goal, started_at, parent_tdd_session_id)
+							INSERT INTO tdd_sessions (session_id, goal, started_at, parent_tdd_session_id, run_id)
 							VALUES (
 								${input.sessionId},
 								${input.goal},
 								${input.startedAt},
-								${input.parentTddSessionId ?? null}
+								${input.parentTddSessionId ?? null},
+								${input.runId ?? null}
 							)
 							RETURNING id
 						`;

@@ -1,4 +1,4 @@
-# Contributing to vitest-agent-reporter
+# Contributing to vitest-agent
 
 Thank you for your interest in contributing! This document provides guidelines
 and instructions for development.
@@ -13,8 +13,8 @@ and instructions for development.
 
 ```bash
 # Clone the repository
-git clone https://github.com/spencerbeggs/vitest-agent-reporter.git
-cd vitest-agent-reporter
+git clone https://github.com/spencerbeggs/vitest-agent.git
+cd vitest-agent
 
 # Install dependencies
 pnpm install
@@ -28,27 +28,30 @@ pnpm run test
 
 ## Project Structure
 
-This is a pnpm monorepo. As of 2.0 the publishable code is split into
-four packages under `packages/`, with example workspaces under
-`examples/` and a Claude Code plugin under `plugin/`.
+This is a pnpm monorepo with five publishable packages under `packages/`
+and a Claude Code plugin under `plugin/`.
 
 ```text
-vitest-agent-reporter/
+vitest-agent/
 ├── packages/
-│   ├── reporter/               # vitest-agent-reporter (Vitest plugin + reporter)
+│   ├── plugin/                 # vitest-agent (Vitest plugin + lifecycle)
 │   │   └── src/
-│   │       ├── index.ts            # Public API (re-exports from shared)
+│   │       ├── index.ts            # Public API (AgentPlugin, AgentReporter)
 │   │       ├── reporter.ts         # AgentReporter class
 │   │       ├── plugin.ts           # AgentPlugin function
-│   │       └── layers/             # Reporter-specific Effect layers
-│   ├── shared/                 # vitest-agent-sdk (data layer + services)
+│   │       └── layers/             # ReporterLive, CoverageAnalyzerLive
+│   ├── reporter/               # vitest-agent-reporter (named renderer factories)
+│   │   └── src/
+│   │       ├── index.ts            # Re-exports for named factories
+│   │       └── *.ts                # defaultReporter, markdownReporter, etc.
+│   ├── sdk/                    # vitest-agent-sdk (data layer + services)
 │   │   └── src/
 │   │       ├── schemas/            # Effect Schema definitions
 │   │       ├── services/           # Effect Context.Tag definitions
 │   │       ├── layers/             # Live + test layer implementations
 │   │       ├── errors/             # Tagged error types
 │   │       ├── formatters/         # markdown, gfm, json, silent
-│   │       ├── migrations/         # SQLite migrations
+│   │       ├── migrations/         # SQLite migrations (0001_initial, 0002_comprehensive)
 │   │       ├── sql/                # Row types + assemblers
 │   │       └── utils/              # Pure utilities
 │   ├── cli/                    # vitest-agent-cli (CLI bin)
@@ -58,28 +61,27 @@ vitest-agent-reporter/
 │   │       └── lib/                # Testable formatting logic
 │   └── mcp/                    # vitest-agent-mcp (MCP server bin)
 │       └── src/
-│           ├── index.ts            # MCP stdio entry point
 │           ├── server.ts           # @modelcontextprotocol/sdk server
-│           ├── router.ts           # tRPC router
+│           ├── router.ts           # tRPC router (53 tools)
 │           ├── context.ts          # ManagedRuntime context
-│           └── tools/              # 24 MCP tool implementations
+│           └── tools/              # MCP tool implementations
 ├── plugin/                     # Claude Code plugin (NOT a pnpm workspace)
 │   ├── .claude-plugin/plugin.json  # Manifest with inline mcpServers
-│   ├── bin/mcp-server.mjs          # PM-detect + spawn loader
-│   ├── hooks/                      # SessionStart, PreToolUse, PostToolUse
+│   ├── bin/start-mcp.sh            # PM-detect + exec loader (POSIX shell)
+│   ├── hooks/                      # SessionStart, PreToolUse, PostToolUse, etc.
 │   ├── skills/                     # tdd, debugging, configuration, coverage-improvement
-│   └── commands/                   # setup, configure
-├── examples/                   # Example workspaces
+│   └── commands/                   # setup, configure, tdd
+├── playground/                 # Dogfooding sandbox (intentional defects)
 ├── docs/                       # User-facing documentation
 ├── lib/configs/                # Shared tool configuration
 ├── pnpm-workspace.yaml         # Workspace definitions
 └── .claude/design/             # Architecture design documents
 ```
 
-`vitest-agent-sdk` is the dependency hub — `reporter`,
-`cli`, and `mcp` all import from it. The `reporter` package declares
-`cli` and `mcp` as required peer dependencies so they auto-install
-together for end users.
+`vitest-agent-sdk` is the dependency hub — `plugin`, `reporter`,
+`cli`, and `mcp` all import from it. The `vitest-agent` plugin package
+declares the other four as required peer dependencies so they
+auto-install together for end users.
 
 ## Architecture Patterns
 
@@ -88,14 +90,14 @@ together for end users.
 The project uses [Effect](https://effect.website/) for dependency injection
 and service composition. Key patterns:
 
-- **Services** (`packages/shared/src/services/`) define interfaces via
+- **Services** (`packages/sdk/src/services/`) define interfaces via
   `Context.Tag`
-- **Live layers** (`packages/shared/src/layers/*Live.ts`) provide
+- **Live layers** (`packages/sdk/src/layers/*Live.ts`) provide
   production implementations using `@effect/platform` for file I/O and
   `@effect/sql-sqlite-node` for the database
-- **Test layers** (`packages/shared/src/layers/*Test.ts`) provide mock
+- **Test layers** (`packages/sdk/src/layers/*Test.ts`) provide mock
   implementations with state containers for assertions
-- **Schemas** (`packages/shared/src/schemas/`) use Effect Schema (not
+- **Schemas** (`packages/sdk/src/schemas/`) use Effect Schema (not
   Zod) for data validation and serialization. Zod is used only inside
   `packages/mcp/` for tRPC procedure input schemas
 
@@ -108,11 +110,9 @@ managed runtime lifecycle concerns.
 
 ### Pure Functions
 
-Formatters (`packages/shared/src/formatters/`) and small utilities
-(`packages/shared/src/utils/compress-lines.ts`,
-`packages/shared/src/utils/safe-filename.ts`, etc.) are plain
-functions, not Effect services. They are trivially testable without
-layers.
+Formatters (`packages/sdk/src/formatters/`) and small utilities
+(`packages/sdk/src/utils/`) are plain functions, not Effect services.
+They are trivially testable without layers.
 
 ## Available Scripts
 
@@ -172,7 +172,7 @@ pnpm run test:watch
 pnpm run test:coverage
 
 # Run a specific test file
-pnpm vitest run packages/shared/src/utils/compress-lines.test.ts
+pnpm vitest run packages/sdk/src/utils/resolve-data-path.test.ts
 ```
 
 ### Testing Effect Services
@@ -221,7 +221,7 @@ as pure functions.
 
 ```typescript
 // Use .js extensions for relative imports (ESM requirement)
-import { compressLines } from "./utils/compress-lines.js";
+import { resolveDataPath } from "./utils/resolve-data-path.js";
 
 // Use node: protocol for Node.js built-ins
 import { mkdir } from "node:fs/promises";

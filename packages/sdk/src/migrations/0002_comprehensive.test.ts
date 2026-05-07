@@ -310,18 +310,34 @@ describe("0002_comprehensive migration", () => {
 		);
 	});
 
-	it("creates tdd_sessions with UNIQUE (session_id, goal)", async () => {
+	it("creates tdd_sessions with UNIQUE (session_id, run_id) when run_id is not null", async () => {
 		await expect(
 			run(
 				Effect.gen(function* () {
 					const sql = yield* SqlClient;
 					yield* sql`INSERT INTO sessions (cc_session_id, project, cwd, agent_kind, started_at) VALUES ('cc-tdd', 'p', '/tmp/p', 'main', '2026-04-29T00:00:00Z')`;
 					const sid = (yield* sql<{ id: number }>`SELECT id FROM sessions WHERE cc_session_id = 'cc-tdd'`)[0].id;
-					yield* sql`INSERT INTO tdd_sessions (session_id, goal, started_at) VALUES (${sid}, 'add login', '2026-04-29T00:00:00Z')`;
-					yield* sql`INSERT INTO tdd_sessions (session_id, goal, started_at) VALUES (${sid}, 'add login', '2026-04-29T00:00:00Z')`;
+					yield* sql`INSERT INTO tdd_sessions (session_id, goal, run_id, started_at) VALUES (${sid}, 'add login', 'run-abc', '2026-04-29T00:00:00Z')`;
+					yield* sql`INSERT INTO tdd_sessions (session_id, goal, run_id, started_at) VALUES (${sid}, 'add login v2', 'run-abc', '2026-04-29T00:00:01Z')`;
 				}),
 			),
 		).rejects.toThrow();
+	});
+
+	it("allows multiple tdd_sessions with same (session_id, goal) when run_ids differ", async () => {
+		await expect(
+			run(
+				Effect.gen(function* () {
+					const sql = yield* SqlClient;
+					yield* sql`INSERT INTO sessions (cc_session_id, project, cwd, agent_kind, started_at) VALUES ('cc-tdd-multi', 'p', '/tmp/p', 'main', '2026-04-29T00:00:00Z')`;
+					const sid = (yield* sql<{
+						id: number;
+					}>`SELECT id FROM sessions WHERE cc_session_id = 'cc-tdd-multi'`)[0].id;
+					yield* sql`INSERT INTO tdd_sessions (session_id, goal, run_id, started_at) VALUES (${sid}, 'add login', 'run-1', '2026-04-29T00:00:00Z')`;
+					yield* sql`INSERT INTO tdd_sessions (session_id, goal, run_id, started_at) VALUES (${sid}, 'add login', 'run-2', '2026-04-29T00:00:01Z')`;
+				}),
+			),
+		).resolves.not.toThrow();
 	});
 
 	it("creates tdd_session_goals with UNIQUE (session_id, ordinal)", async () => {

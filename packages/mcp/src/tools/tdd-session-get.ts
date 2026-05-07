@@ -15,6 +15,7 @@ export const tddSessionGet = publicProcedure
 					`# TDD Session ${s.id}`,
 					"",
 					`- goal: ${s.goal}`,
+					`- run_id: ${s.runId ?? "(none — pre-2.1 session)"}`,
 					`- session_id: ${s.sessionId}`,
 					`- started: ${s.startedAt}`,
 					`- ended: ${s.endedAt ?? "still open"}`,

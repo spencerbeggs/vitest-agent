@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 100
 related:
   - ./architecture.md
@@ -1117,8 +1117,12 @@ hook + permission-prompt layer (Decision D13), not via cache replay.
 
 **Why the registered mutations get cached:**
 
-- `tdd_session_start` (key: `${sessionId}:${goal}`) — opening the same
-  session twice is a no-op
+- `tdd_session_start` — key is `sid:<sessionId>:run:<runId>` (or
+  `cc:<ccSessionId>:run:<runId>`) when `runId` is present; falls back to
+  `sid:<sessionId>:<goal>` (or `cc:<ccSessionId>:<goal>`) for legacy
+  callers that omit `runId`. The `runId`-based key lets the main agent
+  retry a dispatch with a fresh `runId` without hitting the cache — opening
+  the same session with the same `runId` twice is the no-op.
 - `tdd_session_end` (key: `${tddSessionId}:${outcome}`) — closing the
   same session twice is a no-op
 - `tdd_goal_create` (key: `${sessionId}:${goal}`) — creating the same

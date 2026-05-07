@@ -550,13 +550,19 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 	server.registerTool(
 		"tdd_session_start",
 		{
-			description: "Open a new TDD session for a goal. Idempotent on (sessionId, goal).",
+			description:
+				"Open a new TDD session for a goal. Idempotent on (sessionId, runId) when runId is provided; falls back to (sessionId, goal) for legacy callers.",
 			inputSchema: {
 				goal: z.string().describe("The behavior or feature being implemented"),
 				sessionId: z.optional(z.coerce.number()).describe("sessions.id (integer); omit to use ccSessionId"),
 				ccSessionId: z.optional(z.string()).describe("Claude Code session id (alternative to sessionId)"),
 				parentTddSessionId: z.optional(z.coerce.number()).describe("Parent TDD session id when decomposing"),
 				startedAt: z.optional(z.string()).describe("ISO 8601 timestamp; defaults to now"),
+				runId: z
+					.optional(z.string())
+					.describe(
+						"Unique dispatch id; auto-generated (UUID slice) if omitted. Pass the value from the main agent's launch prompt.",
+					),
 			},
 		},
 		async (args) =>
@@ -567,6 +573,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 					ccSessionId: args.ccSessionId,
 					parentTddSessionId: args.parentTddSessionId,
 					startedAt: args.startedAt,
+					runId: args.runId,
 				}),
 			),
 	);

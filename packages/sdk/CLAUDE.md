@@ -36,10 +36,10 @@ src/
                          0002_comprehensive.ts (drop-and-recreate -- 41 tables
                          + corrected notes_fts triggers; the LAST
                          drop-and-recreate per Decision D9; modified
-                         in-place for 2.0 to add goal/behavior hierarchy),
-                         0003_idempotent_responses.ts (additive +1 table),
-                         0004_test_cases_created_turn_id.ts (additive ALTER),
-                         0005_failure_signatures_last_seen_at.ts (additive ALTER)
+                         in-place to fold all 2.0 additive changes including
+                         goal/behavior hierarchy, idempotent responses table,
+                         test_cases/failure_signatures ALTERs, and
+                         tdd_sessions.run_id)
   sql/                -- rows.ts (row types), assemblers.ts (DB -> domain)
   utils/              -- pure utilities: resolve-data-path,
                          resolve-workspace-key, normalize-workspace-key,
@@ -61,7 +61,7 @@ src/
 | `services/DataStore.ts` + `layers/DataStoreLive.ts` | All SQLite writes. Defines all write-input types plus `backfillTestCaseTurns(ccSessionId)` and the 2.0 goal/behavior CRUD methods |
 | `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, and the 2.0 goal/behavior read methods |
 | `utils/resolve-data-path.ts` | Deterministic XDG-derived `dbPath` orchestrator (Decision 31) |
-| `utils/ensure-migrated.ts` | Process-level migration coordinator using a `globalThis`-keyed promise cache (Decision 28). Registers all 5 migrations |
+| `utils/ensure-migrated.ts` | Process-level migration coordinator using a `globalThis`-keyed promise cache (Decision 28). Registers 0001 and 0002 only |
 | `layers/PathResolutionLive.ts` | Composite: `XdgLive` + `ConfigLive` + `WorkspacesLive` |
 | `migrations/0002_comprehensive.ts` | Drop-and-recreate migration. 41 tables + `notes_fts`. Per Decision D9, this is the **last** drop-and-recreate; future migrations are ALTER-only |
 | `utils/function-boundary.ts` | `findFunctionBoundary(source, line)` parses via `acorn` (extended with `acorn-typescript`) and returns the smallest enclosing function's start line + name |

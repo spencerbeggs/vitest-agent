@@ -70,11 +70,21 @@ export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 		// is here to prevent. We key on whichever id is present, prefixed
 		// with its kind so a hypothetical `cc-X` cc-id can't collide with
 		// integer id `X`.
+		//
+		// When `runId` is present (new-style dispatch), key on the run id
+		// instead of the goal text. This lets the same goal be retried in
+		// the same CC session by generating a new runId at dispatch time.
+		// Backward compat: callers that omit runId fall back to goal-based
+		// keying so existing tests and old-style tool calls still work.
 		procedurePath: "tdd_session_start",
 		deriveKey: (input) => {
 			if (input === null || typeof input !== "object" || !("goal" in input)) return null;
 			const i = input as Record<string, unknown>;
 			if (typeof i.goal !== "string") return null;
+			if (typeof i.runId === "string") {
+				if (typeof i.sessionId === "number") return `sid:${i.sessionId}:run:${i.runId}`;
+				if (typeof i.ccSessionId === "string") return `cc:${i.ccSessionId}:run:${i.runId}`;
+			}
 			if (typeof i.sessionId === "number") return `sid:${i.sessionId}:${i.goal}`;
 			if (typeof i.ccSessionId === "string") return `cc:${i.ccSessionId}:${i.goal}`;
 			return null;

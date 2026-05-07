@@ -5,15 +5,7 @@ import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import type { DataReader, DataStore } from "vitest-agent-sdk";
-import {
-	DataReaderLive,
-	DataStoreLive,
-	migration0001,
-	migration0002,
-	migration0003,
-	migration0004,
-	migration0005,
-} from "vitest-agent-sdk";
+import { DataReaderLive, DataStoreLive, migration0001, migration0002 } from "vitest-agent-sdk";
 import { recordSessionStart } from "./record-session.js";
 import { parseAndValidateTurnPayload, recordTurnEffect } from "./record-turn.js";
 
@@ -25,9 +17,6 @@ const buildLive = () => {
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
 			"0002_comprehensive": migration0002,
-			"0003_idempotent_responses": migration0003,
-			"0004_test_cases_created_turn_id": migration0004,
-			"0005_failure_signatures_last_seen_at": migration0005,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 	return Layer.mergeAll(

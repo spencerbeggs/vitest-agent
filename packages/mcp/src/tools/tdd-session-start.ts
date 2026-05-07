@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Effect, Option, Schema } from "effect";
 import { DataReader, DataStore } from "vitest-agent-sdk";
 import { idempotentProcedure } from "../middleware/idempotency.js";
@@ -11,6 +12,7 @@ export const tddSessionStart = idempotentProcedure
 				ccSessionId: Schema.optional(Schema.String),
 				parentTddSessionId: Schema.optional(Schema.Number),
 				startedAt: Schema.optional(Schema.String),
+				runId: Schema.optional(Schema.String),
 			}),
 		),
 	)
@@ -35,14 +37,17 @@ export const tddSessionStart = idempotentProcedure
 					return yield* Effect.fail(new Error("tdd_session_start: provide sessionId or ccSessionId"));
 				}
 
+				const runId = input.runId ?? randomUUID().slice(0, 8);
+
 				const id = yield* store.writeTddSession({
 					sessionId,
 					goal: input.goal,
 					startedAt: input.startedAt ?? new Date().toISOString(),
+					runId,
 					...(input.parentTddSessionId !== undefined && { parentTddSessionId: input.parentTddSessionId }),
 				});
 
-				return { id, sessionId, goal: input.goal };
+				return { id, sessionId, goal: input.goal, runId };
 			}),
 		);
 	});

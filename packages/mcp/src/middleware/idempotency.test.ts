@@ -58,6 +58,18 @@ describe("idempotency key derivation", () => {
 			expect(deriveKey({ sessionId: 7, goal: "g" })).not.toBe(deriveKey({ ccSessionId: "7", goal: "g" }));
 		});
 
+		it("keys on runId when present, ignoring goal text", () => {
+			expect(deriveKey({ ccSessionId: "cc-abc", goal: "add foo", runId: "abc123" })).toBe("cc:cc-abc:run:abc123");
+		});
+
+		it("keys on sessionId+runId when sessionId is present with runId", () => {
+			expect(deriveKey({ sessionId: 7, goal: "g", runId: "xyz" })).toBe("sid:7:run:xyz");
+		});
+
+		it("falls back to goal-based key when runId is absent (backward compat)", () => {
+			expect(deriveKey({ ccSessionId: "cc-abc", goal: "add foo" })).toBe("cc:cc-abc:add foo");
+		});
+
 		it("returns null for malformed input", () => {
 			expect(deriveKey(null)).toBeNull();
 			expect(deriveKey({ goal: "x" })).toBeNull();

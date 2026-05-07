@@ -192,6 +192,7 @@ export interface TddSessionDetail {
 	readonly startedAt: string;
 	readonly endedAt: string | null;
 	readonly outcome: string | null;
+	readonly runId: string | null;
 	readonly goals: ReadonlyArray<GoalDetail>;
 	readonly phases: ReadonlyArray<TddPhaseDetail>;
 	readonly artifacts: ReadonlyArray<TddArtifactDetail>;

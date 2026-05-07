@@ -6,8 +6,6 @@ import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import migration0001 from "../migrations/0001_initial.js";
 import migration0002 from "../migrations/0002_comprehensive.js";
-import migration0004 from "../migrations/0004_test_cases_created_turn_id.js";
-import migration0005 from "../migrations/0005_failure_signatures_last_seen_at.js";
 import { DataStore } from "../services/DataStore.js";
 import { DataStoreLive } from "./DataStoreLive.js";
 
@@ -18,8 +16,6 @@ const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
 		"0001_initial": migration0001,
 		"0002_comprehensive": migration0002,
-		"0004_test_cases_created_turn_id": migration0004,
-		"0005_failure_signatures_last_seen_at": migration0005,
 	}),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
@@ -1088,6 +1084,40 @@ describe("DataStoreLive", () => {
 				expect(result[0].success).toBe(1);
 			});
 
+			it("strips MCP prefix from tool_name in tool_invocations", async () => {
+				const result = await run(
+					Effect.gen(function* () {
+						const ds = yield* DataStore;
+						const sql = yield* SqlClient;
+
+						const sessionId = yield* ds.writeSession({
+							cc_session_id: "cc-mcp-tool-norm",
+							project: "p",
+							cwd: "/tmp/p",
+							agent_kind: "main",
+							started_at: "2026-04-29T00:00:00Z",
+						});
+
+						const turnId = yield* ds.writeTurn({
+							session_id: sessionId,
+							type: "tool_result",
+							payload: JSON.stringify({
+								type: "tool_result",
+								tool_name: "mcp__plugin_vitest-agent_mcp__note_create",
+								success: true,
+							}),
+							occurred_at: "2026-04-29T00:00:01Z",
+						});
+
+						return yield* sql<{
+							tool_name: string;
+						}>`SELECT tool_name FROM tool_invocations WHERE turn_id = ${turnId}`;
+					}),
+				);
+
+				expect(result[0].tool_name).toBe("note_create");
+			});
+
 			it("does not fan out for non-fanout payload types", async () => {
 				const result = await run(
 					Effect.gen(function* () {
@@ -1320,7 +1350,7 @@ describe("DataStoreLive", () => {
 			expect(result[0].goal).toBe("add login validation");
 		});
 
-		it("rejects duplicate (sessionId, goal) via the UNIQUE constraint", async () => {
+		it("rejects duplicate (sessionId, runId) via the partial UNIQUE index when run_id is set", async () => {
 			const exit = await Effect.runPromiseExit(
 				Effect.provide(
 					Effect.gen(function* () {
@@ -1332,8 +1362,8 @@ describe("DataStoreLive", () => {
 							agent_kind: "subagent",
 							started_at: "2026-04-29T00:00:00Z",
 						});
-						yield* ds.writeTddSession({ sessionId, goal: "g", startedAt: "2026-04-29T00:00:01Z" });
-						yield* ds.writeTddSession({ sessionId, goal: "g", startedAt: "2026-04-29T00:00:02Z" });
+						yield* ds.writeTddSession({ sessionId, goal: "g1", startedAt: "2026-04-29T00:00:01Z", runId: "run-abc" });
+						yield* ds.writeTddSession({ sessionId, goal: "g2", startedAt: "2026-04-29T00:00:02Z", runId: "run-abc" });
 					}),
 					TestLayer,
 				),

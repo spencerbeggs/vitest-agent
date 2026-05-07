@@ -11,7 +11,7 @@ tools.
 
 - **SQLite persistence** -- normalized database replaces JSON files for
   richer queries and cross-run analysis
-- **MCP server** -- 50 tools over stdio for deep integration with LLM
+- **MCP server** -- 53 tools over stdio for deep integration with LLM
   agents (test data, notes, coverage, discovery, TDD hierarchy, run tests)
 - **Claude Code plugin** -- auto-registers MCP tools, injects test
   context at session start, and provides teaching skills
@@ -85,7 +85,7 @@ Install the Claude Code plugin for the full agent experience:
 ```
 
 That's it. The plugin detects whether an agent, CI, or human is running
-tests and adjusts output automatically. Agents get 50 MCP tools for
+tests and adjusts output automatically. Agents get 53 MCP tools for
 querying test data, tracking coverage, managing TDD goals and behaviors,
 and persisting notes -- with no manual MCP configuration.
 
@@ -144,11 +144,11 @@ The plugin detects three environments and adapts behavior:
 
 After each test run, `AgentReporter` writes structured data to a SQLite
 database under your XDG data directory (default
-`$XDG_DATA_HOME/vitest-agent-reporter/<workspaceName>/data.db`,
-falling back to `~/.local/share/vitest-agent-reporter/<workspaceName>/data.db`).
+`$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db`,
+falling back to `~/.local/share/vitest-agent/<workspaceName>/data.db`).
 The location is derived from your root `package.json` `name`, so two
 worktrees of the same repo share history. Override the location via
-`vitest-agent-reporter.config.toml` at the workspace root:
+`vitest-agent.config.toml` at the workspace root:
 
 ```toml
 # Override the entire data directory
@@ -176,17 +176,17 @@ plugin provides the full agent-native experience:
 
 The plugin provides:
 
-- **MCP auto-registration** -- all 50 tools available immediately with
+- **MCP auto-registration** -- all 53 tools available immediately with
   no manual `.mcp.json` configuration
 - **SessionStart hook** -- injects project status and available tools
   into Claude's context at the start of each session
 - **PostToolUse hook** -- detects test runs and suggests MCP tools for
   deeper analysis when tests fail
-- **Skills** -- `/vitest-agent-reporter:tdd`,
-  `/vitest-agent-reporter:debugging`,
-  `/vitest-agent-reporter:configuration`
-- **Commands** -- `/vitest-agent-reporter:setup` (add plugin to vitest
-  config), `/vitest-agent-reporter:configure` (view/modify settings)
+- **Skills** -- `/vitest-agent:tdd`,
+  `/vitest-agent:debugging`,
+  `/vitest-agent:configuration`
+- **Commands** -- `/vitest-agent:setup` (add plugin to vitest
+  config), `/vitest-agent:configure` (view/modify settings)
 
 ## MCP Tools
 
@@ -199,7 +199,7 @@ npx vitest-agent-mcp
 ```
 
 <details>
-<summary>Full tool reference (50 tools)</summary>
+<summary>Full tool reference (53 tools)</summary>
 
 | Tool | Description |
 | --- | --- |
@@ -231,14 +231,16 @@ npx vitest-agent-mcp
 | `session_get` | Read a Claude Code session by ID |
 | `turn_search` | Search turn log entries by session, type, or timestamp |
 | `failure_signature_get` | Read a failure signature by hash, with recent matching errors |
-| `tdd_session_get` | Read a TDD session with phases, artifacts, and a Goals and Behaviors section |
+| `get_current_session_id` | Read the current Claude Code session ID stored for this workspace |
+| `set_current_session_id` | Set the current Claude Code session ID for this workspace |
+| `tdd_session_get` | Read a TDD session with phases, artifacts, run_id, and a Goals and Behaviors section |
 | `hypothesis_list` | List hypotheses with optional session and outcome filters |
 | `acceptance_metrics` | Compute phase-evidence integrity and compliance ratios |
 | `triage_brief` | Orientation summary: recent runs, failures, and triage context |
 | `wrapup_prompt` | Interpretive prompt-injection nudges for wrap-up hooks |
 | `hypothesis_record` | Record a new agent hypothesis with optional evidence FKs |
 | `hypothesis_validate` | Mark a hypothesis as confirmed, refuted, or abandoned |
-| `tdd_session_start` | Open a new TDD session with a goal |
+| `tdd_session_start` | Open a new TDD session with a goal; accepts optional `runId` for idempotency re-keying |
 | `tdd_session_end` | Close a TDD session with an outcome |
 | `tdd_session_resume` | Get a markdown digest of an open TDD session |
 | `tdd_phase_transition_request` | Request a TDD phase transition; validated against evidence artifacts |
@@ -253,6 +255,7 @@ npx vitest-agent-mcp
 | `tdd_behavior_delete` | Hard-delete a behavior and its phases and artifacts |
 | `tdd_behavior_list` | List behaviors by goal or session |
 | `commit_changes` | Workspace git commit history joined with per-run changed files |
+| `ping` | Health check — returns `{ pong: true }` |
 
 </details>
 
@@ -260,18 +263,18 @@ See [docs/mcp.md](../docs/mcp.md) for the full MCP reference.
 
 ## CLI
 
-The `vitest-agent-reporter` CLI queries the SQLite database for on-demand
+The `vitest-agent` CLI queries the SQLite database for on-demand
 test landscape queries. All commands accept `--format` to switch between
 `markdown` (default) and `json` output.
 
 ```bash
-npx vitest-agent-reporter status      # Per-project pass/fail state
-npx vitest-agent-reporter coverage    # Coverage gap analysis
-npx vitest-agent-reporter history     # Flaky/persistent failure trends
-npx vitest-agent-reporter trends      # Coverage trajectory over time
-npx vitest-agent-reporter doctor      # Database health diagnostic
-npx vitest-agent-reporter cache path  # Print the database file path
-npx vitest-agent-reporter cache clean # Delete the database
+npx vitest-agent status      # Per-project pass/fail state
+npx vitest-agent coverage    # Coverage gap analysis
+npx vitest-agent history     # Flaky/persistent failure trends
+npx vitest-agent trends      # Coverage trajectory over time
+npx vitest-agent doctor      # Database health diagnostic
+npx vitest-agent cache path  # Print the database file path
+npx vitest-agent cache clean # Delete the database
 ```
 
 See [docs/cli.md](../docs/cli.md) for the full CLI reference.
@@ -295,13 +298,13 @@ upgrade:
 ### Database location moved
 
 The SQLite database moved from `node_modules/.vite/vitest/<hash>/vitest-agent-reporter/data.db`
-to `$XDG_DATA_HOME/vitest-agent-reporter/<workspaceName>/data.db`.
+to `$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db`.
 **No data migration is performed** — your first 2.0 run starts with a
 fresh database. Coverage baselines, trends, and history all reset.
 Existing data in `node_modules` is harmless and ignored.
 
 If you want the old project-local layout, set this in
-`vitest-agent-reporter.config.toml` at your workspace root:
+`vitest-agent.config.toml` at your workspace root:
 
 ```toml
 cacheDir = "./.vitest-agent-reporter"
