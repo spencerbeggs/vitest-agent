@@ -33,7 +33,7 @@
 				"!.husky/**",
 				"!.vscode/**"
 			],
-			"outputLogs": "full",
+			"outputLogs": "errors-only",
 			"outputs": ["dist/dev/**", ".rslib/declarations/dev/**"]
 		},
 		"build:prod": {

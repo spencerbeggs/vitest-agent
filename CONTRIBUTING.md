@@ -177,35 +177,52 @@ pnpm vitest run packages/sdk/src/utils/resolve-data-path.test.ts
 
 ### Testing Effect Services
 
-Service tests use the state-container pattern with test layers:
+The `vitest-agent-sdk/testing` subpath provides `makeTestLayer` and five
+preset factory functions for seeding representative database states. Import
+from the subpath:
 
 ```typescript
 import { Effect } from "effect";
-import { DataReader } from "../services/DataReader.js";
-import { DataStoreTest } from "../layers/DataStoreTest.js";
-
-// Provide a test layer wired to an in-memory or fixture-backed state
-const testLayer = DataStoreTest.layer(/* mock state */);
-
-const run = <A, E>(effect: Effect.Effect<A, E, DataReader>) =>
-  Effect.runPromise(Effect.provide(effect, testLayer));
+import { DataReader } from "vitest-agent-sdk";
+import { singlePassingRun, withFailures } from "vitest-agent-sdk/testing";
 
 it("returns the latest run for a project", async () => {
-  const result = await run(
-    Effect.flatMap(DataReader, (svc) => svc.getLatestRun("my-app", null)),
+  const layer = singlePassingRun(":memory:");
+  const result = await Effect.runPromise(
+    Effect.provide(
+      Effect.flatMap(DataReader, (svc) => svc.getLatestRun("default", null)),
+      layer,
+    ),
   );
-  // assertions...
+  expect(result?.reason).toBe("passed");
 });
 ```
 
-Reporter integration tests compose test layers:
+The preset factories cover the main database states out of the box:
+
+| Factory | Seeded state |
+| --- | --- |
+| `empty(filename)` | Migrated database with no data |
+| `singlePassingRun(filename)` | One passing run with three test cases |
+| `withFailures(filename)` | One run with two failures and two passes |
+| `flaky(filename)` | Two runs: first fails, second passes (same test) |
+| `withTddSession(filename)` | A TDD session with one goal and two behaviors |
+
+For tests that need custom data, use `makeTestLayer(":memory:")` and seed
+the state directly via `DataStore`:
 
 ```typescript
-const TestReporterLive = Layer.mergeAll(
-  DataStoreTest.layer(writeState),
-  CoverageAnalyzerTest.layer(),
-  HistoryTrackerTest.layer(),
-);
+import { Effect, Layer } from "effect";
+import { DataStore } from "vitest-agent-sdk";
+import { makeTestLayer } from "vitest-agent-sdk/testing";
+
+const layer = makeTestLayer(":memory:");
+const seed = Effect.gen(function* () {
+  const store = yield* DataStore;
+  yield* store.writeSettings("hash-1", { vitest_version: "4.1.5", pool: "forks" }, {});
+  // ... write additional fixture data
+});
+const testLayer = Layer.effectDiscard(seed).pipe(Layer.provideMerge(layer));
 ```
 
 CLI commands are thin wrappers -- logic lives in `cli/lib/` and is tested

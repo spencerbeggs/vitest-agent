@@ -7,21 +7,25 @@ handles environment detection, reporter injection, and cache directory
 resolution automatically.
 
 ```typescript
-import { AgentPlugin } from "vitest-agent-reporter";
+import { AgentPlugin } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
-  plugins: [
-    AgentPlugin({
-      mode: "auto",
-      reporter: {
+export default async () => {
+  const projects = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [
+      AgentPlugin({
+        mode: "auto",
         coverageThresholds: { lines: 80, branches: 80 },
         coverageTargets: { lines: 95, branches: 90 },
-        coverageConsoleLimit: 5,
-      },
-    }),
-  ],
-});
+        reporter: {
+          coverageConsoleLimit: 5,
+        },
+      }),
+    ],
+    test: { projects, pool: "forks" },
+  });
+};
 ```
 
 ### `mode`
@@ -83,6 +87,14 @@ to use MCP tools (`test_history`, `test_coverage`, `test_trends`) for
 deeper analysis. Defaults to `false`. Set automatically when the Claude
 Code plugin is active.
 
+### `coverageThresholds`
+
+Vitest-native threshold format (per-metric, per-glob). Failures below a threshold produce a "red" run. See [Coverage Thresholds](#coverage-thresholds).
+
+### `coverageTargets`
+
+Aspirational coverage goals (same format as `coverageThresholds`). Falling below a target produces a "yellow" hint — not a failure. See [Coverage Targets](#coverage-targets).
+
 ### `reporter`
 
 Nested reporter options passed through to `AgentReporter`. The plugin manages
@@ -92,13 +104,105 @@ detection, so those fields are not available through the plugin interface.
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `cacheDir` | `string` | XDG-derived (see [Cache Directory Resolution](#cache-directory-resolution)) | Override the cache directory path |
-| `coverageThresholds` | `object` | `{}` | Vitest-native threshold format (per-metric, per-glob) |
-| `coverageTargets` | `object` | -- | Aspirational coverage targets (same format as thresholds) |
 | `autoUpdate` | `boolean` | `true` when targets set | Auto-ratchet baselines when coverage improves |
 | `coverageConsoleLimit` | `number` | `10` | Max low-coverage files shown in console |
 | `omitPassingTests` | `boolean` | `true` | Exclude passing tests from reports |
 | `includeBareZero` | `boolean` | `false` | Include files where all four metrics are 0% |
 | `githubSummaryFile` | `string` | `GITHUB_STEP_SUMMARY` env var | Override the GFM output file path |
+
+## Project Discovery
+
+`AgentPlugin.discover(options?)` scans the workspace packages for test files
+and returns a `TestProjectInlineConfiguration[]` suitable for Vitest's
+`test.projects`. Use an async config export:
+
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { defineConfig } from "vitest/config";
+
+export default async () => {
+  const projects = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [AgentPlugin({ coverageThresholds: "standard" })],
+    test: { projects, pool: "forks" },
+  });
+};
+```
+
+The scanner looks for test files in two locations per package:
+
+- `packages/*/__test__/*.test.ts` (canonical, flat layout)
+- `packages/*/src/**/*.test.ts` (co-located, accepted for backward compatibility)
+
+Helper subdirectories inside `__test__/` (`utils/`, `fixtures/`,
+`snapshots/`) are excluded automatically. Files are classified by name
+suffix: `.e2e.test.ts` → e2e project, `.int.test.ts` → integration project,
+everything else → unit project.
+
+The `options` argument accepts either:
+
+- A callback `({ projects }) => void | Promise<void>` to mutate the full list in-place after discovery.
+- An object `{ unit?, int?, e2e? }` where each key is a per-kind config override or a callback scoped to that kind.
+
+Discovery results are cached per workspace root within the process.
+
+## AgentPlugin.runScript()
+
+`AgentPlugin.runScript(command)` runs a shell command synchronously,
+suppressing all output unless the command fails. Designed for use in
+Vitest `globalSetup` files to execute build steps or other preparatory
+commands without cluttering agent stdout:
+
+```typescript
+// vitest.setup.ts
+import { AgentPlugin } from "vitest-agent-plugin";
+
+export function setup() {
+  AgentPlugin.runScript("pnpm exec turbo run build:dev --output-logs=errors-only");
+}
+```
+
+When the command fails, the captured stderr and stdout are replayed to
+their respective streams before rethrowing, so errors are still visible to
+humans and surfaced in CI logs.
+
+Reference the setup file from your Vitest config via `test.globalSetup`:
+
+```typescript
+export default async () => {
+  const projects = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [AgentPlugin()],
+    test: { projects, pool: "forks", globalSetup: ["vitest.setup.ts"] },
+  });
+};
+```
+
+Two namespace constants are also available on `AgentPlugin`:
+
+| Constant | Description |
+| --- | --- |
+| `AgentPlugin.COVERAGE_LEVELS` | Object with keys `none \| basic \| standard \| strict \| full`, each a `CoverageLevel` |
+| `AgentPlugin.COVERAGE_LEVELS_PER_FILE` | Same as above with `perFile: true` on each level |
+
+Pass a level name string directly to `coverageThresholds` or `coverageTargets`:
+
+```typescript
+AgentPlugin({
+  coverageThresholds: "standard",
+  coverageTargets: "strict",
+})
+```
+
+Or use the namespace constant to extend a preset:
+
+```typescript
+import { CoverageLevel } from "vitest-agent-sdk";
+
+AgentPlugin({
+  coverageThresholds: AgentPlugin.COVERAGE_LEVELS.standard.extend({ lines: 90 }),
+})
+```
 
 ## AgentReporter Options
 
@@ -106,7 +210,7 @@ When using `AgentReporter` directly (without the plugin), all options are
 available:
 
 ```typescript
-import { AgentReporter } from "vitest-agent-reporter";
+import { AgentReporter } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -180,9 +284,9 @@ In 2.0 the SQLite database lives at an XDG-derived path keyed off the
 root workspace's `package.json` `name`. The default location is:
 
 ```text
-$XDG_DATA_HOME/vitest-agent-reporter/<workspaceName>/data.db
+$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db
 # falling back to
-~/.local/share/vitest-agent-reporter/<workspaceName>/data.db
+~/.local/share/vitest-agent/<workspaceName>/data.db
 ```
 
 `<workspaceName>` is the `name` field from your root workspace's
@@ -194,18 +298,18 @@ Resolution priority (highest to lowest):
 
 1. **Explicit option** -- `reporter.cacheDir` (plugin) or `cacheDir`
    (direct reporter). Used as a literal path; the resolver short-circuits.
-2. **`vitest-agent-reporter.config.toml` at the workspace root** --
+2. **`vitest-agent.config.toml` at the workspace root** --
    either `cacheDir = "./.vitest-agent-reporter"` (override the entire
    directory) or `projectKey = "my-app-personal"` (override just the
    `<workspaceName>` slot).
-3. **XDG default** -- `$XDG_DATA_HOME/vitest-agent-reporter/<workspaceName>/`.
+3. **XDG default** -- `$XDG_DATA_HOME/vitest-agent/<workspaceName>/`.
 
 The workspace root is located by walking up from the project directory
 looking for a `pnpm-workspace.yaml`, a `workspaces` field in
 `package.json`, or a `.git` directory.
 
 To opt back into the 1.x project-local layout, drop a
-`vitest-agent-reporter.config.toml` next to your root `package.json`:
+`vitest-agent.config.toml` next to your root `package.json`:
 
 ```toml
 cacheDir = "./.vitest-agent-reporter"
@@ -219,14 +323,12 @@ section of console output and reports.
 
 ```typescript
 AgentPlugin({
-  reporter: {
-    // Per-metric thresholds
-    coverageThresholds: {
-      lines: 80,
-      branches: 75,
-      functions: 80,
-      statements: 80,
-    },
+  // Per-metric thresholds (top-level, not inside reporter)
+  coverageThresholds: {
+    lines: 80,
+    branches: 75,
+    functions: 80,
+    statements: 80,
   },
 });
 ```
@@ -240,11 +342,13 @@ When using `AgentPlugin`, thresholds are resolved in this order:
 Per-glob patterns are also supported:
 
 ```typescript
-coverageThresholds: {
-  lines: 80,
-  "src/utils/**": { lines: 90 },
-  "src/generated/**": { lines: 0 },
-}
+AgentPlugin({
+  coverageThresholds: {
+    lines: 80,
+    "src/utils/**": { lines: 90 },
+    "src/generated/**": { lines: 0 },
+  },
+});
 ```
 
 Negative numbers specify maximum uncovered items (matching Vitest's format),
@@ -263,10 +367,8 @@ hint showing room for improvement.
 
 ```typescript
 AgentPlugin({
-  reporter: {
-    coverageThresholds: { lines: 70 },   // hard floor
-    coverageTargets: { lines: 90 },      // aspirational goal
-  },
+  coverageThresholds: { lines: 70 },   // hard floor
+  coverageTargets: { lines: 90 },      // aspirational goal
 });
 ```
 
@@ -284,8 +386,8 @@ Set `autoUpdate: false` to disable auto-ratcheting:
 
 ```typescript
 AgentPlugin({
+  coverageTargets: { lines: 90 },
   reporter: {
-    coverageTargets: { lines: 90 },
     autoUpdate: false,
   },
 });
@@ -308,7 +410,7 @@ Console output uses a three-tier system based on coverage state:
 Use the CLI `trends` command for detailed trend analysis:
 
 ```bash
-npx vitest-agent-reporter trends
+npx vitest-agent trends
 ```
 
 ## Console Output Modes

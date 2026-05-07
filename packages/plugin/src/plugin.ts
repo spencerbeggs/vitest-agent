@@ -7,12 +7,31 @@
  * @packageDocumentation
  */
 
+import { execSync } from "node:child_process";
 import type { Layer } from "effect";
 import { Effect } from "effect";
+import type { TestProjectInlineConfiguration } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
-import type { AgentPluginOptions, Environment, OutputFormat, VitestAgentReporterFactory } from "vitest-agent-sdk";
-import { EnvironmentDetector, EnvironmentDetectorLive, formatFatalError, resolveLogLevel } from "vitest-agent-sdk";
+import type {
+	AgentPluginOptions,
+	CoverageInput,
+	CoverageLevelName,
+	Environment,
+	OutputFormat,
+	VitestAgentReporterFactory,
+} from "vitest-agent-sdk";
+import {
+	CoverageLevel,
+	EnvironmentDetector,
+	EnvironmentDetectorLive,
+	formatFatalError,
+	resolveCoverageInput,
+	resolveLogLevel,
+	validateCoverageConfig,
+} from "vitest-agent-sdk";
 import { AgentReporter } from "./reporter.js";
+import type { DiscoveryOptions } from "./utils/discover-projects.js";
+import { discoverProjects } from "./utils/discover-projects.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
 
@@ -36,6 +55,8 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	 * ```
 	 */
 	reporter?: VitestAgentReporterFactory;
+	coverageThresholds?: CoverageInput;
+	coverageTargets?: CoverageInput;
 }
 
 /**
@@ -112,6 +133,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 
 	return {
 		name: "vitest-agent",
+
 		async configureVitest(ctx: VitestPluginContext) {
 			try {
 				const { vitest, project } = ctx;
@@ -184,14 +206,52 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const outputFile = (vitest.config as { outputFile?: string | Record<string, string> }).outputFile;
 				const cacheDir = options.reporterOptions?.cacheDir ?? resolveOutputDir(outputFile) ?? undefined;
 
-				// Resolve coverage thresholds from plugin options or vitest config
+				// Resolve coverage thresholds: plugin options take priority; fall back to Vitest native config
 				const coverageConfig = vitest.config.coverage as { thresholds?: Record<string, unknown> } | undefined;
-				const coverageThresholds = resolveThresholds(
-					(options.reporterOptions?.coverageThresholds as Record<string, unknown> | undefined) ??
-						(coverageConfig?.thresholds as Record<string, unknown> | undefined),
+				const vitestNativeThresholds = coverageConfig?.thresholds
+					? resolveThresholds(coverageConfig.thresholds as Record<string, unknown>)
+					: undefined;
+
+				const resolvedThresholds = resolveCoverageInput(
+					options.coverageThresholds as CoverageInput | undefined,
+					"none",
 				);
-				const coverageTargets = options.reporterOptions?.coverageTargets
-					? resolveThresholds(options.reporterOptions.coverageTargets as Record<string, unknown>)
+				const resolvedTargets = options.coverageTargets
+					? resolveCoverageInput(options.coverageTargets as CoverageInput, "standard")
+					: undefined;
+
+				// Only validate when targets are explicitly set
+				if (resolvedTargets) {
+					validateCoverageConfig(resolvedThresholds, resolvedTargets);
+				}
+
+				// Adapt CoverageLevel to the internal ResolvedThresholds format for AgentReporter
+				const coverageThresholds =
+					vitestNativeThresholds && !options.coverageThresholds
+						? vitestNativeThresholds
+						: {
+								global: {
+									lines: resolvedThresholds.lines,
+									functions: resolvedThresholds.functions,
+									branches: resolvedThresholds.branches,
+									statements: resolvedThresholds.statements,
+								},
+								perFile: resolvedThresholds.perFile ?? false,
+								patterns: [],
+							};
+
+				// Only build the coverageTargets object when the user explicitly opted in
+				const coverageTargets = resolvedTargets
+					? {
+							global: {
+								lines: resolvedTargets.lines,
+								functions: resolvedTargets.functions,
+								branches: resolvedTargets.branches,
+								statements: resolvedTargets.statements,
+							},
+							perFile: resolvedTargets.perFile ?? false,
+							patterns: [],
+						}
 					: undefined;
 				const autoUpdate = options.reporterOptions?.autoUpdate ?? true;
 
@@ -246,6 +306,70 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 			}
 		},
 	};
+}
+
+export namespace AgentPlugin {
+	export const COVERAGE_LEVELS: Readonly<Record<CoverageLevelName, CoverageLevel>> = Object.freeze({
+		none: CoverageLevel.none,
+		basic: CoverageLevel.basic,
+		standard: CoverageLevel.standard,
+		strict: CoverageLevel.strict,
+		full: CoverageLevel.full,
+	});
+
+	export const COVERAGE_LEVELS_PER_FILE: Readonly<Record<CoverageLevelName, CoverageLevel>> = Object.freeze({
+		none: CoverageLevel.none.withPerFile(),
+		basic: CoverageLevel.basic.withPerFile(),
+		standard: CoverageLevel.standard.withPerFile(),
+		strict: CoverageLevel.strict.withPerFile(),
+		full: CoverageLevel.full.withPerFile(),
+	});
+
+	/**
+	 * Discover Vitest project configs from the workspace layout.
+	 *
+	 * Use with an async config export so projects are resolved before Vitest
+	 * reads the config:
+	 *
+	 * ```ts
+	 * export default defineConfig(async () => {
+	 *   const projects = await AgentPlugin.discover();
+	 *   return { plugins: [AgentPlugin()], test: { projects } };
+	 * });
+	 * ```
+	 */
+	export async function discover(options?: DiscoveryOptions): Promise<TestProjectInlineConfiguration[]> {
+		const projects = await discoverProjects(options);
+		return projects.map((p) => p.toConfig());
+	}
+
+	/**
+	 * Run a shell command, suppressing all output unless the command fails.
+	 * Designed for use in Vitest `globalSetup` files to run build steps or
+	 * other preparatory scripts without polluting agent stdout.
+	 *
+	 * On failure the captured stderr and stdout are written to their respective
+	 * streams before rethrowing, so the error is still visible to humans and
+	 * surfaced in CI logs.
+	 *
+	 * ```ts
+	 * // vitest.setup.ts
+	 * import { AgentPlugin } from "vitest-agent-plugin";
+	 * export function setup() {
+	 *   AgentPlugin.runScript("pnpm exec turbo run build:dev --output-logs=errors-only");
+	 * }
+	 * ```
+	 */
+	export function runScript(command: string): void {
+		try {
+			execSync(command, { stdio: "pipe" });
+		} catch (error) {
+			const execError = error as { stderr?: Buffer; stdout?: Buffer };
+			if (execError.stderr?.length) process.stderr.write(execError.stderr);
+			if (execError.stdout?.length) process.stdout.write(execError.stdout);
+			throw error;
+		}
+	}
 }
 
 /**

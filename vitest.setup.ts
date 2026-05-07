@@ -1,11 +1,5 @@
-/**
- * Vitest setup file for effect-type-registry tests
- *
- * Note: Logging is automatically suppressed by src/Logger.ts which detects
- * the test environment via globalThis.vitest or NODE_ENV=test.
- *
- * No additional configuration needed!
- */
+import { AgentPlugin } from "vitest-agent-plugin";
 
-// This file exists to be referenced in vitest.config.ts but doesn't need
-// to do anything - the Logger module handles test mode detection automatically.
+export function setup() {
+	AgentPlugin.runScript("pnpm exec turbo run build:dev --log-prefix=none --output-logs=errors-only");
+}

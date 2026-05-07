@@ -44,12 +44,12 @@ export const AgentPluginOptions = Schema.Struct({
 	logLevel: Schema.optional(Schema.String),
 	logFile: Schema.optional(Schema.String),
 	mcp: Schema.optional(Schema.Boolean),
+	coverageThresholds: Schema.optional(Schema.Unknown),
+	coverageTargets: Schema.optional(Schema.Unknown),
 	reporterOptions: Schema.optional(
 		Schema.Struct({
 			cacheDir: Schema.optional(Schema.String),
 			omitPassingTests: Schema.optional(Schema.Boolean),
-			coverageThresholds: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
-			coverageTargets: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
 			autoUpdate: Schema.optional(Schema.Boolean),
 			coverageConsoleLimit: Schema.optional(Schema.Number),
 			includeBareZero: Schema.optional(Schema.Boolean),

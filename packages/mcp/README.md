@@ -1,7 +1,7 @@
 # vitest-agent-mcp
 
 MCP server bin for
-[vitest-agent-reporter](https://github.com/spencerbeggs/vitest-agent-reporter).
+[vitest-agent-plugin](https://github.com/spencerbeggs/vitest-agent).
 Exposes 53 tools over stdio (via tRPC) that give LLM agents structured
 access to test data, coverage, history, trends, errors, per-file
 coverage, individual test details, run-tests, cache health, settings,
@@ -11,16 +11,16 @@ hypotheses, failure signatures, and workspace commit history. The server
 also surfaces four MCP resources (vendored Vitest docs and curated
 testing patterns) and six framing-only prompts for common workflows.
 
-This package is a required peer dependency of `vitest-agent-reporter`,
+This package is a required peer dependency of `vitest-agent-plugin`,
 so you usually don't install it directly — modern pnpm and npm pull it
-in automatically when you install the reporter. The Claude Code plugin
-shipped with `vitest-agent-reporter` registers this server
+in automatically when you install the plugin. The Claude Code plugin
+shipped with `vitest-agent-plugin` registers this server
 automatically.
 
 ## Install
 
 ```bash
-npm install --save-dev vitest-agent-reporter
+npm install --save-dev vitest-agent-plugin
 # vitest-agent-mcp auto-installed via peerDependency
 ```
 
@@ -124,9 +124,9 @@ This rewrites `vendor/vitest-docs/` and updates `manifest.json`. The `update-vit
 ## Documentation
 
 See the
-[main README](https://github.com/spencerbeggs/vitest-agent-reporter#readme)
+[main README](https://github.com/spencerbeggs/vitest-agent#readme)
 and the
-[MCP reference](https://github.com/spencerbeggs/vitest-agent-reporter/blob/main/docs/mcp.md).
+[MCP reference](https://github.com/spencerbeggs/vitest-agent/blob/main/docs/mcp.md).
 
 ## License
 

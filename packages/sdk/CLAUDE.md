@@ -51,6 +51,13 @@ src/
                          evidence-binding rules)
   lib/                -- pure markdown generators shared by CLI and MCP:
                          format-triage.ts, format-wrapup.ts
+  testing/            -- exported via the `vitest-agent-sdk/testing` subpath.
+                         makeTestLayer(filename) builds a fully-migrated
+                         in-process SQLite layer (DataStoreLive + DataReaderLive
+                         + SqliteMigrator). DataStoreTestLayer is the
+                         `:memory:` convenience. Five preset factories seed
+                         representative states: empty, singlePassingRun,
+                         withFailures, flaky, withTddSession
 ```
 
 ## Key files
@@ -69,6 +76,8 @@ src/
 | `utils/validate-phase-transition.ts` | Pure validator for TDD phase transitions; returns acceptance or a typed `DenialReason` + remediation. See Decision D11 |
 | `lib/format-triage.ts` | Pure markdown generator powering both `triage_brief` MCP tool and `triage` CLI subcommand |
 | `lib/format-wrapup.ts` | Pure markdown generator for wrap-up nudges; five `kind` variants. Powers `wrapup_prompt` MCP tool and `wrapup` CLI subcommand |
+| `testing/layers.ts` | `makeTestLayer(filename)` and the `DataStoreTestLayer` `:memory:` convenience — exported via the `vitest-agent-sdk/testing` subpath |
+| `testing/index.ts` | Five preset factories (`empty`, `singlePassingRun`, `withFailures`, `flaky`, `withTddSession`) that seed representative DB states for use in tests |
 
 ## Conventions
 
@@ -91,6 +100,14 @@ src/
   the `reason` field on every SQL `mapError`.
 - **Test layers live next to live layers** (`*Live.ts` / `*Test.ts`)
   so consumers can import either side via the same package entry.
+- **Test helpers are in `testing/`, exported via `vitest-agent-sdk/testing`.**
+  Use `makeTestLayer(":memory:")` (or the `DataStoreTestLayer` shorthand)
+  in unit tests; use the preset factories when you need a pre-seeded DB state.
+  Tests live in `packages/sdk/__test__/` (flat directory).
+- **`CoverageLevel` schema** (`schemas/CoverageLevel.ts`) defines the five
+  named presets (`none`, `basic`, `standard`, `strict`, `full`), the
+  `.withPerFile()` builder, `.extend({})` override, and `resolveCoverageInput`
+  / `validateCoverageConfig` helpers.
 
 ## When working in this package
 
@@ -142,3 +159,8 @@ src/
   Load when you need rationale for a design choice (especially D9 migration
   policy, D10 failure signatures, D11 phase transitions, D28
   `ensureMigrated`, D31 path resolution).
+- `.claude/design/vitest-agent/testing-strategy.md`
+  Load when writing tests for this package or reviewing testing patterns.
+- `.claude/design/vitest-agent/components/discover.md`
+  Load when adding new preset factories to `testing/` or changing
+  `makeTestLayer`.

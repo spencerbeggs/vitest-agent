@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 90
 related:
   - ../architecture.md
@@ -131,12 +131,118 @@ interfaces — no I/O, no native deps — but it is the only service that knows
 about istanbul's specific shape, so it stays co-located with the lifecycle
 code that feeds it.
 
+## VitestProject
+
+`packages/plugin/src/utils/vitest-project.ts`. Class-based wrapper around
+`TestProjectInlineConfiguration` that carries a name, a kind, and a mutable
+config with fluent mutation helpers.
+
+**Static factories set kind-appropriate defaults:**
+
+- `VitestProject.unit(options)` — `environment: "node"`, no timeout
+  overrides.
+- `VitestProject.int(options)` — `testTimeout: 60_000`, `hookTimeout:
+  30_000`, `maxConcurrency` half of CPU count (clamped 1–8).
+- `VitestProject.e2e(options)` — `testTimeout: 120_000`, `hookTimeout:
+  60_000`, same CPU-derived `maxConcurrency`.
+- `VitestProject.custom(kind, options)` — no defaults; caller provides full
+  `overrides`.
+
+**Mutation methods (all return `this` for chaining):**
+
+- `.override(config)` — deep-merges a partial `TestProjectInlineConfiguration`,
+  preserving the project `name` and `include` list.
+- `.addInclude(...patterns)` — appends glob patterns to the include list.
+- `.addExclude(...patterns)` — appends patterns to the test exclude list.
+- `.addCoverageExclude(...patterns)` — accumulates patterns for the caller to
+  apply to `coverage.exclude`; the class does not touch coverage config itself.
+
+`.toConfig()` returns the underlying `TestProjectInlineConfiguration`.
+
+## discoverProjects
+
+`packages/plugin/src/utils/discover-projects.ts`. Async workspace scanner
+that builds `VitestProject[]` from the pnpm workspace layout. Calls
+`findWorkspaceRootSync` and `getWorkspacePackagesSync` from the
+`workspaces-effect` sync API — no Effect runtime required.
+
+**Per-package scan:** for each workspace package (skipping the root `.`),
+scans `src/` (always) and `__test__/` (if present) for test files by kind.
+Filename conventions:
+
+| Pattern | Kind |
+| --- | --- |
+| `*.e2e.{test,spec}.*` | `e2e` |
+| `*.int.{test,spec}.*` | `int` |
+| `*.{test,spec}.*` (all others) | `unit` |
+
+When a package has more than one kind, project names get a `:kind` suffix
+(`pkg-name:unit`, `pkg-name:e2e`); single-kind packages keep the bare
+package name.
+
+**Glob construction:** include arrays contain both `<pkg>/src/**/<pattern>`
+and `<pkg>/__test__/**/<pattern>`. Helper subdirs (`utils/`, `fixtures/`,
+`snapshots/`) inside `__test__/` are excluded automatically.
+
+**Setup file detection:** if `vitest.setup.{ts,tsx,js,jsx}` exists at the
+package root it is added to `setupFiles` for all projects from that package.
+
+**Process-level cache:** results are keyed by workspace root in a
+module-local `Map`. Repeated calls from the same process (e.g., multiple
+config evaluations) return the cached list without re-scanning.
+
+**DiscoveryOptions:** the optional second-position argument is either a
+`ProjectsCallback` `(ctx) => void | Promise<void>` (receives the full
+`projects` array) or a per-kind object `{ unit?, int?, e2e? }` where each
+value is either a `TestProjectInlineConfiguration["test"]` config object
+(applied via `.override()`) or a `ProjectKindCallback` `(map) => void |
+Promise<void>` (receives a `Map<name, VitestProject>` for that kind).
+
+## AgentPlugin.discover()
+
+`packages/plugin/src/plugin.ts` (as a static method on the `AgentPlugin`
+namespace). The canonical entry point for workspace-driven Vitest project
+discovery. Calls `discoverProjects(options)` and maps the result through
+`.toConfig()`, returning `TestProjectInlineConfiguration[]` ready for
+`test.projects`.
+
+**Why this is a separate static, not a `configureVitest` hook.** Vitest
+pre-parses project configs before it evaluates Vite plugin hooks. A plugin
+using `configureVitest` to inject projects arrives too late — Vitest has
+already finished its project resolution pass. Users therefore call
+`AgentPlugin.discover()` in an async config export so discovery runs during
+config evaluation:
+
+```ts
+export default async () => {
+  const projects = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [AgentPlugin()],
+    test: { projects },
+  });
+};
+```
+
+The async arrow function form (rather than `defineConfig(async () => {...})`)
+is recommended because it prevents TypeScript from widening string-literal
+option types (e.g., `provider: "v8"` stays a string literal instead of being
+widened to `string`).
+
+**Coverage-level constants on the namespace:**
+
+- `AgentPlugin.COVERAGE_LEVELS` — record of the five `CoverageLevel` presets
+  (`none`, `basic`, `standard`, `strict`, `full`).
+- `AgentPlugin.COVERAGE_LEVELS_PER_FILE` — same presets with `.withPerFile()`
+  applied.
+
 ## Reporter-side utilities
 
 `packages/plugin/src/utils/`. Pure utilities only the plugin's lifecycle
 class calls. Anything used by more than one runtime package lives in the SDK
 instead.
 
+- `vitest-project.ts` — `VitestProject` class (see above).
+- `discover-projects.ts` — `discoverProjects` workspace scanner (see above).
 - `strip-console-reporters.ts` — removes console reporters from Vitest's
   reporter chain.
 - `resolve-thresholds.ts` — parses Vitest-native `coverageThresholds` into

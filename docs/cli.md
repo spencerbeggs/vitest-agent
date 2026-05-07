@@ -1,6 +1,6 @@
 # CLI Commands
 
-The `vitest-agent-reporter` CLI queries the SQLite database for on-demand
+The `vitest-agent` CLI queries the SQLite database for on-demand
 test landscape queries. It does not run tests or call AI providers.
 
 All commands accept `--format` to switch between `markdown` (default) and
@@ -15,7 +15,7 @@ Manage the reporter database.
 Print the resolved database file path and exit.
 
 ```bash
-npx vitest-agent-reporter cache path
+npx vitest-agent cache path
 ```
 
 Useful for scripting or verifying which database the CLI resolves to.
@@ -25,7 +25,7 @@ Useful for scripting or verifying which database the CLI resolves to.
 Delete the SQLite database file.
 
 ```bash
-npx vitest-agent-reporter cache clean
+npx vitest-agent cache clean
 ```
 
 Removes all persisted test data, history, baselines, trends, and notes.
@@ -37,7 +37,7 @@ Diagnose database health. Runs a series of checks and reports pass/fail
 for each:
 
 ```bash
-npx vitest-agent-reporter doctor
+npx vitest-agent doctor
 ```
 
 Checks performed:
@@ -49,14 +49,14 @@ Checks performed:
 - **Last run** -- is the data stale (older than 24 hours)?
 
 Exits with code 1 if any check fails. When issues are found, suggests
-running `vitest-agent-reporter cache clean` and re-running tests.
+running `vitest-agent cache clean` and re-running tests.
 
 ## status
 
 Show per-project pass/fail state from the most recent test run.
 
 ```bash
-npx vitest-agent-reporter status
+npx vitest-agent status
 ```
 
 Output includes a summary table with project names, last run timestamps,
@@ -68,7 +68,7 @@ failure counts and affected files.
 Test landscape summary with per-project run metrics.
 
 ```bash
-npx vitest-agent-reporter overview
+npx vitest-agent overview
 ```
 
 Shows the full test landscape with file-to-test mapping and project
@@ -79,7 +79,7 @@ discovery. Useful for agents exploring an unfamiliar codebase.
 Coverage gap analysis from the database.
 
 ```bash
-npx vitest-agent-reporter coverage
+npx vitest-agent coverage
 ```
 
 Reads the coverage threshold from each project's stored data. Shows
@@ -90,7 +90,7 @@ files below threshold sorted by worst metric, with uncovered line ranges.
 Failure trend analysis across runs.
 
 ```bash
-npx vitest-agent-reporter history
+npx vitest-agent history
 ```
 
 Queries per-project history data and groups tests by classification:
@@ -115,7 +115,7 @@ a pointer to run this command when classifications are present.
 Coverage trend analysis across runs.
 
 ```bash
-npx vitest-agent-reporter trends
+npx vitest-agent trends
 ```
 
 Queries per-project trend data and displays:
