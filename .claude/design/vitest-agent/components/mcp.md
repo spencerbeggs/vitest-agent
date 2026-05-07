@@ -170,10 +170,13 @@ be retried within the same CC session (the main agent generates a fresh
 `runId` at each dispatch) without triggering the cache replay.
 
 **`tdd_session_start` accepts `runId`.** The tool's optional `runId`
-input is forwarded to `DataStore.writeTddSession`. If omitted, the tool
-generates a full `randomUUID()` and stores it in `tdd_sessions.run_id`.
-The `run_id` is returned in the tool's output so the main agent can pass
-it through the launch prompt to the orchestrator subagent.
+input is forwarded to `DataStore.writeTddSession`. When provided,
+`run_id` is stored in `tdd_sessions` and the partial unique index on
+`(session_id, run_id)` gives database-level deduplication. When omitted,
+`run_id` is stored as NULL; the partial index does not cover NULL rows,
+so only the middleware goal-text cache (`cc:<ccSessionId>:<goal>`)
+provides idempotency. The tool returns `runId: undefined` when the caller
+did not supply one.
 
 ## Channel-event resolution
 

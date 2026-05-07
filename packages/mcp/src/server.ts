@@ -551,7 +551,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"tdd_session_start",
 		{
 			description:
-				"Open a new TDD session for a goal. Idempotent on (sessionId, runId) when runId is provided; falls back to (sessionId, goal) for legacy callers.",
+				"Open a new TDD session for a goal. Idempotent on (sessionId, runId) when runId is provided; when omitted, only the middleware goal-text cache applies.",
 			inputSchema: {
 				goal: z.string().describe("The behavior or feature being implemented"),
 				sessionId: z.optional(z.coerce.number()).describe("sessions.id (integer); omit to use ccSessionId"),
@@ -561,7 +561,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 				runId: z
 					.optional(z.string())
 					.describe(
-						"Unique dispatch id; auto-generated (full UUID) if omitted. Pass the value from the main agent's launch prompt.",
+						"Unique dispatch id; supply a stable value (e.g. launch-prompt runId) to get database-level deduplication. When omitted, run_id is stored as NULL and only the middleware goal-text cache applies.",
 					),
 			},
 		},
