@@ -171,10 +171,9 @@ be retried within the same CC session (the main agent generates a fresh
 
 **`tdd_session_start` accepts `runId`.** The tool's optional `runId`
 input is forwarded to `DataStore.writeTddSession`. If omitted, the tool
-generates a short UUID prefix (`randomUUID().slice(0, 8)`) and stores it
-in `tdd_sessions.run_id`. The `run_id` is returned in the tool's output
-so the main agent can pass it through the launch prompt to the
-orchestrator subagent.
+generates a full `randomUUID()` and stores it in `tdd_sessions.run_id`.
+The `run_id` is returned in the tool's output so the main agent can pass
+it through the launch prompt to the orchestrator subagent.
 
 ## Channel-event resolution
 

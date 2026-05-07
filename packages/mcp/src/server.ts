@@ -561,7 +561,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 				runId: z
 					.optional(z.string())
 					.describe(
-						"Unique dispatch id; auto-generated (UUID slice) if omitted. Pass the value from the main agent's launch prompt.",
+						"Unique dispatch id; auto-generated (full UUID) if omitted. Pass the value from the main agent's launch prompt.",
 					),
 			},
 		},

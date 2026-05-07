@@ -516,9 +516,10 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 								// tool_result — normalize MCP-prefixed names to short names
 								// (CC sends "mcp__<server>__<name>"; store just "<name>")
 								const rawToolName = payload.tool_name as string;
-								const toolName = rawToolName.includes("__")
-									? (rawToolName.split("__").at(-1) ?? rawToolName)
-									: rawToolName;
+								const toolName =
+									typeof rawToolName === "string" && rawToolName.startsWith("mcp__")
+										? (rawToolName.split("__").at(-1) ?? rawToolName)
+										: rawToolName;
 								yield* sql`
 									INSERT INTO tool_invocations (turn_id, tool_name, params_hash, result_summary, duration_ms, success)
 									VALUES (

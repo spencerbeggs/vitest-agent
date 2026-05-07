@@ -1118,6 +1118,40 @@ describe("DataStoreLive", () => {
 				expect(result[0].tool_name).toBe("note_create");
 			});
 
+			it("preserves non-MCP tool names that contain double underscores unchanged", async () => {
+				const result = await run(
+					Effect.gen(function* () {
+						const ds = yield* DataStore;
+						const sql = yield* SqlClient;
+
+						const sessionId = yield* ds.writeSession({
+							cc_session_id: "cc-non-mcp-tool",
+							project: "p",
+							cwd: "/tmp/p",
+							agent_kind: "main",
+							started_at: "2026-04-29T00:00:00Z",
+						});
+
+						const turnId = yield* ds.writeTurn({
+							session_id: sessionId,
+							type: "tool_result",
+							payload: JSON.stringify({
+								type: "tool_result",
+								tool_name: "my__custom_tool",
+								success: true,
+							}),
+							occurred_at: "2026-04-29T00:00:01Z",
+						});
+
+						return yield* sql<{
+							tool_name: string;
+						}>`SELECT tool_name FROM tool_invocations WHERE turn_id = ${turnId}`;
+					}),
+				);
+
+				expect(result[0].tool_name).toBe("my__custom_tool");
+			});
+
 			it("does not fan out for non-fanout payload types", async () => {
 				const result = await run(
 					Effect.gen(function* () {
