@@ -531,4 +531,60 @@ describe("formatTerminal — per-tag counts", () => {
 		expect(intIdx).toBeGreaterThan(e2eIdx);
 		expect(unitIdx).toBeGreaterThan(intIdx);
 	});
+
+	it("should show inline tag summary on the per-project row even when the project has failures (multi-project path)", () => {
+		// Given: two named projects so reports.length > 1 exercises renderProjectRow (line 180 path).
+		// One of them has failures so the failed === 0 guard would suppress the inline summary.
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					project: "vitest-agent-sdk",
+					summary: { total: 752, passed: 748, failed: 4, skipped: 0, duration: 6900 },
+					tagCounts: {
+						unit: { passed: 744, failed: 2 },
+						int: { passed: 4, failed: 2 },
+					},
+				}) as never,
+				baseTagReport({
+					project: "vitest-agent-plugin",
+					summary: { total: 10, passed: 10, failed: 0, skipped: 0, duration: 500 },
+					tagCounts: { unit: { passed: 10 } },
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+
+		// Then: the inline rollup appears on the failing project's tick row
+		// unit total = 744 passed + 2 failed = 746; int total = 4 passed + 2 failed = 6
+		expect(out).toMatch(/unit:746/);
+		expect(out).toMatch(/int:6/);
+		// And the indented per-tag failure breakdown also appears
+		expect(out).toMatch(/unit\s+744p\s+2f/);
+		expect(out).toMatch(/int\s+4p\s+2f/);
+	});
+
+	it("should show inline tag summary for a single named project even when it has failures (single named project path)", () => {
+		// Given: a single named project with failures — exercises showProjectLabel path (line 601)
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					project: "vitest-agent-sdk",
+					summary: { total: 752, passed: 748, failed: 4, skipped: 0, duration: 6900 },
+					tagCounts: {
+						unit: { passed: 744, failed: 2 },
+						int: { passed: 4, failed: 2 },
+					},
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+
+		// Then: the inline rollup appears even though there are failures
+		// unit total = 744 passed + 2 failed = 746; int total = 4 passed + 2 failed = 6
+		expect(out).toMatch(/unit:746/);
+		expect(out).toMatch(/int:6/);
+		// And the indented per-tag failure breakdown also appears
+		expect(out).toMatch(/unit\s+744p\s+2f/);
+		expect(out).toMatch(/int\s+4p\s+2f/);
+	});
 });

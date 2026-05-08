@@ -91,18 +91,31 @@ export function injectTags(source: string, tags: ReadonlyArray<string>): InjectT
 		if (!lastIsFunction) return;
 
 		const optsCandidate = args.length >= 3 ? args[args.length - 2] : null;
-		if (optsCandidate && optsCandidate.type === "ObjectExpression") {
-			if (hasTagsField(optsCandidate)) return;
-			const props = (optsCandidate.properties as Node[]) ?? [];
-			if (props.length === 0) {
-				// Empty object: insert directly before closing brace
-				const insertPoint = (optsCandidate.end as number) - 1;
-				ms.appendLeft(insertPoint, `tags: ${tagsLiteral(tags)} `);
-			} else {
-				// Non-empty: insert after the last property
-				const lastProp = props[props.length - 1]!;
-				ms.appendLeft(lastProp.end as number, `, tags: ${tagsLiteral(tags)}`);
+		if (optsCandidate) {
+			if (optsCandidate.type === "ObjectExpression") {
+				if (hasTagsField(optsCandidate)) return;
+				const props = (optsCandidate.properties as Node[]) ?? [];
+				if (props.length === 0) {
+					// Empty object: insert directly before closing brace
+					const insertPoint = (optsCandidate.end as number) - 1;
+					ms.appendLeft(insertPoint, `tags: ${tagsLiteral(tags)} `);
+				} else {
+					// Non-empty: insert after the last property
+					const lastProp = props[props.length - 1]!;
+					ms.appendLeft(lastProp.end as number, `, tags: ${tagsLiteral(tags)}`);
+				}
+				mutated = true;
+				return;
 			}
+			// Non-literal options expression (Identifier, CallExpression, etc.):
+			// wrap with spread to preserve runtime semantics and add tags.
+			// The spread of null/undefined is a no-op; spread of an object copies
+			// its keys. The tags property is appended after the spread so it
+			// cannot be overridden by the original expression.
+			const optsStart = optsCandidate.start as number;
+			const optsEnd = optsCandidate.end as number;
+			const origExpr = source.slice(optsStart, optsEnd);
+			ms.overwrite(optsStart, optsEnd, `{ ...(${origExpr}), tags: ${tagsLiteral(tags)} }`);
 			mutated = true;
 			return;
 		}

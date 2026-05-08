@@ -177,7 +177,7 @@ const renderProjectRow = (report: AgentReport, ao: AnsiOptions, nameWidth: numbe
 	counts.push(`${passed} passed`);
 	if (skipped > 0) counts.push(`${skipped} skipped`);
 	const baseRow = `  ${tick} ${pad(name, nameWidth)}  ${counts.join(", ")} (${duration})`;
-	const tagSummary = failed === 0 ? buildTagSummary(report.tagCounts) : "";
+	const tagSummary = buildTagSummary(report.tagCounts);
 	return `${baseRow}${tagSummary}`;
 };
 
@@ -598,7 +598,7 @@ export const formatTerminal = (reports: ReadonlyArray<AgentReport>, options: Ter
 			counts.push(`${r.summary.passed} passed`);
 			if (r.summary.skipped > 0) counts.push(`${r.summary.skipped} skipped`);
 			const baseRow = `${tick} ${counts.join(", ")} (${formatDuration(r.summary.duration)})`;
-			const tagSummary = r.summary.failed === 0 ? buildTagSummary(r.tagCounts) : "";
+			const tagSummary = buildTagSummary(r.tagCounts);
 			out.push(`${baseRow}${tagSummary}`);
 			if (r.summary.failed > 0 && r.tagCounts) {
 				out.push(...renderTagFailureBreakdown(r.tagCounts));

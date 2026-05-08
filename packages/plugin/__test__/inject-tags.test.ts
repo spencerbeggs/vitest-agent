@@ -82,4 +82,55 @@ describe("injectTags", () => {
 		expect(out).not.toBeNull();
 		expect(stripWs(out!.code)).toContain('tags: ["int"]');
 	});
+
+	it("should wrap a non-literal options argument with spread when injecting tags", () => {
+		// Given: a 3-arg test call where the middle arg is an Identifier (not an ObjectExpression)
+		const src = `test("a", opts, () => {});`;
+
+		// When: injectTags is called with a tag
+		const out = injectTags(src, ["int"]);
+
+		// Then: the result should use spread to wrap the identifier
+		expect(out).not.toBeNull();
+		expect(stripWs(out!.code)).toContain('{ ...(opts), tags: ["int"] }');
+	});
+
+	it("should wrap a function-call options expression with spread when injecting tags", () => {
+		// Given: a 3-arg test call where the middle arg is a CallExpression
+		const src = `test("a", makeOpts(123), () => {});`;
+
+		// When: injectTags is called with a tag
+		const out = injectTags(src, ["int"]);
+
+		// Then: the result should use spread to wrap the call expression
+		expect(out).not.toBeNull();
+		expect(stripWs(out!.code)).toContain('{ ...(makeOpts(123)), tags: ["int"] }');
+	});
+
+	it("should produce exactly 3 arguments with a spread ObjectExpression after transforming a non-literal options arg", async () => {
+		// Given: a 3-arg test call where the middle arg is an Identifier
+		const src = `test("a", opts, () => {});`;
+
+		// When: injectTags transforms it
+		const out = injectTags(src, ["int"]);
+		expect(out).not.toBeNull();
+
+		// Then: parse the output with acorn and verify the AST shape
+		const { parse } = await import("acorn");
+		const ast = parse(out!.code, { ecmaVersion: "latest", sourceType: "module" }) as unknown as {
+			body: Array<{ expression: { arguments: Array<{ type: string; properties: Array<{ type: string }> }> } }>;
+		};
+		const callArgs = ast.body[0].expression.arguments;
+
+		// exactly 3 arguments (not 4)
+		expect(callArgs).toHaveLength(3);
+
+		// second arg is an ObjectExpression
+		const secondArg = callArgs[1];
+		expect(secondArg.type).toBe("ObjectExpression");
+
+		// first property is a SpreadElement, second is the tags Property
+		expect(secondArg.properties[0].type).toBe("SpreadElement");
+		expect(secondArg.properties[1].type).toBe("Property");
+	});
 });
