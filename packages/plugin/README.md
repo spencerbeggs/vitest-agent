@@ -65,10 +65,14 @@ tags at parse time is configured separately via the
 both to fully opt out of tagging.
 
 ```typescript
-import { AgentPlugin, TagStrategy } from "vitest-agent-plugin";
+import { AgentPlugin, Tag, TagStrategy } from "vitest-agent-plugin";
 
-// Custom tag strategy with a 30s timeout for contract tests
+// Custom tag strategy with a 30s timeout for contract tests.
+// `additionalTags` declares the `contract` definition (with its timeout)
+// so Vitest's tag-expression filtering and per-tag overrides resolve it;
+// `classify` then routes `*.contract.test.ts` files to that tag.
 const strategy = TagStrategy.default.extend({
+  additionalTags: [Tag.make("contract", { timeout: 30_000 })],
   classify: ({ module, inherited }) => {
     if (module.filename.endsWith(".contract.test.ts")) return ["contract"];
     return inherited;
