@@ -256,7 +256,7 @@ release workflow. Releases happen in lockstep.
   declarations, destructures `{ projects, tags }`, and threads both into
   `defineConfig({ test: { projects, tags } })`. Project-based filtering
   is still available via `--project`; test-kind filtering moved to
-  Vitest-native tag expressions (e.g. `--test-name-pattern` or `-t int`).
+  Vitest-native tag expressions (e.g. `--tags-filter "int"`).
 - **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
   (flat directory). The `discoverProjects` scanner also recognises
   tests co-located under `src/` for backward compatibility.

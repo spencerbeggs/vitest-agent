@@ -184,7 +184,7 @@ test file to a tag list. The plugin installs a Vite `transform` hook
 (see `packages/plugin/src/utils/inject-tags.ts`) that rewrites every
 `test()` and `it()` call's options argument to add the resolved tags
 array. Filter at the command line via Vitest's standard tag-expression
-syntax (`pnpm vitest --project vitest-agent-sdk -t unit`).
+syntax (`pnpm vitest --project vitest-agent-sdk --tags-filter "unit"`).
 
 Aggregated per-tag pass/fail/skip counts surface on `AgentReport.tagCounts`
 and render in the terminal formatter as both an inline summary on the

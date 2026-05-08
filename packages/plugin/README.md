@@ -57,8 +57,12 @@ instead.
 The optional `options` argument accepts either a `({ projects }) =>
 void | Promise<void>` callback that mutates the discovered project
 list in place, or an object `{ callback?, tagStrategy? }` where
-`tagStrategy` is a `TagStrategy` instance or `false` to disable
-tag declarations and the inject-tags Vite transform.
+`tagStrategy` is a `TagStrategy` instance or `false` to omit tag
+definitions from the returned `tags` array. `discover()` only
+controls the returned configuration. The Vite transform that injects
+tags at parse time is configured separately via the
+`AgentPlugin({ tagStrategy })` constructor option — pass `false` to
+both to fully opt out of tagging.
 
 ```typescript
 import { AgentPlugin, TagStrategy } from "vitest-agent-plugin";
@@ -120,8 +124,11 @@ discovery surface stay in sync:
 AgentPlugin({ tagStrategy: strategy });
 ```
 
-Pass `tagStrategy: false` to disable both the transform and the
-declared tags.
+Pass `tagStrategy: false` to disable the Vite transform so no tags
+are injected at parse time. The companion `AgentPlugin.discover()`
+also accepts `tagStrategy: false` to omit tag definitions from its
+returned `tags` array — pass `false` to both calls to fully opt out
+of tagging.
 
 ## Coverage Level Presets
 

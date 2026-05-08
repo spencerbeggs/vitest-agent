@@ -77,8 +77,12 @@ optional `options` argument accepts either:
 - An object `{ callback?, tagStrategy? }` where:
   - `callback` is the same projects mutator as above.
   - `tagStrategy` is a `TagStrategy` instance (use `TagStrategy.create`
-    or `TagStrategy.default.extend(...)`), or `false` to disable both
-    tag declarations and the `inject-tags.ts` Vite transform.
+    or `TagStrategy.default.extend(...)`), or `false` to omit the tag
+    definitions from the returned `tags` array. `discover()` only
+    affects the returned configuration — to also disable the Vite
+    `inject-tags.ts` transform that injects tags at parse time, pass
+    `tagStrategy: false` to `AgentPlugin({ tagStrategy: false })`. To
+    fully opt out of tags, pass `false` to both calls.
 
 The pre-2.0 per-kind override form (`{ unit?, int?, e2e? }` keyed by
 test kind, with each key holding either a config patch or a per-kind

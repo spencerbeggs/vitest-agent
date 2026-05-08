@@ -93,7 +93,10 @@ Controls the Vite transform that injects Vitest 4.1 tags into every
 `test()` and `it()` call based on the test file's path. Defaults to
 `TagStrategy.default`, which classifies `.e2e.test.ts` as `e2e`,
 `.int.test.ts` as `int`, and everything else as `unit`. Set to `false`
-to disable the transform and ship no tags. See
+to disable the transform so no tags are injected at parse time. The
+companion `AgentPlugin.discover({ tagStrategy: false })` separately
+omits the matching `TestTagDefinition[]` from the returned `tags`
+array; both calls are needed to fully opt out of tagging. See
 [Project Discovery](#project-discovery) for how tags pair with the
 `tags` array returned from `AgentPlugin.discover()`, and the
 [`Tag` and `TagStrategy` API](#tag-and-tagstrategy-api) section below
@@ -171,8 +174,11 @@ The `options` argument accepts either:
   discovered project list in place after scanning.
 - An object `{ callback?, tagStrategy? }` where `callback` is the same
   projects mutator and `tagStrategy` is a `TagStrategy` instance (or
-  `false` to disable both tag declarations and the tag-injection
-  transform).
+  `false` to omit tag definitions from the returned `tags` array).
+  Note that `discover()` only controls the returned configuration; the
+  Vite transform that injects tags at parse time is configured via
+  `AgentPlugin({ tagStrategy })`. Pass `false` to both to fully opt
+  out of tagging.
 
 The pre-2.0 per-kind override form (`{ unit?, int?, e2e? }` keyed by
 test kind) was removed when discovery consolidated to one project per
@@ -221,9 +227,13 @@ export default async () => {
 
 `TagStrategy.default.extend({ ... })` chains an extra classifier on top
 of the built-in strategy; the extension layer receives the parent's
-inherited tags so you can decorate without rewriting. Pass
-`tagStrategy: false` (on either `AgentPlugin.discover` or `AgentPlugin`)
-to disable the transform and ship no tags.
+inherited tags so you can decorate without rewriting. The two surfaces
+that accept `tagStrategy` cover different concerns:
+`AgentPlugin({ tagStrategy: false })` disables the Vite transform that
+injects tags at parse time, and
+`AgentPlugin.discover({ tagStrategy: false })` omits tag definitions
+from the returned `tags` array. Pass `false` to both to fully opt out
+of tagging.
 
 The classification context exposes `ModuleInfo` (`path`,
 `relativePath`, `filename`, `packageName`, `packagePath`),

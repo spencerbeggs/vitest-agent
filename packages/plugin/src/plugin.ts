@@ -371,8 +371,8 @@ export namespace AgentPlugin {
 	 *
 	 * ```ts
 	 * export default defineConfig(async () => {
-	 *   const { projects } = await AgentPlugin.discover();
-	 *   return { plugins: [AgentPlugin()], test: { projects } };
+	 *   const { projects, tags } = await AgentPlugin.discover();
+	 *   return { plugins: [AgentPlugin()], test: { projects, tags } };
 	 * });
 	 * ```
 	 */

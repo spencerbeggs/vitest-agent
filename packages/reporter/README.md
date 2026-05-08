@@ -96,13 +96,14 @@ and persisting notes -- with no manual MCP configuration.
 ## What Agents See
 
 When tests fail, the reporter produces actionable markdown output with
-classification labels, coverage gaps, and next steps. Per-project lines
-include a tag rollup (e.g. `unit:746 int:6`) when the project's tests
-are tagged, with an indented per-tag failure breakdown beneath any
-project that has failures:
+classification labels, coverage gaps, and next steps. (Per-project
+inline tag rollups and indented per-tag failure breakdowns are a
+**terminal-output** feature rendered by `terminalReporter`; the
+markdown formatter focuses on the failure / coverage / next-steps
+sections shown below.)
 
 ````markdown
-## x Vitest -- 2 failed, 10 passed (520ms)  unit:746 int:6
+## x Vitest -- 2 failed, 10 passed (520ms)
 
 Coverage regressing over 3 runs
 
@@ -121,9 +122,6 @@ Coverage regressing over 3 runs
 
 - x **compressLines > handles duplicates** [persistent]
   Expected [1,2] to equal [1]
-
-  - int: 1 failed, 5 passed
-  - unit: 1 failed, 745 passed
 
 ### Coverage gaps
 

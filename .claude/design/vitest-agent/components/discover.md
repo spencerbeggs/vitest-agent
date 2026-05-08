@@ -237,7 +237,8 @@ test file. Tags reach individual `test()` / `it()` calls via a Vite
    `tags: [...existing, ...resolved]`. Source maps are preserved.
 4. Vitest's runner reads the resulting `tags` array per test, which
    feeds Vitest's tag-filter expression syntax
-   (`pnpm vitest -t unit`, `-t "e2e and not flaky"`, etc.).
+   (`pnpm vitest --tags-filter "unit"`,
+   `--tags-filter "e2e and not flaky"`, etc.).
 
 The transform is the working path because Vitest's internal runner
 reads tags from `test()` / `it()` options at parse time, not from
