@@ -387,6 +387,10 @@ const migration = Effect.gen(function* () {
 	yield* sql`CREATE INDEX idx_test_history_run ON test_history(run_id)`;
 
 	// 21. coverage_baselines
+	// pattern uses an empty-string sentinel ('') for global (no-pattern) rows so that
+	// UNIQUE(project, metric, pattern) fires correctly on upsert. SQLite NULL values do
+	// not participate in UNIQUE comparisons, so pattern=NULL would allow duplicate rows
+	// per metric; '' is a safe sentinel because glob patterns are always non-empty.
 	yield* sql`
 		CREATE TABLE coverage_baselines (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -395,7 +399,7 @@ const migration = Effect.gen(function* () {
 				'lines', 'functions', 'branches', 'statements'
 			)),
 			value REAL NOT NULL,
-			pattern TEXT,
+			pattern TEXT NOT NULL DEFAULT '',
 			updated_at TEXT NOT NULL,
 			UNIQUE(project, metric, pattern)
 		)

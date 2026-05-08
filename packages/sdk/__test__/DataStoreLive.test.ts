@@ -613,9 +613,43 @@ describe("DataStoreLive", () => {
 						pattern: string;
 						metric: string;
 						value: number;
-					}>`SELECT pattern, metric, value FROM coverage_baselines WHERE pattern IS NOT NULL ORDER BY metric`;
+					}>`SELECT pattern, metric, value FROM coverage_baselines WHERE pattern != '' ORDER BY metric`;
 					expect(rows).toHaveLength(2);
 					expect(rows[0].pattern).toBe("src/**/*.ts");
+				}),
+			);
+		});
+
+		it("should not create duplicate global baseline rows when called twice for the same metric", async () => {
+			// Given: writeBaselines is called once to establish a global baseline
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeBaselines({
+						updatedAt: "2026-03-22T00:00:00.000Z",
+						global: { lines: 80, branches: 70 },
+						patterns: [],
+					});
+
+					// When: writeBaselines is called again with updated values for the same metrics
+					yield* store.writeBaselines({
+						updatedAt: "2026-03-23T00:00:00.000Z",
+						global: { lines: 85, branches: 75 },
+						patterns: [],
+					});
+
+					// Then: each metric should appear exactly once (upsert, not insert)
+					// Regression: SQLite UNIQUE(project, metric, pattern) with pattern=NULL
+					// does NOT fire ON CONFLICT because NULL != NULL in SQLite uniqueness
+					// comparisons, allowing duplicate rows per metric to accumulate.
+					const sql = yield* SqlClient;
+					const rows = yield* sql<{
+						metric: string;
+						value: number;
+					}>`SELECT metric, value FROM coverage_baselines WHERE project = '__global__' ORDER BY metric`;
+					expect(rows).toHaveLength(2);
+					expect(rows.find((r) => r.metric === "lines")?.value).toBe(85);
+					expect(rows.find((r) => r.metric === "branches")?.value).toBe(75);
 				}),
 			);
 		});

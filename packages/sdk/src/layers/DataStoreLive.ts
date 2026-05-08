@@ -301,7 +301,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				for (const metric of metrics) {
 					const value = g[metric];
 					if (value !== undefined) {
-						yield* sql`INSERT INTO coverage_baselines (project, metric, value, pattern, updated_at) VALUES ('__global__', ${metric}, ${value}, NULL, ${updatedAt}) ON CONFLICT (project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
+						yield* sql`INSERT INTO coverage_baselines (project, metric, value, pattern, updated_at) VALUES ('__global__', ${metric}, ${value}, '', ${updatedAt}) ON CONFLICT (project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
 					}
 				}
 

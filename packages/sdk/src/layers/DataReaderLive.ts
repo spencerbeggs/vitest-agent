@@ -258,7 +258,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					metric: string;
 					value: number;
 				}>`SELECT metric, value FROM coverage_baselines
-					WHERE project = '__global__' AND pattern IS NULL`;
+					WHERE project = '__global__' AND pattern = ''`;
 				const thresholds: { lines?: number; functions?: number; branches?: number; statements?: number } = {};
 				for (const b of baselineRows) {
 					if (b.metric === "lines") thresholds.lines = b.value;
@@ -408,7 +408,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				const rows = yield* sql<{
 					metric: string;
 					value: number;
-					pattern: string | null;
+					pattern: string;
 					updated_at: string;
 				}>`SELECT metric, value, pattern, updated_at
 					FROM coverage_baselines
@@ -423,7 +423,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 				for (const row of rows) {
 					if (row.updated_at > updatedAt) updatedAt = row.updated_at;
-					if (row.pattern == null) {
+					if (row.pattern === "") {
 						global[row.metric] = row.value;
 					} else {
 						const existing = patternsMap.get(row.pattern);
