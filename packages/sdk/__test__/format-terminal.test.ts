@@ -454,3 +454,137 @@ describe("formatTerminal", () => {
 		expect(out).toContain("Use the test_errors MCP tool to search errors by type");
 	});
 });
+
+describe("formatTerminal — per-tag counts", () => {
+	const baseTagReport = (overrides: Partial<Parameters<typeof formatTerminal>[0][number]>) => ({
+		project: "vitest-agent-sdk",
+		reason: "passed" as const,
+		summary: { total: 752, passed: 752, failed: 0, skipped: 0, duration: 6700 },
+		failed: [],
+		failedFiles: [],
+		unhandledErrors: [],
+		timestamp: "2026-05-07T00:00:00.000Z",
+		...overrides,
+	});
+
+	it("shows tag counts inline when a project has tests with multiple tag kinds", () => {
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					tagCounts: { unit: { passed: 746 }, int: { passed: 6 } },
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+		expect(out).toContain("vitest-agent-sdk");
+		expect(out).toMatch(/unit:746/);
+		expect(out).toMatch(/int:6/);
+	});
+
+	it("hides the tag breakdown when only one tag is present", () => {
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					tagCounts: { unit: { passed: 752 } },
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+		expect(out).not.toMatch(/unit:752/);
+	});
+
+	it("renders per-tag breakdown rows when there are failures across tags", () => {
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					summary: { total: 752, passed: 748, failed: 4, skipped: 0, duration: 6900 },
+					tagCounts: {
+						unit: { passed: 744, failed: 2 },
+						int: { passed: 4, failed: 2 },
+					},
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+		expect(out).toMatch(/unit\s+744p\s+2f/);
+		expect(out).toMatch(/int\s+4p\s+2f/);
+	});
+
+	it("should render tag counts alphabetically when tagCounts keys are in non-alphabetical insertion order", () => {
+		// Given: tagCounts with keys inserted in non-alphabetical order (unit, e2e, int)
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					tagCounts: { unit: { passed: 10 }, e2e: { passed: 5 }, int: { passed: 3 } },
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+
+		// When: we locate each tag counter in the output string
+		const e2eIdx = out.indexOf("e2e:5");
+		const intIdx = out.indexOf("int:3");
+		const unitIdx = out.indexOf("unit:10");
+
+		// Then: tags appear in alphabetical order (e2e < int < unit)
+		expect(e2eIdx).toBeGreaterThan(-1);
+		expect(intIdx).toBeGreaterThan(e2eIdx);
+		expect(unitIdx).toBeGreaterThan(intIdx);
+	});
+
+	it("should show inline tag summary on the per-project row even when the project has failures (multi-project path)", () => {
+		// Given: two named projects so reports.length > 1 exercises renderProjectRow (line 180 path).
+		// One of them has failures so the failed === 0 guard would suppress the inline summary.
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					project: "vitest-agent-sdk",
+					summary: { total: 752, passed: 748, failed: 4, skipped: 0, duration: 6900 },
+					tagCounts: {
+						unit: { passed: 744, failed: 2 },
+						int: { passed: 4, failed: 2 },
+					},
+				}) as never,
+				baseTagReport({
+					project: "vitest-agent-plugin",
+					summary: { total: 10, passed: 10, failed: 0, skipped: 0, duration: 500 },
+					tagCounts: { unit: { passed: 10 } },
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+
+		// Then: the inline rollup appears on the failing project's tick row
+		// unit total = 744 passed + 2 failed = 746; int total = 4 passed + 2 failed = 6
+		expect(out).toMatch(/unit:746/);
+		expect(out).toMatch(/int:6/);
+		// And the indented per-tag failure breakdown also appears
+		expect(out).toMatch(/unit\s+744p\s+2f/);
+		expect(out).toMatch(/int\s+4p\s+2f/);
+	});
+
+	it("should show inline tag summary for a single named project even when it has failures (single named project path)", () => {
+		// Given: a single named project with failures — exercises showProjectLabel path (line 601)
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					project: "vitest-agent-sdk",
+					summary: { total: 752, passed: 748, failed: 4, skipped: 0, duration: 6900 },
+					tagCounts: {
+						unit: { passed: 744, failed: 2 },
+						int: { passed: 4, failed: 2 },
+					},
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+
+		// Then: the inline rollup appears even though there are failures
+		// unit total = 744 passed + 2 failed = 746; int total = 4 passed + 2 failed = 6
+		expect(out).toMatch(/unit:746/);
+		expect(out).toMatch(/int:6/);
+		// And the indented per-tag failure breakdown also appears
+		expect(out).toMatch(/unit\s+744p\s+2f/);
+		expect(out).toMatch(/int\s+4p\s+2f/);
+	});
+});

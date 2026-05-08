@@ -181,8 +181,9 @@ Integration tests verify behavior that unit tests can't reach:
   contents and console output. The `examples/basic` package is
   the canonical integration target
 - **Multi-project DB writes** -- a Vitest config with multiple
-  projects sharing one `data.db` and assertions that
-  `(project, subProject)` columns are populated correctly
+  projects sharing one `data.db` and assertions that the `project`
+  column is populated correctly per workspace package, and that
+  per-tag aggregates land on `AgentReport.tagCounts`
 - **GFM output** -- mock `GITHUB_STEP_SUMMARY` to a temp file and
   assert the reporter's appended content
 - **Reporter injection via `AgentPlugin`** -- exercise

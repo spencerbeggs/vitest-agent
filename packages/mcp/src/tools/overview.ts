@@ -44,7 +44,7 @@ export const testOverview = publicProcedure
 					lines.push("");
 
 					for (const run of projectRuns) {
-						const label = run.subProject ? `${run.project} / ${run.subProject}` : run.project;
+						const label = run.project;
 						const lastRun = run.lastRun ? new Date(run.lastRun).toLocaleString() : "never";
 						const icon =
 							run.lastResult === "passed"

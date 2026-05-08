@@ -30,7 +30,6 @@ export function singlePassingRun(filename: string) {
 		const runId = yield* store.writeRun({
 			invocationId: "inv-preset-spr-1",
 			project: "default",
-			subProject: null,
 			settingsHash: "hash-preset-spr",
 			timestamp: "2026-01-01T00:00:00.000Z",
 			commitSha: null,
@@ -84,7 +83,6 @@ export function withFailures(filename: string) {
 		const runId = yield* store.writeRun({
 			invocationId: "inv-preset-wf-1",
 			project: "default",
-			subProject: null,
 			settingsHash: "hash-preset-wf",
 			timestamp: "2026-01-01T00:00:00.000Z",
 			commitSha: null,
@@ -144,7 +142,6 @@ export function flaky(filename: string) {
 		const runId1 = yield* store.writeRun({
 			invocationId: "inv-preset-flaky-1",
 			project: "default",
-			subProject: null,
 			settingsHash: "hash-preset-flaky",
 			timestamp: "2026-01-01T00:00:00.000Z",
 			commitSha: null,
@@ -182,7 +179,6 @@ export function flaky(filename: string) {
 		]);
 		yield* store.writeHistory(
 			"default",
-			null,
 			"async > resolves within timeout",
 			runId1,
 			"2026-01-01T00:00:00.000Z",
@@ -194,7 +190,6 @@ export function flaky(filename: string) {
 		);
 		yield* store.writeHistory(
 			"default",
-			null,
 			"async > rejects on error",
 			runId1,
 			"2026-01-01T00:00:00.000Z",
@@ -207,7 +202,6 @@ export function flaky(filename: string) {
 		const runId2 = yield* store.writeRun({
 			invocationId: "inv-preset-flaky-2",
 			project: "default",
-			subProject: null,
 			settingsHash: "hash-preset-flaky",
 			timestamp: "2026-01-01T01:00:00.000Z",
 			commitSha: null,
@@ -244,7 +238,6 @@ export function flaky(filename: string) {
 		]);
 		yield* store.writeHistory(
 			"default",
-			null,
 			"async > resolves within timeout",
 			runId2,
 			"2026-01-01T01:00:00.000Z",
@@ -256,7 +249,6 @@ export function flaky(filename: string) {
 		);
 		yield* store.writeHistory(
 			"default",
-			null,
 			"async > rejects on error",
 			runId2,
 			"2026-01-01T01:00:00.000Z",

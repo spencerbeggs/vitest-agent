@@ -4,7 +4,6 @@ import { DataReader, DataStore } from "vitest-agent-sdk";
 export interface RecordSessionStartInput {
 	readonly ccSessionId: string;
 	readonly project: string;
-	readonly subProject?: string;
 	readonly cwd: string;
 	readonly agentKind: "main" | "subagent";
 	readonly agentType?: string;
@@ -31,7 +30,6 @@ export const recordSessionStart = (
 		const sessionId = yield* store.writeSession({
 			cc_session_id: input.ccSessionId,
 			project: input.project,
-			...(input.subProject !== undefined && { sub_project: input.subProject }),
 			cwd: input.cwd,
 			agent_kind: input.agentKind,
 			...(input.agentType !== undefined && { agent_type: input.agentType }),

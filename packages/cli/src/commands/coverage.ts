@@ -7,7 +7,7 @@
 import { Command, Options } from "@effect/cli";
 import { Effect, Option } from "effect";
 import type { AgentReport } from "vitest-agent-sdk";
-import { DataReader, splitProject } from "vitest-agent-sdk";
+import { DataReader } from "vitest-agent-sdk";
 import { formatCoverage } from "../lib/format-coverage.js";
 
 const formatOption = Options.withDefault(Options.choice("format", ["markdown", "json"]), "markdown");
@@ -26,8 +26,8 @@ export const coverageCommand = Command.make("coverage", { format: formatOption }
 		const reportEntries: Array<{ project: string; report: AgentReport }> = [];
 
 		for (const entry of manifest.projects) {
-			const { project, subProject } = splitProject(entry.project);
-			const reportOpt = yield* reader.getLatestRun(project, subProject);
+			const project = entry.project;
+			const reportOpt = yield* reader.getLatestRun(project);
 			if (Option.isSome(reportOpt)) {
 				reportEntries.push({ project: entry.project, report: reportOpt.value });
 			}

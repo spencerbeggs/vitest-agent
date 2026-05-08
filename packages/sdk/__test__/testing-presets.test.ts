@@ -78,7 +78,7 @@ describe("vitest-agent-sdk/testing preset factories", () => {
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
 					const runs = yield* reader.getRunsByProject();
-					const flakyTests = yield* reader.getFlaky("default", null);
+					const flakyTests = yield* reader.getFlaky("default");
 					return { runs, flakyTests };
 				}),
 			);

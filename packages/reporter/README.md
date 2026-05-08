@@ -58,7 +58,7 @@ import { AgentPlugin } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default async () => {
-  const projects = await AgentPlugin.discover();
+  const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [
       AgentPlugin({
@@ -68,6 +68,7 @@ export default async () => {
     ],
     test: {
       projects,
+      tags,
       pool: "forks",
       coverage: {
         provider: "v8",
@@ -95,7 +96,11 @@ and persisting notes -- with no manual MCP configuration.
 ## What Agents See
 
 When tests fail, the reporter produces actionable markdown output with
-classification labels, coverage gaps, and next steps:
+classification labels, coverage gaps, and next steps. (Per-project
+inline tag rollups and indented per-tag failure breakdowns are a
+**terminal-output** feature rendered by `terminalReporter`; the
+markdown formatter focuses on the failure / coverage / next-steps
+sections shown below.)
 
 ````markdown
 ## x Vitest -- 2 failed, 10 passed (520ms)
@@ -128,6 +133,7 @@ Coverage regressing over 3 runs
 - 1 new failure since last run
 - 1 persistent failure across 3 runs
 - Re-run: `pnpm vitest run src/utils.test.ts`
+- Filter by tag: `pnpm vitest run --tags-filter "int"`
 - Run `npx vitest-agent coverage` for gap analysis
 - Run `npx vitest-agent trends` for coverage trajectory
 ````
@@ -329,6 +335,40 @@ bin was renamed from `vitest-agent-reporter` to `vitest-agent`.
 `onInit` now returns `Promise<void>` so it can resolve dbPath
 asynchronously. Vitest awaits the hook, so `AgentPlugin` users see no
 change. Direct callers of `onInit` must await the promise.
+
+## Tag-strategy migration
+
+The 2.0 series replaces filename-driven project splitting with Vitest
+4.1's native tag system. If you upgraded from an earlier 2.0 build,
+expect the following breaking changes:
+
+- `AgentPlugin.discover()` returns `{ projects, tags }` instead of
+  `TestProjectInlineConfiguration[]`. Destructure the result and pass
+  both to `test.projects` and `test.tags`.
+- Project names lose their kind suffix — there is one project per
+  workspace package, no more `pkg:unit` / `pkg:int` / `pkg:e2e`. Test
+  kind is expressed as a Vitest tag (`unit`, `int`, `e2e`) injected
+  by the plugin's transform; filter runs with
+  `vitest --tags-filter "int"`.
+- The per-kind override form on `discoverProjects()`
+  (`{ unit?, int?, e2e? }` keyed by kind) is gone. Use the
+  `tagStrategy` option or the `callback` form instead.
+- The `--sub-project` flag was removed from the `record` CLI command,
+  and the `subProject` input field was removed from the
+  `test_history`, `suite_list`, and other MCP tools that previously
+  accepted it.
+- The `sub_project` column was dropped from every persisted table
+  (`test_runs`, `test_history`, `coverage_baselines`,
+  `coverage_trends`, `notes`, `sessions`). Existing `data.db` files
+  are wiped on first run by the drop-and-recreate migration.
+- `splitProject` and `ProjectIdentity` were removed from the
+  `vitest-agent-sdk` public API.
+
+`Tag`, `TagStrategy`, `ModuleInfo`, `ClassifyBaseContext`,
+`ClassifyExtendedContext`, and `TagOptions` are new public exports of
+`vitest-agent-plugin` for callers that want to author their own
+classification logic. See
+[Configuration > Tag and TagStrategy API](../docs/configuration.md#tag-and-tagstrategy-api).
 
 ## Requirements
 

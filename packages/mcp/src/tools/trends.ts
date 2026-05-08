@@ -22,7 +22,6 @@ export const testTrends = publicProcedure
 		Schema.standardSchemaV1(
 			Schema.Struct({
 				project: Schema.String,
-				subProject: Schema.optional(Schema.String),
 				limit: Schema.optional(Schema.Number),
 			}),
 		),
@@ -32,10 +31,9 @@ export const testTrends = publicProcedure
 			Effect.gen(function* () {
 				const reader = yield* DataReader;
 
-				const subProject = input.subProject ?? null;
 				const limit = input.limit;
 
-				const trendsOpt = yield* reader.getTrends(input.project, subProject, limit);
+				const trendsOpt = yield* reader.getTrends(input.project, limit);
 
 				if (Option.isNone(trendsOpt) || trendsOpt.value.entries.length === 0) {
 					return `No trend data available for project \`${input.project}\`. Run tests multiple times to build trend history.`;

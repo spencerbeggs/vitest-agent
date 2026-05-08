@@ -104,7 +104,6 @@ Coverage gap analysis with per-metric thresholds and targets.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `project` | `string` | No | Project name |
-| `subProject` | `string` | No | Sub-project name |
 
 #### `test_history`
 
@@ -114,7 +113,6 @@ visualization.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `project` | `string` | Yes | Project name |
-| `subProject` | `string` | No | Sub-project name |
 
 #### `test_trends`
 
@@ -124,7 +122,6 @@ trajectory.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `project` | `string` | Yes | Project name |
-| `subProject` | `string` | No | Sub-project name |
 | `limit` | `number` | No | Max number of trend entries to return |
 
 #### `test_errors`
@@ -134,7 +131,6 @@ Detailed test errors with diffs and stack traces for a project.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `project` | `string` | Yes | Project name |
-| `subProject` | `string` | No | Sub-project name |
 | `errorName` | `string` | No | Filter to a specific error name |
 
 #### `test_for_file`
@@ -154,7 +150,6 @@ and classification.
 | --- | --- | --- | --- |
 | `fullName` | `string` | Yes | Full test name (`Suite > nested > test`) |
 | `project` | `string` | No | Project name |
-| `subProject` | `string` | No | Sub-project name |
 
 #### `file_coverage`
 
@@ -213,7 +208,6 @@ List test cases with state and duration.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `project` | `string` | No | Project name |
-| `subProject` | `string` | No | Sub-project name |
 | `state` | `string` | No | Filter by state (`passed`, `failed`, `skipped`, `pending`) |
 | `module` | `string` | No | Filter by module file path |
 | `limit` | `number` | No | Max number of results |
@@ -225,7 +219,6 @@ List test modules (files) with test counts.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `project` | `string` | No | Project name |
-| `subProject` | `string` | No | Sub-project name |
 
 #### `suite_list`
 
@@ -234,7 +227,6 @@ List test suites (describe blocks).
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `project` | `string` | No | Project name |
-| `subProject` | `string` | No | Sub-project name |
 | `module` | `string` | No | Filter by module file path |
 
 #### `settings_list`
@@ -259,7 +251,6 @@ Create a scoped note.
 | `content` | `string` | Yes | Note content (markdown supported) |
 | `scope` | `string` | Yes | One of: `global`, `project`, `module`, `suite`, `test`, `note` |
 | `project` | `string` | No | Project name (for project/module/suite/test scopes) |
-| `subProject` | `string` | No | Sub-project name |
 | `testFullName` | `string` | No | Full test name (for test scope) |
 | `modulePath` | `string` | No | Module file path (for module scope) |
 | `parentNoteId` | `number` | No | Parent note ID for threading |

@@ -122,14 +122,12 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			description: "Coverage gap analysis with per-metric thresholds and targets",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Project name"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 			},
 		},
 		async (args) =>
 			textResult(
 				await caller.test_coverage({
 					project: args.project,
-					subProject: args.subProject,
 				}),
 			),
 	);
@@ -140,14 +138,12 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			description: "Flaky tests, persistent failures, and recovered tests with run visualization",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 			},
 		},
 		async (args) =>
 			textResult(
 				await caller.test_history({
 					project: args.project,
-					subProject: args.subProject,
 				}),
 			),
 	);
@@ -158,7 +154,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			description: "Per-project coverage trend with direction, metrics, and sparkline trajectory",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 				limit: z.optional(z.coerce.number()).describe("Max number of trend entries to return"),
 			},
 		},
@@ -166,7 +161,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			textResult(
 				await caller.test_trends({
 					project: args.project,
-					subProject: args.subProject,
 					limit: args.limit,
 				}),
 			),
@@ -178,7 +172,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			description: "Detailed test errors with diffs and stack traces for a project",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
-				subProject: z.optional(z.nullable(z.string())).describe("Sub-project name"),
 				errorName: z.optional(z.string()).describe("Filter to a specific error name"),
 			},
 		},
@@ -186,7 +179,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			textResult(
 				await caller.test_errors({
 					project: args.project,
-					subProject: args.subProject,
 					errorName: args.errorName,
 				}),
 			),
@@ -216,7 +208,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			inputSchema: {
 				fullName: z.string().describe("Full test name (e.g. 'Suite > nested > test name')"),
 				project: z.optional(z.string()).describe("Project name"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 			},
 		},
 		async (args) =>
@@ -224,7 +215,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 				await caller.test_get({
 					fullName: args.fullName,
 					project: args.project,
-					subProject: args.subProject,
 				}),
 			),
 	);
@@ -237,7 +227,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			inputSchema: {
 				filePath: z.string().describe("Source file path to check coverage for"),
 				project: z.optional(z.string()).describe("Project name"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 			},
 		},
 		async (args) =>
@@ -245,7 +234,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 				await caller.file_coverage({
 					filePath: args.filePath,
 					project: args.project,
-					subProject: args.subProject,
 				}),
 			),
 	);
@@ -290,7 +278,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			description: "List test cases with optional filters for state, module, and limit",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Project name"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 				state: z.optional(z.enum(["passed", "failed", "skipped", "pending"])).describe("Filter by test state"),
 				module: z.optional(z.string()).describe("Filter by module file path"),
 				limit: z.optional(z.coerce.number()).describe("Max number of results"),
@@ -300,7 +287,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			textResult(
 				await caller.test_list({
 					project: args.project,
-					subProject: args.subProject,
 					state: args.state,
 					module: args.module,
 					limit: args.limit,
@@ -314,14 +300,12 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			description: "List test modules with state and test counts",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Project name"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 			},
 		},
 		async (args) =>
 			textResult(
 				await caller.module_list({
 					project: args.project,
-					subProject: args.subProject,
 				}),
 			),
 	);
@@ -332,7 +316,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			description: "List test suites with optional module filter",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Project name"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 				module: z.optional(z.string()).describe("Filter by module file path"),
 			},
 		},
@@ -340,7 +323,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			textResult(
 				await caller.suite_list({
 					project: args.project,
-					subProject: args.subProject,
 					module: args.module,
 				}),
 			),
@@ -391,7 +373,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 				content: z.string().describe("Note content (markdown supported)"),
 				scope: z.enum(["global", "project", "module", "suite", "test", "note"]).describe("Note scope"),
 				project: z.optional(z.string()).describe("Project name (for project/module/suite/test scopes)"),
-				subProject: z.optional(z.string()).describe("Sub-project name"),
 				testFullName: z.optional(z.string()).describe("Full test name (for test scope)"),
 				modulePath: z.optional(z.string()).describe("Module file path (for module scope)"),
 				parentNoteId: z.optional(z.coerce.number()).describe("Parent note ID for threading"),
@@ -951,7 +932,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		{
 			description: "Orientation triage brief: failing tests, flaky tests, open TDD sessions, suggested next actions",
 			inputSchema: {
-				project: z.optional(z.string()).describe("Filter to a specific project (or project:subProject)"),
+				project: z.optional(z.string()).describe("Filter to a specific project"),
 				maxLines: z.optional(z.coerce.number()).describe("Soft cap on rendered output lines"),
 			},
 		},

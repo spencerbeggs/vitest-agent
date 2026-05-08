@@ -56,7 +56,6 @@ const settingsInput = {
 const runInput = {
 	invocationId: "inv-triage-001",
 	project: "my-project",
-	subProject: null,
 	settingsHash,
 	timestamp: "2026-04-30T10:00:00.000Z",
 	commitSha: "abc1234",
@@ -153,30 +152,6 @@ describe("formatTriageEffect", () => {
 		expect(result).toContain("keep-me");
 		expect(result).not.toContain("drop-me");
 		expect(result).not.toContain("my-project");
-	});
-
-	it("matches a sub-projected run when options.project is 'project:subProject'", async () => {
-		const result = await run(
-			Effect.gen(function* () {
-				const store = yield* DataStore;
-				yield* store.writeSettings(settingsHash, settingsInput, {});
-				yield* store.writeRun({
-					...runInput,
-					invocationId: "inv-triage-sub",
-					project: "mono",
-					subProject: "unit",
-				});
-				yield* store.writeRun({
-					...runInput,
-					invocationId: "inv-triage-other",
-					project: "mono",
-					subProject: "e2e",
-				});
-				return yield* formatTriageEffect({ project: "mono:unit" });
-			}),
-		);
-		expect(result).toContain("mono:unit");
-		expect(result).not.toContain("mono:e2e");
 	});
 
 	it("swallows DataReader errors and still returns a string with default fallbacks", async () => {

@@ -66,11 +66,11 @@ src/
 
 ## Design references
 
-- `.claude/design/vitest-agent/components/reporter.md`
+- `@./.claude/design/vitest-agent/components/reporter.md`
   Load when working on the named factories or `_kit-context` helper.
-- `.claude/design/vitest-agent/schemas.md`
+- `@./.claude/design/vitest-agent/schemas.md`
   Load when working with the public reporter contract types (`ReporterKit`,
   `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporterFactory`).
-- `.claude/design/vitest-agent/decisions.md`
+- `@./.claude/design/vitest-agent/decisions.md`
   Load for rationale on Decision 34 (plugin/reporter split) and the
   reporter contract.

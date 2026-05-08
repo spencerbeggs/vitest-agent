@@ -15,7 +15,7 @@ export const sessionGet = publicProcedure
 					`# Session ${s.id}`,
 					"",
 					`- cc_session_id: \`${s.cc_session_id}\``,
-					`- project: ${s.project}${s.subProject ? `:${s.subProject}` : ""}`,
+					`- project: ${s.project}`,
 					`- agent_kind: ${s.agentKind}${s.agentType ? ` (${s.agentType})` : ""}`,
 					`- started: ${s.startedAt}`,
 					`- ended: ${s.endedAt ?? "still open"}`,

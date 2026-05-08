@@ -7,7 +7,6 @@ export const suiteList = publicProcedure
 		Schema.standardSchemaV1(
 			Schema.Struct({
 				project: Schema.optional(Schema.String),
-				subProject: Schema.optional(Schema.String),
 				module: Schema.optional(Schema.String),
 			}),
 		),
@@ -21,11 +20,9 @@ export const suiteList = publicProcedure
 
 				// When project is unspecified, enumerate every project that has a
 				// recorded run and list suites from each project's latest run.
-				const targets: ReadonlyArray<{ project: string; subProject: string | null }> = input.project
-					? [{ project: input.project, subProject: input.subProject ?? null }]
-					: yield* reader
-							.getRunsByProject()
-							.pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project, subProject: r.subProject }))));
+				const targets: ReadonlyArray<{ project: string }> = input.project
+					? [{ project: input.project }]
+					: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project }))));
 
 				if (targets.length === 0) {
 					return "No projects found. Run run_tests({}) to execute tests and populate the database.";
@@ -33,14 +30,13 @@ export const suiteList = publicProcedure
 
 				const groups: Array<{
 					project: string;
-					subProject: string | null;
 					suites: ReadonlyArray<{ id: number; name: string; module: string; state: string; testCount: number }>;
 				}> = [];
 				let total = 0;
 				for (const t of targets) {
-					const suites = yield* reader.listSuites(t.project, t.subProject, opts);
+					const suites = yield* reader.listSuites(t.project, opts);
 					if (suites.length > 0) {
-						groups.push({ project: t.project, subProject: t.subProject, suites });
+						groups.push({ project: t.project, suites });
 						total += suites.length;
 					}
 				}
@@ -51,8 +47,7 @@ export const suiteList = publicProcedure
 
 				const lines: string[] = ["## Suites", ""];
 				for (const g of groups) {
-					const label = g.subProject ? `${g.project}:${g.subProject}` : g.project;
-					lines.push(`### ${label}`, "");
+					lines.push(`### ${g.project}`, "");
 					lines.push("| ID | Name | Module | State | Tests |");
 					lines.push("| --- | --- | --- | --- | --- |");
 					for (const s of g.suites) {

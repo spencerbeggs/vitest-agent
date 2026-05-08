@@ -46,7 +46,6 @@ const turnSubcommand = Command.make(
 ).pipe(Command.withDescription("Validate a TurnPayload JSON and write a turn row"));
 
 const project = Options.text("project");
-const subProject = Options.optional(Options.text("sub-project"));
 const cwd = Options.text("cwd");
 const agentKind = Options.choice("agent-kind", ["main", "subagent"]).pipe(Options.withDefault("main"));
 const agentType = Options.optional(Options.text("agent-type"));
@@ -59,7 +58,6 @@ const sessionStartSubcommand = Command.make(
 	{
 		ccSessionId,
 		project,
-		subProject,
 		cwd,
 		agentKind,
 		agentType,
@@ -71,7 +69,6 @@ const sessionStartSubcommand = Command.make(
 		recordSessionStart({
 			ccSessionId: opts.ccSessionId,
 			project: opts.project,
-			...(opts.subProject._tag === "Some" && { subProject: opts.subProject.value }),
 			cwd: opts.cwd,
 			agentKind: opts.agentKind as "main" | "subagent",
 			...(opts.agentType._tag === "Some" && { agentType: opts.agentType.value }),

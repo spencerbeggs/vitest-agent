@@ -54,7 +54,6 @@ const settingsInput = {
 const runInput = {
 	invocationId: "inv-001",
 	project: "my-project",
-	subProject: null,
 	settingsHash,
 	timestamp: "2026-03-22T00:00:00.000Z",
 	commitSha: "deadbeef",
@@ -103,28 +102,6 @@ describe("DataReaderLive", () => {
 			// hardcoded "sql:" placeholder leaked into MCP cache_health output.
 			expect(typeof manifest.cacheDir).toBe("string");
 		});
-
-		it("reconstitutes project:subProject names", async () => {
-			const result = await run(
-				Effect.gen(function* () {
-					const store = yield* DataStore;
-					const reader = yield* DataReader;
-
-					yield* store.writeSettings("sub-hash", settingsInput, {});
-					yield* store.writeRun({
-						...runInput,
-						settingsHash: "sub-hash",
-						project: "my-lib",
-						subProject: "unit",
-					});
-
-					return yield* reader.getManifest();
-				}),
-			);
-			const manifest = Option.getOrThrow(result);
-			const entry = manifest.projects.find((p) => p.project === "my-lib:unit");
-			expect(entry).toBeDefined();
-		});
 	});
 
 	describe("getRunsByProject", () => {
@@ -164,7 +141,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.getHistory("nonexistent", null);
+					return yield* reader.getHistory("nonexistent");
 				}),
 			);
 			expect(result.tests).toHaveLength(0);
@@ -182,7 +159,6 @@ describe("DataReaderLive", () => {
 
 					yield* store.writeHistory(
 						"hist-proj",
-						null,
 						"suite > test A",
 						runId,
 						"2026-03-22T01:00:00.000Z",
@@ -194,7 +170,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"hist-proj",
-						null,
 						"suite > test A",
 						runId,
 						"2026-03-22T02:00:00.000Z",
@@ -206,7 +181,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"hist-proj",
-						null,
 						"suite > test B",
 						runId,
 						"2026-03-22T01:00:00.000Z",
@@ -217,7 +191,7 @@ describe("DataReaderLive", () => {
 						null,
 					);
 
-					return yield* reader.getHistory("hist-proj", null);
+					return yield* reader.getHistory("hist-proj");
 				}),
 			);
 			expect(result.tests).toHaveLength(2);
@@ -234,7 +208,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.getBaselines("__global__", null);
+					return yield* reader.getBaselines("__global__");
 				}),
 			);
 			expect(Option.isNone(result)).toBe(true);
@@ -252,7 +226,7 @@ describe("DataReaderLive", () => {
 						patterns: [["src/**/*.ts", { lines: 90 }]],
 					});
 
-					return yield* reader.getBaselines("__global__", null);
+					return yield* reader.getBaselines("__global__");
 				}),
 			);
 			expect(Option.isSome(result)).toBe(true);
@@ -271,7 +245,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.getTrends("nonexistent", null);
+					return yield* reader.getTrends("nonexistent");
 				}),
 			);
 			expect(Option.isNone(result)).toBe(true);
@@ -289,7 +263,7 @@ describe("DataReaderLive", () => {
 						settingsHash: "trend-read-hash",
 						timestamp: "2026-03-22T01:00:00.000Z",
 					});
-					yield* store.writeTrends("trend-proj", null, runId1, {
+					yield* store.writeTrends("trend-proj", runId1, {
 						timestamp: "2026-03-22T01:00:00.000Z",
 						coverage: { lines: 78, branches: 65, functions: 80, statements: 75 },
 						delta: { lines: 0, branches: 0, functions: 0, statements: 0 },
@@ -302,7 +276,7 @@ describe("DataReaderLive", () => {
 						settingsHash: "trend-read-hash",
 						timestamp: "2026-03-22T02:00:00.000Z",
 					});
-					yield* store.writeTrends("trend-proj", null, runId2, {
+					yield* store.writeTrends("trend-proj", runId2, {
 						timestamp: "2026-03-22T02:00:00.000Z",
 						coverage: { lines: 80, branches: 67, functions: 82, statements: 77 },
 						delta: { lines: 2, branches: 2, functions: 2, statements: 2 },
@@ -310,7 +284,7 @@ describe("DataReaderLive", () => {
 						targetsHash: "abc",
 					});
 
-					return yield* reader.getTrends("trend-proj", null);
+					return yield* reader.getTrends("trend-proj");
 				}),
 			);
 			expect(Option.isSome(result)).toBe(true);
@@ -335,7 +309,7 @@ describe("DataReaderLive", () => {
 							settingsHash: "trend-limit-hash",
 							timestamp: `2026-03-22T0${i}:00:00.000Z`,
 						});
-						yield* store.writeTrends("trend-limit-proj", null, rid, {
+						yield* store.writeTrends("trend-limit-proj", rid, {
 							timestamp: `2026-03-22T0${i}:00:00.000Z`,
 							coverage: { lines: 70 + i, branches: 60, functions: 70, statements: 65 },
 							delta: { lines: 1, branches: 0, functions: 0, statements: 0 },
@@ -343,7 +317,7 @@ describe("DataReaderLive", () => {
 						});
 					}
 
-					return yield* reader.getTrends("trend-limit-proj", null, 3);
+					return yield* reader.getTrends("trend-limit-proj", 3);
 				}),
 			);
 			const trends = Option.getOrThrow(result);
@@ -356,7 +330,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.getFlaky("nonexistent", null);
+					return yield* reader.getFlaky("nonexistent");
 				}),
 			);
 			expect(result).toHaveLength(0);
@@ -374,7 +348,6 @@ describe("DataReaderLive", () => {
 					// Test with mixed results = flaky
 					yield* store.writeHistory(
 						"flaky-proj",
-						null,
 						"flaky test",
 						runId,
 						"2026-03-22T01:00:00.000Z",
@@ -386,7 +359,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"flaky-proj",
-						null,
 						"flaky test",
 						runId,
 						"2026-03-22T02:00:00.000Z",
@@ -398,7 +370,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"flaky-proj",
-						null,
 						"flaky test",
 						runId,
 						"2026-03-22T03:00:00.000Z",
@@ -412,7 +383,6 @@ describe("DataReaderLive", () => {
 					// Test that always passes = not flaky
 					yield* store.writeHistory(
 						"flaky-proj",
-						null,
 						"stable test",
 						runId,
 						"2026-03-22T01:00:00.000Z",
@@ -424,7 +394,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"flaky-proj",
-						null,
 						"stable test",
 						runId,
 						"2026-03-22T02:00:00.000Z",
@@ -435,7 +404,7 @@ describe("DataReaderLive", () => {
 						null,
 					);
 
-					return yield* reader.getFlaky("flaky-proj", null);
+					return yield* reader.getFlaky("flaky-proj");
 				}),
 			);
 			expect(result).toHaveLength(1);
@@ -450,7 +419,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.getPersistentFailures("nonexistent", null);
+					return yield* reader.getPersistentFailures("nonexistent");
 				}),
 			);
 			expect(result).toHaveLength(0);
@@ -468,7 +437,6 @@ describe("DataReaderLive", () => {
 					// Test with 3 consecutive failures at the end
 					yield* store.writeHistory(
 						"persist-proj",
-						null,
 						"broken test",
 						runId,
 						"2026-03-22T01:00:00.000Z",
@@ -480,7 +448,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"persist-proj",
-						null,
 						"broken test",
 						runId,
 						"2026-03-22T02:00:00.000Z",
@@ -492,7 +459,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"persist-proj",
-						null,
 						"broken test",
 						runId,
 						"2026-03-22T03:00:00.000Z",
@@ -504,7 +470,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"persist-proj",
-						null,
 						"broken test",
 						runId,
 						"2026-03-22T04:00:00.000Z",
@@ -518,7 +483,6 @@ describe("DataReaderLive", () => {
 					// Test with only 1 failure = not persistent
 					yield* store.writeHistory(
 						"persist-proj",
-						null,
 						"one-time fail",
 						runId,
 						"2026-03-22T01:00:00.000Z",
@@ -530,7 +494,6 @@ describe("DataReaderLive", () => {
 					);
 					yield* store.writeHistory(
 						"persist-proj",
-						null,
 						"one-time fail",
 						runId,
 						"2026-03-22T02:00:00.000Z",
@@ -541,7 +504,7 @@ describe("DataReaderLive", () => {
 						"once",
 					);
 
-					return yield* reader.getPersistentFailures("persist-proj", null);
+					return yield* reader.getPersistentFailures("persist-proj");
 				}),
 			);
 			// "broken test" has 3 consecutive failures, "one-time fail" has only 1
@@ -557,7 +520,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.getLatestRun("nonexistent", null);
+					return yield* reader.getLatestRun("nonexistent");
 				}),
 			);
 			expect(Option.isNone(result)).toBe(true);
@@ -587,7 +550,7 @@ describe("DataReaderLive", () => {
 					]);
 					yield* store.writeErrors(runId, [{ scope: "unhandled", message: "Unhandled rejection" }]);
 
-					return yield* reader.getLatestRun("my-project", null);
+					return yield* reader.getLatestRun("my-project");
 				}),
 			);
 			expect(Option.isSome(result)).toBe(true);
@@ -639,7 +602,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.getCoverage("nonexistent", null);
+					return yield* reader.getCoverage("nonexistent");
 				}),
 			);
 			expect(Option.isNone(result)).toBe(true);
@@ -676,7 +639,7 @@ describe("DataReaderLive", () => {
 					]);
 
 					// Seed trends for totals
-					yield* store.writeTrends("cov-proj", null, runId, {
+					yield* store.writeTrends("cov-proj", runId, {
 						timestamp: "2026-03-22T00:00:00.000Z",
 						coverage: { lines: 73.5, branches: 60.0, functions: 82.5, statements: 72.5 },
 						delta: { lines: 0, branches: 0, functions: 0, statements: 0 },
@@ -690,7 +653,7 @@ describe("DataReaderLive", () => {
 						patterns: [],
 					});
 
-					return yield* reader.getCoverage("cov-proj", null);
+					return yield* reader.getCoverage("cov-proj");
 				}),
 			);
 			expect(Option.isSome(result)).toBe(true);
@@ -737,7 +700,7 @@ describe("DataReaderLive", () => {
 						},
 					]);
 
-					return yield* reader.getCoverage("cov-avg-proj", null);
+					return yield* reader.getCoverage("cov-avg-proj");
 				}),
 			);
 			expect(Option.isSome(result)).toBe(true);
@@ -778,7 +741,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.getErrors("nonexistent", null);
+					return yield* reader.getErrors("nonexistent");
 				}),
 			);
 			expect(result).toHaveLength(0);
@@ -797,7 +760,7 @@ describe("DataReaderLive", () => {
 						{ scope: "unhandled", message: "Unexpected error" },
 					]);
 
-					return yield* reader.getErrors("err-proj", null);
+					return yield* reader.getErrors("err-proj");
 				}),
 			);
 			expect(result).toHaveLength(2);
@@ -823,7 +786,7 @@ describe("DataReaderLive", () => {
 						{ scope: "test", message: "type error", name: "TypeError" },
 					]);
 
-					return yield* reader.getErrors("err-filter-proj", null, "TypeError");
+					return yield* reader.getErrors("err-filter-proj", "TypeError");
 				}),
 			);
 			expect(result).toHaveLength(1);
@@ -968,7 +931,7 @@ describe("DataReaderLive", () => {
 						{ name: "test B", fullName: "suite > test B", state: "failed", duration: 20 },
 					]);
 
-					return yield* reader.listTests("list-proj", null);
+					return yield* reader.listTests("list-proj");
 				}),
 			);
 			expect(result).toHaveLength(2);
@@ -1000,7 +963,7 @@ describe("DataReaderLive", () => {
 						{ name: "also fails", fullName: "also fails", state: "failed", duration: 15 },
 					]);
 
-					return yield* reader.listTests("list-filter-proj", null, { state: "failed" });
+					return yield* reader.listTests("list-filter-proj", { state: "failed" });
 				}),
 			);
 			expect(result).toHaveLength(2);
@@ -1013,7 +976,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.listTests("nonexistent", null);
+					return yield* reader.listTests("nonexistent");
 				}),
 			);
 			expect(result).toHaveLength(0);
@@ -1042,7 +1005,7 @@ describe("DataReaderLive", () => {
 						{ name: "test 2", fullName: "test 2", state: "passed", duration: 10 },
 					]);
 
-					return yield* reader.listModules("list-mod-proj", null);
+					return yield* reader.listModules("list-mod-proj");
 				}),
 			);
 			expect(result).toHaveLength(2);
@@ -1058,7 +1021,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.listModules("nonexistent", null);
+					return yield* reader.listModules("nonexistent");
 				}),
 			);
 			expect(result).toHaveLength(0);
@@ -1089,7 +1052,7 @@ describe("DataReaderLive", () => {
 						{ name: "test in suite", fullName: "my suite > test in suite", state: "passed", duration: 5, suiteId },
 					]);
 
-					return yield* reader.listSuites("list-suite-proj", null);
+					return yield* reader.listSuites("list-suite-proj");
 				}),
 			);
 			expect(result).toHaveLength(1);
@@ -1102,7 +1065,7 @@ describe("DataReaderLive", () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					return yield* reader.listSuites("nonexistent", null);
+					return yield* reader.listSuites("nonexistent");
 				}),
 			);
 			expect(result).toHaveLength(0);

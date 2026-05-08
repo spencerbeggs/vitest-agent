@@ -39,7 +39,7 @@ const DataStoreTest = Layer.effect(
 it("records the run", async () => {
  const program = Effect.gen(function* () {
   const store = yield* DataStore;
-  yield* store.writeRun({ project: "x", subProject: null });
+  yield* store.writeRun({ project: "x" });
   // assert via your accumulator pattern
  });
  await Effect.runPromise(program.pipe(Effect.provide(DataStoreTest)));

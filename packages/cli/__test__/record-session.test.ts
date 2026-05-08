@@ -123,12 +123,11 @@ describe("record-session", () => {
 		expect(result.sessionId).toBeGreaterThan(0);
 	});
 
-	it("recordSessionStart accepts optional subProject and agentType fields", async () => {
+	it("recordSessionStart accepts optional agentType field", async () => {
 		const result = await run(
 			recordSessionStart({
-				ccSessionId: "cc-rs-subproj",
+				ccSessionId: "cc-rs-agenttype",
 				project: "p",
-				subProject: "unit",
 				cwd: "/tmp/p",
 				agentKind: "subagent",
 				agentType: "tdd-orchestrator",

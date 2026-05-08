@@ -82,7 +82,11 @@ Effect Schema definitions in `packages/sdk/src/schemas/`:
 
 - **`AgentReport`** — the per-project report shape produced after a run.
   Carries summary stats, the `failed[]` modules with their tests, unhandled
-  errors, a `failedFiles[]` quick index, and an optional `coverage` block.
+  errors, a `failedFiles[]` quick index, an optional `coverage` block, and
+  an optional `tagCounts` record (`Record<string, TagCountEntry>` where
+  `TagCountEntry` is `{ passed?, failed?, skipped? }`). The plugin
+  reporter aggregates per-tag pass/fail/skip counts from
+  `TestReport.tags` for terminal-formatter rendering.
 - **`CoverageReport`** — totals plus thresholds, optional aspirational
   `targets`, optional auto-ratcheting `baselines`, and a `lowCoverage[]` list
   with `uncoveredLines` rendered as a compressed string (e.g.

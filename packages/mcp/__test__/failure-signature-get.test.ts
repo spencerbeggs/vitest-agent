@@ -35,7 +35,6 @@ async function seedFailureSignature(
 			const runId = yield* store.writeRun({
 				invocationId: "inv-fs-001",
 				project: "default",
-				subProject: null,
 				settingsHash: "hash-fs-test",
 				timestamp: "2026-05-02T00:00:00.000Z",
 				commitSha: null,

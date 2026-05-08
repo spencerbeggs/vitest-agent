@@ -48,6 +48,16 @@ export const ModuleReport = Schema.Struct({
 export type ModuleReport = typeof ModuleReport.Type;
 
 /**
+ * Per-tag pass/fail/skip aggregates for a single project run.
+ */
+export const TagCountEntry = Schema.Struct({
+	passed: Schema.optional(Schema.Number),
+	failed: Schema.optional(Schema.Number),
+	skipped: Schema.optional(Schema.Number),
+}).annotations({ identifier: "TagCountEntry" });
+export type TagCountEntry = typeof TagCountEntry.Type;
+
+/**
  * Complete per-project test report written to disk as JSON.
  */
 export const AgentReport = Schema.Struct({
@@ -59,5 +69,11 @@ export const AgentReport = Schema.Struct({
 	unhandledErrors: Schema.Array(ReportError),
 	failedFiles: Schema.Array(Schema.String),
 	coverage: Schema.optional(CoverageReport),
+	tagCounts: Schema.optional(
+		Schema.Record({
+			key: Schema.String,
+			value: TagCountEntry,
+		}),
+	),
 }).annotations({ identifier: "AgentReport" });
 export type AgentReport = typeof AgentReport.Type;

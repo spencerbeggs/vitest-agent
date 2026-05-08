@@ -157,8 +157,14 @@ export default defineConfig({
 });
 ```
 
-In a monorepo with projects named `core:unit` and `api:integration`, all
-data is stored in the same SQLite database, organized by project name.
+In a monorepo with one project per workspace package (e.g. `core` and
+`api`), all data is stored in the same SQLite database, organized by
+project name. Test kind (unit / integration / e2e) is expressed via
+Vitest 4.1 tags rather than project-name suffixes — see
+[Configuration > Project Discovery](configuration.md#project-discovery)
+and the
+[Tag and TagStrategy API](configuration.md#tag-and-tagstrategy-api)
+section for how the plugin classifies test files into tags.
 
 ### With Coverage
 

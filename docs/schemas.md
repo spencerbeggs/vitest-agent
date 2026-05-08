@@ -10,7 +10,7 @@ JSON encode/decode uses `Schema.decodeUnknownSync` and
 
 | Schema | Description |
 | --- | --- |
-| `AgentReport` | Complete per-project test report |
+| `AgentReport` | Complete per-project test report (includes optional `tagCounts` per-tag rollups) |
 | `ReportSummary` | Aggregate test run statistics |
 | `ModuleReport` | Test module (file) and its test cases |
 | `TestReport` | Individual test case result |
@@ -144,6 +144,12 @@ The top-level report written per project:
   unhandledErrors: ReportError[];
   failedFiles: string[];      // quick index of relative paths
   coverage?: CoverageReport;  // present when coverage enabled
+  tagCounts?: Record<string, {
+    passed: number;
+    failed: number;
+    skipped: number;
+  }>;                          // per-tag pass/fail/skip rollups; present
+                               // when the project's tests carry tags
 }
 ```
 

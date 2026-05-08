@@ -51,81 +51,64 @@ async function createPkg(
 }
 
 describe("discoverProjects()", () => {
+	// Updated: destructure { projects } from the new return shape.
 	it("discovers a package with only unit tests", async () => {
 		await createPkg("alpha", { hasUnit: true });
-		const projects = await discoverProjects(undefined, tmpDir);
+		const { projects } = await discoverProjects(undefined, tmpDir);
 		expect(projects).toHaveLength(1);
 		expect(projects[0].name).toBe("@test/alpha");
 		expect(projects[0].kind).toBe("unit");
 	});
 
-	it("uses bare name when only one kind of test exists", async () => {
+	// Updated: consolidated approach always uses bare package name.
+	it("uses bare name for any test kind", async () => {
 		await createPkg("beta", { hasInt: true });
-		const projects = await discoverProjects(undefined, tmpDir);
+		const { projects } = await discoverProjects(undefined, tmpDir);
 		expect(projects[0].name).toBe("@test/beta");
 	});
 
-	it("suffixes names when multiple kinds exist in one package", async () => {
-		await createPkg("gamma", { hasUnit: true, hasInt: true });
-		const names = (await discoverProjects(undefined, tmpDir)).map((p) => p.name);
-		expect(names).toContain("@test/gamma:unit");
-		expect(names).toContain("@test/gamma:int");
-	});
+	// DELETED: "suffixes names when multiple kinds exist in one package"
+	// — per-kind project split is removed; one project per package now.
 
-	it("discovers all three kinds when present", async () => {
-		await createPkg("delta", { hasUnit: true, hasInt: true, hasE2e: true });
-		const projects = await discoverProjects(undefined, tmpDir);
-		const names = projects.map((p) => p.name);
-		expect(names).toContain("@test/delta:unit");
-		expect(names).toContain("@test/delta:int");
-		expect(names).toContain("@test/delta:e2e");
-	});
+	// DELETED: "discovers all three kinds when present"
+	// — no longer emits three separate projects for unit/int/e2e.
 
+	// Updated: destructure { projects } from the new return shape.
 	it("skips packages without a src/ directory", async () => {
 		const pkgDir = join(tmpDir, "packages", "no-src");
 		await mkdir(pkgDir, { recursive: true });
 		await writeFile(join(pkgDir, "package.json"), JSON.stringify({ name: "@test/no-src", version: "0.0.0" }));
-		const projects = await discoverProjects(undefined, tmpDir);
+		const { projects } = await discoverProjects(undefined, tmpDir);
 		expect(projects.every((p) => p.name !== "@test/no-src")).toBe(true);
 	});
 
+	// Updated: destructure { projects }; consolidated approach still emits a placeholder.
 	it("emits a unit placeholder when src/ exists but no test files found", async () => {
 		await createPkg("empty");
-		const projects = await discoverProjects(undefined, tmpDir);
+		const { projects } = await discoverProjects(undefined, tmpDir);
 		expect(projects).toHaveLength(1);
 		expect(projects[0].kind).toBe("unit");
 	});
 
+	// Updated: destructure { projects }.
 	it("wires setupFiles when vitest.setup.ts exists at package root", async () => {
 		await createPkg("setup-pkg", { hasUnit: true, setupFile: true });
-		const projects = await discoverProjects(undefined, tmpDir);
+		const { projects } = await discoverProjects(undefined, tmpDir);
 		const cfg = projects[0].toConfig();
 		expect(cfg.test?.setupFiles).toBeDefined();
 		expect((cfg.test?.setupFiles as string[]).some((f) => f.includes("vitest.setup.ts"))).toBe(true);
 	});
 
-	it("applies object override to all projects of a kind", async () => {
-		await createPkg("override-test", { hasUnit: true });
-		const projects = await discoverProjects({ unit: { environment: "jsdom" } }, tmpDir);
-		expect(projects[0].toConfig().test?.environment).toBe("jsdom");
-	});
+	// DELETED: "applies object override to all projects of a kind"
+	// — per-kind override API ({ unit: ..., int: ..., e2e: ... }) is dropped.
 
-	it("applies callback override by kind", async () => {
-		await createPkg("cb-test", { hasInt: true });
-		const projects = await discoverProjects(
-			{
-				int: (map) => {
-					map.get("@test/cb-test")?.override({ test: { testTimeout: 99_000 } });
-				},
-			},
-			tmpDir,
-		);
-		expect(projects[0].toConfig().test?.testTimeout).toBe(99_000);
-	});
+	// DELETED: "applies callback override by kind"
+	// — per-kind callback API is dropped.
 
+	// Updated: destructure { projects }; top-level callback still works.
 	it("applies top-level callback receiving all projects", async () => {
 		await createPkg("top-cb", { hasUnit: true });
-		const projects = await discoverProjects(({ projects }) => {
+		const { projects } = await discoverProjects(({ projects }) => {
 			projects[0].override({ test: { environment: "jsdom" } });
 		}, tmpDir);
 		expect(projects[0].toConfig().test?.environment).toBe("jsdom");
@@ -136,48 +119,53 @@ describe("discoverProjects()", () => {
 	});
 
 	describe("__test__/ directory support", () => {
+		// Updated: destructure { projects }; kind is always "unit" (consolidated).
 		it("discovers unit tests in __test__/", async () => {
 			await createPkg("td-unit", { testDirUnit: true });
-			const projects = await discoverProjects(undefined, tmpDir);
+			const { projects } = await discoverProjects(undefined, tmpDir);
 			expect(projects).toHaveLength(1);
 			expect(projects[0].kind).toBe("unit");
 			const include = projects[0].toConfig().test?.include as string[];
 			expect(include.some((p) => p.includes("__test__"))).toBe(true);
 		});
 
-		it("discovers int tests in __test__/integration/", async () => {
+		// Updated: int test files are now included via the combined glob in the
+		// single consolidated project (kind is "unit" — classification is tag-based).
+		it("discovers int test files via combined glob in __test__/", async () => {
 			await createPkg("td-int", { testDirInt: true });
-			const projects = await discoverProjects(undefined, tmpDir);
+			const { projects } = await discoverProjects(undefined, tmpDir);
 			expect(projects).toHaveLength(1);
-			expect(projects[0].kind).toBe("int");
+			expect(projects[0].kind).toBe("unit");
+			const include = projects[0].toConfig().test?.include as string[];
+			expect(include.some((p) => p.includes("__test__"))).toBe(true);
 		});
 
-		it("discovers e2e tests in __test__/e2e/", async () => {
+		// Updated: e2e test files are included via the combined glob; kind is "unit".
+		it("discovers e2e test files via combined glob in __test__/", async () => {
 			await createPkg("td-e2e", { testDirE2e: true });
-			const projects = await discoverProjects(undefined, tmpDir);
+			const { projects } = await discoverProjects(undefined, tmpDir);
 			expect(projects).toHaveLength(1);
-			expect(projects[0].kind).toBe("e2e");
+			expect(projects[0].kind).toBe("unit");
+			const include = projects[0].toConfig().test?.include as string[];
+			expect(include.some((p) => p.includes("__test__"))).toBe(true);
 		});
 
-		it("merges test kinds across src/ and __test__/", async () => {
-			// unit in src/, int in __test__/
-			await createPkg("td-merge", { hasUnit: true, testDirInt: true });
-			const names = (await discoverProjects(undefined, tmpDir)).map((p) => p.name);
-			expect(names).toContain("@test/td-merge:unit");
-			expect(names).toContain("@test/td-merge:int");
-		});
+		// DELETED: "merges test kinds across src/ and __test__/"
+		// — no longer emits multiple projects for different kinds; one project covers all.
 
+		// Updated: destructure { projects }.
 		it("include patterns reference both src/ and __test__/", async () => {
 			await createPkg("td-both", { hasUnit: true, testDirUnit: true });
-			const projects = await discoverProjects(undefined, tmpDir);
+			const { projects } = await discoverProjects(undefined, tmpDir);
 			const include = projects[0].toConfig().test?.include as string[];
 			expect(include.some((p) => p.includes("/src/"))).toBe(true);
 			expect(include.some((p) => p.includes("/__test__/"))).toBe(true);
 		});
 
+		// Updated: destructure { projects }.
 		it("excludes utils/ fixtures/ snapshots/ inside __test__/", async () => {
 			await createPkg("td-excl", { testDirUnit: true });
-			const projects = await discoverProjects(undefined, tmpDir);
+			const { projects } = await discoverProjects(undefined, tmpDir);
 			const exclude = projects[0].toConfig().test?.exclude as string[] | undefined;
 			expect(exclude).toBeDefined();
 			expect(exclude!.some((p) => p.includes("__test__/utils"))).toBe(true);

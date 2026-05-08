@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 import { AgentPlugin } from "vitest-agent-plugin";
 
 export default async () => {
-	const projects = await AgentPlugin.discover();
+	const { projects, tags } = await AgentPlugin.discover();
 	return defineConfig({
 		plugins: [
 			AgentPlugin({
@@ -15,6 +15,7 @@ export default async () => {
 		],
 		test: {
 			projects,
+			tags,
 			pool: "forks",
 			globalSetup: ["vitest.setup.ts"],
 			coverage: {

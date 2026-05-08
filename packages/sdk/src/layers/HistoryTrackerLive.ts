@@ -17,9 +17,9 @@ export const HistoryTrackerLive: Layer.Layer<HistoryTracker, never, DataReader> 
 	Effect.gen(function* () {
 		const reader = yield* DataReader;
 		return {
-			classify: (project, subProject, testOutcomes, timestamp) =>
+			classify: (project, testOutcomes, timestamp) =>
 				Effect.gen(function* () {
-					const existing = yield* reader.getHistory(project, subProject);
+					const existing = yield* reader.getHistory(project);
 					const testMap = new Map<string, MutableTestHistory>();
 					for (const entry of existing.tests) {
 						testMap.set(entry.fullName, { ...entry, runs: [...entry.runs] });

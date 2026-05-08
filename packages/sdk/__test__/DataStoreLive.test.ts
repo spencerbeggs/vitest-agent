@@ -47,7 +47,6 @@ const settingsInput = {
 const runInput = {
 	invocationId: "inv-001",
 	project: "my-project",
-	subProject: null,
 	settingsHash,
 	timestamp: "2026-03-22T00:00:00.000Z",
 	commitSha: "deadbeef",
@@ -522,7 +521,6 @@ describe("DataStoreLive", () => {
 
 					yield* store.writeHistory(
 						"my-project",
-						null,
 						"suite > test one",
 						runId,
 						"2026-03-22T00:00:00.000Z",
@@ -554,7 +552,6 @@ describe("DataStoreLive", () => {
 					for (let i = 0; i < 12; i++) {
 						yield* store.writeHistory(
 							"window-proj",
-							null,
 							"windowed test",
 							runId,
 							`2026-03-22T${String(i).padStart(2, "0")}:00:00.000Z`,
@@ -616,9 +613,43 @@ describe("DataStoreLive", () => {
 						pattern: string;
 						metric: string;
 						value: number;
-					}>`SELECT pattern, metric, value FROM coverage_baselines WHERE pattern IS NOT NULL ORDER BY metric`;
+					}>`SELECT pattern, metric, value FROM coverage_baselines WHERE pattern != '' ORDER BY metric`;
 					expect(rows).toHaveLength(2);
 					expect(rows[0].pattern).toBe("src/**/*.ts");
+				}),
+			);
+		});
+
+		it("should not create duplicate global baseline rows when called twice for the same metric", async () => {
+			// Given: writeBaselines is called once to establish a global baseline
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeBaselines({
+						updatedAt: "2026-03-22T00:00:00.000Z",
+						global: { lines: 80, branches: 70 },
+						patterns: [],
+					});
+
+					// When: writeBaselines is called again with updated values for the same metrics
+					yield* store.writeBaselines({
+						updatedAt: "2026-03-23T00:00:00.000Z",
+						global: { lines: 85, branches: 75 },
+						patterns: [],
+					});
+
+					// Then: each metric should appear exactly once (upsert, not insert)
+					// Regression: SQLite UNIQUE(project, metric, pattern) with pattern=NULL
+					// does NOT fire ON CONFLICT because NULL != NULL in SQLite uniqueness
+					// comparisons, allowing duplicate rows per metric to accumulate.
+					const sql = yield* SqlClient;
+					const rows = yield* sql<{
+						metric: string;
+						value: number;
+					}>`SELECT metric, value FROM coverage_baselines WHERE project = '__global__' ORDER BY metric`;
+					expect(rows).toHaveLength(2);
+					expect(rows.find((r) => r.metric === "lines")?.value).toBe(85);
+					expect(rows.find((r) => r.metric === "branches")?.value).toBe(75);
 				}),
 			);
 		});
@@ -632,7 +663,7 @@ describe("DataStoreLive", () => {
 					yield* store.writeSettings("trend-hash", settingsInput, {});
 					const runId = yield* store.writeRun({ ...runInput, settingsHash: "trend-hash" });
 
-					yield* store.writeTrends("my-project", null, runId, {
+					yield* store.writeTrends("my-project", runId, {
 						timestamp: "2026-03-22T00:00:00.000Z",
 						coverage: { lines: 80, branches: 70, functions: 85, statements: 82 },
 						delta: { lines: 1, branches: 0.5, functions: 0, statements: 0.3 },
@@ -663,7 +694,7 @@ describe("DataStoreLive", () => {
 							settingsHash: "trend-win-hash",
 							timestamp: `2026-03-22T${String(i).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}:00.000Z`,
 						});
-						yield* store.writeTrends("trend-win-proj", null, runId, {
+						yield* store.writeTrends("trend-win-proj", runId, {
 							timestamp: `2026-03-22T${String(i).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}:00.000Z`,
 							coverage: { lines: 80 + i * 0.1, branches: 70, functions: 85, statements: 82 },
 							delta: { lines: 0.1, branches: 0, functions: 0, statements: 0 },

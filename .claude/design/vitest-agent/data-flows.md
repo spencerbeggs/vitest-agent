@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 90
 related:
   - ./architecture.md
@@ -73,13 +73,14 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |
   +-- Group testModules by project.name
   +-- CoverageAnalyzer.process / processScoped -> Option<CoverageReport>
-  +-- DataReader.getBaselines(project, subProject) -> Option<CoverageBaselines>
+  +-- DataReader.getBaselines(project) -> Option<CoverageBaselines>
   |
   +-- For each project group:
-  |     splitProject(name) -> { project, subProject }
   |     buildAgentReport(modules, errors, reason, options, name)
   |     attach unhandledErrors and coverage
-  |     HistoryTracker.classify(project, subProject, outcomes, ts)
+  |     aggregate per-tag pass/fail/skip counts via TestReport.tags
+  |     attach as report.tagCounts (Record<tag, { passed, failed, skipped }>)
+  |     HistoryTracker.classify(project, outcomes, ts)
   |       -> { history, classifications }
   |     attach classifications to TestReport.classification
   |     DataStore.writeRun -> runId

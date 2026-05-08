@@ -87,12 +87,12 @@ src/
 
 ## Design references
 
-- `.claude/design/vitest-agent/components/cli.md`
+- `@./.claude/design/vitest-agent/components/cli.md`
   Load when working on subcommands, the `lib/format-*` functions, or
   the `record` subcommand pattern.
-- `.claude/design/vitest-agent/data-flows.md`
+- `@./.claude/design/vitest-agent/data-flows.md`
   Load when tracing the CLI query pipeline (Flow 3: read-only landscape
   queries; Flow 6: `record test-case-turns` mutate-and-read flow).
-- `.claude/design/vitest-agent/schemas.md`
+- `@./.claude/design/vitest-agent/schemas.md`
   Load when adding a new `DataReader` query or working with output
   formatter types.

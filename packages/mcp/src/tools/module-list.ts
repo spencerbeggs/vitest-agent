@@ -7,7 +7,6 @@ export const moduleList = publicProcedure
 		Schema.standardSchemaV1(
 			Schema.Struct({
 				project: Schema.optional(Schema.String),
-				subProject: Schema.optional(Schema.String),
 			}),
 		),
 	)
@@ -20,22 +19,20 @@ export const moduleList = publicProcedure
 				// recorded run and list modules from each project's latest run.
 				// In multi-project Vitest configs the historical default of
 				// "default" matched no projects and the tool returned empty.
-				const targets: ReadonlyArray<{ project: string; subProject: string | null }> = input.project
-					? [{ project: input.project, subProject: input.subProject ?? null }]
-					: yield* reader
-							.getRunsByProject()
-							.pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project, subProject: r.subProject }))));
+				const targets: ReadonlyArray<{ project: string }> = input.project
+					? [{ project: input.project }]
+					: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project }))));
 
 				if (targets.length === 0) {
 					return "No projects found. Run run_tests({}) to execute tests and populate the database.";
 				}
 
-				const groups: Array<{ project: string; subProject: string | null; modules: ReadonlyArray<unknown> }> = [];
+				const groups: Array<{ project: string; modules: ReadonlyArray<unknown> }> = [];
 				let total = 0;
 				for (const t of targets) {
-					const modules = yield* reader.listModules(t.project, t.subProject);
+					const modules = yield* reader.listModules(t.project);
 					if (modules.length > 0) {
-						groups.push({ project: t.project, subProject: t.subProject, modules });
+						groups.push({ project: t.project, modules });
 						total += modules.length;
 					}
 				}
@@ -46,8 +43,7 @@ export const moduleList = publicProcedure
 
 				const lines: string[] = ["## Modules", ""];
 				for (const g of groups) {
-					const label = g.subProject ? `${g.project}:${g.subProject}` : g.project;
-					lines.push(`### ${label}`, "");
+					lines.push(`### ${g.project}`, "");
 					lines.push("| ID | File | State | Tests | Duration |");
 					lines.push("| --- | --- | --- | --- | --- |");
 					for (const m of g.modules as Array<{

@@ -7,7 +7,6 @@ export const testErrors = publicProcedure
 		Schema.standardSchemaV1(
 			Schema.Struct({
 				project: Schema.String,
-				subProject: Schema.optional(Schema.NullOr(Schema.String)),
 				errorName: Schema.optional(Schema.String),
 			}),
 		),
@@ -16,7 +15,7 @@ export const testErrors = publicProcedure
 		return ctx.runtime.runPromise(
 			Effect.gen(function* () {
 				const reader = yield* DataReader;
-				const errors = yield* reader.getErrors(input.project, input.subProject ?? null, input.errorName);
+				const errors = yield* reader.getErrors(input.project, input.errorName);
 
 				if (errors.length === 0) {
 					const scope = input.errorName ? ` matching \`${input.errorName}\`` : "";

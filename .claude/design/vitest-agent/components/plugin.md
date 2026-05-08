@@ -137,6 +137,11 @@ code that feeds it.
 `TestProjectInlineConfiguration` that carries a name, a kind, and a mutable
 config with fluent mutation helpers.
 
+`discoverProjects()` only ever calls `.unit(...)` since each workspace
+package now produces a single Vitest project. The `int`, `e2e`, and
+`custom` factories remain on the class for callers that hand-construct
+projects, but the discovery scanner does not use them.
+
 **Static factories set kind-appropriate defaults:**
 
 - `VitestProject.unit(options)` — `environment: "node"`, no timeout
@@ -162,49 +167,66 @@ config with fluent mutation helpers.
 ## discoverProjects
 
 `packages/plugin/src/utils/discover-projects.ts`. Async workspace scanner
-that builds `VitestProject[]` from the pnpm workspace layout. Calls
-`findWorkspaceRootSync` and `getWorkspacePackagesSync` from the
-`workspaces-effect` sync API — no Effect runtime required.
+that builds `{ projects: VitestProject[]; tags: TestTagDefinition[] }` from
+the pnpm workspace layout. Calls `findWorkspaceRootSync` and
+`getWorkspacePackagesSync` from the `workspaces-effect` sync API — no
+Effect runtime required.
 
 **Per-package scan:** for each workspace package (skipping the root `.`),
-scans `src/` (always) and `__test__/` (if present) for test files by kind.
-Filename conventions:
+includes both `<pkg>/src/**/*.{test,spec}.*` and (if present)
+`<pkg>/__test__/**/*.{test,spec}.*`. Helper subdirs (`utils/`,
+`fixtures/`, `snapshots/`) inside `__test__/` are excluded automatically.
+Setup file detection picks up `vitest.setup.{ts,tsx,js,jsx}` at the
+package root and adds it to `setupFiles`.
 
-| Pattern | Kind |
-| --- | --- |
-| `*.e2e.{test,spec}.*` | `e2e` |
-| `*.int.{test,spec}.*` | `int` |
-| `*.{test,spec}.*` (all others) | `unit` |
-
-When a package has more than one kind, project names get a `:kind` suffix
-(`pkg-name:unit`, `pkg-name:e2e`); single-kind packages keep the bare
-package name.
-
-**Glob construction:** include arrays contain both `<pkg>/src/**/<pattern>`
-and `<pkg>/__test__/**/<pattern>`. Helper subdirs (`utils/`, `fixtures/`,
-`snapshots/`) inside `__test__/` are excluded automatically.
-
-**Setup file detection:** if `vitest.setup.{ts,tsx,js,jsx}` exists at the
-package root it is added to `setupFiles` for all projects from that package.
+**One project per package.** The scanner emits a single `VitestProject`
+per workspace package via `VitestProject.unit(...)` — no `:kind` suffix,
+no per-kind splitting. Test-kind differentiation comes from Vitest tags
+applied by the plugin's transform hook (see Tag injection transform
+below). The legacy filename-driven kind classification was retired in
+2.0; see [../decisions.md](../decisions.md) Decision 23.
 
 **Process-level cache:** results are keyed by workspace root in a
-module-local `Map`. Repeated calls from the same process (e.g., multiple
-config evaluations) return the cached list without re-scanning.
+module-local `Map<string, DiscoverProjectsResult>`. Cache fires only on
+the no-options call path so it does not have to fingerprint a
+`TagStrategy` instance. Repeated no-options calls from the same process
+return the cached result without re-scanning.
 
-**DiscoveryOptions:** the optional second-position argument is either a
+**DiscoveryOptions:** the optional first-position argument is either a
 `ProjectsCallback` `(ctx) => void | Promise<void>` (receives the full
-`projects` array) or a per-kind object `{ unit?, int?, e2e? }` where each
-value is either a `TestProjectInlineConfiguration["test"]` config object
-(applied via `.override()`) or a `ProjectKindCallback` `(map) => void |
-Promise<void>` (receives a `Map<name, VitestProject>` for that kind).
+`projects` array) or an object `{ callback?, tagStrategy? }` where
+`tagStrategy` is a `TagStrategy` (or `false` to disable tag injection
+entirely). The legacy per-kind override object was removed.
+
+## Tag injection transform
+
+`packages/plugin/src/utils/inject-tags.ts` plus the `transform` hook in
+`AgentPlugin()`. Vitest 4.1's runner reads tags from `test()` / `it()`
+options at parse time. The plugin installs a Vite `transform(code, id)`
+hook that, for every test file id:
+
+1. Calls `strategy.classify({ module })` to resolve the tag list for
+   the file (e.g., `["unit"]` for `foo.test.ts`, `["e2e"]` for
+   `foo.e2e.test.ts`).
+2. Parses with acorn + acorn-typescript and walks every `test(...)` /
+   `it(...)` call expression.
+3. Uses magic-string to rewrite the options argument to include
+   `tags: [...existing, ...resolved]`. Source maps are preserved.
+
+The classifier and the tag declarations both come from a single
+`TagStrategy` instance — the same one passed to (or defaulted by)
+`discoverProjects`. `Tag` and `TagStrategy` are exported from the
+package for callers that want to extend or replace the default
+classification. See [./discover.md](./discover.md) for the full strategy
+API.
 
 ## AgentPlugin.discover()
 
 `packages/plugin/src/plugin.ts` (as a static method on the `AgentPlugin`
 namespace). The canonical entry point for workspace-driven Vitest project
-discovery. Calls `discoverProjects(options)` and maps the result through
-`.toConfig()`, returning `TestProjectInlineConfiguration[]` ready for
-`test.projects`.
+discovery. Calls `discoverProjects(options)` and maps each project through
+`.toConfig()`, returning `{ projects: TestProjectInlineConfiguration[];
+tags: TestTagDefinition[] }` ready for `test.projects` and `test.tags`.
 
 **Why this is a separate static, not a `configureVitest` hook.** Vitest
 pre-parses project configs before it evaluates Vite plugin hooks. A plugin
@@ -215,10 +237,10 @@ config evaluation:
 
 ```ts
 export default async () => {
-  const projects = await AgentPlugin.discover();
+  const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [AgentPlugin()],
-    test: { projects },
+    test: { projects, tags },
   });
 };
 ```
@@ -243,6 +265,18 @@ instead.
 
 - `vitest-project.ts` — `VitestProject` class (see above).
 - `discover-projects.ts` — `discoverProjects` workspace scanner (see above).
+- `tag.ts` — `Tag` class with `Tag.make` factory and name validation
+  (rejects empty names, the reserved words `and`/`or`/`not`, and the
+  forbidden characters `()&|!*` plus whitespace).
+- `tag-strategy.ts` — `TagStrategy` with `create`, `extend`, and
+  `default`. Owns the classifier types (`ClassifyBaseFn`,
+  `ClassifyExtendedFn`) and exposes `tagDefinitions` for the discovery
+  pipeline to forward into `test.tags`.
+- `inject-tags.ts` — AST rewriter built on acorn + acorn-typescript +
+  magic-string. `injectTags({ code, classify })` walks every `test()` /
+  `it()` call expression and rewrites the options argument to add
+  `tags: [...existing, ...resolved]`. Source maps are preserved.
+  Used by the plugin's Vite `transform(code, id)` hook.
 - `strip-console-reporters.ts` — removes console reporters from Vitest's
   reporter chain.
 - `resolve-thresholds.ts` — parses Vitest-native `coverageThresholds` into

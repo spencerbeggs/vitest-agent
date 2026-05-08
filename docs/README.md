@@ -21,10 +21,10 @@ import { AgentPlugin } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default async () => {
-  const projects = await AgentPlugin.discover();
+  const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [AgentPlugin()],
-    test: { projects, pool: "forks" },
+    test: { projects, tags, pool: "forks" },
   });
 };
 ```

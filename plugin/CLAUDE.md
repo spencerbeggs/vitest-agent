@@ -95,7 +95,7 @@ The allowlist for `pre-tool-use-mcp.sh` lives at `hooks/lib/safe-mcp-vitest-agen
 
 ## Skills
 
-Skills are loaded into the dispatching agent's context when invoked via the `Skill` tool or the `skills:` frontmatter. The nine sub-skill primitives are preloaded into `tdd-task` on launch; they are also available standalone.
+Skills are loaded into the dispatching agent's context when invoked via the `Skill` tool or the `skills:` frontmatter. All 14 sub-skill primitives below are preloaded into `tdd-task` on launch; they are also available standalone.
 
 | Skill | Purpose |
 | --- | --- |
@@ -171,13 +171,13 @@ The dogfood system was the primary development driver for the hook and agent beh
 
 ## Design docs
 
-- `.claude/design/vitest-agent/components/plugin-claude.md`
+- `@./.claude/design/vitest-agent/components/plugin-claude.md`
   The first-class design doc for this plugin. Load when working on hooks,
   the tdd-task agent, the MCP loader, the dogfood loop, or `context:fork`
   semantics.
-- `.claude/design/vitest-agent/architecture.md`
+- `@./.claude/design/vitest-agent/architecture.md`
   Load when you need an overview of how the plugin fits with the five npm
   packages and the MCP server.
-- `.claude/design/vitest-agent/decisions.md`
+- `@./.claude/design/vitest-agent/decisions.md`
   Load when you need the rationale behind hook design, evidence binding,
   or the loader strategy.

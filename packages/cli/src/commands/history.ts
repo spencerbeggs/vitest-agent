@@ -7,7 +7,7 @@
 import { Command, Options } from "@effect/cli";
 import { Effect, Option } from "effect";
 import type { HistoryRecord } from "vitest-agent-sdk";
-import { DataReader, splitProject } from "vitest-agent-sdk";
+import { DataReader } from "vitest-agent-sdk";
 import { formatHistory } from "../lib/format-history.js";
 
 const formatOption = Options.withDefault(Options.choice("format", ["markdown", "json"]), "markdown");
@@ -25,8 +25,8 @@ export const historyCommand = Command.make("history", { format: formatOption }, 
 		const manifest = manifestOpt.value;
 		const records: HistoryRecord[] = [];
 		for (const entry of manifest.projects) {
-			const { project, subProject } = splitProject(entry.project);
-			const history = yield* reader.getHistory(project, subProject);
+			const project = entry.project;
+			const history = yield* reader.getHistory(project);
 			if (history.tests.length > 0) {
 				records.push(history);
 			}
