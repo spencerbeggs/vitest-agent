@@ -348,7 +348,32 @@ The vendor tree and patterns tree are runtime data, not source. Bundling
 them through a build plugin would either inline the markdown into the JS
 bundle (wasteful for resources clients fetch by URI) or require a custom
 loader. rslib's `copyPatterns` is the rsbuild-native answer to the same
-problem, declared in `packages/mcp/rslib.config.ts`.
+problem, declared in `packages/mcp/rslib.config.ts` (`[{ from:
+"src/vendor", to: "vendor" }, { from: "src/patterns", to: "patterns" }]`).
+The 1.x postbuild copier (`scripts/copy-vendor-to-dist.mjs`, chained via
+`&&` from `build:dev` / `build:prod`) is gone. Build outputs at the dist
+level remain unchanged: `dist/<env>/vendor/` and `dist/<env>/patterns/`
+sit as siblings of the compiled `resources/` directory, so the runtime
+path resolution in `resources/index.ts` still works post-build.
+
+**Adding a resource.** Drop markdown into `src/vendor/vitest-docs/`
+(vendored upstream — managed by the snapshot pipeline) or `src/patterns/`
+(curated content — author directly + update `_meta.json`). For the
+vendored tree, every page MUST have a corresponding entry in
+`manifest.json`'s `pages[]` array (path, title, description) — the
+registrar's `list` callback in `resources/index.ts` reads it to emit
+the per-page resource list. The existing template URIs
+(`vitest://docs/{+path}`, `vitest-agent://patterns/{slug}`) automatically
+address the file itself; no registrar change unless adding a new URI
+scheme.
+
+**Adding a new content tree** (e.g., `vitest-agent://decisions/`): add
+the source directory under `src/` as a sibling of `src/vendor/` and
+`src/patterns/`, extend `copyPatterns` in `rslib.config.ts` with another
+`{ from, to }` entry to mirror it into `dist/<env>/`, register the new
+scheme in `resources/index.ts`, add a reader file using the
+path-traversal-safe root resolution, and resolve the new root from
+`import.meta.url` using the same dev/post-build dual-path pattern.
 
 ## McpLive composition layer
 

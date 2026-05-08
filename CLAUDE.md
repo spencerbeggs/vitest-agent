@@ -27,18 +27,13 @@ The five packages release in lockstep; `vitest-agent-plugin` declares
 required `peerDependencies`, and all five pin `vitest-agent-sdk` at
 `workspace:*`.
 
-**Legacy naming — watch out.** This whole system was originally a single
-package called `vitest-agent-reporter` (pre-2.0). The 2.0 split kept that
-name for the renderer-only package at `packages/reporter/`, while the
-plugin lifecycle that used to live alongside the reporter now lives in
-`vitest-agent-plugin` at `packages/plugin/`. Doc comments, tests, and
-internal references throughout the codebase still occasionally use
-`vitest-agent-reporter` in the legacy sense (meaning the whole system)
-when they should say `vitest-agent-plugin`. When you encounter a
-`vitest-agent-reporter` reference in prose or comments, check whether
-it actually means the modern renderer package or whether it's a
-dangling reference to what is now `vitest-agent-plugin`. Update as you
-go.
+**Legacy naming — watch out.** Pre-2.0 this whole system was one
+package, `vitest-agent-reporter`. The 2.0 split kept that name for the
+renderer-only package at `packages/reporter/`; the reporter lifecycle
+code now lives in `vitest-agent-plugin` at `packages/plugin/`. Prose and
+comments still occasionally say `vitest-agent-reporter` in the legacy
+whole-system sense when they should say `vitest-agent-plugin` — update
+references as you encounter them.
 
 ## Project Status
 
@@ -74,31 +69,31 @@ definitions. Schemas are re-exported from `vitest-agent-sdk` for consumer use.
 
 **For architecture details (progressive loading — load only what you need):**
 
-- `.claude/design/vitest-agent/architecture.md`
+- `@./.claude/design/vitest-agent/architecture.md`
   Load when you need a system overview, package diagram, or to find which
   sub-doc covers a topic. This is the hub.
-- `.claude/design/vitest-agent/components/<package>.md`
+- `@./.claude/design/vitest-agent/components/<package>.md`
   Per-package deep dives (`sdk.md`, `plugin.md`, `reporter.md`, `cli.md`,
   `mcp.md`, `plugin-claude.md`). Load only the file for the package you
   are touching.
-- `.claude/design/vitest-agent/schemas.md`
+- `@./.claude/design/vitest-agent/schemas.md`
   Load when working with TypeScript types, Effect Schema definitions, or
   the SQLite tables.
-- `.claude/design/vitest-agent/data-flows.md`
+- `@./.claude/design/vitest-agent/data-flows.md`
   Load when tracing one of the seven runtime flows (test run, CLI query,
   MCP tool call, TDD session, etc.).
-- `.claude/design/vitest-agent/file-structure.md`
+- `@./.claude/design/vitest-agent/file-structure.md`
   Load when working on the repo layout, XDG path resolution, project keying
   - tag classification, or PM detection.
-- `.claude/design/vitest-agent/decisions.md`
+- `@./.claude/design/vitest-agent/decisions.md`
   Load when you need to understand "why" a design choice was made. Retired
   decisions live in `decisions-retired.md`.
-- `.claude/design/vitest-agent/testing-strategy.md`
+- `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests or reviewing testing patterns and coverage.
 
 **For Claude Code plugin details:**
 
-- `.claude/design/vitest-agent/components/plugin-claude.md`
+- `@./.claude/design/vitest-agent/components/plugin-claude.md`
   Load for the design doc covering hooks, the tdd-task agent, skills,
   commands, the MCP loader, and the dogfood workflow.
 - `plugin/CLAUDE.md`
@@ -159,6 +154,12 @@ Turbo orchestration: `types:check` runs first, then `build:dev` and
 
 TypeScript configuration in each package extends from:
 `@savvy-web/rslib-builder/tsconfig/ecma/lib.json`.
+
+**For build pipeline and tooling rationale:**
+
+- `@./.claude/design/vitest-agent/architecture.md`
+  Load when you need the cross-package build, publish, or release-flow
+  context behind these conventions.
 
 ## Commands
 
@@ -266,8 +267,8 @@ release workflow. Releases happen in lockstep.
 
 **For detailed testing and discovery guidance:**
 
-- `.claude/design/vitest-agent/testing-strategy.md`
+- `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests, reviewing patterns, or understanding coverage targets.
-- `.claude/design/vitest-agent/components/discover.md`
+- `@./.claude/design/vitest-agent/components/discover.md`
   Load when working on `AgentPlugin.discover()`, `discoverProjects()`,
   `VitestProject`, or `DiscoveryOptions`.

@@ -12,58 +12,18 @@ ripple to all four runtimes.
 ```text
 src/
   index.ts            -- public re-exports (only entry point)
-  contracts/          -- reporter.ts: public reporter contract types
-                         (ResolvedReporterConfig, ReporterKit,
-                         ReporterRenderInput, VitestAgentReporter,
-                         VitestAgentReporterFactory)
+  contracts/          -- public reporter contract types
   services/           -- 10 Effect Context.Tag definitions
-  layers/             -- live + test layers, OutputPipelineLive,
-                         ConfigLive, PathResolutionLive, LoggerLive
-  schemas/            -- Effect Schema definitions (Common, AgentReport,
-                         Coverage, Thresholds, Baselines, Trends,
-                         History, Options, Config, CacheManifest,
-                         Tdd (GoalRow/BehaviorRow/GoalDetail/BehaviorDetail),
-                         ChannelEvent (13-variant discriminated union))
-    turns/            -- discriminated TurnPayload union over seven
-                         payload Schema.Structs (UserPrompt, ToolCall,
-                         ToolResult, FileEdit, HookFire, Note, Hypothesis)
-  errors/             -- DataStoreError, DiscoveryError, PathResolutionError,
-                         TddErrors (GoalNotFoundError, BehaviorNotFoundError,
-                         TddSessionNotFoundError, TddSessionAlreadyEndedError,
-                         IllegalStatusTransitionError)
-  formatters/         -- markdown, gfm, json, silent, ci-annotations + types
-  migrations/         -- 0001_initial.ts (1.x 25-table schema),
-                         0002_comprehensive.ts (drop-and-recreate -- 41 tables
-                         + corrected notes_fts triggers; the LAST
-                         drop-and-recreate per Decision D9; modified
-                         in-place to fold all 2.0 additive changes including
-                         goal/behavior hierarchy, idempotent responses table,
-                         test_cases/failure_signatures ALTERs, and
-                         tdd_sessions.run_id)
-  sql/                -- rows.ts (row types), assemblers.ts (DB -> domain)
-  utils/              -- pure utilities: resolve-data-path,
-                         resolve-workspace-key, normalize-workspace-key,
-                         ensure-migrated, classify-test, compute-trend,
-                         build-report, detect-pm, hyperlink,
-                         function-boundary (acorn AST walk),
-                         failure-signature (sha256 hash for stable failure
-                         identity), validate-phase-transition (TDD D2
-                         evidence-binding rules). The legacy
-                         `split-project.ts` and `ProjectIdentity` were
-                         removed in 2.0 along with the `sub_project`
-                         column; project keying is one row per workspace
-                         package, with test-kind differentiation handled
-                         by Vitest-native tags (see vitest-agent-plugin's
-                         TagStrategy)
-  lib/                -- pure markdown generators shared by CLI and MCP:
-                         format-triage.ts, format-wrapup.ts
-  testing/            -- exported via the `vitest-agent-sdk/testing` subpath.
-                         makeTestLayer(filename) builds a fully-migrated
-                         in-process SQLite layer (DataStoreLive + DataReaderLive
-                         + SqliteMigrator). DataStoreTestLayer is the
-                         `:memory:` convenience. Five preset factories seed
-                         representative states: empty, singlePassingRun,
-                         withFailures, flaky, withTddSession
+  layers/             -- live + test layer implementations
+  schemas/            -- Effect Schema definitions
+    turns/            -- TurnPayload discriminated union (7 variants)
+  errors/             -- tagged errors (DataStore, Discovery, Tdd, ...)
+  formatters/         -- markdown, gfm, json, silent, ci-annotations
+  migrations/         -- 0001_initial, 0002_comprehensive (see Key files)
+  sql/                -- row types + DB-to-domain assemblers
+  utils/              -- pure utilities (paths, signatures, validators)
+  lib/                -- pure markdown generators (CLI + MCP)
+  testing/            -- exported via `vitest-agent-sdk/testing` subpath
 ```
 
 ## Key files
@@ -152,22 +112,22 @@ src/
 
 ## Design references
 
-- `.claude/design/vitest-agent/components/sdk.md`
+- `@./.claude/design/vitest-agent/components/sdk.md`
   Load when working on this package's services, layers, formatters,
   utilities, or migrations.
-- `.claude/design/vitest-agent/schemas.md`
+- `@./.claude/design/vitest-agent/schemas.md`
   Load when adding or changing Effect Schemas, the reporter contract types,
   or SQLite tables.
-- `.claude/design/vitest-agent/file-structure.md`
+- `@./.claude/design/vitest-agent/file-structure.md`
   Load when touching `resolveDataPath`, `PathResolutionLive`, workspace-key
   normalization, or the project-keying / tag-classification model that
   replaced `splitProject()` in 2.0.
-- `.claude/design/vitest-agent/decisions.md`
+- `@./.claude/design/vitest-agent/decisions.md`
   Load when you need rationale for a design choice (especially D9 migration
   policy, D10 failure signatures, D11 phase transitions, D28
   `ensureMigrated`, D31 path resolution).
-- `.claude/design/vitest-agent/testing-strategy.md`
+- `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests for this package or reviewing testing patterns.
-- `.claude/design/vitest-agent/components/discover.md`
+- `@./.claude/design/vitest-agent/components/discover.md`
   Load when adding new preset factories to `testing/` or changing
   `makeTestLayer`.

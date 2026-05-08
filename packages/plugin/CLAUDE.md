@@ -11,75 +11,27 @@ baseline/trend computation, and delegates rendering to a user-supplied
 ```text
 src/
   index.ts            -- public re-exports
-  plugin.ts           -- AgentPlugin: injects AgentReporter via
-                         configureVitest, detects environment,
-                         resolves coverage config, suppresses Vitest's
-                         native coverage table in own mode
+  plugin.ts           -- AgentPlugin factory + namespace
   reporter.ts         -- internal AgentReporter Vitest-API class
-                         (NOT exported publicly). Owns onInit (async),
-                         onCoverage, onTestRunEnd. Delegates rendering
-                         to a VitestAgentReporterFactory via ReporterKit
   services/
-    CoverageAnalyzer.ts  -- Effect service for istanbul CoverageMap
-                           processing (the only istanbul-aware service;
-                           lives here because only the reporter lifecycle
-                           class feeds it coverage data directly)
+    CoverageAnalyzer.ts        -- istanbul CoverageMap processor
   layers/
     CoverageAnalyzerLive.ts
     CoverageAnalyzerTest.ts
-    ReporterLive.ts      -- (dbPath, logLevel?, logFile?) composition:
-                           DataStore + CoverageAnalyzer + HistoryTracker
-                           + OutputPipeline + DataReader + SqliteClient
-                           + Migrator + LoggerLive
+    ReporterLive.ts            -- per-run composition layer
   utils/
-    build-reporter-kit.ts    -- constructs ReporterKit from resolved config
-                               + Environment + noColor
-    route-rendered-output.ts -- dispatches RenderedOutput by target:
-                               stdout / github-summary / file (no-op)
-    process-failure.ts       -- per-error pipeline: source-map the top
-                               non-framework frame, run findFunctionBoundary,
-                               call computeFailureSignature. Returns
-                               { frames, signatureHash }
-    capture-env.ts           -- captures CI/GITHUB_* env vars for settings
-    capture-settings.ts      -- captures Vitest config snapshot + hash
-    resolve-thresholds.ts    -- parses Vitest-native coverage threshold format
-    strip-console-reporters.ts -- removes built-in console reporters in own mode
-    vitest-project.ts        -- VitestProject class: typed builder for
-                               TestProjectInlineConfiguration with static
-                               factories (.unit, .e2e, .int, .custom) and
-                               fluent mutators (override, addInclude,
-                               addExclude, addCoverageExclude)
-    discover-projects.ts     -- discoverProjects() async scanner: walks
-                               workspace packages, emits one
-                               VitestProject per package (no kind suffix
-                               splitting) plus a TestTagDefinition[] from
-                               the active TagStrategy. Returns
-                               { projects, tags }; result is cached
-                               per-workspace-root only on the
-                               no-options call path
-    tag.ts                   -- Tag class + Tag.make(name, options?)
-                               factory. Validates the tag name (kebab-
-                               case, no spaces) and exposes a
-                               TestTagDefinition via .definition for
-                               Vitest's test.tags array
-    tag-strategy.ts          -- TagStrategy: declares the available
-                               Tag[] and a classify({ module }) =>
-                               string[] function. Static .create() builds
-                               from scratch; .extend() chains an extra
-                               classify layer that receives the parent's
-                               inherited tags. TagStrategy.default ships
-                               unit / int (60s timeout) / e2e (120s
-                               timeout, CI retry: 2) and classifies by
-                               filename suffix (.e2e., .int., otherwise
-                               unit)
-    inject-tags.ts           -- Vite transform that rewrites every
-                               test()/it() call's options argument via
-                               an acorn AST walk + magic-string edit,
-                               adding the resolved tags array. Preserves
-                               source maps. Used internally by AgentPlugin
-                               to forward classify() results into Vitest
-                               4.1's test.tags surface for built-in
-                               tag-expression filtering
+    build-reporter-kit.ts      -- ReporterKit builder
+    route-rendered-output.ts   -- RenderedOutput target dispatch
+    process-failure.ts         -- per-error signature pipeline
+    capture-env.ts             -- CI/GITHUB_* env capture
+    capture-settings.ts        -- Vitest config snapshot + hash
+    resolve-thresholds.ts      -- coverage threshold parser
+    strip-console-reporters.ts -- own-mode console reporter strip
+    vitest-project.ts          -- VitestProject builder class
+    discover-projects.ts       -- async workspace project scanner
+    tag.ts                     -- Tag class + factory
+    tag-strategy.ts            -- TagStrategy + .default + .extend
+    inject-tags.ts             -- Vite transform for test.tags
 ```
 
 ## Key files
@@ -205,19 +157,19 @@ project per workspace package; test-kind shaping now happens through
 
 ## Design references
 
-- `.claude/design/vitest-agent/components/plugin.md`
+- `@./.claude/design/vitest-agent/components/plugin.md`
   Load when working on `AgentPlugin`, the internal `AgentReporter`,
   `CoverageAnalyzer`, or the reporter-side utilities.
-- `.claude/design/vitest-agent/data-flows.md`
+- `@./.claude/design/vitest-agent/data-flows.md`
   Load when tracing the test-run pipeline (Flow 1: end-to-end run
   persistence; Flow 2: coverage processing and dedup).
-- `.claude/design/vitest-agent/decisions.md`
+- `@./.claude/design/vitest-agent/decisions.md`
   Load when you need rationale (especially D34 plugin/reporter split,
   D7 per-call `Effect.runPromise`, D28 `ensureMigrated` globalThis
   cache, D10 failure signatures).
-- `.claude/design/vitest-agent/components/discover.md`
+- `@./.claude/design/vitest-agent/components/discover.md`
   Load when working on `AgentPlugin.discover()`, `discoverProjects()`,
   `VitestProject`, `DiscoveryOptions`, or the override system.
-- `.claude/design/vitest-agent/testing-strategy.md`
+- `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests for this package, including the `__test__/`
   layout and helper subdirectory exclusion conventions.

@@ -55,22 +55,9 @@ src/
     indexes.ts        -- renderUpstreamIndex / renderPatternsIndex for
                          the two static index URIs (vitest://docs/
                          and vitest-agent://patterns/)
-  vendor/
-    vitest-docs/      -- vendored upstream Vitest docs snapshot
-                         (markdown files mirroring vitest-dev/vitest's
-                         docs/ tree, plus manifest.json (tag,
-                         commitSha, capturedAt, source, and the
-                         pages[] metadata array) and ATTRIBUTION.md).
-                         Pinned at a specific upstream tag; refreshed
-                         via the project-local update-vitest-snapshot
-                         skill or the lib/scripts/ TS pipeline below
-  patterns/           -- curated testing patterns library (_meta.json
-                         index + per-pattern markdown). Three launch
-                         patterns ship in 2.0
-  prompts/            -- six framing-only prompts (no server-side tool
-                         data fetching; each prompt emits templated user
-                         messages that orient the agent toward the right
-                         tool composition):
+  vendor/vitest-docs/  -- vendored upstream Vitest docs snapshot
+  patterns/           -- curated testing patterns library
+  prompts/            -- six framing-only prompts:
     index.ts          -- registerAllPrompts(server); wires zod arg
                          schemas + factory functions + a toMessages
                          adapter that narrows user-only message shape
@@ -86,38 +73,10 @@ src/
                          OutputPipeline + SqliteClient + Migrator +
                          NodeContext + NodeFileSystem + Logger
 
-lib/
-  scripts/            -- Effect-based TypeScript maintenance scripts.
-                         Repo convention: lib/ is for tooling that
-                         reuses workspace dependencies and src/ code
-                         (turbo treats lib/ changes as build-
-                         invalidating). Run via
-                         `pnpm exec tsx packages/mcp/lib/scripts/<name>.ts`:
-    fetch-upstream-docs.ts  -- sparse-clones vitest-dev/vitest at a
-                               tag (--depth 1 --filter=blob:none
-                               --sparse --branch <tag>), writes the
-                               raw download to lib/vitest-docs-raw/
-                               (gitignored), records .upstream-info.json
-                               validated against an Effect Schema. Uses
-                               execFileSync with array args ONLY --
-                               never execSync with a shell-interpolated
-                               string. Replaces the 1.x zero-deps
-                               update-vitest-snapshot.mjs
-    build-snapshot.ts       -- reads the raw download, applies a
-                               denylist (team.md, todo.md, index.md,
-                               blog/, etc.), strips VitePress
-                               frontmatter, derives titles from H1,
-                               writes scaffolded src/vendor/vitest-docs/
-                               + manifest.json with placeholder
-                               [TODO: ...] descriptions for the agent
-                               to enrich
-    validate-snapshot.ts    -- decodes manifest.json against
-                               manifest-schema.ts, refuses any TODO-
-                               marked description, enforces minimum
-                               description length, ensures every file
-                               has a manifest entry and vice versa
-  vitest-docs-raw/    -- gitignored sparse-clone target for the
-                         fetch-upstream-docs script (NOT shipped)
+lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
+                         build / validate). Refresh via the
+                         update-vitest-snapshot skill; see
+                         components/mcp.md for script internals.
 ```
 
 ## Key files
@@ -229,20 +188,9 @@ lib/
   `dbPath` resolution fails at boot, the server should not start --
   surface the error via stderr and exit non-zero so the loader can
   print install instructions.
-- Adding a resource: drop the markdown into `src/vendor/vitest-docs/`
-  (vendored upstream — the snapshot pipeline at `lib/scripts/`
-  manages this) or `src/patterns/` (curated content — author
-  directly + update `_meta.json`). For `src/vendor/vitest-docs/`,
-  every page MUST have a corresponding entry in `manifest.json`'s
-  `pages[]` array (path, title, description) — the registrar's
-  `list` callback in `resources/index.ts` reads it to emit the
-  per-page resource list MCP clients see in their picker. The
-  existing template URIs (`vitest://docs/{+path}`,
-  `vitest-agent://patterns/{slug}`) automatically address the file
-  itself; no registrar change unless adding a new URI scheme. If
-  adding a new scheme, register it in `resources/index.ts`, add a
-  reader file using path-traversal-safe root resolution, and extend
-  `copyPatterns` in `rslib.config.ts` for the new content tree.
+- Vendor mirrors into `dist/<env>/` via `copyPatterns`; load
+  `components/mcp.md` before adding a new content tree or
+  build-pipeline change.
 - Adding a prompt: create `prompts/<slug>.ts` exporting a factory
   that returns one or more user-role messages. Add a zod arg schema
   and register the prompt in `prompts/index.ts`. Keep the factory
@@ -251,49 +199,22 @@ lib/
   `WrapupKind` union is re-exported and the registrar coerces
   `args.kind` through it.
 - Refreshing the vendored Vitest docs: invoke the project-local
-  `.claude/skills/update-vitest-snapshot/SKILL.md` skill (the
-  recommended path — it walks the agent through five phases:
-  fetch → prune → scaffold → enrich → validate, with explicit user
-  checkpoints; the agent's careful per-page description authoring
-  during the enrich phase is the "load when" signal that drives MCP
-  resource discoverability). Or run the scripts manually in order:
-  `pnpm exec tsx packages/mcp/lib/scripts/fetch-upstream-docs.ts
-  --tag <vN.M.K>`, then `build-snapshot.ts`, then
-  `validate-snapshot.ts`. The pipeline rewrites
-  `src/vendor/vitest-docs/` and `manifest.json` (`tag`, `commitSha`,
-  `capturedAt`, plus `pages[]` metadata after enrichment). Commit
-  the whole `src/vendor/vitest-docs/` tree as a single change. The
-  npm script alias for `update-vitest-snapshot` was removed in
-  favor of the explicit `tsx` invocations.
-- Adding to the build pipeline: vendor and patterns are mirrored
-  into `dist/<env>/` by rslib's `copyPatterns` declaration in
-  `rslib.config.ts` (`[{ from: "src/vendor", to: "vendor" }, { from:
-  "src/patterns", to: "patterns" }]`). The 1.x postbuild copier
-  (`scripts/copy-vendor-to-dist.mjs`, chained via `&&` from
-  `build:dev` / `build:prod`) is gone. Build outputs are unchanged
-  at the dist level: `dist/<env>/vendor/` and `dist/<env>/patterns/`
-  remain siblings of the compiled `resources/` directory, so the
-  runtime path resolution in `resources/index.ts` still works
-  post-build.
-- Adding a new content tree (e.g., `vitest-agent://decisions/`):
-  add the source directory under `src/` as a sibling of
-  `src/vendor/` and `src/patterns/`, extend `copyPatterns` in
-  `rslib.config.ts` with another `{ from, to }` entry to mirror it
-  into `dist/<env>/`, and resolve the new root from
-  `import.meta.url` in `resources/index.ts` using the same
-  dev/post-build dual-path pattern.
+  `.claude/skills/update-vitest-snapshot/SKILL.md` skill, which
+  walks through fetch → prune → scaffold → enrich → validate with
+  explicit user checkpoints. Commit the rewritten
+  `src/vendor/vitest-docs/` tree as a single change.
 
 ## Design references
 
-- `.claude/design/vitest-agent/components/mcp.md`
+- `@./.claude/design/vitest-agent/components/mcp.md`
   Load when working on tool implementations, the tRPC router, resources,
   prompts, or the vendor-snapshot pipeline.
-- `.claude/design/vitest-agent/data-flows.md`
+- `@./.claude/design/vitest-agent/data-flows.md`
   Load when tracing MCP runtime flows (Flow 4: tRPC tool dispatch over
   `ManagedRuntime`; Flow 7: TDD goal/behavior + phase-transition flow).
-- `.claude/design/vitest-agent/schemas.md`
+- `@./.claude/design/vitest-agent/schemas.md`
   Load when working with tRPC tool input/output shapes, the idempotency
   registry, or the TDD goal/behavior tables.
-- `.claude/design/vitest-agent/decisions.md`
+- `@./.claude/design/vitest-agent/decisions.md`
   Load for rationale (especially D19 tRPC routing, D35 resources and
   prompts, and the idempotency middleware).
