@@ -169,20 +169,26 @@ cacheDir = "/abs/path/to/cache"
 projectKey = "my-app"
 ```
 
-## `splitProject()` keying
+## Project keying and tag classification
 
-The DB is one-per-workspace. Vitest sub-projects (the `projects` array
-inside `vitest.config.ts`) are differentiated **within** that DB via the
-`(project, subProject)` columns and the `splitProject()` utility (see
-[./decisions.md](./decisions.md) D23):
+The DB is one-per-workspace. Each Vitest project (one per workspace
+package, no colon suffix) is keyed solely by its `name` — `vitest-agent-sdk`,
+`vitest-agent-plugin`, etc. There is no `sub_project` column anywhere in
+the schema; the legacy `splitProject()` utility and `(project, subProject)`
+column pair were dropped in 2.0.
 
-- `"my-app:unit"` → `{ project: "my-app", subProject: "unit" }`
-- `"core"` → `{ project: "core", subProject: null }`
-- `""` or `undefined` → `{ project: "default", subProject: null }`
+Test-kind differentiation moved to **Vitest-native tags** (Vitest 4.1+).
+`TagStrategy` in `vitest-agent-plugin` declares the available tags
+(`unit`, `int`, `e2e` by default) and a `classify()` function that maps a
+test file to a tag list. The plugin installs a Vite `transform` hook
+(see `packages/plugin/src/utils/inject-tags.ts`) that rewrites every
+`test()` and `it()` call's options argument to add the resolved tags
+array. Filter at the command line via Vitest's standard tag-expression
+syntax (`pnpm vitest --project vitest-agent-sdk -t unit`).
 
-The `:` separator is the convention; absent it the whole string is the
-project and `subProject` is `null`. A null `subProject` is distinct from an
-empty string, so `(project, NULL)` and `(project, '')` are different rows.
+Aggregated per-tag pass/fail/skip counts surface on `AgentReport.tagCounts`
+and render in the terminal formatter as both an inline summary on the
+project line and an indented per-tag failure breakdown.
 
 ## Package manager detection
 

@@ -30,7 +30,7 @@ import { AgentPlugin } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default async () => {
-  const projects = await AgentPlugin.discover();
+  const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [
       AgentPlugin({
@@ -38,37 +38,90 @@ export default async () => {
         coverageTargets: "strict",
       }),
     ],
-    test: { projects, pool: "forks" },
+    test: { projects, tags, pool: "forks" },
   });
 };
 ```
 
 ## AgentPlugin.discover()
 
-`AgentPlugin.discover(options?)` scans workspace packages for test files and
-returns a `TestProjectInlineConfiguration[]` for `test.projects`. Files are
-classified by name suffix: `.e2e.test.ts` for e2e, `.int.test.ts` for
-integration, everything else for unit.
+`AgentPlugin.discover(options?)` scans workspace packages for test files
+and returns `{ projects, tags }`. Pass `projects` to Vitest's
+`test.projects` and `tags` to `test.tags` so Vitest's `--tags-filter`
+flag can resolve every tag the plugin's transform injects. The scanner
+emits **one project per workspace package** — there are no `:unit`,
+`:int`, or `:e2e` project-name suffixes; test-kind classification is
+handled by the active `TagStrategy` and surfaces as Vitest tags
+instead.
 
-The optional `options` argument accepts either a callback to mutate the full
-list in-place, or a per-kind override object:
+The optional `options` argument accepts either a `({ projects }) =>
+void | Promise<void>` callback that mutates the discovered project
+list in place, or an object `{ callback?, tagStrategy? }` where
+`tagStrategy` is a `TagStrategy` instance or `false` to disable
+tag declarations and the inject-tags Vite transform.
 
 ```typescript
-// Per-kind config overrides
-const projects = await AgentPlugin.discover({
-  unit: { testTimeout: 5_000 },
-  e2e: { testTimeout: 120_000 },
+import { AgentPlugin, TagStrategy } from "vitest-agent-plugin";
+
+// Custom tag strategy with a 30s timeout for contract tests
+const strategy = TagStrategy.default.extend({
+  classify: ({ module, inherited }) => {
+    if (module.filename.endsWith(".contract.test.ts")) return ["contract"];
+    return inherited;
+  },
 });
 
-// Callback for full control
-const projects = await AgentPlugin.discover(({ projects }) => {
-  for (const p of projects) {
-    if (p.kind === "int") p.override({ test: { retry: 2 } });
-  }
+const { projects, tags } = await AgentPlugin.discover({
+  tagStrategy: strategy,
+  callback: ({ projects }) => {
+    for (const p of projects) p.override({ test: { retry: 1 } });
+  },
 });
 ```
 
-Discovery results are cached per workspace root within the process.
+Discovery results are cached per workspace root within the process when
+called with no options. Passing a `tagStrategy` or callback skips the
+cache so per-config customization always re-runs.
+
+The pre-2.0 per-kind override form (`{ unit?, int?, e2e? }` keyed by
+test kind) was removed when discovery consolidated to one project per
+package; per-kind shaping now happens through `TagStrategy.classify()`
+rather than through projects.
+
+## Tag and TagStrategy
+
+`Tag` and `TagStrategy` are exported alongside `AgentPlugin`. A
+strategy declares the available tags (with timeouts, retries) and a
+`classify({ module })` function that returns one or more tag names per
+test module. The plugin's Vite transform reads the result and injects
+the tags into every `test()` and `it()` call. `TagStrategy.default`
+ships `unit`, `int` (60s timeout), and `e2e` (120s timeout, retry 2
+under CI), keyed off the filename suffix.
+
+```typescript
+import { Tag, TagStrategy } from "vitest-agent-plugin";
+
+const strategy = TagStrategy.create({
+  tags: [
+    Tag.make("unit"),
+    Tag.make("smoke", { timeout: 5_000 }),
+  ],
+  classify: ({ module }) => {
+    if (module.filename.endsWith(".smoke.test.ts")) return ["smoke"];
+    return ["unit"];
+  },
+});
+```
+
+The plugin also accepts `tagStrategy` directly so the transform and the
+discovery surface stay in sync:
+
+```typescript
+AgentPlugin({ tagStrategy: strategy });
+```
+
+Pass `tagStrategy: false` to disable both the transform and the
+declared tags.
 
 ## Coverage Level Presets
 

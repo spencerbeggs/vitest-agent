@@ -6,7 +6,7 @@
 
 import { Command, Options } from "@effect/cli";
 import { Effect, Option } from "effect";
-import { DataReader, resolveDataPath, splitProject } from "vitest-agent-sdk";
+import { DataReader, resolveDataPath } from "vitest-agent-sdk";
 import type { CheckResult } from "../lib/format-doctor.js";
 import { formatDoctor } from "../lib/format-doctor.js";
 
@@ -60,9 +60,9 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 		let validReports = 0;
 		const reportIssues: string[] = [];
 		for (const entry of manifest.projects) {
-			const { project, subProject } = splitProject(entry.project);
+			const project = entry.project;
 			const reportOpt = yield* reader
-				.getLatestRun(project, subProject)
+				.getLatestRun(project)
 				.pipe(Effect.catchAll(() => Effect.succeed(Option.none<never>())));
 
 			if (Option.isNone(reportOpt)) {
@@ -93,8 +93,8 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 		const historyIssues: string[] = [];
 		for (const entry of manifest.projects) {
 			totalHistory++;
-			const { project, subProject } = splitProject(entry.project);
-			const history = yield* reader.getHistory(project, subProject).pipe(
+			const project = entry.project;
+			const history = yield* reader.getHistory(project).pipe(
 				Effect.map((h) => ({ ok: true as const, record: h })),
 				Effect.catchAll(() => Effect.succeed({ ok: false as const, record: null })),
 			);

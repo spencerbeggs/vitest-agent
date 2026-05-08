@@ -8,6 +8,8 @@
  */
 
 import { execSync } from "node:child_process";
+import { basename, relative } from "node:path";
+import type { TestTagDefinition } from "@vitest/runner";
 import type { Layer } from "effect";
 import { Effect } from "effect";
 import type { TestProjectInlineConfiguration } from "vitest/config";
@@ -32,8 +34,12 @@ import {
 import { AgentReporter } from "./reporter.js";
 import type { DiscoveryOptions } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
+import type { InjectTagsResult } from "./utils/inject-tags.js";
+import { injectTags } from "./utils/inject-tags.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
+import type { ModuleInfo } from "./utils/tag-strategy.js";
+import { TagStrategy } from "./utils/tag-strategy.js";
 
 /**
  * Plugin options shape with the (function-typed) `reporter` factory added
@@ -57,6 +63,14 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	reporter?: VitestAgentReporterFactory;
 	coverageThresholds?: CoverageInput;
 	coverageTargets?: CoverageInput;
+	/**
+	 * Controls the Vite transform hook that rewrites test() and it() call
+	 * options to inject filename-derived tags. Pass a TagStrategy instance
+	 * to customize classification, or false to disable the transform entirely.
+	 *
+	 * Defaults to TagStrategy.default (unit / int / e2e by filename suffix).
+	 */
+	tagStrategy?: TagStrategy | false;
 }
 
 /**
@@ -116,6 +130,19 @@ function resolveGithubActions(env: Environment, format: OutputFormat): boolean {
  */
 const aggregatedReporterByVitest = new WeakSet<object>();
 
+const TEST_FILE_RE = /\/(?:src|__test__)\/.*\.(?:test|spec)\.(?:ts|tsx|js|jsx)$/;
+
+function buildModuleInfo(id: string): ModuleInfo {
+	const cleanId = id.split("?")[0]!;
+	return {
+		path: cleanId,
+		relativePath: relative(process.cwd(), cleanId),
+		filename: basename(cleanId),
+		packageName: "",
+		packagePath: "",
+	};
+}
+
 export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?: Layer.Layer<EnvironmentDetector>) {
 	const mode = options.mode ?? "auto";
 	const strategy = options.strategy ?? "complement";
@@ -131,7 +158,13 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 		? (...args: unknown[]) => process.stderr.write(`[vitest-agent:plugin] ${args.map(String).join(" ")}\n`)
 		: (..._args: unknown[]) => {};
 
-	return {
+	const tagStrategyResolved = options.tagStrategy === false ? null : (options.tagStrategy ?? TagStrategy.default);
+
+	const pluginObj: {
+		name: "vitest-agent";
+		configureVitest(ctx: VitestPluginContext): Promise<void>;
+		transform?: (code: string, id: string) => InjectTagsResult | null;
+	} = {
 		name: "vitest-agent",
 
 		async configureVitest(ctx: VitestPluginContext) {
@@ -306,6 +339,21 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 			}
 		},
 	};
+
+	if (tagStrategyResolved) {
+		pluginObj.transform = (code, id) => {
+			const cleanId = id.split("?")[0]!;
+			if (!TEST_FILE_RE.test(cleanId)) return null;
+			const module = buildModuleInfo(cleanId);
+			const tags = tagStrategyResolved.classify({ module });
+			if (tags.length === 0) return null;
+			const rewritten = injectTags(code, [...tags]);
+			if (rewritten === null) return null;
+			return rewritten;
+		};
+	}
+
+	return pluginObj;
 }
 
 export namespace AgentPlugin {
@@ -326,21 +374,23 @@ export namespace AgentPlugin {
 	});
 
 	/**
-	 * Discover Vitest project configs from the workspace layout.
+	 * Discover Vitest project configs and tag definitions from the workspace layout.
 	 *
 	 * Use with an async config export so projects are resolved before Vitest
 	 * reads the config:
 	 *
 	 * ```ts
 	 * export default defineConfig(async () => {
-	 *   const projects = await AgentPlugin.discover();
+	 *   const { projects } = await AgentPlugin.discover();
 	 *   return { plugins: [AgentPlugin()], test: { projects } };
 	 * });
 	 * ```
 	 */
-	export async function discover(options?: DiscoveryOptions): Promise<TestProjectInlineConfiguration[]> {
-		const projects = await discoverProjects(options);
-		return projects.map((p) => p.toConfig());
+	export async function discover(
+		options?: DiscoveryOptions,
+	): Promise<{ projects: TestProjectInlineConfiguration[]; tags: TestTagDefinition[] }> {
+		const { projects, tags } = await discoverProjects(options);
+		return { projects: projects.map((p) => p.toConfig()), tags };
 	}
 
 	/**

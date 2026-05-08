@@ -61,7 +61,6 @@ export interface SettingsInput {
 export interface TestRunInput {
 	readonly invocationId: string;
 	readonly project: string;
-	readonly subProject: string | null;
 	readonly settingsHash: string;
 	readonly timestamp: string;
 	readonly commitSha: string | null;
@@ -195,7 +194,6 @@ export interface NoteInput {
 	readonly content: string;
 	readonly scope: "global" | "project" | "module" | "suite" | "test" | "note";
 	readonly project?: string;
-	readonly subProject?: string;
 	readonly testFullName?: string;
 	readonly modulePath?: string;
 	readonly parentNoteId?: number;
@@ -207,7 +205,6 @@ export interface NoteInput {
 export interface SessionInput {
 	readonly cc_session_id: string;
 	readonly project: string;
-	readonly sub_project?: string;
 	readonly cwd: string;
 	readonly agent_kind: "main" | "subagent";
 	readonly agent_type?: string;
@@ -352,7 +349,6 @@ export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 		) => Effect.Effect<void, DataStoreError>;
 		readonly writeHistory: (
 			project: string,
-			subProject: string | null,
 			fullName: string,
 			runId: number,
 			timestamp: string,
@@ -363,12 +359,7 @@ export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 			errorMessage: string | null,
 		) => Effect.Effect<void, DataStoreError>;
 		readonly writeBaselines: (baselines: CoverageBaselines) => Effect.Effect<void, DataStoreError>;
-		readonly writeTrends: (
-			project: string,
-			subProject: string | null,
-			runId: number,
-			entry: TrendEntry,
-		) => Effect.Effect<void, DataStoreError>;
+		readonly writeTrends: (project: string, runId: number, entry: TrendEntry) => Effect.Effect<void, DataStoreError>;
 		readonly writeSourceMap: (
 			sourceFilePath: string,
 			testModuleId: number,

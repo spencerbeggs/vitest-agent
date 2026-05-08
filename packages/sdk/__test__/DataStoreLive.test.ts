@@ -47,7 +47,6 @@ const settingsInput = {
 const runInput = {
 	invocationId: "inv-001",
 	project: "my-project",
-	subProject: null,
 	settingsHash,
 	timestamp: "2026-03-22T00:00:00.000Z",
 	commitSha: "deadbeef",
@@ -522,7 +521,6 @@ describe("DataStoreLive", () => {
 
 					yield* store.writeHistory(
 						"my-project",
-						null,
 						"suite > test one",
 						runId,
 						"2026-03-22T00:00:00.000Z",
@@ -554,7 +552,6 @@ describe("DataStoreLive", () => {
 					for (let i = 0; i < 12; i++) {
 						yield* store.writeHistory(
 							"window-proj",
-							null,
 							"windowed test",
 							runId,
 							`2026-03-22T${String(i).padStart(2, "0")}:00:00.000Z`,
@@ -632,7 +629,7 @@ describe("DataStoreLive", () => {
 					yield* store.writeSettings("trend-hash", settingsInput, {});
 					const runId = yield* store.writeRun({ ...runInput, settingsHash: "trend-hash" });
 
-					yield* store.writeTrends("my-project", null, runId, {
+					yield* store.writeTrends("my-project", runId, {
 						timestamp: "2026-03-22T00:00:00.000Z",
 						coverage: { lines: 80, branches: 70, functions: 85, statements: 82 },
 						delta: { lines: 1, branches: 0.5, functions: 0, statements: 0.3 },
@@ -663,7 +660,7 @@ describe("DataStoreLive", () => {
 							settingsHash: "trend-win-hash",
 							timestamp: `2026-03-22T${String(i).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}:00.000Z`,
 						});
-						yield* store.writeTrends("trend-win-proj", null, runId, {
+						yield* store.writeTrends("trend-win-proj", runId, {
 							timestamp: `2026-03-22T${String(i).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}:00.000Z`,
 							coverage: { lines: 80 + i * 0.1, branches: 70, functions: 85, statements: 82 },
 							delta: { lines: 0.1, branches: 0, functions: 0, statements: 0 },

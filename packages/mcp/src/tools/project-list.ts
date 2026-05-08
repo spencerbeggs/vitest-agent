@@ -13,16 +13,13 @@ export const projectList = publicProcedure.input(Schema.standardSchemaV1(Schema.
 			}
 
 			const lines: string[] = ["## Projects", ""];
-			lines.push("| Project | Sub-Project | Last Run | Result | Total | Passed | Failed | Skipped |");
-			lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |");
+			lines.push("| Project | Last Run | Result | Total | Passed | Failed | Skipped |");
+			lines.push("| --- | --- | --- | --- | --- | --- | --- |");
 
 			for (const p of projects) {
-				const subProject = p.subProject ?? "\u2014";
 				const lastRun = p.lastRun ? p.lastRun.split("T")[0] : "\u2014";
 				const result = p.lastResult ?? "\u2014";
-				lines.push(
-					`| ${p.project} | ${subProject} | ${lastRun} | ${result} | ${p.total} | ${p.passed} | ${p.failed} | ${p.skipped} |`,
-				);
+				lines.push(`| ${p.project} | ${lastRun} | ${result} | ${p.total} | ${p.passed} | ${p.failed} | ${p.skipped} |`);
 			}
 
 			return lines.join("\n");

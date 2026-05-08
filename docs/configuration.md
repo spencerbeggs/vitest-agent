@@ -11,7 +11,7 @@ import { AgentPlugin } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default async () => {
-  const projects = await AgentPlugin.discover();
+  const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [
       AgentPlugin({
@@ -23,7 +23,7 @@ export default async () => {
         },
       }),
     ],
-    test: { projects, pool: "forks" },
+    test: { projects, tags, pool: "forks" },
   });
 };
 ```
@@ -87,6 +87,18 @@ to use MCP tools (`test_history`, `test_coverage`, `test_trends`) for
 deeper analysis. Defaults to `false`. Set automatically when the Claude
 Code plugin is active.
 
+### `tagStrategy`
+
+Controls the Vite transform that injects Vitest 4.1 tags into every
+`test()` and `it()` call based on the test file's path. Defaults to
+`TagStrategy.default`, which classifies `.e2e.test.ts` as `e2e`,
+`.int.test.ts` as `int`, and everything else as `unit`. Set to `false`
+to disable the transform and ship no tags. See
+[Project Discovery](#project-discovery) for how tags pair with the
+`tags` array returned from `AgentPlugin.discover()`, and the
+[`Tag` and `TagStrategy` API](#tag-and-tagstrategy-api) section below
+for the public classes.
+
 ### `coverageThresholds`
 
 Vitest-native threshold format (per-metric, per-glob). Failures below a threshold produce a "red" run. See [Coverage Thresholds](#coverage-thresholds).
@@ -112,39 +124,112 @@ detection, so those fields are not available through the plugin interface.
 
 ## Project Discovery
 
-`AgentPlugin.discover(options?)` scans the workspace packages for test files
-and returns a `TestProjectInlineConfiguration[]` suitable for Vitest's
-`test.projects`. Use an async config export:
+`AgentPlugin.discover(options?)` scans the workspace packages for test
+files and returns `{ projects, tags }`. Pass `projects` to Vitest's
+`test.projects` and `tags` to `test.tags` so Vitest's
+`--tags-filter` flag and the tag-aware test API can resolve every tag
+the plugin injects:
 
 ```typescript
 import { AgentPlugin } from "vitest-agent-plugin";
 import { defineConfig } from "vitest/config";
 
 export default async () => {
-  const projects = await AgentPlugin.discover();
+  const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [AgentPlugin({ coverageThresholds: "standard" })],
-    test: { projects, pool: "forks" },
+    test: { projects, tags, pool: "forks" },
   });
 };
 ```
 
-The scanner looks for test files in two locations per package:
+Once configured, you can filter test runs by tag with Vitest's built-in
+flag:
+
+```bash
+pnpm vitest run --tags-filter "int"
+pnpm vitest run --tags-filter "unit and not e2e"
+```
+
+The scanner emits **one project per workspace package** and looks for
+test files in two locations per package:
 
 - `packages/*/__test__/*.test.ts` (canonical, flat layout)
 - `packages/*/src/**/*.test.ts` (co-located, accepted for backward compatibility)
 
 Helper subdirectories inside `__test__/` (`utils/`, `fixtures/`,
-`snapshots/`) are excluded automatically. Files are classified by name
-suffix: `.e2e.test.ts` → e2e project, `.int.test.ts` → integration project,
-everything else → unit project.
+`snapshots/`) are excluded automatically. Test kind is no longer
+expressed by suffixing the project name (`pkg:unit`, `pkg:int`,
+`pkg:e2e` are gone in 2.0); instead, the active `TagStrategy`
+classifies every test file by path and the plugin's Vite transform
+injects the resolved tags into the call site, so Vitest's tag
+expressions can drive filtering and per-kind timeouts.
 
 The `options` argument accepts either:
 
-- A callback `({ projects }) => void | Promise<void>` to mutate the full list in-place after discovery.
-- An object `{ unit?, int?, e2e? }` where each key is a per-kind config override or a callback scoped to that kind.
+- A callback `({ projects }) => void | Promise<void>` to mutate the
+  discovered project list in place after scanning.
+- An object `{ callback?, tagStrategy? }` where `callback` is the same
+  projects mutator and `tagStrategy` is a `TagStrategy` instance (or
+  `false` to disable both tag declarations and the tag-injection
+  transform).
 
-Discovery results are cached per workspace root within the process.
+The pre-2.0 per-kind override form (`{ unit?, int?, e2e? }` keyed by
+test kind) was removed when discovery consolidated to one project per
+package; per-kind shaping now happens through `TagStrategy.classify()`
+rather than through projects.
+
+Discovery results are cached per workspace root within the process when
+called with no options. Passing a `tagStrategy` or callback skips the
+cache.
+
+## Tag and TagStrategy API
+
+`AgentPlugin` exports `Tag` and `TagStrategy` so you can author your
+own classification logic. A `TagStrategy` declares the available tags
+(timeouts, retries, etc.) and a `classify({ module })` function that
+maps each test file to one or more tag names. The default strategy
+ships `unit`, `int` (60s timeout), and `e2e` (120s timeout, retry 2
+under CI):
+
+```typescript
+import { AgentPlugin, Tag, TagStrategy } from "vitest-agent-plugin";
+
+const strategy = TagStrategy.create({
+  tags: [
+    Tag.make("unit"),
+    Tag.make("contract", { timeout: 30_000 }),
+    Tag.make("smoke", { timeout: 5_000 }),
+  ],
+  classify: ({ module }) => {
+    if (module.filename.endsWith(".smoke.test.ts")) return ["smoke"];
+    if (module.filename.endsWith(".contract.test.ts")) return ["contract"];
+    return ["unit"];
+  },
+});
+
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover({
+    tagStrategy: strategy,
+  });
+  return defineConfig({
+    plugins: [AgentPlugin({ tagStrategy: strategy })],
+    test: { projects, tags, pool: "forks" },
+  });
+};
+```
+
+`TagStrategy.default.extend({ ... })` chains an extra classifier on top
+of the built-in strategy; the extension layer receives the parent's
+inherited tags so you can decorate without rewriting. Pass
+`tagStrategy: false` (on either `AgentPlugin.discover` or `AgentPlugin`)
+to disable the transform and ship no tags.
+
+The classification context exposes `ModuleInfo` (`path`,
+`relativePath`, `filename`, `packageName`, `packagePath`),
+`ClassifyBaseContext` (the bare context passed to the base layer),
+and `ClassifyExtendedContext` (adds the `inherited` tags array for
+extension layers). Tag construction options are typed as `TagOptions`.
 
 ## AgentPlugin.runScript()
 
@@ -170,10 +255,15 @@ Reference the setup file from your Vitest config via `test.globalSetup`:
 
 ```typescript
 export default async () => {
-  const projects = await AgentPlugin.discover();
+  const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [AgentPlugin()],
-    test: { projects, pool: "forks", globalSetup: ["vitest.setup.ts"] },
+    test: {
+      projects,
+      tags,
+      pool: "forks",
+      globalSetup: ["vitest.setup.ts"],
+    },
   });
 };
 ```

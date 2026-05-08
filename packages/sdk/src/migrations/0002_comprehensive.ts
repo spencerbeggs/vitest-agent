@@ -89,7 +89,6 @@ const migration = Effect.gen(function* () {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			invocation_id TEXT NOT NULL,
 			project TEXT NOT NULL,
-			sub_project TEXT,
 			settings_hash TEXT NOT NULL REFERENCES settings(hash),
 			timestamp TEXT NOT NULL,
 			commit_sha TEXT,
@@ -116,7 +115,7 @@ const migration = Effect.gen(function* () {
 			created_at TEXT NOT NULL DEFAULT (datetime('now'))
 		)
 	`;
-	yield* sql`CREATE INDEX idx_test_runs_project ON test_runs(project, sub_project)`;
+	yield* sql`CREATE INDEX idx_test_runs_project ON test_runs(project)`;
 	yield* sql`CREATE INDEX idx_test_runs_timestamp ON test_runs(timestamp)`;
 	yield* sql`CREATE INDEX idx_test_runs_invocation ON test_runs(invocation_id)`;
 	yield* sql`CREATE INDEX idx_test_runs_settings ON test_runs(settings_hash, project)`;
@@ -373,7 +372,6 @@ const migration = Effect.gen(function* () {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			run_id INTEGER NOT NULL REFERENCES test_runs(id) ON DELETE CASCADE,
 			project TEXT NOT NULL,
-			sub_project TEXT,
 			full_name TEXT NOT NULL,
 			timestamp TEXT NOT NULL,
 			state TEXT NOT NULL CHECK (state IN ('passed', 'failed', 'skipped', 'pending')),
@@ -381,10 +379,10 @@ const migration = Effect.gen(function* () {
 			flaky INTEGER CHECK (flaky IN (0, 1)),
 			retry_count INTEGER DEFAULT 0,
 			error_message TEXT,
-			UNIQUE(project, sub_project, full_name, timestamp)
+			UNIQUE(project, full_name, timestamp)
 		)
 	`;
-	yield* sql`CREATE INDEX idx_test_history_lookup ON test_history(project, sub_project, full_name)`;
+	yield* sql`CREATE INDEX idx_test_history_lookup ON test_history(project, full_name)`;
 	yield* sql`CREATE INDEX idx_test_history_full_name ON test_history(full_name, timestamp)`;
 	yield* sql`CREATE INDEX idx_test_history_run ON test_history(run_id)`;
 
@@ -393,14 +391,13 @@ const migration = Effect.gen(function* () {
 		CREATE TABLE coverage_baselines (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			project TEXT NOT NULL,
-			sub_project TEXT,
 			metric TEXT NOT NULL CHECK (metric IN (
 				'lines', 'functions', 'branches', 'statements'
 			)),
 			value REAL NOT NULL,
 			pattern TEXT,
 			updated_at TEXT NOT NULL,
-			UNIQUE(project, sub_project, metric, pattern)
+			UNIQUE(project, metric, pattern)
 		)
 	`;
 
@@ -410,7 +407,6 @@ const migration = Effect.gen(function* () {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			run_id INTEGER NOT NULL REFERENCES test_runs(id) ON DELETE CASCADE,
 			project TEXT NOT NULL,
-			sub_project TEXT,
 			timestamp TEXT NOT NULL,
 			lines REAL NOT NULL,
 			functions REAL NOT NULL,
@@ -420,10 +416,10 @@ const migration = Effect.gen(function* () {
 				'improving', 'regressing', 'stable'
 			)),
 			targets_hash TEXT,
-			UNIQUE(project, sub_project, timestamp)
+			UNIQUE(project, timestamp)
 		)
 	`;
-	yield* sql`CREATE INDEX idx_coverage_trends_lookup ON coverage_trends(project, sub_project)`;
+	yield* sql`CREATE INDEX idx_coverage_trends_lookup ON coverage_trends(project)`;
 	yield* sql`CREATE INDEX idx_coverage_trends_run ON coverage_trends(run_id)`;
 
 	// 23. file_coverage
@@ -477,7 +473,6 @@ const migration = Effect.gen(function* () {
 				'global', 'project', 'module', 'suite', 'test', 'note'
 			)),
 			project TEXT,
-			sub_project TEXT,
 			test_full_name TEXT,
 			module_path TEXT,
 			parent_note_id INTEGER REFERENCES notes(id) ON DELETE CASCADE,
@@ -489,7 +484,7 @@ const migration = Effect.gen(function* () {
 		)
 	`;
 	yield* sql`CREATE INDEX idx_notes_scope ON notes(scope)`;
-	yield* sql`CREATE INDEX idx_notes_project ON notes(project, sub_project)`;
+	yield* sql`CREATE INDEX idx_notes_project ON notes(project)`;
 	yield* sql`CREATE INDEX idx_notes_test ON notes(test_full_name)`;
 	yield* sql`CREATE INDEX idx_notes_module ON notes(module_path)`;
 	yield* sql`CREATE INDEX idx_notes_parent ON notes(parent_note_id)`;
@@ -504,7 +499,6 @@ const migration = Effect.gen(function* () {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			cc_session_id TEXT UNIQUE NOT NULL,
 			project TEXT NOT NULL,
-			sub_project TEXT,
 			cwd TEXT NOT NULL,
 			agent_kind TEXT NOT NULL CHECK (agent_kind IN ('main', 'subagent')),
 			agent_type TEXT,

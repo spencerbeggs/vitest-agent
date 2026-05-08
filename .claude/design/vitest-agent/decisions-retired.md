@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-07
+last-synced: 2026-05-07
 completeness: 100
 related:
   - ./decisions.md
@@ -71,3 +71,38 @@ that delegates to `pnpm exec` / `npx --no-install` / `yarn run` / `bun x`.
 from the plugin directory through `node_modules` looking for
 `vitest-agent-reporter`'s `./mcp` subpath export, then dynamically
 imported it as a `file://` URL.
+
+---
+
+## Decision 23 (1.x form): Normalized Project Identity (Retired)
+
+**Superseded by:** [Decision 23 — Vitest-Native Tag
+Classification](./decisions.md#decision-23-vitest-native-tag-classification)
+
+**Why retired:** the 1.x form encoded test kinds as colon suffixes on
+the Vitest project name (`my-app:unit`, `my-app:e2e`) and used
+`splitProject()` to separate the name into a `(project, subProject)`
+column pair on every write/read path. That coupled the test-kind concept
+to Vitest's project-name string, forced one Vitest project per kind per
+package, and bled the colon convention into history, baselines, trends,
+notes, and sessions tables, plus the CLI/MCP filter surfaces.
+
+Vitest 4.1's native tag system supports the same query patterns
+("all unit tests across the workspace", "everything tagged e2e in
+my-app") via tag-expression syntax — without making the project name
+carry classification metadata. The 2.0 refactor consolidated to one
+project per workspace package, dropped the `sub_project` column from
+every table in `0002_comprehensive.ts`, removed `subProject` from
+`DataStore` / `DataReader` / `HistoryTracker` interfaces, and dropped
+the per-kind override API on `discoverProjects`. The plugin now
+installs a Vite `transform` hook that injects a `tags` array onto
+every `test()` and `it()` call's options argument (see
+`packages/plugin/src/utils/inject-tags.ts`).
+
+**What it was:** Vitest project names included colon-suffixed kinds
+(`"my-app:unit"`, `"my-app:e2e"`); `splitProject()` separated them at
+the first colon into `project` and `subProject` fields, both stored in
+SQLite columns. CLI commands (`history`, `status`, `trends`, `coverage`,
+`doctor`) and MCP tools accepted a `subProject` filter parameter.
+`HistoryTracker.classify` keyed on `(project, subProject)`. A null
+`subProject` was distinct from an empty string at the row level.

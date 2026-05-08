@@ -88,8 +88,8 @@ definitions. Schemas are re-exported from `vitest-agent-sdk` for consumer use.
   Load when tracing one of the seven runtime flows (test run, CLI query,
   MCP tool call, TDD session, etc.).
 - `.claude/design/vitest-agent/file-structure.md`
-  Load when working on the repo layout, XDG path resolution, `splitProject()`,
-  or PM detection.
+  Load when working on the repo layout, XDG path resolution, project keying
+  - tag classification, or PM detection.
 - `.claude/design/vitest-agent/decisions.md`
   Load when you need to understand "why" a design choice was made. Retired
   decisions live in `decisions-retired.md`.
@@ -251,12 +251,17 @@ release workflow. Releases happen in lockstep.
   coverage provider.
 - **Pool**: Uses `forks` (not threads) for broader compatibility.
 - **Config**: `vitest.config.ts` at the repo root is an async function
-  that calls `AgentPlugin.discover()` to auto-detect projects, then
-  returns `defineConfig(...)`. Project-based filtering is still
-  available via `--project`.
+  that calls `AgentPlugin.discover()` to auto-detect projects and tag
+  declarations, destructures `{ projects, tags }`, and threads both into
+  `defineConfig({ test: { projects, tags } })`. Project-based filtering
+  is still available via `--project`; test-kind filtering moved to
+  Vitest-native tag expressions (e.g. `--test-name-pattern` or `-t int`).
 - **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
   (flat directory). The `discoverProjects` scanner also recognises
   tests co-located under `src/` for backward compatibility.
+  Test-kind differentiation comes from `TagStrategy` (default classifies
+  `.e2e.`, `.int.`, and otherwise `unit` by filename), not from project
+  splits — there is one Vitest project per workspace package.
 - **CI**: `pnpm run ci:test` sets `CI=true` and enables coverage.
 
 **For detailed testing and discovery guidance:**

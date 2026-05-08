@@ -17,7 +17,6 @@ export class HistoryTracker extends Context.Tag("vitest-agent/HistoryTracker")<
 	{
 		readonly classify: (
 			project: string,
-			subProject: string | null,
 			testOutcomes: ReadonlyArray<TestOutcome>,
 			timestamp: string,
 		) => Effect.Effect<

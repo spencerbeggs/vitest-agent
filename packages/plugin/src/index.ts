@@ -24,14 +24,13 @@ export type { AgentPluginConstructorOptions } from "./plugin.js";
 export { AgentPlugin } from "./plugin.js";
 export type { AgentReporterConstructorOptions } from "./reporter.js";
 export { AgentReporter } from "./reporter.js";
+export type { InjectTagsResult } from "./utils/inject-tags.js";
 
 // --- Discovery ---
 
 export type {
+	DiscoverProjectsResult,
 	DiscoveryOptions,
-	ProjectKindCallback,
-	ProjectKindConfig,
-	ProjectKindOverride,
 	ProjectsCallback,
 } from "./utils/discover-projects.js";
 export { discoverProjects } from "./utils/discover-projects.js";
@@ -67,3 +66,18 @@ export { processFailure } from "./utils/process-failure.js";
 export type { VitestThresholdsInput } from "./utils/resolve-thresholds.js";
 export { resolveThresholds } from "./utils/resolve-thresholds.js";
 export { CONSOLE_REPORTERS, stripConsoleReporters } from "./utils/strip-console-reporters.js";
+
+// --- Tag strategy ---
+
+export type { TagOptions } from "./utils/tag.js";
+export { Tag } from "./utils/tag.js";
+export type {
+	ClassifyBaseContext,
+	ClassifyBaseFn,
+	ClassifyExtendedContext,
+	ClassifyExtendedFn,
+	ModuleInfo,
+	TagStrategyCreateOptions,
+	TagStrategyExtendOptions,
+} from "./utils/tag-strategy.js";
+export { TagStrategy } from "./utils/tag-strategy.js";

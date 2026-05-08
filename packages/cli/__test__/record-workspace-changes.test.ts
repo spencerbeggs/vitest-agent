@@ -79,9 +79,9 @@ describe("recordRunWorkspaceChangesEffect", () => {
 				yield* sql`INSERT INTO settings (hash, vitest_version)
 					VALUES ('h0', '4.1.5')`;
 				yield* sql`INSERT INTO test_runs
-					(invocation_id, project, sub_project, settings_hash, timestamp, reason,
+					(invocation_id, project, settings_hash, timestamp, reason,
 					 duration, total, passed, failed, skipped)
-					VALUES ('inv-1', 'demo', NULL, 'h0', '2026-04-29T00:00:00Z', 'passed',
+					VALUES ('inv-1', 'demo', 'h0', '2026-04-29T00:00:00Z', 'passed',
 					 100, 1, 1, 0, 0)`;
 
 				const reader = yield* DataReaderTag;

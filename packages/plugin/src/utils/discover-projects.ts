@@ -1,27 +1,30 @@
-import { readdirSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { join } from "node:path";
+import type { TestTagDefinition } from "@vitest/runner";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "workspaces-effect";
-import type { VitestProjectKind } from "./vitest-project.js";
+import { TagStrategy } from "./tag-strategy.js";
 import { VitestProject } from "./vitest-project.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ProjectKindConfig = Partial<NonNullable<TestProjectInlineConfiguration["test"]>>;
-export type ProjectKindCallback = (projects: Map<string, VitestProject>) => void | Promise<void>;
-export type ProjectKindOverride = ProjectKindConfig | ProjectKindCallback;
 export type ProjectsCallback = (ctx: { projects: VitestProject[] }) => void | Promise<void>;
 export type DiscoveryOptions =
 	| ProjectsCallback
-	| { unit?: ProjectKindOverride; int?: ProjectKindOverride; e2e?: ProjectKindOverride };
+	| {
+			callback?: ProjectsCallback;
+			tagStrategy?: TagStrategy | false;
+	  };
+
+export interface DiscoverProjectsResult {
+	projects: VitestProject[];
+	tags: TestTagDefinition[];
+}
 
 // ── Process-level cache keyed by workspace root ───────────────────────────────
-const _cache = new Map<string, VitestProject[]>();
-
-// ── Filename patterns for test-kind classification ────────────────────────────
-const E2E_RE = /\.e2e\.(test|spec)\.(ts|tsx|js|jsx)$/;
-const INT_RE = /\.int\.(test|spec)\.(ts|tsx|js|jsx)$/;
-const UNIT_RE = /\.(test|spec)\.(ts|tsx|js|jsx)$/;
+// Cache fires only for the no-options call path to avoid fingerprinting
+// TagStrategy instances.
+const _cache = new Map<string, DiscoverProjectsResult>();
 
 const SETUP_EXTS = ["ts", "tsx", "js", "jsx"] as const;
 
@@ -36,30 +39,6 @@ function isDir(p: string): boolean {
 	}
 }
 
-function scanForTestFiles(dir: string): { hasUnit: boolean; hasE2e: boolean; hasInt: boolean } {
-	let hasUnit = false,
-		hasE2e = false,
-		hasInt = false;
-	try {
-		for (const entry of readdirSync(dir, { withFileTypes: true })) {
-			if (entry.isDirectory()) {
-				const sub = scanForTestFiles(join(dir, entry.name));
-				hasUnit = hasUnit || sub.hasUnit;
-				hasE2e = hasE2e || sub.hasE2e;
-				hasInt = hasInt || sub.hasInt;
-			} else if (entry.isFile()) {
-				if (E2E_RE.test(entry.name)) hasE2e = true;
-				else if (INT_RE.test(entry.name)) hasInt = true;
-				else if (UNIT_RE.test(entry.name)) hasUnit = true;
-			}
-			if (hasUnit && hasE2e && hasInt) break;
-		}
-	} catch {
-		/* unreadable dir */
-	}
-	return { hasUnit, hasE2e, hasInt };
-}
-
 function detectSetupFile(pkgPath: string): string | null {
 	for (const ext of SETUP_EXTS) {
 		const candidate = join(pkgPath, `vitest.setup.${ext}`);
@@ -70,30 +49,17 @@ function detectSetupFile(pkgPath: string): string | null {
 	return null;
 }
 
-async function applyOverrides(projects: VitestProject[], options: DiscoveryOptions): Promise<void> {
-	if (typeof options === "function") {
-		await options({ projects });
-		return;
-	}
-	const kindOptions: Partial<Record<string, ProjectKindOverride>> = {
-		unit: options.unit,
-		int: options.int,
-		e2e: options.e2e,
-	};
-	for (const [kind, override] of Object.entries(kindOptions)) {
-		if (override === undefined) continue;
-		const ofKind = projects.filter((p) => p.kind === kind);
-		if (typeof override === "function") {
-			const map = new Map<string, VitestProject>();
-			for (const p of ofKind) map.set(p.name, p);
-			await override(map);
-		} else {
-			for (const p of ofKind) p.override({ test: override });
-		}
-	}
+function resolveOptions(options: DiscoveryOptions | undefined): {
+	callback: ProjectsCallback | undefined;
+	strategy: TagStrategy | false;
+} {
+	if (options === undefined) return { callback: undefined, strategy: TagStrategy.default };
+	if (typeof options === "function") return { callback: options, strategy: TagStrategy.default };
+	const strategy = options.tagStrategy === undefined ? TagStrategy.default : options.tagStrategy;
+	return { callback: options.callback, strategy };
 }
 
-export async function discoverProjects(options?: DiscoveryOptions, cwd?: string): Promise<VitestProject[]> {
+export async function discoverProjects(options?: DiscoveryOptions, cwd?: string): Promise<DiscoverProjectsResult> {
 	const root = findWorkspaceRootSync(cwd ?? process.cwd());
 	if (!root) {
 		throw new Error(
@@ -102,8 +68,15 @@ export async function discoverProjects(options?: DiscoveryOptions, cwd?: string)
 		);
 	}
 
-	const cached = _cache.get(root);
-	if (cached) return cached;
+	// Cache only when no options are passed — keeps the API zero-cost for the
+	// common case (a Vitest config with no override) without trying to fingerprint
+	// a TagStrategy instance.
+	if (options === undefined) {
+		const cached = _cache.get(root);
+		if (cached) return cached;
+	}
+
+	const { callback, strategy } = resolveOptions(options);
 
 	const packages = getWorkspacePackagesSync(root);
 	const vitestProjects: VitestProject[] = [];
@@ -118,16 +91,6 @@ export async function discoverProjects(options?: DiscoveryOptions, cwd?: string)
 		const testDir = join(pkg.path, "__test__");
 		const hasTestDir = isDir(testDir);
 
-		const srcScan = scanForTestFiles(srcDir);
-		const testScan = hasTestDir ? scanForTestFiles(testDir) : { hasUnit: false, hasE2e: false, hasInt: false };
-
-		const hasUnit = srcScan.hasUnit || testScan.hasUnit;
-		const hasE2e = srcScan.hasE2e || testScan.hasE2e;
-		const hasInt = srcScan.hasInt || testScan.hasInt;
-
-		const kindCount = [hasUnit, hasE2e, hasInt].filter(Boolean).length;
-		const shouldSuffix = kindCount >= 2;
-
 		const srcGlob = `${pkg.relativePath}/src`;
 		const testGlob = hasTestDir ? `${pkg.relativePath}/__test__` : null;
 		const setupFile = detectSetupFile(pkg.path);
@@ -136,40 +99,30 @@ export async function discoverProjects(options?: DiscoveryOptions, cwd?: string)
 		// Exclude helper subdirs inside __test__/ from being picked up as test files
 		const testDirExcludes = testGlob ? TEST_DIR_HELPER_DIRS.map((d) => `${testGlob}/${d}/**`) : [];
 
-		const makeProject = (kind: VitestProjectKind, pattern: string, extraExcludes: string[]): VitestProject => {
-			const name = shouldSuffix ? `${pkg.name}:${kind}` : pkg.name;
-			const factory = kind === "unit" ? VitestProject.unit : kind === "int" ? VitestProject.int : VitestProject.e2e;
-			const include = [`${srcGlob}/**/${pattern}`, ...(testGlob ? [`${testGlob}/**/${pattern}`] : [])];
-			const exclude = [...extraExcludes, ...testDirExcludes];
-			return factory({
-				name,
-				include,
-				overrides: {
-					test: {
-						...(setupFiles ? { setupFiles } : {}),
-						...(exclude.length > 0 ? { exclude } : {}),
-					},
-				},
-			});
-		};
+		const include = [
+			`${srcGlob}/**/*.{test,spec}.{ts,tsx,js,jsx}`,
+			...(testGlob ? [`${testGlob}/**/*.{test,spec}.{ts,tsx,js,jsx}`] : []),
+		];
 
-		if (hasUnit)
-			vitestProjects.push(
-				makeProject("unit", "*.{test,spec}.{ts,tsx,js,jsx}", ["**/*.e2e.{test,spec}.*", "**/*.int.{test,spec}.*"]),
-			);
-		if (hasE2e) vitestProjects.push(makeProject("e2e", "*.e2e.{test,spec}.{ts,tsx,js,jsx}", []));
-		if (hasInt) vitestProjects.push(makeProject("int", "*.int.{test,spec}.{ts,tsx,js,jsx}", []));
+		const project = VitestProject.unit({
+			name: pkg.name,
+			include,
+			overrides: {
+				test: {
+					...(setupFiles ? { setupFiles } : {}),
+					...(testDirExcludes.length > 0 ? { exclude: testDirExcludes } : {}),
+				} as Partial<NonNullable<TestProjectInlineConfiguration["test"]>>,
+			},
+		});
 
-		if (!hasUnit && !hasE2e && !hasInt) {
-			// src/ exists but no test files yet — emit placeholder so package name appears in analytics
-			vitestProjects.push(
-				makeProject("unit", "*.{test,spec}.{ts,tsx,js,jsx}", ["**/*.e2e.{test,spec}.*", "**/*.int.{test,spec}.*"]),
-			);
-		}
+		vitestProjects.push(project);
 	}
 
-	if (options) await applyOverrides(vitestProjects, options);
+	if (callback) await callback({ projects: vitestProjects });
 
-	_cache.set(root, vitestProjects);
-	return vitestProjects;
+	const tags: TestTagDefinition[] = strategy === false ? [] : [...strategy.tagDefinitions];
+
+	const result: DiscoverProjectsResult = { projects: vitestProjects, tags };
+	if (options === undefined) _cache.set(root, result);
+	return result;
 }

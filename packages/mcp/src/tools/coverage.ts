@@ -7,7 +7,6 @@ export const testCoverage = publicProcedure
 		Schema.standardSchemaV1(
 			Schema.Struct({
 				project: Schema.optional(Schema.String),
-				subProject: Schema.optional(Schema.String),
 			}),
 		),
 	)
@@ -17,9 +16,8 @@ export const testCoverage = publicProcedure
 				const reader = yield* DataReader;
 
 				const project = input.project ?? "default";
-				const subProject = input.subProject ?? null;
 
-				const coverageOpt = yield* reader.getCoverage(project, subProject);
+				const coverageOpt = yield* reader.getCoverage(project);
 
 				if (Option.isNone(coverageOpt)) {
 					return "No coverage data available. Run tests with coverage enabled.";

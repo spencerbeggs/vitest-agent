@@ -127,7 +127,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				yield* Effect.logDebug("writeRun").pipe(
 					Effect.annotateLogs({ project: input.project, invocationId: input.invocationId }),
 				);
-				yield* sql`INSERT INTO test_runs (invocation_id, project, sub_project, settings_hash, timestamp, commit_sha, branch, reason, duration, total, passed, failed, skipped, scoped, snapshot_added, snapshot_matched, snapshot_unmatched, snapshot_updated, snapshot_unchecked, snapshot_total, snapshot_failure, snapshot_did_update, snapshot_files_added, snapshot_files_removed, snapshot_files_unmatched, snapshot_files_updated) VALUES (${input.invocationId}, ${input.project}, ${input.subProject}, ${input.settingsHash}, ${input.timestamp}, ${input.commitSha ?? null}, ${input.branch ?? null}, ${input.reason}, ${input.duration}, ${input.total}, ${input.passed}, ${input.failed}, ${input.skipped}, ${input.scoped ? 1 : 0}, ${input.snapshotAdded ?? 0}, ${input.snapshotMatched ?? 0}, ${input.snapshotUnmatched ?? 0}, ${input.snapshotUpdated ?? 0}, ${input.snapshotUnchecked ?? 0}, ${input.snapshotTotal ?? 0}, ${boolToInt(input.snapshotFailure) ?? 0}, ${boolToInt(input.snapshotDidUpdate) ?? 0}, ${input.snapshotFilesAdded ?? 0}, ${input.snapshotFilesRemoved ?? 0}, ${input.snapshotFilesUnmatched ?? 0}, ${input.snapshotFilesUpdated ?? 0})`;
+				yield* sql`INSERT INTO test_runs (invocation_id, project, settings_hash, timestamp, commit_sha, branch, reason, duration, total, passed, failed, skipped, scoped, snapshot_added, snapshot_matched, snapshot_unmatched, snapshot_updated, snapshot_unchecked, snapshot_total, snapshot_failure, snapshot_did_update, snapshot_files_added, snapshot_files_removed, snapshot_files_unmatched, snapshot_files_updated) VALUES (${input.invocationId}, ${input.project}, ${input.settingsHash}, ${input.timestamp}, ${input.commitSha ?? null}, ${input.branch ?? null}, ${input.reason}, ${input.duration}, ${input.total}, ${input.passed}, ${input.failed}, ${input.skipped}, ${input.scoped ? 1 : 0}, ${input.snapshotAdded ?? 0}, ${input.snapshotMatched ?? 0}, ${input.snapshotUnmatched ?? 0}, ${input.snapshotUpdated ?? 0}, ${input.snapshotUnchecked ?? 0}, ${input.snapshotTotal ?? 0}, ${boolToInt(input.snapshotFailure) ?? 0}, ${boolToInt(input.snapshotDidUpdate) ?? 0}, ${input.snapshotFilesAdded ?? 0}, ${input.snapshotFilesRemoved ?? 0}, ${input.snapshotFilesUnmatched ?? 0}, ${input.snapshotFilesUpdated ?? 0})`;
 				const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 				return rows[0].id;
 			}).pipe(
@@ -266,7 +266,6 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 
 		const writeHistory = (
 			project: string,
-			subProject: string | null,
 			fullName: string,
 			runId: number,
 			timestamp: string,
@@ -277,11 +276,11 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			errorMessage: string | null,
 		): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("writeHistory").pipe(Effect.annotateLogs({ project, subProject, runId }));
-				yield* sql`INSERT INTO test_history (run_id, project, sub_project, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${subProject}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage})`;
+				yield* Effect.logDebug("writeHistory").pipe(Effect.annotateLogs({ project, runId }));
+				yield* sql`INSERT INTO test_history (run_id, project, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage})`;
 
-				// Delete oldest entries beyond 10-entry window per (project, subProject, fullName)
-				yield* sql`DELETE FROM test_history WHERE id NOT IN (SELECT id FROM test_history WHERE project = ${project} AND sub_project IS ${subProject} AND full_name = ${fullName} ORDER BY timestamp DESC LIMIT 10) AND project = ${project} AND sub_project IS ${subProject} AND full_name = ${fullName}`;
+				// Delete oldest entries beyond 10-entry window per (project, fullName)
+				yield* sql`DELETE FROM test_history WHERE id NOT IN (SELECT id FROM test_history WHERE project = ${project} AND full_name = ${fullName} ORDER BY timestamp DESC LIMIT 10) AND project = ${project} AND full_name = ${fullName}`;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
 				Effect.mapError(
@@ -302,7 +301,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				for (const metric of metrics) {
 					const value = g[metric];
 					if (value !== undefined) {
-						yield* sql`INSERT INTO coverage_baselines (project, sub_project, metric, value, pattern, updated_at) VALUES ('__global__', NULL, ${metric}, ${value}, NULL, ${updatedAt}) ON CONFLICT (project, sub_project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
+						yield* sql`INSERT INTO coverage_baselines (project, metric, value, pattern, updated_at) VALUES ('__global__', ${metric}, ${value}, NULL, ${updatedAt}) ON CONFLICT (project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
 					}
 				}
 
@@ -311,7 +310,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					for (const metric of metrics) {
 						const value = thresholds[metric];
 						if (value !== undefined) {
-							yield* sql`INSERT INTO coverage_baselines (project, sub_project, metric, value, pattern, updated_at) VALUES ('__global__', NULL, ${metric}, ${value}, ${pattern}, ${updatedAt}) ON CONFLICT (project, sub_project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
+							yield* sql`INSERT INTO coverage_baselines (project, metric, value, pattern, updated_at) VALUES ('__global__', ${metric}, ${value}, ${pattern}, ${updatedAt}) ON CONFLICT (project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
 						}
 					}
 				}
@@ -322,18 +321,13 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
-		const writeTrends = (
-			project: string,
-			subProject: string | null,
-			runId: number,
-			entry: TrendEntry,
-		): Effect.Effect<void, DataStoreError> =>
+		const writeTrends = (project: string, runId: number, entry: TrendEntry): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("writeTrends").pipe(Effect.annotateLogs({ project, subProject, runId }));
-				yield* sql`INSERT INTO coverage_trends (run_id, project, sub_project, timestamp, lines, functions, branches, statements, direction, targets_hash) VALUES (${runId}, ${project}, ${subProject}, ${entry.timestamp}, ${entry.coverage.lines}, ${entry.coverage.functions}, ${entry.coverage.branches}, ${entry.coverage.statements}, ${entry.direction}, ${entry.targetsHash ?? null})`;
+				yield* Effect.logDebug("writeTrends").pipe(Effect.annotateLogs({ project, runId }));
+				yield* sql`INSERT OR REPLACE INTO coverage_trends (run_id, project, timestamp, lines, functions, branches, statements, direction, targets_hash) VALUES (${runId}, ${project}, ${entry.timestamp}, ${entry.coverage.lines}, ${entry.coverage.functions}, ${entry.coverage.branches}, ${entry.coverage.statements}, ${entry.direction}, ${entry.targetsHash ?? null})`;
 
-				// Delete oldest entries beyond 50-entry window per (project, subProject)
-				yield* sql`DELETE FROM coverage_trends WHERE id NOT IN (SELECT id FROM coverage_trends WHERE project = ${project} AND sub_project IS ${subProject} ORDER BY timestamp DESC LIMIT 50) AND project = ${project} AND sub_project IS ${subProject}`;
+				// Delete oldest entries beyond 50-entry window per (project)
+				yield* sql`DELETE FROM coverage_trends WHERE id NOT IN (SELECT id FROM coverage_trends WHERE project = ${project} ORDER BY timestamp DESC LIMIT 50) AND project = ${project}`;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
 				Effect.mapError(
@@ -364,7 +358,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				yield* Effect.logDebug("writeNote").pipe(
 					Effect.annotateLogs({ scope: note.scope, project: note.project ?? null }),
 				);
-				yield* sql`INSERT INTO notes (title, content, scope, project, sub_project, test_full_name, module_path, parent_note_id, created_by, expires_at, pinned) VALUES (${note.title}, ${note.content}, ${note.scope}, ${note.project ?? null}, ${note.subProject ?? null}, ${note.testFullName ?? null}, ${note.modulePath ?? null}, ${note.parentNoteId ?? null}, ${note.createdBy ?? null}, ${note.expiresAt ?? null}, ${note.pinned ? 1 : 0})`;
+				yield* sql`INSERT INTO notes (title, content, scope, project, test_full_name, module_path, parent_note_id, created_by, expires_at, pinned) VALUES (${note.title}, ${note.content}, ${note.scope}, ${note.project ?? null}, ${note.testFullName ?? null}, ${note.modulePath ?? null}, ${note.parentNoteId ?? null}, ${note.createdBy ?? null}, ${note.expiresAt ?? null}, ${note.pinned ? 1 : 0})`;
 				const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 				return rows[0].id;
 			}).pipe(
@@ -394,10 +388,6 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				if (fields.project !== undefined) {
 					setClauses.push("project = ?");
 					values.push(fields.project);
-				}
-				if (fields.subProject !== undefined) {
-					setClauses.push("sub_project = ?");
-					values.push(fields.subProject);
 				}
 				if (fields.testFullName !== undefined) {
 					setClauses.push("test_full_name = ?");
@@ -450,7 +440,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		const writeSession = (input: SessionInput): Effect.Effect<number, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeSession").pipe(Effect.annotateLogs({ cc_session_id: input.cc_session_id }));
-				yield* sql`INSERT INTO sessions (cc_session_id, project, sub_project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at) VALUES (${input.cc_session_id}, ${input.project}, ${input.sub_project ?? null}, ${input.cwd}, ${input.agent_kind}, ${input.agent_type ?? null}, ${input.parent_session_id ?? null}, ${boolToInt(input.triage_was_non_empty) ?? 0}, ${input.started_at})`;
+				yield* sql`INSERT INTO sessions (cc_session_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at) VALUES (${input.cc_session_id}, ${input.project}, ${input.cwd}, ${input.agent_kind}, ${input.agent_type ?? null}, ${input.parent_session_id ?? null}, ${boolToInt(input.triage_was_non_empty) ?? 0}, ${input.started_at})`;
 				const rows = yield* sql<{ id: number }>`SELECT id FROM sessions WHERE cc_session_id = ${input.cc_session_id}`;
 				return rows[0].id;
 			}).pipe(

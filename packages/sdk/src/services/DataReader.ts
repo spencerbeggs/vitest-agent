@@ -13,7 +13,6 @@ import type { ChangeKind, Phase } from "./DataStore.js";
 
 export interface ProjectRunSummary {
 	readonly project: string;
-	readonly subProject: string | null;
 	readonly lastRun: string | null;
 	readonly lastResult: "passed" | "failed" | "interrupted" | null;
 	readonly total: number;
@@ -25,7 +24,6 @@ export interface ProjectRunSummary {
 export interface FlakyTest {
 	readonly fullName: string;
 	readonly project: string;
-	readonly subProject: string | null;
 	readonly passCount: number;
 	readonly failCount: number;
 	readonly lastState: "passed" | "failed";
@@ -35,7 +33,6 @@ export interface FlakyTest {
 export interface PersistentFailure {
 	readonly fullName: string;
 	readonly project: string;
-	readonly subProject: string | null;
 	readonly consecutiveFailures: number;
 	readonly firstFailedAt: string;
 	readonly lastFailedAt: string;
@@ -60,7 +57,6 @@ export interface NoteRow {
 	readonly content: string;
 	readonly scope: "global" | "project" | "module" | "suite" | "test" | "note";
 	readonly project: string | null;
-	readonly subProject: string | null;
 	readonly testFullName: string | null;
 	readonly modulePath: string | null;
 	readonly parentNoteId: number | null;
@@ -120,7 +116,6 @@ export interface SessionDetail {
 	readonly id: number;
 	readonly cc_session_id: string;
 	readonly project: string;
-	readonly subProject: string | null;
 	readonly cwd: string;
 	readonly agentKind: "main" | "subagent";
 	readonly agentType: string | null;
@@ -244,38 +239,20 @@ export interface TddSessionSummary {
 export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 	DataReader,
 	{
-		readonly getLatestRun: (
-			project: string,
-			subProject: string | null,
-		) => Effect.Effect<Option.Option<AgentReport>, DataStoreError>;
+		readonly getLatestRun: (project: string) => Effect.Effect<Option.Option<AgentReport>, DataStoreError>;
 		readonly getRunsByProject: () => Effect.Effect<ReadonlyArray<ProjectRunSummary>, DataStoreError>;
-		readonly getHistory: (project: string, subProject: string | null) => Effect.Effect<HistoryRecord, DataStoreError>;
-		readonly getBaselines: (
-			project: string,
-			subProject: string | null,
-		) => Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError>;
-		readonly getTrends: (
-			project: string,
-			subProject: string | null,
-			limit?: number,
-		) => Effect.Effect<Option.Option<TrendRecord>, DataStoreError>;
-		readonly getFlaky: (
-			project: string,
-			subProject: string | null,
-		) => Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError>;
+		readonly getHistory: (project: string) => Effect.Effect<HistoryRecord, DataStoreError>;
+		readonly getBaselines: (project: string) => Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError>;
+		readonly getTrends: (project: string, limit?: number) => Effect.Effect<Option.Option<TrendRecord>, DataStoreError>;
+		readonly getFlaky: (project: string) => Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError>;
 		readonly getPersistentFailures: (
 			project: string,
-			subProject: string | null,
 		) => Effect.Effect<ReadonlyArray<PersistentFailure>, DataStoreError>;
 		readonly getFileCoverage: (runId: number) => Effect.Effect<ReadonlyArray<FileCoverageReport>, DataStoreError>;
-		readonly getCoverage: (
-			project: string,
-			subProject: string | null,
-		) => Effect.Effect<Option.Option<CoverageReport>, DataStoreError>;
+		readonly getCoverage: (project: string) => Effect.Effect<Option.Option<CoverageReport>, DataStoreError>;
 		readonly getTestsForFile: (filePath: string) => Effect.Effect<ReadonlyArray<string>, DataStoreError>;
 		readonly getErrors: (
 			project: string,
-			subProject: string | null,
 			errorName?: string,
 		) => Effect.Effect<ReadonlyArray<TestError>, DataStoreError>;
 		readonly getNotes: (
@@ -290,21 +267,15 @@ export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 		readonly getLatestSettings: () => Effect.Effect<Option.Option<SettingsRow>, DataStoreError>;
 		readonly getTestByFullName: (
 			project: string,
-			subProject: string | null,
 			fullName: string,
 		) => Effect.Effect<Option.Option<TestListEntry>, DataStoreError>;
 		readonly listTests: (
 			project: string,
-			subProject: string | null,
 			options?: { state?: string; module?: string; limit?: number },
 		) => Effect.Effect<ReadonlyArray<TestListEntry>, DataStoreError>;
-		readonly listModules: (
-			project: string,
-			subProject: string | null,
-		) => Effect.Effect<ReadonlyArray<ModuleListEntry>, DataStoreError>;
+		readonly listModules: (project: string) => Effect.Effect<ReadonlyArray<ModuleListEntry>, DataStoreError>;
 		readonly listSuites: (
 			project: string,
-			subProject: string | null,
 			options?: { module?: string },
 		) => Effect.Effect<ReadonlyArray<SuiteListEntry>, DataStoreError>;
 		readonly listSettings: () => Effect.Effect<ReadonlyArray<SettingsListEntry>, DataStoreError>;

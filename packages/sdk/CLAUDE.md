@@ -44,11 +44,17 @@ src/
   utils/              -- pure utilities: resolve-data-path,
                          resolve-workspace-key, normalize-workspace-key,
                          ensure-migrated, classify-test, compute-trend,
-                         build-report, detect-pm, split-project, hyperlink,
+                         build-report, detect-pm, hyperlink,
                          function-boundary (acorn AST walk),
                          failure-signature (sha256 hash for stable failure
                          identity), validate-phase-transition (TDD D2
-                         evidence-binding rules)
+                         evidence-binding rules). The legacy
+                         `split-project.ts` and `ProjectIdentity` were
+                         removed in 2.0 along with the `sub_project`
+                         column; project keying is one row per workspace
+                         package, with test-kind differentiation handled
+                         by Vitest-native tags (see vitest-agent-plugin's
+                         TagStrategy)
   lib/                -- pure markdown generators shared by CLI and MCP:
                          format-triage.ts, format-wrapup.ts
   testing/            -- exported via the `vitest-agent-sdk/testing` subpath.
@@ -154,7 +160,8 @@ src/
   or SQLite tables.
 - `.claude/design/vitest-agent/file-structure.md`
   Load when touching `resolveDataPath`, `PathResolutionLive`, workspace-key
-  normalization, or `splitProject()`.
+  normalization, or the project-keying / tag-classification model that
+  replaced `splitProject()` in 2.0.
 - `.claude/design/vitest-agent/decisions.md`
   Load when you need rationale for a design choice (especially D9 migration
   policy, D10 failure signatures, D11 phase transitions, D28

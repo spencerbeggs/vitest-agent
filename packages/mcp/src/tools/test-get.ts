@@ -8,7 +8,6 @@ export const testGet = publicProcedure
 			Schema.Struct({
 				fullName: Schema.String,
 				project: Schema.optional(Schema.String),
-				subProject: Schema.optional(Schema.String),
 			}),
 		),
 	)
@@ -17,10 +16,9 @@ export const testGet = publicProcedure
 			Effect.gen(function* () {
 				const reader = yield* DataReader;
 				const project = input.project ?? "default";
-				const subProject = input.subProject ?? null;
 
 				// Direct indexed lookup by fullName
-				const testOpt = yield* reader.getTestByFullName(project, subProject, input.fullName);
+				const testOpt = yield* reader.getTestByFullName(project, input.fullName);
 
 				if (Option.isNone(testOpt)) {
 					return `Test not found: \`${input.fullName}\`\n\nUse test_list to discover available tests (format: "Suite > test name").`;
@@ -40,7 +38,7 @@ export const testGet = publicProcedure
 				lines.push("");
 
 				// Errors for this test
-				const errors = yield* reader.getErrors(project, subProject);
+				const errors = yield* reader.getErrors(project);
 				const testErrors = errors.filter((e) => e.testFullName === input.fullName);
 
 				if (testErrors.length > 0) {
@@ -71,7 +69,7 @@ export const testGet = publicProcedure
 				}
 
 				// History for this test
-				const history = yield* reader.getHistory(project, subProject);
+				const history = yield* reader.getHistory(project);
 				const testHistory = history.tests.find((t) => t.fullName === input.fullName);
 
 				if (testHistory && testHistory.runs.length > 0) {

@@ -187,9 +187,21 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: catalog:silk
         version: 0.52.0(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2))(@effect/platform@0.96.1(effect@3.21.2))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2))(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2))(effect@3.21.2)
+      '@vitest/runner':
+        specifier: ^4.1.0
+        version: 4.1.5
+      acorn:
+        specifier: ^8.16.0
+        version: 8.16.0
+      acorn-typescript:
+        specifier: ^1.4.13
+        version: 1.4.13(acorn@8.16.0)
       effect:
         specifier: catalog:silk
         version: 3.21.2
+      magic-string:
+        specifier: ^0.30.0
+        version: 0.30.21
       vitest-agent-cli:
         specifier: workspace:*
         version: link:../cli/dist/dev

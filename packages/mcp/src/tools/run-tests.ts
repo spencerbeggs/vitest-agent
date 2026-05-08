@@ -272,7 +272,7 @@ export const runTests = publicProcedure
 				classifications = await ctx.runtime.runPromise(
 					Effect.gen(function* () {
 						const reader = yield* DataReader;
-						const tests = yield* reader.listTests(classProject, null, {});
+						const tests = yield* reader.listTests(classProject, {});
 						return new Map(
 							tests.filter((t) => t.classification != null).map((t) => [t.fullName, t.classification as string]),
 						);

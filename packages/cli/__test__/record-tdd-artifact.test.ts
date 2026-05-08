@@ -178,7 +178,6 @@ describe("recordTddArtifactEffect", () => {
 				const runId = yield* ds.writeRun({
 					invocationId: "inv-1",
 					project: "demo",
-					subProject: null,
 					settingsHash: "hash-1",
 					timestamp: "2026-04-29T00:00:03Z",
 					commitSha: null,

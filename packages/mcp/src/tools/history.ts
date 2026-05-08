@@ -7,7 +7,6 @@ export const testHistory = publicProcedure
 		Schema.standardSchemaV1(
 			Schema.Struct({
 				project: Schema.String,
-				subProject: Schema.optional(Schema.String),
 			}),
 		),
 	)
@@ -16,12 +15,10 @@ export const testHistory = publicProcedure
 			Effect.gen(function* () {
 				const reader = yield* DataReader;
 
-				const subProject = input.subProject ?? null;
-
 				const [history, flaky, persistent] = yield* Effect.all([
-					reader.getHistory(input.project, subProject),
-					reader.getFlaky(input.project, subProject),
-					reader.getPersistentFailures(input.project, subProject),
+					reader.getHistory(input.project),
+					reader.getFlaky(input.project),
+					reader.getPersistentFailures(input.project),
 				]);
 
 				const hasData = history.tests.length > 0 || flaky.length > 0 || persistent.length > 0;

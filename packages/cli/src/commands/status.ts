@@ -7,7 +7,7 @@
 import { Command, Options } from "@effect/cli";
 import { Effect, Option } from "effect";
 import type { AgentReport } from "vitest-agent-sdk";
-import { DataReader, splitProject } from "vitest-agent-sdk";
+import { DataReader } from "vitest-agent-sdk";
 import { formatStatus } from "../lib/format-status.js";
 
 const formatOption = Options.withDefault(Options.choice("format", ["markdown", "json"]), "markdown");
@@ -28,8 +28,8 @@ export const statusCommand = Command.make("status", { format: formatOption }, ({
 		const reports = new Map<string, AgentReport>();
 		for (const entry of manifest.projects) {
 			if (entry.lastResult === "failed") {
-				const { project, subProject } = splitProject(entry.project);
-				const reportOpt = yield* reader.getLatestRun(project, subProject);
+				const project = entry.project;
+				const reportOpt = yield* reader.getLatestRun(project);
 				if (Option.isSome(reportOpt)) {
 					reports.set(entry.project, reportOpt.value);
 				}

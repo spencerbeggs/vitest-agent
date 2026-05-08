@@ -8,7 +8,6 @@ export const testList = publicProcedure
 		Schema.standardSchemaV1(
 			Schema.Struct({
 				project: Schema.optional(Schema.String),
-				subProject: Schema.optional(Schema.String),
 				state: Schema.optional(Schema.String),
 				module: Schema.optional(Schema.String),
 				limit: Schema.optional(Schema.Number),
@@ -26,22 +25,20 @@ export const testList = publicProcedure
 
 				// When project is unspecified, enumerate every project that has a
 				// recorded run and list tests from each project's latest run.
-				const targets: ReadonlyArray<{ project: string; subProject: string | null }> = input.project
-					? [{ project: input.project, subProject: input.subProject ?? null }]
-					: yield* reader
-							.getRunsByProject()
-							.pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project, subProject: r.subProject }))));
+				const targets: ReadonlyArray<{ project: string }> = input.project
+					? [{ project: input.project }]
+					: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project }))));
 
 				if (targets.length === 0) {
 					return "No projects found. Run run_tests({}) to execute tests and populate the database.";
 				}
 
-				const groups: Array<{ project: string; subProject: string | null; tests: ReadonlyArray<TestListEntry> }> = [];
+				const groups: Array<{ project: string; tests: ReadonlyArray<TestListEntry> }> = [];
 				let total = 0;
 				for (const t of targets) {
-					const tests = yield* reader.listTests(t.project, t.subProject, opts);
+					const tests = yield* reader.listTests(t.project, opts);
 					if (tests.length > 0) {
-						groups.push({ project: t.project, subProject: t.subProject, tests });
+						groups.push({ project: t.project, tests });
 						total += tests.length;
 					}
 				}
@@ -52,8 +49,7 @@ export const testList = publicProcedure
 
 				const lines: string[] = ["## Tests", ""];
 				for (const g of groups) {
-					const label = g.subProject ? `${g.project}:${g.subProject}` : g.project;
-					lines.push(`### ${label}`, "");
+					lines.push(`### ${g.project}`, "");
 					lines.push("| ID | Full Name | State | Duration | Module | Classification |");
 					lines.push("| --- | --- | --- | --- | --- | --- |");
 					for (const t of g.tests) {

@@ -20,12 +20,7 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 
 		const allProjects = yield* reader.getRunsByProject().pipe(Effect.orElseSucceed(() => [] as const));
 
-		const projects = options.project
-			? allProjects.filter((p) => {
-					const name = p.subProject ? `${p.project}:${p.subProject}` : p.project;
-					return name === options.project;
-				})
-			: allProjects;
+		const projects = options.project ? allProjects.filter((p) => p.project === options.project) : allProjects;
 
 		const sessions = yield* reader.listSessions({}).pipe(Effect.orElseSucceed(() => [] as const));
 
@@ -51,10 +46,9 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 			lines.push("### Recent Test Runs");
 			lines.push("");
 			for (const p of projects) {
-				const name = p.subProject ? `${p.project}:${p.subProject}` : p.project;
 				const status = p.lastResult ?? "unknown";
 				const counts = `${p.passed} passed, ${p.failed} failed`;
-				lines.push(`- **${name}** — ${status} (${counts})`);
+				lines.push(`- **${p.project}** — ${status} (${counts})`);
 			}
 			lines.push("");
 		} else {
@@ -115,5 +109,3 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 		}
 		return out;
 	});
-
-export { splitProject } from "../utils/split-project.js";

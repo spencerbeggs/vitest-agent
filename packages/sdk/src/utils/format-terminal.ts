@@ -23,7 +23,7 @@
  * @packageDocumentation
  */
 
-import type { AgentReport, TestReport } from "../schemas/AgentReport.js";
+import type { AgentReport, TagCountEntry, TestReport } from "../schemas/AgentReport.js";
 import type { FileCoverageReport } from "../schemas/Coverage.js";
 import type { MetricThresholds } from "../schemas/Thresholds.js";
 import type { AnsiOptions } from "./ansi.js";
@@ -94,8 +94,8 @@ const formatDuration = (ms: number): string => {
  * Decide whether the project label should appear in the row.
  *
  * Single-project setups with no explicit `project.name` (Vitest's
- * default) yield a `project` of `"default"` after `splitProject`. In
- * that case there's nothing to disambiguate; suppress the label.
+ * default) have `project` set to `"default"`. In that case there's
+ * nothing to disambiguate; suppress the label.
  *
  * @internal
  */
@@ -116,6 +116,50 @@ const showProjectLabel = (reports: ReadonlyArray<AgentReport>): boolean => {
 const pad = (s: string, width: number): string => (s.length >= width ? s : s + " ".repeat(width - s.length));
 
 /**
+ * Build an inline tag-count summary suffix for a project row.
+ * Only shown when two or more distinct tag kinds are present.
+ *
+ * @internal
+ */
+const buildTagSummary = (tagCounts: Record<string, TagCountEntry> | undefined): string => {
+	if (!tagCounts) return "";
+	const keys = Object.keys(tagCounts);
+	if (keys.length < 2) return "";
+	return (
+		"  " +
+		keys
+			.map((k) => {
+				const c = tagCounts[k];
+				const total = (c?.passed ?? 0) + (c?.failed ?? 0) + (c?.skipped ?? 0);
+				return `${k}:${total}`;
+			})
+			.join("  ")
+	);
+};
+
+/**
+ * Render indented per-tag pass/fail breakdown rows for a project that has failures.
+ * The `s` (skipped) column only appears when skipped \> 0 for that tag.
+ *
+ * @internal
+ */
+const renderTagFailureBreakdown = (tagCounts: Record<string, TagCountEntry>): string[] => {
+	const lines: string[] = [];
+	const keys = Object.keys(tagCounts).sort();
+	if (keys.length === 0) return lines;
+	const tagWidth = Math.max(...keys.map((k) => k.length));
+	for (const k of keys) {
+		const c = tagCounts[k];
+		const p = c?.passed ?? 0;
+		const f = c?.failed ?? 0;
+		const s = c?.skipped ?? 0;
+		const skipPart = s > 0 ? `  ${s}s` : "";
+		lines.push(`      ${k.padEnd(tagWidth)}  ${p}p  ${f}f${skipPart}`);
+	}
+	return lines;
+};
+
+/**
  * Project row: `✓ name      103 passed (2.1s)` or
  * `✗ name      102 passed, 1 failed (2.1s)`.
  *
@@ -132,7 +176,9 @@ const renderProjectRow = (report: AgentReport, ao: AnsiOptions, nameWidth: numbe
 	if (failed > 0) counts.push(`${failed} failed`);
 	counts.push(`${passed} passed`);
 	if (skipped > 0) counts.push(`${skipped} skipped`);
-	return `  ${tick} ${pad(name, nameWidth)}  ${counts.join(", ")} (${duration})`;
+	const baseRow = `  ${tick} ${pad(name, nameWidth)}  ${counts.join(", ")} (${duration})`;
+	const tagSummary = failed === 0 ? buildTagSummary(report.tagCounts) : "";
+	return `${baseRow}${tagSummary}`;
 };
 
 /**
@@ -537,6 +583,9 @@ export const formatTerminal = (reports: ReadonlyArray<AgentReport>, options: Ter
 		const nameWidth = Math.max(0, ...widths);
 		for (const r of reports) {
 			out.push(renderProjectRow(r, ao, nameWidth));
+			if (r.summary.failed > 0 && r.tagCounts) {
+				out.push(...renderTagFailureBreakdown(r.tagCounts));
+			}
 		}
 		out.push("");
 	} else if (showProjectLabel(reports)) {
@@ -548,7 +597,12 @@ export const formatTerminal = (reports: ReadonlyArray<AgentReport>, options: Ter
 			if (r.summary.failed > 0) counts.push(`${r.summary.failed} failed`);
 			counts.push(`${r.summary.passed} passed`);
 			if (r.summary.skipped > 0) counts.push(`${r.summary.skipped} skipped`);
-			out.push(`${tick} ${counts.join(", ")} (${formatDuration(r.summary.duration)})`);
+			const baseRow = `${tick} ${counts.join(", ")} (${formatDuration(r.summary.duration)})`;
+			const tagSummary = r.summary.failed === 0 ? buildTagSummary(r.tagCounts) : "";
+			out.push(`${baseRow}${tagSummary}`);
+			if (r.summary.failed > 0 && r.tagCounts) {
+				out.push(...renderTagFailureBreakdown(r.tagCounts));
+			}
 			out.push("");
 		}
 	} else if (reports.length === 1) {

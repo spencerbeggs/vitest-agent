@@ -48,9 +48,10 @@ other cannot.
 Monorepo users need per-project output. The Reporter API provides project
 info natively via `TestProject`, so grouping happens in the reporter via
 `testModule.project.name` — no Vite plugin and no `:ai` mirror projects.
-`splitProject()` separates `"project:subProject"` for normalized database
-storage. Zero configuration; works identically in monorepos and single
-repos with one reporter instance.
+The `project` column stores `testModule.project.name` verbatim — one row
+per workspace package. Test-kind differentiation moved to Vitest tags
+(see Decision 23). Zero configuration; works identically in monorepos
+and single repos with one reporter instance.
 
 ### Decision 3: Four-Environment Detection
 
@@ -275,14 +276,26 @@ Explicit overrides (e.g. `--format` flag) can short-circuit any stage's
 automatic selection. New formatters can be added without modifying the
 pipeline services.
 
-### Decision 23: Normalized Project Identity
+### Decision 23: Vitest-Native Tag Classification
 
-Vitest project names can include colons for sub-projects
-(`"my-app:unit"`, `"my-app:e2e"`). `splitProject()` separates the name
-at the first colon into `project` and `subProject` fields, both stored
-in the database and used for querying. Normalized fields enable queries
-like "all sub-projects of my-app" or "all unit test results across
-projects" without string parsing at query time.
+Test-kind differentiation (`unit`, `int`, `e2e`) uses Vitest 4.1's native
+tag system rather than per-kind project splitting or filename-driven
+project names. `discoverProjects()` emits one project per workspace
+package; the plugin installs a Vite `transform` hook (see
+`packages/plugin/src/utils/inject-tags.ts`) that rewrites every `test()`
+and `it()` call's options argument with a tags array derived from
+filename classification (`*.e2e.test.ts` → `["e2e"]`, etc.). `TagStrategy`
+in `vitest-agent-plugin` exposes the classifier and tag declarations;
+`AgentPlugin.discover()` returns `{ projects, tags }` so the tag list
+flows directly into `test.tags`.
+
+Storage uses one `project` column keyed by package name. Per-tag
+pass/fail/skip aggregates are computed by the plugin reporter and
+attached to `AgentReport.tagCounts` for terminal rendering. Filtering at
+the command line uses Vitest's standard tag-expression syntax. Replaces
+the legacy `splitProject()` / `(project, subProject)` design from 1.x;
+see [./decisions-retired.md](./decisions-retired.md) for why the colon
+suffix was retired.
 
 ### Decision 24: Effect-Based Structured Logging
 
@@ -1296,8 +1309,9 @@ too.
 - **Why used:** Group test results by `TestProject.name` during the
   run, then emit per-project outputs
 - **Implementation:** `Map<string, VitestTestModule[]>` keyed by
-  `testModule.project.name`, then `splitProject()` for database
-  storage
+  `testModule.project.name` and stored verbatim as the `project`
+  column. Test-kind differentiation is by Vitest tag (set per-test by
+  the plugin's transform hook), not by project name suffix
 
 ### Pattern: Duck-Typed External APIs
 

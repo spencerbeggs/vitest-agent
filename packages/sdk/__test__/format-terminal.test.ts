@@ -454,3 +454,59 @@ describe("formatTerminal", () => {
 		expect(out).toContain("Use the test_errors MCP tool to search errors by type");
 	});
 });
+
+describe("formatTerminal — per-tag counts", () => {
+	const baseTagReport = (overrides: Partial<Parameters<typeof formatTerminal>[0][number]>) => ({
+		project: "vitest-agent-sdk",
+		reason: "passed" as const,
+		summary: { total: 752, passed: 752, failed: 0, skipped: 0, duration: 6700 },
+		failed: [],
+		failedFiles: [],
+		unhandledErrors: [],
+		timestamp: "2026-05-07T00:00:00.000Z",
+		...overrides,
+	});
+
+	it("shows tag counts inline when a project has tests with multiple tag kinds", () => {
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					tagCounts: { unit: { passed: 746 }, int: { passed: 6 } },
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+		expect(out).toContain("vitest-agent-sdk");
+		expect(out).toMatch(/unit:746/);
+		expect(out).toMatch(/int:6/);
+	});
+
+	it("hides the tag breakdown when only one tag is present", () => {
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					tagCounts: { unit: { passed: 752 } },
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+		expect(out).not.toMatch(/unit:752/);
+	});
+
+	it("renders per-tag breakdown rows when there are failures across tags", () => {
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					summary: { total: 752, passed: 748, failed: 4, skipped: 0, duration: 6900 },
+					tagCounts: {
+						unit: { passed: 744, failed: 2 },
+						int: { passed: 4, failed: 2 },
+					},
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+		expect(out).toMatch(/unit\s+744p\s+2f/);
+		expect(out).toMatch(/int\s+4p\s+2f/);
+	});
+});

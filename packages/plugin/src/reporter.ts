@@ -42,7 +42,6 @@ import {
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
-	splitProject,
 } from "vitest-agent-sdk";
 import { ReporterLive } from "./layers/ReporterLive.js";
 import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
@@ -445,7 +444,7 @@ export class AgentReporter {
 
 			// Read existing baselines from DB
 			const baselinesOpt = yield* reader
-				.getBaselines("__global__", null)
+				.getBaselines("__global__")
 				.pipe(Effect.catchAll(() => Effect.succeed(Option.none<CoverageBaselines>())));
 			const baselines = Option.getOrUndefined(baselinesOpt);
 
@@ -477,7 +476,7 @@ export class AgentReporter {
 			const isMultiProject = projectGroups.size > 1 || !!opts.projectFilter;
 
 			for (const [projectName, projectModules] of projectGroups) {
-				const { project, subProject } = splitProject(projectName === "default" ? undefined : projectName);
+				const project = projectName === "default" ? "default" : projectName;
 
 				const baseReport = buildAgentReport(
 					projectModules,
@@ -497,7 +496,6 @@ export class AgentReporter {
 				const runId = yield* store.writeRun({
 					invocationId,
 					project,
-					subProject,
 					settingsHash,
 					timestamp: baseReport.timestamp,
 					commitSha: process.env.GITHUB_SHA ?? null,
@@ -715,7 +713,7 @@ export class AgentReporter {
 				}
 
 				// Classify tests via history and attach classifications to failed test reports
-				const { classifications } = yield* tracker.classify(project, subProject, testOutcomes, baseReport.timestamp);
+				const { classifications } = yield* tracker.classify(project, testOutcomes, baseReport.timestamp);
 
 				// Build lookup maps for diagnostics and errors (avoids O(N²) nested loops)
 				const diagMap = new Map<string, { duration?: number; flaky?: boolean }>();
@@ -738,7 +736,6 @@ export class AgentReporter {
 
 					yield* store.writeHistory(
 						project,
-						subProject,
 						outcome.fullName,
 						runId,
 						baseReport.timestamp,
@@ -760,13 +757,28 @@ export class AgentReporter {
 				}));
 				const classifiedReport: AgentReport = { ...baseReport, failed: failedWithClassifications };
 
+				// Aggregate per-tag pass/fail/skip counts for this project
+				const tagCounts: Record<string, { passed: number; failed: number; skipped: number }> = {};
+				for (const mod of projectModules) {
+					for (const tc of mod.children.allTests()) {
+						const state = tc.result()?.state ?? "pending";
+						const tags = tc.tags ?? [];
+						for (const tag of tags) {
+							tagCounts[tag] ??= { passed: 0, failed: 0, skipped: 0 };
+							if (state === "passed") tagCounts[tag].passed++;
+							else if (state === "failed") tagCounts[tag].failed++;
+							else if (state === "skipped") tagCounts[tag].skipped++;
+						}
+					}
+				}
+				const reportWithTags: AgentReport =
+					Object.keys(tagCounts).length > 0 ? { ...classifiedReport, tagCounts } : classifiedReport;
+
 				// NOTE: Coverage is global, not per-project. In monorepos, each project
 				// report receives the same coverage data. Per-project filtering would
 				// require path-based heuristics. See architecture doc "Trade-off:
 				// Coverage Not Per-Project".
-				const report: AgentReport = coverageReport
-					? { ...classifiedReport, coverage: coverageReport }
-					: classifiedReport;
+				const report: AgentReport = coverageReport ? { ...reportWithTags, coverage: coverageReport } : reportWithTags;
 
 				reports.push(report);
 
@@ -814,7 +826,7 @@ export class AgentReporter {
 
 				// Record coverage trend (full runs only)
 				if (coverageReport && !coverageReport.scoped) {
-					const existingTrends = yield* reader.getTrends(project, subProject).pipe(
+					const existingTrends = yield* reader.getTrends(project).pipe(
 						Effect.map((opt) => Option.getOrUndefined(opt)),
 						Effect.catchAll(() => Effect.succeed(undefined)),
 					);
@@ -822,7 +834,7 @@ export class AgentReporter {
 					// Write the latest trend entry
 					const latestEntry = updatedTrends.entries[updatedTrends.entries.length - 1];
 					if (latestEntry) {
-						yield* store.writeTrends(project, subProject, runId, latestEntry);
+						yield* store.writeTrends(project, runId, latestEntry);
 					}
 				}
 			}
@@ -844,10 +856,8 @@ export class AgentReporter {
 			if (coverageReport && !coverageReport.scoped) {
 				const firstProjectKey = Array.from(projectGroups.keys())[0];
 				if (firstProjectKey) {
-					const { project: tp, subProject: tsp } = splitProject(
-						firstProjectKey === "default" ? undefined : firstProjectKey,
-					);
-					const trendsOpt = yield* reader.getTrends(tp, tsp).pipe(Effect.catchAll(() => Effect.succeed(Option.none())));
+					const tp = firstProjectKey === "default" ? "default" : firstProjectKey;
+					const trendsOpt = yield* reader.getTrends(tp).pipe(Effect.catchAll(() => Effect.succeed(Option.none())));
 					if (Option.isSome(trendsOpt)) {
 						const entries = trendsOpt.value.entries;
 						if (entries.length >= 2) {

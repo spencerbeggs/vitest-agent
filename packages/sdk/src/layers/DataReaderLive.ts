@@ -39,13 +39,10 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 	Effect.gen(function* () {
 		const sql = yield* SqlClient;
 
-		const getLatestRun = (
-			project: string,
-			subProject: string | null,
-		): Effect.Effect<Option.Option<AgentReport>, DataStoreError> =>
+		const getLatestRun = (project: string): Effect.Effect<Option.Option<AgentReport>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getLatestRun").pipe(Effect.annotateLogs({ project, subProject }));
-				// Get the latest run for this project/subProject
+				yield* Effect.logDebug("getLatestRun").pipe(Effect.annotateLogs({ project }));
+				// Get the latest run for this project
 				const runs = yield* sql<{
 					id: number;
 					timestamp: string;
@@ -56,10 +53,9 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					failed: number;
 					skipped: number;
 					project: string;
-					sub_project: string | null;
-				}>`SELECT id, timestamp, reason, duration, total, passed, failed, skipped, project, sub_project
+				}>`SELECT id, timestamp, reason, duration, total, passed, failed, skipped, project
 					FROM test_runs
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (runs.length === 0) return Option.none();
@@ -196,7 +192,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				// Get failed file paths
 				const failedFiles = failedModules.map((m) => m.file_path);
 
-				const projectName = run.sub_project ? `${run.project}:${run.sub_project}` : run.project;
+				const projectName = run.project;
 
 				// Per-file coverage rows for this run, split into the two
 				// tiers introduced by migration 0005. `lowCoverage`
@@ -262,7 +258,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					metric: string;
 					value: number;
 				}>`SELECT metric, value FROM coverage_baselines
-					WHERE project = '__global__' AND sub_project IS NULL AND pattern IS NULL`;
+					WHERE project = '__global__' AND pattern IS NULL`;
 				const thresholds: { lines?: number; functions?: number; branches?: number; statements?: number } = {};
 				for (const b of baselineRows) {
 					if (b.metric === "lines") thresholds.lines = b.value;
@@ -317,7 +313,6 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				yield* Effect.logDebug("getRunsByProject");
 				const rows = yield* sql<{
 					project: string;
-					sub_project: string | null;
 					last_run: string | null;
 					last_result: string | null;
 					total: number;
@@ -326,7 +321,6 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					skipped: number;
 				}>`SELECT
 						t1.project,
-						t1.sub_project,
 						t1.timestamp as last_run,
 						t1.reason as last_result,
 						t1.total,
@@ -335,16 +329,14 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						t1.skipped
 					FROM test_runs t1
 					INNER JOIN (
-						SELECT project, sub_project, MAX(timestamp) as max_ts
+						SELECT project, MAX(timestamp) as max_ts
 						FROM test_runs
-						GROUP BY project, sub_project
+						GROUP BY project
 					) t2 ON t1.project = t2.project
-						AND t1.sub_project IS t2.sub_project
 						AND t1.timestamp = t2.max_ts`;
 
 				return rows.map((r) => ({
 					project: r.project,
-					subProject: r.sub_project,
 					lastRun: r.last_run,
 					lastResult: r.last_result as "passed" | "failed" | "interrupted" | null,
 					total: r.total,
@@ -359,16 +351,16 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getHistory = (project: string, subProject: string | null): Effect.Effect<HistoryRecord, DataStoreError> =>
+		const getHistory = (project: string): Effect.Effect<HistoryRecord, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getHistory").pipe(Effect.annotateLogs({ project, subProject }));
+				yield* Effect.logDebug("getHistory").pipe(Effect.annotateLogs({ project }));
 				const rows = yield* sql<{
 					full_name: string;
 					timestamp: string;
 					state: string;
 				}>`SELECT full_name, timestamp, state
 					FROM test_history
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY full_name, timestamp DESC`;
 
 				// Group by full_name
@@ -409,12 +401,9 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getBaselines = (
-			project: string,
-			subProject: string | null,
-		): Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError> =>
+		const getBaselines = (project: string): Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getBaselines").pipe(Effect.annotateLogs({ project, subProject }));
+				yield* Effect.logDebug("getBaselines").pipe(Effect.annotateLogs({ project }));
 				// Baselines are stored with project='__global__' currently per DataStoreLive
 				const rows = yield* sql<{
 					metric: string;
@@ -423,7 +412,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					updated_at: string;
 				}>`SELECT metric, value, pattern, updated_at
 					FROM coverage_baselines
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY pattern, metric`;
 
 				if (rows.length === 0) return Option.none();
@@ -462,13 +451,9 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getTrends = (
-			project: string,
-			subProject: string | null,
-			limit?: number,
-		): Effect.Effect<Option.Option<TrendRecord>, DataStoreError> =>
+		const getTrends = (project: string, limit?: number): Effect.Effect<Option.Option<TrendRecord>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getTrends").pipe(Effect.annotateLogs({ project, subProject, limit: limit ?? 50 }));
+				yield* Effect.logDebug("getTrends").pipe(Effect.annotateLogs({ project, limit: limit ?? 50 }));
 				const effectiveLimit = limit ?? 50;
 				const rows = yield* sql<{
 					timestamp: string;
@@ -480,7 +465,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					targets_hash: string | null;
 				}>`SELECT timestamp, lines, functions, branches, statements, direction, targets_hash
 					FROM coverage_trends
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC
 					LIMIT ${effectiveLimit}`;
 
@@ -520,16 +505,12 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getFlaky = (
-			project: string,
-			subProject: string | null,
-		): Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError> =>
+		const getFlaky = (project: string): Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getFlaky").pipe(Effect.annotateLogs({ project, subProject }));
+				yield* Effect.logDebug("getFlaky").pipe(Effect.annotateLogs({ project }));
 				const rows = yield* sql<{
 					full_name: string;
 					project: string;
-					sub_project: string | null;
 					pass_count: number;
 					fail_count: number;
 					last_state: string;
@@ -537,24 +518,21 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				}>`SELECT
 						th1.full_name,
 						th1.project,
-						th1.sub_project,
 						SUM(CASE WHEN th1.state = 'passed' THEN 1 ELSE 0 END) as pass_count,
 						SUM(CASE WHEN th1.state = 'failed' THEN 1 ELSE 0 END) as fail_count,
 						(SELECT state FROM test_history th2
 						 WHERE th2.full_name = th1.full_name
 						   AND th2.project = th1.project
-						   AND th2.sub_project IS th1.sub_project
 						 ORDER BY timestamp DESC LIMIT 1) as last_state,
 						MAX(th1.timestamp) as last_timestamp
 					FROM test_history th1
-					WHERE th1.project = ${project} AND th1.sub_project IS ${subProject}
-					GROUP BY th1.full_name, th1.project, th1.sub_project
+					WHERE th1.project = ${project}
+					GROUP BY th1.full_name, th1.project
 					HAVING pass_count > 0 AND fail_count > 0`;
 
 				return rows.map((r) => ({
 					fullName: r.full_name,
 					project: r.project,
-					subProject: r.sub_project,
 					passCount: r.pass_count,
 					failCount: r.fail_count,
 					lastState: r.last_state as "passed" | "failed",
@@ -567,58 +545,52 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getPersistentFailures = (
-			project: string,
-			subProject: string | null,
-		): Effect.Effect<ReadonlyArray<PersistentFailure>, DataStoreError> =>
+		const getPersistentFailures = (project: string): Effect.Effect<ReadonlyArray<PersistentFailure>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getPersistentFailures").pipe(Effect.annotateLogs({ project, subProject }));
+				yield* Effect.logDebug("getPersistentFailures").pipe(Effect.annotateLogs({ project }));
 				// Single query with window functions to find tests with 2+ consecutive
 				// trailing failures (replaces previous N+1 pattern)
 				const rows = yield* sql<{
 					full_name: string;
 					project: string;
-					sub_project: string | null;
 					consecutive_failures: number;
 					first_failed_at: string;
 					last_failed_at: string;
 					last_error_message: string | null;
 				}>`WITH ranked AS (
-					SELECT full_name, project, sub_project, state, timestamp, error_message,
+					SELECT full_name, project, state, timestamp, error_message,
 						ROW_NUMBER() OVER (
-							PARTITION BY project, sub_project, full_name
+							PARTITION BY project, full_name
 							ORDER BY timestamp DESC
 						) as rn
 					FROM test_history
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 				),
 				streak AS (
-					SELECT full_name, project, sub_project, state, timestamp, error_message, rn,
+					SELECT full_name, project, state, timestamp, error_message, rn,
 						MIN(CASE WHEN state != 'failed' THEN rn END) OVER (
-							PARTITION BY project, sub_project, full_name
+							PARTITION BY project, full_name
 						) as first_pass_rn
 					FROM ranked
 				)
 				SELECT
-					full_name, project, sub_project,
+					full_name, project,
 					COUNT(*) as consecutive_failures,
 					MIN(timestamp) as first_failed_at,
 					MAX(timestamp) as last_failed_at,
 					(SELECT error_message FROM streak s2
 					 WHERE s2.full_name = streak.full_name
 					   AND s2.project = streak.project
-					   AND s2.sub_project IS streak.sub_project
 					   AND s2.rn = 1) as last_error_message
 				FROM streak
 				WHERE state = 'failed'
 					AND (first_pass_rn IS NULL OR rn < first_pass_rn)
-				GROUP BY full_name, project, sub_project
+				GROUP BY full_name, project
 				HAVING consecutive_failures >= 2`;
 
 				return rows.map((row) => ({
 					fullName: row.full_name,
 					project: row.project,
-					subProject: row.sub_project,
 					consecutiveFailures: row.consecutive_failures,
 					firstFailedAt: row.first_failed_at,
 					lastFailedAt: row.last_failed_at,
@@ -663,19 +635,16 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getCoverage = (
-			project: string,
-			subProject: string | null,
-		): Effect.Effect<Option.Option<CoverageReport>, DataStoreError> =>
+		const getCoverage = (project: string): Effect.Effect<Option.Option<CoverageReport>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getCoverage").pipe(Effect.annotateLogs({ project, subProject }));
+				yield* Effect.logDebug("getCoverage").pipe(Effect.annotateLogs({ project }));
 
-				// 1. Find latest run_id for the project/subProject
+				// 1. Find latest run_id for the project
 				const runs = yield* sql<{
 					id: number;
 					timestamp: string;
 				}>`SELECT id, timestamp FROM test_runs
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (runs.length === 0) return Option.none();
@@ -707,7 +676,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					lines: number;
 				}>`SELECT statements, branches, functions, lines
 					FROM coverage_trends
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (fileCoverageRows.length === 0 && trendRows.length === 0) {
@@ -737,7 +706,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 				// 4. Get baselines via existing getBaselines(). Baselines are stored
 				// with project='__global__' per DataStoreLive.writeBaselines()
-				const baselinesOpt = yield* getBaselines("__global__", null);
+				const baselinesOpt = yield* getBaselines("__global__");
 				const baselines = Option.getOrElse(baselinesOpt, () => ({
 					updatedAt: "",
 					global: {} as Record<string, number>,
@@ -801,20 +770,14 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getErrors = (
-			project: string,
-			subProject: string | null,
-			errorName?: string,
-		): Effect.Effect<ReadonlyArray<TestError>, DataStoreError> =>
+		const getErrors = (project: string, errorName?: string): Effect.Effect<ReadonlyArray<TestError>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getErrors").pipe(
-					Effect.annotateLogs({ project, subProject, errorName: errorName ?? null }),
-				);
+				yield* Effect.logDebug("getErrors").pipe(Effect.annotateLogs({ project, errorName: errorName ?? null }));
 				// Get the latest run for this project
 				const runs = yield* sql<{
 					id: number;
 				}>`SELECT id FROM test_runs
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (runs.length === 0) return [];
@@ -950,21 +913,18 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				yield* Effect.logDebug("getManifest");
 				const rows = yield* sql<{
 					project: string;
-					sub_project: string | null;
 					last_run: string | null;
 					last_result: string | null;
 				}>`SELECT
 						t1.project,
-						t1.sub_project,
 						t1.timestamp as last_run,
 						t1.reason as last_result
 					FROM test_runs t1
 					INNER JOIN (
-						SELECT project, sub_project, MAX(timestamp) as max_ts
+						SELECT project, MAX(timestamp) as max_ts
 						FROM test_runs
-						GROUP BY project, sub_project
+						GROUP BY project
 					) t2 ON t1.project = t2.project
-						AND t1.sub_project IS t2.sub_project
 						AND t1.timestamp = t2.max_ts`;
 
 				if (rows.length === 0) return Option.none();
@@ -978,16 +938,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				const mainDb = dbList.find((d) => d.name === "main");
 				const dbPath = mainDb?.file ?? "";
 
-				const projects = rows.map((r) => {
-					const name = r.sub_project ? `${r.project}:${r.sub_project}` : r.project;
-					return {
-						project: name,
-						reportFile: dbPath,
-						historyFile: dbPath,
-						lastRun: r.last_run,
-						lastResult: r.last_result as "passed" | "failed" | "interrupted" | null,
-					};
-				});
+				const projects = rows.map((r) => ({
+					project: r.project,
+					reportFile: dbPath,
+					historyFile: dbPath,
+					lastRun: r.last_run,
+					lastResult: r.last_result as "passed" | "failed" | "interrupted" | null,
+				}));
 
 				const latestRun = rows.reduce<string | null>((latest, r) => {
 					if (!r.last_run) return latest;
@@ -1109,14 +1066,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 		const getTestByFullName = (
 			project: string,
-			subProject: string | null,
 			fullName: string,
 		): Effect.Effect<Option.Option<TestListEntry>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getTestByFullName").pipe(Effect.annotateLogs({ project, subProject, fullName }));
+				yield* Effect.logDebug("getTestByFullName").pipe(Effect.annotateLogs({ project, fullName }));
 
 				const runs = yield* sql<{ id: number }>`SELECT id FROM test_runs
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (runs.length === 0) return Option.none();
@@ -1155,15 +1111,14 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 		const listTests = (
 			project: string,
-			subProject: string | null,
 			options?: { state?: string; module?: string; limit?: number },
 		): Effect.Effect<ReadonlyArray<TestListEntry>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("listTests").pipe(Effect.annotateLogs({ project, subProject }));
+				yield* Effect.logDebug("listTests").pipe(Effect.annotateLogs({ project }));
 
 				// Find latest run_id
 				const runs = yield* sql<{ id: number }>`SELECT id FROM test_runs
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (runs.length === 0) return [];
@@ -1248,15 +1203,12 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const listModules = (
-			project: string,
-			subProject: string | null,
-		): Effect.Effect<ReadonlyArray<ModuleListEntry>, DataStoreError> =>
+		const listModules = (project: string): Effect.Effect<ReadonlyArray<ModuleListEntry>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("listModules").pipe(Effect.annotateLogs({ project, subProject }));
+				yield* Effect.logDebug("listModules").pipe(Effect.annotateLogs({ project }));
 
 				const runs = yield* sql<{ id: number }>`SELECT id FROM test_runs
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (runs.length === 0) return [];
@@ -1292,14 +1244,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 		const listSuites = (
 			project: string,
-			subProject: string | null,
 			options?: { module?: string },
 		): Effect.Effect<ReadonlyArray<SuiteListEntry>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("listSuites").pipe(Effect.annotateLogs({ project, subProject }));
+				yield* Effect.logDebug("listSuites").pipe(Effect.annotateLogs({ project }));
 
 				const runs = yield* sql<{ id: number }>`SELECT id FROM test_runs
-					WHERE project = ${project} AND sub_project IS ${subProject}
+					WHERE project = ${project}
 					ORDER BY timestamp DESC LIMIT 1`;
 
 				if (runs.length === 0) return [];
@@ -1380,7 +1331,6 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			id: number;
 			cc_session_id: string;
 			project: string;
-			sub_project: string | null;
 			cwd: string;
 			agent_kind: string;
 			agent_type: string | null;
@@ -1395,7 +1345,6 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			id: r.id,
 			cc_session_id: r.cc_session_id,
 			project: r.project,
-			subProject: r.sub_project,
 			cwd: r.cwd,
 			agentKind: r.agent_kind as "main" | "subagent",
 			agentType: r.agent_type,
@@ -1410,7 +1359,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getSessionById").pipe(Effect.annotateLogs({ id }));
 				const rows =
-					yield* sql<SessionRow>`SELECT id, cc_session_id, project, sub_project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE id = ${id} LIMIT 1`;
+					yield* sql<SessionRow>`SELECT id, cc_session_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE id = ${id} LIMIT 1`;
 				if (rows.length === 0) return Option.none<SessionDetail>();
 				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
 			}).pipe(
@@ -1424,7 +1373,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getSessionByCcId").pipe(Effect.annotateLogs({ ccSessionId }));
 				const rows =
-					yield* sql<SessionRow>`SELECT id, cc_session_id, project, sub_project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE cc_session_id = ${ccSessionId} LIMIT 1`;
+					yield* sql<SessionRow>`SELECT id, cc_session_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE cc_session_id = ${ccSessionId} LIMIT 1`;
 				if (rows.length === 0) return Option.none<SessionDetail>();
 				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
 			}).pipe(
@@ -1605,7 +1554,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				const project = options.project ?? null;
 				const agentKind = options.agentKind ?? null;
 				const rows = yield* sql<SessionRow>`
-					SELECT id, cc_session_id, project, sub_project, cwd, agent_kind, agent_type,
+					SELECT id, cc_session_id, project, cwd, agent_kind, agent_type,
 						parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason
 					FROM sessions
 					WHERE (${project} IS NULL OR project = ${project})
@@ -2291,7 +2240,6 @@ interface NoteDbRow {
 	readonly content: string;
 	readonly scope: string;
 	readonly project: string | null;
-	readonly sub_project: string | null;
 	readonly test_full_name: string | null;
 	readonly module_path: string | null;
 	readonly parent_note_id: number | null;
@@ -2327,7 +2275,6 @@ function mapNoteRow(row: NoteDbRow): NoteRow {
 		content: row.content,
 		scope: row.scope as NoteRow["scope"],
 		project: row.project,
-		subProject: row.sub_project,
 		testFullName: row.test_full_name,
 		modulePath: row.module_path,
 		parentNoteId: row.parent_note_id,

@@ -7,7 +7,7 @@
 import { Command, Options } from "@effect/cli";
 import { Effect, Option } from "effect";
 import type { ResolvedThresholds, TrendRecord } from "vitest-agent-sdk";
-import { DataReader, splitProject } from "vitest-agent-sdk";
+import { DataReader } from "vitest-agent-sdk";
 import { formatTrends } from "../lib/format-trends.js";
 
 const formatOption = Options.withDefault(Options.choice("format", ["markdown", "json"]), "markdown");
@@ -26,14 +26,12 @@ export const trendsCommand = Command.make("trends", { format: formatOption }, ({
 		const projects: Array<{ project: string; trends: TrendRecord; targets?: ResolvedThresholds }> = [];
 
 		for (const entry of manifest.projects) {
-			const { project, subProject } = splitProject(entry.project);
-			const trendsOpt = yield* reader
-				.getTrends(project, subProject)
-				.pipe(Effect.catchAll(() => Effect.succeed(Option.none())));
+			const project = entry.project;
+			const trendsOpt = yield* reader.getTrends(project).pipe(Effect.catchAll(() => Effect.succeed(Option.none())));
 
 			if (Option.isSome(trendsOpt)) {
 				const reportOpt = yield* reader
-					.getLatestRun(project, subProject)
+					.getLatestRun(project)
 					.pipe(Effect.catchAll(() => Effect.succeed(Option.none())));
 				const targets = Option.isSome(reportOpt) ? reportOpt.value.coverage?.targets : undefined;
 

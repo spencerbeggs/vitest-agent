@@ -37,7 +37,6 @@ async function seedTestData() {
 			const runId = yield* store.writeRun({
 				invocationId: "inv-001",
 				project: "default",
-				subProject: null,
 				settingsHash: "abc123",
 				timestamp: "2026-03-25T10:00:00.000Z",
 				commitSha: null,
@@ -101,7 +100,7 @@ async function seedTestData() {
 			]);
 
 			// Write trends
-			yield* store.writeTrends("default", null, runId, {
+			yield* store.writeTrends("default", runId, {
 				timestamp: "2026-03-25T10:00:00.000Z",
 				coverage: { statements: 85.5, branches: 70.0, functions: 90.0, lines: 85.0 },
 				delta: { statements: 1.0, branches: 0.5, functions: 0.0, lines: 1.0 },
@@ -753,7 +752,6 @@ describe("MCP Router", () => {
 					const runId = yield* store.writeRun({
 						invocationId: "inv-green-001",
 						project: "default",
-						subProject: null,
 						settingsHash: "hash-green-test",
 						timestamp: turnOccurredAt,
 						commitSha: null,
