@@ -509,4 +509,26 @@ describe("formatTerminal — per-tag counts", () => {
 		expect(out).toMatch(/unit\s+744p\s+2f/);
 		expect(out).toMatch(/int\s+4p\s+2f/);
 	});
+
+	it("should render tag counts alphabetically when tagCounts keys are in non-alphabetical insertion order", () => {
+		// Given: tagCounts with keys inserted in non-alphabetical order (unit, e2e, int)
+		const out = formatTerminal(
+			[
+				baseTagReport({
+					tagCounts: { unit: { passed: 10 }, e2e: { passed: 5 }, int: { passed: 3 } },
+				}) as never,
+			],
+			{ noColor: true, coverageConsoleLimit: 10 },
+		);
+
+		// When: we locate each tag counter in the output string
+		const e2eIdx = out.indexOf("e2e:5");
+		const intIdx = out.indexOf("int:3");
+		const unitIdx = out.indexOf("unit:10");
+
+		// Then: tags appear in alphabetical order (e2e < int < unit)
+		expect(e2eIdx).toBeGreaterThan(-1);
+		expect(intIdx).toBeGreaterThan(e2eIdx);
+		expect(unitIdx).toBeGreaterThan(intIdx);
+	});
 });

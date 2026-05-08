@@ -57,4 +57,29 @@ describe("injectTags", () => {
 		const out = injectTags(`test("a", () => {});`, ["int", "slow"]);
 		expect(stripWs(out!.code)).toContain('tags: ["int", "slow"]');
 	});
+
+	it("should tag test.concurrent.only calls with nested MemberExpression callee", () => {
+		// Given: a deeply nested MemberExpression callee test.concurrent.only
+		const src = `test.concurrent.only("a", () => {});`;
+
+		// When: injectTags is called
+		const out = injectTags(src, ["int"]);
+
+		// Then: the call should be tagged
+		expect(out).not.toBeNull();
+		expect(stripWs(out!.code)).toContain('tags: ["int"]');
+	});
+
+	it('should tag test.skip.if(true)("a", fn) chained pattern', () => {
+		// Given: test.skip.if(cond)("name", fn) — a CallExpression whose callee is a
+		// nested MemberExpression (test.skip.if), wrapping the outer call
+		const src = `test.skip.if(true)("a", () => {});`;
+
+		// When: injectTags is called
+		const out = injectTags(src, ["int"]);
+
+		// Then: the call should be tagged
+		expect(out).not.toBeNull();
+		expect(stripWs(out!.code)).toContain('tags: ["int"]');
+	});
 });

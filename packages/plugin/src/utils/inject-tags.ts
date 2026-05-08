@@ -15,17 +15,16 @@ interface Node {
 	[key: string]: unknown;
 }
 
+function rootIdentifier(n: Node): Node | null {
+	if (n.type === "Identifier") return n;
+	if (n.type === "MemberExpression") return rootIdentifier(n.object as Node);
+	if (n.type === "CallExpression") return rootIdentifier(n.callee as Node);
+	return null;
+}
+
 function isTestCallee(callee: Node): boolean {
-	if (callee.type === "Identifier") return TEST_NAMES.has(callee.name as string);
-	if (callee.type === "MemberExpression") {
-		const obj = callee.object as Node;
-		return obj.type === "Identifier" && TEST_NAMES.has(obj.name as string);
-	}
-	if (callee.type === "CallExpression") {
-		// test.each(...)("name", fn)
-		return isTestCallee(callee.callee as Node);
-	}
-	return false;
+	const root = rootIdentifier(callee);
+	return !!root && TEST_NAMES.has(root.name as string);
 }
 
 function hasTagsField(objectExpression: Node): boolean {

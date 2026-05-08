@@ -123,7 +123,7 @@ const pad = (s: string, width: number): string => (s.length >= width ? s : s + "
  */
 const buildTagSummary = (tagCounts: Record<string, TagCountEntry> | undefined): string => {
 	if (!tagCounts) return "";
-	const keys = Object.keys(tagCounts);
+	const keys = Object.keys(tagCounts).sort();
 	if (keys.length < 2) return "";
 	return (
 		"  " +

@@ -8,7 +8,6 @@
  */
 
 import { execSync } from "node:child_process";
-import { basename, relative } from "node:path";
 import type { TestTagDefinition } from "@vitest/runner";
 import type { Layer } from "effect";
 import { Effect } from "effect";
@@ -32,13 +31,13 @@ import {
 	validateCoverageConfig,
 } from "vitest-agent-sdk";
 import { AgentReporter } from "./reporter.js";
+import { buildModuleInfo } from "./utils/build-module-info.js";
 import type { DiscoveryOptions } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
 import type { InjectTagsResult } from "./utils/inject-tags.js";
 import { injectTags } from "./utils/inject-tags.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
-import type { ModuleInfo } from "./utils/tag-strategy.js";
 import { TagStrategy } from "./utils/tag-strategy.js";
 
 /**
@@ -130,18 +129,9 @@ function resolveGithubActions(env: Environment, format: OutputFormat): boolean {
  */
 const aggregatedReporterByVitest = new WeakSet<object>();
 
-const TEST_FILE_RE = /\/(?:src|__test__)\/.*\.(?:test|spec)\.(?:ts|tsx|js|jsx)$/;
-
-function buildModuleInfo(id: string): ModuleInfo {
-	const cleanId = id.split("?")[0]!;
-	return {
-		path: cleanId,
-		relativePath: relative(process.cwd(), cleanId),
-		filename: basename(cleanId),
-		packageName: "",
-		packagePath: "",
-	};
-}
+const TEST_FILE_SUFFIX_RE = /\.(?:test|spec)\.(?:ts|tsx|js|jsx)$/;
+const TEST_FILE_DIR_RE = /\/(?:src|__test__)\//;
+const isTestFile = (id: string): boolean => TEST_FILE_SUFFIX_RE.test(id) && TEST_FILE_DIR_RE.test(id);
 
 export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?: Layer.Layer<EnvironmentDetector>) {
 	const mode = options.mode ?? "auto";
@@ -343,7 +333,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 	if (tagStrategyResolved) {
 		pluginObj.transform = (code, id) => {
 			const cleanId = id.split("?")[0]!;
-			if (!TEST_FILE_RE.test(cleanId)) return null;
+			if (!isTestFile(cleanId)) return null;
 			const module = buildModuleInfo(cleanId);
 			const tags = tagStrategyResolved.classify({ module });
 			if (tags.length === 0) return null;
