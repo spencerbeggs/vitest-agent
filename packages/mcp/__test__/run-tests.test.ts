@@ -171,7 +171,7 @@ describe("formatReportMarkdown", () => {
 	});
 
 	// The headline tokens below are a contract with
-	// plugin/hooks/post-tool-use-tdd-artifact.sh, which classifies
+	// plugin/hooks/post-tool-use/tdd-artifact.sh, which classifies
 	// MCP run_tests results into test_passed_run / test_failed_run
 	// tdd_artifacts rows by grepping the first line of the response
 	// for `## ✅ Vitest` or `## ❌ Vitest`. If this format changes,
@@ -201,6 +201,87 @@ describe("formatReportMarkdown", () => {
 		};
 		const firstLine = formatReportMarkdown(report).split("\n", 1)[0];
 		expect(firstLine).toMatch(/^##\s+❌\s+Vitest/);
+	});
+
+	it("flips the headline to ❌ for collection-failed modules with zero failed tests", () => {
+		// A test file that fails to import has zero countable failures —
+		// summary.failed stays 0 — but the run is not a pass. The headline
+		// must say ❌ so the post-tool-use/tdd-artifact.sh hook records
+		// the right artifact.
+		const report = {
+			timestamp: "2026-01-01T00:00:00.000Z",
+			reason: "failed" as const,
+			summary: { total: 0, passed: 0, failed: 0, skipped: 0, duration: 0 },
+			failed: [
+				{
+					file: "playground/__test__/text-utils.test.ts",
+					state: "failed" as const,
+					duration: 0,
+					tests: [],
+					errors: [{ message: "Cannot find module '../src/text-utils.js'" }],
+				},
+			],
+			unhandledErrors: [],
+			failedFiles: ["playground/__test__/text-utils.test.ts"],
+		};
+		const md = formatReportMarkdown(report);
+		expect(md.split("\n", 1)[0]).toMatch(/^##\s+❌\s+Vitest/);
+	});
+
+	it("renders module-level errors for collection-failed modules", () => {
+		const report = {
+			timestamp: "2026-01-01T00:00:00.000Z",
+			reason: "failed" as const,
+			summary: { total: 0, passed: 0, failed: 0, skipped: 0, duration: 0 },
+			failed: [
+				{
+					file: "playground/__test__/text-utils.test.ts",
+					state: "failed" as const,
+					duration: 0,
+					tests: [],
+					errors: [
+						{
+							message: "Cannot find module '../src/text-utils.js'",
+							stack: "at playground/__test__/text-utils.test.ts:2:1",
+						},
+					],
+				},
+			],
+			unhandledErrors: [],
+			failedFiles: ["playground/__test__/text-utils.test.ts"],
+		};
+		const md = formatReportMarkdown(report);
+		expect(md).toContain("playground/__test__/text-utils.test.ts");
+		expect(md).toContain("Cannot find module '../src/text-utils.js'");
+		expect(md).toContain("at playground/__test__/text-utils.test.ts:2:1");
+	});
+
+	it("includes a 'Failed to load' tally in the headline when files fail to collect", () => {
+		const report = {
+			timestamp: "2026-01-01T00:00:00.000Z",
+			reason: "failed" as const,
+			summary: { total: 0, passed: 0, failed: 0, skipped: 0, duration: 0 },
+			failed: [
+				{
+					file: "playground/__test__/a.test.ts",
+					state: "failed" as const,
+					duration: 0,
+					tests: [],
+					errors: [{ message: "import fail a" }],
+				},
+				{
+					file: "playground/__test__/b.test.ts",
+					state: "failed" as const,
+					duration: 0,
+					tests: [],
+					errors: [{ message: "import fail b" }],
+				},
+			],
+			unhandledErrors: [],
+			failedFiles: ["playground/__test__/a.test.ts", "playground/__test__/b.test.ts"],
+		};
+		const firstLine = formatReportMarkdown(report).split("\n", 1)[0];
+		expect(firstLine).toContain("2 failed to load");
 	});
 });
 

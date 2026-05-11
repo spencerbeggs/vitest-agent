@@ -225,7 +225,7 @@ describe("formatConsoleMarkdown", () => {
 			mcp: true,
 		});
 		expect(result).toContain("test_history");
-		expect(result).toContain("note_create");
+		expect(result).toContain('note({ action: "create" })');
 	});
 
 	// --- Footer ---

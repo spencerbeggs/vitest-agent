@@ -3,9 +3,9 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-07
-last-synced: 2026-05-07
-completeness: 90
+updated: 2026-05-11
+last-synced: 2026-05-11
+completeness: 92
 related:
   - ../architecture.md
   - ../components.md
@@ -78,29 +78,75 @@ Tools are organized by surface area in `packages/mcp/src/tools/` — one
 file per tool — and broadly group into:
 
 - **Read-only queries.** Status, overview, coverage, history, trends,
-  errors, file-coverage, test-by-file, test-get, configure, cache health.
-  Markdown output.
-- **Discovery.** Project list, test list, module list, suite list,
-  settings list. Markdown output.
-- **Notes CRUD.** Create, list, get, update, delete, search.
-- **Sessions / turns / TDD reads.** Session list, session get, turn
-  search, failure-signature get, TDD-session get, hypothesis list,
-  acceptance metrics. JSON output. All read-only.
-- **Triage / wrapup reads.** Markdown output. Delegate verbatim to the
-  shared `format-triage` / `format-wrapup` generators in
-  `packages/sdk/src/lib/`, so MCP and CLI surfaces produce identical
-  output.
-- **Hypothesis writes.** `hypothesis_record`, `hypothesis_validate`. JSON
-  output. Both go through the idempotency middleware.
-- **TDD session lifecycle.** Start, end, resume, phase-transition request.
-- **TDD goal CRUD** and **TDD behavior CRUD**. The two-tier surface that
-  decomposes objectives into goals and goals into behaviors.
-- **TDD progress push** (`tdd_progress_push`). Registered directly with
-  the MCP SDK rather than via tRPC because it forwards to a Claude Code
-  notification channel. See *Channel-event resolution* below.
-- **Workspace history reads.** `commit_changes` returns commit metadata
-  joined with `run_changed_files`.
+  errors, file-coverage, configure, cache-health, ping, turn-search,
+  failure-signature-get, acceptance-metrics, commit-changes,
+  settings-list. Schema-driven structured outputs (see below).
+- **Action-keyed consolidated tools.** Five families collapse the
+  prior granular CRUD surface to one tool each, discriminated on an
+  `action` literal:
+  - `inventory` — replaces `project_list` / `module_list` /
+    `suite_list` / `session_list` / `session_get`. `action`
+    discriminates on `inventoryKind`.
+  - `test` — replaces `test_list` / `test_get` / `test_for_file`.
+  - `note` — replaces `note_create` / `note_list` / `note_get` /
+    `note_update` / `note_delete` / `note_search`.
+  - `hypothesis` — replaces `hypothesis_record` /
+    `hypothesis_validate` / `hypothesis_list`.
+  - `tdd_task` — replaces `tdd_session_start` / `tdd_session_end` /
+    `tdd_session_get` / `tdd_session_resume`.
+  - `tdd_goal` — replaces `tdd_goal_create` / `tdd_goal_update` /
+    `tdd_goal_delete` / `tdd_goal_get` / `tdd_goal_list`.
+  - `tdd_behavior` — replaces `tdd_behavior_create` /
+    `tdd_behavior_update` / `tdd_behavior_delete` /
+    `tdd_behavior_get` / `tdd_behavior_list`.
+- **Standalone TDD tools.** `tdd_phase_transition_request` (the
+  headline write — see *Phase-transition guards* below),
+  `tdd_artifact_list` (used by the orchestrator to find artifact ids
+  without shelling out to sqlite3 — see *Phase-transition
+  auto-resolve*).
+- **Agent registration.** `register_agent` is invoked by the MCP
+  client (the orchestrator) once at boot when SessionContext recovery
+  from env produces a no-op (e.g., MCP running without
+  `CLAUDE_ENV_FILE` auto-source). Goes through the idempotency
+  middleware.
+- **Triage / wrapup.** `triage_brief` and `wrapup_prompt` delegate
+  verbatim to the shared `format-triage` / `format-wrapup` generators
+  in `packages/sdk/src/lib/`. CLI and MCP outputs are byte-identical.
 - **Mutations.** `run_tests` executes `vitest run` via `spawnSync`.
+  Mutates `process.env` from the `SessionContextRef` before
+  `createVitest` so the in-process reporter sees current attribution.
+
+Both `set_current_session_id` and `get_current_session_id` are
+**removed**. The MCP server's `SessionContextRef` populates from
+`process.env.VITEST_AGENT_*` at boot (see *MCP boot context recovery*
+in [../data-flows.md](../data-flows.md)) and `run_tests` reads from
+the ref before each Vitest invocation. The orchestrator no longer
+needs to push session ids back through MCP — env propagation does
+the work.
+
+## Schema-driven structured outputs
+
+Roughly 29 of the ~50 tools now emit `structuredContent` per MCP
+2025-06-18 spec, with `outputSchema` declared via an Effect Schema →
+JSON Schema → zod bridge at `packages/mcp/src/utils/effect-to-zod.ts`.
+The bridge:
+
+1. Runs `JSONSchema.make(EffectSchema)` against the tool's output type.
+2. Inlines all `$ref`s before handing the result to `z.fromJSONSchema`
+   (the SDK's object-only requirement does not accept refs).
+3. Wraps non-object zod roots in `z.object({}).catchall(z.unknown())`
+   so `Schema.Union` outputs (e.g., the discriminated-action tool
+   results) pass through.
+
+A `structuredResult` helper provides dual-channel output: the tool
+returns Markdown for the `content` field (the human-friendly path)
+and the same data as `structuredContent` (the agent-readable path).
+The Markdown formatter is co-located in each tool file (e.g.,
+`formatTddTaskMarkdown(data)`).
+
+Effect schemas carry `title`, `description`, and `examples`
+annotations so the generated JSON Schema is informative without an
+extra OpenAPI layer.
 
 The `help` tool surfaces these groupings to clients.
 
@@ -153,30 +199,34 @@ The middleware uses the **same** tRPC instance as `publicProcedure` (via
 the `middleware` export from `context.ts`) rather than constructing a
 parallel `t`. Sharing the instance keeps the context type aligned.
 
-**What is and isn't idempotent.** Hypothesis records, hypothesis
-validations, TDD-session start/end, and goal/behavior creation are
-registered. The phase-transition tool, every `*_update`/`*_delete`/
-`*_get`/`*_list`, and `tdd_progress_push` are intentionally **not**
-registered — see [../decisions.md](../decisions.md). State-dependent
-reads, intentional state transitions, and destructive ops are not
-idempotent in the cache-replay sense.
+**What is and isn't idempotent.** `register_agent`, the `record`
+actions inside `hypothesis` (record + validate), and the `start`
+/ `end` actions inside `tdd_task`, plus the `create` actions inside
+`tdd_goal` and `tdd_behavior`, are registered with the middleware.
+The `tdd_phase_transition_request` tool, every `update`/`delete`/
+`get`/`list` action, and the legacy `tdd_progress_push` are
+intentionally **not** registered — see
+[../decisions.md](../decisions.md). State-dependent reads,
+intentional state transitions, and destructive ops are not
+idempotent in the cache-replay sense. The action-keyed tools branch
+on `input.action` to decide whether the middleware applies.
 
-**`tdd_session_start` idempotency key.** The key is derived from
+**`tdd_task` idempotency key (action: `start`).** Derived from
 `runId` when present: `sid:<sessionId>:run:<runId>` or
-`cc:<ccSessionId>:run:<runId>`. When `runId` is absent (legacy callers),
+`cc:<chatId>:run:<runId>`. When `runId` is absent (legacy callers),
 the key falls back to goal text: `sid:<sessionId>:<goal>` or
-`cc:<ccSessionId>:<goal>`. The `runId`-based keying lets the same goal
+`cc:<chatId>:<goal>`. The `runId`-based keying lets the same goal
 be retried within the same CC session (the main agent generates a fresh
 `runId` at each dispatch) without triggering the cache replay.
 
-**`tdd_session_start` accepts `runId`.** The tool's optional `runId`
-input is forwarded to `DataStore.writeTddSession`. When provided,
-`run_id` is stored in `tdd_sessions` and the partial unique index on
-`(session_id, run_id)` gives database-level deduplication. When omitted,
-`run_id` is stored as NULL; the partial index does not cover NULL rows,
-so only the middleware goal-text cache (`cc:<ccSessionId>:<goal>`)
-provides idempotency. The tool returns `runId: undefined` when the caller
-did not supply one.
+**`tdd_task({ action: "start" })` accepts `runId`.** The tool's
+optional `runId` input is forwarded to `DataStore.writeTddTask`.
+When provided, `run_id` is stored in `tdd_tasks` and the partial
+unique index on `(session_id, run_id)` gives database-level
+deduplication. When omitted, `run_id` is stored as NULL; the partial
+index does not cover NULL rows, so only the middleware goal-text
+cache (`cc:<chatId>:<goal>`) provides idempotency. The tool
+returns `runId: undefined` when the caller did not supply one.
 
 ## Channel-event resolution
 
@@ -212,19 +262,65 @@ pre-checks performed before the validator runs:
 On accept with a `behaviorId`, the server **auto-promotes** the behavior
 `pending → in_progress` in the same SQL transaction as `writeTddPhase` so
 the phase ledger and behavior status never desync. The orchestrator is
-only responsible for the final `done` transition via `tdd_behavior_update`.
+only responsible for the final `done` transition via
+`tdd_behavior({ action: "update" })`.
 
 The `DenialReason` union covers both pre-check rejections and the
 validator's existing reasons, so denials are uniform from the agent's
 perspective.
 
+## Phase-transition auto-resolve
+
+`tdd_phase_transition_request` accepts an optional `citedArtifactId`.
+When omitted, the tool auto-resolves the most recent matching artifact
+for the required-evidence rule of the target phase via
+`DataReader.listTddArtifactsForTask({ walkParents: true })` (which
+follows the `sessions.parent_session_id` chain so the resolver finds
+artifacts written under a rotated `chat_id`). The
+auto-resolved artifact id is returned in the response so the
+orchestrator can record what evidence was bound. Explicit citation
+still wins when the agent supplies it.
+
+The `tdd_artifact_list` tool exposes the same reader directly so the
+orchestrator can list candidate artifacts before committing to a
+phase transition — replacing the prior workflow of shelling out to
+`sqlite3` from a hook script.
+
 ## Project handling in discovery tools
 
-`module_list`, `suite_list`, and `test_list` enumerate every project from
-`DataReader.getRunsByProject()` when `project` is unspecified, grouping
-output under per-project `### project` headers. This is required because
-real multi-project Vitest configs use names like `unit` and `integration`
-— there is no literal `"default"` project to fall back to.
+The `inventory` tool's `module` / `suite` / `session_list` modes
+enumerate every project from `DataReader.getRunsByProject()` when
+`project` is unspecified, grouping output under per-project `###
+project` headers. This is required because real multi-project Vitest
+configs use names like `unit` and `integration` — there is no literal
+`"default"` project to fall back to. The `test` tool's `list` mode
+follows the same pattern.
+
+## MCP boot context recovery
+
+The MCP server entry (`packages/mcp/src/bin.ts`) reads
+`process.env.VITEST_AGENT_*` at startup via `sessionContextFromEnv`
+and populates `McpContext.sessionContext` (a `SessionContextRef`).
+The `run_tests` tool reads from the ref before each Vitest invocation
+and mutates `process.env` so the spawned reporter inherits the
+canonical UUIDs.
+
+This works because Claude Code auto-sources `CLAUDE_ENV_FILE` into
+the MCP server child process — the SessionStart hook's exports flow
+naturally into the MCP server's `process.env` without any explicit
+session-map lookup. The session map's `lookupByProjectDir` is the
+dev / test fallback when `CLAUDE_ENV_FILE` isn't available; the
+per-project `data.db` itself never reads from the session map at
+runtime. See [../data-flows.md](../data-flows.md) for the full
+attribution flow.
+
+`register_agent` is the explicit-call recovery path: when boot-time
+context recovery fails (no env vars set), the orchestrator can call
+`register_agent` with its host metadata to establish the
+`SessionContextRef` mid-session. This is the same flow the
+SessionStart hook would have triggered via the `_internal
+register-agent` sidecar; the MCP tool reaches the same
+`DataStore.registerAgent` code path.
 
 ## MCP resources
 

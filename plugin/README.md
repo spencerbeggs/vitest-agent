@@ -46,42 +46,45 @@ The plugin registers the `vitest-agent` MCP server automatically via the `mcpSer
 
 This means `vitest-agent-plugin` must be installed as a dependency of your project for the plugin's MCP server to start. The package's required peer dependencies (`vitest-agent-mcp` and `vitest-agent-cli`) are auto-installed by modern pnpm and npm. If the MCP bin is missing, the loader prints PM-specific install instructions and exits non-zero. See [Prerequisites](#prerequisites) below.
 
-The server exposes 50+ tools, four resources (vendored Vitest docs at `vitest://docs/...` and curated testing patterns at `vitest-agent://patterns/...`) and six framing-only prompts for common workflows. Use the `help` tool for the full tool list with parameters.
+The server exposes 29 action-keyed tools, four resources (vendored Vitest docs at `vitest://docs/...` and curated testing patterns at `vitest-agent://patterns/...`) and six framing-only prompts for common workflows. Tools emit both markdown `content[]` and a typed `structuredContent` payload per MCP 2025-06-18. Use the `help` tool for the full tool list with parameters.
 
 | Category | Tools |
 | --- | --- |
-| Queries | `test_status`, `test_overview`, `test_coverage`, `test_history`, `test_trends`, `test_errors`, `test_for_file`, `test_get`, `file_coverage`, `cache_health`, `configure` |
-| Discovery | `project_list`, `test_list`, `module_list`, `suite_list`, `settings_list` |
+| Queries | `test_status`, `test_overview`, `test_coverage`, `test_history`, `test_trends`, `test_errors`, `file_coverage`, `cache_health`, `configure` |
+| Discovery | `inventory` (`kind: project \| module \| suite \| session`), `test` (`action: list \| get \| for_file`), `settings_list` |
 | Execution | `run_tests` |
-| Notes | `note_create`, `note_list`, `note_get`, `note_update`, `note_delete`, `note_search` |
-| Sessions / turns | `session_list`, `session_get`, `turn_search`, `failure_signature_get`, `acceptance_metrics` |
+| Agent registration | `register_agent` |
+| Notes | `note` (`action: create \| list \| get \| update \| delete \| search`) |
+| Turns | `turn_search`, `failure_signature_get`, `acceptance_metrics` |
 | Triage / wrap-up | `triage_brief`, `wrapup_prompt` |
-| Hypotheses | `hypothesis_record`, `hypothesis_validate`, `hypothesis_list` |
-| TDD lifecycle | `tdd_session_start`, `tdd_session_end`, `tdd_session_resume`, `tdd_session_get`, `tdd_phase_transition_request`, `tdd_progress_push` |
-| TDD goal CRUD | `tdd_goal_create`, `tdd_goal_get`, `tdd_goal_update`, `tdd_goal_delete`, `tdd_goal_list` |
-| TDD behavior CRUD | `tdd_behavior_create`, `tdd_behavior_get`, `tdd_behavior_update`, `tdd_behavior_delete`, `tdd_behavior_list` |
+| Hypotheses | `hypothesis` (`action: record \| validate \| list`) |
+| TDD lifecycle | `tdd_task` (`action: start \| end \| get \| resume`), `tdd_phase_transition_request`, `tdd_progress_push` |
+| TDD goal CRUD | `tdd_goal` (`action: create \| update \| delete \| get \| list`) |
+| TDD behavior CRUD | `tdd_behavior` (`action: create \| update \| delete \| get \| list_by_goal \| list_by_tdd_task`) |
+| TDD artifacts | `tdd_artifact_list` |
 | Workspace history | `commit_changes` |
-| Session ID | `get_current_session_id`, `set_current_session_id` |
 | Meta | `help`, `ping` |
 
 ### Hooks
 
 Hook scripts run at Claude Code lifecycle events to record session data, inject context and gate tool calls.
 
+Hook scripts are grouped by event into subdirectories under `hooks/`. All source shared helpers from `hooks/lib/` via `$(dirname "$0")/../lib/<helper>`.
+
 | Script | Trigger | Behavior |
 | --- | --- | --- |
-| `session-start.sh` | `SessionStart` | Writes the session row; injects project test status and MCP tool reference into context |
-| `pre-tool-use-mcp.sh` | `PreToolUse` (MCP tools) | Auto-allows non-destructive MCP tools without per-call prompts |
-| `pre-tool-use-tdd-restricted.sh` | `PreToolUse` (tdd-task subagent) | Blocks `tdd_goal_delete` and `tdd_behavior_delete` inside the orchestrator |
-| `pre-tool-use-bash-tdd.sh` | `PreToolUse` (Bash, tdd-task subagent) | Blocks `--update`, `--bail`, `--testNamePattern`; injects reminder to use `run_tests` MCP |
-| `post-tool-use-tdd-artifact.sh` | `PostToolUse` (Write/Edit/run_tests, tdd-task) | Records `test_written`, `test_failed_run`, `test_passed_run`, `code_written` artifacts |
-| `post-tool-use-test-quality.sh` | `PostToolUse` (Write/Edit, tdd-task) | Detects test-weakening edits; records `test_weakened` artifact |
-| `subagent-start-tdd.sh` | `SubagentStart` | Creates a subagent session row for the dispatched tdd-task |
-| `subagent-stop-tdd.sh` | `SubagentStop` | Runs `vitest-agent wrapup --kind tdd_handoff` and records the handoff note |
-| `post-tool-use-record.sh` | `PostToolUse` (all) | Records tool-call turns for session analytics |
-| `user-prompt-submit-record.sh` | `UserPromptSubmit` | Records user prompt turns |
+| `session/start.sh` | `SessionStart` | Writes the session row; injects project test status and MCP tool reference into context; calls `vitest-agent _internal register-agent` and writes the canonical `VITEST_AGENT_*` exports to `${CLAUDE_ENV_FILE}` and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` |
+| `pre-tool-use/mcp.sh` | `PreToolUse` (MCP tools) | Auto-allows non-destructive MCP tools without per-call prompts |
+| `pre-tool-use/tdd-restricted.sh` | `PreToolUse` (tdd-task subagent) | Reads `tool_input.action` on the consolidated `tdd_goal` and `tdd_behavior` tools and denies the `delete` action inside the orchestrator |
+| `pre-tool-use/bash-tdd.sh` | `PreToolUse` (Bash, tdd-task subagent) | Blocks `--update`, `--bail`, `--testNamePattern`; injects reminder to use `run_tests` MCP |
+| `post-tool-use/tdd-artifact.sh` | `PostToolUse` (Write/Edit/run_tests, tdd-task) | Records `test_written`, `test_failed_run`, `test_passed_run`, `code_written` artifacts |
+| `post-tool-use/test-quality.sh` | `PostToolUse` (Write/Edit, tdd-task) | Detects test-weakening edits; records `test_weakened` artifact |
+| `subagent/start-tdd.sh` | `SubagentStart` | Creates a subagent session row for the dispatched tdd-task |
+| `subagent/stop-tdd.sh` | `SubagentStop` | Runs `vitest-agent wrapup --kind tdd_handoff` and records the handoff note |
+| `post-tool-use/record.sh` | `PostToolUse` (all) | Records tool-call turns for session analytics |
+| `user-prompt-submit/record.sh` | `UserPromptSubmit` | Records user prompt turns |
 
-The auto-allow list for `pre-tool-use-mcp.sh` lives at `hooks/lib/safe-mcp-vitest-agent-ops.txt`. Destructive tools (`tdd_goal_delete`, `tdd_behavior_delete`) are intentionally absent and fall through to Claude Code's standard permission dialog.
+The auto-allow list for `pre-tool-use/mcp.sh` lives at `hooks/lib/safe-mcp-vitest-agent-ops.txt`. The consolidated `tdd_goal` and `tdd_behavior` tools are on the list, so non-`delete` actions auto-allow; the `delete` action is denied at the runtime hook layer (`pre-tool-use/tdd-restricted.sh` reads `tool_input.action`) for the TDD orchestrator, and falls through to Claude Code's standard permission dialog for the main agent.
 
 Structured error and debug logging for all hook scripts is provided by `hooks/lib/hook-debug.sh`: `hook_error` always appends to `/tmp/vitest-agent-hook-errors.log` (overrideable via `VITEST_AGENT_HOOK_ERROR_LOG`); `hook_debug` appends to `/tmp/vitest-agent-hook-debug.log` only when `VITEST_AGENT_HOOK_DEBUG=1` is set.
 
@@ -96,7 +99,7 @@ Structured error and debug logging for all hook scripts is provided by `hooks/li
 | Skill | Description |
 | --- | --- |
 | `tdd` | Main TDD workflow: session lifecycle, phase transitions, goal/behavior hierarchy, channel events |
-| `debugging` | Systematic failure diagnosis using `test_history`, `test_errors`, `test_for_file` |
+| `debugging` | Systematic failure diagnosis using `test_history`, `test_errors`, `test` (action `for_file`) |
 | `coverage-improvement` | Systematic coverage improvement using `file_coverage`, `test_trends` |
 | `configuration` | `AgentPlugin` setup and option reference |
 | `interpret-test-failure` | Parse failure output, classify failure kind |
@@ -155,12 +158,12 @@ claude --plugin-dir ./plugin
 
 # Test hooks manually using the bundled fixtures
 cat plugin/hooks/fixtures/post-tool-use-write-test.json \
-  | bash plugin/hooks/post-tool-use-tdd-artifact.sh
+  | bash plugin/hooks/post-tool-use/tdd-artifact.sh
 
 # Enable debug logging for a manual run
 VITEST_AGENT_HOOK_DEBUG=1 \
   cat plugin/hooks/fixtures/user-prompt-submit.json \
-  | bash plugin/hooks/user-prompt-submit-record.sh
+  | bash plugin/hooks/user-prompt-submit/record.sh
 
 # Then inspect logs
 cat /tmp/vitest-agent-hook-debug.log

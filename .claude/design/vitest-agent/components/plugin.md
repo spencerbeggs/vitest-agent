@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-11
+last-synced: 2026-05-11
 completeness: 90
 related:
   - ../architecture.md
@@ -311,6 +311,51 @@ plugin's lifecycle class needs from the SDK plus the agent-local
 `CoverageAnalyzerLive`. Does not pull `NodeContext` directly because
 `ensureMigrated` and `resolveDataPath` provide their own platform layers
 earlier in the pipeline.
+
+## Reporter actor resolution
+
+The reporter reads `process.env.VITEST_AGENT_AGENT_ID`,
+`_PARENT_AGENT_ID`, `_CONVERSATION_ID`, `_MAIN_AGENT_ID`, and
+`_SESSION_ID` at `onTestRunEnd` time and stamps every `test_runs` row
+with `actor_type='agent'` plus the canonical UUIDs. The four env
+exports flow in by one of three paths:
+
+1. **Direct CC subprocess.** Claude Code auto-sources
+   `${CLAUDE_ENV_FILE}` into Bash tool subprocesses; the SessionStart
+   hook's exports are visible in `pnpm vitest run` invocations
+   directly from the agent.
+2. **MCP `run_tests`.** The MCP server mutates `process.env` from
+   `SessionContextRef` before `createVitest` so the in-process
+   reporter sees the active attribution.
+3. **PreToolUse Bash override.** When the active actor is a
+   subagent, the PreToolUse Bash hook computes an env-prefix
+   override and rewrites `tool_input.command` to prepend
+   `VITEST_AGENT_AGENT_ID=<subagent_id> VITEST_AGENT_PARENT_AGENT_ID=<main_id> ...`
+   before Claude Code spawns the subprocess. POSIX env-prefix scope is
+   the immediately-following process only.
+
+Pass-through case: a direct `pnpm vitest run` typed by a human at a
+terminal, with no Claude window open against the project, has none
+of the env vars set. The reporter records `actor_type='system'` and
+NULL `agent_id`. Same shape applies to CI runs.
+
+## Per-run git + host context capture
+
+Before each `writeRun`, the reporter calls the SDK's
+`RunContext.capture` service to populate the seven `git_*` columns
+(`git_branch`, `git_commit_sha`, `git_dirty`, `git_upstream`,
+`git_worktree_dir`) and the three `host_*` columns
+(`host_source`, `host_value`, `host_metadata`) on every `test_runs`
+row. Detached-HEAD state surfaces as literal `'HEAD'` for the
+branch with the SHA as the reliable identifier. `probeHostMetadata`
+resolves the most specific environment probe (`TMUX_PANE`,
+`WT_SESSION`, `GITHUB_RUN_ID`, etc.) and falls back to null.
+
+These columns let `test_runs` rows attribute back to specific git
+states (for "why did this regress?" forensics) and to specific
+terminal windows or CI runs (for "all runs from this iTerm window"
+queries via the compound `(host_source, host_value)` index). See
+[../schemas.md](../schemas.md) for the column inventory.
 
 ## Coverage threshold extraction
 

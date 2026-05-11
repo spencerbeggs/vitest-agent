@@ -4,44 +4,26 @@ import { cacheHealth } from "./tools/cache-health.js";
 import { commitChanges } from "./tools/commit-changes.js";
 import { configure } from "./tools/configure.js";
 import { testCoverage } from "./tools/coverage.js";
-import { getCurrentSessionId, setCurrentSessionId } from "./tools/current-session-id.js";
 import { testErrors } from "./tools/errors.js";
 import { failureSignatureGet } from "./tools/failure-signature-get.js";
 import { fileCoverage } from "./tools/file-coverage.js";
 import { help } from "./tools/help.js";
 import { testHistory } from "./tools/history.js";
-import { hypothesisList } from "./tools/hypothesis-list.js";
-import { hypothesisRecord } from "./tools/hypothesis-record.js";
-import { hypothesisValidate } from "./tools/hypothesis-validate.js";
-import { moduleList } from "./tools/module-list.js";
-import { noteCreate, noteDelete, noteGet, noteList, noteSearch, noteUpdate } from "./tools/notes.js";
+import { hypothesis } from "./tools/hypothesis.js";
+import { inventory } from "./tools/inventory.js";
+import { note } from "./tools/note.js";
 import { testOverview } from "./tools/overview.js";
 import { ping } from "./tools/ping.js";
-import { projectList } from "./tools/project-list.js";
+import { registerAgent } from "./tools/register-agent.js";
 import { runTests } from "./tools/run-tests.js";
-import { sessionGet } from "./tools/session-get.js";
-import { sessionList } from "./tools/session-list.js";
 import { settingsList } from "./tools/settings-list.js";
 import { testStatus } from "./tools/status.js";
-import { suiteList } from "./tools/suite-list.js";
-import { tddBehaviorCreate } from "./tools/tdd-behavior-create.js";
-import { tddBehaviorDelete } from "./tools/tdd-behavior-delete.js";
-import { tddBehaviorGet } from "./tools/tdd-behavior-get.js";
-import { tddBehaviorList } from "./tools/tdd-behavior-list.js";
-import { tddBehaviorUpdate } from "./tools/tdd-behavior-update.js";
-import { tddGoalCreate } from "./tools/tdd-goal-create.js";
-import { tddGoalDelete } from "./tools/tdd-goal-delete.js";
-import { tddGoalGet } from "./tools/tdd-goal-get.js";
-import { tddGoalList } from "./tools/tdd-goal-list.js";
-import { tddGoalUpdate } from "./tools/tdd-goal-update.js";
+import { tddArtifactList } from "./tools/tdd-artifact.js";
+import { tddBehavior } from "./tools/tdd-behavior.js";
+import { tddGoal } from "./tools/tdd-goal.js";
 import { tddPhaseTransitionRequest } from "./tools/tdd-phase-transition-request.js";
-import { tddSessionEnd } from "./tools/tdd-session-end.js";
-import { tddSessionGet } from "./tools/tdd-session-get.js";
-import { tddSessionResume } from "./tools/tdd-session-resume.js";
-import { tddSessionStart } from "./tools/tdd-session-start.js";
-import { testForFile } from "./tools/test-for-file.js";
-import { testGet } from "./tools/test-get.js";
-import { testList } from "./tools/test-list.js";
+import { tddTask } from "./tools/tdd-task.js";
+import { test } from "./tools/test.js";
 import { testTrends } from "./tools/trends.js";
 import { triageBrief } from "./tools/triage-brief.js";
 import { turnSearch } from "./tools/turn-search.js";
@@ -55,51 +37,27 @@ export const appRouter = router({
 	test_history: testHistory,
 	test_trends: testTrends,
 	test_errors: testErrors,
-	test_for_file: testForFile,
-	test_get: testGet,
+	test: test,
 	file_coverage: fileCoverage,
 	run_tests: runTests,
+	register_agent: registerAgent,
 	cache_health: cacheHealth,
 	configure: configure,
-	project_list: projectList,
-	test_list: testList,
-	module_list: moduleList,
-	suite_list: suiteList,
+	inventory: inventory,
 	settings_list: settingsList,
-	note_create: noteCreate,
-	note_list: noteList,
-	note_get: noteGet,
-	note_update: noteUpdate,
-	note_delete: noteDelete,
-	note_search: noteSearch,
-	session_list: sessionList,
-	session_get: sessionGet,
+	note: note,
 	turn_search: turnSearch,
 	failure_signature_get: failureSignatureGet,
-	tdd_session_get: tddSessionGet,
-	tdd_session_start: tddSessionStart,
-	tdd_session_end: tddSessionEnd,
-	tdd_session_resume: tddSessionResume,
+	tdd_task: tddTask,
 	tdd_phase_transition_request: tddPhaseTransitionRequest,
-	tdd_goal_create: tddGoalCreate,
-	tdd_goal_get: tddGoalGet,
-	tdd_goal_update: tddGoalUpdate,
-	tdd_goal_delete: tddGoalDelete,
-	tdd_goal_list: tddGoalList,
-	tdd_behavior_create: tddBehaviorCreate,
-	tdd_behavior_get: tddBehaviorGet,
-	tdd_behavior_update: tddBehaviorUpdate,
-	tdd_behavior_delete: tddBehaviorDelete,
-	tdd_behavior_list: tddBehaviorList,
-	hypothesis_list: hypothesisList,
-	hypothesis_record: hypothesisRecord,
-	hypothesis_validate: hypothesisValidate,
+	tdd_goal: tddGoal,
+	tdd_behavior: tddBehavior,
+	tdd_artifact_list: tddArtifactList,
+	hypothesis: hypothesis,
 	acceptance_metrics: acceptanceMetrics,
 	triage_brief: triageBrief,
 	wrapup_prompt: wrapupPrompt,
 	commit_changes: commitChanges,
-	get_current_session_id: getCurrentSessionId,
-	set_current_session_id: setCurrentSessionId,
 	ping: ping,
 });
 

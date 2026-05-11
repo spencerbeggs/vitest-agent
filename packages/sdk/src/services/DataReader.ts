@@ -40,6 +40,14 @@ export interface PersistentFailure {
 }
 
 export interface TestError {
+	/** `test_errors.id` — required by `hypothesis (action: record).citedTestErrorId`. */
+	readonly id: number;
+	/**
+	 * `stack_frames.id` for the top frame of this error (ordinal 0), or
+	 * `null` if no frames were captured. Required by
+	 * `hypothesis (action: record).citedStackFrameId`.
+	 */
+	readonly topStackFrameId: number | null;
 	readonly name: string | null;
 	readonly message: string;
 	readonly diff: string | null;
@@ -114,7 +122,7 @@ export interface SettingsListEntry {
 
 export interface SessionDetail {
 	readonly id: number;
-	readonly cc_session_id: string;
+	readonly chatId: string;
 	readonly project: string;
 	readonly cwd: string;
 	readonly agentKind: "main" | "subagent";
@@ -180,7 +188,7 @@ export interface TddArtifactDetail {
 	readonly recordedAt: string;
 }
 
-export interface TddSessionDetail {
+export interface TddTaskDetail {
 	readonly id: number;
 	readonly sessionId: number;
 	readonly goal: string;
@@ -227,13 +235,31 @@ export interface HypothesisDetail {
 	readonly validatedAt: string | null;
 }
 
-export interface TddSessionSummary {
+export interface TddTaskSummary {
 	readonly id: number;
 	readonly sessionId: number;
 	readonly goal: string;
 	readonly startedAt: string;
 	readonly endedAt: string | null;
 	readonly outcome: "succeeded" | "blocked" | "abandoned" | null;
+}
+
+/**
+ * Row shape returned by `listTddArtifactsForTask`. Carries every
+ * field an agent typically needs to cite an artifact in a subsequent
+ * `tdd_phase_transition_request` call without further lookups.
+ */
+export interface TddArtifactRow {
+	readonly id: number;
+	readonly tddTaskId: number;
+	readonly phaseId: number;
+	readonly phaseName: Phase;
+	readonly artifactKind: import("../utils/validate-phase-transition.js").ArtifactKind;
+	readonly behaviorId: number | null;
+	readonly testCaseId: number | null;
+	readonly testRunId: number | null;
+	readonly testFirstFailureRunId: number | null;
+	readonly recordedAt: string;
 }
 
 export class DataReader extends Context.Tag("vitest-agent/DataReader")<
@@ -280,7 +306,15 @@ export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 		) => Effect.Effect<ReadonlyArray<SuiteListEntry>, DataStoreError>;
 		readonly listSettings: () => Effect.Effect<ReadonlyArray<SettingsListEntry>, DataStoreError>;
 		readonly getSessionById: (id: number) => Effect.Effect<Option.Option<SessionDetail>, DataStoreError>;
-		readonly getSessionByCcId: (ccSessionId: string) => Effect.Effect<Option.Option<SessionDetail>, DataStoreError>;
+		readonly getSessionByChatId: (chatId: string) => Effect.Effect<Option.Option<SessionDetail>, DataStoreError>;
+		/**
+		 * Find every session row whose `chat_id` begins with `prefix`.
+		 * Used to recover the synthetic subagent row created by the
+		 * SubagentStart hook (`<parentChatId>-subagent-<ts>-<pid>`)
+		 * when subsequent PostToolUse hooks fire under the bare
+		 * parent chat_id. Returns most recent first.
+		 */
+		readonly findSessionsByChatPrefix: (prefix: string) => Effect.Effect<ReadonlyArray<SessionDetail>, DataStoreError>;
 		readonly listSessions: (options: {
 			readonly project?: string;
 			readonly agentKind?: "main" | "subagent";
@@ -291,24 +325,48 @@ export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 		readonly getFailureSignatureByHash: (
 			hash: string,
 		) => Effect.Effect<Option.Option<FailureSignatureDetail>, DataStoreError>;
-		readonly getTddSessionById: (id: number) => Effect.Effect<Option.Option<TddSessionDetail>, DataStoreError>;
+		readonly getTddTaskById: (id: number) => Effect.Effect<Option.Option<TddTaskDetail>, DataStoreError>;
 		readonly getGoalById: (id: number) => Effect.Effect<Option.Option<GoalDetail>, DataStoreError>;
-		readonly getGoalsBySession: (sessionId: number) => Effect.Effect<ReadonlyArray<GoalDetail>, DataStoreError>;
+		readonly getGoalsByTddTask: (tddTaskId: number) => Effect.Effect<ReadonlyArray<GoalDetail>, DataStoreError>;
 		readonly getBehaviorById: (id: number) => Effect.Effect<Option.Option<BehaviorDetail>, DataStoreError>;
 		readonly getBehaviorsByGoal: (goalId: number) => Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError>;
-		readonly getBehaviorsBySession: (sessionId: number) => Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError>;
+		readonly getBehaviorsByTddTask: (tddTaskId: number) => Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError>;
 		readonly getBehaviorDependencies: (behaviorId: number) => Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError>;
 		readonly resolveGoalIdForBehavior: (behaviorId: number) => Effect.Effect<Option.Option<number>, DataStoreError>;
-		readonly getCurrentTddPhase: (
-			tddSessionId: number,
-		) => Effect.Effect<Option.Option<CurrentTddPhase>, DataStoreError>;
+		readonly getCurrentTddPhase: (tddTaskId: number) => Effect.Effect<Option.Option<CurrentTddPhase>, DataStoreError>;
 		readonly getTddArtifactWithContext: (
 			artifactId: number,
 		) => Effect.Effect<Option.Option<CitedArtifactRow>, DataStoreError>;
 		readonly getCommitChanges: (sha?: string) => Effect.Effect<ReadonlyArray<CommitChangesEntry>, DataStoreError>;
-		readonly listTddSessionsForSession: (
+		readonly listTddTasksForSession: (
 			sessionId: number,
-		) => Effect.Effect<ReadonlyArray<TddSessionSummary>, DataStoreError>;
+			options?: {
+				/**
+				 * When true, also return tdd_tasks belonging to any
+				 * ancestor of `sessionId` via `parent_session_id`. Used
+				 * by hook-driven artifact recording where the
+				 * orchestrator opened the tdd task under the parent
+				 * main row but the subagent's own session row is the
+				 * one carrying the calling chat_id. Default `false`
+				 * preserves the prior single-session contract.
+				 */
+				readonly walkParents?: boolean;
+			},
+		) => Effect.Effect<ReadonlyArray<TddTaskSummary>, DataStoreError>;
+		/**
+		 * List artifacts recorded for a TDD task, optionally filtered
+		 * by `artifactKind`, `phaseId`, or `behaviorId`. Returns rows in
+		 * recorded_at DESC order so the most recently captured artifact
+		 * (the typical citation target for a phase transition) appears
+		 * first. `limit` defaults to 50.
+		 */
+		readonly listTddArtifactsForTask: (input: {
+			readonly tddTaskId: number;
+			readonly artifactKind?: import("../utils/validate-phase-transition.js").ArtifactKind;
+			readonly phaseId?: number;
+			readonly behaviorId?: number;
+			readonly limit?: number;
+		}) => Effect.Effect<ReadonlyArray<TddArtifactRow>, DataStoreError>;
 		readonly listHypotheses: (options: {
 			readonly sessionId?: number;
 			readonly outcome?: "confirmed" | "refuted" | "abandoned" | "open";
@@ -318,6 +376,6 @@ export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 			procedurePath: string,
 			key: string,
 		) => Effect.Effect<Option.Option<string>, DataStoreError>;
-		readonly getLatestTestCaseForSession: (ccSessionId: string) => Effect.Effect<Option.Option<number>, DataStoreError>;
+		readonly getLatestTestCaseForSession: (chatId: string) => Effect.Effect<Option.Option<number>, DataStoreError>;
 	}
 >() {}

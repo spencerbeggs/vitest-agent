@@ -207,3 +207,63 @@ Two copies exist because the plugin loader cannot import from
 `vitest-agent-sdk` — it runs before the user's npm packages are guaranteed
 to be installed. The detection order is identical so the two copies do not
 drift in observable behavior.
+
+## Agent-agnostic taxonomy paths (Phases 1–4)
+
+### Project identity resolution
+
+The legacy `resolveDataPath` chain (workspace name only) is supplemented
+by `ProjectIdentity.resolve` (see
+`packages/sdk/src/services/ProjectIdentity.ts`), a 5-source fallback:
+
+1. Explicit option via `AgentPlugin({ projectId: "..." })` in `vitest.config.ts`
+2. `projectKey` field in `vitest-agent.config.toml` at the workspace root
+3. `git config remote.origin.url` (canonicalized)
+4. `package.json#repository.url` (parsed and canonicalized as a git URL)
+5. Normalized `package.json#name`
+
+Failure mode: `ProjectIdentityNotResolvableError` listing every source
+attempted. Used by the sidecar CLI (`packages/cli/src/commands/internal.ts`)
+to compute the per-project data store directory directly from
+`XDG_DATA_HOME` plus the normalized `projectKey`, sidestepping
+workspace-discovery so the sidecar works in non-pnpm-workspace project
+shapes.
+
+URL canonicalization (`packages/sdk/src/utils/canonicalize-git-url.ts`):
+
+| Input | Canonical form |
+| --- | --- |
+| `git@github.com:org/repo.git` | `github.com/org/repo` |
+| `https://github.com/org/repo.git` | `github.com/org/repo` |
+| `ssh://git@github.com/org/repo.git` | `github.com/org/repo` |
+| `https://GitHub.com/Org/Repo` | `github.com/org/repo` |
+
+The filesystem-safe `projectKey` form replaces `/` with `__`
+(e.g. `github.com__org__repo`).
+
+### Storage paths
+
+| Store | Path | Driver |
+| --- | --- | --- |
+| Per-project data store | `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` | `better-sqlite3` via `@effect/sql-sqlite-node` |
+| Per-client session map | `${CLAUDE_PLUGIN_DATA}/sessions.db` (Claude Code) | Same |
+| Global discovery registry | `$XDG_DATA_HOME/vitest-agent/registry.db` | Same |
+| Per-instance ephemeral | `${CLAUDE_PLUGIN_DATA}/sessions/${session_id}/` (planned daemon socket) | Filesystem only |
+
+The sidecar CLI's `_internal` subcommands resolve all three SQLite
+paths from env at invocation time:
+
+- Per-project: `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` where `<projectKey>` comes from `ProjectIdentity` resolution against `--cwd`
+- Per-client: `${CLAUDE_PLUGIN_DATA}/sessions.db`, falling back to `${VITEST_AGENT_SESSION_MAP_DIR}/sessions.db`, falling back to `~/.vitest-agent/sessions.db`
+- Registry: `$XDG_DATA_HOME/vitest-agent/registry.db`
+
+`mkdirSync(..., { recursive: true })` ensures every parent dir exists
+before SQLite opens the file.
+
+### Spike harnesses
+
+The Phase 1.5 spike harness scripts (`spike/phase-1.5/spike-1` through
+`spike-4`) are gitignored. The empirical evidence they captured lives
+in `.claude/plans/archive/2026-05-10-phase-1-5-spike.md` and the
+active decisions at `decisions.md` D16–D19. The harnesses are
+reproducible from the memo's prose if needed.

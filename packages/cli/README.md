@@ -36,7 +36,7 @@ npx vitest-agent trends      # Coverage trajectory over time
 npx vitest-agent doctor      # Database health diagnostic
 npx vitest-agent cache path  # Print the database file path
 npx vitest-agent cache clean # Delete the database
-npx vitest-agent record test-case-turns --cc-session-id <id>
+npx vitest-agent record test-case-turns --chat-id <id>
 # Hook-driven command: links test cases to session turns and outputs
 # {"updated": N, "latestTestCaseId": <id|null>}
 ```

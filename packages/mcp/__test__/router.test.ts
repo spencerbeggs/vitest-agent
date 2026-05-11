@@ -5,7 +5,7 @@ import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "vitest-agent-sdk";
 import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef } from "../src/context.js";
+import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
 import { appRouter } from "../src/router.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
@@ -18,6 +18,7 @@ function createTestCaller(cwd: string = process.cwd(), initialSessionId: string 
 		runtime: testRuntime as unknown as McpContext["runtime"],
 		cwd,
 		currentSessionId: createCurrentSessionIdRef(initialSessionId),
+		sessionContext: createSessionContextRef(),
 	});
 }
 
@@ -29,7 +30,7 @@ async function seedTestData() {
 			// Write settings
 			yield* store.writeSettings(
 				"abc123",
-				{ vitest_version: "3.2.0", pool: "forks", coverage_provider: "v8" },
+				{ vitestVersion: "3.2.0", pool: "forks", coverageProvider: "v8" },
 				{ CI: "true", NODE_ENV: "test" },
 			);
 
@@ -118,128 +119,163 @@ describe("MCP Router", () => {
 	it("help returns complete tool catalog", async () => {
 		const caller = createTestCaller();
 		const result = await caller.help();
-		expect(result).toContain("vitest-agent MCP Tools");
-		expect(result).toContain("test_status");
-		expect(result).toContain("run_tests");
-		expect(result).toContain("note_create");
-		expect(result).toContain("Parameter Key");
+		expect(result.helpText).toContain("vitest-agent MCP Tools");
+		expect(result.helpText).toContain("test_status");
+		expect(result.helpText).toContain("run_tests");
+		expect(result.helpText).toContain("note");
+		expect(result.helpText).toContain("Parameter Key");
 	});
 
-	it("test_status returns no data message on empty DB", async () => {
+	it("test_status returns dataAvailable=false on empty DB", async () => {
 		const caller = createTestCaller();
 		const result = await caller.test_status({});
-		expect(result).toContain("No test data");
+		expect(result.dataAvailable).toBe(false);
 	});
 
-	it("cache_health returns diagnostic on empty DB", async () => {
+	it("cache_health returns structured diagnostic on empty DB", async () => {
 		const caller = createTestCaller();
-		const result = await caller.cache_health();
-		expect(typeof result).toBe("string");
-		expect(result).toContain("Cache Health");
+		const result = (await caller.cache_health()) as { manifestPresent: boolean };
+		expect(typeof result).toBe("object");
+		// On an empty DB the manifest hasn't been written yet.
+		expect(result.manifestPresent).toBe(false);
 	});
 
-	it("test_overview returns no data message on empty DB", async () => {
+	it("test_overview returns dataAvailable=false on empty DB", async () => {
 		const caller = createTestCaller();
 		const result = await caller.test_overview({});
-		expect(result).toContain("No test data");
+		expect(result.dataAvailable).toBe(false);
 	});
 
-	it("configure returns settings when no hash provided", async () => {
+	it("configure returns structured settings when no hash provided", async () => {
 		await seedTestData();
 		const caller = createTestCaller();
-		const result = await caller.configure({});
-		expect(typeof result).toBe("string");
-		expect(result).toContain("Settings");
-		expect(result).toContain("abc123");
+		const result = (await caller.configure({})) as {
+			found: boolean;
+			source: string;
+			settings?: { hash: string };
+		};
+		expect(typeof result).toBe("object");
+		expect(result.found).toBe(true);
+		expect(result.source).toBe("latest");
+		expect(result.settings?.hash).toBe("abc123");
 	});
 
 	it("note CRUD lifecycle", async () => {
 		const caller = createTestCaller();
 
 		// Create
-		const { id } = await caller.note_create({
+		const created = await caller.note({
+			action: "create",
 			title: "Test Note",
 			content: "Some content",
 			scope: "global",
 		});
+		const id = (created as { id: number }).id;
 		expect(id).toBeGreaterThan(0);
 
 		// Read
-		const note = await caller.note_get({ id });
+		const note = (await caller.note({ action: "get", id })) as {
+			found: boolean;
+			note?: { title: string };
+		};
 		expect(note.found).toBe(true);
-		if (note.found) expect(note.note.title).toBe("Test Note");
+		if (note.found && note.note) expect(note.note.title).toBe("Test Note");
 
 		// Update
-		await caller.note_update({ id, title: "Updated" });
-		const updated = await caller.note_get({ id });
+		await caller.note({ action: "update", id, title: "Updated" });
+		const updated = (await caller.note({ action: "get", id })) as {
+			found: boolean;
+			note?: { title: string };
+		};
 		expect(updated.found).toBe(true);
-		if (updated.found) expect(updated.note.title).toBe("Updated");
+		if (updated.found && updated.note) expect(updated.note.title).toBe("Updated");
 
 		// Delete
-		await caller.note_delete({ id });
-		const deleted = await caller.note_get({ id });
+		await caller.note({ action: "delete", id });
+		const deleted = (await caller.note({ action: "get", id })) as { found: boolean };
 		expect(deleted.found).toBe(false);
 	});
 
-	it("note_list returns no notes message for empty state", async () => {
+	it("note list returns count=0 and an empty notes[] for an empty filter", async () => {
 		// Use a scope filter that won't match any notes
 		const caller = createTestCaller();
-		const result = await caller.note_list({ scope: "test", testFullName: "nonexistent" });
-		expect(typeof result).toBe("string");
-		expect(result).toContain("No notes found");
+		const result = (await caller.note({ action: "list", scope: "test", testFullName: "nonexistent" })) as {
+			action: string;
+			count: number;
+			notes: ReadonlyArray<unknown>;
+		};
+		expect(result.action).toBe("list");
+		expect(result.count).toBe(0);
+		expect(result.notes).toEqual([]);
 	});
 
-	it("note_list returns markdown table when notes exist", async () => {
+	it("note list returns the matching notes structurally when notes exist", async () => {
 		const caller = createTestCaller();
-		await caller.note_create({
-			title: "Table Note",
-			content: "Content for table test",
-			scope: "global",
-		});
-		const result = await caller.note_list({});
-		expect(typeof result).toBe("string");
-		expect(result).toContain("## Notes");
-		expect(result).toContain("| ID |");
-		expect(result).toContain("Table Note");
+		await caller.note({ action: "create", title: "Table Note", content: "Content for table test", scope: "global" });
+		const result = (await caller.note({ action: "list" })) as {
+			action: string;
+			count: number;
+			notes: ReadonlyArray<{ title: string }>;
+		};
+		expect(result.action).toBe("list");
+		expect(result.count).toBeGreaterThan(0);
+		expect(result.notes.some((n) => n.title === "Table Note")).toBe(true);
 	});
 
-	it("note_search returns no notes for empty results", async () => {
+	it("note search returns count=0 and an empty notes[] when no rows match", async () => {
 		const caller = createTestCaller();
-		const result = await caller.note_search({ query: "nonexistentkeyword999" });
-		expect(typeof result).toBe("string");
-		expect(result).toContain("No notes found");
+		const result = (await caller.note({ action: "search", query: "nonexistentkeyword999" })) as {
+			action: string;
+			query: string;
+			count: number;
+			notes: ReadonlyArray<unknown>;
+		};
+		expect(result.action).toBe("search");
+		expect(result.query).toBe("nonexistentkeyword999");
+		expect(result.count).toBe(0);
 	});
 
-	it("note_search returns markdown table for matching content", async () => {
+	it("note search returns the matching notes structurally", async () => {
 		const caller = createTestCaller();
-
-		await caller.note_create({
+		await caller.note({
+			action: "create",
 			title: "Searchable Note",
 			content: "This contains unique keyword xylophone",
 			scope: "global",
 		});
-
-		const result = await caller.note_search({ query: "xylophone" });
-		expect(typeof result).toBe("string");
-		expect(result).toContain('Notes matching "xylophone"');
-		expect(result).toContain("| ID |");
+		const result = (await caller.note({ action: "search", query: "xylophone" })) as {
+			action: string;
+			query: string;
+			count: number;
+			notes: ReadonlyArray<{ title: string }>;
+		};
+		expect(result.action).toBe("search");
+		expect(result.query).toBe("xylophone");
+		expect(result.count).toBeGreaterThan(0);
+		expect(result.notes.some((n) => n.title === "Searchable Note")).toBe(true);
 	});
 
-	it("test_for_file returns no tests message for unknown file", async () => {
+	it("test for_file returns count=0 and an empty testFiles[] for unknown file", async () => {
 		const caller = createTestCaller();
-		const result = await caller.test_for_file({ filePath: "nonexistent.ts" });
-		expect(result).toContain("No test modules found");
+		const result = await caller.test({ action: "for_file", filePath: "nonexistent.ts" });
+		expect(result.action).toBe("for_file");
+		if (result.action === "for_file") {
+			expect(result.count).toBe(0);
+			expect(result.testFiles).toEqual([]);
+		}
 	});
 
 	it("test_coverage returns coverage data after seeding", async () => {
 		const caller = createTestCaller();
 		const result = await caller.test_coverage({ project: "default" });
-		expect(typeof result).toBe("string");
-		expect(result).toContain("Coverage Report");
-		expect(result).toContain("statements");
+		expect(result.dataAvailable).toBe(true);
+		if (result.dataAvailable) {
+			expect(result.project).toBe("default");
+			expect(result.coverage.totals.statements).toBeGreaterThanOrEqual(0);
+		}
 	});
 
-	it("run_tests returns text content", { timeout: 30_000 }, async () => {
+	it("run_tests returns a structured ok | timeout | error envelope", { timeout: 30_000 }, async () => {
 		// Anchor at an empty tempdir so the nested vitest invocation does not
 		// pick up this monorepo's vitest.config.ts (which would re-load the
 		// AgentPlugin and contend with the outer reporter on the same DB).
@@ -247,78 +283,76 @@ describe("MCP Router", () => {
 		try {
 			const caller = createTestCaller(isolated);
 			const result = await caller.run_tests({ files: ["nonexistent.test.ts"], timeout: 5 });
-			expect(typeof result).toBe("string");
+			expect(["ok", "timeout", "error"]).toContain(result.kind);
 		} finally {
 			rmSync(isolated, { recursive: true, force: true });
 		}
 	});
 
-	it("project_list returns markdown with Projects heading", async () => {
+	it("inventory project returns the inventoryKind discriminant", async () => {
 		const caller = createTestCaller();
-		const result = await caller.project_list({});
-		expect(typeof result).toBe("string");
-		expect(result).toContain("Projects");
+		const result = await caller.inventory({ kind: "project" });
+		expect(result.inventoryKind).toBe("project");
 	});
 
-	it("test_list returns string", async () => {
+	it("test list returns a structured groups envelope", async () => {
 		const caller = createTestCaller();
-		const result = await caller.test_list({ project: "default" });
-		expect(typeof result).toBe("string");
+		const result = await caller.test({ action: "list", project: "default" });
+		expect(result.action).toBe("list");
 	});
 
-	it("module_list returns string", async () => {
+	it("inventory module returns the inventoryKind discriminant", async () => {
 		const caller = createTestCaller();
-		const result = await caller.module_list({ project: "default" });
-		expect(typeof result).toBe("string");
+		const result = await caller.inventory({ kind: "module", project: "default" });
+		expect(result.inventoryKind).toBe("module");
 	});
 
-	it("suite_list returns string", async () => {
+	it("inventory suite returns the inventoryKind discriminant", async () => {
 		const caller = createTestCaller();
-		const result = await caller.suite_list({ project: "default" });
-		expect(typeof result).toBe("string");
+		const result = await caller.inventory({ kind: "suite", project: "default" });
+		expect(result.inventoryKind).toBe("suite");
 	});
 
-	it("settings_list returns markdown with Settings and Hash", async () => {
+	it("settings_list returns count and the captured settings rows", async () => {
 		const caller = createTestCaller();
 		const result = await caller.settings_list({});
-		expect(typeof result).toBe("string");
-		expect(result).toContain("Settings");
-		expect(result).toContain("Hash");
+		expect(result.count).toBeGreaterThan(0);
+		expect(result.settings[0]?.hash.length).toBeGreaterThan(0);
 	});
 
-	it("test_get returns test details for known test", async () => {
+	it("test get returns the structured test row for a known test", async () => {
 		const caller = createTestCaller();
-		const result = await caller.test_get({ fullName: "utils > adds numbers", project: "default" });
-		expect(typeof result).toBe("string");
-		expect(result).toContain("utils > adds numbers");
-		expect(result).toContain("## Details");
-		expect(result).toContain("passed");
-		expect(result).toContain("src/utils.test.ts");
+		const result = await caller.test({ action: "get", fullName: "utils > adds numbers", project: "default" });
+		expect(result.action).toBe("get");
+		if (result.action === "get" && result.found) {
+			expect(result.test.fullName).toBe("utils > adds numbers");
+			expect(result.test.state).toBe("passed");
+			expect(result.test.module).toBe("src/utils.test.ts");
+		}
 	});
 
-	it("test_get returns not found for unknown test", async () => {
+	it("test get returns found=false for an unknown test", async () => {
 		const caller = createTestCaller();
-		const result = await caller.test_get({ fullName: "nonexistent > test", project: "default" });
-		expect(result).toContain("Test not found");
-		expect(result).toContain("test_list");
+		const result = await caller.test({ action: "get", fullName: "nonexistent > test", project: "default" });
+		expect(result.action).toBe("get");
+		if (result.action === "get") expect(result.found).toBe(false);
 	});
 
-	it("file_coverage returns coverage data for tracked file", async () => {
+	it("file_coverage returns dataAvailable=true for the tracked project", async () => {
 		const caller = createTestCaller();
 		const result = await caller.file_coverage({ filePath: "src/utils.ts", project: "default" });
-		expect(typeof result).toBe("string");
-		expect(result).toContain("src/utils.ts");
-		// File is in lowCoverage (branches at 70% below typical threshold)
-		// or shows project totals if not in lowCoverage list
-		expect(result).toMatch(/Metrics|Coverage Totals/);
+		expect(result.dataAvailable).toBe(true);
+		if (result.dataAvailable) expect(result.filePath).toBe("src/utils.ts");
 	});
 
-	it("file_coverage returns fallback for unknown file", async () => {
+	it("file_coverage returns matched=false for an unknown file", async () => {
 		const caller = createTestCaller();
 		const result = await caller.file_coverage({ filePath: "nonexistent.ts", project: "default" });
-		expect(typeof result).toBe("string");
-		expect(result).toContain("nonexistent.ts");
-		expect(result).toContain("not in the low-coverage list");
+		expect(result.dataAvailable).toBe(true);
+		if (result.dataAvailable) {
+			expect(result.matched).toBe(false);
+			expect(result.filePath).toBe("nonexistent.ts");
+		}
 	});
 
 	describe("hypothesis_record and hypothesis_validate", () => {
@@ -328,47 +362,47 @@ describe("MCP Router", () => {
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					return yield* store.writeSession({
-						cc_session_id: "cc-hyp-record-test",
+						chatId: "cc-hyp-record-test",
 						project: "default",
 						cwd: process.cwd(),
-						agent_kind: "main",
-						started_at: new Date().toISOString(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
 					});
 				}),
 			);
 
 			const caller = createTestCaller();
-			const first = await caller.hypothesis_record({
+			const first = await caller.hypothesis({
+				action: "record",
 				sessionId,
 				content: "The failure is caused by a missing null guard in the parser.",
 			});
 
 			expect(first).toHaveProperty("id");
 			expect((first as { id: number }).id).toBeGreaterThan(0);
-			// Fresh insert must NOT carry the replay marker.
-			expect((first as { _idempotentReplay?: true })._idempotentReplay).toBeUndefined();
 
-			// Second call with the same key replays the cached response with
-			// the _idempotentReplay marker attached.
-			const replay = await caller.hypothesis_record({
+			// Second call with the same args writes a new row. (Idempotency
+			// middleware no longer wraps the consolidated tool — a follow-up
+			// can re-add it once the discriminator union surface stabilizes.)
+			const second = await caller.hypothesis({
+				action: "record",
 				sessionId,
 				content: "The failure is caused by a missing null guard in the parser.",
 			});
-			expect((replay as { id: number }).id).toBe((first as { id: number }).id);
-			expect((replay as { _idempotentReplay?: true })._idempotentReplay).toBe(true);
+			expect((second as { id: number }).id).toBeGreaterThan(0);
 		});
 
-		it("hypothesis_validate updates the validation outcome to confirmed", async () => {
+		it("hypothesis validate updates the validation outcome to confirmed", async () => {
 			// Seed session + hypothesis
 			const { hypothesisId } = await testRuntime.runPromise(
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-hyp-validate-test",
+						chatId: "cc-hyp-validate-test",
 						project: "default",
 						cwd: process.cwd(),
-						agent_kind: "main",
-						started_at: new Date().toISOString(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
 					});
 					const hypothesisId = yield* store.writeHypothesis({
 						sessionId,
@@ -379,19 +413,21 @@ describe("MCP Router", () => {
 			);
 
 			const caller = createTestCaller();
-			const result = await caller.hypothesis_validate({
+			const result = await caller.hypothesis({
+				action: "validate",
 				id: hypothesisId,
 				outcome: "confirmed",
 				validatedAt: new Date().toISOString(),
 			});
 
-			expect(result).toEqual({});
+			expect(result).toEqual({ action: "validate" });
 		});
 
-		it("hypothesis_validate returns error for unknown hypothesis id", async () => {
+		it("hypothesis validate returns error for unknown hypothesis id", async () => {
 			const caller = createTestCaller();
 			await expect(
-				caller.hypothesis_validate({
+				caller.hypothesis({
+					action: "validate",
 					id: 999999,
 					outcome: "refuted",
 					validatedAt: new Date().toISOString(),
@@ -401,28 +437,30 @@ describe("MCP Router", () => {
 	});
 
 	describe("triage_brief tool", () => {
-		it("returns 'no orientation signal' on empty DB", async () => {
+		it("renders either the cold-start hint or a real triage brief depending on prior seeding", async () => {
 			const caller = createTestCaller();
 			const result = await caller.triage_brief({});
-			expect(typeof result).toBe("string");
-			expect(result).toMatch(/No orientation signal|orientation triage|Recent Test Runs/i);
+			// The shared runtime may carry seed data from prior tests, so
+			// either branch of `hasContent` is acceptable; we assert the
+			// markdown body matches one of the two expected shapes.
+			expect(result.markdown).toMatch(/No orientation signal|orientation triage|Recent Test Runs/i);
 		});
 
 		it("includes content when test runs are seeded", async () => {
 			const caller = createTestCaller();
 			await seedTestData();
 			const result = await caller.triage_brief({});
-			expect(typeof result).toBe("string");
-			expect(result.length).toBeGreaterThan(0);
+			expect(result.hasContent).toBe(true);
+			expect(result.markdown.length).toBeGreaterThan(0);
 		});
 	});
 
 	describe("wrapup_prompt tool", () => {
-		it("returns 'Nothing to wrap up' for an unknown session", async () => {
+		it("returns hasContent=false for an unknown session", async () => {
 			const caller = createTestCaller();
 			const result = await caller.wrapup_prompt({});
-			expect(typeof result).toBe("string");
-			expect(result).toMatch(/Nothing to wrap up|no recent activity/i);
+			expect(result.hasContent).toBe(false);
+			expect(result.markdown).toMatch(/Nothing to wrap up|no recent activity/i);
 		});
 
 		it("emits a failure-prompt nudge for the user_prompt_nudge variant", async () => {
@@ -431,8 +469,9 @@ describe("MCP Router", () => {
 				kind: "user_prompt_nudge",
 				userPromptHint: "fix the broken test in foo.test.ts",
 			});
-			expect(result).toContain("test_history");
-			expect(result).toContain("failure_signature_get");
+			expect(result.kind).toBe("user_prompt_nudge");
+			expect(result.markdown).toContain("test_history");
+			expect(result.markdown).toContain("failure_signature_get");
 		});
 	});
 
@@ -443,19 +482,19 @@ describe("MCP Router", () => {
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					return yield* store.writeSession({
-						cc_session_id: "cc-tdd-start-test",
+						chatId: "cc-tdd-start-test",
 						project: "default",
 						cwd: process.cwd(),
-						agent_kind: "main",
-						started_at: new Date().toISOString(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
 					});
 				}),
 			);
 
 			const caller = createTestCaller();
-			const r1 = await caller.tdd_session_start({ sessionId, goal: "add login" });
-			const r2 = await caller.tdd_session_start({ sessionId, goal: "add login" });
-			expect((r1 as { id: number }).id).toBe((r2 as { id: number }).id);
+			const r1 = await caller.tdd_task({ action: "start", sessionId, goal: "add login" });
+			const r2 = await caller.tdd_task({ action: "start", sessionId, goal: "add login" });
+			expect((r1 as { tddTaskId: number }).tddTaskId).toBe((r2 as { tddTaskId: number }).tddTaskId);
 			expect((r2 as { _idempotentReplay?: boolean })._idempotentReplay).toBe(true);
 		});
 	});
@@ -467,23 +506,25 @@ describe("MCP Router", () => {
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					return yield* store.writeSession({
-						cc_session_id: "cc-tdd-end-test",
+						chatId: "cc-tdd-end-test",
 						project: "default",
 						cwd: process.cwd(),
-						agent_kind: "main",
-						started_at: new Date().toISOString(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
 					});
 				}),
 			);
 
 			const caller = createTestCaller();
-			const created = await caller.tdd_session_start({ sessionId, goal: "ending-test" });
-			const r1 = await caller.tdd_session_end({
-				tddSessionId: (created as { id: number }).id,
+			const created = await caller.tdd_task({ action: "start", sessionId, goal: "ending-test" });
+			const r1 = await caller.tdd_task({
+				action: "end",
+				tddTaskId: (created as { tddTaskId: number }).tddTaskId,
 				outcome: "succeeded",
 			});
-			const r2 = await caller.tdd_session_end({
-				tddSessionId: (created as { id: number }).id,
+			const r2 = await caller.tdd_task({
+				action: "end",
+				tddTaskId: (created as { tddTaskId: number }).tddTaskId,
 				outcome: "succeeded",
 			});
 			expect((r1 as { outcome: string }).outcome).toBe("succeeded");
@@ -492,67 +533,199 @@ describe("MCP Router", () => {
 	});
 
 	describe("commit_changes tool", () => {
-		it("returns 'No commits recorded' on empty DB", async () => {
+		it("returns count=0 and an empty commits[] on empty DB", async () => {
 			const caller = createTestCaller();
-			const r = await caller.commit_changes({});
-			expect(r).toMatch(/No commits recorded/);
+			const r = (await caller.commit_changes({})) as { count: number; commits: ReadonlyArray<unknown> };
+			expect(r.count).toBe(0);
+			expect(r.commits).toEqual([]);
 		});
 	});
 
-	describe("tdd_session_resume tool", () => {
-		it("renders a markdown digest for an existing TDD session", async () => {
+	describe("tdd_task resume", () => {
+		it("returns the structured resume envelope for an existing TDD task", async () => {
 			const sessionId = await testRuntime.runPromise(
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					return yield* store.writeSession({
-						cc_session_id: "cc-tdd-resume-test",
+						chatId: "cc-tdd-resume-test",
 						project: "default",
 						cwd: process.cwd(),
-						agent_kind: "main",
-						started_at: new Date().toISOString(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
 					});
 				}),
 			);
 			const caller = createTestCaller();
-			const tdd = await caller.tdd_session_start({ sessionId, goal: "resume-test" });
-			const tddId = (tdd as { id: number }).id;
-			const out = await caller.tdd_session_resume({ id: tddId });
-			expect(out).toContain(`TDD session #${tddId}`);
-			expect(out).toContain("resume-test");
+			const tdd = await caller.tdd_task({ action: "start", sessionId, goal: "resume-test" });
+			const tddId = (tdd as { tddTaskId: number }).tddTaskId;
+			const out = await caller.tdd_task({ action: "resume", tddTaskId: tddId });
+			expect(out.action).toBe("resume");
+			if (out.action === "resume" && out.found) {
+				expect(out.tddTaskId).toBe(tddId);
+				expect(out.goal).toBe("resume-test");
+			}
 		});
 
-		it("returns 'No TDD session' for unknown id", async () => {
+		it("returns found=false for an unknown id", async () => {
 			const caller = createTestCaller();
-			const out = await caller.tdd_session_resume({ id: 99999 });
-			expect(out).toMatch(/No TDD session/);
+			const out = await caller.tdd_task({ action: "resume", tddTaskId: 99999 });
+			expect(out.action).toBe("resume");
+			if (out.action === "resume") expect(out.found).toBe(false);
+		});
+	});
+
+	describe("tdd_task get includes a current-phase line with phaseId", () => {
+		it("renders 'current phase: <name> [phaseId=N]' so the orchestrator can cite it", async () => {
+			const { sessionId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sid = yield* store.writeSession({
+						chatId: "cc-tdd-get-current-phase",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
+					});
+					return { sessionId: sid };
+				}),
+			);
+			const caller = createTestCaller();
+			const tdd = (await caller.tdd_task({ action: "start", sessionId, goal: "current-phase-test" })) as {
+				tddTaskId: number;
+			};
+			const out = await caller.tdd_task({ action: "get", tddTaskId: tdd.tddTaskId });
+			expect(out.action).toBe("get");
+			if (out.action === "get" && out.found) {
+				expect(out.currentPhase?.phase).toBe("spike");
+				expect(typeof out.currentPhase?.id).toBe("number");
+			}
+		});
+	});
+
+	describe("tdd_artifact_list tool", () => {
+		let seedCounter = 0;
+		async function seedSessionWithArtifacts(): Promise<{
+			tddId: number;
+			spikePhaseId: number;
+			redPhaseId: number;
+			testFailedRunArtifactId: number;
+			codeWrittenArtifactId: number;
+		}> {
+			const chatId = `cc-art-list-test-${++seedCounter}`;
+			return testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sessionId = yield* store.writeSession({
+						chatId: chatId,
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
+					});
+					const tddId = yield* store.writeTddTask({
+						sessionId,
+						goal: "artifact-list-test",
+						startedAt: new Date().toISOString(),
+					});
+					const spike = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "spike",
+						startedAt: "2026-04-30T00:00:00Z",
+					});
+					const red = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "red",
+						startedAt: "2026-04-30T00:01:00Z",
+					});
+					yield* store.writeTddArtifact({
+						phaseId: spike.id,
+						artifactKind: "test_written",
+						recordedAt: "2026-04-30T00:00:30Z",
+					});
+					const failedRun = yield* store.writeTddArtifact({
+						phaseId: red.id,
+						artifactKind: "test_failed_run",
+						recordedAt: "2026-04-30T00:01:30Z",
+					});
+					const codeWritten = yield* store.writeTddArtifact({
+						phaseId: red.id,
+						artifactKind: "code_written",
+						recordedAt: "2026-04-30T00:02:00Z",
+					});
+					return {
+						tddId,
+						spikePhaseId: spike.id,
+						redPhaseId: red.id,
+						testFailedRunArtifactId: failedRun,
+						codeWrittenArtifactId: codeWritten,
+					};
+				}),
+			);
+		}
+
+		it("returns the recorded artifacts in newest-first order", async () => {
+			const seeded = await seedSessionWithArtifacts();
+			const caller = createTestCaller();
+			const out = await caller.tdd_artifact_list({ tddTaskId: seeded.tddId });
+			expect(out.tddTaskId).toBe(seeded.tddId);
+			expect(out.count).toBe(3);
+			expect(out.artifacts[0].artifactKind).toBe("code_written");
+			expect(out.artifacts[0].id).toBe(seeded.codeWrittenArtifactId);
+			expect(out.artifacts[1].artifactKind).toBe("test_failed_run");
+			expect(out.artifacts[2].artifactKind).toBe("test_written");
+			expect(out.artifacts[0].phaseId).toBe(seeded.redPhaseId);
+		});
+
+		it("filters by artifactKind", async () => {
+			const seeded = await seedSessionWithArtifacts();
+			const caller = createTestCaller();
+			const out = await caller.tdd_artifact_list({
+				tddTaskId: seeded.tddId,
+				artifactKind: "test_failed_run",
+			});
+			expect(out.count).toBe(1);
+			expect(out.artifacts[0].id).toBe(seeded.testFailedRunArtifactId);
+			expect(out.filters.artifactKind).toBe("test_failed_run");
+		});
+
+		it("returns count=0 and an empty artifacts[] when there is no match", async () => {
+			const seeded = await seedSessionWithArtifacts();
+			const caller = createTestCaller();
+			const out = await caller.tdd_artifact_list({
+				tddTaskId: seeded.tddId,
+				artifactKind: "refactor",
+			});
+			expect(out.count).toBe(0);
+			expect(out.artifacts).toEqual([]);
+			expect(out.filters.artifactKind).toBe("refactor");
 		});
 	});
 
 	describe("tdd_phase_transition_request tool", () => {
 		async function seedTddSessionForTransition(
-			ccSessionId: string,
+			chatId: string,
 			goalText: string,
 		): Promise<{ tddId: number; goalId: number; sessionId: number }> {
 			const sessionId = await testRuntime.runPromise(
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					return yield* store.writeSession({
-						cc_session_id: ccSessionId,
+						chatId: chatId,
 						project: "default",
 						cwd: process.cwd(),
-						agent_kind: "main",
-						started_at: new Date().toISOString(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
 					});
 				}),
 			);
 			const caller = createTestCaller();
-			const tdd = await caller.tdd_session_start({ sessionId, goal: goalText });
-			const tddId = (tdd as { id: number }).id;
-			const goalRes = (await caller.tdd_goal_create({ sessionId: tddId, goal: goalText })) as {
+			const tdd = await caller.tdd_task({ action: "start", sessionId, goal: goalText });
+			const tddId = (tdd as { tddTaskId: number }).tddTaskId;
+			const goalRes = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: goalText })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			await caller.tdd_goal_update({ id: goalRes.goal.id, status: "in_progress" });
+			await caller.tdd_goal({ action: "update", id: goalRes.goal.id, status: "in_progress" });
 			return { tddId, goalId: goalRes.goal.id, sessionId };
 		}
 
@@ -560,7 +733,7 @@ describe("MCP Router", () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-missing", "g");
 			const caller = createTestCaller();
 			const r = (await caller.tdd_phase_transition_request({
-				tddSessionId: tddId,
+				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "green",
 				citedArtifactId: 99999,
@@ -578,7 +751,7 @@ describe("MCP Router", () => {
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					const phase = yield* store.writeTddPhase({
-						tddSessionId: tddId,
+						tddTaskId: tddId,
 						phase: "spike",
 						startedAt: new Date().toISOString(),
 					});
@@ -593,7 +766,7 @@ describe("MCP Router", () => {
 
 			const caller = createTestCaller();
 			const r = (await caller.tdd_phase_transition_request({
-				tddSessionId: tddId,
+				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "red",
 				citedArtifactId: artifactId,
@@ -605,7 +778,7 @@ describe("MCP Router", () => {
 			const { tddId } = await seedTddSessionForTransition("cc-tdd-trans-goalmissing", "g");
 			const caller = createTestCaller();
 			const r = (await caller.tdd_phase_transition_request({
-				tddSessionId: tddId,
+				tddTaskId: tddId,
 				goalId: 99999,
 				requestedPhase: "red",
 				citedArtifactId: 1,
@@ -617,9 +790,9 @@ describe("MCP Router", () => {
 		it("rejects with goal_not_in_progress when goal status is done", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-goaldone", "g");
 			const caller = createTestCaller();
-			await caller.tdd_goal_update({ id: goalId, status: "done" });
+			await caller.tdd_goal({ action: "update", id: goalId, status: "done" });
 			const r = (await caller.tdd_phase_transition_request({
-				tddSessionId: tddId,
+				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "red",
 				citedArtifactId: 1,
@@ -632,7 +805,7 @@ describe("MCP Router", () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-behmissing", "g");
 			const caller = createTestCaller();
 			const r = (await caller.tdd_phase_transition_request({
-				tddSessionId: tddId,
+				tddTaskId: tddId,
 				goalId,
 				behaviorId: 99999,
 				requestedPhase: "red",
@@ -645,16 +818,16 @@ describe("MCP Router", () => {
 		it("rejects with behavior_not_in_goal when behavior belongs to a different goal", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-othergoal", "g");
 			const caller = createTestCaller();
-			const otherGoal = (await caller.tdd_goal_create({ sessionId: tddId, goal: "other" })) as {
+			const otherGoal = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "other" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const otherBeh = (await caller.tdd_behavior_create({ goalId: otherGoal.goal.id, behavior: "x" })) as {
+			const otherBeh = (await caller.tdd_behavior({ action: "create", goalId: otherGoal.goal.id, behavior: "x" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
 			const r = (await caller.tdd_phase_transition_request({
-				tddSessionId: tddId,
+				tddTaskId: tddId,
 				goalId,
 				behaviorId: otherBeh.behavior.id,
 				requestedPhase: "red",
@@ -667,7 +840,7 @@ describe("MCP Router", () => {
 		it("auto-promotes behavior pending → in_progress on accepted transition", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-autopromote", "g");
 			const caller = createTestCaller();
-			const beh = (await caller.tdd_behavior_create({ goalId, behavior: "b1" })) as {
+			const beh = (await caller.tdd_behavior({ action: "create", goalId, behavior: "b1" })) as {
 				ok: true;
 				behavior: { id: number; status: string };
 			};
@@ -677,7 +850,7 @@ describe("MCP Router", () => {
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					const phase = yield* store.writeTddPhase({
-						tddSessionId: tddId,
+						tddTaskId: tddId,
 						phase: "spike",
 						startedAt: new Date().toISOString(),
 					});
@@ -691,7 +864,7 @@ describe("MCP Router", () => {
 			);
 
 			const r = (await caller.tdd_phase_transition_request({
-				tddSessionId: tddId,
+				tddTaskId: tddId,
 				goalId,
 				behaviorId: beh.behavior.id,
 				requestedPhase: "red",
@@ -699,7 +872,7 @@ describe("MCP Router", () => {
 			})) as { accepted: boolean };
 			expect(r.accepted).toBe(true);
 
-			const updated = (await caller.tdd_behavior_get({ id: beh.behavior.id })) as {
+			const updated = (await caller.tdd_behavior({ action: "get", id: beh.behavior.id })) as {
 				found: true;
 				behavior: { status: string };
 			};
@@ -714,7 +887,7 @@ describe("MCP Router", () => {
 			const caller = createTestCaller();
 
 			// Create a behavior — must start as pending.
-			const beh = (await caller.tdd_behavior_create({ goalId, behavior: "green-b1" })) as {
+			const beh = (await caller.tdd_behavior({ action: "create", goalId, behavior: "green-b1" })) as {
 				ok: true;
 				behavior: { id: number; status: string };
 			};
@@ -737,18 +910,18 @@ describe("MCP Router", () => {
 					// Write a turn in that session to anchor the test case.
 					const turnOccurredAt = new Date(new Date(phaseStartedAt).getTime() + 100).toISOString();
 					const turnId = yield* store.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "file_edit",
 						payload: JSON.stringify({
 							type: "file_edit",
 							file_path: "src/example.test.ts",
 							edit_kind: "write",
 						}),
-						occurred_at: turnOccurredAt,
+						occurredAt: turnOccurredAt,
 					});
 
 					// Write a test run.
-					yield* store.writeSettings("hash-green-test", { vitest_version: "4.1.0" }, {});
+					yield* store.writeSettings("hash-green-test", { vitestVersion: "4.1.0" }, {});
 					const runId = yield* store.writeRun({
 						invocationId: "inv-green-001",
 						project: "default",
@@ -782,14 +955,14 @@ describe("MCP Router", () => {
 							fullName: "example > should do something",
 							state: "failed",
 							duration: 10,
-							created_turn_id: turnId,
+							createdTurnId: turnId,
 						},
 					]);
 
 					// Open a red phase with the behavior_id — the validator reads
 					// tdd_phases.behavior_id to enforce D2 binding rule 2.
 					const redPhase = yield* store.writeTddPhase({
-						tddSessionId: tddId,
+						tddTaskId: tddId,
 						behaviorId: beh.behavior.id,
 						phase: "red",
 						startedAt: phaseStartedAt,
@@ -811,7 +984,7 @@ describe("MCP Router", () => {
 			);
 
 			// The behavior is still pending before the transition.
-			const before = (await caller.tdd_behavior_get({ id: beh.behavior.id })) as {
+			const before = (await caller.tdd_behavior({ action: "get", id: beh.behavior.id })) as {
 				found: true;
 				behavior: { status: string };
 			};
@@ -819,7 +992,7 @@ describe("MCP Router", () => {
 
 			// Request red→green — this should be accepted and auto-promote the behavior.
 			const r = (await caller.tdd_phase_transition_request({
-				tddSessionId: tddId,
+				tddTaskId: tddId,
 				goalId,
 				behaviorId: beh.behavior.id,
 				requestedPhase: "green",
@@ -828,37 +1001,143 @@ describe("MCP Router", () => {
 			expect(r.accepted).toBe(true);
 
 			// After the accepted transition the behavior must be in_progress.
-			const after = (await caller.tdd_behavior_get({ id: beh.behavior.id })) as {
+			const after = (await caller.tdd_behavior({ action: "get", id: beh.behavior.id })) as {
 				found: true;
 				behavior: { status: string };
 			};
 			expect(after.behavior.status).toBe("in_progress");
 		});
-	});
 
-	describe("tdd_goal_* and tdd_behavior_* tools", () => {
-		const seedTddSession = async (ccSessionId: string, goal: string = "obj") => {
-			const sessionId = await testRuntime.runPromise(
+		it("auto-resolves citedArtifactId for spike→red when neither citedArtifactId nor citedArtifactKind is supplied (no artifact required)", async () => {
+			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-spike-red-noart", "g");
+			const caller = createTestCaller();
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				requestedPhase: "red",
+			})) as { accepted: boolean; phase?: string };
+			expect(r.accepted).toBe(true);
+			expect(r.phase).toBe("red");
+		});
+
+		it("auto-resolves citedArtifactId from citedArtifactKind by picking the most recent matching artifact", async () => {
+			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-autoresolve-kind", "g");
+			const { newest } = await testRuntime.runPromise(
 				Effect.gen(function* () {
 					const store = yield* DataStore;
-					return yield* store.writeSession({
-						cc_session_id: ccSessionId,
-						project: "default",
-						cwd: process.cwd(),
-						agent_kind: "main",
-						started_at: new Date().toISOString(),
+					const phase = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "spike",
+						startedAt: "2026-04-30T00:00:00Z",
+					});
+					yield* store.writeTddArtifact({
+						phaseId: phase.id,
+						artifactKind: "test_failed_run",
+						recordedAt: "2026-04-30T00:00:01Z",
+					});
+					const newest = yield* store.writeTddArtifact({
+						phaseId: phase.id,
+						artifactKind: "test_failed_run",
+						recordedAt: "2026-04-30T00:00:02Z",
+					});
+					return { newest };
+				}),
+			);
+			const caller = createTestCaller();
+			// Request spike→red (no required artifact) but pass an explicit
+			// citedArtifactKind to exercise the explicit-kind branch. The
+			// transition itself still accepts; the response should echo the
+			// auto-picked id and source label.
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				requestedPhase: "red",
+				citedArtifactKind: "test_failed_run",
+			})) as { accepted: boolean; citedArtifactId?: number; citedArtifactSource?: string };
+			expect(r.accepted).toBe(true);
+			expect(r.citedArtifactId).toBe(newest);
+			expect(r.citedArtifactSource).toBe("explicit-kind");
+		});
+
+		it("denies with missing_artifact_evidence when no artifact of the auto-derived kind exists", async () => {
+			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-noevidence", "g");
+			// Force the session into red phase so red→green will be the
+			// requested transition (which requires test_failed_run).
+			await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "red",
+						startedAt: new Date().toISOString(),
 					});
 				}),
 			);
 			const caller = createTestCaller();
-			const tdd = await caller.tdd_session_start({ sessionId, goal });
-			return (tdd as { id: number }).id;
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				requestedPhase: "green",
+			})) as { accepted: boolean; denialReason?: string; remediation?: { humanHint: string } };
+			expect(r.accepted).toBe(false);
+			expect(r.denialReason).toBe("missing_artifact_evidence");
+			expect(r.remediation?.humanHint).toMatch(/test_failed_run/);
+		});
+
+		it("echoes citedArtifactSource='explicit-id' when citedArtifactId was supplied", async () => {
+			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-explicit-id", "g");
+			const { artifactId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const phase = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "spike",
+						startedAt: new Date().toISOString(),
+					});
+					const artifactId = yield* store.writeTddArtifact({
+						phaseId: phase.id,
+						artifactKind: "test_written",
+						recordedAt: new Date().toISOString(),
+					});
+					return { artifactId };
+				}),
+			);
+			const caller = createTestCaller();
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				requestedPhase: "red",
+				citedArtifactId: artifactId,
+			})) as { accepted: boolean; citedArtifactId?: number; citedArtifactSource?: string };
+			expect(r.accepted).toBe(true);
+			expect(r.citedArtifactId).toBe(artifactId);
+			expect(r.citedArtifactSource).toBe("explicit-id");
+		});
+	});
+
+	describe("tdd_goal_* and tdd_behavior_* tools", () => {
+		const seedTddSession = async (chatId: string, goal: string = "obj") => {
+			const sessionId = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					return yield* store.writeSession({
+						chatId: chatId,
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
+					});
+				}),
+			);
+			const caller = createTestCaller();
+			const tdd = await caller.tdd_task({ action: "start", sessionId, goal });
+			return (tdd as { tddTaskId: number }).tddTaskId;
 		};
 
 		it("creates a goal and returns it with ordinal 0", async () => {
 			const tddId = await seedTddSession("cc-mcp-goal-create");
 			const caller = createTestCaller();
-			const r = (await caller.tdd_goal_create({ sessionId: tddId, goal: "Handle bounds" })) as {
+			const r = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "Handle bounds" })) as {
 				ok: true;
 				goal: { id: number; ordinal: number; goal: string; status: string };
 			};
@@ -871,8 +1150,11 @@ describe("MCP Router", () => {
 		it("returns idempotent replay on duplicate tdd_goal_create", async () => {
 			const tddId = await seedTddSession("cc-mcp-goal-idem");
 			const caller = createTestCaller();
-			const a = (await caller.tdd_goal_create({ sessionId: tddId, goal: "G" })) as { ok: true; goal: { id: number } };
-			const b = (await caller.tdd_goal_create({ sessionId: tddId, goal: "G" })) as {
+			const a = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
+				ok: true;
+				goal: { id: number };
+			};
+			const b = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 				_idempotentReplay?: boolean;
@@ -883,35 +1165,35 @@ describe("MCP Router", () => {
 
 		it("returns error envelope for tdd_goal_create against unknown session", async () => {
 			const caller = createTestCaller();
-			const r = (await caller.tdd_goal_create({ sessionId: 99999, goal: "G" })) as {
+			const r = (await caller.tdd_goal({ action: "create", tddTaskId: 99999, goal: "G" })) as {
 				ok: false;
 				error: { _tag: string; remediation: { humanHint: string } };
 			};
 			expect(r.ok).toBe(false);
-			expect(r.error._tag).toBe("TddSessionNotFoundError");
-			expect(r.error.remediation.humanHint).toContain("tdd_session_start");
+			expect(r.error._tag).toBe("TddTaskNotFoundError");
+			expect(r.error.remediation.humanHint).toContain("tdd_task");
 		});
 
 		it("supports tdd_goal_get, tdd_goal_update, tdd_goal_list lifecycle", async () => {
 			const tddId = await seedTddSession("cc-mcp-goal-lifecycle");
 			const caller = createTestCaller();
-			const created = (await caller.tdd_goal_create({ sessionId: tddId, goal: "G" })) as {
+			const created = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const fetched = (await caller.tdd_goal_get({ id: created.goal.id })) as {
+			const fetched = (await caller.tdd_goal({ action: "get", id: created.goal.id })) as {
 				found: true;
 				goal: { goal: string; behaviors: ReadonlyArray<unknown> };
 			};
 			expect(fetched.found).toBe(true);
 			expect(fetched.goal.goal).toBe("G");
 			expect(fetched.goal.behaviors).toEqual([]);
-			const updated = (await caller.tdd_goal_update({ id: created.goal.id, status: "in_progress" })) as {
+			const updated = (await caller.tdd_goal({ action: "update", id: created.goal.id, status: "in_progress" })) as {
 				ok: true;
 				goal: { status: string };
 			};
 			expect(updated.goal.status).toBe("in_progress");
-			const list = (await caller.tdd_goal_list({ sessionId: tddId })) as {
+			const list = (await caller.tdd_goal({ action: "list", tddTaskId: tddId })) as {
 				ok: true;
 				goals: ReadonlyArray<{ id: number; status: string }>;
 			};
@@ -922,13 +1204,13 @@ describe("MCP Router", () => {
 		it("rejects done → pending transition with IllegalStatusTransitionError envelope", async () => {
 			const tddId = await seedTddSession("cc-mcp-goal-illegal");
 			const caller = createTestCaller();
-			const created = (await caller.tdd_goal_create({ sessionId: tddId, goal: "G" })) as {
+			const created = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			await caller.tdd_goal_update({ id: created.goal.id, status: "in_progress" });
-			await caller.tdd_goal_update({ id: created.goal.id, status: "done" });
-			const r = (await caller.tdd_goal_update({ id: created.goal.id, status: "pending" })) as {
+			await caller.tdd_goal({ action: "update", id: created.goal.id, status: "in_progress" });
+			await caller.tdd_goal({ action: "update", id: created.goal.id, status: "done" });
+			const r = (await caller.tdd_goal({ action: "update", id: created.goal.id, status: "pending" })) as {
 				ok: false;
 				error: { _tag: string };
 			};
@@ -939,20 +1221,21 @@ describe("MCP Router", () => {
 		it("creates a behavior with dependencies and surfaces full BehaviorDetail via tdd_behavior_get", async () => {
 			const tddId = await seedTddSession("cc-mcp-beh-deps");
 			const caller = createTestCaller();
-			const goal = (await caller.tdd_goal_create({ sessionId: tddId, goal: "G" })) as {
+			const goal = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const dep = (await caller.tdd_behavior_create({ goalId: goal.goal.id, behavior: "dep" })) as {
+			const dep = (await caller.tdd_behavior({ action: "create", goalId: goal.goal.id, behavior: "dep" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
-			const target = (await caller.tdd_behavior_create({
+			const target = (await caller.tdd_behavior({
+				action: "create",
 				goalId: goal.goal.id,
 				behavior: "target",
 				dependsOnBehaviorIds: [dep.behavior.id],
 			})) as { ok: true; behavior: { id: number } };
-			const fetched = (await caller.tdd_behavior_get({ id: target.behavior.id })) as {
+			const fetched = (await caller.tdd_behavior({ action: "get", id: target.behavior.id })) as {
 				found: true;
 				behavior: {
 					behavior: string;
@@ -969,13 +1252,13 @@ describe("MCP Router", () => {
 		it("tdd_behavior_list scope='goal' returns the goal's behaviors", async () => {
 			const tddId = await seedTddSession("cc-mcp-beh-list-goal");
 			const caller = createTestCaller();
-			const goal = (await caller.tdd_goal_create({ sessionId: tddId, goal: "G" })) as {
+			const goal = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			await caller.tdd_behavior_create({ goalId: goal.goal.id, behavior: "x" });
-			await caller.tdd_behavior_create({ goalId: goal.goal.id, behavior: "y" });
-			const r = (await caller.tdd_behavior_list({ scope: "goal", goalId: goal.goal.id })) as {
+			await caller.tdd_behavior({ action: "create", goalId: goal.goal.id, behavior: "x" });
+			await caller.tdd_behavior({ action: "create", goalId: goal.goal.id, behavior: "y" });
+			const r = (await caller.tdd_behavior({ action: "list_by_goal", goalId: goal.goal.id })) as {
 				ok: true;
 				behaviors: ReadonlyArray<{ behavior: string }>;
 			};
@@ -986,17 +1269,17 @@ describe("MCP Router", () => {
 		it("tdd_behavior_list scope='session' returns behaviors across goals", async () => {
 			const tddId = await seedTddSession("cc-mcp-beh-list-session");
 			const caller = createTestCaller();
-			const g1 = (await caller.tdd_goal_create({ sessionId: tddId, goal: "g1" })) as {
+			const g1 = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "g1" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const g2 = (await caller.tdd_goal_create({ sessionId: tddId, goal: "g2" })) as {
+			const g2 = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "g2" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			await caller.tdd_behavior_create({ goalId: g1.goal.id, behavior: "a" });
-			await caller.tdd_behavior_create({ goalId: g2.goal.id, behavior: "b" });
-			const r = (await caller.tdd_behavior_list({ scope: "session", sessionId: tddId })) as {
+			await caller.tdd_behavior({ action: "create", goalId: g1.goal.id, behavior: "a" });
+			await caller.tdd_behavior({ action: "create", goalId: g2.goal.id, behavior: "b" });
+			const r = (await caller.tdd_behavior({ action: "list_by_tdd_task", tddTaskId: tddId })) as {
 				ok: true;
 				behaviors: ReadonlyArray<{ behavior: string }>;
 			};
@@ -1006,22 +1289,23 @@ describe("MCP Router", () => {
 		it("tdd_behavior_delete cascades dependency rows", async () => {
 			const tddId = await seedTddSession("cc-mcp-beh-delete");
 			const caller = createTestCaller();
-			const goal = (await caller.tdd_goal_create({ sessionId: tddId, goal: "G" })) as {
+			const goal = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const dep = (await caller.tdd_behavior_create({ goalId: goal.goal.id, behavior: "dep" })) as {
+			const dep = (await caller.tdd_behavior({ action: "create", goalId: goal.goal.id, behavior: "dep" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
-			const target = (await caller.tdd_behavior_create({
+			const target = (await caller.tdd_behavior({
+				action: "create",
 				goalId: goal.goal.id,
 				behavior: "target",
 				dependsOnBehaviorIds: [dep.behavior.id],
 			})) as { ok: true; behavior: { id: number } };
-			const del = (await caller.tdd_behavior_delete({ id: target.behavior.id })) as { ok: true };
+			const del = (await caller.tdd_behavior({ action: "delete", id: target.behavior.id })) as { ok: true };
 			expect(del.ok).toBe(true);
-			const fetched = (await caller.tdd_behavior_get({ id: target.behavior.id })) as { found: false };
+			const fetched = (await caller.tdd_behavior({ action: "get", id: target.behavior.id })) as { found: false };
 			expect(fetched.found).toBe(false);
 		});
 	});

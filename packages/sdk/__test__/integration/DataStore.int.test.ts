@@ -5,25 +5,25 @@ import { DataStore } from "vitest-agent-sdk";
 import { test } from "./utils/fixtures.js";
 
 describe("DataStore integration", () => {
-	describe("writeTddSession", () => {
+	describe("writeTddTask", () => {
 		test("same (sessionId, runId) returns the same numeric id", async ({ runtime }) => {
 			const [id1, id2] = await runtime.runPromise(
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-int-1",
+						chatId: "cc-int-1",
 						project: "test-project",
 						cwd: "/workspace",
-						agent_kind: "main",
-						started_at: "2026-05-07T12:00:00.000Z",
+						agentKind: "main",
+						startedAt: "2026-05-07T12:00:00.000Z",
 					});
-					const first = yield* store.writeTddSession({
+					const first = yield* store.writeTddTask({
 						sessionId,
 						goal: "Implement the feature",
 						startedAt: "2026-05-07T12:00:00.000Z",
 						runId: "run-abc-1",
 					});
-					const second = yield* store.writeTddSession({
+					const second = yield* store.writeTddTask({
 						sessionId,
 						goal: "Implement the feature",
 						startedAt: "2026-05-07T12:00:00.000Z",
@@ -35,38 +35,38 @@ describe("DataStore integration", () => {
 			expect(id1).toBe(id2);
 		});
 
-		test("same (sessionId, runId) produces exactly 1 row in tdd_sessions", async ({ runtime }) => {
+		test("same (sessionId, runId) produces exactly 1 row in tdd_tasks", async ({ runtime }) => {
 			const count = await runtime.runPromise(
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-int-2",
+						chatId: "cc-int-2",
 						project: "test-project",
 						cwd: "/workspace",
-						agent_kind: "main",
-						started_at: "2026-05-07T12:00:00.000Z",
+						agentKind: "main",
+						startedAt: "2026-05-07T12:00:00.000Z",
 					});
-					yield* store.writeTddSession({
+					yield* store.writeTddTask({
 						sessionId,
 						goal: "Refactor the module",
 						startedAt: "2026-05-07T12:00:00.000Z",
 						runId: "run-abc-2",
 					});
-					yield* store.writeTddSession({
+					yield* store.writeTddTask({
 						sessionId,
 						goal: "Refactor the module",
 						startedAt: "2026-05-07T12:00:00.000Z",
 						runId: "run-abc-2",
 					});
-					yield* store.writeTddSession({
+					yield* store.writeTddTask({
 						sessionId,
 						goal: "Refactor the module",
 						startedAt: "2026-05-07T12:00:00.000Z",
 						runId: "run-abc-2",
 					});
 					const rows = yield* sql<{ count: number }>`
-						SELECT COUNT(*) AS count FROM tdd_sessions
+						SELECT COUNT(*) AS count FROM tdd_tasks
 						WHERE session_id = ${sessionId} AND run_id = ${"run-abc-2"}
 					`;
 					return rows[0].count;
@@ -81,24 +81,24 @@ describe("DataStore integration", () => {
 					const store = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-int-3",
+						chatId: "cc-int-3",
 						project: "test-project",
 						cwd: "/workspace",
-						agent_kind: "main",
-						started_at: "2026-05-07T12:00:00.000Z",
+						agentKind: "main",
+						startedAt: "2026-05-07T12:00:00.000Z",
 					});
-					const first = yield* store.writeTddSession({
+					const first = yield* store.writeTddTask({
 						sessionId,
 						goal: "Add more tests",
 						startedAt: "2026-05-07T12:00:00.000Z",
 					});
-					const second = yield* store.writeTddSession({
+					const second = yield* store.writeTddTask({
 						sessionId,
 						goal: "Add more tests",
 						startedAt: "2026-05-07T12:01:00.000Z",
 					});
 					const rows = yield* sql<{ count: number }>`
-						SELECT COUNT(*) AS count FROM tdd_sessions
+						SELECT COUNT(*) AS count FROM tdd_tasks
 						WHERE session_id = ${sessionId}
 					`;
 					return [first, second, rows[0].count] as const;
@@ -116,14 +116,14 @@ describe("DataStore integration", () => {
 					const store = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-int-4",
+						chatId: "cc-int-4",
 						project: "test-project",
 						cwd: "/workspace",
-						agent_kind: "main",
-						started_at: "2026-05-07T12:00:00.000Z",
+						agentKind: "main",
+						startedAt: "2026-05-07T12:00:00.000Z",
 					});
 					const turnId = yield* store.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "tool_result",
 						payload: JSON.stringify({
 							tool_name: "mcp__vitest_agent__test_status",
@@ -131,7 +131,7 @@ describe("DataStore integration", () => {
 							duration_ms: 100,
 							success: true,
 						}),
-						occurred_at: "2026-05-07T12:00:00.000Z",
+						occurredAt: "2026-05-07T12:00:00.000Z",
 					});
 					const rows = yield* sql<{ tool_name: string }>`
 						SELECT tool_name FROM tool_invocations WHERE turn_id = ${turnId}
@@ -148,14 +148,14 @@ describe("DataStore integration", () => {
 					const store = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-int-5",
+						chatId: "cc-int-5",
 						project: "test-project",
 						cwd: "/workspace",
-						agent_kind: "main",
-						started_at: "2026-05-07T12:00:00.000Z",
+						agentKind: "main",
+						startedAt: "2026-05-07T12:00:00.000Z",
 					});
 					const turnId = yield* store.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "tool_result",
 						payload: JSON.stringify({
 							tool_name: "some__double__underscore",
@@ -163,7 +163,7 @@ describe("DataStore integration", () => {
 							duration_ms: 50,
 							success: true,
 						}),
-						occurred_at: "2026-05-07T12:00:00.000Z",
+						occurredAt: "2026-05-07T12:00:00.000Z",
 					});
 					const rows = yield* sql<{ tool_name: string }>`
 						SELECT tool_name FROM tool_invocations WHERE turn_id = ${turnId}

@@ -5,13 +5,7 @@ import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import type { DataReader, DataStore } from "vitest-agent-sdk";
-import {
-	DataReaderLive,
-	DataStoreLive,
-	DataStore as DataStoreTag,
-	migration0001,
-	migration0002,
-} from "vitest-agent-sdk";
+import { DataReaderLive, DataStoreLive, DataStore as DataStoreTag, migration0001 } from "vitest-agent-sdk";
 import { recordTddArtifactEffect } from "../src/lib/record-tdd-artifact.js";
 
 const PlatformLayer = NodeContext.layer;
@@ -21,7 +15,6 @@ const buildLive = () => {
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
-			"0002_comprehensive": migration0002,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 	return Layer.mergeAll(
@@ -37,31 +30,31 @@ const run = <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore | SqlClien
 	Effect.runPromise(Effect.provide(effect, buildLive()));
 
 describe("recordTddArtifactEffect", () => {
-	it("resolves the open phase via cc_session_id and writes a tdd_artifact row", async () => {
+	it("resolves the open phase via chat_id and writes a tdd_artifact row", async () => {
 		const result = await run(
 			Effect.gen(function* () {
 				const ds = yield* DataStoreTag;
 				const sessionId = yield* ds.writeSession({
-					cc_session_id: "cc-art",
+					chatId: "cc-art",
 					project: "demo",
 					cwd: "/tmp/demo",
-					agent_kind: "subagent",
-					agent_type: "tdd-orchestrator",
-					started_at: "2026-04-29T00:00:00Z",
+					agentKind: "subagent",
+					agentType: "tdd-orchestrator",
+					startedAt: "2026-04-29T00:00:00Z",
 				});
-				const tddId = yield* ds.writeTddSession({
+				const tddId = yield* ds.writeTddTask({
 					sessionId,
 					goal: "g",
 					startedAt: "2026-04-29T00:00:01Z",
 				});
 				yield* ds.writeTddPhase({
-					tddSessionId: tddId,
+					tddTaskId: tddId,
 					phase: "red",
 					startedAt: "2026-04-29T00:00:02Z",
 				});
 
 				return yield* recordTddArtifactEffect({
-					ccSessionId: "cc-art",
+					chatId: "cc-art",
 					artifactKind: "test_written",
 					recordedAt: "2026-04-29T00:00:03Z",
 				});
@@ -71,20 +64,20 @@ describe("recordTddArtifactEffect", () => {
 		expect(result.phaseId).toBeGreaterThan(0);
 	});
 
-	it("fails loudly when the cc_session_id has no open TDD phase", async () => {
+	it("fails loudly when the chat_id has no open TDD phase", async () => {
 		const exit = await Effect.runPromiseExit(
 			Effect.provide(
 				Effect.gen(function* () {
 					const ds = yield* DataStoreTag;
 					yield* ds.writeSession({
-						cc_session_id: "cc-no-tdd",
+						chatId: "cc-no-tdd",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "main",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
 					return yield* recordTddArtifactEffect({
-						ccSessionId: "cc-no-tdd",
+						chatId: "cc-no-tdd",
 						artifactKind: "code_written",
 						recordedAt: "2026-04-29T00:00:01Z",
 					});
@@ -95,11 +88,11 @@ describe("recordTddArtifactEffect", () => {
 		expect(exit._tag).toBe("Failure");
 	});
 
-	it("fails loudly when the cc_session_id is unknown", async () => {
+	it("fails loudly when the chat_id is unknown", async () => {
 		const exit = await Effect.runPromiseExit(
 			Effect.provide(
 				recordTddArtifactEffect({
-					ccSessionId: "nonexistent",
+					chatId: "nonexistent",
 					artifactKind: "code_written",
 					recordedAt: "2026-04-29T00:00:01Z",
 				}),
@@ -114,24 +107,24 @@ describe("recordTddArtifactEffect", () => {
 			Effect.gen(function* () {
 				const ds = yield* DataStoreTag;
 				const sessionId = yield* ds.writeSession({
-					cc_session_id: "cc-no-phase",
+					chatId: "cc-no-phase",
 					project: "demo",
 					cwd: "/tmp/demo",
-					agent_kind: "subagent",
-					agent_type: "tdd-orchestrator",
-					started_at: "2026-04-29T00:00:00Z",
+					agentKind: "subagent",
+					agentType: "tdd-orchestrator",
+					startedAt: "2026-04-29T00:00:00Z",
 				});
 				// TDD session with no phase yet — exercises the
 				// Option.isNone(phaseOpt) branch that auto-opens
 				// a spike phase.
-				yield* ds.writeTddSession({
+				yield* ds.writeTddTask({
 					sessionId,
 					goal: "g",
 					startedAt: "2026-04-29T00:00:01Z",
 				});
 
 				return yield* recordTddArtifactEffect({
-					ccSessionId: "cc-no-phase",
+					chatId: "cc-no-phase",
 					artifactKind: "test_written",
 					recordedAt: "2026-04-29T00:00:02Z",
 				});
@@ -146,20 +139,20 @@ describe("recordTddArtifactEffect", () => {
 			Effect.gen(function* () {
 				const ds = yield* DataStoreTag;
 				const sessionId = yield* ds.writeSession({
-					cc_session_id: "cc-all-fks",
+					chatId: "cc-all-fks",
 					project: "demo",
 					cwd: "/tmp/demo",
-					agent_kind: "subagent",
-					agent_type: "tdd-orchestrator",
-					started_at: "2026-04-29T00:00:00Z",
+					agentKind: "subagent",
+					agentType: "tdd-orchestrator",
+					startedAt: "2026-04-29T00:00:00Z",
 				});
-				const tddId = yield* ds.writeTddSession({
+				const tddId = yield* ds.writeTddTask({
 					sessionId,
 					goal: "g",
 					startedAt: "2026-04-29T00:00:01Z",
 				});
 				yield* ds.writeTddPhase({
-					tddSessionId: tddId,
+					tddTaskId: tddId,
 					phase: "red",
 					startedAt: "2026-04-29T00:00:02Z",
 				});
@@ -171,7 +164,7 @@ describe("recordTddArtifactEffect", () => {
 				yield* ds.writeSettings(
 					"hash-1",
 					{
-						vitest_version: "4.1.5",
+						vitestVersion: "4.1.5",
 					},
 					{},
 				);
@@ -207,7 +200,7 @@ describe("recordTddArtifactEffect", () => {
 				]);
 
 				return yield* recordTddArtifactEffect({
-					ccSessionId: "cc-all-fks",
+					chatId: "cc-all-fks",
 					artifactKind: "test_failed_run",
 					fileId,
 					testCaseId: testCaseIds[0]!,

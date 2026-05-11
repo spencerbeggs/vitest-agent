@@ -17,8 +17,8 @@ import { recordTddArtifactEffect } from "../lib/record-tdd-artifact.js";
 import { recordTurnEffect } from "../lib/record-turn.js";
 import { recordRunWorkspaceChangesEffect } from "../lib/record-workspace-changes.js";
 
-const ccSessionId = Options.text("cc-session-id").pipe(
-	Options.withDescription("Claude Code session id (from hook envelope)"),
+const chatId = Options.text("chat-id").pipe(
+	Options.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
 );
 
 const occurredAt = Options.text("occurred-at").pipe(
@@ -30,11 +30,22 @@ const payloadArg = Args.text({ name: "payload-json" }).pipe(
 	Args.withDescription("Stringified JSON payload (validated against TurnPayload)"),
 );
 
+const project = Options.text("project");
+const cwd = Options.text("cwd");
+const projectOptional = Options.optional(Options.text("project"));
+const cwdOptional = Options.optional(Options.text("cwd"));
+
 const turnSubcommand = Command.make(
 	"turn",
-	{ ccSessionId, occurredAt, payload: payloadArg },
-	({ ccSessionId, occurredAt, payload }) =>
-		recordTurnEffect({ ccSessionId, payloadJson: payload, occurredAt }).pipe(
+	{ chatId, occurredAt, project: projectOptional, cwd: cwdOptional, payload: payloadArg },
+	({ chatId, occurredAt, project, cwd, payload }) =>
+		recordTurnEffect({
+			chatId,
+			payloadJson: payload,
+			occurredAt,
+			...(project._tag === "Some" && { project: project.value }),
+			...(cwd._tag === "Some" && { cwd: cwd.value }),
+		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catchAll((err) =>
 				Effect.sync(() => {
@@ -44,36 +55,33 @@ const turnSubcommand = Command.make(
 			),
 		),
 ).pipe(Command.withDescription("Validate a TurnPayload JSON and write a turn row"));
-
-const project = Options.text("project");
-const cwd = Options.text("cwd");
 const agentKind = Options.choice("agent-kind", ["main", "subagent"]).pipe(Options.withDefault("main"));
 const agentType = Options.optional(Options.text("agent-type"));
-const parentCcSessionId = Options.optional(Options.text("parent-cc-session-id"));
+const parentChatId = Options.optional(Options.text("parent-chat-id"));
 const triageWasNonEmpty = Options.boolean("triage-was-non-empty").pipe(Options.withDefault(false));
 const startedAt = Options.text("started-at").pipe(Options.withDefault(new Date().toISOString()));
 
 const sessionStartSubcommand = Command.make(
 	"session-start",
 	{
-		ccSessionId,
+		chatId,
 		project,
 		cwd,
 		agentKind,
 		agentType,
-		parentCcSessionId,
+		parentChatId,
 		triageWasNonEmpty,
 		startedAt,
 	},
 	(opts) =>
 		recordSessionStart({
-			ccSessionId: opts.ccSessionId,
+			chatId: opts.chatId,
 			project: opts.project,
 			cwd: opts.cwd,
 			agentKind: opts.agentKind as "main" | "subagent",
 			...(opts.agentType._tag === "Some" && { agentType: opts.agentType.value }),
-			...(opts.parentCcSessionId._tag === "Some" && {
-				parentCcSessionId: opts.parentCcSessionId.value,
+			...(opts.parentChatId._tag === "Some" && {
+				parentChatId: opts.parentChatId.value,
 			}),
 			triageWasNonEmpty: opts.triageWasNonEmpty,
 			startedAt: opts.startedAt,
@@ -91,9 +99,9 @@ const sessionStartSubcommand = Command.make(
 const endedAt = Options.text("ended-at").pipe(Options.withDefault(new Date().toISOString()));
 const endReason = Options.optional(Options.text("end-reason"));
 
-const sessionEndSubcommand = Command.make("session-end", { ccSessionId, endedAt, endReason }, (opts) =>
+const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endReason }, (opts) =>
 	recordSessionEnd({
-		ccSessionId: opts.ccSessionId,
+		chatId: opts.chatId,
 		endedAt: opts.endedAt,
 		endReason: opts.endReason._tag === "Some" ? opts.endReason.value : null,
 	}).pipe(
@@ -125,7 +133,9 @@ const recordedAtOpt = Options.text("recorded-at").pipe(Options.withDefault(new D
 const tddArtifactSubcommand = Command.make(
 	"tdd-artifact",
 	{
-		ccSessionId,
+		chatId,
+		project: projectOptional,
+		cwd: cwdOptional,
 		artifactKind: artifactKindOpt,
 		filePath: filePathOpt,
 		testCaseId: testCaseIdOpt,
@@ -143,7 +153,9 @@ const tddArtifactSubcommand = Command.make(
 				fileId = yield* ds.ensureFile(opts.filePath.value);
 			}
 			return yield* recordTddArtifactEffect({
-				ccSessionId: opts.ccSessionId,
+				chatId: opts.chatId,
+				...(opts.project._tag === "Some" && { project: opts.project.value }),
+				...(opts.cwd._tag === "Some" && { cwd: opts.cwd.value }),
 				artifactKind: opts.artifactKind as ArtifactKind,
 				...(fileId !== undefined && { fileId }),
 				...(opts.testCaseId._tag === "Some" && { testCaseId: opts.testCaseId.value }),
@@ -165,12 +177,12 @@ const tddArtifactSubcommand = Command.make(
 		),
 ).pipe(Command.withDescription("Record a TDD artifact (D7: CLI-only)"));
 
-const testCaseTurnsSubcommand = Command.make("test-case-turns", { ccSessionId }, ({ ccSessionId }) =>
+const testCaseTurnsSubcommand = Command.make("test-case-turns", { chatId }, ({ chatId }) =>
 	Effect.gen(function* () {
 		const store = yield* DataStore;
 		const reader = yield* DataReader;
-		const updated = yield* store.backfillTestCaseTurns(ccSessionId);
-		const latestId = yield* reader.getLatestTestCaseForSession(ccSessionId);
+		const updated = yield* store.backfillTestCaseTurns(chatId);
+		const latestId = yield* reader.getLatestTestCaseForSession(chatId);
 		return { updated, latestTestCaseId: Option.getOrNull(latestId) };
 	}).pipe(
 		Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
@@ -192,12 +204,12 @@ const invocationMethodOpt = Options.choice("invocation-method", ["bash", "mcp", 
 
 const runTriggerSubcommand = Command.make(
 	"run-trigger",
-	{ ccSessionId, invocationMethod: invocationMethodOpt },
-	({ ccSessionId, invocationMethod }) =>
+	{ chatId, invocationMethod: invocationMethodOpt },
+	({ chatId, invocationMethod }) =>
 		Effect.gen(function* () {
 			const store = yield* DataStore;
 			yield* store.associateLatestRunWithSession({
-				ccSessionId,
+				chatId,
 				invocationMethod: invocationMethod as RunInvocationMethod,
 			});
 		}).pipe(

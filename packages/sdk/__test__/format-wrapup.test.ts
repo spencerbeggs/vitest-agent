@@ -9,7 +9,7 @@ import { DataReaderLive } from "../src/layers/DataReaderLive.js";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import { formatWrapupEffect } from "../src/lib/format-wrapup.js";
 import migration0001 from "../src/migrations/0001_initial.js";
-import migration0002 from "../src/migrations/0002_comprehensive.js";
+
 import { DataReader } from "../src/services/DataReader.js";
 import { DataStore } from "../src/services/DataStore.js";
 
@@ -19,7 +19,6 @@ const PlatformLayer = NodeContext.layer;
 const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
 		"0001_initial": migration0001,
-		"0002_comprehensive": migration0002,
 	}),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
@@ -63,11 +62,11 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-empty",
+						chatId: "cc-empty",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					return yield* formatWrapupEffect({ sessionId, kind: "session_end" });
 				}),
@@ -80,44 +79,44 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-edits",
+						chatId: "cc-edits",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "subagent",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* ds.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "file_edit",
 						payload: JSON.stringify({ type: "file_edit", file_path: "/abs/src/foo.ts", edit_kind: "edit" }),
-						occurred_at: "2026-04-30T00:00:01Z",
+						occurredAt: "2026-04-30T00:00:01Z",
 					});
 					return yield* formatWrapupEffect({ sessionId, kind: "session_end" });
 				}),
 			);
 			expect(result).toContain("Session wrap-up");
 			expect(result).toMatch(/hypothesis|record/i);
-			expect(result).toContain("note_create");
+			expect(result).toContain('note({ action: "create" })');
 		});
 
-		it("resolves the session via ccSessionId when sessionId is omitted", async () => {
+		it("resolves the session via chatId when sessionId is omitted", async () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-resolve",
+						chatId: "cc-resolve",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* ds.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "file_edit",
 						payload: JSON.stringify({ type: "file_edit", file_path: "/abs/src/bar.ts", edit_kind: "write" }),
-						occurred_at: "2026-04-30T00:00:01Z",
+						occurredAt: "2026-04-30T00:00:01Z",
 					});
-					return yield* formatWrapupEffect({ ccSessionId: "cc-resolve", kind: "session_end" });
+					return yield* formatWrapupEffect({ chatId: "cc-resolve", kind: "session_end" });
 				}),
 			);
 			expect(result).toContain("Session wrap-up");
@@ -130,23 +129,23 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-stop",
+						chatId: "cc-stop",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "subagent",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* ds.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "file_edit",
 						payload: JSON.stringify({ type: "file_edit", file_path: "/abs/src/baz.ts", edit_kind: "edit" }),
-						occurred_at: "2026-04-30T00:00:01Z",
+						occurredAt: "2026-04-30T00:00:01Z",
 					});
 					return yield* formatWrapupEffect({ sessionId, kind: "stop" });
 				}),
 			);
 			expect(result).toContain("Before you finish");
-			expect(result).not.toContain("note_create");
+			expect(result).not.toContain('note({ action: "create" })');
 		});
 	});
 
@@ -156,17 +155,17 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-precompact",
+						chatId: "cc-precompact",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* ds.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "file_edit",
 						payload: JSON.stringify({ type: "file_edit", file_path: "/abs/src/qux.ts", edit_kind: "edit" }),
-						occurred_at: "2026-04-30T00:00:01Z",
+						occurredAt: "2026-04-30T00:00:01Z",
 					});
 					return yield* formatWrapupEffect({ sessionId, kind: "pre_compact" });
 				}),
@@ -182,15 +181,15 @@ describe("formatWrapupEffect", () => {
 					const ds = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-tdd",
+						chatId: "cc-tdd",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "subagent",
-						agent_type: "tdd-orchestrator",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "subagent",
+						agentType: "tdd-orchestrator",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* sql`
-						INSERT INTO tdd_sessions (id, session_id, goal, started_at, ended_at, outcome)
+						INSERT INTO tdd_tasks (id, session_id, goal, started_at, ended_at, outcome)
 						VALUES (1, ${sessionId}, 'add login validation', '2026-04-30T00:00:00Z', '2026-04-30T00:01:00Z', 'succeeded')
 					`;
 					return yield* formatWrapupEffect({ sessionId, kind: "tdd_handoff" });
@@ -207,12 +206,12 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-tdd-empty",
+						chatId: "cc-tdd-empty",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "subagent",
-						agent_type: "tdd-orchestrator",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "subagent",
+						agentType: "tdd-orchestrator",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					return yield* formatWrapupEffect({ sessionId, kind: "tdd_handoff" });
 				}),
@@ -227,11 +226,11 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-open-hyp",
+						chatId: "cc-open-hyp",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "subagent",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* ds.writeHypothesis({
 						sessionId,
@@ -246,7 +245,7 @@ describe("formatWrapupEffect", () => {
 			);
 			expect(result).toContain("Before you finish");
 			expect(result).toContain("open hypothesis");
-			expect(result).toContain("hypothesis_validate");
+			expect(result).toContain('hypothesis({ action: "validate"');
 			expect(result).toContain("2");
 		});
 	});
@@ -257,17 +256,17 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-main-stop",
+						chatId: "cc-main-stop",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* ds.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "file_edit",
 						payload: JSON.stringify({ type: "file_edit", file_path: "/abs/src/foo.ts", edit_kind: "edit" }),
-						occurred_at: "2026-04-30T00:00:01Z",
+						occurredAt: "2026-04-30T00:00:01Z",
 					});
 					return yield* formatWrapupEffect({ sessionId, kind: "stop" });
 				}),
@@ -280,11 +279,11 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-main-open-hyp",
+						chatId: "cc-main-open-hyp",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* ds.writeHypothesis({
 						sessionId,
@@ -301,24 +300,24 @@ describe("formatWrapupEffect", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-main-end",
+						chatId: "cc-main-end",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					yield* ds.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "file_edit",
 						payload: JSON.stringify({ type: "file_edit", file_path: "/abs/src/bar.ts", edit_kind: "edit" }),
-						occurred_at: "2026-04-30T00:00:01Z",
+						occurredAt: "2026-04-30T00:00:01Z",
 					});
 					return yield* formatWrapupEffect({ sessionId, kind: "session_end" });
 				}),
 			);
 			expect(result).toContain("Session wrap-up");
-			expect(result).toContain("note_create");
-			expect(result).not.toContain("hypothesis_record");
+			expect(result).toContain('note({ action: "create" })');
+			expect(result).not.toContain('hypothesis({ action: "record" })');
 		});
 	});
 
@@ -329,10 +328,10 @@ describe("formatWrapupEffect", () => {
 			// arrow-function fallbacks (lines 60, 69, 86, 88 of format-wrapup.ts).
 			const failingReader = DataReader.of({
 				getSessionById: () => Effect.fail(new DataStoreError({ operation: "read", table: "sessions", reason: "boom" })),
-				getSessionByCcId: () =>
+				getSessionByChatId: () =>
 					Effect.fail(new DataStoreError({ operation: "read", table: "sessions", reason: "boom" })),
-				getTddSessionById: () =>
-					Effect.fail(new DataStoreError({ operation: "read", table: "tdd_sessions", reason: "boom" })),
+				getTddTaskById: () =>
+					Effect.fail(new DataStoreError({ operation: "read", table: "tdd_tasks", reason: "boom" })),
 				searchTurns: () => Effect.fail(new DataStoreError({ operation: "read", table: "turns", reason: "boom" })),
 				listHypotheses: () =>
 					Effect.fail(new DataStoreError({ operation: "read", table: "hypotheses", reason: "boom" })),
@@ -341,14 +340,14 @@ describe("formatWrapupEffect", () => {
 			} as unknown as DataReader["Type"]);
 			const FailingReaderLayer = Layer.succeed(DataReader, failingReader);
 
-			// Drive line 60 (getSessionByCcId fallback): pass ccSessionId, force the
+			// Drive line 60 (getSessionByChatId fallback): pass chatId, force the
 			// Option.none() fallback so sessionId stays null and we early-return "".
 			const ccResolveResult = await Effect.runPromise(
-				Effect.provide(formatWrapupEffect({ ccSessionId: "cc-fails", kind: "stop" }), FailingReaderLayer),
+				Effect.provide(formatWrapupEffect({ chatId: "cc-fails", kind: "stop" }), FailingReaderLayer),
 			);
 			expect(ccResolveResult).toBe("");
 
-			// Drive line 69 (getTddSessionById fallback): tdd_handoff kind with a
+			// Drive line 69 (getTddTaskById fallback): tdd_handoff kind with a
 			// sessionId. The fallback yields Option.none() and the function returns "".
 			const tddHandoffResult = await Effect.runPromise(
 				Effect.provide(formatWrapupEffect({ sessionId: 42, kind: "tdd_handoff" }), FailingReaderLayer),

@@ -11,11 +11,11 @@ Three MCP calls are required protocol. Skipping any one of them is a named viola
 
 If you are the main agent, complete these steps before spawning:
 
-1. Call `session_list({ agentKind: "main", limit: 1 })` — capture the `cc_session_id` field from the first row as `ccSessionId`. (The DB value comes directly from the SessionStart hook payload and is immune to in-memory contamination from prior subagent runs. Do **not** use `get_current_session_id()` — that in-memory ref can be stale if a prior subagent called `set_current_session_id` with its own key.)
+1. Call `inventory (kind: session)({ agentKind: "main", limit: 1 })` — capture the `chat_id` field from the first row as `chatId`. The DB value comes directly from the SessionStart hook payload and is immune to in-memory contamination from prior subagent runs.
 2. Generate a `runId`: `` `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` ``. Do **not** reuse a `runId` across dispatches — a fresh id per dispatch is the invariant.
 3. Call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
 4. Initialize: `goalById = new Map()` (keyed by goal ID, each entry `{ ordinal, taskId? }`), `behaviorById = new Map()` (keyed by behavior ID, each entry `{ goalOrdinal, behaviorOrdinal, taskId }`).
-5. Spawn `vitest-agent:tdd-task` **in the background**, passing `goal`, `ccSessionId`, `runId`, and `parentTaskId` in the launch prompt.
+5. Spawn `vitest-agent:tdd-task` **in the background**, passing `goal`, `chatId`, `runId`, and `parentTaskId` in the launch prompt.
 
 Do not attempt TDD yourself — the tdd-task agent carries the required MCP tools and skill context for evidence-based phase transitions.
 
@@ -47,23 +47,23 @@ Event handlers:
 | `blocked` | `TaskUpdate({ id: <behavior taskId>, status: "blocked" })`; surface `reason` and `failureSignatureHash` to the user. |
 | `session_complete` | Reconcile against `goalIds[]` (catch dropped `goal_completed` events). `TaskUpdate({ id: parentTaskId, status: "completed" })` (or `cancelled` if outcome is `abandoned`). |
 
-If no `<channel>` events arrive (channels not active or not enabled), wait for the background completion notification. You can check progress at any time with `tdd_session_get(id)` via the MCP tool — it returns the full goal+behavior tree so you can rebuild the task list shape from a single read. (`tdd_session_resume(id)` returns only a short status summary; reach for `tdd_session_get` when you need the tree.)
+If no `<channel>` events arrive (channels not active or not enabled), wait for the background completion notification. You can check progress at any time with `tdd_task (action: get)(id)` via the MCP tool — it returns the full goal+behavior tree so you can rebuild the task list shape from a single read. (`tdd_task (action: resume)(id)` returns only a short status summary; reach for `tdd_task (action: get)` when you need the tree.)
 
 ---
 
-## Hard Gate 1 — `tdd_session_start`
+## Hard Gate 1 — `tdd_task (action: start)`
 
 Skipping this gate is the **UNREGISTERED SESSION** violation. This is the first action. Before any file read or write toward the goal:
 
 ```text
-tdd_session_start({ goal, ccSessionId, runId })
+tdd_task (action: start)({ goal, chatId, runId })
 ```
 
 Without a session ID there is no TDD session. Every phase artifact is homeless. RED-phase test failures are misclassified as flaky (the DB sees repeated failures with no session context and computes a low pass rate). `acceptance_metrics` returns 0% because zero evidence is bound to any session.
 
-The `ccSessionId` and `runId` are passed in your launch prompt. Use both exactly as given. Do not call `session_list` to derive `ccSessionId` and do not generate a new `runId` — both values come from the main agent.
+The `chatId` and `runId` are passed in your launch prompt. Use both exactly as given. Do not call `inventory (kind: session)` to derive `chatId` and do not generate a new `runId` — both values come from the main agent.
 
-## Hard Gate 2 — `hypothesis_record` before every production edit
+## Hard Gate 2 — `hypothesis (action: record)` before every production edit
 
 Skipping this gate is the **UNCITED FIX** violation.
 
@@ -72,7 +72,7 @@ Skipping this gate is the **UNCITED FIX** violation.
 Before editing any non-test file, call:
 
 ```text
-hypothesis_record({
+hypothesis (action: record)({
   content: "<causal claim: why this edit will make the test pass>",
   citedTestErrorId: <id from test_errors output>,
   citedStackFrameId: <id from test_errors output>,
@@ -85,7 +85,7 @@ Both `citedTestErrorId` and `citedStackFrameId` are required — they prove the 
 - "Fix the validation" — not a hypothesis
 - "The bounds check at line 42 runs after the index access, causing TypeError on index N" — is a hypothesis
 
-After the fix: `hypothesis_validate({ id, outcome: "confirmed" | "refuted" | "abandoned" })`.
+After the fix: `hypothesis (action: validate)({ id, outcome: "confirmed" | "refuted" | "abandoned" })`.
 
 ## Hard Gate 3 — `tdd_phase_transition_request`
 
@@ -93,7 +93,7 @@ Skipping this gate is the **UNRECORDED PHASE CHANGE** violation. At every RED→
 
 ```text
 tdd_phase_transition_request({
-  tddSessionId: <id>,
+  tddTaskId: <id>,
   requestedPhase: "green" | "refactor",
   citedArtifactId: <tdd_artifacts.id>
 })
@@ -109,8 +109,8 @@ These are the exact behaviors from the previous orchestrator session. All four a
 
 | What the orchestrator did | Named violation | Consequence |
 | --- | --- | --- |
-| Fixed bugs without calling `tdd_session_start` | UNREGISTERED SESSION | `acceptance_metrics` 0%; RED failures classified as flaky (67% pass rate) |
-| Edited production code without `hypothesis_record` | UNCITED FIX | No causal evidence bound to the fix; hypothesis audit is empty |
+| Fixed bugs without calling `tdd_task (action: start)` | UNREGISTERED SESSION | `acceptance_metrics` 0%; RED failures classified as flaky (67% pass rate) |
+| Edited production code without `hypothesis (action: record)` | UNCITED FIX | No causal evidence bound to the fix; hypothesis audit is empty |
 | Advanced phases without `tdd_phase_transition_request` | UNRECORDED PHASE CHANGE | DB has no phase record; evidence-based transitions cannot validate |
 | Used `pnpm vitest run` via Bash instead of `run_tests` MCP | SESSION BYPASS | Results bypass persistence; `test_history` and phase artifacts are not written |
 
@@ -122,9 +122,9 @@ These are the exact behaviors from the previous orchestrator session. All four a
 
 | If you are about to... | Required action |
 | --- | --- |
-| Write any file before `tdd_session_start` returned a session ID | STOP — UNREGISTERED SESSION. Call `tdd_session_start` first. |
-| Edit any production file without a recorded hypothesis | STOP — UNCITED FIX. Call `hypothesis_record` first. |
+| Write any file before `tdd_task (action: start)` returned a session ID | STOP — UNREGISTERED SESSION. Call `tdd_task (action: start)` first. |
+| Edit any production file without a recorded hypothesis | STOP — UNCITED FIX. Call `hypothesis (action: record)` first. |
 | Begin the next phase without `tdd_phase_transition_request` | STOP — UNRECORDED PHASE CHANGE. Request the transition first. |
 | Run `vitest`, `pnpm vitest`, `npx vitest`, or any Bash test runner | STOP — SESSION BYPASS. Use `run_tests` MCP instead. |
 | "Skip setup just this once, the goal is simple" | UNREGISTERED SESSION + UNCITED FIX combined. No exceptions. |
-| Call `session_list` to find your `ccSessionId` | STOP — the `ccSessionId` is in your launch prompt. Use it directly. |
+| Call `inventory (kind: session)` to find your `chatId` | STOP — the `chatId` is in your launch prompt. Use it directly. |

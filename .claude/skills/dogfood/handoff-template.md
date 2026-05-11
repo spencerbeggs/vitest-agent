@@ -4,7 +4,7 @@ chain_index: 01
 title: {title-slug}
 status: open
 created: {ISO-8601}
-parent_session: {cc_session_id of the agent writing this}
+parent_session: {chat_id of the agent writing this}
 prev_handoff: null
 what_were_testing: {one sentence describing the system aspect under observation — orchestrator behavior, channel resolution, hook denial, MCP tool surface, etc.}
 ---

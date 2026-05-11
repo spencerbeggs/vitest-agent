@@ -9,7 +9,7 @@ import { DataReaderLive } from "../src/layers/DataReaderLive.js";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import { formatTriageEffect } from "../src/lib/format-triage.js";
 import migration0001 from "../src/migrations/0001_initial.js";
-import migration0002 from "../src/migrations/0002_comprehensive.js";
+
 import { DataReader } from "../src/services/DataReader.js";
 import { DataStore } from "../src/services/DataStore.js";
 
@@ -19,7 +19,6 @@ const PlatformLayer = NodeContext.layer;
 const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
 		"0001_initial": migration0001,
-		"0002_comprehensive": migration0002,
 	}),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
@@ -37,20 +36,20 @@ const run = <A, E>(effect: Effect.Effect<A, E, DataStore | DataReader | SqlClien
 // Canonical seed data matching DataStore's actual interfaces
 const settingsHash = "triage-test-hash";
 const settingsInput = {
-	vitest_version: "3.2.0",
+	vitestVersion: "3.2.0",
 	pool: "forks",
 	environment: "node",
-	test_timeout: 5000,
-	hook_timeout: 10000,
-	slow_test_threshold: 300,
-	max_concurrency: 5,
-	max_workers: 4,
+	testTimeout: 5000,
+	hookTimeout: 10000,
+	slowTestThreshold: 300,
+	maxConcurrency: 5,
+	maxWorkers: 4,
 	isolate: true,
 	bail: 0,
 	globals: false,
-	file_parallelism: true,
-	sequence_seed: 42,
-	coverage_provider: "v8",
+	fileParallelism: true,
+	sequenceSeed: 42,
+	coverageProvider: "v8",
 };
 
 const runInput = {
@@ -95,11 +94,11 @@ describe("formatTriageEffect", () => {
 			Effect.gen(function* () {
 				const store = yield* DataStore;
 				yield* store.writeSession({
-					cc_session_id: "cc-test-session-001",
+					chatId: "cc-test-session-001",
 					project: "my-project",
 					cwd: "/workspace/my-project",
-					agent_kind: "main",
-					started_at: "2026-04-30T09:00:00.000Z",
+					agentKind: "main",
+					startedAt: "2026-04-30T09:00:00.000Z",
 				});
 				return yield* formatTriageEffect();
 			}),
@@ -164,8 +163,7 @@ describe("formatTriageEffect", () => {
 			listSessions: () => Effect.fail(new DataStoreError({ operation: "read", table: "sessions", reason: "boom" })),
 			computeAcceptanceMetrics: () =>
 				Effect.fail(new DataStoreError({ operation: "read", table: "tdd_artifacts", reason: "boom" })),
-			getTddSessionById: () =>
-				Effect.fail(new DataStoreError({ operation: "read", table: "tdd_sessions", reason: "boom" })),
+			getTddTaskById: () => Effect.fail(new DataStoreError({ operation: "read", table: "tdd_tasks", reason: "boom" })),
 			// Unused methods can be left as `null as never` since formatTriageEffect
 			// never reaches them.
 		} as unknown as DataReader["Type"]);
@@ -187,13 +185,13 @@ describe("formatTriageEffect", () => {
 			Effect.gen(function* () {
 				const store = yield* DataStore;
 				const sessionId = yield* store.writeSession({
-					cc_session_id: "cc-tdd-session",
+					chatId: "cc-tdd-session",
 					project: "tdd-project",
 					cwd: "/workspace/tdd-project",
-					agent_kind: "main",
-					started_at: "2026-04-30T11:00:00.000Z",
+					agentKind: "main",
+					startedAt: "2026-04-30T11:00:00.000Z",
 				});
-				yield* store.writeTddSession({
+				yield* store.writeTddTask({
 					sessionId,
 					goal: "make the orientation triage report support TDD session display",
 					startedAt: "2026-04-30T11:30:00.000Z",

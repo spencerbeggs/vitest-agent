@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { describe, expect } from "vitest";
 import { DataStore } from "vitest-agent-sdk";
 import type { McpContext } from "../../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef } from "../../src/context.js";
+import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../../src/context.js";
 import { appRouter } from "../../src/router.js";
 import { test } from "./utils/fixtures.js";
 
@@ -13,65 +13,66 @@ describe("tdd_session_start integration", () => {
 			runtime: runtime as unknown as McpContext["runtime"],
 			cwd: process.cwd(),
 			currentSessionId: createCurrentSessionIdRef(null),
+			sessionContext: createSessionContextRef(),
 		});
 
 		const sessionId = await runtime.runPromise(
 			Effect.gen(function* () {
 				const store = yield* DataStore;
 				return yield* store.writeSession({
-					cc_session_id: "mcp-int-1",
+					chatId: "mcp-int-1",
 					project: "test-project",
 					cwd: "/workspace",
-					agent_kind: "main",
-					started_at: "2026-05-07T12:00:00.000Z",
+					agentKind: "main",
+					startedAt: "2026-05-07T12:00:00.000Z",
 				});
 			}),
 		);
 
-		const first = await caller.tdd_session_start({
+		const first = await caller.tdd_task({
+			action: "start",
 			sessionId,
 			goal: "Implement the feature",
 			runId: "run-mcp-1",
 		});
-		const second = await caller.tdd_session_start({
+		const second = await caller.tdd_task({
+			action: "start",
 			sessionId,
 			goal: "Implement the feature",
 			runId: "run-mcp-1",
 		});
 
-		expect(first.id).toBe(second.id);
+		expect((first as { tddTaskId: number }).tddTaskId).toBe((second as { tddTaskId: number }).tddTaskId);
 		expect((second as Record<string, unknown>)._idempotentReplay).toBe(true);
 		expect((first as Record<string, unknown>)._idempotentReplay).toBeUndefined();
 	});
 
-	test("same (sessionId, runId) produces exactly 1 tdd_sessions row even without the middleware", async ({
-		runtime,
-	}) => {
+	test("same (sessionId, runId) produces exactly 1 tdd_tasks row even without the middleware", async ({ runtime }) => {
 		const count = await runtime.runPromise(
 			Effect.gen(function* () {
 				const store = yield* DataStore;
 				const sql = yield* SqlClient;
 				const sessionId = yield* store.writeSession({
-					cc_session_id: "mcp-int-2",
+					chatId: "mcp-int-2",
 					project: "test-project",
 					cwd: "/workspace",
-					agent_kind: "main",
-					started_at: "2026-05-07T12:00:00.000Z",
+					agentKind: "main",
+					startedAt: "2026-05-07T12:00:00.000Z",
 				});
-				yield* store.writeTddSession({
+				yield* store.writeTddTask({
 					sessionId,
 					goal: "Refactor the module",
 					startedAt: "2026-05-07T12:00:00.000Z",
 					runId: "run-mcp-2",
 				});
-				yield* store.writeTddSession({
+				yield* store.writeTddTask({
 					sessionId,
 					goal: "Refactor the module",
 					startedAt: "2026-05-07T12:00:00.000Z",
 					runId: "run-mcp-2",
 				});
 				const rows = yield* sql<{ count: number }>`
-					SELECT COUNT(*) AS count FROM tdd_sessions
+					SELECT COUNT(*) AS count FROM tdd_tasks
 					WHERE session_id = ${sessionId} AND run_id = ${"run-mcp-2"}
 				`;
 				return rows[0].count;
@@ -85,22 +86,25 @@ describe("tdd_session_start integration", () => {
 			runtime: runtime as unknown as McpContext["runtime"],
 			cwd: process.cwd(),
 			currentSessionId: createCurrentSessionIdRef(null),
+			sessionContext: createSessionContextRef(),
 		});
 
 		const sessionId = await runtime.runPromise(
 			Effect.gen(function* () {
 				const store = yield* DataStore;
 				return yield* store.writeSession({
-					cc_session_id: "mcp-int-3",
+					chatId: "mcp-int-3",
 					project: "test-project",
 					cwd: "/workspace",
-					agent_kind: "main",
-					started_at: "2026-05-07T12:00:00.000Z",
+					agentKind: "main",
+					startedAt: "2026-05-07T12:00:00.000Z",
 				});
 			}),
 		);
 
-		await expect(caller.tdd_session_start({ sessionId, goal: "Test blank runId", runId: "" })).rejects.toThrow();
+		await expect(
+			caller.tdd_task({ action: "start", sessionId, goal: "Test blank runId", runId: "" }),
+		).rejects.toThrow();
 	});
 
 	test("absent runId produces a new row on each call at the DB level", async ({ runtime }) => {
@@ -109,24 +113,24 @@ describe("tdd_session_start integration", () => {
 				const store = yield* DataStore;
 				const sql = yield* SqlClient;
 				const sessionId = yield* store.writeSession({
-					cc_session_id: "mcp-int-4",
+					chatId: "mcp-int-4",
 					project: "test-project",
 					cwd: "/workspace",
-					agent_kind: "main",
-					started_at: "2026-05-07T12:00:00.000Z",
+					agentKind: "main",
+					startedAt: "2026-05-07T12:00:00.000Z",
 				});
-				const first = yield* store.writeTddSession({
+				const first = yield* store.writeTddTask({
 					sessionId,
 					goal: "Add more tests",
 					startedAt: "2026-05-07T12:00:00.000Z",
 				});
-				const second = yield* store.writeTddSession({
+				const second = yield* store.writeTddTask({
 					sessionId,
 					goal: "Add more tests",
 					startedAt: "2026-05-07T12:01:00.000Z",
 				});
 				const rows = yield* sql<{ count: number }>`
-					SELECT COUNT(*) AS count FROM tdd_sessions
+					SELECT COUNT(*) AS count FROM tdd_tasks
 					WHERE session_id = ${sessionId}
 				`;
 				return [first, second, rows[0].count] as const;
@@ -143,19 +147,20 @@ describe("tdd_goal_create integration", () => {
 			runtime: runtime as unknown as McpContext["runtime"],
 			cwd: process.cwd(),
 			currentSessionId: createCurrentSessionIdRef(null),
+			sessionContext: createSessionContextRef(),
 		});
 
-		const tddSessionId = await runtime.runPromise(
+		const tddTaskId = await runtime.runPromise(
 			Effect.gen(function* () {
 				const store = yield* DataStore;
 				const sessionId = yield* store.writeSession({
-					cc_session_id: "mcp-int-5",
+					chatId: "mcp-int-5",
 					project: "test-project",
 					cwd: "/workspace",
-					agent_kind: "main",
-					started_at: "2026-05-07T12:00:00.000Z",
+					agentKind: "main",
+					startedAt: "2026-05-07T12:00:00.000Z",
 				});
-				return yield* store.writeTddSession({
+				return yield* store.writeTddTask({
 					sessionId,
 					goal: "Parent TDD session",
 					startedAt: "2026-05-07T12:00:00.000Z",
@@ -164,12 +169,14 @@ describe("tdd_goal_create integration", () => {
 			}),
 		);
 
-		const first = await caller.tdd_goal_create({
-			sessionId: tddSessionId,
+		const first = await caller.tdd_goal({
+			action: "create",
+			tddTaskId: tddTaskId,
 			goal: "Write unit tests for the parser",
 		});
-		const second = await caller.tdd_goal_create({
-			sessionId: tddSessionId,
+		const second = await caller.tdd_goal({
+			action: "create",
+			tddTaskId: tddTaskId,
 			goal: "Write unit tests for the parser",
 		});
 

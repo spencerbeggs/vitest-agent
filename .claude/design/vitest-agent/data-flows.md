@@ -160,9 +160,9 @@ Owned by `vitest-agent-cli`. See [./components/cli.md](./components/cli.md).
   `run-workspace-changes`, `test-case-turns`.
   - `record turn --cc-session-id <id> <payload-json>` decodes the payload
     via `Schema.decodeUnknown(TurnPayload)`, resolves the session via
-    `DataReader.getSessionByCcId`, then writes the turn via
+    `DataReader.getSessionByChatId`, then writes the turn via
     `DataStore.writeTurn` (omitting `turnNo` for auto-assignment).
-  - `record test-case-turns` runs `DataStore.backfillTestCaseTurns(ccSessionId)`
+  - `record test-case-turns` runs `DataStore.backfillTestCaseTurns(chatId)`
     (suffix-match UPDATE on `test_cases`) then
     `DataReader.getLatestTestCaseForSession`. Outputs `{ updated: N,
     latestTestCaseId: <id|null> }`.
@@ -220,19 +220,19 @@ schema decode and the DataStore write.
 
 | Hook event | Script | What it records |
 | ---------- | ------ | --------------- |
-| `SessionStart` | `session-start.sh` | calls `triage` for orientation context, then `record session-start --triage-was-non-empty <bool>`; emits triage markdown via `hookSpecificOutput.additionalContext` |
-| `UserPromptSubmit` | `user-prompt-submit-record.sh` | `UserPromptPayload` via `record turn`; calls `wrapup --kind=user_prompt_nudge` and emits the result via `hookSpecificOutput.additionalContext` |
-| `PreToolUse` | `pre-tool-use-record.sh` | `ToolCallPayload` via `record turn` (record-only; fires too often to inject prompts) |
-| `PostToolUse` (every result) | `post-tool-use-record.sh` | `ToolResultPayload` via `record turn`; for `Edit`/`Write`/`MultiEdit` an additional `FileEditPayload` (with diff and added/removed line counts) |
-| `PostToolUse` (Bash test run) | `post-test-run.sh` | writes the `run-trigger` row, then calls `record test-case-turns` best-effort so `test_cases.created_turn_id` is populated for Bash-initiated runs |
-| `PreCompact` | `pre-compact-record.sh` | `HookFirePayload` via `record turn`; calls `wrapup --kind=pre_compact` and emits via top-level `systemMessage` |
-| `Stop` | `stop-record.sh` | `hook_fire` turn; calls `wrapup --kind=stop` and emits via top-level `systemMessage` |
-| `SessionEnd` | `session-end-record.sh` | `record session-end` to update `sessions.ended_at` / `sessions.end_reason`; calls `wrapup --kind=session_end` and emits via `systemMessage` |
-| `SubagentStart` (TDD) | `subagent-start-tdd.sh` | scoped via `lib/match-tdd-agent.sh`; writes `sessions` with `agent_kind='subagent'`, `parent_session_id` set |
-| `SubagentStop` (TDD) | `subagent-stop-tdd.sh` | `record session-end` with `end_reason="subagent_stop"`; generates a `wrapup --kind=tdd_handoff` note and records it as a turn on the parent session |
-| `PostToolUse` (TDD-scoped) | `post-tool-use-tdd-artifact.sh` | records `test_failed_run` / `test_passed_run` from Bash test runs and `test_written` / `code_written` from Edit/Write outcomes via `record tdd-artifact` |
-| `PostToolUse` (TDD-scoped) | `post-tool-use-test-quality.sh` | scans test-file edits for escape-hatch tokens and records `test_weakened` artifacts |
-| `PostToolUse` (repo-scoped, `git commit`/`git push`) | `post-tool-use-git-commit.sh` | parses git metadata and shells to `record run-workspace-changes`, which writes `commits` (idempotent on `sha`) and `run_changed_files` |
+| `SessionStart` | `session/start.sh` | calls `triage` for orientation context, then `record session-start --triage-was-non-empty <bool>`; emits triage markdown via `hookSpecificOutput.additionalContext` |
+| `UserPromptSubmit` | `user-prompt-submit/record.sh` | `UserPromptPayload` via `record turn`; calls `wrapup --kind=user_prompt_nudge` and emits the result via `hookSpecificOutput.additionalContext` |
+| `PreToolUse` | `pre-tool-use/record.sh` | `ToolCallPayload` via `record turn` (record-only; fires too often to inject prompts) |
+| `PostToolUse` (every result) | `post-tool-use/record.sh` | `ToolResultPayload` via `record turn`; for `Edit`/`Write`/`MultiEdit` an additional `FileEditPayload` (with diff and added/removed line counts) |
+| `PostToolUse` (Bash test run) | `post-tool-use/test-run.sh` | writes the `run-trigger` row, then calls `record test-case-turns` best-effort so `test_cases.created_turn_id` is populated for Bash-initiated runs |
+| `PreCompact` | `pre-compact/record.sh` | `HookFirePayload` via `record turn`; calls `wrapup --kind=pre_compact` and emits via top-level `systemMessage` |
+| `Stop` | `stop/record.sh` | `hook_fire` turn; calls `wrapup --kind=stop` and emits via top-level `systemMessage` |
+| `SessionEnd` | `session/end-record.sh` | `record session-end` to update `sessions.ended_at` / `sessions.end_reason`; calls `wrapup --kind=session_end` and emits via `systemMessage` |
+| `SubagentStart` (TDD) | `subagent/start-tdd.sh` | scoped via `lib/match-tdd-agent.sh`; writes `sessions` with `agent_kind='subagent'`, `parent_session_id` set |
+| `SubagentStop` (TDD) | `subagent/stop-tdd.sh` | `record session-end` with `end_reason="subagent_stop"`; generates a `wrapup --kind=tdd_handoff` note and records it as a turn on the parent session |
+| `PostToolUse` (TDD-scoped) | `post-tool-use/tdd-artifact.sh` | records `test_failed_run` / `test_passed_run` from Bash test runs and `test_written` / `code_written` from Edit/Write outcomes via `record tdd-artifact` |
+| `PostToolUse` (TDD-scoped) | `post-tool-use/test-quality.sh` | scans test-file edits for escape-hatch tokens and records `test_weakened` artifacts |
+| `PostToolUse` (repo-scoped, `git commit`/`git push`) | `post-tool-use/git-commit.sh` | parses git metadata and shells to `record run-workspace-changes`, which writes `commits` (idempotent on `sha`) and `run_changed_files` |
 
 **Why hooks call the CLI rather than the DataStore directly.** Hooks are
 shell scripts. The CLI owns the Effect runtime, the schema decode, and the
@@ -306,3 +306,77 @@ orchestrator can recover without seeing a tRPC-level failure.
 The idempotency middleware (Flow 7) deliberately swallows errors on the
 cache write (not the procedure body) because re-running an idempotent
 procedure is itself safe.
+
+## Agent-agnostic taxonomy flows (Phases 1–4)
+
+### Attribution flow (env-injection canonical path)
+
+Three-step propagation chain:
+
+1. **SessionStart hook** writes the canonical UUIDs to `${CLAUDE_ENV_FILE}`:
+
+   ```sh
+   export VITEST_AGENT_CHAT_ID="..."
+   export VITEST_AGENT_CONVERSATION_ID="..."
+   export VITEST_AGENT_MAIN_AGENT_ID="..."
+   export VITEST_AGENT_AGENT_ID="..."
+   ```
+
+2. **Claude Code auto-sources `CLAUDE_ENV_FILE`** into Bash tool subprocesses and the MCP server child. (Hook subprocesses do NOT get auto-sourcing — non-SessionStart hooks call `lib/source-session-env.sh "$session_id"` to self-source.)
+
+3. **Reporter / MCP / sidecar** read `process.env.VITEST_AGENT_*` at startup. The reporter records `actor_type='agent'` plus the canonical UUIDs on every `test_runs` row; the MCP server's `SessionContextRef` populates from env at boot and `run_tests` mutates `process.env` from the ref before `createVitest` so the in-process reporter sees current attribution.
+
+**Subagent override**: when the active actor for a Bash call is a subagent (e.g., `tdd-task`), the PreToolUse Bash hook sources the session-env dir, computes the override prefix from the active agent context, and rewrites `tool_input.command` to prepend `VITEST_AGENT_AGENT_ID=<subagent_id> VITEST_AGENT_PARENT_AGENT_ID=<main_agent_id> ...`. The POSIX env-prefix scope is the immediately-following process only — main-agent env stays intact for subsequent calls.
+
+**Pass-through (no agent context)**: a direct `pnpm vitest run` typed by a human at a terminal, with no Claude window open against this project, runs without the env vars set. The reporter records `actor_type='system'` and NULL `agent_id`.
+
+### Sidecar registration flow (SessionStart)
+
+```text
+SessionStart hook (bash)
+  → vitest-agent _internal register-agent
+       --host-kind claude-code --agent-type claude-code-main
+       --host-session-id $session_id --transcript-path $transcript_path --cwd $cwd
+  → SidecarLive composes 3 SQLite scopes:
+       per-project data.db, per-client sessions.db, registry.db
+  → registerAgentEffect:
+       1. mapConversation(transcript_path) — get/create canonical conversation_id
+       2. mapSession(host_session_id, conversation_id, projectKey, projectDir) — get/create main_agent_id
+       3. ensure sessions row exists (writeSession idempotent on chat_id)
+       4. captureAgentContext(cwd) — git rev-parse for branch/sha/worktree
+       5. deriveIdempotencyKey + DataStore.registerAgent (returns Agent or IdempotencyHit)
+  → JSON output { agentId, conversationId, mainAgentId, idempotencyKey, idempotencyHit }
+SessionStart hook parses with jq, writes 4 export lines to CLAUDE_ENV_FILE.
+```
+
+### PreToolUse Bash interception flow
+
+```text
+PreToolUse hook (bash, matcher: Bash)
+  → source lib/source-session-env.sh $session_id (gain VITEST_AGENT_* exports)
+  → vitest-agent _internal inject-env --command "$cmd" --cwd $cwd
+  → injectEnv:
+       1. read VITEST_AGENT_CONVERSATION_ID, AGENT_ID, optional PARENT_AGENT_ID from env
+          (return original command on miss — no agent context to attribute)
+       2. read package.json#scripts from cwd
+       3. detectVitestScripts (one-hop indirection)
+       4. rewriteBashCommand: match against 5 Vitest patterns, prepend env prefix on match
+  → returns rewritten or original command on stdout
+PreToolUse hook returns hookSpecificOutput.updatedInput.command (and echoes
+description/timeout/run_in_background unchanged).
+```
+
+### MCP boot context recovery
+
+MCP server entry (`packages/mcp/src/bin.ts`) reads
+`process.env.VITEST_AGENT_*` at startup via `sessionContextFromEnv` and
+populates `McpContext.sessionContext` (a `SessionContextRef`). The
+`run_tests` tool reads from the ref before each Vitest invocation.
+This works because Claude Code auto-sources `CLAUDE_ENV_FILE` into the
+MCP server child process — the SessionStart hook's exports flow
+naturally into the MCP server's `process.env` without any explicit
+session-map lookup.
+
+The session map's `lookupByProjectDir` is the dev / test fallback when
+`CLAUDE_ENV_FILE` isn't available; the per-project `data.db` itself
+never reads from the session map at runtime.

@@ -216,7 +216,7 @@ export const SourceTestMapRow = Schema.Struct({
 
 export const SessionRow = Schema.Struct({
 	id: Schema.Number,
-	cc_session_id: Schema.String,
+	chat_id: Schema.String,
 	project: Schema.String,
 	cwd: Schema.String,
 	agent_kind: Schema.String,
@@ -304,14 +304,14 @@ export const BuildArtifactRow = Schema.Struct({
 	captured_at: Schema.String,
 });
 
-export const TddSessionRow = Schema.Struct({
+export const TddTaskRow = Schema.Struct({
 	id: Schema.Number,
 	session_id: Schema.Number,
 	goal: Schema.String,
 	started_at: Schema.String,
 	ended_at: Schema.NullOr(Schema.String),
 	outcome: Schema.NullOr(Schema.String),
-	parent_tdd_session_id: Schema.NullOr(Schema.Number),
+	parent_tdd_task_id: Schema.NullOr(Schema.Number),
 	summary_note_id: Schema.NullOr(Schema.Number),
 	run_id: Schema.NullOr(Schema.String),
 });
@@ -342,7 +342,7 @@ export const TddBehaviorDependencyRow = Schema.Struct({
 
 export const TddPhaseRow = Schema.Struct({
 	id: Schema.Number,
-	tdd_session_id: Schema.Number,
+	tdd_task_id: Schema.Number,
 	behavior_id: Schema.NullOr(Schema.Number),
 	phase: Schema.String,
 	started_at: Schema.String,

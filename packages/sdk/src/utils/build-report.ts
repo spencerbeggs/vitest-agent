@@ -279,8 +279,16 @@ export function buildAgentReport(
 			}
 		}
 
-		// Only include modules with failures in `failed` array
-		if (moduleHasFailure) {
+		// A module is "failed" in the report when either:
+		//   - at least one of its test cases failed, OR
+		//   - the module itself failed before its tests could run (a
+		//     collection-time error: import failure, syntax error, or
+		//     beforeAll throw). In that second case `allTests` is empty
+		//     and `moduleHasFailure` stays false, so we additionally
+		//     check the module's own state + errors so the agent sees
+		//     the file in `failed[]` instead of a misleading "0 passed".
+		const isCollectionFailure = !moduleHasFailure && moduleState === "failed" && moduleErrors !== undefined;
+		if (moduleHasFailure || isCollectionFailure) {
 			failedFiles.push(testModule.relativeModuleId);
 			const moduleReport: ModuleReport = {
 				file: testModule.relativeModuleId,

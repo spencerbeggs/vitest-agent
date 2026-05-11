@@ -48,3 +48,8 @@ docs/superpowers/
 
 # Raw upstream Vitest docs work area (populated by lib/scripts/fetch-upstream-docs.ts)
 packages/mcp/lib/vitest-docs-raw/
+
+# Local spike harnesses — empirical evidence captured in
+# .claude/plans/archive/ memos; the harness scripts themselves are
+# reproducible from the memo's prose and not tracked in git.
+spike/

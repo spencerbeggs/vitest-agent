@@ -17,20 +17,20 @@ export function captureSettings(config: Record<string, unknown>, vitestVersion: 
 	const coverageProvider = (config.coverage as Record<string, unknown>)?.provider as string | undefined;
 
 	return {
-		vitest_version: vitestVersion,
+		vitestVersion: vitestVersion,
 		...(pool !== undefined && { pool }),
 		...(environment !== undefined && { environment }),
-		...(testTimeout !== undefined && { test_timeout: testTimeout }),
-		...(hookTimeout !== undefined && { hook_timeout: hookTimeout }),
-		...(slowTestThreshold !== undefined && { slow_test_threshold: slowTestThreshold }),
-		...(maxConcurrency !== undefined && { max_concurrency: maxConcurrency }),
-		...(maxWorkers !== undefined && { max_workers: maxWorkers }),
+		...(testTimeout !== undefined && { testTimeout: testTimeout }),
+		...(hookTimeout !== undefined && { hookTimeout: hookTimeout }),
+		...(slowTestThreshold !== undefined && { slowTestThreshold: slowTestThreshold }),
+		...(maxConcurrency !== undefined && { maxConcurrency: maxConcurrency }),
+		...(maxWorkers !== undefined && { maxWorkers: maxWorkers }),
 		...(isolate !== undefined && { isolate }),
 		...(bail !== undefined && { bail }),
 		...(globals !== undefined && { globals }),
-		...(fileParallelism !== undefined && { file_parallelism: fileParallelism }),
-		...(sequenceSeed !== undefined && { sequence_seed: sequenceSeed }),
-		...(coverageProvider !== undefined && { coverage_provider: coverageProvider }),
+		...(fileParallelism !== undefined && { fileParallelism: fileParallelism }),
+		...(sequenceSeed !== undefined && { sequenceSeed: sequenceSeed }),
+		...(coverageProvider !== undefined && { coverageProvider: coverageProvider }),
 	};
 }
 

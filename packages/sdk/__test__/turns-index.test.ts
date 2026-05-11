@@ -7,7 +7,7 @@ describe("TurnPayload union", () => {
 		const result = Schema.decodeUnknownSync(TurnPayload)({
 			type: "hook_fire",
 			hook_kind: "SessionStart",
-			cc_session_id: "cc-1",
+			chat_id: "cc-1",
 		});
 		expect(result.type).toBe("hook_fire");
 	});

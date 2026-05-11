@@ -8,7 +8,7 @@ description: Required before any production-code edit during the red phase. Forc
 Before editing production code in response to a failing test, call:
 
 ```text
-hypothesis_record({
+hypothesis (action: record)({
   content: "<your hypothesis>",
   citedTestErrorId: <test_errors.id from test_errors>,
   citedStackFrameId: <stack_frames.id from the same error>,
@@ -20,7 +20,7 @@ hypothesis_record({
 
 1. Both `citedTestErrorId` and `citedStackFrameId` are required. A hypothesis without specific evidence is a vibe.
 2. The hypothesis should describe a causal claim. "The validation function returns null because the type guard runs before the input is normalized" is a hypothesis. "Fix the validation" is not.
-3. After the fix, validate the hypothesis: `hypothesis_validate({ id, outcome: "confirmed" | "refuted" | "abandoned" })`.
+3. After the fix, validate the hypothesis: `hypothesis (action: validate)({ id, outcome: "confirmed" | "refuted" | "abandoned" })`.
 
 ## Why externalize?
 

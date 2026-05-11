@@ -1,30 +1,34 @@
+import { randomUUID } from "node:crypto";
 import { SqlClient } from "@effect/sql/SqlClient";
 import { Effect, Layer, Option } from "effect";
+import { AgentNotFoundError, RegistrationConflictError } from "../errors/AgentErrors.js";
 import { DataStoreError, extractSqlReason } from "../errors/DataStoreError.js";
 import {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
 	IllegalStatusTransitionError,
-	TddSessionAlreadyEndedError,
-	TddSessionNotFoundError,
+	TddTaskAlreadyEndedError,
+	TddTaskNotFoundError,
 } from "../errors/TddErrors.js";
+import { Agent, IdempotencyHit } from "../schemas/Agent.js";
 import type { CoverageBaselines } from "../schemas/Baselines.js";
 import type { BehaviorRow, BehaviorStatus, GoalRow, GoalStatus } from "../schemas/Tdd.js";
 import type { TrendEntry } from "../schemas/Trends.js";
 import type {
 	CreateBehaviorInput,
 	CreateGoalInput,
-	EndTddSessionInput,
+	EndTddTaskInput,
 	FailureSignatureWriteInput,
 	FileCoverageInput,
 	HypothesisInput,
 	IdempotentResponseInput,
 	ModuleInput,
 	NoteInput,
+	RegisterAgentInput,
 	SessionInput,
 	SettingsInput,
 	SuiteInput,
-	TddSessionInput,
+	TddTaskInput,
 	TestCaseInput,
 	TestErrorInput,
 	TestRunInput,
@@ -110,7 +114,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeSettings").pipe(Effect.annotateLogs({ hash }));
-				yield* sql`INSERT OR IGNORE INTO settings (hash, vitest_version, pool, environment, test_timeout, hook_timeout, slow_test_threshold, max_concurrency, max_workers, isolate, bail, globals, file_parallelism, sequence_seed, coverage_provider) VALUES (${hash}, ${settings.vitest_version}, ${settings.pool ?? null}, ${settings.environment ?? null}, ${settings.test_timeout ?? null}, ${settings.hook_timeout ?? null}, ${settings.slow_test_threshold ?? null}, ${settings.max_concurrency ?? null}, ${settings.max_workers ?? null}, ${boolToInt(settings.isolate)}, ${settings.bail ?? null}, ${boolToInt(settings.globals)}, ${boolToInt(settings.file_parallelism)}, ${settings.sequence_seed ?? null}, ${settings.coverage_provider ?? null})`;
+				yield* sql`INSERT OR IGNORE INTO settings (hash, vitest_version, pool, environment, test_timeout, hook_timeout, slow_test_threshold, max_concurrency, max_workers, isolate, bail, globals, file_parallelism, sequence_seed, coverage_provider) VALUES (${hash}, ${settings.vitestVersion}, ${settings.pool ?? null}, ${settings.environment ?? null}, ${settings.testTimeout ?? null}, ${settings.hookTimeout ?? null}, ${settings.slowTestThreshold ?? null}, ${settings.maxConcurrency ?? null}, ${settings.maxWorkers ?? null}, ${boolToInt(settings.isolate)}, ${settings.bail ?? null}, ${boolToInt(settings.globals)}, ${boolToInt(settings.fileParallelism)}, ${settings.sequenceSeed ?? null}, ${settings.coverageProvider ?? null})`;
 
 				for (const [key, value] of Object.entries(envVars)) {
 					yield* sql`INSERT OR IGNORE INTO settings_env_vars (settings_hash, key, value) VALUES (${hash}, ${key}, ${value})`;
@@ -127,7 +131,12 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				yield* Effect.logDebug("writeRun").pipe(
 					Effect.annotateLogs({ project: input.project, invocationId: input.invocationId }),
 				);
-				yield* sql`INSERT INTO test_runs (invocation_id, project, settings_hash, timestamp, commit_sha, branch, reason, duration, total, passed, failed, skipped, scoped, snapshot_added, snapshot_matched, snapshot_unmatched, snapshot_updated, snapshot_unchecked, snapshot_total, snapshot_failure, snapshot_did_update, snapshot_files_added, snapshot_files_removed, snapshot_files_unmatched, snapshot_files_updated) VALUES (${input.invocationId}, ${input.project}, ${input.settingsHash}, ${input.timestamp}, ${input.commitSha ?? null}, ${input.branch ?? null}, ${input.reason}, ${input.duration}, ${input.total}, ${input.passed}, ${input.failed}, ${input.skipped}, ${input.scoped ? 1 : 0}, ${input.snapshotAdded ?? 0}, ${input.snapshotMatched ?? 0}, ${input.snapshotUnmatched ?? 0}, ${input.snapshotUpdated ?? 0}, ${input.snapshotUnchecked ?? 0}, ${input.snapshotTotal ?? 0}, ${boolToInt(input.snapshotFailure) ?? 0}, ${boolToInt(input.snapshotDidUpdate) ?? 0}, ${input.snapshotFilesAdded ?? 0}, ${input.snapshotFilesRemoved ?? 0}, ${input.snapshotFilesUnmatched ?? 0}, ${input.snapshotFilesUpdated ?? 0})`;
+				const actorType = input.actorType ?? "system";
+				const agentId = input.agentId ?? null;
+				const conversationId = input.conversationId ?? null;
+				const gitDirtyInt = input.gitDirty === undefined || input.gitDirty === null ? null : input.gitDirty ? 1 : 0;
+				const hostMetadataJson = input.hostMetadata == null ? null : JSON.stringify(input.hostMetadata);
+				yield* sql`INSERT INTO test_runs (invocation_id, project, settings_hash, timestamp, commit_sha, branch, reason, duration, total, passed, failed, skipped, scoped, snapshot_added, snapshot_matched, snapshot_unmatched, snapshot_updated, snapshot_unchecked, snapshot_total, snapshot_failure, snapshot_did_update, snapshot_files_added, snapshot_files_removed, snapshot_files_unmatched, snapshot_files_updated, actor_type, agent_id, conversation_id, git_branch, git_commit_sha, git_dirty, git_upstream, git_worktree_dir, host_source, host_value, host_metadata) VALUES (${input.invocationId}, ${input.project}, ${input.settingsHash}, ${input.timestamp}, ${input.commitSha ?? null}, ${input.branch ?? null}, ${input.reason}, ${input.duration}, ${input.total}, ${input.passed}, ${input.failed}, ${input.skipped}, ${input.scoped ? 1 : 0}, ${input.snapshotAdded ?? 0}, ${input.snapshotMatched ?? 0}, ${input.snapshotUnmatched ?? 0}, ${input.snapshotUpdated ?? 0}, ${input.snapshotUnchecked ?? 0}, ${input.snapshotTotal ?? 0}, ${boolToInt(input.snapshotFailure) ?? 0}, ${boolToInt(input.snapshotDidUpdate) ?? 0}, ${input.snapshotFilesAdded ?? 0}, ${input.snapshotFilesRemoved ?? 0}, ${input.snapshotFilesUnmatched ?? 0}, ${input.snapshotFilesUpdated ?? 0}, ${actorType}, ${agentId}, ${conversationId}, ${input.gitBranch ?? null}, ${input.gitCommitSha ?? null}, ${gitDirtyInt}, ${input.gitUpstream ?? null}, ${input.gitWorktreeDir ?? null}, ${input.hostSource ?? null}, ${input.hostValue ?? null}, ${hostMetadataJson})`;
 				const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 				return rows[0].id;
 			}).pipe(
@@ -185,7 +194,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				yield* Effect.logDebug("writeTestCases").pipe(Effect.annotateLogs({ moduleId, count: tests.length }));
 				const ids: number[] = [];
 				for (const tc of tests) {
-					yield* sql`INSERT INTO test_cases (module_id, suite_id, vitest_id, name, full_name, state, classification, duration, start_time, flaky, slow, retry_count, repeat_count, heap, mode, each, fails, concurrent, shuffle, timeout, skip_note, location_line, location_column, created_turn_id) VALUES (${moduleId}, ${tc.suiteId ?? null}, ${tc.vitestId ?? null}, ${tc.name}, ${tc.fullName}, ${tc.state}, ${tc.classification ?? null}, ${tc.duration ?? null}, ${tc.startTime ?? null}, ${boolToInt(tc.flaky)}, ${boolToInt(tc.slow)}, ${tc.retryCount ?? 0}, ${tc.repeatCount ?? 0}, ${tc.heap ?? null}, ${tc.mode ?? null}, ${boolToInt(tc.each)}, ${boolToInt(tc.fails)}, ${boolToInt(tc.concurrent)}, ${boolToInt(tc.shuffle)}, ${tc.timeout ?? null}, ${tc.skipNote ?? null}, ${tc.locationLine ?? null}, ${tc.locationColumn ?? null}, ${tc.created_turn_id ?? null})`;
+					yield* sql`INSERT INTO test_cases (module_id, suite_id, vitest_id, name, full_name, state, classification, duration, start_time, flaky, slow, retry_count, repeat_count, heap, mode, each, fails, concurrent, shuffle, timeout, skip_note, location_line, location_column, created_turn_id) VALUES (${moduleId}, ${tc.suiteId ?? null}, ${tc.vitestId ?? null}, ${tc.name}, ${tc.fullName}, ${tc.state}, ${tc.classification ?? null}, ${tc.duration ?? null}, ${tc.startTime ?? null}, ${boolToInt(tc.flaky)}, ${boolToInt(tc.slow)}, ${tc.retryCount ?? 0}, ${tc.repeatCount ?? 0}, ${tc.heap ?? null}, ${tc.mode ?? null}, ${boolToInt(tc.each)}, ${boolToInt(tc.fails)}, ${boolToInt(tc.concurrent)}, ${boolToInt(tc.shuffle)}, ${tc.timeout ?? null}, ${tc.skipNote ?? null}, ${tc.locationLine ?? null}, ${tc.locationColumn ?? null}, ${tc.createdTurnId ?? null})`;
 					const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 					const testCaseId = rows[0].id;
 					ids.push(testCaseId);
@@ -439,9 +448,22 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 
 		const writeSession = (input: SessionInput): Effect.Effect<number, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("writeSession").pipe(Effect.annotateLogs({ cc_session_id: input.cc_session_id }));
-				yield* sql`INSERT INTO sessions (cc_session_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at) VALUES (${input.cc_session_id}, ${input.project}, ${input.cwd}, ${input.agent_kind}, ${input.agent_type ?? null}, ${input.parent_session_id ?? null}, ${boolToInt(input.triage_was_non_empty) ?? 0}, ${input.started_at})`;
-				const rows = yield* sql<{ id: number }>`SELECT id FROM sessions WHERE cc_session_id = ${input.cc_session_id}`;
+				yield* Effect.logDebug("writeSession").pipe(Effect.annotateLogs({ chatId: input.chatId }));
+				yield* sql`INSERT INTO sessions (chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at) VALUES (${input.chatId}, ${input.project}, ${input.cwd}, ${input.agentKind}, ${input.agentType ?? null}, ${input.parentSessionId ?? null}, ${boolToInt(input.triageWasNonEmpty) ?? 0}, ${input.startedAt})`;
+				const rows = yield* sql<{ id: number }>`SELECT id FROM sessions WHERE chat_id = ${input.chatId}`;
+				return rows[0].id;
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "sessions", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const upsertSession = (input: SessionInput): Effect.Effect<number, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("upsertSession").pipe(Effect.annotateLogs({ chatId: input.chatId }));
+				yield* sql`INSERT INTO sessions (chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at) VALUES (${input.chatId}, ${input.project}, ${input.cwd}, ${input.agentKind}, ${input.agentType ?? null}, ${input.parentSessionId ?? null}, ${boolToInt(input.triageWasNonEmpty) ?? 0}, ${input.startedAt}) ON CONFLICT(chat_id) DO NOTHING`;
+				const rows = yield* sql<{ id: number }>`SELECT id FROM sessions WHERE chat_id = ${input.chatId}`;
 				return rows[0].id;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
@@ -455,16 +477,16 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				.withTransaction(
 					Effect.gen(function* () {
 						yield* Effect.logDebug("writeTurn").pipe(
-							Effect.annotateLogs({ session_id: input.session_id, type: input.type }),
+							Effect.annotateLogs({ sessionId: input.sessionId, type: input.type }),
 						);
-						if (input.turn_no !== undefined) {
-							yield* sql`INSERT INTO turns (session_id, turn_no, type, payload, occurred_at) VALUES (${input.session_id}, ${input.turn_no}, ${input.type}, ${input.payload}, ${input.occurred_at})`;
+						if (input.turnNo !== undefined) {
+							yield* sql`INSERT INTO turns (session_id, turn_no, type, payload, occurred_at) VALUES (${input.sessionId}, ${input.turnNo}, ${input.type}, ${input.payload}, ${input.occurredAt})`;
 						} else {
 							// Atomic auto-assignment: compute next turn_no inside the same INSERT
 							// so concurrent writers can't both compute the same value before either
 							// inserts. UNIQUE(session_id, turn_no) is enforced by the schema as a
 							// safety net.
-							yield* sql`INSERT INTO turns (session_id, turn_no, type, payload, occurred_at) SELECT ${input.session_id}, COALESCE(MAX(turn_no), 0) + 1, ${input.type}, ${input.payload}, ${input.occurred_at} FROM turns WHERE session_id = ${input.session_id}`;
+							yield* sql`INSERT INTO turns (session_id, turn_no, type, payload, occurred_at) SELECT ${input.sessionId}, COALESCE(MAX(turn_no), 0) + 1, ${input.type}, ${input.payload}, ${input.occurredAt} FROM turns WHERE session_id = ${input.sessionId}`;
 						}
 						const rows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 						const turnId = rows[0].id;
@@ -537,22 +559,22 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				);
 
 		const endSession = (
-			ccSessionId: string,
+			chatId: string,
 			endedAt: string,
 			endReason: string | null,
 		): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("endSession").pipe(Effect.annotateLogs({ ccSessionId, endReason }));
-				yield* sql`UPDATE sessions SET ended_at = ${endedAt}, end_reason = ${endReason} WHERE cc_session_id = ${ccSessionId}`;
+				yield* Effect.logDebug("endSession").pipe(Effect.annotateLogs({ chatId, endReason }));
+				yield* sql`UPDATE sessions SET ended_at = ${endedAt}, end_reason = ${endReason} WHERE chat_id = ${chatId}`;
 				// Match the loud-fail contract of writeSession/writeTurn: a missing
-				// cc_session_id is a programmer error, not an idempotent no-op.
+				// chat_id is a programmer error, not an idempotent no-op.
 				const rows = yield* sql<{ changes: number }>`SELECT changes() as changes`;
 				if (rows[0].changes === 0) {
 					return yield* Effect.fail(
 						new DataStoreError({
 							operation: "write",
 							table: "sessions",
-							reason: `unknown cc_session_id: ${ccSessionId}`,
+							reason: `unknown chat_id: ${chatId}`,
 						}),
 					);
 				}
@@ -616,11 +638,11 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
-		const writeTddSession = (input: TddSessionInput): Effect.Effect<number, DataStoreError> =>
+		const writeTddTask = (input: TddTaskInput): Effect.Effect<number, DataStoreError> =>
 			sql
 				.withTransaction(
 					Effect.gen(function* () {
-						yield* Effect.logDebug("writeTddSession").pipe(
+						yield* Effect.logDebug("writeTddTask").pipe(
 							Effect.annotateLogs({ sessionId: input.sessionId, goal: input.goal }),
 						);
 						// INSERT OR IGNORE lets SQLite atomically skip the row when the
@@ -629,81 +651,81 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 						// write-write race (two concurrent transactions can both SELECT empty
 						// then both attempt INSERT before either commits).
 						const rows = yield* sql<{ id: number }>`
-							INSERT OR IGNORE INTO tdd_sessions (session_id, goal, started_at, parent_tdd_session_id, run_id)
+							INSERT OR IGNORE INTO tdd_tasks (session_id, goal, started_at, parent_tdd_task_id, run_id)
 							VALUES (
 								${input.sessionId},
 								${input.goal},
 								${input.startedAt},
-								${input.parentTddSessionId ?? null},
+								${input.parentTddTaskId ?? null},
 								${input.runId ?? null}
 							)
 							RETURNING id
 						`;
 
-						let tddSessionId: number;
-						let isNewSession: boolean;
+						let tddTaskId: number;
+						let isNewTask: boolean;
 
 						if (rows.length > 0) {
-							tddSessionId = rows[0].id;
-							isNewSession = true;
+							tddTaskId = rows[0].id;
+							isNewTask = true;
 						} else {
 							// INSERT was ignored — only reachable when runId is provided and
 							// a concurrent writer already committed the same (session_id, run_id).
 							const existing = yield* sql<{ id: number; goal: string }>`
-								SELECT id, goal FROM tdd_sessions
+								SELECT id, goal FROM tdd_tasks
 								WHERE session_id = ${input.sessionId} AND run_id = ${input.runId}
 								LIMIT 1
 							`;
 							if (existing.length === 0) {
-								return yield* Effect.fail(new Error("writeTddSession: INSERT was ignored but no existing row found"));
+								return yield* Effect.fail(new Error("writeTddTask: INSERT was ignored but no existing row found"));
 							}
 							if (existing[0].goal !== input.goal) {
 								return yield* Effect.fail(
 									new Error(
-										`writeTddSession: runId conflict — existing session has goal "${existing[0].goal}", caller provided "${input.goal}"`,
+										`writeTddTask: runId conflict — existing task has goal "${existing[0].goal}", caller provided "${input.goal}"`,
 									),
 								);
 							}
-							tddSessionId = existing[0].id;
-							isNewSession = false;
+							tddTaskId = existing[0].id;
+							isNewTask = false;
 						}
 
 						// Open the initial `spike` phase in the same transaction as the
-						// session row so `getCurrentTddPhase` returns Some immediately after
-						// start and there is never a window where the session exists without
-						// an open phase. Only insert for genuinely new sessions — retries
+						// task row so `getCurrentTddPhase` returns Some immediately after
+						// start and there is never a window where the task exists without
+						// an open phase. Only insert for genuinely new tasks — retries
 						// that return an existing id must not create a duplicate spike phase.
-						if (isNewSession) {
+						if (isNewTask) {
 							yield* sql`
 								INSERT INTO tdd_phases
-									(tdd_session_id, behavior_id, phase, started_at, transition_reason, parent_phase_id)
+									(tdd_task_id, behavior_id, phase, started_at, transition_reason, parent_phase_id)
 								VALUES
 									(
-										${tddSessionId},
+										${tddTaskId},
 										${null},
 										${"spike"},
 										${input.startedAt},
-										${"opened by tdd_session_start"},
+										${"opened by tdd_task_start"},
 										${null}
 									)
 							`;
 						}
 
-						return tddSessionId;
+						return tddTaskId;
 					}),
 				)
 				.pipe(
 					Effect.annotateLogs("service", "DataStore"),
 					Effect.mapError(
-						(e) => new DataStoreError({ operation: "write", table: "tdd_sessions", reason: extractSqlReason(e) }),
+						(e) => new DataStoreError({ operation: "write", table: "tdd_tasks", reason: extractSqlReason(e) }),
 					),
 				);
 
-		const endTddSession = (input: EndTddSessionInput): Effect.Effect<void, DataStoreError> =>
+		const endTddTask = (input: EndTddTaskInput): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("endTddSession").pipe(Effect.annotateLogs({ id: input.id, outcome: input.outcome }));
+				yield* Effect.logDebug("endTddTask").pipe(Effect.annotateLogs({ id: input.id, outcome: input.outcome }));
 				yield* sql`
-					UPDATE tdd_sessions
+					UPDATE tdd_tasks
 					SET ended_at = ${input.endedAt},
 					    outcome = ${input.outcome},
 					    summary_note_id = ${input.summaryNoteId ?? null}
@@ -712,36 +734,36 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
 				Effect.mapError(
-					(e) => new DataStoreError({ operation: "write", table: "tdd_sessions", reason: extractSqlReason(e) }),
+					(e) => new DataStoreError({ operation: "write", table: "tdd_tasks", reason: extractSqlReason(e) }),
 				),
 			);
 
-		interface TddSessionStatusRow {
+		interface TddTaskStatusRow {
 			ended_at: string | null;
 			outcome: string | null;
 		}
 
-		const ensureTddSessionOpen = (
-			sessionId: number,
-		): Effect.Effect<void, DataStoreError | TddSessionNotFoundError | TddSessionAlreadyEndedError> =>
+		const ensureTddTaskOpen = (
+			tddTaskId: number,
+		): Effect.Effect<void, DataStoreError | TddTaskNotFoundError | TddTaskAlreadyEndedError> =>
 			Effect.gen(function* () {
-				const rows = yield* sql<TddSessionStatusRow>`
-					SELECT ended_at, outcome FROM tdd_sessions WHERE id = ${sessionId}
+				const rows = yield* sql<TddTaskStatusRow>`
+					SELECT ended_at, outcome FROM tdd_tasks WHERE id = ${tddTaskId}
 				`.pipe(
 					Effect.mapError(
-						(e) => new DataStoreError({ operation: "read", table: "tdd_sessions", reason: extractSqlReason(e) }),
+						(e) => new DataStoreError({ operation: "read", table: "tdd_tasks", reason: extractSqlReason(e) }),
 					),
 				);
 				if (rows.length === 0) {
 					return yield* Effect.fail(
-						new TddSessionNotFoundError({ id: sessionId, reason: "no tdd_sessions row for that id" }),
+						new TddTaskNotFoundError({ id: tddTaskId, reason: "no tdd_tasks row for that id" }),
 					);
 				}
 				const row = rows[0];
 				if (row.ended_at !== null) {
 					return yield* Effect.fail(
-						new TddSessionAlreadyEndedError({
-							id: sessionId,
+						new TddTaskAlreadyEndedError({
+							id: tddTaskId,
 							endedAt: row.ended_at,
 							outcome: (row.outcome ?? "abandoned") as "succeeded" | "blocked" | "abandoned",
 						}),
@@ -749,28 +771,28 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				}
 			});
 
-		const ensureTddSessionExists = (sessionId: number): Effect.Effect<void, DataStoreError | TddSessionNotFoundError> =>
+		const ensureTddTaskExists = (tddTaskId: number): Effect.Effect<void, DataStoreError | TddTaskNotFoundError> =>
 			Effect.gen(function* () {
-				const rows = yield* sql<{ id: number }>`SELECT id FROM tdd_sessions WHERE id = ${sessionId}`.pipe(
+				const rows = yield* sql<{ id: number }>`SELECT id FROM tdd_tasks WHERE id = ${tddTaskId}`.pipe(
 					Effect.mapError(
-						(e) => new DataStoreError({ operation: "read", table: "tdd_sessions", reason: extractSqlReason(e) }),
+						(e) => new DataStoreError({ operation: "read", table: "tdd_tasks", reason: extractSqlReason(e) }),
 					),
 				);
 				if (rows.length === 0) {
 					return yield* Effect.fail(
-						new TddSessionNotFoundError({ id: sessionId, reason: "no tdd_sessions row for that id" }),
+						new TddTaskNotFoundError({ id: tddTaskId, reason: "no tdd_tasks row for that id" }),
 					);
 				}
 			});
 
 		const createGoal = (
 			input: CreateGoalInput,
-		): Effect.Effect<GoalRow, DataStoreError | TddSessionNotFoundError | TddSessionAlreadyEndedError> =>
+		): Effect.Effect<GoalRow, DataStoreError | TddTaskNotFoundError | TddTaskAlreadyEndedError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("createGoal").pipe(
-					Effect.annotateLogs({ sessionId: input.sessionId, goal: input.goal }),
+					Effect.annotateLogs({ tddTaskId: input.tddTaskId, goal: input.goal }),
 				);
-				yield* ensureTddSessionOpen(input.sessionId);
+				yield* ensureTddTaskOpen(input.tddTaskId);
 				const rows = yield* sql<{
 					id: number;
 					session_id: number;
@@ -780,11 +802,11 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					created_at: string;
 				}>`
 					INSERT INTO tdd_session_goals (session_id, ordinal, goal)
-					SELECT ${input.sessionId},
+					SELECT ${input.tddTaskId},
 					       COALESCE(MAX(ordinal), -1) + 1,
 					       ${input.goal}
 					FROM tdd_session_goals
-					WHERE session_id = ${input.sessionId}
+					WHERE session_id = ${input.tddTaskId}
 					RETURNING id, session_id, ordinal, goal, status, created_at
 				`.pipe(
 					Effect.mapError(
@@ -820,7 +842,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			input: UpdateGoalInput,
 		): Effect.Effect<
 			GoalRow,
-			DataStoreError | GoalNotFoundError | TddSessionAlreadyEndedError | IllegalStatusTransitionError
+			DataStoreError | GoalNotFoundError | TddTaskAlreadyEndedError | IllegalStatusTransitionError
 		> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("updateGoal").pipe(Effect.annotateLogs({ id: input.id }));
@@ -846,13 +868,13 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					);
 				}
 				const current = existing[0];
-				yield* ensureTddSessionOpen(current.session_id).pipe(
-					Effect.catchTag("TddSessionNotFoundError", (e) =>
+				yield* ensureTddTaskOpen(current.session_id).pipe(
+					Effect.catchTag("TddTaskNotFoundError", (e) =>
 						Effect.fail(
 							new DataStoreError({
 								operation: "read",
-								table: "tdd_sessions",
-								reason: `FK integrity violation: goal ${input.id} references missing tdd_sessions row ${e.id}`,
+								table: "tdd_tasks",
+								reason: `FK integrity violation: goal ${input.id} references missing tdd_tasks row ${e.id}`,
 							}),
 						),
 					),
@@ -909,11 +931,11 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				);
 			}).pipe(Effect.annotateLogs("service", "DataStore"));
 
-		const listGoalsBySession = (
-			sessionId: number,
-		): Effect.Effect<ReadonlyArray<GoalRow>, DataStoreError | TddSessionNotFoundError> =>
+		const listGoalsByTddTask = (
+			tddTaskId: number,
+		): Effect.Effect<ReadonlyArray<GoalRow>, DataStoreError | TddTaskNotFoundError> =>
 			Effect.gen(function* () {
-				yield* ensureTddSessionExists(sessionId);
+				yield* ensureTddTaskExists(tddTaskId);
 				const rows = yield* sql<{
 					id: number;
 					session_id: number;
@@ -924,7 +946,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				}>`
 					SELECT id, session_id, ordinal, goal, status, created_at
 					FROM tdd_session_goals
-					WHERE session_id = ${sessionId}
+					WHERE session_id = ${tddTaskId}
 					ORDER BY ordinal
 				`.pipe(
 					Effect.mapError(
@@ -940,11 +962,11 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			status: string;
 		}
 
-		const ensureGoalOpenAndSessionOpen = (
+		const ensureGoalOpenAndTaskOpen = (
 			goalId: number,
 		): Effect.Effect<
-			{ goalSessionId: number; goalStatus: BehaviorStatus },
-			DataStoreError | GoalNotFoundError | TddSessionAlreadyEndedError | IllegalStatusTransitionError
+			{ goalTddTaskId: number; goalStatus: BehaviorStatus },
+			DataStoreError | GoalNotFoundError | TddTaskAlreadyEndedError | IllegalStatusTransitionError
 		> =>
 			Effect.gen(function* () {
 				const goals = yield* sql<GoalLifecycleRow>`
@@ -958,13 +980,13 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					return yield* Effect.fail(new GoalNotFoundError({ id: goalId, reason: "no tdd_session_goals row" }));
 				}
 				const goal = goals[0];
-				yield* ensureTddSessionOpen(goal.session_id).pipe(
-					Effect.catchTag("TddSessionNotFoundError", (e) =>
+				yield* ensureTddTaskOpen(goal.session_id).pipe(
+					Effect.catchTag("TddTaskNotFoundError", (e) =>
 						Effect.fail(
 							new DataStoreError({
 								operation: "read",
-								table: "tdd_sessions",
-								reason: `FK integrity violation: goal ${goalId} references missing tdd_sessions row ${e.id}`,
+								table: "tdd_tasks",
+								reason: `FK integrity violation: goal ${goalId} references missing tdd_tasks row ${e.id}`,
 							}),
 						),
 					),
@@ -980,7 +1002,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 						}),
 					);
 				}
-				return { goalSessionId: goal.session_id, goalStatus: goal.status as BehaviorStatus };
+				return { goalTddTaskId: goal.session_id, goalStatus: goal.status as BehaviorStatus };
 			});
 
 		const writeBehaviorDependencies = (behaviorId: number, goalId: number, depIds: ReadonlyArray<number>) =>
@@ -1031,7 +1053,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			| DataStoreError
 			| GoalNotFoundError
 			| BehaviorNotFoundError
-			| TddSessionAlreadyEndedError
+			| TddTaskAlreadyEndedError
 			| IllegalStatusTransitionError
 		> =>
 			sql
@@ -1040,7 +1062,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 						yield* Effect.logDebug("createBehavior").pipe(
 							Effect.annotateLogs({ goalId: input.goalId, behavior: input.behavior }),
 						);
-						yield* ensureGoalOpenAndSessionOpen(input.goalId);
+						yield* ensureGoalOpenAndTaskOpen(input.goalId);
 						const rows = yield* sql<{
 							id: number;
 							goal_id: number;
@@ -1081,7 +1103,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 						e instanceof DataStoreError ||
 						e instanceof GoalNotFoundError ||
 						e instanceof BehaviorNotFoundError ||
-						e instanceof TddSessionAlreadyEndedError ||
+						e instanceof TddTaskAlreadyEndedError ||
 						e instanceof IllegalStatusTransitionError
 							? e
 							: new DataStoreError({
@@ -1119,7 +1141,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			input: UpdateBehaviorInput,
 		): Effect.Effect<
 			BehaviorRow,
-			DataStoreError | BehaviorNotFoundError | TddSessionAlreadyEndedError | IllegalStatusTransitionError
+			DataStoreError | BehaviorNotFoundError | TddTaskAlreadyEndedError | IllegalStatusTransitionError
 		> =>
 			sql
 				.withTransaction(
@@ -1174,13 +1196,13 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 								}),
 							);
 						}
-						yield* ensureTddSessionOpen(goalRows[0].session_id).pipe(
-							Effect.catchTag("TddSessionNotFoundError", (e) =>
+						yield* ensureTddTaskOpen(goalRows[0].session_id).pipe(
+							Effect.catchTag("TddTaskNotFoundError", (e) =>
 								Effect.fail(
 									new DataStoreError({
 										operation: "read",
-										table: "tdd_sessions",
-										reason: `FK integrity violation: goal ${current.goal_id} references missing tdd_sessions row ${e.id}`,
+										table: "tdd_tasks",
+										reason: `FK integrity violation: goal ${current.goal_id} references missing tdd_tasks row ${e.id}`,
 									}),
 								),
 							),
@@ -1248,7 +1270,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					Effect.mapError((e) =>
 						e instanceof DataStoreError ||
 						e instanceof BehaviorNotFoundError ||
-						e instanceof TddSessionAlreadyEndedError ||
+						e instanceof TddTaskAlreadyEndedError ||
 						e instanceof IllegalStatusTransitionError
 							? e
 							: new DataStoreError({
@@ -1320,11 +1342,11 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				return rows.map(behaviorRowFromDb);
 			}).pipe(Effect.annotateLogs("service", "DataStore"));
 
-		const listBehaviorsBySession = (
-			sessionId: number,
-		): Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError | TddSessionNotFoundError> =>
+		const listBehaviorsByTddTask = (
+			tddTaskId: number,
+		): Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError | TddTaskNotFoundError> =>
 			Effect.gen(function* () {
-				yield* ensureTddSessionExists(sessionId);
+				yield* ensureTddTaskExists(tddTaskId);
 				const rows = yield* sql<{
 					id: number;
 					goal_id: number;
@@ -1337,7 +1359,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					SELECT b.id, b.goal_id, b.ordinal, b.behavior, b.suggested_test_name, b.status, b.created_at
 					FROM tdd_session_behaviors b
 					JOIN tdd_session_goals g ON g.id = b.goal_id
-					WHERE g.session_id = ${sessionId}
+					WHERE g.session_id = ${tddTaskId}
 					ORDER BY g.ordinal, b.ordinal
 				`.pipe(
 					Effect.mapError(
@@ -1385,14 +1407,14 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		const writeTddPhase = (input: WriteTddPhaseInput): Effect.Effect<WriteTddPhaseOutput, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeTddPhase").pipe(
-					Effect.annotateLogs({ tddSessionId: input.tddSessionId, phase: input.phase }),
+					Effect.annotateLogs({ tddTaskId: input.tddTaskId, phase: input.phase }),
 				);
 
-				// Find the currently-open phase (ended_at IS NULL) for this session,
+				// Find the currently-open phase (ended_at IS NULL) for this task,
 				// if any, so we can close it as we open the new one.
 				const open = yield* sql<{ id: number }>`
 					SELECT id FROM tdd_phases
-					WHERE tdd_session_id = ${input.tddSessionId} AND ended_at IS NULL
+					WHERE tdd_task_id = ${input.tddTaskId} AND ended_at IS NULL
 					ORDER BY started_at DESC LIMIT 1
 				`;
 				const previousPhaseId = open.length === 0 ? null : open[0].id;
@@ -1406,10 +1428,10 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 
 				const rows = yield* sql<{ id: number }>`
 					INSERT INTO tdd_phases
-						(tdd_session_id, behavior_id, phase, started_at, transition_reason, parent_phase_id)
+						(tdd_task_id, behavior_id, phase, started_at, transition_reason, parent_phase_id)
 					VALUES
 						(
-							${input.tddSessionId},
+							${input.tddTaskId},
 							${input.behaviorId ?? null},
 							${input.phase},
 							${input.startedAt},
@@ -1537,12 +1559,12 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			);
 
 		const associateLatestRunWithSession = (input: {
-			ccSessionId: string;
+			chatId: string;
 			invocationMethod: string;
 		}): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("associateLatestRunWithSession").pipe(
-					Effect.annotateLogs({ ccSessionId: input.ccSessionId, invocationMethod: input.invocationMethod }),
+					Effect.annotateLogs({ chatId: input.chatId, invocationMethod: input.invocationMethod }),
 				);
 				// Single INSERT: CROSS JOIN ensures a no-op when either the latest run
 				// or the session lookup returns no rows. INSERT OR IGNORE skips if the
@@ -1551,7 +1573,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					INSERT OR IGNORE INTO run_triggers (run_id, trigger, invocation_method, agent_session_id)
 					SELECT r.id, 'agent', ${input.invocationMethod}, s.id
 					FROM (SELECT id FROM test_runs ORDER BY id DESC LIMIT 1) r
-					CROSS JOIN (SELECT id FROM sessions WHERE cc_session_id = ${input.ccSessionId} LIMIT 1) s
+					CROSS JOIN (SELECT id FROM sessions WHERE chat_id = ${input.chatId} LIMIT 1) s
 				`;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
@@ -1560,9 +1582,9 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
-		const backfillTestCaseTurns = (ccSessionId: string): Effect.Effect<number, DataStoreError> =>
+		const backfillTestCaseTurns = (chatId: string): Effect.Effect<number, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("backfillTestCaseTurns").pipe(Effect.annotateLogs({ ccSessionId }));
+				yield* Effect.logDebug("backfillTestCaseTurns").pipe(Effect.annotateLogs({ chatId }));
 				// For each test case in the latest run whose module file was edited
 				// in the given session, set created_turn_id to the most recent such
 				// edit's turn. Uses LIKE suffix-matching because the reporter stores
@@ -1576,7 +1598,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 						JOIN file_edits fe ON fe.turn_id = t.id
 						JOIN files f_edit ON fe.file_id = f_edit.id
 						JOIN sessions s ON t.session_id = s.id
-						WHERE s.cc_session_id = ${ccSessionId}
+						WHERE s.chat_id = ${chatId}
 						  AND EXISTS (
 							SELECT 1
 							FROM test_modules tm
@@ -1606,6 +1628,102 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
+		const registerAgent = (
+			input: RegisterAgentInput,
+		): Effect.Effect<Agent | IdempotencyHit, RegistrationConflictError | DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("registerAgent").pipe(
+					Effect.annotateLogs({ sessionId: input.sessionId, agentType: input.agentType }),
+				);
+
+				// First check whether an idempotency hit applies — saves the
+				// INSERT-and-catch-conflict round-trip.
+				const existing = yield* sql<{ agent_id: string }>`
+					SELECT agent_id FROM agents WHERE session_id = ${input.sessionId} AND idempotency_key = ${input.idempotencyKey}
+				`.pipe(
+					Effect.mapError(
+						(e) => new DataStoreError({ operation: "read", table: "agents", reason: extractSqlReason(e) }),
+					),
+				);
+				if (existing.length > 0) {
+					return new IdempotencyHit({ existingAgentId: existing[0].agent_id as never });
+				}
+
+				// Validate parent agent if supplied — must exist in the same session.
+				if (input.parentAgentId !== null) {
+					const parentRows = yield* sql<{ session_id: number }>`
+						SELECT session_id FROM agents WHERE agent_id = ${input.parentAgentId}
+					`.pipe(
+						Effect.mapError(
+							(e) => new DataStoreError({ operation: "read", table: "agents", reason: extractSqlReason(e) }),
+						),
+					);
+					if (parentRows.length === 0) {
+						return yield* Effect.fail(
+							new RegistrationConflictError({
+								reason: `parent agent ${input.parentAgentId} does not exist`,
+							}),
+						);
+					}
+					if (parentRows[0].session_id !== input.sessionId) {
+						return yield* Effect.fail(
+							new RegistrationConflictError({
+								reason: `parent agent ${input.parentAgentId} belongs to session ${parentRows[0].session_id}, not ${input.sessionId}`,
+							}),
+						);
+					}
+				}
+
+				const agentId = input.agentId ?? randomUUID();
+				yield* sql`
+					INSERT INTO agents (
+						agent_id, session_id, parent_agent_id, conversation_id, agent_type,
+						started_at, ended_at, start_git_branch, start_git_commit_sha, start_worktree_dir,
+						idempotency_key
+					) VALUES (
+						${agentId}, ${input.sessionId}, ${input.parentAgentId}, ${input.conversationId},
+						${input.agentType}, ${input.startedAt}, ${null}, ${input.startGitBranch ?? null},
+						${input.startGitCommitSha ?? null}, ${input.startWorktreeDir ?? null}, ${input.idempotencyKey}
+					)
+				`.pipe(
+					Effect.mapError(
+						(e) => new DataStoreError({ operation: "write", table: "agents", reason: extractSqlReason(e) }),
+					),
+				);
+
+				return new Agent({
+					agentId: agentId as never,
+					sessionId: input.sessionId as never,
+					parentAgentId: input.parentAgentId as never,
+					conversationId: input.conversationId as never,
+					agentType: input.agentType,
+					startedAt: input.startedAt,
+					endedAt: null,
+					startGitBranch: input.startGitBranch ?? null,
+					startGitCommitSha: input.startGitCommitSha ?? null,
+					startWorktreeDir: input.startWorktreeDir ?? null,
+					idempotencyKey: input.idempotencyKey,
+				} as never);
+			}).pipe(Effect.annotateLogs("service", "DataStore"));
+
+		const endAgent = (agentId: string, endedAt: number): Effect.Effect<void, AgentNotFoundError | DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("endAgent").pipe(Effect.annotateLogs({ agentId }));
+				yield* sql`UPDATE agents SET ended_at = ${endedAt} WHERE agent_id = ${agentId}`.pipe(
+					Effect.mapError(
+						(e) => new DataStoreError({ operation: "write", table: "agents", reason: extractSqlReason(e) }),
+					),
+				);
+				const changes = yield* sql<{ n: number }>`SELECT changes() AS n`.pipe(
+					Effect.mapError(
+						(e) => new DataStoreError({ operation: "read", table: "agents", reason: extractSqlReason(e) }),
+					),
+				);
+				if ((changes[0]?.n ?? 0) === 0) {
+					return yield* Effect.fail(new AgentNotFoundError({ agentId: agentId as never }));
+				}
+			}).pipe(Effect.annotateLogs("service", "DataStore"));
+
 		return {
 			ensureFile,
 			writeSettings,
@@ -1623,24 +1741,25 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			updateNote,
 			deleteNote,
 			writeSession,
+			upsertSession,
 			writeTurn,
 			writeFailureSignature,
 			endSession,
 			writeHypothesis,
 			validateHypothesis,
-			writeTddSession,
-			endTddSession,
+			writeTddTask,
+			endTddTask,
 			createGoal,
 			getGoal,
 			updateGoal,
 			deleteGoal,
-			listGoalsBySession,
+			listGoalsByTddTask,
 			createBehavior,
 			getBehavior,
 			updateBehavior,
 			deleteBehavior,
 			listBehaviorsByGoal,
-			listBehaviorsBySession,
+			listBehaviorsByTddTask,
 			writeTddPhase,
 			writeTddArtifact,
 			writeCommit,
@@ -1649,6 +1768,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			pruneSessions,
 			associateLatestRunWithSession,
 			backfillTestCaseTurns,
+			registerAgent,
+			endAgent,
 		};
 	}),
 );

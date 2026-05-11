@@ -1,13 +1,15 @@
 import type { Effect, Option } from "effect";
 import { Context } from "effect";
+import type { AgentNotFoundError, RegistrationConflictError } from "../errors/AgentErrors.js";
 import type { DataStoreError } from "../errors/DataStoreError.js";
 import type {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
 	IllegalStatusTransitionError,
-	TddSessionAlreadyEndedError,
-	TddSessionNotFoundError,
+	TddTaskAlreadyEndedError,
+	TddTaskNotFoundError,
 } from "../errors/TddErrors.js";
+import type { Agent, IdempotencyHit } from "../schemas/Agent.js";
 import type { CoverageBaselines } from "../schemas/Baselines.js";
 import type { BehaviorRow, BehaviorStatus, GoalRow, GoalStatus } from "../schemas/Tdd.js";
 import type { TrendEntry } from "../schemas/Trends.js";
@@ -16,7 +18,7 @@ import type { ArtifactKind, Phase } from "../utils/validate-phase-transition.js"
 export type { ArtifactKind, Phase };
 
 export interface CreateGoalInput {
-	readonly sessionId: number;
+	readonly tddTaskId: number;
 	readonly goal: string;
 }
 
@@ -42,20 +44,20 @@ export interface UpdateBehaviorInput {
 }
 
 export interface SettingsInput {
-	readonly vitest_version: string;
+	readonly vitestVersion: string;
 	readonly pool?: string;
 	readonly environment?: string;
-	readonly test_timeout?: number;
-	readonly hook_timeout?: number;
-	readonly slow_test_threshold?: number;
-	readonly max_concurrency?: number;
-	readonly max_workers?: number;
+	readonly testTimeout?: number;
+	readonly hookTimeout?: number;
+	readonly slowTestThreshold?: number;
+	readonly maxConcurrency?: number;
+	readonly maxWorkers?: number;
 	readonly isolate?: boolean;
 	readonly bail?: number;
 	readonly globals?: boolean;
-	readonly file_parallelism?: boolean;
-	readonly sequence_seed?: number;
-	readonly coverage_provider?: string;
+	readonly fileParallelism?: boolean;
+	readonly sequenceSeed?: number;
+	readonly coverageProvider?: string;
 }
 
 export interface TestRunInput {
@@ -84,6 +86,29 @@ export interface TestRunInput {
 	readonly snapshotFilesRemoved?: number;
 	readonly snapshotFilesUnmatched?: number;
 	readonly snapshotFilesUpdated?: number;
+	/**
+	 * Attribution columns added by the agent-agnostic taxonomy work. The
+	 * reporter walks env vars / session map to populate these; un-attributed
+	 * runs default to actor_type='system' and NULL agent/conversation ids.
+	 */
+	readonly actorType?: "agent" | "user" | "system";
+	readonly agentId?: string | null;
+	readonly conversationId?: string | null;
+	/**
+	 * Git context the run executed against. NULL for non-git workspaces.
+	 */
+	readonly gitBranch?: string | null;
+	readonly gitCommitSha?: string | null;
+	readonly gitDirty?: boolean | null;
+	readonly gitUpstream?: string | null;
+	readonly gitWorktreeDir?: string | null;
+	/**
+	 * Host metadata probe result (terminal pane, CI runner). NULL when no
+	 * probe in the priority chain matched.
+	 */
+	readonly hostSource?: string | null;
+	readonly hostValue?: string | null;
+	readonly hostMetadata?: Record<string, unknown> | null;
 }
 
 export interface ModuleInput {
@@ -126,7 +151,7 @@ export interface TestCaseInput {
 	 * FK to `turns(id)`. Set by the reporter when the test case row was
 	 * authored within a recorded turn (D2 binding rule 1).
 	 */
-	readonly created_turn_id?: number;
+	readonly createdTurnId?: number;
 }
 
 export interface StackFrameInput {
@@ -203,23 +228,23 @@ export interface NoteInput {
 }
 
 export interface SessionInput {
-	readonly cc_session_id: string;
+	readonly chatId: string;
 	readonly project: string;
 	readonly cwd: string;
-	readonly agent_kind: "main" | "subagent";
-	readonly agent_type?: string;
-	readonly parent_session_id?: number;
-	readonly triage_was_non_empty?: boolean;
-	readonly started_at: string;
+	readonly agentKind: "main" | "subagent";
+	readonly agentType?: string;
+	readonly parentSessionId?: number;
+	readonly triageWasNonEmpty?: boolean;
+	readonly startedAt: string;
 }
 
 export interface TurnInput {
-	readonly session_id: number;
-	/** When omitted, writeTurn computes MAX(turn_no) + 1 for the session. */
-	readonly turn_no?: number;
+	readonly sessionId: number;
+	/** When omitted, writeTurn computes MAX(turnNo) + 1 for the session. */
+	readonly turnNo?: number;
 	readonly type: "user_prompt" | "tool_call" | "tool_result" | "file_edit" | "hook_fire" | "note" | "hypothesis";
 	readonly payload: string; // pre-stringified JSON, validated by record CLI
-	readonly occurred_at: string;
+	readonly occurredAt: string;
 }
 
 export interface FailureSignatureWriteInput {
@@ -250,15 +275,15 @@ export interface IdempotentResponseInput {
 	readonly createdAt: string;
 }
 
-export interface TddSessionInput {
+export interface TddTaskInput {
 	readonly sessionId: number;
 	readonly goal: string;
 	readonly startedAt: string;
-	readonly parentTddSessionId?: number;
+	readonly parentTddTaskId?: number;
 	readonly runId?: string;
 }
 
-export interface EndTddSessionInput {
+export interface EndTddTaskInput {
 	readonly id: number;
 	readonly endedAt: string;
 	readonly outcome: "succeeded" | "blocked" | "abandoned";
@@ -266,7 +291,7 @@ export interface EndTddSessionInput {
 }
 
 export interface WriteTddPhaseInput {
-	readonly tddSessionId: number;
+	readonly tddTaskId: number;
 	readonly behaviorId?: number;
 	readonly phase: Phase;
 	readonly startedAt: string;
@@ -314,10 +339,44 @@ export interface WriteRunChangedFilesInput {
 
 export type RunInvocationMethod = "bash" | "mcp" | "cli";
 
-// ccSessionId is the Claude Code UUID string; the live layer resolves it to
+// chatId is the host's chat UUID string; the live layer resolves it to
 // sessions.id (integer PK) before writing run_triggers.agent_session_id.
+/**
+ * Input to {@link DataStore.registerAgent}.
+ *
+ * `sessionId` is the FK to `sessions.id` (integer PK), NOT the host's
+ * chat UUID string. Callers that hold only the chat UUID must resolve
+ * it through `getSessionByChatId` first.
+ *
+ * `idempotencyKey` is pre-derived by the caller via
+ * `deriveIdempotencyKey(...)` — both the sidecar CLI and the MCP
+ * server compute it the same way so a hook retry collapses to the
+ * same row.
+ */
+export interface RegisterAgentInput {
+	readonly sessionId: number;
+	readonly agentType: string;
+	readonly parentAgentId: string | null;
+	readonly conversationId: string | null;
+	readonly startedAt: number;
+	readonly startGitBranch?: string;
+	readonly startGitCommitSha?: string;
+	readonly startWorktreeDir?: string;
+	readonly idempotencyKey: string;
+	/**
+	 * Pre-allocated `agents.agent_id` UUID. The sidecar passes
+	 * `PerClientSessionMapWriter.mapSession()`'s `main_agent_id` here so
+	 * the per-project `agents` row and the per-client session_map row
+	 * agree on a single canonical id — the same value the SessionStart
+	 * hook exports as `VITEST_AGENT_MAIN_AGENT_ID` / `_AGENT_ID`. When
+	 * omitted, the implementation generates a fresh UUID (used by tests
+	 * and any caller without a session map).
+	 */
+	readonly agentId?: string;
+}
+
 export interface AssociateRunSessionInput {
-	readonly ccSessionId: string;
+	readonly chatId: string;
 	readonly invocationMethod: RunInvocationMethod;
 }
 
@@ -370,31 +429,42 @@ export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 		readonly updateNote: (id: number, fields: Partial<NoteInput>) => Effect.Effect<void, DataStoreError>;
 		readonly deleteNote: (id: number) => Effect.Effect<void, DataStoreError>;
 		readonly writeSession: (input: SessionInput) => Effect.Effect<number, DataStoreError>;
+		/**
+		 * Idempotent variant of `writeSession`: if a row with this
+		 * `chat_id` already exists, return its id and leave the stored
+		 * fields untouched; otherwise insert a new row. Used by
+		 * hook-triggered recording paths (artifacts, turns) that fire
+		 * for sessions whose original `SessionStart` may have missed —
+		 * e.g. when Claude Code rotates `chat_id` mid-window after a
+		 * continuation or compaction. Race-safe via
+		 * `INSERT ... ON CONFLICT DO NOTHING`.
+		 */
+		readonly upsertSession: (input: SessionInput) => Effect.Effect<number, DataStoreError>;
 		readonly writeTurn: (input: TurnInput) => Effect.Effect<number, DataStoreError>;
 		readonly writeFailureSignature: (input: FailureSignatureWriteInput) => Effect.Effect<void, DataStoreError>;
 		readonly endSession: (
-			ccSessionId: string,
+			chatId: string,
 			endedAt: string,
 			endReason: string | null,
 		) => Effect.Effect<void, DataStoreError>;
 		readonly writeHypothesis: (input: HypothesisInput) => Effect.Effect<number, DataStoreError>;
 		readonly validateHypothesis: (input: ValidateHypothesisInput) => Effect.Effect<void, DataStoreError>;
-		readonly writeTddSession: (input: TddSessionInput) => Effect.Effect<number, DataStoreError>;
-		readonly endTddSession: (input: EndTddSessionInput) => Effect.Effect<void, DataStoreError>;
+		readonly writeTddTask: (input: TddTaskInput) => Effect.Effect<number, DataStoreError>;
+		readonly endTddTask: (input: EndTddTaskInput) => Effect.Effect<void, DataStoreError>;
 		readonly createGoal: (
 			input: CreateGoalInput,
-		) => Effect.Effect<GoalRow, DataStoreError | TddSessionNotFoundError | TddSessionAlreadyEndedError>;
+		) => Effect.Effect<GoalRow, DataStoreError | TddTaskNotFoundError | TddTaskAlreadyEndedError>;
 		readonly getGoal: (id: number) => Effect.Effect<Option.Option<GoalRow>, DataStoreError>;
 		readonly updateGoal: (
 			input: UpdateGoalInput,
 		) => Effect.Effect<
 			GoalRow,
-			DataStoreError | GoalNotFoundError | TddSessionAlreadyEndedError | IllegalStatusTransitionError
+			DataStoreError | GoalNotFoundError | TddTaskAlreadyEndedError | IllegalStatusTransitionError
 		>;
 		readonly deleteGoal: (id: number) => Effect.Effect<void, DataStoreError | GoalNotFoundError>;
-		readonly listGoalsBySession: (
-			sessionId: number,
-		) => Effect.Effect<ReadonlyArray<GoalRow>, DataStoreError | TddSessionNotFoundError>;
+		readonly listGoalsByTddTask: (
+			tddTaskId: number,
+		) => Effect.Effect<ReadonlyArray<GoalRow>, DataStoreError | TddTaskNotFoundError>;
 		readonly createBehavior: (
 			input: CreateBehaviorInput,
 		) => Effect.Effect<
@@ -402,7 +472,7 @@ export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 			| DataStoreError
 			| GoalNotFoundError
 			| BehaviorNotFoundError
-			| TddSessionAlreadyEndedError
+			| TddTaskAlreadyEndedError
 			| IllegalStatusTransitionError
 		>;
 		readonly getBehavior: (id: number) => Effect.Effect<Option.Option<BehaviorRow>, DataStoreError>;
@@ -410,15 +480,15 @@ export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 			input: UpdateBehaviorInput,
 		) => Effect.Effect<
 			BehaviorRow,
-			DataStoreError | BehaviorNotFoundError | TddSessionAlreadyEndedError | IllegalStatusTransitionError
+			DataStoreError | BehaviorNotFoundError | TddTaskAlreadyEndedError | IllegalStatusTransitionError
 		>;
 		readonly deleteBehavior: (id: number) => Effect.Effect<void, DataStoreError | BehaviorNotFoundError>;
 		readonly listBehaviorsByGoal: (
 			goalId: number,
 		) => Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError | GoalNotFoundError>;
-		readonly listBehaviorsBySession: (
-			sessionId: number,
-		) => Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError | TddSessionNotFoundError>;
+		readonly listBehaviorsByTddTask: (
+			tddTaskId: number,
+		) => Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError | TddTaskNotFoundError>;
 		readonly writeTddPhase: (input: WriteTddPhaseInput) => Effect.Effect<WriteTddPhaseOutput, DataStoreError>;
 		readonly writeTddArtifact: (input: WriteTddArtifactInput) => Effect.Effect<number, DataStoreError>;
 		readonly writeCommit: (input: WriteCommitInput) => Effect.Effect<void, DataStoreError>;
@@ -428,6 +498,27 @@ export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 			keepRecent: number,
 		) => Effect.Effect<{ readonly affectedSessions: number; readonly prunedTurns: number }, DataStoreError>;
 		readonly associateLatestRunWithSession: (input: AssociateRunSessionInput) => Effect.Effect<void, DataStoreError>;
-		readonly backfillTestCaseTurns: (ccSessionId: string) => Effect.Effect<number, DataStoreError>;
+		readonly backfillTestCaseTurns: (chatId: string) => Effect.Effect<number, DataStoreError>;
+		/**
+		 * Idempotently insert an `agents` row.
+		 *
+		 * Returns `Agent` on a fresh insert, or `IdempotencyHit` carrying
+		 * the existing `agentId` when the `(session_id, idempotency_key)`
+		 * UNIQUE constraint already has a row. The caller treats the latter
+		 * as a successful recovery (same logical agent), not an error.
+		 *
+		 * Fails with `RegistrationConflictError` when the supplied
+		 * `parentAgentId` references an agent in a different session, or
+		 * when no such agent exists. Surface to the caller for true
+		 * mis-configuration cases; idempotency hits never produce this.
+		 */
+		readonly registerAgent: (
+			input: RegisterAgentInput,
+		) => Effect.Effect<Agent | IdempotencyHit, RegistrationConflictError | DataStoreError>;
+		/**
+		 * Mark an agent as ended. Sets `agents.ended_at` to the supplied
+		 * timestamp. Fails with `AgentNotFoundError` when no row exists.
+		 */
+		readonly endAgent: (agentId: string, endedAt: number) => Effect.Effect<void, AgentNotFoundError | DataStoreError>;
 	}
 >() {}

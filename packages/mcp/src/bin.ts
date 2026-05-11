@@ -9,7 +9,7 @@ import {
 	resolveLogLevel,
 } from "vitest-agent-sdk";
 import type { McpContext } from "./context.js";
-import { createCurrentSessionIdRef } from "./context.js";
+import { createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./context.js";
 import { McpLive } from "./layers/McpLive.js";
 import { startMcpServer } from "./server.js";
 
@@ -33,8 +33,8 @@ function resolveProjectDir(): string {
 }
 
 /**
- * Optional first positional argument: an initial Claude Code
- * `cc_session_id` to seed the MCP server's session association.
+ * Optional first positional argument: an initial Claude Code chat UUID
+ * (the host's `chatId`) to seed the MCP server's session association.
  *
  * The plugin manifest (`plugin/.claude-plugin/plugin.json`) can pass this
  * via Claude Code variable substitution if such a variable exists for
@@ -42,8 +42,8 @@ function resolveProjectDir(): string {
  * `${CLAUDE_PLUGIN_DATA}`; testing whether `${CLAUDE_SESSION_ID}` or a
  * similar name is honored in `mcpServers.args` is part of the reason
  * this seed path exists). When the seed is empty the agent is expected
- * to call `set_current_session_id` once at the start of the
- * conversation.
+ * to recover the chat id at boot. The legacy `set_current_session_id`
+ * MCP tool was removed in Phase 3.
  */
 function resolveInitialSessionId(): string | null {
 	const argv = process.argv[2];
@@ -70,18 +70,33 @@ async function main() {
 
 	const runtime = ManagedRuntime.make(McpLive(dbPath, logLevel, logFile));
 
+	// Recover the canonical agent attribution context. SessionStart wrote
+	// VITEST_AGENT_CHAT_ID, _CONVERSATION_ID, and _MAIN_AGENT_ID to
+	// CLAUDE_ENV_FILE, which Claude Code auto-sources into this MCP child's
+	// process.env (per Spike 5). Falls back to null in dev / test where
+	// the env vars aren't set; tools handle that gracefully.
+	const recoveredContext = sessionContextFromEnv(process.env);
+
 	const ctx: McpContext = {
 		runtime: runtime as unknown as McpContext["runtime"],
 		cwd: projectDir,
-		currentSessionId: createCurrentSessionIdRef(initialSessionId),
+		currentSessionId: createCurrentSessionIdRef(initialSessionId ?? recoveredContext?.chatId ?? null),
+		sessionContext: createSessionContextRef(recoveredContext),
 	};
 
+	// Diagnostic logs report presence only; the full UUIDs are
+	// attribution metadata sourced from CLAUDE_ENV_FILE and should not
+	// be echoed to stderr verbatim (CodeQL js/clear-text-logging).
+	const chatIdResolved = initialSessionId ?? recoveredContext?.chatId ?? null;
 	console.error("[vitest-agent-mcp] Starting...");
 	console.error(`[vitest-agent-mcp] Project: ${projectDir}`);
 	console.error(`[vitest-agent-mcp] Database: ${dbPath}`);
 	console.error(
-		`[vitest-agent-mcp] Initial session id: ${initialSessionId ?? "(none — agent will call set_current_session_id)"}`,
+		`[vitest-agent-mcp] Initial chat id: ${chatIdResolved !== null ? "(set)" : "(none — SessionStart hook had not written CLAUDE_ENV_FILE yet)"}`,
 	);
+	if (recoveredContext !== null) {
+		console.error("[vitest-agent-mcp] Recovered session context: agent=(set) conversation=(set)");
+	}
 
 	await startMcpServer(ctx);
 }

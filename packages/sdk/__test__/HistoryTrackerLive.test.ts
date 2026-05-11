@@ -37,7 +37,7 @@ const TS = "2026-03-21T00:00:00.000Z";
 // Settings needed to create runs
 const SETTINGS_HASH = "test-hash";
 const SETTINGS_INPUT = {
-	vitest_version: "3.2.0",
+	vitestVersion: "3.2.0",
 	pool: "forks",
 	environment: "node",
 };

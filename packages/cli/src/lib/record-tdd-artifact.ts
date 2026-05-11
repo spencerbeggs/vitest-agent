@@ -3,8 +3,8 @@
  *
  * Per Decision D7, artifact writes go through the CLI (driven by
  * PostToolUse hooks) -- never through MCP. The hook supplies the
- * Claude Code session id; this lib resolves the active TDD phase
- * for that session and writes the artifact under it.
+ * host chat id; this lib resolves the active TDD phase for that
+ * session and writes the artifact under it.
  *
  * @packageDocumentation
  */
@@ -12,9 +12,10 @@
 import { Effect, Option } from "effect";
 import type { ArtifactKind, DataStoreError } from "vitest-agent-sdk";
 import { DataReader, DataStore } from "vitest-agent-sdk";
+import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 
 export interface RecordTddArtifactInput {
-	readonly ccSessionId: string;
+	readonly chatId: string;
 	readonly artifactKind: ArtifactKind;
 	readonly fileId?: number;
 	readonly testCaseId?: number;
@@ -22,6 +23,17 @@ export interface RecordTddArtifactInput {
 	readonly testFirstFailureRunId?: number;
 	readonly diffExcerpt?: string;
 	readonly recordedAt: string;
+	/**
+	 * Working directory of the calling process. When omitted, the
+	 * resolver falls back to `process.cwd()`. Used to bootstrap a
+	 * missing session row when the chat id has no exact match.
+	 */
+	readonly cwd?: string;
+	/**
+	 * Project name for bootstrapped session rows. When omitted, the
+	 * resolver reads `package.json#name` from `cwd`.
+	 */
+	readonly project?: string;
 }
 
 export interface RecordTddArtifactResult {
@@ -36,22 +48,27 @@ export const recordTddArtifactEffect = (
 		const reader = yield* DataReader;
 		const store = yield* DataStore;
 
-		const sessionOpt = yield* reader.getSessionByCcId(input.ccSessionId);
-		if (Option.isNone(sessionOpt)) {
-			return yield* Effect.fail(new Error(`Unknown cc_session_id: ${input.ccSessionId}`));
-		}
+		const session = yield* resolveSessionForRecording({
+			chatId: input.chatId,
+			recordedAt: input.recordedAt,
+			...(input.project !== undefined && { project: input.project }),
+			...(input.cwd !== undefined && { cwd: input.cwd }),
+		});
 
-		// Find the TDD session(s) under this Claude Code session, then the
-		// open phase under whichever TDD session is open.
-		const tddSessions = yield* reader.listTddSessionsForSession(sessionOpt.value.id);
-		const openTdd = tddSessions.find((t) => t.endedAt === null);
+		// Find the TDD task(s) under this session OR any of its
+		// ancestors via `parent_session_id`. Subagent dispatches commonly
+		// open the tdd task under the parent main row but PostToolUse
+		// hooks fire under the subagent's own row — without the parent
+		// walk, the lookup misses the tdd task entirely.
+		const tddTasks = yield* reader.listTddTasksForSession(session.id, { walkParents: true });
+		const openTdd = tddTasks.find((t) => t.endedAt === null);
 		if (openTdd === undefined) {
 			return yield* Effect.fail(
-				new Error(`No open TDD session under cc_session_id ${input.ccSessionId}. Call tdd_session_start first.`),
+				new Error(`No open TDD task under chat_id ${input.chatId}. Call tdd_task start first.`),
 			);
 		}
 
-		// A brand-new TDD session has no open phase. The orchestrator
+		// A brand-new TDD task has no open phase. The orchestrator
 		// can't bootstrap one via `tdd_phase_transition_request`
 		// either, because that endpoint requires a cited artifact id —
 		// and recording the first artifact requires an open phase. Open
@@ -64,7 +81,7 @@ export const recordTddArtifactEffect = (
 		const phaseId = Option.isSome(phaseOpt)
 			? phaseOpt.value.id
 			: (yield* store.writeTddPhase({
-					tddSessionId: openTdd.id,
+					tddTaskId: openTdd.id,
 					phase: "spike",
 					startedAt: input.recordedAt,
 					transitionReason: "auto-opened by record tdd-artifact (no prior phase)",

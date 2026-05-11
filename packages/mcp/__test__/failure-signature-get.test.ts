@@ -2,7 +2,7 @@ import { Effect, Layer, ManagedRuntime } from "effect";
 import { describe, expect, it } from "vitest";
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "vitest-agent-sdk";
 import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef } from "../src/context.js";
+import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
 import { appRouter } from "../src/router.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
@@ -15,6 +15,7 @@ function createTestCaller() {
 		runtime: runtime as unknown as McpContext["runtime"],
 		cwd: process.cwd(),
 		currentSessionId: createCurrentSessionIdRef(),
+		sessionContext: createSessionContextRef(),
 	});
 	return { caller, runtime };
 }
@@ -27,11 +28,7 @@ async function seedFailureSignature(
 		Effect.gen(function* () {
 			const store = yield* DataStore;
 
-			yield* store.writeSettings(
-				"hash-fs-test",
-				{ vitest_version: "3.2.0", pool: "forks", coverage_provider: "v8" },
-				{},
-			);
+			yield* store.writeSettings("hash-fs-test", { vitestVersion: "3.2.0", pool: "forks", coverageProvider: "v8" }, {});
 			const runId = yield* store.writeRun({
 				invocationId: "inv-fs-001",
 				project: "default",
@@ -56,8 +53,8 @@ async function seedFailureSignature(
 	);
 }
 
-describe("failure_signature_get markdown body", () => {
-	it("includes an explicit **Hash:** line so the value is preserved if the response is clipped", async () => {
+describe("failure_signature_get structured payload", () => {
+	it("returns found=true with the matching signatureHash so callers preserve it under clipping", async () => {
 		const { caller, runtime } = createTestCaller();
 		try {
 			const hash = "abc123def456cafe";
@@ -65,9 +62,8 @@ describe("failure_signature_get markdown body", () => {
 
 			const result = await caller.failure_signature_get({ hash });
 
-			expect(typeof result).toBe("string");
-			// The body must carry the hash explicitly (not only as a header).
-			expect(result).toMatch(/\*\*Hash:\*\*\s+abc123def456cafe/);
+			expect(result.found).toBe(true);
+			if (result.found) expect(result.signatureHash).toBe(hash);
 		} finally {
 			await runtime.dispose();
 		}

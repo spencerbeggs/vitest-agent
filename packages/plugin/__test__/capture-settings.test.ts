@@ -19,24 +19,24 @@ describe("captureSettings", () => {
 			coverage: { provider: "v8" },
 		};
 		const result = captureSettings(config, "4.1.0");
-		expect(result.vitest_version).toBe("4.1.0");
+		expect(result.vitestVersion).toBe("4.1.0");
 		expect(result.pool).toBe("forks");
-		expect(result.test_timeout).toBe(5000);
+		expect(result.testTimeout).toBe(5000);
 		expect(result.isolate).toBe(true);
-		expect(result.sequence_seed).toBe(42);
-		expect(result.coverage_provider).toBe("v8");
+		expect(result.sequenceSeed).toBe(42);
+		expect(result.coverageProvider).toBe("v8");
 	});
 
 	it("handles missing optional fields", () => {
 		const result = captureSettings({}, "4.1.0");
-		expect(result.vitest_version).toBe("4.1.0");
+		expect(result.vitestVersion).toBe("4.1.0");
 		expect(result.pool).toBeUndefined();
 	});
 });
 
 describe("hashSettings", () => {
 	it("produces consistent SHA-256 for same input", () => {
-		const settings = { vitest_version: "4.1.0", pool: "forks" };
+		const settings = { vitestVersion: "4.1.0", pool: "forks" };
 		const hash1 = hashSettings(settings);
 		const hash2 = hashSettings(settings);
 		expect(hash1).toBe(hash2);
@@ -44,8 +44,8 @@ describe("hashSettings", () => {
 	});
 
 	it("produces different hash for different input", () => {
-		const hash1 = hashSettings({ vitest_version: "4.1.0", pool: "forks" });
-		const hash2 = hashSettings({ vitest_version: "4.1.0", pool: "threads" });
+		const hash1 = hashSettings({ vitestVersion: "4.1.0", pool: "forks" });
+		const hash2 = hashSettings({ vitestVersion: "4.1.0", pool: "threads" });
 		expect(hash1).not.toBe(hash2);
 	});
 });

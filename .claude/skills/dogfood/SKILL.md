@@ -59,17 +59,17 @@ No handoff file. Dispatches the tdd-task agent with a fixed prompt that walks th
 
 ### Dispatch
 
-Complete the standard pre-dispatch setup above (session_list main → TaskCreate → initialize maps), then dispatch with `run_in_background: true`. Prepend `ccSessionId` and `parentTaskId` to the prompt, then append the verbatim block below without modification.
+Complete the standard pre-dispatch setup above (`inventory({ kind: "session", agentKind: "main", limit: 1 })` → TaskCreate → initialize maps), then dispatch with `run_in_background: true`. Prepend `chatId` and `parentTaskId` to the prompt, then append the verbatim block below without modification.
 
-### Verbatim prompt (append after ccSessionId/parentTaskId lines — do not add other framing)
+### Verbatim prompt (append after chatId/parentTaskId lines — do not add other framing)
 
 ````text
 Run a TDD lifecycle simulation to exercise the session machinery from start to finish. This is not a real coding task — use dummy goal and behavior labels throughout. You will write a temporary test file and fix a deliberately broken source file.
 
 Steps:
-1. Call `tdd_session_start` with goal: "lifecycle-test: verify session open, transitions, and close".
-2. Create one behavior: "lifecycle-test: tdd session opens, transitions red→green, and closes cleanly".
-3. Mark the goal and behavior as in_progress.
+1. Call `tdd_task({ action: "start", chatId, goal: "lifecycle-test: verify session open, transitions, and close" })`. Capture the returned `tddTaskId` and `goalId`.
+2. Create one behavior via `tdd_behavior({ action: "create", goalId, behavior: "lifecycle-test: tdd session opens, transitions red→green, and closes cleanly" })`. Capture the returned `behaviorId`.
+3. Mark the goal and behavior in_progress: `tdd_goal({ action: "update", id: goalId, status: "in_progress" })` and `tdd_behavior({ action: "update", id: behaviorId, status: "in_progress" })`.
 4. Write a new file `playground/src/lifecycle.test.ts` containing exactly:
    ```typescript
    import { describe, expect, it } from "vitest";
@@ -86,7 +86,7 @@ Steps:
    `run_tests({ project: "playground", files: ["playground/src/lifecycle.test.ts"] })`
    Confirm the test fails (`sum(1, 1)` currently returns 3, not 2, due to the bug in the source).
 6. Call `tdd_phase_transition_request` for the `red` phase, citing the test-run artifact from step 5. Record whether it was granted or denied and the exact DenialReason if denied.
-6b. After the transition is accepted, call `tdd_progress_push` with the spike→red phase event: `tdd_progress_push({ payload: JSON.stringify({ type: "phase_transition", sessionId: <tddSessionId>, goalId: <goalId>, behaviorId: <behaviorId>, from: "spike", to: "red" }) })`. Do this before proceeding to step 7.
+6b. After the transition is accepted, call `tdd_progress_push` with the spike→red phase event: `tdd_progress_push({ payload: JSON.stringify({ type: "phase_transition", sessionId: <tddTaskId>, goalId: <goalId>, behaviorId: <behaviorId>, from: "spike", to: "red" }) })`. Do this before proceeding to step 7.
 7. **Critical — re-author the test in the red phase:** delete `playground/src/lifecycle.test.ts` and immediately rewrite it with the same content as step 4. The red→green gate requires `test_case_authored_in_session = true`, meaning the `test_written` artifact must fall inside the red phase window. Writing the file in step 4 authors it in spike; deleting and rewriting here moves the authorship into red.
 8. Run the playground tests again using `run_tests` with the same file filter:
    `run_tests({ project: "playground", files: ["playground/src/lifecycle.test.ts"] })`
@@ -96,8 +96,8 @@ Steps:
     `run_tests({ project: "playground", files: ["playground/src/lifecycle.test.ts"] })`
     Confirm all tests pass.
 11. Call `tdd_phase_transition_request` for the `green` phase, citing the `test_failed_run` artifact from step 8 (not the passing run from step 10 — `red→green` requires proof that the test was failing before the fix). Record the outcome.
-12. Mark the behavior as completed (status: completed). Mark the goal as completed (status: completed).
-13. Call `tdd_session_end`.
+12. Mark the behavior completed: `tdd_behavior({ action: "update", id: behaviorId, status: "completed" })`. Mark the goal completed: `tdd_goal({ action: "update", id: goalId, status: "completed" })`.
+13. Call `tdd_task({ action: "end", tddTaskId: tddTaskId, outcome: "succeeded" })`.
 14. Delete `playground/src/lifecycle.test.ts` to leave the playground clean. Do NOT delete or revert `playground/src/lifecycle.ts`.
 
 Report: for each phase-transition call (steps 6 and 11), state whether it was granted or denied and (if denied) the exact DenialReason string.
@@ -107,9 +107,9 @@ Report: for each phase-transition call (steps 6 and 11), state whether it was gr
 
 Run these five checks after the background completion notification arrives.
 
-1. **`tdd_session_get(<id>)`** — `ended` must be non-null (session closed). Phase ledger must have at least one entry. Goal and behavior must both show `completed`.
+1. **`tdd_task({ action: "get", id: <id> })`** — `ended` must be non-null (session closed). Phase ledger must have at least one entry. Goal and behavior must both show `completed`.
 2. **`acceptance_metrics({})`** — `phase_evidence_integrity` must be 100%. Any value below 100% means a phase transition was accepted without valid evidence binding.
-3. **`session_list({ agentKind: "subagent", limit: 1 })`** — a subagent row must appear with a key in the format `<parent-cc-id>-subagent-<ts>-<pid>`. If absent, the SubagentStart hook did not fire or `is_tdd_agent` failed to match the agent_type CC sent.
+3. **`inventory({ kind: "session", agentKind: "subagent", limit: 1 })`** — a subagent row must appear with a key in the format `<parent-cc-id>-subagent-<ts>-<pid>`. If absent, the SubagentStart hook did not fire or `is_tdd_agent` failed to match the agent_type CC sent.
 4. **Restore the playground defect:** `git checkout playground/src/lifecycle.ts` — reverts `lifecycle.ts` to `return a + b + 1` so the next lifecycle run starts from a broken state. If the orchestrator committed the fix, also run `git reset HEAD~1` first (or `git revert HEAD` if the branch has been pushed).
 
 If any check fails, append findings to `docs/superpowers/dogfood/lifecycle-check/findings.md` (create it if it doesn't exist) and present the four-option menu.
@@ -133,34 +133,34 @@ If any check fails, append findings to `docs/superpowers/dogfood/lifecycle-check
 
 Before spawning, complete the standard pre-dispatch setup (mirrors the `tdd` skill):
 
-1. Call `session_list({ agentKind: "main", limit: 1 })` — capture the `cc_session_id` field from the first row as `ccSessionId`. Do **not** use `get_current_session_id()` — that in-memory ref can be stale after a prior subagent overwrote it.
+1. Call `inventory({ kind: "session", agentKind: "main", limit: 1 })` — capture the `chat_id` field from the first row as `chatId`. Do **not** assume an in-memory current-session ref — that can be stale after a prior subagent ran, and `inventory` reads the canonical row from the DB.
 2. Generate a `runId`: `` `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` ``.
 3. Call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
 4. Initialize: `goalById = new Map()`, `behaviorById = new Map()`.
 
-Dispatch with **`run_in_background: true`** and `subagent_type: "vitest-agent:tdd-task"`. Pass `ccSessionId`, `runId`, and `parentTaskId` in the launch prompt alongside the task. The dispatch prompt body contains **only** the contents of the handoff's `# Task for the TDD orchestrator` section — never the frontmatter, never the `# What the orchestrator MUST NOT know` section, never the verification checklist, never the cheatsheet.
+Dispatch with **`run_in_background: true`** and `subagent_type: "vitest-agent:tdd-task"`. Pass `chatId`, `runId`, and `parentTaskId` in the launch prompt alongside the task. The dispatch prompt body contains **only** the contents of the handoff's `# Task for the TDD orchestrator` section — never the frontmatter, never the `# What the orchestrator MUST NOT know` section, never the verification checklist, never the cheatsheet.
 
 Immediately after dispatching (the background call returns before the agent completes), capture the session id:
 
 ```text
-mcp__plugin_vitest-agent_mcp__session_list({ agentKind: "subagent", limit: 1 })
+mcp__plugin_vitest-agent_mcp__inventory({ kind: "session", agentKind: "subagent", limit: 1 })
 ```
 
 While the agent runs, channel events arrive as `<channel source="plugin:vitest-agent:mcp">` system reminders. Process each one immediately per the event-handler table in `plugin/skills/tdd/SKILL.md` — this produces live task-panel updates during the run, not a batch flush at the end.
 
-The returned `id` is the numeric DB id you pass to `tdd_session_get(<id>)` (or `tdd_session_resume(<id>)` for a status summary) below. The `cc_session_id` on the same row is what you pass to session-aware tools like `turn_search`.
+The returned `id` is the numeric DB id you pass to `tdd_task({ action: "get", id: <id> })` (or `tdd_task({ action: "resume", id: <id> })` for a status summary) below. The `chat_id` on the same row is what you pass to session-aware tools like `turn_search`.
 
 ## Verification (after orchestrator completes)
 
 Run the seven-step audit. Skipping any step defeats the experiment.
 
-1. `tdd_session_get(<id>)` — full goal+behavior tree, phase ledger. Every transition has a cited artifact, no skipped phases, no backdated rows.
+1. `tdd_task({ action: "get", id: <id> })` — full goal+behavior tree, phase ledger. Every transition has a cited artifact, no skipped phases, no backdated rows.
 2. `acceptance_metrics({})` — phase-evidence integrity, hook responsiveness, anti-pattern detection rate.
 3. `test_history({ project: "playground" })` — flaky / new-failure / persistent classifications.
 4. `turn_search({ sessionId: <subagent numeric id>, type: "tool_call" })` and grep for Bash `vitest` invocations — confirm the orchestrator used `run_tests` MCP, not Bash workarounds.
 5. `failure_signature_get` for any signatures the run produced — cross-check against past dogfood runs in the chain.
 6. `git diff playground/` and `git status` — code change matches what the cheatsheet says is the right fix; no unintended files outside `playground/`; no untracked files left behind. `git log --oneline` and grep for `tdd(` — confirm the orchestrator's commits use the `tdd(<goalId>:<state>):` prefix format, not the legacy `[tdd:` bracket-tag format.
-7. `hypothesis_list({ sessionId: <subagent cc id> })` — the orchestrator recorded hypotheses before non-test edits (Gate 2).
+7. `hypothesis({ action: "list", sessionId: <subagent cc id> })` — the orchestrator recorded hypotheses before non-test edits (Gate 2).
 
 For channel-event work, additionally inspect `tdd_progress_push` payloads in the turn log: `goalId` and `sessionId` resolved server-side correctly, `goal_completed` carried `behaviorIds[]`, `session_complete` carried `goalIds[]`.
 
@@ -247,4 +247,4 @@ This hot-patch path does NOT work for:
 - Cheatsheet (yours, never shared): `.claude/playground-cheatsheet.md`
 - Templates: `${CLAUDE_SKILL_DIR}/handoff-template.md`, `${CLAUDE_SKILL_DIR}/findings-template.md`
 - Build/reload: `pnpm ci:build`, `/reload-plugins`, full Claude Code restart
-- Key MCP tools: `tdd_session_get`, `acceptance_metrics`, `test_history`, `turn_search`, `failure_signature_get`, `hypothesis_list`
+- Key MCP tools: `tdd_task` (`get`/`resume`), `acceptance_metrics`, `test_history`, `turn_search`, `failure_signature_get`, `hypothesis` (`list`)

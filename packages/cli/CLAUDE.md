@@ -63,11 +63,11 @@ src/
   glue), `lib/format-<name>.ts` (the pure formatter), and
   `lib/format-<name>.test.ts`. Wire into the root `Command` group in
   `bin.ts`.
-- `record test-case-turns --cc-session-id <id>` is the canonical
+- `record test-case-turns --chat-id <id>` is the canonical
   pattern for subcommands that call multiple `DataStore`/`DataReader`
   methods and return JSON to stdout (not markdown). It calls
-  `DataStore.backfillTestCaseTurns(ccSessionId)` then
-  `DataReader.getLatestTestCaseForSession(ccSessionId)` and outputs
+  `DataStore.backfillTestCaseTurns(chatId)` then
+  `DataReader.getLatestTestCaseForSession(chatId)` and outputs
   `{ "updated": N, "latestTestCaseId": <id|null> }`. Follow this
   pattern for any subcommand that needs to both mutate and read back
   a result.
@@ -96,3 +96,17 @@ src/
 - `@./.claude/design/vitest-agent/schemas.md`
   Load when adding a new `DataReader` query or working with output
   formatter types.
+
+## Agent-agnostic taxonomy additions (Phases 2 + 4)
+
+**Sidecar `_internal` subcommand group** (`commands/internal.ts`):
+
+- `_internal register-agent` — composes projectKey resolution, RunContext git capture, PerClientSessionMapWriter, and DataStore.registerAgent end-to-end. Emits JSON to stdout with `agentId`, `conversationId`, `mainAgentId`, `idempotencyKey`, `idempotencyHit`. Hook scripts parse via `jq -r '.agentId'`.
+- `_internal end-agent` — sets `agents.ended_at` and optionally `session_map.ended_at` when `--host-session-id` is passed. SubagentStop omits the latter.
+- `_internal inject-env` — pure pattern matcher. Reads `VITEST_AGENT_*` from env and `package.json#scripts` from cwd; rewrites the command with the env prefix on Vitest match, returns the original on no-match.
+
+**SidecarLive layer** (`layers/SidecarLive.ts`) composes three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — plus the platform context. Each store gets its own `SqlClient` connection.
+
+**Sidecar resolves data paths** from `XDG_DATA_HOME` plus normalized `projectKey` directly (does not depend on workspace-discovery), so it works in non-pnpm-workspace project shapes.
+
+**CLI flag rename** (Phase 4 + 2026-05 chatId/sessionId/tddTaskId): `--cc-session-id` → `--chat-id`, `--parent-cc-session-id` → `--parent-chat-id` across `record` subcommands. The `wrapup` command's integer FK form moved to `--row-id` to free `--chat-id` for the host chat UUID. Plugin hook scripts updated to match.

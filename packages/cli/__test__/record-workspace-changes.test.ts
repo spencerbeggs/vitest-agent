@@ -5,13 +5,7 @@ import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import type { DataReader, DataStore } from "vitest-agent-sdk";
-import {
-	DataReaderLive,
-	DataReader as DataReaderTag,
-	DataStoreLive,
-	migration0001,
-	migration0002,
-} from "vitest-agent-sdk";
+import { DataReaderLive, DataReader as DataReaderTag, DataStoreLive, migration0001 } from "vitest-agent-sdk";
 import { recordRunWorkspaceChangesEffect } from "../src/lib/record-workspace-changes.js";
 
 const PlatformLayer = NodeContext.layer;
@@ -21,7 +15,6 @@ const buildLive = () => {
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
-			"0002_comprehensive": migration0002,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 	return Layer.mergeAll(

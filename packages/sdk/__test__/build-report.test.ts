@@ -421,6 +421,38 @@ describe("buildAgentReport", () => {
 		expect(moduleReport.errors?.[0].stack).toBe("at parse");
 	});
 
+	it("surfaces collection-failed modules with zero tests in failed[] and failedFiles", () => {
+		// Vitest's shape for a test file that fails to import:
+		// state() === "failed", allTests() yields nothing, errors() carries
+		// the import-time exception. Without special-casing, the module
+		// would be silently dropped from `failed` because `moduleHasFailure`
+		// only flips on a failed test case, leaving the agent with a
+		// misleading "0 passed" report.
+		const modules = [
+			makeTestModule({
+				relativeModuleId: "playground/__test__/text-utils.test.ts",
+				state: "failed",
+				tests: [],
+				errors: [
+					{
+						message: "Cannot find module '../src/text-utils.js'",
+						stacks: ["at playground/__test__/text-utils.test.ts:2:1"],
+					},
+				],
+			}),
+		];
+
+		const report = buildAgentReport(modules, [], "failed", { omitPassingTests: true });
+
+		expect(report.failedFiles).toEqual(["playground/__test__/text-utils.test.ts"]);
+		expect(report.failed).toHaveLength(1);
+		expect(report.failed[0].errors?.[0].message).toBe("Cannot find module '../src/text-utils.js'");
+		// Test counts stay tied to test cases — collection failures don't
+		// fabricate a synthetic failed test count.
+		expect(report.summary.total).toBe(0);
+		expect(report.summary.failed).toBe(0);
+	});
+
 	it("handles tests where diagnostic() returns undefined (skipped/todo)", () => {
 		const skippedTest = makeTestCase({ name: "skipped test", state: "skipped", noDiagnostic: true });
 		const passingTest = makeTestCase({ name: "passing test", state: "passed", duration: 20 });

@@ -11,8 +11,8 @@ import {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
 	IllegalStatusTransitionError,
-	TddSessionAlreadyEndedError,
-	TddSessionNotFoundError,
+	TddTaskAlreadyEndedError,
+	TddTaskNotFoundError,
 } from "../src/errors/TddErrors.js";
 
 describe("DiscoveryError", () => {
@@ -139,38 +139,38 @@ describe("BehaviorNotFoundError", () => {
 	});
 });
 
-describe("TddSessionNotFoundError", () => {
+describe("TddTaskNotFoundError", () => {
 	it("is a tagged error carrying id and reason with derived message", () => {
-		const err = new TddSessionNotFoundError({ id: 3, reason: "no tdd session for this id" });
-		expect(err._tag).toBe("TddSessionNotFoundError");
+		const err = new TddTaskNotFoundError({ id: 3, reason: "no tdd session for this id" });
+		expect(err._tag).toBe("TddTaskNotFoundError");
 		expect(err.id).toBe(3);
 		expect(err.reason).toBe("no tdd session for this id");
-		expect(err.message).toBe("[tdd_session not_found id=3] no tdd session for this id");
+		expect(err.message).toBe("[tdd_task not_found id=3] no tdd session for this id");
 		expect(err).toBeInstanceOf(Error);
 	});
 });
 
-describe("TddSessionAlreadyEndedError", () => {
+describe("TddTaskAlreadyEndedError", () => {
 	it("is a tagged error carrying outcome and endedAt with derived message", () => {
-		const err = new TddSessionAlreadyEndedError({
+		const err = new TddTaskAlreadyEndedError({
 			id: 5,
 			endedAt: "2026-04-29T00:01:00Z",
 			outcome: "succeeded",
 		});
-		expect(err._tag).toBe("TddSessionAlreadyEndedError");
+		expect(err._tag).toBe("TddTaskAlreadyEndedError");
 		expect(err.id).toBe(5);
 		expect(err.outcome).toBe("succeeded");
 		expect(err.endedAt).toBe("2026-04-29T00:01:00Z");
-		expect(err.message).toBe("[tdd_session ended id=5] outcome=succeeded endedAt=2026-04-29T00:01:00Z");
+		expect(err.message).toBe("[tdd_task ended id=5] outcome=succeeded endedAt=2026-04-29T00:01:00Z");
 	});
 
 	it("accepts blocked and abandoned outcomes", () => {
-		const blocked = new TddSessionAlreadyEndedError({
+		const blocked = new TddTaskAlreadyEndedError({
 			id: 5,
 			endedAt: "2026-04-29T00:01:00Z",
 			outcome: "blocked",
 		});
-		const abandoned = new TddSessionAlreadyEndedError({
+		const abandoned = new TddTaskAlreadyEndedError({
 			id: 5,
 			endedAt: "2026-04-29T00:01:00Z",
 			outcome: "abandoned",
@@ -204,14 +204,14 @@ describe("IllegalStatusTransitionError", () => {
 			to: "in_progress",
 			reason: "abandoned is terminal",
 		});
-		const sess = new IllegalStatusTransitionError({
-			entity: "session",
+		const task = new IllegalStatusTransitionError({
+			entity: "task",
 			id: 5,
 			from: "ended",
 			to: "in_progress",
-			reason: "session already ended",
+			reason: "task already ended",
 		});
 		expect(beh.entity).toBe("behavior");
-		expect(sess.entity).toBe("session");
+		expect(task.entity).toBe("task");
 	});
 });

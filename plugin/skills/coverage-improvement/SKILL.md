@@ -1,6 +1,6 @@
 ---
 name: coverage-improvement
-description: Guide systematic coverage improvement using vitest-agent MCP tools. Use when improving code coverage, targeting uncovered lines, or working toward coverage targets.
+description: Use when working to raise code coverage, target specific uncovered lines, or close the gap against the workspace's configured coverage thresholds and aspirational targets.
 ---
 
 # Improving Code Coverage
@@ -21,9 +21,9 @@ to get per-metric values and uncovered line ranges.
 
 ## Step 2: Understand Existing Tests
 
-Use `test_for_file({ filePath: "src/foo.ts" })` to find which test
+Use `test (action: for_file)({ filePath: "src/foo.ts" })` to find which test
 files already cover the source file. Then use
-`test_get({ fullName: "Suite > test name" })` to understand
+`test (action: get)({ fullName: "Suite > test name" })` to understand
 individual test scope and history.
 
 ## Step 3: Write Targeted Tests
@@ -49,7 +49,7 @@ a small regression could push them below the threshold.
 
 ## Recording Progress
 
-Use `note_create` to document:
+Use `note (action: create)` to document:
 
 - Which files you improved and by how much
 - Untested paths that were intentionally deferred

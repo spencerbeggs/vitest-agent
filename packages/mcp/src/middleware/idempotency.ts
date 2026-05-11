@@ -28,24 +28,21 @@ export interface IdempotencyKeySpec {
  */
 export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 	{
-		procedurePath: "hypothesis_record",
+		procedurePath: "hypothesis",
 		deriveKey: (input) => {
-			if (
-				input !== null &&
-				typeof input === "object" &&
-				"sessionId" in input &&
-				"content" in input &&
-				typeof (input as Record<string, unknown>).sessionId === "number" &&
-				typeof (input as Record<string, unknown>).content === "string"
-			) {
-				const i = input as { sessionId: number; content: string };
-				return `${i.sessionId}:${i.content}`;
+			if (input === null || typeof input !== "object" || !("action" in input)) return null;
+			const i = input as Record<string, unknown>;
+			if (i.action === "record" && typeof i.sessionId === "number" && typeof i.content === "string") {
+				return `record:${i.sessionId}:${i.content}`;
+			}
+			if (i.action === "validate" && typeof i.id === "number" && typeof i.outcome === "string") {
+				return `validate:${i.id}:${i.outcome}`;
 			}
 			return null;
 		},
 	},
 	{
-		procedurePath: "hypothesis_validate",
+		procedurePath: "_legacy_hypothesis_validate",
 		deriveKey: (input) => {
 			if (
 				input !== null &&
@@ -62,67 +59,58 @@ export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 		},
 	},
 	{
-		// `tdd_session_start` accepts either `sessionId` (sessions.id) or
-		// `ccSessionId` (Claude Code session id). Both forms must produce
-		// a stable key — without that, an orchestrator retry that uses the
-		// same identifier form will silently bypass the cache and create
-		// a duplicate `tdd_sessions` row, which is exactly what idempotency
+		// `tdd_task action=start` accepts either `sessionId` (sessions.id)
+		// or `chatId` (host chat id). Both forms must produce a stable
+		// key — without that, an orchestrator retry that uses the same
+		// identifier form will silently bypass the cache and create a
+		// duplicate `tdd_tasks` row, which is exactly what idempotency
 		// is here to prevent. We key on whichever id is present, prefixed
-		// with its kind so a hypothetical `cc-X` cc-id can't collide with
-		// integer id `X`.
+		// with its kind so a hypothetical chat-X id can't collide with
+		// integer id X.
 		//
 		// When `runId` is present (new-style dispatch), key on the run id
 		// instead of the goal text. This lets the same goal be retried in
-		// the same CC session by generating a new runId at dispatch time.
+		// the same chat by generating a new runId at dispatch time.
 		// Backward compat: callers that omit runId fall back to goal-based
 		// keying so existing tests and old-style tool calls still work.
-		procedurePath: "tdd_session_start",
+		procedurePath: "tdd_task",
 		deriveKey: (input) => {
-			if (input === null || typeof input !== "object" || !("goal" in input)) return null;
+			if (input === null || typeof input !== "object" || !("action" in input)) return null;
 			const i = input as Record<string, unknown>;
-			if (typeof i.goal !== "string") return null;
-			if (typeof i.runId === "string") {
-				if (typeof i.sessionId === "number") return `sid:${i.sessionId}:run:${i.runId}`;
-				if (typeof i.ccSessionId === "string") return `cc:${i.ccSessionId}:run:${i.runId}`;
+			if (i.action === "start" && typeof i.goal === "string") {
+				if (typeof i.runId === "string") {
+					if (typeof i.sessionId === "number") return `start:sid:${i.sessionId}:run:${i.runId}`;
+					if (typeof i.chatId === "string") return `start:chat:${i.chatId}:run:${i.runId}`;
+				}
+				if (typeof i.sessionId === "number") return `start:sid:${i.sessionId}:${i.goal}`;
+				if (typeof i.chatId === "string") return `start:chat:${i.chatId}:${i.goal}`;
 			}
-			if (typeof i.sessionId === "number") return `sid:${i.sessionId}:${i.goal}`;
-			if (typeof i.ccSessionId === "string") return `cc:${i.ccSessionId}:${i.goal}`;
-			return null;
-		},
-	},
-	{
-		procedurePath: "tdd_session_end",
-		deriveKey: (input) => {
-			if (
-				input !== null &&
-				typeof input === "object" &&
-				"tddSessionId" in input &&
-				"outcome" in input &&
-				typeof (input as Record<string, unknown>).tddSessionId === "number" &&
-				typeof (input as Record<string, unknown>).outcome === "string"
-			) {
-				const i = input as { tddSessionId: number; outcome: string };
-				return `${i.tddSessionId}:${i.outcome}`;
+			if (i.action === "end" && typeof i.tddTaskId === "number" && typeof i.outcome === "string") {
+				return `end:${i.tddTaskId}:${i.outcome}`;
 			}
 			return null;
 		},
 	},
 	{
-		procedurePath: "tdd_goal_create",
+		procedurePath: "tdd_goal",
 		deriveKey: (input) => {
-			if (input === null || typeof input !== "object") return null;
+			if (input === null || typeof input !== "object" || !("action" in input)) return null;
 			const i = input as Record<string, unknown>;
-			if (typeof i.sessionId !== "number" || typeof i.goal !== "string") return null;
-			return `${i.sessionId}:${i.goal}`;
+			if (i.action === "create" && typeof i.tddTaskId === "number" && typeof i.goal === "string") {
+				return `create:${i.tddTaskId}:${i.goal}`;
+			}
+			return null;
 		},
 	},
 	{
-		procedurePath: "tdd_behavior_create",
+		procedurePath: "tdd_behavior",
 		deriveKey: (input) => {
-			if (input === null || typeof input !== "object") return null;
+			if (input === null || typeof input !== "object" || !("action" in input)) return null;
 			const i = input as Record<string, unknown>;
-			if (typeof i.goalId !== "number" || typeof i.behavior !== "string") return null;
-			return `${i.goalId}:${i.behavior}`;
+			if (i.action === "create" && typeof i.goalId === "number" && typeof i.behavior === "string") {
+				return `create:${i.goalId}:${i.behavior}`;
+			}
+			return null;
 		},
 	},
 ];
