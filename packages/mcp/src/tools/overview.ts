@@ -1,74 +1,120 @@
-import { Effect, Option, Schema } from "effect";
+/**
+ * `test_overview` MCP tool — Schema-driven implementation.
+ *
+ * @packageDocumentation
+ */
+
+import { Effect, Option, ParseResult, Schema } from "effect";
 import { DataReader } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
+const ProjectRunSummary = Schema.Struct({
+	project: Schema.String,
+	lastRun: Schema.NullOr(Schema.String),
+	lastResult: Schema.NullOr(Schema.Literal("passed", "failed", "interrupted")),
+	total: Schema.Number,
+	passed: Schema.Number,
+	failed: Schema.Number,
+	skipped: Schema.Number,
+}).annotations({ identifier: "ProjectRunSummary", description: "One row per project's most recent run summary." });
+
+const OverviewAvailable = Schema.Struct({
+	dataAvailable: Schema.Literal(true),
+	projectFilter: Schema.optional(Schema.String),
+	runs: Schema.Array(ProjectRunSummary),
+}).annotations({ identifier: "TestOverviewAvailable" });
+
+const OverviewAbsent = Schema.Struct({
+	dataAvailable: Schema.Literal(false),
+	projectFilter: Schema.optional(Schema.String),
+	reason: Schema.Literal("no_runs", "project_filter_empty"),
+}).annotations({ identifier: "TestOverviewAbsent" });
+
+export const TestOverviewResult = Schema.Union(OverviewAvailable, OverviewAbsent).annotations({
+	identifier: "TestOverviewResult",
+	title: "test_overview result",
+	description: "Per-project run metrics. Discriminate on `dataAvailable` for cold-start handling.",
+});
+export type TestOverviewResultType = Schema.Schema.Type<typeof TestOverviewResult>;
+
+const iconForResult = (r: string | null): string => {
+	if (r === "passed") return "✅";
+	if (r === "failed") return "❌";
+	if (r === "interrupted") return "⚠️";
+	return "⬜";
+};
+
+export const formatTestOverviewMarkdown = (data: TestOverviewResultType): string => {
+	if (!data.dataAvailable) {
+		if (data.reason === "project_filter_empty") {
+			return `No test data found for project \`${data.projectFilter ?? "(unknown)"}\`. Run tests first.`;
+		}
+		return "No test data available. Run tests first.";
+	}
+	const lines: string[] = ["# Test Overview", ""];
+	type RunRow = Schema.Schema.Type<typeof ProjectRunSummary>;
+	const projectGroups = new Map<string, Array<RunRow>>();
+	for (const run of data.runs) {
+		const group = projectGroups.get(run.project) ?? [];
+		group.push(run);
+		projectGroups.set(run.project, group);
+	}
+	for (const [projectName, projectRuns] of projectGroups) {
+		lines.push(`## ${projectName}`, "");
+		for (const run of projectRuns) {
+			const lastRun = run.lastRun ? new Date(run.lastRun).toLocaleString() : "never";
+			lines.push(
+				`### ${iconForResult(run.lastResult)} ${run.project}`,
+				"",
+				"| Metric | Count |",
+				"| --- | --- |",
+				`| Total | ${run.total} |`,
+				`| Passed | ${run.passed} |`,
+				`| Failed | ${run.failed} |`,
+				`| Skipped | ${run.skipped} |`,
+				`| Last run | ${lastRun} |`,
+				"",
+			);
+		}
+	}
+	return lines.join("\n");
+};
+
+export const TestOverviewAsMarkdown = Schema.transformOrFail(TestOverviewResult, Schema.String, {
+	strict: true,
+	decode: (data) => ParseResult.succeed(formatTestOverviewMarkdown(data)),
+	encode: (text, _options, ast) =>
+		ParseResult.fail(new ParseResult.Forbidden(ast, text, "TestOverviewAsMarkdown is one-way.")),
+});
+
 export const testOverview = publicProcedure
-	.input(
-		Schema.standardSchemaV1(
-			Schema.Struct({
-				project: Schema.optional(Schema.String),
-			}),
-		),
-	)
-	.query(async ({ ctx, input }) => {
-		return ctx.runtime.runPromise(
-			Effect.gen(function* () {
-				const reader = yield* DataReader;
-
-				const [manifestOpt, runs] = yield* Effect.all([reader.getManifest(), reader.getRunsByProject()]);
-
-				if (Option.isNone(manifestOpt) || runs.length === 0) {
-					return "No test data available. Run tests first.";
-				}
-
-				let filteredRuns = runs;
-				if (input.project !== undefined) {
-					filteredRuns = runs.filter((r) => r.project === input.project);
+	.input(Schema.standardSchemaV1(Schema.Struct({ project: Schema.optional(Schema.String) })))
+	.query(
+		async ({ ctx, input }): Promise<TestOverviewResultType> =>
+			ctx.runtime.runPromise(
+				Effect.gen(function* () {
+					const reader = yield* DataReader;
+					const [manifestOpt, runs] = yield* Effect.all([reader.getManifest(), reader.getRunsByProject()]);
+					if (Option.isNone(manifestOpt) || runs.length === 0) {
+						return {
+							dataAvailable: false as const,
+							reason: "no_runs" as const,
+							...(input.project !== undefined && { projectFilter: input.project }),
+						};
+					}
+					const filteredRuns = input.project === undefined ? runs : runs.filter((r) => r.project === input.project);
 					if (filteredRuns.length === 0) {
-						return `No test data found for project \`${input.project}\`. Run tests first.`;
+						return {
+							dataAvailable: false as const,
+							reason: "project_filter_empty" as const,
+							...(input.project !== undefined && { projectFilter: input.project }),
+						};
 					}
-				}
-
-				const lines: string[] = ["# Test Overview", ""];
-
-				const projectGroups = new Map<string, Array<(typeof filteredRuns)[number]>>();
-				for (const run of filteredRuns) {
-					const key = run.project;
-					const group = projectGroups.get(key) ?? [];
-					group.push(run);
-					projectGroups.set(key, group);
-				}
-
-				for (const [projectName, projectRuns] of projectGroups) {
-					lines.push(`## ${projectName}`);
-					lines.push("");
-
-					for (const run of projectRuns) {
-						const label = run.project;
-						const lastRun = run.lastRun ? new Date(run.lastRun).toLocaleString() : "never";
-						const icon =
-							run.lastResult === "passed"
-								? "✅"
-								: run.lastResult === "failed"
-									? "❌"
-									: run.lastResult === "interrupted"
-										? "⚠️"
-										: "⬜";
-
-						lines.push(`### ${icon} ${label}`);
-						lines.push("");
-						lines.push(`| Metric | Count |`);
-						lines.push(`| --- | --- |`);
-						lines.push(`| Total | ${run.total} |`);
-						lines.push(`| Passed | ${run.passed} |`);
-						lines.push(`| Failed | ${run.failed} |`);
-						lines.push(`| Skipped | ${run.skipped} |`);
-						lines.push(`| Last run | ${lastRun} |`);
-						lines.push("");
-					}
-				}
-
-				return lines.join("\n");
-			}),
-		);
-	});
+					return {
+						dataAvailable: true as const,
+						...(input.project !== undefined && { projectFilter: input.project }),
+						runs: filteredRuns,
+					};
+				}),
+			),
+	);

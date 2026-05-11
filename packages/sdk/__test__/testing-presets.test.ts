@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Effect, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DataReader } from "vitest-agent-sdk";
-import { empty, flaky, singlePassingRun, withFailures, withTddSession } from "vitest-agent-sdk/testing";
+import { empty, flaky, singlePassingRun, withFailures, withTddTask } from "vitest-agent-sdk/testing";
 
 describe("vitest-agent-sdk/testing preset factories", () => {
 	let tmpDir: string;
@@ -100,25 +100,25 @@ describe("vitest-agent-sdk/testing preset factories", () => {
 		}
 	});
 
-	it("withTddSession: TDD session has 1 goal and 2 behaviors", async () => {
-		const rt = ManagedRuntime.make(withTddSession(join(tmpDir, "data.db")));
+	it("withTddTask: TDD session has 1 goal and 2 behaviors", async () => {
+		const rt = ManagedRuntime.make(withTddTask(join(tmpDir, "data.db")));
 		try {
 			const { sessions, goals, behaviors } = await rt.runPromise(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					// Find the agent session by cc_session_id
-					const sessionDetail = yield* reader.getSessionByCcId("cc-preset-tdd");
+					// Find the agent session by chat_id
+					const sessionDetail = yield* reader.getSessionByChatId("chat-preset-tdd");
 					if (sessionDetail._tag === "None") {
 						return { sessions: [], goals: [], behaviors: [] };
 					}
 					const agentSession = sessionDetail.value;
 					// List TDD sessions associated with the agent session
-					const sessions = yield* reader.listTddSessionsForSession(agentSession.id);
+					const sessions = yield* reader.listTddTasksForSession(agentSession.id);
 					if (sessions.length === 0) {
 						return { sessions, goals: [], behaviors: [] };
 					}
 					// Get goals for the TDD session
-					const goals = yield* reader.getGoalsBySession(sessions[0].id);
+					const goals = yield* reader.getGoalsByTddTask(sessions[0].id);
 					// Get behaviors for the first goal
 					const behaviors = goals.length > 0 ? yield* reader.getBehaviorsByGoal(goals[0].id) : [];
 					return { sessions, goals, behaviors };

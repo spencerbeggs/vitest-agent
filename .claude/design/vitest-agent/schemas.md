@@ -241,7 +241,7 @@ schemas because the DataStore commits one row at a time inside a single
   directly.
 
 **Column-name vs input-name drift.** The `TddSessionInput.agentSessionId`
-input field maps to `tdd_sessions.session_id` (NOT `agent_session_id` — no
+input field maps to `tdd_tasks.session_id` (NOT `agent_session_id` — no
 such column exists). Likewise `WriteTddArtifactInput.tddPhaseId` maps to
 `tdd_artifacts.phase_id`. The input names are kept for callsite clarity; the
 DataStore is the only place the column-name mapping happens.
@@ -265,16 +265,17 @@ MCP read tool and CLI command consumes. Like the inputs, these are
 persistence-shaped — typically a row plus a small amount of joined context.
 The notable ones:
 
-- **`SessionSummary`** / **`ListSessionsOptions`** — backs `session_list`.
+- **`SessionSummary`** / **`ListSessionsOptions`** — backs the
+  `inventory({ inventoryKind: "session_list" })` action.
 - **`FailureSignatureDetail`** — `lastSeenAt` is nullable because it has no
   backfill for rows written before the `failure_signatures.last_seen_at`
-  column was added (now part of `0002_comprehensive`).
+  column was added (now consolidated into `0001_initial`).
   See `failure_signatures` in the table inventory below for the recurrence
   semantics.
-- **`TddSessionDetail`** — carries the full goal+behavior tree alongside
+- **`TddTaskDetail`** — carries the full goal+behavior tree alongside
   phases and artifacts. The goals are materialized via a single batched
   IN-clause join from `tdd_session_goals` to `tdd_session_behaviors` so
-  `tdd_session_resume` returns the complete view in one read.
+  `tdd_task({ action: "resume" })` returns the complete view in one read.
 - **`GoalRow` / `BehaviorRow`** are the canonical row types. `GoalDetail`
   nests `behaviors[]`. `BehaviorDetail` includes `parentGoal` and
   `dependencies[]` resolved through the junction table.
@@ -288,9 +289,9 @@ The notable ones:
   reader does the joins so the validator stays pure.
 - **`CommitChangesEntry`** — backs `commit_changes`. Single sha (when
   provided) or the most-recent commits (when omitted, capped at 20).
-- **`TddSessionSummary`** — TDD sessions whose `session_id` FK points at
-  the given Claude Code session. Used by `tdd_session_resume` to find a
-  suitable open TDD session.
+- **`TddTaskSummary`** — TDD sessions whose `session_id` FK points at
+  the given Claude Code session. Used by
+  `tdd_task({ action: "resume" })` to find a suitable open TDD session.
 - **`FindIdempotentResponse`** — `(procedurePath, key) =>
   Effect<Option<string>, DataStoreError>`. Returns `Option.none()` when no
   cached response exists; otherwise the stored `result_json`.
@@ -306,21 +307,25 @@ frame, runs `findFunctionBoundary` on the resolved source, and calls
 
 ## SQLite table inventory
 
-The canonical schema lives entirely in two migration files:
-`packages/sdk/src/migrations/0001_initial.ts` (legacy 1.x schema) and
-`packages/sdk/src/migrations/0002_comprehensive.ts` (drop-and-recreate
-that now folds in all 2.0 additions: goal/behavior hierarchy,
-`mcp_idempotent_responses`, the `test_cases.created_turn_id` FK,
-`failure_signatures.last_seen_at`, and `tdd_sessions.run_id`). The
-former separate files `0003`–`0006` were deleted and merged into `0002`
-in-place. All migrations run via `@effect/sql-sqlite-node`'s
+The canonical per-project schema lives in a single consolidated
+migration: `packages/sdk/src/migrations/0001_initial.ts`. Per the
+pre-2.0 policy, every schema change before 2.0 ships edits this file
+directly — there are no ALTERs, no backfills, no incremental
+migration history. The prior `0002_comprehensive.ts` was folded
+back into `0001_initial.ts` once the agent-attribution model
+stabilized. All migrations run via `@effect/sql-sqlite-node`'s
 `SqliteMigrator` with WAL journal mode and foreign keys enabled.
 
-The migration ledger has no content hash, so editing an existing migration
-in place does not auto-replay on existing dev DBs. This is fine for pre-1.0
-development but means a wipe of the dev DB is required when schema-shape
-edits land on an existing migration. See [./decisions.md](./decisions.md)
-D9 for the "0002 was the last drop-and-recreate" decision.
+Two additional migration files cover the per-client and registry
+SQLite scopes added for the agent-taxonomy work:
+`session_map_0001_initial.ts` (the per-client `sessions.db`) and
+`registry_0001_initial.ts` (the global `registry.db`). See the
+*Three-tier storage architecture* section below for the path
+layout.
+
+Editing `0001_initial.ts` directly is the canonical pre-2.0 path:
+developers delete `data.db` on every breaking schema change. Post-2.0,
+the standard incremental-migration discipline takes over.
 
 **Spine.** `test_runs` is the run record; each owns one or more
 `test_modules`, which own `test_suites` and `test_cases`. Errors attach via
@@ -361,7 +366,7 @@ read the already-updated row and accumulate stale tokens.
 | `file_coverage` | Per-file coverage per run |
 | `source_test_map` | Source file → test module mapping |
 | `notes` | Scoped notes with threading and expiration |
-| `sessions` | Claude Code conversations; `cc_session_id` unique, `agent_kind`, `parent_session_id` self-FK |
+| `sessions` | Claude Code conversations; `chat_id` unique, `agent_kind`, `parent_session_id` self-FK |
 | `turns` | Per-session turn log; `payload` is JSON-stringified `TurnPayload`; `type` CHECK matches the union discriminators |
 | `tool_invocations` | Flattened projection over `tool_result` payloads (one row per result turn) |
 | `file_edits` | Flattened projection over `file_edit` payloads (1:1 with `file_edit` turns) |
@@ -370,7 +375,7 @@ read the already-updated row and accumulate stale tokens.
 | `run_changed_files` | Files changed for a run; `run_id NOT NULL` |
 | `run_triggers` | 1:1 with `test_runs`; CHECK over the trigger taxonomy |
 | `build_artifacts` | Captured tsc/biome/eslint output |
-| `tdd_sessions` | TDD session goal + outcome; `session_id` FK to `sessions(id)`; `run_id TEXT` (nullable, unique-per-session-id when set) |
+| `tdd_tasks` | TDD session goal + outcome; `session_id` FK to `sessions(id)`; `run_id TEXT` (nullable, unique-per-session-id when set) |
 | `tdd_session_goals` | Tier-2 goals decomposed from a session objective |
 | `tdd_session_behaviors` | Tier-3 atomic red-green-refactor units; `goal_id` FK |
 | `tdd_behavior_dependencies` | Junction table for behavior ordering, replacing the old JSON-in-TEXT column |
@@ -462,3 +467,96 @@ The TDD error envelope (`packages/mcp/src/tools/_tdd-error-envelope.ts`)
 catches tagged TDD errors at the MCP boundary and surfaces them as
 success-shape `{ ok: false, error: { _tag, ..., remediation } }` responses
 so the orchestrator can recover without seeing a tRPC-level failure.
+
+## Agent-agnostic taxonomy schemas (Phases 1–4)
+
+The 0001_initial migration is now consolidated (the prior 0002 was
+folded in) and adds the agent attribution model on top of the prior
+SQLite shape.
+
+### `agents` table
+
+Declared `STRICT`. One row per agent invocation; the parent_agent_id
+self-reference forms the subagent tree.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `agent_id` | TEXT PK | UUID generated server-side at registration |
+| `session_id` | INTEGER FK → `sessions.id` ON DELETE RESTRICT | The session row this agent runs inside |
+| `parent_agent_id` | TEXT NULLABLE FK → `agents.agent_id` ON DELETE RESTRICT | NULL for main agents; subagents reference their parent |
+| `conversation_id` | TEXT NULLABLE | Cross-window rollup key, denormalized from sessions |
+| `agent_type` | TEXT NOT NULL | E.g. `claude-code-main`, `claude-code-tdd-task`. MCP boundary validates the `${hostKind}-` prefix |
+| `started_at` | INTEGER NOT NULL | Unix epoch (s) |
+| `ended_at` | INTEGER NULLABLE | Set by SessionEnd / SubagentStop |
+| `start_git_branch` | TEXT NULLABLE | Inherited git context at registration |
+| `start_git_commit_sha` | TEXT NULLABLE | Same |
+| `start_worktree_dir` | TEXT NULLABLE | Worktree-toplevel; differs from parent for `isolation: "worktree"` subagents |
+| `idempotency_key` | TEXT NOT NULL | SHA-256 base32(26) over (agentType, parentOrSentinel, clientNonce); UNIQUE per (session_id, idempotency_key) |
+
+Indexes: `(session_id)`, `(parent_agent_id)`, `(agent_type)`,
+`(start_git_branch)`, `(conversation_id)`, partial
+`(session_id) WHERE ended_at IS NULL`, plus the UNIQUE
+`(session_id, idempotency_key)`.
+
+### Action-table attribution columns
+
+Added to `test_runs`, `hypotheses`, `notes`, `tdd_phases`:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `actor_type` | TEXT NOT NULL DEFAULT `'system'` CHECK in (`'agent'`, `'user'`, `'system'`) | Who initiated the action |
+| `agent_id` | TEXT NULLABLE | Required when `actor_type='agent'`, NULL otherwise |
+| `conversation_id` | TEXT NULLABLE | Denormalized from agents; NULL for non-agent rows |
+
+CHECK constraints (explicit form, not biconditional):
+
+```sql
+CHECK ((actor_type = 'agent' AND agent_id IS NOT NULL)
+    OR (actor_type IN ('user', 'system') AND agent_id IS NULL))
+CHECK ((actor_type = 'agent') OR (conversation_id IS NULL))
+```
+
+### Per-run git + host context on `test_runs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `git_branch` | TEXT NULLABLE | `git rev-parse --abbrev-ref HEAD`; literal `'HEAD'` for detached state |
+| `git_commit_sha` | TEXT NULLABLE | The reliable identifier when branch is HEAD or empty |
+| `git_dirty` | INTEGER NULLABLE CHECK in (0, 1) | 1 when working tree non-empty; affects reproducibility |
+| `git_upstream` | TEXT NULLABLE | `@{upstream}` ref name |
+| `git_worktree_dir` | TEXT NULLABLE | Physical worktree toplevel; differs from main checkout for `git worktree add` |
+| `host_source` | TEXT NULLABLE | Probe label: `'TMUX_PANE'`, `'WT_SESSION'`, `'GITHUB_RUN_ID'`, etc. |
+| `host_value` | TEXT NULLABLE | Probe value (pane id, run id, etc.) |
+| `host_metadata` | TEXT NULLABLE | JSON blob with decorating fields (term_program, ci_provider, etc.) |
+
+Indexes: `(git_commit_sha)`, compound `(git_branch, created_at)` for
+the documented prune workload, compound `(host_source, host_value)`
+for "all runs from this iTerm window" forensics.
+
+### Conversation-id immutability triggers
+
+Six `AFTER UPDATE` triggers — one each on `sessions`, `agents`,
+`test_runs`, `hypotheses`, `notes`, `tdd_phases` — abort any update
+that changes `conversation_id`. Write-once at INSERT semantics; the
+denormalized copies cannot drift.
+
+### Three-tier storage architecture
+
+| Tier | Location | Cloud-portable? | Contents |
+| --- | --- | --- | --- |
+| Per-project data store | `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` | Yes (eventual D1 swap) | Canonical UUIDs only — `agents`, `runs`, `tests`, `tdd_*` |
+| Per-client session map | `${CLAUDE_PLUGIN_DATA}/sessions.db` for Claude Code | No | Native-ID translations: `transcript_path` → `conversation_id`, `host_session_id` → `main_agent_id` |
+| Global discovery registry | `$XDG_DATA_HOME/vitest-agent/registry.db` | No | `known_projects` index for cross-project tooling |
+
+Per-client session map schema lives at
+`packages/sdk/src/migrations/session_map_0001_initial.ts`. Two STRICT
+tables — `conversation_map` (transcript UUID → canonical
+conversation UUID) and `session_map` (host session id → conversation
+id, project, main agent id) — plus four indexes including the
+partial `(project_dir) WHERE ended_at IS NULL` for the
+`lookupByProjectDir` hot path.
+
+Global discovery registry lives at
+`packages/sdk/src/migrations/registry_0001_initial.ts`. Single
+STRICT `known_projects` table indexed by `project_key` with WAL plus
+busy_timeout=5000.

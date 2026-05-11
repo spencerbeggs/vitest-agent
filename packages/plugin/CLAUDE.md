@@ -177,3 +177,13 @@ project per workspace package; test-kind shaping now happens through
 - `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests for this package, including the `__test__/`
   layout and helper subdirectory exclusion conventions.
+
+## Agent-agnostic taxonomy additions (Phase 4)
+
+`AgentReporter` walks attribution sources at `onTestRunEnd` and writes
+the result to every `test_runs` row:
+
+1. Source 1 — read `VITEST_AGENT_AGENT_ID` and `VITEST_AGENT_CONVERSATION_ID` from `process.env`. These are populated upstream by the SessionStart hook (writes to `CLAUDE_ENV_FILE`, auto-sourced into Bash subprocesses + the MCP server child), the PreToolUse Bash hook's `updatedInput.command` rewrite (per-call env prefix on Vitest invocations), and the MCP `run_tests` tool's `process.env` mutation from `SessionContextRef`. When set, the reporter records `actor_type='agent'` plus the canonical UUIDs.
+2. Source 3 — when no env vars are set, records `actor_type='system'` and NULL agent / conversation ids. CI runs and direct `pnpm vitest` invocations from a human at a terminal land here.
+
+Host metadata is captured via `probeHostMetadataFromEnv(process.env)` (the 9-tier probe chain in `vitest-agent-sdk`'s utils). Git context capture rides the `RunContext` service integration on the future per-run path; today the reporter passes the existing `GITHUB_SHA`/`GITHUB_REF_NAME` columns through the new `git_branch` / `git_commit_sha` slots. `host_metadata` serializes via `JSON.stringify`.

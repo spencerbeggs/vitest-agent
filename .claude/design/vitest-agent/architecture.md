@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-11
+last-synced: 2026-05-11
 completeness: 90
 related:
   - ./components.md
@@ -148,6 +148,18 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   session/turn capture, the TDD orchestrator subagent, the slash
   commands and the MCP loader. It ships separately through the Claude
   marketplace.
+- **Agent-agnostic taxonomy.** Every action-table row carries
+  `actor_type` (`'agent' | 'user' | 'system'`), `agent_id`, and
+  `conversation_id` columns so test results, hypotheses, notes, and
+  TDD phases all attribute back to a specific agent invocation
+  identified by canonical UUIDs (not host-specific session ids). The
+  SessionStart hook + `${CLAUDE_ENV_FILE}` auto-sourcing propagates
+  the four canonical UUIDs into every subprocess; PreToolUse Bash
+  hooks override the agent id when a subagent is the active actor.
+  See [./decisions.md](./decisions.md) D16–D19,
+  [./components/plugin-claude.md](./components/plugin-claude.md),
+  and the *Attribution flow* section in
+  [./data-flows.md](./data-flows.md).
 
 ## Current limitations
 

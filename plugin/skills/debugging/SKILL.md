@@ -1,6 +1,6 @@
 ---
 name: debugging
-description: Guide debugging test failures using vitest-agent MCP tools. Use when tests are failing, investigating flaky tests, or diagnosing persistent failures.
+description: Use when tests are failing, when investigating flaky or persistent failures, or when a failure signature needs systematic diagnosis through vitest-agent's test_history, test_errors, and failure_signature_get surfaces.
 ---
 
 # Debugging Test Failures
@@ -29,7 +29,7 @@ Use `test_errors` to search for the specific error:
 
 ## Step 3: Find Related Tests
 
-Use `test_for_file` to find all tests that cover the file
+Use `test (action: for_file)` to find all tests that cover the file
 containing the failure. This helps you:
 
 - Understand the test surface for the affected code
@@ -46,14 +46,14 @@ Use `test_coverage` to see:
 
 ## Step 5: Document Findings
 
-Use `note_create` to record:
+Use `note (action: create)` to record:
 
 - Root cause analysis
 - Steps to reproduce
 - Fix strategy
 - Any workarounds applied
 
-Pin important notes with `note_update` so they persist across
+Pin important notes with `note (action: update)` so they persist across
 sessions.
 
 ## Step 6: Verify the Fix

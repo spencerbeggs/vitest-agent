@@ -1,106 +1,174 @@
-import { Effect, Schema } from "effect";
-import { DataReader } from "vitest-agent-sdk";
+/**
+ * `test_history` MCP tool — Schema-driven implementation.
+ *
+ * The structured payload bundles the underlying `HistoryRecord` plus
+ * the lighter `flaky` / `persistent` projections the UI uses, so an
+ * agent doesn't need to recompute them from runs[].
+ *
+ * @packageDocumentation
+ */
+
+import { Effect, ParseResult, Schema } from "effect";
+import { DataReader, HistoryRecord } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
-export const testHistory = publicProcedure
-	.input(
-		Schema.standardSchemaV1(
-			Schema.Struct({
-				project: Schema.String,
-			}),
+const FlakyTestRow = Schema.Struct({
+	fullName: Schema.String.annotations({ description: "Full hierarchical test name (`describe > it`)." }),
+	project: Schema.String,
+	passCount: Schema.Number.annotations({ description: "Number of passing runs in the recent window." }),
+	failCount: Schema.Number.annotations({ description: "Number of failing runs in the recent window." }),
+	lastState: Schema.Literal("passed", "failed").annotations({ description: "State of the most recent run." }),
+	lastTimestamp: Schema.String.annotations({ description: "ISO-8601 timestamp of the most recent run." }),
+}).annotations({
+	identifier: "FlakyTestRow",
+	description: "A test that produced both passes and failures within the recent run window.",
+});
+
+const PersistentFailureRow = Schema.Struct({
+	fullName: Schema.String,
+	project: Schema.String,
+	consecutiveFailures: Schema.Number.annotations({
+		description: "Length of the current uninterrupted failure streak.",
+	}),
+	firstFailedAt: Schema.String.annotations({ description: "ISO-8601 timestamp of the first failure in this streak." }),
+	lastFailedAt: Schema.String.annotations({ description: "ISO-8601 timestamp of the most recent failure." }),
+	lastErrorMessage: Schema.NullOr(Schema.String).annotations({
+		description: "Last error message reported by the failing test, when captured.",
+	}),
+}).annotations({
+	identifier: "PersistentFailureRow",
+	description: "A test that has failed in every recent run since `firstFailedAt`.",
+});
+
+const RecoveredTestRow = Schema.Struct({
+	fullName: Schema.String,
+	recentRuns: Schema.Array(Schema.Literal("passed", "failed")).annotations({
+		description: "Last 10 run states for this test, oldest first.",
+	}),
+}).annotations({
+	identifier: "RecoveredTestRow",
+	description: "A test whose latest run passed after the previous one failed.",
+});
+
+export const TestHistoryResult = Schema.Struct({
+	project: Schema.String.annotations({ description: "Workspace project key the history was computed for." }),
+	hasData: Schema.Boolean.annotations({
+		description: "`false` when no history rows exist for the project — agent should suggest running tests first.",
+	}),
+	history: HistoryRecord.annotations({ description: "Raw per-test history record (stored in `test_runs` joins)." }),
+	flaky: Schema.Array(FlakyTestRow).annotations({ description: "Tests with mixed pass/fail outcomes recently." }),
+	persistent: Schema.Array(PersistentFailureRow).annotations({ description: "Tests failing across consecutive runs." }),
+	recovered: Schema.Array(RecoveredTestRow).annotations({
+		description: "Tests that just transitioned from failing to passing in the last run.",
+	}),
+}).annotations({
+	identifier: "TestHistoryResult",
+	title: "test_history result",
+	description: "Per-project flaky/persistent/recovered test classifications computed from `test_runs` history.",
+});
+export type TestHistoryResultType = Schema.Schema.Type<typeof TestHistoryResult>;
+
+export const formatTestHistoryMarkdown = (data: TestHistoryResultType): string => {
+	if (!data.hasData) return `No history data available for project \`${data.project}\`. Run tests first.`;
+
+	const lines: string[] = [`# Test History: ${data.project}`, ""];
+
+	if (data.flaky.length > 0) {
+		lines.push("## Flaky Tests", "", "Tests with mixed pass/fail results across recent runs:", "");
+		for (const test of data.flaky) {
+			const total = test.passCount + test.failCount;
+			const passRate = total > 0 ? ((test.passCount / total) * 100).toFixed(0) : "0";
+			lines.push(
+				`### ⚠️ ${test.fullName}`,
+				"",
+				`- Pass rate: ${passRate}% (${test.passCount}/${total})`,
+				`- Last state: ${test.lastState}`,
+				`- Last run: ${new Date(test.lastTimestamp).toLocaleString()}`,
+				"",
+			);
+		}
+	}
+
+	if (data.persistent.length > 0) {
+		lines.push("## Persistent Failures", "", "Tests that have failed in consecutive runs:", "");
+		for (const failure of data.persistent) {
+			lines.push(
+				`### ❌ ${failure.fullName}`,
+				"",
+				`- Consecutive failures: ${failure.consecutiveFailures}`,
+				`- First failed: ${new Date(failure.firstFailedAt).toLocaleString()}`,
+				`- Last failed: ${new Date(failure.lastFailedAt).toLocaleString()}`,
+			);
+			if (failure.lastErrorMessage !== null) lines.push(`- Last error: ${failure.lastErrorMessage}`);
+			lines.push("");
+		}
+	}
+
+	if (data.recovered.length > 0) {
+		lines.push("## Recovered Tests", "", "Tests that previously failed but are now passing:", "");
+		for (const test of data.recovered) {
+			const runViz = test.recentRuns.map((s) => (s === "passed" ? "P" : "F")).join("");
+			lines.push(`- ✅ **${test.fullName}** — recent runs: \`${runViz}\``);
+		}
+		lines.push("");
+	}
+
+	if (data.flaky.length === 0 && data.persistent.length === 0 && data.recovered.length === 0) {
+		lines.push("✅ No flaky, persistent, or recently recovered tests.", "");
+	}
+
+	lines.push(`_History updated: ${data.history.updatedAt}_`);
+	return lines.join("\n");
+};
+
+export const TestHistoryAsMarkdown = Schema.transformOrFail(TestHistoryResult, Schema.String, {
+	strict: true,
+	decode: (data) => ParseResult.succeed(formatTestHistoryMarkdown(data)),
+	encode: (text, _options, ast) =>
+		ParseResult.fail(
+			new ParseResult.Forbidden(
+				ast,
+				text,
+				"TestHistoryAsMarkdown is one-way: markdown cannot be parsed back to TestHistoryResult.",
+			),
 		),
-	)
-	.query(async ({ ctx, input }) => {
-		return ctx.runtime.runPromise(
-			Effect.gen(function* () {
-				const reader = yield* DataReader;
+});
 
-				const [history, flaky, persistent] = yield* Effect.all([
-					reader.getHistory(input.project),
-					reader.getFlaky(input.project),
-					reader.getPersistentFailures(input.project),
-				]);
+export const testHistory = publicProcedure
+	.input(Schema.standardSchemaV1(Schema.Struct({ project: Schema.String })))
+	.query(
+		async ({ ctx, input }): Promise<TestHistoryResultType> =>
+			ctx.runtime.runPromise(
+				Effect.gen(function* () {
+					const reader = yield* DataReader;
+					const [history, flaky, persistent] = yield* Effect.all([
+						reader.getHistory(input.project),
+						reader.getFlaky(input.project),
+						reader.getPersistentFailures(input.project),
+					]);
 
-				const hasData = history.tests.length > 0 || flaky.length > 0 || persistent.length > 0;
+					const recovered = history.tests
+						.filter((t) => {
+							const runs = t.runs;
+							if (runs.length < 2) return false;
+							const last = runs[runs.length - 1];
+							const prev = runs[runs.length - 2];
+							return last !== undefined && prev !== undefined && last.state === "passed" && prev.state === "failed";
+						})
+						.map((t) => ({
+							fullName: t.fullName,
+							recentRuns: t.runs.slice(-10).map((r) => r.state),
+						}));
 
-				if (!hasData) {
-					return `No history data available for project \`${input.project}\`. Run tests first.`;
-				}
-
-				const lines: string[] = [`# Test History: ${input.project}`, ""];
-
-				// Flaky tests
-				if (flaky.length > 0) {
-					lines.push("## Flaky Tests");
-					lines.push("");
-					lines.push("Tests with mixed pass/fail results across recent runs:");
-					lines.push("");
-
-					for (const test of flaky) {
-						const total = test.passCount + test.failCount;
-						const passRate = total > 0 ? ((test.passCount / total) * 100).toFixed(0) : "0";
-						lines.push(`### ⚠️ ${test.fullName}`);
-						lines.push("");
-						lines.push(`- Pass rate: ${passRate}% (${test.passCount}/${total})`);
-						lines.push(`- Last state: ${test.lastState}`);
-						lines.push(`- Last run: ${new Date(test.lastTimestamp).toLocaleString()}`);
-						lines.push("");
-					}
-				}
-
-				// Persistent failures
-				if (persistent.length > 0) {
-					lines.push("## Persistent Failures");
-					lines.push("");
-					lines.push("Tests that have failed in consecutive runs:");
-					lines.push("");
-
-					for (const failure of persistent) {
-						lines.push(`### ❌ ${failure.fullName}`);
-						lines.push("");
-						lines.push(`- Consecutive failures: ${failure.consecutiveFailures}`);
-						lines.push(`- First failed: ${new Date(failure.firstFailedAt).toLocaleString()}`);
-						lines.push(`- Last failed: ${new Date(failure.lastFailedAt).toLocaleString()}`);
-						if (failure.lastErrorMessage) {
-							lines.push(`- Last error: ${failure.lastErrorMessage}`);
-						}
-						lines.push("");
-					}
-				}
-
-				// Run visualization for tracked tests
-				const recoveredTests = history.tests.filter((t) => {
-					const runs = t.runs;
-					if (runs.length < 2) return false;
-					const last = runs[runs.length - 1];
-					const prev = runs[runs.length - 2];
-					return last !== undefined && prev !== undefined && last.state === "passed" && prev.state === "failed";
-				});
-
-				if (recoveredTests.length > 0) {
-					lines.push("## Recovered Tests");
-					lines.push("");
-					lines.push("Tests that previously failed but are now passing:");
-					lines.push("");
-
-					for (const test of recoveredTests) {
-						const runViz = test.runs
-							.slice(-10)
-							.map((r) => (r.state === "passed" ? "P" : "F"))
-							.join("");
-						lines.push(`- ✅ **${test.fullName}** — recent runs: \`${runViz}\``);
-					}
-					lines.push("");
-				}
-
-				if (flaky.length === 0 && persistent.length === 0 && recoveredTests.length === 0) {
-					lines.push("✅ No flaky, persistent, or recently recovered tests.");
-					lines.push("");
-				}
-
-				lines.push(`_History updated: ${history.updatedAt}_`);
-
-				return lines.join("\n");
-			}),
-		);
-	});
+					const hasData = history.tests.length > 0 || flaky.length > 0 || persistent.length > 0;
+					return {
+						project: input.project,
+						hasData,
+						history,
+						flaky,
+						persistent,
+						recovered,
+					};
+				}),
+			),
+	);

@@ -13,8 +13,8 @@ import {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
 	IllegalStatusTransitionError,
-	TddSessionAlreadyEndedError,
-	TddSessionNotFoundError,
+	TddTaskAlreadyEndedError,
+	TddTaskNotFoundError,
 } from "vitest-agent-sdk";
 
 export interface Remediation {
@@ -39,9 +39,9 @@ const goalNotFound = (e: GoalNotFoundError): TddErrorEnvelope => ({
 		id: e.id,
 		reason: e.reason,
 		remediation: {
-			suggestedTool: "tdd_goal_list",
-			suggestedArgs: {},
-			humanHint: `No tdd_session_goals row with id=${e.id}. Call tdd_goal_list({ sessionId }) to find the correct goal id.`,
+			suggestedTool: "tdd_goal",
+			suggestedArgs: { action: "list" },
+			humanHint: `No tdd_session_goals row with id=${e.id}. Call tdd_goal({ action: "list", tddTaskId }) to find the correct goal id.`,
 		},
 	},
 });
@@ -53,28 +53,28 @@ const behaviorNotFound = (e: BehaviorNotFoundError): TddErrorEnvelope => ({
 		id: e.id,
 		reason: e.reason,
 		remediation: {
-			suggestedTool: "tdd_behavior_list",
-			suggestedArgs: {},
-			humanHint: `No tdd_session_behaviors row with id=${e.id}. Call tdd_behavior_list({ scope: 'goal', goalId }) or tdd_behavior_list({ scope: 'session', sessionId }) to find the correct behavior id.`,
+			suggestedTool: "tdd_behavior",
+			suggestedArgs: { action: "list_by_goal" },
+			humanHint: `No tdd_session_behaviors row with id=${e.id}. Call tdd_behavior({ action: "list_by_goal", goalId }) or tdd_behavior({ action: "list_by_tdd_task", tddTaskId }) to find the correct behavior id.`,
 		},
 	},
 });
 
-const tddSessionNotFound = (e: TddSessionNotFoundError): TddErrorEnvelope => ({
+const tddTaskNotFound = (e: TddTaskNotFoundError): TddErrorEnvelope => ({
 	ok: false,
 	error: {
 		_tag: e._tag,
 		id: e.id,
 		reason: e.reason,
 		remediation: {
-			suggestedTool: "tdd_session_start",
-			suggestedArgs: {},
-			humanHint: `No tdd_sessions row with id=${e.id}. Call tdd_session_start to open a TDD session before creating goals or behaviors.`,
+			suggestedTool: "tdd_task",
+			suggestedArgs: { action: "start" },
+			humanHint: `No tdd_tasks row with id=${e.id}. Call tdd_task({ action: "start" }) to open a TDD task before creating goals or behaviors.`,
 		},
 	},
 });
 
-const tddSessionAlreadyEnded = (e: TddSessionAlreadyEndedError): TddErrorEnvelope => ({
+const tddTaskAlreadyEnded = (e: TddTaskAlreadyEndedError): TddErrorEnvelope => ({
 	ok: false,
 	error: {
 		_tag: e._tag,
@@ -82,9 +82,9 @@ const tddSessionAlreadyEnded = (e: TddSessionAlreadyEndedError): TddErrorEnvelop
 		endedAt: e.endedAt,
 		outcome: e.outcome,
 		remediation: {
-			suggestedTool: "tdd_session_start",
-			suggestedArgs: {},
-			humanHint: `tdd_sessions row id=${e.id} is already ended (outcome=${e.outcome}). Open a new TDD session if you need to add more goals or behaviors.`,
+			suggestedTool: "tdd_task",
+			suggestedArgs: { action: "start" },
+			humanHint: `tdd_tasks row id=${e.id} is already ended (outcome=${e.outcome}). Open a new TDD task if you need to add more goals or behaviors.`,
 		},
 	},
 });
@@ -99,8 +99,8 @@ const illegalStatusTransition = (e: IllegalStatusTransitionError): TddErrorEnvel
 		to: e.to,
 		reason: e.reason,
 		remediation: {
-			suggestedTool: e.entity === "goal" ? "tdd_goal_update" : "tdd_behavior_update",
-			suggestedArgs: { id: e.id, status: "abandoned" },
+			suggestedTool: e.entity === "goal" ? "tdd_goal" : "tdd_behavior",
+			suggestedArgs: { action: "update", id: e.id, status: "abandoned" },
 			humanHint: `Cannot transition ${e.entity} id=${e.id} from ${e.from} to ${e.to}. Use status:'abandoned' to drop work; do not delete unless the entity was created by mistake.`,
 		},
 	},
@@ -109,22 +109,22 @@ const illegalStatusTransition = (e: IllegalStatusTransitionError): TddErrorEnvel
 type KnownTddError =
 	| GoalNotFoundError
 	| BehaviorNotFoundError
-	| TddSessionNotFoundError
-	| TddSessionAlreadyEndedError
+	| TddTaskNotFoundError
+	| TddTaskAlreadyEndedError
 	| IllegalStatusTransitionError;
 
 const isKnownTddError = (e: unknown): e is KnownTddError =>
 	e instanceof GoalNotFoundError ||
 	e instanceof BehaviorNotFoundError ||
-	e instanceof TddSessionNotFoundError ||
-	e instanceof TddSessionAlreadyEndedError ||
+	e instanceof TddTaskNotFoundError ||
+	e instanceof TddTaskAlreadyEndedError ||
 	e instanceof IllegalStatusTransitionError;
 
 const tddErrorToEnvelope = (e: KnownTddError): TddErrorEnvelope => {
 	if (e instanceof GoalNotFoundError) return goalNotFound(e);
 	if (e instanceof BehaviorNotFoundError) return behaviorNotFound(e);
-	if (e instanceof TddSessionNotFoundError) return tddSessionNotFound(e);
-	if (e instanceof TddSessionAlreadyEndedError) return tddSessionAlreadyEnded(e);
+	if (e instanceof TddTaskNotFoundError) return tddTaskNotFound(e);
+	if (e instanceof TddTaskAlreadyEndedError) return tddTaskAlreadyEnded(e);
 	return illegalStatusTransition(e);
 };
 

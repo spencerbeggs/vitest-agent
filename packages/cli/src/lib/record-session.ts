@@ -2,12 +2,12 @@ import { Effect } from "effect";
 import { DataReader, DataStore } from "vitest-agent-sdk";
 
 export interface RecordSessionStartInput {
-	readonly ccSessionId: string;
+	readonly chatId: string;
 	readonly project: string;
 	readonly cwd: string;
 	readonly agentKind: "main" | "subagent";
 	readonly agentType?: string;
-	readonly parentCcSessionId?: string;
+	readonly parentChatId?: string;
 	readonly triageWasNonEmpty: boolean;
 	readonly startedAt: string;
 }
@@ -20,29 +20,29 @@ export const recordSessionStart = (
 		const store = yield* DataStore;
 
 		let parentSessionId: number | undefined;
-		if (input.parentCcSessionId !== undefined) {
-			const parent = yield* reader.getSessionByCcId(input.parentCcSessionId);
+		if (input.parentChatId !== undefined) {
+			const parent = yield* reader.getSessionByChatId(input.parentChatId);
 			if (parent._tag === "Some") {
 				parentSessionId = parent.value.id;
 			}
 		}
 
-		const sessionId = yield* store.writeSession({
-			cc_session_id: input.ccSessionId,
+		const sessionId = yield* store.upsertSession({
+			chatId: input.chatId,
 			project: input.project,
 			cwd: input.cwd,
-			agent_kind: input.agentKind,
-			...(input.agentType !== undefined && { agent_type: input.agentType }),
-			...(parentSessionId !== undefined && { parent_session_id: parentSessionId }),
-			triage_was_non_empty: input.triageWasNonEmpty,
-			started_at: input.startedAt,
+			agentKind: input.agentKind,
+			...(input.agentType !== undefined && { agentType: input.agentType }),
+			...(parentSessionId !== undefined && { parentSessionId }),
+			triageWasNonEmpty: input.triageWasNonEmpty,
+			startedAt: input.startedAt,
 		});
 
 		return { sessionId };
 	});
 
 export interface RecordSessionEndInput {
-	readonly ccSessionId: string;
+	readonly chatId: string;
 	readonly endedAt: string;
 	readonly endReason: string | null;
 }
@@ -53,10 +53,10 @@ export const recordSessionEnd = (
 	Effect.gen(function* () {
 		const reader = yield* DataReader;
 		const store = yield* DataStore;
-		const sessionOpt = yield* reader.getSessionByCcId(input.ccSessionId);
+		const sessionOpt = yield* reader.getSessionByChatId(input.chatId);
 		if (sessionOpt._tag === "None") {
-			return yield* Effect.fail(new Error(`Unknown cc_session_id: ${input.ccSessionId}`));
+			return yield* Effect.fail(new Error(`Unknown chatId: ${input.chatId}`));
 		}
-		yield* store.endSession(input.ccSessionId, input.endedAt, input.endReason);
+		yield* store.endSession(input.chatId, input.endedAt, input.endReason);
 		return { ok: true };
 	});

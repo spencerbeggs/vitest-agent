@@ -5,7 +5,7 @@ import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import type { DataReader, DataStore } from "vitest-agent-sdk";
-import { DataReaderLive, DataStoreLive, migration0001, migration0002 } from "vitest-agent-sdk";
+import { DataReaderLive, DataStoreLive, migration0001 } from "vitest-agent-sdk";
 import { recordSessionEnd, recordSessionStart } from "../src/lib/record-session.js";
 
 // Each call to `run` builds a fresh in-memory DB by re-evaluating the layer.
@@ -17,7 +17,6 @@ const buildLive = () => {
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
-			"0002_comprehensive": migration0002,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 	return Layer.mergeAll(
@@ -36,7 +35,7 @@ describe("record-session", () => {
 	it("recordSessionStart inserts and returns the new session id", async () => {
 		const result = await run(
 			recordSessionStart({
-				ccSessionId: "cc-rs-1",
+				chatId: "cc-rs-1",
 				project: "p",
 				cwd: "/tmp/p",
 				agentKind: "main",
@@ -51,7 +50,7 @@ describe("record-session", () => {
 		const result = await run(
 			Effect.gen(function* () {
 				yield* recordSessionStart({
-					ccSessionId: "cc-rs-end",
+					chatId: "cc-rs-end",
 					project: "p",
 					cwd: "/tmp/p",
 					agentKind: "main",
@@ -59,7 +58,7 @@ describe("record-session", () => {
 					triageWasNonEmpty: false,
 				});
 				return yield* recordSessionEnd({
-					ccSessionId: "cc-rs-end",
+					chatId: "cc-rs-end",
 					endedAt: "2026-04-29T00:00:30Z",
 					endReason: "clear",
 				});
@@ -72,7 +71,7 @@ describe("record-session", () => {
 		await expect(
 			run(
 				recordSessionEnd({
-					ccSessionId: "unknown",
+					chatId: "unknown",
 					endedAt: "2026-04-29T00:00:30Z",
 					endReason: null,
 				}),
@@ -80,11 +79,11 @@ describe("record-session", () => {
 		).rejects.toThrow();
 	});
 
-	it("recordSessionStart resolves parent session when parentCcSessionId points at an existing session", async () => {
+	it("recordSessionStart resolves parent session when parentChatId points at an existing session", async () => {
 		const result = await run(
 			Effect.gen(function* () {
 				const parent = yield* recordSessionStart({
-					ccSessionId: "cc-rs-parent",
+					chatId: "cc-rs-parent",
 					project: "p",
 					cwd: "/tmp/p",
 					agentKind: "main",
@@ -92,11 +91,11 @@ describe("record-session", () => {
 					triageWasNonEmpty: false,
 				});
 				const child = yield* recordSessionStart({
-					ccSessionId: "cc-rs-child",
+					chatId: "cc-rs-child",
 					project: "p",
 					cwd: "/tmp/p",
 					agentKind: "subagent",
-					parentCcSessionId: "cc-rs-parent",
+					parentChatId: "cc-rs-parent",
 					startedAt: "2026-04-29T00:00:01Z",
 					triageWasNonEmpty: false,
 				});
@@ -108,14 +107,14 @@ describe("record-session", () => {
 		expect(result.child.sessionId).not.toBe(result.parent.sessionId);
 	});
 
-	it("recordSessionStart proceeds when parentCcSessionId points at a missing session", async () => {
+	it("recordSessionStart proceeds when parentChatId points at a missing session", async () => {
 		const result = await run(
 			recordSessionStart({
-				ccSessionId: "cc-rs-orphan",
+				chatId: "cc-rs-orphan",
 				project: "p",
 				cwd: "/tmp/p",
 				agentKind: "subagent",
-				parentCcSessionId: "cc-rs-missing-parent",
+				parentChatId: "cc-rs-missing-parent",
 				startedAt: "2026-04-29T00:00:00Z",
 				triageWasNonEmpty: false,
 			}),
@@ -126,7 +125,7 @@ describe("record-session", () => {
 	it("recordSessionStart accepts optional agentType field", async () => {
 		const result = await run(
 			recordSessionStart({
-				ccSessionId: "cc-rs-agenttype",
+				chatId: "cc-rs-agenttype",
 				project: "p",
 				cwd: "/tmp/p",
 				agentKind: "subagent",

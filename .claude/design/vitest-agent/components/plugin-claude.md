@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-11
+last-synced: 2026-05-11
 completeness: 90
 related:
   - ../architecture.md
@@ -126,7 +126,7 @@ categories:
 - **Recording hooks.** Capture session, prompt, tool-call, file-edit, and
   hook-fire turns into the SQLite database via `vitest-agent record`. These
   drive session analytics and the wrap-up nudges. They run on every event,
-  unscoped — every turn in every session is captured. `session-end-record.sh`
+  unscoped — every turn in every session is captured. `session/end-record.sh`
   additionally records a `hook_fire` turn (kind `SessionEnd`) **before** the
   session-end write so that `computeAcceptanceMetrics` metric 2 counts the
   event regardless of whether the wrap-up note was produced; hook errors are
@@ -137,13 +137,17 @@ categories:
   `systemMessage`. Per Claude Code's hook schema, `additionalContext` is only
   valid for a subset of events; `Stop`, `SessionEnd`, and `PreCompact` must
   use top-level `systemMessage` instead.
-- **Permission hooks.** `pre-tool-use-mcp.sh` reads `tool_name` against the
+- **Permission hooks.** `pre-tool-use/mcp.sh` reads `tool_name` against the
   allowlist at `hooks/lib/safe-mcp-vitest-agent-ops.txt` and emits
   `permissionDecision: "allow"` for non-destructive MCP tools so the agent
-  doesn't see a confirmation prompt for every read. Destructive tools
-  (`tdd_goal_delete`, `tdd_behavior_delete`, `tdd_artifact_record`) are
-  intentionally absent so they fall through to Claude Code's standard
-  permission dialog.
+  doesn't see a confirmation prompt for every read. Destructive
+  actions inside the consolidated tools (`tdd_goal({ action: "delete"
+  })`, `tdd_behavior({ action: "delete" })`) are gated by the
+  TDD-restricted PreToolUse hook rather than by allowlist absence —
+  the consolidated tools are listed but the destructive `action`
+  values are rejected at hook time. `tdd_artifact_record` does not
+  exist as an MCP tool (per D7, artifacts are hook-only writes via
+  the `record tdd-artifact` CLI subcommand).
 - **TDD orchestrator gates.** A subset of hooks fire only when the
   orchestrator subagent is active. They block production-code edits without
   preceding test failures, deny dangerous Vitest flags (`--update`,
@@ -187,7 +191,7 @@ the agent never writes evidence about itself — hooks observe what the agent di
 and write the artifact rows. `tdd_artifact_record` is intentionally not an MCP
 tool.
 
-`post-tool-use-tdd-artifact.sh` fires on every tool result inside the
+`post-tool-use/tdd-artifact.sh` fires on every tool result inside the
 orchestrator subagent. It detects:
 
 - **Test runs** by matching the Bash command against
@@ -195,7 +199,7 @@ orchestrator subagent. It detects:
   a `test_passed_run` artifact; non-zero yields `test_failed_run`.
 - **File edits** by tool name. Edits to `*.test.*` paths produce
   `test_written`; edits to anything else produce `code_written`.
-- **Test-weakening edits** in a separate hook (`post-tool-use-test-quality.sh`)
+- **Test-weakening edits** in a separate hook (`post-tool-use/test-quality.sh`)
   by scanning for escape-hatch tokens (`it.skip`, `.todo`, `.fails`, snapshot
   edits, etc.) and writing `test_weakened` artifacts.
 
@@ -263,16 +267,19 @@ context (session-start triage, MCP tool reference) compensates for this by
 giving every dispatch the same baseline awareness of the project's test
 state.
 
-**Pre-dispatch sequence.** Before spawning the orchestrator, the main agent
-calls `session_list({ agentKind: "main", limit: 1 })` to capture the
-`cc_session_id` from the DB row — not `get_current_session_id()`, which can
-hold a stale in-memory reference if a prior subagent called
-`set_current_session_id` with its own key. The agent generates a fresh
-`runId` (`Date.now().toString(36)`) for each dispatch and passes both
-`ccSessionId` and `runId` to the orchestrator in the launch prompt. The
-`runId` is forwarded to `tdd_session_start` where it becomes the idempotency
-key (so retry dispatches with new `runId` values are not collapsed to the
-cached session). The agent then calls `TaskCreate` to create the parent
+**Pre-dispatch sequence.** Session-id lookup over MCP is no longer
+required: the four canonical UUIDs
+(`VITEST_AGENT_CHAT_ID`, `_CONVERSATION_ID`, `_MAIN_AGENT_ID`,
+`_AGENT_ID`) are already exported into the main agent's shell by the
+SessionStart hook, and the MCP server reads them from
+`process.env` at boot via `SessionContextRef`. The legacy
+`get_current_session_id` / `set_current_session_id` tools are
+removed. Before spawning the orchestrator, the main agent generates a
+fresh `runId` (`Date.now().toString(36)`) for each dispatch and
+passes it to `tdd_task({ action: "start", runId, ... })`, where
+`runId` becomes the idempotency key so retry dispatches with new
+`runId` values are not collapsed to the cached session. The agent
+then calls `TaskCreate` to create the parent
 `TDD Session: <objective>` task and initializes the `goalById` and
 `behaviorById` state maps before spawning.
 
@@ -301,11 +308,13 @@ This is why the `tdd` skill's event-handler table specifies "No tasks yet" for
 both `behaviors_ready` and `behavior_added`.
 
 The `tools[]` enumeration on the orchestrator is documentation, not
-enforcement. The runtime gate that prevents `tdd_goal_delete` and
-`tdd_behavior_delete` calls inside the orchestrator is
-`pre-tool-use-tdd-restricted.sh`. See D13 for the full
-"capability-vs-scoping" doctrine: the MCP surface permits the operation; the
-agent layer restricts who may call it.
+enforcement. The runtime gate that prevents `tdd_goal({ action:
+"delete" })` and `tdd_behavior({ action: "delete" })` calls inside
+the orchestrator is `pre-tool-use/tdd-restricted.sh` — the hook
+inspects `tool_input.action` on the consolidated tools and rejects
+destructive variants. See D13 for the full "capability-vs-scoping"
+doctrine: the MCP surface permits the operation; the agent layer
+restricts who may call it.
 
 ### Skills
 
@@ -412,3 +421,89 @@ support). Re-implementing that resolution in the loader was the wrong layer
 of abstraction. A missing peer dep now surfaces as a PM-level error with
 PM-native install instructions, not a cryptic dynamic-import failure.
 See D30.
+
+## Agent-agnostic taxonomy hooks (Phases 1–4)
+
+The branch added four lifecycle-event hooks on top of the prior set
+to wire the agent-attribution model end to end. All four shell out
+to the CLI's `_internal` sidecar subcommands (see
+[./cli.md](./cli.md)) rather than performing database writes directly.
+
+| Hook | Sidecar invocation | Purpose |
+| --- | --- | --- |
+| `session/start.sh` | `_internal register-agent --host-kind claude-code --agent-type claude-code-main ...` | Registers the main agent at session boot; parses the JSON result with `jq` and writes seven canonical `VITEST_AGENT_*` exports (the four UUIDs plus `PROJECT_DIR`, `DATA_DIR`, `PLUGIN_ROOT`) to two surfaces: `${CLAUDE_ENV_FILE}` (auto-sourced into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (sourced by other hooks). Values are `printf '%q'` quoted; resumes are idempotent via grep guards. |
+| `subagent/start-tdd.sh` | `_internal register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation (see the dc1fc65 fix). |
+| `session/end-record.sh` | `_internal end-agent --host-session-id $session_id` | Sets `agents.ended_at` and `session_map.ended_at` for the main agent. |
+| `subagent/stop-tdd.sh` | `_internal end-agent` (no `--host-session-id`) | Sets `agents.ended_at` for the subagent but leaves the main agent's `session_map` row open. |
+| `pre-tool-use/bash.sh` | `_internal inject-env --command "$cmd" --cwd $cwd` | When the active actor is a subagent, rewrites `tool_input.command` to prepend the `VITEST_AGENT_AGENT_ID=...` env prefix. POSIX env-prefix scope is the immediately-following process only — main-agent env stays intact for subsequent calls. |
+
+### Seven canonical env exports
+
+The SessionStart hook writes these seven exports to two surfaces:
+
+```sh
+export VITEST_AGENT_CHAT_ID="..."
+export VITEST_AGENT_CONVERSATION_ID="..."
+export VITEST_AGENT_MAIN_AGENT_ID="..."
+export VITEST_AGENT_AGENT_ID="..."
+export VITEST_AGENT_PROJECT_DIR="..."
+export VITEST_AGENT_DATA_DIR="${CLAUDE_PLUGIN_DATA}"
+export VITEST_AGENT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+```
+
+Values are `printf '%q'` quoted so spaces, quotes, and newlines do
+not break downstream sourcing. The two write targets are:
+
+- `${CLAUDE_ENV_FILE}` — host auto-sources into Bash subprocs and
+  the MCP child. The filename here is host-controlled and
+  fire-order-numbered (typically `sessionstart-hook-N.sh`); writes
+  are grep-guarded so resumes do not duplicate exports.
+- `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` —
+  written with a known filename so other plugin hooks can source
+  it via `plugin/hooks/lib/source-session-env.sh`. The helper
+  globs `*hook*.sh` so it also picks up host-written entries as
+  redundancy.
+
+Non-SessionStart hooks (PreToolUse, SubagentStart, etc.) do NOT
+receive auto-sourcing per Claude Code's documented behavior, so
+they call `source_session_env "$session_id"` after sourcing
+`plugin/hooks/lib/source-session-env.sh` at entry. The helper
+validates the session-id shape (rejects path separators, dot-paths,
+empty values, CR/LF/tab), then walks
+`~/.claude/session-env/${session_id}/*hook*.sh`. It mirrors
+`EnvLoader.loadSessionEnvFiles` from `claude-binary-plugin` — same
+directory walk, same `*hook*.sh` filter.
+
+`export` is mandatory in env files. Bare `KEY=VAL` lines are sourced
+as shell-script locals and do not propagate to subprocesses.
+Documented as a hook invariant.
+
+### Allowlist updates
+
+`hooks/lib/safe-mcp-vitest-agent-ops.txt` was updated to reflect
+the consolidated tool surface. The action-keyed tools (`tdd_task`,
+`tdd_goal`, `tdd_behavior`, `note`, `hypothesis`, `inventory`,
+`test`) are present on the allowlist; the granular legacy variants
+were removed. The new `register_agent` and `tdd_artifact_list`
+tools are also present.
+
+### Artifact-binding cross-`chat_id` fix
+
+Recent (`dc1fc65`) fix surfaced and closed two related bugs:
+
+1. **Rotated `chat_id` mid-window.** Claude Code rotates
+   `chat_id` on compaction, resume, and some network
+   reconnects. The fix added `DataReader.findSessionsByChatPrefix` and
+   `DataReader.listTddTasksForSession({ walkParents })`, both of
+   which walk the `sessions.parent_session_id` chain so artifact
+   queries find rows under either prefix.
+2. **Orphaned subagent rows.** `subagent/start-tdd.sh` now
+   pre-bootstraps the parent main `sessions` row before registering
+   the subagent and always sets `parent_session_id`. Combined with
+   the new `DataStore.upsertSession` idempotent insert, the
+   subagent's artifact rows always land under the canonical
+   `sessions.id`.
+
+The shared `resolveSessionForRecording` helper in the CLI is the
+consumer-side library for this. Every `record turn` /
+`record tdd-artifact` / `test-case-turns` call goes through it.

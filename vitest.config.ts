@@ -9,7 +9,7 @@ export default async () => {
 				mode: "agent",
 				strategy: "own",
 				mcp: true,
-				coverageThresholds: AgentPlugin.COVERAGE_LEVELS.none,
+				coverageThresholds: AgentPlugin.COVERAGE_LEVELS.basic,
 				coverageTargets: AgentPlugin.COVERAGE_LEVELS.standard,
 			}),
 		],

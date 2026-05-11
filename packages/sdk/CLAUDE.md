@@ -19,7 +19,10 @@ src/
     turns/            -- TurnPayload discriminated union (7 variants)
   errors/             -- tagged errors (DataStore, Discovery, Tdd, ...)
   formatters/         -- markdown, gfm, json, silent, ci-annotations
-  migrations/         -- 0001_initial, 0002_comprehensive (see Key files)
+  migrations/         -- 0001_initial (canonical pre-2.0 schema; the
+                         former 0002_comprehensive was folded in),
+                         registry_0001_initial, session_map_0001_initial
+                         (see Key files)
   sql/                -- row types + DB-to-domain assemblers
   utils/              -- pure utilities (paths, signatures, validators)
   lib/                -- pure markdown generators (CLI + MCP)
@@ -31,19 +34,19 @@ src/
 | File | Purpose |
 | ---- | ------- |
 | `contracts/reporter.ts` | Public reporter contract types: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory` |
-| `services/DataStore.ts` + `layers/DataStoreLive.ts` | All SQLite writes. Defines all write-input types plus `backfillTestCaseTurns(ccSessionId)` and the 2.0 goal/behavior CRUD methods |
+| `services/DataStore.ts` + `layers/DataStoreLive.ts` | All SQLite writes. Defines all write-input types plus `backfillTestCaseTurns(chatId)` and the 2.0 goal/behavior CRUD methods |
 | `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, and the 2.0 goal/behavior read methods |
 | `utils/resolve-data-path.ts` | Deterministic XDG-derived `dbPath` orchestrator (Decision 31) |
-| `utils/ensure-migrated.ts` | Process-level migration coordinator using a `globalThis`-keyed promise cache (Decision 28). Registers 0001 and 0002 only |
+| `utils/ensure-migrated.ts` | Process-level migration coordinator using a `globalThis`-keyed promise cache (Decision 28). Registers `0001_initial` only on the main `data.db`; the registry and session-map DBs use their own single-file migrations |
 | `layers/PathResolutionLive.ts` | Composite: `XdgLive` + `ConfigLive` + `WorkspacesLive` |
-| `migrations/0002_comprehensive.ts` | Drop-and-recreate migration. 41 tables + `notes_fts`. Per Decision D9, this is the **last** drop-and-recreate; future migrations are ALTER-only |
+| `migrations/0001_initial.ts` | Canonical pre-2.0 schema. Pre-2.0 policy is "edit this file directly when the shape changes and delete `data.db`"; the former `0002_comprehensive` was folded in. Post-2.0 ships ALTER-only migrations (Decision D9) |
 | `utils/function-boundary.ts` | `findFunctionBoundary(source, line)` parses via `acorn` (extended with `acorn-typescript`) and returns the smallest enclosing function's start line + name |
 | `utils/failure-signature.ts` | `computeFailureSignature` produces a 16-char sha256 from `error_name`, normalized assertion shape, top-frame function name, and function-boundary line. See Decision D10 |
 | `utils/validate-phase-transition.ts` | Pure validator for TDD phase transitions; returns acceptance or a typed `DenialReason` + remediation. See Decision D11 |
 | `lib/format-triage.ts` | Pure markdown generator powering both `triage_brief` MCP tool and `triage` CLI subcommand |
 | `lib/format-wrapup.ts` | Pure markdown generator for wrap-up nudges; five `kind` variants. Powers `wrapup_prompt` MCP tool and `wrapup` CLI subcommand |
 | `testing/layers.ts` | `makeTestLayer(filename)` and the `DataStoreTestLayer` `:memory:` convenience — exported via the `vitest-agent-sdk/testing` subpath |
-| `testing/index.ts` | Five preset factories (`empty`, `singlePassingRun`, `withFailures`, `flaky`, `withTddSession`) that seed representative DB states for use in tests |
+| `testing/index.ts` | Five preset factories (`empty`, `singlePassingRun`, `withFailures`, `flaky`, `withTddTask`) that seed representative DB states for use in tests |
 
 ## Conventions
 
@@ -88,9 +91,11 @@ src/
   (Vite can load this module twice in one process for multi-project
   Vitest configs). Don't switch to a module-local Map. See Decision 28
   and Decision 32.
-- Adding/changing migrations: use ALTER-only after `0002_comprehensive`
-  (Decision D9). SQLite uses WAL + `busy_timeout`; multi-project test
-  runs share one DB. Verify against `ensureMigrated.test.ts`.
+- Adding/changing migrations: pre-2.0, edit `0001_initial.ts` in place
+  and delete the local `data.db` between turns. Post-2.0 ships
+  ALTER-only migrations (Decision D9). SQLite uses WAL +
+  `busy_timeout`; multi-project test runs share one DB. Verify against
+  `ensureMigrated.test.ts`.
 - Renaming a public export: search all four runtime packages
   (`packages/plugin`, `packages/reporter`, `packages/cli`,
   `packages/mcp`) before committing.
@@ -131,3 +136,37 @@ src/
 - `@./.claude/design/vitest-agent/components/discover.md`
   Load when adding new preset factories to `testing/` or changing
   `makeTestLayer`.
+
+## Agent-agnostic taxonomy additions (Phases 1–4)
+
+The 0001_initial migration is now consolidated (the prior 0002 was
+folded in) and adds the `agents` table, `actor_type` / `agent_id` /
+`conversation_id` columns on action tables (`test_runs`,
+`hypotheses`, `notes`, `tdd_phases`), per-run git context columns
+(`git_branch`, `git_commit_sha`, `git_dirty`, `git_upstream`,
+`git_worktree_dir`), and host-metadata columns (`host_source`,
+`host_value`, `host_metadata`) on `test_runs`. Six AFTER UPDATE
+triggers lock `conversation_id` immutable on every table that
+carries it.
+
+| New file | Purpose |
+| -------- | ------- |
+| `schemas/Identity.ts` | UUID-branded `AgentId`, `ConversationId`, `SessionId`, `TddTaskId`; string-branded `ProjectKey`; literal unions `ActorType`, `HostKind`. Built on `Schema.UUID` so `JSONSchema.make` emits `format: "uuid"` reliably |
+| `schemas/Agent.ts` | `Agent` Schema.TaggedClass + `IdempotencyHit` Data.TaggedClass for the `RegisterAgentResult` success-channel union |
+| `services/idempotency.ts` | `deriveIdempotencyKey` shared between sidecar CLI and MCP server; SHA-256 over (agentType, parentAgentId or sentinel, clientNonce), base32 26-char output. Frozen vector test guards drift |
+| `services/ProjectIdentity.ts` + `layers/ProjectIdentityLive.ts` | 5-source fallback resolver (explicit option → TOML → git remote → package.json#repository.url → normalized name). `resolveProjectIdentityFromCandidates` is the pure priority resolver; the Live layer wires `Command`/`FileSystem`/`WorkspaceDiscovery`/`VitestAgentConfigFile` |
+| `services/RunContext.ts` + `layers/RunContextLive.ts` | `captureRunContext(cwd)` (git branch/sha/dirty/upstream/worktree + host metadata) and `captureAgentContext(cwd)` (the inheritable subset for agent registration) |
+| `services/PerClientSessionMap.ts` + `layers/PerClientSessionMapLive.ts` | Reader / Writer split. The MCP server provides only the Reader (read-only `?mode=ro` SQLite); the sidecar provides the Writer which also satisfies the Reader tag |
+| `services/DiscoveryRegistry.ts` + `layers/DiscoveryRegistryLive.ts` | Global `known_projects` index at `$XDG_DATA_HOME/vitest-agent/registry.db`. Used by `mcp-app` and any future cross-project tooling |
+| `migrations/registry_0001_initial.ts` | STRICT `known_projects` schema with WAL plus busy_timeout |
+| `migrations/session_map_0001_initial.ts` | STRICT `conversation_map` and `session_map` schemas with the partial active-session index |
+| `utils/canonicalize-git-url.ts` | Pure SSH/HTTPS/git+ssh URL canonicalizer; the `gitUrlToProjectKey` helper maps to the filesystem-safe `host__path` form |
+| `utils/probe-host-metadata.ts` | 9-tier probe chain (TMUX_PANE → WT_SESSION → … → CI runners). First match wins. Pure (env map in, result out) |
+| `utils/match-vitest-command.ts` | Pattern matchers for the five Vitest invocation shapes plus `buildEnvPrefix` and `rewriteBashCommand`. Used by the sidecar's `_internal inject-env` |
+
+`DataStore` gains `registerAgent(input): Effect<Agent | IdempotencyHit, RegistrationConflictError | DataStoreError>`
+and `endAgent(agentId, endedAt): Effect<void, AgentNotFoundError | DataStoreError>`.
+`TestRunInput` gains optional `actorType`, `agentId`, `conversationId`,
+`gitBranch`, `gitCommitSha`, `gitDirty`, `gitUpstream`,
+`gitWorktreeDir`, `hostSource`, `hostValue`, `hostMetadata` fields the
+reporter populates before each `writeRun`.

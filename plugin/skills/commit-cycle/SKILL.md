@@ -1,6 +1,6 @@
 ---
 name: commit-cycle
-description: At every TDD phase transition — spike, red→green, green→refactor, or discard — write a git commit using the tdd({goalId}:{state}): prefix convention. Keeps TDD cycles atomic and greppable in git history.
+description: Use when reaching any TDD phase transition — spike close, red→green, green→refactor, or discard — required before exiting the phase so each cycle lands as a discrete, greppable commit in git history.
 ---
 
 # Commit at every TDD phase transition
@@ -16,7 +16,7 @@ Each accepted phase transition is a checkpoint. Commit at:
 - **discard (red)**: goal or behavior abandoned with uncommitted production code in the working tree. Commit message:
   `tdd(<goalId>:red): discard — <reason>`
 
-`<goalId>` is the bare numeric DB id returned by `tdd_goal_create` (e.g., `7`).
+`<goalId>` is the bare numeric DB id returned by `tdd_goal (action: create)` (e.g., `7`).
 
 **Examples:**
 

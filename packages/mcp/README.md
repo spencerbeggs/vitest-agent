@@ -2,14 +2,16 @@
 
 MCP server bin for
 [vitest-agent-plugin](https://github.com/spencerbeggs/vitest-agent).
-Exposes 53 tools over stdio (via tRPC) that give LLM agents structured
-access to test data, coverage, history, trends, errors, per-file
-coverage, individual test details, run-tests, cache health, settings,
-a notes CRUD/search system, Claude Code session and turn logs, TDD
+Exposes 29 action-keyed tools over stdio (via tRPC) that give LLM agents
+structured access to test data, coverage, history, trends, errors,
+per-file coverage, individual test details, run-tests, cache health,
+settings, a notes CRUD/search system, Claude Code turn logs, TDD
 lifecycle state with a three-tier Objective→Goal→Behavior hierarchy,
-hypotheses, failure signatures, and workspace commit history. The server
-also surfaces four MCP resources (vendored Vitest docs and curated
-testing patterns) and six framing-only prompts for common workflows.
+hypotheses, failure signatures, and workspace commit history. Tools
+emit both markdown `content[]` and a typed `structuredContent` payload
+per MCP 2025-06-18. The server also surfaces four MCP resources
+(vendored Vitest docs and curated testing patterns) and six
+framing-only prompts for common workflows.
 
 This package is a required peer dependency of `vitest-agent-plugin`,
 so you usually don't install it directly — modern pnpm and npm pull it
@@ -46,43 +48,45 @@ populates data for both the CLI and MCP tools.
 
 ## Tool overview
 
-`help` returns the full tool catalog with parameter signatures. The
-53 tools cover read-only queries (`test_status`, `test_overview`,
+`help` returns the full tool catalog with parameter signatures. The 29
+tools cover read-only queries (`test_status`, `test_overview`,
 `test_coverage`, `test_history`, `test_trends`, `test_errors`,
-`test_for_file`, `test_get`, `file_coverage`, `cache_health`,
-`configure`), discovery (`project_list`, `test_list`, `module_list`,
-`suite_list`, `settings_list`), execution (`run_tests`), notes
-(`note_create`, `note_list`, `note_get`, `note_update`, `note_delete`,
-`note_search`), session/turn reads (`session_list`, `session_get`,
-`turn_search`, `failure_signature_get`, `acceptance_metrics`,
-`get_current_session_id`, `set_current_session_id`),
-triage/wrapup reads (`triage_brief`, `wrapup_prompt`), hypothesis
-writes (`hypothesis_record`, `hypothesis_validate`, `hypothesis_list`),
-TDD lifecycle (`tdd_session_start`, `tdd_session_end`,
-`tdd_session_resume`, `tdd_session_get`, `tdd_phase_transition_request`),
-TDD goal CRUD (`tdd_goal_create`, `tdd_goal_get`, `tdd_goal_update`,
-`tdd_goal_delete`, `tdd_goal_list`), TDD behavior CRUD
-(`tdd_behavior_create`, `tdd_behavior_get`, `tdd_behavior_update`,
-`tdd_behavior_delete`, `tdd_behavior_list`), workspace history
-(`commit_changes`), and utility (`ping`, `help`).
+`file_coverage`, `cache_health`, `configure`), unified discovery
+(`inventory` with `kind: project | module | suite | session`, plus
+`test` with `action: list | get | for_file` and `settings_list`),
+execution (`run_tests`), agent registration (`register_agent`), notes
+(`note` with `action: create | list | get | update | delete | search`),
+turn reads (`turn_search`, `failure_signature_get`,
+`acceptance_metrics`), triage/wrap-up reads (`triage_brief`,
+`wrapup_prompt`), hypothesis writes (`hypothesis` with `action: record
+| validate | list`), TDD lifecycle (`tdd_task` with `action: start | end
+| get | resume`, plus `tdd_phase_transition_request`), goal and
+behavior CRUD (`tdd_goal` and `tdd_behavior` action-keyed), artifact
+reads (`tdd_artifact_list`), workspace history (`commit_changes`), and
+utility (`ping`, `help`).
 
-`tdd_session_start` accepts an optional `runId` string; when provided,
-it is stored on the session and returned in `tdd_session_get` output as
-`run_id`. When `runId` is present the idempotency key includes both the
-session identifier and `runId` (e.g. `cc:<ccSessionId>:run:<runId>`),
-letting the same goal text be retried with a fresh `runId` to create a
-new session rather than replaying the old result. Callers that omit
-`runId` fall back to goal-text-based keying.
+`tdd_task` consolidates the 1.x `tdd_session_*` family. Action `start`
+accepts an optional `runId`; when provided, it is stored on the session
+and returned in `tdd_task` action `get` output as `run_id`. When `runId`
+is present the idempotency key includes both the session identifier and
+`runId` (e.g. `cc:<chatId>:run:<runId>`), letting the same goal text
+be retried with a fresh `runId` to create a new session rather than
+replaying the old result. Callers that omit `runId` fall back to
+goal-text-based keying.
 
-`tdd_session_get` returns a markdown digest of a TDD session that
-includes the `run_id` field, a Goals and Behaviors section when goal
-and behavior rows exist, listing each goal with its ordinal and status
-alongside its nested behaviors. `tdd_phase_transition_request` requires
-a `goalId` and auto-promotes a behavior from `pending` to `in_progress`
-when accepted with a `behaviorId`. It rejects transitions to `green`
-from any phase other than `red`, `red.triangulate`, or `green.fake-it`
-with a `wrong_source_phase` denial — the `red` phase must be entered
-explicitly first.
+`tdd_task` action `get` returns a markdown digest of a TDD session that
+includes the `run_id` field, plus a Goals and Behaviors section when
+goal and behavior rows exist listing each goal with its ordinal and
+status alongside its nested behaviors. `tdd_phase_transition_request`
+requires a `goalId` and auto-promotes a behavior from `pending` to
+`in_progress` when accepted with a `behaviorId`. It rejects transitions
+to `green` from any phase other than `red`, `red.triangulate`, or
+`green.fake-it` with a `wrong_source_phase` denial — the `red` phase
+must be entered explicitly first.
+
+All tools emit both markdown `content[]` for human-readable display and
+a typed `structuredContent` payload per MCP 2025-06-18 — clients can
+parse either channel.
 
 ## Resources
 
@@ -103,11 +107,11 @@ MCP clients can pick these from a prompt menu to orient the agent toward common 
 
 | Name | Arguments | Orients toward |
 | --- | --- | --- |
-| `triage` | `project?` | `triage_brief`, `failure_signature_get`, `hypothesis_record` |
+| `triage` | `project?` | `triage_brief`, `failure_signature_get`, `hypothesis` (action `record`) |
 | `why-flaky` | `test`, `project?` | `test_history`, `failure_signature_get` |
 | `regression-since-pass` | `test`, `project?` | `test_history`, `commit_changes`, `turn_search` |
 | `explain-failure` | `signature` | failure signature recurrence history |
-| `tdd-resume` | `cc_session_id?` | active TDD session and iron-law transitions |
+| `tdd-resume` | `chat_id?` | active TDD session and iron-law transitions |
 | `wrapup` | `kind?`, `since?` | mirrors what the post-hooks emit automatically |
 
 ## Refreshing the docs snapshot

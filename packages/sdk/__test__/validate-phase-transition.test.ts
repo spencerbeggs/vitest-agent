@@ -3,7 +3,7 @@ import type { PhaseTransitionContext } from "../src/utils/validate-phase-transit
 import { validatePhaseTransition } from "../src/utils/validate-phase-transition.js";
 
 const baseCtx = (overrides: Partial<PhaseTransitionContext> = {}): PhaseTransitionContext => ({
-	tdd_session_id: 1,
+	tdd_task_id: 1,
 	current_phase: "red",
 	phase_started_at: "2026-04-29T00:00:00Z",
 	now: "2026-04-29T00:01:00Z",
@@ -76,7 +76,7 @@ describe("validatePhaseTransition", () => {
 
 	it("rejects red→green with missing_artifact_evidence when cited artifact has no test_case_id", () => {
 		// Run-level artifacts (e.g. test_failed_run rows recorded by
-		// post-tool-use-tdd-artifact.sh on a Bash invocation that didn't
+		// post-tool-use/tdd-artifact.sh on a Bash invocation that didn't
 		// resolve a specific test) carry no anchor to bind to. Skipping
 		// rule 1 in this case would let *any* run-level failure — including
 		// one from a different session or a pre-existing failure on main —

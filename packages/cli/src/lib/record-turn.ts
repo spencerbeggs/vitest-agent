@@ -1,5 +1,7 @@
 import { Effect, Schema } from "effect";
-import { DataReader, DataStore, TurnPayload } from "vitest-agent-sdk";
+import type { DataReader } from "vitest-agent-sdk";
+import { DataStore, TurnPayload } from "vitest-agent-sdk";
+import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 
 export type ParseResult = { ok: true; payload: typeof TurnPayload.Type } | { ok: false; error: string };
 
@@ -18,9 +20,23 @@ export const parseAndValidateTurnPayload = (raw: string): ParseResult => {
 };
 
 export interface RecordTurnInput {
-	readonly ccSessionId: string;
+	readonly chatId: string;
 	readonly payloadJson: string;
 	readonly occurredAt: string;
+	/**
+	 * Working directory of the calling process. When omitted, the
+	 * resolver falls back to `process.cwd()`. Used to bootstrap a
+	 * session row when no exact `chat_id` match exists, which happens
+	 * after Claude Code rotates the chat id mid-window without
+	 * `SessionStart` re-firing for the new id.
+	 */
+	readonly cwd?: string;
+	/**
+	 * Project name for bootstrapped session rows. When omitted, the
+	 * resolver reads `package.json#name` from `cwd`, falling back to
+	 * `"unknown"`.
+	 */
+	readonly project?: string;
 }
 
 export const recordTurnEffect = (
@@ -31,19 +47,18 @@ export const recordTurnEffect = (
 		if (!parse.ok) {
 			return yield* Effect.fail(new Error(parse.error));
 		}
-		const reader = yield* DataReader;
+		const session = yield* resolveSessionForRecording({
+			chatId: input.chatId,
+			recordedAt: input.occurredAt,
+			...(input.project !== undefined && { project: input.project }),
+			...(input.cwd !== undefined && { cwd: input.cwd }),
+		});
 		const store = yield* DataStore;
-		const sessionOpt = yield* reader.getSessionByCcId(input.ccSessionId);
-		if (sessionOpt._tag === "None") {
-			return yield* Effect.fail(
-				new Error(`Unknown cc_session_id: ${input.ccSessionId}. Run record session-start first.`),
-			);
-		}
 		const turnId = yield* store.writeTurn({
-			session_id: sessionOpt.value.id,
+			sessionId: session.id,
 			type: parse.payload.type,
 			payload: input.payloadJson,
-			occurred_at: input.occurredAt,
+			occurredAt: input.occurredAt,
 		});
 		return { turnId };
 	});

@@ -3,13 +3,13 @@ import { DataStore } from "../services/DataStore.js";
 import { makeTestLayer } from "./layers.js";
 
 export { DataStoreError } from "../errors/DataStoreError.js";
-export type { IllegalStatusTransitionEntity, TddSessionEndOutcome } from "../errors/TddErrors.js";
+export type { IllegalStatusTransitionEntity, TddTaskEndOutcome } from "../errors/TddErrors.js";
 export {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
 	IllegalStatusTransitionError,
-	TddSessionAlreadyEndedError,
-	TddSessionNotFoundError,
+	TddTaskAlreadyEndedError,
+	TddTaskNotFoundError,
 } from "../errors/TddErrors.js";
 // Re-export service tags and error types whose names appear in the bundled
 // declaration signatures so rslib can resolve them without inlining them as
@@ -26,7 +26,7 @@ export function singlePassingRun(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
 		const store = yield* DataStore;
-		yield* store.writeSettings("hash-preset-spr", { vitest_version: "4.1.5", pool: "forks" }, {});
+		yield* store.writeSettings("hash-preset-spr", { vitestVersion: "4.1.5", pool: "forks" }, {});
 		const runId = yield* store.writeRun({
 			invocationId: "inv-preset-spr-1",
 			project: "default",
@@ -79,7 +79,7 @@ export function withFailures(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
 		const store = yield* DataStore;
-		yield* store.writeSettings("hash-preset-wf", { vitest_version: "4.1.5", pool: "forks" }, {});
+		yield* store.writeSettings("hash-preset-wf", { vitestVersion: "4.1.5", pool: "forks" }, {});
 		const runId = yield* store.writeRun({
 			invocationId: "inv-preset-wf-1",
 			project: "default",
@@ -138,7 +138,7 @@ export function flaky(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
 		const store = yield* DataStore;
-		yield* store.writeSettings("hash-preset-flaky", { vitest_version: "4.1.5", pool: "forks" }, {});
+		yield* store.writeSettings("hash-preset-flaky", { vitestVersion: "4.1.5", pool: "forks" }, {});
 		const runId1 = yield* store.writeRun({
 			invocationId: "inv-preset-flaky-1",
 			project: "default",
@@ -262,24 +262,24 @@ export function flaky(filename: string) {
 	return Layer.effectDiscard(seed).pipe(Layer.provideMerge(base));
 }
 
-export function withTddSession(filename: string) {
+export function withTddTask(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
 		const store = yield* DataStore;
 		const sessionId = yield* store.writeSession({
-			cc_session_id: "cc-preset-tdd",
+			chatId: "chat-preset-tdd",
 			project: "default",
 			cwd: "/workspace",
-			agent_kind: "main",
-			started_at: "2026-01-01T00:00:00.000Z",
+			agentKind: "main",
+			startedAt: "2026-01-01T00:00:00.000Z",
 		});
-		const tddId = yield* store.writeTddSession({
+		const tddTaskId = yield* store.writeTddTask({
 			sessionId,
 			goal: "Implement the parser feature",
 			startedAt: "2026-01-01T00:00:00.000Z",
 		});
 		const goal = yield* store.createGoal({
-			sessionId: tddId,
+			tddTaskId,
 			goal: "Handle edge cases",
 		});
 		yield* store.createBehavior({

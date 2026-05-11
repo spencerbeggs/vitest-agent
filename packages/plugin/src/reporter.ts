@@ -39,6 +39,7 @@ import {
 	computeTrend,
 	ensureMigrated,
 	formatFatalError,
+	probeHostMetadataFromEnv,
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
@@ -492,6 +493,29 @@ export class AgentReporter {
 					totalDuration += mod.diagnostic()?.duration ?? 0;
 				}
 
+				// Resolve attribution from process.env (canonical path —
+				// SessionStart hook + PreToolUse Bash rewrite + run_tests
+				// MCP env propagation all funnel into VITEST_AGENT_*).
+				// Source 1: env vars present → actor_type='agent'.
+				// Source 3: nothing set → actor_type='system' (CI/manual).
+				const envAgentId = process.env.VITEST_AGENT_AGENT_ID;
+				const envConversationId = process.env.VITEST_AGENT_CONVERSATION_ID;
+				const attribution =
+					envAgentId !== undefined && envAgentId.length > 0
+						? {
+								actorType: "agent" as const,
+								agentId: envAgentId,
+								conversationId: envConversationId ?? null,
+							}
+						: { actorType: "system" as const, agentId: null, conversationId: null };
+
+				// Capture host metadata via the pure env-probe walk (terminal
+				// pane, CI runner, etc). Git context is inherited from the
+				// existing GITHUB_SHA / GITHUB_REF_NAME columns plus the new
+				// per-run probes; full git context capture rides the future
+				// RunContext service integration.
+				const hostProbe = probeHostMetadataFromEnv(process.env);
+
 				// Write test run to DB
 				const runId = yield* store.writeRun({
 					invocationId,
@@ -507,6 +531,14 @@ export class AgentReporter {
 					failed: baseReport.summary.failed,
 					skipped: baseReport.summary.skipped,
 					scoped: false,
+					actorType: attribution.actorType,
+					agentId: attribution.agentId,
+					conversationId: attribution.conversationId,
+					gitBranch: process.env.GITHUB_REF_NAME ?? null,
+					gitCommitSha: process.env.GITHUB_SHA ?? null,
+					hostSource: hostProbe.source,
+					hostValue: hostProbe.value,
+					hostMetadata: hostProbe.metadata,
 				});
 
 				// Write modules and test cases to DB

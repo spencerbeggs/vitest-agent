@@ -10,7 +10,6 @@ import {
 	LoggerLive,
 	OutputPipelineLive,
 	migration0001,
-	migration0002,
 } from "vitest-agent-sdk";
 import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";
 
@@ -20,7 +19,6 @@ export const ReporterLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFi
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
-			"0002_comprehensive": migration0002,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 

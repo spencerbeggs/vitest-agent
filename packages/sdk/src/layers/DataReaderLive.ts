@@ -24,8 +24,9 @@ import type {
 	SettingsListEntry,
 	SettingsRow,
 	SuiteListEntry,
-	TddSessionDetail,
-	TddSessionSummary,
+	TddArtifactRow,
+	TddTaskDetail,
+	TddTaskSummary,
 	TestError,
 	TestListEntry,
 	TurnSearchOptions,
@@ -784,8 +785,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 				const runId = runs[0].id;
 
+				// LEFT JOIN to stack_frames is filtered to ordinal=0 so the
+				// row collapses to a single "top frame" per error. Errors
+				// with no recorded frames produce top_stack_frame_id=null.
 				const baseQuery = errorName
 					? sql<{
+							id: number;
+							top_stack_frame_id: number | null;
 							name: string | null;
 							message: string;
 							diff: string | null;
@@ -795,15 +801,19 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							scope: string;
 							test_full_name: string | null;
 							module_file: string | null;
-						}>`SELECT te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
+						}>`SELECT te.id, sf.id AS top_stack_frame_id,
+							te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
 							tc.full_name as test_full_name,
 							f.path as module_file
 						FROM test_errors te
 						LEFT JOIN test_cases tc ON tc.id = te.test_case_id
 						LEFT JOIN test_modules tm ON tm.id = te.module_id
 						LEFT JOIN files f ON f.id = tm.file_id
+						LEFT JOIN stack_frames sf ON sf.error_id = te.id AND sf.ordinal = 0
 						WHERE te.run_id = ${runId} AND te.name = ${errorName}`
 					: sql<{
+							id: number;
+							top_stack_frame_id: number | null;
 							name: string | null;
 							message: string;
 							diff: string | null;
@@ -813,18 +823,22 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							scope: string;
 							test_full_name: string | null;
 							module_file: string | null;
-						}>`SELECT te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
+						}>`SELECT te.id, sf.id AS top_stack_frame_id,
+							te.name, te.message, te.diff, te.actual, te.expected, te.stack, te.scope,
 							tc.full_name as test_full_name,
 							f.path as module_file
 						FROM test_errors te
 						LEFT JOIN test_cases tc ON tc.id = te.test_case_id
 						LEFT JOIN test_modules tm ON tm.id = te.module_id
 						LEFT JOIN files f ON f.id = tm.file_id
+						LEFT JOIN stack_frames sf ON sf.error_id = te.id AND sf.ordinal = 0
 						WHERE te.run_id = ${runId}`;
 
 				const rows = yield* baseQuery;
 
 				return rows.map((r) => ({
+					id: r.id,
+					topStackFrameId: r.top_stack_frame_id,
 					name: r.name,
 					message: r.message,
 					diff: r.diff,
@@ -1329,7 +1343,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 		interface SessionRow {
 			id: number;
-			cc_session_id: string;
+			chat_id: string;
 			project: string;
 			cwd: string;
 			agent_kind: string;
@@ -1343,7 +1357,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 		const sessionRowToDetail = (r: SessionRow): SessionDetail => ({
 			id: r.id,
-			cc_session_id: r.cc_session_id,
+			chatId: r.chat_id,
 			project: r.project,
 			cwd: r.cwd,
 			agentKind: r.agent_kind as "main" | "subagent",
@@ -1359,7 +1373,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getSessionById").pipe(Effect.annotateLogs({ id }));
 				const rows =
-					yield* sql<SessionRow>`SELECT id, cc_session_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE id = ${id} LIMIT 1`;
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE id = ${id} LIMIT 1`;
 				if (rows.length === 0) return Option.none<SessionDetail>();
 				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
 			}).pipe(
@@ -1369,13 +1383,27 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getSessionByCcId = (ccSessionId: string): Effect.Effect<Option.Option<SessionDetail>, DataStoreError> =>
+		const getSessionByChatId = (chatId: string): Effect.Effect<Option.Option<SessionDetail>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getSessionByCcId").pipe(Effect.annotateLogs({ ccSessionId }));
+				yield* Effect.logDebug("getSessionByChatId").pipe(Effect.annotateLogs({ chatId }));
 				const rows =
-					yield* sql<SessionRow>`SELECT id, cc_session_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE cc_session_id = ${ccSessionId} LIMIT 1`;
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE chat_id = ${chatId} LIMIT 1`;
 				if (rows.length === 0) return Option.none<SessionDetail>();
 				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "sessions", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const findSessionsByChatPrefix = (prefix: string): Effect.Effect<ReadonlyArray<SessionDetail>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("findSessionsByChatPrefix").pipe(Effect.annotateLogs({ prefix }));
+				const pattern = `${prefix}%`;
+				const rows =
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE chat_id LIKE ${pattern} ESCAPE '\\' ORDER BY started_at DESC`;
+				return rows.map(sessionRowToDetail);
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
@@ -1419,20 +1447,20 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				// first test_failed_run artifact precedes the first
 				// code_written artifact (red-before-code).
 				const m1 = yield* sql<{ total: number; compliant: number }>`
-					WITH session_orderings AS (
+					WITH task_orderings AS (
 						SELECT
-							p.tdd_session_id,
+							p.tdd_task_id,
 							MIN(CASE WHEN a.artifact_kind = 'test_failed_run' THEN a.id END) AS first_failed_run,
 							MIN(CASE WHEN a.artifact_kind = 'code_written'    THEN a.id END) AS first_code_written
 						FROM tdd_artifacts a
 						JOIN tdd_phases p ON a.phase_id = p.id
 						WHERE a.artifact_kind IN ('test_failed_run', 'code_written')
-						GROUP BY p.tdd_session_id
+						GROUP BY p.tdd_task_id
 					)
 					SELECT
 						COUNT(*) AS total,
 						COALESCE(SUM(CASE WHEN first_failed_run < first_code_written THEN 1 ELSE 0 END), 0) AS compliant
-					FROM session_orderings
+					FROM task_orderings
 					WHERE first_code_written IS NOT NULL
 				`;
 
@@ -1450,7 +1478,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						SELECT DISTINCT t.session_id
 						FROM turns t
 						JOIN tool_invocations ti ON ti.turn_id = t.id
-						WHERE ti.tool_name IN ('note_create', 'hypothesis_validate', 'tdd_session_end')
+						WHERE ti.tool_name IN ('note', 'hypothesis', 'tdd_task', 'note_create', 'hypothesis_validate', 'tdd_session_end')
 					)
 					SELECT
 						(SELECT COUNT(DISTINCT session_id) FROM wrap_up_fires) AS total,
@@ -1498,14 +1526,14 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						COUNT(*) AS total,
 						COALESCE(SUM(CASE WHEN weakened_count = 0 THEN 1 ELSE 0 END), 0) AS clean_sessions
 					FROM (
-						SELECT ts.id AS tdd_session_id,
+						SELECT ts.id AS tdd_task_id,
 							COUNT(a.id) AS weakened_count
-						FROM tdd_sessions ts
-						LEFT JOIN tdd_phases p ON p.tdd_session_id = ts.id
+						FROM tdd_tasks ts
+						LEFT JOIN tdd_phases p ON p.tdd_task_id = ts.id
 						LEFT JOIN tdd_artifacts a ON a.phase_id = p.id AND a.artifact_kind = 'test_weakened'
 						WHERE ts.ended_at IS NOT NULL
 						GROUP BY ts.id
-					) sessions_with_counts
+					) tasks_with_counts
 				`;
 
 				const ratio = (n: number, d: number): number => (d === 0 ? 0 : n / d);
@@ -1537,7 +1565,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					(e) =>
 						new DataStoreError({
 							operation: "read",
-							table: "tdd_sessions",
+							table: "tdd_tasks",
 							reason: extractSqlReason(e),
 						}),
 				),
@@ -1554,7 +1582,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				const project = options.project ?? null;
 				const agentKind = options.agentKind ?? null;
 				const rows = yield* sql<SessionRow>`
-					SELECT id, cc_session_id, project, cwd, agent_kind, agent_type,
+					SELECT id, chat_id, project, cwd, agent_kind, agent_type,
 						parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason
 					FROM sessions
 					WHERE (${project} IS NULL OR project = ${project})
@@ -1699,8 +1727,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getGoalsBySession = (sessionId: number): Effect.Effect<ReadonlyArray<GoalDetail>, DataStoreError> =>
-			fetchGoalsWithBehaviors(sessionId).pipe(
+		const getGoalsByTddTask = (tddTaskId: number): Effect.Effect<ReadonlyArray<GoalDetail>, DataStoreError> =>
+			fetchGoalsWithBehaviors(tddTaskId).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
 					(e) => new DataStoreError({ operation: "read", table: "tdd_session_goals", reason: extractSqlReason(e) }),
@@ -1776,13 +1804,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getBehaviorsBySession = (sessionId: number): Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError> =>
+		const getBehaviorsByTddTask = (tddTaskId: number): Effect.Effect<ReadonlyArray<BehaviorRow>, DataStoreError> =>
 			Effect.gen(function* () {
 				const rows = yield* sql<RawBehaviorRow>`
 					SELECT b.id, b.goal_id, b.ordinal, b.behavior, b.suggested_test_name, b.status, b.created_at
 					FROM tdd_session_behaviors b
 					JOIN tdd_session_goals g ON g.id = b.goal_id
-					WHERE g.session_id = ${sessionId}
+					WHERE g.session_id = ${tddTaskId}
 					ORDER BY g.ordinal, b.ordinal
 				`;
 				return rows.map(behaviorRowFromDb);
@@ -1824,10 +1852,10 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getTddSessionById = (id: number): Effect.Effect<Option.Option<TddSessionDetail>, DataStoreError> =>
+		const getTddTaskById = (id: number): Effect.Effect<Option.Option<TddTaskDetail>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getTddSessionById").pipe(Effect.annotateLogs({ id }));
-				const sessionRows = yield* sql<{
+				yield* Effect.logDebug("getTddTaskById").pipe(Effect.annotateLogs({ id }));
+				const taskRows = yield* sql<{
 					id: number;
 					session_id: number;
 					goal: string;
@@ -1837,10 +1865,10 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					run_id: string | null;
 				}>`
 					SELECT id, session_id, goal, started_at, ended_at, outcome, run_id
-					FROM tdd_sessions WHERE id = ${id} LIMIT 1
+					FROM tdd_tasks WHERE id = ${id} LIMIT 1
 				`;
-				if (sessionRows.length === 0) return Option.none<TddSessionDetail>();
-				const tddSession = sessionRows[0];
+				if (taskRows.length === 0) return Option.none<TddTaskDetail>();
+				const tddTask = taskRows[0];
 				const goals = yield* fetchGoalsWithBehaviors(id);
 				const phaseRows = yield* sql<{
 					id: number;
@@ -1851,7 +1879,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					transition_reason: string | null;
 				}>`
 					SELECT id, behavior_id, phase, started_at, ended_at, transition_reason
-					FROM tdd_phases WHERE tdd_session_id = ${id}
+					FROM tdd_phases WHERE tdd_task_id = ${id}
 					ORDER BY started_at ASC
 				`;
 				const artifactRows = yield* sql<{
@@ -1865,17 +1893,17 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					SELECT a.id, a.phase_id, a.artifact_kind, a.test_case_id, a.test_run_id, a.recorded_at
 					FROM tdd_artifacts a
 					JOIN tdd_phases p ON a.phase_id = p.id
-					WHERE p.tdd_session_id = ${id}
+					WHERE p.tdd_task_id = ${id}
 					ORDER BY a.recorded_at ASC
 				`;
-				return Option.some<TddSessionDetail>({
-					id: tddSession.id,
-					sessionId: tddSession.session_id,
-					goal: tddSession.goal,
-					startedAt: tddSession.started_at,
-					endedAt: tddSession.ended_at,
-					outcome: tddSession.outcome,
-					runId: tddSession.run_id,
+				return Option.some<TddTaskDetail>({
+					id: tddTask.id,
+					sessionId: tddTask.session_id,
+					goal: tddTask.goal,
+					startedAt: tddTask.started_at,
+					endedAt: tddTask.ended_at,
+					outcome: tddTask.outcome,
+					runId: tddTask.run_id,
 					goals,
 					phases: phaseRows.map((p) => ({
 						id: p.id,
@@ -1897,13 +1925,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
-					(e) => new DataStoreError({ operation: "read", table: "tdd_sessions", reason: extractSqlReason(e) }),
+					(e) => new DataStoreError({ operation: "read", table: "tdd_tasks", reason: extractSqlReason(e) }),
 				),
 			);
 
-		const getCurrentTddPhase = (tddSessionId: number): Effect.Effect<Option.Option<CurrentTddPhase>, DataStoreError> =>
+		const getCurrentTddPhase = (tddTaskId: number): Effect.Effect<Option.Option<CurrentTddPhase>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getCurrentTddPhase").pipe(Effect.annotateLogs({ tddSessionId }));
+				yield* Effect.logDebug("getCurrentTddPhase").pipe(Effect.annotateLogs({ tddTaskId }));
 				const rows = yield* sql<{
 					id: number;
 					phase: string;
@@ -1911,7 +1939,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					behavior_id: number | null;
 				}>`
 					SELECT id, phase, started_at, behavior_id FROM tdd_phases
-					WHERE tdd_session_id = ${tddSessionId} AND ended_at IS NULL
+					WHERE tdd_task_id = ${tddTaskId} AND ended_at IS NULL
 					ORDER BY started_at DESC LIMIT 1
 				`;
 				if (rows.length === 0) return Option.none<CurrentTddPhase>();
@@ -1959,7 +1987,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						p.behavior_id
 					FROM tdd_artifacts a
 					JOIN tdd_phases p ON p.id = a.phase_id
-					JOIN tdd_sessions ts ON ts.id = p.tdd_session_id
+					JOIN tdd_tasks ts ON ts.id = p.tdd_task_id
 					JOIN sessions sess ON sess.id = ts.session_id
 					LEFT JOIN test_cases tc ON tc.id = a.test_case_id
 					LEFT JOIN turns ttc ON ttc.id = tc.created_turn_id
@@ -2040,11 +2068,32 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const listTddSessionsForSession = (
+		const listTddTasksForSession = (
 			sessionId: number,
-		): Effect.Effect<ReadonlyArray<TddSessionSummary>, DataStoreError> =>
+			options?: { readonly walkParents?: boolean },
+		): Effect.Effect<ReadonlyArray<TddTaskSummary>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("listTddSessionsForSession").pipe(Effect.annotateLogs({ sessionId }));
+				yield* Effect.logDebug("listTddTasksForSession").pipe(
+					Effect.annotateLogs({ sessionId, walkParents: options?.walkParents ?? false }),
+				);
+				// When `walkParents`, collect the ancestor chain via
+				// parent_session_id. Bound the loop by table size to
+				// avoid infinite loops if a cycle were ever introduced.
+				const sessionIds: number[] = [sessionId];
+				if (options?.walkParents === true) {
+					let currentId: number | null = sessionId;
+					for (let i = 0; i < 64 && currentId !== null; i++) {
+						const parentRows: ReadonlyArray<{ parent_session_id: number | null }> = yield* sql<{
+							parent_session_id: number | null;
+						}>`
+								SELECT parent_session_id FROM sessions WHERE id = ${currentId} LIMIT 1
+							`;
+						const next: number | null = parentRows[0]?.parent_session_id ?? null;
+						if (next === null || sessionIds.includes(next)) break;
+						sessionIds.push(next);
+						currentId = next;
+					}
+				}
 				const rows = yield* sql<{
 					id: number;
 					session_id: number;
@@ -2053,8 +2102,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					ended_at: string | null;
 					outcome: string | null;
 				}>`
-					SELECT id, session_id, goal, started_at, ended_at, outcome FROM tdd_sessions
-					WHERE session_id = ${sessionId} ORDER BY started_at DESC
+					SELECT id, session_id, goal, started_at, ended_at, outcome FROM tdd_tasks
+					WHERE session_id IN ${sql.in(sessionIds)} ORDER BY started_at DESC
 				`;
 				return rows.map((r) => ({
 					id: r.id,
@@ -2062,12 +2111,73 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					goal: r.goal,
 					startedAt: r.started_at,
 					endedAt: r.ended_at,
-					outcome: r.outcome as TddSessionSummary["outcome"],
+					outcome: r.outcome as TddTaskSummary["outcome"],
 				}));
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
-					(e) => new DataStoreError({ operation: "read", table: "tdd_sessions", reason: extractSqlReason(e) }),
+					(e) => new DataStoreError({ operation: "read", table: "tdd_tasks", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const listTddArtifactsForTask = (input: {
+			readonly tddTaskId: number;
+			readonly artifactKind?: ArtifactKind;
+			readonly phaseId?: number;
+			readonly behaviorId?: number;
+			readonly limit?: number;
+		}): Effect.Effect<ReadonlyArray<TddArtifactRow>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("listTddArtifactsForTask").pipe(Effect.annotateLogs(input));
+				const limit = input.limit ?? 50;
+				const rows = yield* sql<{
+					id: number;
+					tdd_task_id: number;
+					phase_id: number;
+					phase_name: string;
+					artifact_kind: string;
+					behavior_id: number | null;
+					test_case_id: number | null;
+					test_run_id: number | null;
+					test_first_failure_run_id: number | null;
+					recorded_at: string;
+				}>`
+					SELECT
+						a.id,
+						p.tdd_task_id AS tdd_task_id,
+						a.phase_id,
+						p.phase AS phase_name,
+						a.artifact_kind,
+						p.behavior_id,
+						a.test_case_id,
+						a.test_run_id,
+						a.test_first_failure_run_id,
+						a.recorded_at
+					FROM tdd_artifacts a
+					JOIN tdd_phases p ON p.id = a.phase_id
+					WHERE p.tdd_task_id = ${input.tddTaskId}
+						AND (${input.artifactKind ?? null} IS NULL OR a.artifact_kind = ${input.artifactKind ?? null})
+						AND (${input.phaseId ?? null} IS NULL OR a.phase_id = ${input.phaseId ?? null})
+						AND (${input.behaviorId ?? null} IS NULL OR p.behavior_id = ${input.behaviorId ?? null})
+					ORDER BY a.recorded_at DESC, a.id DESC
+					LIMIT ${limit}
+				`;
+				return rows.map((r) => ({
+					id: r.id,
+					tddTaskId: r.tdd_task_id,
+					phaseId: r.phase_id,
+					phaseName: r.phase_name as Phase,
+					artifactKind: r.artifact_kind as ArtifactKind,
+					behaviorId: r.behavior_id,
+					testCaseId: r.test_case_id,
+					testRunId: r.test_run_id,
+					testFirstFailureRunId: r.test_first_failure_run_id,
+					recordedAt: r.recorded_at,
+				}));
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "tdd_artifacts", reason: extractSqlReason(e) }),
 				),
 			);
 
@@ -2144,9 +2254,9 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getLatestTestCaseForSession = (ccSessionId: string): Effect.Effect<Option.Option<number>, DataStoreError> =>
+		const getLatestTestCaseForSession = (chatId: string): Effect.Effect<Option.Option<number>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getLatestTestCaseForSession").pipe(Effect.annotateLogs({ ccSessionId }));
+				yield* Effect.logDebug("getLatestTestCaseForSession").pipe(Effect.annotateLogs({ chatId }));
 				// Find the most-recently-added test case (from the latest run) whose
 				// module file was edited in the given session. Uses LIKE suffix-matching
 				// because the reporter stores relative paths while hooks store absolute.
@@ -2162,7 +2272,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						JOIN turns t ON fe.turn_id = t.id
 						JOIN sessions s ON t.session_id = s.id
 						JOIN files f_edit ON fe.file_id = f_edit.id
-						WHERE s.cc_session_id = ${ccSessionId}
+						WHERE s.chat_id = ${chatId}
 						  AND (
 							f_edit.path = f_mod.path
 							OR f_edit.path LIKE '%/' || f_mod.path
@@ -2209,23 +2319,25 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			listSuites,
 			listSettings,
 			getSessionById,
-			getSessionByCcId,
+			getSessionByChatId,
+			findSessionsByChatPrefix,
 			listSessions,
 			searchTurns,
 			computeAcceptanceMetrics,
 			getFailureSignatureByHash,
-			getTddSessionById,
+			getTddTaskById,
 			getGoalById,
-			getGoalsBySession,
+			getGoalsByTddTask,
 			getBehaviorById,
 			getBehaviorsByGoal,
-			getBehaviorsBySession,
+			getBehaviorsByTddTask,
 			getBehaviorDependencies,
 			resolveGoalIdForBehavior,
 			getCurrentTddPhase,
 			getTddArtifactWithContext,
 			getCommitChanges,
-			listTddSessionsForSession,
+			listTddTasksForSession,
+			listTddArtifactsForTask,
 			listHypotheses,
 			findIdempotentResponse,
 			getLatestTestCaseForSession,

@@ -11,7 +11,6 @@ import {
 	OutputPipelineLive,
 	ProjectDiscoveryLive,
 	migration0001,
-	migration0002,
 } from "vitest-agent-sdk";
 
 export const McpLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
@@ -20,7 +19,6 @@ export const McpLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: 
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
-			"0002_comprehensive": migration0002,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 

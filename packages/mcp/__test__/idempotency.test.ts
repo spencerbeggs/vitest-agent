@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { idempotencyKeys } from "../src/middleware/idempotency.js";
 
-// ---------------------------------------------------------------------------
-// Key derivation tests (pure logic, no I/O)
-// ---------------------------------------------------------------------------
-
 describe("idempotency key derivation", () => {
 	const spec = (path: string) => {
 		const s = idempotencyKeys.find((k) => k.procedurePath === path);
@@ -12,82 +8,72 @@ describe("idempotency key derivation", () => {
 		return s;
 	};
 
-	describe("hypothesis_record", () => {
-		const { deriveKey } = spec("hypothesis_record");
+	describe("hypothesis (consolidated)", () => {
+		const { deriveKey } = spec("hypothesis");
 
-		it("derives key as sessionId:content", () => {
-			const key = deriveKey({ sessionId: 42, content: "my hypothesis" });
-			expect(key).toBe("42:my hypothesis");
+		it("record action: sessionId:content key", () => {
+			expect(deriveKey({ action: "record", sessionId: 42, content: "my hypothesis" })).toBe("record:42:my hypothesis");
 		});
 
-		it("returns null for invalid input", () => {
+		it("validate action: id:outcome key", () => {
+			expect(deriveKey({ action: "validate", id: 7, outcome: "confirmed" })).toBe("validate:7:confirmed");
+		});
+
+		it("returns null when action is missing", () => {
+			expect(deriveKey({ sessionId: 1, content: "x" })).toBeNull();
+		});
+
+		it("returns null for malformed inputs", () => {
 			expect(deriveKey(null)).toBeNull();
-			expect(deriveKey({ sessionId: "not-a-number", content: "x" })).toBeNull();
-			expect(deriveKey({ sessionId: 1 })).toBeNull();
+			expect(deriveKey({ action: "record", sessionId: "x", content: "y" })).toBeNull();
 		});
 	});
 
-	describe("hypothesis_validate", () => {
-		const { deriveKey } = spec("hypothesis_validate");
+	describe("tdd_task (consolidated)", () => {
+		const { deriveKey } = spec("tdd_task");
 
-		it("derives key as id:outcome", () => {
-			const key = deriveKey({ id: 7, outcome: "confirmed" });
-			expect(key).toBe("7:confirmed");
+		it("start: keys on (sessionId, goal) when no runId", () => {
+			expect(deriveKey({ action: "start", sessionId: 7, goal: "add foo" })).toBe("start:sid:7:add foo");
 		});
 
-		it("returns null for invalid input", () => {
-			expect(deriveKey(null)).toBeNull();
-			expect(deriveKey({ id: "not-a-number", outcome: "confirmed" })).toBeNull();
-			expect(deriveKey({ id: 1 })).toBeNull();
-		});
-	});
-
-	describe("tdd_session_start", () => {
-		const { deriveKey } = spec("tdd_session_start");
-
-		it("derives a stable key from (sessionId, goal)", () => {
-			expect(deriveKey({ sessionId: 7, goal: "add foo" })).toBe("sid:7:add foo");
-			expect(deriveKey({ sessionId: 7, goal: "add foo" })).toBe(deriveKey({ sessionId: 7, goal: "add foo" }));
+		it("start: keys on (chatId, goal) when no runId and no sessionId", () => {
+			expect(deriveKey({ action: "start", chatId: "cc-abc", goal: "add foo" })).toBe("start:chat:cc-abc:add foo");
 		});
 
-		it("derives a stable key from (ccSessionId, goal) when sessionId is absent", () => {
-			expect(deriveKey({ ccSessionId: "cc-abc", goal: "add foo" })).toBe("cc:cc-abc:add foo");
+		it("start: prefers runId over goal", () => {
+			expect(deriveKey({ action: "start", sessionId: 7, goal: "g", runId: "xyz" })).toBe("start:sid:7:run:xyz");
 		});
 
-		it("prefixes the kind so cc-id and integer-id namespaces never collide", () => {
-			expect(deriveKey({ sessionId: 7, goal: "g" })).not.toBe(deriveKey({ ccSessionId: "7", goal: "g" }));
+		it("end: keys on (tddTaskId, outcome)", () => {
+			expect(deriveKey({ action: "end", tddTaskId: 5, outcome: "succeeded" })).toBe("end:5:succeeded");
 		});
 
-		it("keys on runId when present, ignoring goal text", () => {
-			expect(deriveKey({ ccSessionId: "cc-abc", goal: "add foo", runId: "abc123" })).toBe("cc:cc-abc:run:abc123");
-		});
-
-		it("keys on sessionId+runId when sessionId is present with runId", () => {
-			expect(deriveKey({ sessionId: 7, goal: "g", runId: "xyz" })).toBe("sid:7:run:xyz");
-		});
-
-		it("falls back to goal-based key when runId is absent (backward compat)", () => {
-			expect(deriveKey({ ccSessionId: "cc-abc", goal: "add foo" })).toBe("cc:cc-abc:add foo");
-		});
-
-		it("returns null for malformed input", () => {
-			expect(deriveKey(null)).toBeNull();
-			expect(deriveKey({ goal: "x" })).toBeNull();
-			expect(deriveKey({ sessionId: "not-a-number", goal: "x" })).toBeNull();
+		it("returns null for non-create/end actions (get/resume are queries)", () => {
+			expect(deriveKey({ action: "get", id: 1 })).toBeNull();
 		});
 	});
 
-	describe("tdd_session_end", () => {
-		const { deriveKey } = spec("tdd_session_end");
+	describe("tdd_goal (consolidated)", () => {
+		const { deriveKey } = spec("tdd_goal");
 
-		it("derives stable key from (tddSessionId, outcome)", () => {
-			expect(deriveKey({ tddSessionId: 5, outcome: "succeeded" })).toBe("5:succeeded");
+		it("create: keys on (tddTaskId, goal)", () => {
+			expect(deriveKey({ action: "create", tddTaskId: 1, goal: "g" })).toBe("create:1:g");
 		});
 
-		it("returns null for malformed input", () => {
-			expect(deriveKey(null)).toBeNull();
-			expect(deriveKey({ outcome: "succeeded" })).toBeNull();
-			expect(deriveKey({ tddSessionId: 5 })).toBeNull();
+		it("returns null for non-create actions", () => {
+			expect(deriveKey({ action: "update", id: 1 })).toBeNull();
+		});
+	});
+
+	describe("tdd_behavior (consolidated)", () => {
+		const { deriveKey } = spec("tdd_behavior");
+
+		it("create: keys on (goalId, behavior)", () => {
+			expect(deriveKey({ action: "create", goalId: 1, behavior: "b" })).toBe("create:1:b");
+		});
+
+		it("returns null for non-create actions", () => {
+			expect(deriveKey({ action: "update", id: 1 })).toBeNull();
 		});
 	});
 });

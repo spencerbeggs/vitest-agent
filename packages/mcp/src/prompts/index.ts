@@ -96,13 +96,15 @@ export function registerAllPrompts(server: McpServer): void {
 		{
 			title: "Resume TDD Work",
 			description:
-				"Resume the active TDD session from its current phase; iron-law reminder for evidence-bound transitions.",
+				"Resume the active TDD task from its current phase; iron-law reminder for evidence-bound transitions.",
 			argsSchema: {
-				cc_session_id: z.optional(z.string()).describe("Claude Code session id (defaults to inferred current)"),
+				sessionId: z
+					.optional(z.string())
+					.describe("Host session id (defaults to MCP server's recovered SessionContext)"),
 			},
 		},
 		(args) => {
-			const result = tddResumePrompt(args.cc_session_id !== undefined ? { cc_session_id: args.cc_session_id } : {});
+			const result = tddResumePrompt(args.sessionId !== undefined ? { sessionId: args.sessionId } : {});
 			return { messages: toMessages(result.messages) };
 		},
 	);

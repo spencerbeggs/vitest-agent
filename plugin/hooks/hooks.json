@@ -2,11 +2,10 @@
 	"hooks": {
 		"SessionStart": [
 			{
-				"matcher": "startup",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session/start.sh\"",
 						"timeout": 30,
 						"statusMessage": "Loading vitest-agent context..."
 					}
@@ -18,7 +17,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit-record.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit/record.sh\"",
 						"timeout": 5
 					}
 				]
@@ -30,17 +29,27 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use-mcp.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/mcp.sh\"",
 						"timeout": 5
 					}
 				]
 			},
 			{
-				"matcher": "mcp__(plugin_vitest-agent_mcp|vitest-agent_mcp)__(tdd_goal_delete|tdd_behavior_delete|tdd_artifact_record)",
+				"matcher": "mcp__(plugin_vitest-agent_mcp|vitest-agent_mcp)__run_tests",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use-tdd-restricted.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/mcp-run-tests.sh\"",
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "mcp__(plugin_vitest-agent_mcp|vitest-agent_mcp)__(tdd_goal|tdd_behavior|tdd_artifact_record)",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/tdd-restricted.sh\"",
 						"timeout": 5
 					}
 				]
@@ -49,7 +58,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use-record.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/record.sh\"",
 						"timeout": 5
 					}
 				]
@@ -59,7 +68,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use-vitest-config.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/vitest-config.sh\"",
 						"timeout": 5
 					}
 				]
@@ -69,7 +78,17 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use-bash-tdd.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/bash-tdd.sh\"",
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use/bash.sh\"",
 						"timeout": 5
 					}
 				]
@@ -81,12 +100,12 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-test-run.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/test-run.sh\"",
 						"timeout": 10
 					},
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-git-commit.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/git-commit.sh\"",
 						"timeout": 10
 					}
 				]
@@ -95,17 +114,17 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-record.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/record.sh\"",
 						"timeout": 10
 					},
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-tdd-artifact.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/tdd-artifact.sh\"",
 						"timeout": 10
 					},
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-test-quality.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use/test-quality.sh\"",
 						"timeout": 10
 					}
 				]
@@ -116,7 +135,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end-record.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session/end-record.sh\"",
 						"timeout": 10
 					}
 				]
@@ -127,7 +146,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-record.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop/record.sh\"",
 						"timeout": 10
 					}
 				]
@@ -138,7 +157,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact-record.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact/record.sh\"",
 						"timeout": 5
 					}
 				]
@@ -149,7 +168,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-start-tdd.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent/start-tdd.sh\"",
 						"timeout": 10
 					}
 				]
@@ -160,7 +179,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop-tdd.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent/stop-tdd.sh\"",
 						"timeout": 10
 					}
 				]
@@ -172,7 +191,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/elicitation-session-id.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/elicitation/session-id.sh\"",
 						"timeout": 5
 					}
 				]
@@ -184,7 +203,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/elicitation-result-record.sh\"",
+						"command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/elicitation/result-record.sh\"",
 						"timeout": 5
 					}
 				]

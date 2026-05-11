@@ -5,7 +5,7 @@ import { AppDirs } from "xdg-effect";
 import { VitestAgentConfig } from "../schemas/Config.js";
 import { VitestAgentConfigFile } from "../services/Config.js";
 import { normalizeWorkspaceKey } from "./normalize-workspace-key.js";
-import { resolveWorkspaceKey } from "./resolve-workspace-key.js";
+import { resolveProjectKeyFromCwd } from "./resolve-project-key-from-cwd.js";
 
 /**
  * Filename of the SQLite database that stores all reporter data.
@@ -38,15 +38,19 @@ export interface ResolveDataPathOptions {
  * 1. `options.cacheDir` — programmatic override.
  * 2. `cacheDir` from `vitest-agent.config.toml`.
  * 3. `<XDG data>/<normalized projectKey from config>/data.db`.
- * 4. `<XDG data>/<normalized workspace name>/data.db`.
+ * 4. `<XDG data>/<projectKey resolved from cwd's package.json>/data.db`.
+ *    Source 4 prefers `repository.url` (canonicalized to `host__path`),
+ *    falling back to the normalized `name`. This matches the sidecar
+ *    CLI's `_internal register-agent` resolver so the reporter and
+ *    sidecar always write to the same `data.db`.
  *
  * The XDG data directory is namespaced via `AppDirs` (typically
  * `$XDG_DATA_HOME/vitest-agent`, defaulting to
  * `~/.local/share/vitest-agent`).
  *
- * Fails with `WorkspaceRootNotFoundError` when the workspace cannot be
- * detected and no override is set. The function never silently falls back to
- * a path hash — the path is a function of identity, not filesystem layout.
+ * The path is a function of identity, not filesystem layout. When no
+ * `package.json` is reachable from `projectDir`, the cwd basename is used
+ * as the final fallback so the function never throws on identity lookup.
  *
  * @param projectDir - Absolute path inside the user's workspace.
  * @param options - Optional programmatic overrides.
@@ -71,8 +75,8 @@ export const resolveDataPath = (projectDir: string, options: ResolveDataPathOpti
 		const appDirs = yield* AppDirs;
 		const dataRoot = yield* appDirs.ensureData;
 
-		// 3. Config file projectKey overrides workspace name.
-		const key = loaded.projectKey ? normalizeWorkspaceKey(loaded.projectKey) : yield* resolveWorkspaceKey(projectDir);
+		// 3. Config file projectKey overrides cwd-derived projectKey.
+		const key = loaded.projectKey ? normalizeWorkspaceKey(loaded.projectKey) : resolveProjectKeyFromCwd(projectDir);
 
 		const dir = join(dataRoot, key);
 		ensureDirSync(dir);

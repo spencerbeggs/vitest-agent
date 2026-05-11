@@ -11,8 +11,10 @@ tools.
 
 - **SQLite persistence** -- normalized database replaces JSON files for
   richer queries and cross-run analysis
-- **MCP server** -- 53 tools over stdio for deep integration with LLM
-  agents (test data, notes, coverage, discovery, TDD hierarchy, run tests)
+- **MCP server** -- 29 action-keyed tools over stdio for deep integration
+  with LLM agents (test data, notes, coverage, discovery, TDD hierarchy,
+  run tests); tools emit both markdown `content[]` and `structuredContent`
+  per MCP 2025-06-18 so clients can parse either channel
 - **Claude Code plugin** -- auto-registers MCP tools, injects test
   context at session start, and provides teaching skills
 - **Zero-config agent detection** -- uses
@@ -89,9 +91,9 @@ Install the Claude Code plugin for the full agent experience:
 ```
 
 That's it. The plugin detects whether an agent, CI, or human is running
-tests and adjusts output automatically. Agents get 53 MCP tools for
-querying test data, tracking coverage, managing TDD goals and behaviors,
-and persisting notes -- with no manual MCP configuration.
+tests and adjusts output automatically. Agents get 29 action-keyed MCP
+tools for querying test data, tracking coverage, managing TDD goals and
+behaviors, and persisting notes -- with no manual MCP configuration.
 
 ## What Agents See
 
@@ -185,7 +187,7 @@ plugin provides the full agent-native experience:
 
 The plugin provides:
 
-- **MCP auto-registration** -- all 53 tools available immediately with
+- **MCP auto-registration** -- all 29 tools available immediately with
   no manual `.mcp.json` configuration
 - **SessionStart hook** -- injects project status and available tools
   into Claude's context at the start of each session
@@ -208,63 +210,43 @@ npx vitest-agent-mcp
 ```
 
 <details>
-<summary>Full tool reference (53 tools)</summary>
+<summary>Full tool reference (29 tools)</summary>
 
-| Tool | Description |
-| --- | --- |
-| `help` | List all tools with parameters and descriptions |
-| `test_status` | Per-project pass/fail state from the most recent run |
-| `test_overview` | Test landscape summary with per-project run metrics |
-| `test_coverage` | Coverage gap analysis with per-metric thresholds and targets |
-| `test_history` | Flaky/persistent/recovered tests with run visualization |
-| `test_trends` | Per-project coverage trajectory with direction and sparkline |
-| `test_errors` | Detailed test errors with diffs and stack traces |
-| `test_for_file` | Find test modules that cover a given source file |
-| `test_get` | Read a single test case in detail (state, errors, history, classification) |
-| `file_coverage` | Per-file coverage with uncovered line ranges |
-| `run_tests` | Execute vitest for specific files or projects; accepts `format: "markdown" \| "json"` |
-| `cache_health` | Database health diagnostic |
-| `configure` | View captured Vitest settings for a test run |
-| `project_list` | List all projects with latest run summary |
-| `test_list` | List test cases with state and duration |
-| `module_list` | List test modules (files) with test counts |
-| `suite_list` | List test suites (describe blocks) |
-| `settings_list` | List Vitest config snapshots |
-| `note_create` | Create a scoped note (global, project, module, suite, test, or free-form) |
-| `note_list` | List notes with optional scope, project, and test filters |
-| `note_get` | Read a note by ID |
-| `note_update` | Update note content, pin state, or expiration |
-| `note_delete` | Delete a note |
-| `note_search` | Full-text search across note titles and content |
-| `session_list` | List Claude Code sessions with optional project and kind filters |
-| `session_get` | Read a Claude Code session by ID |
-| `turn_search` | Search turn log entries by session, type, or timestamp |
-| `failure_signature_get` | Read a failure signature by hash, with recent matching errors |
-| `get_current_session_id` | Read the current Claude Code session ID stored for this workspace |
-| `set_current_session_id` | Set the current Claude Code session ID for this workspace |
-| `tdd_session_get` | Read a TDD session with phases, artifacts, run_id, and a Goals and Behaviors section |
-| `hypothesis_list` | List hypotheses with optional session and outcome filters |
-| `acceptance_metrics` | Compute phase-evidence integrity and compliance ratios |
-| `triage_brief` | Orientation summary: recent runs, failures, and triage context |
-| `wrapup_prompt` | Interpretive prompt-injection nudges for wrap-up hooks |
-| `hypothesis_record` | Record a new agent hypothesis with optional evidence FKs |
-| `hypothesis_validate` | Mark a hypothesis as confirmed, refuted, or abandoned |
-| `tdd_session_start` | Open a new TDD session with a goal; accepts optional `runId` for idempotency re-keying |
-| `tdd_session_end` | Close a TDD session with an outcome |
-| `tdd_session_resume` | Get a markdown digest of an open TDD session |
-| `tdd_phase_transition_request` | Request a TDD phase transition; validated against evidence artifacts |
-| `tdd_goal_create` | Create a goal under a TDD session (idempotent on session + goal text) |
-| `tdd_goal_get` | Read a goal with nested behaviors |
-| `tdd_goal_update` | Update a goal's text or status |
-| `tdd_goal_delete` | Hard-delete a goal and its behaviors, phases, and artifacts |
-| `tdd_goal_list` | List goals for a session with nested behaviors, ordered by ordinal |
-| `tdd_behavior_create` | Create a behavior under a goal (idempotent on goal + behavior text) |
-| `tdd_behavior_get` | Read a behavior with its parent goal and dependencies |
-| `tdd_behavior_update` | Update a behavior's text, suggested test name, status, or dependencies |
-| `tdd_behavior_delete` | Hard-delete a behavior and its phases and artifacts |
-| `tdd_behavior_list` | List behaviors by goal or session |
-| `commit_changes` | Workspace git commit history joined with per-run changed files |
-| `ping` | Health check — returns `{ pong: true }` |
+Several CRUD families are consolidated into single action-keyed tools that dispatch on an `action` (or `kind`) discriminator.
+
+| Tool | Actions | Description |
+| --- | --- | --- |
+| `help` | — | List all tools with parameters and descriptions |
+| `ping` | — | Health check — returns `{ pong: true }` |
+| `test_status` | — | Per-project pass/fail state from the most recent run |
+| `test_overview` | — | Test landscape summary with per-project run metrics |
+| `test_coverage` | — | Coverage gap analysis with per-metric thresholds and targets |
+| `test_history` | — | Flaky/persistent/recovered tests with run visualization |
+| `test_trends` | — | Per-project coverage trajectory with direction and sparkline |
+| `test_errors` | — | Detailed test errors with diffs and stack traces |
+| `test` | `list`, `get`, `for_file` | List test cases, read a single test case in detail, or find test modules that cover a source file |
+| `file_coverage` | — | Per-file coverage with uncovered line ranges |
+| `inventory` | `kind: project`, `module`, `suite`, `session` | Unified discovery across projects, test modules, suites, and Claude Code sessions; accepts an optional `id` for single-row lookup |
+| `run_tests` | — | Execute vitest for specific files or projects; returns a `RunTestsResult` discriminated union (`ok` / `timeout` / `error`) carrying the full `AgentReport` and per-test classifications |
+| `cache_health` | — | Database health diagnostic |
+| `configure` | — | View captured Vitest settings for a test run |
+| `settings_list` | — | List Vitest config snapshots |
+| `register_agent` | — | Register the active agent in the `agents` table; idempotent on `(agentType, parentAgentId, clientNonce)` |
+| `note` | `create`, `list`, `get`, `update`, `delete`, `search` | Scoped note CRUD plus full-text search across titles and content |
+| `turn_search` | — | Search turn log entries by session, type, or timestamp |
+| `failure_signature_get` | — | Read a failure signature by hash, with recent matching errors |
+| `triage_brief` | — | Orientation summary: recent runs, failures, and triage context |
+| `wrapup_prompt` | — | Interpretive prompt-injection nudges for wrap-up hooks |
+| `acceptance_metrics` | — | Compute phase-evidence integrity and compliance ratios |
+| `hypothesis` | `record`, `validate`, `list` | Record a hypothesis with optional evidence FKs, mark it confirmed/refuted/abandoned, or list with filters |
+| `tdd_task` | `start`, `end`, `get`, `resume` | TDD session lifecycle; `start` and `end` are idempotent. Replaces the 1.x `tdd_session_*` family |
+| `tdd_phase_transition_request` | — | Request a TDD phase transition; validated against evidence artifacts. Auto-promotes a behavior from `pending` to `in_progress` when accepted with a `behaviorId` |
+| `tdd_goal` | `create`, `update`, `delete`, `get`, `list` | Goal CRUD under a TDD session; `create` is idempotent on `(sessionId, goal)`; `delete` is denied to the TDD orchestrator at the hook layer |
+| `tdd_behavior` | `create`, `update`, `delete`, `get`, `list_by_goal`, `list_by_session` | Behavior CRUD under a goal; `create` is idempotent on `(goalId, behavior)`; `delete` is denied to the TDD orchestrator at the hook layer |
+| `tdd_artifact_list` | — | List TDD artifacts (test files, runs, hypotheses) recorded by the plugin's post-tool-use hook |
+| `commit_changes` | — | Workspace git commit history joined with per-run changed files |
+
+All tools emit both markdown `content[]` for human-readable display and a typed `structuredContent` payload per MCP 2025-06-18 — clients can parse either channel.
 
 </details>
 
@@ -354,9 +336,9 @@ expect the following breaking changes:
   (`{ unit?, int?, e2e? }` keyed by kind) is gone. Use the
   `tagStrategy` option or the `callback` form instead.
 - The `--sub-project` flag was removed from the `record` CLI command,
-  and the `subProject` input field was removed from the
-  `test_history`, `suite_list`, and other MCP tools that previously
-  accepted it.
+  and the `subProject` input field was removed from `test_history`,
+  the `inventory` tool's `suite` kind (1.x `suite_list`), and every
+  other MCP tool that previously accepted it.
 - The `sub_project` column was dropped from every persisted table
   (`test_runs`, `test_history`, `coverage_baselines`,
   `coverage_trends`, `notes`, `sessions`). Existing `data.db` files

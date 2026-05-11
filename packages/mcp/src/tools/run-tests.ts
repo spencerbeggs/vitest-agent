@@ -1,9 +1,40 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Writable } from "node:stream";
-import { Effect, Schema } from "effect";
+import { Effect, ParseResult, Schema } from "effect";
 import type { AgentReport, VitestModuleError } from "vitest-agent-sdk";
-import { DataReader, DataStore, buildAgentReport } from "vitest-agent-sdk";
+import { AgentReport as AgentReportSchema, DataReader, DataStore, buildAgentReport } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
+
+const RunTestsOk = Schema.Struct({
+	kind: Schema.Literal("ok").annotations({
+		description: "Discriminant — `true` test run completed (with or without failures).",
+	}),
+	project: Schema.optional(Schema.String),
+	report: AgentReportSchema.annotations({
+		description: "Full AgentReport including pass/fail counts and per-module errors.",
+	}),
+	classifications: Schema.Record({ key: Schema.String, value: Schema.String }).annotations({
+		description: "Per-test classification labels: stable, new-failure, persistent, flaky, recovered.",
+	}),
+}).annotations({ identifier: "RunTestsOk" });
+
+const RunTestsTimeout = Schema.Struct({
+	kind: Schema.Literal("timeout"),
+	timeoutSeconds: Schema.Number,
+}).annotations({ identifier: "RunTestsTimeout" });
+
+const RunTestsError = Schema.Struct({
+	kind: Schema.Literal("error"),
+	message: Schema.String,
+}).annotations({ identifier: "RunTestsError" });
+
+export const RunTestsResult = Schema.Union(RunTestsOk, RunTestsTimeout, RunTestsError).annotations({
+	identifier: "RunTestsResult",
+	title: "run_tests result",
+	description:
+		"Discriminate on `kind`. ok carries the full AgentReport plus per-test classifications; timeout / error are the two failure modes.",
+});
+export type RunTestsResultType = Schema.Schema.Type<typeof RunTestsResult>;
 
 const FORBIDDEN_CHARS = /[;|&`$(){}[\]<>!#]/;
 
@@ -83,6 +114,21 @@ export function sanitizeTestArgs(args: readonly string[]): string[] {
 	return result;
 }
 
+// Serializes concurrent run_tests invocations. The body assigns the
+// active attribution UUIDs into `process.env.VITEST_AGENT_*` and then
+// awaits `createVitest`/`vitest.start`, which spawns the worker pool
+// that snapshots env at spawn time. Two interleaved tRPC calls would
+// race: caller B's env assignment can land between A's assignment and
+// A's worker spawn, attributing A's results to B's agent. The mutex
+// keeps the env-write + worker-spawn pair atomic from the perspective
+// of any other run_tests call in this process.
+let _runTestsChain: Promise<unknown> = Promise.resolve();
+function serializeRunTests<T>(fn: () => Promise<T>): Promise<T> {
+	const next = _runTestsChain.then(fn, fn);
+	_runTestsChain = next.catch(() => undefined);
+	return next;
+}
+
 /**
  * Coerce unknown Vitest unhandled errors into VitestModuleError shape.
  *
@@ -118,6 +164,25 @@ export function formatReportJson(report: AgentReport, classifications?: Readonly
 }
 
 /**
+ * Render the full structured `RunTestsResult` as markdown for the
+ * text channel. Discriminates on `kind` then defers to the existing
+ * AgentReport rendering for the `ok` case.
+ */
+export function formatRunTestsMarkdown(data: RunTestsResultType): string {
+	if (data.kind === "timeout") return `Test run timed out after ${data.timeoutSeconds} seconds.`;
+	if (data.kind === "error") return `Test run failed: ${data.message}`;
+	const classMap = new Map<string, string>(Object.entries(data.classifications));
+	return formatReportMarkdown(data.report, classMap);
+}
+
+export const RunTestsAsMarkdown = Schema.transformOrFail(RunTestsResult, Schema.String, {
+	strict: true,
+	decode: (data) => ParseResult.succeed(formatRunTestsMarkdown(data)),
+	encode: (text, _options, ast) =>
+		ParseResult.fail(new ParseResult.Forbidden(ast, text, "RunTestsAsMarkdown is one-way.")),
+});
+
+/**
  * Format an AgentReport as concise markdown suitable for MCP tool output.
  *
  * Classifications map test fullName to labels like "new-failure",
@@ -129,11 +194,29 @@ export function formatReportJson(report: AgentReport, classifications?: Readonly
 export function formatReportMarkdown(report: AgentReport, classifications?: ReadonlyMap<string, string>): string {
 	const lines: string[] = [];
 	const { summary } = report;
-	const status = summary.failed > 0 ? "\u274C" : "\u2705";
 
-	lines.push(
-		`## ${status} Vitest -- ${summary.failed > 0 ? `${summary.failed} failed, ` : ""}${summary.passed} passed${summary.skipped > 0 ? `, ${summary.skipped} skipped` : ""} (${summary.duration}ms)`,
-	);
+	// Modules that failed to collect (import error, syntax error, beforeAll
+	// throw): the module is in `report.failed` with no failing test cases
+	// but a non-empty `errors` array. These never bump `summary.failed`,
+	// so we count them separately to drive both the headline status and
+	// the "N failed to load" tally.
+	const collectionFailedFiles = report.failed
+		.filter((m) => m.errors !== undefined && m.errors.length > 0 && !m.tests.some((t) => t.state === "failed"))
+		.map((m) => m.file);
+
+	const hasCollectionFailures = collectionFailedFiles.length > 0;
+	const isFailing = summary.failed > 0 || report.unhandledErrors.length > 0 || hasCollectionFailures;
+	const status = isFailing ? "\u274C" : "\u2705";
+
+	const headlineParts: string[] = [];
+	if (summary.failed > 0) headlineParts.push(`${summary.failed} failed`);
+	if (hasCollectionFailures) {
+		headlineParts.push(`${collectionFailedFiles.length} failed to load`);
+	}
+	headlineParts.push(`${summary.passed} passed`);
+	if (summary.skipped > 0) headlineParts.push(`${summary.skipped} skipped`);
+
+	lines.push(`## ${status} Vitest -- ${headlineParts.join(", ")} (${summary.duration}ms)`);
 
 	if (report.project) {
 		lines.push(`\nProject: ${report.project}`);
@@ -141,6 +224,17 @@ export function formatReportMarkdown(report: AgentReport, classifications?: Read
 
 	for (const mod of report.failed) {
 		lines.push(`\n### \u274C \`${mod.file}\``);
+		// Module-level errors (collection / load / hook failures) carry no
+		// associated test case, so render them as their own block before
+		// the per-test details so the failure reason isn't buried.
+		if (mod.errors) {
+			for (const err of mod.errors) {
+				lines.push(`\n- \u274C **Module failed to load**: ${err.message}`);
+				if (err.stack) {
+					lines.push(`\n  \`\`\`\n  ${err.stack}\n  \`\`\``);
+				}
+			}
+		}
 		for (const test of mod.tests) {
 			if (test.state !== "failed") continue;
 			const badge = classifications?.get(test.fullName);
@@ -172,7 +266,7 @@ export function formatReportMarkdown(report: AgentReport, classifications?: Read
 	}
 
 	// Next steps
-	if (summary.failed > 0 || report.unhandledErrors.length > 0) {
+	if (isFailing) {
 		const newFailures = classifications ? [...classifications.values()].filter((c) => c === "new-failure").length : 0;
 		const persistent = classifications ? [...classifications.values()].filter((c) => c === "persistent").length : 0;
 		const flaky = classifications ? [...classifications.values()].filter((c) => c === "flaky").length : 0;
@@ -198,119 +292,160 @@ export const runTests = publicProcedure
 				files: Schema.optional(Schema.Array(Schema.String)),
 				project: Schema.optional(Schema.String),
 				timeout: Schema.optional(Schema.Number),
-				format: Schema.optional(Schema.Literal("markdown", "json")),
+				// Injected by the `pre-tool-use-mcp-run-tests.sh` hook —
+				// agents do not pass this directly. Carries the recovered
+				// VITEST_AGENT_* attribution UUIDs because Claude Code does
+				// not auto-source CLAUDE_ENV_FILE into MCP children.
+				_sessionContext: Schema.optional(
+					Schema.Struct({
+						chatId: Schema.String,
+						conversationId: Schema.String,
+						mainAgentId: Schema.String,
+					}),
+				),
 			}),
 		),
 	)
-	.mutation(async ({ ctx, input }) => {
-		const files = input.files ? sanitizeTestArgs(input.files) : [];
-		const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
-		const format = input.format ?? "markdown";
+	.mutation(
+		({ ctx, input }): Promise<RunTestsResultType> =>
+			serializeRunTests(async (): Promise<RunTestsResultType> => {
+				const files = input.files ? sanitizeTestArgs(input.files) : [];
+				const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
 
-		const timeoutMs = (input.timeout ?? 120) * 1000;
+				const timeoutMs = (input.timeout ?? 120) * 1000;
 
-		// The MCP server communicates over stdio, so Vitest's console
-		// output must not leak into stdout. Redirect to a null writable.
-		const nullStream = new Writable({
-			write(_chunk, _encoding, cb) {
-				cb();
-			},
-		});
+				// Propagate the active SessionContext into process.env so the
+				// in-process Vitest reporter (which reads VITEST_AGENT_*
+				// directly from the environment at startup) attributes this run
+				// to the active agent. The surrounding `serializeRunTests`
+				// mutex keeps this write atomic with the worker-pool spawn —
+				// concurrent calls cannot interleave their env assignments
+				// between another call's write and its `createVitest` start.
+				//
+				// Source priority (most authoritative first):
+				//   1. `input._sessionContext` — injected by the
+				//      `pre-tool-use-mcp-run-tests.sh` hook on every call;
+				//      always reflects the SessionStart-written exports.
+				//   2. `ctx.sessionContext.get()` — boot-time fallback (will be
+				//      `null` in practice because Claude Code does not
+				//      auto-source CLAUDE_ENV_FILE into MCP children).
+				const fromInput = input._sessionContext ?? null;
+				const recovered = fromInput ?? ctx.sessionContext.get();
+				if (recovered !== null) {
+					process.env.VITEST_AGENT_CHAT_ID = recovered.chatId;
+					process.env.VITEST_AGENT_CONVERSATION_ID = recovered.conversationId;
+					process.env.VITEST_AGENT_AGENT_ID = recovered.mainAgentId;
+				}
 
-		// Dynamic import: vitest/node is only needed when this tool is
-		// invoked. Keeps the MCP server startup fast.
-		const { createVitest } = await import("vitest/node");
+				// The MCP server communicates over stdio, so Vitest's console
+				// output must not leak into stdout. Redirect to a null writable.
+				const nullStream = new Writable({
+					write(_chunk, _encoding, cb) {
+						cb();
+					},
+				});
 
-		let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
+				// Dynamic import: vitest/node is only needed when this tool is
+				// invoked. Keeps the MCP server startup fast.
+				const { createVitest } = await import("vitest/node");
 
-		try {
-			vitest = await createVitest(
-				"test",
-				{
-					root: ctx.cwd,
-					run: true,
-					// Inherit coverage from the user's vitest.config. Forcing
-					// `enabled: false` here was overriding intentional
-					// "coverage on by default" configurations and forced the
-					// orchestrator to make a parallel Bash --coverage call
-					// just to populate file_coverage rows.
-					...(project ? { project } : {}),
-				},
-				{}, // viteOverrides
-				{
-					stdout: nullStream as unknown as NodeJS.WriteStream,
-					stderr: nullStream as unknown as NodeJS.WriteStream,
-				},
-			);
+				let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
 
-			let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-			const result = await withStdioCaptured(nullStream, () =>
-				Promise.race([
-					vitest!.start(files.length > 0 ? files : undefined),
-					new Promise<never>((_, reject) => {
-						timeoutHandle = setTimeout(() => reject(new Error("VITEST_TIMEOUT")), timeoutMs);
-					}),
-				]).finally(() => {
-					if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-				}),
-			);
+				try {
+					vitest = await createVitest(
+						"test",
+						{
+							root: ctx.cwd,
+							run: true,
+							// Inherit coverage from the user's vitest.config. Forcing
+							// `enabled: false` here was overriding intentional
+							// "coverage on by default" configurations and forced the
+							// orchestrator to make a parallel Bash --coverage call
+							// just to populate file_coverage rows.
+							...(project ? { project } : {}),
+						},
+						{}, // viteOverrides
+						{
+							stdout: nullStream as unknown as NodeJS.WriteStream,
+							stderr: nullStream as unknown as NodeJS.WriteStream,
+						},
+					);
+					const localVitest = vitest;
 
-			const testModules = result.testModules as unknown as Parameters<typeof buildAgentReport>[0];
-			const unhandledErrors = coerceErrors(result.unhandledErrors);
-
-			const reason =
-				unhandledErrors.length > 0 || result.testModules.some((m) => m.state() === "failed") ? "failed" : "passed";
-
-			const report = buildAgentReport(testModules, unhandledErrors, reason, { omitPassingTests: true });
-
-			// Read stored classifications from DB (written by the reporter via
-			// classifyTest() during vitest.start). This avoids reimplementing
-			// classification logic and stays consistent with AgentReporter.
-			let classifications: ReadonlyMap<string, string> | undefined;
-			try {
-				const classProject = project ?? "default";
-				classifications = await ctx.runtime.runPromise(
-					Effect.gen(function* () {
-						const reader = yield* DataReader;
-						const tests = yield* reader.listTests(classProject, {});
-						return new Map(
-							tests.filter((t) => t.classification != null).map((t) => [t.fullName, t.classification as string]),
-						);
-					}),
-				);
-			} catch {
-				// Classification is best-effort; don't fail the tool if DB read fails
-			}
-
-			// Best-effort: associate the run with the current session so
-			// session-scoped queries reflect this run. Never blocks the result.
-			const ccSessionId = ctx.currentSessionId.get();
-			if (ccSessionId !== null) {
-				ctx.runtime
-					.runPromise(
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							yield* store.associateLatestRunWithSession({ ccSessionId, invocationMethod: "mcp" });
+					let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+					const result = await withStdioCaptured(nullStream, () =>
+						Promise.race([
+							localVitest.start(files.length > 0 ? files : undefined),
+							new Promise<never>((_, reject) => {
+								timeoutHandle = setTimeout(() => reject(new Error("VITEST_TIMEOUT")), timeoutMs);
+							}),
+						]).finally(() => {
+							if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
 						}),
-					)
-					.catch(() => undefined);
-			}
+					);
 
-			return format === "json"
-				? formatReportJson(report, classifications)
-				: formatReportMarkdown(report, classifications);
-		} catch (err) {
-			if (err instanceof Error && err.message === "VITEST_TIMEOUT") {
-				return format === "json"
-					? JSON.stringify({ error: "VITEST_TIMEOUT", timeoutSeconds: input.timeout ?? 120 }, null, 2)
-					: `Test run timed out after ${input.timeout ?? 120} seconds.`;
-			}
-			const message = err instanceof Error ? err.message : String(err);
-			return format === "json"
-				? JSON.stringify({ error: "RUN_FAILED", message }, null, 2)
-				: `Test run failed: ${message}`;
-		} finally {
-			await vitest?.close();
-			nullStream.destroy();
-		}
-	});
+					const testModules = result.testModules as unknown as Parameters<typeof buildAgentReport>[0];
+					const unhandledErrors = coerceErrors(result.unhandledErrors);
+
+					const reason =
+						unhandledErrors.length > 0 || result.testModules.some((m) => m.state() === "failed") ? "failed" : "passed";
+
+					const report = buildAgentReport(testModules, unhandledErrors, reason, { omitPassingTests: true });
+
+					// Read stored classifications from DB (written by the reporter via
+					// classifyTest() during vitest.start). This avoids reimplementing
+					// classification logic and stays consistent with AgentReporter.
+					let classifications: ReadonlyMap<string, string> | undefined;
+					try {
+						classifications = await ctx.runtime.runPromise(
+							Effect.gen(function* () {
+								const reader = yield* DataReader;
+								const projects: ReadonlyArray<string> = project
+									? [project]
+									: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => r.project)));
+								const entries: Array<[string, string]> = [];
+								for (const p of projects) {
+									const tests = yield* reader.listTests(p, {});
+									for (const t of tests) {
+										if (t.classification != null) entries.push([t.fullName, t.classification]);
+									}
+								}
+								return new Map(entries);
+							}),
+						);
+					} catch {
+						// Classification is best-effort; don't fail the tool if DB read fails
+					}
+
+					// Best-effort: associate the run with the current session so
+					// session-scoped queries reflect this run. Never blocks the result.
+					const chatId = ctx.currentSessionId.get();
+					if (chatId !== null) {
+						ctx.runtime
+							.runPromise(
+								Effect.gen(function* () {
+									const store = yield* DataStore;
+									yield* store.associateLatestRunWithSession({ chatId, invocationMethod: "mcp" });
+								}),
+							)
+							.catch(() => undefined);
+					}
+
+					return {
+						kind: "ok" as const,
+						...(project !== undefined && { project }),
+						report,
+						classifications: classifications ? Object.fromEntries(classifications) : {},
+					};
+				} catch (err) {
+					if (err instanceof Error && err.message === "VITEST_TIMEOUT") {
+						return { kind: "timeout" as const, timeoutSeconds: input.timeout ?? 120 };
+					}
+					const message = err instanceof Error ? err.message : String(err);
+					return { kind: "error" as const, message };
+				} finally {
+					await vitest?.close();
+					nullStream.destroy();
+				}
+			}),
+	);

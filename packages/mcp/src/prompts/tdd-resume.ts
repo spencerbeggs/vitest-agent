@@ -2,19 +2,19 @@
 import type { PromptResult } from "./triage.js";
 
 export interface TddResumeArgs {
-	readonly cc_session_id?: string;
+	readonly sessionId?: string;
 }
 
 export function tddResumePrompt(args: TddResumeArgs): PromptResult {
-	const sessionClause = args.cc_session_id
-		? ` for cc_session_id \`${args.cc_session_id}\``
-		: " for the active session (inferred if no cc_session_id is provided)";
+	const sessionClause = args.sessionId
+		? ` for sessionId \`${args.sessionId}\``
+		: " for the active session (inferred from MCP server's recovered SessionContext)";
 	const text = [
 		`Resume TDD work${sessionClause}.`,
 		"",
 		"Steps:",
 		"",
-		`1. Call \`tdd_session_resume\`${args.cc_session_id ? ` with \`cc_session_id: "${args.cc_session_id}"\`` : ""} to get the most recent open TDD session, including the current phase and the behavior backlog.`,
+		`1. Call \`tdd_task({ action: "resume", id: <tdd-task-id> })\` to get the most recent open TDD task, including the current phase and the behavior backlog.`,
 		"2. The current phase determines what comes next:",
 		"   - **`spike` or `red.triangulate`** — write the next failing test for the current behavior.",
 		"   - **`red`** — run the test once to capture a `test_failed_run` artifact, then transition to `green`.",

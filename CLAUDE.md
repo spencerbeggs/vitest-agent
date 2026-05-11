@@ -37,6 +37,19 @@ references as you encounter them.
 
 ## Project Status
 
+**Pre-2.0 release: no backwards compatibility, no migration discipline.**
+`vitest-agent` 2.0 has not shipped to npm. Every dev install on every
+machine is disposable — when the schema changes, developers delete their
+local `data.db` and start fresh. This means: do NOT write multi-step
+SQLite migrations for schema changes that land before 2.0. Edit
+`packages/sdk/src/migrations/0001_initial.ts` directly to define the
+canonical shape; a single fresh-install migration is the entire migration
+chain until 2.0 ships. Don't add `0003_*.ts`, don't ALTER, don't backfill
+— just change the canonical schema. Same applies to breaking renames in
+the SDK schemas, MCP tool surface, CLI flags, and any other public-facing
+shape: pre-2.0 is the moment to break things cleanly. Post-2.0, the
+standard incremental migration discipline applies.
+
 `vitest-agent` 2.0 is a Vitest reporter, plugin, CLI, and MCP server family
 for LLM coding agents. Six primary capabilities:
 
@@ -52,16 +65,21 @@ for LLM coding agents. Six primary capabilities:
 4. **Coverage thresholds, baselines, and trends** -- Vitest-native
    `coverageThresholds`, aspirational `coverageTargets`, and auto-ratcheting
    baselines with per-project trend tracking.
-5. **MCP server** -- 50 MCP tools via tRPC router, three-tier
-   Objective→Goal→Behavior TDD hierarchy (10 CRUD tools), four MCP resources
-   under two URI schemes (`vitest://docs/` and `vitest-agent://patterns/`),
-   and six framing-only prompts.
+5. **MCP server** -- 29 MCP tools via tRPC router. Action-keyed surface:
+   per-CRUD families collapse into one tool each (`tdd_task`, `tdd_goal`,
+   `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) that dispatch
+   on an `action` / `kind` discriminator. Also: `register_agent`,
+   `tdd_artifact_list`, four MCP resources under two URI schemes
+   (`vitest://docs/` and `vitest-agent://patterns/`), and six framing-only
+   prompts.
 6. **Claude Code plugin** -- file-based plugin at `plugin/` distributed via
    the Claude marketplace as `vitest-agent@spencerbeggs`. Ships a PM-detect
    spawn loader, lifecycle hooks, the `tdd-task` subagent (`context:fork`),
-   `/tdd` slash command, and 14 sub-skill primitives. The plugin is the
-   primary AI integration surface — the npm packages collect and store data;
-   the plugin turns that data into agent behavior.
+   `/tdd` slash command, and 15 skills (one TDD workflow skill, nine
+   preloaded TDD primitives, one path-triggered test-layout skill, plus
+   four standalone reference skills). The plugin is the primary AI
+   integration surface — the npm packages collect and store data; the
+   plugin turns that data into agent behavior.
 
 Effect service architecture: I/O encapsulated in Effect services with live
 and test layer implementations. All data structures use Effect Schema

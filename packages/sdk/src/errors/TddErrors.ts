@@ -40,14 +40,14 @@ export class BehaviorNotFoundError extends Data.TaggedError("BehaviorNotFoundErr
 	}
 }
 
-export class TddSessionNotFoundError extends Data.TaggedError("TddSessionNotFoundError")<{
+export class TddTaskNotFoundError extends Data.TaggedError("TddTaskNotFoundError")<{
 	readonly id: number;
 	readonly reason: string;
 }> {
 	constructor(args: { readonly id: number; readonly reason: string }) {
 		super(args);
 		Object.defineProperty(this, "message", {
-			value: `[tdd_session not_found id=${args.id}] ${args.reason}`,
+			value: `[tdd_task not_found id=${args.id}] ${args.reason}`,
 			enumerable: true,
 			writable: false,
 			configurable: true,
@@ -55,17 +55,17 @@ export class TddSessionNotFoundError extends Data.TaggedError("TddSessionNotFoun
 	}
 }
 
-export type TddSessionEndOutcome = "succeeded" | "blocked" | "abandoned";
+export type TddTaskEndOutcome = "succeeded" | "blocked" | "abandoned";
 
-export class TddSessionAlreadyEndedError extends Data.TaggedError("TddSessionAlreadyEndedError")<{
+export class TddTaskAlreadyEndedError extends Data.TaggedError("TddTaskAlreadyEndedError")<{
 	readonly id: number;
 	readonly endedAt: string;
-	readonly outcome: TddSessionEndOutcome;
+	readonly outcome: TddTaskEndOutcome;
 }> {
-	constructor(args: { readonly id: number; readonly endedAt: string; readonly outcome: TddSessionEndOutcome }) {
+	constructor(args: { readonly id: number; readonly endedAt: string; readonly outcome: TddTaskEndOutcome }) {
 		super(args);
 		Object.defineProperty(this, "message", {
-			value: `[tdd_session ended id=${args.id}] outcome=${args.outcome} endedAt=${args.endedAt}`,
+			value: `[tdd_task ended id=${args.id}] outcome=${args.outcome} endedAt=${args.endedAt}`,
 			enumerable: true,
 			writable: false,
 			configurable: true,
@@ -73,7 +73,7 @@ export class TddSessionAlreadyEndedError extends Data.TaggedError("TddSessionAlr
 	}
 }
 
-export type IllegalStatusTransitionEntity = "goal" | "behavior" | "session";
+export type IllegalStatusTransitionEntity = "goal" | "behavior" | "task";
 
 export class IllegalStatusTransitionError extends Data.TaggedError("IllegalStatusTransitionError")<{
 	readonly entity: IllegalStatusTransitionEntity;

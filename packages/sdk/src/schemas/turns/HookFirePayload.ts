@@ -17,7 +17,7 @@ export const HookFirePayload = Schema.Struct({
 		"UserPromptSubmit",
 		"FileChanged",
 	),
-	cc_session_id: Schema.optional(Schema.String),
+	chat_id: Schema.optional(Schema.String),
 	previous_record_failures: Schema.optional(Schema.Array(Schema.String)),
 });
 

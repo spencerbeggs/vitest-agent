@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-11
+last-synced: 2026-05-11
 completeness: 100
 related:
   - ./architecture.md
@@ -773,11 +773,19 @@ sync check).
 
 ### Decision D9: Last Drop-and-Recreate Migration
 
-`0002_comprehensive` is a drop-and-recreate. After this migration, **no
-future migration is allowed to drop and recreate**. 2.0.x and beyond are
-ALTER-only; for any breaking schema shape that ALTER cannot express,
-ship a one-shot export/import path on a major bump rather than dropping
-data.
+**Amendment (pre-2.0 policy).** Before 2.0 ships to npm, the canonical
+schema lives in a single consolidated `0001_initial.ts`. The prior
+`0002_comprehensive.ts` was folded back into `0001_initial.ts` and
+deleted; developers wipe `data.db` on every breaking schema change.
+The "no future drop-and-recreate" invariant below applies once 2.0
+ships and users have published data. Until then, edit
+`0001_initial.ts` directly.
+
+`0002_comprehensive` (now folded back into `0001_initial`) is a
+drop-and-recreate. After 2.0 ships, **no future migration is allowed
+to drop and recreate**. 2.0.x and beyond are ALTER-only; for any
+breaking schema shape that ALTER cannot express, ship a one-shot
+export/import path on a major bump rather than dropping data.
 
 **Why drop-and-recreate for `0002`:**
 
@@ -935,7 +943,7 @@ The TDD ledger is a three-tier hierarchy with first-class storage and
 CRUD for goals and behaviors:
 
 ```text
-Objective  (tdd_sessions.goal)
+Objective  (tdd_tasks.goal)
   └── Goal 1  (tdd_session_goals)
         ├── Behavior 1.1  (tdd_session_behaviors)
         └── Behavior 1.2
@@ -946,10 +954,11 @@ Objective  (tdd_sessions.goal)
 Each tier has its own row-level identity, status lifecycle (closed:
 `pending → in_progress → done|abandoned`), and CRUD surface. The
 orchestrator decomposes via LLM reasoning and creates each entity
-individually through `tdd_goal_create` / `tdd_behavior_create`. The
-server stores what it's told and validates referential integrity through
-tagged errors at the DataStore boundary; it does not linguistically
-interpret goal text.
+individually through `tdd_goal({ action: "create" })` /
+`tdd_behavior({ action: "create" })` actions on the consolidated
+tools. The server stores what it's told and validates referential
+integrity through tagged errors at the DataStore boundary; it does
+not linguistically interpret goal text.
 
 **Why LLM-driven decomposition (vs server-side splitting):** the right
 abstraction layer for "what counts as one behavior" is the LLM itself,
@@ -961,7 +970,7 @@ LLM cannot invent behavior ids, cannot create a behavior under a
 closed goal, cannot depend on a behavior in a different goal.
 
 **Why goals are first-class storage (rather than text in
-`tdd_sessions.goal`):** goals are addressable in their own right —
+`tdd_tasks.goal`):** goals are addressable in their own right —
 status transitions, ordinal allocation, dependency junction-table
 references, channel events keyed on goal id, phase-transition
 pre-checks ("is the cited behavior's parent goal `in_progress`?"). The
@@ -988,7 +997,7 @@ layer:
 1. The orchestrator's `tools[]` frontmatter array enumerates only
    non-destructive goal/behavior tools — `tdd_goal_delete` and
    `tdd_behavior_delete` are absent (documentation, not enforcement).
-2. `pre-tool-use-tdd-restricted.sh` is a `PreToolUse` hook scoped to
+2. `pre-tool-use/tdd-restricted.sh` is a `PreToolUse` hook scoped to
    the orchestrator subagent (via `lib/match-tdd-agent.sh`) that
    returns `permissionDecision: "deny"` with a remediation hint
    pointing at `status: 'abandoned'` if the orchestrator tries to
@@ -1080,10 +1089,156 @@ The delete-vs-abandon distinction:
 reasoned about by the binding-rule validator, the channel-event
 renderer, or the metrics computation. Keeping rows around with NULL
 `behavior_id` is data leak, not preservation. The orchestrator is
-denied delete tools by `pre-tool-use-tdd-restricted.sh` (Decision
+denied delete tools by `pre-tool-use/tdd-restricted.sh` (Decision
 D13), so cascade delete only happens via main-agent calls under
 explicit user confirmation. Abandon-via-status preserves the rows
 when preservation is semantically appropriate.
+
+---
+
+## Agent-Agnostic Taxonomy (planned for 2.0 — Phase 1.5 spike outcomes)
+
+These decisions emerged from the four Phase 1.5 spikes for the
+agent-agnostic-taxonomy refactor (plan at `.claude/plans/agent-agnostic-taxonomy.md`).
+They document Claude Code runtime behavior we discovered empirically
+and the design responses. All four spikes are closed; Phase 1 starts
+from these conclusions.
+
+### Decision D16: Sidecar CLI over `mcp_tool` Hooks for Hook→MCP Communication
+
+Phase 1.5 Spike 2 ruled out the `mcp_tool` hook event type for the
+`register_agent` flow. The hook's `input` field accepts only
+`${path}` substitutions from the triggering event's JSON payload —
+it cannot carry caller-supplied values like `clientNonce`,
+`startGitBranch`, `startGitCommitSha`, or `startWorktreeDir`, all of
+which are generated or computed in the hook itself.
+
+The plan pivoted to a **sidecar CLI pattern**: every hook that
+needs to call `register_agent` (or peers) shells out to
+`${CLAUDE_PLUGIN_ROOT}/bin/vitest-agent _internal register-agent`,
+which runs Node, captures git context via the Effect-side
+`RunContext` service, generates `clientNonce`, and writes through to
+both the per-project `data.db` and the per-client session map in a
+single process.
+
+The sidecar binary is a hidden subcommand namespace of the existing
+`vitest-agent-cli` package — no separate distribution, no separate
+release. The plugin's `bin/vitest-agent` is a shim into the
+installed CLI.
+
+**Performance constraint:** Node cold-start (≈150ms) is acceptable
+for SessionStart and SubagentStart (one-shot per session/subagent)
+but unacceptable for PreToolUse Bash interception (fires on every
+Bash tool call). PreToolUse uses a **long-running daemon** transport
+that the SessionStart hook launches; PreToolUse hooks contact it via
+a Unix-domain socket. The daemon socket lives in a per-instance
+coordination directory (see Decision D18).
+
+### Decision D17: `CLAUDE_ENV_FILE` Auto-Source + Hook Self-Source Bridge
+
+Phase 1.5 Spike 5 mapped Claude Code's env-propagation surface
+empirically. The model:
+
+- **SessionStart** (and Setup, CwdChanged, FileChanged) hooks have
+  `${CLAUDE_ENV_FILE}` available and write `export KEY=VAL` lines
+  to it. Files land at
+  `~/.claude/session-env/<session_id>/sessionstart-hook-N.sh`, one
+  file per plugin.
+- **Bash tool subprocesses and the MCP server child** inherit
+  the union of all plugins' exports automatically — Claude Code
+  sources the directory when spawning these.
+- **Other hook subprocesses** (PreToolUse, SubagentStart, etc.) do
+  NOT auto-receive the sourcing. Per the docs: "CLAUDE_ENV_FILE is
+  available for SessionStart, Setup, CwdChanged, and FileChanged
+  hooks. Other hook types do not have access to this variable."
+
+To bridge the hook gap, vitest-agent ships
+`plugin/hooks/lib/source-session-env.sh`. Every non-SessionStart
+hook starts with:
+
+```bash
+payload=$(cat)
+session_id=$(echo "$payload" | jq -r '.session_id')
+. "$(dirname "$0")/lib/source-session-env.sh" "$session_id"
+```
+
+The helper walks `~/.claude/session-env/${session_id}/*hook*.sh`
+and sources each file. After self-sourcing, hooks read identifiers
+from env just like the reporter, sidecar, and MCP server do —
+unifying the access story.
+
+**Implementation parity:** the helper mirrors
+`EnvLoader.loadSessionEnvFiles` from `claude-binary-plugin`
+(`packages/src/layers/EnvLoaderLive.ts`) — same directory walk,
+same `*hook*.sh` filter. Already battle-tested by another shipped
+plugin against the same Claude Code surface.
+
+**`export` is mandatory.** Bare `KEY=VAL` lines are sourced as
+shell-script locals and do not propagate. Documented as a hook
+invariant.
+
+### Decision D18: Per-Instance Coordination Directory under `${CLAUDE_PLUGIN_DATA}/sessions/`
+
+Phase 1.5 Spike 4 confirmed that Claude Code does NOT export any
+per-Claude-instance directory env var (`CLAUDE_SESSION_ENV_DIR`,
+`CLAUDE_CONVERSATION_DIR`, etc. — every candidate name returned
+unset in the empirical PreToolUse dump). What's documented and
+exported is `${CLAUDE_PLUGIN_DATA}` (per-plugin install) and the
+`session_id` field in every hook's stdin payload.
+
+The canonical coordination directory is therefore
+`${CLAUDE_PLUGIN_DATA}/sessions/${session_id}/`. The composition is
+unambiguous, per-Claude-instance (since `session_id` is unique per
+running Claude Code window), and uses only documented surfaces.
+
+Contents:
+
+- `sidecar.sock` — Unix-domain socket the daemon listens on
+- `sidecar.sock-path` — sentinel file containing the absolute
+  socket path (so the MCP server and PreToolUse hooks can resolve
+  it via filesystem lookup, not just env)
+- `daemon.pid` — daemon's PID for SessionEnd cleanup
+
+SessionStart creates the dir, launches the daemon, and writes the
+sentinel files. SessionEnd kills the daemon, removes the socket
+file, and removes the per-instance subdir. If Claude crashes
+without firing SessionEnd, the next SessionStart sees a stale
+subdir and removes-and-relaunches.
+
+### Decision D19: Effect Schema at the MCP Boundary via `setRequestHandler`
+
+Phase 1.5 review surfaced that the MCP TypeScript SDK v1's
+high-level surfaces (`registerTool`, `server.tool(name, shape, …)`)
+expect a Zod-shape object and run `zod-to-json-schema` internally.
+There is no public overload that accepts an arbitrary JSON Schema
+literal.
+
+To use **Effect Schema** at the MCP boundary (consistent with the
+rest of the SDK), drop down to
+`server.setRequestHandler(ListToolsRequestSchema, …)` and
+`setRequestHandler(CallToolRequestSchema, …)`. The `tools/list`
+handler returns `JSONSchema.make(EffectSchema)` per tool;
+`tools/call` validates incoming payloads via
+`Schema.decodeUnknown(EffectSchema)`. Resources and prompts stay on
+the SDK's high-level `registerResource` / `registerPrompt` API —
+mixing the two layers is supported and preserves the SDK's auto-
+registration of `resources/*`, `prompts/*`, `ping`, and
+`notifications/*` handlers.
+
+**Brand schemas use `Schema.UUID`** as the base
+(`Schema.UUID.pipe(Schema.brand("AgentId"))`) so `JSONSchema.make`
+reliably emits `{ type: "string", format: "uuid", pattern: <rfc-4122> }`
+across Effect versions. The historical `Schema.pattern` chained
+after `Schema.brand` has had emission inconsistencies; `Schema.UUID`
+avoids them.
+
+**Tagged unions emit `anyOf`, not `oneOf` + discriminator.**
+Effect's `JSONSchema.make` produces JSON Schema `anyOf` for
+discriminated unions; JSON Schema 2020-12 has no `discriminator`
+keyword (that's an OpenAPI extension). A small post-processing step
+rewrites the top-level `anyOf` to `oneOf` and adds
+`x-discriminator: "action"` for consolidated tools, improving
+model-side tool-use accuracy without changing functional dispatch.
 
 ---
 
@@ -1105,11 +1260,12 @@ parallel insert race resolves to a no-op.
 
 ### Note N2: `tdd_phase_transition_request` is NOT in the idempotency-key registry
 
-The idempotency-registered mutation tools are `hypothesis_record`,
-`hypothesis_validate`, `tdd_session_start`, `tdd_session_end`,
-`tdd_goal_create`, and `tdd_behavior_create`.
-`tdd_phase_transition_request` and every `*_update` / `*_delete` /
-`*_get` / `*_list` are intentionally excluded.
+The idempotency-registered mutation surfaces are `register_agent`,
+the `record` / `validate` actions inside `hypothesis`, the `start`
+/ `end` actions inside `tdd_task`, and the `create` actions inside
+`tdd_goal` and `tdd_behavior`. `tdd_phase_transition_request` and
+every `update` / `delete` / `get` / `list` action are intentionally
+excluded.
 
 **Why `tdd_phase_transition_request` is excluded:** the accept/deny is
 a deterministic function of artifact-log state at the moment of the
@@ -1122,39 +1278,47 @@ the source of idempotency: a pure function of database state plus the
 cited artifact id, so identical retries before any state change
 produce the same answer naturally.
 
-**Why `*_update` / `*_delete` / `*_get` / `*_list` are excluded:**
-state-dependent reads (`*_get` / `*_list`) and intentional state
-transitions (`*_update`) cannot be cached without inverting the
-caller's expectation. Destructive ops (`*_delete`) are guarded at the
+**Why `update` / `delete` / `get` / `list` actions are excluded:**
+state-dependent reads (`get` / `list`) and intentional state
+transitions (`update`) cannot be cached without inverting the
+caller's expectation. Destructive ops (`delete`) are guarded at the
 hook + permission-prompt layer (Decision D13), not via cache replay.
 
-**Why the registered mutations get cached:**
+**Why the registered mutation actions get cached:**
 
-- `tdd_session_start` — key is `sid:<sessionId>:run:<runId>` (or
-  `cc:<ccSessionId>:run:<runId>`) when `runId` is present; falls back to
-  `sid:<sessionId>:<goal>` (or `cc:<ccSessionId>:<goal>`) for legacy
+- `tdd_task({ action: "start" })` — key is
+  `sid:<sessionId>:run:<runId>` (or `cc:<chatId>:run:<runId>`)
+  when `runId` is present; falls back to
+  `sid:<sessionId>:<goal>` (or `cc:<chatId>:<goal>`) for legacy
   callers that omit `runId`. The `runId`-based key lets the main agent
   retry a dispatch with a fresh `runId` without hitting the cache — opening
   the same session with the same `runId` twice is the no-op.
-- `tdd_session_end` (key: `${tddSessionId}:${outcome}`) — closing the
-  same session twice is a no-op
-- `tdd_goal_create` (key: `${sessionId}:${goal}`) — creating the same
-  goal under the same session twice is a no-op (returns the existing
-  row)
-- `tdd_behavior_create` (key: `${goalId}:${behavior}`) — same shape,
-  scoped per-goal so identical behavior text under different goals
-  creates separate rows
+- `tdd_task({ action: "end" })` (key: `${tddTaskId}:${outcome}`) —
+  closing the same session twice is a no-op
+- `tdd_goal({ action: "create" })` (key: `${sessionId}:${goal}`) —
+  creating the same goal under the same session twice is a no-op
+  (returns the existing row)
+- `tdd_behavior({ action: "create" })` (key:
+  `${goalId}:${behavior}`) — same shape, scoped per-goal so identical
+  behavior text under different goals creates separate rows
+- `register_agent` (key: SHA-256 base32(26) over
+  `(agentType, parentOrSentinel, clientNonce)`) — the
+  `DataStore.registerAgent` boundary maps duplicate registrations to
+  `IdempotencyHit`, returning the already-registered agent row
+  rather than producing a conflict
 
 ### Note N3: D7 load-bearing constraint — `tdd_artifact_record` is CLI-only
 
-TDD lifecycle write tools (`tdd_session_start`, `tdd_session_end`,
-`tdd_session_resume`, `tdd_phase_transition_request`, plus the
-non-destructive `tdd_goal_*` / `tdd_behavior_*` CRUD tools) are
-accessible to the orchestrator via the MCP tool surface. Recording an
-artifact under a phase (`tdd_artifacts.artifact_kind`) is **deliberately
-not** an MCP tool. It is only writable through the `record tdd-artifact`
-CLI subcommand, driven by hooks (`post-tool-use-tdd-artifact.sh` and
-`post-tool-use-test-quality.sh`).
+The TDD lifecycle MCP tools (`tdd_task`, `tdd_phase_transition_request`,
+plus the non-destructive actions on `tdd_goal` and `tdd_behavior`) are
+accessible to the orchestrator. Recording an artifact under a phase
+(`tdd_artifacts.artifact_kind`) is **deliberately not** an MCP tool.
+It is only writable through the `record tdd-artifact` CLI subcommand,
+driven by hooks (`post-tool-use/tdd-artifact.sh` and
+`post-tool-use/test-quality.sh`). The new `tdd_artifact_list` MCP
+tool is read-only — it surfaces the existing artifact rows so the
+orchestrator can find an id without shelling out to `sqlite3`, but
+does not write.
 
 This is Decision D7: hooks observe what the agent did so the agent never
 writes evidence about itself.

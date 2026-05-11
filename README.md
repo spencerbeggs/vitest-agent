@@ -31,7 +31,7 @@ The package family has three entry points:
 | --- | --- | --- | --- |
 | Plugin | (library import) | `vitest-agent-plugin` | Vitest plugin producing SQLite-persisted test data |
 | CLI | `vitest-agent` | `vitest-agent-cli` | Query test status, coverage, history, trends from the terminal |
-| MCP Server | `vitest-agent-mcp` | `vitest-agent-mcp` | 53 tools over stdio for LLM agent integration, plus MCP resources and prompts |
+| MCP Server | `vitest-agent-mcp` | `vitest-agent-mcp` | 29 action-keyed tools over stdio for LLM agent integration, plus MCP resources and prompts |
 
 All three share the Effect service architecture and the same SQLite database in `vitest-agent-sdk` (`DataReader`, `DataStore`, `OutputRenderer`, output pipeline, formatters, etc.). The database location is derived from your root workspace's `package.json` `name` under `$XDG_DATA_HOME/vitest-agent/`.
 

@@ -33,8 +33,8 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 
 		const metrics = yield* reader.computeAcceptanceMetrics().pipe(Effect.orElseSucceed(() => fallbackMetrics));
 
-		// Forward-compat probe — RC adds `tdd_session_get` write tools.
-		const openTddRaw = yield* reader.getTddSessionById(1).pipe(Effect.orElseSucceed(() => Option.none()));
+		// Forward-compat probe — exercises the consolidated `tdd_task({ action: "get" })` read path.
+		const openTddRaw = yield* reader.getTddTaskById(1).pipe(Effect.orElseSucceed(() => Option.none()));
 
 		const lines: string[] = [];
 
@@ -64,7 +64,7 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 		if (sessions.length > 0) {
 			for (const s of sessions) {
 				const end = s.endedAt ? ` → ended ${s.endedAt}` : " → active";
-				lines.push(`- session \`${s.cc_session_id}\` (${s.agentKind}) started ${s.startedAt}${end}`);
+				lines.push(`- session \`${s.chatId}\` (${s.agentKind}) started ${s.startedAt}${end}`);
 			}
 		} else {
 			lines.push("_No session data recorded yet._");

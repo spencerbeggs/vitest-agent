@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-11
+last-synced: 2026-05-11
 completeness: 95
 related:
   - ../architecture.md
@@ -81,6 +81,83 @@ The shared package owns the services every runtime needs:
 stays with the plugin because only the lifecycle class consumes istanbul
 data. See [./plugin.md](./plugin.md).
 
+### Agent-agnostic taxonomy services (Phases 1–4)
+
+The agent-taxonomy refactor added five services to the SDK. All five
+live in `packages/sdk/src/services/`:
+
+- **ProjectIdentity** — 5-source fallback resolver for the canonical
+  per-project identity (`{ projectKey, projectDir, source }`).
+  Sources tried in order: explicit option, `vitest-agent.config.toml`
+  `projectKey`, `git config remote.origin.url` (canonicalized),
+  `package.json#repository.url` (parsed and canonicalized), normalized
+  `package.json#name`. Fails with `ProjectIdentityNotResolvableError`
+  listing every source attempted. The sidecar CLI's three `_internal`
+  subcommands call this against `--cwd` to compute the per-project
+  data store directory.
+- **RunContext** — captures `{ branch, commitSha, dirty, upstream,
+  worktreeDir }` via `git rev-parse` calls. Used by the reporter at
+  test-run time to stamp the seven `git_*` and three `host_*` columns
+  on every `test_runs` row, and by `_internal register-agent` to
+  capture the agent's inherited `start_git_*` context at registration.
+  Detached-HEAD state surfaces as literal `'HEAD'` for `branch` with
+  `commit_sha` as the reliable identifier.
+- **PerClientSessionMap** — read/write surface over the per-client
+  `sessions.db`. Two table families: `conversation_map`
+  (`transcript_path` → canonical UUID) and `session_map` (host
+  `session_id` → `conversation_id`, `project_dir`, `main_agent_id`).
+  Hot path is `lookupByProjectDir(projectDir)` which uses the partial
+  index on `WHERE ended_at IS NULL` to find the active main agent in
+  this project. Used as the dev / test fallback when
+  `CLAUDE_ENV_FILE` env injection isn't available.
+- **DiscoveryRegistry** — read/write surface over the global
+  `registry.db`. Single STRICT `known_projects` table; the registrar
+  upserts on `register-agent`. Used by cross-project tooling
+  (planned) to list every project the user has ever run
+  vitest-agent against without scanning the filesystem.
+- **idempotency** — module-level helper functions
+  (`deriveIdempotencyKey`, `IdempotencyHit`) that compose with
+  `DataStore.registerAgent` and the tRPC middleware. Same SHA-256
+  base32(26) algorithm everywhere.
+
+### Schemas added for the taxonomy
+
+- **`schemas/Agent.ts`** — `AgentRow`, `RegisterAgentInput`,
+  `Agent` (the application-level brand), plus the `AgentType` literal
+  union with the `${hostKind}-` prefix invariant validated at the MCP
+  boundary.
+- **`schemas/Identity.ts`** — `ProjectIdentity` (`{ projectKey,
+  projectDir, source }`), the `ProjectIdentitySource` literal union
+  (`option`, `config-toml`, `git-remote`, `package-json-repository`,
+  `package-json-name`), and `ProjectIdentityNotResolvableError`.
+
+### Utilities added for the taxonomy
+
+`packages/sdk/src/utils/`:
+
+- **`canonicalize-git-url.ts`** — normalizes every git URL form
+  (`git@`, `https://`, `ssh://`, mixed case, with/without `.git`) to a
+  single `host/org/repo` shape. Replaces `/` with `__` for the
+  filesystem-safe `projectKey`. Used in the `ProjectIdentity`
+  git-remote and package-json-repository sources to ensure
+  `git@github.com:org/repo.git` and `https://GitHub.com/Org/Repo`
+  resolve to the same `projectKey`.
+- **`match-vitest-command.ts`** — pattern-matches a Bash command
+  string against five Vitest invocation patterns
+  (`vitest run`, `vitest`, `pnpm vitest`, `pnpm <script>` →
+  one-hop indirection through `package.json#scripts`, etc.). Used by
+  `_internal inject-env` to decide whether to prepend the
+  `VITEST_AGENT_*` env prefix to the user's Bash command.
+- **`probe-host-metadata.ts`** — single-shot probe for the
+  `host_source` / `host_value` / `host_metadata` triple stamped on
+  every `test_runs` row. Resolves the most specific probe first
+  (`TMUX_PANE`, `WT_SESSION`, `GITHUB_RUN_ID`, etc.) and falls back to
+  `null`.
+- **`resolve-project-key-from-cwd.ts`** — thin convenience over
+  `ProjectIdentity.resolve` plus `normalizeWorkspaceKey` for callers
+  that want only the path-safe `projectKey` string and don't need
+  the full `{ projectKey, projectDir, source }` record.
+
 ## Effect layers
 
 `packages/sdk/src/layers/`. Live and test implementations for the shared
@@ -125,7 +202,7 @@ Test layers exist for `DataStore`, `EnvironmentDetector`,
   tagged error.
 - `TddErrors` — tagged errors for the goal/behavior CRUD surface
   (`GoalNotFoundError`, `BehaviorNotFoundError`,
-  `TddSessionNotFoundError`, `TddSessionAlreadyEndedError`,
+  `TddTaskNotFoundError`, `TddTaskAlreadyEndedError`,
   `IllegalStatusTransitionError`). Validation lives at the DataStore
   boundary, not in SQL triggers — triggers would surface as raw `SqlError`
   and defeat the typed-error contract. The MCP boundary catches these via
@@ -229,6 +306,33 @@ The non-obvious pieces:
   DataStore owns its full input contract; the plugin's util produces values
   matching this shape. This avoids a circular import between plugin and
   SDK.
+- **`registerAgent` is idempotency-aware.** `DataStore.registerAgent`
+  composes `deriveIdempotencyKey(agentType, parentOrSentinel,
+  clientNonce)` then performs an upsert against the
+  `(session_id, idempotency_key)` UNIQUE index. Returns either a
+  fresh `Agent` or an `IdempotencyHit` carrying the already-registered
+  row. The `_internal register-agent` CLI surface forwards the hit
+  state back to the SessionStart hook through the JSON output so the
+  hook can short-circuit re-export of env without re-writing
+  rows.
+- **`upsertSession` and parent-walking reads.** `DataStore.upsertSession`
+  is idempotent on `chat_id` and sets `parent_session_id` on
+  insert. `DataReader.findSessionsByChatPrefix` and
+  `DataReader.listTddTasksForSession({ walkParents })` traverse
+  the `parent_session_id` chain so artifact/turn writes always land
+  under the correct canonical `sessions.id` even when Claude Code
+  rotates `chat_id` mid-window. See the CLI's
+  `resolveSessionForRecording` helper for the consumer side.
+- **Per-run git + host context on `test_runs`.** The reporter calls
+  `RunContext.capture` and `probeHostMetadata` immediately before
+  `writeRun`, and `DataStore.writeRun` accepts the seven `git_*` and
+  three `host_*` columns. Detached-HEAD state surfaces as literal
+  `'HEAD'` for `git_branch`.
+- **Action-table attribution.** `writeRun`, `writeHypothesis`,
+  `writeNote`, and `writeTddPhase` accept `actor_type` / `agent_id` /
+  `conversation_id`. The DataStore boundary upholds the SQL CHECK
+  constraints (`agent_id` non-NULL iff `actor_type='agent'`,
+  `conversation_id` NULL when `actor_type != 'agent'`).
 
 ## DataReader
 
@@ -249,9 +353,9 @@ The non-obvious pieces:
   that case the query falls back to `coverage_trends` totals.
 - **`getTestsForFile` deduplicates.** Uses `SELECT DISTINCT ... ORDER BY
   f.path` because `source_test_map` accumulates a row per run.
-- **`getTddSessionById` materializes the full tree in one round-trip.** It
+- **`getTddTaskById` materializes the full tree in one round-trip.** It
   pre-rolls every join (sessions → goals → behaviors → phases → artifacts)
-  via batched IN-clause joins so the MCP `tdd_session_get` tool returns
+  via batched IN-clause joins so `tdd_task({ action: "get" })` returns
   the entire three-tier tree without N+1 reads.
 - **`resolveGoalIdForBehavior` is best-effort.** Used by `tdd_progress_push`
   to resolve `goalId` (and transitively `sessionId`) server-side from a
@@ -274,6 +378,13 @@ The non-obvious pieces:
   `Stop` kind is included because the session-end-record hook fires before
   the session-end write and records a `hook_fire` turn regardless of the
   triggering event.
+- **`listTddArtifactsForTask` + `walkParents`.** The new reader
+  drives the `tdd_artifact_list` MCP tool. With
+  `{ walkParents: true }` it follows the `sessions.parent_session_id`
+  chain so the orchestrator finds artifact ids even when
+  `chat_id` rotated mid-cycle. Returns the most recent matching
+  artifact first so phase-transition auto-resolve can pick the head
+  without sorting.
 
 ## Formatters
 
@@ -380,23 +491,34 @@ themselves.
 which feeds them to `@effect/sql-sqlite-node`'s `SqliteMigrator` (WAL
 journal mode, foreign keys enabled).
 
-The current migration set is two files: `0001_initial.ts` (the legacy
-1.x 25-table schema) and `0002_comprehensive.ts` (the drop-and-recreate
-that folds in all 2.0 additions — the goal/behavior hierarchy,
-`mcp_idempotent_responses`, the `test_cases.created_turn_id` link,
-`failure_signatures.last_seen_at`, and `tdd_sessions.run_id`).
-The former separate migration files `0003`–`0006` were deleted and their
-content merged into `0002_comprehensive.ts` in-place. `ensureMigrated`'s
-`fromRecord` now references only `"0001_initial"` and
-`"0002_comprehensive"` — the four numeric keys that once pointed to
-`0003`–`0006` are gone.
+The per-project data-store migration set is now consolidated to a
+single file: **`0001_initial.ts`**. Per the pre-2.0 policy, every
+schema change before 2.0 ships edits this file directly — there are
+no ALTERs, no backfills, no incremental migration history to apply.
+The prior `0002_comprehensive.ts` was folded back into
+`0001_initial.ts`. Dev databases are deleted and re-created when the
+canonical shape changes.
 
-**Migration discipline.** Per D9, the comprehensive migration is the **last
-drop-and-recreate**; future migrations are ALTER-only. The migration
-ledger has no content hash, so editing a previously-applied migration in
-place does not auto-replay on existing dev DBs — pre-existing dev databases
-have to be wiped on first pull when a migration is amended. This is
-acceptable for development; production DBs never see edits-in-place.
+Two additional migration files cover the per-client and registry
+SQLite scopes added for the agent-agnostic taxonomy (Phases 1–4):
+
+- **`session_map_0001_initial.ts`** — `conversation_map`
+  (`transcript_path` → canonical `conversation_id`) and `session_map`
+  (host `session_id` → `conversation_id`, `project_dir`,
+  `main_agent_id`) STRICT tables. Plus four indexes including the
+  partial `(project_dir) WHERE ended_at IS NULL` for the
+  `lookupByProjectDir` hot path. Lives at the per-client path
+  `${CLAUDE_PLUGIN_DATA}/sessions.db`.
+- **`registry_0001_initial.ts`** — single STRICT `known_projects`
+  table indexed by `project_key`. Lives at the cross-project path
+  `$XDG_DATA_HOME/vitest-agent/registry.db`. WAL plus
+  `busy_timeout=5000`.
+
+**Pre-2.0 migration discipline.** Edit `0001_initial.ts` (or its
+session-map/registry siblings) directly. Do not add `0002_*.ts`. Do
+not ALTER. Developers delete `data.db` on every breaking schema
+change. Post-2.0, the standard incremental-migration discipline
+takes over.
 
 `packages/sdk/src/sql/rows.ts` defines `Schema.Struct` row shapes
 (snake-case) for every table. `packages/sdk/src/sql/assemblers.ts` joins
@@ -433,7 +555,7 @@ seeds data via `Layer.effectDiscard`:
 | `singlePassingRun(filename)` | One run, one module, three passing tests |
 | `withFailures(filename)` | One run, one module, two failing tests |
 | `flaky(filename)` | Two runs with opposing outcomes (flaky classification) |
-| `withTddSession(filename)` | One session, one TDD session, one goal, two behaviors |
+| `withTddTask(filename)` | One session, one TDD session, one goal, two behaviors |
 
 **When to use.** Import from `vitest-agent-sdk/testing`. The preset layers
 remove boilerplate from per-test fixture setup. Use `empty` for tests that

@@ -6,7 +6,7 @@ import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import migration0001 from "../src/migrations/0001_initial.js";
-import migration0002 from "../src/migrations/0002_comprehensive.js";
+
 import { DataStore } from "../src/services/DataStore.js";
 
 const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
@@ -15,7 +15,6 @@ const PlatformLayer = NodeContext.layer;
 const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
 		"0001_initial": migration0001,
-		"0002_comprehensive": migration0002,
 	}),
 }).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
@@ -28,20 +27,20 @@ const run = <A, E>(effect: Effect.Effect<A, E, DataStore | SqlClient>) =>
 // Shared helpers for setting up prerequisite data
 const settingsHash = "abc123";
 const settingsInput = {
-	vitest_version: "3.2.0",
+	vitestVersion: "3.2.0",
 	pool: "forks",
 	environment: "node",
-	test_timeout: 5000,
-	hook_timeout: 10000,
-	slow_test_threshold: 300,
-	max_concurrency: 5,
-	max_workers: 4,
+	testTimeout: 5000,
+	hookTimeout: 10000,
+	slowTestThreshold: 300,
+	maxConcurrency: 5,
+	maxWorkers: 4,
 	isolate: true,
 	bail: 0,
 	globals: false,
-	file_parallelism: true,
-	sequence_seed: 42,
-	coverage_provider: "v8",
+	fileParallelism: true,
+	sequenceSeed: 42,
+	coverageProvider: "v8",
 };
 
 const runInput = {
@@ -341,24 +340,24 @@ describe("DataStoreLive", () => {
 	});
 
 	describe("endSession", () => {
-		it("updates ended_at and end_reason on the matching cc_session_id", async () => {
+		it("updates ended_at and end_reason on the matching chat_id", async () => {
 			await run(
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					const sql = yield* SqlClient;
 
 					yield* store.writeSession({
-						cc_session_id: "cc-end-test",
+						chatId: "cc-end-test",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
 
 					yield* store.endSession("cc-end-test", "2026-04-29T00:01:00Z", "clear");
 
 					const rows = yield* sql<{ ended_at: string | null; end_reason: string | null }>`
-						SELECT ended_at, end_reason FROM sessions WHERE cc_session_id = 'cc-end-test'
+						SELECT ended_at, end_reason FROM sessions WHERE chat_id = 'cc-end-test'
 					`;
 					expect(rows[0].ended_at).toBe("2026-04-29T00:01:00Z");
 					expect(rows[0].end_reason).toBe("clear");
@@ -366,7 +365,7 @@ describe("DataStoreLive", () => {
 			);
 		});
 
-		it("fails loudly when cc_session_id is unknown", async () => {
+		it("fails loudly when chat_id is unknown", async () => {
 			await expect(
 				run(
 					Effect.gen(function* () {
@@ -374,7 +373,7 @@ describe("DataStoreLive", () => {
 						yield* store.endSession("nope", "2026-04-29T00:01:00Z", "clear");
 					}),
 				),
-			).rejects.toThrow(/unknown cc_session_id/);
+			).rejects.toThrow(/unknown chat_id/);
 		});
 	});
 
@@ -816,11 +815,11 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-hyp-basic",
+						chatId: "cc-hyp-basic",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					return yield* store.writeHypothesis({
 						sessionId,
@@ -836,11 +835,11 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const store = yield* DataStore;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-hyp-full",
+						chatId: "cc-hyp-full",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					const id1 = yield* store.writeHypothesis({
 						sessionId,
@@ -879,11 +878,11 @@ describe("DataStoreLive", () => {
 					const store = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-val-confirmed",
+						chatId: "cc-val-confirmed",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					const hypothesisId = yield* store.writeHypothesis({
 						sessionId,
@@ -909,11 +908,11 @@ describe("DataStoreLive", () => {
 					const store = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* store.writeSession({
-						cc_session_id: "cc-val-refuted",
+						chatId: "cc-val-refuted",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-30T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-30T00:00:00Z",
 					});
 					const hypothesisId = yield* store.writeHypothesis({
 						sessionId,
@@ -955,18 +954,18 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-test",
+						chatId: "cc-test",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
 					const turnId = yield* ds.writeTurn({
-						session_id: sessionId,
-						turn_no: 1,
+						sessionId: sessionId,
+						turnNo: 1,
 						type: "user_prompt",
 						payload: JSON.stringify({ type: "user_prompt", prompt: "hi" }),
-						occurred_at: "2026-04-29T00:00:01Z",
+						occurredAt: "2026-04-29T00:00:01Z",
 					});
 					return { sessionId, turnId };
 				}),
@@ -975,31 +974,31 @@ describe("DataStoreLive", () => {
 			expect(result.turnId).toBeGreaterThan(0);
 		});
 
-		it("auto-assigns turn_no when omitted (next per session)", async () => {
+		it("auto-assigns turnNo when omitted (next per session)", async () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sql = yield* SqlClient;
 
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-auto-no",
+						chatId: "cc-auto-no",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
 
 					yield* ds.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "user_prompt",
 						payload: '{"type":"user_prompt","prompt":"a"}',
-						occurred_at: "2026-04-29T00:00:01Z",
+						occurredAt: "2026-04-29T00:00:01Z",
 					});
 					yield* ds.writeTurn({
-						session_id: sessionId,
+						sessionId: sessionId,
 						type: "user_prompt",
 						payload: '{"type":"user_prompt","prompt":"b"}',
-						occurred_at: "2026-04-29T00:00:02Z",
+						occurredAt: "2026-04-29T00:00:02Z",
 					});
 
 					const rows = yield* sql<{ turn_no: number }>`
@@ -1019,11 +1018,11 @@ describe("DataStoreLive", () => {
 						const sql = yield* SqlClient;
 
 						const sessionId = yield* ds.writeSession({
-							cc_session_id: "cc-file-edit",
+							chatId: "cc-file-edit",
 							project: "p",
 							cwd: "/tmp/p",
-							agent_kind: "main",
-							started_at: "2026-04-29T00:00:00Z",
+							agentKind: "main",
+							startedAt: "2026-04-29T00:00:00Z",
 						});
 
 						const payload = {
@@ -1036,10 +1035,10 @@ describe("DataStoreLive", () => {
 						};
 
 						const turnId = yield* ds.writeTurn({
-							session_id: sessionId,
+							sessionId: sessionId,
 							type: "file_edit",
 							payload: JSON.stringify(payload),
-							occurred_at: "2026-04-29T00:00:01Z",
+							occurredAt: "2026-04-29T00:00:01Z",
 						});
 
 						const rows = yield* sql<{
@@ -1073,11 +1072,11 @@ describe("DataStoreLive", () => {
 						const sql = yield* SqlClient;
 
 						const sessionId = yield* ds.writeSession({
-							cc_session_id: "cc-tool-result",
+							chatId: "cc-tool-result",
 							project: "p",
 							cwd: "/tmp/p",
-							agent_kind: "main",
-							started_at: "2026-04-29T00:00:00Z",
+							agentKind: "main",
+							startedAt: "2026-04-29T00:00:00Z",
 						});
 
 						const payload = {
@@ -1090,10 +1089,10 @@ describe("DataStoreLive", () => {
 						};
 
 						const turnId = yield* ds.writeTurn({
-							session_id: sessionId,
+							sessionId: sessionId,
 							type: "tool_result",
 							payload: JSON.stringify(payload),
-							occurred_at: "2026-04-29T00:00:01Z",
+							occurredAt: "2026-04-29T00:00:01Z",
 						});
 
 						return yield* sql<{
@@ -1122,22 +1121,22 @@ describe("DataStoreLive", () => {
 						const sql = yield* SqlClient;
 
 						const sessionId = yield* ds.writeSession({
-							cc_session_id: "cc-mcp-tool-norm",
+							chatId: "cc-mcp-tool-norm",
 							project: "p",
 							cwd: "/tmp/p",
-							agent_kind: "main",
-							started_at: "2026-04-29T00:00:00Z",
+							agentKind: "main",
+							startedAt: "2026-04-29T00:00:00Z",
 						});
 
 						const turnId = yield* ds.writeTurn({
-							session_id: sessionId,
+							sessionId: sessionId,
 							type: "tool_result",
 							payload: JSON.stringify({
 								type: "tool_result",
 								tool_name: "mcp__plugin_vitest-agent_mcp__note_create",
 								success: true,
 							}),
-							occurred_at: "2026-04-29T00:00:01Z",
+							occurredAt: "2026-04-29T00:00:01Z",
 						});
 
 						return yield* sql<{
@@ -1156,22 +1155,22 @@ describe("DataStoreLive", () => {
 						const sql = yield* SqlClient;
 
 						const sessionId = yield* ds.writeSession({
-							cc_session_id: "cc-non-mcp-tool",
+							chatId: "cc-non-mcp-tool",
 							project: "p",
 							cwd: "/tmp/p",
-							agent_kind: "main",
-							started_at: "2026-04-29T00:00:00Z",
+							agentKind: "main",
+							startedAt: "2026-04-29T00:00:00Z",
 						});
 
 						const turnId = yield* ds.writeTurn({
-							session_id: sessionId,
+							sessionId: sessionId,
 							type: "tool_result",
 							payload: JSON.stringify({
 								type: "tool_result",
 								tool_name: "my__custom_tool",
 								success: true,
 							}),
-							occurred_at: "2026-04-29T00:00:01Z",
+							occurredAt: "2026-04-29T00:00:01Z",
 						});
 
 						return yield* sql<{
@@ -1190,11 +1189,11 @@ describe("DataStoreLive", () => {
 						const sql = yield* SqlClient;
 
 						const sessionId = yield* ds.writeSession({
-							cc_session_id: "cc-no-fanout",
+							chatId: "cc-no-fanout",
 							project: "p",
 							cwd: "/tmp/p",
-							agent_kind: "main",
-							started_at: "2026-04-29T00:00:00Z",
+							agentKind: "main",
+							startedAt: "2026-04-29T00:00:00Z",
 						});
 
 						const inserts = [
@@ -1223,10 +1222,10 @@ describe("DataStoreLive", () => {
 						for (let i = 0; i < inserts.length; i++) {
 							const entry = inserts[i];
 							yield* ds.writeTurn({
-								session_id: sessionId,
+								sessionId: sessionId,
 								type: entry.type,
 								payload: JSON.stringify(entry.payload),
-								occurred_at: `2026-04-29T00:00:0${i + 1}Z`,
+								occurredAt: `2026-04-29T00:00:0${i + 1}Z`,
 							});
 						}
 
@@ -1259,11 +1258,11 @@ describe("DataStoreLive", () => {
 						const sql = yield* SqlClient;
 
 						const sessionId = yield* ds.writeSession({
-							cc_session_id: "cc-file-edit-min",
+							chatId: "cc-file-edit-min",
 							project: "p",
 							cwd: "/tmp/p",
-							agent_kind: "main",
-							started_at: "2026-04-29T00:00:00Z",
+							agentKind: "main",
+							startedAt: "2026-04-29T00:00:00Z",
 						});
 
 						const payload = {
@@ -1273,10 +1272,10 @@ describe("DataStoreLive", () => {
 						};
 
 						const turnId = yield* ds.writeTurn({
-							session_id: sessionId,
+							sessionId: sessionId,
 							type: "file_edit",
 							payload: JSON.stringify(payload),
-							occurred_at: "2026-04-29T00:00:01Z",
+							occurredAt: "2026-04-29T00:00:01Z",
 						});
 
 						return yield* sql<{
@@ -1307,22 +1306,22 @@ describe("DataStoreLive", () => {
 					// Seed 4 sessions, oldest first.
 					for (let i = 0; i < 4; i++) {
 						const id = yield* ds.writeSession({
-							cc_session_id: `cc-prune-${i}`,
+							chatId: `cc-prune-${i}`,
 							project: "p",
 							cwd: "/tmp/p",
-							agent_kind: "main",
-							started_at: `2026-04-${String(20 + i).padStart(2, "0")}T00:00:00Z`,
+							agentKind: "main",
+							startedAt: `2026-04-${String(20 + i).padStart(2, "0")}T00:00:00Z`,
 						});
 						yield* ds.writeTurn({
-							session_id: id,
+							sessionId: id,
 							type: "user_prompt",
 							payload: JSON.stringify({ type: "user_prompt", prompt: `p${i}` }),
-							occurred_at: `2026-04-${String(20 + i).padStart(2, "0")}T00:00:01Z`,
+							occurredAt: `2026-04-${String(20 + i).padStart(2, "0")}T00:00:01Z`,
 						});
 					}
 
 					const out = yield* ds.pruneSessions(2);
-					const remainingTurnSessions = yield* sql<{ session_id: number }>`
+					const remainingTurnSessions = yield* sql<{ sessionId: number }>`
 						SELECT DISTINCT session_id FROM turns ORDER BY session_id
 					`;
 					return { out, remainingTurnSessions };
@@ -1339,11 +1338,11 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					yield* ds.writeSession({
-						cc_session_id: "cc-prune-only",
+						chatId: "cc-prune-only",
 						project: "p",
 						cwd: "/tmp/p",
-						agent_kind: "main",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
 					return yield* ds.pruneSessions(30);
 				}),
@@ -1360,17 +1359,17 @@ describe("DataStoreLive", () => {
 
 					for (let i = 0; i < 3; i++) {
 						const id = yield* ds.writeSession({
-							cc_session_id: `cc-keep-${i}`,
+							chatId: `cc-keep-${i}`,
 							project: "p",
 							cwd: "/tmp/p",
-							agent_kind: "main",
-							started_at: `2026-04-${String(20 + i).padStart(2, "0")}T00:00:00Z`,
+							agentKind: "main",
+							startedAt: `2026-04-${String(20 + i).padStart(2, "0")}T00:00:00Z`,
 						});
 						yield* ds.writeTurn({
-							session_id: id,
+							sessionId: id,
 							type: "user_prompt",
 							payload: JSON.stringify({ type: "user_prompt", prompt: `p${i}` }),
-							occurred_at: `2026-04-${String(20 + i).padStart(2, "0")}T00:00:01Z`,
+							occurredAt: `2026-04-${String(20 + i).padStart(2, "0")}T00:00:01Z`,
 						});
 					}
 
@@ -1383,30 +1382,30 @@ describe("DataStoreLive", () => {
 		});
 	});
 
-	describe("writeTddSession", () => {
-		it("inserts a tdd_sessions row and returns the id", async () => {
+	describe("writeTddTask", () => {
+		it("inserts a tdd_tasks row and returns the id", async () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sql = yield* SqlClient;
 
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-tdd-1",
+						chatId: "cc-tdd-1",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						agent_type: "tdd-orchestrator",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						agentType: "tdd-orchestrator",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
 
-					const tddId = yield* ds.writeTddSession({
+					const tddId = yield* ds.writeTddTask({
 						sessionId,
 						goal: "add login validation",
 						startedAt: "2026-04-29T00:00:01Z",
 					});
 
-					const rows = yield* sql<{ goal: string; session_id: number }>`
-						SELECT goal, session_id FROM tdd_sessions WHERE id = ${tddId}
+					const rows = yield* sql<{ goal: string; sessionId: number }>`
+						SELECT goal, session_id FROM tdd_tasks WHERE id = ${tddId}
 					`;
 					return rows;
 				}),
@@ -1420,19 +1419,19 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-tdd-2",
+						chatId: "cc-tdd-2",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const id1 = yield* ds.writeTddSession({
+					const id1 = yield* ds.writeTddTask({
 						sessionId,
 						goal: "g1",
 						startedAt: "2026-04-29T00:00:01Z",
 						runId: "run-abc",
 					});
-					const id2 = yield* ds.writeTddSession({
+					const id2 = yield* ds.writeTddTask({
 						sessionId,
 						goal: "g1",
 						startedAt: "2026-04-29T00:00:02Z",
@@ -1449,19 +1448,19 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-tdd-runid-conflict",
+						chatId: "cc-tdd-runid-conflict",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					yield* ds.writeTddSession({
+					yield* ds.writeTddTask({
 						sessionId,
 						goal: "original goal",
 						startedAt: "2026-04-29T00:00:01Z",
 						runId: "run-conflict",
 					});
-					return yield* ds.writeTddSession({
+					return yield* ds.writeTddTask({
 						sessionId,
 						goal: "different goal",
 						startedAt: "2026-04-29T00:00:02Z",
@@ -1482,15 +1481,15 @@ describe("DataStoreLive", () => {
 					const sql = yield* SqlClient;
 
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-tdd-spike",
+						chatId: "cc-tdd-spike",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						agent_type: "tdd-orchestrator",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						agentType: "tdd-orchestrator",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
 
-					const tddId = yield* ds.writeTddSession({
+					const tddId = yield* ds.writeTddTask({
 						sessionId,
 						goal: "open initial spike",
 						startedAt: "2026-04-29T00:00:01Z",
@@ -1503,7 +1502,7 @@ describe("DataStoreLive", () => {
 						ended_at: string | null;
 					}>`
 						SELECT id, phase, started_at, ended_at FROM tdd_phases
-						WHERE tdd_session_id = ${tddId}
+						WHERE tdd_task_id = ${tddId}
 					`;
 					return { tddId, phases };
 				}),
@@ -1516,31 +1515,31 @@ describe("DataStoreLive", () => {
 		});
 	});
 
-	describe("endTddSession", () => {
+	describe("endTddTask", () => {
 		it("updates ended_at, outcome, summary_note_id", async () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-tdd-end",
+						chatId: "cc-tdd-end",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({
+					const tddId = yield* ds.writeTddTask({
 						sessionId,
 						goal: "g",
 						startedAt: "2026-04-29T00:00:01Z",
 					});
-					yield* ds.endTddSession({
+					yield* ds.endTddTask({
 						id: tddId,
 						endedAt: "2026-04-29T00:01:00Z",
 						outcome: "succeeded",
 					});
 					const rows = yield* sql<{ outcome: string; ended_at: string }>`
-						SELECT outcome, ended_at FROM tdd_sessions WHERE id = ${tddId}
+						SELECT outcome, ended_at FROM tdd_tasks WHERE id = ${tddId}
 					`;
 					return rows;
 				}),
@@ -1551,17 +1550,17 @@ describe("DataStoreLive", () => {
 	});
 
 	describe("createGoal", () => {
-		const seedTdd = (ccSessionId: string, goal: string = "obj") =>
+		const seedTdd = (chatId: string, goal: string = "obj") =>
 			Effect.gen(function* () {
 				const ds = yield* DataStore;
 				const sessionId = yield* ds.writeSession({
-					cc_session_id: ccSessionId,
+					chatId: chatId,
 					project: "demo",
 					cwd: "/tmp/demo",
-					agent_kind: "subagent",
-					started_at: "2026-04-29T00:00:00Z",
+					agentKind: "subagent",
+					startedAt: "2026-04-29T00:00:00Z",
 				});
-				const tddId = yield* ds.writeTddSession({
+				const tddId = yield* ds.writeTddTask({
 					sessionId,
 					goal,
 					startedAt: "2026-04-29T00:00:01Z",
@@ -1574,7 +1573,7 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const tddId = yield* seedTdd("cc-create-goal-0");
-					return yield* ds.createGoal({ sessionId: tddId, goal: "Handle out-of-bounds" });
+					return yield* ds.createGoal({ tddTaskId: tddId, goal: "Handle out-of-bounds" });
 				}),
 			);
 			expect(goal.id).toBeGreaterThan(0);
@@ -1589,9 +1588,9 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const tddId = yield* seedTdd("cc-create-goal-seq");
-					const a = yield* ds.createGoal({ sessionId: tddId, goal: "g1" });
-					const b = yield* ds.createGoal({ sessionId: tddId, goal: "g2" });
-					const c = yield* ds.createGoal({ sessionId: tddId, goal: "g3" });
+					const a = yield* ds.createGoal({ tddTaskId: tddId, goal: "g1" });
+					const b = yield* ds.createGoal({ tddTaskId: tddId, goal: "g2" });
+					const c = yield* ds.createGoal({ tddTaskId: tddId, goal: "g3" });
 					return [a.ordinal, b.ordinal, c.ordinal];
 				}),
 			);
@@ -1604,21 +1603,21 @@ describe("DataStoreLive", () => {
 					const ds = yield* DataStore;
 					const tddA = yield* seedTdd("cc-create-goal-iA");
 					const tddB = yield* seedTdd("cc-create-goal-iB");
-					const a0 = yield* ds.createGoal({ sessionId: tddA, goal: "x" });
-					const b0 = yield* ds.createGoal({ sessionId: tddB, goal: "y" });
-					const a1 = yield* ds.createGoal({ sessionId: tddA, goal: "z" });
+					const a0 = yield* ds.createGoal({ tddTaskId: tddA, goal: "x" });
+					const b0 = yield* ds.createGoal({ tddTaskId: tddB, goal: "y" });
+					const a1 = yield* ds.createGoal({ tddTaskId: tddA, goal: "z" });
 					return { a0: a0.ordinal, b0: b0.ordinal, a1: a1.ordinal };
 				}),
 			);
 			expect(result).toEqual({ a0: 0, b0: 0, a1: 1 });
 		});
 
-		it("fails with TddSessionNotFoundError for unknown session id", async () => {
+		it("fails with TddTaskNotFoundError for unknown session id", async () => {
 			const exit = await Effect.runPromiseExit(
 				Effect.provide(
 					Effect.gen(function* () {
 						const ds = yield* DataStore;
-						return yield* ds.createGoal({ sessionId: 99999, goal: "g" });
+						return yield* ds.createGoal({ tddTaskId: 99999, goal: "g" });
 					}),
 					TestLayer,
 				),
@@ -1626,22 +1625,22 @@ describe("DataStoreLive", () => {
 			expect(exit._tag).toBe("Failure");
 			if (exit._tag === "Failure") {
 				const failure = exit.cause.toString();
-				expect(failure).toContain("TddSessionNotFoundError");
+				expect(failure).toContain("TddTaskNotFoundError");
 			}
 		});
 
-		it("fails with TddSessionAlreadyEndedError when parent session is closed", async () => {
+		it("fails with TddTaskAlreadyEndedError when parent session is closed", async () => {
 			const exit = await Effect.runPromiseExit(
 				Effect.provide(
 					Effect.gen(function* () {
 						const ds = yield* DataStore;
 						const tddId = yield* seedTdd("cc-create-goal-ended");
-						yield* ds.endTddSession({
+						yield* ds.endTddTask({
 							id: tddId,
 							endedAt: "2026-04-29T00:01:00Z",
 							outcome: "succeeded",
 						});
-						return yield* ds.createGoal({ sessionId: tddId, goal: "late goal" });
+						return yield* ds.createGoal({ tddTaskId: tddId, goal: "late goal" });
 					}),
 					TestLayer,
 				),
@@ -1649,7 +1648,7 @@ describe("DataStoreLive", () => {
 			expect(exit._tag).toBe("Failure");
 			if (exit._tag === "Failure") {
 				const failure = exit.cause.toString();
-				expect(failure).toContain("TddSessionAlreadyEndedError");
+				expect(failure).toContain("TddTaskAlreadyEndedError");
 			}
 		});
 	});
@@ -1660,14 +1659,14 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-get-goal",
+						chatId: "cc-get-goal",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({ sessionId, goal: "g", startedAt: "2026-04-29T00:00:01Z" });
-					const created = yield* ds.createGoal({ sessionId: tddId, goal: "the goal" });
+					const tddId = yield* ds.writeTddTask({ sessionId, goal: "g", startedAt: "2026-04-29T00:00:01Z" });
+					const created = yield* ds.createGoal({ tddTaskId: tddId, goal: "the goal" });
 					return yield* ds.getGoal(created.id);
 				}),
 			);
@@ -1690,18 +1689,18 @@ describe("DataStoreLive", () => {
 	});
 
 	describe("updateGoal", () => {
-		const seedGoal = (ccSessionId: string) =>
+		const seedGoal = (chatId: string) =>
 			Effect.gen(function* () {
 				const ds = yield* DataStore;
 				const sessionId = yield* ds.writeSession({
-					cc_session_id: ccSessionId,
+					chatId: chatId,
 					project: "demo",
 					cwd: "/tmp/demo",
-					agent_kind: "subagent",
-					started_at: "2026-04-29T00:00:00Z",
+					agentKind: "subagent",
+					startedAt: "2026-04-29T00:00:00Z",
 				});
-				const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-				return yield* ds.createGoal({ sessionId: tddId, goal: "g" });
+				const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+				return yield* ds.createGoal({ tddTaskId: tddId, goal: "g" });
 			});
 
 		it("updates the goal text", async () => {
@@ -1817,18 +1816,18 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-del-goal",
+						chatId: "cc-del-goal",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({
+					const tddId = yield* ds.writeTddTask({
 						sessionId,
 						goal: "g",
 						startedAt: "2026-04-29T00:00:01Z",
 					});
-					const goal = yield* ds.createGoal({ sessionId: tddId, goal: "to be removed" });
+					const goal = yield* ds.createGoal({ tddTaskId: tddId, goal: "to be removed" });
 					yield* ds.deleteGoal(goal.id);
 					return yield* ds.getGoal(goal.id);
 				}),
@@ -1854,27 +1853,27 @@ describe("DataStoreLive", () => {
 		});
 	});
 
-	describe("listGoalsBySession", () => {
+	describe("listGoalsByTddTask", () => {
 		it("returns goals in ordinal order", async () => {
 			const goals = await run(
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-list-goals",
+						chatId: "cc-list-goals",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({
+					const tddId = yield* ds.writeTddTask({
 						sessionId,
 						goal: "obj",
 						startedAt: "2026-04-29T00:00:01Z",
 					});
-					yield* ds.createGoal({ sessionId: tddId, goal: "first" });
-					yield* ds.createGoal({ sessionId: tddId, goal: "second" });
-					yield* ds.createGoal({ sessionId: tddId, goal: "third" });
-					return yield* ds.listGoalsBySession(tddId);
+					yield* ds.createGoal({ tddTaskId: tddId, goal: "first" });
+					yield* ds.createGoal({ tddTaskId: tddId, goal: "second" });
+					yield* ds.createGoal({ tddTaskId: tddId, goal: "third" });
+					return yield* ds.listGoalsByTddTask(tddId);
 				}),
 			);
 			expect(goals).toHaveLength(3);
@@ -1887,29 +1886,29 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-list-goals-empty",
+						chatId: "cc-list-goals-empty",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({
+					const tddId = yield* ds.writeTddTask({
 						sessionId,
 						goal: "obj",
 						startedAt: "2026-04-29T00:00:01Z",
 					});
-					return yield* ds.listGoalsBySession(tddId);
+					return yield* ds.listGoalsByTddTask(tddId);
 				}),
 			);
 			expect(goals).toEqual([]);
 		});
 
-		it("fails with TddSessionNotFoundError for unknown session", async () => {
+		it("fails with TddTaskNotFoundError for unknown session", async () => {
 			const exit = await Effect.runPromiseExit(
 				Effect.provide(
 					Effect.gen(function* () {
 						const ds = yield* DataStore;
-						return yield* ds.listGoalsBySession(99999);
+						return yield* ds.listGoalsByTddTask(99999);
 					}),
 					TestLayer,
 				),
@@ -1917,30 +1916,30 @@ describe("DataStoreLive", () => {
 			expect(exit._tag).toBe("Failure");
 			if (exit._tag === "Failure") {
 				const failure = exit.cause.toString();
-				expect(failure).toContain("TddSessionNotFoundError");
+				expect(failure).toContain("TddTaskNotFoundError");
 			}
 		});
 	});
 
 	describe("createBehavior", () => {
-		const seedGoal = (ccSessionId: string, opts?: { ended?: boolean; goalDone?: boolean }) =>
+		const seedGoal = (chatId: string, opts?: { ended?: boolean; goalDone?: boolean }) =>
 			Effect.gen(function* () {
 				const ds = yield* DataStore;
 				const sessionId = yield* ds.writeSession({
-					cc_session_id: ccSessionId,
+					chatId: chatId,
 					project: "demo",
 					cwd: "/tmp/demo",
-					agent_kind: "subagent",
-					started_at: "2026-04-29T00:00:00Z",
+					agentKind: "subagent",
+					startedAt: "2026-04-29T00:00:00Z",
 				});
-				const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-				const goal = yield* ds.createGoal({ sessionId: tddId, goal: "g" });
+				const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+				const goal = yield* ds.createGoal({ tddTaskId: tddId, goal: "g" });
 				if (opts?.goalDone) {
 					yield* ds.updateGoal({ id: goal.id, status: "in_progress" });
 					yield* ds.updateGoal({ id: goal.id, status: "done" });
 				}
 				if (opts?.ended) {
-					yield* ds.endTddSession({ id: tddId, endedAt: "2026-04-29T00:01:00Z", outcome: "succeeded" });
+					yield* ds.endTddTask({ id: tddId, endedAt: "2026-04-29T00:01:00Z", outcome: "succeeded" });
 				}
 				return { tddId, goalId: goal.id };
 			});
@@ -1979,7 +1978,7 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const { tddId, goalId: g1 } = yield* seedGoal("cc-create-beh-multi");
-					const g2 = yield* ds.createGoal({ sessionId: tddId, goal: "g2" });
+					const g2 = yield* ds.createGoal({ tddTaskId: tddId, goal: "g2" });
 					const a = yield* ds.createBehavior({ goalId: g1, behavior: "x" });
 					const b = yield* ds.createBehavior({ goalId: g2.id, behavior: "y" });
 					const a2 = yield* ds.createBehavior({ goalId: g1, behavior: "x2" });
@@ -2044,7 +2043,7 @@ describe("DataStoreLive", () => {
 			}
 		});
 
-		it("fails with TddSessionAlreadyEndedError when parent session is closed", async () => {
+		it("fails with TddTaskAlreadyEndedError when parent session is closed", async () => {
 			const exit = await Effect.runPromiseExit(
 				Effect.provide(
 					Effect.gen(function* () {
@@ -2057,7 +2056,7 @@ describe("DataStoreLive", () => {
 			);
 			expect(exit._tag).toBe("Failure");
 			if (exit._tag === "Failure") {
-				expect(exit.cause.toString()).toContain("TddSessionAlreadyEndedError");
+				expect(exit.cause.toString()).toContain("TddTaskAlreadyEndedError");
 			}
 		});
 
@@ -2105,7 +2104,7 @@ describe("DataStoreLive", () => {
 					Effect.gen(function* () {
 						const ds = yield* DataStore;
 						const { tddId, goalId: g1 } = yield* seedGoal("cc-create-beh-depgoal");
-						const g2 = yield* ds.createGoal({ sessionId: tddId, goal: "g2" });
+						const g2 = yield* ds.createGoal({ tddTaskId: tddId, goal: "g2" });
 						const beh = yield* ds.createBehavior({ goalId: g1, behavior: "g1-behavior" });
 						return yield* ds.createBehavior({
 							goalId: g2.id,
@@ -2129,14 +2128,14 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-get-beh",
+						chatId: "cc-get-beh",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-					const goal = yield* ds.createGoal({ sessionId: tddId, goal: "g" });
+					const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+					const goal = yield* ds.createGoal({ tddTaskId: tddId, goal: "g" });
 					const beh = yield* ds.createBehavior({ goalId: goal.id, behavior: "b" });
 					return yield* ds.getBehavior(beh.id);
 				}),
@@ -2159,18 +2158,18 @@ describe("DataStoreLive", () => {
 	});
 
 	describe("updateBehavior", () => {
-		const seedBehavior = (ccSessionId: string) =>
+		const seedBehavior = (chatId: string) =>
 			Effect.gen(function* () {
 				const ds = yield* DataStore;
 				const sessionId = yield* ds.writeSession({
-					cc_session_id: ccSessionId,
+					chatId: chatId,
 					project: "demo",
 					cwd: "/tmp/demo",
-					agent_kind: "subagent",
-					started_at: "2026-04-29T00:00:00Z",
+					agentKind: "subagent",
+					startedAt: "2026-04-29T00:00:00Z",
 				});
-				const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-				const goal = yield* ds.createGoal({ sessionId: tddId, goal: "g" });
+				const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+				const goal = yield* ds.createGoal({ tddTaskId: tddId, goal: "g" });
 				const beh = yield* ds.createBehavior({ goalId: goal.id, behavior: "b1" });
 				return { goalId: goal.id, behaviorId: beh.id };
 			});
@@ -2245,14 +2244,14 @@ describe("DataStoreLive", () => {
 					const ds = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-up-beh-dep",
+						chatId: "cc-up-beh-dep",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-					const goal = yield* ds.createGoal({ sessionId: tddId, goal: "g" });
+					const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+					const goal = yield* ds.createGoal({ tddTaskId: tddId, goal: "g" });
 					const a = yield* ds.createBehavior({ goalId: goal.id, behavior: "a" });
 					const b = yield* ds.createBehavior({ goalId: goal.id, behavior: "b" });
 					const target = yield* ds.createBehavior({
@@ -2277,14 +2276,14 @@ describe("DataStoreLive", () => {
 					const ds = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-up-beh-deperase",
+						chatId: "cc-up-beh-deperase",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-					const goal = yield* ds.createGoal({ sessionId: tddId, goal: "g" });
+					const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+					const goal = yield* ds.createGoal({ tddTaskId: tddId, goal: "g" });
 					const dep = yield* ds.createBehavior({ goalId: goal.id, behavior: "dep" });
 					const target = yield* ds.createBehavior({
 						goalId: goal.id,
@@ -2308,14 +2307,14 @@ describe("DataStoreLive", () => {
 					const ds = yield* DataStore;
 					const sql = yield* SqlClient;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-del-beh",
+						chatId: "cc-del-beh",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-					const goal = yield* ds.createGoal({ sessionId: tddId, goal: "g" });
+					const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+					const goal = yield* ds.createGoal({ tddTaskId: tddId, goal: "g" });
 					const a = yield* ds.createBehavior({ goalId: goal.id, behavior: "a" });
 					const b = yield* ds.createBehavior({
 						goalId: goal.id,
@@ -2355,14 +2354,14 @@ describe("DataStoreLive", () => {
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-list-beh-goal",
+						chatId: "cc-list-beh-goal",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-					const goal = yield* ds.createGoal({ sessionId: tddId, goal: "g" });
+					const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+					const goal = yield* ds.createGoal({ tddTaskId: tddId, goal: "g" });
 					yield* ds.createBehavior({ goalId: goal.id, behavior: "x" });
 					yield* ds.createBehavior({ goalId: goal.id, behavior: "y" });
 					return yield* ds.listBehaviorsByGoal(goal.id);
@@ -2388,44 +2387,44 @@ describe("DataStoreLive", () => {
 		});
 	});
 
-	describe("listBehaviorsBySession", () => {
+	describe("listBehaviorsByTddTask", () => {
 		it("returns all behaviors across goals in the session", async () => {
 			const beh = await run(
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-list-beh-session",
+						chatId: "cc-list-beh-session",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
-					const g1 = yield* ds.createGoal({ sessionId: tddId, goal: "g1" });
-					const g2 = yield* ds.createGoal({ sessionId: tddId, goal: "g2" });
+					const tddId = yield* ds.writeTddTask({ sessionId, goal: "obj", startedAt: "2026-04-29T00:00:01Z" });
+					const g1 = yield* ds.createGoal({ tddTaskId: tddId, goal: "g1" });
+					const g2 = yield* ds.createGoal({ tddTaskId: tddId, goal: "g2" });
 					yield* ds.createBehavior({ goalId: g1.id, behavior: "a" });
 					yield* ds.createBehavior({ goalId: g2.id, behavior: "b" });
 					yield* ds.createBehavior({ goalId: g1.id, behavior: "c" });
-					return yield* ds.listBehaviorsBySession(tddId);
+					return yield* ds.listBehaviorsByTddTask(tddId);
 				}),
 			);
 			expect(beh).toHaveLength(3);
 			expect(beh.map((b) => b.behavior).sort()).toEqual(["a", "b", "c"]);
 		});
 
-		it("fails with TddSessionNotFoundError for unknown session", async () => {
+		it("fails with TddTaskNotFoundError for unknown session", async () => {
 			const exit = await Effect.runPromiseExit(
 				Effect.provide(
 					Effect.gen(function* () {
 						const ds = yield* DataStore;
-						return yield* ds.listBehaviorsBySession(99999);
+						return yield* ds.listBehaviorsByTddTask(99999);
 					}),
 					TestLayer,
 				),
 			);
 			expect(exit._tag).toBe("Failure");
 			if (exit._tag === "Failure") {
-				expect(exit.cause.toString()).toContain("TddSessionNotFoundError");
+				expect(exit.cause.toString()).toContain("TddTaskNotFoundError");
 			}
 		});
 	});
@@ -2438,33 +2437,33 @@ describe("DataStoreLive", () => {
 					const sql = yield* SqlClient;
 
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-phase",
+						chatId: "cc-phase",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({
+					const tddId = yield* ds.writeTddTask({
 						sessionId,
 						goal: "g",
 						startedAt: "2026-04-29T00:00:01Z",
 					});
 
-					// The spike phase is auto-opened by writeTddSession; capture its
+					// The spike phase is auto-opened by writeTddTask; capture its
 					// id so the first explicit writeTddPhase should close it.
 					const spikeRows = yield* sql<{ id: number }>`
 						SELECT id FROM tdd_phases
-						WHERE tdd_session_id = ${tddId} AND phase = 'spike' AND ended_at IS NULL
+						WHERE tdd_task_id = ${tddId} AND phase = 'spike' AND ended_at IS NULL
 					`;
 					const spikeId = spikeRows[0].id;
 
 					const r1 = yield* ds.writeTddPhase({
-						tddSessionId: tddId,
+						tddTaskId: tddId,
 						phase: "red",
 						startedAt: "2026-04-29T00:00:02Z",
 					});
 					const r2 = yield* ds.writeTddPhase({
-						tddSessionId: tddId,
+						tddTaskId: tddId,
 						phase: "green",
 						startedAt: "2026-04-29T00:00:10Z",
 						transitionReason: "test failed",
@@ -2490,19 +2489,19 @@ describe("DataStoreLive", () => {
 					const sql = yield* SqlClient;
 
 					const sessionId = yield* ds.writeSession({
-						cc_session_id: "cc-art",
+						chatId: "cc-art",
 						project: "demo",
 						cwd: "/tmp/demo",
-						agent_kind: "subagent",
-						started_at: "2026-04-29T00:00:00Z",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
 					});
-					const tddId = yield* ds.writeTddSession({
+					const tddId = yield* ds.writeTddTask({
 						sessionId,
 						goal: "g",
 						startedAt: "2026-04-29T00:00:01Z",
 					});
 					const phase = yield* ds.writeTddPhase({
-						tddSessionId: tddId,
+						tddTaskId: tddId,
 						phase: "red",
 						startedAt: "2026-04-29T00:00:02Z",
 					});

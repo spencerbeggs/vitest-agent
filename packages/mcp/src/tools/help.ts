@@ -1,8 +1,24 @@
+import { Schema } from "effect";
 import { publicProcedure } from "../context.js";
+
+export const HelpResult = Schema.Struct({
+	helpText: Schema.String.annotations({
+		description: "Markdown table of every MCP tool with parameters and a one-line description.",
+	}),
+}).annotations({
+	identifier: "HelpResult",
+	title: "help result",
+	description:
+		"Static help reference. Read structuredContent.helpText programmatically; the same string lives in content[].text for transcripts.",
+});
+export type HelpResultType = Schema.Schema.Type<typeof HelpResult>;
 
 const HELP_TEXT = `# vitest-agent MCP Tools
 
-> 54 tools total (53 tRPC procedures + \`tdd_progress_push\` registered directly on the MCP server).
+> Consolidated tool surface (Phase 3 of the agent-agnostic taxonomy).
+> Action-keyed tools collapse the prior 5–6 CRUD families into one tool
+> per noun: \`hypothesis\`, \`note\`, \`inventory\`, \`test\`,
+> \`tdd_goal\`, \`tdd_behavior\`, \`tdd_task\`.
 
 ## General
 
@@ -11,37 +27,44 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 | \`help\` | _(none)_ | List all available MCP tools with parameters |
 | \`ping\` | _(none)_ | Ping the MCP server — returns 'pong'. Used to verify hot-patch reload |
 
-## Test Data
+## Test Data (read-only)
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
 | \`test_status\` | \`project?\` | Per-project test pass/fail state |
 | \`test_overview\` | \`project?\` | Test landscape with run metrics |
-| \`test_get\` | \`fullName\`, \`project?\` | Single test drill-down: state, errors, history, classification |
 | \`test_coverage\` | \`project?\` | Coverage gaps with uncovered lines |
 | \`file_coverage\` | \`filePath\`, \`project?\` | Per-file coverage with uncovered lines and related tests |
 | \`test_history\` | \`project\` | Flaky/persistent/recovered tests |
 | \`test_trends\` | \`project\`, \`limit?\` | Coverage trajectory over time |
-| \`test_errors\` | \`project\`, \`errorName?\` | Errors with diffs and stacks |
-| \`test_for_file\` | \`filePath\` | Tests covering a source file |
+| \`test_errors\` | \`project\`, \`errorName?\`, \`format?\` (\`markdown\` \\| \`xml\`) | Errors with diffs, stacks, and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
+| \`test\` | \`action\` (\`list\`/\`get\`/\`for_file\`), plus per-action params | Consolidated test inspection: list/get/for_file |
+
+\`test\` actions:
+- \`{ action: "list", project?, state?, module?, limit? }\`
+- \`{ action: "get", fullName, project? }\`
+- \`{ action: "for_file", filePath }\`
 
 ## Discovery
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`project_list\` | _(none)_ | All projects with latest run summary |
-| \`test_list\` | \`project?\`, \`state?\`, \`module?\`, \`limit?\` | Test cases with state and duration |
-| \`module_list\` | \`project?\` | Test modules (files) with test counts |
-| \`suite_list\` | \`project?\`, \`module?\` | Test suites (describe blocks) |
+| \`inventory\` | \`kind\` (\`project\`/\`module\`/\`suite\`/\`session\`), plus per-kind params | Consolidated entity discovery |
 | \`settings_list\` | _(none)_ | Vitest config snapshots |
+
+\`inventory\` kinds:
+- \`{ kind: "project" }\`
+- \`{ kind: "module", project? }\`
+- \`{ kind: "suite", project?, module? }\`
+- \`{ kind: "session", project?, agentKind?, limit? }\` (omit \`id\` to list)
+- \`{ kind: "session", id }\` (single-session detail)
 
 ## Execution
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`run_tests\` | \`files?\`, \`project?\`, \`timeout?\` | Run vitest with optional filters |
-
-Scopes: \`run_tests({})\` all tests, \`run_tests({ project: "name" })\` by project, \`run_tests({ files: ["path"] })\` specific files.
+| \`run_tests\` | \`files?\`, \`project?\`, \`timeout?\`, \`format?\` | Run vitest with optional filters |
+| \`register_agent\` | \`sessionId\`, \`agentType\`, \`hostKind?\`, \`parentAgentId?\`, \`clientNonce?\`, \`startGitBranch?\`, \`startGitCommitSha?\`, \`startWorktreeDir?\` | Idempotent agent invocation registration |
 
 ## Diagnostics
 
@@ -49,72 +72,69 @@ Scopes: \`run_tests({})\` all tests, \`run_tests({ project: "name" })\` by proje
 | ---- | ---------- | ----------- |
 | \`cache_health\` | _(none)_ | Database health and staleness check |
 | \`configure\` | \`settingsHash?\` | View captured Vitest settings |
+| \`failure_signature_get\` | \`hash\` | Stable failure signature with recent example errors |
+| \`turn_search\` | \`sessionId?\`, \`since?\`, \`type?\`, \`limit?\` | Search turns (default limit 100) |
+| \`acceptance_metrics\` | _(none)_ | Four spec Annex A acceptance metrics |
+| \`triage_brief\` | \`project?\`, \`maxLines?\` | Orientation triage |
+| \`wrapup_prompt\` | \`sessionId?\`, \`chatId?\`, \`kind?\`, \`userPromptHint?\` | Tailored wrap-up prompt |
+| \`commit_changes\` | \`sha?\` | Commit metadata + changed files |
 
 ## Notes
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`note_create\` | \`title\`, \`content\`, \`scope\`, \`project?\`, \`testFullName?\`, \`modulePath?\`, \`parentNoteId?\`, \`createdBy?\`, \`expiresAt?\`, \`pinned?\` | Create a scoped note |
-| \`note_list\` | \`scope?\`, \`project?\`, \`testFullName?\` | List notes with filters |
-| \`note_get\` | \`id\` | Get a note by ID |
-| \`note_update\` | \`id\`, \`title?\`, \`content?\`, \`pinned?\`, \`expiresAt?\` | Update a note |
-| \`note_delete\` | \`id\` | Delete a note |
-| \`note_search\` | \`query\` | Full-text search notes |
+| \`note\` | \`action\` (\`create\`/\`list\`/\`get\`/\`update\`/\`delete\`/\`search\`), plus per-action params | Consolidated note CRUD with FTS5 search |
 
-## Sessions / Turns / TDD reads (β)
+\`note\` actions:
+- \`{ action: "create", title, content, scope, project?, testFullName?, modulePath?, parentNoteId?, createdBy?, expiresAt?, pinned? }\`
+- \`{ action: "list", scope?, project?, testFullName? }\`
+- \`{ action: "get", id }\`
+- \`{ action: "update", id, title?, content?, pinned?, expiresAt? }\`
+- \`{ action: "delete", id }\`
+- \`{ action: "search", query }\`
 
-| Tool | Parameters | Description |
-| ---- | ---------- | ----------- |
-| \`session_list\` | \`project?\`, \`agentKind?\`, \`limit?\` | List recorded Claude Code sessions |
-| \`session_get\` | \`id\` | Full detail for one session by integer id |
-| \`turn_search\` | \`sessionId?\`, \`since?\`, \`type?\`, \`limit?\` | Search turns (default limit 100) |
-| \`failure_signature_get\` | \`hash\` | Stable failure signature with recent example errors |
-| \`tdd_session_get\` | \`id\` | TDD session with phases and artifacts rolled up |
-| \`hypothesis_list\` | \`sessionId?\`, \`outcome?\`, \`limit?\` | List recorded hypotheses (\`outcome=open\` for unvalidated) |
-| \`acceptance_metrics\` | _(none)_ | Four spec Annex A acceptance metrics |
-| \`triage_brief\` | \`project?\`, \`maxLines?\` | Orientation triage: failing tests, flaky tests, open TDD sessions, next actions |
-
-## Hypothesis writes (RC)
+## Hypotheses
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`hypothesis_record\` | \`sessionId\`, \`content\`, \`createdTurnId?\`, \`citedTestErrorId?\`, \`citedStackFrameId?\` | Record an agent hypothesis; returns \`{ id }\` |
-| \`hypothesis_validate\` | \`id\`, \`outcome\`, \`validatedAt\`, \`validatedTurnId?\` | Record validation outcome for a hypothesis; returns \`{}\` |
+| \`hypothesis\` | \`action\` (\`record\`/\`validate\`/\`list\`), plus per-action params | Consolidated hypothesis surface |
 
-## Wrap-up prompts (RC)
+\`hypothesis\` actions:
+- \`{ action: "record", sessionId, content, createdTurnId?, citedTestErrorId?, citedStackFrameId? }\`
+- \`{ action: "validate", id, outcome, validatedAt, validatedTurnId? }\`
+- \`{ action: "list", sessionId?, outcome?, limit? }\`
 
-| Tool | Parameters | Description |
-| ---- | ---------- | ----------- |
-| \`wrapup_prompt\` | \`sessionId?\`, \`ccSessionId?\`, \`kind?\`, \`userPromptHint?\` | Tailored wrap-up prompt for a session (Stop / SessionEnd / PreCompact / TDD handoff / UserPromptSubmit nudge variants) |
-
-## TDD lifecycle (final)
-
-- tdd_session_start — open a TDD session for a goal (idempotent on sessionId+goal)
-- tdd_session_end — close a TDD session with succeeded/blocked/abandoned (idempotent on tddSessionId+outcome)
-- tdd_session_resume — markdown digest of an open session for resume context
-- tdd_phase_transition_request — request a phase transition with cited artifact (validates D2 binding rules; auto-promotes behavior pending → in_progress on accept)
-- tdd_goal_create — create a goal under a TDD session (idempotent on sessionId+goal)
-- tdd_goal_get — read one goal with its nested behaviors
-- tdd_goal_update — update a goal's text and/or status (lifecycle: pending → in_progress → done | abandoned)
-- tdd_goal_delete — hard-delete a goal (cascades; reserved for cleanup of mistakes)
-- tdd_goal_list — list goals for a session with nested behaviors
-- tdd_behavior_create — create a behavior under a goal (idempotent on goalId+behavior; optional dependsOnBehaviorIds)
-- tdd_behavior_get — read one behavior with parent goal summary and dependencies
-- tdd_behavior_update — update a behavior's text, status, or dependency set
-- tdd_behavior_delete — hard-delete a behavior (cascades; reserved for cleanup of mistakes)
-- tdd_behavior_list — list behaviors by goal or session (discriminated input)
-- tdd_progress_push — push a TDD progress event to the main agent via Claude Code channels (best-effort; no-op when channels are inactive)
-
-## Workspace history (final)
-
-- commit_changes — commit metadata + changed files (populated by post-commit hook)
-
-## MCP-server session-id association
+## TDD lifecycle
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`get_current_session_id\` | _(none)_ | Read the Claude Code session id this MCP server process is currently associated with |
-| \`set_current_session_id\` | \`id\` (string or null) | Associate this MCP server process with a Claude Code session id; session-aware tools default to it when \`ccSessionId\` is omitted. Pass \`null\` to clear |
+| \`tdd_task\` | \`action\` (\`start\`/\`end\`/\`get\`/\`resume\`), plus per-action params | TDD task lifecycle |
+| \`tdd_goal\` | \`action\` (\`create\`/\`update\`/\`delete\`/\`get\`/\`list\`), plus per-action params | Goals under a TDD task |
+| \`tdd_behavior\` | \`action\` (\`create\`/\`update\`/\`delete\`/\`get\`/\`list_by_goal\`/\`list_by_tdd_task\`), plus per-action params | Behaviors under a goal |
+| \`tdd_artifact_list\` | \`tddTaskId\`, \`artifactKind?\`, \`phaseId?\`, \`behaviorId?\`, \`limit?\`, \`format?\` | List recorded TDD artifacts (newest first); use to find the artifact id to cite in \`tdd_phase_transition_request\` |
+| \`tdd_phase_transition_request\` | \`tddTaskId\`, \`goalId\`, \`requestedPhase\`, \`citedArtifactId?\`, \`citedArtifactKind?\`, \`behaviorId?\`, \`reason?\` | Request a phase transition; validates D2 binding rules. \`citedArtifactId\` is optional — when omitted, the most recent matching artifact (kind from \`citedArtifactKind\` or the transition's required-evidence rule) is auto-resolved |
+| \`tdd_progress_push\` | \`payload\` | Push a TDD progress event to the main agent (best-effort) |
+
+\`tdd_task\` actions:
+- \`{ action: "start", goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId? }\`
+- \`{ action: "end", tddTaskId, outcome, summaryNoteId? }\`
+- \`{ action: "get", tddTaskId }\`
+- \`{ action: "resume", tddTaskId }\`
+
+\`tdd_goal\` actions:
+- \`{ action: "create", tddTaskId, goal }\`
+- \`{ action: "update", id, goal?, status? }\`
+- \`{ action: "delete", id }\`
+- \`{ action: "get", id }\`
+- \`{ action: "list", tddTaskId }\`
+
+\`tdd_behavior\` actions:
+- \`{ action: "create", goalId, behavior, suggestedTestName?, dependsOnBehaviorIds? }\`
+- \`{ action: "update", id, behavior?, suggestedTestName?, status?, dependsOnBehaviorIds? }\`
+- \`{ action: "delete", id }\`
+- \`{ action: "get", id }\`
+- \`{ action: "list_by_goal", goalId }\`
+- \`{ action: "list_by_tdd_task", tddTaskId }\`
 
 ## Parameter Key
 
@@ -125,4 +145,4 @@ Scopes: \`run_tests({})\` all tests, \`run_tests({ project: "name" })\` by proje
 - \`scope\` accepts: \`global\`, \`project\`, \`module\`, \`suite\`, \`test\`, \`note\`
 `;
 
-export const help = publicProcedure.query(() => HELP_TEXT);
+export const help = publicProcedure.query((): HelpResultType => ({ helpText: HELP_TEXT }));

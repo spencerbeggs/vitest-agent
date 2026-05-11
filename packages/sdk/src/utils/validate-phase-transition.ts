@@ -28,7 +28,7 @@ export interface CitedArtifact {
 }
 
 export interface PhaseTransitionContext {
-	readonly tdd_session_id: number;
+	readonly tdd_task_id: number;
 	readonly current_phase: Phase;
 	readonly phase_started_at: string;
 	readonly now: string;
@@ -41,12 +41,12 @@ export type DenialReason =
 	| "missing_artifact_evidence"
 	| "wrong_artifact_kind"
 	| "wrong_source_phase"
-	| "unknown_session"
-	| "session_already_ended"
+	| "unknown_tdd_task"
+	| "tdd_task_already_ended"
 	| "goal_not_started"
 	| "goal_not_found"
 	| "goal_not_in_progress"
-	| "goal_not_in_session"
+	| "goal_not_in_tdd_task"
 	| "behavior_not_found"
 	| "behavior_not_in_goal"
 	| "refactor_without_passing_run"
@@ -69,7 +69,19 @@ export type PhaseTransitionResult =
 			readonly remediation: Remediation;
 	  };
 
-const requiredArtifactForTransition = (from: Phase, to: Phase): { kind: ArtifactKind; humanHint: string } | null => {
+/**
+ * Return the artifact kind a phase transition requires, plus a
+ * human-readable hint for surfacing in remediations.
+ *
+ * Exported so the MCP `tdd_phase_transition_request` tool can pre-compute
+ * the expected kind when the agent omits `citedArtifactId` (auto-resolve
+ * to the most recent matching artifact). The transitions without a
+ * required artifact (`spike→red`, `*→red`, etc.) return `null`.
+ */
+export const requiredArtifactForTransition = (
+	from: Phase,
+	to: Phase,
+): { kind: ArtifactKind; humanHint: string } | null => {
 	if (from === "red" && to === "green") {
 		return {
 			kind: "test_failed_run",
@@ -146,7 +158,7 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 	// specific test_case_id to bind to.
 	//
 	// Run-level artifacts (test_case_id IS NULL) — e.g. test_failed_run /
-	// test_passed_run rows recorded by post-tool-use-tdd-artifact.sh on a Bash
+	// test_passed_run rows recorded by post-tool-use/tdd-artifact.sh on a Bash
 	// test invocation that didn't resolve a specific test — carry no anchor
 	// for the binding. Skipping rule 1 in that case would let *any* run-level
 	// failure (including one from a different session, a different phase, or a

@@ -1,11 +1,14 @@
 # Auto-allow MCP operation suffixes for the vitest-agent MCP server
 # (mcp__vitest-agent_mcp__<op>).
-# All tools are read-only or self-contained and safe to auto-allow:
-# - Discovery / status: read SQLite database, no side effects
-# - Notes CRUD: writes to the user's own notes table, scoped to the project
-# - Hypothesis writes: writes to the user's own hypotheses table, scoped to the session
-# - run_tests: executes the user's own test suite via Vitest; requires test
-#   files and tools to be available, but does not touch external systems
+#
+# Phase 3 of the agent-agnostic taxonomy collapsed the per-CRUD
+# tools into action-keyed consolidated tools. The destructive variants
+# (tdd_goal action=delete, tdd_behavior action=delete) live behind the
+# consolidated names and are NOT prevented at the allowlist layer; the
+# orchestrator restriction in pre-tool-use-tdd-restricted.sh blocks the
+# tdd-task subagent from calling them, while main-agent calls fall
+# through to the standard permission prompt because the consolidated
+# tool name is allow-listed below.
 
 # === Meta ===
 help
@@ -18,64 +21,49 @@ test_coverage
 test_history
 test_trends
 test_errors
-test_for_file
-test_get
 file_coverage
 cache_health
 configure
 
-# === Discovery ===
-project_list
-test_list
-module_list
-suite_list
+# === Phase 3: consolidated test inspection (list/get/for_file) ===
+test
+
+# === Phase 3: consolidated discovery (project/module/suite/session) ===
+inventory
 settings_list
 
 # === Mutation: runs tests via Vitest's programmatic API ===
 run_tests
 
-# === Notes CRUD (scoped to the user's local database) ===
-note_create
-note_list
-note_get
-note_update
-note_delete
-note_search
+# === Phase 3: consolidated note CRUD (create/list/get/update/delete/search) ===
+note
 
 # === β: Session / turn / TDD reads (read-only) ===
-session_list
-session_get
 turn_search
 failure_signature_get
-tdd_session_get
-hypothesis_list
 acceptance_metrics
 
 # === RC: Orientation triage / wrap-up reads ===
 triage_brief
 wrapup_prompt
 
-# === RC: Hypothesis writes ===
-hypothesis_record
-hypothesis_validate
+# === Phase 3: consolidated hypothesis (record/validate/list) ===
+hypothesis
 
-# === final: TDD lifecycle (idempotent on key) ===
-tdd_session_start
-tdd_session_end
-tdd_session_resume
+# === Phase 3: consolidated TDD lifecycle (start/end/get/resume) ===
+tdd_task
 tdd_phase_transition_request
 
-# === final: TDD goal/behavior CRUD (read + non-destructive writes auto-allowed) ===
-# Deletes intentionally omitted — require explicit user confirmation
-# (tdd_goal_delete, tdd_behavior_delete cascade-delete phase/artifact history).
-tdd_goal_create
-tdd_goal_get
-tdd_goal_update
-tdd_goal_list
-tdd_behavior_create
-tdd_behavior_get
-tdd_behavior_update
-tdd_behavior_list
+# === Phase 3: consolidated TDD goal/behavior CRUD ===
+# Both tools include action=delete, which cascades; main-agent calls
+# fall through to the standard permission prompt for those actions.
+# The tdd-task subagent is blocked from delete actions at the
+# pre-tool-use-tdd-restricted.sh hook layer.
+tdd_goal
+tdd_behavior
+
+# === Read-only TDD artifact lookup (so the orchestrator does not shell out to sqlite3) ===
+tdd_artifact_list
 
 # === final: TDD background orchestrator progress push ===
 tdd_progress_push
@@ -83,6 +71,10 @@ tdd_progress_push
 # === final: Workspace history (read-only) ===
 commit_changes
 
-# === final: MCP-server session-id association (in-memory, per-window) ===
-get_current_session_id
-set_current_session_id
+# === Phase 3: MCP-server session-id association removed ===
+# get_current_session_id and set_current_session_id were removed. The MCP
+# server now recovers the chat id from CLAUDE_ENV_FILE auto-source at
+# boot via the SessionStart hook's VITEST_AGENT_CHAT_ID export.
+
+# === Phase 3: agent-taxonomy registration ===
+register_agent

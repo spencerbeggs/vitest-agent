@@ -8,6 +8,36 @@ import { createCallerFactory } from "./context.js";
 import { registerAllPrompts } from "./prompts/index.js";
 import { registerAllResources } from "./resources/index.js";
 import { appRouter } from "./router.js";
+import { AcceptanceMetricsAsMarkdown, AcceptanceMetricsResult } from "./tools/acceptance-metrics.js";
+import { CacheHealthAsMarkdown, CacheHealthResult } from "./tools/cache-health.js";
+import { CommitChangesAsMarkdown, CommitChangesResult } from "./tools/commit-changes.js";
+import { ConfigureAsMarkdown, ConfigureResult } from "./tools/configure.js";
+import { TestCoverageAsMarkdown, TestCoverageResult } from "./tools/coverage.js";
+import { TestErrorsAsMarkdown, TestErrorsResult } from "./tools/errors.js";
+import { FailureSignatureGetAsMarkdown, FailureSignatureGetResult } from "./tools/failure-signature-get.js";
+import { FileCoverageAsMarkdown, FileCoverageResult } from "./tools/file-coverage.js";
+import { HelpResult } from "./tools/help.js";
+import { TestHistoryAsMarkdown, TestHistoryResult } from "./tools/history.js";
+import { HypothesisResult, formatHypothesisListMarkdown } from "./tools/hypothesis.js";
+import { InventoryAsMarkdown, InventoryResult } from "./tools/inventory.js";
+import { NoteResult, formatNoteListMarkdown } from "./tools/note.js";
+import { TestOverviewAsMarkdown, TestOverviewResult } from "./tools/overview.js";
+import { PingResult } from "./tools/ping.js";
+import { RegisterAgentResult } from "./tools/register-agent.js";
+import { RunTestsAsMarkdown, RunTestsResult } from "./tools/run-tests.js";
+import { SettingsListAsMarkdown, SettingsListResult } from "./tools/settings-list.js";
+import { TestStatusAsMarkdown, TestStatusResult } from "./tools/status.js";
+import { TddArtifactListAsMarkdown, TddArtifactListResult } from "./tools/tdd-artifact.js";
+import { TddBehaviorResult } from "./tools/tdd-behavior.js";
+import { TddGoalResult } from "./tools/tdd-goal.js";
+import { PhaseTransitionResult } from "./tools/tdd-phase-transition-request.js";
+import { TddTaskAsMarkdown, TddTaskResult } from "./tools/tdd-task.js";
+import { TestAsMarkdown, TestResult } from "./tools/test.js";
+import { TestTrendsAsMarkdown, TestTrendsResult } from "./tools/trends.js";
+import { TriageBriefResult } from "./tools/triage-brief.js";
+import { TurnSearchAsMarkdown, TurnSearchResult } from "./tools/turn-search.js";
+import { WrapupPromptResult } from "./tools/wrapup-prompt.js";
+import { effectToZodSchema } from "./utils/effect-to-zod.js";
 
 /**
  * For behavior-scoped events, resolve goalId/sessionId server-side from
@@ -54,12 +84,47 @@ async function resolveChannelEvent(ctx: McpContext, raw: unknown): Promise<unkno
 	);
 }
 
-function textResult(text: string) {
-	return { content: [{ type: "text" as const, text }] };
+/**
+ * Emit both a human-readable text block (`content[]`) and a typed
+ * structured payload (`structuredContent`) per the MCP 2025-06-18
+ * tool-result contract.
+ *
+ * Per the spec, "for backwards compatibility, a tool that returns
+ * structured content SHOULD also return the serialized JSON in a
+ * TextContent block." The helper keeps the existing markdown/JSON
+ * text exactly as today (so the human-facing transcript is unchanged)
+ * and adds `structuredContent` on top so the LLM can parse the
+ * tool's data without inferring it from the rendered text.
+ *
+ * `structuredContent` MUST be a JSON object — not an array, not a
+ * primitive. Tools that conceptually return a list wrap it as
+ * `{ items: [...] }` (or a more specific key like `artifacts: [...]`).
+ *
+ * @internal
+ */
+function structuredResult<T extends object>(
+	text: string,
+	structured: T,
+): { content: Array<{ type: "text"; text: string }>; structuredContent: Record<string, unknown> } {
+	return {
+		content: [{ type: "text" as const, text }],
+		structuredContent: structured as unknown as Record<string, unknown>,
+	};
 }
 
-function jsonResult(value: unknown) {
-	return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
+/**
+ * Shorthand for mutation/CRUD tools whose text channel is just the
+ * JSON-stringified form of the same object that travels in
+ * `structuredContent`. Replaces the legacy `jsonResult` helper for
+ * tools that previously rendered their result as JSON.stringify; the
+ * structured payload is identical, so the agent gets the typed object
+ * via MCP's structuredContent channel without paying the markdown
+ * formatter ceremony of `Schema.transformOrFail`.
+ *
+ * @internal
+ */
+function structuredJsonResult<T extends object>(value: T) {
+	return structuredResult(JSON.stringify(value, null, 2), value);
 }
 
 export async function startMcpServer(ctx: McpContext): Promise<void> {
@@ -87,9 +152,14 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 	server.registerTool(
 		"help",
 		{
-			description: "List all available MCP tools with their parameters and descriptions",
+			description:
+				"List all available MCP tools with their parameters and descriptions. Markdown in content[]; same string available as structuredContent.helpText.",
+			outputSchema: effectToZodSchema(HelpResult) as never,
 		},
-		async () => textResult(await caller.help()),
+		async () => {
+			const data = await caller.help();
+			return structuredResult(data.helpText, data);
+		},
 	);
 
 	// ── Read-only tools (queries returning markdown) ────────────────────
@@ -97,391 +167,433 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 	server.registerTool(
 		"test_status",
 		{
-			description: "Per-project test pass/fail state from the most recent run",
+			description:
+				"Per-project test pass/fail state from the most recent run. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant).",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Filter to a specific project"),
 			},
+			outputSchema: effectToZodSchema(TestStatusResult) as never,
 		},
-		async (args) => textResult(await caller.test_status({ project: args.project })),
+		async (args) => {
+			const data = await caller.test_status({ project: args.project });
+			const text = Schema.decodeSync(TestStatusAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	server.registerTool(
 		"test_overview",
 		{
-			description: "Test landscape summary with per-project run metrics",
+			description:
+				"Test landscape summary with per-project run metrics. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, projectFilter?, runs[] } or absent variant).",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Filter to a specific project"),
 			},
+			outputSchema: effectToZodSchema(TestOverviewResult) as never,
 		},
-		async (args) => textResult(await caller.test_overview({ project: args.project })),
+		async (args) => {
+			const data = await caller.test_overview({ project: args.project });
+			const text = Schema.decodeSync(TestOverviewAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	server.registerTool(
 		"test_coverage",
 		{
-			description: "Coverage gap analysis with per-metric thresholds and targets",
+			description:
+				"Coverage gap analysis with per-metric thresholds and targets. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, coverage } or absent variant).",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Project name"),
 			},
+			outputSchema: effectToZodSchema(TestCoverageResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.test_coverage({
-					project: args.project,
-				}),
-			),
+		async (args) => {
+			const data = await caller.test_coverage({ project: args.project });
+			const text = Schema.decodeSync(TestCoverageAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	server.registerTool(
 		"test_history",
 		{
-			description: "Flaky tests, persistent failures, and recovered tests with run visualization",
+			description:
+				"Flaky tests, persistent failures, and recovered tests with run visualization. Returns markdown in content[] and a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[]).",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
 			},
+			outputSchema: effectToZodSchema(TestHistoryResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.test_history({
-					project: args.project,
-				}),
-			),
+		async (args) => {
+			const data = await caller.test_history({ project: args.project });
+			const text = Schema.decodeSync(TestHistoryAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	server.registerTool(
 		"test_trends",
 		{
-			description: "Per-project coverage trend with direction, metrics, and sparkline trajectory",
+			description:
+				"Per-project coverage trend with direction, metrics, and sparkline trajectory. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, trends? }).",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
 				limit: z.optional(z.coerce.number()).describe("Max number of trend entries to return"),
 			},
+			outputSchema: effectToZodSchema(TestTrendsResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.test_trends({
-					project: args.project,
-					limit: args.limit,
-				}),
-			),
+		async (args) => {
+			const data = await caller.test_trends({ project: args.project, limit: args.limit });
+			const text = Schema.decodeSync(TestTrendsAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	server.registerTool(
 		"test_errors",
 		{
-			description: "Detailed test errors with diffs and stack traces for a project",
+			description:
+				"Detailed test errors with diffs, stack traces, and the cite-able test_errors.id / stack_frames.id values needed by hypothesis (action: record). Returns both a markdown rendering (in content[].text) and a typed JSON object (in structuredContent) — agents should prefer structuredContent.errors[].",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
 				errorName: z.optional(z.string()).describe("Filter to a specific error name"),
 			},
+			outputSchema: effectToZodSchema(TestErrorsResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.test_errors({
-					project: args.project,
-					errorName: args.errorName,
-				}),
-			),
+		async (args) => {
+			const data = await caller.test_errors({
+				project: args.project,
+				...(args.errorName !== undefined && { errorName: args.errorName }),
+			});
+			// Schema.decodeSync goes Encoded → Type; on TestErrorsAsMarkdown
+			// that direction is structured → markdown (the rendering side).
+			const text = Schema.decodeSync(TestErrorsAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
-	server.registerTool(
-		"test_for_file",
-		{
-			description: "Find test modules that cover a given source file",
-			inputSchema: {
-				filePath: z.string().describe("Source file path to find tests for"),
-			},
-		},
-		async (args) =>
-			textResult(
-				await caller.test_for_file({
-					filePath: args.filePath,
-				}),
-			),
-	);
+	// ── Consolidated `test` tool (list / get / for_file) ───────────────
 
 	server.registerTool(
-		"test_get",
+		"test",
 		{
 			description:
-				"Get detailed information about a single test: state, duration, errors, run history, and classification",
+				"Test inspection with action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?) returns details + errors + run history; action='for_file' (filePath) returns test modules covering a source file. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
 			inputSchema: {
-				fullName: z.string().describe("Full test name (e.g. 'Suite > nested > test name')"),
-				project: z.optional(z.string()).describe("Project name"),
+				action: z.enum(["list", "get", "for_file"]).describe("Inspection discriminator"),
+				project: z.optional(z.string()),
+				state: z.optional(z.string()).describe("list: filter by state"),
+				module: z.optional(z.string()).describe("list: filter by module path"),
+				limit: z.optional(z.coerce.number()).describe("list: max rows to return"),
+				fullName: z.optional(z.string()).describe("get: full test name"),
+				filePath: z.optional(z.string()).describe("for_file: source file path"),
 			},
+			outputSchema: effectToZodSchema(TestResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.test_get({
-					fullName: args.fullName,
-					project: args.project,
-				}),
-			),
+		async (args) => {
+			let data: Awaited<ReturnType<typeof caller.test>>;
+			if (args.action === "list") {
+				data = await caller.test({
+					action: "list",
+					...(args.project !== undefined && { project: args.project }),
+					...(args.state !== undefined && { state: args.state }),
+					...(args.module !== undefined && { module: args.module }),
+					...(args.limit !== undefined && { limit: args.limit }),
+				});
+			} else if (args.action === "get") {
+				data = await caller.test({
+					action: "get",
+					fullName: args.fullName as string,
+					...(args.project !== undefined && { project: args.project }),
+				});
+			} else {
+				data = await caller.test({ action: "for_file", filePath: args.filePath as string });
+			}
+			const text = Schema.decodeSync(TestAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	server.registerTool(
 		"file_coverage",
 		{
 			description:
-				"Get coverage data for a specific source file: per-metric values, uncovered lines, and related tests",
+				"Get coverage data for a specific source file: per-metric values, uncovered lines, and related tests. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, matched?, filePath, report?, totals?, relatedTestFiles[] }).",
 			inputSchema: {
 				filePath: z.string().describe("Source file path to check coverage for"),
 				project: z.optional(z.string()).describe("Project name"),
 			},
+			outputSchema: effectToZodSchema(FileCoverageResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.file_coverage({
-					filePath: args.filePath,
-					project: args.project,
-				}),
-			),
+		async (args) => {
+			const data = await caller.file_coverage({ filePath: args.filePath, project: args.project });
+			const text = Schema.decodeSync(FileCoverageAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	server.registerTool(
 		"configure",
 		{
-			description: "View captured Vitest settings for a test run",
+			description:
+				"View captured Vitest settings for a test run. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, source, settings?, requestedHash? }).",
 			inputSchema: {
 				settingsHash: z.optional(z.string()).describe("Settings hash from a manifest entry or test run"),
 			},
+			outputSchema: effectToZodSchema(ConfigureResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.configure({
-					settingsHash: args.settingsHash,
-				}),
-			),
+		async (args) => {
+			const data = await caller.configure({ settingsHash: args.settingsHash });
+			const text = Schema.decodeSync(ConfigureAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	server.registerTool(
 		"cache_health",
 		{
-			description: "Cache health diagnostic: manifest presence, project states, staleness",
+			description:
+				"Cache health diagnostic: manifest presence, project states, staleness. Returns markdown in content[] and a typed JSON object in structuredContent ({ manifestPresent, manifest?, ageMs?, stale? }).",
+			outputSchema: effectToZodSchema(CacheHealthResult) as never,
 		},
-		async () => textResult(await caller.cache_health()),
+		async () => {
+			const data = await caller.cache_health();
+			const text = Schema.decodeSync(CacheHealthAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
-	// ── Discovery tools (queries returning markdown tables) ─────────────
+	// ── Consolidated `inventory` tool (project / module / suite / session) ───
 
 	server.registerTool(
-		"project_list",
+		"inventory",
 		{
-			description: "List all projects with their latest run summary",
-		},
-		async () => textResult(await caller.project_list({})),
-	);
-
-	server.registerTool(
-		"test_list",
-		{
-			description: "List test cases with optional filters for state, module, and limit",
+			description:
+				"Discovery / inventory queries with kind discriminator: project / module / suite / session. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list) so callers can branch on the response shape without parsing markdown.",
 			inputSchema: {
-				project: z.optional(z.string()).describe("Project name"),
-				state: z.optional(z.enum(["passed", "failed", "skipped", "pending"])).describe("Filter by test state"),
-				module: z.optional(z.string()).describe("Filter by module file path"),
-				limit: z.optional(z.coerce.number()).describe("Max number of results"),
+				kind: z.enum(["project", "module", "suite", "session"]).describe("Inventory entity"),
+				id: z.optional(z.coerce.number()).describe("session: single-row lookup by id"),
+				project: z.optional(z.string()),
+				module: z.optional(z.string()).describe("suite: filter by module path"),
+				agentKind: z.optional(z.enum(["main", "subagent"])).describe("session: filter by agent kind"),
+				limit: z.optional(z.coerce.number()).describe("session: max rows"),
 			},
+			outputSchema: effectToZodSchema(InventoryResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.test_list({
-					project: args.project,
-					state: args.state,
-					module: args.module,
-					limit: args.limit,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"module_list",
-		{
-			description: "List test modules with state and test counts",
-			inputSchema: {
-				project: z.optional(z.string()).describe("Project name"),
-			},
+		async (args) => {
+			let data: Awaited<ReturnType<typeof caller.inventory>>;
+			if (args.kind === "project") {
+				data = await caller.inventory({ kind: "project" });
+			} else if (args.kind === "module") {
+				data = await caller.inventory({
+					kind: "module",
+					...(args.project !== undefined && { project: args.project }),
+				});
+			} else if (args.kind === "suite") {
+				data = await caller.inventory({
+					kind: "suite",
+					...(args.project !== undefined && { project: args.project }),
+					...(args.module !== undefined && { module: args.module }),
+				});
+			} else {
+				data = await caller.inventory({
+					kind: "session",
+					...(args.id !== undefined && { id: args.id }),
+					...(args.project !== undefined && { project: args.project }),
+					...(args.agentKind !== undefined && { agentKind: args.agentKind }),
+					...(args.limit !== undefined && { limit: args.limit }),
+				});
+			}
+			const text = Schema.decodeSync(InventoryAsMarkdown)(data);
+			return structuredResult(text, data);
 		},
-		async (args) =>
-			textResult(
-				await caller.module_list({
-					project: args.project,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"suite_list",
-		{
-			description: "List test suites with optional module filter",
-			inputSchema: {
-				project: z.optional(z.string()).describe("Project name"),
-				module: z.optional(z.string()).describe("Filter by module file path"),
-			},
-		},
-		async (args) =>
-			textResult(
-				await caller.suite_list({
-					project: args.project,
-					module: args.module,
-				}),
-			),
 	);
 
 	server.registerTool(
 		"settings_list",
 		{
-			description: "List all captured settings snapshots with their hashes",
+			description:
+				"List all captured settings snapshots with their hashes. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, settings[] }).",
+			outputSchema: effectToZodSchema(SettingsListResult) as never,
 		},
-		async () => textResult(await caller.settings_list({})),
+		async () => {
+			const data = await caller.settings_list({});
+			const text = Schema.decodeSync(SettingsListAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	// ── Mutation tools (return JSON) ────────────────────────────────────
 
 	server.registerTool(
+		"register_agent",
+		{
+			description:
+				"Register an LLM-agent invocation in the per-project store. Idempotent on (chatId, agentType, parentAgentId, clientNonce). Returns ok:true with agentId on insert, or ok:false with error.code='AGENT_ALREADY_REGISTERED'/'PARENT_AGENT_NOT_FOUND'/'SESSION_NOT_FOUND'/'INVALID_AGENT_TYPE_PREFIX' on the four documented failure modes. agentType must begin with the host-kind prefix (e.g., 'claude-code-main').",
+			inputSchema: {
+				chatId: z.string().describe("Host's chat UUID (session_id from CC hook payload, etc.)"),
+				conversationId: z
+					.optional(z.string())
+					.describe("Canonical conversation UUID (from session-map mapConversation)"),
+				hostKind: z.optional(z.string()).describe("Host vendor identifier; defaults to 'claude-code'"),
+				agentType: z.string().describe("Agent type; must begin with the host-kind prefix"),
+				parentAgentId: z.optional(z.string()).describe("Parent agent UUID for subagent registrations"),
+				clientNonce: z
+					.optional(z.string())
+					.describe(
+						"Disambiguator for sibling-subagent registrations under the same parent; the server derives a deterministic default when omitted, which collapses parallel siblings into one row",
+					),
+				startGitBranch: z.optional(z.string()),
+				startGitCommitSha: z.optional(z.string()),
+				startWorktreeDir: z.optional(z.string()),
+			},
+			outputSchema: effectToZodSchema(RegisterAgentResult) as never,
+		},
+		async (args) => {
+			const result = await caller.register_agent({
+				chatId: args.chatId,
+				agentType: args.agentType,
+				...(args.conversationId !== undefined && { conversationId: args.conversationId }),
+				...(args.hostKind !== undefined && { hostKind: args.hostKind }),
+				...(args.parentAgentId !== undefined && { parentAgentId: args.parentAgentId }),
+				...(args.clientNonce !== undefined && { clientNonce: args.clientNonce }),
+				...(args.startGitBranch !== undefined && { startGitBranch: args.startGitBranch }),
+				...(args.startGitCommitSha !== undefined && { startGitCommitSha: args.startGitCommitSha }),
+				...(args.startWorktreeDir !== undefined && { startWorktreeDir: args.startWorktreeDir }),
+			});
+			return {
+				content: [{ type: "text" as const, text: JSON.stringify(result) }],
+				isError: result.ok === false,
+				structuredContent: result as unknown as Record<string, unknown>,
+			};
+		},
+	);
+
+	server.registerTool(
 		"run_tests",
 		{
-			description: "Run Vitest tests with optional file and project filters",
+			description:
+				"Run Vitest tests with optional file and project filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error). The legacy format=json arg is dropped — structuredContent supersedes it.",
 			inputSchema: {
 				files: z.optional(z.array(z.string())).describe("Test file paths to run"),
 				project: z.optional(z.string()).describe("Project name to filter"),
 				timeout: z.optional(z.coerce.number()).describe("Timeout in seconds (default: 120)"),
-				format: z
-					.optional(z.enum(["markdown", "json"]))
-					.describe("Output format (default: markdown). 'json' returns the raw AgentReport for machine consumption."),
+				// Injected by the `pre-tool-use-mcp-run-tests.sh` hook.
+				// Agents do not pass this directly; if absent, the tool
+				// falls back to its boot-time SessionContext.
+				_sessionContext: z
+					.optional(
+						z.object({
+							chatId: z.string(),
+							conversationId: z.string(),
+							mainAgentId: z.string(),
+						}),
+					)
+					.describe("Hook-injected session attribution UUIDs; do not pass manually."),
 			},
+			outputSchema: effectToZodSchema(RunTestsResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.run_tests({
-					files: args.files,
-					project: args.project,
-					timeout: args.timeout,
-					format: args.format,
-				}),
-			),
+		async (args) => {
+			const data = await caller.run_tests({
+				files: args.files,
+				project: args.project,
+				timeout: args.timeout,
+				...(args._sessionContext !== undefined && { _sessionContext: args._sessionContext }),
+			});
+			const text = Schema.decodeSync(RunTestsAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	// ── Note CRUD tools ─────────────────────────────────────────────────
 
-	server.registerTool(
-		"note_create",
-		{
-			description: "Create a scoped note (global, project, module, suite, test, or free-form)",
-			inputSchema: {
-				title: z.string().describe("Note title"),
-				content: z.string().describe("Note content (markdown supported)"),
-				scope: z.enum(["global", "project", "module", "suite", "test", "note"]).describe("Note scope"),
-				project: z.optional(z.string()).describe("Project name (for project/module/suite/test scopes)"),
-				testFullName: z.optional(z.string()).describe("Full test name (for test scope)"),
-				modulePath: z.optional(z.string()).describe("Module file path (for module scope)"),
-				parentNoteId: z.optional(z.coerce.number()).describe("Parent note ID for threading"),
-				createdBy: z.optional(z.string()).describe("Creator identifier"),
-				expiresAt: z.optional(z.string()).describe("ISO 8601 expiration timestamp"),
-				pinned: z.optional(z.boolean()).describe("Pin the note"),
-			},
-		},
-		async (args) => jsonResult(await caller.note_create(args)),
-	);
+	// ── Consolidated `note` tool (create / list / get / update / delete / search) ───
 
 	server.registerTool(
-		"note_list",
+		"note",
 		{
-			description: "List notes with optional scope, project, and test filters",
+			description:
+				"Note CRUD with action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`); list/search additionally render markdown in the text channel.",
 			inputSchema: {
-				scope: z.optional(z.string()).describe("Filter by scope"),
-				project: z.optional(z.string()).describe("Filter by project"),
-				testFullName: z.optional(z.string()).describe("Filter by test full name"),
+				action: z.enum(["create", "list", "get", "update", "delete", "search"]).describe("CRUD discriminator"),
+				// Shared
+				id: z.optional(z.coerce.number()).describe("get/update/delete: note id"),
+				project: z.optional(z.string()),
+				// create
+				title: z.optional(z.string()),
+				content: z.optional(z.string()),
+				scope: z
+					.optional(z.enum(["global", "project", "module", "suite", "test", "note"]))
+					.describe("create: required scope; list: optional filter"),
+				testFullName: z.optional(z.string()),
+				modulePath: z.optional(z.string()),
+				parentNoteId: z.optional(z.coerce.number()),
+				createdBy: z.optional(z.string()),
+				expiresAt: z.optional(z.string()),
+				pinned: z.optional(z.boolean()),
+				// search
+				query: z.optional(z.string()).describe("search: FTS5 query"),
 			},
+			outputSchema: effectToZodSchema(NoteResult) as never,
 		},
-		async (args) => textResult(await caller.note_list(args)),
+		async (args) => {
+			if (args.action === "create") {
+				return structuredJsonResult(
+					await caller.note({
+						action: "create",
+						title: args.title as string,
+						content: args.content as string,
+						scope: args.scope as "global" | "project" | "module" | "suite" | "test" | "note",
+						...(args.project !== undefined && { project: args.project }),
+						...(args.testFullName !== undefined && { testFullName: args.testFullName }),
+						...(args.modulePath !== undefined && { modulePath: args.modulePath }),
+						...(args.parentNoteId !== undefined && { parentNoteId: args.parentNoteId }),
+						...(args.createdBy !== undefined && { createdBy: args.createdBy }),
+						...(args.expiresAt !== undefined && { expiresAt: args.expiresAt }),
+						...(args.pinned !== undefined && { pinned: args.pinned }),
+					}),
+				);
+			}
+			if (args.action === "list") {
+				const data = await caller.note({
+					action: "list",
+					...(args.scope !== undefined && { scope: args.scope }),
+					...(args.project !== undefined && { project: args.project }),
+					...(args.testFullName !== undefined && { testFullName: args.testFullName }),
+				});
+				return structuredResult(formatNoteListMarkdown(data), data);
+			}
+			if (args.action === "get") {
+				return structuredJsonResult(await caller.note({ action: "get", id: args.id as number }));
+			}
+			if (args.action === "update") {
+				return structuredJsonResult(
+					await caller.note({
+						action: "update",
+						id: args.id as number,
+						...(args.title !== undefined && { title: args.title }),
+						...(args.content !== undefined && { content: args.content }),
+						...(args.pinned !== undefined && { pinned: args.pinned }),
+						...(args.expiresAt !== undefined && { expiresAt: args.expiresAt }),
+					}),
+				);
+			}
+			if (args.action === "delete") {
+				return structuredJsonResult(await caller.note({ action: "delete", id: args.id as number }));
+			}
+			const searchData = await caller.note({ action: "search", query: args.query as string });
+			return structuredResult(formatNoteListMarkdown(searchData), searchData);
+		},
 	);
 
-	server.registerTool(
-		"note_get",
-		{
-			description: "Get a specific note by ID",
-			inputSchema: {
-				id: z.coerce.number().describe("Note ID"),
-			},
-		},
-		async (args) => jsonResult(await caller.note_get({ id: args.id })),
-	);
-
-	server.registerTool(
-		"note_update",
-		{
-			description: "Update an existing note's title, content, pin state, or expiration",
-			inputSchema: {
-				id: z.coerce.number().describe("Note ID to update"),
-				title: z.optional(z.string()).describe("New title"),
-				content: z.optional(z.string()).describe("New content"),
-				pinned: z.optional(z.boolean()).describe("Pin or unpin"),
-				expiresAt: z.optional(z.string()).describe("New expiration (ISO 8601)"),
-			},
-		},
-		async (args) => jsonResult(await caller.note_update(args)),
-	);
-
-	server.registerTool(
-		"note_delete",
-		{
-			description: "Delete a note by ID",
-			inputSchema: {
-				id: z.coerce.number().describe("Note ID to delete"),
-			},
-		},
-		async (args) => jsonResult(await caller.note_delete({ id: args.id })),
-	);
-
-	server.registerTool(
-		"note_search",
-		{
-			description: "Full-text search across note titles and content",
-			inputSchema: {
-				query: z.string().describe("Search query"),
-			},
-		},
-		async (args) => textResult(await caller.note_search({ query: args.query })),
-	);
-
-	// ── Session & turn tools ────────────────────────────────────────────
-
-	server.registerTool(
-		"session_list",
-		{
-			description: "List Claude Code sessions recorded in the database",
-			inputSchema: {
-				project: z.optional(z.string()).describe("Filter to a specific project"),
-				agentKind: z.optional(z.enum(["main", "subagent"])).describe("Filter by agent kind"),
-				limit: z.optional(z.coerce.number()).describe("Max sessions to return (default 50)"),
-			},
-		},
-		async (args) =>
-			textResult(
-				await caller.session_list({
-					project: args.project,
-					agentKind: args.agentKind,
-					limit: args.limit,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"session_get",
-		{
-			description: "Get details for a single Claude Code session by integer id",
-			inputSchema: {
-				id: z.coerce.number().describe("Session integer id"),
-			},
-		},
-		async (args) => textResult(await caller.session_get({ id: args.id })),
-	);
+	// ── Turn search ─────────────────────────────────────────────────────
 
 	server.registerTool(
 		"turn_search",
 		{
-			description: "Search turn logs across sessions with optional filters",
+			description:
+				"Search turn logs across sessions with optional filters. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, turns[] }).",
 			inputSchema: {
 				sessionId: z.optional(z.coerce.number()).describe("Filter to a specific session id"),
 				since: z.optional(z.string()).describe("ISO 8601 cutoff — return turns after this timestamp"),
@@ -490,16 +602,18 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 					.describe("Filter by turn type"),
 				limit: z.optional(z.coerce.number()).describe("Max turns to return (default 100)"),
 			},
+			outputSchema: effectToZodSchema(TurnSearchResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.turn_search({
-					sessionId: args.sessionId,
-					since: args.since,
-					type: args.type,
-					limit: args.limit,
-				}),
-			),
+		async (args) => {
+			const data = await caller.turn_search({
+				sessionId: args.sessionId,
+				since: args.since,
+				type: args.type,
+				limit: args.limit,
+			});
+			const text = Schema.decodeSync(TurnSearchAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	// ── Failure signatures ──────────────────────────────────────────────
@@ -507,96 +621,79 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 	server.registerTool(
 		"failure_signature_get",
 		{
-			description: "Look up a failure signature by its 16-char sha256 hash",
+			description:
+				"Look up a failure signature by its 16-char sha256 hash. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, signatureHash?, firstSeenAt?, occurrenceCount?, recentErrors?[] } or absent variant).",
 			inputSchema: {
 				hash: z.string().describe("16-char failure signature hash"),
 			},
+			outputSchema: effectToZodSchema(FailureSignatureGetResult) as never,
 		},
-		async (args) => textResult(await caller.failure_signature_get({ hash: args.hash })),
+		async (args) => {
+			const data = await caller.failure_signature_get({ hash: args.hash });
+			const text = Schema.decodeSync(FailureSignatureGetAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	// ── TDD tools ───────────────────────────────────────────────────────
 
-	server.registerTool(
-		"tdd_session_get",
-		{
-			description: "Get details for a TDD session including phases and artifacts",
-			inputSchema: {
-				id: z.coerce.number().describe("TDD session id"),
-			},
-		},
-		async (args) => textResult(await caller.tdd_session_get({ id: args.id })),
-	);
+	// ── Consolidated `tdd_task` tool (start / end / get / resume) ──────
 
 	server.registerTool(
-		"tdd_session_start",
+		"tdd_task",
 		{
 			description:
-				"Open a new TDD session for a goal. Idempotent on (sessionId, runId) when runId is provided; when omitted, only the middleware goal-text cache applies.",
+				"TDD task lifecycle with action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns markdown details; action='resume' (tddTaskId) returns a compact digest.",
 			inputSchema: {
-				goal: z.string().describe("The behavior or feature being implemented"),
-				sessionId: z.optional(z.coerce.number()).describe("sessions.id (integer); omit to use ccSessionId"),
-				ccSessionId: z.optional(z.string()).describe("Claude Code session id (alternative to sessionId)"),
-				parentTddSessionId: z.optional(z.coerce.number()).describe("Parent TDD session id when decomposing"),
-				startedAt: z.optional(z.string()).describe("ISO 8601 timestamp; defaults to now"),
-				runId: z
-					.optional(z.string())
-					.describe(
-						"Unique dispatch id; supply a stable value (e.g. launch-prompt runId) to get database-level deduplication. When omitted, run_id is stored as NULL and only the middleware goal-text cache applies.",
-					),
+				action: z.enum(["start", "end", "get", "resume"]).describe("Lifecycle discriminator"),
+				tddTaskId: z.optional(z.coerce.number()).describe("end/get/resume: tdd task id"),
+				goal: z.optional(z.string()).describe("start: goal text"),
+				sessionId: z.optional(z.coerce.number()).describe("start: sessions.id (alternative to chatId)"),
+				chatId: z.optional(z.string()).describe("start: host chat UUID"),
+				parentTddTaskId: z.optional(z.coerce.number()).describe("start: parent task id when decomposing"),
+				startedAt: z.optional(z.string()),
+				runId: z.optional(z.string()),
+				outcome: z.optional(z.enum(["succeeded", "blocked", "abandoned"])).describe("end: final outcome"),
+				summaryNoteId: z.optional(z.coerce.number()),
 			},
+			outputSchema: effectToZodSchema(TddTaskResult) as never,
 		},
-		async (args) =>
-			jsonResult(
-				await caller.tdd_session_start({
-					goal: args.goal,
-					sessionId: args.sessionId,
-					ccSessionId: args.ccSessionId,
-					parentTddSessionId: args.parentTddSessionId,
-					startedAt: args.startedAt,
-					runId: args.runId,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"tdd_session_end",
-		{
-			description: "Close a TDD session with an outcome. Idempotent on (tddSessionId, outcome).",
-			inputSchema: {
-				tddSessionId: z.coerce.number().describe("tdd_sessions.id"),
-				outcome: z.enum(["succeeded", "blocked", "abandoned"]).describe("Final outcome"),
-				summaryNoteId: z.optional(z.coerce.number()).describe("Optional FK to a notes row carrying the full summary"),
-			},
+		async (args) => {
+			let data: Awaited<ReturnType<typeof caller.tdd_task>>;
+			if (args.action === "start") {
+				data = await caller.tdd_task({
+					action: "start",
+					goal: args.goal as string,
+					...(args.sessionId !== undefined && { sessionId: args.sessionId }),
+					...(args.chatId !== undefined && { chatId: args.chatId }),
+					...(args.parentTddTaskId !== undefined && { parentTddTaskId: args.parentTddTaskId }),
+					...(args.startedAt !== undefined && { startedAt: args.startedAt }),
+					...(args.runId !== undefined && { runId: args.runId }),
+				});
+			} else if (args.action === "end") {
+				data = await caller.tdd_task({
+					action: "end",
+					tddTaskId: args.tddTaskId as number,
+					outcome: args.outcome as "succeeded" | "blocked" | "abandoned",
+					...(args.summaryNoteId !== undefined && { summaryNoteId: args.summaryNoteId }),
+				});
+			} else if (args.action === "get") {
+				data = await caller.tdd_task({ action: "get", tddTaskId: args.tddTaskId as number });
+			} else {
+				data = await caller.tdd_task({ action: "resume", tddTaskId: args.tddTaskId as number });
+			}
+			const text = Schema.decodeSync(TddTaskAsMarkdown)(data);
+			return structuredResult(text, data);
 		},
-		async (args) =>
-			jsonResult(
-				await caller.tdd_session_end({
-					tddSessionId: args.tddSessionId,
-					outcome: args.outcome,
-					summaryNoteId: args.summaryNoteId,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"tdd_session_resume",
-		{
-			description: "Markdown digest of a TDD session for resuming work — goal, current phase, artifact count.",
-			inputSchema: {
-				id: z.coerce.number().describe("tdd_sessions.id"),
-			},
-		},
-		async (args) => textResult(await caller.tdd_session_resume({ id: args.id })),
 	);
 
 	server.registerTool(
 		"tdd_phase_transition_request",
 		{
 			description:
-				"Request a TDD phase transition. Validates goal status, behavior↔goal membership, and D2 artifact-evidence binding rules; returns accept/deny. On accept, auto-promotes a behavior 'pending' → 'in_progress' when behaviorId is supplied (callers do not need a separate tdd_behavior_update for the start-of-cycle transition).",
+				"Request a TDD phase transition. Validates goal status, behavior↔goal membership, and D2 artifact-evidence binding rules; returns accept/deny. On accept, auto-promotes a behavior 'pending' → 'in_progress' when behaviorId is supplied. citedArtifactId is OPTIONAL — when omitted, the most recent matching artifact is auto-resolved (kind comes from citedArtifactKind if supplied, otherwise from the transition's required-evidence rule). Transitions like spike→red that require no artifact need neither field. The accepted response echoes citedArtifactId + citedArtifactSource so the caller can see which row was picked.",
 			inputSchema: {
-				tddSessionId: z.coerce.number().describe("tdd_sessions.id"),
+				tddTaskId: z.coerce.number().describe("tdd_tasks.id"),
 				goalId: z.coerce.number().describe("tdd_session_goals.id (required; goal must be in_progress)"),
 				requestedPhase: z
 					.enum([
@@ -610,273 +707,245 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 						"green-without-red",
 					])
 					.describe("Phase to transition to"),
-				citedArtifactId: z.coerce.number().describe("tdd_artifacts.id supplying the evidence"),
+				citedArtifactId: z
+					.optional(z.coerce.number())
+					.describe("tdd_artifacts.id supplying the evidence. Optional — auto-resolved when omitted."),
+				citedArtifactKind: z
+					.optional(
+						z.enum(["test_written", "test_failed_run", "code_written", "test_passed_run", "refactor", "test_weakened"]),
+					)
+					.describe(
+						"Kind to look up when citedArtifactId is omitted (defaults to the kind required by the transition).",
+					),
 				behaviorId: z
 					.optional(z.coerce.number())
 					.describe("tdd_session_behaviors.id when transitioning a specific behavior (must belong to goalId)"),
 				reason: z.optional(z.string()).describe("Free-text reason for the transition"),
 			},
+			outputSchema: effectToZodSchema(PhaseTransitionResult) as never,
 		},
 		async (args) =>
-			jsonResult(
+			structuredJsonResult(
 				await caller.tdd_phase_transition_request({
-					tddSessionId: args.tddSessionId,
+					tddTaskId: args.tddTaskId,
 					goalId: args.goalId,
 					requestedPhase: args.requestedPhase,
-					citedArtifactId: args.citedArtifactId,
-					behaviorId: args.behaviorId,
-					reason: args.reason,
+					...(args.citedArtifactId !== undefined && { citedArtifactId: args.citedArtifactId }),
+					...(args.citedArtifactKind !== undefined && { citedArtifactKind: args.citedArtifactKind }),
+					...(args.behaviorId !== undefined && { behaviorId: args.behaviorId }),
+					...(args.reason !== undefined && { reason: args.reason }),
 				}),
 			),
 	);
 
-	server.registerTool(
-		"tdd_goal_create",
-		{
-			description: "Create a goal under a TDD session. Idempotent on (sessionId, goal).",
-			inputSchema: {
-				sessionId: z.coerce.number().describe("tdd_sessions.id"),
-				goal: z.string().describe("Coherent slice of the objective testable as a unit"),
-			},
-		},
-		async (args) => jsonResult(await caller.tdd_goal_create({ sessionId: args.sessionId, goal: args.goal })),
-	);
+	// ── Consolidated `tdd_goal` tool (create / update / delete / get / list) ───
 
 	server.registerTool(
-		"tdd_goal_get",
-		{
-			description: "Read one goal with its nested behaviors.",
-			inputSchema: {
-				id: z.coerce.number().describe("tdd_session_goals.id"),
-			},
-		},
-		async (args) => jsonResult(await caller.tdd_goal_get({ id: args.id })),
-	);
-
-	server.registerTool(
-		"tdd_goal_update",
-		{
-			description: "Update a goal's text and/or status. Lifecycle: pending → in_progress → done | abandoned.",
-			inputSchema: {
-				id: z.coerce.number().describe("tdd_session_goals.id"),
-				goal: z.optional(z.string()).describe("New goal text"),
-				status: z
-					.optional(z.enum(["pending", "in_progress", "done", "abandoned"]))
-					.describe("Lifecycle status (use 'abandoned' to drop work; do not delete unless created by mistake)"),
-			},
-		},
-		async (args) =>
-			jsonResult(
-				await caller.tdd_goal_update({
-					id: args.id,
-					goal: args.goal,
-					status: args.status,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"tdd_goal_delete",
+		"tdd_goal",
 		{
 			description:
-				"Hard-delete a goal (cascades to behaviors). Reserved for cleanup of mistakes; prefer status:'abandoned'.",
+				"TDD goal CRUD with action discriminator: action='create' (tddTaskId, goal) is idempotent on (tddTaskId, goal); action='update' (id, goal?, status?) edits text and/or lifecycle status; action='delete' (id) hard-deletes (prefer status:'abandoned'); action='get' (id) reads with nested behaviors; action='list' (tddTaskId) returns all goals for a TDD task.",
 			inputSchema: {
-				id: z.coerce.number().describe("tdd_session_goals.id"),
+				action: z.enum(["create", "update", "delete", "get", "list"]).describe("CRUD discriminator"),
+				id: z.optional(z.coerce.number()).describe("update/delete/get: goal id"),
+				tddTaskId: z.optional(z.coerce.number()).describe("create/list: tdd task id"),
+				goal: z.optional(z.string()),
+				status: z.optional(z.enum(["pending", "in_progress", "done", "abandoned"])),
 			},
-		},
-		async (args) => jsonResult(await caller.tdd_goal_delete({ id: args.id })),
-	);
-
-	server.registerTool(
-		"tdd_goal_list",
-		{
-			description: "List goals for a TDD session with nested behaviors, ordered by ordinal.",
-			inputSchema: {
-				sessionId: z.coerce.number().describe("tdd_sessions.id"),
-			},
-		},
-		async (args) => jsonResult(await caller.tdd_goal_list({ sessionId: args.sessionId })),
-	);
-
-	server.registerTool(
-		"tdd_behavior_create",
-		{
-			description:
-				"Create a behavior under a goal. Idempotent on (goalId, behavior). Optionally writes dependsOnBehaviorIds in the same transaction.",
-			inputSchema: {
-				goalId: z.coerce.number().describe("tdd_session_goals.id"),
-				behavior: z.string().describe("Atomic behavior (one red-green-refactor cycle)"),
-				suggestedTestName: z.optional(z.string()).describe("Optional suggested test name"),
-				dependsOnBehaviorIds: z
-					.optional(z.array(z.coerce.number()))
-					.describe("Optional list of behavior ids in the same goal that this behavior depends on"),
-			},
-		},
-		async (args) =>
-			jsonResult(
-				await caller.tdd_behavior_create({
-					goalId: args.goalId,
-					behavior: args.behavior,
-					suggestedTestName: args.suggestedTestName,
-					dependsOnBehaviorIds: args.dependsOnBehaviorIds,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"tdd_behavior_get",
-		{
-			description: "Read one behavior with its parent goal summary and dependency list.",
-			inputSchema: {
-				id: z.coerce.number().describe("tdd_session_behaviors.id"),
-			},
-		},
-		async (args) => jsonResult(await caller.tdd_behavior_get({ id: args.id })),
-	);
-
-	server.registerTool(
-		"tdd_behavior_update",
-		{
-			description:
-				"Update a behavior's text, suggestedTestName, status, and/or dependencies. Updating dependsOnBehaviorIds replaces the junction-table set in one transaction. Note: tdd_phase_transition_request auto-promotes a behavior pending → in_progress on accept; the orchestrator only needs to call this for the final → done transition.",
-			inputSchema: {
-				id: z.coerce.number().describe("tdd_session_behaviors.id"),
-				behavior: z.optional(z.string()).describe("New behavior text"),
-				suggestedTestName: z.optional(z.string().nullable()).describe("New suggested test name (null clears it)"),
-				status: z.optional(z.enum(["pending", "in_progress", "done", "abandoned"])).describe("Lifecycle status"),
-				dependsOnBehaviorIds: z
-					.optional(z.array(z.coerce.number()))
-					.describe("Replacement dependency set (empty array clears all dependencies)"),
-			},
-		},
-		async (args) =>
-			jsonResult(
-				await caller.tdd_behavior_update({
-					id: args.id,
-					behavior: args.behavior,
-					suggestedTestName: args.suggestedTestName,
-					status: args.status,
-					dependsOnBehaviorIds: args.dependsOnBehaviorIds,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"tdd_behavior_delete",
-		{
-			description: "Hard-delete a behavior. Reserved for cleanup of mistakes; prefer status:'abandoned'.",
-			inputSchema: {
-				id: z.coerce.number().describe("tdd_session_behaviors.id"),
-			},
-		},
-		async (args) => jsonResult(await caller.tdd_behavior_delete({ id: args.id })),
-	);
-
-	server.registerTool(
-		"tdd_behavior_list",
-		{
-			description:
-				"List behaviors. Use scope='goal' with goalId to list one goal's behaviors; scope='session' with sessionId to list every behavior across all goals.",
-			inputSchema: {
-				scope: z.enum(["goal", "session"]).describe("Scope discriminator"),
-				goalId: z.optional(z.coerce.number()).describe("tdd_session_goals.id (when scope='goal')"),
-				sessionId: z.optional(z.coerce.number()).describe("tdd_sessions.id (when scope='session')"),
-			},
+			outputSchema: effectToZodSchema(TddGoalResult) as never,
 		},
 		async (args) => {
-			if (args.scope === "goal") {
-				if (args.goalId === undefined) {
-					return jsonResult({
-						ok: false,
-						error: {
-							_tag: "ValidationError",
-							reason: "scope='goal' requires goalId",
-						},
-					});
-				}
-				return jsonResult(await caller.tdd_behavior_list({ scope: "goal", goalId: args.goalId }));
+			if (args.action === "create") {
+				return structuredJsonResult(
+					await caller.tdd_goal({
+						action: "create",
+						tddTaskId: args.tddTaskId as number,
+						goal: args.goal as string,
+					}),
+				);
 			}
-			if (args.sessionId === undefined) {
-				return jsonResult({
-					ok: false,
-					error: {
-						_tag: "ValidationError",
-						reason: "scope='session' requires sessionId",
-					},
-				});
+			if (args.action === "update") {
+				return structuredJsonResult(
+					await caller.tdd_goal({
+						action: "update",
+						id: args.id as number,
+						...(args.goal !== undefined && { goal: args.goal }),
+						...(args.status !== undefined && { status: args.status }),
+					}),
+				);
 			}
-			return jsonResult(await caller.tdd_behavior_list({ scope: "session", sessionId: args.sessionId }));
+			if (args.action === "delete") {
+				return structuredJsonResult(await caller.tdd_goal({ action: "delete", id: args.id as number }));
+			}
+			if (args.action === "get") {
+				return structuredJsonResult(await caller.tdd_goal({ action: "get", id: args.id as number }));
+			}
+			return structuredJsonResult(await caller.tdd_goal({ action: "list", tddTaskId: args.tddTaskId as number }));
 		},
 	);
 
+	// ── Consolidated `tdd_behavior` tool (create / update / delete / get / list_by_goal / list_by_tdd_task) ───
+
 	server.registerTool(
-		"hypothesis_list",
+		"tdd_behavior",
 		{
-			description: "List agent hypotheses with optional filtering by session or validation outcome",
+			description:
+				"TDD behavior CRUD with action discriminator: action='create' (goalId, behavior, suggestedTestName?, dependsOnBehaviorIds?) is idempotent on (goalId, behavior); action='update' (id, ...patch) edits; action='delete' (id) hard-deletes; action='get' (id) reads; action='list_by_goal' (goalId) lists one goal's behaviors; action='list_by_tdd_task' (tddTaskId) lists across all goals.",
 			inputSchema: {
-				sessionId: z.optional(z.coerce.number()).describe("Filter to a specific session id"),
+				action: z
+					.enum(["create", "update", "delete", "get", "list_by_goal", "list_by_tdd_task"])
+					.describe("CRUD discriminator"),
+				id: z.optional(z.coerce.number()),
+				goalId: z.optional(z.coerce.number()),
+				tddTaskId: z.optional(z.coerce.number()),
+				behavior: z.optional(z.string()),
+				suggestedTestName: z.optional(z.string().nullable()),
+				status: z.optional(z.enum(["pending", "in_progress", "done", "abandoned"])),
+				dependsOnBehaviorIds: z.optional(z.array(z.coerce.number())),
+			},
+			outputSchema: effectToZodSchema(TddBehaviorResult) as never,
+		},
+		async (args) => {
+			if (args.action === "create") {
+				return structuredJsonResult(
+					await caller.tdd_behavior({
+						action: "create",
+						goalId: args.goalId as number,
+						behavior: args.behavior as string,
+						...(args.suggestedTestName !== undefined &&
+							args.suggestedTestName !== null && {
+								suggestedTestName: args.suggestedTestName,
+							}),
+						...(args.dependsOnBehaviorIds !== undefined && {
+							dependsOnBehaviorIds: args.dependsOnBehaviorIds,
+						}),
+					}),
+				);
+			}
+			if (args.action === "update") {
+				return structuredJsonResult(
+					await caller.tdd_behavior({
+						action: "update",
+						id: args.id as number,
+						...(args.behavior !== undefined && { behavior: args.behavior }),
+						...(args.suggestedTestName !== undefined && { suggestedTestName: args.suggestedTestName }),
+						...(args.status !== undefined && { status: args.status }),
+						...(args.dependsOnBehaviorIds !== undefined && {
+							dependsOnBehaviorIds: args.dependsOnBehaviorIds,
+						}),
+					}),
+				);
+			}
+			if (args.action === "delete") {
+				return structuredJsonResult(await caller.tdd_behavior({ action: "delete", id: args.id as number }));
+			}
+			if (args.action === "get") {
+				return structuredJsonResult(await caller.tdd_behavior({ action: "get", id: args.id as number }));
+			}
+			if (args.action === "list_by_goal") {
+				return structuredJsonResult(
+					await caller.tdd_behavior({ action: "list_by_goal", goalId: args.goalId as number }),
+				);
+			}
+			return structuredJsonResult(
+				await caller.tdd_behavior({ action: "list_by_tdd_task", tddTaskId: args.tddTaskId as number }),
+			);
+		},
+	);
+
+	// ── tdd_artifact_list (read-only artifact lookup) ──────────────────
+
+	server.registerTool(
+		"tdd_artifact_list",
+		{
+			description:
+				"List TDD artifacts (test_written, test_failed_run, code_written, test_passed_run, refactor, test_weakened) for a tdd_task. Newest first. Use this to find the artifact id to cite in tdd_phase_transition_request without querying SQLite directly. Filters: artifactKind, phaseId, behaviorId, limit (default 50).",
+			inputSchema: {
+				tddTaskId: z.coerce.number().describe("tdd_tasks.id"),
+				artifactKind: z
+					.optional(
+						z.enum(["test_written", "test_failed_run", "code_written", "test_passed_run", "refactor", "test_weakened"]),
+					)
+					.describe("Restrict to one artifact kind"),
+				phaseId: z.optional(z.coerce.number()).describe("Restrict to artifacts recorded in one phase"),
+				behaviorId: z
+					.optional(z.coerce.number())
+					.describe("Restrict to artifacts recorded in phases bound to one behavior"),
+				limit: z.optional(z.coerce.number()).describe("Max rows (default 50)"),
+			},
+			outputSchema: effectToZodSchema(TddArtifactListResult) as never,
+		},
+		async (args) => {
+			const data = await caller.tdd_artifact_list({
+				tddTaskId: args.tddTaskId as number,
+				...(args.artifactKind !== undefined && { artifactKind: args.artifactKind }),
+				...(args.phaseId !== undefined && { phaseId: args.phaseId }),
+				...(args.behaviorId !== undefined && { behaviorId: args.behaviorId }),
+				...(args.limit !== undefined && { limit: args.limit }),
+			});
+			const text = Schema.decodeSync(TddArtifactListAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
+	);
+
+	// ── Consolidated `hypothesis` tool (record / list / validate) ───────
+
+	server.registerTool(
+		"hypothesis",
+		{
+			description:
+				"Hypothesis CRUD with action discriminator: action='record' (sessionId, content, optional citation ids) writes a hypothesis; action='validate' (id, outcome, validatedAt) records a validation outcome; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
+			inputSchema: {
+				action: z.enum(["record", "validate", "list"]).describe("CRUD discriminator"),
+				// Shared
+				sessionId: z.optional(z.coerce.number()).describe("Session id (required for record; filter for list)"),
+				// record
+				content: z.optional(z.string()).describe("Hypothesis content (action=record)"),
+				createdTurnId: z.optional(z.coerce.number()),
+				citedTestErrorId: z.optional(z.coerce.number()),
+				citedStackFrameId: z.optional(z.coerce.number()),
+				// validate
+				id: z.optional(z.coerce.number()).describe("Hypothesis id (action=validate)"),
 				outcome: z
 					.optional(z.enum(["confirmed", "refuted", "abandoned", "open"]))
-					.describe("Filter by validation outcome (open = not yet validated)"),
-				limit: z.optional(z.coerce.number()).describe("Max hypotheses to return (default 50)"),
+					.describe("validate: 'confirmed'|'refuted'|'abandoned'; list filter may include 'open'"),
+				validatedTurnId: z.optional(z.coerce.number()),
+				validatedAt: z.optional(z.string()).describe("ISO 8601 timestamp (action=validate)"),
+				// list
+				limit: z.optional(z.coerce.number()),
 			},
+			outputSchema: effectToZodSchema(HypothesisResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.hypothesis_list({
-					sessionId: args.sessionId,
-					outcome: args.outcome,
-					limit: args.limit,
-				}),
-			),
-	);
-
-	// ── Hypothesis writes ───────────────────────────────────────────────
-
-	server.registerTool(
-		"hypothesis_record",
-		{
-			description: "Record an agent hypothesis about a test failure or code behavior",
-			inputSchema: {
-				sessionId: z.coerce.number().describe("Session id the hypothesis belongs to"),
-				content: z.string().describe("Hypothesis content"),
-				createdTurnId: z.optional(z.coerce.number()).describe("Turn id when the hypothesis was created"),
-				citedTestErrorId: z.optional(z.coerce.number()).describe("Test error id cited as evidence"),
-				citedStackFrameId: z.optional(z.coerce.number()).describe("Stack frame id cited as evidence"),
-			},
+		async (args) => {
+			if (args.action === "record") {
+				const result = await caller.hypothesis({
+					action: "record",
+					sessionId: args.sessionId as number,
+					content: args.content as string,
+					...(args.createdTurnId !== undefined && { createdTurnId: args.createdTurnId }),
+					...(args.citedTestErrorId !== undefined && { citedTestErrorId: args.citedTestErrorId }),
+					...(args.citedStackFrameId !== undefined && { citedStackFrameId: args.citedStackFrameId }),
+				});
+				return structuredJsonResult(result);
+			}
+			if (args.action === "validate") {
+				const result = await caller.hypothesis({
+					action: "validate",
+					id: args.id as number,
+					outcome: args.outcome as "confirmed" | "refuted" | "abandoned",
+					validatedAt: args.validatedAt as string,
+					...(args.validatedTurnId !== undefined && { validatedTurnId: args.validatedTurnId }),
+				});
+				return structuredJsonResult(result);
+			}
+			const result = await caller.hypothesis({
+				action: "list",
+				...(args.sessionId !== undefined && { sessionId: args.sessionId }),
+				...(args.outcome !== undefined && { outcome: args.outcome }),
+				...(args.limit !== undefined && { limit: args.limit }),
+			});
+			return structuredResult(formatHypothesisListMarkdown(result), result);
 		},
-		async (args) =>
-			jsonResult(
-				await caller.hypothesis_record({
-					sessionId: args.sessionId,
-					content: args.content,
-					createdTurnId: args.createdTurnId,
-					citedTestErrorId: args.citedTestErrorId,
-					citedStackFrameId: args.citedStackFrameId,
-				}),
-			),
-	);
-
-	server.registerTool(
-		"hypothesis_validate",
-		{
-			description: "Record a validation outcome (confirmed / refuted / abandoned) for an existing hypothesis",
-			inputSchema: {
-				id: z.coerce.number().describe("Hypothesis id to validate"),
-				outcome: z.enum(["confirmed", "refuted", "abandoned"]).describe("Validation outcome"),
-				validatedTurnId: z.optional(z.coerce.number()).describe("Turn id when the validation was recorded"),
-				validatedAt: z.string().describe("ISO 8601 timestamp of validation"),
-			},
-		},
-		async (args) =>
-			jsonResult(
-				await caller.hypothesis_validate({
-					id: args.id,
-					outcome: args.outcome,
-					validatedTurnId: args.validatedTurnId,
-					validatedAt: args.validatedAt,
-				}),
-			),
 	);
 
 	// ── TDD progress push ──────────────────────────────────────────────
@@ -910,7 +979,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			} catch {
 				// Channels not active — swallow silently
 			}
-			return jsonResult({ ok: true });
+			return structuredJsonResult({ ok: true });
 		},
 	);
 
@@ -919,10 +988,16 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 	server.registerTool(
 		"acceptance_metrics",
 		{
-			description: "Compute the four spec Annex A acceptance metrics from the current database",
+			description:
+				"Compute the four spec Annex A acceptance metrics from the current database. Returns markdown in content[] and a typed JSON object in structuredContent (per-metric { total, ratio, ... }).",
 			inputSchema: {},
+			outputSchema: effectToZodSchema(AcceptanceMetricsResult) as never,
 		},
-		async () => textResult(await caller.acceptance_metrics({})),
+		async () => {
+			const data = await caller.acceptance_metrics({});
+			const text = Schema.decodeSync(AcceptanceMetricsAsMarkdown)(data);
+			return structuredResult(text, data);
+		},
 	);
 
 	// ── Triage brief ────────────────────────────────────────────────────
@@ -930,19 +1005,18 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 	server.registerTool(
 		"triage_brief",
 		{
-			description: "Orientation triage brief: failing tests, flaky tests, open TDD sessions, suggested next actions",
+			description:
+				"Orientation triage brief: failing tests, flaky tests, open TDD sessions, suggested next actions. Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, markdown }).",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Filter to a specific project"),
 				maxLines: z.optional(z.coerce.number()).describe("Soft cap on rendered output lines"),
 			},
+			outputSchema: effectToZodSchema(TriageBriefResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.triage_brief({
-					project: args.project,
-					maxLines: args.maxLines,
-				}),
-			),
+		async (args) => {
+			const data = await caller.triage_brief({ project: args.project, maxLines: args.maxLines });
+			return structuredResult(data.markdown, data);
+		},
 	);
 
 	// ── Wrapup prompt ───────────────────────────────────────────────────
@@ -951,109 +1025,63 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"wrapup_prompt",
 		{
 			description:
-				"Tailored wrap-up prompt for a session (Stop / SessionEnd / PreCompact / TDD handoff / UserPromptSubmit nudge variants)",
+				"Tailored wrap-up prompt for a session (Stop / SessionEnd / PreCompact / TDD handoff / UserPromptSubmit nudge variants). Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, kind, markdown }).",
 			inputSchema: {
-				sessionId: z.optional(z.coerce.number()).describe("sessions.id (integer); omit to use ccSessionId"),
-				ccSessionId: z.optional(z.string()).describe("Claude Code session id (alternative to sessionId)"),
+				sessionId: z.optional(z.coerce.number()).describe("sessions.id (integer); omit to use chatId"),
+				chatId: z.optional(z.string()).describe("Host chat UUID (alternative to sessionId)"),
 				kind: z
 					.optional(z.enum(["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"]))
 					.describe("Wrap-up flavor (default: session_end)"),
 				userPromptHint: z.optional(z.string()).describe("For user_prompt_nudge: the prompt text to inspect"),
 			},
+			outputSchema: effectToZodSchema(WrapupPromptResult) as never,
 		},
-		async (args) =>
-			textResult(
-				await caller.wrapup_prompt({
-					sessionId: args.sessionId,
-					ccSessionId: args.ccSessionId,
-					kind: args.kind,
-					userPromptHint: args.userPromptHint,
-				}),
-			),
+		async (args) => {
+			const data = await caller.wrapup_prompt({
+				sessionId: args.sessionId,
+				chatId: args.chatId,
+				kind: args.kind,
+				userPromptHint: args.userPromptHint,
+			});
+			return structuredResult(data.markdown, data);
+		},
 	);
 
 	server.registerTool(
 		"commit_changes",
 		{
 			description:
-				"Commit metadata + changed files captured by the post-commit hook. Returns up to 20 most-recent when sha is omitted.",
+				"Commit metadata + changed files captured by the post-commit hook. Returns up to 20 most-recent when sha is omitted. Returns markdown in content[] and a typed JSON object in structuredContent ({ filterSha?, count, commits[] }).",
 			inputSchema: {
 				sha: z.optional(z.string()).describe("Specific commit sha to fetch; omit for recent commits"),
 			},
+			outputSchema: effectToZodSchema(CommitChangesResult) as never,
 		},
-		async (args) => textResult(await caller.commit_changes({ sha: args.sha })),
-	);
-
-	// ── Session-id association (ergonomic default for session-aware tools) ───
-
-	// Shared elicitation helper. Fires once per process — if the id is
-	// already set it returns immediately. The Elicitation hook
-	// (plugin/hooks/elicitation-session-id.sh) auto-accepts with the
-	// Claude Code session id so no dialog is shown to the user.
-	const elicitSessionId = async (): Promise<void> => {
-		if (ctx.currentSessionId.get() !== null) return;
-		try {
-			const result = await server.server.elicitInput({
-				message: "Establishing Claude Code session association for vitest-agent",
-				requestedSchema: {
-					type: "object" as const,
-					properties: {
-						sessionId: {
-							type: "string" as const,
-							title: "Claude Code Session ID",
-							description: "The cc_session_id for this Claude Code window",
-						},
-					},
-					required: ["sessionId"],
-				},
-			});
-			if (result.action === "accept" && typeof result.content?.sessionId === "string") {
-				ctx.currentSessionId.set(result.content.sessionId);
-			}
-		} catch {
-			// Client does not support elicitation; id can be set via set_current_session_id
-		}
-	};
-
-	server.registerTool(
-		"get_current_session_id",
-		{
-			description:
-				"Get the Claude Code cc_session_id this MCP server is currently associated with. Automatically seeds the id via elicitation on first call when not yet set. Returns { currentSessionId: string | null }.",
-			inputSchema: {},
-		},
-		async () => {
-			await elicitSessionId();
-			return jsonResult(await caller.get_current_session_id({}));
+		async (args) => {
+			const data = await caller.commit_changes({ sha: args.sha });
+			const text = Schema.decodeSync(CommitChangesAsMarkdown)(data);
+			return structuredResult(text, data);
 		},
 	);
 
-	server.registerTool(
-		"set_current_session_id",
-		{
-			description:
-				"Associate this MCP server process with a Claude Code cc_session_id. Once set, session-aware tools default to this id when ccSessionId is omitted. Pass null to clear. Each Claude Code window has its own MCP server, so this association is per-window.",
-			inputSchema: {
-				id: z.union([z.string(), z.null()]).describe("Claude Code session id, or null to clear"),
-			},
-		},
-		async (args) => jsonResult(await caller.set_current_session_id({ id: args.id })),
-	);
+	// Note: get_current_session_id and set_current_session_id were removed
+	// in Phase 3 of the agent-agnostic taxonomy work. The session id is now
+	// recovered at MCP boot from process.env (CLAUDE_ENV_FILE auto-source
+	// from SessionStart) and stored on McpContext.sessionContext;
+	// session-aware tools consult that ref directly.
 
 	server.registerTool(
 		"ping",
 		{
-			description: "Ping the MCP server — returns 'pong'. Used to verify hot-patch reload.",
+			description:
+				"Ping the MCP server — returns 'pong'. Used to verify hot-patch reload. structuredContent.message carries the constant 'pong' literal.",
+			outputSchema: effectToZodSchema(PingResult) as never,
 		},
-		async () => textResult(await caller.ping()),
+		async () => {
+			const data = await caller.ping();
+			return structuredResult(data.message, data);
+		},
 	);
-
-	// Best-effort early seeding: fires after the MCP handshake completes.
-	// The hook system may not be ready this early; get_current_session_id
-	// serves as the reliable fallback if this no-ops.
-	server.server.oninitialized = () => {
-		void elicitSessionId();
-	};
 
 	registerAllResources(server);
 	registerAllPrompts(server);

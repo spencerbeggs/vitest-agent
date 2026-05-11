@@ -3,9 +3,9 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
-completeness: 90
+updated: 2026-05-11
+last-synced: 2026-05-11
+completeness: 92
 related:
   - ../architecture.md
   - ../components.md
@@ -156,3 +156,72 @@ rows themselves are retained** — only the turn log is pruned. Idempotent.
 `OutputPipelineLive`, `SqliteClient`, `Migrator`, `NodeContext`,
 `NodeFileSystem`, and `LoggerLive`. The bin uses `NodeRuntime.runMain` to
 execute against this composite.
+
+## `_internal` sidecar subcommand group
+
+`packages/cli/src/commands/internal.ts`. Hidden subcommand namespace
+invoked by the Claude Code plugin's POSIX-shell hooks. Not user-facing
+— every subcommand prints plain text on stdout that the bash hooks
+parse, and structured error info on stderr in the shape
+`<exit_code> <error_tag>: <message>`.
+
+Three subcommands:
+
+| Subcommand | Driven by | Purpose |
+| --- | --- | --- |
+| `register-agent` | SessionStart / SubagentStart hooks | Maps host session id and transcript path to canonical `conversation_id`/`main_agent_id`, captures git context via `RunContext`, calls `DataStore.registerAgent`, writes session-map rows. Emits JSON `{ agentId, conversationId, mainAgentId, idempotencyKey, idempotencyHit }` for the hook to parse with `jq` and re-export as `VITEST_AGENT_*` env. |
+| `end-agent` | SessionEnd / SubagentStop hooks | Sets `agents.ended_at`. When `--host-session-id` is passed, also sets `session_map.ended_at`; SubagentStop omits that flag to leave the main agent's session-map row open. |
+| `inject-env` | PreToolUse Bash hook | Pure command-rewriter. Reads `VITEST_AGENT_CONVERSATION_ID`/`_AGENT_ID`/optional `_PARENT_AGENT_ID` from env and `package.json#scripts` from cwd, runs `detectVitestScripts` (one-hop indirection), then `rewriteBashCommand` against five Vitest patterns. On match, prepends the canonical env prefix; on miss, echoes the original command unchanged. |
+
+Exit codes follow a fixed contract:
+
+- `0` — success
+- `1` — registration conflict
+- `2` — sidecar timeout
+- `3` — database error
+- `4` — `ProjectIdentityNotResolvableError` (no project identity from
+  any of the five fallback sources)
+- `5` — unexpected defect
+
+The sidecar resolves all three SQLite store paths from env at
+invocation time (per-project `data.db` under `$XDG_DATA_HOME`, per-client
+`sessions.db` under `${CLAUDE_PLUGIN_DATA}`, registry `registry.db` under
+`$XDG_DATA_HOME`) and uses `mkdirSync(..., { recursive: true })` to
+ensure every parent dir exists before SQLite opens the file. Path
+resolution does NOT depend on workspace-discovery, so the sidecar
+works in non-pnpm-workspace project shapes.
+
+## `SidecarLive` composition layer
+
+`packages/cli/src/layers/SidecarLive.ts`. Composes three SQLite scopes
+for the sidecar subcommands: per-project `data.db` (`DataStoreLive`,
+`DataReaderLive`), per-client `sessions.db`
+(`PerClientSessionMapLive`), and the global registry `registry.db`
+(`DiscoveryRegistryLive`). Each store gets its own `SqlClient`
+connection via three uniquely-tagged Sqlite client tags so the three
+DBs do not contend on a single connection. The bin's `runSidecar`
+helper wraps `Effect.provide(effect, SidecarLive(paths))` and
+`NodeRuntime.runMain`, sharing exit-code mapping logic across all
+three subcommands.
+
+## Hook-driven recording: `resolveSessionForRecording`
+
+`packages/cli/src/lib/resolve-session-for-recording.ts`. Shared
+session-resolution helper for hook-driven recording paths. Background:
+Claude Code can rotate `chat_id` mid-window (compaction, resume,
+network blip), and the same subagent invocation can produce
+`tdd_artifact` records spread across two cc-session prefixes. The
+helper walks parents — given any `chat_id`, it follows the
+`sessions.parent_session_id` chain until it finds the main row for
+the agent, so artifact and turn writes always land under the correct
+canonical `sessions.id`. Used by `record turn`, `record tdd-artifact`,
+and the `test-case-turns` backfill.
+
+## CLI flag rename (Phase 4)
+
+The `record` subcommand family renamed `--cc-session-id` to
+`--chat-id` and `--parent-cc-session-id` to `--parent-chat-id`
+to align with the agent-taxonomy nomenclature. The `wrapup` command's
+prior integer FK form moved to `--row-id` to free `--chat-id` for
+the host UUID. All plugin hook scripts (14 files) were updated in
+lockstep — pre-2.0 break, no shims.
