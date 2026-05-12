@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 100
 related:
   - ./decisions.md
@@ -20,6 +20,50 @@ a current decision's "Why this shape rather than the obvious alternative"
 section.
 
 For active decisions, see [./decisions.md](./decisions.md).
+
+---
+
+## Decision 9: Hybrid Console Strategy (Retired)
+
+**Superseded by:** [Decision 37 — Per-Executor Console Matrix +
+Streaming Reporter Tap](./decisions.md#decision-37-per-executor-console-matrix--streaming-reporter-tap)
+
+**Why retired:** the `strategy: "own" | "complement"` flag forced a
+single global choice about whether the plugin owned stdout or layered
+on top of Vitest's reporters. That single-axis choice could not express
+the realistic split where humans want a live Ink mount, agents want a
+markdown final frame, and CI wants GHA annotations all from the same
+`vitest.config.ts`. D37 replaced both `mode` and `strategy` with a
+per-executor matrix that resolves to a single `ConsoleMode` value at
+runtime; the `complement` state is now `console.{slot}: "passthrough"`
+and the `own` state is any of the non-`passthrough` modes.
+
+**What it was:** `AgentPluginOptions.strategy` accepted `"own"` or
+`"complement"` (default `"complement"`). `complement` layered the
+plugin on top of Vitest's built-in `agent` reporter without stripping
+reporters and only persisted to the database; `own` stripped console
+reporters, used the plugin's own formatter for stdout, and wrote its
+own GFM Step Summary. Paired with `mode: "agent" | "human" | "ci"`
+which selected which executor's defaults to apply globally.
+
+---
+
+## Decision 27: `consoleStrategy` Renamed to `strategy` (Retired)
+
+**Superseded by:** [Decision 37 — Per-Executor Console Matrix +
+Streaming Reporter Tap](./decisions.md#decision-37-per-executor-console-matrix--streaming-reporter-tap)
+
+**Why retired:** D27 was a rename inside the same single-flag design
+that D9 specified. When D37 retired the `strategy` flag entirely in
+favor of the `console.{human,agent,ci}` matrix, both the original
+`consoleStrategy` name and its rename `strategy` lost their referent.
+
+**What it was:** the `consoleStrategy` option was renamed to `strategy`
+on `AgentPluginOptions` because the option controlled the overall
+plugin/reporter interaction, not just console behavior — the `console`
+prefix was deemed redundant given the plugin context. Today the
+`console` prefix is back, this time as a per-executor object literal
+(`console: { human?, agent?, ci? }`), not a flat flag.
 
 ---
 

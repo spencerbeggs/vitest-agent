@@ -3,13 +3,16 @@
 Shared library for the
 [vitest-agent](https://github.com/spencerbeggs/vitest-agent)
 package family. Carries everything `vitest-agent-plugin`,
-`vitest-agent-reporter`, `vitest-agent-cli`, and `vitest-agent-mcp` need:
+`vitest-agent-reporter`, `vitest-agent-ui`, `vitest-agent-cli`, and
+`vitest-agent-mcp` need:
 
 - Effect schemas, error types, SQLite migrations
 - `DataStore` and `DataReader` services with their live + test layers
 - Output pipeline (`OutputRenderer`, `FormatSelector`, `DetailResolver`,
   `ExecutorResolver`, `EnvironmentDetector`)
 - Formatters (markdown, gfm, json, silent)
+- `RunEvent` and `RenderState` schemas consumed by `vitest-agent-ui`'s
+  reducer and live PubSub channel
 - `HistoryTracker`, `ProjectDiscovery`, classification utilities
 - XDG-based path resolution (`resolveDataPath`, `PathResolutionLive`,
   `ConfigLive`)

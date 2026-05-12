@@ -48,20 +48,43 @@ export const ConsoleOutputMode = Schema.Literal("failures", "full", "silent").an
 export type ConsoleOutputMode = typeof ConsoleOutputMode.Type;
 
 /**
- * Mode for the AgentPlugin environment detection.
+ * Console output choices per executor type.
+ *
+ * - `passthrough` — plugin emits nothing observable; Vitest's own reporters
+ *   do the visible work. Persistence still runs. Default for `human` and `ci`.
+ * - `silent` — strip Vitest's reporters AND emit nothing from the plugin.
+ *   True silence. Persistence still runs.
+ * - `agent` — markdown-flavored final-frame string tuned for token economy.
+ *   Default for `agent` executor. Set on `human` for debug previewing.
+ * - `ink` — Ink-mounted animated tree. Strips Vitest's reporters and owns
+ *   stdout for the duration of the run. Human executor only.
+ * - `ci-annotations` — GitHub Actions `::error::` annotations. Opt-in for
+ *   the `ci` executor; the matching dedicated emitter is not yet shipped,
+ *   so the default for `ci` is `passthrough` until it lands.
  */
-export const PluginMode = Schema.Literal("auto", "agent", "silent").annotations({
-	identifier: "PluginMode",
+export const HumanConsoleMode = Schema.Literal("passthrough", "silent", "ink", "agent").annotations({
+	identifier: "HumanConsoleMode",
 });
-export type PluginMode = typeof PluginMode.Type;
+export type HumanConsoleMode = typeof HumanConsoleMode.Type;
+
+export const AgentConsoleMode = Schema.Literal("passthrough", "silent", "agent").annotations({
+	identifier: "AgentConsoleMode",
+});
+export type AgentConsoleMode = typeof AgentConsoleMode.Type;
+
+export const CiConsoleMode = Schema.Literal("passthrough", "silent", "ci-annotations").annotations({
+	identifier: "CiConsoleMode",
+});
+export type CiConsoleMode = typeof CiConsoleMode.Type;
 
 /**
- * Console reporter strategy for AgentPlugin.
+ * Union of every legal console-output value across the three executor slots.
+ * Useful for type-narrowing in renderers that take the resolved value.
  */
-export const ConsoleStrategy = Schema.Literal("own", "complement").annotations({
-	identifier: "ConsoleStrategy",
+export const ConsoleMode = Schema.Union(HumanConsoleMode, AgentConsoleMode, CiConsoleMode).annotations({
+	identifier: "ConsoleMode",
 });
-export type ConsoleStrategy = typeof ConsoleStrategy.Type;
+export type ConsoleMode = typeof ConsoleMode.Type;
 
 /**
  * Supported package managers for run command generation.

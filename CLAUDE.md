@@ -14,18 +14,22 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `vitest-agent-reporter` | `packages/reporter/` | Named `VitestAgentReporterFactory` implementations (no Vitest-API code) |
 | `vitest-agent-cli` | `packages/cli/` | CLI bin (`vitest-agent`) |
 | `vitest-agent-mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
+| `vitest-agent-ui` | `packages/ui/` | Event-sourced renderer: `RunEvent`/`RenderState` re-export, reducer, agent + Ink renderers, PubSub channel, `createLiveInk` |
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
 
-The five publishable packages live under `packages/`. The `plugin/`
+The six publishable packages live under `packages/`. The `plugin/`
 directory at the repo root is a file-based Claude Code plugin (NOT a pnpm
 workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply
 to all workspaces. To scope commands to a specific package, use
 `--filter='./packages/<name>'`.
 
-The five packages release in lockstep; `vitest-agent-plugin` declares
+The six packages release in lockstep. `vitest-agent-plugin` declares
 `vitest-agent-reporter`, `vitest-agent-cli`, and `vitest-agent-mcp` as
-required `peerDependencies`, and all five pin `vitest-agent-sdk` at
-`workspace:*`.
+required `peerDependencies`; users wire `vitest-agent-ui` directly in
+`vitest.config.ts` (e.g. `reporter: eventSourcedReporter`,
+`onRunEvent: createLiveInk().event`). `vitest-agent-cli` consumes
+`vitest-agent-ui` for the `show` command. All six pin
+`vitest-agent-sdk` at `workspace:*`.
 
 **Legacy naming — watch out.** Pre-2.0 this whole system was one
 package, `vitest-agent-reporter`. The 2.0 split kept that name for the
@@ -58,7 +62,7 @@ for LLM coding agents. Six primary capabilities:
    extraction, and pluggable rendering via `VitestAgentReporterFactory`.
 2. **`vitest-agent` CLI** -- `@effect/cli`-based bin with `status`,
    `overview`, `coverage`, `history`, `trends`, `cache`, `doctor`, `record`,
-   `triage`, and `wrapup` subcommands. All commands support `--format`.
+   `show`, `triage`, and `wrapup` subcommands. All commands support `--format`.
 3. **Suggested actions & failure history** -- actionable suggestions in
    console output, per-test failure persistence, and test classification
    (`stable`, `new-failure`, `persistent`, `flaky`, `recovered`).
@@ -92,8 +96,8 @@ definitions. Schemas are re-exported from `vitest-agent-sdk` for consumer use.
   sub-doc covers a topic. This is the hub.
 - `@./.claude/design/vitest-agent/components/<package>.md`
   Per-package deep dives (`sdk.md`, `plugin.md`, `reporter.md`, `cli.md`,
-  `mcp.md`, `plugin-claude.md`). Load only the file for the package you
-  are touching.
+  `mcp.md`, `ui.md`, `plugin-claude.md`). Load only the file for the
+  package you are touching.
 - `@./.claude/design/vitest-agent/schemas.md`
   Load when working with TypeScript types, Effect Schema definitions, or
   the SQLite tables.
@@ -260,7 +264,7 @@ All commits require:
 
 ### Publishing
 
-The five packages publish to both GitHub Packages and npm with
+The six packages publish to both GitHub Packages and npm with
 provenance via the [@savvy-web/changesets](https://github.com/savvy-web/changesets)
 release workflow. Releases happen in lockstep.
 

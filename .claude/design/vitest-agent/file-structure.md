@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 90
 related:
   - ./architecture.md
@@ -13,6 +13,7 @@ related:
   - ./data-flows.md
   - ./decisions.md
   - ./components/sdk.md
+  - ./components/ui.md
 dependencies: []
 ---
 
@@ -24,16 +25,17 @@ reporter contract) see [./components/](./components/).
 
 ## Repo layout
 
-Source lives in five pnpm workspaces under `packages/`, plus the file-based
+Source lives in six pnpm workspaces under `packages/`, plus the file-based
 Claude Code plugin at `plugin/` (NOT a workspace) and the `examples/`
 integration target.
 
 ```text
 packages/
-  sdk/         vitest-agent-sdk (no internal deps)
-  plugin/      vitest-agent-plugin (depends on sdk; reporter+cli+mcp peer)
+  sdk/         vitest-agent-sdk (no internal deps; owns RunEvent + RenderState schemas)
+  plugin/      vitest-agent-plugin (depends on sdk; reporter+cli+mcp peer; streaming hooks + onRunEvent tap)
   reporter/    vitest-agent-reporter (depends on sdk; named factories)
-  cli/         vitest-agent-cli (bin: vitest-agent)
+  ui/          vitest-agent-ui (depends on sdk; reducer + agent renderer + Ink tree + eventSourcedReporter + createLiveInk)
+  cli/         vitest-agent-cli (bin: vitest-agent; show command routes through ui)
   mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; spawned by plugin)
 
 examples/

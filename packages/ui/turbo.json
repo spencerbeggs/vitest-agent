@@ -1,0 +1,62 @@
+{
+	"$schema": "https://turborepo.com/schema.v2.json",
+	"extends": ["//"],
+	"tasks": {
+		"build:dev": {
+			"cache": true,
+			"dependsOn": ["types:check"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-lock.yaml",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"!**/*.test.ts",
+				"!**/*.test.tsx",
+				"!**/*.spec.ts",
+				"!**/*.spec.tsx",
+				"!**/*.md",
+				"package.json",
+				"rslib.config.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "full",
+			"outputs": ["dist/dev/**", ".rslib/declarations/dev/**"]
+		},
+		"build:prod": {
+			"cache": true,
+			"dependsOn": ["types:check"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-lock.yaml",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"!**/*.test.ts",
+				"!**/*.test.tsx",
+				"!**/*.spec.ts",
+				"!**/*.spec.tsx",
+				"!**/*.md",
+				"package.json",
+				"rslib.config.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "full",
+			"outputs": ["dist/npm/**", ".rslib/declarations/npm/**"]
+		},
+		"types:check": {
+			"cache": true,
+			"dependsOn": ["^build:dev"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-lock.yaml",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"!**/*.md",
+				"package.json",
+				"rslib.config.ts",
+				"tsconfig.json"
+			],
+			"outputLogs": "errors-only",
+			"outputs": ["dist/.tsbuildinfo.lib"]
+		}
+	}
+}

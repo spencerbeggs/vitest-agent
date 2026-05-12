@@ -56,9 +56,9 @@ describe("AgentReporterOptions format/detail/mode", () => {
 		expect(opts.detail).toBe("verbose");
 	});
 
-	it("accepts mode option", () => {
-		const opts = Schema.decodeUnknownSync(AgentReporterOptions)({ mode: "agent" });
-		expect(opts.mode).toBe("agent");
+	it("accepts consoleMode option", () => {
+		const opts = Schema.decodeUnknownSync(AgentReporterOptions)({ consoleMode: "agent" });
+		expect(opts.consoleMode).toBe("agent");
 	});
 
 	it("accepts logLevel option", () => {
@@ -80,8 +80,8 @@ describe("AgentPluginOptions", () => {
 
 	it("decodes a fully specified object", () => {
 		const input = {
-			mode: "agent",
-			strategy: "own",
+			console: { human: "ink", agent: "agent", ci: "ci-annotations" },
+			githubSummary: true,
 			reporterOptions: {
 				cacheDir: "/tmp/cache",
 				omitPassingTests: true,
@@ -94,17 +94,23 @@ describe("AgentPluginOptions", () => {
 			},
 		};
 		const result = Schema.decodeUnknownSync(AgentPluginOptions)(input);
-		expect(result.mode).toBe("agent");
-		expect(result.strategy).toBe("own");
+		expect(result.console?.human).toBe("ink");
+		expect(result.console?.agent).toBe("agent");
+		expect(result.console?.ci).toBe("ci-annotations");
+		expect(result.githubSummary).toBe(true);
 		expect(result.reporterOptions?.cacheDir).toBe("/tmp/cache");
 	});
 
-	it("rejects invalid mode value", () => {
-		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ mode: "manual" })).toThrow();
+	it("rejects an invalid human console value", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ console: { human: "manual" } })).toThrow();
 	});
 
-	it("rejects invalid strategy value", () => {
-		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ strategy: "both" })).toThrow();
+	it("rejects ink in the agent slot (humans only)", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ console: { agent: "ink" } })).toThrow();
+	});
+
+	it("rejects ci-annotations in the human slot", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ console: { human: "ci-annotations" } })).toThrow();
 	});
 });
 

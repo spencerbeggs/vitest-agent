@@ -3,9 +3,10 @@
 The no-internal-deps base package. Owns the data layer, schemas, errors,
 migrations, services, layers, formatters, the XDG path-resolution stack,
 the process-level migration coordinator, the public reporter contract types,
-and the shared `lib/` markdown generators. The plugin, reporter, CLI, and
-MCP packages all depend on this package; changes to its public exports
-ripple to all four runtimes.
+the `RunEvent` / `RenderState` schemas consumed by `vitest-agent-ui`, and
+the shared `lib/` markdown generators. The plugin, reporter, CLI, MCP, and
+UI packages all depend on this package; changes to its public exports
+ripple to all five runtimes.
 
 ## Layout
 
@@ -13,9 +14,13 @@ ripple to all four runtimes.
 src/
   index.ts            -- public re-exports (only entry point)
   contracts/          -- public reporter contract types
-  services/           -- 10 Effect Context.Tag definitions
+  services/           -- 14 Effect Context.Tag definitions
   layers/             -- live + test layer implementations
   schemas/            -- Effect Schema definitions
+    RunEvent.ts       -- discriminated union of streaming run events
+                         consumed by `vitest-agent-ui`'s reducer
+    RenderState.ts    -- denormalized projection of a RunEvent stream;
+                         the shape both renderers consume
     turns/            -- TurnPayload discriminated union (7 variants)
   errors/             -- tagged errors (DataStore, Discovery, Tdd, ...)
   formatters/         -- markdown, gfm, json, silent, ci-annotations
@@ -51,11 +56,11 @@ src/
 ## Conventions
 
 - **No internal deps.** Never import from `vitest-agent-plugin`,
-  `vitest-agent-reporter`, `vitest-agent-cli`, or `vitest-agent-mcp`.
-  Keeps the dependency graph acyclic by construction.
+  `vitest-agent-reporter`, `vitest-agent-cli`, `vitest-agent-mcp`, or
+  `vitest-agent-ui`. Keeps the dependency graph acyclic by construction.
 - **Public-API-by-default.** Anything exported from `index.ts` is part
-  of the contract used by all four runtime packages. Adding or removing
-  exports needs to be considered against all four consumers.
+  of the contract used by all five runtime packages. Adding or removing
+  exports needs to be considered against all five consumers.
 - **Three external Effect-ecosystem deps unique to this package:**
   `xdg-effect`, `config-file-effect`, `workspaces-effect`. Don't add
   these to the runtime packages; consume the resolved layers/services
@@ -96,9 +101,9 @@ src/
   ALTER-only migrations (Decision D9). SQLite uses WAL +
   `busy_timeout`; multi-project test runs share one DB. Verify against
   `ensureMigrated.test.ts`.
-- Renaming a public export: search all four runtime packages
+- Renaming a public export: search all five runtime packages
   (`packages/plugin`, `packages/reporter`, `packages/cli`,
-  `packages/mcp`) before committing.
+  `packages/mcp`, `packages/ui`) before committing.
 - Adding a new turn payload type: add the `Schema.Struct` to
   `schemas/turns/`, extend the `TurnPayload` discriminated union in
   `schemas/turns/index.ts`, AND add the new `type` literal to the

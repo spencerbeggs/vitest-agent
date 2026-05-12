@@ -1,0 +1,13 @@
+Failures
+✗ packages/example/src/very-deeply/nested/component/SomeReallyLongName.test.ts >
+ SomeReallyLongName > behavior > edge cases > produces the expected output for
+an extremely long assertion message [new-failure]
+  expected the long-running assertion to match the equally-long expected value,
+but it did not match because the inputs differed
+  - the quick brown fox jumps over the lazy dog repeatedly across the field
+  + the quick brown fox jumps over the lazy cat repeatedly across the field
+  AssertionError: expected the long-running assertion to match
+      at Suite.<anonymous> (packages/example/src/very-deeply/nested/component/So
+meReallyLongName.test.ts:42:5)
+      at processTicksAndRejections (node:internal/process/task_queues:96:5)
+      at runMicrotasks (<anonymous>)

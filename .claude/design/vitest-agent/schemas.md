@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 90
 related:
   - ./architecture.md
@@ -12,6 +12,7 @@ related:
   - ./data-flows.md
   - ./decisions.md
   - ./components/sdk.md
+  - ./components/ui.md
 dependencies: []
 ---
 
@@ -36,12 +37,20 @@ shape looks like at runtime and at compile time. See
 [./decisions.md](./decisions.md) for the rationale (D5).
 
 The Common schema literals (`Environment`, `Executor`, `OutputFormat`,
-`DetailLevel`) live in `packages/sdk/src/schemas/Common.ts`. The MCP server's
-tRPC `McpContext` (carrying a `ManagedRuntime` over `DataReader | DataStore |
+`DetailLevel`, plus the three per-executor `*ConsoleMode` literals and
+their union `ConsoleMode`) live in
+`packages/sdk/src/schemas/Common.ts`. The MCP server's tRPC `McpContext`
+(carrying a `ManagedRuntime` over `DataReader | DataStore |
 ProjectDiscovery | OutputRenderer`) is defined in
 `packages/mcp/src/context.ts`. Formatter types (`Formatter`,
 `FormatterContext`, `RenderedOutput`) live in
-`packages/sdk/src/formatters/types.ts`.
+`packages/sdk/src/formatters/types.ts`. The `RunEvent` discriminated
+union and the `RenderState` reducer projection live in
+`packages/sdk/src/schemas/RunEvent.ts` and
+`packages/sdk/src/schemas/RenderState.ts`; both are re-exported by
+`vitest-agent-ui` for convenience. See
+[./components/ui.md](./components/ui.md) for the taxonomy and the
+reducer.
 
 ## Reporter contract
 
@@ -415,17 +424,35 @@ For full DDL, see the migration files; do not duplicate them here.
 
 ## Console output format (rendered shape)
 
-The default reporter prints to `process.stdout` via the markdown formatter,
-which uses the `ansi()` helper that no-ops when `NO_COLOR` is set. The
-formatter source at `packages/sdk/src/formatters/markdown.ts` is canonical.
+Visible output is controlled by the per-executor console matrix on
+`AgentPluginOptions.console` (schema: `ConsoleOutputs` in
+`packages/sdk/src/schemas/Options.ts`). The plugin auto-detects the
+executor and resolves a single `ConsoleMode` value from the matching
+slot:
 
-Three modes controlled by `consoleOutput`:
+- `passthrough` — plugin emits nothing observable; Vitest's own
+  reporters do the visible work. Persistence still runs. Default for
+  `human` and `ci`.
+- `silent` — strip Vitest's reporters AND emit nothing from the plugin.
+  Persistence still runs.
+- `agent` — markdown-flavored final-frame string tuned for token economy
+  (the `vitest-agent-ui` agent renderer or the legacy markdown
+  formatter, depending on which factory is wired). Default for `agent`.
+- `ink` — Ink-mounted animated tree from `vitest-agent-ui`'s
+  `createLiveInk`. Strips Vitest's reporters and owns stdout for the
+  duration of the run. Driven by the plugin's `onRunEvent` tap.
+  Available only on the `human` slot.
+- `ci-annotations` — GitHub Actions workflow-command annotations.
+  Available only on the `ci` slot.
 
-- `"failures"` (default) — tiered output based on run health
-- `"full"` — same tiered format, includes passing test details
-- `"silent"` — no console output, database only
+`ConsoleOutputMode` (`"failures" | "full" | "silent"`) is the legacy
+reporter-internal verbosity knob still exposed on `AgentReporterOptions`.
+The bundled markdown / terminal / silent / ci-annotations reporters in
+`vitest-agent-reporter` still read it; the new `eventSourcedReporter`
+from `vitest-agent-ui` dispatches on `kit.config.consoleMode` instead and
+ignores `consoleOutput`.
 
-The output uses three tiers based on run health:
+The legacy markdown formatter uses three tiers based on run health:
 
 - **Green** (all pass, targets met) — minimal one-line summary
 - **Yellow** (pass but below targets) — improvements needed plus CLI hint
@@ -434,7 +461,9 @@ The output uses three tiers based on run health:
   `[persistent]` / `[recovered]` classification labels alongside failing test
   names
 
-Examples drift; the formatter source is canonical.
+Examples drift; the formatter source is canonical
+(`packages/sdk/src/formatters/markdown.ts` for the legacy path,
+`packages/ui/src/render-agent.ts` for the event-sourced agent renderer).
 
 ## Error handling
 

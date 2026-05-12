@@ -5,7 +5,36 @@
  */
 
 import { Schema } from "effect";
-import { ConsoleOutputMode, ConsoleStrategy, DetailLevel, OutputFormat, PluginMode } from "./Common.js";
+import {
+	AgentConsoleMode,
+	CiConsoleMode,
+	ConsoleMode,
+	ConsoleOutputMode,
+	DetailLevel,
+	HumanConsoleMode,
+	OutputFormat,
+} from "./Common.js";
+
+/**
+ * Per-executor console-output matrix. Most users never set this — the
+ * built-in defaults cover the common cases. Override per slot when you
+ * want to force a specific layout for debugging or to suppress one
+ * channel without affecting the others.
+ *
+ * Defaults:
+ * - `human` → `"passthrough"` today; users opt into `"ink"` explicitly
+ *   alongside wiring `createLiveInk` via `onRunEvent`.
+ * - `agent` → `"agent"` (markdown-flavored final frame).
+ * - `ci` → `"passthrough"` (Vitest's reporters produce log-friendly
+ *   output). `"ci-annotations"` is opt-in until the dedicated GHA
+ *   annotations writer ships.
+ */
+export const ConsoleOutputs = Schema.Struct({
+	human: Schema.optional(HumanConsoleMode),
+	agent: Schema.optional(AgentConsoleMode),
+	ci: Schema.optional(CiConsoleMode),
+}).annotations({ identifier: "ConsoleOutputs" });
+export type ConsoleOutputs = typeof ConsoleOutputs.Type;
 
 /**
  * Configuration options for AgentReporter.
@@ -20,10 +49,11 @@ export const AgentReporterOptions = Schema.Struct({
 	coverageConsoleLimit: Schema.optional(Schema.Number),
 	includeBareZero: Schema.optional(Schema.Boolean),
 	githubActions: Schema.optional(Schema.Boolean),
+	githubSummary: Schema.optional(Schema.Boolean),
 	githubSummaryFile: Schema.optional(Schema.String),
 	format: Schema.optional(OutputFormat),
 	detail: Schema.optional(DetailLevel),
-	mode: Schema.optional(PluginMode),
+	consoleMode: Schema.optional(ConsoleMode),
 	logLevel: Schema.optional(Schema.String),
 	logFile: Schema.optional(Schema.String),
 	mcp: Schema.optional(Schema.Boolean),
@@ -34,12 +64,12 @@ export type AgentReporterOptions = typeof AgentReporterOptions.Type;
 /**
  * Configuration options for AgentPlugin.
  *
- * The plugin manages `consoleOutput` and `githubActions` automatically,
- * so those fields are omitted from the reporter options.
+ * The plugin manages `consoleOutput` automatically — users control
+ * visible output via {@link ConsoleOutputs}.
  */
 export const AgentPluginOptions = Schema.Struct({
-	mode: Schema.optional(PluginMode),
-	strategy: Schema.optional(ConsoleStrategy),
+	console: Schema.optional(ConsoleOutputs),
+	githubSummary: Schema.optional(Schema.Boolean),
 	format: Schema.optional(OutputFormat),
 	logLevel: Schema.optional(Schema.String),
 	logFile: Schema.optional(Schema.String),

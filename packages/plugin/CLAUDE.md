@@ -1,6 +1,6 @@
 # vitest-agent-plugin
 
-The Vitest plugin (`agentPlugin()`) and internal `AgentReporter` Vitest-API
+The Vitest plugin (`AgentPlugin()`) and internal `AgentReporter` Vitest-API
 class. Owns the Vitest lifecycle hooks, persistence, classification,
 baseline/trend computation, and delegates rendering to a user-supplied
 `VitestAgentReporterFactory`. Declares `vitest-agent-reporter`,
@@ -26,7 +26,9 @@ src/
     capture-env.ts             -- CI/GITHUB_* env capture
     capture-settings.ts        -- Vitest config snapshot + hash
     resolve-thresholds.ts      -- coverage threshold parser
-    strip-console-reporters.ts -- own-mode console reporter strip
+    strip-console-reporters.ts -- strips Vitest's reporters whenever the
+                                   resolved consoleMode owns stdout
+                                   (anything other than passthrough)
     vitest-project.ts          -- VitestProject builder class
     discover-projects.ts       -- async workspace project scanner
     tag.ts                     -- Tag class + factory
@@ -38,7 +40,7 @@ src/
 
 | File | Purpose |
 | ---- | ------- |
-| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + cacheDir + coverage options; suppresses Vitest's coverage table in agent/own mode; injects `AgentReporter` per project via `configureVitest`. Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, and `discover()` |
+| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + executor + console matrix → single `ConsoleMode` value; strips Vitest reporters and suppresses Vitest's coverage table whenever the resolved mode owns stdout (any value other than `passthrough`); gates the `onRunEvent` tap to `ink` mode only; injects `AgentReporter` per project via `configureVitest`. Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, and `discover()` |
 | `reporter.ts` | Internal `AgentReporter` class. `onInit` resolves `dbPath` async; `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline, then calls `opts.reporter(kit)` and routes `RenderedOutput[]` |
 | `services/CoverageAnalyzer.ts` | Effect service tag for coverage processing. Only lives here because the reporter lifecycle class feeds it coverage data; CLI/MCP read pre-processed coverage from SQLite |
 | `utils/process-failure.ts` | Per-error signature pipeline. Called from `onTestRunEnd` for each error before `DataStore.writeErrors`. Returns `frames: StackFrameInput[]` and `signatureHash` |
@@ -96,9 +98,9 @@ project per workspace package; test-kind shaping now happens through
 ## Conventions
 
 - **No standalone `AgentReporter` export.** The class is an internal
-  implementation detail constructed by `agentPlugin()`. Don't export it.
+  implementation detail constructed by `AgentPlugin()`. Don't export it.
   Users who want custom rendering implement `VitestAgentReporterFactory`
-  and pass it as `reporterFactory` to `agentPlugin()`.
+  and pass it as `reporterFactory` to `AgentPlugin()`.
 - **Per-call layer construction is fine here.** The reporter runs
   `Effect.runPromise` in `onTestRunEnd` with `ReporterLive(dbPath)` inline.
   This is appropriate because the reporter runs briefly per test suite.
@@ -154,10 +156,65 @@ project per workspace package; test-kind shaping now happens through
   `github-summary` (append to the configured summary file), `file`
   (reserved no-op).
 - `strip-console-reporters.ts` removes `default`, `verbose`, `tree`,
-  `dot`, `tap`, `tap-flat`, `hanging-process`, `agent` reporters in
-  own mode. Custom reporters (class instances, file paths) and
-  non-console built-ins (`json`, `junit`, `html`, `blob`,
-  `github-actions`) are preserved.
+  `dot`, `tap`, `tap-flat`, `hanging-process`, `agent` reporters
+  whenever the resolved `consoleMode` owns stdout (anything other
+  than `passthrough`). Custom reporters (class instances, file
+  paths) and non-console built-ins (`json`, `junit`, `html`,
+  `blob`, `github-actions`) are preserved.
+
+## Console matrix and the onRunEvent tap
+
+The pre-2.0 `mode` + `strategy` options are gone. Console output is
+now controlled by a per-executor matrix at `AgentPluginOptions.console`:
+
+```ts
+AgentPlugin({
+  console: {
+    human?:  "passthrough" | "silent" | "ink" | "agent",
+    agent?:  "passthrough" | "silent" | "agent",
+    ci?:     "passthrough" | "silent" | "ci-annotations",
+  },
+  reporter?: VitestAgentReporterFactory,
+  onRunEvent?: (event: RunEvent) => void,
+  githubSummary?: boolean,
+})
+```
+
+The plugin auto-detects the executor (`human`/`agent`/`ci`) via
+`EnvironmentDetector`, looks up the matching slot, and resolves a
+single `ConsoleMode` value. Per-slot defaults:
+
+- `human` → `passthrough` (Vitest's own reporters do visible work)
+- `agent` → `agent` (markdown-flavored final-frame string)
+- `ci` → `passthrough` (Vitest's reporters produce log-friendly output)
+
+Two derived decisions follow from the resolved mode:
+
+1. **Stdout ownership.** Any non-`passthrough` value strips Vitest's
+   reporters and suppresses Vitest's native coverage text reporter.
+   The plugin owns stdout for the run.
+2. **Live tap gating.** `onRunEvent` is forwarded to `AgentReporter`
+   only when `consoleMode === "ink"`. Other modes (`silent`,
+   `passthrough`, `agent`, `ci-annotations`) suppress the tap so a
+   live `createLiveInk` mount cannot leak into channels the user
+   explicitly opted out of. This is load-bearing — users wire
+   `onRunEvent: live.event` in `vitest.config.ts` once and expect
+   `silent` mode to actually be silent.
+
+Tests for the gating contract live in `__test__/plugin.test.ts`
+under "onRunEvent tap gating".
+
+### `AgentReporter`'s streaming callbacks
+
+`AgentReporter` now implements the Vitest streaming hooks
+(`onTestRunStart`, `onTestModuleQueued`, `onTestModuleStart`,
+`onTestCaseResult`, `onTestModuleEnd`) alongside the existing
+`onInit`/`onCoverage`/`onTestRunEnd` trio. Each callback constructs a
+`RunEvent` and fires `options.onRunEvent` (when set). `onTestRunEnd`
+also fires `RunFinished` at the top of the persistence pipeline so
+the live mount sees end-of-run before the heavy persistence work
+runs. Throwing taps are caught and logged to stderr — persistence
+never breaks because a live renderer has a bug.
 
 ## Design references
 

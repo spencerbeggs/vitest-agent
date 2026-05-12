@@ -113,7 +113,7 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
 - **Three external runtime deps unique here:**
   `@modelcontextprotocol/sdk`, `@trpc/server`, `zod`. zod is for
   tRPC tool input schemas only -- domain data structures still use
-  Effect Schema (from `-shared`). Don't conflate the two.
+  Effect Schema (from `vitest-agent-sdk`). Don't conflate the two.
 - **Tool output conventions:**
   - Meta + read-only + discovery tools: return markdown via
     `OutputRenderer`.

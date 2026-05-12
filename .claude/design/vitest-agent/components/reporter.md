@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-06
-last-synced: 2026-05-06
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 90
 related:
   - ../architecture.md
@@ -12,6 +12,7 @@ related:
   - ../decisions.md
   - ./plugin.md
   - ./sdk.md
+  - ./ui.md
 dependencies: []
 ---
 
@@ -28,6 +29,13 @@ where.
 
 The plugin declares this package as a required `peerDependency` so the default
 reporter is always available alongside `agentPlugin()`.
+
+Sibling package `vitest-agent-ui` ships the alternative
+`eventSourcedReporter` factory built on top of the `RunEvent` taxonomy
+and the shared reducer; both factories satisfy the same
+`VitestAgentReporterFactory` contract and users pick which one to wire
+via `AgentPlugin({ reporter })`. See [./ui.md](./ui.md) for the
+event-sourced renderer.
 
 For the contract types (`VitestAgentReporterFactory`, `VitestAgentReporter`,
 `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`) see

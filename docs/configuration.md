@@ -15,10 +15,10 @@ export default async () => {
   return defineConfig({
     plugins: [
       AgentPlugin({
-        mode: "auto",
+        console: { human: "passthrough", agent: "agent", ci: "passthrough" },
         coverageThresholds: { lines: 80, branches: 80 },
         coverageTargets: { lines: 95, branches: 90 },
-        reporter: {
+        reporterOptions: {
           coverageConsoleLimit: 5,
         },
       }),
@@ -28,44 +28,122 @@ export default async () => {
 };
 ```
 
-### `mode`
+### `console`
+
+The pre-2.0 `mode` and `strategy` (a.k.a. `consoleStrategy`) options are
+gone. Console output is now controlled by a per-executor matrix. The plugin
+auto-detects the executor (`human`, `agent`, or `ci`) via `EnvironmentDetector`,
+looks up the matching slot, and resolves a single `ConsoleMode` value.
+
+```typescript
+AgentPlugin({
+  console: {
+    human?: "passthrough" | "silent" | "ink" | "agent",
+    agent?: "passthrough" | "silent" | "agent",
+    ci?:    "passthrough" | "silent" | "ci-annotations",
+  },
+});
+```
+
+Per-slot defaults:
+
+| Slot | Default | Rationale |
+| --- | --- | --- |
+| `human` | `"passthrough"` | Vitest's own reporters do the visible work |
+| `agent` | `"agent"` | Markdown-flavored final-frame string |
+| `ci` | `"passthrough"` | Vitest's reporters produce log-friendly output |
+
+Available `ConsoleMode` values:
 
 | Value | Behavior |
 | --- | --- |
-| `"auto"` (default) | Detect environment from env vars -- agent, CI, or human |
-| `"agent"` | Force agent mode: suppress built-in reporters, show markdown |
-| `"silent"` | Force silent mode: database only, no console output |
+| `"passthrough"` | Vitest's reporters keep ownership of stdout; the plugin emits no console output |
+| `"silent"` | Plugin strips Vitest's reporters and emits nothing |
+| `"agent"` | Plugin strips Vitest's reporters and emits the markdown-flavored agent string |
+| `"ink"` | Plugin strips Vitest's reporters and renders the live React Ink view (drive via `onRunEvent` — see below) |
+| `"ci-annotations"` | Plugin strips Vitest's reporters and emits GitHub Actions annotations |
 
-When `mode` is `"auto"`, the plugin checks environment variables to determine
-the runtime context. See [Agent Detection](#agent-detection) for the full
-list.
+Two derived behaviors fall out of the resolved mode:
 
-### `strategy`
+1. **Stdout ownership.** Any non-`"passthrough"` value strips Vitest's
+   built-in console reporters (`default`, `verbose`, `tree`, `dot`, `tap`,
+   `tap-flat`, `hanging-process`, `agent`) and suppresses Vitest's native
+   coverage text reporter. Non-console reporters (`json`, `junit`, `html`,
+   `blob`, `github-actions`) and any custom reporters you've registered
+   are preserved.
+2. **`onRunEvent` gating.** The plugin only forwards `onRunEvent` to the
+   internal reporter when the resolved mode is `"ink"`. Other modes
+   suppress the tap so a live Ink mount cannot leak into a channel the
+   user explicitly opted out of.
 
-| Value | Behavior |
-| --- | --- |
-| `"complement"` (default) | Layer on top of Vitest's built-in reporters; does not strip console reporters |
-| `"own"` | Strip built-in console reporters and take over console output entirely |
+### `onRunEvent`
 
-Controls how `AgentPlugin` interacts with existing reporters in the chain.
-`"complement"` is additive -- it keeps Vitest's built-in reporters and adds
-database persistence. `"own"` removes console reporters and uses the agent
-formatter exclusively.
+Live event tap. The plugin forwards every per-test and per-module `RunEvent`
+to this callback as the run progresses; hosts drive a live renderer from
+here. Pair with `console.<slot>: "ink"` and the `createLiveInk` helper from
+`vitest-agent-ui`:
 
-This option was previously named `consoleStrategy`. The old name is still
-accepted for backward compatibility and mapped internally.
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { createLiveInk } from "vitest-agent-ui";
+import { defineConfig } from "vitest/config";
+
+const live = createLiveInk();
+
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [
+      AgentPlugin({
+        console: { human: "ink" },
+        onRunEvent: live.event,
+      }),
+    ],
+    test: { projects, tags, pool: "forks" },
+  });
+};
+```
+
+Throwing taps are caught and logged to stderr — persistence never breaks
+because a live renderer has a bug. When the resolved mode is anything other
+than `"ink"`, the plugin drops `onRunEvent` silently.
+
+### `reporter`
+
+Optional `VitestAgentReporterFactory`. Defaults to `defaultReporter` from
+`vitest-agent-reporter`, which selects a formatter based on `kit.config.format`
+and adds the GitHub Summary sidecar under GitHub Actions. To use the
+event-sourced renderer end-to-end (the same path the live Ink view rides),
+pass `eventSourcedReporter` from `vitest-agent-ui`:
+
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { eventSourcedReporter } from "vitest-agent-ui";
+
+AgentPlugin({
+  console: { agent: "agent" },
+  reporter: eventSourcedReporter,
+});
+```
+
+`eventSourcedReporter` emits the agent string when `consoleMode === "agent"`
+and emits nothing for `"ink"`, `"ci-annotations"`, `"silent"`, and
+`"passthrough"` (the channels that own the visible work themselves).
 
 ### `format`
 
+`format` is an opt-in formatter override for the default reporter factory.
+When unset, the plugin derives it from the resolved console mode. Most
+users never set this; prefer `console` instead.
+
 | Value | Behavior |
 | --- | --- |
-| `"markdown"` | Structured markdown output (default for agents) |
+| `"markdown"` | Structured markdown output |
+| `"terminal"` | Terminal-flavored output (the default for `"agent"` and `"ink"` modes) |
 | `"json"` | JSON output |
-| `"vitest-bypass"` | Let Vitest's built-in reporters handle console output |
+| `"vitest-bypass"` | Defer to Vitest's reporters (the default for `"passthrough"`) |
 | `"silent"` | No console output |
-
-When not set, the format is automatically selected based on the detected
-environment and executor.
+| `"ci-annotations"` | GitHub Actions annotations |
 
 ### `logLevel`
 
@@ -110,11 +188,12 @@ Vitest-native threshold format (per-metric, per-glob). Failures below a threshol
 
 Aspirational coverage goals (same format as `coverageThresholds`). Falling below a target produces a "yellow" hint — not a failure. See [Coverage Targets](#coverage-targets).
 
-### `reporter`
+### `reporterOptions`
 
-Nested reporter options passed through to `AgentReporter`. The plugin manages
-console output and GitHub Actions detection automatically based on environment
-detection, so those fields are not available through the plugin interface.
+Nested reporter options passed through to the internal `AgentReporter`. The
+plugin manages console output and GitHub Actions detection automatically
+based on environment detection, so those fields are not available through
+the plugin interface.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -515,7 +594,11 @@ npx vitest-agent trends
 
 ## Console Output Modes
 
-The `consoleOutput` option controls what the reporter prints to stdout.
+`consoleOutput` is a `AgentReporter`-internal knob controlling the
+verbosity of the agent string. The plugin sets it automatically based on the
+resolved `console` mode and run health, and most users do not need to touch
+it. When using `AgentReporter` directly (without the plugin), the available
+values are:
 
 ### `"failures"` (default)
 
@@ -533,30 +616,34 @@ listings.
 No console output. Data is still written to the SQLite database. GFM
 output is still produced when in GitHub Actions.
 
-This is the mode used automatically when the plugin detects a human
-developer or CI environment.
+## Forcing a Specific Console Mode
 
-## Environment Detection Override
-
-The `mode` option on `AgentPlugin` overrides automatic detection:
+There is no global "force agent" toggle in 2.0. Override the per-slot value
+directly on the resolved executor to take ownership of console output:
 
 ```typescript
-// Always act as if an agent is running
-AgentPlugin({ mode: "agent" })
+// Always emit the agent markdown frame on a human terminal
+AgentPlugin({ console: { human: "agent" } })
 
-// Always suppress console output
-AgentPlugin({ mode: "silent" })
+// Always suppress console output for CI runs
+AgentPlugin({ console: { ci: "silent" } })
+
+// Wire the live Ink view to every executor
+AgentPlugin({ console: { human: "ink", agent: "ink", ci: "ink" }, onRunEvent: live.event })
 ```
 
-This is useful for:
+Useful for:
 
-- **Testing the reporter** -- force agent mode to see markdown output
-- **CI pipelines** -- force silent mode when you only want database persistence
-- **Custom tooling** -- agents not yet in the detection list
+- **Reviewing agent output locally** — force `human: "agent"` to see the
+  markdown frame from a regular terminal.
+- **Persistence-only CI pipelines** — set `ci: "silent"` when you only want
+  data in SQLite (the GFM summary still writes when `githubSummary` is on).
+- **Custom tooling** — pin a slot to a specific mode for agents the
+  `EnvironmentDetector` does not yet classify.
 
 ## Agent Detection
 
-When `mode` is `"auto"`, the plugin uses
+The `EnvironmentDetector` uses
 [std-env](https://github.com/nicolo-ribaudo/std-env) for agent detection.
 The following environment variables are checked (list maintained by
 `std-env` and may expand as new agents are added):

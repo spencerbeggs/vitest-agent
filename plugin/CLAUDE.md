@@ -1,6 +1,6 @@
 # Claude Code Plugin — `plugin/`
 
-This directory is a **file-based Claude Code plugin**. It is **not** a pnpm workspace and is **not** published to npm. It ships separately alongside the five npm packages and is distributed through the Claude marketplace.
+This directory is a **file-based Claude Code plugin**. It is **not** a pnpm workspace and is **not** published to npm. It ships separately alongside the six npm packages and is distributed through the Claude marketplace.
 
 ## Identity and distribution
 
@@ -200,7 +200,7 @@ The dogfood system was the primary development driver for the hook and agent beh
   the tdd-task agent, the MCP loader, the dogfood loop, or `context:fork`
   semantics.
 - `@./.claude/design/vitest-agent/architecture.md`
-  Load when you need an overview of how the plugin fits with the five npm
+  Load when you need an overview of how the plugin fits with the six npm
   packages and the MCP server.
 - `@./.claude/design/vitest-agent/decisions.md`
   Load when you need the rationale behind hook design, evidence binding,

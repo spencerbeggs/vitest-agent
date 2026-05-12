@@ -44,12 +44,13 @@ npm install vitest-agent-plugin
 
 Modern pnpm and npm auto-install the required peer dependencies
 (`vitest-agent-reporter` for the renderer factories,
-`vitest-agent-cli` for the CLI bin and
-`vitest-agent-mcp` for the MCP server bin). If your package
-manager is configured to skip peers, install them explicitly:
+`vitest-agent-ui` for the shared event-sourced renderer + live React Ink
+view, `vitest-agent-cli` for the CLI bin, and `vitest-agent-mcp` for the
+MCP server bin). If your package manager is configured to skip peers,
+install them explicitly:
 
 ```bash
-pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-cli vitest-agent-mcp
+pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-ui vitest-agent-cli vitest-agent-mcp
 ```
 
 Add `AgentPlugin` to your Vitest config with coverage thresholds and
@@ -303,14 +304,42 @@ cacheDir = "./.vitest-agent-reporter"
 
 ### Package split (peers auto-install)
 
-The package family is now five packages — `vitest-agent` (the Vitest plugin and
-lifecycle), `vitest-agent-reporter` (named renderer factory implementations),
+The package family is now six packages — `vitest-agent-plugin` (the Vitest
+plugin and lifecycle), `vitest-agent-reporter` (named renderer factory
+implementations), `vitest-agent-ui` (the shared event-sourced renderer with
+React Ink view and the `createLiveInk` / `eventSourcedReporter` exports),
 `vitest-agent-sdk` (the shared library), `vitest-agent-cli` (the CLI bin),
-and `vitest-agent-mcp` (the MCP server bin). The reporter, CLI and MCP
-packages are required peer dependencies of `vitest-agent`, auto-installed
-by pnpm and npm 7+. If your package manager skips peers, install them
-explicitly. The `vitest-agent-mcp` bin name is unchanged; the CLI
-bin was renamed from `vitest-agent-reporter` to `vitest-agent`.
+and `vitest-agent-mcp` (the MCP server bin). The reporter, ui, CLI, and MCP
+packages are required peer dependencies of `vitest-agent-plugin`,
+auto-installed by pnpm and npm 7+. If your package manager skips peers,
+install them explicitly. The `vitest-agent-mcp` bin name is unchanged; the
+CLI bin was renamed from `vitest-agent-reporter` to `vitest-agent`.
+
+### Console matrix replaces `mode` and `strategy` (breaking)
+
+The pre-2.0 `mode` (`"auto" | "agent" | "silent"`) and `strategy` /
+`consoleStrategy` (`"complement" | "own"`) options are gone. Console output
+is now controlled by a per-executor matrix at `AgentPlugin({ console: { … } })`:
+
+```typescript
+AgentPlugin({
+  console: {
+    human?: "passthrough" | "silent" | "ink" | "agent",
+    agent?: "passthrough" | "silent" | "agent",
+    ci?:    "passthrough" | "silent" | "ci-annotations",
+  },
+});
+```
+
+The plugin auto-detects the executor (`human` / `agent` / `ci`) via
+`EnvironmentDetector` and resolves a single `ConsoleMode` value from the
+matching slot. Per-slot defaults: `human` → `"passthrough"`, `agent` →
+`"agent"`, `ci` → `"passthrough"`. Any non-`"passthrough"` value strips
+Vitest's console reporters and gives the plugin ownership of stdout (this
+replaces the old `strategy: "own"`). To opt into the live React Ink view,
+set the slot you want to `"ink"` and wire the new `onRunEvent` tap to
+`createLiveInk` from `vitest-agent-ui`. See
+[Configuration > `console`](../docs/configuration.md#console).
 
 ### `AgentReporter.onInit` is now async
 

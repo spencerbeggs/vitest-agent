@@ -18,7 +18,14 @@
 
 import type { RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
-import type { DetailLevel, Environment, Executor, OutputFormat, TestClassification } from "../schemas/Common.js";
+import type {
+	ConsoleMode,
+	DetailLevel,
+	Environment,
+	Executor,
+	OutputFormat,
+	TestClassification,
+} from "../schemas/Common.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 
 /**
@@ -38,14 +45,26 @@ import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 export interface ResolvedReporterConfig {
 	readonly dbPath?: string;
 	readonly projectFilter?: string;
-	readonly mode: "auto" | "agent" | "silent";
+	/**
+	 * The executor the plugin detected at run time (`human`, `agent`, `ci`).
+	 * Renderers branch on this when their per-mode behavior depends on the
+	 * observer (e.g. honoring `NO_COLOR` only when a human is watching).
+	 */
 	readonly executor: Executor;
+	/**
+	 * The {@link ConsoleMode} value the plugin selected for the active
+	 * executor — the result of looking up `console.{executor}` and falling
+	 * back to the per-slot default. Renderers that need to know "what am I
+	 * supposed to produce right now?" read this single field.
+	 */
+	readonly consoleMode: ConsoleMode;
 	readonly mcp: boolean;
 	readonly consoleOutput: "failures" | "full" | "silent";
 	readonly omitPassingTests: boolean;
 	readonly coverageConsoleLimit: number;
 	readonly includeBareZero: boolean;
 	readonly githubActions: boolean;
+	readonly githubSummary: boolean;
 	readonly githubSummaryFile?: string;
 	readonly coverageThresholds?: ResolvedThresholds;
 	readonly coverageTargets?: ResolvedThresholds;

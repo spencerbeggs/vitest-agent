@@ -1,0 +1,12 @@
+Tests: 1/2 passed, 1 failed (500ms)
+
+Failures:
+- src/network.test.ts > network > retries [flaky]
+  ECONNRESET
+
+Modules:
+- src/network.test.ts: 1 passed, 1 failed
+
+Actions:
+- info: Re-run the flaky network test (tool: run_tests)
+  src/network.test.ts > network > retries failed once but other transient calls recovered

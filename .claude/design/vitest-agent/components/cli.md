@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-11
-last-synced: 2026-05-11
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 92
 related:
   - ../architecture.md
@@ -13,6 +13,7 @@ related:
   - ./sdk.md
   - ./mcp.md
   - ./plugin-claude.md
+  - ./ui.md
 dependencies: []
 ---
 
@@ -68,11 +69,20 @@ Commands fall into two functional groups:
 
 **Read commands** — query cached data from the SQLite database. `status`,
 `overview`, `coverage`, `history`, `trends`, `cache` (with `path`,
-`clean`, `prune` subcommands), `doctor`, `triage`, `wrapup`. All support
-`--format` for output format selection. Each command file under
+`clean`, `prune` subcommands), `doctor`, `triage`, `wrapup`, `show`. All
+support `--format` for output format selection. Each command file under
 `commands/` is a thin wrapper over the matching `lib/format-*.ts`
 function — the formatting logic is testable in isolation without the
 `@effect/cli` runtime.
+
+The `show` command is the visible bridge from the CLI to the
+event-sourced renderer. `vitest-agent show --project <name> --format
+auto|agent|human|json` pulls the latest `AgentReport` via
+`DataReader.getLatestRun`, routes it through
+`synthesizeFromAgentReport` + `renderRun` from `vitest-agent-ui`, and
+prints the result. The `auto` format selects `human` (Ink) for TTY stdout
+and `agent` (markdown-flavored string) otherwise. See
+[./ui.md](./ui.md) for the synthesizer and renderer details.
 
 **Record commands** — write data, driven by plugin hook scripts. The
 `record` subcommand dispatches to `turn`, `session-start`, `session-end`,

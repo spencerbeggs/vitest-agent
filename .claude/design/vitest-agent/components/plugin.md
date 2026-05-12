@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-11
-last-synced: 2026-05-11
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 90
 related:
   - ../architecture.md
@@ -13,6 +13,7 @@ related:
   - ../data-structures.md
   - ./sdk.md
   - ./reporter.md
+  - ./ui.md
 dependencies: []
 ---
 
@@ -61,26 +62,47 @@ filters `testModules` to its own project before persistence and rendering.
 Coverage dedup runs by alphabetical project ordering: only the first project
 processes the global `CoverageMap`, others skip to avoid double-counting.
 
-**Console-reporter stripping.** In `agent`/`own` mode, the plugin strips
-Vitest's built-in console reporters (`default`, `verbose`, `tree`, `dot`,
-`tap`, `tap-flat`, `hanging-process`, `agent`) from the chain. Custom
-reporters and non-console built-ins (`json`, `junit`, `html`, `blob`,
-`github-actions`) are preserved.
+**Console matrix → `ConsoleMode` resolution.** The plugin reads
+`options.console.{human,agent,ci}` (the per-executor matrix from
+`AgentPluginOptions`), looks up the slot matching the detected executor,
+and resolves a single `ConsoleMode` value. Per-slot defaults: `human →
+passthrough`, `agent → agent`, `ci → passthrough`. The pre-2.0 `mode` and
+`strategy` options are gone — see [../decisions-retired.md](../decisions-retired.md)
+for the retired entries.
 
-**Naming note.** The constructor accepts the rendering hook as
-`reporterFactory` because `options.reporter` is already a config bag carrying
-`cacheDir`, `coverageThresholds`, `coverageTargets`, etc. The two slots are
-deliberately separate.
+**Console-reporter stripping.** Whenever the resolved `consoleMode` owns
+stdout (any value other than `passthrough`), the plugin strips Vitest's
+built-in console reporters (`default`, `verbose`, `tree`, `dot`, `tap`,
+`tap-flat`, `hanging-process`, `agent`) from the chain and zeroes
+`coverage.reporter` to suppress Vitest's native coverage text table.
+Custom reporters and non-console built-ins (`json`, `junit`, `html`,
+`blob`, `github-actions`) are preserved.
+
+**`onRunEvent` tap gating.** The plugin accepts an optional
+`onRunEvent: (event: RunEvent) => void` callback for hosts that want a
+live view. The tap is forwarded to `AgentReporter` **only when the
+resolved `consoleMode === "ink"`**. Every other mode renders statically
+(`agent`, `ci-annotations`) or asked for silence (`passthrough`,
+`silent`); forwarding the tap regardless would leak a live Ink mount
+into channels the user explicitly opted out of. Tests for the gating
+contract live in `packages/plugin/__test__/plugin.test.ts` under
+"onRunEvent tap gating".
+
+**GitHub Step Summary.** Independent of `consoleMode`. Defaults on under
+GitHub Actions (`env === "ci-github" && consoleMode !== "silent"`); the
+user can force it via `githubSummary: true|false`.
 
 ## AgentReporter (internal Vitest-API class)
 
 `packages/plugin/src/reporter.ts`. Internal lifecycle class — constructed by
 `AgentPlugin`, never exported as a public API. Standalone reporter consumers
-go through the named factories in `vitest-agent-reporter`.
+go through the named factories in `vitest-agent-reporter` or
+`vitest-agent-ui`.
 
-The class's job is the persistence pipeline; rendering is delegated.
+The class's job is the persistence pipeline plus the live event stream;
+end-of-run rendering is delegated to the configured factory.
 
-**Lifecycle:**
+**Lifecycle hooks:**
 
 - `onInit` resolves `dbPath`. If `options.cacheDir` is set, the helper
   short-circuits to `<cacheDir>/data.db` — skipping the heavy XDG/workspace
@@ -88,7 +110,20 @@ The class's job is the persistence pipeline; rendering is delegated.
   `resolveDataPath(process.cwd())` and memoizes on `this.dbPath`. On
   rejection, prints `formatFatalError(err)` to stderr and returns early.
 - `onCoverage` stashes coverage data; fires before `onTestRunEnd`.
-- `onTestRunEnd` is the load-bearing hook. See below.
+- `onTestRunEnd` is the load-bearing hook for persistence and end-of-run
+  rendering. See below.
+
+**Streaming hooks (for the live tap).** When `options.onRunEvent` is set,
+the reporter also implements Vitest's per-event streaming callbacks
+(`onTestRunStart`, `onTestModuleQueued`, `onTestModuleStart`,
+`onTestCaseResult`, `onTestModuleEnd`). Each callback constructs the
+matching `RunEvent` variant (`RunStarted`, `ModuleQueued`, `ModuleStarted`,
+`TestFinished`, `ModuleFinished`) and forwards it to the tap. `onTestRunEnd`
+also fires `RunFinished` at the top of its handler so the live mount sees
+end-of-run before the heavy persistence work runs. Throwing taps are
+caught and logged to stderr — persistence never breaks because a live
+renderer has a bug. When `onRunEvent` is undefined the streaming
+callbacks short-circuit immediately, so the no-tap path pays no cost.
 
 **`onTestRunEnd` flow:**
 

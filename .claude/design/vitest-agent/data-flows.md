@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 90
 related:
   - ./architecture.md
@@ -15,6 +15,7 @@ related:
   - ./components/cli.md
   - ./components/mcp.md
   - ./components/plugin-claude.md
+  - ./components/ui.md
 dependencies: []
 ---
 
@@ -47,10 +48,23 @@ async onInit(vitest)
   |             NodeContext.layer
   |           (XDG-keyed by workspace identity)
 
+Streaming hooks (active only when options.onRunEvent is set)
+  onTestRunStart        -> RunStarted     -> onRunEvent(event)
+  onTestModuleQueued    -> ModuleQueued   -> onRunEvent(event)
+  onTestModuleStart     -> ModuleStarted  -> onRunEvent(event)
+  onTestCaseResult      -> TestFinished   -> onRunEvent(event)
+  onTestModuleEnd       -> ModuleFinished -> onRunEvent(event)
+  Throwing taps are caught and logged to stderr; persistence never
+  breaks because a live renderer has a bug. When onRunEvent is undefined
+  the streaming callbacks short-circuit immediately.
+
 onCoverage(coverage)
   +-- stash as this.coverage
 
 async onTestRunEnd(testModules, unhandledErrors, reason)
+  |
+  +-- Fire RunFinished -> onRunEvent (when set) before persistence so
+  |   the live mount sees end-of-run before the heavy work runs
   |
   +-- dbPath = await ensureDbPath()  (defensive — tests can bypass onInit)
   |     on rejection: stderr.write(formatFatalError(err)) and return
@@ -125,21 +139,43 @@ a `shouldWriteGfm` block.
 Owned by `vitest-agent-plugin`. Async, runs before reporters are
 instantiated. See [./components/plugin.md](./components/plugin.md).
 
-- `EnvironmentDetector.detect()` -> environment;
-  `ExecutorResolver.resolve(env, mode)` -> executor role.
-- Resolve `cacheDir` from `options.reporter.cacheDir` ??
-  `outputFile["vitest-agent-reporter"]` (otherwise `undefined`, leaving XDG
+- `EnvironmentDetector.detect()` -> environment; `envToExecutor(env)`
+  maps to the executor role (`human` / `agent` / `ci`). The plugin
+  computes the mapping inline (instead of going through
+  `ExecutorResolver`) so `configureVitest` does not have to spin up an
+  Effect runtime for the lookup; the `ExecutorResolverLive` service is
+  retained in the SDK at a simplified env-only shape for downstream
+  callers that already run inside an Effect program.
+- Resolve `consoleMode` from `options.console.{executor}` with per-slot
+  defaults (`human → passthrough`, `agent → agent`, `ci → passthrough`).
+  Compute `format` for the legacy bundled reporters from `consoleMode`.
+- Resolve `cacheDir` from `options.reporterOptions.cacheDir` ??
+  `outputFile["vitest-agent"]` (otherwise `undefined`, leaving XDG
   resolution to `AgentReporter.ensureDbPath`).
 - Resolve coverage thresholds + targets; disable Vitest's native `autoUpdate`
   if targets are set.
-- In agent/own mode, set `coverage.reporter = []` to suppress Vitest's text
-  table.
-- Resolve the `VitestAgentReporterFactory` from `options.reporterFactory`
-  (default `defaultReporter`) and pass it through to the internal
-  `AgentReporter` so the factory is invoked once per run with the resolved
-  `ReporterKit` (Flow 1).
-- Push a new `AgentReporter` (with `projectFilter: project.name` and
-  `reporter: <resolved factory>`) into `vitest.config.reporters`.
+- When `consoleMode !== "passthrough"` (the plugin owns stdout): strip
+  Vitest's built-in console reporters AND set `coverage.reporter = []`
+  to suppress Vitest's text coverage table. Otherwise the chain is left
+  intact and the plugin contributes only persistence-driven side
+  channels.
+- Resolve `githubSummary` (default on under GHA when `consoleMode !==
+  "silent"`); the plugin emits a `RenderedOutput` for the Step Summary
+  file independent of the console mode.
+- Resolve the `VitestAgentReporterFactory` from `options.reporter`
+  (default `defaultReporter` from `vitest-agent-reporter`; the new
+  `eventSourcedReporter` from `vitest-agent-ui` is the alternative) and
+  pass it through to the internal `AgentReporter` so the factory is
+  invoked once per run with the resolved `ReporterKit` (Flow 1).
+- Forward `options.onRunEvent` to the reporter **only when `consoleMode
+  === "ink"`** so the live tap cannot leak into channels the user
+  explicitly opted out of (`silent`, `passthrough`, `agent`,
+  `ci-annotations`).
+- Push a new `AgentReporter` (with `projectFilter: project.name`,
+  `reporter: <resolved factory>`, optional `onRunEvent`, and
+  `consoleMode`) into `vitest.config.reporters`. A `WeakSet` keyed on
+  the Vitest reference ensures exactly one aggregating reporter per
+  Vitest run even when `configureVitest` fires once per project.
 
 ## Flow 3: CLI commands
 

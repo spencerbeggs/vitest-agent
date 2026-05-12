@@ -1,0 +1,3 @@
+Tests: 1/1 passed (80ms)
+
+1 module all-passed.
