@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-11
-last-synced: 2026-05-11
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 95
 related:
   - ../architecture.md
@@ -15,6 +15,7 @@ related:
   - ./reporter.md
   - ./cli.md
   - ./mcp.md
+  - ./ui.md
 dependencies: []
 ---
 
@@ -61,8 +62,11 @@ The shared package owns the services every runtime needs:
 - **DataReader** — reads test data from SQLite. See *DataReader* below.
 - **EnvironmentDetector** — wraps `std-env` for four-environment detection
   (`agent-shell`, `terminal`, `ci-github`, `ci-generic`).
-- **ExecutorResolver** — maps environment + plugin mode to executor role
-  (`human`, `agent`, `ci`).
+- **ExecutorResolver** — maps environment to executor role (`human`,
+  `agent`, `ci`). Simplified to env-only mapping when the per-executor
+  console matrix landed; the plugin's `configureVitest` computes the
+  same mapping inline to avoid spinning up an Effect runtime, and the
+  service is kept for downstream callers that already run inside one.
 - **FormatSelector** — selects output format from executor role and any
   explicit override. The optional `environment` parameter exists for the
   `ci-github` branch alone (auto-selecting `ci-annotations`).
@@ -219,7 +223,7 @@ encode/decode.
 
 | File | Contents |
 | ---- | -------- |
-| `Common.ts` | Shared literals (`TestState`, `Environment`, `Executor`, `OutputFormat`, `DetailLevel`, etc.) |
+| `Common.ts` | Shared literals (`TestState`, `Environment`, `Executor`, `OutputFormat`, `DetailLevel`, `HumanConsoleMode`, `AgentConsoleMode`, `CiConsoleMode`, and the union `ConsoleMode`) |
 | `AgentReport.ts` | The test-run report shape and its constituents |
 | `Coverage.ts` | Coverage report shapes |
 | `Thresholds.ts` | Coverage threshold and resolved-threshold shapes |
@@ -227,7 +231,9 @@ encode/decode.
 | `Trends.ts` | Coverage trend shapes |
 | `CacheManifest.ts` | Cache manifest shapes (legacy file-based manifest discovery) |
 | `CoverageLevel.ts` | `CoverageLevel` Effect Schema class with five named presets (`none`, `basic`, `standard`, `strict`, `full`), `.withPerFile()` builder, and `.extend({})` override method. Also exports `CoverageLevelName`, `CoverageInput`, `resolveCoverageInput`, and `validateCoverageConfig` |
-| `Options.ts` | `AgentReporterOptions`, `AgentPluginOptions`, `CoverageOptions`, `FormatterOptions`. `AgentPluginOptions` carries top-level `coverageThresholds` and `coverageTargets` fields (type `Schema.Unknown`) in addition to `reporterOptions` |
+| `Options.ts` | `AgentReporterOptions`, `AgentPluginOptions`, `CoverageOptions`, `FormatterOptions`, and the per-executor `ConsoleOutputs` matrix (`{ human?, agent?, ci? }`). `AgentPluginOptions` carries top-level `console`, `githubSummary`, `coverageThresholds` and `coverageTargets` fields (type `Schema.Unknown` for the coverage pair) in addition to `reporterOptions` |
+| `RunEvent.ts` | Discriminated union over the 11 `RunEvent` variants (`RunStarted`, `ModuleQueued`, `ModuleStarted`, `TestStarted`, `TestFinished`, `ModuleFinished`, `CoverageReady`, `ThresholdViolation`, `FailureClassified`, `SuggestedAction`, `RunFinished`). Fed by the plugin's streaming callbacks and consumed by `vitest-agent-ui`'s reducer |
+| `RenderState.ts` | The projected shape the `vitest-agent-ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`). Both the agent string renderer and the Ink tree read this shape |
 | `History.ts` | `TestRun`, `TestHistory`, `HistoryRecord` |
 | `Config.ts` | `VitestAgentConfig` for the optional `vitest-agent.config.toml`. Both fields (`cacheDir?`, `projectKey?`) are optional; absence falls back to deriving the path from the workspace's `package.json` `name` |
 | `Tdd.ts` | Application-level (camelCase) shapes for the three-tier hierarchy: `GoalStatus`/`BehaviorStatus`, `GoalRow`, `BehaviorRow`, `GoalDetail`, `BehaviorDetail`. SQL row shapes (snake_case) live in `sql/rows.ts`; these are the API shapes |

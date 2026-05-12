@@ -8,12 +8,13 @@ Monorepo for developing the `vitest-agent` package family — a Vitest reporter 
 | --- | --- | --- |
 | `vitest-agent-plugin` | [packages/plugin](./packages/plugin/) | Vitest plugin + lifecycle (`AgentPlugin`, `AgentReporter`, `CoverageAnalyzer`) |
 | `vitest-agent-reporter` | [packages/reporter](./packages/reporter/) | Named renderer factory implementations |
+| `vitest-agent-ui` | [packages/ui](./packages/ui/) | Shared event-sourced renderer: `renderRun`, `createLiveInk`, `eventSourcedReporter`, React Ink components, `RunEvent` PubSub channel |
 | `vitest-agent-sdk` | [packages/sdk](./packages/sdk/) | Shared schemas, data layer, services, formatters, utilities |
 | `vitest-agent-cli` | [packages/cli](./packages/cli/) | `vitest-agent` CLI bin |
 | `vitest-agent-mcp` | [packages/mcp](./packages/mcp) | `vitest-agent-mcp` MCP server bin |
 | `playground` | [playground](./playground/) | Dogfooding sandbox — intentionally imperfect code for agent demos |
 
-`vitest-agent-sdk` has no internal dependencies. The other four runtime packages each depend on it. `vitest-agent-plugin` declares `vitest-agent-reporter`, the CLI and MCP packages as required peer dependencies, so a single `npm install vitest-agent-plugin` pulls all four on modern pnpm and npm.
+`vitest-agent-sdk` has no internal dependencies. The other five runtime packages each depend on it. `vitest-agent-plugin` declares `vitest-agent-reporter`, `vitest-agent-ui`, the CLI, and MCP packages as required peer dependencies, so a single `npm install vitest-agent-plugin` pulls them all on modern pnpm and npm.
 
 ## Plugin
 
@@ -60,7 +61,10 @@ pnpm exec vitest-agent status
 pnpm exec vitest-agent history
 pnpm exec vitest-agent trends
 pnpm exec vitest-agent doctor
+pnpm exec vitest-agent show --project <name> --format auto
 ```
+
+`vitest-agent show` replays the latest cached run through the shared event-sourced renderer in `vitest-agent-ui`, picking the React Ink view for an interactive TTY (`--format auto`) and the markdown-flavored agent string otherwise. Pass `--format agent`, `--format human`, or `--format json` to force a specific output.
 
 ## Testing the Claude Code plugin locally
 

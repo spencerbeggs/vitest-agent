@@ -11,7 +11,14 @@
  * @internal
  */
 
-import type { Environment, Executor, OutputFormat, ReporterKit, ResolvedReporterConfig } from "vitest-agent-sdk";
+import type {
+	ConsoleMode,
+	Environment,
+	Executor,
+	OutputFormat,
+	ReporterKit,
+	ResolvedReporterConfig,
+} from "vitest-agent-sdk";
 import { osc8 } from "vitest-agent-sdk";
 
 export interface BuildReporterKitInput {
@@ -20,13 +27,14 @@ export interface BuildReporterKitInput {
 	readonly format: OutputFormat;
 	readonly detail: ResolvedReporterConfig["detail"];
 	readonly noColor: boolean;
-	readonly mode: "auto" | "agent" | "silent";
+	readonly consoleMode: ConsoleMode;
 	readonly mcp: boolean;
 	readonly consoleOutput: "failures" | "full" | "silent";
 	readonly omitPassingTests: boolean;
 	readonly coverageConsoleLimit: number;
 	readonly includeBareZero: boolean;
 	readonly githubActions: boolean;
+	readonly githubSummary: boolean;
 	readonly dbPath?: string;
 	readonly projectFilter?: string;
 	readonly githubSummaryFile?: string;
@@ -37,14 +45,15 @@ export interface BuildReporterKitInput {
 
 export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
 	const config: ResolvedReporterConfig = {
-		mode: input.mode,
 		executor: input.executor,
+		consoleMode: input.consoleMode,
 		mcp: input.mcp,
 		consoleOutput: input.consoleOutput,
 		omitPassingTests: input.omitPassingTests,
 		coverageConsoleLimit: input.coverageConsoleLimit,
 		includeBareZero: input.includeBareZero,
 		githubActions: input.githubActions,
+		githubSummary: input.githubSummary,
 		format: input.format,
 		detail: input.detail,
 		noColor: input.noColor,

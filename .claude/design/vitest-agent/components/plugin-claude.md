@@ -17,7 +17,7 @@ dependencies: []
 # Claude Code Plugin (`plugin/`)
 
 The Claude Code plugin at `plugin/` is the primary AI integration surface for the
-vitest-agent system. The five npm packages collect and store data; this plugin
+vitest-agent system. The six npm packages collect and store data; this plugin
 turns that data into agent behavior — through hook scripts, a TDD orchestrator
 subagent, sub-skill primitives, slash commands, and an MCP loader.
 

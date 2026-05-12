@@ -2,9 +2,10 @@
 
 Named `VitestAgentReporterFactory` implementations only. No Vitest-API code,
 no lifecycle hooks, no persistence. Each factory receives a `ReporterKit`
-from `vitest-agent` and returns one or more `VitestAgentReporter`s whose
-synchronous `render(input)` method produces `RenderedOutput[]`. The plugin
-(`vitest-agent`) concatenates those outputs and routes them by target.
+from `vitest-agent-plugin` and returns one or more `VitestAgentReporter`s
+whose synchronous `render(input)` method produces `RenderedOutput[]`. The
+plugin (`vitest-agent-plugin`) concatenates those outputs and routes them
+by target.
 
 ## Layout
 
@@ -35,7 +36,7 @@ src/
 ## Conventions
 
 - **No Vitest-API imports.** This package must not import `vitest` or
-  `vitest/node`. Vitest lifecycle belongs in `vitest-agent`.
+  `vitest/node`. Vitest lifecycle belongs in `vitest-agent-plugin`.
 - **No Effect services.** `render(input)` is synchronous. No
   `Effect.runPromise`, no service tags, no layers.
 - **`VitestAgentReporterFactory` contract.** Each export is a factory
@@ -44,7 +45,7 @@ src/
   `ReporterRenderInput`, `RenderedOutput`) live in `vitest-agent-sdk`.
 - **Custom reporters via factory.** Users who want different output
   write their own `VitestAgentReporterFactory` and pass it as
-  `reporterFactory` to `agentPlugin()` from `vitest-agent`. They do
+  `reporterFactory` to `AgentPlugin()` from `vitest-agent-plugin`. They do
   not extend classes from this package.
 - **Backward-compat re-exports.** `index.ts` re-exports schemas from
   `vitest-agent-sdk` so 1.x consumers importing
@@ -58,7 +59,7 @@ src/
   `RenderedOutput` entry. Add the export to `index.ts`.
 - Changing `defaultReporter` composition: keep the factory logic in
   `default.ts`. Format selection and GitHub Actions detection are the
-  *opinions* this package owns; don't push them into `vitest-agent`.
+  *opinions* this package owns; don't push them into `vitest-agent-plugin`.
 - `_kit-context.ts` is private by convention (leading underscore).
   Don't export it from `index.ts`.
 - Tests for factory logic go in `src/*.test.ts` next to each factory.

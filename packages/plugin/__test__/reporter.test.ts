@@ -339,7 +339,7 @@ describe("AgentReporter", () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
 				format: "markdown",
-				mode: "agent",
+				consoleMode: "agent",
 			});
 			const stdoutSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 

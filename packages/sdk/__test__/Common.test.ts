@@ -1,14 +1,16 @@
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
+	AgentConsoleMode,
+	CiConsoleMode,
+	ConsoleMode,
 	ConsoleOutputMode,
-	ConsoleStrategy,
 	DetailLevel,
 	Environment,
 	Executor,
+	HumanConsoleMode,
 	OutputFormat,
 	PackageManager,
-	PluginMode,
 	ReportError,
 	TestClassification,
 	TestRunReason,
@@ -63,27 +65,54 @@ describe("ConsoleOutputMode", () => {
 	});
 });
 
-describe("PluginMode", () => {
+describe("HumanConsoleMode", () => {
 	it("accepts valid values", () => {
-		for (const value of ["auto", "agent", "silent"]) {
-			expect(Schema.decodeUnknownSync(PluginMode)(value)).toBe(value);
+		for (const value of ["passthrough", "silent", "ink", "agent"]) {
+			expect(Schema.decodeUnknownSync(HumanConsoleMode)(value)).toBe(value);
 		}
 	});
 
 	it("rejects invalid values", () => {
-		expect(() => Schema.decodeUnknownSync(PluginMode)("manual")).toThrow();
+		expect(() => Schema.decodeUnknownSync(HumanConsoleMode)("ci-annotations")).toThrow();
+		expect(() => Schema.decodeUnknownSync(HumanConsoleMode)("manual")).toThrow();
 	});
 });
 
-describe("ConsoleStrategy", () => {
+describe("AgentConsoleMode", () => {
 	it("accepts valid values", () => {
-		for (const value of ["own", "complement"]) {
-			expect(Schema.decodeUnknownSync(ConsoleStrategy)(value)).toBe(value);
+		for (const value of ["passthrough", "silent", "agent"]) {
+			expect(Schema.decodeUnknownSync(AgentConsoleMode)(value)).toBe(value);
 		}
 	});
 
 	it("rejects invalid values", () => {
-		expect(() => Schema.decodeUnknownSync(ConsoleStrategy)("other")).toThrow();
+		expect(() => Schema.decodeUnknownSync(AgentConsoleMode)("ink")).toThrow();
+		expect(() => Schema.decodeUnknownSync(AgentConsoleMode)("ci-annotations")).toThrow();
+	});
+});
+
+describe("CiConsoleMode", () => {
+	it("accepts valid values", () => {
+		for (const value of ["passthrough", "silent", "ci-annotations"]) {
+			expect(Schema.decodeUnknownSync(CiConsoleMode)(value)).toBe(value);
+		}
+	});
+
+	it("rejects invalid values", () => {
+		expect(() => Schema.decodeUnknownSync(CiConsoleMode)("ink")).toThrow();
+		expect(() => Schema.decodeUnknownSync(CiConsoleMode)("agent")).toThrow();
+	});
+});
+
+describe("ConsoleMode", () => {
+	it("accepts every per-slot value", () => {
+		for (const value of ["passthrough", "silent", "ink", "agent", "ci-annotations"]) {
+			expect(Schema.decodeUnknownSync(ConsoleMode)(value)).toBe(value);
+		}
+	});
+
+	it("rejects unknown values", () => {
+		expect(() => Schema.decodeUnknownSync(ConsoleMode)("manual")).toThrow();
 	});
 });
 

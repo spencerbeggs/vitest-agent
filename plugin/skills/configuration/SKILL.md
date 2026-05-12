@@ -20,10 +20,15 @@ export default defineConfig({
       // Output format: "markdown" | "json" | "vitest-bypass" | "silent"
       format: "markdown",
 
-      // Mode: "auto" | "agent" | "silent"
-      mode: "auto",
+      // Per-executor console matrix. The plugin auto-detects the
+      // executor (human, agent, ci) and picks the matching slot.
+      console: {
+        human: "passthrough",   // Vitest's reporters render
+        agent: "agent",         // markdown final-frame string
+        ci: "passthrough",      // Vitest's reporters render
+      },
 
-      reporter: {
+      reporterOptions: {
         // Coverage thresholds (Vitest-native format)
         coverageThresholds: {
           lines: 80,
@@ -54,7 +59,8 @@ export default defineConfig({
 | Option | Default | Description |
 | ------ | ------- | ----------- |
 | `format` | `"markdown"` | Output format for console |
-| `mode` | `"auto"` | Executor detection mode |
+| `console` | `{}` | Per-executor matrix (`human`/`agent`/`ci`) controlling visible output |
+| `onRunEvent` | none | Live event tap; gated to `console.human: "ink"` mode |
 | `coverageThresholds` | `{}` | Enforced minimums (fail build) |
 | `coverageTargets` | none | Aspirational goals (informational) |
 | `autoUpdate` | `true` | Auto-ratchet baselines |
@@ -71,8 +77,8 @@ database. Settings are captured on each test run.
 ```typescript
 AgentPlugin({
   format: "markdown",
-  mode: "agent",
-  reporter: {
+  console: { agent: "agent" },
+  reporterOptions: {
     coverageThresholds: { lines: 90, branches: 85 },
   },
 })
@@ -83,6 +89,21 @@ AgentPlugin({
 ```typescript
 AgentPlugin({
   format: "vitest-bypass",
-  mode: "auto",
+  console: { human: "passthrough" },
+})
+```
+
+### Live Ink animation for humans
+
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { createLiveInk, eventSourcedReporter } from "vitest-agent-ui";
+
+const live = createLiveInk();
+
+AgentPlugin({
+  console: { human: "ink", agent: "agent" },
+  reporter: eventSourcedReporter,
+  onRunEvent: live.event,   // fires only when human resolves to ink
 })
 ```

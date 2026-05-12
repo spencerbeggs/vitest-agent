@@ -28,41 +28,49 @@ pnpm run test
 
 ## Project Structure
 
-This is a pnpm monorepo with five publishable packages under `packages/`
+This is a pnpm monorepo with six publishable packages under `packages/`
 and a Claude Code plugin under `plugin/`.
 
 ```text
 vitest-agent/
 ├── packages/
-│   ├── plugin/                 # vitest-agent (Vitest plugin + lifecycle)
+│   ├── plugin/                 # vitest-agent-plugin (Vitest plugin + lifecycle)
 │   │   └── src/
-│   │       ├── index.ts            # Public API (AgentPlugin, AgentReporter)
-│   │       ├── reporter.ts         # AgentReporter class
-│   │       ├── plugin.ts           # AgentPlugin function
+│   │       ├── index.ts            # Public API (AgentPlugin)
+│   │       ├── reporter.ts         # Internal AgentReporter class
+│   │       ├── plugin.ts           # AgentPlugin factory + namespace
 │   │       └── layers/             # ReporterLive, CoverageAnalyzerLive
 │   ├── reporter/               # vitest-agent-reporter (named renderer factories)
 │   │   └── src/
 │   │       ├── index.ts            # Re-exports for named factories
 │   │       └── *.ts                # defaultReporter, markdownReporter, etc.
+│   ├── ui/                     # vitest-agent-ui (event-sourced renderer)
+│   │   └── src/
+│   │       ├── index.ts            # renderRun, createLiveInk, eventSourcedReporter
+│   │       ├── reducer.ts          # Pure (state, event) => state
+│   │       ├── render-agent.ts     # Markdown-flavored final-frame string
+│   │       ├── render-ink/         # React Ink components
+│   │       ├── pubsub/             # RunEvent PubSub channel
+│   │       └── factory/            # EventSourcedReporterFactory, LiveInkRenderer
 │   ├── sdk/                    # vitest-agent-sdk (data layer + services)
 │   │   └── src/
-│   │       ├── schemas/            # Effect Schema definitions
+│   │       ├── schemas/            # Effect Schema definitions (RunEvent, RenderState, ...)
 │   │       ├── services/           # Effect Context.Tag definitions
 │   │       ├── layers/             # Live + test layer implementations
 │   │       ├── errors/             # Tagged error types
 │   │       ├── formatters/         # markdown, gfm, json, silent
-│   │       ├── migrations/         # SQLite migrations (0001_initial, 0002_comprehensive)
+│   │       ├── migrations/         # SQLite migrations (0001_initial canonical)
 │   │       ├── sql/                # Row types + assemblers
 │   │       └── utils/              # Pure utilities
 │   ├── cli/                    # vitest-agent-cli (CLI bin)
 │   │   └── src/
-│   │       ├── index.ts            # @effect/cli entry point
-│   │       ├── commands/           # Thin command wrappers
+│   │       ├── bin.ts              # @effect/cli entry point
+│   │       ├── commands/           # Thin command wrappers (status, show, ...)
 │   │       └── lib/                # Testable formatting logic
 │   └── mcp/                    # vitest-agent-mcp (MCP server bin)
 │       └── src/
 │           ├── server.ts           # @modelcontextprotocol/sdk server
-│           ├── router.ts           # tRPC router (53 tools)
+│           ├── router.ts           # tRPC router (29 tools)
 │           ├── context.ts          # ManagedRuntime context
 │           └── tools/              # MCP tool implementations
 ├── plugin/                     # Claude Code plugin (NOT a pnpm workspace)
@@ -78,9 +86,9 @@ vitest-agent/
 └── .claude/design/             # Architecture design documents
 ```
 
-`vitest-agent-sdk` is the dependency hub — `plugin`, `reporter`,
-`cli`, and `mcp` all import from it. The `vitest-agent` plugin package
-declares the other four as required peer dependencies so they
+`vitest-agent-sdk` is the dependency hub — `plugin`, `reporter`, `ui`,
+`cli`, and `mcp` all import from it. The `vitest-agent-plugin` package
+declares the other five as required peer dependencies so they
 auto-install together for end users.
 
 ## Architecture Patterns

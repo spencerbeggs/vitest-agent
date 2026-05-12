@@ -14,10 +14,15 @@ import { Effect } from "effect";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import type {
+	AgentConsoleMode,
 	AgentPluginOptions,
+	CiConsoleMode,
+	ConsoleMode,
 	CoverageInput,
 	CoverageLevelName,
 	Environment,
+	Executor,
+	HumanConsoleMode,
 	OutputFormat,
 	VitestAgentReporterFactory,
 } from "vitest-agent-sdk";
@@ -60,6 +65,13 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	 * ```
 	 */
 	reporter?: VitestAgentReporterFactory;
+	/**
+	 * Optional live event tap. The plugin forwards every per-test and
+	 * per-module {@link RunEvent} to this callback as the test run
+	 * progresses. Hosts drive a live renderer (Ink, debug logging) from
+	 * here. Throwing taps are caught and logged to stderr.
+	 */
+	onRunEvent?: (event: import("vitest-agent-sdk").RunEvent) => void;
 	coverageThresholds?: CoverageInput;
 	coverageTargets?: CoverageInput;
 	/**
@@ -73,33 +85,66 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 }
 
 /**
- * Map strategy to output format for backward compatibility.
+ * Resolve which {@link ConsoleMode} value applies to the active executor.
+ * Looks up `console.{executor}` in the user-supplied matrix, falls back to
+ * the per-slot default.
+ *
+ * Per-slot defaults:
+ * - `human` → `passthrough` (Vitest's own reporters do the visible work).
+ *   Users opt into `ink` for live animation by setting it explicitly and
+ *   wiring `createLiveInk` via `onRunEvent`.
+ * - `agent` → `agent` (markdown-flavored final-frame string).
+ * - `ci` → `passthrough` (Vitest's reporters produce log-friendly output;
+ *   the dedicated `ci-annotations` reporter is opt-in until the GHA
+ *   annotations writer ships).
  *
  * @internal
  */
-function resolveFormat(strategy: "own" | "complement", env: Environment, explicit?: OutputFormat): OutputFormat {
-	if (explicit) return explicit;
-	if (strategy === "own") {
-		// "own" mode: agent gets the terminal formatter (plain text + ANSI;
-		// no markdown noise for a target that doesn't render markdown).
-		// Humans get silent so Vitest's own reporter handles their UX.
-		return env === "agent-shell" ? "terminal" : "silent";
+function resolveConsoleMode(options: AgentPluginOptions, executor: Executor, _env: Environment): ConsoleMode {
+	const console = options.console;
+	if (executor === "human") {
+		return (console?.human as HumanConsoleMode | undefined) ?? "passthrough";
 	}
-	return "vitest-bypass";
+	if (executor === "agent") {
+		return (console?.agent as AgentConsoleMode | undefined) ?? "agent";
+	}
+	return (console?.ci as CiConsoleMode | undefined) ?? "passthrough";
 }
 
 /**
- * Resolve whether the reporter should write GFM to GITHUB_STEP_SUMMARY.
+ * The plugin owns stdout when the resolved console mode produces visible
+ * output that would conflict with Vitest's own reporters. Passthrough lets
+ * Vitest emit progress normally; silent strips everything; the other modes
+ * (ink, agent, ci-annotations) need exclusive stdout access.
  *
  * @internal
  */
-function resolveGithubActions(env: Environment, format: OutputFormat): boolean {
-	if (env === "terminal") return false;
-	if (format === "vitest-bypass" || format === "silent") return false;
-	// GFM goes to the GitHub step summary file regardless of stdout format —
-	// the markdown-rendering surface is independent of the terminal one.
-	if (env === "ci-github" && (format === "markdown" || format === "terminal")) return true;
-	return false;
+function ownsStdout(mode: ConsoleMode): boolean {
+	return mode !== "passthrough";
+}
+
+/**
+ * Map the resolved {@link ConsoleMode} to the legacy {@link OutputFormat}
+ * the existing reporter factories switch on. The new event-sourced renderer
+ * does not consult this — it dispatches directly on `kit.config.consoleMode`
+ * — but the bundled markdown/terminal/silent/ci-annotations reporters still
+ * need a format value to pick which formatter to invoke.
+ *
+ * @internal
+ */
+function resolveFormat(mode: ConsoleMode, explicit?: OutputFormat): OutputFormat {
+	if (explicit) return explicit;
+	switch (mode) {
+		case "ink":
+		case "agent":
+			return "terminal";
+		case "ci-annotations":
+			return "ci-annotations";
+		case "silent":
+			return "silent";
+		case "passthrough":
+			return "vitest-bypass";
+	}
 }
 
 /**
@@ -133,9 +178,21 @@ const TEST_FILE_SUFFIX_RE = /\.(?:test|spec)\.(?:ts|tsx|js|jsx)$/;
 const TEST_FILE_DIR_RE = /\/(?:src|__test__)\//;
 const isTestFile = (id: string): boolean => TEST_FILE_SUFFIX_RE.test(id) && TEST_FILE_DIR_RE.test(id);
 
+/**
+ * Map a detected {@link Environment} to its {@link Executor}. Inline copy
+ * of the `ExecutorResolverLive` mapping so the plugin can compute it
+ * synchronously inside `configureVitest` without spinning up an Effect
+ * runtime.
+ *
+ * @internal
+ */
+function envToExecutor(env: Environment): Executor {
+	if (env === "agent-shell") return "agent";
+	if (env === "terminal") return "human";
+	return "ci";
+}
+
 export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?: Layer.Layer<EnvironmentDetector>) {
-	const mode = options.mode ?? "auto";
-	const strategy = options.strategy ?? "complement";
 	const mcp = options.mcp ?? false;
 	const layer = _layer ?? EnvironmentDetectorLive;
 
@@ -162,40 +219,29 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const { vitest, project } = ctx;
 				log("configureVitest called | project:", project?.name ?? "(root)");
 
-				log("mode:", mode, "| strategy:", strategy);
+				// Auto-detect the environment, then map to the executor slot.
+				const env: Environment = await Effect.runPromise(
+					Effect.provide(
+						Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
+						layer,
+					),
+				);
+				const executor = envToExecutor(env);
+				const consoleMode = resolveConsoleMode(options, executor, env);
+				const format = resolveFormat(consoleMode, options.format);
+				log("env:", env, "| executor:", executor, "| consoleMode:", consoleMode, "| format:", format);
 
-				// Determine environment from EnvironmentDetector service or forced mode
-				let env: Environment;
-				if (mode === "auto") {
-					env = await Effect.runPromise(
-						Effect.provide(
-							Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
-							layer,
-						),
-					);
-				} else {
-					env = mode === "agent" ? "agent-shell" : "terminal";
-				}
-				log("env:", env);
-
-				// Map strategy + environment to format
-				const format = resolveFormat(strategy, env, options.format);
-				log("format:", format);
-
-				// Determine if this is an agent environment (for reporter stripping)
-				const isAgentEnv = env === "agent-shell";
-
-				// Strip reporters when actively taking over the console — both
-				// `markdown` (legacy) and `terminal` (new default for agent
-				// stdout) replace Vitest's own progress output.
-				if ((format === "markdown" || format === "terminal") && isAgentEnv) {
-					log("stripping console reporters");
+				// Strip Vitest's own reporters whenever the plugin owns stdout.
+				// Passthrough leaves the chain intact so Vitest's reporters run
+				// normally; the plugin contributes only persistence-driven side
+				// channels (DB writes, MCP tool surface).
+				if (ownsStdout(consoleMode)) {
+					log("stripping console reporters (consoleMode owns stdout)");
 					const stripped = stripConsoleReporters(vitest.config.reporters as unknown[]);
-					// Write back via mutation (Vitest config is mutable at this point)
 					(vitest.config as { reporters: unknown[] }).reporters = stripped;
 
-					// Also suppress Vitest's native coverage text reporter (the big table)
-					// since our reporter handles coverage output
+					// Suppress Vitest's native coverage text reporter — the plugin
+					// owns coverage output too whenever it owns stdout.
 					const coverageCfg = vitest.config.coverage as { reporter?: unknown[] } | undefined;
 					if (coverageCfg) {
 						log("suppressing native coverage text reporter");
@@ -203,23 +249,10 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					}
 				}
 
-				// Complement mode warning: agent detected but no built-in agent reporter
-				if (isAgentEnv && strategy === "complement" && format === "vitest-bypass") {
-					const reporters = vitest.config.reporters as unknown[];
-					const hasAgentReporter = reporters.some((r) => r === "agent" || (Array.isArray(r) && r[0] === "agent"));
-					if (!hasAgentReporter) {
-						process.stderr.write(
-							'[vitest-agent] Warning: strategy is "complement" but ' +
-								'Vitest\'s built-in "agent" reporter is not in the reporter chain. ' +
-								"Console output may be verbose. Add 'agent' to your reporters or set " +
-								'strategy: "own".\n',
-						);
-					}
-				}
-
-				// Resolve GFM based on env + format
-				const githubActions = resolveGithubActions(env, format);
-				log("githubActions:", githubActions);
+				// GitHub Actions step summary is independent of the console
+				// mode. Default on under GHA; user can disable via githubSummary.
+				const githubActions = options.githubSummary ?? (env === "ci-github" && consoleMode !== "silent");
+				log("githubActions (step-summary):", githubActions);
 
 				// Resolve cache directory override with priority:
 				// 1. Explicit reporter.cacheDir option
@@ -310,12 +343,20 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					coverageTargets,
 					autoUpdate,
 					format,
-					mode,
+					consoleMode,
 					logLevel: options.logLevel,
 					logFile: options.logFile,
 					mcp,
 					githubActions,
+					githubSummary: githubActions,
 					...(options.reporter !== undefined && { reporter: options.reporter }),
+					// onRunEvent powers the live renderer. Only forward it when
+					// the resolved consoleMode is "ink" — every other mode either
+					// renders statically (agent, ci-annotations) or asked for
+					// silence (passthrough lets Vitest render, silent strips
+					// everything). Forwarding the tap regardless leaks a live
+					// Ink mount into modes the user explicitly opted out of.
+					...(options.onRunEvent !== undefined && consoleMode === "ink" ? { onRunEvent: options.onRunEvent } : {}),
 				});
 
 				// Push reporter into the config (mutating the reporters array)

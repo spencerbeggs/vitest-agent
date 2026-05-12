@@ -3,19 +3,20 @@ status: current
 module: vitest-agent-reporter
 category: testing
 created: 2026-04-29
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 95
 related:
   - ./architecture.md
   - ./components.md
   - ./components/discover.md
+  - ./components/ui.md
 dependencies: []
 ---
 
 # Testing Strategy -- vitest-agent-reporter
 
-Testing approach, patterns, and coverage targets for the five-package
+Testing approach, patterns, and coverage targets for the six-package
 monorepo.
 
 **Parent document:** [architecture.md](./architecture.md)
@@ -31,11 +32,24 @@ files are picked up alongside `src/**/*.test.ts` files by the scanner.
 
 | Package | `__test__/` files |
 | --- | --- |
-| `packages/sdk/` | 58 |
-| `packages/plugin/` | 12 |
-| `packages/cli/` | 10 |
-| `packages/mcp/` | 17 |
-| **Total** | **97** |
+| `packages/sdk/` | 71 |
+| `packages/plugin/` | 20 |
+| `packages/cli/` | 14 |
+| `packages/mcp/` | 20 |
+| `packages/ui/` | 19 |
+| `packages/reporter/` | 0 |
+| **Total** | **144** |
+
+The `vitest-agent-ui` tests are layered:
+
+- Reducer unit tests — pure synchronous fixture folds, no React, no Ink.
+- Agent renderer snapshots — inline assertions plus golden snapshots
+  under `__test__/__snapshots__/`.
+- Ink component snapshots — per-component plus an `App` integration test,
+  all pinning `columns: 80` and stripping ANSI for snapshot stability.
+
+See [./components/ui.md](./components/ui.md) for the full per-granularity
+breakdown.
 
 All four coverage metrics (statements, branches, functions, lines)
 are above 80%. The root `vitest.config.ts` `coverage.exclude` list

@@ -12,11 +12,12 @@ npm install vitest-agent-plugin
 ```
 
 Modern pnpm and npm auto-install the required peer dependencies
-(`vitest-agent-reporter`, `vitest-agent-cli`, `vitest-agent-mcp`). If your
-package manager skips peers, install them explicitly:
+(`vitest-agent-reporter`, `vitest-agent-ui`, `vitest-agent-cli`,
+`vitest-agent-mcp`). If your package manager skips peers, install them
+explicitly:
 
 ```bash
-pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-cli vitest-agent-mcp
+pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-ui vitest-agent-cli vitest-agent-mcp
 ```
 
 ## Setup
@@ -41,6 +42,76 @@ export default async () => {
     test: { projects, tags, pool: "forks" },
   });
 };
+```
+
+## Console matrix and onRunEvent
+
+`AgentPlugin` 2.0 no longer accepts the pre-2.0 `mode` and `strategy` (a.k.a.
+`consoleStrategy`) options. Console output is controlled by a per-executor
+matrix; the plugin auto-detects the executor (`human` / `agent` / `ci`) and
+resolves a single `ConsoleMode` value:
+
+```typescript
+AgentPlugin({
+  console: {
+    human?: "passthrough" | "silent" | "ink" | "agent",
+    agent?: "passthrough" | "silent" | "agent",
+    ci?:    "passthrough" | "silent" | "ci-annotations",
+  },
+  reporter?: VitestAgentReporterFactory, // default: defaultReporter
+  onRunEvent?: (event: RunEvent) => void, // live tap, gated to "ink" mode
+  githubSummary?: boolean,
+});
+```
+
+Per-slot defaults: `human` → `"passthrough"`, `agent` → `"agent"`,
+`ci` → `"passthrough"`. Any non-`"passthrough"` value strips Vitest's
+built-in console reporters and the native coverage text reporter — the
+plugin owns stdout for the run.
+
+To run the live React Ink view, opt into `"ink"` on the slot you want and
+wire `onRunEvent` to `createLiveInk` from `vitest-agent-ui`:
+
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { createLiveInk } from "vitest-agent-ui";
+import { defineConfig } from "vitest/config";
+
+const live = createLiveInk();
+
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [
+      AgentPlugin({
+        console: { human: "ink" },
+        onRunEvent: live.event,
+      }),
+    ],
+    test: { projects, tags, pool: "forks" },
+  });
+};
+```
+
+`onRunEvent` is gated: the plugin only forwards events when the resolved
+console mode is `"ink"`. Other modes (`"silent"`, `"passthrough"`,
+`"agent"`, `"ci-annotations"`) suppress the tap so a live Ink mount cannot
+leak into channels the caller explicitly opted out of. Throwing taps are
+caught and logged to stderr so persistence never breaks because a renderer
+has a bug.
+
+The `reporter` option accepts any `VitestAgentReporterFactory`. The default
+is `defaultReporter` from `vitest-agent-reporter`. Pass `eventSourcedReporter`
+from `vitest-agent-ui` to drive the renderer end-to-end through the event
+taxonomy:
+
+```typescript
+import { eventSourcedReporter } from "vitest-agent-ui";
+
+AgentPlugin({
+  console: { agent: "agent" },
+  reporter: eventSourcedReporter,
+});
 ```
 
 ## AgentPlugin.discover()

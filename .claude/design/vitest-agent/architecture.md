@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-11
-last-synced: 2026-05-11
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 90
 related:
   - ./components.md
@@ -42,23 +42,25 @@ beyond the plugin call.
 
 ## Package landscape
 
-The project is a pnpm monorepo. Five publishable workspaces under
+The project is a pnpm monorepo. Six publishable workspaces under
 `packages/` plus a file-based Claude Code plugin at `plugin/` (not a
 workspace).
 
 | Workspace | Path | Role |
 | --- | --- | --- |
-| `vitest-agent-sdk` | `packages/sdk/` | Shared base. Schemas, migrations, errors, services, layers, formatters, the XDG path-resolution stack, the public reporter contract types. No internal dependencies. |
-| `vitest-agent-plugin` | `packages/plugin/` | The Vitest plugin. Owns the Vitest lifecycle, persistence, classification, baselines and trends. Delegates rendering to a reporter factory. |
+| `vitest-agent-sdk` | `packages/sdk/` | Shared base. Schemas, migrations, errors, services, layers, formatters, the XDG path-resolution stack, the public reporter contract types, the `RunEvent` and `RenderState` schemas. No internal dependencies. |
+| `vitest-agent-plugin` | `packages/plugin/` | The Vitest plugin. Owns the Vitest lifecycle, persistence, classification, baselines and trends, and the streaming-callback `onRunEvent` tap. Delegates rendering to a reporter factory. |
 | `vitest-agent-reporter` | `packages/reporter/` | Named `VitestAgentReporterFactory` implementations. No Vitest-API code. |
-| `vitest-agent-cli` | `packages/cli/` | The `vitest-agent` bin. Read-side commands plus the hook-driven `record` subcommand. |
+| `vitest-agent-ui` | `packages/ui/` | Event-sourced renderer family. Pure `RunEvent` reducer, agent-string renderer, React Ink component tree, the `eventSourcedReporter` factory, the `createLiveInk()` live mount, and the Effect `RunEventChannel` PubSub. |
+| `vitest-agent-cli` | `packages/cli/` | The `vitest-agent` bin. Read-side commands (including `show`, which routes through `vitest-agent-ui`) plus the hook-driven `record` subcommand. |
 | `vitest-agent-mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, MCP resources, MCP prompts. |
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
 
-The five npm workspaces release in lockstep. `vitest-agent-plugin` declares
+The six npm workspaces release in lockstep. `vitest-agent-plugin` declares
 `vitest-agent-reporter`, `vitest-agent-cli` and `vitest-agent-mcp` as
-required `peerDependencies`; all four runtime packages pin
-`vitest-agent-sdk` at `workspace:*`.
+required `peerDependencies`; `vitest-agent-ui` is an optional add-on that
+hosts pull in only when they want the event-sourced renderer or live Ink
+mount. All five non-SDK packages pin `vitest-agent-sdk` at `workspace:*`.
 
 For per-package internals, load the matching file under
 [./components/](./components/) via the [./components.md](./components.md)
@@ -71,13 +73,20 @@ deterministic XDG-derived path. Three independent processes touch it:
 
 - **The Vitest plugin** runs inside `vitest run`. `agentPlugin()` from
   `vitest-agent-plugin` injects an internal `AgentReporter` Vitest-API
-  class via `configureVitest`. After tests finish, the reporter persists
-  the run, computes classifications and trends, then hands a
+  class via `configureVitest`. The reporter implements both the
+  end-of-run `onTestRunEnd` hook and the streaming hooks
+  (`onTestRunStart`, `onTestModuleQueued`, `onTestModuleStart`,
+  `onTestCaseResult`, `onTestModuleEnd`). After tests finish, the reporter
+  persists the run, computes classifications and trends, then hands a
   `ReporterKit` to a user-supplied `VitestAgentReporterFactory`. The
   factory returns one or more `VitestAgentReporter`s; their
   `RenderedOutput[]` is concatenated and routed to stdout, the GitHub
-  Step Summary file or another target. The default factory lives in
-  `vitest-agent-reporter`.
+  Step Summary file or another target. The reporter also fires a
+  `RunEvent` from every streaming callback; an optional user-supplied
+  `onRunEvent` tap (gated to `consoleMode === "ink"`) drives the
+  `createLiveInk()` live mount in `vitest-agent-ui`. The default factory
+  lives in `vitest-agent-reporter`; the new event-sourced factory lives
+  in `vitest-agent-ui`.
 - **The `vitest-agent` CLI** is a short-lived `@effect/cli` process. It
   resolves the same `dbPath` and reads cached data through `DataReader`.
   The `record` subcommand is the only writer on the CLI side; it is
@@ -121,16 +130,19 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   test layer pairs. Domain shapes are Effect Schemas, re-exported from
   `vitest-agent-sdk`. Zod is reserved for tRPC tool input validation in
   the MCP package.
-- **Lockstep release.** The five npm packages share one version — a bump
-  to any one bumps all five. The plugin pins the reporter, CLI and MCP
+- **Lockstep release.** The six npm packages share one version — a bump
+  to any one bumps all six. The plugin pins the reporter, CLI and MCP
   packages as required `peerDependencies`, so consumers install only
   `vitest-agent-plugin` and the peers pull in the rest at the matching
-  version. The Claude Code plugin can lag the npm packages. Runtime
-  version sync is verifiable through `process.env.__PACKAGE_VERSION__`,
-  which `rslib-builder` inlines into each package's bundle as a string at
-  build time; an inlined-at-build constant avoids a runtime `package.json`
-  read and surfaces a mismatch loudly when the invariant is broken (a
-  hand-mixed install, a forgotten lockstep release).
+  version. `vitest-agent-ui` is opt-in (peer of consumers who want the
+  event-sourced renderer or live Ink mount) but releases in the same
+  lockstep cycle so version sync is preserved. The Claude Code plugin can
+  lag the npm packages. Runtime version sync is verifiable through
+  `process.env.__PACKAGE_VERSION__`, which `rslib-builder` inlines into
+  each package's bundle as a string at build time; an inlined-at-build
+  constant avoids a runtime `package.json` read and surfaces a mismatch
+  loudly when the invariant is broken (a hand-mixed install, a forgotten
+  lockstep release).
 - **One shared database, deterministic path.** `data.db` lives at
   `$XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db` (with the usual
   XDG fallback). The path is a function of workspace identity, not
@@ -141,7 +153,20 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   `VitestAgentReporter` contract is a single synchronous `render(input)`
   returning `ReadonlyArray<RenderedOutput>`. Multi-target output (e.g.
   console plus GitHub Step Summary) composes by returning multiple
-  reporters from a factory, not by special-casing the plugin.
+  reporters from a factory, not by special-casing the plugin. Live
+  rendering is a separate channel: the plugin's `onRunEvent` callback
+  publishes `RunEvent`s during execution, and `vitest-agent-ui`'s
+  `createLiveInk()` consumes them outside the factory's `render`
+  contract.
+- **Per-executor console matrix.** The plugin auto-detects the executor
+  (`human` / `agent` / `ci`) and looks up `options.console.<slot>` to
+  resolve a single `ConsoleMode` value (`passthrough` / `silent` / `ink` /
+  `agent` / `ci-annotations`). The resolved mode drives stdout ownership
+  (anything non-`passthrough` strips Vitest's built-in console reporters
+  and suppresses its native coverage table) and the live-tap gate
+  (`onRunEvent` is forwarded only when the mode is `ink`). The pre-2.0
+  `mode` + `strategy` pair is retired; see decisions D9 / D26 / D27 in
+  [./decisions-retired.md](./decisions-retired.md).
 - **The Claude Code plugin is the AI integration surface.** The npm
   packages are headless data infrastructure. The file-based plugin at
   `plugin/` is what turns that data into agent behavior — hooks for
@@ -163,8 +188,10 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
 
 ## Current limitations
 
-- Output is written post-run in `onTestRunEnd`, not streamed during
-  execution.
+- Final-frame output (the agent-string and GHA Step Summary paths) is
+  still written post-run in `onTestRunEnd`. Live progress *is* streamed
+  in `ink` mode via the `onRunEvent` tap, but every other console mode
+  renders only at end-of-run.
 - Coverage is shared across projects within a single Vitest run; only
   the first project alphabetically processes the global `CoverageMap`.
 - File-to-test mapping is convention-based (`.test.`/`.spec.` strip);

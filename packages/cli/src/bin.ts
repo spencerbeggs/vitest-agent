@@ -22,6 +22,7 @@ import { historyCommand } from "./commands/history.js";
 import { internalCommand } from "./commands/internal.js";
 import { overviewCommand } from "./commands/overview.js";
 import { recordCommand } from "./commands/record.js";
+import { showCommand } from "./commands/show.js";
 import { statusCommand } from "./commands/status.js";
 import { trendsCommand } from "./commands/trends.js";
 import { triageCommand } from "./commands/triage.js";
@@ -38,6 +39,7 @@ const rootCommand = Command.make("vitest-agent").pipe(
 		cacheCommand,
 		doctorCommand,
 		recordCommand,
+		showCommand,
 		triageCommand,
 		wrapupCommand,
 		internalCommand,

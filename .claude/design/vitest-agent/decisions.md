@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-11
-last-synced: 2026-05-11
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 100
 related:
   - ./architecture.md
@@ -14,6 +14,7 @@ related:
   - ./components/cli.md
   - ./components/mcp.md
   - ./components/plugin-claude.md
+  - ./components/ui.md
   - ./data-structures.md
   - ./decisions-retired.md
 dependencies: []
@@ -117,27 +118,26 @@ discovery (globbing, reading source files) that would slow down every test
 run. On-demand generation is more appropriate for discovery data that
 changes infrequently and keeps the reporter lean.
 
-### Decision 9: Hybrid Console Strategy
+### Decision 9: Hybrid Console Strategy (Retired)
 
-The `strategy` option (`AgentPluginOptions.strategy`) takes:
+**Superseded by:** Decision 37 — Per-Executor Console Matrix (see below).
 
-- `"complement"` (default) — layers on top of Vitest's built-in `agent`
-  reporter without stripping reporters. Writes to the database only.
-  Warns if the `agent` reporter is missing from the chain.
-- `"own"` — strips built-in console reporters, uses our formatter, writes
-  our own GFM.
-
-Users with Vitest's built-in `agent` reporter configured should not have
-it ripped out by our plugin; complement mode is additive. Users who need
-our specific output format opt into `"own"`.
+See [./decisions-retired.md](./decisions-retired.md) for the retired
+entry. The pre-2.0 `strategy: "complement" | "own"` option was removed
+when the per-executor console matrix landed; the `complement` mode (let
+Vitest render and only persist) is expressible today as
+`console.{slot}: "passthrough"`, and `own` mode collapses into any of the
+non-`passthrough` `ConsoleMode` values.
 
 ### Decision 10: GFM Output for GitHub Actions
 
 `AgentPlugin` auto-detects `process.env.GITHUB_ACTIONS` and appends GFM to
-`process.env.GITHUB_STEP_SUMMARY`, with override via options. The same
-data structures serve local and CI output — conditional formatting is
-simpler than a separate reporter class. In complement mode, GFM is left
-to Vitest's built-in reporter.
+`process.env.GITHUB_STEP_SUMMARY`, with override via the `githubSummary`
+option. The same data structures serve local and CI output — conditional
+formatting is simpler than a separate reporter class. The Step Summary
+path is independent of `consoleMode`: it defaults on under GHA when the
+resolved console mode is not `silent`, and can be forced on or off
+regardless of the console slot.
 
 ### Decision 12: Compact Console Output
 
@@ -322,19 +322,22 @@ state.
 
 ### Decision 26: Native Coverage Table Suppression
 
-In agent/own mode, the plugin sets `coverage.reporter = []` to suppress
+Whenever the resolved `consoleMode` owns stdout (any value other than
+`passthrough`), the plugin sets `coverage.reporter = []` to suppress
 Vitest's built-in text coverage table, which duplicates the reporter's
 own compact coverage output and wastes context window tokens for LLM
 agents. Setting `coverage.reporter` to an empty array is the cleanest
-suppression mechanism without affecting coverage data collection.
+suppression mechanism without affecting coverage data collection. In
+`passthrough` mode the suppression is skipped so Vitest's reporters can
+render their normal output, including the coverage table.
 
-### Decision 27: `consoleStrategy` Renamed to `strategy`
+### Decision 27: `consoleStrategy` Renamed to `strategy` (Retired)
 
-The option name is `strategy` on `AgentPluginOptions` with values
-`"own" | "complement"` (default `"complement"`). The option controls the
-overall strategy for how the plugin interacts with Vitest's reporter
-chain, not just console behavior — the `console` prefix was redundant
-given the plugin context.
+**Superseded by:** Decision 37 — Per-Executor Console Matrix (see below).
+
+See [./decisions-retired.md](./decisions-retired.md) for the retired
+entry. Both `consoleStrategy` and its rename `strategy` are gone; the
+console behavior is now controlled by the per-executor `console` matrix.
 
 ### Decision 28: Process-Level Migration Coordination via globalThis Cache
 
@@ -482,20 +485,33 @@ race.
 
 ### Decision 33: Five-Package Split
 
-The system ships as five pnpm workspaces under `packages/`:
+**Amendment (2026-05-12):** the event-sourced renderer landed as a
+sixth opt-in package, `vitest-agent-ui`. The five-package contract
+this decision describes (mandatory peers for plugin + reporter + cli +
+mcp built on top of sdk) is unchanged — `vitest-agent-ui` participates
+in the same lockstep release cycle and depends only on
+`vitest-agent-sdk`, but it is *not* a required peer of
+`vitest-agent-plugin`. Hosts that want the React Ink mount or the
+`eventSourcedReporter` factory pull it in directly. See
+[./components/ui.md](./components/ui.md) for the package's contents.
+
+The system ships as six pnpm workspaces under `packages/`:
 
 | Package | Role |
 | --- | --- |
 | `vitest-agent-sdk` | data layer, schemas, services, formatters, utilities, XDG path stack — no internal deps |
 | `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares reporter, cli, mcp as required peers |
 | `vitest-agent-reporter` | named `VitestAgentReporterFactory` implementations only (no Vitest-API code) |
+| `vitest-agent-ui` | event-sourced renderer family (reducer, agent string, Ink tree, `eventSourcedReporter`, `createLiveInk`). Opt-in peer of consumers, not the plugin |
 | `vitest-agent-cli` | `vitest-agent` bin |
 | `vitest-agent-mcp` | `vitest-agent-mcp` bin |
 
-All five release in lockstep via changesets `linked` config. The plugin
+All six release in lockstep via changesets `linked` config. The plugin
 declares the reporter, CLI, and MCP packages as **required**
 `peerDependencies` so installing the plugin still pulls the agent
-tooling with it.
+tooling with it. `vitest-agent-ui` is *not* a required peer — it is an
+optional add-on for hosts that want live rendering or the
+event-sourced final-frame.
 
 **Why this split:** the shared package boundary is determined by "what
 does more than one runtime package need". The data layer, output
@@ -514,7 +530,7 @@ Direct deps would tie the plugin's lockfile to the CLI/MCP versions
 and prevent independent upgrades. Required peers give lockstep version
 coordination without bundling the dependency graph.
 
-**Trade-offs:** five `private: true` package.jsons (rslib-builder
+**Trade-offs:** six `private: true` package.jsons (rslib-builder
 transforms each on publish), and consumers importing schemas use
 `from "vitest-agent-sdk"`.
 
@@ -716,20 +732,20 @@ schema with the runtime.
 
 ### Decision 36: Lockstep Release with Build-Inlined Version
 
-The five npm packages release in lockstep — a version bump to any one
-bumps all five — and every bundle carries its release version as a
+The six npm packages release in lockstep — a version bump to any one
+bumps all six — and every bundle carries its release version as a
 build-time string constant `process.env.__PACKAGE_VERSION__`, inlined
 by `rslib-builder` from the source `package.json` at build time. The
 Claude Code plugin versions independently; it can lag the npm packages
 by one or more releases, and is the only piece of the system permitted
 to do so.
 
-The runtime invariant is that the five packages running in the same
-process must share the same `__PACKAGE_VERSION__` value. The CLI's
-`doctor` command and the MCP server's startup checks compare the
-inlined values across the SDK, plugin, reporter, CLI, and MCP packages
-they import; a mismatch produces a structured error pointing at the
-peer-dep that drifted.
+The runtime invariant is that the packages running in the same process
+must share the same `__PACKAGE_VERSION__` value. The CLI's `doctor`
+command and the MCP server's startup checks compare the inlined values
+across the SDK, plugin, reporter, CLI, MCP, and (when present) the
+optional `vitest-agent-ui` package; a mismatch produces a structured
+error pointing at the peer-dep that drifted.
 
 **Why build-inlined (vs runtime `package.json` read):** the inlined
 constant has no I/O cost, no path-resolution failure mode, and no
@@ -741,7 +757,7 @@ that the build is the source of truth for the version string — but
 that is already the case for everything else `rslib-builder`
 produces.
 
-**Why lockstep (vs independent semver per package):** the five
+**Why lockstep (vs independent semver per package):** the npm
 packages share types and runtime contracts at the SDK boundary
 (`DataStore`, `DataReader`, the reporter contract types, the schemas).
 A consumer hitting any cross-package type mismatch sees an opaque
@@ -761,15 +777,80 @@ plugin gets. The MCP server's startup version check is the gate that
 catches plugin-vs-MCP drift if it happens.
 
 **Trade-off:** every package release is the size of the smallest
-useful change times five. A docs-only fix in the SDK still bumps the
-plugin, reporter, CLI, and MCP. Acceptable in exchange for the runtime
-sync guarantee.
+useful change times six. A docs-only fix in the SDK still bumps the
+plugin, reporter, ui, CLI, and MCP. Acceptable in exchange for the
+runtime sync guarantee.
 
 **Cross-references:** D33 (Five-Package Split — establishes the
 required-peer-deps shape this decision protects) and D30 (Plugin MCP
 Loader — describes why the MCP runs from the consumer's installation
 context, which is what makes the build-inlined version a meaningful
 sync check).
+
+### Decision 37: Per-Executor Console Matrix + Streaming Reporter Tap
+
+The plugin replaces the pre-2.0 `mode` (`"agent" | "human" | "ci"`) +
+`strategy` (`"own" | "complement"`) options with a single
+**per-executor console matrix**: `AgentPluginOptions.console: { human?,
+agent?, ci? }`. Each slot accepts only the modes valid for that executor
+— `human` can be `passthrough | silent | ink | agent`; `agent` can be
+`passthrough | silent | agent`; `ci` can be `passthrough | silent |
+ci-annotations`. The plugin auto-detects the executor via
+`EnvironmentDetector`, looks up the matching slot, and resolves a single
+`ConsoleMode` value that flows through `ReporterKit.config.consoleMode`
+into every reporter.
+
+Two derived behaviors fall out of the resolved mode:
+
+1. **Stdout ownership.** Any non-`passthrough` value strips Vitest's
+   built-in console reporters AND zeroes `coverage.reporter` so the
+   plugin owns stdout for the run.
+2. **Live-tap gating.** The optional `onRunEvent: (event: RunEvent) =>
+   void` callback is forwarded to `AgentReporter` only when
+   `consoleMode === "ink"`. Other modes either render statically
+   (`agent`, `ci-annotations`) or asked for silence (`passthrough`,
+   `silent`); forwarding the tap regardless would leak a live Ink
+   mount into channels the user explicitly opted out of.
+
+Alongside the option-shape change, `AgentReporter` now implements
+Vitest's streaming hooks (`onTestRunStart`, `onTestModuleQueued`,
+`onTestModuleStart`, `onTestCaseResult`, `onTestModuleEnd`) and fires a
+matching `RunEvent` from each. `vitest-agent-ui`'s `createLiveInk()`
+consumes the events through `onRunEvent` to drive a live React Ink
+mount that re-renders on every beat.
+
+**Why a per-executor matrix beats a single `mode` enum:** humans,
+agents, and CI runners want different visible behavior from the same
+config file. The pre-2.0 `mode` enum forced one global choice; users
+debugging a CI failure locally had to flip the option (or set an
+environment variable) just to change rendering. The matrix lets one
+`vitest.config.ts` declare "live Ink for humans, markdown final-frame
+for agents, GHA annotations on CI" simultaneously and the plugin picks
+the right slot based on where it is running. Each slot's legal-mode
+set is narrowed at the type level: it is impossible to ask for an Ink
+mount on a CI run, or for GitHub annotations on a human terminal.
+
+**Why a callback rather than putting live rendering on the factory
+contract:** the `VitestAgentReporterFactory.render(input)` contract is
+deliberately a single synchronous batch call (one frame per project,
+end of run). Adding `start` / `event` / `stop` lifecycle methods to the
+factory would couple every reporter to the streaming surface even when
+it only needs the final frame. The callback model lets one host opt
+into live rendering by wiring `onRunEvent: live.event` while every
+other reporter — including all of `defaultReporter`'s named factories
+— stays a pure `render`-only consumer.
+
+**Why retire `strategy` ("complement" / "own"):** the two states were
+"let Vitest's reporters run AND persist" vs. "strip Vitest's reporters
+AND emit our own". Both are now expressible as `console.{slot}` values
+(`passthrough` for the former, any of the other modes for the latter)
+without a redundant top-level toggle. The matrix subsumes the strategy
+flag and gives finer control along the way.
+
+**Cross-references:** D34 (Plugin/Reporter Split — the reporter
+contract that this decision threads `consoleMode` through), and the
+retired entries D9 / D27 / the old D12 prose in
+[./decisions-retired.md](./decisions-retired.md).
 
 ### Decision D9: Last Drop-and-Recreate Migration
 

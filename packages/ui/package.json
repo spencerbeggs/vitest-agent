@@ -1,0 +1,79 @@
+{
+	"name": "vitest-agent-ui",
+	"version": "1.3.1",
+	"private": true,
+	"description": "Shared event-sourced renderer for vitest-agent. React Ink view for humans, plain-string view for agents, both fed by the same reducer over a RunEvent stream.",
+	"keywords": ["vitest", "ui", "ink", "react", "llm", "ai", "agent", "testing", "coverage"],
+	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
+	"bugs": {
+		"url": "https://github.com/spencerbeggs/vitest-agent/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/spencerbeggs/vitest-agent.git",
+		"directory": "packages/ui"
+	},
+	"license": "MIT",
+	"author": {
+		"name": "C. Spencer Beggs",
+		"email": "spencer@beggs.codes",
+		"url": "https://spencerbeg.gs"
+	},
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build:dev": "rslib build --config-loader native --env-mode dev",
+		"build:inspect": "rslib inspect --config-loader native --env-mode npm --verbose",
+		"build:prod": "rslib build --config-loader native --env-mode npm",
+		"prepare": "turbo run build:dev build:prod --log-order=grouped --log-prefix=none",
+		"types:check": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"effect": "catalog:silk",
+		"vitest-agent-sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"@savvy-web/rslib-builder": "^0.20.3",
+		"@types/node": "catalog:silk",
+		"@types/react": "catalog:silk",
+		"ink": "^7.0.2",
+		"ink-testing-library": "^4.0.0",
+		"react": "catalog:silk",
+		"vitest": "^4.1.6"
+	},
+	"peerDependencies": {
+		"ink": "^7.0.0",
+		"react": "catalog:silkPeers"
+	},
+	"peerDependenciesMeta": {
+		"ink": {
+			"optional": false
+		},
+		"react": {
+			"optional": false
+		}
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist/dev",
+		"linkDirectory": true,
+		"targets": [
+			{
+				"protocol": "npm",
+				"registry": "https://npm.pkg.github.com/",
+				"directory": "dist/github",
+				"access": "public",
+				"provenance": true
+			},
+			{
+				"protocol": "npm",
+				"registry": "https://registry.npmjs.org/",
+				"directory": "dist/npm",
+				"access": "public",
+				"provenance": true
+			}
+		]
+	}
+}

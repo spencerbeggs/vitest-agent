@@ -53,3 +53,4 @@ packages/mcp/lib/vitest-docs-raw/
 # .claude/plans/archive/ memos; the harness scripts themselves are
 # reproducible from the memo's prose and not tracked in git.
 spike/
+.claude/scheduled_tasks.lock

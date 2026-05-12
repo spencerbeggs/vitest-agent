@@ -20,6 +20,7 @@ import type {
 	AgentReporterOptions,
 	CoverageBaselines,
 	ResolvedThresholds,
+	RunEvent,
 	TestClassification,
 	TestErrorInput,
 	TestOutcome,
@@ -140,10 +141,11 @@ interface ResolvedOptions {
 	coverageConsoleLimit: number;
 	includeBareZero: boolean;
 	githubActions: boolean | undefined;
+	githubSummary: boolean | undefined;
 	githubSummaryFile: string | undefined;
 	format?: "terminal" | "markdown" | "json" | "vitest-bypass" | "silent" | "ci-annotations";
 	detail?: "minimal" | "neutral" | "standard" | "verbose";
-	mode?: "auto" | "agent" | "silent";
+	consoleMode: import("vitest-agent-sdk").ConsoleMode;
 	logLevel?: LogLevel.LogLevel;
 	logFile?: string;
 	mcp?: boolean;
@@ -159,6 +161,18 @@ interface ResolvedOptions {
  */
 export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	reporter?: VitestAgentReporterFactory;
+	/**
+	 * Optional event tap. The reporter constructs a {@link RunEvent} for
+	 * each Vitest streaming callback (`onTestRunStart`,
+	 * `onTestModuleQueued`, `onTestModuleStart`, `onTestCaseResult`,
+	 * `onTestModuleEnd`, `onTestRunEnd`) and invokes this callback with
+	 * the event. Hosts drive a live renderer (Ink, debug logging, etc.)
+	 * from here without coupling the reporter to a specific transport.
+	 *
+	 * Errors thrown by the callback are caught and written to stderr —
+	 * a malfunctioning tap must not break persistence.
+	 */
+	onRunEvent?: (event: RunEvent) => void;
 }
 
 /**
@@ -236,10 +250,14 @@ export class AgentReporter {
 	private coverage: unknown = null;
 	private logLevel: LogLevel.LogLevel | undefined;
 	private logFile: string | undefined;
+	private onRunEvent: ((event: RunEvent) => void) | undefined;
+	private currentRunId: string | null = null;
+	private moduleStartedAt: Map<string, string> = new Map();
 
 	constructor(options: AgentReporterConstructorOptions = {}) {
 		this.logLevel = resolveLogLevel(options.logLevel);
 		this.logFile = resolveLogFile(options.logFile);
+		this.onRunEvent = options.onRunEvent;
 
 		// coverageThresholds may be a raw Vitest format (Record<string, unknown>)
 		// when AgentReporter is used directly without AgentPlugin. Resolve it.
@@ -266,10 +284,11 @@ export class AgentReporter {
 			coverageConsoleLimit: options.coverageConsoleLimit ?? 10,
 			includeBareZero: options.includeBareZero ?? false,
 			githubActions: options.githubActions,
+			githubSummary: options.githubSummary,
 			githubSummaryFile: options.githubSummaryFile,
 			...(resolvedFormat !== undefined ? { format: resolvedFormat } : {}),
 			...(options.detail !== undefined ? { detail: options.detail } : {}),
-			...(options.mode !== undefined ? { mode: options.mode } : {}),
+			consoleMode: options.consoleMode ?? "passthrough",
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
 			...(options.projectFilter !== undefined ? { projectFilter: options.projectFilter } : {}),
 			reporter: options.reporter ?? defaultReporter,
@@ -289,6 +308,159 @@ export class AgentReporter {
 	async onInit(vitest: unknown): Promise<void> {
 		this._vitest = vitest;
 		await this.ensureDbPath();
+	}
+
+	/**
+	 * Safely emit a {@link RunEvent} to the configured tap. A throwing
+	 * tap is caught and logged to stderr — live-render bugs must not
+	 * break persistence.
+	 *
+	 * @internal
+	 */
+	private emit(event: RunEvent): void {
+		const tap = this.onRunEvent;
+		if (tap === undefined) return;
+		try {
+			tap(event);
+		} catch (err) {
+			process.stderr.write(`vitest-agent: onRunEvent tap threw: ${formatFatalError(err)}\n`);
+		}
+	}
+
+	/**
+	 * Walk the suite parent chain to produce the suite-path array used
+	 * in {@link RunEvent.TestStarted} / {@link RunEvent.TestFinished}.
+	 *
+	 * @internal
+	 */
+	private collectSuitePath(testCase: { parent?: { type: string; name: string; parent?: unknown } }): string[] {
+		const path: string[] = [];
+		let cursor: { type: string; name: string; parent?: unknown } | undefined = testCase.parent;
+		while (cursor !== undefined && cursor.type === "suite") {
+			path.unshift(cursor.name);
+			cursor = cursor.parent as typeof cursor;
+		}
+		return path;
+	}
+
+	/**
+	 * Vitest streaming hook: a test run is about to start. Mints a
+	 * synthetic `runId` for the duration of this run and emits a
+	 * `RunStarted` event for live subscribers.
+	 */
+	onTestRunStart(_specifications: ReadonlyArray<unknown>): void {
+		if (this.onRunEvent === undefined) return;
+		this.currentRunId = randomUUID();
+		this.moduleStartedAt.clear();
+		this.emit({
+			_tag: "RunStarted",
+			runId: this.currentRunId,
+			startedAt: new Date().toISOString(),
+			configHash: "live",
+		});
+	}
+
+	/**
+	 * Vitest streaming hook: a test module has been queued.
+	 */
+	onTestModuleQueued(testModule: { relativeModuleId: string }): void {
+		if (this.onRunEvent === undefined) return;
+		this.emit({ _tag: "ModuleQueued", modulePath: testModule.relativeModuleId });
+	}
+
+	/**
+	 * Vitest streaming hook: a test module is starting execution.
+	 */
+	onTestModuleStart(testModule: { relativeModuleId: string }): void {
+		if (this.onRunEvent === undefined) return;
+		const startedAt = new Date().toISOString();
+		this.moduleStartedAt.set(testModule.relativeModuleId, startedAt);
+		this.emit({ _tag: "ModuleStarted", modulePath: testModule.relativeModuleId, startedAt });
+	}
+
+	/**
+	 * Vitest streaming hook: a test case has produced a result.
+	 *
+	 * The reporter emits both `TestStarted` and `TestFinished` here —
+	 * Vitest's `onTestCaseReady` fires immediately before this one and
+	 * the gap is too short to matter for the renderer's transient
+	 * "running" state. Treating them as one beat keeps the reducer
+	 * simpler and avoids a no-op event pair.
+	 */
+	onTestCaseResult(testCase: {
+		name: string;
+		parent?: { type: string; name: string; parent?: unknown };
+		module?: { relativeModuleId: string };
+		result():
+			| { state: string; errors?: ReadonlyArray<{ message: string; diff?: string; stacks?: ReadonlyArray<unknown> }> }
+			| undefined;
+		diagnostic(): { duration: number } | undefined;
+	}): void {
+		if (this.onRunEvent === undefined) return;
+		const modulePath = testCase.module?.relativeModuleId ?? "";
+		if (modulePath === "") return;
+		const suitePath = this.collectSuitePath(testCase);
+		this.emit({
+			_tag: "TestStarted",
+			modulePath,
+			testName: testCase.name,
+			suitePath,
+		});
+		const result = testCase.result();
+		const diag = testCase.diagnostic();
+		const status =
+			result?.state === "passed" || result?.state === "failed" || result?.state === "skipped"
+				? result.state
+				: "pending";
+		const firstError = result?.errors?.[0];
+		const error =
+			firstError !== undefined
+				? {
+						message: firstError.message,
+						...(firstError.diff !== undefined && { diff: firstError.diff }),
+					}
+				: undefined;
+		this.emit({
+			_tag: "TestFinished",
+			modulePath,
+			testName: testCase.name,
+			suitePath,
+			status,
+			durationMs: diag?.duration ?? 0,
+			...(error !== undefined && { error }),
+		});
+	}
+
+	/**
+	 * Vitest streaming hook: a test module has finished. Emits a
+	 * `ModuleFinished` carrying the tallied counts plus a duration
+	 * derived from the module's diagnostic.
+	 */
+	onTestModuleEnd(testModule: {
+		relativeModuleId: string;
+		children: {
+			allTests(filter?: string): Iterable<{ result(): { state: string } | undefined }>;
+		};
+		diagnostic(): { duration: number } | undefined;
+	}): void {
+		if (this.onRunEvent === undefined) return;
+		let pass = 0;
+		let fail = 0;
+		let skip = 0;
+		for (const test of testModule.children.allTests()) {
+			const state = test.result()?.state;
+			if (state === "passed") pass++;
+			else if (state === "failed") fail++;
+			else skip++;
+		}
+		this.emit({
+			_tag: "ModuleFinished",
+			modulePath: testModule.relativeModuleId,
+			passCount: pass,
+			failCount: fail,
+			skipCount: skip,
+			durationMs: testModule.diagnostic()?.duration ?? 0,
+		});
 	}
 
 	private async ensureDbPath(): Promise<string> {
@@ -361,6 +533,40 @@ export class AgentReporter {
 		// trend rows and duplicate the stdout block.
 		if (this.rendered) return;
 		this.rendered = true;
+
+		// Emit RunFinished before the heavy persistence pipeline so a live
+		// subscriber's terminal frame stays correlated with the events it
+		// has already seen. The streaming counts are aggregated from the
+		// per-module passes that landed during the run; we cannot wait for
+		// the post-aggregation summary to fire RunFinished without
+		// breaking the live UX.
+		if (this.onRunEvent !== undefined && this.currentRunId !== null) {
+			let pass = 0;
+			let fail = 0;
+			let skip = 0;
+			let totalDuration = 0;
+			for (const mod of testModules as ReadonlyArray<{
+				children: { allTests(filter?: string): Iterable<{ result(): { state: string } | undefined }> };
+				diagnostic(): { duration: number } | undefined;
+			}>) {
+				totalDuration += mod.diagnostic()?.duration ?? 0;
+				for (const test of mod.children.allTests()) {
+					const state = test.result()?.state;
+					if (state === "passed") pass++;
+					else if (state === "failed") fail++;
+					else skip++;
+				}
+			}
+			this.emit({
+				_tag: "RunFinished",
+				runId: this.currentRunId,
+				finishedAt: new Date().toISOString(),
+				passCount: pass,
+				failCount: fail,
+				skipCount: skip,
+				durationMs: totalDuration,
+			});
+		}
 
 		const modules = testModules as ReadonlyArray<VitestTestModule>;
 		const errors = unhandledErrors as ReadonlyArray<{ message: string; stack?: string }>;
@@ -925,7 +1131,7 @@ export class AgentReporter {
 			const detailResolver = yield* DetailResolver;
 
 			const env = yield* detector.detect();
-			const executor = yield* executorResolver.resolve(env, opts.mode ?? "auto");
+			const executor = yield* executorResolver.resolve(env);
 			const format = yield* formatSelector.select(executor, opts.format, env);
 			const health = {
 				hasFailures: reports.some((r) => r.summary.failed > 0 || r.unhandledErrors.length > 0),
@@ -959,13 +1165,14 @@ export class AgentReporter {
 				format,
 				detail,
 				noColor: !!process.env.NO_COLOR,
-				mode: opts.mode ?? "auto",
+				consoleMode: opts.consoleMode ?? "passthrough",
 				mcp: opts.mcp ?? false,
 				consoleOutput: opts.consoleOutput,
 				omitPassingTests: opts.omitPassingTests,
 				coverageConsoleLimit: opts.coverageConsoleLimit,
 				includeBareZero: opts.includeBareZero,
 				githubActions: opts.githubActions ?? env === "ci-github",
+				githubSummary: opts.githubSummary ?? env === "ci-github",
 				...(dbPath !== undefined && { dbPath }),
 				...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
 				...(githubSummaryFile !== undefined && { githubSummaryFile }),

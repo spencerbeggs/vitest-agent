@@ -3,13 +3,14 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-07
-updated: 2026-05-07
-last-synced: 2026-05-07
+updated: 2026-05-12
+last-synced: 2026-05-12
 completeness: 95
 related:
   - ./plugin.md
   - ../testing-strategy.md
   - ../decisions.md
+  - ./ui.md
 dependencies: []
 ---
 
@@ -253,10 +254,24 @@ JSDoc transform approach that was abandoned.
 ### Canonical `vitest.config.ts` pattern
 
 ```ts
+import { defineConfig } from "vitest/config";
+import { AgentPlugin } from "vitest-agent-plugin";
+import { createLiveInk, eventSourcedReporter } from "vitest-agent-ui";
+
 export default async () => {
   const { projects, tags } = await AgentPlugin.discover();
+  const live = createLiveInk();
   return defineConfig({
-    plugins: [AgentPlugin({ mode: "agent", strategy: "own", mcp: true })],
+    plugins: [
+      AgentPlugin({
+        console: { human: "ink", agent: "agent" },
+        reporter: eventSourcedReporter,
+        onRunEvent: live.event,
+        mcp: true,
+        coverageThresholds: AgentPlugin.COVERAGE_LEVELS.basic,
+        coverageTargets: AgentPlugin.COVERAGE_LEVELS.standard,
+      }),
+    ],
     test: {
       projects,
       tags,
@@ -264,12 +279,17 @@ export default async () => {
       coverage: {
         enabled: true,
         provider: "v8",
-        thresholds: { statements: 80, branches: 80, functions: 80, lines: 80 },
       },
     },
   });
 };
 ```
+
+The pre-2.0 `mode: "agent", strategy: "own"` form is retired — the
+per-executor `console` matrix and the `onRunEvent` tap replace it. See
+[../decisions.md](../decisions.md) Decision 37 for the rationale and
+[../decisions-retired.md](../decisions-retired.md) for the previous
+form.
 
 **Why `async () =>` instead of `defineConfig(async () => {})`.**
 The async arrow function export preserves string-literal inference for
