@@ -5,17 +5,26 @@
  * into the plugin's `reporter` option exactly like any other named
  * factory. The render call loops over `input.reports`, synthesizes a
  * RunEvent stream from each report, and emits one stdout-targeted
- * RenderedOutput per project carrying the rendered string.
+ * RenderedOutput per project carrying the rendered string — but only
+ * when the resolved `ConsoleMode` is the one this factory owns.
  *
- * Mode selection:
+ * Dispatch on `kit.config.consoleMode` (a {@link ConsoleMode} value):
  *
- * - `kit.config.mode === "silent"` → no output emitted.
- * - `kit.config.mode === "human"` → Ink `renderToString` output.
- * - everything else (`agent`, `auto`) → the agent-mode renderer.
+ * - `"agent"` → emits the markdown-flavored agent string per report.
+ *   This is the only mode that produces visible output here.
+ * - `"silent"` → no output emitted; plugin has stripped Vitest's
+ *   reporters too.
+ * - `"passthrough"` → no output emitted; Vitest's reporters render
+ *   normally.
+ * - `"ink"` → no output emitted; the live Ink mount driven through
+ *   `onRunEvent` (typically `createLiveInk`) paints the visible work.
+ * - `"ci-annotations"` → no output emitted; reserved for the
+ *   dedicated CI annotations reporter when it ships.
  *
- * The plugin has already resolved `auto` against env detection before
- * the factory is called, so the factory never has to probe TTY or
- * inspect environment variables itself.
+ * The plugin has already resolved the executor (`human` / `agent` /
+ * `ci`) and looked up its console-matrix slot before the factory is
+ * called, so the factory never has to probe TTY or inspect
+ * environment variables itself.
  *
  * @packageDocumentation
  */

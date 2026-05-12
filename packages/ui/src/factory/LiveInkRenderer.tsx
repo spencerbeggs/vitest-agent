@@ -1,7 +1,7 @@
 /**
  * Imperative live-mount Ink renderer driven by streaming
  * {@link RunEvent}s. Holds its own reducer state and Ink mount handle
- * across the lifetime of a single test run.
+ * across the lifetime of a test run.
  *
  * Mount happens on the first `RunStarted` event so the renderer
  * doesn't compete with Vitest's stdout setup. Each subsequent event
@@ -9,6 +9,11 @@
  * `RunFinished` event triggers an `unmount` on the next tick — far
  * enough away that the terminal commits the final frame before Ink
  * tears down its alt-screen handling.
+ *
+ * After teardown, the internal scheduling flag is reset so the same
+ * handle can drive subsequent runs (long-lived dev processes, watch
+ * mode). The reducer's `state` is intentionally preserved across run
+ * boundaries — a fresh `RunStarted` resets it via the reducer.
  *
  * @packageDocumentation
  */
@@ -108,6 +113,12 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 				// shell sees it on slow terminals.
 				setImmediate(() => {
 					tearDown();
+					// Reset state-machine flags so the same handle can drive a
+					// subsequent run (long-lived dev process, watch mode). The
+					// reducer's `state` is intentionally preserved so the next
+					// `RunStarted` event sees the previous `phase: "finished"`
+					// transition correctly.
+					unmountScheduled = false;
 				});
 			}
 		},

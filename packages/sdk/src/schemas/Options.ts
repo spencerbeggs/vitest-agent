@@ -22,11 +22,12 @@ import {
  * channel without affecting the others.
  *
  * Defaults:
- * - `human` → `"passthrough"` today; will flip to `"ink"` once live
- *   animation is stable.
+ * - `human` → `"passthrough"` today; users opt into `"ink"` explicitly
+ *   alongside wiring `createLiveInk` via `onRunEvent`.
  * - `agent` → `"agent"` (markdown-flavored final frame).
- * - `ci` → `"ci-annotations"` when `GITHUB_ACTIONS=true`, otherwise
- *   `"passthrough"`.
+ * - `ci` → `"passthrough"` (Vitest's reporters produce log-friendly
+ *   output). `"ci-annotations"` is opt-in until the dedicated GHA
+ *   annotations writer ships.
  */
 export const ConsoleOutputs = Schema.Struct({
 	human: Schema.optional(HumanConsoleMode),

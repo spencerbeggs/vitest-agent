@@ -58,8 +58,9 @@ export type ConsoleOutputMode = typeof ConsoleOutputMode.Type;
  *   Default for `agent` executor. Set on `human` for debug previewing.
  * - `ink` — Ink-mounted animated tree. Strips Vitest's reporters and owns
  *   stdout for the duration of the run. Human executor only.
- * - `ci-annotations` — GitHub Actions `::error::` annotations. Default for
- *   `ci` executor when `GITHUB_ACTIONS=true`.
+ * - `ci-annotations` — GitHub Actions `::error::` annotations. Opt-in for
+ *   the `ci` executor; the matching dedicated emitter is not yet shipped,
+ *   so the default for `ci` is `passthrough` until it lands.
  */
 export const HumanConsoleMode = Schema.Literal("passthrough", "silent", "ink", "agent").annotations({
 	identifier: "HumanConsoleMode",

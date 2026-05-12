@@ -326,6 +326,19 @@ export const synthesizeFromAgentReport = (
 		const moduleDuration = mod.duration ?? 0;
 
 		for (const test of mod.tests) {
+			// Reconstructing suitePath from fullName is lossy. Vitest joins
+			// suite/test names with " > " without escaping, so a suite name
+			// that literally contains " > " (e.g.
+			// `describe("foo > bar", () => { it("baz") })`) splits into two
+			// fake levels here. Test names containing " > " are handled
+			// correctly because the known `test.name` is stripped from the
+			// end before splitting — only the prefix is ambiguous.
+			//
+			// The structured suite chain exists at write time in the
+			// reporter (via testCase.parent walking) but is not persisted
+			// on AgentReport.failed[].tests[]. Eliminating this ambiguity
+			// requires extending TestReport with a suitePath: string[]
+			// field — tracked as a follow-up.
 			const suitePath: string[] =
 				test.fullName !== test.name && test.fullName.endsWith(` > ${test.name}`)
 					? test.fullName
