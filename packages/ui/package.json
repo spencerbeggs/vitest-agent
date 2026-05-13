@@ -38,7 +38,7 @@
 		"@savvy-web/rslib-builder": "^0.20.3",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
-		"ink": "^7.0.2",
+		"ink": "^7.0.3",
 		"ink-testing-library": "^4.0.0",
 		"react": "catalog:silk",
 		"vitest": "^4.1.6"
