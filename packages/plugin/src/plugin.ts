@@ -186,7 +186,7 @@ const aggregatedReporterByVitest = new WeakSet<object>();
  *
  * @public
  */
-export const CURRENT_PLUGIN_VERSION: string = process.env.__PACKAGE_VERSION__!;
+export const CURRENT_PLUGIN_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";
 
 /**
  * Cross-package version drift warning state. Module-scoped so multi-project
@@ -205,10 +205,19 @@ let _hasWarnedDrift = false;
  * first call in the same process so multi-project Vitest configs do
  * not duplicate the warning.
  *
+ * The `"0.0.0"` fallback (from process.env.__PACKAGE_VERSION__ ??
+ * "0.0.0" in the constant source) marks a dev build where rslib-builder
+ * has not substituted the literal — typically when this module is
+ * loaded directly from source rather than from dist. Skip the check
+ * in that case; the asymmetry between source-loaded plugin and
+ * dist-loaded peers would fire a spurious warning on every dev test
+ * run otherwise.
+ *
  * @internal
  */
 function checkVersionDrift(pluginVersion: string): void {
 	if (_hasWarnedDrift) return;
+	if (pluginVersion === "0.0.0") return;
 	const peers: ReadonlyArray<readonly [string, string]> = [
 		["vitest-agent-sdk", CURRENT_SDK_VERSION],
 		["vitest-agent-reporter", CURRENT_REPORTER_VERSION],
@@ -225,16 +234,6 @@ function checkVersionDrift(pluginVersion: string): void {
 		}
 	}
 	if (warned) _hasWarnedDrift = true;
-}
-
-/**
- * Reset the drift-warning guard. Test-only — exported so integration
- * tests can re-arm the once-per-process gate between cases.
- *
- * @internal
- */
-export function _resetVersionDriftGuardForTests(): void {
-	_hasWarnedDrift = false;
 }
 
 const TEST_FILE_SUFFIX_RE = /\.(?:test|spec)\.(?:ts|tsx|js|jsx)$/;

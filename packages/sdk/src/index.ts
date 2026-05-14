@@ -122,9 +122,11 @@ export * from "./utils/validate-phase-transition.js";
 
 // --- Cross-package version constant (T12 drift check) ---
 /**
- * The version of this package, inlined at build time from
+ * The version of this package. Inlined at build time from
  * package.json#version via rslib-builder's __PACKAGE_VERSION__ substitution.
- * Read by the plugin / MCP / CLI init-time drift check. See the root
- * CLAUDE.md "Cross-package version drift" section.
+ * Source-level reads (workspace `exports: "./src/index.ts"` during dev)
+ * see the `"0.0.0"` fallback — a clear signal the build pipeline has not
+ * substituted yet. Read by the plugin / MCP / CLI init-time drift check.
+ * See the root CLAUDE.md "Cross-package version drift" section.
  */
-export const CURRENT_SDK_VERSION: string = process.env.__PACKAGE_VERSION__!;
+export const CURRENT_SDK_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";

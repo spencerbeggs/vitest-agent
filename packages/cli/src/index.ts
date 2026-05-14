@@ -21,4 +21,4 @@ export { CliLive } from "./layers/CliLive.js";
  * partially-upgraded installs as a single stderr warning. See the root
  * CLAUDE.md "Cross-package version drift" section.
  */
-export const CURRENT_CLI_VERSION: string = process.env.__PACKAGE_VERSION__!;
+export const CURRENT_CLI_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";
