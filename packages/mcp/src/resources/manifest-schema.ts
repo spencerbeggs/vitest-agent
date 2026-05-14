@@ -49,7 +49,13 @@ export const encodeUpstreamManifest = Schema.encodeUnknown(UpstreamManifest);
 // the same shape so consumers see one annotation contract regardless of
 // which URI scheme produced the resource.
 
-const SLUG_PATTERN = /^[A-Za-z0-9._-]+(?:[/-][A-Za-z0-9._-]+)*$/;
+// Drop `-` from the inner character class — the separator alternation
+// `[/-]` already covers it. Keeping `-` in both opens a ReDoS hole on
+// inputs like `--------------!` because the engine has to try every
+// way of partitioning a run of dashes between the two `[…]+` segments.
+// All current slugs (`testing-effect-services-with-mock-layers`, etc.)
+// still match because they parse unambiguously as `token-token-…`.
+const SLUG_PATTERN = /^[A-Za-z0-9._]+(?:[/-][A-Za-z0-9._]+)*$/;
 
 export const PatternEntry = Schema.Struct({
 	slug: Schema.String.pipe(Schema.pattern(SLUG_PATTERN)),

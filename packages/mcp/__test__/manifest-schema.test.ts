@@ -124,6 +124,28 @@ describe("PatternEntry decode with annotations", () => {
 		expect(decoded.annotations?.priority).toBe(0.9);
 	});
 
+	it("rejects a slug with a long run of dashes in linear time (ReDoS regression)", () => {
+		// Reject path: a run of dashes followed by a forbidden character.
+		// Before the fix the inner class contained `-` AND the separator
+		// alternation was `[/-]`, so an input like "--…--!" forced the
+		// engine to try Fibonacci-many partitionings of the dash run.
+		// After the fix the parse is unambiguous and rejection is linear.
+		const malicious = `${"-".repeat(64)}!`;
+		const start = Date.now();
+		expect(() => decodePatternEntry({ ...base, slug: malicious })).toThrow();
+		expect(Date.now() - start).toBeLessThan(500);
+	});
+
+	it("accepts the canonical dashed slug shape after the fix", () => {
+		// All three shipping slugs use this same shape — confirm the
+		// hardened regex still accepts them.
+		const decoded = decodePatternEntry({
+			...base,
+			slug: "testing-effect-services-with-mock-layers",
+		});
+		expect(decoded.slug).toBe("testing-effect-services-with-mock-layers");
+	});
+
 	it("decodes the full patterns manifest", async () => {
 		const fixture = {
 			patterns: [{ ...base, annotations: { audience: ["assistant"], priority: 0.9 } }],
