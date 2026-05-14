@@ -40,7 +40,7 @@
 		"effect": "catalog:silk",
 		"magic-string": "^0.30.0",
 		"vitest-agent-sdk": "workspace:*",
-		"workspaces-effect": "^0.6.0"
+		"workspaces-effect": "^1.0.0"
 	},
 	"devDependencies": {
 		"@savvy-web/rslib-builder": "^0.20.3",

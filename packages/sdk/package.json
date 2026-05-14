@@ -42,7 +42,7 @@
 		"config-file-effect": "^0.2.0",
 		"effect": "catalog:silk",
 		"std-env": "^4.1.0",
-		"workspaces-effect": "^0.6.0",
+		"workspaces-effect": "^1.0.0",
 		"xdg-effect": "^1.0.1"
 	},
 	"devDependencies": {

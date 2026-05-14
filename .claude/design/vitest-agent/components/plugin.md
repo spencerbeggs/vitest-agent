@@ -3,9 +3,9 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-12
-last-synced: 2026-05-12
-completeness: 90
+updated: 2026-05-13
+last-synced: 2026-05-13
+completeness: 92
 related:
   - ../architecture.md
   - ../components.md
@@ -285,12 +285,51 @@ is recommended because it prevents TypeScript from widening string-literal
 option types (e.g., `provider: "v8"` stays a string literal instead of being
 widened to `string`).
 
-**Coverage-level constants on the namespace:**
+**Coverage-level constants on the namespace.** Each preset returns a
+dual-output `CoverageLevelPreset` shape — `{ thresholds, coverageTargets }`
+— so users pass `preset.thresholds` to Vitest's native
+`coverage.thresholds` and `preset.coverageTargets` to
+`AgentPlugin({ coverageTargets })` from a single source of truth. The
+underlying `CoverageLevel` numeric set (lines, functions, branches,
+statements per preset name) is unchanged; the namespace builds a
+"next preset up" mapping for the `coverageTargets` half so that
+`none → basic`, `basic → standard`, `standard → strict`, `strict → full`,
+and `full → full` (caps at full). The thresholds half always matches the
+preset name itself.
 
-- `AgentPlugin.COVERAGE_LEVELS` — record of the five `CoverageLevel` presets
-  (`none`, `basic`, `standard`, `strict`, `full`).
-- `AgentPlugin.COVERAGE_LEVELS_PER_FILE` — same presets with `.withPerFile()`
-  applied.
+- `AgentPlugin.COVERAGE_LEVELS` — record of the five preset names mapped
+  to `CoverageLevelPreset`.
+- `AgentPlugin.COVERAGE_LEVELS_PER_FILE` — same presets with `perFile: true`
+  set on the `thresholds` half only. The `coverageTargets` half does not
+  carry `perFile`; it inherits the flag from `coverage.thresholds.perFile`
+  when the user wires the dual output through Vitest.
+- `CoverageLevelPreset` is exported as a public type from
+  `vitest-agent-plugin` so user wiring can name the shape directly.
+
+**`AgentPlugin.COVERAGE_AUTOUPDATE`.** A frozen record of three
+`(n: number) => number` tolerance functions for Vitest's native
+`coverage.thresholds.autoUpdate` field (Vitest's contract is
+`autoUpdate?: boolean | ((newThreshold: number) => number)` — the plain
+function form is supported directly, so no type-augmentation tricks are
+needed). `standard` floors the suggested value; `strict` ceils it;
+`lenient` floors and subtracts 2 clamped to 0 to leave a slack buffer.
+Users pass one of these into Vitest's native field; the plugin does not
+configure or override `autoUpdate` itself.
+
+**Canonical 2.0 wiring pattern:**
+
+```ts
+const preset = AgentPlugin.COVERAGE_LEVELS.standard;
+defineConfig({
+  plugins: [AgentPlugin({ coverageTargets: preset.coverageTargets })],
+  test: {
+    coverage: {
+      thresholds: preset.thresholds,
+      // optional: thresholds.autoUpdate: AgentPlugin.COVERAGE_AUTOUPDATE.standard,
+    },
+  },
+});
+```
 
 ## Reporter-side utilities
 
@@ -314,9 +353,11 @@ instead.
   Used by the plugin's Vite `transform(code, id)` hook.
 - `strip-console-reporters.ts` — removes console reporters from Vitest's
   reporter chain.
-- `resolve-thresholds.ts` — parses Vitest-native `coverageThresholds` into
-  `ResolvedThresholds`. Disables Vitest's native `autoUpdate` when our own
-  targets are set, to prevent Vitest auto-ratcheting independently.
+- `resolve-thresholds.ts` — parses Vitest-native `coverage.thresholds` into
+  `ResolvedThresholds`. Phase 4 dropped the `autoUpdate`-disable side
+  effect; Vitest 2.0 owns the native ratchet and users opt in by passing
+  one of `AgentPlugin.COVERAGE_AUTOUPDATE.{standard,strict,lenient}` into
+  `coverage.thresholds.autoUpdate`.
 - `capture-env.ts` — captures CI/runner environment variables for settings
   storage.
 - `capture-settings.ts` — captures Vitest config (pool, environment,
@@ -400,6 +441,125 @@ its own pattern expansion and inheritance rules, and the plugin must see the
 same resolved values Vitest will enforce. `resolveThresholds` in the
 reporter-side utilities does this conversion.
 
-When user-supplied `coverageTargets` are present, the plugin disables
-Vitest's `autoUpdate` so the two ratchet mechanisms don't fight. The plugin's
-own baseline ratchet runs unconditionally on full (non-scoped) runs.
+Vitest 2.0 owns its own threshold ratchet via `coverage.thresholds.autoUpdate`.
+The plugin no longer mutates that field — Phase 4 dropped the
+`autoUpdate`-disable side effect. Users who want auto-update behavior pass a
+tolerance function from `AgentPlugin.COVERAGE_AUTOUPDATE` directly into
+Vitest's native field; the plugin's own baseline ratchet still runs
+unconditionally on full (non-scoped) runs and is independent of Vitest's
+ratchet.
+
+`coverageThresholds` was removed from `AgentPluginConstructorOptions` in
+Phase 4 — users set Vitest's native `test.coverage.thresholds` instead.
+`coverageTargets` remains a plugin option (typed by the SDK's
+`CoverageTargets` schema). The schema-level `AgentPluginOptions.coverageThresholds`
+field still exists today as a stale entry; the read path is gone and the
+schema cleanup lands in T7.1.
+
+## ConfigValidation service
+
+`packages/plugin/src/services/ConfigValidation.ts`, with live and test
+layers under `packages/plugin/src/layers/`. Effect service tag
+`vitest-agent/ConfigValidation` exposes a single method:
+
+```ts
+validate(input: ValidationInput): Effect<ValidationResult, never, never>
+// ValidationInput  = { vitestConfig: ResolvedConfig; pluginOptions: AgentPluginOptions }
+// ValidationResult = { errors, warnings, info }
+```
+
+`ValidationError` carries an optional `path?: string` for pinpointed
+diagnostic locations (for example, `INVALID_TARGET_VALUE` rule paths like
+`lines` for a top-level metric or `src/**.ts.lines` for a metric inside a
+glob entry). The error and warning shapes also carry optional
+`remediation?: string`; the Live layer populates it for installable-fix
+cases (notably `MISSING_PROVIDER_PACKAGE`, where the remediation is the
+`npm install --save-dev <package>` command).
+
+### Operating modes
+
+`ConfigValidationLive` resolves the mode from
+`vitestConfig.coverage?.enabled`:
+
+- `coverage.enabled === false` → **UI-only mode**. Skip provider rules
+  (`UNSUPPORTED_PROVIDER`, `MISSING_PROVIDER_PACKAGE`) — there is no
+  coverage pipeline to need a provider.
+- anything else → **Full mode**. All seven rules run.
+
+The mode is also threaded onto `ResolvedReporterConfig.coverageMode` from
+the same source so the reporter's persistence short-circuit (see
+*UI-only mode short-circuit* below) and the validation rule registry
+agree on which mode is active.
+
+### Rule registry (starter set)
+
+Seven rules ship in the Live layer:
+
+| Code | Severity | Mode | Description |
+| ---- | -------- | ---- | ----------- |
+| `TARGET_WITHOUT_THRESHOLD` | warn | both | `coverageTargets.<metric>` set, `coverage.thresholds.<metric>` unset. Suggests adding the threshold |
+| `TARGET_BELOW_THRESHOLD` | error | both | `coverageTargets.<metric>` is lower than the matching `coverage.thresholds.<metric>`. Targets must be at or above the threshold floor |
+| `THRESHOLD_WITHOUT_TARGET` | silent | both | Threshold set, target unset. Treated as the internal zero target — the rule emits nothing |
+| `INVALID_TARGET_VALUE` | error | both | Zero or negative numeric values in `coverageTargets`. Detected at the top level and inside nested glob entries via the SDK's `validateCoverageTargetsShape` helper. Carries `path` |
+| `UNSUPPORTED_PROVIDER` | error | Full | `coverage.provider` is set to a value other than `v8` or `istanbul` |
+| `MISSING_PROVIDER_PACKAGE` | error | Full | `coverage.provider` references a supported package (`@vitest/coverage-v8` or `@vitest/coverage-istanbul`) that is not resolvable via `createRequire(import.meta.url).resolve(packageName)`. The `remediation` field carries the install command |
+| `PERFILE_ON_TARGETS` | warn | both | The `perFile` key appears inside `coverageTargets`; users should set `coverage.thresholds.perFile` instead. Surfaced via `validateCoverageTargetsShape` |
+
+### Test layer
+
+`ConfigValidationTest.layer(override?: ValidationResult)` is the test
+factory for unit tests that want to inject a pre-built result. Pass an
+override `ValidationResult` to assert against fixed errors/warnings, or
+call with no argument for a no-op success.
+
+## ConfigValidation wired into `configureVitest`
+
+In Phase 4 the plugin's `configureVitest` hook replaced the inline
+`resolveCoverageInput(coverageThresholds, ...)` + `validateCoverageConfig`
+block with a `ConfigValidation.validate(...)` call:
+
+- Warnings and info entries print to stderr through the
+  `[vitest-agent:plugin]` prefix and do not fail the build.
+- Errors throw via `formatFatalError`, which surfaces the entries
+  including their `path` and `remediation` fields where present.
+
+`coverageMode` is resolved from `vitestConfig.coverage?.enabled` and threaded
+through `buildReporterKit` onto `ResolvedReporterConfig`. The kit-building
+path is the only writer of `coverageMode` on the resolved kit.
+
+There is an `@internal` `resolvedConfig` getter on `AgentReporter` (tagged
+`@tag phase7-review`) so tests can verify mode threading. The
+construction-time getter uses placeholder `executor: "ci"`; the real
+executor resolves in `onTestRunEnd`. This is a Phase 7 follow-up.
+
+## UI-only mode short-circuit in `onTestRunEnd`
+
+Phase 5 added an early return on the UI-only path in `AgentReporter.onTestRunEnd`:
+
+1. `RunFinished` still fires at the top of the handler so any live mount
+   sees end-of-run before the heavy work would have started.
+2. `filteredModules` is computed (the per-project filter still applies).
+3. **If `opts.coverageMode === "ui-only"`**, the reporter:
+   - Builds `AgentReport[]` from `testModules` via the pure
+     `buildAgentReport` helper (no DB read, no classifier).
+   - Runs a tiny Effect program against `OutputPipelineLive` +
+     `NodeContext.layer` to resolve env, executor, format, and detail.
+   - Builds the kit via `buildReporterKit` (carrying `coverageMode:
+     "ui-only"` through onto `ResolvedReporterConfig`).
+   - Calls the user's reporter factory with the kit and routes the
+     returned `RenderedOutput[]` to its declared targets.
+   - Returns. No `ensureMigrated`, no `DataStore.write*`, no
+     `CoverageAnalyzer.process`, no `HistoryTracker.resolve`.
+4. Otherwise the Full-mode pipeline runs end-to-end as before.
+
+The streaming taps that drive a live renderer
+(`onTestModuleQueued`, `onTestModuleStart`, `onTestCaseResult`,
+`onTestModuleEnd`, plus the `RunFinished` emit at the top of `onTestRunEnd`)
+fire identically in both modes — UI-only callers see the same event
+stream as Full-mode callers, just without persistence side effects.
+
+**Open follow-up.** The kit-building block (env/executor/format/detail
+resolution, factory call, route) is duplicated between Full and UI-only
+paths. Extracting a shared helper is viable but requires making the
+kit-building Effect-context-agnostic. T7's options-cleanup pass touches
+the reporter internals and is the natural place to fold this together.

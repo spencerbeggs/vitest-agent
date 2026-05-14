@@ -10,7 +10,7 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | Workspace | Path | Purpose |
 | --------- | ---- | ------- |
 | `vitest-agent-sdk` | `packages/sdk/` | Shared schemas, data layer, services, formatters, utilities (no internal deps) |
-| `vitest-agent-plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ReporterLive` |
+| `vitest-agent-plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ConfigValidation`, `ReporterLive` |
 | `vitest-agent-reporter` | `packages/reporter/` | Named `VitestAgentReporterFactory` implementations (no Vitest-API code) |
 | `vitest-agent-cli` | `packages/cli/` | CLI bin (`vitest-agent`) |
 | `vitest-agent-mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
@@ -58,17 +58,25 @@ standard incremental migration discipline applies.
 for LLM coding agents. Six primary capabilities:
 
 1. **`AgentPlugin` + `AgentReporter`** -- Vitest plugin (>= 4.1.0) with
-   four-environment detection, reporter chain management, coverage threshold
-   extraction, and pluggable rendering via `VitestAgentReporterFactory`.
+   four-environment detection, reporter chain management, a `ConfigValidation`
+   Effect service for coverage-config diagnostics, Full and UI-only operating
+   modes gated by Vitest's native `coverage.enabled`, and pluggable rendering
+   via `VitestAgentReporterFactory`.
 2. **`vitest-agent` CLI** -- `@effect/cli`-based bin with `status`,
    `overview`, `coverage`, `history`, `trends`, `cache`, `doctor`, `record`,
    `show`, `triage`, and `wrapup` subcommands. All commands support `--format`.
 3. **Suggested actions & failure history** -- actionable suggestions in
    console output, per-test failure persistence, and test classification
    (`stable`, `new-failure`, `persistent`, `flaky`, `recovered`).
-4. **Coverage thresholds, baselines, and trends** -- Vitest-native
-   `coverageThresholds`, aspirational `coverageTargets`, and auto-ratcheting
-   baselines with per-project trend tracking.
+4. **Coverage policy, baselines, and trends** -- typed `coverageTargets`
+   schema, dual-output `AgentPlugin.COVERAGE_LEVELS` /
+   `COVERAGE_LEVELS_PER_FILE` presets that return `{ thresholds,
+   coverageTargets }`, three `AgentPlugin.COVERAGE_AUTOUPDATE` tolerance
+   functions that pass straight into Vitest's native
+   `coverage.thresholds.autoUpdate`, and per-project trend tracking.
+   Users set `coverage.thresholds` directly on Vitest's native config; the
+   plugin's `ConfigValidation` service catches mismatches against
+   `coverageTargets`.
 5. **MCP server** -- 29 MCP tools via tRPC router. Action-keyed surface:
    per-CRUD families collapse into one tool each (`tdd_task`, `tdd_goal`,
    `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) that dispatch

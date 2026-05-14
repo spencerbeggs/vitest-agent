@@ -62,6 +62,34 @@ export const AgentReporterOptions = Schema.Struct({
 export type AgentReporterOptions = typeof AgentReporterOptions.Type;
 
 /**
+ * Per-metric leaf shape for coverageTargets entries. Allows optional
+ * numeric targets per metric and the `100: true` shortcut.
+ */
+export const CoverageTargetsMetrics = Schema.Struct({
+	lines: Schema.optional(Schema.Positive),
+	functions: Schema.optional(Schema.Positive),
+	branches: Schema.optional(Schema.Positive),
+	statements: Schema.optional(Schema.Positive),
+	100: Schema.optional(Schema.Literal(true)),
+}).annotations({ identifier: "CoverageTargetsMetrics" });
+export type CoverageTargetsMetrics = typeof CoverageTargetsMetrics.Type;
+
+/**
+ * Typed schema for the coverageTargets option.
+ *
+ * Mirrors Vitest's coverage.thresholds shape — per-metric positive numbers,
+ * the `100: true` shortcut (expressed as a Literal(true) value), and
+ * glob-pattern entries with metric objects. Positive numbers only;
+ * negatives and zeros are rejected. `perFile` is not allowed here —
+ * inherit it from `coverage.thresholds.perFile`.
+ */
+export const CoverageTargets = Schema.Record({
+	key: Schema.String,
+	value: Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics),
+}).annotations({ identifier: "CoverageTargets" });
+export type CoverageTargets = typeof CoverageTargets.Type;
+
+/**
  * Configuration options for AgentPlugin.
  *
  * The plugin manages `consoleOutput` automatically — users control
@@ -75,7 +103,7 @@ export const AgentPluginOptions = Schema.Struct({
 	logFile: Schema.optional(Schema.String),
 	mcp: Schema.optional(Schema.Boolean),
 	coverageThresholds: Schema.optional(Schema.Unknown),
-	coverageTargets: Schema.optional(Schema.Unknown),
+	coverageTargets: Schema.optional(CoverageTargets),
 	reporterOptions: Schema.optional(
 		Schema.Struct({
 			cacheDir: Schema.optional(Schema.String),

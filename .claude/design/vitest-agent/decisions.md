@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-13
+last-synced: 2026-05-13
 completeness: 100
 related:
   - ./architecture.md
@@ -851,6 +851,84 @@ flag and gives finer control along the way.
 contract that this decision threads `consoleMode` through), and the
 retired entries D9 / D27 / the old D12 prose in
 [./decisions-retired.md](./decisions-retired.md).
+
+### Decision 38: T4 Coverage Policy — Dual-Output Presets, ConfigValidation Service, Full / UI-only Modes
+
+T4 (the 2.0 coverage-policy workstream) reshapes how users wire coverage
+thresholds and aspirational targets, where validation lives, and how the
+reporter behaves when coverage is disabled. Five locked design choices
+emerged across Phases 1–5.
+
+**1. `coverageMode` belongs on `ResolvedReporterConfig`, not
+`AgentReporterOptions`.** The two operating modes — Full (the full
+persistence pipeline runs) and UI-only (rendering only, the persistence
+pipeline short-circuits) — are gated by Vitest's native
+`coverage.enabled`. The plugin resolves the mode in `configureVitest`
+and threads it through `buildReporterKit` onto the resolved kit. It is
+a per-run resolved fact, not a user input. Locking it on the resolved
+kit (rather than on the user-facing `AgentReporterOptions` schema) keeps
+the resolution path single-source-of-truth and avoids forcing users to
+declare the same fact twice. Cross-workstream review section 2.2
+ratified this placement.
+
+**2. Dual-output `COVERAGE_LEVELS` presets.** Each
+`AgentPlugin.COVERAGE_LEVELS.<preset>` entry returns a
+`{ thresholds, coverageTargets }` shape so users can pass the matching
+halves into Vitest's native `coverage.thresholds` and the plugin's
+`coverageTargets` option from one named constant. Underlying
+`CoverageLevel` numbers per preset name are unchanged. The
+`coverageTargets` half uses a "next preset up" mapping
+(`none → basic`, `basic → standard`, `standard → strict`, `strict →
+full`, `full → full`) so the user's threshold floor and aspirational
+target floor are calibrated together by default without forcing a
+custom triple. `COVERAGE_LEVELS_PER_FILE` applies `perFile: true` to
+the thresholds half only; the coverageTargets half inherits perFile
+from `coverage.thresholds.perFile`.
+
+**3. `COVERAGE_AUTOUPDATE` is a plain function on Vitest's native
+field.** Vitest's contract for `coverage.thresholds.autoUpdate` is
+`boolean | ((newThreshold: number) => number)`. The function form is
+supported directly, so the three tolerance functions ship as plain
+`(n: number) => number` callables under `AgentPlugin.COVERAGE_AUTOUPDATE`
+(`standard` floors, `strict` ceils, `lenient` floors and subtracts 2
+clamped to 0). No type augmentation, no plugin-side wrapping. Users
+pass `AgentPlugin.COVERAGE_AUTOUPDATE.standard` straight into
+`coverage.thresholds.autoUpdate`. Phase 4 also dropped the plugin's
+side-effect that previously disabled `autoUpdate` when targets were set
+— Vitest 2.0 owns its own ratchet and the two no longer fight.
+
+**4. `MISSING_PROVIDER_PACKAGE` checks installability via
+`createRequire`.** The Full-mode validation rule that flags an
+unresolvable coverage provider uses
+`createRequire(import.meta.url).resolve(packageName)` rather than a
+filesystem scan or a `package.json` lookup. `createRequire` resolves
+the same way the Vitest runtime would resolve the provider, so the
+rule fires when (and only when) Vitest would also fail to load the
+provider. The `remediation` field on the error carries the install
+command (`npm install --save-dev @vitest/coverage-v8` or
+`@vitest/coverage-istanbul`).
+
+**5. Validation is an Effect service with a starter rule registry.**
+`ConfigValidation` (tag `vitest-agent/ConfigValidation`) replaces the
+inline `validateCoverageConfig` call previously embedded in
+`configureVitest`. The Live layer runs seven rules
+(`TARGET_WITHOUT_THRESHOLD`, `TARGET_BELOW_THRESHOLD`,
+`THRESHOLD_WITHOUT_TARGET` silent, `INVALID_TARGET_VALUE`,
+`UNSUPPORTED_PROVIDER`, `MISSING_PROVIDER_PACKAGE`, `PERFILE_ON_TARGETS`)
+and produces a `ValidationResult` with `errors`, `warnings`, and
+`info` arrays; `ValidationError` carries an optional `path` for
+pinpointed diagnostics. Warnings print to stderr through the
+`[vitest-agent:plugin]` prefix; errors throw via `formatFatalError`.
+The test factory `ConfigValidationTest.layer(override?)` lets tests
+inject pre-built results without spinning up the rule engine.
+
+**Cross-references:** the canonical spec at
+`docs/superpowers/specs/2.0-coverage-policy.md` and the cross-workstream
+review section 2.2. Phase 6 (schema cleanup — removing
+`coverageThresholds` from `AgentPluginOptions` and
+`AgentReporterOptions`, removing nested `reporterOptions.autoUpdate`,
+deleting `validateCoverageConfig` from `schemas/CoverageLevel.ts`) is
+deferred to T7.1 and lands on the `feat/2.0-options-cleanup` branch.
 
 ### Decision D9: Last Drop-and-Recreate Migration
 

@@ -53,8 +53,9 @@ install them explicitly:
 pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-ui vitest-agent-cli vitest-agent-mcp
 ```
 
-Add `AgentPlugin` to your Vitest config with coverage thresholds and
-aspirational targets:
+Add `AgentPlugin` to your Vitest config. Pin Vitest's native coverage
+thresholds and the plugin's aspirational targets to a single
+`COVERAGE_LEVELS` preset so the two halves stay in sync:
 
 ```typescript
 import { AgentPlugin } from "vitest-agent-plugin";
@@ -62,11 +63,11 @@ import { defineConfig } from "vitest/config";
 
 export default async () => {
   const { projects, tags } = await AgentPlugin.discover();
+  const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
   return defineConfig({
     plugins: [
       AgentPlugin({
-        coverageThresholds: { lines: 80, branches: 80 },
-        coverageTargets: { lines: 95, branches: 90 },
+        coverageTargets: coverage.coverageTargets,
       }),
     ],
     test: {
@@ -74,12 +75,23 @@ export default async () => {
       tags,
       pool: "forks",
       coverage: {
+        enabled: true,
         provider: "v8",
+        thresholds: coverage.thresholds,
       },
     },
   });
 };
 ```
+
+`AgentPlugin.COVERAGE_LEVELS.<preset>` returns a dual-output object
+(`{ thresholds, coverageTargets }`) — pass the `thresholds` half to
+Vitest's native `coverage.thresholds` and the `coverageTargets` half to
+the plugin. As of 2.0 the plugin no longer reads its own
+`coverageThresholds` option; thresholds are always set on Vitest's
+native config. See
+[Configuration > Coverage Thresholds](../docs/configuration.md#coverage-thresholds)
+for the full priority order.
 
 Install the Claude Code plugin for the full agent experience:
 

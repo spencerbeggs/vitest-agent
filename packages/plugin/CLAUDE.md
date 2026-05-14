@@ -15,9 +15,12 @@ src/
   reporter.ts         -- internal AgentReporter Vitest-API class
   services/
     CoverageAnalyzer.ts        -- istanbul CoverageMap processor
+    ConfigValidation.ts        -- Effect service for coverage-config validation
   layers/
     CoverageAnalyzerLive.ts
     CoverageAnalyzerTest.ts
+    ConfigValidationLive.ts    -- 7-rule starter registry
+    ConfigValidationTest.ts    -- override factory for unit tests
     ReporterLive.ts            -- per-run composition layer
   utils/
     build-reporter-kit.ts      -- ReporterKit builder
@@ -40,9 +43,12 @@ src/
 
 | File | Purpose |
 | ---- | ------- |
-| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + executor + console matrix → single `ConsoleMode` value; strips Vitest reporters and suppresses Vitest's coverage table whenever the resolved mode owns stdout (any value other than `passthrough`); gates the `onRunEvent` tap to `ink` mode only; injects `AgentReporter` per project via `configureVitest`. Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, and `discover()` |
-| `reporter.ts` | Internal `AgentReporter` class. `onInit` resolves `dbPath` async; `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline, then calls `opts.reporter(kit)` and routes `RenderedOutput[]` |
+| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + executor + console matrix → single `ConsoleMode` value; strips Vitest reporters and suppresses Vitest's coverage table whenever the resolved mode owns stdout (any value other than `passthrough`); gates the `onRunEvent` tap to `ink` mode only; injects `AgentReporter` per project via `configureVitest`. Resolves `coverageMode` from Vitest's native `coverage.enabled` and threads it onto `ResolvedReporterConfig`. Runs the `ConfigValidation` service in `configureVitest` (warnings to stderr via `[vitest-agent:plugin]`; errors throw via `formatFatalError`). Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, `COVERAGE_AUTOUPDATE`, and `discover()` |
+| `reporter.ts` | Internal `AgentReporter` class. `onInit` resolves `dbPath` async; `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline in Full mode, then calls `opts.reporter(kit)` and routes `RenderedOutput[]`. In UI-only mode (`opts.coverageMode === "ui-only"`), the handler short-circuits after `RunFinished` and `filteredModules`: builds reports via `buildAgentReport`, runs a tiny `OutputPipelineLive` + `NodeContext.layer` program to resolve env/executor/format/detail, builds the kit, and routes the renderer output. No `ensureMigrated`, no `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker` |
 | `services/CoverageAnalyzer.ts` | Effect service tag for coverage processing. Only lives here because the reporter lifecycle class feeds it coverage data; CLI/MCP read pre-processed coverage from SQLite |
+| `services/ConfigValidation.ts` | Effect service tag `vitest-agent/ConfigValidation` with one method `validate(input): Effect<ValidationResult, never, never>`. `ValidationError` carries optional `path` for pinpointed diagnostics and optional `remediation` for install-command-style fixes |
+| `layers/ConfigValidationLive.ts` | Runs the seven-rule starter registry: `TARGET_WITHOUT_THRESHOLD` (warn), `TARGET_BELOW_THRESHOLD` (error), `THRESHOLD_WITHOUT_TARGET` (silent), `INVALID_TARGET_VALUE` (error, top + nested glob), `UNSUPPORTED_PROVIDER` (error, Full mode only), `MISSING_PROVIDER_PACKAGE` (error via `createRequire`, Full mode only, with install-command remediation), `PERFILE_ON_TARGETS` (warn). Mode resolution reads `vitestConfig.coverage?.enabled` — `false` → UI-only (skip provider rules), anything else → Full |
+| `layers/ConfigValidationTest.ts` | `ConfigValidationTest.layer(override?: ValidationResult)` for unit tests that inject pre-built results |
 | `utils/process-failure.ts` | Per-error signature pipeline. Called from `onTestRunEnd` for each error before `DataStore.writeErrors`. Returns `frames: StackFrameInput[]` and `signatureHash` |
 | `utils/build-reporter-kit.ts` | Constructs `ReporterKit` from resolved config + detected environment + `noColor` flag. `stdOsc8` is enabled when `!noColor && (env === "terminal" \|\| env === "agent-shell")` |
 | `utils/route-rendered-output.ts` | Dispatches a single `RenderedOutput` to its target: `stdout`, `github-summary` (append), or `file` (no-op) |
@@ -92,8 +98,20 @@ callback) was removed when `discoverProjects` consolidated to one
 project per workspace package; test-kind shaping now happens through
 `TagStrategy.classify()` rather than through projects.
 
-`coverageThresholds` and `coverageTargets` are top-level options on
-`AgentPluginConstructorOptions` — there is no `discovery` field.
+`coverageTargets` is a top-level option on
+`AgentPluginConstructorOptions`. `coverageThresholds` is no longer a
+plugin option — Phase 4 of the T4 coverage-policy work removed it.
+Users set Vitest's native `test.coverage.thresholds` directly. There
+is no `discovery` field.
+
+The plugin namespace also exposes the dual-output preset constants
+(`AgentPlugin.COVERAGE_LEVELS`, `AgentPlugin.COVERAGE_LEVELS_PER_FILE`)
+that each return `{ thresholds, coverageTargets }`, plus
+`AgentPlugin.COVERAGE_AUTOUPDATE` — three `(n: number) => number`
+tolerance functions (`standard`, `strict`, `lenient`) that pass
+directly into Vitest's native `coverage.thresholds.autoUpdate`. The
+public `CoverageLevelPreset` type names the dual-output shape for
+user wiring.
 
 ## Conventions
 
@@ -129,8 +147,12 @@ project per workspace package; test-kind shaping now happens through
   `AgentReporterOptions`) in `vitest-agent-sdk`'s `schemas/Options.ts`,
   then thread it through `plugin.ts` -> `reporter.ts` ->
   `build-reporter-kit.ts` -> `ResolvedReporterConfig` as needed.
-  `coverageThresholds` and `coverageTargets` are top-level options on
-  `AgentPluginConstructorOptions`; there is no `discovery` field.
+  `coverageTargets` is a top-level option on
+  `AgentPluginConstructorOptions`; `coverageThresholds` was removed in
+  Phase 4 and users set Vitest's native `test.coverage.thresholds`
+  directly. There is no `discovery` field. Per-run resolved facts (for
+  example, `coverageMode`) belong on `ResolvedReporterConfig`, not on
+  the user-facing options schemas.
 - Changing project discovery: edit `utils/discover-projects.ts`.
   `VitestProject` builders live in `utils/vitest-project.ts`. The
   scanner accepts both `src/` (legacy) and `__test__/` (canonical)
@@ -222,10 +244,14 @@ never breaks because a live renderer has a bug.
   Load when working on `AgentPlugin`, the internal `AgentReporter`,
   `CoverageAnalyzer`, or the reporter-side utilities.
 - `@./.claude/design/vitest-agent/data-flows.md`
-  Load when tracing the test-run pipeline (Flow 1: end-to-end run
-  persistence; Flow 2: coverage processing and dedup).
+  Load when tracing the test-run pipeline (Flow 1: `AgentReporter`
+  lifecycle, including the Full-mode persistence/coverage/baseline path
+  and the UI-only short-circuit; Flow 2: `AgentPlugin.configureVitest`,
+  including `ConfigValidation` and `coverageMode` resolution).
 - `@./.claude/design/vitest-agent/decisions.md`
   Load when you need rationale (especially D34 plugin/reporter split,
+  D38 T4 coverage policy — `coverageMode`, dual-output `COVERAGE_LEVELS`
+  presets, `COVERAGE_AUTOUPDATE`, `ConfigValidation` service —
   D7 per-call `Effect.runPromise`, D28 `ensureMigrated` globalThis
   cache, D10 failure signatures).
 - `@./.claude/design/vitest-agent/components/discover.md`

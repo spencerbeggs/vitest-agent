@@ -5,6 +5,7 @@ import { createLiveInk, eventSourcedReporter } from "vitest-agent-ui";
 export default async () => {
 	const { projects, tags } = await AgentPlugin.discover();
 	const live = createLiveInk();
+	const coverage = AgentPlugin.COVERAGE_LEVELS.basic;
 	return defineConfig({
 		plugins: [
 			AgentPlugin({
@@ -12,8 +13,7 @@ export default async () => {
 				reporter: eventSourcedReporter,
 				onRunEvent: live.event,
 				mcp: true,
-				coverageThresholds: AgentPlugin.COVERAGE_LEVELS.basic,
-				coverageTargets: AgentPlugin.COVERAGE_LEVELS.standard,
+				coverageTargets: coverage.coverageTargets,
 			}),
 		],
 		test: {
@@ -24,6 +24,7 @@ export default async () => {
 			coverage: {
 				enabled: true,
 				provider: "v8",
+				thresholds: coverage.thresholds,
 				exclude: [
 					"**/*.{test,spec}.ts",
 					"packages/cli/src/bin.ts",

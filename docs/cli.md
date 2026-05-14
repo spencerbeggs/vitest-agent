@@ -83,8 +83,10 @@ Coverage gap analysis from the database.
 npx vitest-agent coverage
 ```
 
-Reads the coverage threshold from each project's stored data. Shows
-files below threshold sorted by worst metric, with uncovered line ranges.
+Reads the coverage thresholds Vitest captured for each project at the
+last test run (via `test.coverage.thresholds`) plus any `coverageTargets`
+the plugin recorded. Shows files below threshold sorted by worst metric,
+with uncovered line ranges.
 
 ## history
 

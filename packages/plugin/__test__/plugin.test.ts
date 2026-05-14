@@ -242,38 +242,10 @@ describe("AgentPlugin", () => {
 	});
 
 	describe("coverage thresholds resolution", () => {
-		it("passes thresholds from plugin options to reporter", async () => {
-			const plugin = AgentPlugin(
-				{
-					coverageThresholds: "basic",
-				},
-				EnvironmentDetectorTest.layer("agent-shell"),
-			);
-			const vitest = mockVitest(["agent"]);
-			await callConfigureVitest(plugin, vitest);
-			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter);
-			expect(reporter).toBeDefined();
-		});
-
-		it("reads thresholds from vitest coverage config when plugin options not set", async () => {
+		it("reads thresholds from vitest coverage config", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
 			const vitest = mockVitest(["agent"], {
 				thresholds: { lines: 90, branches: 85, functions: 80, statements: 90 },
-			});
-			await callConfigureVitest(plugin, vitest);
-			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter);
-			expect(reporter).toBeDefined();
-		});
-
-		it("plugin options take priority over vitest config thresholds", async () => {
-			const plugin = AgentPlugin(
-				{
-					coverageThresholds: "basic",
-				},
-				EnvironmentDetectorTest.layer("agent-shell"),
-			);
-			const vitest = mockVitest(["agent"], {
-				thresholds: { lines: 90, branches: 85 },
 			});
 			await callConfigureVitest(plugin, vitest);
 			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter);
@@ -285,7 +257,7 @@ describe("AgentPlugin", () => {
 		it("passes targets to reporter when set", async () => {
 			const plugin = AgentPlugin(
 				{
-					coverageTargets: "strict",
+					coverageTargets: { lines: 80, functions: 75 },
 				},
 				EnvironmentDetectorTest.layer("agent-shell"),
 			);
@@ -293,19 +265,6 @@ describe("AgentPlugin", () => {
 			await callConfigureVitest(plugin, vitest);
 			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter);
 			expect(reporter).toBeDefined();
-		});
-
-		it("disables Vitest native autoUpdate when targets set", async () => {
-			const thresholds: Record<string, unknown> = { lines: 80 };
-			const plugin = AgentPlugin(
-				{
-					coverageTargets: "strict",
-				},
-				EnvironmentDetectorTest.layer("agent-shell"),
-			);
-			const vitest = mockVitest(["agent"], { thresholds });
-			await callConfigureVitest(plugin, vitest);
-			expect(thresholds.autoUpdate).toBe(false);
 		});
 
 		it("does not disable autoUpdate when no explicit targets are set", async () => {
@@ -316,59 +275,66 @@ describe("AgentPlugin", () => {
 			expect(thresholds.autoUpdate).toBeUndefined();
 		});
 
-		it("respects autoUpdate false in reporter options", async () => {
-			const thresholds: Record<string, unknown> = { lines: 80 };
+		it("accepts typed CoverageTargets object with per-metric numbers", async () => {
 			const plugin = AgentPlugin(
 				{
-					coverageTargets: "strict",
-					reporterOptions: {
-						autoUpdate: false,
-					},
+					coverageTargets: { lines: 80, functions: 75, branches: 70 },
 				},
 				EnvironmentDetectorTest.layer("agent-shell"),
 			);
-			const vitest = mockVitest(["agent"], { thresholds });
-			await callConfigureVitest(plugin, vitest);
-			expect(thresholds.autoUpdate).toBeUndefined();
+			const vitest = mockVitest(["agent"]);
+			await expect(callConfigureVitest(plugin, vitest)).resolves.not.toThrow();
 		});
 	});
 
 	describe("coverage option promotion", () => {
-		it("reads coverageThresholds from top-level option (string name)", async () => {
-			const plugin = AgentPlugin(
-				{ coverageThresholds: "basic", coverageTargets: "strict" },
-				EnvironmentDetectorTest.layer("terminal"),
-			);
-			const vitest = mockVitest();
-			await callConfigureVitest(plugin, vitest);
-			expect(vitest.config.reporters.some((r) => r instanceof AgentReporter)).toBe(true);
+		it("COVERAGE_LEVELS.standard exposes the dual-output shape", () => {
+			const preset = AgentPlugin.COVERAGE_LEVELS.standard;
+			expect(preset.thresholds.lines).toBe(70);
+			expect(preset.thresholds.branches).toBe(65);
+			expect(preset.thresholds.functions).toBe(70);
+			expect(preset.thresholds.statements).toBe(70);
+			expect(preset.thresholds.perFile).toBeUndefined();
+			expect(preset.coverageTargets.lines).toBe(80);
+			expect(preset.coverageTargets.branches).toBe(75);
+			expect(preset.coverageTargets.functions).toBe(80);
+			expect(preset.coverageTargets.statements).toBe(80);
 		});
 
-		it("accepts a CoverageLevel instance for coverageThresholds", async () => {
-			const plugin = AgentPlugin(
-				{ coverageThresholds: AgentPlugin.COVERAGE_LEVELS.basic, coverageTargets: "strict" },
-				EnvironmentDetectorTest.layer("terminal"),
-			);
-			const vitest = mockVitest();
-			await expect(callConfigureVitest(plugin, vitest)).resolves.not.toThrow();
+		it("COVERAGE_LEVELS.full caps coverageTargets at the full preset numbers", () => {
+			const preset = AgentPlugin.COVERAGE_LEVELS.full;
+			expect(preset.thresholds.lines).toBe(90);
+			expect(preset.coverageTargets.lines).toBe(90);
+			expect(preset.coverageTargets.branches).toBe(85);
 		});
 
-		it("throws when target is below threshold", async () => {
-			const plugin = AgentPlugin(
-				{ coverageThresholds: "strict", coverageTargets: "none" },
-				EnvironmentDetectorTest.layer("terminal"),
-			);
-			const vitest = mockVitest();
-			await expect(callConfigureVitest(plugin, vitest)).rejects.toThrow(/coverageTargets\.lines/);
+		it("COVERAGE_LEVELS_PER_FILE.strict applies perFile only to the thresholds half", () => {
+			const preset = AgentPlugin.COVERAGE_LEVELS_PER_FILE.strict;
+			expect(preset.thresholds.perFile).toBe(true);
+			expect(preset.thresholds.lines).toBe(80);
+			expect("perFile" in preset.coverageTargets).toBe(false);
+			expect(preset.coverageTargets.lines).toBe(90);
 		});
 
-		it("COVERAGE_LEVELS.strict has correct values", () => {
-			expect(AgentPlugin.COVERAGE_LEVELS.strict.lines).toBe(80);
+		it("COVERAGE_AUTOUPDATE.standard floors fractional values", () => {
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(95.85)).toBe(95);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(50)).toBe(50);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(100)).toBe(100);
 		});
 
-		it("COVERAGE_LEVELS_PER_FILE.strict has perFile: true", () => {
-			expect(AgentPlugin.COVERAGE_LEVELS_PER_FILE.strict.perFile).toBe(true);
-			expect(AgentPlugin.COVERAGE_LEVELS_PER_FILE.strict.lines).toBe(80);
+		it("COVERAGE_AUTOUPDATE.strict ceils fractional values", () => {
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(95.1)).toBe(96);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(50)).toBe(50);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(100)).toBe(100);
+		});
+
+		it("COVERAGE_AUTOUPDATE.lenient floors then subtracts a two-point slack, clamped to zero", () => {
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(50)).toBe(48);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(1)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(100.9)).toBe(98);
 		});
 	});
 

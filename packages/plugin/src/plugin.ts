@@ -18,7 +18,6 @@ import type {
 	AgentPluginOptions,
 	CiConsoleMode,
 	ConsoleMode,
-	CoverageInput,
 	CoverageLevelName,
 	Environment,
 	Executor,
@@ -31,11 +30,11 @@ import {
 	EnvironmentDetector,
 	EnvironmentDetectorLive,
 	formatFatalError,
-	resolveCoverageInput,
 	resolveLogLevel,
-	validateCoverageConfig,
 } from "vitest-agent-sdk";
+import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";
+import { ConfigValidation } from "./services/ConfigValidation.js";
 import { buildModuleInfo } from "./utils/build-module-info.js";
 import type { DiscoveryOptions } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
@@ -72,8 +71,6 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	 * here. Throwing taps are caught and logged to stderr.
 	 */
 	onRunEvent?: (event: import("vitest-agent-sdk").RunEvent) => void;
-	coverageThresholds?: CoverageInput;
-	coverageTargets?: CoverageInput;
 	/**
 	 * Controls the Vite transform hook that rewrites test() and it() call
 	 * options to inject filename-derived tags. Pass a TagStrategy instance
@@ -100,7 +97,11 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
  *
  * @internal
  */
-function resolveConsoleMode(options: AgentPluginOptions, executor: Executor, _env: Environment): ConsoleMode {
+function resolveConsoleMode(
+	options: AgentPluginConstructorOptions,
+	executor: Executor,
+	_env: Environment,
+): ConsoleMode {
 	const console = options.console;
 	if (executor === "human") {
 		return (console?.human as HumanConsoleMode | undefined) ?? "passthrough";
@@ -262,62 +263,65 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const outputFile = (vitest.config as { outputFile?: string | Record<string, string> }).outputFile;
 				const cacheDir = options.reporterOptions?.cacheDir ?? resolveOutputDir(outputFile) ?? undefined;
 
-				// Resolve coverage thresholds: plugin options take priority; fall back to Vitest native config
-				const coverageConfig = vitest.config.coverage as { thresholds?: Record<string, unknown> } | undefined;
-				const vitestNativeThresholds = coverageConfig?.thresholds
+				// Run ConfigValidation — replaces the inline resolveCoverageInput +
+				// validateCoverageConfig block (Phase 4). Errors throw and refuse to
+				// start the run; warnings and info entries are printed to stderr.
+				const validation = await Effect.runPromise(
+					Effect.provide(
+						Effect.flatMap(ConfigValidation, (cv) =>
+							cv.validate({ vitestConfig: vitest.config, pluginOptions: options }),
+						),
+						ConfigValidationLive,
+					),
+				);
+
+				for (const w of validation.warnings) {
+					process.stderr.write(
+						`[vitest-agent:plugin] warning ${w.code}: ${w.message}` +
+							(w.remediation ? `\n  ${w.remediation}` : "") +
+							"\n",
+					);
+				}
+				for (const i of validation.info) {
+					process.stderr.write(`[vitest-agent:plugin] info ${i.code}: ${i.message}\n`);
+				}
+				if (validation.errors.length > 0) {
+					const body = validation.errors
+						.map(
+							(e) =>
+								`${e.code}${e.path ? ` @ ${e.path}` : ""}: ${e.message}` +
+								(e.remediation ? `\n  ${e.remediation}` : ""),
+						)
+						.join("\n");
+					throw new Error(formatFatalError(body));
+				}
+
+				// Resolve coverage thresholds from Vitest's native config.
+				const coverageConfig = vitest.config.coverage as
+					| { thresholds?: Record<string, unknown>; enabled?: boolean }
+					| undefined;
+				const coverageThresholds = coverageConfig?.thresholds
 					? resolveThresholds(coverageConfig.thresholds as Record<string, unknown>)
 					: undefined;
 
-				const resolvedThresholds = resolveCoverageInput(
-					options.coverageThresholds as CoverageInput | undefined,
-					"none",
-				);
-				const resolvedTargets = options.coverageTargets
-					? resolveCoverageInput(options.coverageTargets as CoverageInput, "standard")
-					: undefined;
-
-				// Only validate when targets are explicitly set
-				if (resolvedTargets) {
-					validateCoverageConfig(resolvedThresholds, resolvedTargets);
-				}
-
-				// Adapt CoverageLevel to the internal ResolvedThresholds format for AgentReporter
-				const coverageThresholds =
-					vitestNativeThresholds && !options.coverageThresholds
-						? vitestNativeThresholds
-						: {
-								global: {
-									lines: resolvedThresholds.lines,
-									functions: resolvedThresholds.functions,
-									branches: resolvedThresholds.branches,
-									statements: resolvedThresholds.statements,
-								},
-								perFile: resolvedThresholds.perFile ?? false,
-								patterns: [],
-							};
-
-				// Only build the coverageTargets object when the user explicitly opted in
-				const coverageTargets = resolvedTargets
+				// Resolve coverageTargets from plugin options.
+				const rawTargets = options.coverageTargets as Record<string, unknown> | undefined;
+				const coverageTargets = rawTargets
 					? {
 							global: {
-								lines: resolvedTargets.lines,
-								functions: resolvedTargets.functions,
-								branches: resolvedTargets.branches,
-								statements: resolvedTargets.statements,
+								lines: typeof rawTargets.lines === "number" ? rawTargets.lines : 0,
+								functions: typeof rawTargets.functions === "number" ? rawTargets.functions : 0,
+								branches: typeof rawTargets.branches === "number" ? rawTargets.branches : 0,
+								statements: typeof rawTargets.statements === "number" ? rawTargets.statements : 0,
 							},
-							perFile: resolvedTargets.perFile ?? false,
+							perFile: false,
 							patterns: [],
 						}
 					: undefined;
-				const autoUpdate = options.reporterOptions?.autoUpdate ?? true;
 
-				// Disable Vitest's native autoUpdate when our targets are set
-				if (coverageTargets && autoUpdate) {
-					const thresholds = coverageConfig?.thresholds;
-					if (thresholds && typeof thresholds === "object") {
-						(thresholds as Record<string, unknown>).autoUpdate = false;
-					}
-				}
+				// Resolve operating mode from Vitest's native coverage.enabled.
+				// Full when coverage.enabled !== false; UI-only otherwise.
+				const coverageMode: "full" | "ui-only" = coverageConfig?.enabled === false ? "ui-only" : "full";
 
 				log("cacheDir:", cacheDir ?? "(XDG default)");
 
@@ -339,9 +343,9 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const reporter = new AgentReporter({
 					...options.reporterOptions,
 					...(cacheDir !== undefined ? { cacheDir } : {}),
-					coverageThresholds,
-					coverageTargets,
-					autoUpdate,
+					...(coverageThresholds !== undefined ? { coverageThresholds } : {}),
+					...(coverageTargets !== undefined ? { coverageTargets } : {}),
+					coverageMode,
 					format,
 					consoleMode,
 					logLevel: options.logLevel,
@@ -387,21 +391,92 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 	return pluginObj;
 }
 
-export namespace AgentPlugin {
-	export const COVERAGE_LEVELS: Readonly<Record<CoverageLevelName, CoverageLevel>> = Object.freeze({
-		none: CoverageLevel.none,
-		basic: CoverageLevel.basic,
-		standard: CoverageLevel.standard,
-		strict: CoverageLevel.strict,
-		full: CoverageLevel.full,
+/**
+ * Dual-output preset shape returned by {@link AgentPlugin.COVERAGE_LEVELS} and
+ * {@link AgentPlugin.COVERAGE_LEVELS_PER_FILE}. The `thresholds` half is
+ * passed to Vitest's native `coverage.thresholds`; the `coverageTargets`
+ * half is passed to `AgentPlugin({ coverageTargets })`.
+ *
+ * `thresholds` carries the optional `perFile` flag; `coverageTargets`
+ * does not — it inherits `perFile` from `coverage.thresholds.perFile`.
+ */
+export interface CoverageLevelPreset {
+	readonly thresholds: {
+		readonly lines: number;
+		readonly functions: number;
+		readonly branches: number;
+		readonly statements: number;
+		readonly perFile?: boolean;
+	};
+	readonly coverageTargets: {
+		readonly lines: number;
+		readonly functions: number;
+		readonly branches: number;
+		readonly statements: number;
+	};
+}
+
+const PRESET_METRICS = (level: CoverageLevel) => ({
+	lines: level.lines,
+	functions: level.functions,
+	branches: level.branches,
+	statements: level.statements,
+});
+
+const buildPreset = (
+	thresholdsLevel: CoverageLevel,
+	targetsLevel: CoverageLevel,
+	perFile: boolean,
+): CoverageLevelPreset =>
+	Object.freeze({
+		thresholds: Object.freeze({
+			...PRESET_METRICS(thresholdsLevel),
+			...(perFile ? { perFile: true as const } : {}),
+		}),
+		coverageTargets: Object.freeze(PRESET_METRICS(targetsLevel)),
 	});
 
-	export const COVERAGE_LEVELS_PER_FILE: Readonly<Record<CoverageLevelName, CoverageLevel>> = Object.freeze({
-		none: CoverageLevel.none.withPerFile(),
-		basic: CoverageLevel.basic.withPerFile(),
-		standard: CoverageLevel.standard.withPerFile(),
-		strict: CoverageLevel.strict.withPerFile(),
-		full: CoverageLevel.full.withPerFile(),
+export namespace AgentPlugin {
+	export const COVERAGE_LEVELS: Readonly<Record<CoverageLevelName, CoverageLevelPreset>> = Object.freeze({
+		none: buildPreset(CoverageLevel.none, CoverageLevel.basic, false),
+		basic: buildPreset(CoverageLevel.basic, CoverageLevel.standard, false),
+		standard: buildPreset(CoverageLevel.standard, CoverageLevel.strict, false),
+		strict: buildPreset(CoverageLevel.strict, CoverageLevel.full, false),
+		full: buildPreset(CoverageLevel.full, CoverageLevel.full, false),
+	});
+
+	export const COVERAGE_LEVELS_PER_FILE: Readonly<Record<CoverageLevelName, CoverageLevelPreset>> = Object.freeze({
+		none: buildPreset(CoverageLevel.none, CoverageLevel.basic, true),
+		basic: buildPreset(CoverageLevel.basic, CoverageLevel.standard, true),
+		standard: buildPreset(CoverageLevel.standard, CoverageLevel.strict, true),
+		strict: buildPreset(CoverageLevel.strict, CoverageLevel.full, true),
+		full: buildPreset(CoverageLevel.full, CoverageLevel.full, true),
+	});
+
+	/**
+	 * Tolerance functions for Vitest's `coverage.thresholds.autoUpdate` field.
+	 *
+	 * Vitest's contract: `autoUpdate?: boolean | ((newThreshold: number) => number)`.
+	 * Pass one of these functions directly. `standard` floors; `strict` ceils;
+	 * `lenient` floors and subtracts 2 (clamped to 0) to leave a slack buffer.
+	 *
+	 * ```ts
+	 * defineConfig({
+	 *   test: { coverage: { thresholds: {
+	 *     autoUpdate: AgentPlugin.COVERAGE_AUTOUPDATE.standard,
+	 *     lines: 80,
+	 *   } } },
+	 * });
+	 * ```
+	 */
+	export const COVERAGE_AUTOUPDATE: Readonly<{
+		standard: (n: number) => number;
+		strict: (n: number) => number;
+		lenient: (n: number) => number;
+	}> = Object.freeze({
+		standard: (n: number) => Math.floor(n),
+		strict: (n: number) => Math.ceil(n),
+		lenient: (n: number) => Math.max(0, Math.floor(n - 2)),
 	});
 
 	/**
