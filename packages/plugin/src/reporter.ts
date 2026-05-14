@@ -18,12 +18,15 @@ import { defaultReporter } from "vitest-agent-reporter";
 import type {
 	AgentReport,
 	AgentReporterOptions,
+	ConsoleMode,
 	CoverageBaselines,
+	OutputFormat,
 	ResolvedThresholds,
 	RunEvent,
 	TestClassification,
 	TestErrorInput,
 	TestOutcome,
+	Transport,
 	VitestAgentReporterFactory,
 	VitestTestModule,
 } from "vitest-agent-sdk";
@@ -141,14 +144,12 @@ interface ResolvedOptions {
 	autoUpdate: boolean;
 	coverageConsoleLimit: number;
 	includeBareZero: boolean;
-	githubActions: boolean | undefined;
-	githubSummary: boolean | undefined;
+	githubActions: boolean;
+	githubSummary: boolean;
 	githubSummaryFile: string | undefined;
 	format?: "terminal" | "markdown" | "json" | "vitest-bypass" | "silent" | "ci-annotations";
 	detail?: "minimal" | "neutral" | "standard" | "verbose";
 	consoleMode: import("vitest-agent-sdk").ConsoleMode;
-	logLevel?: LogLevel.LogLevel;
-	logFile?: string;
 	mcp?: boolean;
 	projectFilter?: string;
 	reporter: VitestAgentReporterFactory;
@@ -157,13 +158,24 @@ interface ResolvedOptions {
 	 * Defaults to "full" when constructed directly (without the plugin).
 	 */
 	coverageMode: "full" | "ui-only";
+	/** Transport binding threaded onto ResolvedReporterConfig for custom reporters. */
+	transport: Transport;
 }
 
 /**
- * Constructor argument shape for {@link AgentReporter}. Extends the
- * schema-defined {@link AgentReporterOptions} with the `reporter` factory
- * (a function — schema can't easily encode functions, so it's not part of
- * the published Effect Schema).
+ * Constructor argument shape for {@link AgentReporter}.
+ *
+ * The reporter is constructed by `AgentPlugin` in production with a
+ * fully-resolved set of plugin-internal values; tests sometimes
+ * construct it directly with a subset, so every field is optional and
+ * the constructor applies internal defaults. Public consumers building
+ * custom reporters do not touch this — they implement
+ * `VitestAgentReporterFactory` and the plugin calls them with a
+ * resolved `ReporterKit`.
+ *
+ * Extends the schema-defined {@link AgentReporterOptions} (which after
+ * the 2.0 cleanup carries only `projectFilter`) plus the function-typed
+ * and plugin-resolved fields the reporter needs at construction.
  */
 export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	reporter?: VitestAgentReporterFactory;
@@ -187,6 +199,22 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	 * @internal
 	 */
 	coverageMode?: "full" | "ui-only";
+	consoleMode?: ConsoleMode;
+	format?: OutputFormat;
+	mcp?: boolean;
+	githubActions?: boolean;
+	transport?: Transport;
+	coverageThresholds?: ResolvedThresholds | Record<string, unknown>;
+	coverageTargets?: ResolvedThresholds | Record<string, unknown>;
+	/**
+	 * Test-only override: when set, bypasses the XDG path resolver and
+	 * writes the SQLite database to `${cacheDir}/data.db`. Not a public
+	 * user option — production deployments resolve the database path
+	 * via the XDG / `vitest-agent.config.toml` stack inside the plugin.
+	 *
+	 * @internal
+	 */
+	cacheDir?: string;
 }
 
 /**
@@ -269,8 +297,10 @@ export class AgentReporter {
 	private moduleStartedAt: Map<string, string> = new Map();
 
 	constructor(options: AgentReporterConstructorOptions = {}) {
-		this.logLevel = resolveLogLevel(options.logLevel);
-		this.logFile = resolveLogFile(options.logFile);
+		// logLevel and logFile read from VITEST_REPORTER_LOG_LEVEL /
+		// VITEST_REPORTER_LOG_FILE env vars — no user option threading.
+		this.logLevel = resolveLogLevel();
+		this.logFile = resolveLogFile();
 		this.onRunEvent = options.onRunEvent;
 
 		// coverageThresholds may be a raw Vitest format (Record<string, unknown>)
@@ -288,25 +318,42 @@ export class AgentReporter {
 				: resolveThresholds(rawTargets)
 			: undefined;
 
-		const resolvedFormat = options.format ?? (options.consoleOutput === "silent" ? "silent" : undefined);
+		// Derive renderer-internal defaults from the resolved console mode.
+		const consoleMode: ConsoleMode = options.consoleMode ?? "passthrough";
+		const consoleOutput: "failures" | "full" | "silent" = consoleMode === "silent" ? "silent" : "failures";
+		// When AgentReporter is constructed directly (without AgentPlugin),
+		// derive `format` from `consoleMode` so a `silent` mode still
+		// short-circuits the output pipeline. The plugin passes an
+		// already-resolved format; this fallback only fires when callers
+		// (mostly tests) skip it.
+		const derivedFormat: OutputFormat | undefined =
+			options.format ??
+			(consoleMode === "silent"
+				? "silent"
+				: consoleMode === "ink" || consoleMode === "agent"
+					? "terminal"
+					: consoleMode === "ci-annotations"
+						? "ci-annotations"
+						: undefined);
+		const githubActions = options.githubActions ?? false;
 		const base: ResolvedOptions = {
 			...(options.cacheDir !== undefined ? { cacheDir: options.cacheDir } : {}),
-			consoleOutput: options.consoleOutput ?? "failures",
-			omitPassingTests: options.omitPassingTests ?? true,
+			consoleOutput,
+			omitPassingTests: true,
 			coverageThresholds: resolvedThresholds,
-			autoUpdate: options.autoUpdate ?? true,
-			coverageConsoleLimit: options.coverageConsoleLimit ?? 10,
-			includeBareZero: options.includeBareZero ?? false,
-			githubActions: options.githubActions,
-			githubSummary: options.githubSummary,
-			githubSummaryFile: options.githubSummaryFile,
-			...(resolvedFormat !== undefined ? { format: resolvedFormat } : {}),
-			...(options.detail !== undefined ? { detail: options.detail } : {}),
-			consoleMode: options.consoleMode ?? "passthrough",
+			autoUpdate: true,
+			coverageConsoleLimit: 10,
+			includeBareZero: false,
+			githubActions,
+			githubSummary: githubActions,
+			githubSummaryFile: undefined,
+			...(derivedFormat !== undefined ? { format: derivedFormat } : {}),
+			consoleMode,
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
 			...(options.projectFilter !== undefined ? { projectFilter: options.projectFilter } : {}),
 			reporter: options.reporter ?? defaultReporter,
 			coverageMode: options.coverageMode ?? "full",
+			transport: options.transport ?? { kind: "local" },
 		};
 		this.options = resolvedTargets ? { ...base, coverageTargets: resolvedTargets } : base;
 	}
@@ -328,12 +375,13 @@ export class AgentReporter {
 			omitPassingTests: opts.omitPassingTests,
 			coverageConsoleLimit: opts.coverageConsoleLimit,
 			includeBareZero: opts.includeBareZero,
-			githubActions: opts.githubActions ?? false,
-			githubSummary: opts.githubSummary ?? false,
+			githubActions: opts.githubActions,
+			githubSummary: opts.githubSummary,
 			format: opts.format ?? "vitest-bypass",
 			detail: opts.detail ?? "standard",
 			noColor: false,
 			coverageMode: opts.coverageMode,
+			transport: opts.transport,
 			...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
 			...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
 		};
@@ -691,7 +739,7 @@ export class AgentReporter {
 				};
 				const detail = yield* detailResolver.resolve(executor, health, opts.detail);
 
-				const githubSummaryFile = opts.githubSummaryFile ?? process.env.GITHUB_STEP_SUMMARY;
+				const githubSummaryFile = process.env.GITHUB_STEP_SUMMARY;
 				const kit = buildReporterKit({
 					env,
 					executor,
@@ -700,15 +748,10 @@ export class AgentReporter {
 					noColor: !!process.env.NO_COLOR,
 					consoleMode: opts.consoleMode ?? "passthrough",
 					mcp: opts.mcp ?? false,
-					consoleOutput: opts.consoleOutput,
-					omitPassingTests: opts.omitPassingTests,
-					coverageConsoleLimit: opts.coverageConsoleLimit,
-					includeBareZero: opts.includeBareZero,
-					githubActions: opts.githubActions ?? env === "ci-github",
-					githubSummary: opts.githubSummary ?? env === "ci-github",
+					githubActions: opts.githubActions,
+					transport: opts.transport,
 					...(dbPath !== undefined && { dbPath }),
 					...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
-					...(githubSummaryFile !== undefined && { githubSummaryFile }),
 					...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
 					...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
 					coverageMode: opts.coverageMode,
@@ -1296,7 +1339,7 @@ export class AgentReporter {
 			}
 
 			// Build the kit and resolve the user's reporter(s).
-			const githubSummaryFile = opts.githubSummaryFile ?? process.env.GITHUB_STEP_SUMMARY;
+			const githubSummaryFile = process.env.GITHUB_STEP_SUMMARY;
 			const kit = buildReporterKit({
 				env,
 				executor,
@@ -1305,15 +1348,10 @@ export class AgentReporter {
 				noColor: !!process.env.NO_COLOR,
 				consoleMode: opts.consoleMode ?? "passthrough",
 				mcp: opts.mcp ?? false,
-				consoleOutput: opts.consoleOutput,
-				omitPassingTests: opts.omitPassingTests,
-				coverageConsoleLimit: opts.coverageConsoleLimit,
-				includeBareZero: opts.includeBareZero,
-				githubActions: opts.githubActions ?? env === "ci-github",
-				githubSummary: opts.githubSummary ?? env === "ci-github",
+				githubActions: opts.githubActions,
+				transport: opts.transport,
 				...(dbPath !== undefined && { dbPath }),
 				...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
-				...(githubSummaryFile !== undefined && { githubSummaryFile }),
 				...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
 				...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
 				coverageMode: opts.coverageMode,

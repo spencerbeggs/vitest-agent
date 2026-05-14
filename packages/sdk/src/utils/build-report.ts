@@ -9,7 +9,6 @@
 
 import type { AgentReport, ModuleReport, TestReport } from "../schemas/AgentReport.js";
 import type { ReportError } from "../schemas/Common.js";
-import type { AgentReporterOptions } from "../schemas/Options.js";
 
 // --- Duck-typed Vitest interfaces ---
 
@@ -222,7 +221,7 @@ export function buildAgentReport(
 	testModules: ReadonlyArray<VitestTestModule>,
 	unhandledErrors: ReadonlyArray<VitestModuleError>,
 	reason: "passed" | "failed" | "interrupted",
-	options: Pick<AgentReporterOptions, "omitPassingTests">,
+	options: { readonly omitPassingTests?: boolean },
 	projectName?: string,
 ): AgentReport {
 	const omitPassing = options.omitPassingTests !== false; // default true

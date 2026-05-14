@@ -18,6 +18,7 @@ import type {
 	OutputFormat,
 	ReporterKit,
 	ResolvedReporterConfig,
+	Transport,
 } from "vitest-agent-sdk";
 import { osc8 } from "vitest-agent-sdk";
 
@@ -29,42 +30,54 @@ export interface BuildReporterKitInput {
 	readonly noColor: boolean;
 	readonly consoleMode: ConsoleMode;
 	readonly mcp: boolean;
-	readonly consoleOutput: "failures" | "full" | "silent";
-	readonly omitPassingTests: boolean;
-	readonly coverageConsoleLimit: number;
-	readonly includeBareZero: boolean;
+	/**
+	 * Resolved by the plugin from the detected environment plus the
+	 * console matrix (true under `ci-github` when the resolved ci slot
+	 * is not silent). Passed through verbatim onto `ResolvedReporterConfig`
+	 * so custom reporters and the default GFM emitter see a stable value
+	 * even when the reporter is constructed directly without the plugin.
+	 */
 	readonly githubActions: boolean;
-	readonly githubSummary: boolean;
 	readonly dbPath?: string;
 	readonly projectFilter?: string;
-	readonly githubSummaryFile?: string;
 	readonly runCommand?: string;
 	readonly coverageThresholds?: ResolvedReporterConfig["coverageThresholds"];
 	readonly coverageTargets?: ResolvedReporterConfig["coverageTargets"];
 	readonly coverageMode: ResolvedReporterConfig["coverageMode"];
+	readonly transport: Transport;
 }
 
 export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
+	// Renderer-internal defaults derived from the resolved console mode + env.
+	// These were user options pre-2.0; in 2.0 the surface shrinks to the five
+	// public fields and these become kit-internal constants or env-derived
+	// values. Custom reporters that need different behavior receive the
+	// resolved values via ResolvedReporterConfig and can branch as needed.
+	const consoleOutput: "failures" | "full" | "silent" = input.consoleMode === "silent" ? "silent" : "failures";
+	const githubSummary = input.githubActions;
+	const githubSummaryFile = process.env.GITHUB_STEP_SUMMARY;
+
 	const config: ResolvedReporterConfig = {
 		executor: input.executor,
 		consoleMode: input.consoleMode,
 		mcp: input.mcp,
-		consoleOutput: input.consoleOutput,
-		omitPassingTests: input.omitPassingTests,
-		coverageConsoleLimit: input.coverageConsoleLimit,
-		includeBareZero: input.includeBareZero,
+		consoleOutput,
+		omitPassingTests: true,
+		coverageConsoleLimit: 10,
+		includeBareZero: false,
 		githubActions: input.githubActions,
-		githubSummary: input.githubSummary,
+		githubSummary,
 		format: input.format,
 		detail: input.detail,
 		noColor: input.noColor,
+		coverageMode: input.coverageMode,
+		transport: input.transport,
 		...(input.dbPath !== undefined && { dbPath: input.dbPath }),
 		...(input.projectFilter !== undefined && { projectFilter: input.projectFilter }),
-		...(input.githubSummaryFile !== undefined && { githubSummaryFile: input.githubSummaryFile }),
+		...(githubSummaryFile !== undefined && { githubSummaryFile }),
 		...(input.runCommand !== undefined && { runCommand: input.runCommand }),
 		...(input.coverageThresholds !== undefined && { coverageThresholds: input.coverageThresholds }),
 		...(input.coverageTargets !== undefined && { coverageTargets: input.coverageTargets }),
-		coverageMode: input.coverageMode,
 	};
 
 	// OSC-8 is enabled when running interactively (terminal/agent-shell) and

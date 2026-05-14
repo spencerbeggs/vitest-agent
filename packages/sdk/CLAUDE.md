@@ -82,16 +82,34 @@ src/
   named presets (`none`, `basic`, `standard`, `strict`, `full`), the
   `.withPerFile()` builder, `.extend({})` override, and `resolveCoverageInput`
   / `validateCoverageConfig` helpers. `validateCoverageConfig` is no longer
-  called by the plugin (Phase 4 of the T4 coverage-policy work removed the
-  read path in favor of the `ConfigValidation` service); the helper is
-  slated for removal in T7.1.
-- **Typed `coverageTargets`** (`schemas/Options.ts`) defines `CoverageTargets`
-  as a `Schema.Record` with `Schema.Positive`, the `100: true` shortcut, and
-  nested `CoverageTargetsMetrics` glob entries. Negatives and zeros are
-  rejected at decode time. The pure helper `validateCoverageTargetsShape`
-  in `utils/` emits structured diagnostics (`INVALID_TARGET_VALUE`,
+  called by the plugin (the `ConfigValidation` service is the read path);
+  the helper stays as a public utility for downstream callers.
+- **Typed `coverageTargets`** (`schemas/CoverageTargets.ts`, extracted from
+  `Options.ts` in T7) defines `CoverageTargets` as a `Schema.Record` with
+  `Schema.Positive`, the `100: true` shortcut, and nested
+  `CoverageTargetsMetrics` glob entries. Negatives and zeros are rejected
+  at decode time. A refinement also rejects `true` at any key other than
+  `"100"`. The pure helper `validateCoverageTargetsShape` in `utils/`
+  emits structured diagnostics (`INVALID_TARGET_VALUE`,
   `PERFILE_ON_TARGETS`) with pinpointed `path` strings; the plugin's
   `ConfigValidation` rule registry calls into it.
+- **`Transport` schema** (`schemas/Transport.ts`, new in T7) is the
+  persistence-layer transport binding. 2.x ships only
+  `{ kind: "local" }`. The shape is modeled as a single-member
+  discriminated union from day one so the 3.0 cloud-backend swap (D1,
+  Turso, etc.) lands as a pure addition of new union members rather
+  than a schema-shape change. See `.claude/design/vitest-agent/decisions.md`
+  D40.
+- **Slim `AgentPluginOptions`** (`schemas/Options.ts`). After T7 the
+  schema-decodable struct carries exactly three fields — `console`,
+  `coverageTargets`, `transport` — with `reporter` and `onRunEvent`
+  layered on the plugin's `AgentPluginConstructorOptions` companion
+  interface. `AgentReporterOptions` is intentionally tiny in 2.0 (one
+  field: `projectFilter`); the substantive reporter contract lives in
+  `contracts/reporter.ts` as `ResolvedReporterConfig` / `ReporterKit` /
+  `VitestAgentReporter` / `VitestAgentReporterFactory`. The old
+  `CoverageOptions` and `FormatterOptions` schemas were unused dead code
+  and were deleted in the same pass.
 
 ## When working in this package
 
@@ -143,9 +161,10 @@ src/
   normalization, or the project-keying / tag-classification model that
   replaced `splitProject()` in 2.0.
 - `@./.claude/design/vitest-agent/decisions.md`
-  Load when you need rationale for a design choice (especially D9 migration
-  policy, D10 failure signatures, D11 phase transitions, D28
-  `ensureMigrated`, D31 path resolution).
+  Load when you need rationale for a design choice (especially D40 T7
+  five-field options surface and the `transport` forward-declaration,
+  D9 migration policy, D10 failure signatures, D11 phase transitions,
+  D28 `ensureMigrated`, D31 path resolution).
 - `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests for this package or reviewing testing patterns.
 - `@./.claude/design/vitest-agent/components/discover.md`

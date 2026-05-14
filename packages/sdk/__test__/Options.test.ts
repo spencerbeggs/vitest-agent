@@ -1,104 +1,32 @@
 /**
- * vitest-agent-sdk
+ * Schema decode tests for the 2.0 AgentPluginOptions / AgentReporterOptions
+ * surface.
  *
- * Tests for Options schemas.
+ * Locked shape: AgentPluginOptions = { console?, coverageTargets?,
+ * transport? } (function-typed `reporter` and `onRunEvent` live on the
+ * companion `AgentPluginConstructorOptions` interface, not on the schema).
+ * AgentReporterOptions = { projectFilter? }.
  */
 
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { AgentPluginOptions, AgentReporterOptions, CoverageOptions, FormatterOptions } from "../src/schemas/Options.js";
+import { AgentPluginOptions, AgentReporterOptions } from "../src/schemas/Options.js";
 
-describe("AgentReporterOptions", () => {
-	it("decodes an empty object with all defaults", () => {
-		const result = Schema.decodeUnknownSync(AgentReporterOptions)({});
-		expect(result).toBeDefined();
-	});
-
-	it("decodes a fully specified object", () => {
-		const input = {
-			cacheDir: "/tmp/cache",
-			consoleOutput: "full",
-			omitPassingTests: false,
-			coverageThresholds: { lines: 80 },
-			coverageTargets: { lines: 90 },
-			autoUpdate: true,
-			coverageConsoleLimit: 5,
-			includeBareZero: true,
-			githubActions: true,
-			githubSummaryFile: "/tmp/summary.md",
-		};
-		const result = Schema.decodeUnknownSync(AgentReporterOptions)(input);
-		expect(result.cacheDir).toBe("/tmp/cache");
-		expect(result.consoleOutput).toBe("full");
-		expect(result.omitPassingTests).toBe(false);
-		expect(result.coverageThresholds).toEqual({ lines: 80 });
-		expect(result.coverageTargets).toEqual({ lines: 90 });
-		expect(result.autoUpdate).toBe(true);
-		expect(result.coverageConsoleLimit).toBe(5);
-		expect(result.includeBareZero).toBe(true);
-		expect(result.githubActions).toBe(true);
-		expect(result.githubSummaryFile).toBe("/tmp/summary.md");
-	});
-
-	it("rejects invalid consoleOutput value", () => {
-		expect(() => Schema.decodeUnknownSync(AgentReporterOptions)({ consoleOutput: "verbose" })).toThrow();
-	});
-});
-
-describe("AgentReporterOptions format/detail/mode", () => {
-	it("accepts format option", () => {
-		const opts = Schema.decodeUnknownSync(AgentReporterOptions)({ format: "json" });
-		expect(opts.format).toBe("json");
-	});
-
-	it("accepts detail option", () => {
-		const opts = Schema.decodeUnknownSync(AgentReporterOptions)({ detail: "verbose" });
-		expect(opts.detail).toBe("verbose");
-	});
-
-	it("accepts consoleMode option", () => {
-		const opts = Schema.decodeUnknownSync(AgentReporterOptions)({ consoleMode: "agent" });
-		expect(opts.consoleMode).toBe("agent");
-	});
-
-	it("accepts logLevel option", () => {
-		const opts = Schema.decodeUnknownSync(AgentReporterOptions)({ logLevel: "Debug" });
-		expect(opts.logLevel).toBe("Debug");
-	});
-
-	it("accepts logFile option", () => {
-		const opts = Schema.decodeUnknownSync(AgentReporterOptions)({ logFile: "./debug.log" });
-		expect(opts.logFile).toBe("./debug.log");
-	});
-});
-
-describe("AgentPluginOptions", () => {
-	it("decodes an empty object with all defaults", () => {
+describe("AgentPluginOptions decode", () => {
+	it("decodes an empty object (all fields optional)", () => {
 		const result = Schema.decodeUnknownSync(AgentPluginOptions)({});
 		expect(result).toBeDefined();
 	});
 
-	it("decodes a fully specified object", () => {
-		const input = {
-			console: { human: "ink", agent: "agent", ci: "ci-annotations" },
-			githubSummary: true,
-			reporterOptions: {
-				cacheDir: "/tmp/cache",
-				omitPassingTests: true,
-				coverageThresholds: { lines: 90 },
-				coverageTargets: { lines: 95 },
-				autoUpdate: false,
-				coverageConsoleLimit: 3,
-				includeBareZero: false,
-				githubSummaryFile: "/tmp/summary.md",
-			},
-		};
-		const result = Schema.decodeUnknownSync(AgentPluginOptions)(input);
+	it("decodes a fully-specified object with all three schema-decodable fields", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({
+			console: { human: "ink", agent: "agent", ci: "passthrough" },
+			coverageTargets: { lines: 80, functions: 75 },
+			transport: { kind: "local" },
+		});
 		expect(result.console?.human).toBe("ink");
-		expect(result.console?.agent).toBe("agent");
-		expect(result.console?.ci).toBe("ci-annotations");
-		expect(result.githubSummary).toBe(true);
-		expect(result.reporterOptions?.cacheDir).toBe("/tmp/cache");
+		expect(result.coverageTargets?.lines).toBe(80);
+		expect(result.transport?.kind).toBe("local");
 	});
 
 	it("rejects an invalid human console value", () => {
@@ -112,52 +40,112 @@ describe("AgentPluginOptions", () => {
 	it("rejects ci-annotations in the human slot", () => {
 		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ console: { human: "ci-annotations" } })).toThrow();
 	});
+
+	it("rejects negative numbers in coverageTargets", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ coverageTargets: { lines: -5 } })).toThrow();
+	});
+
+	it("rejects zero in coverageTargets (positive numbers only)", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ coverageTargets: { lines: 0 } })).toThrow();
+	});
+
+	it("rejects `true` shortcut at a non-100 key in coverageTargets", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ coverageTargets: { statements: true } })).toThrow();
+	});
+
+	it("accepts the `100: true` shortcut at key 100", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({ coverageTargets: { 100: true } });
+		expect(result.coverageTargets?.[100]).toBe(true);
+	});
+
+	it("accepts a glob-pattern entry in coverageTargets", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({
+			coverageTargets: { "src/utils/**": { lines: 90, branches: 85 } },
+		});
+		expect(result.coverageTargets?.["src/utils/**"]).toMatchObject({ lines: 90, branches: 85 });
+	});
+
+	it("accepts the local transport shape", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({ transport: { kind: "local" } });
+		expect(result.transport?.kind).toBe("local");
+	});
+
+	it("rejects a non-local transport kind (2.x only ships local)", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ transport: { kind: "d1" } as never })).toThrow();
+	});
 });
 
-describe("CoverageOptions", () => {
-	it("decodes a valid object", () => {
-		const result = Schema.decodeUnknownSync(CoverageOptions)({
-			thresholds: { lines: 80 },
-			includeBareZero: false,
-			coverageConsoleLimit: 10,
-		});
-		expect(result.thresholds).toEqual({ lines: 80 });
-		expect(result.includeBareZero).toBe(false);
-		expect(result.coverageConsoleLimit).toBe(10);
-	});
+describe("AgentPluginOptions rejects every removed legacy field", () => {
+	// The fields removed from AgentPluginOptions in 2.0. Each one must
+	// trigger a ParseError on strict decode so future copy-paste from
+	// old docs or training data surfaces as a build failure. The
+	// `{ onExcessProperty: "error" }` decode option is the regression
+	// safety net — under default decoding Effect Schema silently drops
+	// unknown keys.
+	const removed = [
+		["coverageThresholds", { lines: 80 }],
+		["autoUpdate", true],
+		["consoleMode", "agent"],
+		["consoleOutput", "failures"],
+		["detail", "verbose"],
+		["format", "json"],
+		["mcp", true],
+		["coverageConsoleLimit", 5],
+		["omitPassingTests", false],
+		["githubActions", true],
+		["githubSummary", true],
+		["githubSummaryFile", "/tmp/summary.md"],
+		["reporterOptions", { cacheDir: "/tmp/cache" }],
+		["logLevel", "Debug"],
+		["logFile", "./debug.log"],
+		["cacheDir", "/tmp/cache"],
+		["includeBareZero", true],
+	] as const;
 
-	it("rejects missing required fields", () => {
-		expect(() => Schema.decodeUnknownSync(CoverageOptions)({})).toThrow();
-		expect(() => Schema.decodeUnknownSync(CoverageOptions)({ thresholds: { lines: 80 } })).toThrow();
-	});
+	for (const [name, value] of removed) {
+		it(`rejects legacy field ${name}`, () => {
+			expect(() =>
+				Schema.decodeUnknownSync(AgentPluginOptions)({ [name]: value }, { onExcessProperty: "error" }),
+			).toThrow();
+		});
+	}
 });
 
-describe("FormatterOptions", () => {
-	it("decodes a valid object", () => {
-		const result = Schema.decodeUnknownSync(FormatterOptions)({
-			consoleOutput: "failures",
-			coverageConsoleLimit: 10,
-			noColor: true,
-			cacheFile: "/tmp/report.json",
-		});
-		expect(result.consoleOutput).toBe("failures");
-		expect(result.coverageConsoleLimit).toBe(10);
-		expect(result.noColor).toBe(true);
-		expect(result.cacheFile).toBe("/tmp/report.json");
+describe("AgentReporterOptions decode", () => {
+	it("decodes an empty object", () => {
+		const result = Schema.decodeUnknownSync(AgentReporterOptions)({});
+		expect(result).toBeDefined();
 	});
 
-	it("rejects missing required fields", () => {
-		expect(() => Schema.decodeUnknownSync(FormatterOptions)({})).toThrow();
+	it("decodes a projectFilter", () => {
+		const result = Schema.decodeUnknownSync(AgentReporterOptions)({ projectFilter: "sdk" });
+		expect(result.projectFilter).toBe("sdk");
 	});
 
-	it("rejects invalid consoleOutput value", () => {
-		expect(() =>
-			Schema.decodeUnknownSync(FormatterOptions)({
-				consoleOutput: "verbose",
-				coverageConsoleLimit: 10,
-				noColor: true,
-				cacheFile: "/tmp/report.json",
-			}),
-		).toThrow();
+	it("rejects every removed legacy field", () => {
+		const removed = [
+			"cacheDir",
+			"consoleOutput",
+			"omitPassingTests",
+			"coverageThresholds",
+			"coverageTargets",
+			"autoUpdate",
+			"coverageConsoleLimit",
+			"includeBareZero",
+			"githubActions",
+			"githubSummary",
+			"githubSummaryFile",
+			"format",
+			"detail",
+			"consoleMode",
+			"logLevel",
+			"logFile",
+			"mcp",
+		] as const;
+		for (const name of removed) {
+			expect(() =>
+				Schema.decodeUnknownSync(AgentReporterOptions)({ [name]: "anything" }, { onExcessProperty: "error" }),
+			).toThrow();
+		}
 	});
 });

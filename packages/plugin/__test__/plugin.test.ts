@@ -213,27 +213,11 @@ describe("AgentPlugin", () => {
 	});
 
 	describe("cache directory resolution", () => {
-		it("uses explicit cacheDir from reporter options", async () => {
-			const plugin = AgentPlugin(
-				{ reporterOptions: { cacheDir: "/custom/cache" } },
-				EnvironmentDetectorTest.layer("agent-shell"),
-			);
-			const vitest = mockVitest(["agent"]);
-			await callConfigureVitest(plugin, vitest);
-			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
-			expect(reporter).toBeDefined();
-		});
-
-		it("uses outputFile when set for vitest-agent", async () => {
-			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
-			const vitest = mockVitest(["agent"], {
-				outputFile: { "vitest-agent": "./custom-output" },
-			});
-			await callConfigureVitest(plugin, vitest);
-			expect(vitest.config.reporters.some((r) => r instanceof AgentReporter)).toBe(true);
-		});
-
-		it("falls back to Vite cacheDir", async () => {
+		// `cacheDir` is no longer a user option in 2.0 — the plugin always
+		// defers to `resolveDataPath` (XDG / vitest-agent.config.toml /
+		// normalized workspace name). The plugin still constructs an
+		// AgentReporter; the path stack is exercised in path-resolver tests.
+		it("constructs the reporter and lets the path resolver pick the DB location", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
 			const vitest = mockVitest(["agent"]);
 			await callConfigureVitest(plugin, vitest);
@@ -284,6 +268,74 @@ describe("AgentPlugin", () => {
 			);
 			const vitest = mockVitest(["agent"]);
 			await expect(callConfigureVitest(plugin, vitest)).resolves.not.toThrow();
+		});
+	});
+
+	describe("auto-derived mcp / githubActions", () => {
+		it("auto-derives mcp=true when executor is agent", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["agent"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.mcp).toBe(true);
+		});
+
+		it("auto-derives mcp=false when executor is human", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.mcp).toBe(false);
+		});
+
+		it("auto-derives mcp=false when executor is ci", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.mcp).toBe(false);
+		});
+
+		it("auto-derives githubActions=true under ci-github when consoleMode is not silent", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.githubActions).toBe(true);
+		});
+
+		it("auto-derives githubActions=false outside ci-github", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.githubActions).toBe(false);
+		});
+
+		it("auto-derives githubActions=false when console.ci is silent under ci-github", async () => {
+			const plugin = AgentPlugin({ console: { ci: "silent" } }, EnvironmentDetectorTest.layer("ci-github"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.githubActions).toBe(false);
+		});
+	});
+
+	describe("transport threading", () => {
+		it("defaults transport to { kind: 'local' } when unset", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["agent"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.transport).toEqual({ kind: "local" });
+		});
+
+		it("threads an explicit transport onto the resolved config", async () => {
+			const plugin = AgentPlugin({ transport: { kind: "local" } }, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["agent"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.transport).toEqual({ kind: "local" });
 		});
 	});
 

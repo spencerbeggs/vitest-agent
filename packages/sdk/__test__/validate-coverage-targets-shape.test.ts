@@ -6,7 +6,7 @@
  */
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { CoverageTargets } from "../src/schemas/Options.js";
+import { CoverageTargets } from "../src/schemas/CoverageTargets.js";
 import { validateCoverageTargetsShape } from "../src/utils/validate-coverage-targets-shape.js";
 
 const decode = Schema.decodeUnknownSync(CoverageTargets);

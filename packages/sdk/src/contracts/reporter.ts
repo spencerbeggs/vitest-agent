@@ -27,6 +27,7 @@ import type {
 	TestClassification,
 } from "../schemas/Common.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
+import type { Transport } from "../schemas/Transport.js";
 
 /**
  * Config the plugin computes from its own options + Vitest's resolved config,
@@ -82,6 +83,12 @@ export interface ResolvedReporterConfig {
 	readonly detail: DetailLevel;
 	readonly noColor: boolean;
 	readonly runCommand?: string;
+	/**
+	 * Transport binding for the persistence layer. Custom reporters
+	 * read this when they want to branch on backend kind (e.g. behave
+	 * differently against a cloud DB). 2.x ships only `{ kind: "local" }`.
+	 */
+	readonly transport?: Transport;
 }
 
 /**

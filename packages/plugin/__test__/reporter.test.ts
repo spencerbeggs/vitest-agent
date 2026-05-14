@@ -106,7 +106,7 @@ describe("AgentReporter", () => {
 		it("applies default options", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
@@ -115,14 +115,11 @@ describe("AgentReporter", () => {
 			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
 		});
 
-		it("accepts custom options", async () => {
+		it("accepts the plugin-resolved coverage threshold passthrough", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
-				omitPassingTests: false,
+				consoleMode: "silent",
 				coverageThresholds: { global: { lines: 90 } } as Record<string, unknown>,
-				coverageConsoleLimit: 5,
-				includeBareZero: true,
 			});
 
 			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
@@ -146,7 +143,7 @@ describe("AgentReporter", () => {
 		it("stashes coverage data and includes it in report", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 			const mockCoverage = {
 				getCoverageSummary: () => ({
@@ -177,11 +174,10 @@ describe("AgentReporter", () => {
 	});
 
 	describe("baselines", () => {
-		it("writes baselines when autoUpdate is enabled and coverage is present", async () => {
+		it("writes baselines when coverage is present", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
-				autoUpdate: true,
+				consoleMode: "silent",
 			});
 			const mockCoverage = {
 				getCoverageSummary: () => ({
@@ -209,42 +205,10 @@ describe("AgentReporter", () => {
 			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
 		});
 
-		it("skips baselines when autoUpdate is false", async () => {
-			const reporter = new AgentReporter({
-				cacheDir: tmpDir,
-				consoleOutput: "silent",
-				autoUpdate: false,
-			});
-			const mockCoverage = {
-				getCoverageSummary: () => ({
-					statements: { pct: 90 },
-					branches: { pct: 85 },
-					functions: { pct: 88 },
-					lines: { pct: 92 },
-				}),
-				files: () => [],
-				fileCoverageFor: () => ({
-					toSummary: () => ({
-						statements: { pct: 90 },
-						branches: { pct: 85 },
-						functions: { pct: 88 },
-						lines: { pct: 92 },
-					}),
-					getUncoveredLines: () => [],
-				}),
-			};
-
-			reporter.onCoverage(mockCoverage);
-			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
-
-			// DB should still exist (runs are written), just no baselines
-			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
-		});
-
 		it("caps baselines at target values", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 				coverageTargets: { global: { lines: 85, branches: 80, functions: 80, statements: 80 } } as Record<
 					string,
 					unknown
@@ -280,7 +244,7 @@ describe("AgentReporter", () => {
 		it("writes test run data to SQLite", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase({ state: "passed" })] })], [], "passed");
@@ -291,7 +255,7 @@ describe("AgentReporter", () => {
 		it("handles multi-project test runs", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			const moduleA = makeTestModule({
@@ -314,7 +278,7 @@ describe("AgentReporter", () => {
 		it("handles single project with empty name as 'default'", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			await reporter.onTestRunEnd([makeTestModule({ projectName: "", tests: [makeTestCase()] })], [], "passed");
@@ -322,10 +286,10 @@ describe("AgentReporter", () => {
 			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
 		});
 
-		it("skips console output when consoleOutput is silent", async () => {
+		it("skips console output when consoleMode is silent", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 			const stdoutSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
@@ -351,12 +315,12 @@ describe("AgentReporter", () => {
 
 		it("writes GFM when githubActions option is enabled", async () => {
 			const summaryFile = path.join(tmpDir, "summary.md");
+			vi.stubEnv("GITHUB_STEP_SUMMARY", summaryFile);
 
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 				githubActions: true,
-				githubSummaryFile: summaryFile,
 			});
 
 			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
@@ -371,7 +335,7 @@ describe("AgentReporter", () => {
 
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 				githubActions: false,
 			});
 
@@ -384,7 +348,7 @@ describe("AgentReporter", () => {
 			const cacheDir = path.join(tmpDir, "nested", "cache");
 			const reporter = new AgentReporter({
 				cacheDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
@@ -395,7 +359,7 @@ describe("AgentReporter", () => {
 		it("writes convention-based source-to-test mapping for .test. files", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			const testModule = makeTestModule({
@@ -428,7 +392,7 @@ describe("AgentReporter", () => {
 		it("writes convention-based source-to-test mapping for .spec. files", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			const testModule = makeTestModule({
@@ -457,7 +421,7 @@ describe("AgentReporter", () => {
 		it("skips source mapping for files without .test. or .spec. suffix", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			const testModule = makeTestModule({
@@ -478,7 +442,7 @@ describe("AgentReporter", () => {
 		it("writes unhandled errors for all projects", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 			const errors = [{ message: "unhandled error", stacks: [] }];
 
@@ -504,7 +468,7 @@ describe("AgentReporter", () => {
 		it("records trend entry on full run with coverage", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 			const mockCoverage = {
 				getCoverageSummary: () => ({
@@ -535,7 +499,7 @@ describe("AgentReporter", () => {
 		it("skips trend recording when no coverage is present", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
@@ -549,7 +513,7 @@ describe("AgentReporter", () => {
 		it("writes history data alongside test run", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			const passingTest = makeTestCase({ name: "passes", fullName: "Suite > passes", state: "passed" });
@@ -569,7 +533,7 @@ describe("AgentReporter", () => {
 		it("attaches classifications to failed test reports", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			const failingTest = makeTestCase({
@@ -601,7 +565,7 @@ describe("AgentReporter", () => {
 		it("writes failure_signatures and signature_hash for failing tests", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
-				consoleOutput: "silent",
+				consoleMode: "silent",
 			});
 
 			const failingTest = makeTestCase({
