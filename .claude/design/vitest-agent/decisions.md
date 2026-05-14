@@ -742,11 +742,24 @@ by one or more releases, and is the only piece of the system permitted
 to do so.
 
 The runtime invariant is that the packages running in the same process
-must share the same `__PACKAGE_VERSION__` value. The CLI's `doctor`
-command and the MCP server's startup checks compare the inlined values
-across the SDK, plugin, reporter, CLI, MCP, and (when present) the
-optional `vitest-agent-ui` package; a mismatch produces a structured
-error pointing at the peer-dep that drifted.
+must share the same `__PACKAGE_VERSION__` value. Each runtime package
+exports a `CURRENT_<PKG>_VERSION` constant (sourced from
+`process.env.__PACKAGE_VERSION__`), and three init-time checks compare
+these constants without ever blocking the run: the `AgentPlugin()`
+factory in `packages/plugin/src/plugin.ts` compares
+`CURRENT_PLUGIN_VERSION` against `CURRENT_SDK_VERSION` and
+`CURRENT_REPORTER_VERSION` (gated by a module-level `_hasWarnedDrift`
+flag so multi-project Vitest configs only warn once per process; a
+test-only `_resetVersionDriftGuardForTests` hook re-arms it); the
+`vitest-agent-mcp` bin compares `CURRENT_MCP_VERSION` against
+`CURRENT_SDK_VERSION` inside `main()`; the `vitest-agent` CLI bin
+compares `CURRENT_CLI_VERSION` against `CURRENT_SDK_VERSION` before
+`Command.run`. Each mismatch emits one stderr line of the form
+`[vitest-agent-<pkg>] version drift: <pkg>@<myVersion> with
+<peer>@<peerVersion>. Reinstall vitest-agent-* packages so versions
+match.` and continues — the check is observation-only. The plugin
+intentionally does not compare against `CURRENT_UI_VERSION` because
+`vitest-agent-ui` is not a hard peer dependency.
 
 **Why build-inlined (vs runtime `package.json` read):** the inlined
 constant has no I/O cost, no path-resolution failure mode, and no

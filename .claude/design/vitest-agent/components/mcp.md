@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-11
-last-synced: 2026-05-11
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 92
 related:
   - ../architecture.md
@@ -54,6 +54,19 @@ precedence: `VITEST_AGENT_REPORTER_PROJECT_DIR` (set by the plugin loader)
 `resolveDataPath(projectDir)` under `PathResolutionLive(projectDir) +
 NodeContext.layer`, creates `ManagedRuntime.make(McpLive(dbPath, ...))`,
 and calls `startMcpServer({ runtime, cwd: projectDir })`.
+
+Inside `main()`, before `ManagedRuntime.make`, the bin compares
+`CURRENT_MCP_VERSION` against `CURRENT_SDK_VERSION` and writes one
+stderr line on mismatch
+(`[vitest-agent-mcp] version drift: vitest-agent-mcp@<a> with
+vitest-agent-sdk@<b>. Reinstall vitest-agent-* packages so versions
+match.`). The check is observation-only — the server boot continues.
+`packages/mcp/src/index.ts` exports `CURRENT_MCP_VERSION` (inlined
+from `process.env.__PACKAGE_VERSION__` via the package's
+`rslib.config.ts` `define`). Integration coverage:
+`packages/mcp/__test__/bin-version-drift.test.ts` mocks
+`CURRENT_SDK_VERSION` to assert the warning shape; see D36 in
+[../decisions.md](../decisions.md).
 
 The `VITEST_AGENT_REPORTER_PROJECT_DIR` precedence is load-bearing: Claude
 Code does not reliably propagate `CLAUDE_PROJECT_DIR` to MCP server

@@ -1,4 +1,11 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
+
+// T12 drift wiring: inline package.json#version as a literal so the dist
+// carries CURRENT_PLUGIN_VERSION for the cross-package init-time check.
+const PKG_VERSION = JSON.parse(readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf8"))
+	.version as string;
 
 export default NodeLibraryBuilder.create({
 	externals: [
@@ -12,6 +19,9 @@ export default NodeLibraryBuilder.create({
 		"vitest-agent-sdk",
 		"vitest-agent-reporter",
 	],
+	define: {
+		"process.env.__PACKAGE_VERSION__": JSON.stringify(PKG_VERSION),
+	},
 	apiModel: {
 		suppressWarnings: [{ messageId: "ae-forgotten-export", pattern: "_base" }],
 	},
