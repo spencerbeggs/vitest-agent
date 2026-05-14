@@ -17,6 +17,7 @@ import type {
 	ValidationWarning,
 } from "../services/ConfigValidation.js";
 import { ConfigValidation } from "../services/ConfigValidation.js";
+import { resolveThresholds } from "../utils/resolve-thresholds.js";
 
 /** Metrics that can appear at the top level in both coverageTargets and coverage.thresholds. */
 const COVERAGE_METRICS = ["lines", "functions", "branches", "statements"] as const;
@@ -52,6 +53,13 @@ function isPackageInstalled(packageName: string): boolean {
 
 /**
  * Run the TARGET_WITHOUT_THRESHOLD and TARGET_BELOW_THRESHOLD rules.
+ *
+ * Both targets and thresholds run through resolveThresholds so the `100: true`
+ * shorthand and glob-pattern entries are expanded into the canonical `global`
+ * per-metric numeric form before comparison. Without normalization a config
+ * like `coverage.thresholds: { 100: true }` would look "unset" per metric and
+ * fire false-positive TARGET_WITHOUT_THRESHOLD warnings.
+ *
  * One entry per affected metric.
  */
 function runTargetThresholdRules(
@@ -59,11 +67,12 @@ function runTargetThresholdRules(
 	errors: ValidationError[],
 	warnings: ValidationWarning[],
 ): void {
-	const targets = input.pluginOptions.coverageTargets as Record<string, unknown> | undefined;
-	const coverageCfg = input.vitestConfig.coverage as { thresholds?: Record<string, unknown> } | undefined;
-	const thresholds = coverageCfg?.thresholds ?? {};
+	const rawTargets = input.pluginOptions.coverageTargets as Record<string, unknown> | undefined;
+	if (!rawTargets) return;
 
-	if (!targets) return;
+	const coverageCfg = input.vitestConfig.coverage as { thresholds?: Record<string, unknown> } | undefined;
+	const targets = resolveThresholds(rawTargets).global;
+	const thresholds = resolveThresholds(coverageCfg?.thresholds).global;
 
 	for (const metric of COVERAGE_METRICS) {
 		const targetValue = targets[metric];
@@ -77,7 +86,7 @@ function runTargetThresholdRules(
 				code: "TARGET_WITHOUT_THRESHOLD",
 				message: `coverageTargets.${metric} is set to ${targetValue} but coverage.thresholds.${metric} is not configured. Set coverage.thresholds.${metric} to enforce a minimum coverage floor.`,
 			});
-		} else if (typeof thresholdValue === "number" && targetValue < thresholdValue) {
+		} else if (targetValue < thresholdValue) {
 			// TARGET_BELOW_THRESHOLD: target is below the threshold
 			errors.push({
 				code: "TARGET_BELOW_THRESHOLD",

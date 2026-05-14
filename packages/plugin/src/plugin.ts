@@ -293,7 +293,10 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 								(e.remediation ? `\n  ${e.remediation}` : ""),
 						)
 						.join("\n");
-					throw new Error(formatFatalError(body));
+					// Throw a plain Error; the outer catch in configureVitest already
+					// applies formatFatalError before writing to stderr. Wrapping twice
+					// would duplicate the issue-URL footer the formatter appends.
+					throw new Error(body);
 				}
 
 				// Resolve coverage thresholds from Vitest's native config.
@@ -304,20 +307,11 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					? resolveThresholds(coverageConfig.thresholds as Record<string, unknown>)
 					: undefined;
 
-				// Resolve coverageTargets from plugin options.
+				// Resolve coverageTargets from plugin options. resolveThresholds
+				// preserves the `100: true` shorthand and glob-pattern entries, and
+				// leaves unset metrics absent on `global` instead of defaulting to 0.
 				const rawTargets = options.coverageTargets as Record<string, unknown> | undefined;
-				const coverageTargets = rawTargets
-					? {
-							global: {
-								lines: typeof rawTargets.lines === "number" ? rawTargets.lines : 0,
-								functions: typeof rawTargets.functions === "number" ? rawTargets.functions : 0,
-								branches: typeof rawTargets.branches === "number" ? rawTargets.branches : 0,
-								statements: typeof rawTargets.statements === "number" ? rawTargets.statements : 0,
-							},
-							perFile: false,
-							patterns: [],
-						}
-					: undefined;
+				const coverageTargets = rawTargets ? resolveThresholds(rawTargets) : undefined;
 
 				// Resolve operating mode from Vitest's native coverage.enabled.
 				// Full when coverage.enabled !== false; UI-only otherwise.

@@ -46,17 +46,29 @@ function checkNumericValue(value: number, path: string, errors: CoverageTargetsS
 	}
 }
 
-/** Checks all numeric values inside a nested per-metric object (glob-pattern entry). */
+/** Emits an INVALID_TARGET_VALUE error when `true` appears at a key other than `"100"`. */
+function checkBooleanShortcut(key: string, path: string, errors: CoverageTargetsShapeError[]): void {
+	if (key === "100") return;
+	errors.push({
+		code: "INVALID_TARGET_VALUE",
+		path,
+		message: `Coverage target at "${path}" cannot be true. The "true" shorthand is only valid at key "100" (meaning 100% across all metrics).`,
+	});
+}
+
+/** Checks all values inside a nested per-metric object (glob-pattern entry). */
 function checkNestedMetrics(
 	nested: Record<string, unknown>,
 	prefix: string,
 	errors: CoverageTargetsShapeError[],
 ): void {
 	for (const [metricKey, metricValue] of Object.entries(nested)) {
+		const path = `${prefix}.${metricKey}`;
 		if (typeof metricValue === "number") {
-			checkNumericValue(metricValue, `${prefix}.${metricKey}`, errors);
+			checkNumericValue(metricValue, path, errors);
+		} else if (metricValue === true) {
+			checkBooleanShortcut(metricKey, path, errors);
 		}
-		// Literal true is valid (the 100:true shortcut) — no check needed.
 	}
 }
 
@@ -66,7 +78,9 @@ function checkNestedMetrics(
  *
  * Codes emitted:
  * - `INVALID_TARGET_VALUE` — a numeric metric value is zero or negative,
- *   with the offending `path` included (e.g. `"lines"` or `"src/**.ts.lines"`).
+ *   OR a literal `true` appears at any key other than `"100"`. The
+ *   offending `path` is included (e.g. `"lines"`, `"src/**.ts.lines"`,
+ *   or `"statements"` when misused as a boolean shortcut).
  * - `PERFILE_ON_TARGETS` — the `perFile` key appears inside coverageTargets;
  *   it should be set on `coverage.thresholds.perFile` instead.
  *
@@ -96,15 +110,19 @@ export function validateCoverageTargetsShape(input: unknown): CoverageTargetsSha
 			// Top-level metric key (lines, functions, branches, statements, 100).
 			if (typeof value === "number") {
 				checkNumericValue(value, key, errors);
+			} else if (value === true) {
+				checkBooleanShortcut(key, key, errors);
 			}
 		} else if (typeof value === "number") {
 			// Glob-pattern key with a bare numeric value.
 			checkNumericValue(value, key, errors);
+		} else if (value === true) {
+			// Glob-pattern key with a bare `true` value — same shorthand abuse as above.
+			checkBooleanShortcut(key, key, errors);
 		} else if (value !== null && typeof value === "object" && !Array.isArray(value)) {
 			// Glob-pattern key with a per-metric object value.
 			checkNestedMetrics(value as Record<string, unknown>, key, errors);
 		}
-		// Literal true at any level is the 100:true shortcut — always valid.
 	}
 
 	return { errors, warnings, info };

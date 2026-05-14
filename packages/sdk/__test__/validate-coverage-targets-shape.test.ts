@@ -27,15 +27,23 @@ describe("CoverageTargets schema", () => {
 		expect(result).toEqual(input);
 	});
 
-	it("should accept true literal value as a top-level coverage target shortcut", () => {
-		// Given: a target object using the 100:true shortcut on the value side
-		const input = { statements: true };
+	it("should accept the 100:true shorthand at the top level", () => {
+		// Given: the canonical Vitest shorthand using key "100" with value true
+		const input = { 100: true } as const;
 
 		// When: decoded
 		const result = decode(input);
 
 		// Then: accepted without error
 		expect(result).toEqual(input);
+	});
+
+	it("should reject true at a non-100 metric key with a ParseError", () => {
+		// Given: the misuse case — `true` at a key other than "100"
+		const input = { statements: true };
+
+		// When/Then: the refinement rejects because the shorthand is only valid at key "100"
+		expect(() => decode(input)).toThrow();
 	});
 
 	it("should accept glob-pattern keys with nested metric objects", () => {
@@ -75,16 +83,42 @@ describe("validateCoverageTargetsShape", () => {
 		expect(result.warnings).toHaveLength(0);
 	});
 
-	it("should return no errors for the true literal shortcut at top level", () => {
-		// Given
+	it("should return no errors for the 100:true shorthand at the top level", () => {
+		// Given: the canonical Vitest shorthand
+		const input = { 100: true } as const;
+
+		// When
+		const result = validateCoverageTargetsShape(input);
+
+		// Then: shorthand is recognized without diagnostics
+		expect(result.errors).toHaveLength(0);
+		expect(result.warnings).toHaveLength(0);
+	});
+
+	it("should return INVALID_TARGET_VALUE error when true appears at a non-100 metric key", () => {
+		// Given: the misuse case — `true` at "statements" rather than "100"
 		const input = { statements: true };
 
 		// When
 		const result = validateCoverageTargetsShape(input);
 
+		// Then: the helper flags it so its diagnostics match the schema and runtime parsers
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0]?.code).toBe("INVALID_TARGET_VALUE");
+		expect(result.errors[0]?.path).toBe("statements");
+	});
+
+	it("should return INVALID_TARGET_VALUE error when true appears inside a glob entry at a non-100 key", () => {
+		// Given: same misuse but nested under a glob pattern
+		const input = { "src/**.ts": { lines: true } };
+
+		// When
+		const result = validateCoverageTargetsShape(input);
+
 		// Then
-		expect(result.errors).toHaveLength(0);
-		expect(result.warnings).toHaveLength(0);
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0]?.code).toBe("INVALID_TARGET_VALUE");
+		expect(result.errors[0]?.path).toBe("src/**.ts.lines");
 	});
 
 	it("should return no errors for glob-pattern entries with metric objects", () => {
