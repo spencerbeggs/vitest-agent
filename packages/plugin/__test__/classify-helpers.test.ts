@@ -163,6 +163,21 @@ describe("classifyByDirectory", () => {
 		// Then: returns the configured tags
 		expect(result).toEqual(["unit"]);
 	});
+
+	it("should still match when relativePath uses backslash separators", () => {
+		// Given: a classifier keyed on "integration" and a Windows-style
+		// relativePath that a custom DiscoverStrategy might supply without
+		// normalizing through toPosixPath first
+		const classify = classifyByDirectory({ integration: ["int"] });
+
+		// When: the backslash-bearing relativePath is classified
+		const result = classify(makeCtx("foo.test.ts", "src\\integration\\sub"));
+
+		// Then: the defensive normalization inside classifyByDirectory folds
+		// the backslashes to forward slashes so the slash-bounded match still
+		// fires — confirms the cross-platform invariant documented in the JSDoc
+		expect(result).toEqual(["int"]);
+	});
 });
 
 // ── Goal 15, Behavior 27: combineClassifiers ─────────────────────────────────

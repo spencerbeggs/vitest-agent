@@ -1,6 +1,7 @@
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { join, relative } from "node:path";
+import { toPosixPath } from "./to-posix-path.js";
 
 // ── Directories to skip during traversal ─────────────────────────────────────
 
@@ -114,12 +115,12 @@ async function walkDir(root: string, dir: string, matchers: RegExp[], results: s
 		if (ent.isDirectory()) {
 			await walkDir(root, fullPath, matchers, results);
 		} else if (ent.isFile()) {
-			// Compute path relative to root for glob matching. Normalize separators
-			// to forward slash so the comparison works on Windows — node:path's
-			// relative() returns backslash-separated paths there, but globToRegex
-			// compiles patterns that require forward slashes. The returned absolute
-			// paths still use join() so callers see platform-native results.
-			const rel = relative(root, fullPath).split(sep).join("/");
+			// Compute path relative to root for glob matching. toPosixPath
+			// normalizes the comparison string on Windows so globToRegex's
+			// slash-bounded patterns resolve identically across platforms.
+			// The returned absolute paths still use join() so callers see
+			// platform-native results.
+			const rel = toPosixPath(relative(root, fullPath));
 			if (matchers.some((re) => re.test(rel))) {
 				results.push(fullPath);
 			}

@@ -1,4 +1,5 @@
 import type { ClassifyContext, ClassifyFn } from "./discover-strategy.js";
+import { toPosixPath } from "./to-posix-path.js";
 
 /**
  * Creates a ClassifyFn that maps filename suffix patterns to tag arrays.
@@ -56,7 +57,12 @@ export function classifyByFilename(
 export function classifyByDirectory(dirMap: Record<string, ReadonlyArray<string>>): ClassifyFn {
 	const entries = Object.entries(dirMap);
 	return (ctx: ClassifyContext): ReadonlyArray<string> => {
-		const rel = ctx.module.relativePath;
+		// Defensive normalization. buildModuleInfo already canonicalizes
+		// relativePath to forward slashes, but custom DiscoverStrategy
+		// implementations may build ModuleInfo themselves and supply a
+		// platform-native path. toPosixPath keeps the slash-bounded match
+		// semantics documented above identical on Windows.
+		const rel = toPosixPath(ctx.module.relativePath);
 		for (const [segment, tags] of entries) {
 			// Match with slash boundaries:
 			// - starts with segment followed by /

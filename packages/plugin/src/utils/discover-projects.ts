@@ -4,6 +4,7 @@ import type { TestProjectInlineConfiguration } from "vitest/config";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "workspaces-effect";
 import type { DiscoverStrategy } from "./discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./discover-strategy.js";
+import { toPosixPath } from "./to-posix-path.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,10 +57,12 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 		// Unified discovery algorithm §3.6 step 3:
 		// strategy.buildProject() decides — null means "skip" (no tests found).
 		// No prior filtering on relativePath === "." or !isDir(srcDir).
+		// toPosixPath canonicalizes the workspaces-effect relativePath so
+		// strategies see the same forward-slash form on Windows.
 		const config = await resolvedStrategy.buildProject({
 			name: pkg.name,
 			path: pkg.path,
-			relativePath: pkg.relativePath,
+			relativePath: toPosixPath(pkg.relativePath),
 			workspaceRoot: root,
 		});
 
@@ -92,9 +95,10 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 		}
 
 		// path.relative handles both POSIX and Windows separators and normalizes
-		// trailing slashes on root, where a manual slice + slash strip would leave
-		// a leading "\\" on Windows.
-		const relativePath = relative(root, normPath);
+		// trailing slashes on root; toPosixPath then folds Windows backslashes to
+		// forward slash so the DiscoverInput.relativePath the strategy sees is
+		// canonical across platforms.
+		const relativePath = toPosixPath(relative(root, normPath));
 
 		const config = await resolvedStrategy.buildProject({
 			name: entry.name,
