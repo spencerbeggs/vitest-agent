@@ -8,10 +8,8 @@
  */
 
 import { execSync } from "node:child_process";
-import type { TestTagDefinition } from "@vitest/runner";
 import type { Layer } from "effect";
 import { Effect } from "effect";
-import type { TestProjectInlineConfiguration } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import type {
 	AgentConsoleMode,
@@ -36,13 +34,14 @@ import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";
 import { ConfigValidation } from "./services/ConfigValidation.js";
 import { buildModuleInfo } from "./utils/build-module-info.js";
-import type { DiscoveryOptions } from "./utils/discover-projects.js";
+import type { DiscoverProjectsOptions } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
+import type { DiscoverStrategy } from "./utils/discover-strategy.js";
+import { DefaultDiscoverStrategy } from "./utils/discover-strategy.js";
 import type { InjectTagsResult } from "./utils/inject-tags.js";
 import { injectTags } from "./utils/inject-tags.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
-import { TagStrategy } from "./utils/tag-strategy.js";
 
 /**
  * Plugin options shape with the (function-typed) `reporter` factory added
@@ -73,12 +72,14 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	onRunEvent?: (event: import("vitest-agent-sdk").RunEvent) => void;
 	/**
 	 * Controls the Vite transform hook that rewrites test() and it() call
-	 * options to inject filename-derived tags. Pass a TagStrategy instance
-	 * to customize classification, or false to disable the transform entirely.
+	 * options to inject filename-derived tags. Pass a DiscoverStrategy
+	 * instance to customize classification, or false to disable the
+	 * transform entirely.
 	 *
-	 * Defaults to TagStrategy.default (unit / int / e2e by filename suffix).
+	 * Defaults to a fresh DefaultDiscoverStrategy (unit / int / e2e by
+	 * filename suffix).
 	 */
-	tagStrategy?: TagStrategy | false;
+	discoverStrategy?: DiscoverStrategy | false;
 }
 
 /**
@@ -206,7 +207,8 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 		? (...args: unknown[]) => process.stderr.write(`[vitest-agent:plugin] ${args.map(String).join(" ")}\n`)
 		: (..._args: unknown[]) => {};
 
-	const tagStrategyResolved = options.tagStrategy === false ? null : (options.tagStrategy ?? TagStrategy.default);
+	const discoverStrategyResolved =
+		options.discoverStrategy === false ? null : (options.discoverStrategy ?? new DefaultDiscoverStrategy());
 
 	const pluginObj: {
 		name: "vitest-agent";
@@ -369,12 +371,12 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 		},
 	};
 
-	if (tagStrategyResolved) {
+	if (discoverStrategyResolved) {
 		pluginObj.transform = (code, id) => {
-			const cleanId = id.split("?")[0]!;
+			const cleanId = id.split("?")[0] ?? id;
 			if (!isTestFile(cleanId)) return null;
 			const module = buildModuleInfo(cleanId);
-			const tags = tagStrategyResolved.classify({ module });
+			const tags = discoverStrategyResolved.classify({ module });
 			if (tags.length === 0) return null;
 			const rewritten = injectTags(code, [...tags]);
 			if (rewritten === null) return null;
@@ -430,6 +432,73 @@ const buildPreset = (
 		coverageTargets: Object.freeze(PRESET_METRICS(targetsLevel)),
 	});
 
+// ── DiscoverBuilder ────────────────────────────────────────────────────────────
+
+/**
+ * An entry added via {@link DiscoverBuilder.addProject}.
+ * @public
+ */
+export interface AddProjectInput {
+	readonly name: string;
+	readonly path: string;
+}
+
+/**
+ * The resolved result of a {@link DiscoverBuilder} — a drop-in replacement for
+ * the old `DiscoverProjectsResult` on the public surface.
+ * @public
+ */
+export interface DiscoverResult {
+	readonly projects: import("vitest/config").TestProjectInlineConfiguration[] | undefined;
+	readonly tags: import("@vitest/runner").TestTagDefinition[];
+}
+
+/**
+ * Thenable builder returned by {@link AgentPlugin.discover}. Calling `.then()`
+ * (or `await`-ing) materializes the discovery: workspace packages + added
+ * entries are each run through the active strategy's `buildProject`, with
+ * conflict detection on `name` or normalized path collisions.
+ *
+ * The builder is **immutable** — each `.addProject()` call returns a new
+ * builder; the original is unchanged.
+ *
+ * @public
+ */
+export interface DiscoverBuilder extends PromiseLike<DiscoverResult> {
+	addProject(input: AddProjectInput): DiscoverBuilder;
+}
+
+/**
+ * Create a concrete {@link DiscoverBuilder} for the given strategy and
+ * accumulated additional entries. Calling `.then()` triggers `discoverProjects`
+ * with all accumulated options.
+ *
+ * Process-level cache rule (spec §3.3): caching fires only when no explicit
+ * `strategy` is provided AND `additionalEntries` is empty. Any `.addProject()`
+ * chain or explicit strategy bypasses the cache.
+ *
+ * @internal
+ */
+function makeDiscoverBuilder(options: DiscoverProjectsOptions): DiscoverBuilder {
+	return {
+		addProject(input: AddProjectInput): DiscoverBuilder {
+			// Immutable: return a fresh builder with the entry appended.
+			return makeDiscoverBuilder({
+				...options,
+				additionalEntries: [...(options.additionalEntries ?? []), { name: input.name, path: input.path }],
+			});
+		},
+
+		// biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike thenable for DiscoverBuilder
+		then<TResult1 = DiscoverResult, TResult2 = never>(
+			onFulfilled?: ((value: DiscoverResult) => TResult1 | PromiseLike<TResult1>) | null | undefined,
+			onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null | undefined,
+		): Promise<TResult1 | TResult2> {
+			return discoverProjects(options).then(onFulfilled, onRejected) as Promise<TResult1 | TResult2>;
+		},
+	};
+}
+
 export namespace AgentPlugin {
 	export const COVERAGE_LEVELS: Readonly<Record<CoverageLevelName, CoverageLevelPreset>> = Object.freeze({
 		none: buildPreset(CoverageLevel.none, CoverageLevel.basic, false),
@@ -475,22 +544,47 @@ export namespace AgentPlugin {
 
 	/**
 	 * Discover Vitest project configs and tag definitions from the workspace layout.
+	 * Returns a thenable {@link DiscoverBuilder} that supports `.addProject()` for
+	 * non-package folders that hold tests.
 	 *
-	 * Use with an async config export so projects are resolved before Vitest
-	 * reads the config:
+	 * Awaiting (or calling `.then`) materializes the result. Each `.addProject()`
+	 * returns a new immutable builder; the original is unchanged.
+	 *
+	 * Process-level cache: only the no-arg, no-added-projects call path caches by
+	 * workspace root. Any `.addProject()` chain or explicit strategy bypasses it.
 	 *
 	 * ```ts
-	 * export default defineConfig(async () => {
-	 *   const { projects, tags } = await AgentPlugin.discover();
-	 *   return { plugins: [AgentPlugin()], test: { projects, tags } };
-	 * });
+	 * export default async () => {
+	 *   const { projects, tags } = await AgentPlugin.discover()
+	 *     .addProject({ name: "integration", path: "./test-only" });
+	 *   return defineConfig({
+	 *     plugins: [AgentPlugin()],
+	 *     test: { ...(projects ? { projects } : {}), tags },
+	 *   });
+	 * };
 	 * ```
+	 *
+	 * @param strategy - Optional strategy or options object `{ strategy?, cwd? }`.
+	 *   Pass a {@link DiscoverStrategy} directly, or an options object to also
+	 *   specify a custom workspace root via `cwd`.
 	 */
-	export async function discover(
-		options?: DiscoveryOptions,
-	): Promise<{ projects: TestProjectInlineConfiguration[]; tags: TestTagDefinition[] }> {
-		const { projects, tags } = await discoverProjects(options);
-		return { projects: projects.map((p) => p.toConfig()), tags };
+	export function discover(
+		strategy?: DiscoverStrategy | { strategy?: DiscoverStrategy; cwd?: string },
+	): DiscoverBuilder {
+		if (strategy === undefined) {
+			return makeDiscoverBuilder({});
+		}
+		// Duck-type: a DiscoverStrategy has buildProject + tags + classify methods.
+		// An options object has at most strategy/cwd keys (no buildProject directly).
+		if (typeof (strategy as DiscoverStrategy).buildProject === "function") {
+			return makeDiscoverBuilder({ strategy: strategy as DiscoverStrategy });
+		}
+		// Options object form: { strategy?, cwd? }
+		const opts = strategy as { strategy?: DiscoverStrategy; cwd?: string };
+		return makeDiscoverBuilder({
+			...(opts.strategy !== undefined ? { strategy: opts.strategy } : {}),
+			...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+		});
 	}
 
 	/**

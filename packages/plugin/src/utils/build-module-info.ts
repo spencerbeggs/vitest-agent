@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, relative } from "node:path";
-import type { ModuleInfo } from "./tag-strategy.js";
+import type { ModuleInfo } from "./discover-strategy.js";
+import { toPosixPath } from "./to-posix-path.js";
 
 interface PackageInfo {
 	readonly packageName: string;
@@ -62,7 +63,9 @@ export const buildModuleInfo = (filePath: string): ModuleInfo => {
 	const { packageName, packagePath } = resolvePackageInfo(cleanId);
 	return {
 		path: cleanId,
-		relativePath: relative(process.cwd(), cleanId),
+		// Canonical forward-slash form so downstream classifiers and the
+		// bundled classifyByDirectory helper match consistently on Windows.
+		relativePath: toPosixPath(relative(process.cwd(), cleanId)),
 		filename: basename(cleanId),
 		packageName,
 		packagePath,

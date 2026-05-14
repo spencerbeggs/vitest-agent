@@ -172,7 +172,7 @@ project name. Test kind (unit / integration / e2e) is expressed via
 Vitest 4.1 tags rather than project-name suffixes — see
 [Configuration > Project Discovery](configuration.md#project-discovery)
 and the
-[Tag and TagStrategy API](configuration.md#tag-and-tagstrategy-api)
+[DiscoverStrategy API](configuration.md#discoverstrategy-api)
 section for how the plugin classifies test files into tags.
 
 ### With Coverage

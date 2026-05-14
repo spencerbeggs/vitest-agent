@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 90
 related:
   - ./architecture.md
@@ -180,13 +180,15 @@ the schema; the legacy `splitProject()` utility and `(project, subProject)`
 column pair were dropped in 2.0.
 
 Test-kind differentiation moved to **Vitest-native tags** (Vitest 4.1+).
-`TagStrategy` in `vitest-agent-plugin` declares the available tags
-(`unit`, `int`, `e2e` by default) and a `classify()` function that maps a
+`DiscoverStrategy` in `vitest-agent-plugin` declares the available tags
+(`unit`, `int`, `e2e` by default) and a `classify()` method that maps a
 test file to a tag list. The plugin installs a Vite `transform` hook
 (see `packages/plugin/src/utils/inject-tags.ts`) that rewrites every
 `test()` and `it()` call's options argument to add the resolved tags
 array. Filter at the command line via Vitest's standard tag-expression
 syntax (`pnpm vitest --project vitest-agent-sdk --tags-filter "unit"`).
+The classifier-only `TagStrategy` namespace was unified into
+`DiscoverStrategy` in T5; see Decision 39.
 
 Aggregated per-tag pass/fail/skip counts surface on `AgentReport.tagCounts`
 and render in the terminal formatter as both an inline summary on the

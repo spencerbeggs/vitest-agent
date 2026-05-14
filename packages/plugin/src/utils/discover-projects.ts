@@ -1,65 +1,33 @@
-import { statSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, normalize, relative } from "node:path";
 import type { TestTagDefinition } from "@vitest/runner";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "workspaces-effect";
-import { TagStrategy } from "./tag-strategy.js";
-import { VitestProject } from "./vitest-project.js";
+import type { DiscoverStrategy } from "./discover-strategy.js";
+import { DefaultDiscoverStrategy } from "./discover-strategy.js";
+import { toPosixPath } from "./to-posix-path.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type ProjectsCallback = (ctx: { projects: VitestProject[] }) => void | Promise<void>;
-export type DiscoveryOptions =
-	| ProjectsCallback
-	| {
-			callback?: ProjectsCallback;
-			tagStrategy?: TagStrategy | false;
-	  };
-
 export interface DiscoverProjectsResult {
-	projects: VitestProject[];
-	tags: TestTagDefinition[];
+	readonly projects: TestProjectInlineConfiguration[] | undefined;
+	readonly tags: TestTagDefinition[];
+}
+
+export interface DiscoverProjectsOptions {
+	readonly strategy?: DiscoverStrategy;
+	readonly cwd?: string;
+	readonly additionalEntries?: ReadonlyArray<{ readonly name: string; readonly path: string }>;
 }
 
 // ── Process-level cache keyed by workspace root ───────────────────────────────
-// Cache fires only for the no-options call path to avoid fingerprinting
-// TagStrategy instances.
+// Cache fires only for the no-strategy/no-additionalEntries call path to avoid
+// fingerprinting DiscoverStrategy instances.
 const _cache = new Map<string, DiscoverProjectsResult>();
 
-const SETUP_EXTS = ["ts", "tsx", "js", "jsx"] as const;
-
-// Subdirs under __test__/ that hold helpers, not test files
-const TEST_DIR_HELPER_DIRS = ["utils", "fixtures", "snapshots"];
-
-function isDir(p: string): boolean {
-	try {
-		return statSync(p).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-function detectSetupFile(pkgPath: string): string | null {
-	for (const ext of SETUP_EXTS) {
-		const candidate = join(pkgPath, `vitest.setup.${ext}`);
-		try {
-			if (statSync(candidate).isFile()) return `vitest.setup.${ext}`;
-		} catch {}
-	}
-	return null;
-}
-
-function resolveOptions(options: DiscoveryOptions | undefined): {
-	callback: ProjectsCallback | undefined;
-	strategy: TagStrategy | false;
-} {
-	if (options === undefined) return { callback: undefined, strategy: TagStrategy.default };
-	if (typeof options === "function") return { callback: options, strategy: TagStrategy.default };
-	const strategy = options.tagStrategy === undefined ? TagStrategy.default : options.tagStrategy;
-	return { callback: options.callback, strategy };
-}
-
-export async function discoverProjects(options?: DiscoveryOptions, cwd?: string): Promise<DiscoverProjectsResult> {
+export async function discoverProjects(options?: DiscoverProjectsOptions): Promise<DiscoverProjectsResult> {
+	const strategy = options?.strategy;
+	const cwd = options?.cwd;
+	const additionalEntries = options?.additionalEntries ?? [];
 	const root = findWorkspaceRootSync(cwd ?? process.cwd());
 	if (!root) {
 		throw new Error(
@@ -68,61 +36,99 @@ export async function discoverProjects(options?: DiscoveryOptions, cwd?: string)
 		);
 	}
 
-	// Cache only when no options are passed — keeps the API zero-cost for the
-	// common case (a Vitest config with no override) without trying to fingerprint
-	// a TagStrategy instance.
-	if (options === undefined) {
+	// Cache only when no strategy and no additionalEntries are passed — the
+	// common no-arg path is zero-cost; explicit strategy or added entries bypass
+	// the cache because we can't fingerprint DiscoverStrategy instances.
+	const useCache = strategy === undefined && additionalEntries.length === 0;
+	if (useCache) {
 		const cached = _cache.get(root);
 		if (cached) return cached;
 	}
 
-	const { callback, strategy } = resolveOptions(options);
-
+	const resolvedStrategy = strategy ?? new DefaultDiscoverStrategy();
 	const packages = getWorkspacePackagesSync(root);
-	const vitestProjects: VitestProject[] = [];
+	const configs: TestProjectInlineConfiguration[] = [];
+
+	// Build lookup sets for conflict detection against workspace packages.
+	const workspaceNames = new Set<string>();
+	const workspacePaths = new Set<string>();
 
 	for (const pkg of packages) {
-		// Skip root workspace package
-		if (pkg.relativePath === ".") continue;
-
-		const srcDir = join(pkg.path, "src");
-		if (!isDir(srcDir)) continue;
-
-		const testDir = join(pkg.path, "__test__");
-		const hasTestDir = isDir(testDir);
-
-		const srcGlob = `${pkg.relativePath}/src`;
-		const testGlob = hasTestDir ? `${pkg.relativePath}/__test__` : null;
-		const setupFile = detectSetupFile(pkg.path);
-		const setupFiles = setupFile ? [`${pkg.relativePath}/${setupFile}`] : undefined;
-
-		// Exclude helper subdirs inside __test__/ from being picked up as test files
-		const testDirExcludes = testGlob ? TEST_DIR_HELPER_DIRS.map((d) => `${testGlob}/${d}/**`) : [];
-
-		const include = [
-			`${srcGlob}/**/*.{test,spec}.{ts,tsx,js,jsx}`,
-			...(testGlob ? [`${testGlob}/**/*.{test,spec}.{ts,tsx,js,jsx}`] : []),
-		];
-
-		const project = VitestProject.unit({
+		// Unified discovery algorithm §3.6 step 3:
+		// strategy.buildProject() decides — null means "skip" (no tests found).
+		// No prior filtering on relativePath === "." or !isDir(srcDir).
+		// toPosixPath canonicalizes the workspaces-effect relativePath so
+		// strategies see the same forward-slash form on Windows.
+		const config = await resolvedStrategy.buildProject({
 			name: pkg.name,
-			include,
-			overrides: {
-				test: {
-					...(setupFiles ? { setupFiles } : {}),
-					...(testDirExcludes.length > 0 ? { exclude: testDirExcludes } : {}),
-				} as Partial<NonNullable<TestProjectInlineConfiguration["test"]>>,
-			},
+			path: pkg.path,
+			relativePath: toPosixPath(pkg.relativePath),
+			workspaceRoot: root,
 		});
 
-		vitestProjects.push(project);
+		if (config !== null) {
+			configs.push(config);
+		}
+
+		workspaceNames.add(pkg.name);
+		workspacePaths.add(normalize(pkg.path));
 	}
 
-	if (callback) await callback({ projects: vitestProjects });
+	// §3.6 step 4-5: process .addProject() entries (additionalEntries).
+	for (const entry of additionalEntries) {
+		// Resolve path relative to workspace root (spec §7 Q3).
+		const absPath = isAbsolute(entry.path) ? entry.path : join(root, entry.path);
+		const normPath = normalize(absPath);
 
-	const tags: TestTagDefinition[] = strategy === false ? [] : [...strategy.tagDefinitions];
+		// Conflict detection: name or resolved absolute path collision.
+		if (workspaceNames.has(entry.name)) {
+			throw new Error(
+				`[vitest-agent] .addProject() conflict: name "${entry.name}" already exists as a workspace package. ` +
+					`Use a different name or omit the .addProject() call.`,
+			);
+		}
+		if (workspacePaths.has(normPath)) {
+			throw new Error(
+				`[vitest-agent] .addProject() conflict: resolved path "${normPath}" already exists as a workspace package path. ` +
+					`Remove the .addProject() call or adjust the path.`,
+			);
+		}
 
-	const result: DiscoverProjectsResult = { projects: vitestProjects, tags };
-	if (options === undefined) _cache.set(root, result);
+		// path.relative handles both POSIX and Windows separators and normalizes
+		// trailing slashes on root; toPosixPath then folds Windows backslashes to
+		// forward slash so the DiscoverInput.relativePath the strategy sees is
+		// canonical across platforms.
+		const relativePath = toPosixPath(relative(root, normPath));
+
+		const config = await resolvedStrategy.buildProject({
+			name: entry.name,
+			path: normPath,
+			relativePath,
+			workspaceRoot: root,
+		});
+
+		// §3.6 step 4: null from buildProject for an added entry → throw.
+		if (config === null) {
+			const strategyName = resolvedStrategy.constructor.name;
+			throw new Error(
+				`[vitest-agent] .addProject({ name: "${entry.name}", path: "${entry.path}" }) resolved to path "${normPath}" ` +
+					`but ${strategyName} found no test files there. ` +
+					`Ensure the directory contains test files matching the strategy's patterns.`,
+			);
+		}
+
+		configs.push(config);
+	}
+
+	// §3.6 step 6: tags from strategy.tagDefinitions
+	const tags: TestTagDefinition[] = [...resolvedStrategy.tagDefinitions];
+
+	// §3.6 step 7: if merged projects array is empty, return projects: undefined
+	const result: DiscoverProjectsResult = {
+		projects: configs.length > 0 ? configs : undefined,
+		tags,
+	};
+
+	if (useCache) _cache.set(root, result);
 	return result;
 }

@@ -5,22 +5,6 @@
 
 ## Features
 
-### AgentPlugin.discover()
-
-New `AgentPlugin.discover(options?)` static method automatically discovers Vitest projects from your workspace layout. Use it with an async config export to populate `test.projects` before Vitest reads the config:
-
-```ts
-export default async () => {
-  const { projects, tags } = await AgentPlugin.discover();
-  return defineConfig({
-    plugins: [AgentPlugin()],
-    test: { projects, tags, pool: "forks" },
-  });
-};
-```
-
-The scanner walks all workspace packages, detects test files in both `src/` and `__test__/` directories, and emits typed `VitestProject` objects paired with the active `TagStrategy`'s tag definitions. Results are cached per workspace root within the process.
-
 ### AgentPlugin.runScript()
 
 New `AgentPlugin.runScript(command)` static method runs a shell command silently. Output is suppressed on success; stdout and stderr are surfaced only if the command exits non-zero. Designed for use in Vitest `globalSetup` files to build packages before the test run without polluting agent context:

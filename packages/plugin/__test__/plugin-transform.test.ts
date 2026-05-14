@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AgentPlugin, Tag, TagStrategy } from "../src/index.js";
+import { AgentPlugin, DefaultDiscoverStrategy, DiscoverStrategy, Tag } from "../src/index.js";
 
 const callTransform = (
 	plugin: ReturnType<typeof AgentPlugin>,
@@ -30,24 +30,28 @@ describe("AgentPlugin transform hook", () => {
 
 	it("returns null when classify yields no tags", () => {
 		const plugin = AgentPlugin({
-			tagStrategy: TagStrategy.create({ tags: [], classify: () => [] }),
+			discoverStrategy: DiscoverStrategy.create({
+				tags: [],
+				classify: () => [],
+				buildProject: async () => null,
+			}),
 		});
 		const result = callTransform(plugin, 'test("x", () => {});', "/repo/packages/sdk/src/auth.test.ts");
 		expect(result).toBeNull();
 	});
 
-	it("does not register a transform when tagStrategy is false", () => {
-		const plugin = AgentPlugin({ tagStrategy: false });
+	it("does not register a transform when discoverStrategy is false", () => {
+		const plugin = AgentPlugin({ discoverStrategy: false });
 		expect((plugin as { transform?: unknown }).transform).toBeUndefined();
 	});
 
 	it("supports multiple tags from a single classify call", () => {
 		const Slow = Tag.make("slow", { timeout: 180_000 });
-		const strategy = TagStrategy.default.extend({
+		const strategy = new DefaultDiscoverStrategy().extend({
 			additionalTags: [Slow],
 			classify: ({ inherited }) => [...inherited, "slow"],
 		});
-		const plugin = AgentPlugin({ tagStrategy: strategy });
+		const plugin = AgentPlugin({ discoverStrategy: strategy });
 		const result = callTransform(plugin, 'test("x", () => {});', TEST_ID);
 		expect(result!.code).toContain('tags: ["int", "slow"]');
 	});

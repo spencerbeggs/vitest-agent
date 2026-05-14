@@ -28,14 +28,28 @@ export type { InjectTagsResult } from "./utils/inject-tags.js";
 
 // --- Discovery ---
 
-export type {
-	DiscoverProjectsResult,
-	DiscoveryOptions,
-	ProjectsCallback,
-} from "./utils/discover-projects.js";
+export type { AddProjectInput, DiscoverBuilder, DiscoverResult } from "./plugin.js";
+export type { DiscoverProjectsOptions, DiscoverProjectsResult } from "./utils/discover-projects.js";
 export { discoverProjects } from "./utils/discover-projects.js";
-export type { VitestProjectKind, VitestProjectOptions } from "./utils/vitest-project.js";
-export { VitestProject } from "./utils/vitest-project.js";
+export type {
+	ClassifyContext,
+	ClassifyFn,
+	DiscoverInput,
+	DiscoverStrategyCreateOptions,
+	DiscoverStrategyExtendOptions,
+	ModuleInfo,
+	PackageJson as DiscoverPackageJson,
+} from "./utils/discover-strategy.js";
+export { DefaultDiscoverStrategy, DiscoverStrategy } from "./utils/discover-strategy.js";
+
+// --- Classifier composition helpers ---
+
+export {
+	classifyByDirectory,
+	classifyByFilename,
+	combineClassifiers,
+} from "./utils/classify-helpers.js";
+export { findTestFiles } from "./utils/find-test-files.js";
 
 // --- Coverage level API (re-exported from SDK so users only need one import) ---
 
@@ -82,17 +96,7 @@ export type { VitestThresholdsInput } from "./utils/resolve-thresholds.js";
 export { resolveThresholds } from "./utils/resolve-thresholds.js";
 export { CONSOLE_REPORTERS, stripConsoleReporters } from "./utils/strip-console-reporters.js";
 
-// --- Tag strategy ---
+// --- Tag primitive ---
 
 export type { TagOptions } from "./utils/tag.js";
 export { Tag } from "./utils/tag.js";
-export type {
-	ClassifyBaseContext,
-	ClassifyBaseFn,
-	ClassifyExtendedContext,
-	ClassifyExtendedFn,
-	ModuleInfo,
-	TagStrategyCreateOptions,
-	TagStrategyExtendOptions,
-} from "./utils/tag-strategy.js";
-export { TagStrategy } from "./utils/tag-strategy.js";

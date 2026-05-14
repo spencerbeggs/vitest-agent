@@ -288,11 +288,12 @@ release workflow. Releases happen in lockstep.
   is still available via `--project`; test-kind filtering moved to
   Vitest-native tag expressions (e.g. `--tags-filter "int"`).
 - **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
-  (flat directory). The `discoverProjects` scanner also recognises
+  (flat directory). The default discovery strategy also recognises
   tests co-located under `src/` for backward compatibility.
-  Test-kind differentiation comes from `TagStrategy` (default classifies
-  `.e2e.`, `.int.`, and otherwise `unit` by filename), not from project
-  splits — there is one Vitest project per workspace package.
+  Test-kind differentiation comes from `DiscoverStrategy.classify`
+  (default classifies `.e2e.`, `.int.`, and otherwise `unit` by
+  filename), not from project splits — there is one Vitest project
+  per workspace package.
 - **CI**: `pnpm run ci:test` sets `CI=true` and enables coverage.
 
 **For detailed testing and discovery guidance:**
@@ -300,5 +301,6 @@ release workflow. Releases happen in lockstep.
 - `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests, reviewing patterns, or understanding coverage targets.
 - `@./.claude/design/vitest-agent/components/discover.md`
-  Load when working on `AgentPlugin.discover()`, `discoverProjects()`,
-  `VitestProject`, or `DiscoveryOptions`.
+  Load when working on `AgentPlugin.discover()`, the `DiscoverBuilder`
+  thenable, `discoverProjects()`, the `DiscoverStrategy` contract, or
+  the classifier helpers.

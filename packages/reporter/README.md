@@ -359,23 +359,41 @@ set the slot you want to `"ink"` and wire the new `onRunEvent` tap to
 asynchronously. Vitest awaits the hook, so `AgentPlugin` users see no
 change. Direct callers of `onInit` must await the promise.
 
-## Tag-strategy migration
+## Discover-strategy migration
 
 The 2.0 series replaces filename-driven project splitting with Vitest
-4.1's native tag system. If you upgraded from an earlier 2.0 build,
-expect the following breaking changes:
+4.1's native tag system and consolidates project shaping and tag
+classification under a single `DiscoverStrategy` contract. If you
+upgraded from an earlier 2.0 build, expect the following breaking
+changes:
 
-- `AgentPlugin.discover()` returns `{ projects, tags }` instead of
+- `AgentPlugin.discover()` returns a thenable `DiscoverBuilder` that
+  resolves to `{ projects, tags }` instead of
   `TestProjectInlineConfiguration[]`. Destructure the result and pass
-  both to `test.projects` and `test.tags`.
+  both to `test.projects` and `test.tags`. Chain `.addProject({ name,
+  path })` to register non-package test folders.
+- `projects` is typed as
+  `TestProjectInlineConfiguration[] | undefined` — Vitest's native
+  inline-project shape. The pre-T5 `VitestProject` builder class was
+  removed; strategies emit native Vitest inline-config objects
+  directly.
 - Project names lose their kind suffix — there is one project per
   workspace package, no more `pkg:unit` / `pkg:int` / `pkg:e2e`. Test
   kind is expressed as a Vitest tag (`unit`, `int`, `e2e`) injected
   by the plugin's transform; filter runs with
   `vitest --tags-filter "int"`.
-- The per-kind override form on `discoverProjects()`
-  (`{ unit?, int?, e2e? }` keyed by kind) is gone. Use the
-  `tagStrategy` option or the `callback` form instead.
+- The pre-T5 `TagStrategy` namespace was folded into the new
+  `DiscoverStrategy` abstract class. Use
+  `DefaultDiscoverStrategy` (the concrete default) or
+  `DiscoverStrategy.create({ tags, classify, buildProject })` /
+  `.extend(...)` to author custom strategies.
+- The plugin option was renamed from `tagStrategy` to
+  `discoverStrategy`; the `false` sentinel still disables the Vite
+  transform entirely.
+- The pre-2.0 `({ projects }) => void | Promise<void>` callback and
+  the per-kind override form (`{ unit?, int?, e2e? }` keyed by kind)
+  on `discover()` were removed. Per-kind shaping happens through
+  `DiscoverStrategy.classify()` rather than through projects.
 - The `--sub-project` flag was removed from the `record` CLI command,
   and the `subProject` input field was removed from `test_history`,
   the `inventory` tool's `suite` kind (1.x `suite_list`), and every
@@ -387,11 +405,14 @@ expect the following breaking changes:
 - `splitProject` and `ProjectIdentity` were removed from the
   `vitest-agent-sdk` public API.
 
-`Tag`, `TagStrategy`, `ModuleInfo`, `ClassifyBaseContext`,
-`ClassifyExtendedContext`, and `TagOptions` are new public exports of
-`vitest-agent-plugin` for callers that want to author their own
-classification logic. See
-[Configuration > Tag and TagStrategy API](../docs/configuration.md#tag-and-tagstrategy-api).
+`DiscoverStrategy`, `DefaultDiscoverStrategy`, `Tag`, `ModuleInfo`,
+`ClassifyContext`, `ClassifyFn`, `DiscoverInput`, and `TagOptions`
+are public exports of `vitest-agent-plugin` for callers that want to
+author their own classification or project-shaping logic. The
+companion classifier-composition helpers `classifyByFilename`,
+`classifyByDirectory`, and `combineClassifiers` are exported
+alongside them. See
+[Configuration > DiscoverStrategy API](../docs/configuration.md#discoverstrategy-api).
 
 ## Requirements
 
