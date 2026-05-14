@@ -6,7 +6,7 @@
  * manifests must decode cleanly during a per-page editorial pass.
  */
 
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
 	ManifestPage,
@@ -95,9 +95,7 @@ describe("ManifestPage decode with annotations", () => {
 				{ path: "guide/cli", title: "CLI", description: "Vitest CLI flags, programmatic invocation." },
 			],
 		};
-		const decoded = await decodeUpstreamManifest(fixture).pipe((eff: ReturnType<typeof decodeUpstreamManifest>) =>
-			import("effect").then((effect) => effect.Effect.runPromise(eff)),
-		);
+		const decoded = await Effect.runPromise(decodeUpstreamManifest(fixture));
 		expect(decoded.pages).toHaveLength(2);
 		expect(decoded.pages?.[0]?.annotations).toBeDefined();
 		expect(decoded.pages?.[1]?.annotations).toBeUndefined();
@@ -150,7 +148,7 @@ describe("PatternEntry decode with annotations", () => {
 		const fixture = {
 			patterns: [{ ...base, annotations: { audience: ["assistant"], priority: 0.9 } }],
 		};
-		const decoded = await import("effect").then((effect) => effect.Effect.runPromise(decodePatternsManifest(fixture)));
+		const decoded = await Effect.runPromise(decodePatternsManifest(fixture));
 		expect(decoded.patterns).toHaveLength(1);
 		expect(decoded.patterns[0]?.annotations?.priority).toBe(0.9);
 	});
