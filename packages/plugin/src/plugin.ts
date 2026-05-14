@@ -11,6 +11,7 @@ import { execSync } from "node:child_process";
 import type { Layer } from "effect";
 import { Effect } from "effect";
 import type { VitestPluginContext } from "vitest/node";
+import { CURRENT_REPORTER_VERSION } from "vitest-agent-reporter";
 import type {
 	AgentConsoleMode,
 	AgentPluginOptions,
@@ -24,6 +25,7 @@ import type {
 	VitestAgentReporterFactory,
 } from "vitest-agent-sdk";
 import {
+	CURRENT_SDK_VERSION,
 	CoverageLevel,
 	EnvironmentDetector,
 	EnvironmentDetectorLive,
@@ -176,6 +178,64 @@ function resolveFormat(mode: ConsoleMode, explicit?: OutputFormat): OutputFormat
  */
 const aggregatedReporterByVitest = new WeakSet<object>();
 
+/**
+ * The version of this package, inlined at build time from
+ * package.json#version via rslib-builder's __PACKAGE_VERSION__ substitution.
+ * Re-exported from {@link index.ts} as the public symbol; defined here so
+ * the drift-check code path below can read it without a circular import.
+ *
+ * @public
+ */
+export const CURRENT_PLUGIN_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";
+
+/**
+ * Cross-package version drift warning state. Module-scoped so multi-project
+ * Vitest configs construct one plugin per project but only emit the
+ * warning once per Node process. See the root CLAUDE.md
+ * "Cross-package version drift" section.
+ *
+ * @internal
+ */
+let _hasWarnedDrift = false;
+
+/**
+ * Compare CURRENT_PLUGIN_VERSION against each runtime peer the plugin
+ * orchestrates and write one stderr line per mismatch. The check is
+ * observation-only — never throws, never exits. Suppressed after the
+ * first call in the same process so multi-project Vitest configs do
+ * not duplicate the warning.
+ *
+ * The `"0.0.0"` fallback (from process.env.__PACKAGE_VERSION__ ??
+ * "0.0.0" in the constant source) marks a dev build where rslib-builder
+ * has not substituted the literal — typically when this module is
+ * loaded directly from source rather than from dist. Skip the check
+ * in that case; the asymmetry between source-loaded plugin and
+ * dist-loaded peers would fire a spurious warning on every dev test
+ * run otherwise.
+ *
+ * @internal
+ */
+function checkVersionDrift(pluginVersion: string): void {
+	if (_hasWarnedDrift) return;
+	if (pluginVersion === "0.0.0") return;
+	const peers: ReadonlyArray<readonly [string, string]> = [
+		["vitest-agent-sdk", CURRENT_SDK_VERSION],
+		["vitest-agent-reporter", CURRENT_REPORTER_VERSION],
+	];
+	let warned = false;
+	for (const [peerName, peerVersion] of peers) {
+		if (peerVersion !== pluginVersion) {
+			process.stderr.write(
+				`[vitest-agent-plugin] version drift: vitest-agent-plugin@${pluginVersion} ` +
+					`with ${peerName}@${peerVersion}. ` +
+					`Reinstall vitest-agent-* packages so versions match.\n`,
+			);
+			warned = true;
+		}
+	}
+	if (warned) _hasWarnedDrift = true;
+}
+
 const TEST_FILE_SUFFIX_RE = /\.(?:test|spec)\.(?:ts|tsx|js|jsx)$/;
 const TEST_FILE_DIR_RE = /\/(?:src|__test__)\//;
 const isTestFile = (id: string): boolean => TEST_FILE_SUFFIX_RE.test(id) && TEST_FILE_DIR_RE.test(id);
@@ -195,6 +255,11 @@ function envToExecutor(env: Environment): Executor {
 }
 
 export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?: Layer.Layer<EnvironmentDetector>) {
+	// Surface cross-package version drift once per process so partially-upgraded
+	// installs (sdk and plugin at different versions, etc.) name themselves
+	// early rather than tripping later as a confusing schema error.
+	checkVersionDrift(CURRENT_PLUGIN_VERSION);
+
 	const mcp = options.mcp ?? false;
 	const layer = _layer ?? EnvironmentDetectorLive;
 

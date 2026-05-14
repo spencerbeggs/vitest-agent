@@ -19,3 +19,13 @@ export { McpLive } from "./layers/McpLive.js";
 export { appRouter } from "./router.js";
 export { startMcpServer } from "./server.js";
 export type { Remediation, TddErrorEnvelope } from "./tools/_tdd-error-envelope.js";
+
+// --- Cross-package version constant (T12 drift check) ---
+/**
+ * The version of this package, inlined at build time from
+ * package.json#version via rslib-builder's __PACKAGE_VERSION__ substitution.
+ * Compared against CURRENT_SDK_VERSION at MCP bin init to surface
+ * partially-upgraded installs as a single stderr warning. See the root
+ * CLAUDE.md "Cross-package version drift" section.
+ */
+export const CURRENT_MCP_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";

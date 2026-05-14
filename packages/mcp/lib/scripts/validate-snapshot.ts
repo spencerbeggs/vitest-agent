@@ -67,6 +67,7 @@ const program = Effect.gen(function* () {
 			errors.push(`file present but not in manifest: ${filePath}`);
 		}
 	}
+	let annotatedCount = 0;
 	for (const page of pages) {
 		if (!filePaths.has(page.path)) {
 			errors.push(`manifest entry without file: ${page.path}`);
@@ -77,6 +78,27 @@ const program = Effect.gen(function* () {
 		if (page.description.length < MIN_DESCRIPTION_LENGTH) {
 			errors.push(`description too short (${page.description.length} < ${MIN_DESCRIPTION_LENGTH} chars): ${page.path}`);
 		}
+		if (page.annotations) {
+			annotatedCount++;
+			if (page.annotations.audience !== undefined && page.annotations.audience.length === 0) {
+				errors.push(`annotations.audience is empty array (set entries or omit field): ${page.path}`);
+			}
+			// Schema enforces priority in [0, 1] at decode time; the
+			// friendlier error message is included for the rare case where a
+			// future schema relaxation lets out-of-range values through.
+			if (page.annotations.priority !== undefined) {
+				const p = page.annotations.priority;
+				if (p < 0 || p > 1) {
+					errors.push(`annotations.priority out of range [0, 1]: ${page.path} = ${p}`);
+				}
+			}
+		}
+	}
+
+	if (pages.length > 0 && annotatedCount > 0 && annotatedCount < pages.length) {
+		yield* Console.warn(
+			`warning: ${annotatedCount}/${pages.length} pages carry annotations — finish the editorial pass for the remaining ${pages.length - annotatedCount}.`,
+		);
 	}
 
 	if (errors.length > 0) {

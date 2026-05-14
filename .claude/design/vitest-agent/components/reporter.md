@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 90
 related:
   - ../architecture.md
@@ -104,3 +104,16 @@ lifecycle handling without touching the named factories; consumers can swap
 the rendering layer without re-implementing persistence, classification,
 baselines, or trends. The `ReporterKit` boundary is the thin pure-data
 contract that lets both halves move independently.
+
+## CURRENT_REPORTER_VERSION
+
+`packages/reporter/src/index.ts` exports `CURRENT_REPORTER_VERSION`
+(inlined from `process.env.__PACKAGE_VERSION__` via the package's
+`rslib.config.ts` `define`). The plugin imports it and compares
+against `CURRENT_PLUGIN_VERSION` at the top of the `AgentPlugin()`
+factory to surface cross-package drift on stderr — see
+[./plugin.md](./plugin.md) and D36 in [../decisions.md](../decisions.md).
+The package-local
+`packages/reporter/__test__/version-constant.test.ts` imports the
+constant through dist/dev (so it sees the substituted literal) and
+asserts it equals the package's `package.json#version`.

@@ -8,9 +8,25 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Effect } from "effect";
 import { renderPatternsIndex, renderUpstreamIndex } from "./indexes.js";
-import { decodeUpstreamManifest } from "./manifest-schema.js";
+import type { ResourceAnnotations } from "./manifest-schema.js";
+import { decodePatternsManifest, decodeUpstreamManifest } from "./manifest-schema.js";
 import { readPattern } from "./patterns.js";
 import { readUpstreamDoc } from "./upstream-docs.js";
+
+/**
+ * Convert the readonly ResourceAnnotations decoded from a manifest into
+ * the mutable shape the MCP SDK's Annotations type expects. The shape is
+ * structurally identical; only the readonly-ness differs.
+ */
+function toSdkAnnotations(a: ResourceAnnotations): {
+	audience?: ("user" | "assistant")[];
+	priority?: number;
+} {
+	const out: { audience?: ("user" | "assistant")[]; priority?: number } = {};
+	if (a.audience !== undefined) out.audience = [...a.audience];
+	if (a.priority !== undefined) out.priority = a.priority;
+	return out;
+}
 
 function resolveContentRoots(): { vendorRoot: string; patternsRoot: string } {
 	// import.meta.url maps to two layouts:
@@ -30,6 +46,7 @@ interface ListedPage {
 	readonly relativePath: string;
 	readonly title?: string;
 	readonly description?: string;
+	readonly annotations?: ResourceAnnotations;
 }
 
 async function listManifestPages(vendorRoot: string): Promise<ReadonlyArray<ListedPage>> {
@@ -55,6 +72,41 @@ async function listManifestPages(vendorRoot: string): Promise<ReadonlyArray<List
 		relativePath: page.path,
 		title: page.title,
 		description: page.description,
+		...(page.annotations ? { annotations: page.annotations } : {}),
+	}));
+}
+
+interface ListedPattern {
+	readonly slug: string;
+	readonly title: string;
+	readonly summary: string;
+	readonly annotations?: ResourceAnnotations;
+}
+
+async function listPatternEntries(patternsRoot: string): Promise<ReadonlyArray<ListedPattern>> {
+	const metaPath = join(patternsRoot, "_meta.json");
+	if (!existsSync(metaPath)) return [];
+	let raw: string;
+	try {
+		raw = await readFile(metaPath, "utf8");
+	} catch {
+		return [];
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return [];
+	}
+	const decoded = await Effect.runPromise(
+		decodePatternsManifest(parsed).pipe(Effect.catchAll(() => Effect.succeed(null))),
+	);
+	if (!decoded) return [];
+	return decoded.patterns.map((p) => ({
+		slug: p.slug,
+		title: p.title,
+		summary: p.summary,
+		...(p.annotations ? { annotations: p.annotations } : {}),
 	}));
 }
 
@@ -90,6 +142,7 @@ export function registerAllResources(server: McpServer): void {
 						title: page.title ?? page.relativePath,
 						description: page.description ?? `Vitest docs page: ${page.relativePath}`,
 						mimeType: "text/markdown",
+						...(page.annotations ? { annotations: toSdkAnnotations(page.annotations) } : {}),
 					})),
 				};
 			},
@@ -128,7 +181,21 @@ export function registerAllResources(server: McpServer): void {
 
 	server.registerResource(
 		"vitest_agent_pattern",
-		new ResourceTemplate("vitest-agent://patterns/{slug}", { list: undefined }),
+		new ResourceTemplate("vitest-agent://patterns/{slug}", {
+			list: async () => {
+				const patterns = await listPatternEntries(patternsRoot);
+				return {
+					resources: patterns.map((p) => ({
+						name: `vitest_agent_pattern_${p.slug.replace(/[^A-Za-z0-9]/g, "_")}`,
+						uri: `vitest-agent://patterns/${p.slug}`,
+						title: p.title,
+						description: p.summary,
+						mimeType: "text/markdown",
+						...(p.annotations ? { annotations: toSdkAnnotations(p.annotations) } : {}),
+					})),
+				};
+			},
+		}),
 		{
 			title: "vitest-agent Pattern",
 			description: "A single curated pattern from the vitest-agent project.",

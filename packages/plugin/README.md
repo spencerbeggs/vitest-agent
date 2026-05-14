@@ -20,6 +20,13 @@ explicitly:
 pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-ui vitest-agent-cli vitest-agent-mcp
 ```
 
+If a partial upgrade leaves the `vitest-agent-*` packages at different
+versions, the plugin writes a single stderr line at startup
+(`[vitest-agent-plugin] version drift: …`) and continues. Reinstall
+the packages so they match. See
+[Configuration > Cross-package Version Drift](https://github.com/spencerbeggs/vitest-agent/blob/main/docs/configuration.md#cross-package-version-drift)
+for the full check.
+
 ## Setup
 
 Add `AgentPlugin` to your Vitest config. Use an async export so

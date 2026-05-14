@@ -4,11 +4,12 @@ The Model Context Protocol server (`vitest-agent-mcp` bin)
 exposing 29 tools to LLM agents over stdio via `@modelcontextprotocol/sdk`.
 Routes tool calls through a tRPC router; runs as a long-lived process with
 a `ManagedRuntime`. Also surfaces four MCP resources under two URI schemes
-(vendored Vitest docs + curated patterns; per-page titles and
-descriptions come from `manifest.json`, which the registrar's `list`
-callback decodes via an Effect Schema) and six framing-only prompts
-registered directly with the MCP SDK alongside the tRPC tool router.
-Required as a peerDependency by the plugin package.
+(vendored Vitest docs + curated patterns; per-page titles, descriptions,
+and MCP 2025-11-25 `audience` / `priority` annotations come from the
+source manifests — `manifest.json` for docs, `_meta.json` for patterns —
+which both registrar `list` callbacks decode via Effect Schema) and six
+framing-only prompts registered directly with the MCP SDK alongside the
+tRPC tool router. Required as a peerDependency by the plugin package.
 
 ## Layout
 
@@ -41,16 +42,32 @@ src/
                          packages/mcp/src/<vendor|patterns>/) and
                          post-build (mirrored to
                          dist/<env>/<vendor|patterns>/ by rslib's
-                         copyPatterns). The vitest_docs_page
-                         ResourceTemplate's list callback decodes
-                         manifest.json via manifest-schema.ts and
-                         emits per-page { name, uri, title,
-                         description, mimeType } so MCP clients see
-                         real titles and "load when" descriptions in
-                         their resource picker
-    manifest-schema.ts -- Effect Schema describing the manifest.json
-                         shape: { tag, commitSha, capturedAt, source,
-                         pages?: Array<{ path, title, description }> }
+                         copyPatterns). Both per-page ResourceTemplates
+                         register a list callback: vitest_docs_page
+                         decodes manifest.json via manifest-schema.ts;
+                         vitest_agent_pattern decodes _meta.json via
+                         the same module. Each emits per-page
+                         { name, uri, title, description, mimeType,
+                         annotations? } so MCP clients see real titles,
+                         "load when" descriptions, and MCP 2025-11-25
+                         audience / priority annotations in their
+                         resource picker. A toSdkAnnotations adapter
+                         converts the readonly Effect Schema shape into
+                         the mutable shape the SDK expects
+    manifest-schema.ts -- Effect Schemas for both source manifests plus
+                         the shared ResourceAnnotations contract:
+                         - UpstreamManifest (docs): { tag, commitSha,
+                           capturedAt, source, pages?: Array<{ path,
+                           title, description, annotations? }> }
+                         - PatternsManifest (patterns): { patterns:
+                           Array<{ slug, title, summary,
+                           annotations? }> }
+                         - ResourceAnnotations:
+                           { audience?: ("user"|"assistant")[],
+                             priority?: number /* [0,1] */ }
+                         Annotations are optional so a partially-
+                         annotated manifest decodes cleanly during an
+                         editorial pass
     paths.ts          -- resolveResourcePath: rejects null bytes,
                          absolute paths, and any resolved path that
                          escapes <root>. The security boundary -- ALWAYS
@@ -131,13 +148,18 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
   standard permission prompt.
 - **Resources and prompts use the SDK's native APIs, not tRPC.**
   tRPC owns the tool surface; resources go through
-  `server.registerResource` (with `ResourceTemplate` + `{ list:
-  undefined }` for the page templates so the SDK doesn't enumerate
-  every page on `resources/list` — the index URIs serve that role)
-  and prompts go through `server.registerPrompt`. Both surfaces
-  share the same `McpServer` instance, the same stdio transport,
-  and the same process. Don't try to bridge resources/prompts
-  through the tRPC router.
+  `server.registerResource` and prompts go through
+  `server.registerPrompt`. Both per-page `ResourceTemplate`
+  registrations supply a real `list` callback that decodes the
+  source manifest (`manifest.json` for docs, `_meta.json` for
+  patterns) so MCP clients see typed `resources/list` entries with
+  titles, "load when" descriptions, and `audience` / `priority`
+  annotations — the index URIs (`vitest://docs/`,
+  `vitest-agent://patterns/`) remain as human-readable catalog
+  pages alongside the enumerated list. All three surfaces share
+  the same `McpServer` instance, the same stdio transport, and the
+  same process. Don't try to bridge resources/prompts through the
+  tRPC router.
 - **Two URI schemes for resources.** `vitest://` is vendored
   upstream content (provenance: vitest-dev/vitest at a pinned tag,
   MIT-licensed via `ATTRIBUTION.md`); `vitest-agent://` is content

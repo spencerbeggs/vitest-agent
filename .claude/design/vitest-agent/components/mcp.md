@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-11
-last-synced: 2026-05-11
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 92
 related:
   - ../architecture.md
@@ -54,6 +54,19 @@ precedence: `VITEST_AGENT_REPORTER_PROJECT_DIR` (set by the plugin loader)
 `resolveDataPath(projectDir)` under `PathResolutionLive(projectDir) +
 NodeContext.layer`, creates `ManagedRuntime.make(McpLive(dbPath, ...))`,
 and calls `startMcpServer({ runtime, cwd: projectDir })`.
+
+Inside `main()`, before `ManagedRuntime.make`, the bin compares
+`CURRENT_MCP_VERSION` against `CURRENT_SDK_VERSION` and writes one
+stderr line on mismatch
+(`[vitest-agent-mcp] version drift: vitest-agent-mcp@<a> with
+vitest-agent-sdk@<b>. Reinstall vitest-agent-* packages so versions
+match.`). The check is observation-only — the server boot continues.
+`packages/mcp/src/index.ts` exports `CURRENT_MCP_VERSION` (inlined
+from `process.env.__PACKAGE_VERSION__` via the package's
+`rslib.config.ts` `define`). Integration coverage:
+`packages/mcp/__test__/bin-version-drift.test.ts` mocks
+`CURRENT_SDK_VERSION` to assert the warning shape; see D36 in
+[../decisions.md](../decisions.md).
 
 The `VITEST_AGENT_REPORTER_PROJECT_DIR` precedence is load-bearing: Claude
 Code does not reliably propagate `CLAUDE_PROJECT_DIR` to MCP server
@@ -332,17 +345,19 @@ under two URI schemes:
 - `vitest-agent://patterns/` — the curated testing-patterns library at
   `packages/mcp/src/patterns/`.
 
-Each scheme has an index URI and a per-page template URI. The
-`vitest_docs_page` template registers with a `list` callback that decodes
-`manifest.json` (validated against the `UpstreamManifest` Effect Schema)
-and emits per-page `{ name, uri, title, description, mimeType }` so MCP
-clients show "load when" descriptions in their resource picker. The
-authored per-page descriptions are the headline reason the manifest
-carries metadata at all — mechanical title extraction is not enough.
-
-The `vitest_agent_pattern` template uses `{ list: undefined }` because the
-patterns index URI already serves the enumeration role and the patterns
-library is small enough that explicit per-page enumeration is unnecessary.
+Each scheme has an index URI and a per-page template URI. Both per-page
+templates register a `list` callback that decodes the source manifest
+(`vitest_docs_page` reads `manifest.json` validated against
+`UpstreamManifest`; `vitest_agent_pattern` reads `_meta.json` validated
+against `PatternsManifest`) and emits per-page `{ name, uri, title,
+description, mimeType, annotations? }`. Clients show the "load when"
+descriptions in their resource picker; the optional `annotations` field
+carries MCP 2025-11-25 `audience` and `priority` so clients can rank or
+filter before pulling content into context. The editorial guide for
+priority bands per content type lives at
+`docs/superpowers/specs/2.0-resource-annotations.md` §2. The authored
+per-page descriptions remain the headline reason the manifest carries
+metadata at all — mechanical title extraction is not enough.
 
 **Why two URI schemes:**
 
@@ -368,12 +383,16 @@ end up at `dist/<env>/vendor/` and `dist/<env>/patterns/`, siblings of
 the compiled bundle. The registrar resolves the right layout at runtime
 via `existsSync` fallback.
 
-`UpstreamManifest`'s `pages: ReadonlyArray<{ path, title, description }>`
-field is **optional** in the schema so the registrar's `list` callback
-can fall back gracefully during a transitional pre-skill-run state (skip
-enumeration, return empty `resources: []`). The `validate-snapshot.ts`
-script enforces non-empty `pages[]` as a quality gate before commit, so
-in normal operation the field is always populated.
+`UpstreamManifest`'s `pages: ReadonlyArray<{ path, title, description,
+annotations? }>` field is **optional** in the schema so the registrar's
+`list` callback can fall back gracefully during a transitional
+pre-skill-run state (skip enumeration, return empty `resources: []`).
+The per-page `annotations` field is also optional so a partially
+annotated manifest decodes cleanly during an editorial pass. The
+`validate-snapshot.ts` script enforces non-empty `pages[]` as a quality
+gate before commit, so in normal operation the field is always
+populated; partial annotation coverage produces a non-fatal warning
+that the editorial pass is incomplete.
 
 ## MCP prompts
 
@@ -408,7 +427,7 @@ directory at the repo root. Maintenance code is not part of the published
 bundle. Putting it under `src/` would pull it into the rslib build entry
 list.
 
-Three scripts split the lifecycle so the
+The pipeline splits the lifecycle so the
 `.claude/skills/update-vitest-snapshot/` skill can pause for the agent
 to author per-page descriptions between scaffolding and validation:
 
@@ -424,12 +443,33 @@ to author per-page descriptions between scaffolding and validation:
   the cleaned tree to `src/vendor/vitest-docs/` plus a schema-validated
   `manifest.json`. The `pages[]` entries land with placeholder
   descriptions marked `[TODO: replace with load-when signal]` — the skill
-  drives the agent through rewriting each one.
+  drives the agent through rewriting each one. The script also seeds
+  every page's `annotations` (`audience: ["assistant"]` + a priority
+  band) by calling into `annotations-heuristic.ts` so a fresh snapshot
+  starts with reasonable defaults that the Phase 4 editorial pass then
+  tightens.
+- **`annotations-heuristic.ts`** — single source of truth for the
+  path-prefix → `priority` mapping (API reference 0.85–0.95, coverage
+  0.85, core guide 0.75–0.85, experimental browser-mode 0.55, migration
+  0.45). Pure module, no I/O; both `build-snapshot.ts` and
+  `apply-annotations.ts` consume the same function so the seeded values
+  stay consistent.
+- **`apply-annotations.ts`** — idempotent one-shot bootstrap for an
+  existing manifest. Re-runs `annotations-heuristic.ts` against every
+  page in the current `manifest.json`, writes only the entries that
+  changed, and is safe to re-invoke against an already-annotated
+  manifest (no diff produced). Used when bootstrapping annotations onto
+  a snapshot that was generated before the heuristic existed, without
+  re-fetching from upstream.
 - **`validate-snapshot.ts`** — quality gate. Decodes `manifest.json`
   against `UpstreamManifest`, asserts `pages[]` is non-empty, checks
   every committed `.md` has a manifest entry and every entry resolves to
   a real file, refuses any description still carrying the `[TODO`
-  marker, and enforces a 30-character minimum description length.
+  marker, enforces a 30-character minimum description length, and (new
+  for resource annotations) rejects empty `annotations.audience` arrays
+  and out-of-range `priority` values, plus warns when only a subset of
+  pages carry annotations so partial editorial coverage is visible at
+  commit time.
 
 **Why `execFileSync`, not `execSync`.** The fetcher takes the tag as a
 CLI argument and passes it to `git`. Building a shell command string and

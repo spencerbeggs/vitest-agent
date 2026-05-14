@@ -2,6 +2,7 @@
 import { NodeContext } from "@effect/platform-node";
 import { Effect, ManagedRuntime } from "effect";
 import {
+	CURRENT_SDK_VERSION,
 	PathResolutionLive,
 	formatFatalError,
 	resolveDataPath,
@@ -10,8 +11,30 @@ import {
 } from "vitest-agent-sdk";
 import type { McpContext } from "./context.js";
 import { createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./context.js";
+import { CURRENT_MCP_VERSION } from "./index.js";
 import { McpLive } from "./layers/McpLive.js";
 import { startMcpServer } from "./server.js";
+
+/**
+ * Cross-package version drift check. Compares this MCP package's version
+ * against vitest-agent-sdk and writes a single stderr line on mismatch.
+ * Observation-only — never throws. The `"0.0.0"` fallback marks a dev
+ * build (rslib-builder did not substitute the literal); skip the check
+ * to avoid spurious warnings during local source-loaded runs. See the
+ * root CLAUDE.md "Cross-package version drift" section.
+ *
+ * @internal
+ */
+function checkVersionDrift(): void {
+	if (CURRENT_MCP_VERSION === "0.0.0") return;
+	if (CURRENT_SDK_VERSION !== CURRENT_MCP_VERSION) {
+		process.stderr.write(
+			`[vitest-agent-mcp] version drift: vitest-agent-mcp@${CURRENT_MCP_VERSION} ` +
+				`with vitest-agent-sdk@${CURRENT_SDK_VERSION}. ` +
+				`Reinstall vitest-agent-* packages so versions match.\n`,
+		);
+	}
+}
 
 /**
  * Resolve the user's project directory.
@@ -59,6 +82,7 @@ function resolveInitialSessionId(): string | null {
 
 async function main() {
 	const projectDir = resolveProjectDir();
+	checkVersionDrift();
 	const initialSessionId = resolveInitialSessionId();
 
 	const dbPath = await Effect.runPromise(

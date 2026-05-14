@@ -98,5 +98,9 @@ export { CONSOLE_REPORTERS, stripConsoleReporters } from "./utils/strip-console-
 
 // --- Tag primitive ---
 
+// --- Cross-package version constant (T12 drift check) ---
+// CURRENT_PLUGIN_VERSION is defined inside plugin.ts so the AgentPlugin
+// factory can read it without a circular import from this barrel file.
+export { CURRENT_PLUGIN_VERSION } from "./plugin.js";
 export type { TagOptions } from "./utils/tag.js";
 export { Tag } from "./utils/tag.js";

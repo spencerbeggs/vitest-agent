@@ -446,6 +446,8 @@ The server exposes four resources under two URI schemes. All resources return `t
 | `vitest-agent://patterns/` | Index of the curated testing-patterns library |
 | `vitest-agent://patterns/{slug}` | A single pattern by slug |
 
+Both per-page resource templates supply a `list` callback so MCP clients see typed `resources/list` entries with titles, "load when" descriptions, and the MCP 2025-11-25 `audience` and `priority` annotations decoded from the source manifests (`vendor/vitest-docs/manifest.json` for docs and `patterns/_meta.json` for patterns). Clients that honour annotations can rank or filter the picker accordingly; the two index URIs remain as human-readable catalog pages alongside the enumerated list.
+
 `vitest://` content is a vendored MIT-licensed snapshot of `vitest-dev/vitest` at a pinned upstream tag. `vendor/vitest-docs/manifest.json` carries `tag`, `commitSha`, `capturedAt` and `source` for verification; `vendor/vitest-docs/ATTRIBUTION.md` carries the MIT-license attribution.
 
 `vitest-agent://` content is project-authored: a curated testing-patterns library encoding guidance for testing Effect services, Effect schemas, and custom reporters.
