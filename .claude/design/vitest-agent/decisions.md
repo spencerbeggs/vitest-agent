@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-13
-last-synced: 2026-05-13
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 100
 related:
   - ./architecture.md
@@ -284,8 +284,9 @@ project names. `discoverProjects()` emits one project per workspace
 package; the plugin installs a Vite `transform` hook (see
 `packages/plugin/src/utils/inject-tags.ts`) that rewrites every `test()`
 and `it()` call's options argument with a tags array derived from
-filename classification (`*.e2e.test.ts` → `["e2e"]`, etc.). `TagStrategy`
-in `vitest-agent-plugin` exposes the classifier and tag declarations;
+filename classification (`*.e2e.test.ts` → `["e2e"]`, etc.). The
+classifier and tag declarations live on `DiscoverStrategy` in
+`vitest-agent-plugin` after the T5 unification — see Decision 39.
 `AgentPlugin.discover()` returns `{ projects, tags }` so the tag list
 flows directly into `test.tags`.
 
@@ -929,6 +930,102 @@ review section 2.2. Phase 6 (schema cleanup — removing
 `AgentReporterOptions`, removing nested `reporterOptions.autoUpdate`,
 deleting `validateCoverageConfig` from `schemas/CoverageLevel.ts`) is
 deferred to T7.1 and lands on the `feat/2.0-options-cleanup` branch.
+
+### Decision 39: T5 Unified DiscoverStrategy + DiscoverBuilder
+
+T5 (the 2.0 discovery-unification workstream) collapses the legacy
+`VitestProject` builder class and the legacy `TagStrategy` classifier
+into a single `DiscoverStrategy` extension point. Six locked design
+choices, ratified against the spec at
+`docs/superpowers/specs/2.0-discover-strategy.md`.
+
+**1. One strategy owns project detection and tag classification.** The
+pre-T5 split (one class to declare tags and classify files, a separate
+builder class wrapping `TestProjectInlineConfiguration`, plus a
+hand-rolled scanner that special-cased every "no tests here" path) was
+hard to extend without forking the scanner. `DiscoverStrategy.create({
+tags, buildProject, classify })` collapses all three jobs into one
+contract. `.extend({ additionalTags?, buildProject?, classify? })`
+chains immutable layers — each extension classifier sees the parent's
+inherited tag list, each extension `buildProject` receives the prior
+layer's `TestProjectInlineConfiguration | null` so it can augment or
+replace it. Users that previously had to fork the scanner can now
+subclass through composition.
+
+**2. `null` from `buildProject` is the canonical "no project" signal.**
+The pre-2.0 scanner had three orthogonal skips (root package, missing
+`src/`, missing test files) baked into the function body. T5 deletes
+every special case: the scanner calls `strategy.buildProject(input)`
+once per package and treats a null return as "skip this package."
+`DefaultDiscoverStrategy.buildProject` returns null when neither
+`src/` nor `__test__/` contains test files — the same behavior the old
+special cases produced, but expressed as a single predicate the user
+can override.
+
+**3. `AgentPlugin.discover()` returns an immutable thenable builder.**
+The function returns a `DiscoverBuilder` (a `PromiseLike<DiscoverResult>`
+with an `addProject` method) rather than a plain Promise. Awaiting (or
+calling `.then`) materializes the result; each `.addProject({ name,
+path })` call returns a new builder so the original is unchanged.
+`.addProject` is the documented escape hatch for folders that hold
+tests but are not workspace packages — the alternative would have been
+either a parallel options field or a callback, both of which fight the
+scanner's caching model. The thenable shape also keeps the common case
+unchanged: `await AgentPlugin.discover()` works exactly as it did
+before T5.
+
+**4. Added-entry conflicts are loud.** When an `.addProject` entry's
+name or normalized absolute path collides with an existing workspace
+package, the builder throws on resolution. When an added entry's
+`buildProject` returns null, the builder also throws — added entries
+are explicit user intent and silently skipping them would surprise the
+caller, unlike the workspace-package scan where null skips are routine.
+The process-level cache fires only when neither a strategy nor any
+added entries were supplied; any `.addProject` chain or explicit
+strategy bypasses the cache because strategy instances cannot be
+fingerprinted.
+
+**5. `VitestProject` is gone; `TestProjectInlineConfiguration` is the
+result type directly.** The pre-T5 `VitestProject` class served as a
+fluent builder around `TestProjectInlineConfiguration` with mutation
+helpers (`.override`, `.addInclude`, `.addExclude`,
+`.addCoverageExclude`). Now that strategies own their own config
+shape, the builder layer adds nothing — strategies return
+`TestProjectInlineConfiguration` directly and `discoverProjects` no
+longer maps through a `.toConfig()` step. The output type of
+`discoverProjects` and `AgentPlugin.discover()` changed from
+`{ projects: VitestProject[]; tags }` to `{ projects:
+TestProjectInlineConfiguration[] | undefined; tags }`; `projects`
+becomes `undefined` rather than an empty array when no projects were
+produced, so Vitest treats the config as having no projects.
+
+**6. Three standalone classifier helpers plus a public
+`findTestFiles`.** The classifier composition primitives
+(`classifyByFilename`, `classifyByDirectory`, `combineClassifiers`)
+ship as pure functions outside any class so user strategies can
+compose them without subclassing. `findTestFiles` (the async glob
+walker built on `node:fs/promises` with an inline glob-to-regex
+compiler) is also exported — `DefaultDiscoverStrategy.buildProject`
+uses it internally, and custom strategies often need the same walk.
+Exporting the walker keeps users out of the business of reimplementing
+node_modules / .git / dist skipping and brace expansion.
+
+The plugin option that previously held the classifier is renamed:
+`AgentPluginConstructorOptions.tagStrategy` is now
+`discoverStrategy`. The false sentinel still disables the Vite
+transform hook entirely. The classifier-only API (the old
+`TagStrategy` namespace and its `ClassifyBaseFn` / `ClassifyExtendedFn`
+types) is gone; consumers wanting classifier-only composition use the
+helpers above and pass the result into `DiscoverStrategy.create`.
+
+**Cross-references:** the canonical spec at
+`docs/superpowers/specs/2.0-discover-strategy.md`. Tightening
+`discoverProjects` itself out of the public surface (so
+`AgentPlugin.discover()` is the only documented entry point) is
+deferred to T9.6. See
+[./components/discover.md](./components/discover.md) for the API
+surface and [./components/plugin.md](./components/plugin.md) for the
+transform-hook wiring.
 
 ### Decision D9: Last Drop-and-Recreate Migration
 

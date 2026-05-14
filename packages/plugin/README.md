@@ -131,33 +131,37 @@ AgentPlugin({
 
 ## AgentPlugin.discover()
 
-`AgentPlugin.discover(options?)` scans workspace packages for test files
-and returns `{ projects, tags }`. Pass `projects` to Vitest's
-`test.projects` and `tags` to `test.tags` so Vitest's `--tags-filter`
-flag can resolve every tag the plugin's transform injects. The scanner
-emits **one project per workspace package** — there are no `:unit`,
-`:int`, or `:e2e` project-name suffixes; test-kind classification is
-handled by the active `TagStrategy` and surfaces as Vitest tags
-instead.
+`AgentPlugin.discover(strategy?)` scans workspace packages for test
+files and returns a thenable `DiscoverBuilder` that resolves to
+`{ projects, tags }`. `projects` is
+`TestProjectInlineConfiguration[] | undefined` — Vitest's native
+inline-project shape, suitable to pass directly to `test.projects`.
+The scanner emits **one project per workspace package** — there are
+no `:unit`, `:int`, or `:e2e` project-name suffixes; test-kind
+classification is handled by the active `DiscoverStrategy` and
+surfaces as Vitest tags instead.
 
-The optional `options` argument accepts either a `({ projects }) =>
-void | Promise<void>` callback that mutates the discovered project
-list in place, or an object `{ callback?, tagStrategy? }` where
-`tagStrategy` is a `TagStrategy` instance or `false` to omit tag
-definitions from the returned `tags` array. `discover()` only
-controls the returned configuration. The Vite transform that injects
-tags at parse time is configured separately via the
-`AgentPlugin({ tagStrategy })` constructor option — pass `false` to
-both to fully opt out of tagging.
+The argument is overloaded: no argument uses the default strategy at
+the current working directory; pass a `DiscoverStrategy` instance to
+override the defaults; pass `{ strategy?, cwd? }` to also override the
+workspace root.
+
+The builder is a thenable, not a Promise — chain `.addProject({ name,
+path })` to register folders that hold tests but are not pnpm
+workspace packages, then `await` (or `.then`) to materialize. The
+builder is **immutable**: every `.addProject()` call returns a fresh
+builder.
 
 ```typescript
-import { AgentPlugin, Tag, TagStrategy } from "vitest-agent-plugin";
+import {
+  AgentPlugin,
+  DefaultDiscoverStrategy,
+  Tag,
+} from "vitest-agent-plugin";
+import { defineConfig } from "vitest/config";
 
-// Custom tag strategy with a 30s timeout for contract tests.
-// `additionalTags` declares the `contract` definition (with its timeout)
-// so Vitest's tag-expression filtering and per-tag overrides resolve it;
-// `classify` then routes `*.contract.test.ts` files to that tag.
-const strategy = TagStrategy.default.extend({
+// Custom strategy: extend the default with a 30s contract-test tag.
+const strategy = new DefaultDiscoverStrategy().extend({
   additionalTags: [Tag.make("contract", { timeout: 30_000 })],
   classify: ({ module, inherited }) => {
     if (module.filename.endsWith(".contract.test.ts")) return ["contract"];
@@ -165,60 +169,91 @@ const strategy = TagStrategy.default.extend({
   },
 });
 
-const { projects, tags } = await AgentPlugin.discover({
-  tagStrategy: strategy,
-  callback: ({ projects }) => {
-    for (const p of projects) p.override({ test: { retry: 1 } });
-  },
-});
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover(strategy)
+    .addProject({ name: "integration", path: "./test-only" });
+  return defineConfig({
+    plugins: [AgentPlugin({ discoverStrategy: strategy })],
+    test: { ...(projects ? { projects } : {}), tags, pool: "forks" },
+  });
+};
 ```
 
-Discovery results are cached per workspace root within the process when
-called with no options. Passing a `tagStrategy` or callback skips the
+The same `strategy` is passed to both `discover()` and the plugin's
+`discoverStrategy` option so the returned configuration and the
+parse-time Vite transform stay in sync. On resolution, the scanner
+runs `strategy.buildProject` over both workspace packages and
+`.addProject` entries with name and normalized-path conflict
+detection — a clash between an added entry and a workspace package
+throws, and a null `buildProject` return for an added entry throws
+(returning null for a workspace package is a silent skip).
+
+Discovery results are cached per workspace root within the process
+only when called with no argument and no `.addProject()` chain. Any
+explicit strategy, custom `cwd`, or `.addProject()` call bypasses the
 cache so per-config customization always re-runs.
 
-The pre-2.0 per-kind override form (`{ unit?, int?, e2e? }` keyed by
-test kind) was removed when discovery consolidated to one project per
-package; per-kind shaping now happens through `TagStrategy.classify()`
-rather than through projects.
+The pre-2.0 `({ projects }) => void | Promise<void>` callback form
+and the legacy per-kind override form (`{ unit?, int?, e2e? }` keyed
+by test kind) were removed when discovery consolidated to a single
+`DiscoverStrategy` contract. Callers that need to mutate projects
+post-discovery either extend the strategy or destructure the result
+and mutate the array before spreading.
 
-## Tag and TagStrategy
+## DiscoverStrategy
 
-`Tag` and `TagStrategy` are exported alongside `AgentPlugin`. A
-strategy declares the available tags (with timeouts, retries) and a
-`classify({ module })` function that returns one or more tag names per
-test module. The plugin's Vite transform reads the result and injects
-the tags into every `test()` and `it()` call. `TagStrategy.default`
-ships `unit`, `int` (60s timeout), and `e2e` (120s timeout, retry 2
-under CI), keyed off the filename suffix.
+`DiscoverStrategy` (abstract class), `DefaultDiscoverStrategy`
+(concrete default), and `Tag` are exported alongside `AgentPlugin`.
+A strategy declares the available tags (with timeouts, retries), a
+`classify({ module })` function that returns one or more tag names
+per test module, and a `buildProject(input)` function that returns
+a `TestProjectInlineConfiguration` for the package (or `null` to
+skip). The plugin's Vite transform reads the `classify` result and
+injects the tags into every `test()` and `it()` call.
+`DefaultDiscoverStrategy` ships `unit`, `int` (60s timeout), and
+`e2e` (120s timeout, retry 2 under CI), classifies by filename
+suffix, and skips packages that have no `src/` or `__test__/` test
+files.
+
+Compose with `.extend({ additionalTags?, classify?, buildProject? })`
+to chain layers on top of an existing strategy without rewriting it,
+or use `DiscoverStrategy.create({ tags, classify, buildProject })`
+for a strategy authored from scratch:
 
 ```typescript
-import { Tag, TagStrategy } from "vitest-agent-plugin";
+import { DiscoverStrategy, Tag } from "vitest-agent-plugin";
 
-const strategy = TagStrategy.create({
-  tags: [
-    Tag.make("unit"),
-    Tag.make("smoke", { timeout: 5_000 }),
-  ],
+const strategy = DiscoverStrategy.create({
+  tags: [Tag.make("unit"), Tag.make("smoke", { timeout: 5_000 })],
   classify: ({ module }) => {
     if (module.filename.endsWith(".smoke.test.ts")) return ["smoke"];
     return ["unit"];
   },
+  buildProject: async (input) => ({
+    extends: true,
+    test: {
+      name: input.name,
+      environment: "node",
+      include: [`${input.path}/src/**/*.{test,spec}.{ts,tsx,js,jsx}`],
+    },
+  }),
 });
 ```
 
-The plugin also accepts `tagStrategy` directly so the transform and the
-discovery surface stay in sync:
+The plugin also accepts `discoverStrategy` directly so the transform
+and the discovery surface stay in sync:
 
 ```typescript
-AgentPlugin({ tagStrategy: strategy });
+AgentPlugin({ discoverStrategy: strategy });
 ```
 
-Pass `tagStrategy: false` to disable the Vite transform so no tags
-are injected at parse time. The companion `AgentPlugin.discover()`
-also accepts `tagStrategy: false` to omit tag definitions from its
-returned `tags` array — pass `false` to both calls to fully opt out
-of tagging.
+Pass `discoverStrategy: false` to disable the Vite transform so no
+tags are injected at parse time. For pure tag-classification logic
+(no `buildProject` changes) the plugin also exports
+`classifyByFilename`, `classifyByDirectory`, and
+`combineClassifiers` — composable `ClassifyFn` builders that plug
+into `DiscoverStrategy.create({ classify })` or
+`.extend({ classify })`.
 
 ## Coverage Level Presets
 

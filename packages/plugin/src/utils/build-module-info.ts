@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, relative } from "node:path";
-import type { ModuleInfo } from "./tag-strategy.js";
+import type { ModuleInfo } from "./discover-strategy.js";
 
 interface PackageInfo {
 	readonly packageName: string;

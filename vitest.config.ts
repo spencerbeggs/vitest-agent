@@ -17,7 +17,7 @@ export default async () => {
 			}),
 		],
 		test: {
-			projects,
+			...(projects ? { projects } : {}),
 			tags,
 			pool: "forks",
 			globalSetup: ["vitest.setup.ts"],

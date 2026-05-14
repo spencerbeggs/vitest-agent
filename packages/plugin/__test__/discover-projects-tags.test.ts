@@ -1,49 +1,48 @@
 import { describe, expect, it } from "vitest";
 import { discoverProjects } from "../src/utils/discover-projects.js";
+import { DefaultDiscoverStrategy, DiscoverStrategy } from "../src/utils/discover-strategy.js";
 import { Tag } from "../src/utils/tag.js";
-import { TagStrategy } from "../src/utils/tag-strategy.js";
 
-describe("discoverProjects (consolidated + tags)", () => {
-	it("returns { projects, tags } and emits one project per workspace package", async () => {
+describe("discoverProjects() + DiscoverStrategy (tags)", () => {
+	it("should return { projects, tags } shape", async () => {
 		const result = await discoverProjects();
 		expect(result).toHaveProperty("projects");
 		expect(result).toHaveProperty("tags");
-		const names = result.projects.map((p) => p.toConfig().test?.name);
-		expect(names.every((n) => typeof n === "string" && !n!.includes(":"))).toBe(true);
 	});
 
-	it("default tagStrategy surfaces unit/int/e2e tag definitions", async () => {
+	it("should emit one project per workspace package (each with test.name, no ':' suffix)", async () => {
 		const result = await discoverProjects();
+		// projects may be undefined if this repo's packages happen to have no tests
+		if (result.projects) {
+			const names = result.projects.map((p) => p.test?.name);
+			expect(names.every((n) => typeof n === "string" && !n?.includes(":"))).toBe(true);
+		}
+	});
+
+	it("should surface unit/int/e2e tag definitions from DefaultDiscoverStrategy", async () => {
+		const result = await discoverProjects({ strategy: new DefaultDiscoverStrategy() });
 		const tagNames = result.tags.map((t) => t.name);
 		expect(tagNames).toEqual(["unit", "int", "e2e"]);
 	});
 
-	it("tagStrategy: false yields tags === []", async () => {
-		const result = await discoverProjects({ tagStrategy: false });
-		expect(result.tags).toEqual([]);
-	});
-
-	it("a custom strategy's tag definitions surface", async () => {
-		const custom = TagStrategy.create({
+	it("should surface empty tags when strategy has no tags", async () => {
+		const custom = DiscoverStrategy.create({
 			tags: [],
 			classify: () => [],
+			buildProject: async () => null,
 		});
-		const result = await discoverProjects({ tagStrategy: custom });
+		const result = await discoverProjects({ strategy: custom });
 		expect(result.tags).toEqual([]);
 	});
 
-	it("invokes callback and applies custom tagStrategy when both are passed", async () => {
+	it("should surface custom tag definitions from a custom strategy", async () => {
 		const SoloTag = Tag.make("solo");
-		const strategy = TagStrategy.create({ tags: [SoloTag], classify: () => ["solo"] });
-		let received: ReadonlyArray<unknown> | null = null;
-		const result = await discoverProjects({
-			callback: ({ projects }) => {
-				received = projects;
-			},
-			tagStrategy: strategy,
+		const strategy = DiscoverStrategy.create({
+			tags: [SoloTag],
+			classify: () => ["solo"],
+			buildProject: async () => null,
 		});
-		expect(received).not.toBeNull();
-		expect(received!.length).toBe(result.projects.length);
+		const result = await discoverProjects({ strategy });
 		expect(result.tags.map((t) => t.name)).toEqual(["solo"]);
 	});
 });

@@ -32,10 +32,17 @@ src/
     strip-console-reporters.ts -- strips Vitest's reporters whenever the
                                    resolved consoleMode owns stdout
                                    (anything other than passthrough)
-    vitest-project.ts          -- VitestProject builder class
-    discover-projects.ts       -- async workspace project scanner
-    tag.ts                     -- Tag class + factory
-    tag-strategy.ts            -- TagStrategy + .default + .extend
+    discover-strategy.ts       -- DiscoverStrategy abstract class +
+                                   DefaultDiscoverStrategy concrete class
+    discover-projects.ts       -- unified workspace scanner; strategy.buildProject
+                                   decides per-package skips, .addProject entries
+                                   are merged in with conflict detection
+    classify-helpers.ts        -- classifyByFilename, classifyByDirectory,
+                                   combineClassifiers (pure ClassifyFn builders)
+    find-test-files.ts         -- async glob walker (node:fs/promises) with an
+                                   inline glob-to-regex compiler; skips
+                                   node_modules, .git, dist by default
+    tag.ts                     -- Tag class + Tag.make factory
     inject-tags.ts             -- Vite transform for test.tags
 ```
 
@@ -52,57 +59,65 @@ src/
 | `utils/process-failure.ts` | Per-error signature pipeline. Called from `onTestRunEnd` for each error before `DataStore.writeErrors`. Returns `frames: StackFrameInput[]` and `signatureHash` |
 | `utils/build-reporter-kit.ts` | Constructs `ReporterKit` from resolved config + detected environment + `noColor` flag. `stdOsc8` is enabled when `!noColor && (env === "terminal" \|\| env === "agent-shell")` |
 | `utils/route-rendered-output.ts` | Dispatches a single `RenderedOutput` to its target: `stdout`, `github-summary` (append), or `file` (no-op) |
-| `utils/vitest-project.ts` | `VitestProject` builder class. Static factories: `.unit`, `.e2e`, `.int`, `.custom`. Fluent mutators: `override`, `addInclude`, `addExclude`, `addCoverageExclude`. Call `.toConfig()` to get a `TestProjectInlineConfiguration` |
-| `utils/discover-projects.ts` | `discoverProjects(options?, cwd?)` walks workspace packages, emits one `VitestProject` per package, and pairs it with the resolved `TestTagDefinition[]` from the active `TagStrategy`. Returns `{ projects, tags }`. Results are cached per workspace root only when called with no options (so a `TagStrategy` instance is never fingerprinted) |
+| `utils/discover-strategy.ts` | `DiscoverStrategy` abstract class plus the `DefaultDiscoverStrategy` concrete subclass. Base factory is `DiscoverStrategy.create({ tags, buildProject, classify })`; `.extend({ additionalTags?, buildProject?, classify? })` chains immutable layers. The default strategy ships unit / int / e2e tags and a filename-suffix classifier, and its `buildProject` returns null when neither `src/` nor `__test__/` has tests |
+| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries? })` runs the unified scan: every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path |
+| `utils/classify-helpers.ts` | Pure ClassifyFn builders: `classifyByFilename` (record of suffixes or `[RegExp, tags]` tuples), `classifyByDirectory` (slash-bounded segment match), `combineClassifiers` (concat plus dedupe by tag name). Plug into `DiscoverStrategy.create({ classify })` or `.extend({ classify })` |
+| `utils/find-test-files.ts` | Async glob walker built on `node:fs/promises` with an inline glob-to-regex compiler. Skips `node_modules`, `.git`, `dist` by default. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
 | `utils/tag.ts` | `Tag` class with `Tag.make(name, options?)`. Validates the name and exposes a `TestTagDefinition` via `.definition` for Vitest's `test.tags` array |
-| `utils/tag-strategy.ts` | `TagStrategy.create({ tags, classify })` and `.extend({ additionalTags?, classify? })` — extension layers see the parent's `inherited` tags so chained strategies compose. `TagStrategy.default` is `unit / int / e2e` keyed off filename suffix |
-| `utils/inject-tags.ts` | Vite `transform` that rewrites `test()`/`it()` call options via acorn + `magic-string`, adding the resolved tags array. Preserves source maps. The plugin enables this transform when a `TagStrategy` is active so Vitest's tag expressions just work |
+| `utils/inject-tags.ts` | Vite `transform` that rewrites `test()`/`it()` call options via acorn plus `magic-string`, adding the resolved tags array. Preserves source maps. The plugin enables this transform whenever a `DiscoverStrategy` is active (the default) and bypasses it entirely when the user passes `discoverStrategy: false` |
 | `layers/ReporterLive.ts` | Composition layer for `AgentReporter`. Used per-run via `Effect.runPromise` (not ManagedRuntime — the reporter is short-lived per run) |
 
 ## AgentPlugin.discover()
 
-`AgentPlugin.discover(options?)` is the canonical way to populate
-`test.projects` and `test.tags` in `vitest.config.ts`. Use an async
-config export and destructure the returned object:
+`AgentPlugin.discover(strategy?)` is the canonical way to populate
+`test.projects` and `test.tags` in `vitest.config.ts`. It returns a
+thenable `DiscoverBuilder` that resolves to
+`{ projects: TestProjectInlineConfiguration[] \| undefined; tags }` and
+exposes `.addProject({ name, path })` for non-package folders that
+hold tests. Use an async config export and await (or `.then`) the
+builder:
 
 ```ts
 export default async () => {
   const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [AgentPlugin()],
-    test: { projects, tags },
+    test: { ...(projects ? { projects } : {}), tags },
   });
 };
 ```
 
-Internally calls `discoverProjects()`, maps each `VitestProject` to a
-`TestProjectInlineConfiguration` via `.toConfig()`, and forwards the
-active `TagStrategy`'s `tagDefinitions` as the `tags` array. The
-optional `options` argument accepts either:
+Add a non-package folder via `.addProject`. The builder is immutable —
+every call returns a fresh builder. Conflict detection fires on
+resolution if an added entry's name or normalized path collides with
+an existing workspace package, or if its `buildProject` returns null:
 
-- A bare callback `({ projects }) => void | Promise<void>` to mutate the
-  discovered project list in place after scanning.
-- An object `{ callback?, tagStrategy? }` where:
-  - `callback` is the same projects mutator as above.
-  - `tagStrategy` is a `TagStrategy` instance (use `TagStrategy.create`
-    or `TagStrategy.default.extend(...)`), or `false` to omit the tag
-    definitions from the returned `tags` array. `discover()` only
-    affects the returned configuration — to also disable the Vite
-    `inject-tags.ts` transform that injects tags at parse time, pass
-    `tagStrategy: false` to `AgentPlugin({ tagStrategy: false })`. To
-    fully opt out of tags, pass `false` to both calls.
+```ts
+const { projects, tags } = await AgentPlugin.discover()
+  .addProject({ name: "integration", path: "./test-only" });
+```
 
-The pre-2.0 per-kind override form (`{ unit?, int?, e2e? }` keyed by
-test kind, with each key holding either a config patch or a per-kind
-callback) was removed when `discoverProjects` consolidated to one
-project per workspace package; test-kind shaping now happens through
-`TagStrategy.classify()` rather than through projects.
+Internally calls `discoverProjects({ strategy?, cwd?,
+additionalEntries? })`. The argument to `discover` is overloaded: pass
+a `DiscoverStrategy` directly, or pass an options object with optional
+`strategy` and `cwd`. With no argument, the builder uses
+`DefaultDiscoverStrategy` and the current working directory.
+
+The pre-2.0 `ProjectsCallback` argument shape and the legacy per-kind
+override form (`{ unit?, int?, e2e? }`) were removed alongside the
+`VitestProject` builder class and the `TagStrategy` namespace.
+Test-kind shaping happens through `DiscoverStrategy.classify()` rather
+than through projects. Users that need to mutate projects
+post-discovery either extend the strategy or destructure the result
+and mutate the array before spreading.
 
 `coverageTargets` is a top-level option on
 `AgentPluginConstructorOptions`. `coverageThresholds` is no longer a
 plugin option — Phase 4 of the T4 coverage-policy work removed it.
 Users set Vitest's native `test.coverage.thresholds` directly. There
-is no `discovery` field.
+is no `discovery` field. The pre-T5 `tagStrategy` plugin option was
+renamed to `discoverStrategy`; the `false` sentinel still disables the
+Vite transform hook entirely.
 
 The plugin namespace also exposes the dual-output preset constants
 (`AgentPlugin.COVERAGE_LEVELS`, `AgentPlugin.COVERAGE_LEVELS_PER_FILE`)
@@ -153,20 +168,27 @@ user wiring.
   directly. There is no `discovery` field. Per-run resolved facts (for
   example, `coverageMode`) belong on `ResolvedReporterConfig`, not on
   the user-facing options schemas.
-- Changing project discovery: edit `utils/discover-projects.ts`.
-  `VitestProject` builders live in `utils/vitest-project.ts`. The
-  scanner accepts both `src/` (legacy) and `__test__/` (canonical)
-  test directories and emits one project per workspace package
-  (no kind suffix splitting — that moved to `TagStrategy`). Helper
-  subdirs (`utils/`, `fixtures/`, `snapshots/`) inside `__test__/`
-  are excluded automatically.
-- Changing tag classification: edit `utils/tag-strategy.ts` (and
-  `utils/tag.ts` if the `Tag` shape changes). `TagStrategy.default`
-  is the only strategy auto-applied; user-supplied strategies arrive
-  via `AgentPlugin.discover({ tagStrategy })`. The classify result
-  flows into the `inject-tags.ts` Vite transform, which mutates the
-  parsed `test()` / `it()` options argument directly so source maps
-  and existing user-supplied tags are preserved.
+- Changing project discovery: edit `utils/discover-strategy.ts` for
+  the abstract contract and the default implementation, or
+  `utils/discover-projects.ts` for the scanner. The default strategy
+  recognises both `src/` (legacy) and `__test__/` (canonical) test
+  directories and emits one project per workspace package (no kind
+  suffix splitting — that moved to `DiscoverStrategy.classify`).
+  Helper subdirs (`utils/`, `fixtures/`, `snapshots/`) inside
+  `__test__/` are excluded automatically. A null return from
+  `buildProject` for a workspace package is a silent skip; a null
+  return for an `.addProject` entry throws.
+- Changing tag classification: edit
+  `utils/discover-strategy.ts` for the `DiscoverStrategy` contract,
+  `utils/classify-helpers.ts` for the standalone classifier
+  builders, or `utils/tag.ts` if the `Tag` shape changes.
+  `DefaultDiscoverStrategy` is the only strategy auto-applied;
+  user-supplied strategies arrive via
+  `AgentPlugin.discover(strategy)` and the renamed
+  `discoverStrategy` plugin option. The classify result flows into
+  the `inject-tags.ts` Vite transform, which mutates the parsed
+  `test()` / `it()` options argument directly so source maps and
+  existing user-supplied tags are preserved.
 - Adding a new utility that only this package uses: put it in
   `utils/`. If the utility is needed by MCP or CLI too, it belongs
   in `vitest-agent-sdk/utils/` or `vitest-agent-sdk/lib/`.
@@ -255,8 +277,10 @@ never breaks because a live renderer has a bug.
   D7 per-call `Effect.runPromise`, D28 `ensureMigrated` globalThis
   cache, D10 failure signatures).
 - `@./.claude/design/vitest-agent/components/discover.md`
-  Load when working on `AgentPlugin.discover()`, `discoverProjects()`,
-  `VitestProject`, `DiscoveryOptions`, or the override system.
+  Load when working on `AgentPlugin.discover()`, the `DiscoverBuilder`
+  thenable, `discoverProjects()`, `DiscoverStrategy`,
+  `DefaultDiscoverStrategy`, the classifier helpers, or the
+  `findTestFiles` walker.
 - `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests for this package, including the `__test__/`
   layout and helper subdirectory exclusion conventions.
