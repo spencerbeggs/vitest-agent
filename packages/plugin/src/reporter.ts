@@ -35,6 +35,7 @@ import {
 	ExecutorResolver,
 	FormatSelector,
 	HistoryTracker,
+	OutputPipelineLive,
 	PathResolutionLive,
 	buildAgentReport,
 	computeTrend,
@@ -151,6 +152,11 @@ interface ResolvedOptions {
 	mcp?: boolean;
 	projectFilter?: string;
 	reporter: VitestAgentReporterFactory;
+	/**
+	 * Operating mode resolved by AgentPlugin from Vitest's coverage.enabled.
+	 * Defaults to "full" when constructed directly (without the plugin).
+	 */
+	coverageMode: "full" | "ui-only";
 }
 
 /**
@@ -173,6 +179,14 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	 * a malfunctioning tap must not break persistence.
 	 */
 	onRunEvent?: (event: RunEvent) => void;
+	/**
+	 * Operating mode resolved by AgentPlugin from Vitest's coverage.enabled.
+	 * Defaults to "full" when AgentReporter is constructed directly (without
+	 * the plugin). Phase 5 uses this to short-circuit persistence when ui-only.
+	 *
+	 * @internal
+	 */
+	coverageMode?: "full" | "ui-only";
 }
 
 /**
@@ -292,8 +306,37 @@ export class AgentReporter {
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
 			...(options.projectFilter !== undefined ? { projectFilter: options.projectFilter } : {}),
 			reporter: options.reporter ?? defaultReporter,
+			coverageMode: options.coverageMode ?? "full",
 		};
 		this.options = resolvedTargets ? { ...base, coverageTargets: resolvedTargets } : base;
+	}
+
+	/**
+	 * The resolved reporter config built at construction time. Exposed for
+	 * test inspection and Phase 5 short-circuit logic.
+	 *
+	 * This getter is @internal — do not reference in user-facing docs.
+	 * @internal
+	 */
+	get resolvedConfig(): import("vitest-agent-sdk").ResolvedReporterConfig {
+		const opts = this.options;
+		return {
+			executor: "ci", // placeholder — kit is assembled per-run; this getter exposes construction-time config only
+			consoleMode: opts.consoleMode,
+			mcp: opts.mcp ?? false,
+			consoleOutput: opts.consoleOutput,
+			omitPassingTests: opts.omitPassingTests,
+			coverageConsoleLimit: opts.coverageConsoleLimit,
+			includeBareZero: opts.includeBareZero,
+			githubActions: opts.githubActions ?? false,
+			githubSummary: opts.githubSummary ?? false,
+			format: opts.format ?? "vitest-bypass",
+			detail: opts.detail ?? "standard",
+			noColor: false,
+			coverageMode: opts.coverageMode,
+			...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
+			...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
+		};
 	}
 
 	/**
@@ -595,6 +638,101 @@ export class AgentReporter {
 			: modules;
 
 		if (filteredModules.length === 0 && opts.projectFilter) {
+			return;
+		}
+
+		// UI-only mode: skip the entire persistence pipeline (DataStore, CoverageAnalyzer,
+		// HistoryTracker) and build an in-memory report for the renderer only.
+		// Streaming taps (onTestRunStart, onTestCaseResult, etc.) and the RunFinished
+		// event above have already fired — no change needed there. The user-supplied
+		// reporter factory is still called so the renderer produces output.
+		if (opts.coverageMode === "ui-only") {
+			// Group modules by project name (same logic as Full path)
+			const uiProjectGroups = new Map<string, VitestTestModule[]>();
+			for (const mod of filteredModules) {
+				const key = mod.project.name || "default";
+				const existing = uiProjectGroups.get(key);
+				if (existing) {
+					existing.push(mod);
+				} else {
+					uiProjectGroups.set(key, [mod]);
+				}
+			}
+
+			// Build in-memory AgentReports via the pure buildAgentReport helper
+			const isMultiProject = uiProjectGroups.size > 1 || !!opts.projectFilter;
+			const uiReports: AgentReport[] = [];
+			for (const [projectName, projectModules] of uiProjectGroups) {
+				const report = buildAgentReport(
+					projectModules,
+					errors,
+					reason,
+					{ omitPassingTests: opts.omitPassingTests },
+					isMultiProject ? projectName : undefined,
+				);
+				uiReports.push(report);
+			}
+
+			// Resolve env/executor/format/detail via the four output-pipeline services only.
+			// No DataStore, DataReader, CoverageAnalyzer, or HistoryTracker needed.
+			const uiProgram = Effect.gen(function* () {
+				const detector = yield* EnvironmentDetector;
+				const executorResolver = yield* ExecutorResolver;
+				const formatSelector = yield* FormatSelector;
+				const detailResolver = yield* DetailResolver;
+
+				const env = yield* detector.detect();
+				const executor = yield* executorResolver.resolve(env);
+				const format = yield* formatSelector.select(executor, opts.format, env);
+				const health = {
+					hasFailures: uiReports.some((r) => r.summary.failed > 0 || r.unhandledErrors.length > 0),
+					belowTargets: false,
+					hasTargets: !!opts.coverageTargets,
+				};
+				const detail = yield* detailResolver.resolve(executor, health, opts.detail);
+
+				const githubSummaryFile = opts.githubSummaryFile ?? process.env.GITHUB_STEP_SUMMARY;
+				const kit = buildReporterKit({
+					env,
+					executor,
+					format,
+					detail,
+					noColor: !!process.env.NO_COLOR,
+					consoleMode: opts.consoleMode ?? "passthrough",
+					mcp: opts.mcp ?? false,
+					consoleOutput: opts.consoleOutput,
+					omitPassingTests: opts.omitPassingTests,
+					coverageConsoleLimit: opts.coverageConsoleLimit,
+					includeBareZero: opts.includeBareZero,
+					githubActions: opts.githubActions ?? env === "ci-github",
+					githubSummary: opts.githubSummary ?? env === "ci-github",
+					...(dbPath !== undefined && { dbPath }),
+					...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
+					...(githubSummaryFile !== undefined && { githubSummaryFile }),
+					...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
+					...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
+					coverageMode: opts.coverageMode,
+				});
+
+				const reporters = normalizeReporters(opts.reporter(kit));
+				// No history → classifications are empty; no trends → trendSummary is undefined
+				const renderInput = {
+					reports: uiReports,
+					classifications: new Map<string, TestClassification>(),
+				};
+				const allOutputs = reporters.flatMap((r) => r.render(renderInput));
+				for (const output of allOutputs) {
+					routeRenderedOutput(output, {
+						...(githubSummaryFile !== undefined && { githubSummaryFile }),
+					});
+				}
+			});
+
+			await Effect.runPromise(
+				uiProgram.pipe(Effect.provide(OutputPipelineLive), Effect.provide(NodeContext.layer)),
+			).catch((err) => {
+				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
+			});
 			return;
 		}
 
@@ -1178,6 +1316,7 @@ export class AgentReporter {
 				...(githubSummaryFile !== undefined && { githubSummaryFile }),
 				...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
 				...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
+				coverageMode: opts.coverageMode,
 			});
 
 			const reporters = normalizeReporters(opts.reporter(kit));

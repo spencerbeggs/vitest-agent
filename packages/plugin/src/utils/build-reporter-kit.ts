@@ -41,6 +41,7 @@ export interface BuildReporterKitInput {
 	readonly runCommand?: string;
 	readonly coverageThresholds?: ResolvedReporterConfig["coverageThresholds"];
 	readonly coverageTargets?: ResolvedReporterConfig["coverageTargets"];
+	readonly coverageMode: ResolvedReporterConfig["coverageMode"];
 }
 
 export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
@@ -63,6 +64,7 @@ export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
 		...(input.runCommand !== undefined && { runCommand: input.runCommand }),
 		...(input.coverageThresholds !== undefined && { coverageThresholds: input.coverageThresholds }),
 		...(input.coverageTargets !== undefined && { coverageTargets: input.coverageTargets }),
+		coverageMode: input.coverageMode,
 	};
 
 	// OSC-8 is enabled when running interactively (terminal/agent-shell) and

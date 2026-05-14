@@ -81,7 +81,17 @@ src/
 - **`CoverageLevel` schema** (`schemas/CoverageLevel.ts`) defines the five
   named presets (`none`, `basic`, `standard`, `strict`, `full`), the
   `.withPerFile()` builder, `.extend({})` override, and `resolveCoverageInput`
-  / `validateCoverageConfig` helpers.
+  / `validateCoverageConfig` helpers. `validateCoverageConfig` is no longer
+  called by the plugin (Phase 4 of the T4 coverage-policy work removed the
+  read path in favor of the `ConfigValidation` service); the helper is
+  slated for removal in T7.1.
+- **Typed `coverageTargets`** (`schemas/Options.ts`) defines `CoverageTargets`
+  as a `Schema.Record` with `Schema.Positive`, the `100: true` shortcut, and
+  nested `CoverageTargetsMetrics` glob entries. Negatives and zeros are
+  rejected at decode time. The pure helper `validateCoverageTargetsShape`
+  in `utils/` emits structured diagnostics (`INVALID_TARGET_VALUE`,
+  `PERFILE_ON_TARGETS`) with pinpointed `path` strings; the plugin's
+  `ConfigValidation` rule registry calls into it.
 
 ## When working in this package
 

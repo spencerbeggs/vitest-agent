@@ -68,6 +68,16 @@ export interface ResolvedReporterConfig {
 	readonly githubSummaryFile?: string;
 	readonly coverageThresholds?: ResolvedThresholds;
 	readonly coverageTargets?: ResolvedThresholds;
+	/**
+	 * Operating mode resolved from Vitest's native `coverage.enabled` config.
+	 * - `"full"` — coverage is enabled; all analytics and persistence run.
+	 * - `"ui-only"` — coverage is disabled (`coverage.enabled: false`); reporter
+	 *   renders output but the persistence pipeline is skipped (Phase 5).
+	 *
+	 * The plugin always resolves this field in `configureVitest`.
+	 * @internal
+	 */
+	readonly coverageMode: "full" | "ui-only";
 	readonly format: OutputFormat;
 	readonly detail: DetailLevel;
 	readonly noColor: boolean;

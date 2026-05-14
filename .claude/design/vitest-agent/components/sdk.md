@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-13
+last-synced: 2026-05-13
 completeness: 95
 related:
   - ../architecture.md
@@ -230,8 +230,10 @@ encode/decode.
 | `Baselines.ts` | Coverage baseline shapes |
 | `Trends.ts` | Coverage trend shapes |
 | `CacheManifest.ts` | Cache manifest shapes (legacy file-based manifest discovery) |
-| `CoverageLevel.ts` | `CoverageLevel` Effect Schema class with five named presets (`none`, `basic`, `standard`, `strict`, `full`), `.withPerFile()` builder, and `.extend({})` override method. Also exports `CoverageLevelName`, `CoverageInput`, `resolveCoverageInput`, and `validateCoverageConfig` |
-| `Options.ts` | `AgentReporterOptions`, `AgentPluginOptions`, `CoverageOptions`, `FormatterOptions`, and the per-executor `ConsoleOutputs` matrix (`{ human?, agent?, ci? }`). `AgentPluginOptions` carries top-level `console`, `githubSummary`, `coverageThresholds` and `coverageTargets` fields (type `Schema.Unknown` for the coverage pair) in addition to `reporterOptions` |
+| `CoverageLevel.ts` | `CoverageLevel` Effect Schema class with five named presets (`none`, `basic`, `standard`, `strict`, `full`), `.withPerFile()` builder, and `.extend({})` override method. Also exports `CoverageLevelName`, `CoverageInput`, and `resolveCoverageInput`. Also exports `validateCoverageConfig`; the plugin no longer calls it (Phase 4 removed the read path) and it is slated for removal in T7.1 |
+| `Options.ts` | `AgentReporterOptions`, `AgentPluginOptions`, `CoverageOptions`, `FormatterOptions`, and the per-executor `ConsoleOutputs` matrix (`{ human?, agent?, ci? }`). `AgentPluginOptions` carries top-level `console`, `githubSummary`, and the typed `coverageTargets` field in addition to `reporterOptions`. The legacy `coverageThresholds` field is still declared on `AgentPluginOptions` but no longer consumed by the plugin (Phase 4 removed the read path); slated for removal in T7.1. The `coverageTargets` value is the typed `CoverageTargets` schema described below |
+| `CoverageTargets` (in `Options.ts`) | Typed `Schema.Record` for coverage aspirational targets. Keys are arbitrary strings (treated as either a top-level metric name or a glob pattern). Values are `Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics)` — a positive number for a top-level metric, the `100: true` shortcut, or a nested per-metric object (`CoverageTargetsMetrics`) for glob entries. Negatives and zeros are rejected at decode time |
+| `validate-coverage-targets-shape.ts` (in `utils/`) | Pure helper `validateCoverageTargetsShape(input): { errors, warnings, info }`. Walks raw input and emits structured diagnostics with pinpointed paths: `INVALID_TARGET_VALUE` (zero or negative numbers, at the top level or inside glob-pattern entries) and `PERFILE_ON_TARGETS` (the `perFile` key set inside `coverageTargets` rather than on `coverage.thresholds.perFile`). Consumed by the plugin's `ConfigValidation` rule registry |
 | `RunEvent.ts` | Discriminated union over the 11 `RunEvent` variants (`RunStarted`, `ModuleQueued`, `ModuleStarted`, `TestStarted`, `TestFinished`, `ModuleFinished`, `CoverageReady`, `ThresholdViolation`, `FailureClassified`, `SuggestedAction`, `RunFinished`). Fed by the plugin's streaming callbacks and consumed by `vitest-agent-ui`'s reducer |
 | `RenderState.ts` | The projected shape the `vitest-agent-ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`). Both the agent string renderer and the Ink tree read this shape |
 | `History.ts` | `TestRun`, `TestHistory`, `HistoryRecord` |
@@ -250,6 +252,16 @@ bearing types: `ResolvedReporterConfig`, `ReporterKit`,
 `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory`,
 `RenderedOutput`. These live in the SDK so the plugin and reporter packages
 can share them without either taking a runtime dependency on the other.
+
+`ResolvedReporterConfig` carries a required `readonly coverageMode: "full" |
+"ui-only"` field. The plugin resolves it from Vitest's native
+`coverage.enabled` (false maps to `ui-only`; anything else maps to `full`)
+and threads it through `buildReporterKit` into every reporter's kit. The
+internal `AgentReporter` lifecycle class reads `coverageMode` to gate the
+persistence pipeline in `onTestRunEnd` (see [./plugin.md](./plugin.md) for
+the short-circuit). Locking `coverageMode` on the resolved kit rather than
+on `AgentReporterOptions` keeps it as a per-run resolved fact — see
+[../decisions.md](../decisions.md) for the rationale.
 
 For the contract semantics see [./reporter.md](./reporter.md); for how the
 plugin assembles the kit and routes outputs see [./plugin.md](./plugin.md).

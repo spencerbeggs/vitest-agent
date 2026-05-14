@@ -3,9 +3,9 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-12
-last-synced: 2026-05-12
-completeness: 90
+updated: 2026-05-13
+last-synced: 2026-05-13
+completeness: 92
 related:
   - ./architecture.md
   - ./data-structures.md
@@ -63,7 +63,15 @@ The contract is four types:
 - **`ResolvedReporterConfig`** — the plugin's resolved configuration handed
   to the factory. `dbPath` is optional at the type level so a stdout-only
   renderer can advertise that it ignores persistence; the plugin always
-  populates it in practice.
+  populates it in practice. The required `coverageMode: "full" | "ui-only"`
+  field is resolved by the plugin from Vitest's native `coverage.enabled`
+  (`false` maps to `ui-only`, anything else to `full`) and is the
+  authoritative per-run mode signal — the reporter's `onTestRunEnd`
+  short-circuits the persistence pipeline when `coverageMode === "ui-only"`,
+  and the plugin's `ConfigValidation` service skips provider rules in the
+  same mode. The field lives on the resolved config rather than on
+  `AgentReporterOptions` so it is a per-run resolved fact, not a user
+  input.
 - **`ReporterKit`** — a named-field bag passed to the factory at construction
   time. The `std*` prefix on fields (`stdEnv`, `stdOsc8`) marks these as
   "the plugin gives you these — don't import equivalents yourself"; they are
@@ -109,6 +117,50 @@ Effect Schema definitions in `packages/sdk/src/schemas/`:
 `TestClassification` is the per-test label HistoryTracker assigns:
 `stable` / `new-failure` / `persistent` / `flaky` / `recovered`. The reporter
 uses these to drive the suggested-actions output.
+
+## Coverage targets
+
+`packages/sdk/src/schemas/Options.ts` defines `CoverageTargets`, the typed
+`Schema.Record` for the `AgentPlugin({ coverageTargets })` option. Phase 1
+of the T4 coverage-policy work replaced the prior `Schema.Unknown` shape
+with this typed schema.
+
+Keys are arbitrary strings — treated either as a top-level coverage metric
+name (`lines`, `functions`, `branches`, `statements`) or as a glob pattern
+for per-file scoping (`src/**.ts`, `packages/sdk/**`, etc.). Values are
+`Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics)`:
+
+- A bare positive number sets the target for a top-level metric or, on a
+  glob entry, applies to every metric under that pattern.
+- `100: true` is the shortcut shorthand for "I want 100% coverage on this
+  metric or pattern" — expressed at the schema level as the literal `true`
+  value.
+- A nested `CoverageTargetsMetrics` object (`{ lines?, functions?,
+  branches?, statements?, 100?: true }`) sets per-metric targets under a
+  glob entry.
+
+Negatives and zeros are rejected at decode time via `Schema.Positive`;
+`perFile` is not a valid key inside `coverageTargets` (the user sets
+`coverage.thresholds.perFile` instead).
+
+`packages/sdk/src/utils/validate-coverage-targets-shape.ts` exports the
+pure helper `validateCoverageTargetsShape(input)` that walks raw input
+and returns structured diagnostics with pinpointed paths:
+
+| Code | Description |
+| ---- | ----------- |
+| `INVALID_TARGET_VALUE` | Numeric metric value is zero or negative. Path is the offending location: `"lines"` for a top-level metric or `"src/**.ts.lines"` for a metric inside a glob entry |
+| `PERFILE_ON_TARGETS` | The `perFile` key appears inside `coverageTargets`. Path is `"perFile"`; users should set `coverage.thresholds.perFile` instead |
+
+Both codes also surface through the plugin's `ConfigValidation` service —
+the rule registry delegates to this helper for the `INVALID_TARGET_VALUE`
+and `PERFILE_ON_TARGETS` rules. See [./components/plugin.md](./components/plugin.md)
+for the full validation rule registry.
+
+The legacy `AgentPluginOptions.coverageThresholds` field is still
+declared on the schema today but the plugin no longer reads it (Phase 4
+removed the read path); users set Vitest's native
+`test.coverage.thresholds` instead. Schema cleanup lands in T7.1.
 
 ## Cache manifest
 

@@ -4,11 +4,15 @@
 
 | Approach | Use When |
 | --- | --- |
-| `AgentPlugin` | You want zero-config environment detection and automatic reporter injection |
-| `AgentReporter` | You need full control over output format, detail level, and GitHub Actions settings, or are integrating with custom tooling |
+| `AgentPlugin` | Canonical path — environment detection, console matrix, reporter injection, and `ConfigValidation` all wire automatically |
+| `AgentReporter` | **Transitional** — kept exported during the 2.0 split for backward compatibility; prefer `AgentPlugin` for new wiring |
 
-The plugin is a thin wrapper that calls `AgentReporter` internally. Both
-produce identical output -- the difference is who manages the options.
+The plugin owns the Vitest lifecycle and constructs an internal
+`AgentReporter` per project with `consoleMode` and `coverageMode`
+already resolved. Direct `AgentReporter` usage skips that resolution
+pipeline (no executor detection, no `ConfigValidation`, no
+auto-injected `RunFinished` tap gating) and is not the recommended
+2.0 wiring.
 
 ## Constructor Options
 
@@ -19,9 +23,10 @@ const reporter = new AgentReporter({
   cacheDir: ".vitest-agent-reporter",
   consoleOutput: "failures",
   omitPassingTests: true,
-  coverageThresholds: { lines: 80, branches: 80 },
+  // `coverageThresholds` is deprecated; set Vitest's native
+  // `test.coverage.thresholds` instead. The field remains on the
+  // schema until the T7 options cleanup.
   coverageTargets: { lines: 90 },
-  autoUpdate: true,
   coverageConsoleLimit: 10,
   includeBareZero: false,
   format: "markdown",
@@ -42,9 +47,8 @@ All options are optional. Defaults:
 | `cacheDir` | XDG-derived (see [Configuration > Cache Directory Resolution](configuration.md#cache-directory-resolution)) | Override the directory holding `data.db`. When unset, the path is derived from `$XDG_DATA_HOME` and the root workspace name. |
 | `consoleOutput` | `"failures"` | `"failures"`, `"full"`, or `"silent"` |
 | `omitPassingTests` | `true` | Exclude passing tests from reports |
-| `coverageThresholds` | `{}` | Vitest-native threshold format (per-metric, per-glob) |
-| `coverageTargets` | -- | Aspirational targets (same format as thresholds) |
-| `autoUpdate` | `true` when targets set | Auto-ratchet baselines when coverage improves |
+| `coverageThresholds` | `{}` | **Deprecated** — plugin no longer reads this field (T4 Phase 4); set Vitest's native `test.coverage.thresholds` instead. Schema field kept until T7 cleanup. |
+| `coverageTargets` | -- | Aspirational targets, typed `CoverageTargets` schema (positive numbers, `100: true` shortcut, per-glob nested metrics). `perFile` not accepted — inherited from `coverage.thresholds.perFile`. |
 | `coverageConsoleLimit` | `10` | Max low-coverage files in console |
 | `includeBareZero` | `false` | Include files where all metrics are 0% |
 | `format` | auto-detect | Output format: `"markdown"`, `"json"`, `"vitest-bypass"`, `"silent"` |
@@ -129,15 +133,20 @@ export default defineConfig({
     reporters: [
       new AgentReporter({
         consoleOutput: "failures",
-        coverageThresholds: { lines: 80 },
       }),
     ],
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: { lines: 80 },
+    },
   },
 });
 ```
 
 This replaces all reporters with `AgentReporter`. Only structured markdown
-is printed to console.
+is printed to console. Coverage thresholds live on Vitest's native
+`test.coverage.thresholds` in 2.0.
 
 ### Monorepo Setup
 
@@ -174,12 +183,12 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    reporters: [
-      new AgentReporter({ coverageThresholds: { lines: 80 } }),
-    ],
+    reporters: [new AgentReporter({})],
     coverage: {
+      enabled: true,
       provider: "v8",
       reporter: ["text"],
+      thresholds: { lines: 80 },
     },
   },
 });
@@ -202,9 +211,13 @@ export default defineConfig({
       new AgentReporter({
         consoleOutput: "silent",
         githubActions: true,
-        coverageThresholds: { lines: 80 },
       }),
     ],
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: { lines: 80 },
+    },
   },
 });
 ```

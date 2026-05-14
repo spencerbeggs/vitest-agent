@@ -32,17 +32,32 @@ import { defineConfig } from "vitest/config";
 
 export default async () => {
   const { projects, tags } = await AgentPlugin.discover();
+  const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
   return defineConfig({
     plugins: [
       AgentPlugin({
-        coverageThresholds: "standard",
-        coverageTargets: "strict",
+        coverageTargets: coverage.coverageTargets,
       }),
     ],
-    test: { projects, tags, pool: "forks" },
+    test: {
+      projects,
+      tags,
+      pool: "forks",
+      coverage: {
+        enabled: true,
+        provider: "v8",
+        thresholds: coverage.thresholds,
+      },
+    },
   });
 };
 ```
+
+In 2.0 the plugin reads coverage thresholds from Vitest's native
+`test.coverage.thresholds` — the legacy `AgentPlugin({ coverageThresholds })`
+field was removed from the read path in T4 Phase 4 and is ignored. See
+[Coverage Level Presets](#coverage-level-presets) below for the
+dual-output wiring pattern.
 
 ## Console matrix and onRunEvent
 
@@ -208,29 +223,61 @@ of tagging.
 ## Coverage Level Presets
 
 `AgentPlugin.COVERAGE_LEVELS` and `AgentPlugin.COVERAGE_LEVELS_PER_FILE` are
-namespace constants with preset threshold objects:
+namespace constants. Each named preset returns a dual-output object with a
+`thresholds` half (passed to Vitest's native `coverage.thresholds`) and a
+`coverageTargets` half (passed to `AgentPlugin({ coverageTargets })`):
 
-| Level | lines | functions | branches | statements |
-| --- | --- | --- | --- | --- |
-| `none` | 0 | 0 | 0 | 0 |
-| `basic` | 50 | 50 | 40 | 50 |
-| `standard` | 75 | 75 | 65 | 75 |
-| `strict` | 90 | 90 | 85 | 90 |
-| `full` | 100 | 100 | 100 | 100 |
+| Level | thresholds | coverageTargets |
+| --- | --- | --- |
+| `none` | lines/functions/branches/statements 0 | next-level-up: `basic` |
+| `basic` | 50 / 50 / 50 / 50 | next-level-up: `standard` |
+| `standard` | 70 / 70 / 65 / 70 | next-level-up: `strict` |
+| `strict` | 80 / 80 / 75 / 80 | next-level-up: `full` |
+| `full` | 90 / 90 / 85 / 90 | capped at `full` |
 
-Pass a level name directly or use the constant to extend a preset:
+Canonical 2.0 wiring — destructure a preset once, then pass each half to
+its rightful owner (Vitest for thresholds; the plugin for targets):
 
 ```typescript
-import { CoverageLevel } from "vitest-agent-sdk";
+const preset = AgentPlugin.COVERAGE_LEVELS.standard;
 
-AgentPlugin({
-  coverageThresholds: "standard",
-  coverageTargets: AgentPlugin.COVERAGE_LEVELS.strict.extend({ lines: 95 }),
+export default defineConfig({
+  plugins: [AgentPlugin({ coverageTargets: preset.coverageTargets })],
+  test: {
+    coverage: {
+      thresholds: preset.thresholds,
+    },
+  },
 });
 ```
 
-`COVERAGE_LEVELS_PER_FILE` is the same table with `perFile: true` applied to
-each level.
+`COVERAGE_LEVELS_PER_FILE` is the same table with `perFile: true` applied
+to the `thresholds` half only — `coverageTargets` inherits `perFile` from
+`coverage.thresholds.perFile`, so duplicating it on the targets half would
+just risk drift.
+
+`AgentPlugin.COVERAGE_AUTOUPDATE` exposes three tolerance functions for
+Vitest's `coverage.thresholds.autoUpdate` field
+(`(newThreshold: number) => number`):
+
+| Function | Behavior |
+| --- | --- |
+| `standard` | Floors the new threshold. |
+| `strict` | Ceils the new threshold. |
+| `lenient` | Floors the new threshold and subtracts 2 (clamped to 0). |
+
+```typescript
+defineConfig({
+  test: {
+    coverage: {
+      thresholds: {
+        autoUpdate: AgentPlugin.COVERAGE_AUTOUPDATE.standard,
+        lines: 80,
+      },
+    },
+  },
+});
+```
 
 ## AgentPlugin.runScript()
 

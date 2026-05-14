@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-13
+last-synced: 2026-05-13
 completeness: 90
 related:
   - ./architecture.md
@@ -78,7 +78,16 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |
   +-- Filter testModules by projectFilter if set
   |
-  +-- Build Effect program over DataStore | DataReader |
+  +-- UI-only short-circuit (opts.coverageMode === "ui-only"):
+  |     skip ensureMigrated, DataStore, DataReader, CoverageAnalyzer,
+  |     HistoryTracker entirely. Build in-memory AgentReports via
+  |     buildAgentReport, run a tiny OutputPipelineLive +
+  |     NodeContext.layer program to resolve env / executor / format /
+  |     detail, call opts.reporter(kit), and route the RenderedOutput[].
+  |     Classifications are empty; trendSummary is undefined. The
+  |     streaming taps and the RunFinished event above still fire.
+  |
+  +-- Full mode: build Effect program over DataStore | DataReader |
   |   CoverageAnalyzer | HistoryTracker | OutputRenderer
   |     +-- captureSettings(vitestConfig, vitestVersion) -> settings
   |     +-- hashSettings(settings) -> settingsHash
@@ -152,8 +161,17 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
 - Resolve `cacheDir` from `options.reporterOptions.cacheDir` ??
   `outputFile["vitest-agent"]` (otherwise `undefined`, leaving XDG
   resolution to `AgentReporter.ensureDbPath`).
-- Resolve coverage thresholds + targets; disable Vitest's native `autoUpdate`
-  if targets are set.
+- Resolve `coverageMode` ("full" if Vitest's native `coverage.enabled`
+  is truthy, "ui-only" otherwise) and thread it onto
+  `ResolvedReporterConfig`. Read `coverage.thresholds` and `coverageTargets`
+  via the `ConfigValidation` Effect service — its starter rule registry
+  catches mismatches (`TARGET_WITHOUT_THRESHOLD`,
+  `TARGET_BELOW_THRESHOLD`, `INVALID_TARGET_VALUE`, `PERFILE_ON_TARGETS`,
+  …) and emits warnings to stderr via the `[vitest-agent:plugin]`
+  prefix or throws via `formatFatalError`. Auto-ratchet is delegated to
+  Vitest's native `coverage.thresholds.autoUpdate`; users opt in by
+  passing one of the `AgentPlugin.COVERAGE_AUTOUPDATE` tolerance
+  functions.
 - When `consoleMode !== "passthrough"` (the plugin owns stdout): strip
   Vitest's built-in console reporters AND set `coverage.reporter = []`
   to suppress Vitest's text coverage table. Otherwise the chain is left

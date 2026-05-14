@@ -386,19 +386,31 @@ A class providing named coverage threshold presets. Import from `vitest-agent-sd
 import { CoverageLevel } from "vitest-agent-sdk";
 ```
 
-Each preset has `lines`, `branches`, `functions`, and `statements` numeric fields:
+Each preset has `lines`, `branches`, `functions`, and `statements` numeric fields. The 2.0 numbers used by `AgentPlugin.COVERAGE_LEVELS`:
 
-| Preset | lines | branches | functions | statements |
+| Preset | lines | functions | branches | statements |
 | --- | --- | --- | --- | --- |
 | `none` | 0 | 0 | 0 | 0 |
 | `basic` | 50 | 50 | 50 | 50 |
-| `standard` | 80 | 75 | 80 | 80 |
-| `strict` | 90 | 85 | 90 | 90 |
-| `full` | 100 | 100 | 100 | 100 |
+| `standard` | 70 | 70 | 65 | 70 |
+| `strict` | 80 | 80 | 75 | 80 |
+| `full` | 90 | 90 | 85 | 90 |
 
 Methods:
 
 - `.withPerFile()` — returns a new `CoverageLevel` with `perFile: true`, applying thresholds per file rather than in aggregate.
 - `.extend({ lines?, branches?, functions?, statements? })` — returns a new `CoverageLevel` with the specified fields overridden.
 
-Pass a preset name string to `coverageThresholds` or `coverageTargets` on `AgentPlugin`, or use the `AgentPlugin.COVERAGE_LEVELS` / `AgentPlugin.COVERAGE_LEVELS_PER_FILE` namespace constants directly.
+For wiring, use the dual-output namespace constants on `AgentPlugin`:
+
+- `AgentPlugin.COVERAGE_LEVELS.<preset>` returns `{ thresholds, coverageTargets }`. Pass the `thresholds` half to Vitest's native `test.coverage.thresholds` and the `coverageTargets` half to `AgentPlugin({ coverageTargets })`. The `coverageTargets` half is the next-level-up preset's numbers (`standard` → `strict`, `strict` → `full`, `full` capped).
+- `AgentPlugin.COVERAGE_LEVELS_PER_FILE.<preset>` — same with `perFile: true` applied to the `thresholds` half only (`coverageTargets` inherits `perFile` from Vitest's threshold config).
+- `AgentPlugin.COVERAGE_AUTOUPDATE` — three `(n: number) => number` tolerance functions (`standard` floors, `strict` ceils, `lenient` floors and subtracts 2) for Vitest's `coverage.thresholds.autoUpdate`.
+
+The plugin's `coverageThresholds` field was removed from the read path in T4 Phase 4; it remains on the schema until T7 cleanup but the plugin ignores it. The `validateCoverageConfig` helper on `CoverageLevel` is also slated for removal in T7.1.
+
+### CoverageTargets
+
+Typed schema for `AgentPlugin({ coverageTargets })`. A `Schema.Record` keyed by either a metric name (`lines` / `branches` / `functions` / `statements`) carrying a positive number, the literal `100` shortcut, or a glob pattern carrying a nested `CoverageTargetsMetrics` object of positive numbers. Negatives and zeros are rejected at decode time. `perFile` is not accepted — targets inherit `perFile` from `coverage.thresholds.perFile`.
+
+The pure helper `validateCoverageTargetsShape(input)` (exported from `vitest-agent-sdk`) returns structured diagnostics (`INVALID_TARGET_VALUE`, `PERFILE_ON_TARGETS`) with pinpointed `path` strings; the plugin's `ConfigValidation` service consumes these.

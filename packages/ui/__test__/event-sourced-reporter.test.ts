@@ -63,6 +63,7 @@ const buildKit = (consoleMode: ConsoleMode): ReporterKit => ({
 			perFile: false,
 			patterns: [],
 		},
+		coverageMode: "full",
 	},
 	stdEnv: "terminal",
 	stdOsc8: (_url, label) => label,

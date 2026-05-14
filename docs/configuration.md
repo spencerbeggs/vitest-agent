@@ -12,21 +12,35 @@ import { defineConfig } from "vitest/config";
 
 export default async () => {
   const { projects, tags } = await AgentPlugin.discover();
+  const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
   return defineConfig({
     plugins: [
       AgentPlugin({
         console: { human: "passthrough", agent: "agent", ci: "passthrough" },
-        coverageThresholds: { lines: 80, branches: 80 },
-        coverageTargets: { lines: 95, branches: 90 },
+        coverageTargets: coverage.coverageTargets,
         reporterOptions: {
           coverageConsoleLimit: 5,
         },
       }),
     ],
-    test: { projects, tags, pool: "forks" },
+    test: {
+      projects,
+      tags,
+      pool: "forks",
+      coverage: {
+        enabled: true,
+        provider: "v8",
+        thresholds: coverage.thresholds,
+      },
+    },
   });
 };
 ```
+
+The 2.0 plugin reads coverage thresholds from Vitest's native
+`test.coverage.thresholds` only. The legacy `AgentPlugin({ coverageThresholds })`
+field was removed from the plugin's read path in T4 Phase 4 — it remains
+on the schema until the T7 options cleanup, but the plugin ignores it.
 
 ### `console`
 
@@ -180,13 +194,25 @@ array; both calls are needed to fully opt out of tagging. See
 [`Tag` and `TagStrategy` API](#tag-and-tagstrategy-api) section below
 for the public classes.
 
-### `coverageThresholds`
+### `coverageThresholds` (deprecated — ignored by the plugin)
 
-Vitest-native threshold format (per-metric, per-glob). Failures below a threshold produce a "red" run. See [Coverage Thresholds](#coverage-thresholds).
+This was the pre-T4 plugin-owned threshold input. As of T4 Phase 4 the
+plugin no longer reads it; the field remains on the schema only until
+the T7 options cleanup removes it entirely. Set Vitest's native
+`test.coverage.thresholds` instead — that is the single source of
+truth for failure-tier coverage in 2.0. See
+[Coverage Thresholds](#coverage-thresholds).
 
 ### `coverageTargets`
 
-Aspirational coverage goals (same format as `coverageThresholds`). Falling below a target produces a "yellow" hint — not a failure. See [Coverage Targets](#coverage-targets).
+Aspirational coverage goals using a typed `CoverageTargets` schema
+(numeric `lines` / `branches` / `functions` / `statements`, the
+`100: true` shortcut, and nested per-glob `CoverageTargetsMetrics`
+entries). Falling below a target produces a "yellow" hint — not a
+failure. Zero and negative values are rejected at decode time, and
+`perFile` is inherited from `coverage.thresholds.perFile` (specifying
+it on `coverageTargets` produces a `PERFILE_ON_TARGETS` warning). See
+[Coverage Targets](#coverage-targets).
 
 ### `reporterOptions`
 
@@ -198,11 +224,17 @@ the plugin interface.
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `cacheDir` | `string` | XDG-derived (see [Cache Directory Resolution](#cache-directory-resolution)) | Override the cache directory path |
-| `autoUpdate` | `boolean` | `true` when targets set | Auto-ratchet baselines when coverage improves |
 | `coverageConsoleLimit` | `number` | `10` | Max low-coverage files shown in console |
 | `omitPassingTests` | `boolean` | `true` | Exclude passing tests from reports |
 | `includeBareZero` | `boolean` | `false` | Include files where all four metrics are 0% |
 | `githubSummaryFile` | `string` | `GITHUB_STEP_SUMMARY` env var | Override the GFM output file path |
+
+> **Note.** The pre-T4 `reporterOptions.autoUpdate` boolean was removed
+> in T4 Phase 4. Auto-ratcheting coverage thresholds is now driven by
+> Vitest's native `coverage.thresholds.autoUpdate` callback — use
+> `AgentPlugin.COVERAGE_AUTOUPDATE.standard` (or `.strict` / `.lenient`)
+> to set the tolerance function. The plugin's `coverageTargets` baseline
+> tracking is independent and runs whenever `coverageTargets` is set.
 
 ## Project Discovery
 
@@ -218,9 +250,15 @@ import { defineConfig } from "vitest/config";
 
 export default async () => {
   const { projects, tags } = await AgentPlugin.discover();
+  const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
   return defineConfig({
-    plugins: [AgentPlugin({ coverageThresholds: "standard" })],
-    test: { projects, tags, pool: "forks" },
+    plugins: [AgentPlugin({ coverageTargets: coverage.coverageTargets })],
+    test: {
+      projects,
+      tags,
+      pool: "forks",
+      coverage: { enabled: true, provider: "v8", thresholds: coverage.thresholds },
+    },
   });
 };
 ```
@@ -357,30 +395,51 @@ export default async () => {
 };
 ```
 
-Two namespace constants are also available on `AgentPlugin`:
+Three namespace constants are available on `AgentPlugin`:
 
 | Constant | Description |
 | --- | --- |
-| `AgentPlugin.COVERAGE_LEVELS` | Object with keys `none \| basic \| standard \| strict \| full`, each a `CoverageLevel` |
-| `AgentPlugin.COVERAGE_LEVELS_PER_FILE` | Same as above with `perFile: true` on each level |
+| `AgentPlugin.COVERAGE_LEVELS` | Object with keys `none \| basic \| standard \| strict \| full`, each returning a dual-output `{ thresholds, coverageTargets }` preset |
+| `AgentPlugin.COVERAGE_LEVELS_PER_FILE` | Same as above with `perFile: true` applied to the `thresholds` half only (`coverageTargets` inherits `perFile` from `coverage.thresholds.perFile`) |
+| `AgentPlugin.COVERAGE_AUTOUPDATE` | Three `(newThreshold: number) => number` tolerance functions (`standard` floors, `strict` ceils, `lenient` floors and subtracts 2) suitable for Vitest's native `coverage.thresholds.autoUpdate` |
 
-Pass a level name string directly to `coverageThresholds` or `coverageTargets`:
+Each `COVERAGE_LEVELS` preset's `coverageTargets` half is the
+**next-level-up** preset's threshold numbers, so passing `standard`
+sets the floor at `standard` (passed to Vitest) and the aspirational
+goal at `strict` (passed to the plugin). The `full` preset is capped
+at itself.
+
+Canonical wiring — destructure a preset once, then pass each half to
+its rightful owner:
 
 ```typescript
-AgentPlugin({
-  coverageThresholds: "standard",
-  coverageTargets: "strict",
-})
+const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
+
+defineConfig({
+  plugins: [AgentPlugin({ coverageTargets: coverage.coverageTargets })],
+  test: {
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: coverage.thresholds,
+    },
+  },
+});
 ```
 
-Or use the namespace constant to extend a preset:
+Use `COVERAGE_AUTOUPDATE` to control Vitest's auto-ratcheting tolerance:
 
 ```typescript
-import { CoverageLevel } from "vitest-agent-sdk";
-
-AgentPlugin({
-  coverageThresholds: AgentPlugin.COVERAGE_LEVELS.standard.extend({ lines: 90 }),
-})
+defineConfig({
+  test: {
+    coverage: {
+      thresholds: {
+        autoUpdate: AgentPlugin.COVERAGE_AUTOUPDATE.standard,
+        lines: 80,
+      },
+    },
+  },
+});
 ```
 
 ## AgentReporter Options
@@ -399,7 +458,6 @@ export default defineConfig({
         cacheDir: ".vitest-agent-reporter",
         consoleOutput: "failures",
         omitPassingTests: true,
-        coverageThresholds: { lines: 80, branches: 80 },
         coverageConsoleLimit: 10,
         includeBareZero: false,
         format: "markdown",
@@ -408,18 +466,27 @@ export default defineConfig({
         githubSummaryFile: undefined,
       }),
     ],
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: { lines: 80, branches: 80 },
+    },
   },
 });
 ```
+
+Coverage thresholds live on Vitest's native `test.coverage.thresholds`
+in 2.0 — the direct-reporter `coverageThresholds` field is kept on the
+schema for transitional compatibility but is no longer the recommended
+input.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `cacheDir` | `string` | XDG-derived (see [Cache Directory Resolution](#cache-directory-resolution)) | Directory for the SQLite database (`data.db`) |
 | `consoleOutput` | `"failures"` `"full"` `"silent"` | `"failures"` | Console output verbosity |
 | `omitPassingTests` | `boolean` | `true` | Exclude passing tests from reports |
-| `coverageThresholds` | `object` | `{}` | Vitest-native threshold format (see below) |
-| `coverageTargets` | `object` | -- | Aspirational coverage targets (same format) |
-| `autoUpdate` | `boolean` | `true` when targets set | Auto-ratchet baselines when coverage improves |
+| `coverageThresholds` | `object` | `{}` | **Deprecated** — set Vitest's native `test.coverage.thresholds` instead. Schema field kept until T7 cleanup. |
+| `coverageTargets` | `CoverageTargets` | -- | Aspirational coverage targets (typed positive numbers, `100: true` shortcut, per-glob nested metrics; no `perFile`) |
 | `coverageConsoleLimit` | `number` | `10` | Max low-coverage files shown in console |
 | `includeBareZero` | `boolean` | `false` | Include files where all four metrics are 0% |
 | `format` | `OutputFormat` | auto-detect | Output format: `"markdown"`, `"json"`, `"vitest-bypass"`, `"silent"` |
@@ -496,43 +563,51 @@ cacheDir = "./.vitest-agent-reporter"
 
 ## Coverage Thresholds
 
-The `coverageThresholds` option uses Vitest's native threshold format. Files
-with any metric below their applicable threshold appear in the "Coverage gaps"
-section of console output and reports.
+Coverage thresholds in 2.0 are owned by Vitest. Set them on
+`test.coverage.thresholds` in your Vitest config; the plugin reads
+this value via `configureVitest` and uses it to flag "Coverage gaps"
+in console output and reports.
 
 ```typescript
-AgentPlugin({
-  // Per-metric thresholds (top-level, not inside reporter)
-  coverageThresholds: {
-    lines: 80,
-    branches: 75,
-    functions: 80,
-    statements: 80,
+defineConfig({
+  test: {
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: {
+        lines: 80,
+        branches: 75,
+        functions: 80,
+        statements: 80,
+      },
+    },
   },
 });
 ```
 
-When using `AgentPlugin`, thresholds are resolved in this order:
-
-1. **Explicit option** -- `reporter.coverageThresholds` in plugin options
-2. **Vitest config** -- `coverage.thresholds` from your Vitest config
-3. **Default** -- `{}` (no files flagged)
-
-Per-glob patterns are also supported:
+Vitest's native threshold format supports per-metric values, per-glob
+patterns, the `perFile` toggle, and negative numbers (interpreted as
+"maximum uncovered items"). `100` enforces full coverage.
 
 ```typescript
-AgentPlugin({
-  coverageThresholds: {
-    lines: 80,
-    "src/utils/**": { lines: 90 },
-    "src/generated/**": { lines: 0 },
+defineConfig({
+  test: {
+    coverage: {
+      thresholds: {
+        lines: 80,
+        "src/utils/**": { lines: 90 },
+        "src/generated/**": { lines: 0 },
+      },
+    },
   },
 });
 ```
 
-Negative numbers specify maximum uncovered items (matching Vitest's format),
-and `100` enforces full coverage. The `perFile` boolean applies thresholds
-per file rather than in aggregate.
+The pre-T4 plugin-owned `coverageThresholds` field is deprecated. The
+plugin's read path was removed in T4 Phase 4 — the field remains on
+the schema only until the T7 options cleanup ships, and the plugin's
+`ConfigValidation` service emits `THRESHOLD_WITHOUT_TARGET` /
+`TARGET_WITHOUT_THRESHOLD` warnings keyed off Vitest's native config.
 
 **Bare-zero files** (all four metrics at 0%) are excluded by default. These
 are typically generated files, re-exports, or index files with no executable
@@ -545,29 +620,48 @@ below a target does not produce a "red" failure -- it produces a "yellow"
 hint showing room for improvement.
 
 ```typescript
-AgentPlugin({
-  coverageThresholds: { lines: 70 },   // hard floor
-  coverageTargets: { lines: 90 },      // aspirational goal
+defineConfig({
+  plugins: [AgentPlugin({ coverageTargets: { lines: 90 } })],
+  test: {
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: { lines: 70 }, // hard floor (Vitest-native)
+    },
+  },
 });
 ```
 
-The format is identical to `coverageThresholds` -- per-metric values and
-per-glob patterns are supported.
+`coverageTargets` uses the typed `CoverageTargets` schema: positive
+numeric values per metric (`lines`, `branches`, `functions`,
+`statements`), the `100: true` shortcut, and nested per-glob
+`CoverageTargetsMetrics` entries. Zeros and negatives are rejected
+at decode time. `perFile` is **not** accepted on `coverageTargets` —
+targets inherit `perFile` from `coverage.thresholds.perFile`, so
+duplicating it on the targets half just risks drift (the plugin's
+`ConfigValidation` rule `PERFILE_ON_TARGETS` flags this).
 
 ### Auto-Ratcheting Baselines
 
 When `coverageTargets` is set, the reporter automatically tracks a
 high-water mark (baseline) for each metric. When coverage improves, the
 baseline ratchets up so it never regresses. Baselines are stored in the
-SQLite database.
+SQLite database; ratcheting always runs when `coverageTargets` is set.
 
-Set `autoUpdate: false` to disable auto-ratcheting:
+For Vitest's native threshold auto-ratcheting (a separate mechanism
+that mutates `test.coverage.thresholds.*` numbers on disk after a
+green run), use the `AgentPlugin.COVERAGE_AUTOUPDATE` tolerance
+functions:
 
 ```typescript
-AgentPlugin({
-  coverageTargets: { lines: 90 },
-  reporter: {
-    autoUpdate: false,
+defineConfig({
+  test: {
+    coverage: {
+      thresholds: {
+        lines: 80,
+        autoUpdate: AgentPlugin.COVERAGE_AUTOUPDATE.standard,
+      },
+    },
   },
 });
 ```
@@ -591,6 +685,32 @@ Use the CLI `trends` command for detailed trend analysis:
 ```bash
 npx vitest-agent trends
 ```
+
+## Coverage Config Validation
+
+The plugin runs a `ConfigValidation` service during `configureVitest`
+that inspects the combined `(coverage.thresholds, coverageTargets)`
+pair and emits diagnostics. Warnings print to stderr prefixed with
+`[vitest-agent:plugin]`; errors throw before Vitest starts the run.
+
+Operating mode is derived from `coverage.enabled`:
+
+| Mode | Trigger | Effect |
+| --- | --- | --- |
+| Full | `coverage.enabled` truthy (or unset and `--coverage` passed) | All rules run; reporter persists data, classifies, and computes baselines/trends |
+| UI-only | `coverage.enabled === false` | Provider rules skipped; reporter short-circuits before persistence, still fires renderer events |
+
+The starter rule registry:
+
+| Rule | Severity | Description |
+| --- | --- | --- |
+| `TARGET_WITHOUT_THRESHOLD` | warn | `coverageTargets` set but no matching `coverage.thresholds` — targets fire yellow hints with no red floor underneath |
+| `TARGET_BELOW_THRESHOLD` | error | An aspirational target sits below its hard floor — typo or paste-error |
+| `THRESHOLD_WITHOUT_TARGET` | silent | Threshold set with no target — no diagnostic (valid posture; you have a floor, no aspirational goal) |
+| `INVALID_TARGET_VALUE` | error | Zero, negative, or non-numeric target value (top-level or nested glob) |
+| `UNSUPPORTED_PROVIDER` | error (Full only) | `coverage.provider` is something other than `v8` or `istanbul` |
+| `MISSING_PROVIDER_PACKAGE` | error (Full only) | `@vitest/coverage-<provider>` not installed; includes install-command remediation |
+| `PERFILE_ON_TARGETS` | warn | `perFile` specified inside `coverageTargets` — inherited from `coverage.thresholds.perFile`, so duplicating risks drift |
 
 ## Console Output Modes
 

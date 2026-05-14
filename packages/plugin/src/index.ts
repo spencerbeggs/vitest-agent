@@ -41,11 +41,13 @@ export { VitestProject } from "./utils/vitest-project.js";
 
 export type { CoverageInput, CoverageLevelName } from "vitest-agent-sdk";
 export { CoverageLevel, resolveCoverageInput, validateCoverageConfig } from "vitest-agent-sdk";
+export type { CoverageLevelPreset } from "./plugin.js";
 
 // Expose the AgentPlugin namespace statics as standalone named exports for convenience
 import { AgentPlugin as _AgentPlugin } from "./plugin.js";
 export const COVERAGE_LEVELS = _AgentPlugin.COVERAGE_LEVELS;
 export const COVERAGE_LEVELS_PER_FILE = _AgentPlugin.COVERAGE_LEVELS_PER_FILE;
+export const COVERAGE_AUTOUPDATE = _AgentPlugin.COVERAGE_AUTOUPDATE;
 
 // --- Composition layer ---
 
@@ -56,6 +58,19 @@ export { ReporterLive } from "./layers/ReporterLive.js";
 export { CoverageAnalyzerLive } from "./layers/CoverageAnalyzerLive.js";
 export { CoverageAnalyzerTest } from "./layers/CoverageAnalyzerTest.js";
 export { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
+
+// --- ConfigValidation service ---
+
+export { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
+export { ConfigValidationTest } from "./layers/ConfigValidationTest.js";
+export type {
+	ValidationError,
+	ValidationInfo,
+	ValidationInput,
+	ValidationResult,
+	ValidationWarning,
+} from "./services/ConfigValidation.js";
+export { ConfigValidation } from "./services/ConfigValidation.js";
 
 // --- Reporter-side utilities ---
 
