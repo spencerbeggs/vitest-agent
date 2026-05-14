@@ -27,7 +27,6 @@
 		"build:dev": "rslib build --config-loader native --env-mode dev",
 		"build:inspect": "rslib inspect --config-loader native --env-mode npm --verbose",
 		"build:prod": "rslib build --config-loader native --env-mode npm",
-		"prepare": "turbo run build:dev build:prod --log-order=grouped --log-prefix=none",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
@@ -39,6 +38,7 @@
 		"acorn-typescript": "^1.4.13",
 		"effect": "catalog:silk",
 		"magic-string": "^0.30.0",
+		"vitest-agent-reporter": "workspace:*",
 		"vitest-agent-sdk": "workspace:*",
 		"workspaces-effect": "^1.0.0"
 	},
@@ -58,31 +58,7 @@
 		"@vitest/runner": "^4.1.0",
 		"vitest": "^4.1.0",
 		"vitest-agent-cli": "workspace:*",
-		"vitest-agent-mcp": "workspace:*",
-		"vitest-agent-reporter": "workspace:*"
-	},
-	"peerDependenciesMeta": {
-		"@vitest/coverage-istanbul": {
-			"optional": true
-		},
-		"@vitest/coverage-v8": {
-			"optional": true
-		},
-		"@vitest/runner": {
-			"optional": false
-		},
-		"vitest": {
-			"optional": false
-		},
-		"vitest-agent-cli": {
-			"optional": false
-		},
-		"vitest-agent-mcp": {
-			"optional": false
-		},
-		"vitest-agent-reporter": {
-			"optional": false
-		}
+		"vitest-agent-mcp": "workspace:*"
 	},
 	"publishConfig": {
 		"access": "public",

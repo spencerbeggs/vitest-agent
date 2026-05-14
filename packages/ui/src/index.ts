@@ -29,7 +29,9 @@ export {
 	TestRecord,
 	initialRenderState,
 } from "vitest-agent-sdk";
+export type * from "./factory/index.js";
 export * from "./factory/index.js";
+export type * from "./pubsub/index.js";
 export * from "./pubsub/index.js";
 export { reduceRenderState, reduceRenderStateAll } from "./reducer.js";
 export { type RenderAgentOptions, renderAgent } from "./render-agent.js";

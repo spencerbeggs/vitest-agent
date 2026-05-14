@@ -16,8 +16,9 @@
 	},
 	"type": "module",
 	"scripts": {
-		"build": "turbo run build:dev build:prod --log-order=grouped --log-prefix=none",
-		"ci:build": "CI=\"true\" turbo run build:dev build:prod --log-order=grouped --output-logs=full",
+		"build": "turbo run build:dev build:prod",
+		"build:dev": "turbo run build:dev",
+		"ci:build": "CI=\"true\" turbo run build:dev build:prod",
 		"ci:test": "CI=\"true\" vitest run --coverage",
 		"ci:version": "savvy-changesets version && biome format --write .",
 		"commit:check": "savvy-commit check",
@@ -28,10 +29,12 @@
 		"lint:md": "markdownlint-cli2 '**/*.{md,mdx}' --config './lib/configs/.markdownlint-cli2.jsonc'",
 		"lint:md:fix": "markdownlint-cli2  --config './lib/configs/.markdownlint-cli2.jsonc' --fix",
 		"prepare": "husky",
+		"reset": "node lib/scripts/reset.ts",
 		"test": "vitest run",
 		"test:coverage": "vitest run",
 		"test:watch": "vitest --watch",
-		"typecheck": "turbo run types:check --log-prefix=none --log-order=grouped"
+		"typecheck": "turbo run types:check",
+		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
 		"@savvy-web/changesets": "^0.9.0",
@@ -39,10 +42,8 @@
 		"@savvy-web/lint-staged": "^1.0.1",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
-		"@vitest/coverage-v8": "^4.1.6",
 		"tsx": "catalog:silk",
 		"typescript": "catalog:silk",
-		"vitest": "^4.1.6",
 		"vitest-agent-cli": "workspace:*",
 		"vitest-agent-mcp": "workspace:*",
 		"vitest-agent-plugin": "workspace:*",

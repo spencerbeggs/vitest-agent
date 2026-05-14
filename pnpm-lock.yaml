@@ -72,18 +72,12 @@ importers:
       '@typescript/native-preview':
         specifier: catalog:silk
         version: 7.0.0-dev.20260513.1
-      '@vitest/coverage-v8':
-        specifier: ^4.1.6
-        version: 4.1.6(vitest@4.1.6)
       tsx:
         specifier: catalog:silk
         version: 4.21.0
       typescript:
         specifier: catalog:silk
         version: 6.0.3
-      vitest:
-        specifier: ^4.1.6
-        version: 4.1.6(@types/node@25.7.0)(@vitest/coverage-istanbul@4.1.6)(@vitest/coverage-v8@4.1.6)(vite@8.0.13(@types/node@25.7.0)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.9.0))
       vitest-agent-cli:
         specifier: workspace:*
         version: link:packages/cli/dist/dev
@@ -408,12 +402,6 @@ importers:
       vitest:
         specifier: ^4.1.6
         version: 4.1.6(@types/node@25.7.0)(@vitest/coverage-istanbul@4.1.6)(@vitest/coverage-v8@4.1.6)(vite@8.0.13(@types/node@25.7.0)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.9.0))
-      vitest-agent-plugin:
-        specifier: workspace:*
-        version: link:../packages/plugin/dist/dev
-      vitest-agent-reporter:
-        specifier: workspace:*
-        version: link:../packages/reporter/dist/dev
 
 packages:
 

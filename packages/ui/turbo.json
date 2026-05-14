@@ -4,17 +4,17 @@
 	"tasks": {
 		"build:dev": {
 			"cache": true,
-			"dependsOn": ["types:check"],
+			"dependsOn": ["^build:dev"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/pnpm-lock.yaml",
 				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"!**/*.test.ts",
-				"!**/*.test.tsx",
-				"!**/*.spec.ts",
-				"!**/*.spec.tsx",
-				"!**/*.md",
+				"$TURBO_ROOT$/vitest.*.ts",
+				"$TURBO_ROOT$/lib/**",
+				"src/**",
+				"lib/**",
+				"!__test__/**",
 				"package.json",
 				"rslib.config.ts",
 				"tsconfig.json"
@@ -24,17 +24,16 @@
 		},
 		"build:prod": {
 			"cache": true,
-			"dependsOn": ["types:check"],
+			"dependsOn": ["^build:prod"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/pnpm-lock.yaml",
 				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"!**/*.test.ts",
-				"!**/*.test.tsx",
-				"!**/*.spec.ts",
-				"!**/*.spec.tsx",
-				"!**/*.md",
+				"$TURBO_ROOT$/vitest.*.ts",
+				"$TURBO_ROOT$/lib/**",
+				"src/**",
+				"lib/**",
 				"package.json",
 				"rslib.config.ts",
 				"tsconfig.json"
@@ -44,18 +43,22 @@
 		},
 		"types:check": {
 			"cache": true,
-			"dependsOn": ["^build:dev"],
+			"dependsOn": [],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/pnpm-lock.yaml",
 				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"!**/*.md",
+				"$TURBO_ROOT$/vitest.*.ts",
+				"$TURBO_ROOT$/lib/**",
+				"__test__/**",
+				"src/**",
+				"lib/**",
 				"package.json",
 				"rslib.config.ts",
 				"tsconfig.json"
 			],
-			"outputLogs": "errors-only",
+			"outputLogs": "full",
 			"outputs": ["dist/.tsbuildinfo.lib"]
 		}
 	}
