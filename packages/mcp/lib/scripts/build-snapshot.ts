@@ -28,6 +28,7 @@ import { NodeRuntime } from "@effect/platform-node";
 import { Console, Effect } from "effect";
 import type { ManifestPage } from "../../src/resources/manifest-schema.js";
 import { decodeUpstreamManifest, encodeUpstreamManifest } from "../../src/resources/manifest-schema.js";
+import { seedAnnotations } from "./annotations-heuristic.js";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = resolve(SCRIPT_DIR, "..", "..");
@@ -122,6 +123,10 @@ const program = Effect.gen(function* () {
 			path: pathKey,
 			title: deriveTitle(cleaned, pathKey),
 			description: placeholderDescription(pathKey),
+			// Seed MCP resource annotations from the path-prefix heuristic
+			// so the skill's review pass only adjusts the per-page exceptions
+			// rather than authoring every value from scratch.
+			annotations: seedAnnotations(pathKey),
 		});
 	}
 
