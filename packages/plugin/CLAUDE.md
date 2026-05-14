@@ -111,13 +111,12 @@ than through projects. Users that need to mutate projects
 post-discovery either extend the strategy or destructure the result
 and mutate the array before spreading.
 
-`coverageTargets` is a top-level option on
-`AgentPluginConstructorOptions`. `coverageThresholds` is no longer a
-plugin option — Phase 4 of the T4 coverage-policy work removed it.
-Users set Vitest's native `test.coverage.thresholds` directly. There
-is no `discovery` field. The pre-T5 `tagStrategy` plugin option was
-renamed to `discoverStrategy`; the `false` sentinel still disables the
-Vite transform hook entirely.
+`coverageTargets` is a top-level option on `AgentPluginConstructorOptions`.
+`coverageThresholds` is no longer a plugin option in any form — users set
+Vitest's native `test.coverage.thresholds` directly. There is no
+`discovery` field. The pre-T5 `tagStrategy` plugin option was renamed to
+`discoverStrategy`; the `false` sentinel still disables the Vite
+transform hook entirely.
 
 The plugin namespace also exposes the dual-output preset constants
 (`AgentPlugin.COVERAGE_LEVELS`, `AgentPlugin.COVERAGE_LEVELS_PER_FILE`)
@@ -158,16 +157,20 @@ user wiring.
 
 ## When working in this package
 
-- Adding a new reporter option: extend `AgentPluginOptions` (and
-  `AgentReporterOptions`) in `vitest-agent-sdk`'s `schemas/Options.ts`,
-  then thread it through `plugin.ts` -> `reporter.ts` ->
-  `build-reporter-kit.ts` -> `ResolvedReporterConfig` as needed.
-  `coverageTargets` is a top-level option on
-  `AgentPluginConstructorOptions`; `coverageThresholds` was removed in
-  Phase 4 and users set Vitest's native `test.coverage.thresholds`
-  directly. There is no `discovery` field. Per-run resolved facts (for
-  example, `coverageMode`) belong on `ResolvedReporterConfig`, not on
-  the user-facing options schemas.
+- Adding a new reporter option: extend `AgentPluginOptions` in
+  `vitest-agent-sdk`'s `schemas/Options.ts` for data-shaped fields, or
+  add it to the plugin's `AgentPluginConstructorOptions` companion
+  interface for function-typed fields (the pattern `reporter` and
+  `onRunEvent` already use). Thread it through `plugin.ts` ->
+  `reporter.ts` -> `build-reporter-kit.ts` -> `ResolvedReporterConfig`
+  as needed. After T7 `AgentReporterOptions` is intentionally tiny —
+  one field (`projectFilter`) — and the reporter contract proper lives
+  in `packages/sdk/src/contracts/reporter.ts`; do NOT pad
+  `AgentReporterOptions` to mirror new plugin options. New
+  user-controlled inputs go on `AgentPluginOptions` (or the companion
+  interface); per-run resolved facts (for example, `coverageMode`,
+  `mcp`, `githubActions`) belong on `ResolvedReporterConfig` and the
+  plugin resolves them internally.
 - Changing project discovery: edit `utils/discover-strategy.ts` for
   the abstract contract and the default implementation, or
   `utils/discover-projects.ts` for the scanner. The default strategy
@@ -208,8 +211,9 @@ user wiring.
 
 ## Console matrix and the onRunEvent tap
 
-The pre-2.0 `mode` + `strategy` options are gone. Console output is
-now controlled by a per-executor matrix at `AgentPluginOptions.console`:
+The pre-2.0 `mode` + `strategy` options are gone. After T7 the user-
+facing `AgentPluginOptions` shape is exactly five fields. Console output
+is controlled by a per-executor matrix at `AgentPluginOptions.console`:
 
 ```ts
 AgentPlugin({
@@ -218,11 +222,22 @@ AgentPlugin({
     agent?:  "passthrough" | "silent" | "agent",
     ci?:     "passthrough" | "silent" | "ci-annotations",
   },
+  coverageTargets?: CoverageTargets,
+  transport?: Transport,             // single-member { kind: "local" } today
   reporter?: VitestAgentReporterFactory,
   onRunEvent?: (event: RunEvent) => void,
-  githubSummary?: boolean,
 })
 ```
+
+`mcp` is auto-derived from the detected executor (`executor === "agent"`)
+and `githubActions` is auto-derived from `env === "ci-github" &&
+consoleMode !== "silent"` — neither is a user option. `coverageThresholds`
+moved to Vitest's native `coverage.thresholds`; `autoUpdate` to
+`coverage.thresholds.autoUpdate` (function form via
+`AgentPlugin.COVERAGE_AUTOUPDATE.<preset>`). `cacheDir` resolves through
+the XDG path stack and `vitest-agent.config.toml`. `logLevel` /
+`logFile` read from the `VITEST_REPORTER_LOG_LEVEL` /
+`VITEST_REPORTER_LOG_FILE` env vars.
 
 The plugin auto-detects the executor (`human`/`agent`/`ci`) via
 `EnvironmentDetector`, looks up the matching slot, and resolves a
@@ -271,11 +286,12 @@ never breaks because a live renderer has a bug.
   and the UI-only short-circuit; Flow 2: `AgentPlugin.configureVitest`,
   including `ConfigValidation` and `coverageMode` resolution).
 - `@./.claude/design/vitest-agent/decisions.md`
-  Load when you need rationale (especially D34 plugin/reporter split,
-  D38 T4 coverage policy — `coverageMode`, dual-output `COVERAGE_LEVELS`
-  presets, `COVERAGE_AUTOUPDATE`, `ConfigValidation` service —
-  D7 per-call `Effect.runPromise`, D28 `ensureMigrated` globalThis
-  cache, D10 failure signatures).
+  Load when you need rationale (especially D40 T7 five-field options
+  surface and the `transport` forward-declaration, D34 plugin/reporter
+  split, D38 T4 coverage policy — `coverageMode`, dual-output
+  `COVERAGE_LEVELS` presets, `COVERAGE_AUTOUPDATE`, `ConfigValidation`
+  service — D7 per-call `Effect.runPromise`, D28 `ensureMigrated`
+  globalThis cache, D10 failure signatures).
 - `@./.claude/design/vitest-agent/components/discover.md`
   Load when working on `AgentPlugin.discover()`, the `DiscoverBuilder`
   thenable, `discoverProjects()`, `DiscoverStrategy`,

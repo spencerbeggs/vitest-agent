@@ -67,6 +67,7 @@ export * from "./schemas/Common.js";
 export * from "./schemas/Config.js";
 export * from "./schemas/Coverage.js";
 export * from "./schemas/CoverageLevel.js";
+export * from "./schemas/CoverageTargets.js";
 export * from "./schemas/History.js";
 export * from "./schemas/Identity.js";
 export * from "./schemas/Options.js";
@@ -74,6 +75,7 @@ export * from "./schemas/RenderState.js";
 export * from "./schemas/RunEvent.js";
 export * from "./schemas/Tdd.js";
 export * from "./schemas/Thresholds.js";
+export * from "./schemas/Transport.js";
 export * from "./schemas/Trends.js";
 // 2.0 turn schemas
 export * from "./schemas/turns/index.js";

@@ -158,7 +158,7 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 		// Given: a reporter in full mode with a tmpDir-backed DB
 		const reporter = new AgentReporter({
 			cacheDir: tmpDir,
-			consoleOutput: "silent",
+			consoleMode: "silent",
 			coverageMode: "full",
 		});
 
@@ -179,7 +179,7 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 
 		const reporter = new AgentReporter({
 			cacheDir: tmpDir,
-			consoleOutput: "silent",
+			consoleMode: "silent",
 			coverageMode: "ui-only",
 			reporter: factory,
 			onRunEvent: (event) => {
@@ -220,7 +220,7 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 		// Given: a full-mode run that writes a row
 		const fullReporter = new AgentReporter({
 			cacheDir: tmpDir,
-			consoleOutput: "silent",
+			consoleMode: "silent",
 			coverageMode: "full",
 		});
 		await fullReporter.onTestRunEnd([makePhase5TestModule()], [], "passed");
@@ -234,7 +234,7 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 		// When: a ui-only run happens against the same cacheDir
 		const uiOnlyReporter = new AgentReporter({
 			cacheDir: tmpDir,
-			consoleOutput: "silent",
+			consoleMode: "silent",
 			coverageMode: "ui-only",
 		});
 		await uiOnlyReporter.onTestRunEnd([makePhase5TestModule()], [], "passed");

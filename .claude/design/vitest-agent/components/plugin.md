@@ -36,25 +36,44 @@ returns. The `VitestAgentReporter` contract types live in
 [./sdk.md](./sdk.md) (`packages/sdk/src/contracts/reporter.ts`).
 
 For decisions that shaped this design, see [../decisions.md](../decisions.md):
-D34 (plugin/reporter split), D28 (process-level migration coordination),
-D31 (XDG-derived data path), D10 (failure signatures).
+D40 (T7 five-field options surface), D34 (plugin/reporter split), D28
+(process-level migration coordination), D31 (XDG-derived data path), D10
+(failure signatures).
 
 ---
 
 ## AgentPlugin
 
 `packages/plugin/src/plugin.ts`. The Vitest plugin entry point. Hooks into
-Vitest's `configureVitest`, detects the environment, resolves the cache
-directory, parses coverage thresholds and targets, picks the user's
-`VitestAgentReporterFactory` (defaulting to `defaultReporter`), then
-constructs an `AgentReporter` per project and pushes it onto
-`vitest.config.reporters`.
+Vitest's `configureVitest`, detects the environment, parses coverage
+thresholds and targets, picks the user's `VitestAgentReporterFactory`
+(defaulting to `defaultReporter`), then constructs an `AgentReporter` per
+project and pushes it onto `vitest.config.reporters`.
 
-**Cache directory resolution.** Two-step priority: explicit
-`reporter.cacheDir` option, then `outputFile['vitest-agent']` from the Vitest
-config. When both are unset, `cacheDir: undefined` is passed through and the
-reporter falls through to XDG-based resolution via `resolveDataPath` — the
-canonical default. There is no Vite-cacheDir fallback.
+**The 2.0 user-facing options shape.** `AgentPluginOptions` is exactly
+five fields — see [./sdk.md](./sdk.md) for the schema and
+[../decisions.md](../decisions.md) D40 for the rationale.
+
+| Field | Source of truth | Notes |
+| ----- | --------------- | ----- |
+| `console` | `AgentPluginOptions` (schema) | Per-executor `ConsoleOutputs` matrix |
+| `coverageTargets` | `AgentPluginOptions` (schema) | Typed `CoverageTargets` schema with positive-numbers-only validation |
+| `transport` | `AgentPluginOptions` (schema) | Single-member `{ kind: "local" }` union; 2.x default |
+| `reporter` | `AgentPluginConstructorOptions` (companion interface) | `VitestAgentReporterFactory`; function-typed, lives outside the schema |
+| `onRunEvent` | `AgentPluginConstructorOptions` (companion interface) | Tee-out hook for the live `RunEvent` stream |
+
+Plus `discoverStrategy` on the companion interface for the T5 transform-hook
+override. Everything that pre-T7 was a user option but is really a
+plugin-internal resolved fact has moved out of the surface — see the
+**Resolved internally** section below.
+
+**Cache directory resolution.** Resolved entirely through the XDG path
+stack in `packages/sdk/src/utils/resolve-data-path.ts` — programmatic
+`cacheDir` option, then `vitest-agent.config.toml`'s `cacheDir`, then its
+`projectKey`, then the workspace `package.json#name`. The plugin no
+longer reads `outputFile['vitest-agent']` and there is no Vite-cacheDir
+fallback. See [../file-structure.md](../file-structure.md) for the
+resolver precedence.
 
 **Per-project isolation.** In multi-project Vitest configs, the plugin
 constructs one `AgentReporter` per project via `projectFilter`. Each reporter
@@ -88,9 +107,27 @@ into channels the user explicitly opted out of. Tests for the gating
 contract live in `packages/plugin/__test__/plugin.test.ts` under
 "onRunEvent tap gating".
 
-**GitHub Step Summary.** Independent of `consoleMode`. Defaults on under
-GitHub Actions (`env === "ci-github" && consoleMode !== "silent"`); the
-user can force it via `githubSummary: true|false`.
+**Resolved internally (no longer user-facing).** The plugin auto-derives
+two flags from the detected environment and the resolved console mode
+rather than taking them as options.
+
+- `mcp` is `true` when `executor === "agent"` and `false` otherwise. The
+  agent slot is the only one that owns the MCP attribution path, so a
+  separate option would have been a second way to spell the same fact.
+- `githubActions` is `env === "ci-github" && consoleMode !== "silent"`.
+  Users who want to suppress the GitHub Step Summary set the `console.ci`
+  slot to `"silent"`.
+
+Both values are threaded onto `ResolvedReporterConfig` so custom
+reporters still see them. Other former-user-options (`format`,
+`consoleOutput`, `detail`, `coverageConsoleLimit`, `omitPassingTests`,
+`includeBareZero`, `githubSummary`, `githubSummaryFile`) are resolved
+inside `buildReporterKit` as kit-internal constants or env-derived
+values and surface on the same `ResolvedReporterConfig` for custom
+reporters that branch on them. `cacheDir` resolves via the XDG path
+stack; `logLevel` and `logFile` resolve from the
+`VITEST_REPORTER_LOG_LEVEL` and `VITEST_REPORTER_LOG_FILE` env vars via
+`resolveLogLevel` / `resolveLogFile` in the SDK.
 
 **Cross-package version drift check.** The very first statement in
 `AgentPlugin()` is a call to the internal `checkVersionDrift` helper,
@@ -421,8 +458,14 @@ instead.
   the reporter to feed into `writeErrors` and `writeFailureSignature`.
 - `build-reporter-kit.ts` — pure constructor that produces a `ReporterKit`
   from the resolved configuration plus the detected environment and
-  no-color flag. The pre-bound `stdOsc8` is enabled when `!noColor && (env
-  === "terminal" || env === "agent-shell")` and is a no-op otherwise.
+  no-color flag. After T7 the input shape carries only `consoleMode`,
+  `env`, and the plugin-resolved derived flags; `consoleOutput`,
+  `omitPassingTests`, `coverageConsoleLimit`, `includeBareZero`,
+  `githubSummary`, and `githubSummaryFile` are computed inside the kit
+  builder from `consoleMode` and `process.env`. `transport` is a
+  required input. The pre-bound `stdOsc8` is enabled when `!noColor &&
+  (env === "terminal" || env === "agent-shell")` and is a no-op
+  otherwise.
 - `route-rendered-output.ts` — dispatches a `RenderedOutput` by its declared
   `target`. `stdout` writes to `process.stdout`; `github-summary` appends to
   the resolved `GITHUB_STEP_SUMMARY` file or user override; `file` is
@@ -498,12 +541,11 @@ Vitest's native field; the plugin's own baseline ratchet still runs
 unconditionally on full (non-scoped) runs and is independent of Vitest's
 ratchet.
 
-`coverageThresholds` was removed from `AgentPluginConstructorOptions` in
-Phase 4 — users set Vitest's native `test.coverage.thresholds` instead.
-`coverageTargets` remains a plugin option (typed by the SDK's
-`CoverageTargets` schema). The schema-level `AgentPluginOptions.coverageThresholds`
-field still exists today as a stale entry; the read path is gone and the
-schema cleanup lands in T7.1.
+`coverageThresholds` is no longer a plugin option in any form — users
+set Vitest's native `test.coverage.thresholds` directly. `coverageTargets`
+remains a plugin option, typed by the SDK's `CoverageTargets` schema (now
+in its own file at `packages/sdk/src/schemas/CoverageTargets.ts`). The
+`ConfigValidation` service catches mismatches between the two surfaces.
 
 ## ConfigValidation service
 

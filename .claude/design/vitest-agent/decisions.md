@@ -968,11 +968,9 @@ inject pre-built results without spinning up the rule engine.
 
 **Cross-references:** the canonical spec at
 `docs/superpowers/specs/2.0-coverage-policy.md` and the cross-workstream
-review section 2.2. Phase 6 (schema cleanup — removing
-`coverageThresholds` from `AgentPluginOptions` and
-`AgentReporterOptions`, removing nested `reporterOptions.autoUpdate`,
-deleting `validateCoverageConfig` from `schemas/CoverageLevel.ts`) is
-deferred to T7.1 and lands on the `feat/2.0-options-cleanup` branch.
+review section 2.2. The schema cleanup that removes `coverageThresholds`
+and `autoUpdate` from the plugin's option surface landed under T7 — see
+D40.
 
 ### Decision 39: T5 Unified DiscoverStrategy + DiscoverBuilder
 
@@ -1069,6 +1067,107 @@ deferred to T9.6. See
 [./components/discover.md](./components/discover.md) for the API
 surface and [./components/plugin.md](./components/plugin.md) for the
 transform-hook wiring.
+
+### Decision 40: T7 Options Cleanup — `AgentPluginOptions` Is Exactly Five Fields
+
+T7 (the 2.0 options-cleanup workstream) collapses the pre-2.0 grab bag
+of `~17` plugin options plus a parallel `AgentReporterOptions` carrying
+the same surface a second time into one deliberate five-field shape.
+Five locked design choices, ratified against the spec at
+`docs/superpowers/specs/2.0-options-cleanup.md`.
+
+**1. The final `AgentPluginOptions` shape is exactly five fields:
+`console`, `coverageTargets`, `reporter`, `onRunEvent`, `transport`.**
+Three forces produced the shrink. T4 hands coverage configuration back
+to Vitest (`coverage.thresholds`, `autoUpdate`, and `coverage.enabled`
+are the user's existing knobs and the plugin should not duplicate
+them). T6's UI rewrite makes the plugin own the default reporter, so
+`format`, `consoleOutput`, `detail`, `coverageConsoleLimit`,
+`githubSummary`, and `githubSummaryFile` become renderer-internal — a
+custom reporter via `VitestAgentReporterFactory` is the override path.
+The project-keying work and file-structure decisions move `cacheDir`
+to `vitest-agent.config.toml` and `logLevel` / `logFile` to env vars
+(`VITEST_REPORTER_LOG_LEVEL`, `VITEST_REPORTER_LOG_FILE`). What
+survives are the four deliberate user-facing concerns plus the
+forward-declared `transport` shape.
+
+**2. `transport` is a single-member discriminated union from day one.**
+2.x ships only `{ kind: "local" }`. The schema is modeled as
+`Schema.Union(Schema.Struct({ kind: Schema.Literal("local") }))`
+rather than a bare struct so the 3.0 cloud-backend swap lands as a
+pure addition of new union members (D1, Turso, etc.) — no
+schema-shape diff, no breaking API change at the call site. The
+plugin reads the field and threads it onto
+`ResolvedReporterConfig.transport` so custom reporters can branch on
+backend kind without rewriting wiring when 3.0 ships. Schema-level
+rejection of `{ kind: "d1" }` in 2.x is the canary that confirms the
+union shape is enforced.
+
+**3. `mcp` and `githubActions` auto-derive; they are not user options.**
+`mcp` is `executor === "agent"` — the agent slot is the only one that
+owns the MCP attribution path, so a separate option would have been a
+second way to spell the same fact. `githubActions` is `env ===
+"ci-github" && consoleMode !== "silent"` — users who want to suppress
+the GitHub Step Summary set the matching `console.ci` slot to
+`"silent"` and the derivation cascades. Both values are threaded onto
+`ResolvedReporterConfig` so custom reporters still see them.
+
+**4. `AgentReporterOptions` is intentionally tiny in 2.0 — one field
+(`projectFilter`).** Pre-T7 it carried 18 fields, most of them
+duplicates of `AgentPluginOptions`. The substantive reporter contract
+lives in `packages/sdk/src/contracts/reporter.ts` as
+`ResolvedReporterConfig` / `ReporterKit` / `ReporterRenderInput` /
+`VitestAgentReporter` / `VitestAgentReporterFactory`; those types are
+the contract for custom reporters. `AgentReporterOptions` is the
+narrow per-instance config bag the implementation accepts, kept as a
+schema for symmetry with `AgentPluginOptions` and to leave a stable
+extension point. Most users never see this type — they wire
+`AgentPlugin({ reporter })` and the factory receives a fully-resolved
+`ReporterKit` instead.
+
+**5. The 14 removed fields land in one of five places.** No
+deprecation cycle, no aliasing. Pre-2.0 is the moment to break things
+cleanly; post-2.0 the standard incremental discipline applies. The
+audit table:
+
+| Removed | Lands at |
+| ------- | -------- |
+| `coverageThresholds` | Vitest's native `coverage.thresholds` |
+| `autoUpdate` | Vitest's `coverage.thresholds.autoUpdate` (function form via `AgentPlugin.COVERAGE_AUTOUPDATE.<preset>`) |
+| `consoleMode` (legacy enum) | Superseded by the `console` matrix |
+| `consoleOutput`, `detail`, `coverageConsoleLimit`, `includeBareZero`, `omitPassingTests`, `githubSummaryFile` | Renderer-internal defaults on `ResolvedReporterConfig` |
+| `format` | CLI-only `--format` flag; the plugin's renderer is shape-tailored |
+| `mcp` | Auto-derived from `executor === "agent"` |
+| `githubActions` / `githubSummary` | Auto-derived from `env === "ci-github" && consoleMode !== "silent"` |
+| `reporterOptions` (nested wrapper) | Collapsed — survivors moved to top level |
+| `cacheDir` | `vitest-agent.config.toml` (via the XDG path stack) |
+| `logLevel` / `logFile` | Env vars `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` |
+
+The schema-decodable struct in `packages/sdk/src/schemas/Options.ts`
+carries `console`, `coverageTargets`, and `transport`. `reporter` and
+`onRunEvent` are function-typed and live on the plugin's
+`AgentPluginConstructorOptions` companion interface; Effect Schema
+cannot encode functions cleanly so a struct-plus-companion-interface
+split is the same pattern the plugin already uses. The `discoverStrategy`
+field (T5) stays on the companion interface — orthogonal to T7 and a
+genuine extension point.
+
+`packages/sdk/src/schemas/CoverageTargets.ts` and
+`packages/sdk/src/schemas/Transport.ts` are new files extracted from
+`Options.ts` in the same pass. The old `CoverageOptions` and
+`FormatterOptions` schemas were unused dead code and were deleted.
+
+**Regression safety net.** A sweep test
+(`packages/sdk/__test__/options-removed.test.ts`) greps the 14
+removed field names across `packages/*/src/` and expects zero hits.
+Future copy-paste from old docs or training data trips CI rather
+than silently flowing through.
+
+**Cross-references:** the canonical spec at
+`docs/superpowers/specs/2.0-options-cleanup.md`. See
+[./components/plugin.md](./components/plugin.md) for the option-table
+prose and the `mcp` / `githubActions` derivation rules, and
+[./components/sdk.md](./components/sdk.md) for the schema-file layout.
 
 ### Decision D9: Last Drop-and-Recreate Migration
 

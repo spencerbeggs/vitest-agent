@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-13
-last-synced: 2026-05-13
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 92
 related:
   - ./architecture.md
@@ -71,7 +71,16 @@ The contract is four types:
   and the plugin's `ConfigValidation` service skips provider rules in the
   same mode. The field lives on the resolved config rather than on
   `AgentReporterOptions` so it is a per-run resolved fact, not a user
-  input.
+  input. T7 added a `transport?: Transport` field for the same reason —
+  the plugin resolves the user's option (or defaults to `{ kind: "local" }`)
+  and threads the value through so custom reporters can branch on
+  backend kind. Fields that pre-T7 were user options but became
+  plugin-internal defaults (`consoleOutput`, `format`, `detail`,
+  `coverageConsoleLimit`, `omitPassingTests`, `includeBareZero`,
+  `githubActions`, `githubSummary`, `githubSummaryFile`) stay on
+  `ResolvedReporterConfig` because the reporter contract still surfaces
+  them — custom reporters that need to branch on a former-user-option
+  still read them here.
 - **`ReporterKit`** — a named-field bag passed to the factory at construction
   time. The `std*` prefix on fields (`stdEnv`, `stdOsc8`) marks these as
   "the plugin gives you these — don't import equivalents yourself"; they are
@@ -118,12 +127,59 @@ Effect Schema definitions in `packages/sdk/src/schemas/`:
 `stable` / `new-failure` / `persistent` / `flaky` / `recovered`. The reporter
 uses these to drive the suggested-actions output.
 
+## AgentPluginOptions (the 5-field shape)
+
+After T7 the user-facing `AgentPluginOptions` is exactly five fields. The
+schema-decodable struct in `packages/sdk/src/schemas/Options.ts` carries
+the three data-shaped fields; `reporter` and `onRunEvent` are function-typed
+and live on the plugin's `AgentPluginConstructorOptions` companion interface
+because Effect Schema cannot encode functions cleanly.
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `console` | `ConsoleOutputs` (optional) | Per-executor matrix `{ human?, agent?, ci? }` |
+| `coverageTargets` | `CoverageTargets` (optional) | Typed record schema; see below |
+| `transport` | `Transport` (optional) | Single-member `{ kind: "local" }` union |
+| `reporter` | `VitestAgentReporterFactory` (optional) | On `AgentPluginConstructorOptions` |
+| `onRunEvent` | `(event: RunEvent) => void` (optional) | On `AgentPluginConstructorOptions` |
+
+The 14 pre-2.0 fields the plugin used to accept either moved to Vitest's
+own native config (`coverageThresholds` → `coverage.thresholds`,
+`autoUpdate` → `coverage.thresholds.autoUpdate`), to env vars
+(`logLevel` / `logFile` → `VITEST_REPORTER_LOG_LEVEL` /
+`VITEST_REPORTER_LOG_FILE`), to `vitest-agent.config.toml` (`cacheDir`),
+were auto-derived (`mcp` from `executor === "agent"`, `githubActions`
+from `env === "ci-github" && consoleMode !== "silent"`), or became
+renderer-internal defaults that custom reporters can still inspect via
+`ResolvedReporterConfig` (`format`, `consoleOutput`, `detail`,
+`coverageConsoleLimit`, `omitPassingTests`, `includeBareZero`,
+`githubSummary`, `githubSummaryFile`). See [./decisions.md](./decisions.md)
+D40 for the full table and the rationale.
+
+`AgentReporterOptions` is the narrow per-instance config bag the reporter
+implementation accepts. After T7 it carries one field — `projectFilter`,
+set by the plugin per-project. Custom reporters built via
+`vitest-agent-reporter` consume the substantive `ReporterKit` /
+`ResolvedReporterConfig` types instead and rarely touch this schema.
+
+## Transport
+
+`packages/sdk/src/schemas/Transport.ts` defines the persistence-layer
+transport binding. 2.x ships only `{ kind: "local" }`. The schema is a
+single-member discriminated union from day one — `Schema.Union(
+Schema.Struct({ kind: Schema.Literal("local") }))` — so the 3.0
+cloud-backend swap lands as a pure addition of new union members (D1,
+Turso, etc.) rather than a schema-shape change. The plugin reads the
+field and threads it onto `ResolvedReporterConfig.transport` so custom
+reporters can branch on backend kind without rewriting wiring when 3.0
+ships. See [./decisions.md](./decisions.md) D40.
+
 ## Coverage targets
 
-`packages/sdk/src/schemas/Options.ts` defines `CoverageTargets`, the typed
-`Schema.Record` for the `AgentPlugin({ coverageTargets })` option. Phase 1
-of the T4 coverage-policy work replaced the prior `Schema.Unknown` shape
-with this typed schema.
+`packages/sdk/src/schemas/CoverageTargets.ts` defines `CoverageTargets`,
+the typed `Schema.Record` for the `AgentPlugin({ coverageTargets })`
+option. The schema was extracted from `Options.ts` in T7 and lives
+alongside `Transport.ts`.
 
 Keys are arbitrary strings — treated either as a top-level coverage metric
 name (`lines`, `functions`, `branches`, `statements`) or as a glob pattern
@@ -139,9 +195,10 @@ for per-file scoping (`src/**.ts`, `packages/sdk/**`, etc.). Values are
   branches?, statements?, 100?: true }`) sets per-metric targets under a
   glob entry.
 
-Negatives and zeros are rejected at decode time via `Schema.Positive`;
-`perFile` is not a valid key inside `coverageTargets` (the user sets
-`coverage.thresholds.perFile` instead).
+Negatives and zeros are rejected at decode time via `Schema.Positive`. A
+decode-time refinement rejects `true` at any key other than `"100"`, and
+`perFile` is not a valid key inside `coverageTargets` — the user sets
+`coverage.thresholds.perFile` instead.
 
 `packages/sdk/src/utils/validate-coverage-targets-shape.ts` exports the
 pure helper `validateCoverageTargetsShape(input)` that walks raw input
@@ -157,10 +214,10 @@ the rule registry delegates to this helper for the `INVALID_TARGET_VALUE`
 and `PERFILE_ON_TARGETS` rules. See [./components/plugin.md](./components/plugin.md)
 for the full validation rule registry.
 
-The legacy `AgentPluginOptions.coverageThresholds` field is still
-declared on the schema today but the plugin no longer reads it (Phase 4
-removed the read path); users set Vitest's native
-`test.coverage.thresholds` instead. Schema cleanup lands in T7.1.
+Vitest-native `coverage.thresholds` is the source of truth for thresholds;
+the plugin no longer accepts a `coverageThresholds` option in any form.
+The `ConfigValidation` service is the only consumer that compares
+thresholds against `coverageTargets` and emits diagnostics on mismatch.
 
 ## Cache manifest
 
@@ -498,11 +555,13 @@ slot:
   Available only on the `ci` slot.
 
 `ConsoleOutputMode` (`"failures" | "full" | "silent"`) is the legacy
-reporter-internal verbosity knob still exposed on `AgentReporterOptions`.
-The bundled markdown / terminal / silent / ci-annotations reporters in
-`vitest-agent-reporter` still read it; the new `eventSourcedReporter`
-from `vitest-agent-ui` dispatches on `kit.config.consoleMode` instead and
-ignores `consoleOutput`.
+reporter-internal verbosity knob. After T7 it is no longer on
+`AgentReporterOptions` — it surfaces on `ResolvedReporterConfig` as
+`consoleOutput`, resolved inside `buildReporterKit` from the active
+`consoleMode`. The bundled markdown / terminal / silent / ci-annotations
+reporters in `vitest-agent-reporter` still branch on it; the
+event-sourced renderer from `vitest-agent-ui` dispatches on
+`kit.config.consoleMode` instead and ignores `consoleOutput`.
 
 The legacy markdown formatter uses three tiers based on run health:
 

@@ -22,6 +22,7 @@ import type {
 	Executor,
 	HumanConsoleMode,
 	OutputFormat,
+	Transport,
 	VitestAgentReporterFactory,
 } from "vitest-agent-sdk";
 import {
@@ -136,8 +137,7 @@ function ownsStdout(mode: ConsoleMode): boolean {
  *
  * @internal
  */
-function resolveFormat(mode: ConsoleMode, explicit?: OutputFormat): OutputFormat {
-	if (explicit) return explicit;
+function resolveFormat(mode: ConsoleMode): OutputFormat {
 	switch (mode) {
 		case "ink":
 		case "agent":
@@ -260,13 +260,11 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 	// early rather than tripping later as a confusing schema error.
 	checkVersionDrift(CURRENT_PLUGIN_VERSION);
 
-	const mcp = options.mcp ?? false;
 	const layer = _layer ?? EnvironmentDetectorLive;
 
-	// Resolve log level for local debug logging in the plugin.
-	// The plugin runs outside an Effect program, so we use a simple stderr function.
-	// logLevel/logFile options are passed through to AgentReporter for Effect logging.
-	const logLevel = resolveLogLevel(options.logLevel);
+	// Plugin's own debug-log helper reads VITEST_REPORTER_LOG_LEVEL via
+	// resolveLogLevel; `logLevel` is no longer a user option.
+	const logLevel = resolveLogLevel();
 	const shouldLog = logLevel !== undefined && logLevel._tag !== "None";
 	const log = shouldLog
 		? (...args: unknown[]) => process.stderr.write(`[vitest-agent:plugin] ${args.map(String).join(" ")}\n`)
@@ -296,8 +294,22 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				);
 				const executor = envToExecutor(env);
 				const consoleMode = resolveConsoleMode(options, executor, env);
-				const format = resolveFormat(consoleMode, options.format);
-				log("env:", env, "| executor:", executor, "| consoleMode:", consoleMode, "| format:", format);
+				const format = resolveFormat(consoleMode);
+				// `mcp` is auto-derived from the detected executor — the agent
+				// slot is the only one that owns the MCP attribution path.
+				const mcp = executor === "agent";
+				log(
+					"env:",
+					env,
+					"| executor:",
+					executor,
+					"| consoleMode:",
+					consoleMode,
+					"| format:",
+					format,
+					"| mcp (auto):",
+					mcp,
+				);
 
 				// Strip Vitest's own reporters whenever the plugin owns stdout.
 				// Passthrough leaves the chain intact so Vitest's reporters run
@@ -317,18 +329,13 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					}
 				}
 
-				// GitHub Actions step summary is independent of the console
-				// mode. Default on under GHA; user can disable via githubSummary.
-				const githubActions = options.githubSummary ?? (env === "ci-github" && consoleMode !== "silent");
-				log("githubActions (step-summary):", githubActions);
-
-				// Resolve cache directory override with priority:
-				// 1. Explicit reporter.cacheDir option
-				// 2. outputFile['vitest-agent'] from vitest config (Vitest-native)
-				// When unset, the reporter falls back to XDG-based resolution via
-				// resolveDataPath (workspace name under $XDG_DATA_HOME).
-				const outputFile = (vitest.config as { outputFile?: string | Record<string, string> }).outputFile;
-				const cacheDir = options.reporterOptions?.cacheDir ?? resolveOutputDir(outputFile) ?? undefined;
+				// GitHub Actions step summary auto-derives from the detected
+				// environment and the resolved console mode — there is no
+				// user-facing `githubSummary` option. Users who need to
+				// suppress it can set the matching `console.ci` slot to
+				// `"silent"`.
+				const githubActions = env === "ci-github" && consoleMode !== "silent";
+				log("githubActions (auto):", githubActions);
 
 				// Run ConfigValidation — replaces the inline resolveCoverageInput +
 				// validateCoverageConfig block (Phase 4). Errors throw and refuse to
@@ -384,7 +391,11 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// Full when coverage.enabled !== false; UI-only otherwise.
 				const coverageMode: "full" | "ui-only" = coverageConfig?.enabled === false ? "ui-only" : "full";
 
-				log("cacheDir:", cacheDir ?? "(XDG default)");
+				// `transport` is forward-declared in 2.x; only `{ kind: "local" }`
+				// is a valid member. The plugin threads it onto the reporter
+				// kit so custom reporters can branch on backend kind.
+				const transport: Transport = options.transport ?? { kind: "local" };
+				log("transport.kind:", transport.kind);
 
 				// Push exactly one aggregating reporter per Vitest run. The
 				// terminal/markdown formatters render all projects in one block
@@ -402,18 +413,14 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				}
 
 				const reporter = new AgentReporter({
-					...options.reporterOptions,
-					...(cacheDir !== undefined ? { cacheDir } : {}),
 					...(coverageThresholds !== undefined ? { coverageThresholds } : {}),
 					...(coverageTargets !== undefined ? { coverageTargets } : {}),
 					coverageMode,
 					format,
 					consoleMode,
-					logLevel: options.logLevel,
-					logFile: options.logFile,
 					mcp,
 					githubActions,
-					githubSummary: githubActions,
+					transport,
 					...(options.reporter !== undefined && { reporter: options.reporter }),
 					// onRunEvent powers the live renderer. Only forward it when
 					// the resolved consoleMode is "ink" — every other mode either
@@ -679,14 +686,4 @@ export namespace AgentPlugin {
 			throw error;
 		}
 	}
-}
-
-/**
- * Read the `outputFile` config for the `"vitest-agent"` key.
- *
- * @internal
- */
-function resolveOutputDir(outputFile: string | Record<string, string> | undefined): string | null {
-	if (!outputFile || typeof outputFile === "string") return null;
-	return outputFile["vitest-agent"] ?? null;
 }

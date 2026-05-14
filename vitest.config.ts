@@ -12,7 +12,6 @@ export default async () => {
 				console: { human: "ink", agent: "agent" },
 				reporter: eventSourcedReporter,
 				onRunEvent: live.event,
-				mcp: true,
 				coverageTargets: coverage.coverageTargets,
 			}),
 		],
