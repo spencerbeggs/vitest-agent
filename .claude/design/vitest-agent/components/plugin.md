@@ -5,7 +5,7 @@ category: architecture
 created: 2026-05-06
 updated: 2026-05-14
 last-synced: 2026-05-14
-completeness: 92
+completeness: 93
 related:
   - ../architecture.md
   - ../components.md
@@ -91,6 +91,23 @@ contract live in `packages/plugin/__test__/plugin.test.ts` under
 **GitHub Step Summary.** Independent of `consoleMode`. Defaults on under
 GitHub Actions (`env === "ci-github" && consoleMode !== "silent"`); the
 user can force it via `githubSummary: true|false`.
+
+**Cross-package version drift check.** The very first statement in
+`AgentPlugin()` is a call to the internal `checkVersionDrift` helper,
+which compares `CURRENT_PLUGIN_VERSION` against `CURRENT_SDK_VERSION`
+and `CURRENT_REPORTER_VERSION` and writes one stderr line per
+mismatch. A module-level `_hasWarnedDrift` boolean suppresses repeated
+warnings so multi-project Vitest configs do not duplicate the line.
+The plugin re-exports the public version constant
+`CURRENT_PLUGIN_VERSION` (sourced from
+`process.env.__PACKAGE_VERSION__` via rslib-builder's `define`
+substitution) and a test-only `_resetVersionDriftGuardForTests` hook
+that re-arms the once-per-process gate between integration test cases
+(`packages/plugin/__test__/version-drift.test.ts`). The plugin
+intentionally does not compare against `CURRENT_UI_VERSION` because
+`vitest-agent-ui` is not a hard peer dependency — see the root
+CLAUDE.md "Cross-package version drift" section and D36 in
+[../decisions.md](../decisions.md).
 
 ## AgentReporter (internal Vitest-API class)
 

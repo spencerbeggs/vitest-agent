@@ -3,17 +3,29 @@
 		{
 			"slug": "testing-effect-services-with-mock-layers",
 			"title": "Testing Effect Services with Mock Layers",
-			"summary": "Compose live and test layers, swap platform layers, assert on accumulated writes via state-container test layers."
+			"summary": "Compose live and test layers, swap platform layers, assert on accumulated writes via state-container test layers.",
+			"annotations": {
+				"audience": ["assistant"],
+				"priority": 0.9
+			}
 		},
 		{
 			"slug": "testing-effect-schema-definitions",
 			"title": "Testing Effect Schema Definitions",
-			"summary": "Round-trip Schema.Class and Schema.Struct, branded types, transformations, and decoding error assertions."
+			"summary": "Round-trip Schema.Class and Schema.Struct, branded types, transformations, and decoding error assertions.",
+			"annotations": {
+				"audience": ["assistant"],
+				"priority": 0.9
+			}
 		},
 		{
 			"slug": "authoring-a-custom-vitest-agent-reporter",
 			"title": "Authoring a Custom vitest-agent Reporter",
-			"summary": "Implement the VitestAgentReporterFactory contract: ReporterKit, RenderedOutput targets, stdOsc8 hyperlinks, composing with the default reporter."
+			"summary": "Implement the VitestAgentReporterFactory contract: ReporterKit, RenderedOutput targets, stdOsc8 hyperlinks, composing with the default reporter.",
+			"annotations": {
+				"audience": ["assistant"],
+				"priority": 0.7
+			}
 		}
 	]
 }

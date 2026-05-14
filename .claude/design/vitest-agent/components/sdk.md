@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-13
-last-synced: 2026-05-13
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 95
 related:
   - ../architecture.md
@@ -579,6 +579,25 @@ seeds data via `Layer.effectDiscard`:
 remove boilerplate from per-test fixture setup. Use `empty` for tests that
 need precise control; use the named presets when the scenario matches to
 keep tests concise.
+
+## CURRENT_SDK_VERSION
+
+`packages/sdk/src/index.ts` exports `CURRENT_SDK_VERSION: string`,
+inlined from `process.env.__PACKAGE_VERSION__` by the SDK's
+`rslib.config.ts` `define` block at build time. The constant is the
+authoritative version reference for the cross-package drift checks
+wired in the plugin factory, the MCP bin, and the CLI bin — each peer
+compares its own `CURRENT_<PKG>_VERSION` against this one at init and
+emits a stderr warning on mismatch (see D36).
+
+A shared shape test at
+`packages/sdk/__test__/version-constants-shape.test.ts` imports all six
+`CURRENT_*_VERSION` constants through dist/dev and asserts they are
+non-empty strings and lockstep-equal. Each runtime package also has a
+local `__test__/version-constant.test.ts` that imports its own
+constant through dist/dev (so it sees the substituted literal, not
+the source-time `process.env.__PACKAGE_VERSION__!` expression) and
+asserts it matches that package's `package.json#version`.
 
 ## Output pipeline
 

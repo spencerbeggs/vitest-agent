@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-ui
 category: architecture
 created: 2026-05-12
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 90
 related:
   - ../architecture.md
@@ -441,3 +441,19 @@ See `../decisions.md` for the recorded design choices:
   the factory was considered and deferred — the callback model is
   simpler and the kit-level events field can be added later if the
   factory needs to subscribe.
+
+---
+
+## CURRENT_UI_VERSION
+
+`packages/ui/src/index.ts` exports `CURRENT_UI_VERSION` (inlined from
+`process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts`
+`define`). The constant participates in the shared shape test at
+`packages/sdk/__test__/version-constants-shape.test.ts` (asserts all
+six runtime `CURRENT_*_VERSION` strings are non-empty and
+lockstep-equal) and in the package-local
+`packages/ui/__test__/version-constant.test.ts` (asserts it matches
+`packages/ui/package.json#version`). No init-time drift check
+compares against `CURRENT_UI_VERSION` because `vitest-agent-ui` is
+not a hard peer dependency — consumers opt into it explicitly. See
+D36 in [../decisions.md](../decisions.md).

@@ -58,9 +58,12 @@ This:
 - Derives mechanical titles from H1 headings (or filename casing fallback).
 - Writes the cleaned tree under `packages/mcp/src/vendor/vitest-docs/`.
 - Generates `manifest.json` with placeholder descriptions marked `[TODO: replace with load-when signal]`.
+- Seeds MCP resource annotations (`audience: ["assistant"]` + a `priority` band) per page from the path-prefix heuristic in `packages/mcp/lib/scripts/annotations-heuristic.ts`. The bands match the editorial guide in `docs/superpowers/specs/2.0-resource-annotations.md` §2: API reference 0.85–0.95; coverage docs 0.85; core guide 0.75–0.85; experimental browser-mode 0.55; migration 0.45.
 - Generates `ATTRIBUTION.md`.
 
 The placeholder marker exists so Phase 4 can find every entry that still needs work, and so `validate-snapshot.ts` will refuse to bless an un-enriched manifest.
+
+If you are bootstrapping annotations on an existing manifest (no raw upstream re-fetch needed), run `pnpm exec tsx packages/mcp/lib/scripts/apply-annotations.ts` instead. It is idempotent — re-running on an already-annotated manifest leaves it unchanged.
 
 ## Phase 4 — Author "load when" descriptions
 
@@ -117,6 +120,17 @@ The mechanical H1 extraction in Phase 3 will produce reasonable bare titles for 
 - Overly generic titles (`Index`, `Overview`) — replace with section-aware names.
 - Vue/VitePress artifacts (`<script setup>` mentions in titles, leftover `<Version>X.Y.Z</Version>` chrome) — clean up.
 - Pages where the H1 is actually a sub-section header — pick a better title from context.
+
+### Annotation review
+
+Phase 3 seeds every page with `audience: ["assistant"]` plus a heuristic priority from the path prefix. The values are reasonable defaults but the editorial guide tightens them per page. Run through the manifest after the description pass and look for:
+
+- **Hot paths that scored too low.** `api/expect`, `api/mock`, `api/vi`, `config/coverage`, `config/projects`, and the common-mocking pages should all be in the 0.85–0.95 band. Bump anything in the 0.70s that an agent will reach for daily.
+- **Cold paths that scored too high.** Single-option config pages that the heuristic puts at 0.85 may belong closer to 0.75 if they document a niche option (e.g. `config/printconsoletrace`, `config/expandsnapshotdiff`). Trust the heuristic by default; only edit when the prior is wrong.
+- **Browser-mode pages.** The heuristic puts every `browser/` page at 0.55. Bump component-testing landing pages slightly if they are the entry point users actually load (`guide/browser/component-testing`, `guide/browser/index`).
+- **Migration pages.** `guide/migration` is at 0.45 by default. Leave it low — agents loading 2.x docs almost never need 1.x migration notes.
+
+The patterns library at `packages/mcp/src/patterns/_meta.json` follows the same `audience` + `priority` shape; TDD-core entries land at 0.9, general guidance at 0.7.
 
 ### Index resources (`vitest://docs/`, `vitest-agent://patterns/`)
 

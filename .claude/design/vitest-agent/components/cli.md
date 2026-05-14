@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-14
+last-synced: 2026-05-14
 completeness: 92
 related:
   - ../architecture.md
@@ -64,6 +64,20 @@ TUI.
 `PathResolutionLive(projectDir) + NodeContext.layer`, then provides
 `CliLive(dbPath, logLevel, logFile)` to the `@effect/cli` `Command.run`
 effect. Defects print `formatFatalError(cause)` to stderr.
+
+Immediately before `Command.run`, the bin compares
+`CURRENT_CLI_VERSION` against `CURRENT_SDK_VERSION` and writes one
+stderr line on mismatch (`[vitest-agent-cli] version drift: …
+Reinstall vitest-agent-* packages so versions match.`). The check is
+observation-only — invocation continues. `packages/cli/src/index.ts`
+exports `CURRENT_CLI_VERSION` (inlined from
+`process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts`
+`define`). The `doctor` subcommand is unrelated to this check — it
+covers database health, not cross-package version invariants.
+Integration coverage:
+`packages/cli/__test__/bin-version-drift.test.ts` mocks
+`CURRENT_SDK_VERSION` to assert the warning shape; see D36 in
+[../decisions.md](../decisions.md).
 
 Commands fall into two functional groups:
 

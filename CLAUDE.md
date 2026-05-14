@@ -153,6 +153,27 @@ Resolution precedence (highest first):
 Fails loudly with `WorkspaceRootNotFoundError` if no identity is resolvable.
 No silent fallback to a path hash.
 
+## Cross-package version drift
+
+The six runtime packages release in lockstep but the Claude Code
+marketplace plugin (`vitest-agent@spencerbeggs`) versions independently.
+If you see a `[vitest-agent-<pkg>] version drift: …` line on stderr
+during a Vitest run, MCP startup, or CLI invocation, the imported
+`vitest-agent-*` versions do not match. The warning is informational —
+the run continues — but it usually means a partially-upgraded install.
+Reinstall the `vitest-agent-*` packages so the versions match.
+
+The check is wired at three points: the top of the `AgentPlugin()`
+factory (compares against `CURRENT_SDK_VERSION` and
+`CURRENT_REPORTER_VERSION`; one warning per mismatched peer, suppressed
+after the first call in the same process), inside `vitest-agent-mcp`'s
+`main()` (compares against `CURRENT_SDK_VERSION`), and at the top of
+the `vitest-agent` CLI bin before `Command.run` (compares against
+`CURRENT_SDK_VERSION`). Each runtime package exposes a
+`CURRENT_<PKG>_VERSION` constant inlined by rslib-builder's
+`process.env.__PACKAGE_VERSION__` substitution at build time, sourced
+from the package's own `package.json#version`.
+
 ## Build Pipeline
 
 This project uses

@@ -119,3 +119,12 @@ export * from "./utils/resolve-workspace-key.js";
 export * from "./utils/safe-filename.js";
 export * from "./utils/validate-coverage-targets-shape.js";
 export * from "./utils/validate-phase-transition.js";
+
+// --- Cross-package version constant (T12 drift check) ---
+/**
+ * The version of this package, inlined at build time from
+ * package.json#version via rslib-builder's __PACKAGE_VERSION__ substitution.
+ * Read by the plugin / MCP / CLI init-time drift check. See the root
+ * CLAUDE.md "Cross-package version drift" section.
+ */
+export const CURRENT_SDK_VERSION: string = process.env.__PACKAGE_VERSION__!;

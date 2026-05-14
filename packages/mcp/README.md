@@ -99,6 +99,8 @@ The server exposes four resources under two URI schemes, all returning `text/mar
 | `vitest-agent://patterns/` | Index of the curated testing-patterns library |
 | `vitest-agent://patterns/{slug}` | A single pattern by slug |
 
+Per-page resource templates supply a `list` callback so MCP clients receive typed `resources/list` entries with titles, "load when" descriptions, and MCP 2025-11-25 `audience` and `priority` annotations decoded from the source manifests (`vendor/vitest-docs/manifest.json` for docs, `patterns/_meta.json` for patterns). Annotations are optional on the manifest side, so partially annotated entries decode cleanly during editorial passes.
+
 `vitest://` content is a vendored MIT-licensed snapshot of `vitest-dev/vitest` at a pinned tag — see `vendor/vitest-docs/manifest.json` for the tag, commit SHA, capture timestamp and source URL, and `vendor/vitest-docs/ATTRIBUTION.md` for the license notice. `vitest-agent://` content is project-authored.
 
 ## Prompts

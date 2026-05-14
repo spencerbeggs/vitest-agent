@@ -797,6 +797,38 @@ The starter rule registry:
 | `MISSING_PROVIDER_PACKAGE` | error (Full only) | `@vitest/coverage-<provider>` not installed; includes install-command remediation |
 | `PERFILE_ON_TARGETS` | warn | `perFile` specified inside `coverageTargets` — inherited from `coverage.thresholds.perFile`, so duplicating risks drift |
 
+## Cross-package Version Drift
+
+The six runtime packages (`vitest-agent-sdk`, `vitest-agent-plugin`,
+`vitest-agent-reporter`, `vitest-agent-cli`, `vitest-agent-mcp`,
+`vitest-agent-ui`) release in lockstep. If a partial upgrade leaves
+them at different versions, three entry points each write a single
+stderr line and continue:
+
+```text
+[vitest-agent-plugin] version drift: vitest-agent-plugin@<a> with vitest-agent-sdk@<b>. Reinstall vitest-agent-* packages so versions match.
+```
+
+The check fires at the top of the `AgentPlugin()` factory (comparing
+against `vitest-agent-sdk` and `vitest-agent-reporter`), inside
+`vitest-agent-mcp`'s startup (comparing against `vitest-agent-sdk`),
+and at the top of the `vitest-agent` CLI before any subcommand runs
+(comparing against `vitest-agent-sdk`). The plugin's check is
+suppressed after the first call in the same Node process so
+multi-project Vitest configs do not duplicate the warning.
+
+The check is observation-only — it never throws and never exits. If
+you see the line, reinstall the `vitest-agent-*` packages so the
+versions match. The Claude Code marketplace plugin
+(`vitest-agent@spencerbeggs`) versions independently of the npm
+packages and is not part of the comparison.
+
+Each runtime package also exports its own `CURRENT_<PKG>_VERSION`
+string constant (for example `CURRENT_SDK_VERSION`,
+`CURRENT_PLUGIN_VERSION`) inlined at build time from the package's
+`package.json#version`. The constants exist primarily for the drift
+check itself; user code rarely needs to import them.
+
 ## Console Output Modes
 
 `consoleOutput` is a `AgentReporter`-internal knob controlling the
