@@ -64,11 +64,24 @@ const TestForFileResult = Schema.Struct({
 	testFiles: Schema.Array(Schema.String),
 }).annotations({ identifier: "TestForFile" });
 
-export const TestResult = Schema.Union(TestListResult, TestGetFound, TestGetMissing, TestForFileResult).annotations({
+const TestForTagResult = Schema.Struct({
+	action: Schema.Literal("for_tag"),
+	tag: Schema.String,
+	count: Schema.Number,
+	groups: Schema.Array(TestListGroup),
+}).annotations({ identifier: "TestForTag" });
+
+export const TestResult = Schema.Union(
+	TestListResult,
+	TestGetFound,
+	TestGetMissing,
+	TestForFileResult,
+	TestForTagResult,
+).annotations({
 	identifier: "TestResult",
 	title: "test result",
 	description:
-		"Discriminate on `action`. `get` further discriminates on `found`. `list` and `for_file` both carry counted arrays.",
+		"Discriminate on `action`. `get` further discriminates on `found`. `list`, `for_file`, and `for_tag` all carry counted arrays — `list` and `for_tag` group by project.",
 });
 export type TestResultType = Schema.Schema.Type<typeof TestResult>;
 
@@ -155,6 +168,31 @@ export const formatTestMarkdown = (data: TestResultType): string => {
 		}
 		return lines.join("\n");
 	}
+	if (data.action === "for_tag") {
+		if (data.count === 0) {
+			return `No tests found tagged \`${data.tag}\`. Use \`inventory({ kind: "tag" })\` to discover available tags.`;
+		}
+		const lines: string[] = [
+			`# Tests tagged \`${data.tag}\``,
+			"",
+			`Found ${data.count} test${data.count === 1 ? "" : "s"} across ${data.groups.length} project${data.groups.length === 1 ? "" : "s"}:`,
+			"",
+		];
+		for (const g of data.groups) {
+			lines.push(
+				`### ${g.project}`,
+				"",
+				"| ID | Full Name | State | Duration | Module |",
+				"| --- | --- | --- | --- | --- |",
+			);
+			for (const t of g.tests) {
+				const duration = t.duration !== null ? `${t.duration}ms` : "—";
+				lines.push(`| ${t.id} | ${t.fullName} | ${t.state} | ${duration} | ${t.module} |`);
+			}
+			lines.push("");
+		}
+		return lines.join("\n").trimEnd();
+	}
 	// for_file
 	if (data.count === 0) {
 		return `No test modules found covering \`${data.filePath}\`. Run run_tests({}) to populate the database, or check the file path.`;
@@ -194,7 +232,13 @@ const ForFileVariant = Schema.Struct({
 	filePath: Schema.String,
 });
 
-const TestInput = Schema.Union(ListVariant, GetVariant, ForFileVariant);
+const ForTagVariant = Schema.Struct({
+	action: Schema.Literal("for_tag"),
+	tag: Schema.String,
+	project: Schema.optional(Schema.String),
+});
+
+const TestInput = Schema.Union(ListVariant, GetVariant, ForFileVariant, ForTagVariant);
 
 export const test = publicProcedure
 	.input(Schema.standardSchemaV1(TestInput))
@@ -264,6 +308,27 @@ export const test = publicProcedure
 								count: testFiles.length,
 								testFiles,
 							};
+						}),
+					for_tag: (variant) =>
+						Effect.gen(function* () {
+							const reader = yield* DataReader;
+							// Mirrors the `list` action: when project is omitted, iterate
+							// every known project's latest run and emit a per-project group
+							// for each non-empty result; when supplied, return at most one
+							// group.
+							const targets: ReadonlyArray<{ project: string }> = variant.project
+								? [{ project: variant.project }]
+								: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project }))));
+							const groups: Array<Schema.Schema.Type<typeof TestListGroup>> = [];
+							let total = 0;
+							for (const t of targets) {
+								const tests = yield* reader.listTestsForTag(variant.tag, { project: t.project });
+								if (tests.length > 0) {
+									groups.push({ project: t.project, tests });
+									total += tests.length;
+								}
+							}
+							return { action: "for_tag" as const, tag: variant.tag, count: total, groups };
 						}),
 				}),
 			),

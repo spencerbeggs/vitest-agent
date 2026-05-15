@@ -92,9 +92,9 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
  *
  * Per-slot defaults:
  * - `human` → `passthrough` (Vitest's own reporters do the visible work).
- *   Users opt into `ink` for live animation by setting `console.human:
- *   "ink"`; the plugin's internal AgentReporter owns the live Ink mount
- *   (T6 contract — users do not import or wire `createLiveInk`
+ *   Users opt into `ink` for live animation by setting the `human` slot
+ *   to `"ink"`; the plugin's internal AgentReporter owns the live Ink
+ *   mount (T6 contract — users do not import or wire `createLiveInk`
  *   themselves; that symbol is internal to vitest-agent-ui).
  * - `agent` → `agent` (markdown-flavored final-frame string).
  * - `ci` → `passthrough` (Vitest's reporters produce log-friendly output;
@@ -399,6 +399,17 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const transport: Transport = options.transport ?? { kind: "local" };
 				log("transport.kind:", transport.kind);
 
+				// Capture Vitest's native `test.passWithNoTests` (Vitest's own
+				// default is `false`) and forward it onto ResolvedReporterConfig
+				// so consumer reporters / UIs can render the resolved policy
+				// alongside other run context. The MCP `run_tests` tool does
+				// not read this snapshot — when its per-call override is unset
+				// the tool forwards nothing to `createVitest` and Vitest
+				// re-resolves the policy from the project config on disk.
+				const passWithNoTestsRaw = (vitest.config as { passWithNoTests?: unknown }).passWithNoTests;
+				const passWithNoTests = typeof passWithNoTestsRaw === "boolean" ? passWithNoTestsRaw : undefined;
+				log("passWithNoTests (resolved):", passWithNoTests);
+
 				// Push exactly one aggregating reporter per Vitest run. The
 				// terminal/markdown formatters render all projects in one block
 				// (Projects header + per-project rows + one Total), so a single
@@ -423,6 +434,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					mcp,
 					githubActions,
 					transport,
+					...(passWithNoTests !== undefined ? { passWithNoTests } : {}),
 					...(options.reporter !== undefined && { reporter: options.reporter }),
 					// onRunEvent is the user-facing tee on the plugin's run-event
 					// stream (T6 contract). Forward it unconditionally so the

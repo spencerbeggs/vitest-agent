@@ -128,6 +128,10 @@ file per tool — and broadly group into:
 - **Mutations.** `run_tests` executes `vitest run` via `spawnSync`.
   Mutates `process.env` from the `SessionContextRef` before
   `createVitest` so the in-process reporter sees current attribution.
+  Accepts a structured `tags` filter and a per-call `passWithNoTests`
+  override; emits a fourth `no-match` discriminator variant when the
+  resolved filter set matches zero tests. See *Tag filtering and tag
+  introspection* below.
 
 Both `set_current_session_id` and `get_current_session_id` are
 **removed**. The MCP server's `SessionContextRef` populates from
@@ -306,8 +310,73 @@ enumerate every project from `DataReader.getRunsByProject()` when
 `project` is unspecified, grouping output under per-project `###
 project` headers. This is required because real multi-project Vitest
 configs use names like `unit` and `integration` — there is no literal
-`"default"` project to fall back to. The `test` tool's `list` mode
-follows the same pattern.
+`"default"` project to fall back to. The `test` tool's `list` and
+`for_tag` modes follow the same pattern.
+
+## Tag filtering and tag introspection (T2)
+
+Vitest 4.1 native tags are the way agents target test subsets in 2.0
+(`unit`, `int`, `e2e`, `slow`, etc.). The plugin's tag-injection
+pipeline already populates the `tags` / `test_case_tags` /
+`test_suite_tags` tables; T2 surfaces that data on three MCP tools
+without adding a new top-level tool. The tool count stays at 29.
+
+**`run_tests` tag filter.** A new optional `tags` input carries a
+`TagFilter` struct with three optional arrays: `all` (every listed tag
+must be on the test), `any` (at least one), `none` (excludes any test
+carrying a listed tag). The three sub-filters AND together with each
+other and with `project` / `files` — strict AND across filters, no
+silent override. The `none` axis covers all negation (no separate
+`not_any` / `not_all`). The pure `composeTagExpression` helper in
+`packages/mcp/src/tools/run-tests.ts` flattens a `TagFilter` to
+Vitest's `tagsFilter` expression: `"int and slow"` for `all`,
+`"(unit or int)"` for `any` with 2+ entries, `"not slow and not flaky"`
+for `none`, three joined by ` and `. Returns `null` when every
+sub-filter is empty. `sanitizeTestArgs` covers tag values with the
+same `FORBIDDEN_CHARS` regex it applies to `files` and `project`.
+
+**`run_tests` `passWithNoTests` per-call override.** The tool input
+accepts an optional `passWithNoTests` boolean that wins for that
+invocation only over the project-level default the plugin captured
+from Vitest's native `test.passWithNoTests` at `configureVitest` time
+and forwarded onto `ResolvedReporterConfig`. No new
+`AgentPluginOptions` field — users still configure it the normal
+Vitest way. Controls pass/fail classification and CLI exit-code
+semantics only; it does not reshape the MCP response shape.
+
+**`run_tests` `no-match` discriminator.** `RunTestsNoMatch` joins
+`ok | timeout | error` in `RunTestsResult` as the fourth variant on
+the `kind` discriminator. Detection fires after `vitest.start` when
+`testModules.length === 0` AND `unhandledErrors.length === 0` AND the
+call carried any filter (`files`, `project`, or `tags`) — filter-driven,
+not result-driven. A truly empty workspace with no filter still emits
+`ok` with an empty report. The variant carries
+`filter: { project, files, tags, resolvedExpression }` — the resolved
+context echoes back verbatim plus the composed `tagsFilter` string for
+transparency. `passWithNoTests` policy never reshapes the discriminator;
+even with `passWithNoTests: true` a filtered empty selection still emits
+`no-match`. `formatRunTestsMarkdown` dispatches to `formatNoMatchMarkdown`
+on this branch, echoing the resolved filter and printing
+tag-introspection / `for_file` / `project` remediation pointers.
+
+**`inventory({ kind: "tag" })`.** New input variant with an optional
+`project` scope. The output union gains two distinct
+`inventoryKind` literals to encode the asymmetric scoped vs unscoped
+shapes — the input discriminator (`kind: "tag"`) does not match 1:1
+with the output shape, mirroring the existing `session_detail` /
+`session_list` precedent. `tag_scoped` (when `project` is supplied)
+omits the per-project breakdown; `tag_unscoped` (when `project` is
+omitted) carries a `byProject` array inline on every tag row with
+per-project module + test counts. The MCP handler reads the SDK
+reader's flat `(tag, project)` rows from `listTagInventory` and pivots
+them by tag, aggregating module + test counts across projects in
+alphabetical order.
+
+**`test({ action: "for_tag" })`.** New input variant that mirrors
+`action: "for_file"`. Takes a `tag` plus optional `project`; returns
+`TestRowSchema` rows grouped by project (one group per project carrying
+the tag, or a single group when `project` is supplied). Delegates to
+`DataReader.listTestsForTag`.
 
 ## MCP boot context recovery
 

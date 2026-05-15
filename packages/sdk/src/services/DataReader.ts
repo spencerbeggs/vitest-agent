@@ -262,6 +262,22 @@ export interface TddArtifactRow {
 	readonly recordedAt: string;
 }
 
+export interface TagInventoryRow {
+	/** The tag name (e.g. `"int"`, `"e2e"`, `"unit"`). */
+	readonly tag: string;
+	/** The Vitest project this tag was observed in. */
+	readonly project: string;
+	/**
+	 * Number of distinct test modules in the project's latest run that contain
+	 * at least one test case carrying this tag.
+	 */
+	readonly moduleCount: number;
+	/**
+	 * Number of test cases in the project's latest run that carry this tag.
+	 */
+	readonly testCount: number;
+}
+
 export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 	DataReader,
 	{
@@ -377,5 +393,21 @@ export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 			key: string,
 		) => Effect.Effect<Option.Option<string>, DataStoreError>;
 		readonly getLatestTestCaseForSession: (chatId: string) => Effect.Effect<Option.Option<number>, DataStoreError>;
+		/**
+		 * Returns one `TagInventoryRow` per `(tag, project)` pair observed in
+		 * each project's latest test run. When `project` is supplied, results
+		 * are restricted to that project's latest run.
+		 */
+		readonly listTagInventory: (options?: {
+			readonly project?: string;
+		}) => Effect.Effect<ReadonlyArray<TagInventoryRow>, DataStoreError>;
+		/**
+		 * Returns every `TestListEntry` from the latest run of each project
+		 * (or the specified project) whose test case carries `tag`.
+		 */
+		readonly listTestsForTag: (
+			tag: string,
+			options?: { readonly project?: string },
+		) => Effect.Effect<ReadonlyArray<TestListEntry>, DataStoreError>;
 	}
 >() {}

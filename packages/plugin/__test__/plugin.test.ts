@@ -9,6 +9,7 @@ function mockVitest(
 	overrides?: {
 		thresholds?: Record<string, unknown>;
 		outputFile?: string | Record<string, string>;
+		passWithNoTests?: boolean;
 	},
 ) {
 	const coverage: { thresholds?: Record<string, unknown> } = {};
@@ -19,9 +20,13 @@ function mockVitest(
 		reporters: unknown[];
 		coverage: { thresholds?: Record<string, unknown> };
 		outputFile?: string | Record<string, string>;
+		passWithNoTests?: boolean;
 	} = { reporters, coverage };
 	if (overrides?.outputFile !== undefined) {
 		config.outputFile = overrides.outputFile;
+	}
+	if (overrides?.passWithNoTests !== undefined) {
+		config.passWithNoTests = overrides.passWithNoTests;
 	}
 	return {
 		config,
@@ -362,6 +367,42 @@ describe("AgentPlugin", () => {
 			await callConfigureVitest(plugin, vitest);
 			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
 			expect(reporter.resolvedConfig.transport).toEqual({ kind: "local" });
+		});
+	});
+
+	describe("passWithNoTests threading", () => {
+		it("threads test.passWithNoTests=true from the resolved Vitest config onto ResolvedReporterConfig", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["agent"], { passWithNoTests: true });
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.passWithNoTests).toBe(true);
+		});
+
+		it("threads test.passWithNoTests=false from the resolved Vitest config onto ResolvedReporterConfig", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["agent"], { passWithNoTests: false });
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.passWithNoTests).toBe(false);
+		});
+
+		it("leaves passWithNoTests undefined when the field is absent from the Vitest config", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["agent"]);
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.passWithNoTests).toBeUndefined();
+		});
+
+		it("does not surface passWithNoTests when the Vitest config carries a non-boolean value", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["agent"]);
+			// Simulate a malformed config that slipped past Vitest's own typing
+			(vitest.config as { passWithNoTests?: unknown }).passWithNoTests = "yes";
+			await callConfigureVitest(plugin, vitest);
+			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+			expect(reporter.resolvedConfig.passWithNoTests).toBeUndefined();
 		});
 	});
 
