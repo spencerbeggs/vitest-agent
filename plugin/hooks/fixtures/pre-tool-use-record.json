@@ -1,0 +1,10 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"tool_name": "Read",
+	"tool_use_id": "toolu_bats_pre_tool_use_001",
+	"tool_input": {
+		"file_path": "/Users/spencer/workspaces/spencerbeggs/vitest-agent/package.json"
+	},
+	"hook_event_name": "PreToolUse"
+}

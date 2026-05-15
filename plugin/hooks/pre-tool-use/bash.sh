@@ -7,7 +7,7 @@
 # session-env-file dir to gain access to SessionStart-written exports
 # (CLAUDE_ENV_FILE is auto-sourced into Bash tool subprocesses but NOT
 # into hook subprocesses), then shells out to
-# `vitest-agent _internal inject-env`. The sidecar matches the command
+# `vitest-agent agent inject-env`. The sidecar matches the command
 # against the five documented Vitest patterns and returns either the
 # original command (no match) or the command with the env prefix
 # prepended.
@@ -56,7 +56,7 @@ fi
 # and decides whether to rewrite the command.
 pm_exec=$(detect_pm_exec "$PROJECT_DIR")
 # shellcheck disable=SC2086
-rewritten=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent _internal inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) || rewritten="$command_raw"
+rewritten=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) || rewritten="$command_raw"
 
 if [ -z "$rewritten" ] || [ "$rewritten" = "$command_raw" ]; then
 	# No rewrite needed — pass through.

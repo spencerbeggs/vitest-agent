@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-11
-last-synced: 2026-05-11
+updated: 2026-05-15
+last-synced: 2026-05-15
 completeness: 90
 related:
   - ../architecture.md
@@ -124,7 +124,7 @@ returns JSON to Claude Code via stdout. Hooks fall into four functional
 categories:
 
 - **Recording hooks.** Capture session, prompt, tool-call, file-edit, and
-  hook-fire turns into the SQLite database via `vitest-agent record`. These
+  hook-fire turns into the SQLite database via `vitest-agent agent record`. These
   drive session analytics and the wrap-up nudges. They run on every event,
   unscoped — every turn in every session is captured. `session/end-record.sh`
   additionally records a `hook_fire` turn (kind `SessionEnd`) **before** the
@@ -132,7 +132,7 @@ categories:
   event regardless of whether the wrap-up note was produced; hook errors are
   logged to `hook_error` rather than silently swallowed.
 - **Context-injection hooks.** Run on `SessionStart`, `UserPromptSubmit`,
-  `Stop`, `SessionEnd`, and `PreCompact`, calling the `triage` and `wrapup`
+  `Stop`, `SessionEnd`, and `PreCompact`, calling the `agent triage` and `agent wrapup`
   CLIs and emitting their output back to Claude Code as session context or
   `systemMessage`. Per Claude Code's hook schema, `additionalContext` is only
   valid for a subset of events; `Stop`, `SessionEnd`, and `PreCompact` must
@@ -203,7 +203,7 @@ orchestrator subagent. It detects:
   by scanning for escape-hatch tokens (`it.skip`, `.todo`, `.fails`, snapshot
   edits, etc.) and writing `test_weakened` artifacts.
 
-Before writing each artifact, the hook calls `vitest-agent record
+Before writing each artifact, the hook calls `vitest-agent agent record
 test-case-turns` to backfill `test_cases.created_turn_id` and capture the
 latest `test_case_id` for the session. This binds every artifact to a test
 case if one was authored in the same session window.
@@ -426,16 +426,16 @@ See D30.
 
 The branch added four lifecycle-event hooks on top of the prior set
 to wire the agent-attribution model end to end. All four shell out
-to the CLI's `_internal` sidecar subcommands (see
+to the CLI's `agent` sidecar subcommands (see
 [./cli.md](./cli.md)) rather than performing database writes directly.
 
 | Hook | Sidecar invocation | Purpose |
 | --- | --- | --- |
-| `session/start.sh` | `_internal register-agent --host-kind claude-code --agent-type claude-code-main ...` | Registers the main agent at session boot; parses the JSON result with `jq` and writes seven canonical `VITEST_AGENT_*` exports (the four UUIDs plus `PROJECT_DIR`, `DATA_DIR`, `PLUGIN_ROOT`) to two surfaces: `${CLAUDE_ENV_FILE}` (auto-sourced into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (sourced by other hooks). Values are `printf '%q'` quoted; resumes are idempotent via grep guards. |
-| `subagent/start-tdd.sh` | `_internal register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation (see the dc1fc65 fix). |
-| `session/end-record.sh` | `_internal end-agent --host-session-id $session_id` | Sets `agents.ended_at` and `session_map.ended_at` for the main agent. |
-| `subagent/stop-tdd.sh` | `_internal end-agent` (no `--host-session-id`) | Sets `agents.ended_at` for the subagent but leaves the main agent's `session_map` row open. |
-| `pre-tool-use/bash.sh` | `_internal inject-env --command "$cmd" --cwd $cwd` | When the active actor is a subagent, rewrites `tool_input.command` to prepend the `VITEST_AGENT_AGENT_ID=...` env prefix. POSIX env-prefix scope is the immediately-following process only — main-agent env stays intact for subsequent calls. |
+| `session/start.sh` | `agent register-agent --host-kind claude-code --agent-type claude-code-main ...` | Registers the main agent at session boot; parses the JSON result with `jq` and writes seven canonical `VITEST_AGENT_*` exports (the four UUIDs plus `PROJECT_DIR`, `DATA_DIR`, `PLUGIN_ROOT`) to two surfaces: `${CLAUDE_ENV_FILE}` (auto-sourced into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (sourced by other hooks). Values are `printf '%q'` quoted; resumes are idempotent via grep guards. |
+| `subagent/start-tdd.sh` | `agent register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation (see the dc1fc65 fix). |
+| `session/end-record.sh` | `agent end-agent --host-session-id $session_id` | Sets `agents.ended_at` and `session_map.ended_at` for the main agent. |
+| `subagent/stop-tdd.sh` | `agent end-agent` (no `--host-session-id`) | Sets `agents.ended_at` for the subagent but leaves the main agent's `session_map` row open. |
+| `pre-tool-use/bash.sh` | `agent inject-env --command "$cmd" --cwd $cwd` | When the active actor is a subagent, rewrites `tool_input.command` to prepend the `VITEST_AGENT_AGENT_ID=...` env prefix. POSIX env-prefix scope is the immediately-following process only — main-agent env stays intact for subsequent calls. |
 
 ### Seven canonical env exports
 

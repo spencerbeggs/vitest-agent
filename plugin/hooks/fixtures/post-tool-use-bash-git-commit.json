@@ -1,0 +1,14 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"tool_name": "Bash",
+	"tool_use_id": "toolu_bats_git_commit_001",
+	"tool_input": {
+		"command": "git commit -m 'test: add new test'"
+	},
+	"tool_response": {
+		"exit_code": 0,
+		"stdout": "[main abc1234] test: add new test"
+	},
+	"hook_event_name": "PostToolUse"
+}

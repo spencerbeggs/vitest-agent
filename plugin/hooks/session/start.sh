@@ -34,7 +34,7 @@ fi
 pm_exec=$(detect_pm_exec "$PROJECT_DIR")
 
 # 1. Generate the triage brief.
-triage_md=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent triage --format markdown 2>/dev/null || echo "")
+triage_md=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent triage --format markdown 2>/dev/null || echo "")
 
 # 2. Compute the triage_was_non_empty flag.
 if [ -n "$triage_md" ]; then
@@ -50,7 +50,7 @@ started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 hook_debug "$_HOOK" "INPUT session_id=$chat_id PROJECT_DIR=$PROJECT_DIR pm_exec=$pm_exec"
 
 # shellcheck disable=SC2086
-_session_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent record session-start \
+_session_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent record session-start \
 	--chat-id "$chat_id" \
 	--project "$project" \
 	--cwd "$PROJECT_DIR" \
@@ -70,7 +70,7 @@ conversation_id=""
 main_agent_id=""
 if [ -n "$transcript_path" ]; then
 	# shellcheck disable=SC2086
-	_register_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent _internal register-agent \
+	_register_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent register-agent \
 		--host-kind claude-code \
 		--agent-type claude-code-main \
 		--host-session-id "$chat_id" \

@@ -26,10 +26,10 @@ if echo "$COMMAND" | grep -qE '(^|/|npx[[:space:]]+|pnpm[[:space:]]+(exec[[:spac
   # a DB failure. The association enables session-scoped test-run queries.
   if [ -n "$CC_SESSION_ID" ] && [ -n "$CWD" ]; then
     pm_exec=$(detect_pm_exec "$CWD")
-    (cd "$CWD" && $pm_exec vitest-agent record run-trigger \
+    (cd "$CWD" && $pm_exec vitest-agent agent record run-trigger \
       --chat-id "$CC_SESSION_ID" \
       --invocation-method bash 2>/dev/null) || true
-    (cd "$CWD" && $pm_exec vitest-agent record test-case-turns \
+    (cd "$CWD" && $pm_exec vitest-agent agent record test-case-turns \
       --chat-id "$CC_SESSION_ID" 2>/dev/null) || true
   fi
 

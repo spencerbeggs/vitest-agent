@@ -1,0 +1,7 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"agent_type": "vitest-agent:tdd-task",
+	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"transcript_path": "/tmp/bats-test-subagent-transcript.jsonl",
+	"hook_event_name": "SubagentStart"
+}

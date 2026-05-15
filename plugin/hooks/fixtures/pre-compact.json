@@ -1,0 +1,5 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"hook_event_name": "PreCompact"
+}
