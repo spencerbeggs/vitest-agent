@@ -93,6 +93,38 @@ const SessionListInventory = Schema.Struct({
 	sessions: Schema.Array(SessionRow),
 }).annotations({ identifier: "SessionListInventory" });
 
+const TagProjectBreakdown = Schema.Struct({
+	project: Schema.String,
+	moduleCount: Schema.Number,
+	testCount: Schema.Number,
+}).annotations({ identifier: "TagProjectBreakdown" });
+
+const TagRowScoped = Schema.Struct({
+	tag: Schema.String,
+	moduleCount: Schema.Number,
+	testCount: Schema.Number,
+}).annotations({ identifier: "TagRowScoped" });
+
+const TagRowUnscoped = Schema.Struct({
+	tag: Schema.String,
+	moduleCount: Schema.Number,
+	testCount: Schema.Number,
+	byProject: Schema.Array(TagProjectBreakdown),
+}).annotations({ identifier: "TagRowUnscoped" });
+
+const TagInventoryScoped = Schema.Struct({
+	inventoryKind: Schema.Literal("tag_scoped"),
+	project: Schema.String,
+	count: Schema.Number,
+	tags: Schema.Array(TagRowScoped),
+}).annotations({ identifier: "TagInventoryScoped" });
+
+const TagInventoryUnscoped = Schema.Struct({
+	inventoryKind: Schema.Literal("tag_unscoped"),
+	count: Schema.Number,
+	tags: Schema.Array(TagRowUnscoped),
+}).annotations({ identifier: "TagInventoryUnscoped" });
+
 export const InventoryResult = Schema.Union(
 	ProjectInventory,
 	ModuleInventory,
@@ -100,11 +132,13 @@ export const InventoryResult = Schema.Union(
 	SessionDetailFound,
 	SessionDetailMissing,
 	SessionListInventory,
+	TagInventoryScoped,
+	TagInventoryUnscoped,
 ).annotations({
 	identifier: "InventoryResult",
 	title: "inventory result",
 	description:
-		"Discriminate on `inventoryKind`. project/module/suite carry counted lists; session_detail discriminates further on `found`; session_list returns the matching sessions.",
+		"Discriminate on `inventoryKind`. project/module/suite carry counted lists; session_detail discriminates further on `found`; session_list returns the matching sessions; tag_scoped and tag_unscoped carry per-tag counts (the unscoped form also carries a `byProject` breakdown per tag).",
 });
 export type InventoryResultType = Schema.Schema.Type<typeof InventoryResult>;
 
@@ -167,6 +201,27 @@ export const formatInventoryMarkdown = (data: InventoryResultType): string => {
 		if (s.parentSessionId !== null) lines.push(`- parentSessionId: ${s.parentSessionId}`);
 		return lines.join("\n");
 	}
+	if (data.inventoryKind === "tag_scoped") {
+		if (data.count === 0) {
+			return `No tags recorded for project \`${data.project}\`. Run run_tests({}) to populate.`;
+		}
+		const lines: string[] = [`## Tags — ${data.project}`, "", "| Tag | Modules | Tests |", "| --- | --- | --- |"];
+		for (const t of data.tags) {
+			lines.push(`| ${t.tag} | ${t.moduleCount} | ${t.testCount} |`);
+		}
+		return lines.join("\n");
+	}
+	if (data.inventoryKind === "tag_unscoped") {
+		if (data.count === 0) {
+			return "No tags recorded. Run run_tests({}) to populate.";
+		}
+		const lines: string[] = ["## Tags", "", "| Tag | Modules | Tests | Projects |", "| --- | --- | --- | --- |"];
+		for (const t of data.tags) {
+			const projectsBreakdown = t.byProject.map((p) => `${p.project} (${p.testCount})`).join(", ");
+			lines.push(`| ${t.tag} | ${t.moduleCount} | ${t.testCount} | ${projectsBreakdown} |`);
+		}
+		return lines.join("\n");
+	}
 	// session_list
 	if (data.count === 0) return "No sessions recorded yet.";
 	const lines: string[] = ["# Sessions", ""];
@@ -201,8 +256,12 @@ const SessionVariant = Schema.Struct({
 	agentKind: Schema.optional(Schema.Literal("main", "subagent")),
 	limit: Schema.optional(Schema.Number),
 });
+const TagVariant = Schema.Struct({
+	kind: Schema.Literal("tag"),
+	project: Schema.optional(Schema.String),
+});
 
-const InventoryInput = Schema.Union(ProjectVariant, ModuleVariant, SuiteVariant, SessionVariant);
+const InventoryInput = Schema.Union(ProjectVariant, ModuleVariant, SuiteVariant, SessionVariant, TagVariant);
 
 export const inventory = publicProcedure
 	.input(Schema.standardSchemaV1(InventoryInput))
@@ -280,6 +339,61 @@ export const inventory = publicProcedure
 								...(variant.limit !== undefined && { limit: variant.limit }),
 							});
 							return { inventoryKind: "session_list" as const, count: rows.length, sessions: rows };
+						}),
+					tag: (variant) =>
+						Effect.gen(function* () {
+							const reader = yield* DataReader;
+							if (variant.project !== undefined) {
+								const rows = yield* reader.listTagInventory({ project: variant.project });
+								return {
+									inventoryKind: "tag_scoped" as const,
+									project: variant.project,
+									count: rows.length,
+									tags: rows.map((r) => ({
+										tag: r.tag,
+										moduleCount: r.moduleCount,
+										testCount: r.testCount,
+									})),
+								};
+							}
+							// Unscoped: pivot the flat (tag, project) rows into one row per tag
+							// with an inline byProject breakdown and aggregated counts.
+							const rows = yield* reader.listTagInventory();
+							const byTag = new Map<
+								string,
+								{
+									moduleCount: number;
+									testCount: number;
+									byProject: Array<{ project: string; moduleCount: number; testCount: number }>;
+								}
+							>();
+							for (const r of rows) {
+								let entry = byTag.get(r.tag);
+								if (entry === undefined) {
+									entry = { moduleCount: 0, testCount: 0, byProject: [] };
+									byTag.set(r.tag, entry);
+								}
+								entry.moduleCount += r.moduleCount;
+								entry.testCount += r.testCount;
+								entry.byProject.push({
+									project: r.project,
+									moduleCount: r.moduleCount,
+									testCount: r.testCount,
+								});
+							}
+							const tags = Array.from(byTag.entries())
+								.sort(([a], [b]) => a.localeCompare(b))
+								.map(([tag, e]) => ({
+									tag,
+									moduleCount: e.moduleCount,
+									testCount: e.testCount,
+									byProject: e.byProject,
+								}));
+							return {
+								inventoryKind: "tag_unscoped" as const,
+								count: tags.length,
+								tags,
+							};
 						}),
 				}),
 			),
