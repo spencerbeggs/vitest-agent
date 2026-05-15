@@ -40,33 +40,23 @@ import { reduceRenderStateAll } from "../reducer.js";
 import { synthesizeFromAgentReport } from "../synthesize.js";
 
 const summarizeProject = (report: AgentReport): ProjectSummary => {
-	const base: {
-		name: string;
-		passCount: number;
-		failCount: number;
-		skipCount: number;
-		durationMs: number;
-	} = {
+	const collapsedTagCounts = report.tagCounts !== undefined ? collapseTagCounts(report.tagCounts) : undefined;
+	const tagCountsHasEntries = collapsedTagCounts !== undefined && Object.keys(collapsedTagCounts).length > 0;
+	const belowTargetCount = report.coverage?.belowTargetFiles?.length;
+	const violationsCount =
+		report.coverage !== undefined && report.coverage.lowCoverage.length > 0
+			? report.coverage.lowCoverage.length
+			: undefined;
+	return {
 		name: report.project ?? "default",
 		passCount: report.summary.passed,
 		failCount: report.summary.failed,
 		skipCount: report.summary.skipped,
 		durationMs: report.summary.duration,
+		...(tagCountsHasEntries && collapsedTagCounts !== undefined ? { tagCounts: collapsedTagCounts } : {}),
+		...(belowTargetCount !== undefined ? { belowTarget: belowTargetCount } : {}),
+		...(violationsCount !== undefined ? { violations: violationsCount } : {}),
 	};
-	const summary: ProjectSummary = base;
-	if (report.tagCounts !== undefined) {
-		const collapsed = collapseTagCounts(report.tagCounts);
-		if (Object.keys(collapsed).length > 0) {
-			(summary as { tagCounts?: Record<string, number> }).tagCounts = collapsed;
-		}
-	}
-	if (report.coverage?.belowTargetFiles !== undefined) {
-		(summary as { belowTarget?: number }).belowTarget = report.coverage.belowTargetFiles.length;
-	}
-	if (report.coverage !== undefined && report.coverage.lowCoverage.length > 0) {
-		(summary as { violations?: number }).violations = report.coverage.lowCoverage.length;
-	}
-	return summary;
 };
 
 const collapseTagCounts = (entries: AgentReport["tagCounts"]): Record<string, number> => {
@@ -91,11 +81,11 @@ const collectBelowTarget = (reports: ReadonlyArray<AgentReport>): ReadonlyArray<
 const liftTrendSummary = (input: ReporterRenderInput): TrendSummary | null => {
 	const trend = input.trendSummary;
 	if (trend === undefined) return null;
-	const out: TrendSummary = { direction: trend.direction, runCount: trend.runCount };
-	if (trend.firstMetric !== undefined) {
-		(out as { firstMetric?: TrendSummary["firstMetric"] }).firstMetric = trend.firstMetric;
-	}
-	return out;
+	return {
+		direction: trend.direction,
+		runCount: trend.runCount,
+		...(trend.firstMetric !== undefined ? { firstMetric: trend.firstMetric } : {}),
+	};
 };
 
 /**

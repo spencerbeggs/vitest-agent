@@ -58,7 +58,6 @@ export {
 	createLiveInk as _createLiveInk,
 } from "./factory/LiveInkRenderer.js";
 // PubSub channel (live-event transport).
-export type * from "./pubsub/index.js";
 export * from "./pubsub/index.js";
 // Reducer + agent renderer + Ink components + synthesizers.
 export { reduceRenderState, reduceRenderStateAll } from "./reducer.js";

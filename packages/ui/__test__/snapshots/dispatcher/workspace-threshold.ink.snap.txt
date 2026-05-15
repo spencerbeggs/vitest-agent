@@ -1,9 +1,9 @@
 Projects (5):
-✓ playground          42 passed (31ms)
-✓ vitest-agent-cli    80 passed (12.3s)
-✓ vitest-agent-plugin 194 passed (3.2s)
-✓ vitest-agent-mcp    182 passed (647ms)  int:5  unit:177
-✓ vitest-agent-sdk    855 passed (5.4s)  int:6  unit:849
+  ✓ playground          42 passed (31ms)
+  ✓ vitest-agent-cli    80 passed (12.3s)
+  ✓ vitest-agent-plugin 194 passed (3.2s)
+  ✓ vitest-agent-mcp    182 passed (647ms)  int:5  unit:177
+  ✓ vitest-agent-sdk    855 passed (5.4s)  int:6  unit:849
 Coverage: ✗ 7 files below minimum thresholds (lines, branches, functions, statements)
 Trend: regressing (48 runs)
 Files below aspirational target:

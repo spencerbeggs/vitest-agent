@@ -34,18 +34,22 @@ const FAIL_GLYPH = "✗";
 const colorize = (line: string): ReactElement | string => {
 	const trimmed = line.trimStart();
 	if (trimmed.startsWith(PASS_GLYPH)) {
+		const idx = line.indexOf(PASS_GLYPH);
 		return (
 			<>
+				{line.slice(0, idx)}
 				<Text color="green">{PASS_GLYPH}</Text>
-				{line.slice(line.indexOf(PASS_GLYPH) + 1)}
+				{line.slice(idx + 1)}
 			</>
 		);
 	}
 	if (trimmed.startsWith(FAIL_GLYPH)) {
+		const idx = line.indexOf(FAIL_GLYPH);
 		return (
 			<>
+				{line.slice(0, idx)}
 				<Text color="red">{FAIL_GLYPH}</Text>
-				{line.slice(line.indexOf(FAIL_GLYPH) + 1)}
+				{line.slice(idx + 1)}
 			</>
 		);
 	}
