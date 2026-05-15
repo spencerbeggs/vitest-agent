@@ -1,11 +1,10 @@
 /**
- * CLI cache command -- manage the vitest-agent database.
+ * CLI db command -- manage the vitest-agent database.
  *
  * @packageDocumentation
  */
 
 import { Command, Options } from "@effect/cli";
-import { FileSystem } from "@effect/platform";
 import { Effect } from "effect";
 import { DataStore, resolveDataPath } from "vitest-agent-sdk";
 
@@ -14,16 +13,7 @@ const pathCommand = Command.make("path", {}, () =>
 		const dbPath = yield* resolveDataPath(process.cwd());
 		yield* Effect.sync(() => process.stdout.write(`${dbPath}\n`));
 	}),
-);
-
-const cleanCommand = Command.make("clean", {}, () =>
-	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
-		const dbPath = yield* resolveDataPath(process.cwd());
-		yield* fs.remove(dbPath).pipe(Effect.catchAll(() => Effect.void));
-		yield* Effect.sync(() => process.stdout.write(`Deleted database at ${dbPath}\n`));
-	}),
-);
+).pipe(Command.withDescription("Print the resolved database path"));
 
 const keepRecentOption = Options.withDefault(Options.integer("keep-recent"), 30).pipe(
 	Options.withDescription("Number of most-recent sessions to keep in full"),
@@ -41,6 +31,6 @@ const pruneCommand = Command.make("prune", { keepRecent: keepRecentOption }, ({ 
 	}),
 ).pipe(Command.withDescription("Drop old sessions' turn history (W1 retention; keeps the last N in full)"));
 
-const cacheParent = Command.make("cache");
+const dbParent = Command.make("db").pipe(Command.withDescription("Manage the vitest-agent database"));
 
-export const cacheCommand = cacheParent.pipe(Command.withSubcommands([pathCommand, cleanCommand, pruneCommand]));
+export const dbCommand = dbParent.pipe(Command.withSubcommands([pathCommand, pruneCommand]));
