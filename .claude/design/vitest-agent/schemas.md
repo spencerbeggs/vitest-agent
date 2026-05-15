@@ -413,6 +413,15 @@ The notable ones:
 - **`FindIdempotentResponse`** — `(procedurePath, key) =>
   Effect<Option<string>, DataStoreError>`. Returns `Option.none()` when no
   cached response exists; otherwise the stored `result_json`.
+- **`TagInventoryRow`** — `{ tag, project, moduleCount, testCount }`.
+  `listTagInventory(options?)` returns one row per `(tag, project)` pair
+  read from each project's latest run, optionally filtered to a single
+  project. `listTestsForTag(tag, options?)` returns `TestListEntry` rows
+  from each project's latest run carrying the tag. Both read from the
+  existing `tags` / `test_case_tags` / `test_suite_tags` tables. The
+  MCP `inventory({ kind: "tag" })` handler pivots the flat
+  `(tag, project)` rows into the asymmetric scoped vs unscoped output
+  shape (see *MCP tool schemas* below).
 
 ## Reporter failure-processing output
 
@@ -422,6 +431,60 @@ function that walks Vitest stack frames, source-maps the top non-framework
 frame, runs `findFunctionBoundary` on the resolved source, and calls
 `computeFailureSignature` with the parsed pieces. The result feeds
 `DataStore.writeFailureSignature` and the per-frame `stack_frames` rows.
+
+## MCP tag-filtering schemas (T2)
+
+The MCP `run_tests`, `inventory`, and `test` tools gained three input
+variants and three output variants in T2 to surface Vitest 4.1 native
+tags through the agent-facing tool surface. The schemas live alongside
+the existing tool input/output unions in their respective tool files.
+
+**`TagFilter`** (input on `run_tests`) — Effect Struct with three
+optional string arrays: `all`, `any`, `none`. All three sub-filters
+AND together with each other and with `project` / `files`. Definition:
+`packages/mcp/src/tools/run-tests.ts`.
+
+**`RunTestsNoMatch`** (output on `run_tests`) — fourth variant on
+`RunTestsResult` joining `ok | timeout | error`. Discriminator stays
+`kind`. Carries `filter: { project: string | null, files: string[],
+tags: TagFilter | null, resolvedExpression: string | null }` so the
+agent sees the resolved filter context plus the composed
+`--tags-filter` string the server passed to Vitest. Emitted when
+post-`vitest.start` `testModules.length === 0` AND
+`unhandledErrors.length === 0` AND any filter was supplied. Filter-driven,
+not result-driven; `passWithNoTests` policy never reshapes the
+discriminator. Definition: `packages/mcp/src/tools/run-tests.ts`.
+
+**`TagVariant`** (input on `inventory`) — `{ kind: "tag", project?:
+string }`. New member of the `InventoryInput` union. Definition:
+`packages/mcp/src/tools/inventory.ts`.
+
+**`TagInventoryScoped` / `TagInventoryUnscoped`** (output on
+`inventory`) — two distinct `inventoryKind` literals (`"tag_scoped"`
+when `project` is supplied, `"tag_unscoped"` when omitted) follow the
+existing `session_detail` / `session_list` precedent where the input
+discriminator does not match 1:1 with the output shape.
+`TagInventoryScoped` carries `{ project, count, tags: TagRowScoped[] }`;
+`TagInventoryUnscoped` carries `{ count, tags: TagRowUnscoped[] }`.
+
+**`TagRowScoped`** — `{ tag, moduleCount, testCount }`. The
+scoped row omits the per-project breakdown.
+
+**`TagRowUnscoped`** — `{ tag, moduleCount, testCount, byProject:
+TagProjectBreakdown[] }`. The unscoped row carries the per-project
+breakdown inline on every tag, with aggregated `moduleCount` /
+`testCount` summed across projects.
+
+**`TagProjectBreakdown`** — `{ project, moduleCount, testCount }`.
+Carried by `TagRowUnscoped.byProject` only.
+
+**`TestForTagResult`** (output on `test`) — `{ action: "for_tag", tag,
+count, groups: TestListGroup[] }`. New member of the test output
+union. Reuses the existing per-project `{ project, tests[] }` group
+shape and the same `TestRowSchema` rows as `action: "list"`. When
+input `project` is omitted, every project carrying the tag emits a
+group; when supplied, returns a single group. Definition:
+`packages/mcp/src/tools/test.ts`.
 
 ## SQLite table inventory
 
