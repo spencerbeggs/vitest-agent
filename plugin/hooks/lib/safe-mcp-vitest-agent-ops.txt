@@ -25,14 +25,20 @@ file_coverage
 cache_health
 configure
 
-# === Phase 3: consolidated test inspection (list/get/for_file) ===
+# === Phase 3: consolidated test inspection (list/get/for_file/for_tag) ===
+# T2 added the for_tag action; auto-allow continues to apply because
+# this allowlist is tool-name keyed, not action keyed.
 test
 
-# === Phase 3: consolidated discovery (project/module/suite/session) ===
+# === Phase 3: consolidated discovery (project/module/suite/session/tag) ===
+# T2 added the tag kind; the parent tool name remains inventory so
+# auto-allow continues to apply.
 inventory
 settings_list
 
 # === Mutation: runs tests via Vitest's programmatic API ===
+# T2 added tags (TagFilter) and passWithNoTests inputs plus the
+# no-match result discriminator. The tool name remains run_tests.
 run_tests
 
 # === Phase 3: consolidated note CRUD (create/list/get/update/delete/search) ===

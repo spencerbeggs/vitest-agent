@@ -38,18 +38,19 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 | \`test_history\` | \`project\` | Flaky/persistent/recovered tests |
 | \`test_trends\` | \`project\`, \`limit?\` | Coverage trajectory over time |
 | \`test_errors\` | \`project\`, \`errorName?\`, \`format?\` (\`markdown\` \\| \`xml\`) | Errors with diffs, stacks, and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
-| \`test\` | \`action\` (\`list\`/\`get\`/\`for_file\`), plus per-action params | Consolidated test inspection: list/get/for_file |
+| \`test\` | \`action\` (\`list\`/\`get\`/\`for_file\`/\`for_tag\`), plus per-action params | Consolidated test inspection: list/get/for_file/for_tag |
 
 \`test\` actions:
 - \`{ action: "list", project?, state?, module?, limit? }\`
 - \`{ action: "get", fullName, project? }\`
 - \`{ action: "for_file", filePath }\`
+- \`{ action: "for_tag", tag, project? }\` — list every test carrying a tag, grouped by project (or one group when project is supplied)
 
 ## Discovery
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`inventory\` | \`kind\` (\`project\`/\`module\`/\`suite\`/\`session\`), plus per-kind params | Consolidated entity discovery |
+| \`inventory\` | \`kind\` (\`project\`/\`module\`/\`suite\`/\`session\`/\`tag\`), plus per-kind params | Consolidated entity discovery |
 | \`settings_list\` | _(none)_ | Vitest config snapshots |
 
 \`inventory\` kinds:
@@ -58,12 +59,13 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 - \`{ kind: "suite", project?, module? }\`
 - \`{ kind: "session", project?, agentKind?, limit? }\` (omit \`id\` to list)
 - \`{ kind: "session", id }\` (single-session detail)
+- \`{ kind: "tag", project? }\` — per-tag module/test counts; unscoped form carries a \`byProject\` breakdown per tag
 
 ## Execution
 
 | Tool | Parameters | Description |
 | ---- | ---------- | ----------- |
-| \`run_tests\` | \`files?\`, \`project?\`, \`timeout?\`, \`format?\` | Run vitest with optional filters |
+| \`run_tests\` | \`files?\`, \`project?\`, \`tags?\`, \`passWithNoTests?\`, \`timeout?\`, \`format?\` | Run vitest with optional filters. \`tags\` is a structured \`{ all?, any?, none? }\` filter that intersects with \`project\` and \`files\` via AND. When the resolved filter set matches zero test cases the result discriminator is \`no-match\` (carrying the resolved filter context) rather than \`ok\`. \`passWithNoTests\` is a per-call override of Vitest's project-level \`test.passWithNoTests\` policy |
 | \`register_agent\` | \`sessionId\`, \`agentType\`, \`hostKind?\`, \`parentAgentId?\`, \`clientNonce?\`, \`startGitBranch?\`, \`startGitCommitSha?\`, \`startWorktreeDir?\` | Idempotent agent invocation registration |
 
 ## Diagnostics

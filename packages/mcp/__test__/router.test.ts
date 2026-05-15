@@ -126,6 +126,20 @@ describe("MCP Router", () => {
 		expect(result.helpText).toContain("Parameter Key");
 	});
 
+	it("help describes the T2 tag-filtering and tag-introspection surface", async () => {
+		const caller = createTestCaller();
+		const result = await caller.help();
+		// run_tests describes the new tags + passWithNoTests inputs and the no-match discriminator
+		expect(result.helpText).toContain("`tags?`");
+		expect(result.helpText).toContain("`passWithNoTests?`");
+		expect(result.helpText).toContain("no-match");
+		// inventory advertises the new tag kind
+		expect(result.helpText).toContain('kind: "tag"');
+		expect(result.helpText).toContain("byProject");
+		// test advertises the new for_tag action
+		expect(result.helpText).toContain('action: "for_tag"');
+	});
+
 	it("test_status returns dataAvailable=false on empty DB", async () => {
 		const caller = createTestCaller();
 		const result = await caller.test_status({});
