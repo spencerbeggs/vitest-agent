@@ -80,6 +80,10 @@ if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 	hook_debug "$_HOOK" "end-agent: ok agent=$VITEST_AGENT_MAIN_AGENT_ID"
 fi
 
+# Janitorial cleanup: remove the active-subagents dir so orphaned files
+# from SubagentStop crashes don't accumulate across sessions.
+rm -rf "$HOME/.claude/session-env/$chat_id/active-subagents" 2>/dev/null || true
+
 # 3. Compute the wrap-up prompt.
 wrapup=$(cd "$cwd" && $pm_exec vitest-agent agent wrapup \
 	--chat-id "$chat_id" \

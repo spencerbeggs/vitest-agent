@@ -432,9 +432,9 @@ to the CLI's `agent` sidecar subcommands (see
 | Hook | Sidecar invocation | Purpose |
 | --- | --- | --- |
 | `session/start.sh` | `agent register-agent --host-kind claude-code --agent-type claude-code-main ...` | Registers the main agent at session boot; parses the JSON result with `jq` and writes seven canonical `VITEST_AGENT_*` exports (the four UUIDs plus `PROJECT_DIR`, `DATA_DIR`, `PLUGIN_ROOT`) to two surfaces: `${CLAUDE_ENV_FILE}` (auto-sourced into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (sourced by other hooks). Values are `printf '%q'` quoted; resumes are idempotent via grep guards. |
-| `subagent/start-tdd.sh` | `agent register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation (see the dc1fc65 fix). |
+| `subagent/start-tdd.sh` | `agent register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation (see the dc1fc65 fix). Also writes a per-dispatch state file under `active-subagents/` so `subagent/stop-tdd.sh` can recover the subagent's `agentId` (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)). |
 | `session/end-record.sh` | `agent end-agent --host-session-id $session_id` | Sets `agents.ended_at` and `session_map.ended_at` for the main agent. |
-| `subagent/stop-tdd.sh` | `agent end-agent` (no `--host-session-id`) | Sets `agents.ended_at` for the subagent but leaves the main agent's `session_map` row open. |
+| `subagent/stop-tdd.sh` | `agent end-agent` (no `--host-session-id`) | Sets `agents.ended_at` for the subagent. Resolves the subagent's `agentId` by pairing against the per-dispatch state file `subagent/start-tdd.sh` wrote (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)); leaves the main agent's `session_map` row open by design. |
 | `pre-tool-use/bash.sh` | `agent inject-env --command "$cmd" --cwd $cwd` | When the active actor is a subagent, rewrites `tool_input.command` to prepend the `VITEST_AGENT_AGENT_ID=...` env prefix. POSIX env-prefix scope is the immediately-following process only — main-agent env stays intact for subsequent calls. |
 
 ### Seven canonical env exports
@@ -486,6 +486,16 @@ the consolidated tool surface. The action-keyed tools (`tdd_task`,
 `test`) are present on the allowlist; the granular legacy variants
 were removed. The new `register_agent` and `tdd_artifact_list`
 tools are also present.
+
+### State-file pairing for SubagentStop
+
+Claude Code's `SubagentStop` payload carries `agent_type` but not the `agentId` minted at `SubagentStart`, so the stop hook cannot end the right agent row from its own input alone. The pairing bridges that gap with a per-dispatch state file.
+
+`subagent/start-tdd.sh` writes one file per dispatch to `~/.claude/session-env/${chat_id}/active-subagents/<ts>-<pid>.json`. The file name is the synthetic-key tail with the `${chat_id}-subagent-` prefix stripped, which keeps the directory scannable by mtime. Each file holds `agentId`, `agentType`, `syntheticKey` and `startedAt`.
+
+`subagent/stop-tdd.sh` pairs on `agentType`, matching the oldest unconsumed start with the current stop. It reads `agentId` from the matched file, calls `vitest-agent agent end-agent` (no `--host-session-id`) and removes the file. Pairing is deterministic for sequential same-type dispatches; for concurrent same-type dispatches it is approximate but the ended-agent count stays correct.
+
+`session/end-record.sh` removes the whole `active-subagents/` directory for the closing `chat_id` as janitorial cleanup, so files orphaned by a crashed stop hook do not accumulate.
 
 ### Artifact-binding cross-`chat_id` fix
 

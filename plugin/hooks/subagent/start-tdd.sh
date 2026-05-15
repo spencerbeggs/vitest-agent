@@ -118,5 +118,22 @@ if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 	fi
 fi
 
+# Write the per-dispatch state file so SubagentStop can call end-agent.
+# The file name is the portion of the synthetic key AFTER the
+# "${chat_id}-subagent-" prefix, so the dir stays scannable by mtime.
+if [ -n "${subagent_agent_id:-}" ]; then
+	state_dir="$HOME/.claude/session-env/$chat_id/active-subagents"
+	mkdir -p "$state_dir"
+	state_file="${state_dir}/${subagent_session_key#"${chat_id}-subagent-"}.json"
+	jq -cn \
+		--arg agentId "$subagent_agent_id" \
+		--arg agentType "$agent_type" \
+		--arg syntheticKey "$subagent_session_key" \
+		--arg startedAt "$started_at" \
+		'{ agentId: $agentId, agentType: $agentType, syntheticKey: $syntheticKey, startedAt: $startedAt }' \
+		> "$state_file"
+	hook_debug "$_HOOK" "wrote state file: $state_file agentId=$subagent_agent_id"
+fi
+
 emit_noop
 exit 0
