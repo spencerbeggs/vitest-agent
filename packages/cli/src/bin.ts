@@ -19,14 +19,11 @@ import {
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { recordCommand } from "./commands/record.js";
-import { triageCommand } from "./commands/triage.js";
-import { wrapupCommand } from "./commands/wrapup.js";
 import { CURRENT_CLI_VERSION } from "./index.js";
 import { CliLive } from "./layers/CliLive.js";
 
 const rootCommand = Command.make("vitest-agent").pipe(
-	Command.withSubcommands([dbCommand, doctorCommand, recordCommand, triageCommand, wrapupCommand, agentCommand]),
+	Command.withSubcommands([dbCommand, doctorCommand, agentCommand]),
 );
 
 const cli = Command.run(rootCommand, {
