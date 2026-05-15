@@ -92,9 +92,9 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
  *
  * Per-slot defaults:
  * - `human` → `passthrough` (Vitest's own reporters do the visible work).
- *   Users opt into `ink` for live animation by setting `console.human:
- *   "ink"`; the plugin's internal AgentReporter owns the live Ink mount
- *   (T6 contract — users do not import or wire `createLiveInk`
+ *   Users opt into `ink` for live animation by setting the `human` slot
+ *   to `"ink"`; the plugin's internal AgentReporter owns the live Ink
+ *   mount (T6 contract — users do not import or wire `createLiveInk`
  *   themselves; that symbol is internal to vitest-agent-ui).
  * - `agent` → `agent` (markdown-flavored final-frame string).
  * - `ci` → `passthrough` (Vitest's reporters produce log-friendly output;
