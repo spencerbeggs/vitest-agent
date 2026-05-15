@@ -52,7 +52,7 @@ workspace).
 | `vitest-agent-plugin` | `packages/plugin/` | The Vitest plugin. Owns the Vitest lifecycle, persistence, classification, baselines and trends, and the streaming-callback `onRunEvent` tap. Delegates rendering to a reporter factory. |
 | `vitest-agent-reporter` | `packages/reporter/` | "Build your own reporter" SDK. Re-exports the factory contract types from the SDK plus the dispatcher-input helpers (`buildDispatchInputs`, `resolveCellOptions`) from the UI package. No shipped default after T6. |
 | `vitest-agent-ui` | `packages/ui/` | Event-sourced renderer family. Pure `RunEvent` reducer, the shape-tailored dispatcher matrix and its 12 cells, the L1 MCP tool-pointer footer, the preassembled `_defaultReporter` factory the plugin imports as its built-in, the internal `_createLiveInk` live mount, and the Effect `RunEventChannel` PubSub. |
-| `vitest-agent-cli` | `packages/cli/` | The `vitest-agent` bin. Read-side commands (including `show`, which routes through `vitest-agent-ui`) plus the hook-driven `record` subcommand. |
+| `vitest-agent-cli` | `packages/cli/` | The `vitest-agent` bin. Utility-only for 2.0: `doctor`, `db` (path / prune / reset / query), and the `agent` namespace for hook-driven plumbing (triage, wrapup, record, sidecar). Test-landscape queries moved to MCP. |
 | `vitest-agent-mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, MCP resources, MCP prompts. |
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
 

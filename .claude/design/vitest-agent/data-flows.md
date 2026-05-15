@@ -211,15 +211,22 @@ Owned by `vitest-agent-cli`. See [./components/cli.md](./components/cli.md).
   `PathResolutionLive(projectDir) + NodeContext.layer`.
 - Provides `CliLive(dbPath, logLevel?, logFile?)` to the `@effect/cli`
   `Command.run` effect; executes via `NodeRuntime.runMain`.
-- Each read-side subcommand (`status`, `overview`, `coverage`, `history`,
-  `trends`, `cache`, `doctor`) is a thin wrapper over a `lib/format-*`
-  function: query `DataReader` (and `ProjectDiscovery` for `overview`),
-  render via `OutputRenderer`, write to stdout.
-- `cache path` prints the deterministic XDG path. `cache clean` removes the
-  data directory.
-- The `record` subcommand has six sub-subcommands driven by the plugin hooks
-  (Flow 6): `turn`, `session-start`, `session-end`, `tdd-artifact`,
-  `run-workspace-changes`, `test-case-turns`.
+- The top-level tree is exactly three commands: `doctor`, `db`, `agent`.
+  The T8 restructure deleted the six reporting commands (`status`,
+  `overview`, `coverage`, `history`, `trends`, `show`) and their
+  `lib/format-*` formatters — for 2.0 the CLI is utility-only and MCP
+  (Flow 4) is the data path for test-landscape queries.
+- `db path` prints the deterministic XDG path. `db prune --keep-recent N`
+  drops old sessions' turn rows (default N=30). `db reset` wipes the DB
+  (human-only; agent-blocked via the `VITEST_AGENT_AGENT_ID` / TTY gate).
+  `db query <sql>` runs a single read-only SQL statement through a
+  read-only `SqliteClient`; SQLite enforces no-write, so mutations
+  surface as exit code 3 driver errors.
+- The `agent` namespace (replacing the hidden `_internal` group) carries
+  the hook-driven `triage`, `wrapup`, `record`, and the three sidecar
+  subcommands. The `record` subcommand has six sub-subcommands driven by
+  the plugin hooks (Flow 6): `turn`, `session-start`, `session-end`,
+  `tdd-artifact`, `run-workspace-changes`, `test-case-turns`.
   - `record turn --cc-session-id <id> <payload-json>` decodes the payload
     via `Schema.decodeUnknown(TurnPayload)`, resolves the session via
     `DataReader.getSessionByChatId`, then writes the turn via
@@ -396,7 +403,7 @@ Three-step propagation chain:
 
 ```text
 SessionStart hook (bash)
-  → vitest-agent _internal register-agent
+  → vitest-agent agent register-agent
        --host-kind claude-code --agent-type claude-code-main
        --host-session-id $session_id --transcript-path $transcript_path --cwd $cwd
   → SidecarLive composes 3 SQLite scopes:
@@ -416,7 +423,7 @@ SessionStart hook parses with jq, writes 4 export lines to CLAUDE_ENV_FILE.
 ```text
 PreToolUse hook (bash, matcher: Bash)
   → source lib/source-session-env.sh $session_id (gain VITEST_AGENT_* exports)
-  → vitest-agent _internal inject-env --command "$cmd" --cwd $cwd
+  → vitest-agent agent inject-env --command "$cmd" --cwd $cwd
   → injectEnv:
        1. read VITEST_AGENT_CONVERSATION_ID, AGENT_ID, optional PARENT_AGENT_ID from env
           (return original command on miss — no agent context to attribute)

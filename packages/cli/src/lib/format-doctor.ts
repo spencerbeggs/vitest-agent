@@ -21,7 +21,7 @@ export function formatDoctor(results: CheckResult[]): string {
 
 	const hasFailures = results.some((r) => !r.passed);
 	if (hasFailures) {
-		lines.push("\nSuggestion: Run `vitest-agent cache clean` then re-run tests.");
+		lines.push("\nSuggestion: Run `vitest-agent db reset` then re-run tests.");
 	}
 
 	return lines.join("\n");

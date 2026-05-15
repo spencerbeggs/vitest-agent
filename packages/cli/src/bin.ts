@@ -16,36 +16,14 @@ import {
 	resolveLogFile,
 	resolveLogLevel,
 } from "vitest-agent-sdk";
-import { cacheCommand } from "./commands/cache.js";
-import { coverageCommand } from "./commands/coverage.js";
+import { agentCommand } from "./commands/agent.js";
+import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { historyCommand } from "./commands/history.js";
-import { internalCommand } from "./commands/internal.js";
-import { overviewCommand } from "./commands/overview.js";
-import { recordCommand } from "./commands/record.js";
-import { showCommand } from "./commands/show.js";
-import { statusCommand } from "./commands/status.js";
-import { trendsCommand } from "./commands/trends.js";
-import { triageCommand } from "./commands/triage.js";
-import { wrapupCommand } from "./commands/wrapup.js";
 import { CURRENT_CLI_VERSION } from "./index.js";
 import { CliLive } from "./layers/CliLive.js";
 
 const rootCommand = Command.make("vitest-agent").pipe(
-	Command.withSubcommands([
-		statusCommand,
-		overviewCommand,
-		coverageCommand,
-		historyCommand,
-		trendsCommand,
-		cacheCommand,
-		doctorCommand,
-		recordCommand,
-		showCommand,
-		triageCommand,
-		wrapupCommand,
-		internalCommand,
-	]),
+	Command.withSubcommands([dbCommand, doctorCommand, agentCommand]),
 );
 
 const cli = Command.run(rootCommand, {

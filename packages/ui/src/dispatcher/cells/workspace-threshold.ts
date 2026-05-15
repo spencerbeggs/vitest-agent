@@ -22,7 +22,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	const trend = formatTrendLine(inputs.trend);
 	if (trend !== null) summaryLines.push(trend);
 	if (summaryLines.length > 0) sections.push(summaryLines);
-	const below = formatBelowTargetTable(inputs.belowTarget, BELOW_TARGET_LIMIT, inputs.runCommand);
+	const below = formatBelowTargetTable(inputs.belowTarget, BELOW_TARGET_LIMIT);
 	if (below.length > 0) sections.push([...below]);
 	if (inputs.projects.length > 0) {
 		sections.push([formatWorkspaceTotal(inputs.projects)]);

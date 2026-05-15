@@ -1,10 +1,15 @@
 /**
- * Hidden `_internal` subcommand group.
+ * `agent` subcommand namespace.
  *
- * Sidecar invocations called by plugin/hooks/*.sh scripts. Not
- * user-facing — every subcommand returns plain text on stdout that
- * the bash hooks parse, and structured error info on stderr in the
- * shape `<exit_code> <error_tag>: <message>`.
+ * Commands intended for agents and hook scripts — humans typically do
+ * not invoke these directly. The group composes the hook-driven
+ * utilities (triage, wrapup, record) with the sidecar invocations
+ * called by plugin/hooks/*.sh scripts (register-agent, end-agent,
+ * inject-env).
+ *
+ * The sidecar subcommands return plain text on stdout that the bash
+ * hooks parse, and structured error info on stderr in the shape
+ * `<exit_code> <error_tag>: <message>`.
  *
  * Exit codes follow the contract documented in the agent-agnostic
  * taxonomy plan:
@@ -29,6 +34,9 @@ import { SidecarLive } from "../layers/SidecarLive.js";
 import { endAgentEffect } from "../lib/internal-end-agent.js";
 import { injectEnv } from "../lib/internal-inject-env.js";
 import { registerAgentEffect } from "../lib/internal-register-agent.js";
+import { recordCommand } from "./record.js";
+import { triageCommand } from "./triage.js";
+import { wrapupCommand } from "./wrapup.js";
 
 const SESSIONS_DB_FILENAME = "sessions.db";
 const REGISTRY_DB_FILENAME = "registry.db";
@@ -148,7 +156,7 @@ const parentAgentIdOpt = Options.optional(Options.text("parent-agent-id"));
 const clientNonceOpt = Options.optional(Options.text("client-nonce"));
 const projectKeyOverrideOpt = Options.optional(Options.text("project-key"));
 
-const registerAgentSubcommand = Command.make(
+export const registerAgentSubcommand = Command.make(
 	"register-agent",
 	{
 		hostKind: hostKindOpt,
@@ -214,7 +222,7 @@ const endCwdOpt = Options.text("cwd").pipe(
 );
 const endProjectKeyOverrideOpt = Options.optional(Options.text("project-key"));
 
-const endAgentSubcommand = Command.make(
+export const endAgentSubcommand = Command.make(
 	"end-agent",
 	{
 		agentId: agentIdOpt,
@@ -259,16 +267,28 @@ const cwdInjectOpt = Options.text("cwd").pipe(
 	Options.withDescription("Working directory; used to find package.json scripts"),
 );
 
-const injectEnvSubcommand = Command.make("inject-env", { command: commandOpt, cwd: cwdInjectOpt }, (opts) =>
+export const injectEnvSubcommand = Command.make("inject-env", { command: commandOpt, cwd: cwdInjectOpt }, (opts) =>
 	Effect.sync(() => {
 		const out = injectEnv({ command: opts.command, cwd: opts.cwd, env: process.env });
 		process.stdout.write(`${out}\n`);
 	}),
 ).pipe(Command.withDescription("Rewrite a Bash command to prepend VITEST_AGENT_* env vars when it invokes Vitest"));
 
-// _internal group ------------------------------------------------------------
+// agent group -----------------------------------------------------------------
 
-export const internalCommand = Command.make("_internal").pipe(
-	Command.withDescription("Sidecar subcommands invoked by plugin hooks (not user-facing)"),
-	Command.withSubcommands([registerAgentSubcommand, endAgentSubcommand, injectEnvSubcommand]),
+const agentParent = Command.make("agent").pipe(
+	Command.withDescription(
+		"Commands intended for agents and hook scripts — humans typically don't invoke these directly.",
+	),
+);
+
+export const agentCommand = agentParent.pipe(
+	Command.withSubcommands([
+		triageCommand,
+		wrapupCommand,
+		recordCommand,
+		registerAgentSubcommand,
+		endAgentSubcommand,
+		injectEnvSubcommand,
+	]),
 );

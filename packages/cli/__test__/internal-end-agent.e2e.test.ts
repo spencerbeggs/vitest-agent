@@ -40,7 +40,7 @@ const register = (hostSessionId: string, transcriptPath: string): RegisterAgentR
 		"node",
 		[
 			BIN,
-			"_internal",
+			"agent",
 			"register-agent",
 			"--host-kind=claude-code",
 			"--agent-type=claude-code-main",
@@ -54,7 +54,7 @@ const register = (hostSessionId: string, transcriptPath: string): RegisterAgentR
 };
 
 const end = (agentId: string, hostSessionId?: string): void => {
-	const args = [BIN, "_internal", "end-agent", `--agent-id=${agentId}`, `--cwd=${workspaceDir}`];
+	const args = [BIN, "agent", "end-agent", `--agent-id=${agentId}`, `--cwd=${workspaceDir}`];
 	if (hostSessionId !== undefined) args.push(`--host-session-id=${hostSessionId}`);
 	// Pipe stderr to a buffer instead of inheriting the parent's stderr —
 	// the failure-path test deliberately triggers "5 AgentNotFoundError:"
@@ -63,7 +63,7 @@ const end = (agentId: string, hostSessionId?: string): void => {
 	execFileSync("node", args, { env: env(), stdio: ["ignore", "ignore", "pipe"] });
 };
 
-describe("vitest-agent _internal end-agent", () => {
+describe("vitest-agent agent end-agent", () => {
 	it("succeeds when given a valid agentId from a prior register-agent call", () => {
 		const reg = register("host-end-1", "/tmp/conv-end-1.jsonl");
 		expect(() => end(reg.agentId)).not.toThrow();

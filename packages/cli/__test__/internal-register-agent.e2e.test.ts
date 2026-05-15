@@ -1,5 +1,5 @@
 /**
- * End-to-end test for `_internal register-agent`.
+ * End-to-end test for `agent register-agent`.
  *
  * Spins up a temp workspace + temp data dir + temp CLAUDE_PLUGIN_DATA,
  * shells out to the built CLI bin, asserts the printed agentId is a
@@ -55,7 +55,7 @@ const runRegister = (args: { hostSessionId: string; transcriptPath: string }): R
 		"node",
 		[
 			BIN,
-			"_internal",
+			"agent",
 			"register-agent",
 			"--host-kind=claude-code",
 			"--agent-type=claude-code-main",
@@ -74,7 +74,7 @@ const runRegister = (args: { hostSessionId: string; transcriptPath: string }): R
 	return JSON.parse(stdout.toString().trim()) as RegisterAgentResult;
 };
 
-describe("vitest-agent _internal register-agent", () => {
+describe("vitest-agent agent register-agent", () => {
 	it("returns a UUID agentId on first invocation", () => {
 		const result = runRegister({
 			hostSessionId: "host-session-1",
