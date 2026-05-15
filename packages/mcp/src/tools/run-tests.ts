@@ -483,9 +483,11 @@ export const runTests = publicProcedure
 							// and pass it as a one-element array.
 							...(resolvedExpression !== null ? { tagsFilter: [resolvedExpression] } : {}),
 							// Per-call override of Vitest's native test.passWithNoTests.
-							// When unset on the input, Vitest's project-level value
-							// (already captured by the plugin onto ResolvedReporterConfig)
-							// applies.
+							// When unset on the input we forward nothing, and Vitest
+							// re-resolves the policy from the project config on disk.
+							// The plugin's ResolvedReporterConfig snapshot of the
+							// captured value is informational for consumer reporters
+							// and is not read here.
 							...(input.passWithNoTests !== undefined ? { passWithNoTests: input.passWithNoTests } : {}),
 						},
 						{}, // viteOverrides

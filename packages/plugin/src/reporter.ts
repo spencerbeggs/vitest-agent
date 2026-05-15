@@ -163,9 +163,11 @@ interface ResolvedOptions {
 	transport: Transport;
 	/**
 	 * Project-level `test.passWithNoTests` captured from the resolved
-	 * Vitest config. Forwarded onto `ResolvedReporterConfig` so the MCP
-	 * `run_tests` tool can fall back to the project default when its
-	 * per-call override is unset.
+	 * Vitest config and forwarded onto `ResolvedReporterConfig` for
+	 * consumer reporters / UIs that want to render the resolved policy.
+	 * The MCP `run_tests` tool does not read this snapshot — when its
+	 * per-call override is unset the tool forwards nothing to
+	 * `createVitest` and Vitest re-resolves from the project config.
 	 */
 	passWithNoTests?: boolean;
 }

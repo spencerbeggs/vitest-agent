@@ -400,9 +400,12 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				log("transport.kind:", transport.kind);
 
 				// Capture Vitest's native `test.passWithNoTests` (Vitest's own
-				// default is `false`). Threaded onto ResolvedReporterConfig as
-				// the project-level default for the MCP `run_tests` tool; the
-				// MCP layer's per-call override wins when supplied.
+				// default is `false`) and forward it onto ResolvedReporterConfig
+				// so consumer reporters / UIs can render the resolved policy
+				// alongside other run context. The MCP `run_tests` tool does
+				// not read this snapshot — when its per-call override is unset
+				// the tool forwards nothing to `createVitest` and Vitest
+				// re-resolves the policy from the project config on disk.
 				const passWithNoTestsRaw = (vitest.config as { passWithNoTests?: unknown }).passWithNoTests;
 				const passWithNoTests = typeof passWithNoTestsRaw === "boolean" ? passWithNoTestsRaw : undefined;
 				log("passWithNoTests (resolved):", passWithNoTests);

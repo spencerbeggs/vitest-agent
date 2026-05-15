@@ -48,8 +48,9 @@ export interface BuildReporterKitInput {
 	/**
 	 * Project-level `test.passWithNoTests` value captured from the
 	 * resolved Vitest config. Threaded onto {@link ResolvedReporterConfig}
-	 * so the MCP `run_tests` tool can read the project default when its
-	 * per-call override is unset.
+	 * for consumer reporters / UIs that want to render the resolved
+	 * policy. The MCP `run_tests` tool does not read this snapshot — see
+	 * the field docstring on `ResolvedReporterConfig` for the full note.
 	 */
 	readonly passWithNoTests?: boolean;
 }
