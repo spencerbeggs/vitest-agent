@@ -300,7 +300,6 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 			const newFailures = allFailedTests.filter((t) => t.classification === "new-failure");
 			const persistent = allFailedTests.filter((t) => t.classification === "persistent");
 			const flaky = allFailedTests.filter((t) => t.classification === "flaky");
-			const hasClassifications = newFailures.length > 0 || persistent.length > 0 || flaky.length > 0;
 
 			if (newFailures.length > 0) {
 				const files = [
@@ -331,8 +330,6 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 				lines.push("- Use `test_errors` to search errors by type");
 				lines.push("- Use `test_coverage` for coverage gap analysis");
 				lines.push('- Use `note({ action: "create" })` to record debugging findings');
-			} else if (hasClassifications) {
-				lines.push(`- Run \`vitest-agent history\` for failure trends`);
 			}
 		}
 		lines.push("");

@@ -222,7 +222,6 @@ const TABLE_COL_FILE = 60;
 export const formatBelowTargetTable = (
 	belowTarget: ReadonlyArray<FileCoverageReport>,
 	limit: number,
-	runCommand: string | null,
 ): ReadonlyArray<string> => {
 	if (belowTarget.length === 0) return [];
 	const top = belowTarget.slice(0, limit);
@@ -231,11 +230,7 @@ export const formatBelowTargetTable = (
 	const rows = top.map((file) => buildTableRow(file));
 	const footer: string[] = [];
 	if (omitted > 0) {
-		const hint =
-			runCommand !== null
-				? `(run \`${runCommand} coverage\` for full list)`
-				: "(run vitest-agent coverage for full list)";
-		footer.push(`… ${omitted} more ${hint}`);
+		footer.push(`… ${omitted} more (use the file_coverage MCP tool for the full list)`);
 	}
 	return [...header, ...rows, ...footer];
 };

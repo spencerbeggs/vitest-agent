@@ -350,7 +350,7 @@ describe("formatConsoleMarkdown", () => {
 
 	// --- Classification-based suggestions ---
 
-	it("shows new-failure and persistent suggestions with history hint", () => {
+	it("shows new-failure and persistent suggestions without advertising a removed command", () => {
 		const reportWithMixed: AgentReport = {
 			timestamp: "2024-01-01T00:00:00.000Z",
 			reason: "failed",
@@ -389,7 +389,8 @@ describe("formatConsoleMarkdown", () => {
 		const result = formatConsoleMarkdown(reportWithMixed, baseOptions);
 		expect(result).toContain("new failure");
 		expect(result).toContain("persistent failure");
-		expect(result).toContain("vitest-agent history");
+		// The removed `vitest-agent history` command is no longer advertised.
+		expect(result).not.toContain("vitest-agent history");
 	});
 
 	it("shows flaky suggestion with retry hint", () => {
@@ -418,7 +419,7 @@ describe("formatConsoleMarkdown", () => {
 		const result = formatConsoleMarkdown(reportWithFlaky, baseOptions);
 		expect(result).toContain("flaky test");
 		expect(result).toContain("may pass on retry");
-		expect(result).toContain("vitest-agent history");
+		expect(result).not.toContain("vitest-agent history");
 	});
 
 	it("does not show history hint when no classifications present", () => {
