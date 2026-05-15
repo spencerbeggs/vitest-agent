@@ -5,7 +5,7 @@
  * when project is omitted; returns a single group when project is supplied.
  */
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "vitest-agent-sdk";
 import type { McpContext } from "../src/context.js";
 import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
@@ -107,9 +107,15 @@ const seedFixture = async () => {
 	);
 };
 
+// Seed once at file scope. The latest-run-per-project filter would
+// double-count if we re-seeded with the same timestamps in each test; seeding
+// via beforeAll keeps every `it` independent of ordering.
+beforeAll(async () => {
+	await seedFixture();
+});
+
 describe("test({ action: 'for_tag' }) — unscoped", () => {
 	it("groups all int-tagged tests by project across the latest run of each project", async () => {
-		await seedFixture();
 		const caller = makeCaller();
 		const result = (await caller.test({ action: "for_tag", tag: "int" })) as TestResultType;
 		expect(result.action).toBe("for_tag");

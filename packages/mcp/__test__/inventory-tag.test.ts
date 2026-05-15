@@ -9,7 +9,7 @@
  * and that the structured payload round-trips the InventoryResult schema.
  */
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "vitest-agent-sdk";
 import type { McpContext } from "../src/context.js";
 import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
@@ -111,9 +111,16 @@ const seedTwoProjectFixture = async () => {
 	);
 };
 
+// Seed once at file scope. Re-seeding within tests with the same timestamps
+// would cause the latest-run-per-project filter to find duplicates; seeding
+// once via beforeAll keeps each test independent of ordering without the
+// timestamp dance.
+beforeAll(async () => {
+	await seedTwoProjectFixture();
+});
+
 describe("inventory({ kind: 'tag' }) — scoped", () => {
 	it("returns inventoryKind 'tag_scoped' with the project name and per-tag rows", async () => {
-		await seedTwoProjectFixture();
 		const caller = makeCaller();
 		const result = (await caller.inventory({ kind: "tag", project: "proj-a" })) as InventoryResultType;
 		expect(result.inventoryKind).toBe("tag_scoped");
@@ -142,9 +149,6 @@ describe("inventory({ kind: 'tag' }) — scoped", () => {
 
 describe("inventory({ kind: 'tag' }) — unscoped", () => {
 	it("returns inventoryKind 'tag_unscoped' and carries a byProject breakdown per tag", async () => {
-		// The seed from the previous suite remains because ManagedRuntime persists
-		// across tests in this module. Re-seeding is idempotent for our assertions
-		// — the latest run per project is what listTagInventory reads.
 		const caller = makeCaller();
 		const result = (await caller.inventory({ kind: "tag" })) as InventoryResultType;
 		expect(result.inventoryKind).toBe("tag_unscoped");

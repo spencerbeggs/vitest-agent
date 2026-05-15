@@ -90,19 +90,20 @@ export interface ResolvedReporterConfig {
 	 */
 	readonly transport?: Transport;
 	/**
-	 * Project-level default for Vitest's `test.passWithNoTests` policy,
-	 * captured from the resolved Vitest config at `configureVitest` time.
+	 * Snapshot of Vitest's `test.passWithNoTests` policy captured from
+	 * the resolved config at `configureVitest` time.
 	 *
-	 * Used by the MCP `run_tests` tool as the fallback when its per-call
-	 * `passWithNoTests` override is unset. Controls pass/fail
-	 * classification and CLI exit-code semantics only — does not reshape
-	 * the MCP response (the `no-match` discriminator is filter-driven,
-	 * not policy-driven).
+	 * Informational for consumer reporters that want to render the
+	 * resolved policy alongside other run context. The MCP `run_tests`
+	 * tool does not read this field — when its per-call
+	 * `passWithNoTests` override is unset the tool forwards nothing to
+	 * `createVitest`, and Vitest re-resolves from the project config on
+	 * disk. The `no-match` discriminator is filter-driven and is not
+	 * affected by this policy.
 	 *
 	 * Optional because the field is only present when populated by the
-	 * plugin; consumers that construct `ResolvedReporterConfig` directly
-	 * may omit it and the MCP layer treats `undefined` as Vitest's own
-	 * default (`false`).
+	 * plugin; consumers constructing `ResolvedReporterConfig` directly
+	 * may omit it.
 	 */
 	readonly passWithNoTests?: boolean;
 }
