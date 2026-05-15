@@ -153,7 +153,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"help",
 		{
 			description:
-				"List all available MCP tools with their parameters and descriptions. Markdown in content[]; same string available as structuredContent.helpText.",
+				"Use when you need the catalog of available MCP tools and their parameters. Markdown in content[]; same string available as structuredContent.helpText.",
 			outputSchema: effectToZodSchema(HelpResult) as never,
 		},
 		async () => {
@@ -168,7 +168,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"test_status",
 		{
 			description:
-				"Per-project test pass/fail state from the most recent run. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant).",
+				"Use when you need each project's current pass/fail state from the most recent run. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant).",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Filter to a specific project"),
 			},
@@ -185,7 +185,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"test_overview",
 		{
 			description:
-				"Test landscape summary with per-project run metrics. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, projectFilter?, runs[] } or absent variant).",
+				"Use when you want a summary of the test landscape with per-project run metrics. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, projectFilter?, runs[] } or absent variant).",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Filter to a specific project"),
 			},
@@ -202,7 +202,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"test_coverage",
 		{
 			description:
-				"Coverage gap analysis with per-metric thresholds and targets. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, coverage } or absent variant).",
+				"Use when coverage drops and you need per-metric gap analysis against thresholds and targets. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, coverage } or absent variant).",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Project name"),
 			},
@@ -219,7 +219,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"test_history",
 		{
 			description:
-				"Flaky tests, persistent failures, and recovered tests with run visualization. Returns markdown in content[] and a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[]).",
+				"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns markdown in content[] and a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[]).",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
 			},
@@ -236,7 +236,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"test_trends",
 		{
 			description:
-				"Per-project coverage trend with direction, metrics, and sparkline trajectory. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, trends? }).",
+				"Use when you want to see whether a project's coverage is trending up or down over time. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, trends? }).",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
 				limit: z.optional(z.coerce.number()).describe("Max number of trend entries to return"),
@@ -254,7 +254,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"test_errors",
 		{
 			description:
-				"Detailed test errors with diffs, stack traces, and the cite-able test_errors.id / stack_frames.id values needed by hypothesis (action: record). Returns both a markdown rendering (in content[].text) and a typed JSON object (in structuredContent) — agents should prefer structuredContent.errors[].",
+				"Use when a test fails and you need error detail, diffs, and the cite-able test_errors.id / stack_frames.id values needed by hypothesis (action: record). Returns both a markdown rendering (in content[].text) and a typed JSON object (in structuredContent) — agents should prefer structuredContent.errors[].",
 			inputSchema: {
 				project: z.string().describe("Project name (required)"),
 				errorName: z.optional(z.string()).describe("Filter to a specific error name"),
@@ -279,7 +279,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"test",
 		{
 			description:
-				"Test inspection with action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?) returns details + errors + run history; action='for_file' (filePath) returns test modules covering a source file. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
+				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?) returns details + errors + run history; action='for_file' (filePath) returns test modules covering a source file. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
 			inputSchema: {
 				action: z.enum(["list", "get", "for_file"]).describe("Inspection discriminator"),
 				project: z.optional(z.string()),
@@ -319,7 +319,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"file_coverage",
 		{
 			description:
-				"Get coverage data for a specific source file: per-metric values, uncovered lines, and related tests. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, matched?, filePath, report?, totals?, relatedTestFiles[] }).",
+				"Use when you need coverage for one source file: per-metric values, uncovered lines, and related tests. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, matched?, filePath, report?, totals?, relatedTestFiles[] }).",
 			inputSchema: {
 				filePath: z.string().describe("Source file path to check coverage for"),
 				project: z.optional(z.string()).describe("Project name"),
@@ -337,7 +337,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"configure",
 		{
 			description:
-				"View captured Vitest settings for a test run. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, source, settings?, requestedHash? }).",
+				"Use when you need the captured Vitest settings for a test run. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, source, settings?, requestedHash? }).",
 			inputSchema: {
 				settingsHash: z.optional(z.string()).describe("Settings hash from a manifest entry or test run"),
 			},
@@ -354,7 +354,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"cache_health",
 		{
 			description:
-				"Cache health diagnostic: manifest presence, project states, staleness. Returns markdown in content[] and a typed JSON object in structuredContent ({ manifestPresent, manifest?, ageMs?, stale? }).",
+				"Use when you suspect stale data and need manifest presence, project states, and staleness. Returns markdown in content[] and a typed JSON object in structuredContent ({ manifestPresent, manifest?, ageMs?, stale? }).",
 			outputSchema: effectToZodSchema(CacheHealthResult) as never,
 		},
 		async () => {
@@ -370,7 +370,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"inventory",
 		{
 			description:
-				"Discovery / inventory queries with kind discriminator: project / module / suite / session. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list) so callers can branch on the response shape without parsing markdown.",
+				"Use to discover what exists in the workspace, with a kind discriminator: project / module / suite / session. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list) so callers can branch on the response shape without parsing markdown.",
 			inputSchema: {
 				kind: z.enum(["project", "module", "suite", "session"]).describe("Inventory entity"),
 				id: z.optional(z.coerce.number()).describe("session: single-row lookup by id"),
@@ -414,7 +414,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"settings_list",
 		{
 			description:
-				"List all captured settings snapshots with their hashes. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, settings[] }).",
+				"Use when you need every captured settings snapshot and its hash. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, settings[] }).",
 			outputSchema: effectToZodSchema(SettingsListResult) as never,
 		},
 		async () => {
@@ -430,7 +430,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"register_agent",
 		{
 			description:
-				"Register an LLM-agent invocation in the per-project store. Idempotent on (chatId, agentType, parentAgentId, clientNonce). Returns ok:true with agentId on insert, or ok:false with error.code='AGENT_ALREADY_REGISTERED'/'PARENT_AGENT_NOT_FOUND'/'SESSION_NOT_FOUND'/'INVALID_AGENT_TYPE_PREFIX' on the four documented failure modes. agentType must begin with the host-kind prefix (e.g., 'claude-code-main').",
+				"Use when an LLM-agent invocation starts and must be recorded in the per-project store. Idempotent on (chatId, agentType, parentAgentId, clientNonce). Returns ok:true with agentId on insert, or ok:false with error.code='AGENT_ALREADY_REGISTERED'/'PARENT_AGENT_NOT_FOUND'/'SESSION_NOT_FOUND'/'INVALID_AGENT_TYPE_PREFIX' on the four documented failure modes. agentType must begin with the host-kind prefix (e.g., 'claude-code-main').",
 			inputSchema: {
 				chatId: z.string().describe("Host's chat UUID (session_id from CC hook payload, etc.)"),
 				conversationId: z
@@ -474,7 +474,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"run_tests",
 		{
 			description:
-				"Run Vitest tests with optional file and project filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error). The legacy format=json arg is dropped — structuredContent supersedes it.",
+				"Use to run Vitest tests, with optional file and project filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error). The legacy format=json arg is dropped — structuredContent supersedes it.",
 			inputSchema: {
 				files: z.optional(z.array(z.string())).describe("Test file paths to run"),
 				project: z.optional(z.string()).describe("Project name to filter"),
@@ -514,7 +514,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"note",
 		{
 			description:
-				"Note CRUD with action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`); list/search additionally render markdown in the text channel.",
+				"Use to manage notes, with a CRUD action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`); list/search additionally render markdown in the text channel.",
 			inputSchema: {
 				action: z.enum(["create", "list", "get", "update", "delete", "search"]).describe("CRUD discriminator"),
 				// Shared
@@ -593,7 +593,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"turn_search",
 		{
 			description:
-				"Search turn logs across sessions with optional filters. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, turns[] }).",
+				"Use when you need to find past turns across sessions by type, time, or session. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, turns[] }).",
 			inputSchema: {
 				sessionId: z.optional(z.coerce.number()).describe("Filter to a specific session id"),
 				since: z.optional(z.string()).describe("ISO 8601 cutoff — return turns after this timestamp"),
@@ -622,7 +622,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"failure_signature_get",
 		{
 			description:
-				"Look up a failure signature by its 16-char sha256 hash. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, signatureHash?, firstSeenAt?, occurrenceCount?, recentErrors?[] } or absent variant).",
+				"Use when you have a failure-signature hash and need its first-seen date and occurrence history. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, signatureHash?, firstSeenAt?, occurrenceCount?, recentErrors?[] } or absent variant).",
 			inputSchema: {
 				hash: z.string().describe("16-char failure signature hash"),
 			},
@@ -643,7 +643,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"tdd_task",
 		{
 			description:
-				"TDD task lifecycle with action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns markdown details; action='resume' (tddTaskId) returns a compact digest.",
+				"Use to manage a TDD task lifecycle, with an action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns markdown details; action='resume' (tddTaskId) returns a compact digest.",
 			inputSchema: {
 				action: z.enum(["start", "end", "get", "resume"]).describe("Lifecycle discriminator"),
 				tddTaskId: z.optional(z.coerce.number()).describe("end/get/resume: tdd task id"),
@@ -691,7 +691,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"tdd_phase_transition_request",
 		{
 			description:
-				"Request a TDD phase transition. Validates goal status, behavior↔goal membership, and D2 artifact-evidence binding rules; returns accept/deny. On accept, auto-promotes a behavior 'pending' → 'in_progress' when behaviorId is supplied. citedArtifactId is OPTIONAL — when omitted, the most recent matching artifact is auto-resolved (kind comes from citedArtifactKind if supplied, otherwise from the transition's required-evidence rule). Transitions like spike→red that require no artifact need neither field. The accepted response echoes citedArtifactId + citedArtifactSource so the caller can see which row was picked.",
+				"Use when advancing a TDD cycle and you need a phase transition validated and recorded. Validates goal status, behavior↔goal membership, and D2 artifact-evidence binding rules; returns accept/deny. On accept, auto-promotes a behavior 'pending' → 'in_progress' when behaviorId is supplied. citedArtifactId is OPTIONAL — when omitted, the most recent matching artifact is auto-resolved (kind comes from citedArtifactKind if supplied, otherwise from the transition's required-evidence rule). Transitions like spike→red that require no artifact need neither field. The accepted response echoes citedArtifactId + citedArtifactSource so the caller can see which row was picked.",
 			inputSchema: {
 				tddTaskId: z.coerce.number().describe("tdd_tasks.id"),
 				goalId: z.coerce.number().describe("tdd_session_goals.id (required; goal must be in_progress)"),
@@ -744,7 +744,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"tdd_goal",
 		{
 			description:
-				"TDD goal CRUD with action discriminator: action='create' (tddTaskId, goal) is idempotent on (tddTaskId, goal); action='update' (id, goal?, status?) edits text and/or lifecycle status; action='delete' (id) hard-deletes (prefer status:'abandoned'); action='get' (id) reads with nested behaviors; action='list' (tddTaskId) returns all goals for a TDD task.",
+				"Use to manage TDD goals, with a CRUD action discriminator: action='create' (tddTaskId, goal) is idempotent on (tddTaskId, goal); action='update' (id, goal?, status?) edits text and/or lifecycle status; action='delete' (id) hard-deletes (prefer status:'abandoned'); action='get' (id) reads with nested behaviors; action='list' (tddTaskId) returns all goals for a TDD task.",
 			inputSchema: {
 				action: z.enum(["create", "update", "delete", "get", "list"]).describe("CRUD discriminator"),
 				id: z.optional(z.coerce.number()).describe("update/delete/get: goal id"),
@@ -790,7 +790,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"tdd_behavior",
 		{
 			description:
-				"TDD behavior CRUD with action discriminator: action='create' (goalId, behavior, suggestedTestName?, dependsOnBehaviorIds?) is idempotent on (goalId, behavior); action='update' (id, ...patch) edits; action='delete' (id) hard-deletes; action='get' (id) reads; action='list_by_goal' (goalId) lists one goal's behaviors; action='list_by_tdd_task' (tddTaskId) lists across all goals.",
+				"Use to manage TDD behaviors, with a CRUD action discriminator: action='create' (goalId, behavior, suggestedTestName?, dependsOnBehaviorIds?) is idempotent on (goalId, behavior); action='update' (id, ...patch) edits; action='delete' (id) hard-deletes; action='get' (id) reads; action='list_by_goal' (goalId) lists one goal's behaviors; action='list_by_tdd_task' (tddTaskId) lists across all goals.",
 			inputSchema: {
 				action: z
 					.enum(["create", "update", "delete", "get", "list_by_goal", "list_by_tdd_task"])
@@ -859,7 +859,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"tdd_artifact_list",
 		{
 			description:
-				"List TDD artifacts (test_written, test_failed_run, code_written, test_passed_run, refactor, test_weakened) for a tdd_task. Newest first. Use this to find the artifact id to cite in tdd_phase_transition_request without querying SQLite directly. Filters: artifactKind, phaseId, behaviorId, limit (default 50).",
+				"Use when you need the artifact id to cite in tdd_phase_transition_request without querying SQLite directly. Lists TDD artifacts (test_written, test_failed_run, code_written, test_passed_run, refactor, test_weakened) for a tdd_task, newest first. Filters: artifactKind, phaseId, behaviorId, limit (default 50).",
 			inputSchema: {
 				tddTaskId: z.coerce.number().describe("tdd_tasks.id"),
 				artifactKind: z
@@ -894,7 +894,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"hypothesis",
 		{
 			description:
-				"Hypothesis CRUD with action discriminator: action='record' (sessionId, content, optional citation ids) writes a hypothesis; action='validate' (id, outcome, validatedAt) records a validation outcome; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
+				"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (sessionId, content, optional citation ids) writes a hypothesis; action='validate' (id, outcome, validatedAt) records a validation outcome; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
 			inputSchema: {
 				action: z.enum(["record", "validate", "list"]).describe("CRUD discriminator"),
 				// Shared
@@ -954,7 +954,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"tdd_progress_push",
 		{
 			description:
-				"Push a TDD progress event to the main agent via Claude Code channels. The MCP server validates the payload against the ChannelEvent union and resolves goalId/sessionId server-side from behaviorId for behavior-scoped events (so a stale orchestrator context cannot push the wrong tree coordinates). Best-effort — returns { ok: true } regardless of whether channels are active.",
+				"Use when a TDD orchestrator needs to report progress to the main agent over a Claude Code channel. The MCP server validates the payload against the ChannelEvent union and resolves goalId/sessionId server-side from behaviorId for behavior-scoped events (so a stale orchestrator context cannot push the wrong tree coordinates). Best-effort — returns { ok: true } regardless of whether channels are active.",
 			inputSchema: {
 				payload: z
 					.string()
@@ -989,7 +989,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"acceptance_metrics",
 		{
 			description:
-				"Compute the four spec Annex A acceptance metrics from the current database. Returns markdown in content[] and a typed JSON object in structuredContent (per-metric { total, ratio, ... }).",
+				"Use when you need the four spec Annex A acceptance metrics computed from the current database. Returns markdown in content[] and a typed JSON object in structuredContent (per-metric { total, ratio, ... }).",
 			inputSchema: {},
 			outputSchema: effectToZodSchema(AcceptanceMetricsResult) as never,
 		},
@@ -1006,7 +1006,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"triage_brief",
 		{
 			description:
-				"Orientation triage brief: failing tests, flaky tests, open TDD sessions, suggested next actions. Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, markdown }).",
+				"Use when you need to orient on the current test landscape: failing tests, flaky tests, open TDD sessions, and suggested next actions. Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, markdown }).",
 			inputSchema: {
 				project: z.optional(z.string()).describe("Filter to a specific project"),
 				maxLines: z.optional(z.coerce.number()).describe("Soft cap on rendered output lines"),
@@ -1025,7 +1025,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"wrapup_prompt",
 		{
 			description:
-				"Tailored wrap-up prompt for a session (Stop / SessionEnd / PreCompact / TDD handoff / UserPromptSubmit nudge variants). Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, kind, markdown }).",
+				"Use when a session is ending and you need a tailored wrap-up prompt (Stop / SessionEnd / PreCompact / TDD handoff / UserPromptSubmit nudge variants). Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, kind, markdown }).",
 			inputSchema: {
 				sessionId: z.optional(z.coerce.number()).describe("sessions.id (integer); omit to use chatId"),
 				chatId: z.optional(z.string()).describe("Host chat UUID (alternative to sessionId)"),
@@ -1051,7 +1051,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"commit_changes",
 		{
 			description:
-				"Commit metadata + changed files captured by the post-commit hook. Returns up to 20 most-recent when sha is omitted. Returns markdown in content[] and a typed JSON object in structuredContent ({ filterSha?, count, commits[] }).",
+				"Use when you need commit metadata and changed files captured by the post-commit hook. Returns up to 20 most-recent when sha is omitted. Returns markdown in content[] and a typed JSON object in structuredContent ({ filterSha?, count, commits[] }).",
 			inputSchema: {
 				sha: z.optional(z.string()).describe("Specific commit sha to fetch; omit for recent commits"),
 			},
@@ -1074,7 +1074,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"ping",
 		{
 			description:
-				"Ping the MCP server — returns 'pong'. Used to verify hot-patch reload. structuredContent.message carries the constant 'pong' literal.",
+				"Use when you need to verify the MCP server is alive or confirm a hot-patch reload. Returns 'pong'; structuredContent.message carries the constant 'pong' literal.",
 			outputSchema: effectToZodSchema(PingResult) as never,
 		},
 		async () => {

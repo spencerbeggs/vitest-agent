@@ -42,7 +42,7 @@ hook_debug "$_HOOK" "pm_exec=$pm_exec"
 # UserPromptPayload schema's contract.
 payload=$(jq -nc --arg p "$prompt" '{type: "user_prompt", prompt: $p}')
 
-_turn_out=$(cd "$cwd" && $pm_exec vitest-agent record turn \
+_turn_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
 	--chat-id "$chat_id" \
 	"$payload" 2>&1) || {
 	hook_error "$_HOOK" "record turn user_prompt rc=$? cc=$chat_id: $_turn_out"
@@ -50,7 +50,7 @@ _turn_out=$(cd "$cwd" && $pm_exec vitest-agent record turn \
 hook_debug "$_HOOK" "record turn user_prompt: $_turn_out"
 
 # 2. Compute the nudge (empty when the prompt isn't failure-related).
-nudge=$(cd "$cwd" && $pm_exec vitest-agent wrapup \
+nudge=$(cd "$cwd" && $pm_exec vitest-agent agent wrapup \
 	--chat-id "$chat_id" \
 	--kind user_prompt_nudge \
 	--user-prompt-hint "$prompt" \

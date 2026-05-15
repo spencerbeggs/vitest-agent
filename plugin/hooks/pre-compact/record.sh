@@ -27,14 +27,14 @@ pm_exec=$(detect_pm_exec "$cwd")
 # 1. Record the firing.
 fire_payload=$(jq -nc --arg cc "$chat_id" \
 	'{type: "hook_fire", hook_kind: "PreCompact", chat_id: $cc}')
-cd "$cwd" >/dev/null && $pm_exec vitest-agent record turn \
+cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record turn \
 	--chat-id "$chat_id" \
 	"$fire_payload" \
 	>/dev/null 2>&1 \
 	|| true
 
 # 2. Compute the wrap-up nudge.
-nudge=$(cd "$cwd" && $pm_exec vitest-agent wrapup \
+nudge=$(cd "$cwd" && $pm_exec vitest-agent agent wrapup \
 	--chat-id "$chat_id" \
 	--kind pre_compact \
 	--format markdown 2>/dev/null || echo "")

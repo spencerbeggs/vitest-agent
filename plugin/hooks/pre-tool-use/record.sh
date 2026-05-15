@@ -29,7 +29,7 @@ payload=$(jq -nc \
 	--arg tuid "$tool_use_id" \
 	'{type: "tool_call", tool_name: $tn, tool_input: $ti} + (if $tuid != "" then {tool_use_id: $tuid} else {} end)')
 
-cd "$cwd" >/dev/null && $pm_exec vitest-agent record turn \
+cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record turn \
 	--chat-id "$chat_id" \
 	"$payload" \
 	>/dev/null 2>&1 \

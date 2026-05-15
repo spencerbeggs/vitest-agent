@@ -77,18 +77,18 @@ Hook scripts in `hooks/` are POSIX shell, grouped by hook event into subdirector
 
 | Script | Trigger | Behavior |
 | --- | --- | --- |
-| `session/start.sh` | `SessionStart` | Injects test status + MCP tool reference; calls `vitest-agent _internal register-agent` for the main agent; writes the seven canonical `VITEST_AGENT_*` exports to two surfaces — `${CLAUDE_ENV_FILE}` (host auto-sources into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (other hooks source it via `lib/source-session-env.sh`). Idempotent on resume via `grep -q` guard. |
+| `session/start.sh` | `SessionStart` | Injects test status + MCP tool reference; calls `vitest-agent agent register-agent` for the main agent; writes the seven canonical `VITEST_AGENT_*` exports to two surfaces — `${CLAUDE_ENV_FILE}` (host auto-sources into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (other hooks source it via `lib/source-session-env.sh`). Idempotent on resume via `grep -q` guard. |
 | `pre-tool-use/mcp.sh` | `PreToolUse` (MCP tools) | Auto-allows non-destructive MCP tools without per-call prompts (consult `safe-mcp-vitest-agent-ops.txt`) |
 | `pre-tool-use/tdd-restricted.sh` | `PreToolUse` (tdd-task subagent) | Reads `tool_input.action` on the consolidated `tdd_goal` / `tdd_behavior` tools and denies `delete` (also blocks `tdd_artifact_record`) inside the orchestrator subagent |
 | `pre-tool-use/bash-tdd.sh` | `PreToolUse` (Bash, tdd-task subagent) | Blocks `--update`, `--reporter=silent`, `--bail`, `--testNamePattern`; injects reminder to use `run_tests` MCP |
-| `pre-tool-use/bash.sh` | `PreToolUse` (Bash, all agents) | Self-sources the session env, calls `vitest-agent _internal inject-env`, returns `updatedInput.command` with the `VITEST_AGENT_CONVERSATION_ID` / `_AGENT_ID` env prefix on Vitest invocations |
+| `pre-tool-use/bash.sh` | `PreToolUse` (Bash, all agents) | Self-sources the session env, calls `vitest-agent agent inject-env`, returns `updatedInput.command` with the `VITEST_AGENT_CONVERSATION_ID` / `_AGENT_ID` env prefix on Vitest invocations |
 | `post-tool-use/test-run.sh` | `PostToolUse` (Bash) | Detects vitest invocations in the Bash command; on non-zero exit code (read from `.tool_response.exit_code`) injects `<test_failure_guidance>` pointing the agent at MCP tools |
 | `post-tool-use/git-commit.sh` | `PostToolUse` (Bash) | Detects `git commit` invocations; records commit metadata into `commits` table |
 | `post-tool-use/tdd-artifact.sh` | `PostToolUse` (Write/Edit/run_tests, tdd-task) | Records `test_written`, `test_failed_run`, `test_passed_run`, `code_written` artifacts into `tdd_artifacts` |
 | `post-tool-use/test-quality.sh` | `PostToolUse` (Write/Edit, tdd-task) | Detects test-weakening edits (`it.skip`, `.todo`, snapshot mutations); records `test_weakened` artifact |
-| `subagent/start-tdd.sh` | `SubagentStart` | Self-sources the session env, creates a synthetic subagent session row in `sessions` (key: `${chat_id}-subagent-<ts>-<pid>`), then calls `vitest-agent _internal register-agent --parent-agent-id $VITEST_AGENT_MAIN_AGENT_ID` to record the subagent in `agents` |
-| `subagent/stop-tdd.sh` | `SubagentStop` | Runs `vitest-agent wrapup --kind tdd_handoff` and records the handoff note on the parent session (subagent `end-agent` integration deferred — see Phase 2–4 notes below) |
-| `session/end-record.sh` | `SessionEnd` | Records a `hook_fire` turn, records the session-end timestamp, emits the wrap-up prompt, then calls `vitest-agent _internal end-agent --agent-id $VITEST_AGENT_MAIN_AGENT_ID --host-session-id $chat_id` to close both `agents.ended_at` and `session_map.ended_at` |
+| `subagent/start-tdd.sh` | `SubagentStart` | Self-sources the session env, creates a synthetic subagent session row in `sessions` (key: `${chat_id}-subagent-<ts>-<pid>`), then calls `vitest-agent agent register-agent --parent-agent-id $VITEST_AGENT_MAIN_AGENT_ID` to record the subagent in `agents` |
+| `subagent/stop-tdd.sh` | `SubagentStop` | Runs `vitest-agent agent wrapup --kind tdd_handoff`, records the handoff note on the parent session, then pairs the stop to a `SubagentStart` via the per-dispatch state file under `~/.claude/session-env/${chat_id}/active-subagents/` (oldest-start-with-oldest-stop on matching `agent_type`), reads the matched `agentId`, calls `vitest-agent agent end-agent --agent-id $agentId` to set `agents.ended_at`, and removes the state file |
+| `session/end-record.sh` | `SessionEnd` | Records a `hook_fire` turn, records the session-end timestamp, emits the wrap-up prompt, then calls `vitest-agent agent end-agent --agent-id $VITEST_AGENT_MAIN_AGENT_ID --host-session-id $chat_id` to close both `agents.ended_at` and `session_map.ended_at` |
 | `post-tool-use/record.sh` | `PostToolUse` (all) | Records tool-call turns for session analytics |
 | `user-prompt-submit/record.sh` | `UserPromptSubmit` | Records user prompt turns |
 | `pre-compact/record.sh` | `PreCompact` | Records pre-compaction turn for analytics |
@@ -142,8 +142,8 @@ Skills are loaded into the dispatching agent's context via three mechanisms: exp
 
 | Command | File | Description |
 | --- | --- | --- |
-| `/setup` | `commands/setup.md` | Add `AgentPlugin` to the current project's `vitest.config.ts` |
-| `/configure` | `commands/configure.md` | View or modify reporter settings |
+| `/setup` | `commands/setup.md` | Verify Vitest 4.1+ and peer dependencies, then emit the canonical 2.0 `vitest.config.ts` |
+| `/configure` | `commands/configure.md` | View the resolved reporter configuration — display-only |
 | `/tdd` | `commands/tdd.md` | Launch a TDD session using the `tdd` skill |
 
 ## Hot-reload cost matrix
@@ -208,7 +208,7 @@ The dogfood system was the primary development driver for the hook and agent beh
 
 ## Agent-agnostic taxonomy additions (Phases 2–4)
 
-**SessionStart hook** (`session/start.sh`) calls `vitest-agent _internal register-agent` after `record session-start`, then writes seven canonical exports to two surfaces:
+**SessionStart hook** (`session/start.sh`) calls `vitest-agent agent register-agent` after `vitest-agent agent record session-start`, then writes seven canonical exports to two surfaces:
 
 ```sh
 export VITEST_AGENT_CHAT_ID="..."
@@ -225,13 +225,13 @@ export VITEST_AGENT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 
 Values are quoted with `printf '%q'` to safely handle anything that might contain spaces, quotes, or newlines. Hooks that need these env vars call `source_session_env "$session_id"` at entry — the helper validates the session-id shape, then walks the per-session env dir.
 
-**SubagentStart hook** (`subagent/start-tdd.sh`) self-sources the env dir to recover `VITEST_AGENT_MAIN_AGENT_ID`, then calls `vitest-agent _internal register-agent` with `--parent-agent-id` set so the subagent gets its own row in `agents` with `parent_agent_id` linked to the main agent.
+**SubagentStart hook** (`subagent/start-tdd.sh`) self-sources the env dir to recover `VITEST_AGENT_MAIN_AGENT_ID`, then calls `vitest-agent agent register-agent` with `--parent-agent-id` set so the subagent gets its own row in `agents` with `parent_agent_id` linked to the main agent.
 
-**SessionEnd hook** (`session/end-record.sh`) self-sources, then calls `vitest-agent _internal end-agent --agent-id $VITEST_AGENT_MAIN_AGENT_ID --host-session-id $chat_id` to set `agents.ended_at` and `session_map.ended_at` together.
+**SessionEnd hook** (`session/end-record.sh`) self-sources, then calls `vitest-agent agent end-agent --agent-id $VITEST_AGENT_MAIN_AGENT_ID --host-session-id $chat_id` to set `agents.ended_at` and `session_map.ended_at` together.
 
-**SubagentStop end-agent integration is deferred** — the synthetic key the SubagentStart hook generated isn't recoverable from the stop payload alone. Documented limitation; subagent `agents.ended_at` stays NULL until a SubagentStart-time state file is added.
+**SubagentStop end-agent integration** pairs stops to starts via a per-dispatch state file. `subagent/start-tdd.sh` writes `~/.claude/session-env/${chat_id}/active-subagents/<ts>-<pid>.json` (the file name is the synthetic-key tail with the `${chat_id}-subagent-` prefix stripped) holding `agentId`, `agentType`, `syntheticKey`, and `startedAt`. `subagent/stop-tdd.sh` pairs on `agent_type` (oldest-start-with-oldest-stop), reads the matched `agentId`, calls `vitest-agent agent end-agent --agent-id $agentId` — with no `--host-session-id`, so the subagent stop sets `agents.ended_at` but leaves the main agent's `session_map` row open — then removes the state file. `session/end-record.sh` removes the whole `active-subagents/` directory for the closing `chat_id` as janitorial cleanup against orphan files from crashed SubagentStop hooks. Pairing is deterministic for sequential same-type dispatches and approximate for concurrent same-type dispatches, but the total open-subagent count stays correct.
 
-**PreToolUse Bash hook** (`pre-tool-use/bash.sh`) self-sources, then calls `vitest-agent _internal inject-env --command "$cmd" --cwd $PROJECT_DIR`. The sidecar matches the command against the five Vitest invocation shapes (direct, runner, pm exec, pm script, node bin path); on match it returns the original command prepended with `VITEST_AGENT_CONVERSATION_ID=<uuid> VITEST_AGENT_AGENT_ID=<uuid>` so the spawned Vitest process inherits attribution. Hook returns `hookSpecificOutput.updatedInput.command` per the PreToolUse contract.
+**PreToolUse Bash hook** (`pre-tool-use/bash.sh`) self-sources, then calls `vitest-agent agent inject-env --command "$cmd" --cwd $PROJECT_DIR`. The sidecar matches the command against the five Vitest invocation shapes (direct, runner, pm exec, pm script, node bin path); on match it returns the original command prepended with `VITEST_AGENT_CONVERSATION_ID=<uuid> VITEST_AGENT_AGENT_ID=<uuid>` so the spawned Vitest process inherits attribution. Hook returns `hookSpecificOutput.updatedInput.command` per the PreToolUse contract.
 
 **TDD-restricted hook** (`pre-tool-use/tdd-restricted.sh`) reads `tool_input.action` and denies `delete` actions on the consolidated `tdd_goal` and `tdd_behavior` tools. Defense-in-depth on top of the `tdd-task` agent's frontmatter `tools:` list.
 

@@ -59,7 +59,7 @@ case "$tool_name" in
 			# Backfill test_cases.created_turn_id (BUG-2) and get latest test
 			# case id for this session (BUG-1) in one call.
 			test_case_id_arg=""
-			_turns_out=$(cd "$cwd" && $pm_exec vitest-agent record test-case-turns \
+			_turns_out=$(cd "$cwd" && $pm_exec vitest-agent agent record test-case-turns \
 				--chat-id "$chat_id" 2>&1) || {
 				hook_error "$_HOOK" "record test-case-turns rc=$? cc=$chat_id: $_turns_out"
 			}
@@ -71,7 +71,7 @@ case "$tool_name" in
 				fi
 			fi
 			# shellcheck disable=SC2086
-			_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent record tdd-artifact \
+			_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
@@ -129,7 +129,7 @@ case "$tool_name" in
 			# case id for this session (BUG-1). For MCP run_tests, post-test-run.sh
 			# does NOT fire, so this is the only opportunity to backfill.
 			test_case_id_arg=""
-			_turns_out=$(cd "$cwd" && $pm_exec vitest-agent record test-case-turns \
+			_turns_out=$(cd "$cwd" && $pm_exec vitest-agent agent record test-case-turns \
 				--chat-id "$chat_id" 2>&1) || {
 				hook_error "$_HOOK" "record test-case-turns rc=$? cc=$chat_id: $_turns_out"
 			}
@@ -141,7 +141,7 @@ case "$tool_name" in
 				fi
 			fi
 			# shellcheck disable=SC2086
-			_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent record tdd-artifact \
+			_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
@@ -165,7 +165,7 @@ case "$tool_name" in
 				kind="code_written"
 				;;
 		esac
-		_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent record tdd-artifact \
+		_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
 			--chat-id "$chat_id" \
 			--artifact-kind "$kind" \
 			--file-path "$file_path" \

@@ -80,7 +80,7 @@ files_json=${files_json:-"[]"}
 . "$(dirname "$0")/../lib/detect-pm.sh"
 pm_exec=$(detect_pm_exec "$cwd")
 
-cd "$cwd" >/dev/null && $pm_exec vitest-agent record run-workspace-changes \
+cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record run-workspace-changes \
 	--sha "$sha" \
 	${parent_sha:+--parent-sha "$parent_sha"} \
 	${message:+--message "$message"} \

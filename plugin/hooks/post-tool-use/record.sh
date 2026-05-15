@@ -41,7 +41,7 @@ result_payload=$(jq -nc \
 	--argjson ok "$success" \
 	'{type: "tool_result", tool_name: $tn, success: $ok} + (if $tuid != "" then {tool_use_id: $tuid} else {} end)')
 
-_turn_out=$(cd "$cwd" && $pm_exec vitest-agent record turn \
+_turn_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
 	--chat-id "$chat_id" \
 	"$result_payload" 2>&1) || {
 	hook_error "$_HOOK" "record turn tool_result rc=$? cc=$chat_id tool=$tool_name: $_turn_out"
@@ -65,7 +65,7 @@ case "$tool_name" in
 			--arg fp "$file_path" \
 			--arg ek "$edit_kind" \
 			'{type: "file_edit", file_path: $fp, edit_kind: $ek}')
-		_edit_out=$(cd "$cwd" && $pm_exec vitest-agent record turn \
+		_edit_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
 			--chat-id "$chat_id" \
 			"$edit_payload" 2>&1) || {
 			hook_error "$_HOOK" "record turn file_edit rc=$? cc=$chat_id file=$file_path: $_edit_out"

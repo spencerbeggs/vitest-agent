@@ -58,7 +58,7 @@ hook_debug "$_HOOK" "INPUT session_id=$chat_id parent=$parent_chat_id synthetic_
 # without re-firing SessionStart for the new id. `record session-start`
 # is idempotent on `chat_id` (UPSERT via ON CONFLICT DO NOTHING):
 # no-op when the row already exists, bootstrap when it does not.
-_parent_out=$(cd "$cwd" && $pm_exec vitest-agent record session-start \
+_parent_out=$(cd "$cwd" && $pm_exec vitest-agent agent record session-start \
 	--chat-id "$chat_id" \
 	--project "$project" \
 	--cwd "$cwd" \
@@ -73,7 +73,7 @@ hook_debug "$_HOOK" "record session-start (parent bootstrap): $_parent_out"
 # hook payload, but Claude Code does not reliably populate that field for
 # context:fork dispatches, leaving the subagent row orphaned and breaking the
 # parent walk that `record-tdd-artifact` uses to find the open tdd_task.
-_session_out=$(cd "$cwd" && $pm_exec vitest-agent record session-start \
+_session_out=$(cd "$cwd" && $pm_exec vitest-agent agent record session-start \
 	--chat-id "$subagent_session_key" \
 	--project "$project" \
 	--cwd "$cwd" \
@@ -102,7 +102,7 @@ if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 		transcript_path="/synthetic/${subagent_session_key}.jsonl"
 	fi
 	# shellcheck disable=SC2086
-	_register_out=$(cd "$cwd" && $pm_exec vitest-agent _internal register-agent \
+	_register_out=$(cd "$cwd" && $pm_exec vitest-agent agent register-agent \
 		--host-kind claude-code \
 		--agent-type claude-code-tdd-task \
 		--host-session-id "$subagent_session_key" \
@@ -116,6 +116,23 @@ if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 		subagent_agent_id=$(echo "$_register_out" | jq -r '.agentId // ""' 2>/dev/null || echo "")
 		hook_debug "$_HOOK" "subagent registered: agentId=$subagent_agent_id parent=$VITEST_AGENT_MAIN_AGENT_ID"
 	fi
+fi
+
+# Write the per-dispatch state file so SubagentStop can call end-agent.
+# The file name is the portion of the synthetic key AFTER the
+# "${chat_id}-subagent-" prefix, so the dir stays scannable by mtime.
+if [ -n "${subagent_agent_id:-}" ]; then
+	state_dir="$HOME/.claude/session-env/$chat_id/active-subagents"
+	mkdir -p "$state_dir"
+	state_file="${state_dir}/${subagent_session_key#"${chat_id}-subagent-"}.json"
+	jq -cn \
+		--arg agentId "$subagent_agent_id" \
+		--arg agentType "$agent_type" \
+		--arg syntheticKey "$subagent_session_key" \
+		--arg startedAt "$started_at" \
+		'{ agentId: $agentId, agentType: $agentType, syntheticKey: $syntheticKey, startedAt: $startedAt }' \
+		> "$state_file"
+	hook_debug "$_HOOK" "wrote state file: $state_file agentId=$subagent_agent_id"
 fi
 
 emit_noop

@@ -1,0 +1,6 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"transcript_path": "/tmp/bats-test-transcript.jsonl",
+	"hook_event_name": "SessionStart"
+}

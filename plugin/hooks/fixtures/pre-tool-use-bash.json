@@ -1,0 +1,13 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"tool_name": "Bash",
+	"tool_use_id": "toolu_bats_bash_001",
+	"tool_input": {
+		"command": "pnpm exec vitest run",
+		"description": "Run all tests",
+		"timeout": 120000,
+		"run_in_background": false
+	},
+	"hook_event_name": "PreToolUse"
+}

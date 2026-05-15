@@ -1,34 +1,71 @@
 ---
-description: View or modify vitest-agent-plugin settings
+description: View the resolved vitest-agent-plugin configuration
 disable-model-invocation: true
-argument-hint: "[setting] [value]"
 ---
 
 # Configure vitest-agent-plugin
 
-View or modify the reporter configuration.
+Display the project's resolved `vitest-agent-plugin` configuration. This
+command is read-only — it parses the Vitest config and renders what is
+set; it never mutates the file. To change a setting, edit
+`vitest.config.ts` directly.
 
-## Without arguments
+## 1. Locate the Vitest config
 
-Show the current configuration by:
+Look for `vitest.config.ts`, `vitest.config.js`, or `vitest.config.mjs`
+at the project root. If none exists, stop and point the user at
+`/setup`.
 
-1. Reading the vitest config file (vitest.config.ts or similar)
-2. Looking for `AgentPlugin` options
-3. Displaying current settings in a table
+## 2. Parse the `AgentPlugin({ ... })` call
 
-## With arguments
+Read the `AgentPlugin()` call from the `plugins` array. Extract the five
+options fields: `console`, `coverageTargets`, `transport`, `reporter`,
+and `onRunEvent`. Any field not present in the call is at its default.
 
-Modify a specific setting. Supported settings:
+## 3. Parse `test.coverage`
 
-- `format <markdown|json|vitest-bypass|silent>` -- output format
-- `mode <auto|agent|silent>` -- executor detection mode
-- `threshold <metric> <value>` -- set coverage threshold
-  (e.g., `threshold lines 80`)
-- `target <metric> <value>` -- set coverage target
-- `autoUpdate <true|false>` -- toggle baseline auto-ratcheting
+Read Vitest's native `test.coverage` block. Extract `enabled`,
+`provider`, `thresholds`, and `watermarks`.
 
-To modify settings, edit the `AgentPlugin()` call in the vitest
-config file. Use the Read tool to check current values, then
-Edit to update them.
+## 4. Render the two tables
 
-$ARGUMENTS
+Render the five-field options table and the Vitest coverage block, for
+example:
+
+```text
+## vitest-agent options (AgentPlugin({ ... }))
+
+| Field           | Value                                                |
+| --------------- | ---------------------------------------------------- |
+| console         | { human: "ink", agent: "agent", ci: "agent" }        |
+| coverageTargets | AgentPlugin.COVERAGE_LEVELS.standard.coverageTargets |
+| transport       | { kind: "local" } (default)                          |
+| reporter        | (default — plugin built-in)                          |
+| onRunEvent      | (default — no tee)                                   |
+
+## Vitest coverage (test.coverage)
+
+| Field      | Value                                           |
+| ---------- | ----------------------------------------------- |
+| enabled    | true                                            |
+| provider   | "v8"                                            |
+| thresholds | AgentPlugin.COVERAGE_LEVELS.standard.thresholds |
+| watermarks | (default)                                       |
+```
+
+For any field left at its default, render `(default)` with a short note
+of the default value rather than leaving the cell blank.
+
+## 5. Detect the coverage preset
+
+When `coverageTargets` and `thresholds` match one of the named presets
+(`AgentPlugin.COVERAGE_LEVELS.{none|basic|standard|strict|full}`),
+render the preset name. When they do not match a preset, render
+`"custom"` and a per-metric breakdown of the actual values.
+
+## 6. Point at the manual edit path
+
+End by telling the user which file and line to edit for the
+`AgentPlugin` options and for the Vitest coverage block, and point them
+at the `configuration` skill for the field reference. Do not modify the
+config.

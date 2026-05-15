@@ -34,7 +34,7 @@ fi
 pm_exec=$(detect_pm_exec "$PROJECT_DIR")
 
 # 1. Generate the triage brief.
-triage_md=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent triage --format markdown 2>/dev/null || echo "")
+triage_md=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent triage --format markdown 2>/dev/null || echo "")
 
 # 2. Compute the triage_was_non_empty flag.
 if [ -n "$triage_md" ]; then
@@ -50,7 +50,7 @@ started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 hook_debug "$_HOOK" "INPUT session_id=$chat_id PROJECT_DIR=$PROJECT_DIR pm_exec=$pm_exec"
 
 # shellcheck disable=SC2086
-_session_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent record session-start \
+_session_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent record session-start \
 	--chat-id "$chat_id" \
 	--project "$project" \
 	--cwd "$PROJECT_DIR" \
@@ -70,7 +70,7 @@ conversation_id=""
 main_agent_id=""
 if [ -n "$transcript_path" ]; then
 	# shellcheck disable=SC2086
-	_register_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent _internal register-agent \
+	_register_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent register-agent \
 		--host-kind claude-code \
 		--agent-type claude-code-main \
 		--host-session-id "$chat_id" \
@@ -152,7 +152,7 @@ fi
 preamble="<EXTREMELY_IMPORTANT>
 <vitest_agent_reporter>
 
-This project ships with the vitest-agent MCP server. **Always prefer the \`mcp__vitest-agent_mcp__*\` tools over invoking \`vitest\` directly via Bash.** Every reporter run persists test results, errors, coverage, history, and turn data to a SQLite database, so the MCP query surface (\`test_status\`, \`test_overview\`, \`test_errors\`, \`test_history\`, \`test_coverage\`, \`failure_signature_get\`, \`turn_search\`, \`commit_changes\`, etc.) is the authoritative view of project state. Re-running \`vitest\` via Bash bypasses persistence and the post-tool-use hooks that record TDD artifacts, classifications, and failure signatures. Use \`run_tests\` for execution, \`help\` for the full tool list.
+This project ships with the vitest-agent MCP server. **Always prefer the \`mcp__vitest-agent_mcp__*\` tools over invoking \`vitest\` directly via Bash.** Every reporter run persists test results, errors, coverage, history, and turn data to a SQLite database, so the MCP query surface is the authoritative view of project state. Re-running \`vitest\` via Bash bypasses persistence and the post-tool-use hooks that record TDD artifacts, classifications, and failure signatures. Use \`run_tests\` for execution, \`help\` for the full tool list. The triage brief below lists the most useful tools paired with the situations that call for them.
 
 **A specialized TDD task agent is available.** It enforces a strict red → green → refactor loop with evidence-bound phase transitions, per-cycle commits, hypothesis recording before any production-code edit, and anti-pattern detection (skipped tests, snapshot mutation, threshold downgrades, etc.). When the user asks for a feature, bug fix, or behavior change that is testable against this codebase's vitest suite, **delegate to the tdd-task agent via the \`/tdd <goal>\` slash command (or by invoking \`plugin:vitest-agent:tdd-task\` through the Task tool) instead of writing tests and code yourself.** Reserve direct work for: pure refactors with no behavioral change, exploratory spikes the user explicitly flags as throwaway, and non-code tasks (docs, configuration, dependency bumps).
 
