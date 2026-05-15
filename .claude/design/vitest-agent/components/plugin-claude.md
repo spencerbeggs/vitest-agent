@@ -338,10 +338,7 @@ primitive content embedded inline.
 
 ### Slash commands
 
-`/setup` and `/configure` are scaffolding helpers for adding `AgentPlugin` to a
-project's Vitest config. `/tdd` launches a TDD session by dispatching the
-orchestrator with the user's goal as the task prompt — the command does
-nothing beyond forwarding the goal; all the real work is in the agent.
+`/setup` and `/configure` are config helpers for `AgentPlugin` in a project's Vitest config. `/setup` runs a deterministic seven-step flow: verify Vitest 4.1+, `vitest-agent-plugin` and a coverage provider; detect and convert the config shape to async-arrow; emit the canonical 2.0 config (an `AgentPlugin.discover()` destructure, the five-field options surface with only `coverageTargets` emitted, and split coverage); and migrate pre-2.0 option patterns when upgrading. `/configure` is display-only — it parses the config and renders a five-field options table plus the Vitest coverage block, then points the user at the file for manual edits. It does not mutate the config. `/tdd` launches a TDD session by dispatching the orchestrator with the user's goal as the task prompt — the command does nothing beyond forwarding the goal; all the real work is in the agent.
 
 ### Dogfood system
 

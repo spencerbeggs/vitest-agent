@@ -142,8 +142,8 @@ Skills are loaded into the dispatching agent's context via three mechanisms: exp
 
 | Command | File | Description |
 | --- | --- | --- |
-| `/setup` | `commands/setup.md` | Add `AgentPlugin` to the current project's `vitest.config.ts` |
-| `/configure` | `commands/configure.md` | View or modify reporter settings |
+| `/setup` | `commands/setup.md` | Verify Vitest 4.1+ and peer dependencies, then emit the canonical 2.0 `vitest.config.ts` |
+| `/configure` | `commands/configure.md` | View the resolved reporter configuration — display-only |
 | `/tdd` | `commands/tdd.md` | Launch a TDD session using the `tdd` skill |
 
 ## Hot-reload cost matrix
