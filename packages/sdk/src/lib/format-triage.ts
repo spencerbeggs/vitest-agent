@@ -41,6 +41,18 @@ export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Ef
 		lines.push("## Vitest Agent Reporter — Orientation Triage");
 		lines.push("");
 
+		// --- L2 MCP-tool orientation block ---
+		// Action-paired guidance, always present so the SessionStart hook's
+		// injected triage lands the orientation surface once per session.
+		lines.push("### Available vitest-agent MCP tools (most useful)");
+		lines.push("");
+		lines.push("- `run_tests` — run Vitest programmatically; returns AgentReport + classifications");
+		lines.push("- `test_errors` — failure detail (after a failing run)");
+		lines.push("- `test_history` — failure classification series (after recurring failures)");
+		lines.push("- `file_coverage` — per-file coverage gaps (after coverage drops)");
+		lines.push("- `triage_brief` — orient on the current test landscape");
+		lines.push("");
+
 		// --- Projects section ---
 		if (projects.length > 0) {
 			lines.push("### Recent Test Runs");

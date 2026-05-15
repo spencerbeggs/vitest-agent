@@ -89,6 +89,19 @@ describe("formatTriageEffect", () => {
 		expect(typeof result).toBe("string");
 	});
 
+	it("always includes the L2 MCP-tool guidance block before the Recent Test Runs section", async () => {
+		// The L2 block must land on every triage, including an empty DB, so the
+		// SessionStart hook always injects the orientation surface.
+		const result = await Effect.runPromise(Effect.provide(formatTriageEffect(), TestLayer));
+		expect(result).toContain("### Available vitest-agent MCP tools (most useful)");
+		expect(result).toContain("- `run_tests` —");
+		expect(result).toContain("- `test_errors` —");
+		expect(result).toContain("- `test_history` —");
+		expect(result).toContain("- `file_coverage` —");
+		expect(result).toContain("- `triage_brief` —");
+		expect(result.indexOf("### Available vitest-agent MCP tools")).toBeLessThan(result.indexOf("### Recent Test Runs"));
+	});
+
 	it("includes session info when a session exists", async () => {
 		const result = await run(
 			Effect.gen(function* () {
