@@ -366,7 +366,7 @@ describe("formatTerminal", () => {
 			],
 			{ noColor: true, coverageConsoleLimit: 1 },
 		);
-		expect(out).toContain("… 1 more (use the file_coverage MCP tool for the full list)");
+		expect(out).toContain("… 1 more (use the test_coverage MCP tool for the full list)");
 	});
 
 	it("renders module-level errors inside the failures section", () => {

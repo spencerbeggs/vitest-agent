@@ -230,7 +230,7 @@ export const formatBelowTargetTable = (
 	const rows = top.map((file) => buildTableRow(file));
 	const footer: string[] = [];
 	if (omitted > 0) {
-		footer.push(`… ${omitted} more (use the file_coverage MCP tool for the full list)`);
+		footer.push(`… ${omitted} more (use the test_coverage MCP tool for the full list)`);
 	}
 	return [...header, ...rows, ...footer];
 };

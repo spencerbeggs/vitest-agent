@@ -445,7 +445,7 @@ const renderCoverageSection = (
 		const shown = agg.belowTargetFiles.slice(0, limit);
 		lines.push(...renderBelowTargetTable(shown));
 		if (agg.belowTargetFiles.length > limit) {
-			lines.push(`… ${agg.belowTargetFiles.length - limit} more (use the file_coverage MCP tool for the full list)`);
+			lines.push(`… ${agg.belowTargetFiles.length - limit} more (use the test_coverage MCP tool for the full list)`);
 		}
 	}
 
