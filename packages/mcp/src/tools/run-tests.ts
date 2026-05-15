@@ -28,13 +28,68 @@ const RunTestsError = Schema.Struct({
 	message: Schema.String,
 }).annotations({ identifier: "RunTestsError" });
 
-export const RunTestsResult = Schema.Union(RunTestsOk, RunTestsTimeout, RunTestsError).annotations({
+const TagFilter = Schema.Struct({
+	all: Schema.optional(Schema.Array(Schema.String)),
+	any: Schema.optional(Schema.Array(Schema.String)),
+	none: Schema.optional(Schema.Array(Schema.String)),
+}).annotations({
+	identifier: "TagFilter",
+	description:
+		"All three sub-filters AND together with `project` and `files`. `all` requires every listed tag on the test. `any` requires at least one. `none` excludes any test carrying a listed tag.",
+});
+export type TagFilterType = Schema.Schema.Type<typeof TagFilter>;
+
+const RunTestsNoMatch = Schema.Struct({
+	kind: Schema.Literal("no-match").annotations({
+		description:
+			"Discriminant — the resolved filter set matched zero test cases. Tests did not run; this is independent of passWithNoTests policy.",
+	}),
+	filter: Schema.Struct({
+		project: Schema.NullOr(Schema.String),
+		files: Schema.Array(Schema.String),
+		tags: Schema.NullOr(TagFilter),
+		resolvedExpression: Schema.NullOr(Schema.String),
+	}),
+}).annotations({ identifier: "RunTestsNoMatch" });
+
+export const RunTestsResult = Schema.Union(RunTestsOk, RunTestsTimeout, RunTestsError, RunTestsNoMatch).annotations({
 	identifier: "RunTestsResult",
 	title: "run_tests result",
 	description:
-		"Discriminate on `kind`. ok carries the full AgentReport plus per-test classifications; timeout / error are the two failure modes.",
+		"Discriminate on `kind`. ok carries the full AgentReport plus per-test classifications; timeout / error are the two failure modes; no-match indicates that the resolved filter set matched zero test cases.",
 });
 export type RunTestsResultType = Schema.Schema.Type<typeof RunTestsResult>;
+
+/**
+ * Compose a Vitest tag-expression string from a structured {@link TagFilter}.
+ *
+ * Returns `null` when every sub-filter is empty/absent. Combines the three
+ * sub-filters with ` and `:
+ *
+ * - `all: ["int", "slow"]`   → `"int and slow"`
+ * - `any: ["unit", "int"]`   → `"(unit or int)"`
+ * - `none: ["slow", "flaky"]`→ `"not slow and not flaky"`
+ *
+ * @internal
+ */
+export function composeTagExpression(tags: TagFilterType | null | undefined): string | null {
+	if (!tags) return null;
+	const parts: string[] = [];
+	const all = tags.all ?? [];
+	const any = tags.any ?? [];
+	const none = tags.none ?? [];
+	if (all.length > 0) {
+		parts.push(all.join(" and "));
+	}
+	if (any.length > 0) {
+		parts.push(any.length === 1 ? any[0] : `(${any.join(" or ")})`);
+	}
+	if (none.length > 0) {
+		parts.push(none.map((t) => `not ${t}`).join(" and "));
+	}
+	if (parts.length === 0) return null;
+	return parts.join(" and ");
+}
 
 const FORBIDDEN_CHARS = /[;|&`$(){}[\]<>!#]/;
 
@@ -171,8 +226,54 @@ export function formatReportJson(report: AgentReport, classifications?: Readonly
 export function formatRunTestsMarkdown(data: RunTestsResultType): string {
 	if (data.kind === "timeout") return `Test run timed out after ${data.timeoutSeconds} seconds.`;
 	if (data.kind === "error") return `Test run failed: ${data.message}`;
+	if (data.kind === "no-match") return formatNoMatchMarkdown(data.filter);
 	const classMap = new Map<string, string>(Object.entries(data.classifications));
 	return formatReportMarkdown(data.report, classMap);
+}
+
+/**
+ * Render the `no-match` filter context plus a remediation pointer aimed at
+ * tag introspection. Pure helper; called by {@link formatRunTestsMarkdown}.
+ *
+ * @internal
+ */
+export function formatNoMatchMarkdown(filter: {
+	readonly project: string | null;
+	readonly files: ReadonlyArray<string>;
+	readonly tags: TagFilterType | null;
+	readonly resolvedExpression: string | null;
+}): string {
+	const lines: string[] = ["## No tests matched the filter", ""];
+	const parts: string[] = [];
+	if (filter.project !== null) parts.push(`project: \`${filter.project}\``);
+	if (filter.files.length > 0) parts.push(`files: ${filter.files.map((f) => `\`${f}\``).join(", ")}`);
+	if (filter.tags !== null) {
+		const t = filter.tags;
+		if (t.all && t.all.length > 0) parts.push(`tags.all: ${t.all.map((s) => `\`${s}\``).join(", ")}`);
+		if (t.any && t.any.length > 0) parts.push(`tags.any: ${t.any.map((s) => `\`${s}\``).join(", ")}`);
+		if (t.none && t.none.length > 0) parts.push(`tags.none: ${t.none.map((s) => `\`${s}\``).join(", ")}`);
+	}
+	if (filter.resolvedExpression !== null) {
+		parts.push(`resolved expression: \`${filter.resolvedExpression}\``);
+	}
+	if (parts.length === 0) {
+		lines.push("- (no filter recorded)");
+	} else {
+		for (const p of parts) lines.push(`- ${p}`);
+	}
+	lines.push("");
+	lines.push("### Next steps");
+	if (filter.tags !== null) {
+		lines.push('- Confirm the tag exists: `inventory({ kind: "tag" })`');
+		lines.push('- List tests for a specific tag: `test({ action: "for_tag", tag: "<name>" })`');
+	}
+	if (filter.files.length > 0) {
+		lines.push('- Verify file paths exist or list tests in a file with `test({ action: "for_file", filePath })`');
+	}
+	if (filter.project !== null) {
+		lines.push('- Verify the project name with `inventory({ kind: "project" })`');
+	}
+	return lines.join("\n");
 }
 
 export const RunTestsAsMarkdown = Schema.transformOrFail(RunTestsResult, Schema.String, {
@@ -291,6 +392,8 @@ export const runTests = publicProcedure
 			Schema.Struct({
 				files: Schema.optional(Schema.Array(Schema.String)),
 				project: Schema.optional(Schema.String),
+				tags: Schema.optional(TagFilter),
+				passWithNoTests: Schema.optional(Schema.Boolean),
 				timeout: Schema.optional(Schema.Number),
 				// Injected by the `pre-tool-use-mcp-run-tests.sh` hook —
 				// agents do not pass this directly. Carries the recovered
@@ -311,6 +414,17 @@ export const runTests = publicProcedure
 			serializeRunTests(async (): Promise<RunTestsResultType> => {
 				const files = input.files ? sanitizeTestArgs(input.files) : [];
 				const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
+				// Sanitize tag values too — they ride into Vitest's tag-expression
+				// compiler unmodified, so shell-metachar injections must be
+				// rejected the same way file/project arguments are.
+				const tagsInput = input.tags;
+				if (tagsInput) {
+					if (tagsInput.all) sanitizeTestArgs(tagsInput.all);
+					if (tagsInput.any) sanitizeTestArgs(tagsInput.any);
+					if (tagsInput.none) sanitizeTestArgs(tagsInput.none);
+				}
+				const resolvedExpression = composeTagExpression(tagsInput ?? null);
+				const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
 
 				const timeoutMs = (input.timeout ?? 120) * 1000;
 
@@ -363,6 +477,16 @@ export const runTests = publicProcedure
 							// orchestrator to make a parallel Bash --coverage call
 							// just to populate file_coverage rows.
 							...(project ? { project } : {}),
+							// Vitest's `tagsFilter: string[]` accepts one or more
+							// tag-expression strings (AND-ed together). We compose
+							// a single expression from the structured TagFilter
+							// and pass it as a one-element array.
+							...(resolvedExpression !== null ? { tagsFilter: [resolvedExpression] } : {}),
+							// Per-call override of Vitest's native test.passWithNoTests.
+							// When unset on the input, Vitest's project-level value
+							// (already captured by the plugin onto ResolvedReporterConfig)
+							// applies.
+							...(input.passWithNoTests !== undefined ? { passWithNoTests: input.passWithNoTests } : {}),
 						},
 						{}, // viteOverrides
 						{
@@ -386,6 +510,24 @@ export const runTests = publicProcedure
 
 					const testModules = result.testModules as unknown as Parameters<typeof buildAgentReport>[0];
 					const unhandledErrors = coerceErrors(result.unhandledErrors);
+
+					// Detect "no test cases matched the resolved filter set".
+					// Tests-did-not-run vs tests-ran-and-passed is filter-driven, not
+					// result-driven: an empty workspace with no filter is `ok` with
+					// an empty report. The `passWithNoTests` policy controls
+					// pass/fail classification only — it never reshapes the
+					// discriminator.
+					if (hasFilter && result.testModules.length === 0 && unhandledErrors.length === 0) {
+						return {
+							kind: "no-match" as const,
+							filter: {
+								project: project ?? null,
+								files,
+								tags: tagsInput ?? null,
+								resolvedExpression,
+							},
+						};
+					}
 
 					const reason =
 						unhandledErrors.length > 0 || result.testModules.some((m) => m.state() === "failed") ? "failed" : "passed";
