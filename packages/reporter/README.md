@@ -1,423 +1,107 @@
 # vitest-agent-reporter
 
-[![npm version](https://img.shields.io/npm/v/vitest-agent-reporter)](https://www.npmjs.com/package/vitest-agent-reporter)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm](https://img.shields.io/npm/v/vitest-agent-reporter?label=npm&color=cb3837)](https://www.npmjs.com/package/vitest-agent-reporter)
+[![License: MIT](https://img.shields.io/badge/License-MIT-4caf50.svg)](https://opensource.org/licenses/MIT)
 
-A Vitest reporter that gives LLM coding agents superpowers -- persistent
-test intelligence, coverage analysis, failure history, and notes via MCP
-tools.
+The escape-hatch SDK for building a custom reporter on top of [vitest-agent-plugin](https://github.com/spencerbeggs/vitest-agent). One package, one import: the reporter contract types from `vitest-agent-sdk` plus the dispatcher helpers from `vitest-agent-ui`. If you only want the default behavior, you do not need this package — install `vitest-agent-plugin` and the built-in reporter wires automatically.
 
-## Features
+## Why this package exists
 
-- **SQLite persistence** -- normalized database replaces JSON files for
-  richer queries and cross-run analysis
-- **MCP server** -- 29 action-keyed tools over stdio for deep integration
-  with LLM agents (test data, notes, coverage, discovery, TDD hierarchy,
-  run tests); tools emit both markdown `content[]` and `structuredContent`
-  per MCP 2025-06-18 so clients can parse either channel
-- **Claude Code plugin** -- auto-registers MCP tools, injects test
-  context at session start, and provides teaching skills
-- **Zero-config agent detection** -- uses
-  [std-env](https://github.com/nicolo-ribaudo/std-env) to detect Claude
-  Code, Cursor, Gemini CLI, Codex, Devin, and other agents automatically
-- **Coverage thresholds and targets** -- Vitest-native threshold format
-  plus aspirational targets with auto-ratcheting baselines
-- **Coverage trends** -- tracks coverage direction across runs with
-  tiered console output (green/yellow/red)
-- **Failure history** -- per-test pass/fail tracking with classification:
-  `stable`, `new-failure`, `persistent`, `flaky`, `recovered`
-- **TDD goal and behavior tracking** -- three-tier Objective→Goal→Behavior hierarchy with CRUD, status lifecycle, dependency tracking, and evidence-bound phase transitions
-- **Notes system** -- CRUD + full-text search for persisting debugging
-  notes across sessions
-- **GitHub Actions GFM** -- writes structured summaries to
-  `GITHUB_STEP_SUMMARY` automatically in CI
-- **CLI bin** -- query test status, coverage gaps, failure history, and
-  trends from the command line
+The plugin ships a preassembled default reporter that handles the common cases: a markdown-flavored end-of-run frame for agent runs, a live React Ink view for human runs, footers that point at the right MCP tool for the dominant outcome, GitHub Step Summary output under Actions. Most users never need to think about reporter wiring.
 
-## Quick Start
-
-Install the package:
-
-```bash
-npm install vitest-agent-plugin
-```
-
-Modern pnpm and npm auto-install the required peer dependencies
-(`vitest-agent-reporter` for the renderer factories,
-`vitest-agent-ui` for the shared event-sourced renderer + live React Ink
-view, `vitest-agent-cli` for the CLI bin, and `vitest-agent-mcp` for the
-MCP server bin). If your package manager is configured to skip peers,
-install them explicitly:
-
-```bash
-pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-ui vitest-agent-cli vitest-agent-mcp
-```
-
-Add `AgentPlugin` to your Vitest config. Pin Vitest's native coverage
-thresholds and the plugin's aspirational targets to a single
-`COVERAGE_LEVELS` preset so the two halves stay in sync:
+If the default does not produce the output you want, you write a `VitestAgentReporterFactory` and pass it as the plugin's `reporter` option. This package gives you everything that factory needs in one import:
 
 ```typescript
-import { AgentPlugin } from "vitest-agent-plugin";
-import { defineConfig } from "vitest/config";
+import type {
+  ReporterKit,
+  ReporterRenderInput,
+  RenderedOutput,
+  ResolvedReporterConfig,
+  VitestAgentReporter,
+  VitestAgentReporterFactory,
+} from "vitest-agent-reporter";
+import {
+  buildDispatchInputs,
+  resolveCellOptions,
+} from "vitest-agent-reporter";
+```
 
-export default async () => {
-  const { projects, tags } = await AgentPlugin.discover();
-  const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
-  return defineConfig({
-    plugins: [
-      AgentPlugin({
-        coverageTargets: coverage.coverageTargets,
-      }),
-    ],
-    test: {
-      projects,
-      tags,
-      pool: "forks",
-      coverage: {
-        enabled: true,
-        provider: "v8",
-        thresholds: coverage.thresholds,
+## Install
+
+```bash
+npm install --save-dev vitest-agent-reporter
+# or
+pnpm add -D vitest-agent-reporter
+```
+
+`vitest-agent-reporter` is a peer dependency of `vitest-agent-plugin`, so a plugin install pulls it in on modern pnpm and npm. Install it explicitly only when authoring a custom reporter or when your package manager skips peers.
+
+## Building a custom reporter
+
+A reporter factory takes the resolved `ReporterKit` and returns an object whose `render(input)` is called once at end-of-run with the per-project `AgentReport[]`:
+
+```typescript
+import type {
+  ReporterKit,
+  ReporterRenderInput,
+  RenderedOutput,
+  VitestAgentReporter,
+  VitestAgentReporterFactory,
+} from "vitest-agent-reporter";
+import {
+  buildDispatchInputs,
+  resolveCellOptions,
+} from "vitest-agent-reporter";
+
+const myReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => ({
+  async render(input: ReporterRenderInput): Promise<RenderedOutput[]> {
+    const dispatchInputs = buildDispatchInputs(input.reports, kit);
+    const cellOptions = resolveCellOptions(kit, dispatchInputs);
+    // dispatchInputs carries shape, outcome, project aggregates, trend,
+    // and below-target listings — all the pre-computed inputs the
+    // built-in cells consume.
+    return [
+      {
+        target: "stdout",
+        content: `Custom report for ${dispatchInputs.projects.length} project(s)\n`,
       },
-    },
-  });
-};
-```
-
-`AgentPlugin.COVERAGE_LEVELS.<preset>` returns a dual-output object
-(`{ thresholds, coverageTargets }`) — pass the `thresholds` half to
-Vitest's native `coverage.thresholds` and the `coverageTargets` half to
-the plugin. As of 2.0 the plugin no longer reads its own
-`coverageThresholds` option; thresholds are always set on Vitest's
-native config. See
-[Configuration > Coverage Thresholds](../docs/configuration.md#coverage-thresholds)
-for the full priority order.
-
-Install the Claude Code plugin for the full agent experience:
-
-```bash
-# Add the plugin marketplace (one-time setup)
-/plugin marketplace add spencerbeggs/bot
-
-# Install the plugin for this project
-/plugin install vitest-agent@spencerbeggs-bot --scope project
-```
-
-That's it. The plugin detects whether an agent, CI, or human is running
-tests and adjusts output automatically. Agents get 29 action-keyed MCP
-tools for querying test data, tracking coverage, managing TDD goals and
-behaviors, and persisting notes -- with no manual MCP configuration.
-
-## What Agents See
-
-When tests fail, the reporter produces actionable markdown output with
-classification labels, coverage gaps, and next steps. (Per-project
-inline tag rollups and indented per-tag failure breakdowns are a
-**terminal-output** feature rendered by `terminalReporter`; the
-markdown formatter focuses on the failure / coverage / next-steps
-sections shown below.)
-
-````markdown
-## x Vitest -- 2 failed, 10 passed (520ms)
-
-Coverage regressing over 3 runs
-
-### x `src/utils.test.ts`
-
-- x **compressLines > compresses consecutive lines** [new-failure]
-  Expected "1-3,5" but received "1,2,3,5"
-
-  ```diff
-  - Expected
-  + Received
-
-  - "1-3,5"
-  + "1,2,3,5"
-  ```
-
-- x **compressLines > handles duplicates** [persistent]
-  Expected [1,2] to equal [1]
-
-### Coverage gaps
-
-- `src/coverage.ts` -- Lines: 42% (threshold: 80%) -- uncovered: 65-80,95-110
-- `src/utils.ts` -- Lines: 72% (target: 95%) -- uncovered: 42-50,99
-
-### Next steps
-
-- 1 new failure since last run
-- 1 persistent failure across 3 runs
-- Re-run: `pnpm vitest run src/utils.test.ts`
-- Filter by tag: `pnpm vitest run --tags-filter "int"`
-- Run `npx vitest-agent coverage` for gap analysis
-- Run `npx vitest-agent trends` for coverage trajectory
-````
-
-When all tests pass and targets are met, output collapses to a single
-summary line.
-
-## How It Works
-
-The plugin detects three environments and adapts behavior:
-
-| Environment | Detection | Console | Database | GFM Summary |
-| --- | --- | --- | --- | --- |
-| Agent | `std-env` agent detection | Structured markdown | Yes | Auto |
-| CI | `GITHUB_ACTIONS`, `CI=true` | Silent (existing reporters kept) | Yes | Yes |
-| Human | No agent/CI vars detected | Silent (existing reporters kept) | Yes | No |
-
-After each test run, `AgentReporter` writes structured data to a SQLite
-database under your XDG data directory (default
-`$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db`,
-falling back to `~/.local/share/vitest-agent/<workspaceName>/data.db`).
-The location is derived from your root `package.json` `name`, so two
-worktrees of the same repo share history. Override the location via
-`vitest-agent.config.toml` at the workspace root:
-
-```toml
-# Override the entire data directory
-cacheDir = "./.vitest-agent-reporter"
-
-# Or override just the workspace key
-projectKey = "my-app-personal"
-```
-
-The MCP server and CLI both query this database on demand -- no
-background process required.
-
-## Claude Code Plugin
-
-A companion [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
-plugin provides the full agent-native experience:
-
-```bash
-# Add the plugin marketplace (one-time setup)
-/plugin marketplace add spencerbeggs/bot
-
-# Install the plugin for this project
-/plugin install vitest-agent@spencerbeggs-bot --scope project
-```
-
-The plugin provides:
-
-- **MCP auto-registration** -- all 29 tools available immediately with
-  no manual `.mcp.json` configuration
-- **SessionStart hook** -- injects project status and available tools
-  into Claude's context at the start of each session
-- **PostToolUse hook** -- detects test runs and suggests MCP tools for
-  deeper analysis when tests fail
-- **Skills** -- `/vitest-agent:tdd`,
-  `/vitest-agent:debugging`,
-  `/vitest-agent:configuration`
-- **Commands** -- `/vitest-agent:setup` (add plugin to vitest
-  config), `/vitest-agent:configure` (view/modify settings)
-
-## MCP Tools
-
-The package includes an MCP server (`vitest-agent-mcp`) that
-exposes test data as tools over stdio transport. The Claude Code plugin
-registers this automatically, but you can also start it manually:
-
-```bash
-npx vitest-agent-mcp
-```
-
-<details>
-<summary>Full tool reference (29 tools)</summary>
-
-Several CRUD families are consolidated into single action-keyed tools that dispatch on an `action` (or `kind`) discriminator.
-
-| Tool | Actions | Description |
-| --- | --- | --- |
-| `help` | — | List all tools with parameters and descriptions |
-| `ping` | — | Health check — returns `{ pong: true }` |
-| `test_status` | — | Per-project pass/fail state from the most recent run |
-| `test_overview` | — | Test landscape summary with per-project run metrics |
-| `test_coverage` | — | Coverage gap analysis with per-metric thresholds and targets |
-| `test_history` | — | Flaky/persistent/recovered tests with run visualization |
-| `test_trends` | — | Per-project coverage trajectory with direction and sparkline |
-| `test_errors` | — | Detailed test errors with diffs and stack traces |
-| `test` | `list`, `get`, `for_file` | List test cases, read a single test case in detail, or find test modules that cover a source file |
-| `file_coverage` | — | Per-file coverage with uncovered line ranges |
-| `inventory` | `kind: project`, `module`, `suite`, `session` | Unified discovery across projects, test modules, suites, and Claude Code sessions; accepts an optional `id` for single-row lookup |
-| `run_tests` | — | Execute vitest for specific files or projects; returns a `RunTestsResult` discriminated union (`ok` / `timeout` / `error`) carrying the full `AgentReport` and per-test classifications |
-| `cache_health` | — | Database health diagnostic |
-| `configure` | — | View captured Vitest settings for a test run |
-| `settings_list` | — | List Vitest config snapshots |
-| `register_agent` | — | Register the active agent in the `agents` table; idempotent on `(agentType, parentAgentId, clientNonce)` |
-| `note` | `create`, `list`, `get`, `update`, `delete`, `search` | Scoped note CRUD plus full-text search across titles and content |
-| `turn_search` | — | Search turn log entries by session, type, or timestamp |
-| `failure_signature_get` | — | Read a failure signature by hash, with recent matching errors |
-| `triage_brief` | — | Orientation summary: recent runs, failures, and triage context |
-| `wrapup_prompt` | — | Interpretive prompt-injection nudges for wrap-up hooks |
-| `acceptance_metrics` | — | Compute phase-evidence integrity and compliance ratios |
-| `hypothesis` | `record`, `validate`, `list` | Record a hypothesis with optional evidence FKs, mark it confirmed/refuted/abandoned, or list with filters |
-| `tdd_task` | `start`, `end`, `get`, `resume` | TDD session lifecycle; `start` and `end` are idempotent. Replaces the 1.x `tdd_session_*` family |
-| `tdd_phase_transition_request` | — | Request a TDD phase transition; validated against evidence artifacts. Auto-promotes a behavior from `pending` to `in_progress` when accepted with a `behaviorId` |
-| `tdd_goal` | `create`, `update`, `delete`, `get`, `list` | Goal CRUD under a TDD session; `create` is idempotent on `(sessionId, goal)`; `delete` is denied to the TDD orchestrator at the hook layer |
-| `tdd_behavior` | `create`, `update`, `delete`, `get`, `list_by_goal`, `list_by_session` | Behavior CRUD under a goal; `create` is idempotent on `(goalId, behavior)`; `delete` is denied to the TDD orchestrator at the hook layer |
-| `tdd_artifact_list` | — | List TDD artifacts (test files, runs, hypotheses) recorded by the plugin's post-tool-use hook |
-| `commit_changes` | — | Workspace git commit history joined with per-run changed files |
-
-All tools emit both markdown `content[]` for human-readable display and a typed `structuredContent` payload per MCP 2025-06-18 — clients can parse either channel.
-
-</details>
-
-See [docs/mcp.md](../docs/mcp.md) for the full MCP reference.
-
-## CLI
-
-The `vitest-agent` CLI queries the SQLite database for on-demand
-test landscape queries. All commands accept `--format` to switch between
-`markdown` (default) and `json` output.
-
-```bash
-npx vitest-agent status      # Per-project pass/fail state
-npx vitest-agent coverage    # Coverage gap analysis
-npx vitest-agent history     # Flaky/persistent failure trends
-npx vitest-agent trends      # Coverage trajectory over time
-npx vitest-agent doctor      # Database health diagnostic
-npx vitest-agent cache path  # Print the database file path
-npx vitest-agent cache clean # Delete the database
-```
-
-See [docs/cli.md](../docs/cli.md) for the full CLI reference.
-
-## Documentation
-
-| Guide | Description |
-| --- | --- |
-| [Configuration](../docs/configuration.md) | Plugin and reporter options, thresholds, targets, cache resolution |
-| [Schemas](../docs/schemas.md) | Effect Schema definitions, programmatic access |
-| [CLI Commands](../docs/cli.md) | Status, overview, coverage, history, trends, cache, and doctor commands |
-| [MCP Server](../docs/mcp.md) | MCP tools reference, notes system, manual server usage |
-| [Failure History](../docs/history.md) | Test classification and failure tracking |
-| [Claude Code Plugin](../plugin/README.md) | Plugin installation, hooks, skills, and commands |
-
-## Migrating from 1.x
-
-Version 2.0 introduces three changes worth knowing about before you
-upgrade:
-
-### Database location moved
-
-The SQLite database moved from `node_modules/.vite/vitest/<hash>/vitest-agent-reporter/data.db`
-to `$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db`.
-**No data migration is performed** — your first 2.0 run starts with a
-fresh database. Coverage baselines, trends, and history all reset.
-Existing data in `node_modules` is harmless and ignored.
-
-If you want the old project-local layout, set this in
-`vitest-agent.config.toml` at your workspace root:
-
-```toml
-cacheDir = "./.vitest-agent-reporter"
-```
-
-### Package split (peers auto-install)
-
-The package family is now six packages — `vitest-agent-plugin` (the Vitest
-plugin and lifecycle), `vitest-agent-reporter` (named renderer factory
-implementations), `vitest-agent-ui` (the shared event-sourced renderer with
-React Ink view and the `createLiveInk` / `eventSourcedReporter` exports),
-`vitest-agent-sdk` (the shared library), `vitest-agent-cli` (the CLI bin),
-and `vitest-agent-mcp` (the MCP server bin). The reporter, ui, CLI, and MCP
-packages are required peer dependencies of `vitest-agent-plugin`,
-auto-installed by pnpm and npm 7+. If your package manager skips peers,
-install them explicitly. The `vitest-agent-mcp` bin name is unchanged; the
-CLI bin was renamed from `vitest-agent-reporter` to `vitest-agent`.
-
-### Console matrix replaces `mode` and `strategy` (breaking)
-
-The pre-2.0 `mode` (`"auto" | "agent" | "silent"`) and `strategy` /
-`consoleStrategy` (`"complement" | "own"`) options are gone. Console output
-is now controlled by a per-executor matrix at `AgentPlugin({ console: { … } })`:
-
-```typescript
-AgentPlugin({
-  console: {
-    human?: "passthrough" | "silent" | "ink" | "agent",
-    agent?: "passthrough" | "silent" | "agent",
-    ci?:    "passthrough" | "silent" | "ci-annotations",
+    ];
   },
 });
 ```
 
-The plugin auto-detects the executor (`human` / `agent` / `ci`) via
-`EnvironmentDetector` and resolves a single `ConsoleMode` value from the
-matching slot. Per-slot defaults: `human` → `"passthrough"`, `agent` →
-`"agent"`, `ci` → `"passthrough"`. Any non-`"passthrough"` value strips
-Vitest's console reporters and gives the plugin ownership of stdout (this
-replaces the old `strategy: "own"`). To opt into the live React Ink view,
-set the slot you want to `"ink"` and wire the new `onRunEvent` tap to
-`createLiveInk` from `vitest-agent-ui`. See
-[Configuration > `console`](../docs/configuration.md#console).
+Pass the factory to the plugin:
 
-### `AgentReporter.onInit` is now async
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
 
-`onInit` now returns `Promise<void>` so it can resolve dbPath
-asynchronously. Vitest awaits the hook, so `AgentPlugin` users see no
-change. Direct callers of `onInit` must await the promise.
+AgentPlugin({
+  console: { agent: "agent" },
+  reporter: myReporter,
+});
+```
 
-## Discover-strategy migration
+## What the helpers do
 
-The 2.0 series replaces filename-driven project splitting with Vitest
-4.1's native tag system and consolidates project shaping and tag
-classification under a single `DiscoverStrategy` contract. If you
-upgraded from an earlier 2.0 build, expect the following breaking
-changes:
+| Helper | Source | Description |
+| --- | --- | --- |
+| `buildDispatchInputs(reports, kit)` | `vitest-agent-ui` | Assembles a fully-populated `DispatchInputs` from per-project `AgentReport[]`. Pre-computes shape, outcome, project aggregates, trend direction, and below-target listings |
+| `resolveCellOptions(kit, dispatchInputs)` | `vitest-agent-ui` | Resolves the per-cell option object: color flag, OSC-8 enablement, MCP hint flag, etc. |
 
-- `AgentPlugin.discover()` returns a thenable `DiscoverBuilder` that
-  resolves to `{ projects, tags }` instead of
-  `TestProjectInlineConfiguration[]`. Destructure the result and pass
-  both to `test.projects` and `test.tags`. Chain `.addProject({ name,
-  path })` to register non-package test folders.
-- `projects` is typed as
-  `TestProjectInlineConfiguration[] | undefined` — Vitest's native
-  inline-project shape. The pre-T5 `VitestProject` builder class was
-  removed; strategies emit native Vitest inline-config objects
-  directly.
-- Project names lose their kind suffix — there is one project per
-  workspace package, no more `pkg:unit` / `pkg:int` / `pkg:e2e`. Test
-  kind is expressed as a Vitest tag (`unit`, `int`, `e2e`) injected
-  by the plugin's transform; filter runs with
-  `vitest --tags-filter "int"`.
-- The pre-T5 `TagStrategy` namespace was folded into the new
-  `DiscoverStrategy` abstract class. Use
-  `DefaultDiscoverStrategy` (the concrete default) or
-  `DiscoverStrategy.create({ tags, classify, buildProject })` /
-  `.extend(...)` to author custom strategies.
-- The plugin option was renamed from `tagStrategy` to
-  `discoverStrategy`; the `false` sentinel still disables the Vite
-  transform entirely.
-- The pre-2.0 `({ projects }) => void | Promise<void>` callback and
-  the per-kind override form (`{ unit?, int?, e2e? }` keyed by kind)
-  on `discover()` were removed. Per-kind shaping happens through
-  `DiscoverStrategy.classify()` rather than through projects.
-- The `--sub-project` flag was removed from the `record` CLI command,
-  and the `subProject` input field was removed from `test_history`,
-  the `inventory` tool's `suite` kind (1.x `suite_list`), and every
-  other MCP tool that previously accepted it.
-- The `sub_project` column was dropped from every persisted table
-  (`test_runs`, `test_history`, `coverage_baselines`,
-  `coverage_trends`, `notes`, `sessions`). Existing `data.db` files
-  are wiped on first run by the drop-and-recreate migration.
-- `splitProject` and `ProjectIdentity` were removed from the
-  `vitest-agent-sdk` public API.
+The contract types come from `vitest-agent-sdk`:
 
-`DiscoverStrategy`, `DefaultDiscoverStrategy`, `Tag`, `ModuleInfo`,
-`ClassifyContext`, `ClassifyFn`, `DiscoverInput`, and `TagOptions`
-are public exports of `vitest-agent-plugin` for callers that want to
-author their own classification or project-shaping logic. The
-companion classifier-composition helpers `classifyByFilename`,
-`classifyByDirectory`, and `combineClassifiers` are exported
-alongside them. See
-[Configuration > DiscoverStrategy API](../docs/configuration.md#discoverstrategy-api).
+| Type | Description |
+| --- | --- |
+| `ResolvedReporterConfig` | The resolved facts the plugin computes per run: `consoleMode`, `coverageMode`, `format`, `detail`, environment, executor |
+| `ReporterKit` | The bundle the plugin hands to a factory: `config`, `dbPath`, `noColor`, `osc8`, `env` |
+| `ReporterRenderInput` | The input to `render()`: per-project `reports`, `unhandledErrors`, `reason` |
+| `RenderedOutput` | One emit target: `{ target: "stdout" \| "github-summary" \| "file", content: string }` |
+| `VitestAgentReporter` | The object returned by a factory; has one method `render(input)` |
+| `VitestAgentReporterFactory` | `(kit: ReporterKit) => VitestAgentReporter` |
 
-## Requirements
+## Documentation
 
-- Vitest >= 4.1.0
-- Node.js >= 22
+See the [main README](https://github.com/spencerbeggs/vitest-agent#readme) and the [configuration reference](https://github.com/spencerbeggs/vitest-agent/blob/main/docs/configuration.md) for plugin wiring. The [vitest-agent-ui README](https://github.com/spencerbeggs/vitest-agent/blob/main/packages/ui/README.md) covers the dispatcher matrix and the preassembled default reporter that the helpers re-export from here.
 
 ## License
 

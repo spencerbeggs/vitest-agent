@@ -1,0 +1,25 @@
+Projects (5):
+  ✓ playground          42 passed (31ms)
+  ✓ vitest-agent-cli    80 passed (12.3s)
+  ✓ vitest-agent-plugin 194 passed (3.2s)
+  ✓ vitest-agent-mcp    182 passed (647ms)  int:5  unit:177
+  ✓ vitest-agent-sdk    855 passed (5.4s)  int:6  unit:849
+
+Coverage: ✗ 7 files below minimum thresholds (lines, branches, functions, statements)
+Trend: regressing (48 runs)
+
+Files below aspirational target:
+------------------------------------------------------------|---------|---------|---------|---------|-------------------
+ File                                                       | % Stmts | % Branch| % Funcs | % Lines | Uncovered Line #s
+------------------------------------------------------------|---------|---------|---------|---------|-------------------
+ packages/reporter/src/default.ts                           |    74    |    53    |    100   |    69    | 34,36,41,48-49
+ packages/mcp/src/tools/errors.ts                           |    79    |    65    |    67    |    78    | 139-145,195,197-199
+ packages/plugin/src/configure.ts                           |    81    |    70    |    80    |    80    | 12-15,22
+ packages/cli/src/commands/db.ts                            |    83    |    75    |    85    |    82    | 44-48
+ packages/sdk/src/services/RunContext.ts                    |    85    |    78    |    90    |    84    | 30,55-58
+ packages/ui/src/render-agent.ts                            |    88    |    82    |    92    |    87    | 61-64
+ packages/sdk/src/utils/match-vitest-command.ts             |    90    |    85    |    95    |    89    | 100-103
+
+Total: 1353/1353 passed (21.6s)
+
+Use `test_coverage` for the workspace coverage breakdown.

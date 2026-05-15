@@ -1,105 +1,55 @@
 # vitest-agent-ui
 
-Shared event-sourced renderer for
-[vitest-agent-plugin](https://github.com/spencerbeggs/vitest-agent). Carries
-the streaming `RunEvent` taxonomy, the pure reducer, two terminal renderers
-(a markdown-flavored agent string and a React Ink tree), an Effect `PubSub`
-channel for live event transport, a `VitestAgentReporterFactory`
-implementation (`eventSourcedReporter`), and a live-mount Ink driver
-(`createLiveInk`).
+The shared event-sourced renderer for [vitest-agent-plugin](https://github.com/spencerbeggs/vitest-agent). Owns the streaming `RunEvent` taxonomy, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix, the preassembled default reporter the plugin wires by default, an Effect `PubSub` channel for live event transport, the synthesizers, and an internal live-Ink mount.
 
-This package is a required peer dependency of `vitest-agent-plugin`, so you
-usually don't install it directly — modern pnpm and npm pull it in
-automatically when you install the plugin. Install explicitly if your
-package manager skips peers:
+This package is a workspace dependency of `vitest-agent-plugin`, so you do not need to install it directly. Modern pnpm and npm pull it in automatically. Install explicitly only if your package manager skips workspace deps:
 
 ```bash
 pnpm add -D vitest-agent-ui
 ```
 
-`react` and `ink` are themselves peer dependencies of this package; they
-are required (not optional). If you only need the markdown agent path, you
-still pay the install cost for both today.
+`react` and `ink` are peer dependencies of this package; both are required (not optional).
 
-## Exports
+## What this package gives the plugin
 
-| Name | What it is |
+The plugin imports two internal symbols from `vitest-agent-ui`:
+
+- `_defaultReporter` — the preassembled `VitestAgentReporterFactory` the plugin wires when the user does not pass a `reporter` option. The factory folds the published event stream into `RenderState`, classifies the run shape and outcome, dispatches to the matching cell, and emits one `RenderedOutput` for the run. It branches on `kit.config.consoleMode`: emits the agent string for `"agent"`, emits nothing for `"silent"` / `"passthrough"` / `"ci-annotations"` / `"ink"` (in `"ink"` the live mount owns the visible work).
+- `_createLiveInk` — the imperative live-mount driver the plugin starts when `consoleMode === "ink"`. Returns `{ event, snapshot, unmount }`; the plugin advances state on each `RunEvent` and unmounts at end-of-run.
+
+The `_` prefix signals "internal — the plugin handles wiring." Users do not import these.
+
+## Public surface for custom-reporter authors
+
+Custom reporters depend on `vitest-agent-reporter` (the escape-hatch SDK) rather than importing from `vitest-agent-ui` directly. `vitest-agent-reporter` re-exports the dispatcher helpers from here so a custom reporter can reuse the same inputs assembly the preassembled default uses:
+
+| Helper | What it does |
 | --- | --- |
-| `renderRun(events, mode, opts)` | Synchronous host entry point. Dispatches between the markdown agent string and the React Ink view based on `mode`. Returns a `string` |
-| `createLiveInk(opts?)` | Imperative orchestration for a live Ink mount. Returns `{ event, snapshot, unmount }`. Wire `event` to `AgentPlugin({ onRunEvent })` |
-| `eventSourcedReporter` | A `VitestAgentReporterFactory` for use as `AgentPlugin({ reporter })`. Dispatches on `kit.config.consoleMode`: emits the agent string for `"agent"`, emits nothing for `"ink"`, `"ci-annotations"`, `"silent"`, `"passthrough"` (other channels own the visible work) |
-| `synthesizeRunEvents`, `synthesizeFromAgentReport` | Two bridges into the event taxonomy. The first reads live Vitest module data, the second reads a persisted `AgentReport` from `vitest-agent-sdk` |
-| `RunEventChannel`, `RunEventChannelLive` | Effect tag and scoped Layer providing `PubSub.unbounded<RunEvent>` for live event transport |
-| `reduceRunEvent`, `reduceRenderStateAll` | The pure reducer and the convenience fold over a full sequence |
-| `renderAgent`, plus the Ink components in `render-ink/` | The lower-level renderers `renderRun` dispatches to |
+| `buildDispatchInputs(reports, kit)` | Assembles a `DispatchInputs` from the per-project `AgentReport[]` and the resolved `ReporterKit`. Pre-computes shape, outcome, project aggregates, trend, and below-target listings so cells stay focused on shape-specific copy |
+| `resolveCellOptions(kit, dispatchInputs)` | Resolves the per-cell options from the kit config (color flag, OSC-8 enablement, MCP hint flag, etc.) |
+| `dispatch(inputs, opts)` | Routes a `DispatchInputs` to the matching `(shape, outcome)` cell and returns the agent-string render |
+| `dispatchInk(inputs, opts)` | Same as `dispatch` but returns the Ink element used by both live and report-time Ink frames |
+| `classifyRunShape(state, projects)` | Returns one of `"single-test"`, `"single-file"`, `"single-project"`, `"workspace"` |
+| `classifyOutcome(state)` | Returns one of `"all-pass"`, `"some-fail"`, `"threshold-violation"` |
+| `buildFooter(inputs, opts)` | Assembles the L1 MCP-tool-pointer footer for a render |
+| `dominantClassification(inputs)` | Picks the most actionable failure class so the footer points at the right MCP tool |
 
-## Wiring the live React Ink view
-
-Pair `createLiveInk` with `AgentPlugin` to drive a live tree on `human`
-runs. The plugin only forwards `onRunEvent` to the reporter when the
-resolved console mode is `"ink"`, so the live mount cannot leak into
-`"silent"`, `"passthrough"`, `"agent"`, or `"ci-annotations"` channels.
-
-```typescript
-import { AgentPlugin } from "vitest-agent-plugin";
-import { createLiveInk } from "vitest-agent-ui";
-import { defineConfig } from "vitest/config";
-
-const live = createLiveInk();
-
-export default async () => {
-  const { projects, tags } = await AgentPlugin.discover();
-  return defineConfig({
-    plugins: [
-      AgentPlugin({
-        console: { human: "ink" },
-        onRunEvent: live.event,
-      }),
-    ],
-    test: { projects, tags, pool: "forks" },
-  });
-};
-```
-
-Mount failures degrade silently with a stderr warning — persistence and
-data writes never break because a renderer has a bug.
-
-## Using `eventSourcedReporter`
-
-`eventSourcedReporter` is a drop-in `VitestAgentReporterFactory` that
-routes the end-of-run rendering pipeline through the same event taxonomy
-the live view uses. Pass it as `AgentPlugin({ reporter })`:
-
-```typescript
-import { AgentPlugin } from "vitest-agent-plugin";
-import { eventSourcedReporter } from "vitest-agent-ui";
-
-AgentPlugin({
-  console: { agent: "agent" },
-  reporter: eventSourcedReporter,
-});
-```
+The contract types (`RunShape`, `RunOutcome`, `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`) live in `vitest-agent-sdk` and are re-exported by `vitest-agent-reporter` alongside the helpers.
 
 ## Replaying a cached run from the CLI
 
-The `vitest-agent show` command uses `renderRun` plus
-`synthesizeFromAgentReport` internally:
+The `vitest-agent show` command threads `vitest-agent-ui`'s report-time render helpers under the hood:
 
 ```bash
 npx vitest-agent show --project <name> --format auto
+# Picks the React Ink view on a TTY; the markdown-flavored agent string otherwise.
 ```
 
-`--format auto` picks the Ink view for an interactive TTY and the markdown
-agent string otherwise. Pass `agent`, `human`, or `json` to force a
-specific output. The same renderer drives the live view during a run, so a
-captured run replays byte-identically to what the live view showed.
+`--format auto` picks the Ink view for an interactive TTY and the markdown agent string otherwise. Pass `agent`, `human`, or `json` to force a specific output. The same renderer drives the live view during a run, so a captured run replays byte-identically to what the live view showed. Multi-project workspaces render as a single workspace-aggregate frame, not one frame per project.
 
 ## Documentation
 
-See the
-[main README](https://github.com/spencerbeggs/vitest-agent#readme)
-and the
-[configuration reference](https://github.com/spencerbeggs/vitest-agent/blob/main/docs/configuration.md#console).
+See the [main README](https://github.com/spencerbeggs/vitest-agent#readme) and the [configuration reference](https://github.com/spencerbeggs/vitest-agent/blob/main/docs/configuration.md#console).
 
 ## License
 

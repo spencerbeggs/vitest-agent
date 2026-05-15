@@ -9,6 +9,8 @@
  * @packageDocumentation
  */
 
+// Dispatcher contract (consumed by vitest-agent-ui's renderer cells + plugin)
+export * from "./contracts/dispatcher.js";
 // Reporter contract (consumed by vitest-agent plugin + reporter implementations)
 export * from "./contracts/reporter.js";
 // Errors

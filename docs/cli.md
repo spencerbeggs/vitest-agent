@@ -115,26 +115,20 @@ a pointer to run this command when classifications are present.
 
 ## show
 
-Replay the latest cached run for a project through the shared event-sourced
-renderer in `vitest-agent-ui`.
+Replay the latest cached run through the shape-tailored dispatcher in `vitest-agent-ui`.
 
 ```bash
 npx vitest-agent show --project <name> --format auto|agent|human|json
 ```
 
-`show` pulls the latest run from SQLite via `DataReader.getLatestRun`,
-synthesizes the event stream with `synthesizeFromAgentReport`, and dispatches
-through `renderRun`:
+`show` pulls the latest run from SQLite via `DataReader.getLatestRun`, synthesizes the event stream with `synthesizeFromAgentReport`, classifies the run, and dispatches to the matching renderer cell:
 
-- `--format auto` (default) — picks the React Ink view (`human`) when stdout
-  is a TTY, otherwise falls back to the markdown-flavored agent string.
+- `--format auto` (default) — picks the React Ink view (`human`) when stdout is a TTY, otherwise falls back to the markdown-flavored agent string.
 - `--format human` — forces the React Ink view.
 - `--format agent` — forces the markdown-flavored agent string.
 - `--format json` — emits the raw `AgentReport`.
 
-This is the same renderer the plugin drives live during a run when
-`console.human === "ink"`, so a captured run replays byte-identically to
-what the live view showed.
+This is the same renderer the plugin drives live during a run when `console.human === "ink"`, so a captured run replays byte-identically to what the live view showed. Multi-project workspaces render as a single workspace-aggregate frame — a projects table, a coverage line, a trend line, and a below-target listing — not one frame per project.
 
 ## trends
 

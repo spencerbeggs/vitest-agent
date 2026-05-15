@@ -1,0 +1,8 @@
+src/math.test.ts: 1/2 passed, 1 failed (30ms)
+Failures:
+- src/math.test.ts > math > divides [new-failure]
+  expected 0.5 to equal 0.5000001
+  - 0.5000001
+  + 0.5
+
+Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.

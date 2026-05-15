@@ -35,7 +35,8 @@
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"effect": "catalog:silk",
-		"vitest-agent-sdk": "workspace:*"
+		"vitest-agent-sdk": "workspace:*",
+		"vitest-agent-ui": "workspace:*"
 	},
 	"devDependencies": {
 		"@savvy-web/rslib-builder": "^0.20.3",

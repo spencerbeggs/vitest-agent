@@ -33,8 +33,8 @@ integration target.
 packages/
   sdk/         vitest-agent-sdk (no internal deps; owns RunEvent + RenderState schemas)
   plugin/      vitest-agent-plugin (depends on sdk; reporter+cli+mcp peer; streaming hooks + onRunEvent tap)
-  reporter/    vitest-agent-reporter (depends on sdk; named factories)
-  ui/          vitest-agent-ui (depends on sdk; reducer + agent renderer + Ink tree + eventSourcedReporter + createLiveInk)
+  reporter/    vitest-agent-reporter (depends on sdk + ui; "build your own reporter" SDK — contract re-exports + dispatcher-input helpers)
+  ui/          vitest-agent-ui (depends on sdk; reducer + shape-tailored dispatcher matrix + preassembled _defaultReporter + internal _createLiveInk)
   cli/         vitest-agent-cli (bin: vitest-agent; show command routes through ui)
   mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; spawned by plugin)
 

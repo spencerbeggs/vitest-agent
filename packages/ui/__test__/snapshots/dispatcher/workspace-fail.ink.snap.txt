@@ -1,0 +1,13 @@
+Projects (5):
+✓ playground          42 passed (31ms)
+✓ vitest-agent-cli    80 passed (12.3s)
+✗ vitest-agent-plugin 192/194 passed, 2 failed (3.4s)
+✓ vitest-agent-mcp    182 passed (647ms)  int:5  unit:177
+✓ vitest-agent-sdk    855 passed (5.4s)  int:6  unit:849
+Failures:
+- src/math.test.ts > math > divides [new-failure]
+  expected 0.5 to equal 0.5000001
+  - 0.5000001
+  + 0.5
+Total: 1351/1353 passed, 2 failed (21.8s)
+Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.

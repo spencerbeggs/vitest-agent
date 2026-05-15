@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-13
-last-synced: 2026-05-13
+updated: 2026-05-15
+last-synced: 2026-05-15
 completeness: 90
 related:
   - ./architecture.md
@@ -48,23 +48,25 @@ async onInit(vitest)
   |             NodeContext.layer
   |           (XDG-keyed by workspace identity)
 
-Streaming hooks (active only when options.onRunEvent is set)
-  onTestRunStart        -> RunStarted     -> onRunEvent(event)
-  onTestModuleQueued    -> ModuleQueued   -> onRunEvent(event)
-  onTestModuleStart     -> ModuleStarted  -> onRunEvent(event)
-  onTestCaseResult      -> TestFinished   -> onRunEvent(event)
-  onTestModuleEnd       -> ModuleFinished -> onRunEvent(event)
-  Throwing taps are caught and logged to stderr; persistence never
-  breaks because a live renderer has a bug. When onRunEvent is undefined
-  the streaming callbacks short-circuit immediately.
+Streaming hooks (always active; emit to plugin-internal live Ink mount
+when consoleMode === "ink" plus the user-supplied onRunEvent tap when set)
+  onTestRunStart        -> RunStarted     -> emit(event)
+  onTestModuleQueued    -> ModuleQueued   -> emit(event)
+  onTestModuleStart     -> ModuleStarted  -> emit(event)
+  onTestCaseResult      -> TestFinished   -> emit(event)
+  onTestModuleEnd       -> ModuleFinished -> emit(event)
+  emit() catches throwing user callbacks and logs to stderr; the
+  internal live mount and persistence never break because a user tap
+  has a bug. T6 removed the pre-2.0 gating that suppressed the tap on
+  every mode except ink.
 
 onCoverage(coverage)
   +-- stash as this.coverage
 
 async onTestRunEnd(testModules, unhandledErrors, reason)
   |
-  +-- Fire RunFinished -> onRunEvent (when set) before persistence so
-  |   the live mount sees end-of-run before the heavy work runs
+  +-- Fire RunFinished -> emit() before persistence so the live mount
+  |   and any onRunEvent tap see end-of-run before the heavy work runs
   |
   +-- dbPath = await ensureDbPath()  (defensive — tests can bypass onInit)
   |     on rejection: stderr.write(formatFatalError(err)) and return
@@ -128,7 +130,12 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |       (env === "terminal" || env === "agent-shell")
   +-- opts.reporter(kit) -> normalizeReporters() -> reporter[]
   +-- For each reporter: render({reports, classifications, trendSummary?})
-  |     -> RenderedOutput[]
+  |     The built-in _defaultReporter from vitest-agent-ui folds
+  |     input.reports through synthesizeFromAgentReport + the reducer,
+  |     classifies (RunShape, RunOutcome), assembles DispatchInputs,
+  |     and calls dispatch(inputs, opts) for the agent-mode stdout
+  |     entry. Adds a github-summary RenderedOutput when
+  |     kit.config.githubActions is true.
   +-- Concatenate all RenderedOutput[] in order
   +-- For each: routeRenderedOutput(out, { githubSummaryFile? })
   |     stdout         -> process.stdout
@@ -181,14 +188,15 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
   "silent"`); the plugin emits a `RenderedOutput` for the Step Summary
   file independent of the console mode.
 - Resolve the `VitestAgentReporterFactory` from `options.reporter`
-  (default `defaultReporter` from `vitest-agent-reporter`; the new
-  `eventSourcedReporter` from `vitest-agent-ui` is the alternative) and
-  pass it through to the internal `AgentReporter` so the factory is
-  invoked once per run with the resolved `ReporterKit` (Flow 1).
-- Forward `options.onRunEvent` to the reporter **only when `consoleMode
-  === "ink"`** so the live tap cannot leak into channels the user
-  explicitly opted out of (`silent`, `passthrough`, `agent`,
-  `ci-annotations`).
+  (default `_defaultReporter` from `vitest-agent-ui`; user-supplied
+  factories replace the built-in entirely — there is no composition
+  slot). Pass it through to the internal `AgentReporter` so the factory
+  is invoked once per run with the resolved `ReporterKit` (Flow 1).
+- Forward `options.onRunEvent` to the reporter unconditionally — the
+  T6 rewrite removed the gating that suppressed the tap on every mode
+  except `ink`. The plugin instantiates the internal live Ink mount
+  itself when `consoleMode === "ink"`; the user callback is a separate
+  read-only tee subscriber.
 - Push a new `AgentReporter` (with `projectFilter: project.name`,
   `reporter: <resolved factory>`, optional `onRunEvent`, and
   `consoleMode`) into `vitest.config.reporters`. A `WeakSet` keyed on

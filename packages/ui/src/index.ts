@@ -13,7 +13,15 @@
  * @packageDocumentation
  */
 
-export type { RunEventByTag } from "vitest-agent-sdk";
+export type {
+	CellOptions,
+	DispatchInputs,
+	ProjectSummary,
+	RunEventByTag,
+	RunOutcome,
+	RunShape,
+	TrendSummary,
+} from "vitest-agent-sdk";
 export {
 	ActionSeverity,
 	CoverageFile,
@@ -29,6 +37,19 @@ export {
 	TestRecord,
 	initialRenderState,
 } from "vitest-agent-sdk";
+export type { AgentCellFn, Cell } from "./dispatcher/index.js";
+// Dispatcher and classifier surface (T6 UI rewrite) — internal callers
+// can use these to drive the same code paths the preassembled default
+// reporter uses.
+export {
+	buildFooter,
+	classifyOutcome,
+	classifyRunShape,
+	dispatch,
+	dispatchInk,
+	dispatcherTable,
+	dominantClassification,
+} from "./dispatcher/index.js";
 export type * from "./factory/index.js";
 export * from "./factory/index.js";
 export type * from "./pubsub/index.js";
@@ -36,12 +57,6 @@ export * from "./pubsub/index.js";
 export { reduceRenderState, reduceRenderStateAll } from "./reducer.js";
 export { type RenderAgentOptions, renderAgent } from "./render-agent.js";
 export * from "./render-ink/index.js";
-export {
-	type RenderRunMode,
-	type RenderRunOptions,
-	renderRun,
-	renderRunFromState,
-} from "./render-run.js";
 export {
 	type SynthesizeFromAgentReportOptions,
 	type SynthesizeOptions,

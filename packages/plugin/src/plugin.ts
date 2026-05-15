@@ -422,13 +422,12 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					githubActions,
 					transport,
 					...(options.reporter !== undefined && { reporter: options.reporter }),
-					// onRunEvent powers the live renderer. Only forward it when
-					// the resolved consoleMode is "ink" — every other mode either
-					// renders statically (agent, ci-annotations) or asked for
-					// silence (passthrough lets Vitest render, silent strips
-					// everything). Forwarding the tap regardless leaks a live
-					// Ink mount into modes the user explicitly opted out of.
-					...(options.onRunEvent !== undefined && consoleMode === "ink" ? { onRunEvent: options.onRunEvent } : {}),
+					// onRunEvent is the user-facing tee on the plugin's run-event
+					// stream (T6 contract). Forward it unconditionally so the
+					// user callback runs alongside the built-in reporter for
+					// every consoleMode. Errors thrown by the user callback are
+					// caught and logged to stderr by `AgentReporter.emit`.
+					...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),
 				});
 
 				// Push reporter into the config (mutating the reporters array)

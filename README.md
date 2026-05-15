@@ -8,7 +8,7 @@ Monorepo for developing the `vitest-agent` package family — a Vitest reporter 
 | --- | --- | --- |
 | `vitest-agent-plugin` | [packages/plugin](./packages/plugin/) | Vitest plugin + lifecycle (`AgentPlugin`, `AgentReporter`, `CoverageAnalyzer`) |
 | `vitest-agent-reporter` | [packages/reporter](./packages/reporter/) | Named renderer factory implementations |
-| `vitest-agent-ui` | [packages/ui](./packages/ui/) | Shared event-sourced renderer: `renderRun`, `createLiveInk`, `eventSourcedReporter`, React Ink components, `RunEvent` PubSub channel |
+| `vitest-agent-ui` | [packages/ui](./packages/ui/) | Shared event-sourced renderer: the shape-tailored dispatcher matrix, the preassembled default reporter, React Ink components, `RunEvent` PubSub channel |
 | `vitest-agent-sdk` | [packages/sdk](./packages/sdk/) | Shared schemas, data layer, services, formatters, utilities |
 | `vitest-agent-cli` | [packages/cli](./packages/cli/) | `vitest-agent` CLI bin |
 | `vitest-agent-mcp` | [packages/mcp](./packages/mcp) | `vitest-agent-mcp` MCP server bin |
@@ -64,7 +64,7 @@ pnpm exec vitest-agent doctor
 pnpm exec vitest-agent show --project <name> --format auto
 ```
 
-`vitest-agent show` replays the latest cached run through the shared event-sourced renderer in `vitest-agent-ui`, picking the React Ink view for an interactive TTY (`--format auto`) and the markdown-flavored agent string otherwise. Pass `--format agent`, `--format human`, or `--format json` to force a specific output.
+`vitest-agent show` replays the latest cached run through the shape-tailored dispatcher in `vitest-agent-ui`, picking the React Ink view for an interactive TTY (`--format auto`) and the markdown-flavored agent string otherwise. Pass `--format agent`, `--format human`, or `--format json` to force a specific output. Multi-project workspaces render as a single workspace-aggregate frame, not one frame per project.
 
 ## Testing the Claude Code plugin locally
 

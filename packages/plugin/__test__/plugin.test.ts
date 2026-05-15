@@ -97,8 +97,8 @@ describe("AgentPlugin", () => {
 		});
 	});
 
-	describe("onRunEvent tap gating", () => {
-		it("forwards events to the tap when console.human is ink", async () => {
+	describe("onRunEvent user-facing tee", () => {
+		it("forwards events to the tap in every console mode (ink)", async () => {
 			let received = 0;
 			const plugin = AgentPlugin(
 				{
@@ -116,7 +116,7 @@ describe("AgentPlugin", () => {
 			expect(received).toBeGreaterThan(0);
 		});
 
-		it("suppresses the tap when console.human is silent", async () => {
+		it("forwards events to the tap when human mode is silent", async () => {
 			let received = 0;
 			const plugin = AgentPlugin(
 				{
@@ -131,10 +131,10 @@ describe("AgentPlugin", () => {
 			await callConfigureVitest(plugin, vitest);
 			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
 			reporter.onTestRunStart([]);
-			expect(received).toBe(0);
+			expect(received).toBeGreaterThan(0);
 		});
 
-		it("suppresses the tap in passthrough mode (Vitest reporters do the visible work)", async () => {
+		it("forwards events to the tap in passthrough mode", async () => {
 			let received = 0;
 			const plugin = AgentPlugin(
 				{
@@ -149,10 +149,10 @@ describe("AgentPlugin", () => {
 			await callConfigureVitest(plugin, vitest);
 			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
 			reporter.onTestRunStart([]);
-			expect(received).toBe(0);
+			expect(received).toBeGreaterThan(0);
 		});
 
-		it("suppresses the tap in the agent slot", async () => {
+		it("forwards events to the tap in the agent slot", async () => {
 			let received = 0;
 			const plugin = AgentPlugin(
 				{
@@ -167,7 +167,33 @@ describe("AgentPlugin", () => {
 			await callConfigureVitest(plugin, vitest);
 			const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
 			reporter.onTestRunStart([]);
-			expect(received).toBe(0);
+			expect(received).toBeGreaterThan(0);
+		});
+
+		it("catches throws in the user callback and emits to stderr", async () => {
+			const original = process.stderr.write.bind(process.stderr);
+			let stderrText = "";
+			process.stderr.write = ((chunk: unknown) => {
+				stderrText += typeof chunk === "string" ? chunk : String(chunk);
+				return true;
+			}) as typeof process.stderr.write;
+			try {
+				const plugin = AgentPlugin(
+					{
+						onRunEvent: () => {
+							throw new Error("boom");
+						},
+					},
+					EnvironmentDetectorTest.layer("terminal"),
+				);
+				const vitest = mockVitest(["default"]);
+				await callConfigureVitest(plugin, vitest);
+				const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+				reporter.onTestRunStart([]);
+			} finally {
+				process.stderr.write = original;
+			}
+			expect(stderrText).toContain("onRunEvent tap threw");
 		});
 	});
 

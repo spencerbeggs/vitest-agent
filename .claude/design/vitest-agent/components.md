@@ -27,8 +27,8 @@ sub-file for the package you're working on.
 | ---- | -------------------- |
 | [./components/sdk.md](./components/sdk.md) | services, layers, schemas, DataStore/DataReader, migrations, path resolution, formatters, the public reporter contract types, the `RunEvent`/`RenderState` schemas, utilities |
 | [./components/plugin.md](./components/plugin.md) | `AgentPlugin`, the internal `AgentReporter` lifecycle class (with streaming hooks and the `onRunEvent` tap), `CoverageAnalyzer`, reporter-side utilities, coverage threshold extraction, the per-executor console matrix |
-| [./components/reporter.md](./components/reporter.md) | named `VitestAgentReporterFactory` implementations, the `_kit-context.ts` helper, `defaultReporter` composition |
-| [./components/ui.md](./components/ui.md) | event-sourced renderer: `RunEvent` reducer, agent-string renderer, React Ink tree, `eventSourcedReporter` factory, `createLiveInk()` live mount, `RunEventChannel` PubSub, synthesizers |
+| [./components/reporter.md](./components/reporter.md) | "build your own reporter" SDK: factory contract re-exports plus `buildDispatchInputs` / `resolveCellOptions` helpers. No shipped default after T6. |
+| [./components/ui.md](./components/ui.md) | event-sourced renderer: `RunEvent` reducer, shape-tailored dispatcher matrix and its 12 cells, L1 MCP tool-pointer footer, preassembled `_defaultReporter`, internal `_createLiveInk` live mount, `RunEventChannel` PubSub, synthesizers |
 | [./components/cli.md](./components/cli.md) | CLI commands (including `show` which routes through `vitest-agent-ui`), the `record` subcommand and its hook-driven actions, `CliLive` |
 | [./components/mcp.md](./components/mcp.md) | MCP tools, idempotency middleware, channel-event resolution, MCP resources, MCP prompts, the snapshot maintenance pipeline, `McpLive` |
 | [./components/plugin-claude.md](./components/plugin-claude.md) | the Claude Code plugin: hooks, the TDD orchestrator agent, skills, slash commands, the dogfood system, the MCP loader |

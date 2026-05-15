@@ -14,7 +14,6 @@ import { dirname } from "node:path";
 import { NodeContext } from "@effect/platform-node";
 import type { LogLevel } from "effect";
 import { Effect, Option } from "effect";
-import { defaultReporter } from "vitest-agent-reporter";
 import type {
 	AgentReport,
 	AgentReporterOptions,
@@ -49,6 +48,7 @@ import {
 	resolveLogFile,
 	resolveLogLevel,
 } from "vitest-agent-sdk";
+import { _defaultReporter } from "vitest-agent-ui";
 import { ReporterLive } from "./layers/ReporterLive.js";
 import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit.js";
@@ -351,7 +351,7 @@ export class AgentReporter {
 			consoleMode,
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
 			...(options.projectFilter !== undefined ? { projectFilter: options.projectFilter } : {}),
-			reporter: options.reporter ?? defaultReporter,
+			reporter: options.reporter ?? _defaultReporter,
 			coverageMode: options.coverageMode ?? "full",
 			transport: options.transport ?? { kind: "local" },
 		};
