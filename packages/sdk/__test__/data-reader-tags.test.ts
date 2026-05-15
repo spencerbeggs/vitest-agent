@@ -88,11 +88,70 @@ describe("TagInventoryRow type export", () => {
 		const row: TagInventoryRow = {
 			tag: "int",
 			project: "my-proj",
+			moduleCount: 2,
 			testCount: 3,
 		};
 		expect(row.tag).toBe("int");
 		expect(row.project).toBe("my-proj");
+		expect(row.moduleCount).toBe(2);
 		expect(row.testCount).toBe(3);
+	});
+});
+
+// ─── moduleCount: distinct-module aggregation ────────────────────────────────
+
+describe("listTagInventory — moduleCount aggregation", () => {
+	it("should count distinct test modules carrying the tag, not test cases", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const store = yield* DataStore;
+				const reader = yield* DataReader;
+
+				yield* store.writeSettings("tag-mc-hash", settingsInput, {});
+
+				const runId = yield* store.writeRun({
+					...baseRunInput,
+					invocationId: "tag-mc",
+					project: "proj-mc",
+					settingsHash: "tag-mc-hash",
+				});
+
+				const fileOne = yield* store.ensureFile("src/mc-one.test.ts");
+				const fileTwo = yield* store.ensureFile("src/mc-two.test.ts");
+				const fileThree = yield* store.ensureFile("src/mc-three.test.ts");
+				const [modOne, modTwo, modThree] = yield* store.writeModules(runId, [
+					{ fileId: fileOne, relativeModuleId: "src/mc-one.test.ts", state: "passed", duration: 10 },
+					{ fileId: fileTwo, relativeModuleId: "src/mc-two.test.ts", state: "passed", duration: 10 },
+					{ fileId: fileThree, relativeModuleId: "src/mc-three.test.ts", state: "passed", duration: 10 },
+				]);
+
+				// mc-one: two int-tagged tests in the same module → contributes 1 module, 2 tests.
+				yield* store.writeTestCases(modOne, [
+					{ name: "int one a", fullName: "mc-one > int a", state: "passed", tags: ["int"] },
+					{ name: "int one b", fullName: "mc-one > int b", state: "passed", tags: ["int"] },
+				]);
+				// mc-two: one int-tagged test → +1 module, +1 test.
+				yield* store.writeTestCases(modTwo, [
+					{ name: "int two", fullName: "mc-two > int", state: "passed", tags: ["int"] },
+				]);
+				// mc-three: no int tag → does not contribute to int's counts.
+				yield* store.writeTestCases(modThree, [
+					{ name: "unit three", fullName: "mc-three > unit", state: "passed", tags: ["unit"] },
+				]);
+
+				return yield* reader.listTagInventory({ project: "proj-mc" });
+			}),
+		);
+
+		const intRow = result.find((r) => r.tag === "int");
+		expect(intRow).toBeDefined();
+		expect(intRow?.moduleCount).toBe(2);
+		expect(intRow?.testCount).toBe(3);
+
+		const unitRow = result.find((r) => r.tag === "unit");
+		expect(unitRow).toBeDefined();
+		expect(unitRow?.moduleCount).toBe(1);
+		expect(unitRow?.testCount).toBe(1);
 	});
 });
 
@@ -173,14 +232,17 @@ describe("listTagInventory — unscoped", () => {
 		const intA = result.find((r) => r.tag === "int" && r.project === "proj-a");
 		expect(intA).toBeDefined();
 		expect(intA?.testCount).toBe(1);
+		expect(intA?.moduleCount).toBe(1);
 
 		const e2eA = result.find((r) => r.tag === "e2e" && r.project === "proj-a");
 		expect(e2eA).toBeDefined();
 		expect(e2eA?.testCount).toBe(1);
+		expect(e2eA?.moduleCount).toBe(1);
 
 		const intB = result.find((r) => r.tag === "int" && r.project === "proj-b");
 		expect(intB).toBeDefined();
 		expect(intB?.testCount).toBe(1);
+		expect(intB?.moduleCount).toBe(1);
 	});
 });
 
@@ -235,6 +297,10 @@ describe("listTagInventory — project scoped", () => {
 		expect(result.length).toBe(2);
 		const tags = result.map((r) => r.tag).sort();
 		expect(tags).toEqual(["int", "unit"]);
+		for (const r of result) {
+			expect(r.moduleCount).toBe(1);
+			expect(r.testCount).toBe(1);
+		}
 	});
 });
 

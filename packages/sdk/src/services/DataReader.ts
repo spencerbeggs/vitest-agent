@@ -268,6 +268,11 @@ export interface TagInventoryRow {
 	/** The Vitest project this tag was observed in. */
 	readonly project: string;
 	/**
+	 * Number of distinct test modules in the project's latest run that contain
+	 * at least one test case carrying this tag.
+	 */
+	readonly moduleCount: number;
+	/**
 	 * Number of test cases in the project's latest run that carry this tag.
 	 */
 	readonly testCount: number;

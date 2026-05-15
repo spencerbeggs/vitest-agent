@@ -2312,8 +2312,15 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					if (runs.length === 0) return [];
 					const runId = runs[0].id;
 
-					const rows = yield* sql<{ tag: string; project: string; test_count: number }>`
-						SELECT t.name AS tag, ${options.project} AS project, COUNT(tc.id) AS test_count
+					const rows = yield* sql<{
+						tag: string;
+						project: string;
+						module_count: number;
+						test_count: number;
+					}>`
+						SELECT t.name AS tag, ${options.project} AS project,
+							COUNT(DISTINCT tm.id) AS module_count,
+							COUNT(tc.id) AS test_count
 						FROM test_cases tc
 						JOIN test_modules tm ON tm.id = tc.module_id
 						JOIN test_case_tags tct ON tct.test_case_id = tc.id
@@ -2326,6 +2333,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					return rows.map((r) => ({
 						tag: r.tag,
 						project: r.project,
+						moduleCount: r.module_count,
 						testCount: r.test_count,
 					}));
 				}
@@ -2333,8 +2341,15 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				// Unscoped: for each project find its latest run, then aggregate tags.
 				// Uses a subquery to pick the max(timestamp) run per project so that
 				// only the most recent run contributes to the inventory.
-				const rows = yield* sql<{ tag: string; project: string; test_count: number }>`
-					SELECT t.name AS tag, tr.project AS project, COUNT(tc.id) AS test_count
+				const rows = yield* sql<{
+					tag: string;
+					project: string;
+					module_count: number;
+					test_count: number;
+				}>`
+					SELECT t.name AS tag, tr.project AS project,
+						COUNT(DISTINCT tm.id) AS module_count,
+						COUNT(tc.id) AS test_count
 					FROM test_runs tr
 					JOIN (
 						SELECT project, MAX(timestamp) AS max_ts
@@ -2352,6 +2367,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				return rows.map((r) => ({
 					tag: r.tag,
 					project: r.project,
+					moduleCount: r.module_count,
 					testCount: r.test_count,
 				}));
 			}).pipe(
