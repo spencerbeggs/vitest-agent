@@ -18,20 +18,18 @@
 import type { ReactElement } from "react";
 import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "vitest-agent-sdk";
 import type { Cell } from "./cell-types.js";
-import {
-	renderSingleFileFail,
-	renderSingleFilePass,
-	renderSingleFileThreshold,
-	renderSingleProjectFail,
-	renderSingleProjectPass,
-	renderSingleProjectThreshold,
-	renderSingleTestFail,
-	renderSingleTestPass,
-	renderSingleTestThreshold,
-	renderWorkspaceFail,
-	renderWorkspacePass,
-	renderWorkspaceThreshold,
-} from "./cells/index.js";
+import { renderSingleFileFail } from "./cells/single-file-fail.js";
+import { renderSingleFilePass } from "./cells/single-file-pass.js";
+import { renderSingleFileThreshold } from "./cells/single-file-threshold.js";
+import { renderSingleProjectFail } from "./cells/single-project-fail.js";
+import { renderSingleProjectPass } from "./cells/single-project-pass.js";
+import { renderSingleProjectThreshold } from "./cells/single-project-threshold.js";
+import { renderSingleTestFail } from "./cells/single-test-fail.js";
+import { renderSingleTestPass } from "./cells/single-test-pass.js";
+import { renderSingleTestThreshold } from "./cells/single-test-threshold.js";
+import { renderWorkspaceFail } from "./cells/workspace-fail.js";
+import { renderWorkspacePass } from "./cells/workspace-pass.js";
+import { renderWorkspaceThreshold } from "./cells/workspace-threshold.js";
 
 /**
  * The 4×3 cell table. Exported for the test harness so spy-based

@@ -1,21 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "vitest-agent-sdk";
 import { initialRenderState } from "vitest-agent-sdk";
-import {
-	renderSingleFileFail,
-	renderSingleFilePass,
-	renderSingleFileThreshold,
-	renderSingleProjectFail,
-	renderSingleProjectPass,
-	renderSingleProjectThreshold,
-	renderSingleTestFail,
-	renderSingleTestPass,
-	renderSingleTestThreshold,
-	renderWorkspaceFail,
-	renderWorkspacePass,
-	renderWorkspaceThreshold,
-} from "../src/dispatcher/cells/index.js";
-import { dispatch, dispatcherTable } from "../src/dispatcher/index.js";
+import { renderSingleFileFail } from "../src/dispatcher/cells/single-file-fail.js";
+import { renderSingleFilePass } from "../src/dispatcher/cells/single-file-pass.js";
+import { renderSingleFileThreshold } from "../src/dispatcher/cells/single-file-threshold.js";
+import { renderSingleProjectFail } from "../src/dispatcher/cells/single-project-fail.js";
+import { renderSingleProjectPass } from "../src/dispatcher/cells/single-project-pass.js";
+import { renderSingleProjectThreshold } from "../src/dispatcher/cells/single-project-threshold.js";
+import { renderSingleTestFail } from "../src/dispatcher/cells/single-test-fail.js";
+import { renderSingleTestPass } from "../src/dispatcher/cells/single-test-pass.js";
+import { renderSingleTestThreshold } from "../src/dispatcher/cells/single-test-threshold.js";
+import { renderWorkspaceFail } from "../src/dispatcher/cells/workspace-fail.js";
+import { renderWorkspacePass } from "../src/dispatcher/cells/workspace-pass.js";
+import { renderWorkspaceThreshold } from "../src/dispatcher/cells/workspace-threshold.js";
+import { dispatch, dispatcherTable } from "../src/dispatcher/dispatch.js";
 
 const opts: CellOptions = {
 	noColor: true,

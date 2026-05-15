@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentReport, ReporterKit, ReporterRenderInput, VitestAgentReporter } from "vitest-agent-sdk";
 import { initialRenderState } from "vitest-agent-sdk";
-import { _defaultReporter, buildDispatchInputs, resolveCellOptions } from "../src/factory/index.js";
+import { _defaultReporter, buildDispatchInputs, resolveCellOptions } from "../src/factory/defaultReporter.js";
 
 const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): ReporterKit => ({
 	config: {

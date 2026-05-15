@@ -155,7 +155,7 @@ Companion helpers exported alongside the factory:
 
 ## Live-mount lifecycle (internal `_createLiveInk`)
 
-`packages/ui/src/factory/LiveInkRenderer.tsx`. The live Ink mount is now plugin-internal. Exported from `factory/index.ts` as `_createLiveInk` so the plugin can wire it; consumers do not see it.
+`packages/ui/src/factory/LiveInkRenderer.tsx`. The live Ink mount is now plugin-internal. Re-exported from the package entrypoint (`packages/ui/src/index.ts`) as `_createLiveInk` so the plugin can wire it; consumers do not see it.
 
 ```ts
 interface LiveInkRenderer {
@@ -178,12 +178,12 @@ The plugin instantiates the live mount itself when the resolved `consoleMode ===
 
 ## Factory surface
 
-`packages/ui/src/factory/index.ts` exports:
+The package entrypoint (`packages/ui/src/index.ts`) re-exports the factory symbols directly from their source files:
 
-- `_defaultReporter` — the preassembled default reporter (above).
-- `buildDispatchInputs`, `resolveCellOptions` — helpers re-exported for custom reporters built on the same dispatcher.
-- `renderAgentStringForReport`, `renderHumanStringForReport` — CLI helpers.
-- `_createLiveInk` (alias of `createLiveInk`), `CreateLiveInkOptions`, `LiveInkRenderer` — plugin-internal live mount.
+- `_defaultReporter`, `buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport` — all live in `packages/ui/src/factory/defaultReporter.ts`.
+- `_createLiveInk` (alias of `createLiveInk`), `CreateLiveInkOptions`, `LiveInkRenderer` — all live in `packages/ui/src/factory/LiveInkRenderer.tsx`.
+
+Internal code in this package imports directly from the source file that owns the symbol — there is no `factory/index.ts` barrel. Only the package entrypoint re-exports.
 
 The pre-2.0 `eventSourcedReporter` factory and the public `createLiveInk` export were deleted in T6 phase 9 along with `render-run.tsx`. Hosts that need their own reporter implement `VitestAgentReporterFactory` directly and consume the dispatcher primitives from this package; see `packages/reporter/` for the convenience re-export package.
 
