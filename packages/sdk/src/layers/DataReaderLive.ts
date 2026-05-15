@@ -24,6 +24,7 @@ import type {
 	SettingsListEntry,
 	SettingsRow,
 	SuiteListEntry,
+	TagInventoryRow,
 	TddArtifactRow,
 	TddTaskDetail,
 	TddTaskSummary,
@@ -2295,6 +2296,137 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
+		const listTagInventory = (options?: {
+			readonly project?: string;
+		}): Effect.Effect<ReadonlyArray<TagInventoryRow>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("listTagInventory").pipe(Effect.annotateLogs({ project: options?.project }));
+
+				if (options?.project) {
+					// Project-scoped: find the latest run for the specific project, then
+					// count test cases carrying each tag in that run.
+					const runs = yield* sql<{ id: number }>`SELECT id FROM test_runs
+						WHERE project = ${options.project}
+						ORDER BY timestamp DESC LIMIT 1`;
+
+					if (runs.length === 0) return [];
+					const runId = runs[0].id;
+
+					const rows = yield* sql<{ tag: string; project: string; test_count: number }>`
+						SELECT t.name AS tag, ${options.project} AS project, COUNT(tc.id) AS test_count
+						FROM test_cases tc
+						JOIN test_modules tm ON tm.id = tc.module_id
+						JOIN test_case_tags tct ON tct.test_case_id = tc.id
+						JOIN tags t ON t.id = tct.tag_id
+						WHERE tm.run_id = ${runId}
+						GROUP BY t.name
+						ORDER BY t.name
+					`;
+
+					return rows.map((r) => ({
+						tag: r.tag,
+						project: r.project,
+						testCount: r.test_count,
+					}));
+				}
+
+				// Unscoped: for each project find its latest run, then aggregate tags.
+				// Uses a subquery to pick the max(timestamp) run per project so that
+				// only the most recent run contributes to the inventory.
+				const rows = yield* sql<{ tag: string; project: string; test_count: number }>`
+					SELECT t.name AS tag, tr.project AS project, COUNT(tc.id) AS test_count
+					FROM test_runs tr
+					JOIN (
+						SELECT project, MAX(timestamp) AS max_ts
+						FROM test_runs
+						GROUP BY project
+					) latest ON tr.project = latest.project AND tr.timestamp = latest.max_ts
+					JOIN test_modules tm ON tm.run_id = tr.id
+					JOIN test_cases tc ON tc.module_id = tm.id
+					JOIN test_case_tags tct ON tct.test_case_id = tc.id
+					JOIN tags t ON t.id = tct.tag_id
+					GROUP BY tr.project, t.name
+					ORDER BY tr.project, t.name
+				`;
+
+				return rows.map((r) => ({
+					tag: r.tag,
+					project: r.project,
+					testCount: r.test_count,
+				}));
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError((e) => new DataStoreError({ operation: "read", table: "tags", reason: extractSqlReason(e) })),
+			);
+
+		const listTestsForTag = (
+			tag: string,
+			options?: { readonly project?: string },
+		): Effect.Effect<ReadonlyArray<TestListEntry>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("listTestsForTag").pipe(Effect.annotateLogs({ tag, project: options?.project }));
+
+				if (options?.project) {
+					// Project-scoped
+					const runs = yield* sql<{ id: number }>`SELECT id FROM test_runs
+						WHERE project = ${options.project}
+						ORDER BY timestamp DESC LIMIT 1`;
+
+					if (runs.length === 0) return [];
+					const runId = runs[0].id;
+
+					const rows = yield* sql<{
+						id: number;
+						full_name: string;
+						state: string;
+						duration: number | null;
+						file_path: string;
+						classification: string | null;
+					}>`
+						SELECT tc.id, tc.full_name, tc.state, tc.duration, f.path AS file_path, tc.classification
+						FROM test_cases tc
+						JOIN test_modules tm ON tm.id = tc.module_id
+						JOIN files f ON f.id = tm.file_id
+						JOIN test_case_tags tct ON tct.test_case_id = tc.id
+						JOIN tags t ON t.id = tct.tag_id
+						WHERE tm.run_id = ${runId} AND t.name = ${tag}
+						ORDER BY tc.full_name
+					`;
+
+					return rows.map(mapTestListRow);
+				}
+
+				// Unscoped: one result set across all projects' latest runs
+				const rows = yield* sql<{
+					id: number;
+					full_name: string;
+					state: string;
+					duration: number | null;
+					file_path: string;
+					classification: string | null;
+				}>`
+					SELECT tc.id, tc.full_name, tc.state, tc.duration, f.path AS file_path, tc.classification
+					FROM test_runs tr
+					JOIN (
+						SELECT project, MAX(timestamp) AS max_ts
+						FROM test_runs
+						GROUP BY project
+					) latest ON tr.project = latest.project AND tr.timestamp = latest.max_ts
+					JOIN test_modules tm ON tm.run_id = tr.id
+					JOIN files f ON f.id = tm.file_id
+					JOIN test_cases tc ON tc.module_id = tm.id
+					JOIN test_case_tags tct ON tct.test_case_id = tc.id
+					JOIN tags t ON t.id = tct.tag_id
+					WHERE t.name = ${tag}
+					ORDER BY tr.project, tc.full_name
+				`;
+
+				return rows.map(mapTestListRow);
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError((e) => new DataStoreError({ operation: "read", table: "tags", reason: extractSqlReason(e) })),
+			);
+
 		return {
 			getLatestRun,
 			getRunsByProject,
@@ -2341,6 +2473,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			listHypotheses,
 			findIdempotentResponse,
 			getLatestTestCaseForSession,
+			listTagInventory,
+			listTestsForTag,
 		};
 	}),
 );
