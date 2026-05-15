@@ -4,8 +4,9 @@
  * Vitest plugin for the vitest-agent ecosystem. Owns persistence, history
  * classification, baselines, trend tracking, failure-signature computation,
  * and Vitest reporter-chain wiring. Dispatches the rendering stage to a
- * configurable reporter (default: `defaultReporter` from
- * `vitest-agent-reporter` package).
+ * configurable reporter (default: the preassembled defaultReporter from
+ * the vitest-agent-ui package — exposed there as the internal
+ * _defaultReporter symbol).
  *
  * The current export surface is transitional: `AgentReporter` and
  * `AgentPlugin` are re-exported here as a checkpoint after the file move

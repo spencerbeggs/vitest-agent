@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-ui
 category: architecture
 created: 2026-05-12
-updated: 2026-05-14
-last-synced: 2026-05-14
+updated: 2026-05-15
+last-synced: 2026-05-15
 completeness: 90
 related:
   - ../architecture.md
@@ -21,12 +21,7 @@ dependencies:
 
 # UI package (`vitest-agent-ui`)
 
-The shared event-sourced renderer for vitest-agent's terminal output.
-Replaces the pre-2.0 per-formatter pipeline with a single event taxonomy
-flowing through a pure reducer into two surface-specific renderers: a
-markdown-flavored agent string and a React Ink tree. Adds a live-mount
-driver for the Ink path so humans see test progress animate rather than
-landing as a single batched dump at end of run.
+The shared event-sourced renderer that ships the plugin's preassembled default reporter. The T6 UI rewrite collapsed the pre-2.0 per-formatter pipeline plus the dual ingestion paths (`eventSourcedReporter` end-of-run plus `createLiveInk` per-event tap) into one internal stream that lands at a shape-tailored 4 × 3 dispatcher matrix. Users no longer import a reporter or a live-mount factory — the plugin owns both. The package now exposes the dispatcher primitives, the preassembled reporter, the reducer, the synthesizers and the `RunEventChannel` PubSub for hosts building custom reporters on the same stream.
 
 **npm name:** `vitest-agent-ui`
 **Location:** `packages/ui/`
@@ -34,7 +29,7 @@ landing as a single batched dump at end of run.
 
 **Key external dependencies:**
 
-- `react`, `ink` — peer deps for the Ink component tree
+- `react`, `ink` — peer deps for the Ink half of every dispatcher cell
 - `effect` — Schema, Match, PubSub, Stream, Layer, Context
 
 ---
@@ -52,301 +47,115 @@ landing as a single batched dump at end of run.
                        │   RunEvent   │  discriminated union, 11 variants
                        └──────────────┘
                               │
-        ┌─────────────────────┴─────────────────────┐
-        ▼                                           ▼
-   onRunEvent tap                          renderInput.reports
-   (live, per-event)                       (end-of-run, batch)
-        │                                           │
-        ▼                                           ▼
-  ┌────────────┐                            ┌────────────────┐
-  │ createLive │                            │ synthesizeFrom │
-  │   Ink()    │                            │  AgentReport() │
-  └────────────┘                            └────────────────┘
-        │                                           │
-        ▼                                           ▼
-   reducer.event                              reducer.fold
-        │                                           │
-        ▼                                           ▼
-   ink.rerender                              renderAgent(state)
-   (long-running)                            → RenderedOutput
+                  forwarded for every consoleMode
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+   plugin-internal live Ink mount     user-supplied onRunEvent tap
+   (consoleMode === "ink")            (optional, every mode)
+              │                               │
+              ▼                               ▼
+   reducer.event → ink.rerender         user callback
+                              │
+                              ▼
+                       end-of-run batch
+                              │
+                              ▼
+           _defaultReporter (in vitest-agent-ui)
+             reduceRenderStateAll(synthesizeFromAgentReport(report))
+             classifyRunShape + classifyOutcome
+             dispatch(inputs, opts) → string
 ```
 
-Two consumption paths feed off the same reducer:
-
-1. **Live tap** — the plugin's `AgentReporter` constructs a `RunEvent`
-   from each Vitest streaming callback and forwards it to a user-
-   supplied `onRunEvent` callback. `createLiveInk()` is the canonical
-   consumer: it reduces incoming events into accumulated state and
-   re-mounts the Ink tree on each beat. Drives the human-mode animation.
-
-2. **Batch synthesis** — `eventSourcedReporter` runs at end-of-run via
-   the standard `VitestAgentReporterFactory.render(input)` contract.
-   For each `AgentReport` in `input.reports`, it calls
-   `synthesizeFromAgentReport` to produce an event sequence, folds it
-   through the reducer, and renders one `RenderedOutput` via the agent
-   string renderer. Drives the agent-mode static frame.
-
-These paths are independent — either can be active alone, both can be
-active simultaneously, or both can be disabled.
+One upstream, one canonical reducer fold, one dispatcher. Live ingestion and end-of-run synthesis land at the same `RenderState` shape; the dispatcher then selects a cell by `(RunShape, RunOutcome)` and renders either an agent string or an Ink tree.
 
 ---
 
-## The RunEvent taxonomy
+## The RunEvent taxonomy and reducer
 
-Defined in `packages/sdk/src/schemas/RunEvent.ts`, re-exported through
-`vitest-agent-ui`. 11 tagged variants:
+Schemas live in `packages/sdk/src/schemas/RunEvent.ts` and `packages/sdk/src/schemas/RenderState.ts`, re-exported through `vitest-agent-ui`. The 11 `_tag` variants and the reducer's exhaustive `Match.tag` switch are unchanged from pre-T6; see `packages/ui/src/reducer.ts` for the pure `(state, event) => state` function and `reduceRenderStateAll(events, seed?)` for the fold helper.
 
-| Tag | Fires when |
-| --- | ---------- |
-| `RunStarted` | A test run begins. Carries `runId`, `startedAt`, `configHash` |
-| `ModuleQueued` | A test module enters the pending queue |
-| `ModuleStarted` | A module begins executing |
-| `TestStarted` | A test case is about to run |
-| `TestFinished` | A test case produced a result (passed / failed / skipped) |
-| `ModuleFinished` | A module completed with tallied counts |
-| `CoverageReady` | Coverage analysis is complete |
-| `ThresholdViolation` | A coverage metric is below threshold |
-| `FailureClassified` | A failing test received a stability classification |
-| `SuggestedAction` | An actionable hint emitted from the analysis pipeline |
-| `RunFinished` | The run completed; carries final totals |
-
-The discriminator is `_tag`. Exhaustiveness is enforced at the
-reducer's `Match.exhaustive` terminator — adding a variant produces a
-compile-time failure until handled.
+Notable per-event behavior is documented in the reducer file. The discipline that adding a `RunEvent` variant forces a `Match.exhaustive` compile failure until handled still applies.
 
 ---
 
-## RenderState — the projected shape
+## The dispatcher matrix
 
-Defined in `packages/sdk/src/schemas/RenderState.ts`. The reducer
-projects the event stream into this shape:
+The T6 rewrite replaced the pre-2.0 mode switch (`renderRun(events, "agent" | "human")`) with a 4 × 3 cell matrix in `packages/ui/src/dispatcher/`. The dispatcher reads the reduced `RenderState` plus a small `RunShape` discriminator and selects one cell:
+
+| | all-pass | some-fail | threshold-violation |
+| - | - | - | - |
+| single-test | `renderSingleTestPass` | `renderSingleTestFail` | `renderSingleTestThreshold` (no-op) |
+| single-file | `renderSingleFilePass` | `renderSingleFileFail` | `renderSingleFileThreshold` |
+| single-project | `renderSingleProjectPass` | `renderSingleProjectFail` | `renderSingleProjectThreshold` |
+| workspace | `renderWorkspacePass` | `renderWorkspaceFail` | `renderWorkspaceThreshold` |
+
+The 12 cells live under `packages/ui/src/dispatcher/cells/`. Each cell exposes two halves on the same object — an `agent(inputs, opts): string` half tuned for token economy and an `ink(inputs, opts): React.ReactElement` half for the live mount. The `Cell` shape lives in `packages/ui/src/dispatcher/cell-types.ts`.
+
+The single-test × threshold-violation cell is a documented no-op: a one-line "all-pass" result can never carry a threshold violation, so the cell returns the empty string and the matrix stays total without a default fallback. See `packages/ui/src/dispatcher/cells/single-test-threshold.ts`.
+
+### Classification
+
+`classifyRunShape(state, projects)` in `packages/ui/src/dispatcher/classify.ts` derives the `RunShape` from module count, distinct-project count and test count inside the module(s):
+
+- `single-test` — exactly one module, one test.
+- `single-file` — one module, more than one test.
+- `single-project` — one project, more than one module.
+- `workspace` — more than one project.
+
+`classifyOutcome(state)` derives the `RunOutcome`. Precedence: `some-fail` (any failures) wins over `threshold-violation`; `all-pass` otherwise. See the classifier tests at `packages/ui/__test__/classify.test.ts` for the corner cases.
+
+### Dispatch entry points
 
 ```ts
-interface RenderState {
-  phase: "idle" | "running" | "finished";
-  runId: string | null;
-  configHash: string | null;
-  startedAt: string | null;
-  finishedAt: string | null;
-  modules: Record<string, ModuleRecord>;
-  moduleOrder: string[];                    // insertion order
-  totals: RenderTotals;
-  coverage: CoverageRenderState | null;
-  failures: FailureRecord[];
-  suggestedActions: SuggestedActionRecord[];
-}
+dispatch(inputs: DispatchInputs, opts: CellOptions): string
+dispatchInk(inputs: DispatchInputs, opts: CellOptions): React.ReactElement | null
+dispatcherTable                                                    // for test introspection
 ```
 
-Both renderers read this shape. Adding a visible field means: extend
-`RenderState`, update the reducer, update both renderers. The
-discipline keeps the two surface implementations in sync.
+`DispatchInputs` is plain TypeScript (no Effect Schema, no persistence) and lives in `packages/sdk/src/contracts/dispatcher.ts`. It carries `state`, `shape`, `outcome`, the per-project aggregates the workspace cells need (`ProjectSummary[]`), the optional trend summary and below-target file list, plus the resolved `runCommand`. See `packages/ui/src/factory/defaultReporter.ts` for `buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble these from a `ReporterRenderInput` and a `ReporterKit`.
+
+### L1 MCP tool-pointer footer
+
+`packages/ui/src/dispatcher/footer.ts` builds the trailing pointer line(s) that each cell appends. The mapping (UI rewrite spec §3.6):
+
+| Outcome class | Pointer |
+| ------------- | ------- |
+| all-pass with at least one below-target file | `Use file_coverage to find uncovered functions.` |
+| some-fail with `new-failure` or `persistent` classification | `Use test_errors for failure detail; failure_signature_get to check known patterns.` |
+| some-fail with `flaky` classification | `Use failure_signature_get to confirm the flakiness signature.` |
+| threshold-violation only | `Use test_coverage for the workspace coverage breakdown.` |
+
+`dominantClassification(state)` resolves the dominant failure classification with priority `new-failure → persistent → flaky → recovered → stable`.
+
+### Cell helpers
+
+`packages/ui/src/dispatcher/helpers.ts` holds the shared formatters every cell uses: duration formatting, totals header, failure block, coverage judgment line, trend line, the projects table with name padding and tag-count suffix, the workspace total footer and the below-target table. `packages/ui/src/dispatcher/ink-helpers.tsx` exports `renderAgentStringAsInk`, which wraps an agent string in colored Ink `<Text>` rows so cells can share their agent-half output as a default Ink render.
 
 ---
 
-## The reducer
+## The preassembled default reporter
 
-Pure synchronous function in `packages/ui/src/reducer.ts`:
+`packages/ui/src/factory/defaultReporter.ts` exports `_defaultReporter` — a `VitestAgentReporterFactory` from `vitest-agent-sdk`. The plugin imports it as its built-in; users never name it directly. The leading underscore marks it as plugin-internal even though it lives in the package's `export *` surface.
 
-```ts
-const reduceRenderState = (state: RenderState, event: RunEvent): RenderState
-const reduceRenderStateAll = (events: ReadonlyArray<RunEvent>, seed?) => RenderState
-```
+`render(input)` branches on `kit.config.consoleMode`:
 
-Implemented as an exhaustive `Match.value(event).pipe(Match.tag(...),
-Match.exhaustive)`. No I/O, no time, no randomness. Folding the same
-event sequence twice yields the same state.
+- `agent` — folds `input.reports` through `synthesizeFromAgentReport` and the reducer, builds `DispatchInputs`, calls `dispatch(inputs, opts)`, returns one `RenderedOutput` with `target: "stdout"` carrying the dispatched string.
+- `silent`, `passthrough`, `ink`, `ci-annotations` — emits no stdout `RenderedOutput`. For `ink`, the plugin's internal live mount paints per-event during the run.
+- For every mode, when `kit.config.githubActions` is `true`, the factory emits an additional `RenderedOutput` with `target: "github-summary"` carrying a GFM-flavored payload. This preserves the pre-2.0 GitHub Step Summary behavior independent of the console mode.
 
-Notable per-event behaviors:
+Companion helpers exported alongside the factory:
 
-- `ModuleQueued` is idempotent on `modulePath` — queuing twice does not
-  duplicate the moduleOrder entry.
-- `ModuleStarted` auto-queues if the module was never queued. Handles
-  Vitest configurations that skip the queue notification.
-- `TestFinished` with status `failed` appends to `failures` with
-  `classification: null`. The optional `FailureClassified` event later
-  updates the matching row in place.
-- `ModuleFinished` recomputes `totals` across all modules. `RunFinished`
-  overrides totals with the runner's authoritative counts at end-of-run.
+- `buildDispatchInputs(state, input, overrides?)` — assemble `DispatchInputs` from a reduced state plus a `ReporterRenderInput`. Lifts per-project summaries, the below-target file list and the trend summary into the dispatcher's plain-TypeScript shape.
+- `resolveCellOptions(kit)` — derive `CellOptions` (width, `noColor`, `coverageConsoleLimit`, etc.) from the `ReporterKit`.
+- `renderAgentStringForReport(report)` — synchronous helper used by the CLI's `show` command for an agent-string single-report render.
+- `renderHumanStringForReport(report, options?)` — async helper that dynamic-imports `ink` and returns a stripped-string render of the dispatcher's Ink half. Used by `vitest-agent show --format human`.
 
 ---
 
-## The two renderers
+## Live-mount lifecycle (internal `_createLiveInk`)
 
-### Agent renderer
-
-`renderAgent(state, options?): string` in
-`packages/ui/src/render-agent.ts`. Produces a markdown-flavored
-final-frame string tuned for token economy:
-
-```text
-Tests: 2/4 passed, 1 failed, 1 skipped (100ms)
-
-Failures:
-- src/math.test.ts > math > divides [new-failure]
-  expected 0.5 to equal 0.5000001
-  - 0.5000001
-  + 0.5
-
-Modules:
-- src/math.test.ts: 1 passed, 1 failed
-- src/strings.test.ts: 1 passed, 1 skipped
-
-Actions:
-- warn: Investigate floating-point comparison
-  Use Number.EPSILON instead of strict equality
-```
-
-Sections appear conditionally on state. Modules collapse to
-`N modules all-passed.` when nothing fails or skips. Coverage gaps
-cap at top-3 by missing lines (configurable via `maxCoverageGaps`).
-Stack traces are excluded by default (`includeStack: false`); agents
-already have structured failure data via MCP tools.
-
-**Stability**: byte-identical output for byte-identical input. No
-timestamps in the rendered body — duration is summarized in the
-header. Snapshot-friendly.
-
-### Ink renderer
-
-React components in `packages/ui/src/render-ink/`. Composed by `App` at
-the root. The tree maps `RenderState` to:
-
-- `<RunSummary>` — header line
-- `<FailureSection>` — per-failure rows with classification tag,
-  message, colored diff
-- `<ModuleRow>` × N — module header + optional per-test rows
-- `<CoverageBlock>` — per-metric line + Violations + top-N Gaps
-- `<SuggestedActions>` — severity-prefixed action list
-
-Each section is conditional on its slice being non-empty. Components
-use Ink primitives only (`<Box>`, `<Text>`, `<Newline>`, `<Spacer>`);
-no DOM-style attributes.
-
-Two consumption modes:
-
-- `renderRun(events, mode, options)` — one-shot. Folds events, then
-  either `renderAgent(state)` for agent mode or `renderToString(<App
-  state />)` for human mode. Returns a string. Used by the CLI `show`
-  command and the `eventSourcedReporter` factory.
-- `createLiveInk()` — long-running. Mounts via `ink.render()` on
-  `RunStarted`, calls `instance.rerender(<App state />)` on each
-  subsequent event, schedules `instance.unmount()` on the next tick
-  after `RunFinished`. Used by the plugin's live tap.
-
----
-
-## The console matrix
-
-User-facing options on `AgentPlugin` (`packages/sdk/src/schemas/Options.ts`):
-
-```ts
-AgentPlugin({
-  console: {
-    human?: "passthrough" | "silent" | "ink" | "agent",
-    agent?: "passthrough" | "silent" | "agent",
-    ci?:    "passthrough" | "silent" | "ci-annotations",
-  },
-  githubSummary?: boolean,
-  reporter?: VitestAgentReporterFactory,
-  onRunEvent?: (event: RunEvent) => void,
-})
-```
-
-The plugin auto-detects the executor (`human`, `agent`, `ci`) from the
-runtime environment, looks up the matching slot, and resolves a single
-`ConsoleMode` value. The resolved value drives two decisions:
-
-1. **Stdout ownership**: any non-`passthrough` value strips Vitest's
-   built-in reporters so the plugin owns the channel.
-2. **Live tap gating**: `onRunEvent` is forwarded to `AgentReporter`
-   only when the resolved mode is `ink`. Other modes either render
-   statically or asked for silence — a live mount would leak into
-   them.
-
-The factory `eventSourcedReporter` reads `kit.config.consoleMode` and
-dispatches:
-
-| Mode | Factory behavior |
-| ---- | ---------------- |
-| `passthrough` | Returns `[]` — Vitest's reporters do the visible work |
-| `silent` | Returns `[]` — nothing visible from the plugin |
-| `agent` | One `RenderedOutput` per project carrying the agent string |
-| `ink` | Returns `[]` — the live Ink mount via `onRunEvent` owns it |
-| `ci-annotations` | Returns `[]` — a dedicated CI emitter will own this (not yet shipped) |
-
----
-
-## PubSub channel and Effect transport
-
-`packages/ui/src/pubsub/` ships an Effect channel for hosts that want
-multi-subscriber fan-out, stream composition, or Layer-based wiring:
-
-```ts
-class RunEventChannel extends Context.Tag(...) {} // Tag for PubSub<RunEvent>
-const RunEventChannelLive: Layer.Layer<RunEventChannel>  // scoped, unbounded
-const publish: (event) => Effect<boolean, never, RunEventChannel>
-const publishAll: (events) => Effect<void, never, RunEventChannel>
-const accumulateUntilFinished: (initial?) => Effect<RenderState, never, RunEventChannel>
-const forEachRenderState: <R, E>(onState, initial?) => Effect<void, E, R | RunEventChannel>
-const renderStateStream: (initial?) => Effect<Stream<RenderState>, never, RunEventChannel | Scope>
-```
-
-The current production wiring does not use the channel — the live tap
-is a plain callback (`onRunEvent`). The channel exists for:
-
-- **Tests**: roundtrip-vs-sync equivalence, multi-subscriber fan-out
-  verification.
-- **Future remote / forked consumers**: a dashboard process, a tee-to-
-  file logger, or a replay system can subscribe without modifying the
-  publisher.
-- **Effect-fluent hosts**: code already running inside an Effect
-  program can compose with `Stream.fromPubSub` operators.
-
----
-
-## Synthesizers — bridging into the taxonomy
-
-Two converters in `packages/ui/src/synthesize.ts`:
-
-- **`synthesizeRunEvents(modules, options?)`** — accepts duck-typed
-  `VitestTestModule[]` (the shape `buildAgentReport` uses). Walks
-  modules + children, builds `RunStarted → per-module → per-test →
-  RunFinished` sequence. Used by the live publishing path (the plugin's
-  streaming callbacks aren't currently routed through this — they
-  construct each `RunEvent` inline — but it remains the bridge for any
-  batch context that has the live module shape).
-- **`synthesizeFromAgentReport(report, options?)`** — accepts the
-  persisted `AgentReport` schema. Only failed modules carry per-test
-  detail; passed-only modules are summarized via `summary.passed`
-  without per-module breakdown. The synthesized stream lets
-  `RunFinished` carry the authoritative totals from the summary. Used
-  by the CLI `show` command and `eventSourcedReporter.render`.
-
----
-
-## Factory contract
-
-`eventSourcedReporter` implements `VitestAgentReporterFactory` from the
-SDK:
-
-```ts
-const factory: VitestAgentReporterFactory = (kit) => ({
-  render(input) {
-    // For each report in input.reports, synthesize → fold → render
-    return input.reports.map(report => renderOne(report, kit.config));
-  }
-});
-```
-
-`makeEventSourcedReporter(options)` returns a customized factory with
-`modeOverride` and `width`. The default-options instance is exported as
-`eventSourcedReporter` for direct use.
-
----
-
-## Live-mount lifecycle (`createLiveInk`)
-
-`packages/ui/src/factory/LiveInkRenderer.tsx`:
+`packages/ui/src/factory/LiveInkRenderer.tsx`. The live Ink mount is now plugin-internal. Re-exported from the package entrypoint (`packages/ui/src/index.ts`) as `_createLiveInk` so the plugin can wire it; consumers do not see it.
 
 ```ts
 interface LiveInkRenderer {
@@ -354,76 +163,57 @@ interface LiveInkRenderer {
   unmount(): void;
   snapshot(): RenderState;
 }
-const createLiveInk: (options?) => LiveInkRenderer
 ```
 
-Closure-state orchestration:
+Behavior:
 
-- `RunStarted` (or any event that flips `state.phase` from `idle`)
-  triggers `ink.render(<App state />)`.
-- Subsequent events run the reducer, then `instance.rerender(<App state />)`.
-- `RunFinished` schedules `instance.unmount()` on the next tick — late
-  enough for the terminal to commit the final frame before alt-screen
-  teardown.
-- Mount and rerender failures are caught and logged to stderr.
-  `snapshot()` still advances; the orchestration never stops just
-  because the visible mount is broken.
+- `RunStarted` (or any event that flips `state.phase` from `idle`) triggers `ink.render(<App state />)`.
+- Subsequent events run the reducer, then `instance.rerender(<App state />)`. The Ink tree uses the same dispatcher cells via their `ink` half.
+- `RunFinished` schedules `instance.unmount()` on the next tick so the terminal commits the final frame before alt-screen teardown.
+- Mount and rerender failures are caught and logged to stderr; `snapshot()` still advances.
 
-Hosts wire it via `onRunEvent: live.event` on the plugin. The plugin's
-gate ensures the tap only fires when `consoleMode === "ink"`.
+The plugin instantiates the live mount itself when the resolved `consoleMode === "ink"`. The user-supplied `onRunEvent` tap (see `plugin.md`) is now forwarded for every mode and is a read-only tee — it does not gate the live mount.
+
+---
+
+## Factory surface
+
+The package entrypoint (`packages/ui/src/index.ts`) re-exports the factory symbols directly from their source files:
+
+- `_defaultReporter`, `buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport` — all live in `packages/ui/src/factory/defaultReporter.ts`.
+- `_createLiveInk` (alias of `createLiveInk`), `CreateLiveInkOptions`, `LiveInkRenderer` — all live in `packages/ui/src/factory/LiveInkRenderer.tsx`.
+
+Internal code in this package imports directly from the source file that owns the symbol — there is no `factory/index.ts` barrel. Only the package entrypoint re-exports.
+
+The pre-2.0 `eventSourcedReporter` factory and the public `createLiveInk` export were deleted in T6 phase 9 along with `render-run.tsx`. Hosts that need their own reporter implement `VitestAgentReporterFactory` directly and consume the dispatcher primitives from this package; see `packages/reporter/` for the convenience re-export package.
+
+---
+
+## PubSub channel and Effect transport
+
+`packages/ui/src/pubsub/` ships an Effect `PubSub<RunEvent>` channel for hosts that want multi-subscriber fan-out or Layer-based wiring. The production wiring does not use the channel — the plugin forwards events directly to the live mount and to the user-supplied `onRunEvent` tap — but the channel exists for tests, future remote consumers and Effect-fluent hosts. See `packages/ui/src/pubsub/Channel.ts` for the tag and live layer; `Subscriber.ts` exposes `accumulateUntilFinished`, `forEachRenderState` and `renderStateStream`.
+
+---
+
+## Synthesizers
+
+Two converters in `packages/ui/src/synthesize.ts`:
+
+- `synthesizeRunEvents(modules, options?)` — accepts duck-typed `VitestTestModule[]`. Walks modules plus children, builds a `RunStarted → per-module → per-test → RunFinished` sequence. Bridge for any batch context that has the live module shape.
+- `synthesizeFromAgentReport(report, options?)` — accepts the persisted `AgentReport`. Only failed modules carry per-test detail; passed-only modules summarize via `summary.passed`. Used by `_defaultReporter.render` and the CLI helpers.
 
 ---
 
 ## Testing strategy
 
-Three granularities:
+Four granularities:
 
-1. **Reducer unit tests** (`__test__/reducer.test.ts`) — vanilla
-   Vitest, no React, no Ink. Per-event-type assertions plus
-   fold-over-fixture for the four canonical scenarios.
-2. **Agent renderer snapshots** — inline (`render-agent.test.ts`) plus
-   file-based goldens for each fixture (`render-agent.golden.test.ts`,
-   under `__snapshots__/`).
-3. **Ink component snapshots** — per-component (`render-ink/*.test.tsx`)
-   plus App integration (`render-ink/App.test.tsx`). All pin `columns:
-   80` via `<Box width={80}>` wrapping. ANSI escapes are stripped via
-   the `stripAnsi` helper so snapshots remain plain text.
+1. **Reducer unit tests** (`__test__/reducer.test.ts`).
+2. **Classifier tests** (`__test__/classify.test.ts`) — covers run-shape derivation and the some-fail-vs-threshold-violation precedence rule.
+3. **Dispatcher cell snapshots** — agent-half snapshots in `__test__/dispatcher/cells.snapshot.test.ts` plus Ink-half snapshots in `__test__/dispatcher/cells.ink.snapshot.test.tsx`. 22 files in `__test__/snapshots/dispatcher/` cover the 12 cells across the relevant fixture event sequences.
+4. **Factory and footer tests** — `__test__/default-reporter.test.ts`, `__test__/dispatch.test.ts`, `__test__/footer.test.ts`.
 
-Width edge cases (`FailureSection.width.test.tsx`) cover narrow 50-col
-and wide 200-col rendering of long stack traces.
-
-Canonical fixtures in `__test__/fixtures/events.ts` are shared across
-all three granularities: `allPassEvents`, `mixedFailEvents`,
-`coverageViolationEvents`, `flakyRecoveryEvents`.
-
----
-
-## Known divergence from main's agent output
-
-The new per-project rendering loses several features the pre-2.0 main
-branch provided:
-
-- Compact `Projects (N):` table with one line per project carrying
-  pass count, duration, and test-kind breakdown (`int:5 unit:177`).
-- Single workspace-wide coverage line + a `Files below aspirational
-  target:` table with `% Stmts | % Branch | % Funcs | % Lines |
-  Uncovered Line #s` columns.
-- `Trend: regressing (48 runs)` line.
-- `Total: N passed (Xs)` workspace footer.
-
-The new renderer emits one frame per `AgentReport`, producing six
-separate `Tests: …` blocks in a six-project workspace. The data the
-restoration needs lives in the existing `AgentReport.tagCounts` field
-(test-kind breakdown) and `ReporterRenderInput.trendSummary` (passed
-to the factory's `render`) but the new renderer ignores both.
-
-Restoration is tracked in
-`docs/superpowers/specs/agent-output-format-restoration.md`. The work
-is a focused renderer pass: extend `RenderState` (or add a sibling
-`WorkspaceRenderState`), thread the trend summary and per-project
-tagCounts through, and add a workspace-aggregate rendering mode to
-`renderAgent`. The `eventSourcedReporter` would emit one
-`RenderedOutput` (workspace aggregate) instead of N (per project).
+Canonical fixtures in `__test__/fixtures/events.ts` are shared across all four granularities; `__test__/fixtures/workspace.ts` carries the `ProjectSummary[]` fixtures the workspace cells need.
 
 ---
 
@@ -431,29 +221,12 @@ tagCounts through, and add a workspace-aggregate rendering mode to
 
 See `../decisions.md` for the recorded design choices:
 
-- The per-executor console matrix (`console.human/agent/ci`) replaces
-  the prior `mode` + `strategy` pair.
-- The factory pattern stays — `eventSourcedReporter` is a peer of the
-  legacy `defaultReporter` from `vitest-agent-reporter`. Users pick.
-- Live rendering is a separate channel (`onRunEvent` callback or
-  `RunEventChannel` PubSub), not part of the factory's `render`
-  contract. Adding lifecycle methods (`start`, `event`, `stop`) to
-  the factory was considered and deferred — the callback model is
-  simpler and the kit-level events field can be added later if the
-  factory needs to subscribe.
+- D37 — per-executor console matrix.
+- D40 — `AgentPluginOptions` is exactly five fields. The T6 rewrite is what made `reporter` a single override hook and `onRunEvent` a stream-tee with no gating.
+- D41 — T6 shape-tailored dispatcher matrix and the trade-off against the per-formatter pipeline.
 
 ---
 
 ## CURRENT_UI_VERSION
 
-`packages/ui/src/index.ts` exports `CURRENT_UI_VERSION` (inlined from
-`process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts`
-`define`). The constant participates in the shared shape test at
-`packages/sdk/__test__/version-constants-shape.test.ts` (asserts all
-six runtime `CURRENT_*_VERSION` strings are non-empty and
-lockstep-equal) and in the package-local
-`packages/ui/__test__/version-constant.test.ts` (asserts it matches
-`packages/ui/package.json#version`). No init-time drift check
-compares against `CURRENT_UI_VERSION` because `vitest-agent-ui` is
-not a hard peer dependency — consumers opt into it explicitly. See
-D36 in [../decisions.md](../decisions.md).
+`packages/ui/src/index.ts` exports `CURRENT_UI_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`). The constant participates in the shared shape test at `packages/sdk/__test__/version-constants-shape.test.ts` (asserts all six runtime `CURRENT_*_VERSION` strings are non-empty and lockstep-equal) and in `packages/ui/__test__/version-constant.test.ts` (asserts it matches `packages/ui/package.json#version`). No init-time drift check compares against `CURRENT_UI_VERSION` because `vitest-agent-ui` is consumed transitively through the plugin and is not a hard peer dependency. See D36 in [../decisions.md](../decisions.md).

@@ -78,6 +78,9 @@ importers:
       typescript:
         specifier: catalog:silk
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@25.7.0)(@vitest/coverage-istanbul@4.1.6)(@vitest/coverage-v8@4.1.6)(vite@8.0.13(@types/node@25.7.0)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.9.0))
       vitest-agent-cli:
         specifier: workspace:*
         version: link:packages/cli/dist/dev
@@ -220,6 +223,9 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+      vitest-agent-ui:
+        specifier: workspace:*
+        version: link:../ui/dist/dev
       workspaces-effect:
         specifier: ^1.0.0
         version: 1.0.0(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2)
@@ -276,6 +282,9 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+      vitest-agent-ui:
+        specifier: workspace:*
+        version: link:../ui/dist/dev
     devDependencies:
       '@savvy-web/rslib-builder':
         specifier: ^0.20.3

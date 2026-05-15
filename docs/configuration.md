@@ -16,15 +16,12 @@ export default async () => {
   return defineConfig({
     plugins: [
       AgentPlugin({
-        console: { human: "passthrough", agent: "agent", ci: "passthrough" },
+        console: { human: "ink", agent: "agent" },
         coverageTargets: coverage.coverageTargets,
-        reporterOptions: {
-          coverageConsoleLimit: 5,
-        },
       }),
     ],
     test: {
-      projects,
+      ...(projects ? { projects } : {}),
       tags,
       pool: "forks",
       coverage: {
@@ -74,75 +71,73 @@ Available `ConsoleMode` values:
 | `"passthrough"` | Vitest's reporters keep ownership of stdout; the plugin emits no console output |
 | `"silent"` | Plugin strips Vitest's reporters and emits nothing |
 | `"agent"` | Plugin strips Vitest's reporters and emits the markdown-flavored agent string |
-| `"ink"` | Plugin strips Vitest's reporters and renders the live React Ink view (drive via `onRunEvent` — see below) |
+| `"ink"` | Plugin strips Vitest's reporters and renders the live React Ink view; the live-mount lifecycle is owned by the plugin |
 | `"ci-annotations"` | Plugin strips Vitest's reporters and emits GitHub Actions annotations |
 
-Two derived behaviors fall out of the resolved mode:
+One derived behavior falls out of the resolved mode:
 
-1. **Stdout ownership.** Any non-`"passthrough"` value strips Vitest's
-   built-in console reporters (`default`, `verbose`, `tree`, `dot`, `tap`,
-   `tap-flat`, `hanging-process`, `agent`) and suppresses Vitest's native
-   coverage text reporter. Non-console reporters (`json`, `junit`, `html`,
-   `blob`, `github-actions`) and any custom reporters you've registered
-   are preserved.
-2. **`onRunEvent` gating.** The plugin only forwards `onRunEvent` to the
-   internal reporter when the resolved mode is `"ink"`. Other modes
-   suppress the tap so a live Ink mount cannot leak into a channel the
-   user explicitly opted out of.
+**Stdout ownership.** Any non-`"passthrough"` value strips Vitest's built-in console reporters (`default`, `verbose`, `tree`, `dot`, `tap`, `tap-flat`, `hanging-process`, `agent`) and suppresses Vitest's native coverage text reporter. Non-console reporters (`json`, `junit`, `html`, `blob`, `github-actions`) and any custom reporters you've registered are preserved.
+
+When `console.human` resolves to `"ink"`, the plugin mounts the live React Ink view itself. There is no `createLiveInk` import for users to wire and no live-event callback to forward — the lifecycle is fully internal in 2.0.
 
 ### `onRunEvent`
 
-Live event tap. The plugin forwards every per-test and per-module `RunEvent`
-to this callback as the run progresses; hosts drive a live renderer from
-here. Pair with `console.<slot>: "ink"` and the `createLiveInk` helper from
-`vitest-agent-ui`:
+Optional stream-tee callback. When set, the plugin forwards every per-test and per-module `RunEvent` to your callback as the run progresses, alongside its own internal consumer. This is read-only introspection — your callback runs in parallel with the built-in renderer, not in place of it. The plugin forwards events for every resolved console mode; channel suppression is the reporter's job, not the tap's.
 
 ```typescript
 import { AgentPlugin } from "vitest-agent-plugin";
-import { createLiveInk } from "vitest-agent-ui";
 import { defineConfig } from "vitest/config";
-
-const live = createLiveInk();
 
 export default async () => {
   const { projects, tags } = await AgentPlugin.discover();
   return defineConfig({
     plugins: [
       AgentPlugin({
-        console: { human: "ink" },
-        onRunEvent: live.event,
+        console: { agent: "agent" },
+        onRunEvent: (event) => {
+          // Read-only tee — log, ship to telemetry, etc.
+          // The built-in renderer still runs.
+          process.stderr.write(`[run] ${event._tag}\n`);
+        },
       }),
     ],
-    test: { projects, tags, pool: "forks" },
+    test: { ...(projects ? { projects } : {}), tags, pool: "forks" },
   });
 };
 ```
 
-Throwing taps are caught and logged to stderr — persistence never breaks
-because a live renderer has a bug. When the resolved mode is anything other
-than `"ink"`, the plugin drops `onRunEvent` silently.
+Throwing taps are caught and logged to stderr — persistence never breaks because a callback has a bug.
 
 ### `reporter`
 
-Optional `VitestAgentReporterFactory`. Defaults to `defaultReporter` from
-`vitest-agent-reporter`, which selects a formatter based on `kit.config.format`
-and adds the GitHub Summary sidecar under GitHub Actions. To use the
-event-sourced renderer end-to-end (the same path the live Ink view rides),
-pass `eventSourcedReporter` from `vitest-agent-ui`:
+Optional `VitestAgentReporterFactory` override. When unset, the plugin wires its built-in default reporter (preassembled inside `vitest-agent-ui`), which classifies the run into one of four shapes (single-test, single-file, single-project, workspace) and three outcomes (all-pass, some-fail, threshold-violation) and dispatches to the matching cell. Each render carries a footer line pointing at the right MCP tool for the dominant outcome.
+
+Users rarely need to set this. Custom reporters depend on `vitest-agent-reporter` to pull the contract types (`VitestAgentReporterFactory`, `ReporterKit`, `RenderedOutput`) and the dispatch helpers (`buildDispatchInputs`, `resolveCellOptions`) from a single import:
 
 ```typescript
-import { AgentPlugin } from "vitest-agent-plugin";
-import { eventSourcedReporter } from "vitest-agent-ui";
+import type {
+  ReporterKit,
+  VitestAgentReporter,
+  VitestAgentReporterFactory,
+} from "vitest-agent-reporter";
+import {
+  buildDispatchInputs,
+  resolveCellOptions,
+} from "vitest-agent-reporter";
+
+const myReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => ({
+  async render(input) {
+    // assemble DispatchInputs / CellOptions the same way the built-in does,
+    // then emit your own RenderedOutput[].
+    return [];
+  },
+});
 
 AgentPlugin({
   console: { agent: "agent" },
-  reporter: eventSourcedReporter,
+  reporter: myReporter,
 });
 ```
-
-`eventSourcedReporter` emits the agent string when `consoleMode === "agent"`
-and emits nothing for `"ink"`, `"ci-annotations"`, `"silent"`, and
-`"passthrough"` (the channels that own the visible work themselves).
 
 ### `format`
 
@@ -223,27 +218,11 @@ failure. Zero and negative values are rejected at decode time, and
 it on `coverageTargets` produces a `PERFILE_ON_TARGETS` warning). See
 [Coverage Targets](#coverage-targets).
 
-### `reporterOptions`
+### `transport`
 
-Nested reporter options passed through to the internal `AgentReporter`. The
-plugin manages console output and GitHub Actions detection automatically
-based on environment detection, so those fields are not available through
-the plugin interface.
+Forward-declared persistence binding. 2.x ships only `{ kind: "local" }`, which is the default and you do not need to set it. The shape is modeled as a single-member discriminated union so a future cloud-backend swap lands as a pure addition of new variants. Most users ignore this field.
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `cacheDir` | `string` | XDG-derived (see [Cache Directory Resolution](#cache-directory-resolution)) | Override the cache directory path |
-| `coverageConsoleLimit` | `number` | `10` | Max low-coverage files shown in console |
-| `omitPassingTests` | `boolean` | `true` | Exclude passing tests from reports |
-| `includeBareZero` | `boolean` | `false` | Include files where all four metrics are 0% |
-| `githubSummaryFile` | `string` | `GITHUB_STEP_SUMMARY` env var | Override the GFM output file path |
-
-> **Note.** The pre-T4 `reporterOptions.autoUpdate` boolean was removed
-> in T4 Phase 4. Auto-ratcheting coverage thresholds is now driven by
-> Vitest's native `coverage.thresholds.autoUpdate` callback — use
-> `AgentPlugin.COVERAGE_AUTOUPDATE.standard` (or `.strict` / `.lenient`)
-> to set the tolerance function. The plugin's `coverageTargets` baseline
-> tracking is independent and runs whenever `coverageTargets` is set.
+> **Note.** The pre-T7 nested `reporterOptions` wrapper was removed. `cacheDir` moved to `vitest-agent.config.toml` (see [Cache Directory Resolution](#cache-directory-resolution)). `coverageConsoleLimit`, `omitPassingTests`, `includeBareZero`, and `githubSummaryFile` are renderer-internal defaults now — write a custom `reporter` factory if you need to override them. The pre-T4 `autoUpdate` boolean moved to Vitest's native `coverage.thresholds.autoUpdate` — use `AgentPlugin.COVERAGE_AUTOUPDATE.standard` (or `.strict` / `.lenient`) for the tolerance function. The `coverageTargets` baseline tracking is independent and runs whenever `coverageTargets` is set.
 
 ## Project Discovery
 
@@ -866,7 +845,7 @@ AgentPlugin({ console: { human: "agent" } })
 AgentPlugin({ console: { ci: "silent" } })
 
 // Wire the live Ink view to every executor
-AgentPlugin({ console: { human: "ink", agent: "ink", ci: "ink" }, onRunEvent: live.event })
+AgentPlugin({ console: { human: "ink", agent: "ink", ci: "ink" } })
 ```
 
 Useful for:

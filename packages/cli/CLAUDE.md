@@ -36,8 +36,8 @@ src/
 | `bin.ts` | Bin entry. Pipeline: `resolveDataPath(cwd)` -> provide `PathResolutionLive(projectDir) + NodeContext.layer` -> provide `CliLive(dbPath, ...)` -> `cli(process.argv)` |
 | `commands/cache.ts` | `cache path` prints the deterministic XDG path (no probing); `cache clean` deletes the directory |
 | `commands/doctor.ts` | 5-point health diagnostic (manifest assembly, latest-run integrity, staleness check) |
-| `commands/show.ts` | `vitest-agent show --project <name> --format auto\|agent\|human\|json` renders the latest cached run through the shared event-sourced renderer. Pulls `DataReader.getLatestRun`, passes the `AgentReport` to `formatShow` which routes through `synthesizeFromAgentReport` + `renderRun`. The `auto` format picks `human` for TTY stdout, `agent` otherwise |
-| `lib/format-show.ts` | Pure formatter for the show command. Calls into `vitest-agent-ui` for the agent and human render paths; `json` returns the raw `AgentReport` dump |
+| `commands/show.ts` | `vitest-agent show --project <name> --format auto\|agent\|human\|json` renders the latest cached run through the T6 dispatcher matrix. Pulls `DataReader.getLatestRun`, passes the `AgentReport` to `formatShow` (now async) which calls `renderAgentStringForReport` / `renderHumanStringForReport` from `vitest-agent-ui`. The command awaits the async formatter via `Effect.promise`. The `auto` format picks `human` for TTY stdout, `agent` otherwise |
+| `lib/format-show.ts` | Async pure formatter for the show command. Delegates to `renderAgentStringForReport` and `renderHumanStringForReport` from `vitest-agent-ui` (which assemble `DispatchInputs` via `buildDispatchInputs` and call the dispatcher); `json` returns the raw `AgentReport` dump |
 | `lib/format-*.ts` | Pure formatting functions tested as plain functions; `commands/*.ts` are thin `@effect/cli` wrappers around these |
 | `layers/CliLive.ts` | Composition layer for the CLI runtime |
 

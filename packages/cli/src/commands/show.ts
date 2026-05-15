@@ -48,7 +48,9 @@ export const showCommand = Command.make(
 
 			const format = resolveFormat(opts.format);
 			const width = opts.width._tag === "Some" ? opts.width.value : undefined;
-			const output = formatShow(reportOpt.value, format, width !== undefined ? { width } : {});
+			const output = yield* Effect.promise(() =>
+				formatShow(reportOpt.value, format, width !== undefined ? { width } : {}),
+			);
 			yield* Effect.sync(() => process.stdout.write(`${output}\n`));
 		}),
 ).pipe(Command.withDescription("Render the latest cached run through the agent or Ink human renderer"));

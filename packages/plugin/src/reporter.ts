@@ -14,7 +14,6 @@ import { dirname } from "node:path";
 import { NodeContext } from "@effect/platform-node";
 import type { LogLevel } from "effect";
 import { Effect, Option } from "effect";
-import { defaultReporter } from "vitest-agent-reporter";
 import type {
 	AgentReport,
 	AgentReporterOptions,
@@ -49,6 +48,8 @@ import {
 	resolveLogFile,
 	resolveLogLevel,
 } from "vitest-agent-sdk";
+import type { LiveInkRenderer } from "vitest-agent-ui";
+import { _createLiveInk, _defaultReporter } from "vitest-agent-ui";
 import { ReporterLive } from "./layers/ReporterLive.js";
 import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit.js";
@@ -293,6 +294,7 @@ export class AgentReporter {
 	private logLevel: LogLevel.LogLevel | undefined;
 	private logFile: string | undefined;
 	private onRunEvent: ((event: RunEvent) => void) | undefined;
+	private liveInk: LiveInkRenderer | undefined;
 	private currentRunId: string | null = null;
 	private moduleStartedAt: Map<string, string> = new Map();
 
@@ -302,6 +304,18 @@ export class AgentReporter {
 		this.logLevel = resolveLogLevel();
 		this.logFile = resolveLogFile();
 		this.onRunEvent = options.onRunEvent;
+
+		// When the resolved consoleMode is "ink", the plugin owns the live
+		// Ink mount. The default reporter emits nothing in ink mode on the
+		// assumption that the visible work is painted live as events arrive.
+		// Mount is lazy inside _createLiveInk (first RunStarted) so this
+		// is cheap to instantiate even in non-TTY environments — the mount
+		// itself fails silently with a stderr warning when Ink cannot
+		// attach. The user-supplied onRunEvent callback (if any) still runs
+		// alongside the live mount as a read-only tee.
+		if ((options.consoleMode ?? "passthrough") === "ink") {
+			this.liveInk = _createLiveInk();
+		}
 
 		// coverageThresholds may be a raw Vitest format (Record<string, unknown>)
 		// when AgentReporter is used directly without AgentPlugin. Resolve it.
@@ -351,7 +365,7 @@ export class AgentReporter {
 			consoleMode,
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
 			...(options.projectFilter !== undefined ? { projectFilter: options.projectFilter } : {}),
-			reporter: options.reporter ?? defaultReporter,
+			reporter: options.reporter ?? _defaultReporter,
 			coverageMode: options.coverageMode ?? "full",
 			transport: options.transport ?? { kind: "local" },
 		};
@@ -402,19 +416,40 @@ export class AgentReporter {
 	}
 
 	/**
-	 * Safely emit a {@link RunEvent} to the configured tap. A throwing
-	 * tap is caught and logged to stderr — live-render bugs must not
-	 * break persistence.
+	 * Are there any live subscribers for emitted {@link RunEvent}s? The
+	 * streaming Vitest hooks short-circuit when this is false to skip
+	 * constructing event objects nothing will read.
+	 *
+	 * @internal
+	 */
+	private hasSubscribers(): boolean {
+		return this.onRunEvent !== undefined || this.liveInk !== undefined;
+	}
+
+	/**
+	 * Safely emit a {@link RunEvent} to the internal live Ink mount (when
+	 * ink mode is active) and the user-supplied tap. A throwing tap or
+	 * live-mount call is caught and logged to stderr — live-render bugs
+	 * must not break persistence.
 	 *
 	 * @internal
 	 */
 	private emit(event: RunEvent): void {
+		const liveInk = this.liveInk;
+		if (liveInk !== undefined) {
+			try {
+				liveInk.event(event);
+			} catch (err) {
+				process.stderr.write(`vitest-agent: live Ink mount threw: ${formatFatalError(err)}\n`);
+			}
+		}
 		const tap = this.onRunEvent;
-		if (tap === undefined) return;
-		try {
-			tap(event);
-		} catch (err) {
-			process.stderr.write(`vitest-agent: onRunEvent tap threw: ${formatFatalError(err)}\n`);
+		if (tap !== undefined) {
+			try {
+				tap(event);
+			} catch (err) {
+				process.stderr.write(`vitest-agent: onRunEvent tap threw: ${formatFatalError(err)}\n`);
+			}
 		}
 	}
 
@@ -440,7 +475,7 @@ export class AgentReporter {
 	 * `RunStarted` event for live subscribers.
 	 */
 	onTestRunStart(_specifications: ReadonlyArray<unknown>): void {
-		if (this.onRunEvent === undefined) return;
+		if (!this.hasSubscribers()) return;
 		this.currentRunId = randomUUID();
 		this.moduleStartedAt.clear();
 		this.emit({
@@ -455,7 +490,7 @@ export class AgentReporter {
 	 * Vitest streaming hook: a test module has been queued.
 	 */
 	onTestModuleQueued(testModule: { relativeModuleId: string }): void {
-		if (this.onRunEvent === undefined) return;
+		if (!this.hasSubscribers()) return;
 		this.emit({ _tag: "ModuleQueued", modulePath: testModule.relativeModuleId });
 	}
 
@@ -463,7 +498,7 @@ export class AgentReporter {
 	 * Vitest streaming hook: a test module is starting execution.
 	 */
 	onTestModuleStart(testModule: { relativeModuleId: string }): void {
-		if (this.onRunEvent === undefined) return;
+		if (!this.hasSubscribers()) return;
 		const startedAt = new Date().toISOString();
 		this.moduleStartedAt.set(testModule.relativeModuleId, startedAt);
 		this.emit({ _tag: "ModuleStarted", modulePath: testModule.relativeModuleId, startedAt });
@@ -487,7 +522,7 @@ export class AgentReporter {
 			| undefined;
 		diagnostic(): { duration: number } | undefined;
 	}): void {
-		if (this.onRunEvent === undefined) return;
+		if (!this.hasSubscribers()) return;
 		const modulePath = testCase.module?.relativeModuleId ?? "";
 		if (modulePath === "") return;
 		const suitePath = this.collectSuitePath(testCase);
@@ -534,7 +569,7 @@ export class AgentReporter {
 		};
 		diagnostic(): { duration: number } | undefined;
 	}): void {
-		if (this.onRunEvent === undefined) return;
+		if (!this.hasSubscribers()) return;
 		let pass = 0;
 		let fail = 0;
 		let skip = 0;
@@ -630,8 +665,10 @@ export class AgentReporter {
 		// has already seen. The streaming counts are aggregated from the
 		// per-module passes that landed during the run; we cannot wait for
 		// the post-aggregation summary to fire RunFinished without
-		// breaking the live UX.
-		if (this.onRunEvent !== undefined && this.currentRunId !== null) {
+		// breaking the live UX. The live Ink mount schedules its own
+		// unmount on next tick once it sees this event (see
+		// LiveInkRenderer.tsx).
+		if (this.hasSubscribers() && this.currentRunId !== null) {
 			let pass = 0;
 			let fail = 0;
 			let skip = 0;

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-14
-last-synced: 2026-05-14
+updated: 2026-05-15
+last-synced: 2026-05-15
 completeness: 93
 related:
   - ../architecture.md
@@ -47,8 +47,11 @@ D40 (T7 five-field options surface), D34 (plugin/reporter split), D28
 `packages/plugin/src/plugin.ts`. The Vitest plugin entry point. Hooks into
 Vitest's `configureVitest`, detects the environment, parses coverage
 thresholds and targets, picks the user's `VitestAgentReporterFactory`
-(defaulting to `defaultReporter`), then constructs an `AgentReporter` per
-project and pushes it onto `vitest.config.reporters`.
+(defaulting to `_defaultReporter` from `vitest-agent-ui`), then constructs
+an `AgentReporter` per project and pushes it onto `vitest.config.reporters`.
+After the T6 UI rewrite the preassembled default reporter lives in the UI
+package; `vitest-agent-plugin` declares `vitest-agent-ui` as a workspace
+dependency to import it.
 
 **The 2.0 user-facing options shape.** `AgentPluginOptions` is exactly
 five fields — see [./sdk.md](./sdk.md) for the schema and
@@ -97,15 +100,18 @@ built-in console reporters (`default`, `verbose`, `tree`, `dot`, `tap`,
 Custom reporters and non-console built-ins (`json`, `junit`, `html`,
 `blob`, `github-actions`) are preserved.
 
-**`onRunEvent` tap gating.** The plugin accepts an optional
-`onRunEvent: (event: RunEvent) => void` callback for hosts that want a
-live view. The tap is forwarded to `AgentReporter` **only when the
-resolved `consoleMode === "ink"`**. Every other mode renders statically
-(`agent`, `ci-annotations`) or asked for silence (`passthrough`,
-`silent`); forwarding the tap regardless would leak a live Ink mount
-into channels the user explicitly opted out of. Tests for the gating
-contract live in `packages/plugin/__test__/plugin.test.ts` under
-"onRunEvent tap gating".
+**`onRunEvent` is a stream tee, not a gating switch.** The plugin
+accepts an optional `onRunEvent: (event: RunEvent) => void` callback and
+forwards it for **every** `consoleMode`. The T6 rewrite collapsed live
+ingestion and end-of-run synthesis into one internal stream — the live
+Ink mount is now plugin-internal and is instantiated by the plugin
+itself when `consoleMode === "ink"`. The user-facing callback is a
+read-only tee for custom dashboards, log forwarders or analytics sinks.
+Throwing user callbacks are caught and logged to stderr by
+`AgentReporter.emit` so a buggy tap never breaks persistence or the
+default reporter. Tests live in `packages/plugin/__test__/plugin.test.ts`
+under "tap forwards for every mode" and "throwing user callback
+caught".
 
 **Resolved internally (no longer user-facing).** The plugin auto-derives
 two flags from the detected environment and the resolved console mode
@@ -167,17 +173,19 @@ end-of-run rendering is delegated to the configured factory.
 - `onTestRunEnd` is the load-bearing hook for persistence and end-of-run
   rendering. See below.
 
-**Streaming hooks (for the live tap).** When `options.onRunEvent` is set,
-the reporter also implements Vitest's per-event streaming callbacks
-(`onTestRunStart`, `onTestModuleQueued`, `onTestModuleStart`,
-`onTestCaseResult`, `onTestModuleEnd`). Each callback constructs the
-matching `RunEvent` variant (`RunStarted`, `ModuleQueued`, `ModuleStarted`,
-`TestFinished`, `ModuleFinished`) and forwards it to the tap. `onTestRunEnd`
-also fires `RunFinished` at the top of its handler so the live mount sees
-end-of-run before the heavy persistence work runs. Throwing taps are
-caught and logged to stderr — persistence never breaks because a live
-renderer has a bug. When `onRunEvent` is undefined the streaming
-callbacks short-circuit immediately, so the no-tap path pays no cost.
+**Streaming hooks (event emission).** The reporter implements Vitest's
+per-event streaming callbacks (`onTestRunStart`, `onTestModuleQueued`,
+`onTestModuleStart`, `onTestCaseResult`, `onTestModuleEnd`) on every run.
+Each callback constructs the matching `RunEvent` variant (`RunStarted`,
+`ModuleQueued`, `ModuleStarted`, `TestFinished`, `ModuleFinished`) and
+emits it to two consumers: the plugin-internal live Ink mount (active
+only when `consoleMode === "ink"`, via `_createLiveInk` from
+`vitest-agent-ui`) and the user-supplied `onRunEvent` tap (active for
+every mode when set). `onTestRunEnd` also fires `RunFinished` at the top
+of its handler so the live mount sees end-of-run before the heavy
+persistence work runs. The emit helper catches throwing user callbacks
+and logs to stderr — persistence and the default reporter never break
+because a tap has a bug.
 
 **`onTestRunEnd` flow:**
 

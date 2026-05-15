@@ -1,17 +1,13 @@
 import { defineConfig } from "vitest/config";
 import { AgentPlugin } from "vitest-agent-plugin";
-import { createLiveInk, eventSourcedReporter } from "vitest-agent-ui";
 
 export default async () => {
 	const { projects, tags } = await AgentPlugin.discover();
-	const live = createLiveInk();
 	const coverage = AgentPlugin.COVERAGE_LEVELS.basic;
 	return defineConfig({
 		plugins: [
 			AgentPlugin({
 				console: { human: "ink", agent: "agent" },
-				reporter: eventSourcedReporter,
-				onRunEvent: live.event,
 				coverageTargets: coverage.coverageTargets,
 			}),
 		],

@@ -92,11 +92,15 @@ function — the formatting logic is testable in isolation without the
 The `show` command is the visible bridge from the CLI to the
 event-sourced renderer. `vitest-agent show --project <name> --format
 auto|agent|human|json` pulls the latest `AgentReport` via
-`DataReader.getLatestRun`, routes it through
-`synthesizeFromAgentReport` + `renderRun` from `vitest-agent-ui`, and
-prints the result. The `auto` format selects `human` (Ink) for TTY stdout
-and `agent` (markdown-flavored string) otherwise. See
-[./ui.md](./ui.md) for the synthesizer and renderer details.
+`DataReader.getLatestRun`, then delegates to
+`renderAgentStringForReport(report)` or async
+`renderHumanStringForReport(report, options?)` from `vitest-agent-ui`.
+Both helpers route through the same shape-tailored dispatcher matrix
+the plugin's default reporter uses. The `auto` format selects `human`
+(Ink stripped to plain text) for TTY stdout and `agent` (markdown-
+flavored string) otherwise. The `show` command effect awaits via
+`Effect.promise` since `formatShow` is now async. See
+[./ui.md](./ui.md) for the dispatcher and helper details.
 
 **Record commands** — write data, driven by plugin hook scripts. The
 `record` subcommand dispatches to `turn`, `session-start`, `session-end`,

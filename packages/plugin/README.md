@@ -43,11 +43,12 @@ export default async () => {
   return defineConfig({
     plugins: [
       AgentPlugin({
+        console: { human: "ink", agent: "agent" },
         coverageTargets: coverage.coverageTargets,
       }),
     ],
     test: {
-      projects,
+      ...(projects ? { projects } : {}),
       tags,
       pool: "forks",
       coverage: {
@@ -60,18 +61,11 @@ export default async () => {
 };
 ```
 
-In 2.0 the plugin reads coverage thresholds from Vitest's native
-`test.coverage.thresholds` — the legacy `AgentPlugin({ coverageThresholds })`
-field was removed from the read path in T4 Phase 4 and is ignored. See
-[Coverage Level Presets](#coverage-level-presets) below for the
-dual-output wiring pattern.
+Most users do not pass `reporter` or `onRunEvent` explicitly — the plugin ships a preassembled default reporter and owns the live-Ink mount when `console.human === "ink"`. In 2.0 the plugin reads coverage thresholds from Vitest's native `test.coverage.thresholds`. See [Coverage Level Presets](#coverage-level-presets) below for the dual-output wiring pattern.
 
-## Console matrix and onRunEvent
+## Console matrix and options
 
-`AgentPlugin` 2.0 no longer accepts the pre-2.0 `mode` and `strategy` (a.k.a.
-`consoleStrategy`) options. Console output is controlled by a per-executor
-matrix; the plugin auto-detects the executor (`human` / `agent` / `ci`) and
-resolves a single `ConsoleMode` value:
+`AgentPlugin` 2.0 controls console output through a per-executor matrix. The plugin auto-detects the executor (`human` / `agent` / `ci`) and resolves a single `ConsoleMode` value:
 
 ```typescript
 AgentPlugin({
@@ -80,61 +74,20 @@ AgentPlugin({
     agent?: "passthrough" | "silent" | "agent",
     ci?:    "passthrough" | "silent" | "ci-annotations",
   },
-  reporter?: VitestAgentReporterFactory, // default: defaultReporter
-  onRunEvent?: (event: RunEvent) => void, // live tap, gated to "ink" mode
-  githubSummary?: boolean,
+  coverageTargets?: CoverageTargets,
+  transport?: Transport,                  // forward-declared; single-member union today
+  reporter?: VitestAgentReporterFactory,  // override the built-in default reporter
+  onRunEvent?: (event: RunEvent) => void, // optional stream-tee callback
 });
 ```
 
-Per-slot defaults: `human` → `"passthrough"`, `agent` → `"agent"`,
-`ci` → `"passthrough"`. Any non-`"passthrough"` value strips Vitest's
-built-in console reporters and the native coverage text reporter — the
-plugin owns stdout for the run.
+Per-slot defaults: `human` → `"passthrough"`, `agent` → `"agent"`, `ci` → `"passthrough"`. Any non-`"passthrough"` value strips Vitest's built-in console reporters and the native coverage text reporter — the plugin owns stdout for the run.
 
-To run the live React Ink view, opt into `"ink"` on the slot you want and
-wire `onRunEvent` to `createLiveInk` from `vitest-agent-ui`:
+When `console.human` resolves to `"ink"`, the plugin mounts the live React Ink view itself. There is no `createLiveInk` import to wire and no live-event callback to forward — the lifecycle is fully internal.
 
-```typescript
-import { AgentPlugin } from "vitest-agent-plugin";
-import { createLiveInk } from "vitest-agent-ui";
-import { defineConfig } from "vitest/config";
+`onRunEvent` is an optional read-only tee. The plugin forwards every per-test and per-module `RunEvent` to your callback alongside the built-in renderer; it runs in parallel, not in place of the default. Throwing taps are caught and logged to stderr so persistence never breaks because a callback has a bug.
 
-const live = createLiveInk();
-
-export default async () => {
-  const { projects, tags } = await AgentPlugin.discover();
-  return defineConfig({
-    plugins: [
-      AgentPlugin({
-        console: { human: "ink" },
-        onRunEvent: live.event,
-      }),
-    ],
-    test: { projects, tags, pool: "forks" },
-  });
-};
-```
-
-`onRunEvent` is gated: the plugin only forwards events when the resolved
-console mode is `"ink"`. Other modes (`"silent"`, `"passthrough"`,
-`"agent"`, `"ci-annotations"`) suppress the tap so a live Ink mount cannot
-leak into channels the caller explicitly opted out of. Throwing taps are
-caught and logged to stderr so persistence never breaks because a renderer
-has a bug.
-
-The `reporter` option accepts any `VitestAgentReporterFactory`. The default
-is `defaultReporter` from `vitest-agent-reporter`. Pass `eventSourcedReporter`
-from `vitest-agent-ui` to drive the renderer end-to-end through the event
-taxonomy:
-
-```typescript
-import { eventSourcedReporter } from "vitest-agent-ui";
-
-AgentPlugin({
-  console: { agent: "agent" },
-  reporter: eventSourcedReporter,
-});
-```
+The `reporter` option overrides the plugin's built-in default. When unset, the plugin wires the preassembled default reporter from `vitest-agent-ui`, which classifies the run into one of four shapes (single-test, single-file, single-project, workspace) and three outcomes (all-pass, some-fail, threshold-violation) and dispatches to the matching cell. Each render carries a footer line pointing at the right MCP tool for the dominant outcome (e.g. ``Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.``). Custom reporters depend on `vitest-agent-reporter` to pull the contract types and dispatch helpers from a single import — see that package's README for the escape-hatch SDK surface.
 
 ## AgentPlugin.discover()
 

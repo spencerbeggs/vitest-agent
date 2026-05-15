@@ -9,12 +9,12 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 
 | Workspace | Path | Purpose |
 | --------- | ---- | ------- |
-| `vitest-agent-sdk` | `packages/sdk/` | Shared schemas, data layer, services, formatters, utilities (no internal deps) |
+| `vitest-agent-sdk` | `packages/sdk/` | Shared schemas, data layer, services, formatters, utilities, public reporter + dispatcher contracts (no internal deps) |
 | `vitest-agent-plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ConfigValidation`, `ReporterLive` |
-| `vitest-agent-reporter` | `packages/reporter/` | Named `VitestAgentReporterFactory` implementations (no Vitest-API code) |
+| `vitest-agent-reporter` | `packages/reporter/` | Escape-hatch SDK for custom reporters: re-exports the `VitestAgentReporterFactory` contract types from sdk plus the `buildDispatchInputs` / `resolveCellOptions` helpers from ui. No shipped factories |
 | `vitest-agent-cli` | `packages/cli/` | CLI bin (`vitest-agent`) |
 | `vitest-agent-mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
-| `vitest-agent-ui` | `packages/ui/` | Event-sourced renderer: `RunEvent`/`RenderState` re-export, reducer, agent + Ink renderers, PubSub channel, `createLiveInk` |
+| `vitest-agent-ui` | `packages/ui/` | Preassembled default reporter (`_defaultReporter`), shape-tailored dispatcher matrix (run-shape x outcome cells), reducer, agent + Ink render paths, PubSub channel, internal `_createLiveInk` |
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
 
 The six publishable packages live under `packages/`. The `plugin/`
@@ -25,9 +25,12 @@ to all workspaces. To scope commands to a specific package, use
 
 The six packages release in lockstep. `vitest-agent-plugin` declares
 `vitest-agent-reporter`, `vitest-agent-cli`, and `vitest-agent-mcp` as
-required `peerDependencies`; users wire `vitest-agent-ui` directly in
-`vitest.config.ts` (e.g. `reporter: eventSourcedReporter`,
-`onRunEvent: createLiveInk().event`). `vitest-agent-cli` consumes
+required `peerDependencies`, plus a workspace dependency on
+`vitest-agent-ui` for the preassembled default reporter and the
+internal live-Ink mount. Users typically configure the plugin with just
+`AgentPlugin({ console, coverageTargets, transport? })` — the plugin
+wires `_defaultReporter` and the Ink mount internally. Custom reporters
+arrive via the plugin's `reporter` option; `vitest-agent-cli` consumes
 `vitest-agent-ui` for the `show` command. All six pin
 `vitest-agent-sdk` at `workspace:*`.
 

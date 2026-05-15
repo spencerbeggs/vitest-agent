@@ -544,13 +544,14 @@ slot:
   `human` and `ci`.
 - `silent` — strip Vitest's reporters AND emit nothing from the plugin.
   Persistence still runs.
-- `agent` — markdown-flavored final-frame string tuned for token economy
-  (the `vitest-agent-ui` agent renderer or the legacy markdown
-  formatter, depending on which factory is wired). Default for `agent`.
-- `ink` — Ink-mounted animated tree from `vitest-agent-ui`'s
-  `createLiveInk`. Strips Vitest's reporters and owns stdout for the
-  duration of the run. Driven by the plugin's `onRunEvent` tap.
-  Available only on the `human` slot.
+- `agent` — markdown-flavored final-frame string tuned for token economy.
+  Emitted by the dispatcher's agent half via the plugin's built-in
+  `_defaultReporter` from `vitest-agent-ui`. Default for `agent`.
+- `ink` — Ink-mounted animated tree from `vitest-agent-ui`'s internal
+  `_createLiveInk` live mount. The plugin instantiates the mount itself
+  when the resolved mode is `ink`; users do not wire it. Strips Vitest's
+  reporters and owns stdout for the duration of the run. Available only
+  on the `human` slot.
 - `ci-annotations` — GitHub Actions workflow-command annotations.
   Available only on the `ci` slot.
 
@@ -558,10 +559,12 @@ slot:
 reporter-internal verbosity knob. After T7 it is no longer on
 `AgentReporterOptions` — it surfaces on `ResolvedReporterConfig` as
 `consoleOutput`, resolved inside `buildReporterKit` from the active
-`consoleMode`. The bundled markdown / terminal / silent / ci-annotations
-reporters in `vitest-agent-reporter` still branch on it; the
-event-sourced renderer from `vitest-agent-ui` dispatches on
-`kit.config.consoleMode` instead and ignores `consoleOutput`.
+`consoleMode`. T6 deleted the bundled markdown / terminal / silent /
+ci-annotations reporters that branched on it; the preassembled
+`_defaultReporter` from `vitest-agent-ui` dispatches on
+`kit.config.consoleMode` and ignores `consoleOutput`. The field remains
+on the resolved config for custom-reporter authors who still want to
+read it.
 
 The legacy markdown formatter uses three tiers based on run health:
 

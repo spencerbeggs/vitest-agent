@@ -3,17 +3,26 @@
  *
  * Shared event-sourced renderer for vitest-agent. The reducer projects
  * a {@link RunEvent} stream into a denormalized {@link RenderState};
- * the Ink human-mode renderer and the plain-string agent-mode renderer
- * each consume the projected state.
+ * the T6 shape-tailored dispatcher then routes the state to one of
+ * twelve cells (eleven live, one documented no-op) and emits both
+ * an agent-string and an Ink-tree output.
  *
- * Phase 1 of the rollout exports only the event taxonomy and the
- * render-state shape — the reducer, the agent renderer, the Ink
- * components, and the PubSub Layer arrive in subsequent phases.
+ * This file is the package entrypoint and is the only file in this
+ * package that re-exports across module boundaries. Internal code
+ * imports directly from the source file that owns the symbol.
  *
  * @packageDocumentation
  */
 
-export type { RunEventByTag } from "vitest-agent-sdk";
+export type {
+	CellOptions,
+	DispatchInputs,
+	ProjectSummary,
+	RunEventByTag,
+	RunOutcome,
+	RunShape,
+	TrendSummary,
+} from "vitest-agent-sdk";
 export {
 	ActionSeverity,
 	CoverageFile,
@@ -29,19 +38,31 @@ export {
 	TestRecord,
 	initialRenderState,
 } from "vitest-agent-sdk";
-export type * from "./factory/index.js";
-export * from "./factory/index.js";
-export type * from "./pubsub/index.js";
+// Dispatcher surface (T6 UI rewrite) — internal callers can use these
+// to drive the same code paths the preassembled default reporter uses.
+export type { AgentCellFn, Cell } from "./dispatcher/cell-types.js";
+export { classifyOutcome, classifyRunShape } from "./dispatcher/classify.js";
+export { dispatch, dispatchInk, dispatcherTable } from "./dispatcher/dispatch.js";
+export { buildFooter, dominantClassification } from "./dispatcher/footer.js";
+// Factory surface.
+export {
+	_defaultReporter,
+	buildDispatchInputs,
+	renderAgentStringForReport,
+	renderHumanStringForReport,
+	resolveCellOptions,
+} from "./factory/defaultReporter.js";
+export {
+	type CreateLiveInkOptions,
+	type LiveInkRenderer,
+	createLiveInk as _createLiveInk,
+} from "./factory/LiveInkRenderer.js";
+// PubSub channel (live-event transport).
 export * from "./pubsub/index.js";
+// Reducer + agent renderer + Ink components + synthesizers.
 export { reduceRenderState, reduceRenderStateAll } from "./reducer.js";
 export { type RenderAgentOptions, renderAgent } from "./render-agent.js";
 export * from "./render-ink/index.js";
-export {
-	type RenderRunMode,
-	type RenderRunOptions,
-	renderRun,
-	renderRunFromState,
-} from "./render-run.js";
 export {
 	type SynthesizeFromAgentReportOptions,
 	type SynthesizeOptions,

@@ -1,0 +1,10 @@
+Projects (5):
+  ✓ playground          42 passed (31ms)
+  ✓ vitest-agent-cli    80 passed (12.3s)
+  ✓ vitest-agent-plugin 194 passed (3.2s)
+  ✓ vitest-agent-mcp    182 passed (647ms)  int:5  unit:177
+  ✓ vitest-agent-sdk    855 passed (5.4s)  int:6  unit:849
+
+Trend: regressing (48 runs)
+
+Total: 1353/1353 passed (21.6s)
