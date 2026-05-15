@@ -89,6 +89,22 @@ export interface ResolvedReporterConfig {
 	 * differently against a cloud DB). 2.x ships only `{ kind: "local" }`.
 	 */
 	readonly transport?: Transport;
+	/**
+	 * Project-level default for Vitest's `test.passWithNoTests` policy,
+	 * captured from the resolved Vitest config at `configureVitest` time.
+	 *
+	 * Used by the MCP `run_tests` tool as the fallback when its per-call
+	 * `passWithNoTests` override is unset. Controls pass/fail
+	 * classification and CLI exit-code semantics only — does not reshape
+	 * the MCP response (the `no-match` discriminator is filter-driven,
+	 * not policy-driven).
+	 *
+	 * Optional because the field is only present when populated by the
+	 * plugin; consumers that construct `ResolvedReporterConfig` directly
+	 * may omit it and the MCP layer treats `undefined` as Vitest's own
+	 * default (`false`).
+	 */
+	readonly passWithNoTests?: boolean;
 }
 
 /**

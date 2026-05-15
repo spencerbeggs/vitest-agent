@@ -161,6 +161,13 @@ interface ResolvedOptions {
 	coverageMode: "full" | "ui-only";
 	/** Transport binding threaded onto ResolvedReporterConfig for custom reporters. */
 	transport: Transport;
+	/**
+	 * Project-level `test.passWithNoTests` captured from the resolved
+	 * Vitest config. Forwarded onto `ResolvedReporterConfig` so the MCP
+	 * `run_tests` tool can fall back to the project default when its
+	 * per-call override is unset.
+	 */
+	passWithNoTests?: boolean;
 }
 
 /**
@@ -205,6 +212,13 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	mcp?: boolean;
 	githubActions?: boolean;
 	transport?: Transport;
+	/**
+	 * Optional `test.passWithNoTests` value the plugin captured from the
+	 * resolved Vitest config. The reporter forwards it onto the
+	 * `ResolvedReporterConfig` it surfaces to renderers and the MCP
+	 * `run_tests` tool.
+	 */
+	passWithNoTests?: boolean;
 	coverageThresholds?: ResolvedThresholds | Record<string, unknown>;
 	coverageTargets?: ResolvedThresholds | Record<string, unknown>;
 	/**
@@ -368,6 +382,7 @@ export class AgentReporter {
 			reporter: options.reporter ?? _defaultReporter,
 			coverageMode: options.coverageMode ?? "full",
 			transport: options.transport ?? { kind: "local" },
+			...(options.passWithNoTests !== undefined ? { passWithNoTests: options.passWithNoTests } : {}),
 		};
 		this.options = resolvedTargets ? { ...base, coverageTargets: resolvedTargets } : base;
 	}
@@ -398,6 +413,7 @@ export class AgentReporter {
 			transport: opts.transport,
 			...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
 			...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
+			...(opts.passWithNoTests !== undefined && { passWithNoTests: opts.passWithNoTests }),
 		};
 	}
 
@@ -791,6 +807,7 @@ export class AgentReporter {
 					...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
 					...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
 					...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
+					...(opts.passWithNoTests !== undefined && { passWithNoTests: opts.passWithNoTests }),
 					coverageMode: opts.coverageMode,
 				});
 
@@ -1391,6 +1408,7 @@ export class AgentReporter {
 				...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
 				...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
 				...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
+				...(opts.passWithNoTests !== undefined && { passWithNoTests: opts.passWithNoTests }),
 				coverageMode: opts.coverageMode,
 			});
 

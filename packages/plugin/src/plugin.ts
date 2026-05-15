@@ -399,6 +399,14 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const transport: Transport = options.transport ?? { kind: "local" };
 				log("transport.kind:", transport.kind);
 
+				// Capture Vitest's native `test.passWithNoTests` (Vitest's own
+				// default is `false`). Threaded onto ResolvedReporterConfig as
+				// the project-level default for the MCP `run_tests` tool; the
+				// MCP layer's per-call override wins when supplied.
+				const passWithNoTestsRaw = (vitest.config as { passWithNoTests?: unknown }).passWithNoTests;
+				const passWithNoTests = typeof passWithNoTestsRaw === "boolean" ? passWithNoTestsRaw : undefined;
+				log("passWithNoTests (resolved):", passWithNoTests);
+
 				// Push exactly one aggregating reporter per Vitest run. The
 				// terminal/markdown formatters render all projects in one block
 				// (Projects header + per-project rows + one Total), so a single
@@ -423,6 +431,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					mcp,
 					githubActions,
 					transport,
+					...(passWithNoTests !== undefined ? { passWithNoTests } : {}),
 					...(options.reporter !== undefined && { reporter: options.reporter }),
 					// onRunEvent is the user-facing tee on the plugin's run-event
 					// stream (T6 contract). Forward it unconditionally so the

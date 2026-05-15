@@ -45,6 +45,13 @@ export interface BuildReporterKitInput {
 	readonly coverageTargets?: ResolvedReporterConfig["coverageTargets"];
 	readonly coverageMode: ResolvedReporterConfig["coverageMode"];
 	readonly transport: Transport;
+	/**
+	 * Project-level `test.passWithNoTests` value captured from the
+	 * resolved Vitest config. Threaded onto {@link ResolvedReporterConfig}
+	 * so the MCP `run_tests` tool can read the project default when its
+	 * per-call override is unset.
+	 */
+	readonly passWithNoTests?: boolean;
 }
 
 export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
@@ -78,6 +85,7 @@ export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
 		...(input.runCommand !== undefined && { runCommand: input.runCommand }),
 		...(input.coverageThresholds !== undefined && { coverageThresholds: input.coverageThresholds }),
 		...(input.coverageTargets !== undefined && { coverageTargets: input.coverageTargets }),
+		...(input.passWithNoTests !== undefined && { passWithNoTests: input.passWithNoTests }),
 	};
 
 	// OSC-8 is enabled when running interactively (terminal/agent-shell) and
