@@ -170,9 +170,6 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 				summary += ")";
 			}
 			lines.push(summary);
-			if (options.runCommand) {
-				lines.push(`Run \`${options.runCommand} coverage\` for detailed gap analysis`);
-			}
 			lines.push("");
 		} else {
 			let summary = "Coverage:";
@@ -184,10 +181,6 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 				summary += ` (${firstMetric.name}: ${firstMetric.from}% -> ${firstMetric.to}%)`;
 			}
 			lines.push(summary);
-			if (options.runCommand) {
-				lines.push(`Run \`${options.runCommand} coverage\` for detailed gap analysis`);
-				lines.push(`Run \`${options.runCommand} trends\` to check if this is a pattern`);
-			}
 			lines.push("");
 		}
 	}

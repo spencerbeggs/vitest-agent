@@ -654,13 +654,11 @@ describe("tiered console output", () => {
 				runCount: 5,
 				firstMetric: { name: "lines", from: 82, to: 85, target: 90 },
 			},
-			runCommand: "pnpm vitest-agent",
 		});
 		expect(output).toContain("below target");
-		expect(output).toContain("pnpm vitest-agent coverage");
 	});
 
-	it("shows red tier with regression and CLI hints", () => {
+	it("shows red tier with regression info", () => {
 		const report: AgentReport = {
 			...failingReport,
 			coverage: {
@@ -684,11 +682,8 @@ describe("tiered console output", () => {
 				runCount: 3,
 				firstMetric: { name: "lines", from: 87, to: 84 },
 			},
-			runCommand: "pnpm vitest-agent",
 		});
 		expect(output).toContain("below threshold");
 		expect(output).toContain("trending regressing");
-		expect(output).toContain("pnpm vitest-agent coverage");
-		expect(output).toContain("pnpm vitest-agent trends");
 	});
 });
