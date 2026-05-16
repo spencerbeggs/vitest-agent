@@ -50,19 +50,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        uses: actions/checkout@v6
+      - name: Setup Runtime
+        id: runtime
+        uses: savvy-web/workflow-runtime-action@main
 
       - name: Build cross-platform SEA binaries
         run: pnpm --filter vitest-agent-sidecar build:prod
@@ -91,35 +82,35 @@ jobs:
             packages/sidecar-win32-x64/bin/vitest-agent-sidecar.exe
 
       - name: Upload darwin-arm64 binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sidecar-darwin-arm64
           path: packages/sidecar-darwin-arm64/bin/vitest-agent-sidecar
           if-no-files-found: error
 
       - name: Upload darwin-x64 binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sidecar-darwin-x64
           path: packages/sidecar-darwin-x64/bin/vitest-agent-sidecar
           if-no-files-found: error
 
       - name: Upload linux-arm64 binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sidecar-linux-arm64
           path: packages/sidecar-linux-arm64/bin/vitest-agent-sidecar
           if-no-files-found: error
 
       - name: Upload linux-x64 binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sidecar-linux-x64
           path: packages/sidecar-linux-x64/bin/vitest-agent-sidecar
           if-no-files-found: error
 
       - name: Upload win32-x64 binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sidecar-win32-x64
           path: packages/sidecar-win32-x64/bin/vitest-agent-sidecar.exe
@@ -150,7 +141,7 @@ jobs:
             binary: vitest-agent-sidecar.exe
     steps:
       - name: Download ${{ matrix.platform }} binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: sidecar-${{ matrix.platform }}
           path: bin
