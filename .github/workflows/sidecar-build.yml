@@ -82,6 +82,29 @@ jobs:
         # wall-clock time for a deterministic cache.
         run: pnpm turbo run build:prod --concurrency=1 --filter='./packages/sidecar' --filter='./packages/sidecar-*'
 
+      - name: Assert dist publish manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for platform in darwin-arm64 darwin-x64 linux-arm64 linux-x64 win32-x64; do
+            for variant in github npm; do
+              manifest="packages/sidecar-${platform}/dist/${variant}/package.json"
+              test -f "$manifest" || { echo "::error::missing $manifest"; exit 1; }
+              for field in devDependencies scripts publishConfig packageManager devEngines; do
+                if jq -e --arg f "$field" 'has($f)' "$manifest" >/dev/null; then
+                  echo "::error::$manifest still has .$field"; exit 1
+                fi
+              done
+              [ "$(jq -r '.private' "$manifest")" = "false" ] || { echo "::error::$manifest .private is not false"; exit 1; }
+              name=$(jq -r '.name' "$manifest")
+              case "$variant" in
+                github) case "$name" in @spencerbeggs/*) ;; *) echo "::error::$manifest github name not scoped: $name"; exit 1;; esac ;;
+                npm)    case "$name" in @spencerbeggs/*) echo "::error::$manifest npm name wrongly scoped: $name"; exit 1;; *) ;; esac ;;
+              esac
+            done
+          done
+          echo "dist publish manifests OK"
+
       - name: Upload darwin-arm64 binary
         uses: actions/upload-artifact@v7
         with:
