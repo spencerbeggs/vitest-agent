@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: performance
 created: 2026-05-15
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-16
+last-synced: 2026-05-16
 completeness: 90
 related:
   - ../architecture.md
@@ -37,13 +37,13 @@ The binary handles `inject-env` and nothing else. `register-agent` stays on the 
 
 ## Build: tsdown SEA executable
 
-The binary is built with tsdown's `exe` mode (`@tsdown/exe`), which drives Node's `--experimental-sea-config` SEA generation over a single-file bundle. `build:prod` sets `VITEST_AGENT_SIDECAR_EXE=1` to switch `tsdown.config.ts` into executable output; `build:dev` emits a plain bundle. tsdown's `exe` mode requires Node >= 25.7.0, which is why the repo's `devEngines.runtime` was bumped to 25.9.0.
+The native binary is built with tsdown's `exe` mode (`@tsdown/exe`), which drives Node's `--experimental-sea-config` SEA generation over a single-file bundle. Each `vitest-agent-sidecar-<platform>` child owns its own `tsdown.config.ts` — identical apart from the single `exe.targets` entry and the rename extension (`.exe` on win32) — and its `build:prod` emits that platform's SEA from the child's own `src/bin.ts`; the child's `build:dev` is a no-op. `deps.alwaysBundle` folds every non-builtin import (`vitest-agent-cli`, `vitest-agent-sdk` and the Effect runtime they pull in) into the self-contained executable. tsdown's `exe` mode requires Node >= 25.7.0, which is why the repo's `devEngines.runtime` was bumped to 25.9.0. The parent `packages/sidecar/` builds with `@savvy-web/rslib-builder` like the other workspaces — it emits only the `src/index.ts` re-export bundle, not a binary.
 
-The TS source is the single source of truth. `packages/sidecar/src/bin.ts` re-uses `injectEnv` from `vitest-agent-cli` rather than re-implementing the rewrite — the CLI's `index.ts` re-exports `injectEnv` (plus `registerAgentEffect`, `SidecarLive` and the path-resolution helpers) for exactly this reason. See [./cli.md](./cli.md) for the `sidecar-paths.ts` extraction.
+The TS source is the single source of truth. The argv dispatcher — `dispatch(argv)`, the `DispatchResult` type and the hand-rolled flag parser — lives in `packages/cli/src/lib/sidecar-dispatch.ts` and is exported from `vitest-agent-cli`'s `index.ts` (alongside `injectEnv`, `registerAgentEffect`, `SidecarLive` and the path-resolution helpers). Each per-platform child package carries its own thin `packages/sidecar-<platform>/src/bin.ts` runner that imports `dispatch` from `vitest-agent-cli` as a normal package dependency — no cross-package filesystem path into another package's `src/`. The parent `packages/sidecar/` keeps only `src/index.ts`, an rslib entry re-exporting `dispatch` and `injectEnv` from the CLI for programmatic consumers. See [./cli.md](./cli.md) for the `sidecar-paths.ts` extraction.
 
 ## Distribution: per-platform optionalDependencies
 
-Distribution follows the esbuild / sharp model. `vitest-agent-sidecar` is a parent package whose `bin` points at a CommonJS launcher shim (`bin/launcher.js`); the actual binaries ship in five sibling sub-packages, each declaring `os` / `cpu` so npm installs only the matching one:
+Distribution follows the esbuild / sharp model. `vitest-agent-sidecar` is a parent package that carries no `bin` at all; the actual binaries ship in five sibling sub-packages, each declaring `os` / `cpu` so npm installs only the matching one:
 
 | Sub-package | os / cpu |
 | --- | --- |
@@ -53,11 +53,13 @@ Distribution follows the esbuild / sharp model. `vitest-agent-sidecar` is a pare
 | `vitest-agent-sidecar-linux-x64` | linux / x64 |
 | `vitest-agent-sidecar-win32-x64` | win32 / x64 |
 
-The five sub-packages are listed as `optionalDependencies` of the parent. On an unsupported platform npm logs a warning but the install succeeds with no binary present; the hook's `command -v` probe catches that case and falls back to the JS CLI. `bin/launcher.js` resolves the matching sub-package's binary at runtime and execs into it.
+The five sub-packages are listed as `optionalDependencies` of the parent. Each child declares the SEA binary as its own `bin` — `{ "vitest-agent-sidecar": "./bin/vitest-agent-sidecar" }`, or the `.exe` variant on win32 — so when the matching child installs the native executable lands directly on `PATH` with no intermediate shim and no resolver hop. On an unsupported platform no child installs, `vitest-agent-sidecar` is simply absent from `PATH`, and the hook's `command -v` probe misses and falls back to the JS CLI.
+
+Each child `package.json` carries `"type": "module"` and declares `vitest-agent-cli` and `vitest-agent-sdk` as `devDependencies` — build-time only. `tsdown`'s `deps.alwaysBundle` folds them into the self-contained SEA, so they are not runtime dependencies of the published child package.
 
 ## Hook integration
 
-The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) detects the binary with a cheap `command -v vitest-agent-sidecar` (a shell builtin — no fork) and execs it directly when present. When the binary is absent it falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths are byte-identical in output; the binary path simply avoids Node cold-start and the PM-exec wrapper. `vitest-agent-sidecar` is declared as a `peerDependency` of `vitest-agent-plugin` alongside `vitest-agent-cli` and `vitest-agent-mcp`, so standard bin hoisting puts it in `node_modules/.bin/` where the hook's `command -v` finds it.
+The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) detects the binary with a cheap `command -v vitest-agent-sidecar` (a shell builtin — no fork) and execs it directly when present. When the binary is absent it falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths are byte-identical in output; the binary path simply avoids Node cold-start and the PM-exec wrapper. `vitest-agent-sidecar` is declared as a `peerDependency` of `vitest-agent-plugin` alongside `vitest-agent-cli` and `vitest-agent-mcp`; it pulls in the matching `vitest-agent-sidecar-<platform>` child via `optionalDependencies`, and the child's own `bin` declaration hoists the SEA executable into `node_modules/.bin/` where the hook's `command -v` finds it.
 
 ## CI
 

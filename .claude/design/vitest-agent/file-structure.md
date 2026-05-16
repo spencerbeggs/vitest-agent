@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-16
+last-synced: 2026-05-16
 completeness: 90
 related:
   - ./architecture.md
@@ -37,7 +37,7 @@ packages/
   ui/          vitest-agent-ui (depends on sdk; reducer + shape-tailored dispatcher matrix + preassembled _defaultReporter + internal _createLiveInk)
   cli/         vitest-agent-cli (bin: vitest-agent; show command routes through ui)
   mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; spawned by plugin)
-  sidecar/     vitest-agent-sidecar (depends on cli + sdk; tsdown SEA binary for the per-Bash inject-env hot path; bin/launcher.js shim)
+  sidecar/     vitest-agent-sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts re-exports dispatch/injectEnv from cli; no bin)
   sidecar-darwin-arm64/  per-platform binary sub-package (os: darwin, cpu: arm64)
   sidecar-darwin-x64/    per-platform binary sub-package (os: darwin, cpu: x64)
   sidecar-linux-arm64/   per-platform binary sub-package (os: linux, cpu: arm64)
@@ -65,12 +65,14 @@ plugin/        file-based Claude Code plugin (NOT a pnpm workspace)
 Each primary `packages/<name>/` follows the standard layout: `src/` for
 source, `__test__/` for test files (flat layout, not co-located with
 source), `lib/` for build/maintenance scripts where applicable, `dist/dev/`
-and `dist/npm/` produced by `@savvy-web/rslib-builder`. Two packages depart
-from this: `sidecar/` builds with tsdown's `exe` mode rather than
-rslib-builder (it emits a Node SEA binary, not a JS bundle — see
-[./components/sidecar.md](./components/sidecar.md)), and the five
-`sidecar-*` sub-packages carry only a prebuilt binary plus a minimal
-`package.json` with `os` / `cpu` declarations — no `src/`, no tests.
+and `dist/npm/` produced by `@savvy-web/rslib-builder`. The parent
+`sidecar/` follows the standard rslib layout but ships only a single
+`src/index.ts` re-export entry — no tests. The five `sidecar-*` sub-packages
+depart from the standard layout: each carries a thin `src/bin.ts` runner
+plus its own `tsdown.config.ts` and builds a Node SEA binary into `bin/`
+with tsdown's `exe` mode rather than rslib-builder (see
+[./components/sidecar.md](./components/sidecar.md)) — no `__test__/`, no
+`dist/dev` or `dist/npm`.
 
 The `mcp` package additionally vendors content under `src/`:
 
