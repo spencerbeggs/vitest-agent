@@ -55,6 +55,7 @@ env:
 jobs:
   build:
     name: Build SEA binaries
+    timeout-minutes: 30
     # macOS, not Linux: the win-x64 SEA target extracts a Windows Node
     # zip, and only bsdtar (macOS `tar`) can read a zip — GNU tar on
     # Linux cannot. See the header comment.
@@ -143,6 +144,7 @@ jobs:
   smoke:
     name: Smoke ${{ matrix.platform }}
     needs: build
+    timeout-minutes: 10
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -152,7 +154,7 @@ jobs:
             runner: macos-14
             binary: vitest-agent-sidecar
           - platform: darwin-x64
-            runner: macos-13
+            runner: macos-15-intel
             binary: vitest-agent-sidecar
           - platform: linux-x64
             runner: ubuntu-24.04
