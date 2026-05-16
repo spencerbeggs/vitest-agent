@@ -19,23 +19,44 @@
 
 set -euo pipefail
 
+# Hoist dirname: compute once, reuse across all four lib sources.
+# Avoids three extra dirname forks on every hook invocation.
+_HOOK_DIR="$(dirname "$0")"
+
 # shellcheck source=../lib/hook-output.sh
-. "$(dirname "$0")/../lib/hook-output.sh"
+. "$_HOOK_DIR/../lib/hook-output.sh"
 # shellcheck source=../lib/hook-debug.sh
-. "$(dirname "$0")/../lib/hook-debug.sh"
+. "$_HOOK_DIR/../lib/hook-debug.sh"
 # shellcheck source=../lib/detect-pm.sh
-. "$(dirname "$0")/../lib/detect-pm.sh"
+. "$_HOOK_DIR/../lib/detect-pm.sh"
 
 _HOOK="pre-tool-use-bash"
 
 hook_json=$(cat)
 
-session_id=$(jq -r '.session_id // ""' <<< "$hook_json")
-command_raw=$(jq -r '.tool_input.command // ""' <<< "$hook_json")
-description=$(jq -r '.tool_input.description // ""' <<< "$hook_json")
-timeout=$(jq -r '.tool_input.timeout // 120000' <<< "$hook_json")
-run_in_background=$(jq -r '.tool_input.run_in_background // false' <<< "$hook_json")
-cwd=$(jq -r '.cwd // ""' <<< "$hook_json")
+# Single jq invocation for all six payload fields.
+# command and description are base64-encoded because they can contain
+# arbitrary bytes (newlines, tabs, quotes, $) that would break a plain
+# newline-delimited read.  The four scalar fields (session_id, timeout,
+# run_in_background, cwd) are safe to read as plain text lines.
+# read returns 1 at EOF without a trailing newline; || true guards set -e.
+{
+	IFS= read -r session_id        || true
+	IFS= read -r _b64_command      || true
+	IFS= read -r _b64_description  || true
+	IFS= read -r timeout           || true
+	IFS= read -r run_in_background || true
+	IFS= read -r cwd               || true
+} < <(jq -r '
+  (.session_id // ""),
+  ((.tool_input.command // "") | @base64),
+  ((.tool_input.description // "") | @base64),
+  (.tool_input.timeout // 120000 | tostring),
+  (.tool_input.run_in_background // false | tostring),
+  (.cwd // "")
+' <<< "$hook_json")
+command_raw=$(printf '%s' "$_b64_command"     | base64 --decode)
+description=$(printf '%s' "$_b64_description" | base64 --decode)
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$cwd}"
 
 if [ -z "$command_raw" ] || [ -z "$PROJECT_DIR" ]; then
@@ -56,7 +77,7 @@ fi
 # exports (VITEST_AGENT_CHAT_ID, _CONVERSATION_ID, _MAIN_AGENT_ID,
 # _AGENT_ID). Hook subprocesses do NOT get auto-source per the docs.
 # shellcheck source=../lib/source-session-env.sh
-. "$(dirname "$0")/../lib/source-session-env.sh"
+. "$_HOOK_DIR/../lib/source-session-env.sh"
 if [ -n "$session_id" ]; then
 	source_session_env "$session_id"
 fi
