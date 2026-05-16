@@ -37,9 +37,14 @@ falls back to the `vitest-agent` JS CLI.
 
 ```bash
 vitest-agent-sidecar inject-env --command "<cmd>" --cwd "<dir>"
-vitest-agent-sidecar register-agent --host-kind <k> --agent-type <t> \
-  --host-session-id <id> --transcript-path <path> --cwd <dir>
 ```
+
+The binary handles `inject-env` only — the per-Bash-call hot path,
+which is pure and fully self-contained. `register-agent` stays on the
+`vitest-agent` JS CLI: it touches a native SQLite binding that cannot
+be bundled into a JS SEA, and it fires only once per session, off the
+per-turn critical path. Moving `register-agent` into the binary is a
+tracked 2.x follow-up.
 
 ## License
 

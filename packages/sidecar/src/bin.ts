@@ -2,12 +2,17 @@
 /**
  * `vitest-agent-sidecar` binary entry point.
  *
- * The argv dispatcher for the SEA binary. Two subcommands:
+ * The argv dispatcher for the SEA binary. One subcommand:
  *
- *   - `inject-env`     — pure, fast: rewrites a Bash command with the
- *                        `VITEST_AGENT_*` env prefix on a Vitest match.
- *   - `register-agent` — touches SQLite via the CLI's `SidecarLive`
- *                        layer; registers an agent invocation.
+ *   - `inject-env` — pure, fast: rewrites a Bash command with the
+ *                    `VITEST_AGENT_*` env prefix on a Vitest match.
+ *
+ * `inject-env` is the per-Bash-call hot path and is fully self-contained
+ * — no SQLite, no native addon. `register-agent` deliberately stays on
+ * the `vitest-agent-cli` JS path: it pulls in a native SQLite binding
+ * that cannot be bundled into a JS SEA, and it fires only once per
+ * session (off the per-turn critical path). Putting `register-agent`
+ * back in the binary is tracked as a 2.x follow-up.
  *
  * Argv parsing is hand-rolled and dependency-free on purpose — pulling
  * `@effect/cli` into the SEA bundle would bloat it for no benefit. The
@@ -26,7 +31,6 @@
 import { createRequire } from "node:module";
 import { exitCodeForTag } from "vitest-agent-cli";
 import { injectEnv } from "./inject-env.js";
-import { runRegisterAgent } from "./register-agent.js";
 
 /** Result of a {@link dispatch} call: captured stdout/stderr + exit code. */
 export interface DispatchResult {
@@ -98,39 +102,6 @@ export const dispatch = async (argv: readonly string[]): Promise<DispatchResult>
 		try {
 			const out = injectEnv({ command, cwd, env: process.env });
 			return { stdout: `${out}\n`, stderr: "", code: 0 };
-		} catch (err) {
-			const tag = tagFromError(err);
-			return {
-				stdout: "",
-				stderr: `${exitCodeForTag(tag)} ${tag}: ${messageFromError(err)}\n`,
-				code: exitCodeForTag(tag),
-			};
-		}
-	}
-
-	if (subcommand === "register-agent") {
-		const flags = parseFlags(rest);
-		const required = ["host-kind", "agent-type", "host-session-id", "transcript-path"] as const;
-		const missing = required.filter((name) => flags[name] === undefined);
-		if (missing.length > 0) {
-			return {
-				stdout: "",
-				stderr: `${exitCodeForTag("Defect")} Defect: register-agent missing required flag(s): ${missing.join(", ")}\n`,
-				code: exitCodeForTag("Defect"),
-			};
-		}
-		try {
-			const result = await runRegisterAgent({
-				hostKind: flags["host-kind"] as string,
-				agentType: flags["agent-type"] as string,
-				hostSessionId: flags["host-session-id"] as string,
-				transcriptPath: flags["transcript-path"] as string,
-				cwd: flags.cwd ?? process.cwd(),
-				...(flags["parent-agent-id"] !== undefined && { parentAgentId: flags["parent-agent-id"] }),
-				...(flags["client-nonce"] !== undefined && { clientNonce: flags["client-nonce"] }),
-				...(flags["project-key"] !== undefined && { projectKey: flags["project-key"] }),
-			});
-			return { stdout: `${JSON.stringify(result)}\n`, stderr: "", code: 0 };
 		} catch (err) {
 			const tag = tagFromError(err);
 			return {

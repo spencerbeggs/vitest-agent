@@ -65,15 +65,11 @@ describe("dispatch — unknown subcommand", () => {
 		expect(result.code).toBe(5);
 		expect(result.stderr).toMatch(/unknown subcommand: \(none\)/);
 	});
-});
 
-describe("dispatch — register-agent", () => {
-	it("exits with code 5 when required flags are missing", async () => {
+	it("treats register-agent as unknown — it is not handled by the binary", async () => {
 		const result = await dispatch(["register-agent", "--cwd", cwd]);
 		expect(result.code).toBe(5);
 		expect(result.stdout).toBe("");
-		expect(result.stderr).toMatch(/^5 Defect: register-agent missing required flag\(s\): /);
-		expect(result.stderr).toContain("host-kind");
-		expect(result.stderr).toContain("transcript-path");
+		expect(result.stderr).toMatch(/^5 Defect: unknown subcommand: register-agent\n$/);
 	});
 });

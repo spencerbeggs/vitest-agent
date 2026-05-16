@@ -2,7 +2,7 @@
 	"name": "vitest-agent-sidecar",
 	"version": "0.0.0",
 	"private": true,
-	"description": "Fast-path native binary for vitest-agent. Ships a Node SEA executable that handles the per-Bash-call inject-env and register-agent hot paths.",
+	"description": "Fast-path native binary for vitest-agent. Ships a Node SEA executable that handles the per-Bash-call inject-env hot path.",
 	"keywords": ["vitest", "agent", "sidecar", "sea", "binary"],
 	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
 	"bugs": {
@@ -29,11 +29,6 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform": "catalog:silk",
-		"@effect/platform-node": "catalog:silk",
-		"@effect/sql": "catalog:silk",
-		"@effect/sql-sqlite-node": "catalog:silk",
-		"effect": "catalog:silk",
 		"vitest-agent-cli": "workspace:*",
 		"vitest-agent-sdk": "workspace:*"
 	},
