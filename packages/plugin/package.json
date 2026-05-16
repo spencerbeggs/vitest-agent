@@ -59,7 +59,8 @@
 		"@vitest/runner": "^4.1.0",
 		"vitest": "^4.1.0",
 		"vitest-agent-cli": "workspace:*",
-		"vitest-agent-mcp": "workspace:*"
+		"vitest-agent-mcp": "workspace:*",
+		"vitest-agent-sidecar": "workspace:*"
 	},
 	"publishConfig": {
 		"access": "public",

@@ -223,6 +223,9 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+      vitest-agent-sidecar:
+        specifier: workspace:*
+        version: link:../sidecar/dist/dev
       vitest-agent-ui:
         specifier: workspace:*
         version: link:../ui/dist/dev
