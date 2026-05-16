@@ -63,7 +63,7 @@ if [ ! -f "$HOOK" ]; then
 fi
 
 # Locate the sidecar binary for this host. Each per-platform sub-package
-# builds its own SEA into packages/sidecar-<platform>-<arch>/bin/.
+# builds its own SEA into packages/sidecar-<platform>-<arch>/dist/npm/bin/.
 case "$(uname -s)" in
 	Darwin) BENCH_PLATFORM="darwin" ;;
 	Linux) BENCH_PLATFORM="linux" ;;
@@ -74,7 +74,7 @@ case "$(uname -m)" in
 	x86_64 | amd64) BENCH_ARCH="x64" ;;
 	*) BENCH_ARCH="unknown" ;;
 esac
-SIDECAR_BUILD="${REPO_ROOT}/packages/sidecar-${BENCH_PLATFORM}-${BENCH_ARCH}/bin/vitest-agent-sidecar"
+SIDECAR_BUILD="${REPO_ROOT}/packages/sidecar-${BENCH_PLATFORM}-${BENCH_ARCH}/dist/npm/bin/vitest-agent-sidecar"
 
 # Scratch state — a temp HOME so the synthetic session-env files never
 # touch the developer's real ~/.claude tree.
@@ -177,7 +177,7 @@ if [ -x "$SIDECAR_BUILD" ]; then
 	echo "sidecar binary: ${SIDECAR_BUILD#"${REPO_ROOT}/"}"
 	ln -sf "$SIDECAR_BUILD" "${BIN_DIR}/vitest-agent-sidecar"
 else
-	echo "sidecar binary: NOT BUILT — run 'pnpm --filter vitest-agent-sidecar build:prod'"
+	echo "sidecar binary: NOT BUILT — run 'pnpm --filter \"vitest-agent-sidecar-*\" build:prod'"
 	echo "                the layer2-binary scenario is skipped."
 fi
 echo
