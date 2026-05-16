@@ -380,18 +380,12 @@ importers:
       '@savvy-web/rslib-builder':
         specifier: ^0.20.3
         version: 0.20.3(@pnpm/logger@1001.0.1)(@rslib/core@0.21.5(@microsoft/api-extractor@7.58.7(@types/node@25.8.0))(@typescript/native-preview@7.0.0-dev.20260515.1)(typescript@6.0.3))(@types/node@25.8.0)(@types/react@19.2.14)(@typescript/native-preview@7.0.0-dev.20260515.1)(jiti@2.6.1)(react@19.2.6)(typescript@6.0.3)
-      '@tsdown/exe':
-        specifier: ^0.22.0
-        version: 0.22.0(tsdown@0.22.0)
       '@types/node':
         specifier: catalog:silk
         version: 25.8.0
       '@vitest/coverage-v8':
         specifier: ^4.1.6
         version: 4.1.6(vitest@4.1.6)
-      tsdown:
-        specifier: ^0.22.0
-        version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
       vitest:
         specifier: ^4.1.6
         version: 4.1.6(@types/node@25.8.0)(@vitest/coverage-istanbul@4.1.6)(@vitest/coverage-v8@4.1.6)(vite@8.0.13(@types/node@25.8.0)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.22.0)(yaml@2.9.0))
@@ -413,15 +407,85 @@ importers:
         version: link:../sidecar-win32-x64
     publishDirectory: dist/dev
 
-  packages/sidecar-darwin-arm64: {}
+  packages/sidecar-darwin-arm64:
+    dependencies:
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
+    devDependencies:
+      '@tsdown/exe':
+        specifier: ^0.22.0
+        version: 0.22.0(tsdown@0.22.0)
+      tsdown:
+        specifier: ^0.22.0
+        version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
 
-  packages/sidecar-darwin-x64: {}
+  packages/sidecar-darwin-x64:
+    dependencies:
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
+    devDependencies:
+      '@tsdown/exe':
+        specifier: ^0.22.0
+        version: 0.22.0(tsdown@0.22.0)
+      tsdown:
+        specifier: ^0.22.0
+        version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
 
-  packages/sidecar-linux-arm64: {}
+  packages/sidecar-linux-arm64:
+    dependencies:
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
+    devDependencies:
+      '@tsdown/exe':
+        specifier: ^0.22.0
+        version: 0.22.0(tsdown@0.22.0)
+      tsdown:
+        specifier: ^0.22.0
+        version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
 
-  packages/sidecar-linux-x64: {}
+  packages/sidecar-linux-x64:
+    dependencies:
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
+    devDependencies:
+      '@tsdown/exe':
+        specifier: ^0.22.0
+        version: 0.22.0(tsdown@0.22.0)
+      tsdown:
+        specifier: ^0.22.0
+        version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
 
-  packages/sidecar-win32-x64: {}
+  packages/sidecar-win32-x64:
+    dependencies:
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
+    devDependencies:
+      '@tsdown/exe':
+        specifier: ^0.22.0
+        version: 0.22.0(tsdown@0.22.0)
+      tsdown:
+        specifier: ^0.22.0
+        version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
 
   packages/ui:
     dependencies:

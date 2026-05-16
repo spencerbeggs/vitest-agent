@@ -14,11 +14,11 @@
 				"bin/**",
 				"!__test__/**",
 				"package.json",
-				"tsdown.config.ts",
+				"rslib.config.ts",
 				"tsconfig.json"
 			],
 			"outputLogs": "full",
-			"outputs": ["dist/**"]
+			"outputs": ["dist/dev/**", ".rslib/declarations/dev/**"]
 		},
 		"build:prod": {
 			"cache": true,
@@ -31,11 +31,11 @@
 				"src/**",
 				"bin/**",
 				"package.json",
-				"tsdown.config.ts",
+				"rslib.config.ts",
 				"tsconfig.json"
 			],
 			"outputLogs": "full",
-			"outputs": ["dist/**"]
+			"outputs": ["dist/npm/**", ".rslib/declarations/npm/**"]
 		},
 		"types:check": {
 			"cache": true,
@@ -49,7 +49,7 @@
 				"src/**",
 				"bin/**",
 				"package.json",
-				"tsdown.config.ts",
+				"rslib.config.ts",
 				"tsconfig.json"
 			],
 			"outputLogs": "full",

@@ -20,12 +20,16 @@
 		"url": "https://spencerbeg.gs"
 	},
 	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
 	"bin": {
 		"vitest-agent-sidecar": "./bin/launcher.js"
 	},
 	"scripts": {
-		"build:dev": "tsdown --config tsdown.config.ts",
-		"build:prod": "VITEST_AGENT_SIDECAR_EXE=1 tsdown --config tsdown.config.ts",
+		"build:dev": "rslib build --config-loader native --env-mode dev",
+		"build:inspect": "rslib inspect --config-loader native --env-mode npm --verbose",
+		"build:prod": "rslib build --config-loader native --env-mode npm",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
@@ -34,10 +38,8 @@
 	},
 	"devDependencies": {
 		"@savvy-web/rslib-builder": "^0.20.3",
-		"@tsdown/exe": "^0.22.0",
 		"@types/node": "catalog:silk",
 		"@vitest/coverage-v8": "^4.1.6",
-		"tsdown": "^0.22.0",
 		"vitest": "^4.1.6"
 	},
 	"optionalDependencies": {

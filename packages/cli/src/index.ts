@@ -12,7 +12,7 @@
  */
 
 export { CliLive } from "./layers/CliLive.js";
-export { SidecarLive } from "./layers/SidecarLive.js";
+export { SidecarLive, type SidecarPaths } from "./layers/SidecarLive.js";
 export { type InjectEnvInput, injectEnv } from "./lib/internal-inject-env.js";
 export {
 	type RegisterAgentInput,

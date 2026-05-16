@@ -1,0 +1,35 @@
+{
+	"$schema": "https://turborepo.com/schema.v2.json",
+	"extends": ["//"],
+	"tasks": {
+		"build:dev": {
+			"cache": true,
+			"dependsOn": ["^build:dev"],
+			"inputs": [],
+			"outputLogs": "full",
+			"outputs": []
+		},
+		"build:prod": {
+			"cache": true,
+			"dependsOn": ["^build:prod"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-lock.yaml",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/packages/sidecar/src/**",
+				"package.json",
+				"tsdown.config.ts"
+			],
+			"outputLogs": "full",
+			"outputs": ["bin/**"]
+		},
+		"types:check": {
+			"cache": true,
+			"dependsOn": [],
+			"inputs": [],
+			"outputLogs": "full",
+			"outputs": []
+		}
+	}
+}

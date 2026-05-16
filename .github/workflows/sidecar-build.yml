@@ -3,10 +3,13 @@ name: Sidecar Build
 # Cross-platform build + smoke verification for vitest-agent-sidecar.
 #
 # The sidecar ships a Node Single Executable Application (SEA) binary
-# per platform. tsdown's `exe` mode cross-builds all five targets from
-# a single host (it downloads each target's Node runtime), so the
-# `build` job runs once on Linux and the `smoke` job fans out to native
-# runners to execute each binary.
+# per platform. Each `vitest-agent-sidecar-<platform>` child package
+# now compiles ITS OWN binary via tsdown's `exe` mode with a single
+# `targets` entry; tsdown downloads the target's Node runtime as
+# needed. A single Linux host still cross-builds all five children
+# (tsdown can build any target from any host), so the `build` job runs
+# once on Linux via a plain `pnpm build:prod` and the `smoke` job fans
+# out to native runners to execute each binary.
 #
 # Publishing the five `vitest-agent-sidecar-<platform>` sub-packages to
 # npm and GitHub Packages is wired into the Wave 4 release flow
@@ -55,31 +58,15 @@ jobs:
         id: runtime
         uses: savvy-web/workflow-runtime-action@main
 
-      - name: Build cross-platform SEA binaries
-        run: pnpm --filter vitest-agent-sidecar build:prod
-
-      - name: Stage binaries into platform sub-packages
-        run: |
-          set -euo pipefail
-          src=packages/sidecar/build
-          # tsdown names outputs vitest-agent-sidecar-<platform>-<arch>;
-          # its platform token is `win`, the sub-package dir is `win32`.
-          declare -A map=(
-            ["darwin-arm64"]="vitest-agent-sidecar-darwin-arm64"
-            ["darwin-x64"]="vitest-agent-sidecar-darwin-x64"
-            ["linux-arm64"]="vitest-agent-sidecar-linux-arm64"
-            ["linux-x64"]="vitest-agent-sidecar-linux-x64"
-          )
-          for platform in "${!map[@]}"; do
-            dest="packages/sidecar-${platform}/bin"
-            mkdir -p "$dest"
-            cp "${src}/${map[$platform]}" "${dest}/vitest-agent-sidecar"
-            chmod +x "${dest}/vitest-agent-sidecar"
-          done
-          # Windows: distinct file name and the `win` -> `win32` rename.
-          mkdir -p packages/sidecar-win32-x64/bin
-          cp "${src}/vitest-agent-sidecar-win-x64.exe" \
-            packages/sidecar-win32-x64/bin/vitest-agent-sidecar.exe
+      - name: Build SEA binaries
+        # turbo orders the five vitest-agent-sidecar-<platform>
+        # children (each compiles its own SEA into its own bin/)
+        # before the vitest-agent-sidecar parent, and pulls in the
+        # cli / sdk dependency builds the children bundle into the
+        # SEA. No post-build staging step is needed — each child's
+        # tsdown config renames its binary to bin/vitest-agent-sidecar
+        # in place via its onSuccess hook.
+        run: pnpm turbo run build:prod --filter='./packages/sidecar' --filter='./packages/sidecar-*'
 
       - name: Upload darwin-arm64 binary
         uses: actions/upload-artifact@v7
