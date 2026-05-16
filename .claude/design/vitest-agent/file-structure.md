@@ -77,9 +77,10 @@ plus its own `tsdown.config.ts` and builds a Node SEA binary into `bin/`
 with tsdown's `exe` mode rather than rslib-builder (see
 [./components/sidecar.md](./components/sidecar.md)) — no `__test__/`. Each
 child's `tsdown` `onSuccess` handler (the shared `lib/configs/sidecar-dist.ts`
-helper) emits per-child `dist/` publish variants: `dist/dev` under `build:dev`,
-`dist/github` and `dist/npm` under `build:prod`, each holding the binary plus
-a publish-cleaned `package.json`.
+helper) always emits all three per-child `dist/` publish variants — `dist/dev`,
+`dist/github` and `dist/npm` — each holding the binary plus a publish-cleaned
+`package.json`. The child's `build:dev` is a no-op and `build:prod` owns the
+SEA build.
 
 The `mcp` package additionally vendors content under `src/`:
 
