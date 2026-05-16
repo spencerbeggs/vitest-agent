@@ -14,7 +14,7 @@
  */
 
 import { defineConfig } from "tsdown";
-import { sidecarDist } from "../../lib/configs/sidecar-dist.js";
+import { sidecarDist } from "../../lib/configs/sidecar-dist.ts";
 
 const TARGET = { platform: "darwin", arch: "x64", nodeVersion: "25.9.0" } as const;
 
