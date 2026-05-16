@@ -7,12 +7,13 @@ import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
  *
  * The parent NO LONGER cross-builds the five SEA binaries — that work
  * moved to the per-platform `vitest-agent-sidecar-<platform>` child
- * packages, which each compile their own binary from this package's
- * shared `src/bin.ts`. The parent now only:
+ * packages, which each compile their own binary from their own
+ * `src/bin.ts` thin runner. The argv dispatcher itself lives in
+ * `vitest-agent-cli` (`lib/sidecar-dispatch.ts`). The parent now only:
  *
  *   1. ships the `bin/launcher.js` runtime resolver shim, and
- *   2. exposes the shared dispatcher source (`src/bin.ts`) as the
- *      package's `.` export so it builds the plain JS dev/npm bundle.
+ *   2. exposes a programmatic `.` export (`src/index.ts`) that
+ *      re-exports `dispatch` / `injectEnv` from `vitest-agent-cli`.
  *
  * It is built with rslib-builder (like the six lockstep packages) for
  * one decisive reason: rslib-builder emits a transformed

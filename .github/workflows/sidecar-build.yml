@@ -4,12 +4,17 @@ name: Sidecar Build
 #
 # The sidecar ships a Node Single Executable Application (SEA) binary
 # per platform. Each `vitest-agent-sidecar-<platform>` child package
-# now compiles ITS OWN binary via tsdown's `exe` mode with a single
+# compiles ITS OWN binary via tsdown's `exe` mode with a single
 # `targets` entry; tsdown downloads the target's Node runtime as
-# needed. A single Linux host still cross-builds all five children
-# (tsdown can build any target from any host), so the `build` job runs
-# once on Linux via a plain `pnpm build:prod` and the `smoke` job fans
-# out to native runners to execute each binary.
+# needed. A single host cross-builds all five children, so the `build`
+# job runs once and the `smoke` job fans out to native runners to
+# execute each binary.
+#
+# The `build` job runs on macOS, NOT Linux. The `win-x64` SEA target
+# requires extracting `node-v25.9.0-win-x64.zip`; `@tsdown/exe` shells
+# out to `tar`, and GNU `tar` on Linux cannot read a zip archive.
+# macOS ships bsdtar as `tar`, which reads zip — so all five targets,
+# including `win-x64`, extract correctly on a macOS runner.
 #
 # Publishing the five `vitest-agent-sidecar-<platform>` sub-packages to
 # npm and GitHub Packages is wired into the Wave 4 release flow
@@ -50,7 +55,10 @@ env:
 jobs:
   build:
     name: Build SEA binaries
-    runs-on: ubuntu-latest
+    # macOS, not Linux: the win-x64 SEA target extracts a Windows Node
+    # zip, and only bsdtar (macOS `tar`) can read a zip — GNU tar on
+    # Linux cannot. See the header comment.
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -66,7 +74,13 @@ jobs:
         # SEA. No post-build staging step is needed — each child's
         # tsdown config renames its binary to bin/vitest-agent-sidecar
         # in place via its onSuccess hook.
-        run: pnpm turbo run build:prod --filter='./packages/sidecar' --filter='./packages/sidecar-*'
+        #
+        # --concurrency=1 serializes the build: the five child
+        # build:prod tasks share the @tsdown/exe per-target Node
+        # download cache, and parallel tasks racing a cold cache can
+        # corrupt a half-written download. Serializing trades a little
+        # wall-clock time for a deterministic cache.
+        run: pnpm turbo run build:prod --concurrency=1 --filter='./packages/sidecar' --filter='./packages/sidecar-*'
 
       - name: Upload darwin-arm64 binary
         uses: actions/upload-artifact@v7

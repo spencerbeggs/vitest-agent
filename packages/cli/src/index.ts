@@ -19,6 +19,7 @@ export {
 	type RegisterAgentOutput,
 	registerAgentEffect,
 } from "./lib/internal-register-agent.js";
+export { type DispatchResult, dispatch } from "./lib/sidecar-dispatch.js";
 export {
 	DATA_DB_FILENAME,
 	REGISTRY_DB_FILENAME,

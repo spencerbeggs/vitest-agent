@@ -6,11 +6,11 @@
  * `vitest-agent-sidecar-<platform>` children carry an identical config
  * apart from the single `targets` entry and the rename extension.
  *
- * The dispatcher source is single-sourced in the PARENT package: the
- * `entry` below points directly at `packages/sidecar/src/bin.ts` (via
- * a relative path) so the argv-dispatch logic lives in exactly one
- * place. tsdown resolves that entry's relative imports
- * (`./inject-env.js`) against the parent's `src/` as expected.
+ * The `entry` is this package's OWN `src/bin.ts` — a thin runner that
+ * imports the argv dispatcher from `vitest-agent-cli` as a normal
+ * package dependency. No cross-package filesystem paths: the
+ * dispatcher logic is single-sourced in `vitest-agent-cli`
+ * (`lib/sidecar-dispatch.ts`) and consumed here via a clean import.
  *
  * Build mechanics:
  *   - `exe.targets` has a SINGLE element — this child builds one
@@ -41,10 +41,10 @@ const TARGET = { platform: "darwin", arch: "x64", nodeVersion: "25.9.0" } as con
 const BIN_EXT = "";
 
 export default defineConfig({
-	// Single-source the dispatcher: build from the PARENT package's
-	// shared `src/bin.ts`. Relative imports inside it resolve against
-	// the parent's `src/`.
-	entry: ["../sidecar/src/bin.ts"],
+	// This package's own thin runner; it imports `dispatch` from
+	// `vitest-agent-cli` — a normal package import, bundled into the
+	// SEA below.
+	entry: ["src/bin.ts"],
 	format: "esm",
 	platform: "node",
 	outDir: "dist",

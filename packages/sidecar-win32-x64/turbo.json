@@ -17,7 +17,7 @@
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/pnpm-lock.yaml",
 				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"$TURBO_ROOT$/packages/sidecar/src/**",
+				"src/**",
 				"package.json",
 				"tsdown.config.ts"
 			],

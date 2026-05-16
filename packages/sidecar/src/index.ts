@@ -1,16 +1,25 @@
 /**
  * `vitest-agent-sidecar` package entry.
  *
- * The parent package's published JS bundle. It re-exports the shared
- * argv dispatcher from `bin.ts` so the dispatch logic has a single
- * home: the five `vitest-agent-sidecar-<platform>` child packages
- * compile their SEA binaries straight from `src/bin.ts`, and
- * this `index.ts` is what rslib-builder bundles for the package's `.`
- * export. Keeping `bin.ts` as the SEA entry and `index.ts` as the
- * library entry lets rslib emit a conventional `index.js` whose name
- * matches the generated `exports` map.
+ * The parent package's published JS bundle, for programmatic
+ * consumers. The sidecar's runtime artifacts are the
+ * `bin/launcher.js` resolver shim (the package `bin`) and the five
+ * `vitest-agent-sidecar-<platform>` SEA binaries (optional
+ * dependencies). This barrel re-exports the sidecar-facing surface
+ * from `vitest-agent-cli`, which owns the implementation:
+ *
+ *   - {@link dispatch} — the argv dispatcher each platform binary runs.
+ *   - {@link injectEnv} — the pure command-rewrite hot path.
+ *
+ * Single-sourcing the dispatcher in `vitest-agent-cli` keeps the five
+ * child packages on a clean package import rather than a cross-package
+ * filesystem path. This package stays a valid, resolvable rslib
+ * package so consumers can declare it as a `workspace:*` dependency —
+ * notably `vitest-agent-plugin`, whose `build:prod` workspace
+ * resolution depends on rslib emitting a transformed
+ * `dist/dev/package.json` here.
  *
  * @packageDocumentation
  */
 
-export { type DispatchResult, dispatch } from "./bin.js";
+export { type DispatchResult, type InjectEnvInput, dispatch, injectEnv } from "vitest-agent-cli";

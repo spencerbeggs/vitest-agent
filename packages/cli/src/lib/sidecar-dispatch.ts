@@ -1,24 +1,30 @@
-#!/usr/bin/env node
 /**
- * `vitest-agent-sidecar` binary entry point.
+ * Sidecar argv dispatcher.
  *
- * The argv dispatcher for the SEA binary. One subcommand:
+ * The pure argv-dispatch core of the `vitest-agent-sidecar` native
+ * binary. One subcommand:
  *
  *   - `inject-env` — pure, fast: rewrites a Bash command with the
  *                    `VITEST_AGENT_*` env prefix on a Vitest match.
  *
  * `inject-env` is the per-Bash-call hot path and is fully self-contained
  * — no SQLite, no native addon. `register-agent` deliberately stays on
- * the `vitest-agent-cli` JS path: it pulls in a native SQLite binding
- * that cannot be bundled into a JS SEA, and it fires only once per
- * session (off the per-turn critical path). Putting `register-agent`
+ * the full `vitest-agent-cli` JS path: it pulls in a native SQLite
+ * binding that cannot be bundled into a JS SEA, and it fires only once
+ * per session (off the per-turn critical path). Putting `register-agent`
  * back in the binary is tracked as a 2.x follow-up.
  *
+ * This lives in `vitest-agent-cli` (not the sidecar package) so the
+ * five `vitest-agent-sidecar-<platform>` child packages consume it as a
+ * clean package import — `import { dispatch } from "vitest-agent-cli"` —
+ * rather than reaching across a package boundary into another
+ * package's `src/`. Its only dependencies are cli-local: `injectEnv`
+ * and `exitCodeForTag`.
+ *
  * Argv parsing is hand-rolled and dependency-free on purpose — pulling
- * `@effect/cli` into the SEA bundle would bloat it for no benefit. The
- * dispatch logic is the exported {@link dispatch} function so it can be
- * unit-tested without spawning a process; the module bottom invokes it
- * with `process.argv` only when run as the program entry.
+ * `@effect/cli` into the SEA bundle would bloat it for no benefit.
+ * {@link dispatch} is exported so it can be unit-tested without
+ * spawning a process.
  *
  * Error contract: on an unknown subcommand or a thrown error the
  * dispatcher writes `<exitCode> <tag>: <message>` to stderr and exits
@@ -28,9 +34,8 @@
  * @packageDocumentation
  */
 
-import { createRequire } from "node:module";
-import { exitCodeForTag } from "vitest-agent-cli";
-import { injectEnv } from "./inject-env.js";
+import { injectEnv } from "./internal-inject-env.js";
+import { exitCodeForTag } from "./sidecar-paths.js";
 
 /** Result of a {@link dispatch} call: captured stdout/stderr + exit code. */
 export interface DispatchResult {
@@ -119,47 +124,3 @@ export const dispatch = async (argv: readonly string[]): Promise<DispatchResult>
 		code: exitCodeForTag("Defect"),
 	};
 };
-
-/**
- * Run {@link dispatch} against `process.argv`, flush its captured
- * streams to the real stdout/stderr, and exit with its code.
- */
-const main = async (): Promise<void> => {
-	const result = await dispatch(process.argv.slice(2));
-	if (result.stdout.length > 0) process.stdout.write(result.stdout);
-	if (result.stderr.length > 0) process.stderr.write(result.stderr);
-	process.exit(result.code);
-};
-
-/**
- * True when this module is the program entry and should run `main()`.
- *
- * Inside a SEA binary the bundle is always the entry — `node:sea`'s
- * `isSea()` is the authoritative signal there, and `process.argv[1]`
- * is unreliable (often undefined). For a plain `node dist/bin.mjs`
- * invocation the argv-path comparison handles it. Importing this
- * module from the unit tests must NOT trigger a `process.exit`; the
- * `VITEST` env var (set by the test runner) and the
- * `VITEST_AGENT_SIDECAR_NO_MAIN` escape hatch both suppress `main()`.
- */
-const isEntry = (): boolean => {
-	if (process.env.VITEST_AGENT_SIDECAR_NO_MAIN === "1") return false;
-	if (process.env.VITEST !== undefined) return false;
-	try {
-		// `node:sea` is only resolvable on Node >= 21; inside the SEA it
-		// always is. A failed require means we are not in a SEA.
-		const nodeRequire = createRequire(import.meta.url);
-		const sea = nodeRequire("node:sea") as { isSea?: () => boolean };
-		if (typeof sea.isSea === "function" && sea.isSea()) return true;
-	} catch {
-		// Not running inside a SEA — fall through to the argv check.
-	}
-	const entry = process.argv[1];
-	if (entry === undefined) return false;
-	const normalizedEntry = entry.replace(/\\/g, "/");
-	return import.meta.url.endsWith(normalizedEntry) || normalizedEntry.endsWith("bin.js");
-};
-
-if (isEntry()) {
-	void main();
-}
