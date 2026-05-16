@@ -42,7 +42,7 @@ beyond the plugin call.
 
 ## Package landscape
 
-The project is a pnpm monorepo. Six publishable workspaces under
+The project is a pnpm monorepo. Seven publishable workspaces under
 `packages/` plus a file-based Claude Code plugin at `plugin/` (not a
 workspace).
 
@@ -54,13 +54,18 @@ workspace).
 | `vitest-agent-ui` | `packages/ui/` | Event-sourced renderer family. Pure `RunEvent` reducer, the shape-tailored dispatcher matrix and its 12 cells, the L1 MCP tool-pointer footer, the preassembled `_defaultReporter` factory the plugin imports as its built-in, the internal `_createLiveInk` live mount, and the Effect `RunEventChannel` PubSub. |
 | `vitest-agent-cli` | `packages/cli/` | The `vitest-agent` bin. Utility-only for 2.0: `doctor`, `db` (path / prune / reset / query), and the `agent` namespace for hook-driven plumbing (triage, wrapup, record, sidecar). Test-landscape queries moved to MCP. |
 | `vitest-agent-mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, MCP resources, MCP prompts. |
+| `vitest-agent-sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via five `optionalDependencies` sub-packages (`vitest-agent-sidecar-{darwin-arm64,darwin-x64,linux-arm64,linux-x64,win32-x64}`). Added in T9.2. |
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
 
-The six npm workspaces release in lockstep. `vitest-agent-plugin` declares
-`vitest-agent-reporter`, `vitest-agent-cli` and `vitest-agent-mcp` as
-required `peerDependencies`; `vitest-agent-ui` is an optional add-on that
-hosts pull in only when they want the event-sourced renderer or live Ink
-mount. All five non-SDK packages pin `vitest-agent-sdk` at `workspace:*`.
+The seven npm workspaces release in lockstep. `vitest-agent-plugin` declares
+`vitest-agent-reporter`, `vitest-agent-cli`, `vitest-agent-mcp` and
+`vitest-agent-sidecar` as required `peerDependencies`; `vitest-agent-ui` is
+an optional add-on that hosts pull in only when they want the event-sourced
+renderer or live Ink mount. All six non-SDK packages pin `vitest-agent-sdk`
+at `workspace:*`. The five per-platform sidecar sub-packages are not counted
+among the seven primary workspaces — they carry only a prebuilt binary and
+an `os` / `cpu` declaration, and are published as `optionalDependencies` of
+`vitest-agent-sidecar`.
 
 For per-package internals, load the matching file under
 [./components/](./components/) via the [./components.md](./components.md)
@@ -130,9 +135,9 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   test layer pairs. Domain shapes are Effect Schemas, re-exported from
   `vitest-agent-sdk`. Zod is reserved for tRPC tool input validation in
   the MCP package.
-- **Lockstep release.** The six npm packages share one version — a bump
-  to any one bumps all six. The plugin pins the reporter, CLI and MCP
-  packages as required `peerDependencies`, so consumers install only
+- **Lockstep release.** The seven npm packages share one version — a bump
+  to any one bumps all seven. The plugin pins the reporter, CLI, MCP and
+  sidecar packages as required `peerDependencies`, so consumers install only
   `vitest-agent-plugin` and the peers pull in the rest at the matching
   version. `vitest-agent-ui` is opt-in (peer of consumers who want the
   event-sourced renderer or live Ink mount) but releases in the same

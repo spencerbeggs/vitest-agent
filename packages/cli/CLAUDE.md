@@ -10,7 +10,9 @@ src/
                          provides CliLive(dbPath, logLevel?, logFile?)
                          to Command.run, runs via NodeRuntime.runMain;
                          withSubcommands is exactly doctor / db / agent
-  index.ts            -- runCli() re-export for programmatic invocation
+  index.ts            -- programmatic barrel: re-exports CliLive,
+                         SidecarLive, injectEnv, registerAgentEffect,
+                         and the lib/sidecar-paths.ts helpers
   commands/           -- thin @effect/cli Command wrappers
     doctor.ts          -- top-level `doctor` diagnostic
     db.ts              -- `db` parent: path / prune / reset / query
@@ -23,6 +25,9 @@ src/
     format-triage.ts format-wrapup.ts
     internal-register-agent.ts internal-end-agent.ts
     internal-inject-env.ts
+    sidecar-paths.ts   -- path-resolution + exit-code helpers shared
+                          byte-for-byte with the vitest-agent-sidecar
+                          native binary
   layers/
     CliLive.ts        -- (dbPath, logLevel?, logFile?) composition:
                          DataReader + ProjectDiscovery + HistoryTracker
@@ -42,6 +47,7 @@ src/
 | `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand` plus the sidecar subcommands `register-agent`, `end-agent`, `inject-env` |
 | `lib/format-db-query.ts` | Pure tabular formatter for `db query` output: column headers, whitespace-padded rows, `(0 rows)` on empty; `--format json` emits a JSON array of row objects |
 | `lib/format-doctor.ts`, `lib/format-triage.ts`, `lib/format-wrapup.ts` | Pure formatting functions tested as plain functions; `format-triage` / `format-wrapup` are shared with the MCP package |
+| `lib/sidecar-paths.ts` | Extracted path-resolution helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants) plus `exitCodeForTag`. The `vitest-agent-sidecar` native binary re-uses these as a library so CLI and sidecar resolve paths byte-identically. Re-exported from `src/index.ts` |
 | `layers/CliLive.ts` | Composition layer for the CLI runtime |
 | `layers/SidecarLive.ts` | Composition layer backing the three sidecar subcommands under `agent` |
 
@@ -128,6 +134,8 @@ src/
 - `agent inject-env` — pure pattern matcher. Reads `VITEST_AGENT_*` from env and `package.json#scripts` from cwd; rewrites the command with the env prefix on Vitest match, returns the original on no-match.
 
 The sidecar subcommand bodies stay in `lib/internal-*.ts` (filename prefix unchanged); only their callers moved up under `agent`.
+
+**Sidecar-facing barrel exports.** `src/index.ts` re-exports the sidecar-facing surface so `vitest-agent-sidecar` can consume the CLI as a library: `injectEnv`, `registerAgentEffect`, `SidecarLive`, and the `lib/sidecar-paths.ts` helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants, `exitCodeForTag`). `sidecar-paths.ts` was extracted from `commands/agent.ts` so the CLI and the native binary share byte-identical path-resolution and exit-code logic.
 
 **SidecarLive layer** (`layers/SidecarLive.ts`) composes three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — plus the platform context. Each store gets its own `SqlClient` connection.
 

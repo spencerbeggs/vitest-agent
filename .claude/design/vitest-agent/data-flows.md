@@ -420,11 +420,24 @@ SessionStart hook parses with jq, writes 4 export lines to CLAUDE_ENV_FILE.
 
 ### PreToolUse Bash interception flow
 
+The `pre-tool-use/bash.sh` hook fires on every Bash tool call, so since
+workstream T9.2 it gates the `inject-env` work behind a three-layer
+prefilter — Layer 0 and Layer 1 short-circuit ~98% of Bash calls before any
+sidecar runs. See [./components/plugin-claude.md](./components/plugin-claude.md)
+for the layer rationale and [./decisions.md](./decisions.md) Decision 42.
+
 ```text
 PreToolUse hook (bash, matcher: Bash)
+  → Layer 0: match raw command against SIDECAR_PREFILTER_RE (bash builtin
+       [[ =~ ]], no fork). No vitest/test-script shape → emit noop, exit.
   → source lib/source-session-env.sh $session_id (gain VITEST_AGENT_* exports)
-  → vitest-agent agent inject-env --command "$cmd" --cwd $cwd
-  → injectEnv:
+  → Layer 1: if VITEST_AGENT_AGENT_ID == VITEST_AGENT_MAIN_AGENT_ID
+       (active actor is the main agent, env already correct) → emit noop,
+       exit. Falls through when either var is unset.
+  → Layer 2: command -v vitest-agent-sidecar (cheap builtin probe)
+       binary present  → vitest-agent-sidecar inject-env --command "$cmd" --cwd $cwd
+       binary absent    → <pm-exec> vitest-agent agent inject-env --command "$cmd" --cwd $cwd
+  → injectEnv (same logic on both Layer 2 paths, byte-identical output):
        1. read VITEST_AGENT_CONVERSATION_ID, AGENT_ID, optional PARENT_AGENT_ID from env
           (return original command on miss — no agent context to attribute)
        2. read package.json#scripts from cwd

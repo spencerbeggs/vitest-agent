@@ -15,24 +15,25 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `vitest-agent-cli` | `packages/cli/` | CLI bin (`vitest-agent`) |
 | `vitest-agent-mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
 | `vitest-agent-ui` | `packages/ui/` | Preassembled default reporter (`_defaultReporter`), shape-tailored dispatcher matrix (run-shape x outcome cells), reducer, agent + Ink render paths, PubSub channel, internal `_createLiveInk` |
+| `vitest-agent-sidecar` | `packages/sidecar/` | Node Single Executable Application binary for the per-Bash-call `inject-env` hot path; prebuilt per-platform binaries ship via `optionalDependencies` |
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
 
-The six publishable packages live under `packages/`. The `plugin/`
-directory at the repo root is a file-based Claude Code plugin (NOT a pnpm
-workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply
-to all workspaces. To scope commands to a specific package, use
-`--filter='./packages/<name>'`.
+The seven publishable packages live under `packages/`. Five
+per-platform sub-packages (`vitest-agent-sidecar-{darwin-arm64,darwin-x64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `vitest-agent-sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
 
-The six packages release in lockstep. `vitest-agent-plugin` declares
-`vitest-agent-reporter`, `vitest-agent-cli`, and `vitest-agent-mcp` as
+The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares
+`vitest-agent-cli`, `vitest-agent-mcp`, and `vitest-agent-sidecar` as
 required `peerDependencies`, plus a workspace dependency on
 `vitest-agent-ui` for the preassembled default reporter and the
-internal live-Ink mount. Users typically configure the plugin with just
+internal live-Ink mount.
+Users typically configure the plugin with just
 `AgentPlugin({ console, coverageTargets, transport? })` — the plugin
 wires `_defaultReporter` and the Ink mount internally. Custom reporters
 arrive via the plugin's `reporter` option; `vitest-agent-cli` consumes
-`vitest-agent-ui` for the `show` command. All six pin
-`vitest-agent-sdk` at `workspace:*`.
+`vitest-agent-ui` for the `show` command. The Claude Code plugin's Bash
+hook prefers the `vitest-agent-sidecar` binary on PATH and falls back to
+the `vitest-agent` JS CLI when it is absent. The six non-sidecar
+packages pin `vitest-agent-sdk` at `workspace:*`.
 
 **Legacy naming — watch out.** Pre-2.0 this whole system was one
 package, `vitest-agent-reporter`. The 2.0 split kept that name for the
@@ -94,7 +95,10 @@ for LLM coding agents. Six primary capabilities:
    preloaded TDD primitives, one path-triggered test-layout skill, plus
    four standalone reference skills). The plugin is the primary AI
    integration surface — the npm packages collect and store data; the
-   plugin turns that data into agent behavior.
+   plugin turns that data into agent behavior. The plugin's PreToolUse
+   Bash hook routes the `inject-env` hot path through the
+   `vitest-agent-sidecar` native binary, falling back to the JS CLI when
+   the per-platform binary is absent.
 
 Effect service architecture: I/O encapsulated in Effect services with live
 and test layer implementations. All data structures use Effect Schema
@@ -158,8 +162,7 @@ No silent fallback to a path hash.
 
 ## Cross-package version drift
 
-The six runtime packages release in lockstep but the Claude Code
-marketplace plugin (`vitest-agent@spencerbeggs`) versions independently.
+The six original runtime packages release in lockstep; `vitest-agent-sidecar` and the Claude Code marketplace plugin (`vitest-agent@spencerbeggs`) each version independently.
 If you see a `[vitest-agent-<pkg>] version drift: …` line on stderr
 during a Vitest run, MCP startup, or CLI invocation, the imported
 `vitest-agent-*` versions do not match. The warning is informational —
@@ -296,9 +299,9 @@ All commits require:
 
 ### Publishing
 
-The six packages publish to both GitHub Packages and npm with
+All seven packages publish to both GitHub Packages and npm with
 provenance via the [@savvy-web/changesets](https://github.com/savvy-web/changesets)
-release workflow. Releases happen in lockstep.
+release workflow. The six original packages release in lockstep; `vitest-agent-sidecar` versions independently.
 
 ## Testing
 
