@@ -43,6 +43,15 @@ if [ -z "$command_raw" ] || [ -z "$PROJECT_DIR" ]; then
 	exit 0
 fi
 
+# Layer 0: bash regex prefilter — skip the sidecar entirely when the
+# command can't possibly invoke Vitest. ~80–90% of Bash calls land here
+# and pay zero sidecar latency.
+SIDECAR_PREFILTER_RE='(^|[[:space:]/])vitest([[:space:]/]|$)|(^|[[:space:]&|;])(npm|pnpm|yarn|bun|npx)([[:space:]]+(run|exec|x))?[[:space:]]+test([s]?|:[a-z_-]+)?([[:space:]]|$)|node[[:space:]]+([^[:space:]]+/)?(vitest|node_modules/\.bin/vitest)'
+if ! [[ "$command_raw" =~ $SIDECAR_PREFILTER_RE ]]; then
+	emit_noop
+	exit 0
+fi
+
 # Self-source the session-env dir to pull in SessionStart-written
 # exports (VITEST_AGENT_CHAT_ID, _CONVERSATION_ID, _MAIN_AGENT_ID,
 # _AGENT_ID). Hook subprocesses do NOT get auto-source per the docs.
@@ -50,6 +59,18 @@ fi
 . "$(dirname "$0")/../lib/source-session-env.sh"
 if [ -n "$session_id" ]; then
 	source_session_env "$session_id"
+fi
+
+# Layer 1: skip the sidecar when the active agent IS the main agent.
+# The auto-sourced VITEST_AGENT_* env is already correct for the
+# spawned Vitest process; only subagent-triggered Bash needs the
+# prefix rewrite. Falls through (does NOT skip) when either var is
+# unset — better to pay the sidecar than silently drop attribution.
+if [ -n "${VITEST_AGENT_AGENT_ID:-}" ] \
+	&& [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ] \
+	&& [ "$VITEST_AGENT_AGENT_ID" = "$VITEST_AGENT_MAIN_AGENT_ID" ]; then
+	emit_noop
+	exit 0
 fi
 
 # Shell out to the sidecar. The sidecar reads VITEST_AGENT_* from env
