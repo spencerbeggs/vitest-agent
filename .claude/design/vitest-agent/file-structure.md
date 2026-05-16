@@ -47,6 +47,10 @@ packages/
 examples/
   basic/       minimal example app (5th Vitest project)
 
+lib/
+  configs/     repo-root build/tooling config helpers (NOT a workspace)
+    sidecar-dist.ts   shared tsdown onSuccess transform for the sidecar-* children
+
 plugin/        file-based Claude Code plugin (NOT a pnpm workspace)
   .claude-plugin/plugin.json    inline mcpServers config
   bin/start-mcp.sh              zero-deps POSIX shell PM-detect + exec loader
@@ -71,8 +75,11 @@ and `dist/npm/` produced by `@savvy-web/rslib-builder`. The parent
 depart from the standard layout: each carries a thin `src/bin.ts` runner
 plus its own `tsdown.config.ts` and builds a Node SEA binary into `bin/`
 with tsdown's `exe` mode rather than rslib-builder (see
-[./components/sidecar.md](./components/sidecar.md)) — no `__test__/`, no
-`dist/dev` or `dist/npm`.
+[./components/sidecar.md](./components/sidecar.md)) — no `__test__/`. Each
+child's `tsdown` `onSuccess` handler (the shared `lib/configs/sidecar-dist.ts`
+helper) emits per-child `dist/` publish variants: `dist/dev` under `build:dev`,
+`dist/github` and `dist/npm` under `build:prod`, each holding the binary plus
+a publish-cleaned `package.json`.
 
 The `mcp` package additionally vendors content under `src/`:
 
