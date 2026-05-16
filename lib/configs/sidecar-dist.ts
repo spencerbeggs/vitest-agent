@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /** A published dist variant. */
@@ -91,9 +91,20 @@ export const sidecarDist =
 
 		// 1. tsdown appends -<platform>-<arch> to the SEA file name when
 		//    `targets` is set; rename it to the bare published name.
+		//    build:dev and build:prod may run concurrently (Turbo parallelism),
+		//    so the rename is best-effort: if the source is already gone and the
+		//    destination already exists, a concurrent build beat us here — that
+		//    is fine, just proceed.
 		const builtName = `vitest-agent-sidecar-${opts.platform}-${opts.arch}${isWindows ? ".exe" : ""}`;
 		const finalBinary = join(cwd, "bin", binaryName);
-		await rename(join(cwd, "bin", builtName), finalBinary);
+		try {
+			await rename(join(cwd, "bin", builtName), finalBinary);
+		} catch (err: unknown) {
+			const nodeErr = err as NodeJS.ErrnoException;
+			if (nodeErr.code !== "ENOENT") throw err;
+			// Source is gone — verify the destination exists (concurrent rename won).
+			await access(finalBinary);
+		}
 
 		// 2. Emit the dist variant(s) for the active build mode.
 		const mode = process.env.SIDECAR_DIST_MODE ?? "prod";
