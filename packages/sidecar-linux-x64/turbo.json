@@ -7,7 +7,7 @@
 			"dependsOn": ["^build:dev"],
 			"inputs": [],
 			"outputLogs": "full",
-			"outputs": []
+			"outputs": ["dist/**", "bin/**"]
 		},
 		"build:prod": {
 			"cache": true,
@@ -22,7 +22,7 @@
 				"tsdown.config.ts"
 			],
 			"outputLogs": "full",
-			"outputs": ["bin/**"]
+			"outputs": ["dist/**", "bin/**"]
 		},
 		"types:check": {
 			"cache": true,

@@ -392,19 +392,19 @@ importers:
     optionalDependencies:
       vitest-agent-sidecar-darwin-arm64:
         specifier: workspace:*
-        version: link:../sidecar-darwin-arm64
+        version: link:../sidecar-darwin-arm64/dist/dev
       vitest-agent-sidecar-darwin-x64:
         specifier: workspace:*
-        version: link:../sidecar-darwin-x64
+        version: link:../sidecar-darwin-x64/dist/dev
       vitest-agent-sidecar-linux-arm64:
         specifier: workspace:*
-        version: link:../sidecar-linux-arm64
+        version: link:../sidecar-linux-arm64/dist/dev
       vitest-agent-sidecar-linux-x64:
         specifier: workspace:*
-        version: link:../sidecar-linux-x64
+        version: link:../sidecar-linux-x64/dist/dev
       vitest-agent-sidecar-win32-x64:
         specifier: workspace:*
-        version: link:../sidecar-win32-x64
+        version: link:../sidecar-win32-x64/dist/dev
     publishDirectory: dist/dev
 
   packages/sidecar-darwin-arm64:
@@ -421,6 +421,7 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+    publishDirectory: dist/dev
 
   packages/sidecar-darwin-x64:
     devDependencies:
@@ -436,6 +437,7 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+    publishDirectory: dist/dev
 
   packages/sidecar-linux-arm64:
     devDependencies:
@@ -451,6 +453,7 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+    publishDirectory: dist/dev
 
   packages/sidecar-linux-x64:
     devDependencies:
@@ -466,6 +469,7 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+    publishDirectory: dist/dev
 
   packages/sidecar-win32-x64:
     devDependencies:
@@ -481,6 +485,7 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+    publishDirectory: dist/dev
 
   packages/ui:
     dependencies:

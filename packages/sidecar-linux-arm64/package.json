@@ -20,8 +20,8 @@
 	},
 	"files": ["bin/vitest-agent-sidecar"],
 	"scripts": {
-		"build:dev": "exit 0",
-		"build:prod": "tsdown --config tsdown.config.ts",
+		"build:dev": "SIDECAR_DIST_MODE=dev tsdown --config tsdown.config.ts",
+		"build:prod": "SIDECAR_DIST_MODE=prod tsdown --config tsdown.config.ts",
 		"types:check": "exit 0"
 	},
 	"devDependencies": {
@@ -31,5 +31,26 @@
 		"vitest-agent-sdk": "workspace:*"
 	},
 	"os": ["linux"],
-	"cpu": ["arm64"]
+	"cpu": ["arm64"],
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist/dev",
+		"linkDirectory": true,
+		"targets": [
+			{
+				"protocol": "npm",
+				"registry": "https://npm.pkg.github.com/",
+				"directory": "dist/github",
+				"access": "public",
+				"provenance": true
+			},
+			{
+				"protocol": "npm",
+				"registry": "https://registry.npmjs.org/",
+				"directory": "dist/npm",
+				"access": "public",
+				"provenance": true
+			}
+		]
+	}
 }
