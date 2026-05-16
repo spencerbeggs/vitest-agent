@@ -207,7 +207,7 @@ describe("buildModuleInfo", () => {
 
 		it("should strip query strings from the file path", () => {
 			// Given: an id with a Vite query string appended
-			const filePath = join(tmpDir, "src", "foo.ts") + "?v=1234";
+			const filePath = `${join(tmpDir, "src", "foo.ts")}?v=1234`;
 
 			// When: buildModuleInfo is called
 			const result = buildModuleInfo(filePath);

@@ -1,19 +1,16 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
 	"extends": ["@savvy-web/lint-staged/biome/silk.jsonc"],
 	"overrides": [
 		{
-			// tsdown loads tsdown.config.ts with its native (Node) config
-			// loader, which resolves an import path literally — it does not
-			// remap a .js specifier to a .ts source. The sidecar child
-			// configs import the shared build helper at lib/configs, so the
-			// import must keep its real .ts extension; useImportExtensions
-			// would otherwise rewrite it to a .js path that does not exist.
-			"includes": ["**/tsdown.config.ts"],
+			// `!` non-null assertions are idiomatic in test fixtures the
+			// test itself constructs and fully controls. The rule stays
+			// enforced for src/.
+			"includes": ["**/__test__/**"],
 			"linter": {
 				"rules": {
-					"correctness": {
-						"useImportExtensions": "off"
+					"style": {
+						"noNonNullAssertion": "off"
 					}
 				}
 			}

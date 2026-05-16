@@ -6,7 +6,6 @@
 
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import * as React from "react";
 import type { ActionSeverity, SuggestedActionRecord } from "vitest-agent-sdk";
 
 export interface SuggestedActionsProps {

@@ -9,7 +9,6 @@
 
 import { Text } from "ink";
 import type { FC } from "react";
-import * as React from "react";
 
 export type StatusIconKind = "passed" | "failed" | "skipped" | "pending" | "running" | "queued" | "finished";
 

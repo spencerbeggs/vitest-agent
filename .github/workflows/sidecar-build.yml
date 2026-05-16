@@ -26,7 +26,6 @@ on:
       - "packages/sidecar/**"
       - "packages/sidecar-*/**"
       - "packages/cli/src/**"
-      - "lib/configs/sidecar-dist.ts"
       - ".github/workflows/sidecar-build.yml"
   pull_request:
     branches: [main]
@@ -35,7 +34,6 @@ on:
       - "packages/sidecar/**"
       - "packages/sidecar-*/**"
       - "packages/cli/src/**"
-      - "lib/configs/sidecar-dist.ts"
       - ".github/workflows/sidecar-build.yml"
   workflow_dispatch:
 
@@ -110,7 +108,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          binary="packages/sidecar-${{ matrix.platform }}/bin/${{ matrix.binary }}"
+          binary="packages/sidecar-${{ matrix.platform }}/dist/npm/bin/${{ matrix.binary }}"
           chmod +x "$binary" 2>/dev/null || true
 
           # 1. inject-env rewrites a Vitest command with the env prefix.
@@ -156,5 +154,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: sidecar-${{ matrix.platform }}
-          path: packages/sidecar-${{ matrix.platform }}/bin/${{ matrix.binary }}
+          path: packages/sidecar-${{ matrix.platform }}/dist/npm/bin/${{ matrix.binary }}
           if-no-files-found: error

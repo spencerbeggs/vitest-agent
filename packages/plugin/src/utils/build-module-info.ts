@@ -59,7 +59,7 @@ const resolvePackageInfo = (filePath: string): PackageInfo => {
  * before the walk so the cache key is always a clean filesystem path.
  */
 export const buildModuleInfo = (filePath: string): ModuleInfo => {
-	const cleanId = filePath.split("?")[0]!;
+	const cleanId = filePath.replace(/\?.*$/, "");
 	const { packageName, packagePath } = resolvePackageInfo(cleanId);
 	return {
 		path: cleanId,

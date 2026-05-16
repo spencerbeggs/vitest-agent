@@ -11,25 +11,37 @@
 				"$TURBO_ROOT$/pnpm-lock.yaml",
 				"$TURBO_ROOT$/pnpm-workspace.yaml",
 				"src/**",
+				"lib/**",
 				"package.json",
-				"tsdown.config.ts"
+				"README.md",
+				"LICENSE"
 			],
 			"outputLogs": "full",
-			"outputs": ["dist/**", "bin/**"]
+			"outputs": ["dist/dev/**"]
 		},
 		"build:prod": {
 			"cache": true,
 			"dependsOn": ["build:dev"],
-			"inputs": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-lock.yaml",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"src/**",
+				"lib/**",
+				"package.json",
+				"README.md",
+				"LICENSE"
+			],
 			"outputLogs": "full",
-			"outputs": []
+			"outputs": ["dist/github/**", "dist/npm/**"]
 		},
 		"types:check": {
 			"cache": true,
 			"dependsOn": [],
-			"inputs": [],
+			"inputs": ["src/**", "package.json", "*.ts"],
 			"outputLogs": "full",
-			"outputs": []
+			"outputs": ["dist/.tsbuildinfo.lib"]
 		}
 	}
 }

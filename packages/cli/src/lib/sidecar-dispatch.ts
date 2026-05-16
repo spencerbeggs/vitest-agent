@@ -53,7 +53,7 @@ const parseFlags = (argv: readonly string[]): Record<string, string> => {
 	const flags: Record<string, string> = {};
 	for (let i = 0; i < argv.length; i += 1) {
 		const token = argv[i];
-		if (token !== undefined && token.startsWith("--")) {
+		if (token?.startsWith("--")) {
 			const key = token.slice(2);
 			const next = argv[i + 1];
 			if (next !== undefined && !next.startsWith("--")) {

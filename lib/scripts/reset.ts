@@ -45,6 +45,7 @@ for (const pkg of getDirs(packagesDir)) {
 	remove(join(pkgDir, ".turbo"));
 	remove(join(pkgDir, ".rslib"));
 	remove(join(pkgDir, "node_modules"));
+	remove(join(pkgDir, "bin"));
 }
 
 // --- Root turbo cache ---

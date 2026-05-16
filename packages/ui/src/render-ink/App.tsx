@@ -16,7 +16,6 @@
 
 import { Box } from "ink";
 import type { FC } from "react";
-import * as React from "react";
 import type { ModuleRecord, RenderState } from "vitest-agent-sdk";
 import { CoverageBlock } from "./CoverageBlock.js";
 import { FailureSection } from "./FailureSection.js";

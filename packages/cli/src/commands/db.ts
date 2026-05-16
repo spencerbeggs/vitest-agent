@@ -49,7 +49,7 @@ const yesOption = Options.boolean("yes").pipe(
 const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 	Effect.gen(function* () {
 		// Gate 1: agent context blocking
-		const agentId = process.env["VITEST_AGENT_AGENT_ID"];
+		const agentId = process.env.VITEST_AGENT_AGENT_ID;
 		if (agentId !== undefined && agentId.length > 0) {
 			yield* Effect.sync(() => {
 				process.stderr.write("db reset is human-only; use db prune or run from a human terminal\n");

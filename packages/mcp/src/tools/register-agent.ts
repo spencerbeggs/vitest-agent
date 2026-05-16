@@ -77,7 +77,7 @@ const RegisterAgentFailure = Schema.Struct({
 			description: "Present only when `code = AGENT_ALREADY_REGISTERED`. Use this id instead of registering a new one.",
 		}),
 		expectedPrefix: Schema.optional(Schema.String).annotations({
-			description: "Present only when `code = INVALID_AGENT_TYPE_PREFIX`. The required `${hostKind}-` prefix.",
+			description: "Present only when `code = INVALID_AGENT_TYPE_PREFIX`. The required `<hostKind>-` prefix.",
 		}),
 	}),
 }).annotations({ identifier: "RegisterAgentFailure" });

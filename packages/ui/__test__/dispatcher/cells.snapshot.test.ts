@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import type { CellOptions, DispatchInputs, ProjectSummary, RenderState, TrendSummary } from "vitest-agent-sdk";
 import { initialRenderState } from "vitest-agent-sdk";
 import { classifyOutcome, classifyRunShape } from "../../src/dispatcher/classify.js";
-import { dispatch, dispatcherTable } from "../../src/dispatcher/dispatch.js";
+import { dispatch } from "../../src/dispatcher/dispatch.js";
 import { reduceRenderStateAll } from "../../src/reducer.js";
 import {
 	mixedFailEvents,

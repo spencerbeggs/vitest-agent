@@ -95,13 +95,13 @@ export function injectTags(source: string, tags: ReadonlyArray<string>): InjectT
 			if (optsCandidate.type === "ObjectExpression") {
 				if (hasTagsField(optsCandidate)) return;
 				const props = (optsCandidate.properties as Node[]) ?? [];
-				if (props.length === 0) {
+				const lastProp = props.at(-1);
+				if (lastProp === undefined) {
 					// Empty object: insert directly before closing brace
 					const insertPoint = (optsCandidate.end as number) - 1;
 					ms.appendLeft(insertPoint, `tags: ${tagsLiteral(tags)} `);
 				} else {
 					// Non-empty: insert after the last property
-					const lastProp = props[props.length - 1]!;
 					ms.appendLeft(lastProp.end as number, `, tags: ${tagsLiteral(tags)}`);
 				}
 				mutated = true;
