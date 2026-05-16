@@ -8,17 +8,18 @@
  * after the SEA `exe` binary is generated.
  *
  * After the build it renames the exe output to the bare binary name,
- * then writes the dist/ variants: just dist/dev (mode "dev"), or all
- * three of dist/dev, dist/github, dist/npm (mode "prod"). Each holds
- * the binary, a publish-cleaned package.json, README.md, and LICENSE.
+ * then writes all three dist/ variants — dist/dev, dist/github,
+ * dist/npm — each holding the binary, a publish-cleaned package.json,
+ * README.md, and LICENSE.
  *
- * Mode "prod" emits dist/dev too, not only the publish targets: the
+ * All three variants are always emitted (there is no build mode): the
  * parent vitest-agent-sidecar package is rslib-built, and its
  * build:prod resolves the workspace-protocol optionalDependencies on
  * these children by reading each child's dist/dev/package.json (the
- * linkDirectory base). A build:prod-only run — which is what CI does —
- * must therefore still produce dist/dev or the parent build fails with
- * "Workspace resolution failed".
+ * linkDirectory base), so dist/dev must always be present. Emitting a
+ * fixed set also keeps the build:dev / build:prod scripts free of an
+ * environment-variable prefix, which the per-platform CI matrix needs
+ * since the win32-x64 child builds on a Windows runner.
  *
  * @packageDocumentation
  */
@@ -77,23 +78,12 @@ export interface SidecarDistOptions {
 	readonly arch: string;
 }
 
-/**
- * Variants emitted per SIDECAR_DIST_MODE value. Mode "prod" includes
- * "dev" so a build:prod-only run still produces dist/dev — the parent
- * package's rslib build resolves its workspace-protocol optional
- * dependencies on these children by reading dist/dev/package.json.
- */
-const VARIANTS_BY_MODE: Record<string, readonly SidecarDistVariant[]> = {
-	dev: ["dev"],
-	prod: ["dev", "github", "npm"],
-};
+/** Every build emits all three variants — see the module header. */
+const DIST_VARIANTS: readonly SidecarDistVariant[] = ["dev", "github", "npm"];
 
 /**
- * Build the tsdown `onSuccess` handler for a sidecar sub-package.
- *
- * Reads `SIDECAR_DIST_MODE` from the environment ("dev" or "prod",
- * defaulting to "prod"). The npm `build:dev` / `build:prod` scripts set
- * it.
+ * Build the tsdown `onSuccess` handler for a sidecar sub-package. The
+ * handler renames the SEA binary and writes the three dist/ variants.
  */
 export const sidecarDist =
 	(opts: SidecarDistOptions): (() => Promise<void>) =>
@@ -103,10 +93,9 @@ export const sidecarDist =
 		const binaryName = isWindows ? "vitest-agent-sidecar.exe" : "vitest-agent-sidecar";
 
 		// 1. tsdown appends -<platform>-<arch> to the SEA file name when
-		//    `targets` is set; rename it to the bare published name.
-		//    build:dev and build:prod may run concurrently (Turbo parallelism),
-		//    so the rename is best-effort: if the source is already gone and the
-		//    destination already exists, a concurrent build beat us here — that
+		//    `targets` is set; rename it to the bare published name. The
+		//    rename is best-effort: if the source is already gone but the
+		//    destination exists, a prior build already renamed it — that
 		//    is fine, just proceed.
 		const builtName = `vitest-agent-sidecar-${opts.platform}-${opts.arch}${isWindows ? ".exe" : ""}`;
 		const finalBinary = join(cwd, "bin", binaryName);
@@ -119,12 +108,10 @@ export const sidecarDist =
 			await access(finalBinary);
 		}
 
-		// 2. Emit the dist variant(s) for the active build mode.
-		const mode = process.env.SIDECAR_DIST_MODE ?? "prod";
-		const variants = VARIANTS_BY_MODE[mode] ?? VARIANTS_BY_MODE.prod;
+		// 2. Emit the three dist variants.
 		const manifest = JSON.parse(await readFile(join(cwd, "package.json"), "utf8")) as Record<string, unknown>;
 
-		for (const variant of variants) {
+		for (const variant of DIST_VARIANTS) {
 			const dir = join(cwd, "dist", variant);
 			await mkdir(join(dir, "bin"), { recursive: true });
 			await copyFile(finalBinary, join(dir, "bin", binaryName));

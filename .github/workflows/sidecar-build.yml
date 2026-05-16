@@ -1,20 +1,17 @@
 name: Sidecar Build
 
-# Cross-platform build + smoke verification for vitest-agent-sidecar.
+# Per-platform native build + smoke verification for vitest-agent-sidecar.
 #
 # The sidecar ships a Node Single Executable Application (SEA) binary
 # per platform. Each `vitest-agent-sidecar-<platform>` child package
-# compiles ITS OWN binary via tsdown's `exe` mode with a single
-# `targets` entry; tsdown downloads the target's Node runtime as
-# needed. A single host cross-builds all five children, so the `build`
-# job runs once and the `smoke` job fans out to native runners to
-# execute each binary.
+# compiles ITS OWN binary via tsdown's `exe` mode.
 #
-# The `build` job runs on macOS, NOT Linux. The `win-x64` SEA target
-# requires extracting `node-v25.9.0-win-x64.zip`; `@tsdown/exe` shells
-# out to `tar`, and GNU `tar` on Linux cannot read a zip archive.
-# macOS ships bsdtar as `tar`, which reads zip — so all five targets,
-# including `win-x64`, extract correctly on a macOS runner.
+# This workflow is a single matrix: every platform is built AND
+# smoke-tested on its own NATIVE runner — no cross-compilation. A SEA
+# is host-arch-specific machinery; cross-building one is fragile (a
+# darwin-x64 SEA cross-built on an arm64 macOS host segfaults at
+# runtime, and a Windows SEA needs zip extraction a Linux `tar` cannot
+# do). Building each target where it will run sidesteps all of that.
 #
 # Publishing the five `vitest-agent-sidecar-<platform>` sub-packages to
 # npm and GitHub Packages is wired into the Wave 4 release flow
@@ -29,6 +26,7 @@ on:
       - "packages/sidecar/**"
       - "packages/sidecar-*/**"
       - "packages/cli/src/**"
+      - "lib/configs/sidecar-dist.ts"
       - ".github/workflows/sidecar-build.yml"
   pull_request:
     branches: [main]
@@ -37,6 +35,7 @@ on:
       - "packages/sidecar/**"
       - "packages/sidecar-*/**"
       - "packages/cli/src/**"
+      - "lib/configs/sidecar-dist.ts"
       - ".github/workflows/sidecar-build.yml"
   workflow_dispatch:
 
@@ -47,111 +46,17 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  # tsdown's SEA `exe` mode requires Node >= 25.7.0. Keep this in sync
-  # with devEngines.runtime in the root package.json.
-  NODE_VERSION: "25.9.0"
-
 jobs:
-  build:
-    name: Build SEA binaries
-    timeout-minutes: 30
-    # macOS, not Linux: the win-x64 SEA target extracts a Windows Node
-    # zip, and only bsdtar (macOS `tar`) can read a zip — GNU tar on
-    # Linux cannot. See the header comment.
-    runs-on: macos-26
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Setup Runtime
-        id: runtime
-        uses: savvy-web/workflow-runtime-action@main
-
-      - name: Build SEA binaries
-        # turbo orders the five vitest-agent-sidecar-<platform>
-        # children (each compiles its own SEA into its own bin/)
-        # before the vitest-agent-sidecar parent, and pulls in the
-        # cli / sdk dependency builds the children bundle into the
-        # SEA. No post-build staging step is needed — each child's
-        # tsdown config renames its binary to bin/vitest-agent-sidecar
-        # in place via its onSuccess hook.
-        #
-        # --concurrency=1 serializes the build: the five child
-        # build:prod tasks share the @tsdown/exe per-target Node
-        # download cache, and parallel tasks racing a cold cache can
-        # corrupt a half-written download. Serializing trades a little
-        # wall-clock time for a deterministic cache.
-        run: pnpm turbo run build:prod --concurrency=1 --filter='./packages/sidecar' --filter='./packages/sidecar-*'
-
-      - name: Assert dist publish manifests
-        shell: bash
-        run: |
-          set -euo pipefail
-          for platform in darwin-arm64 darwin-x64 linux-arm64 linux-x64 win32-x64; do
-            for variant in github npm; do
-              manifest="packages/sidecar-${platform}/dist/${variant}/package.json"
-              test -f "$manifest" || { echo "::error::missing $manifest"; exit 1; }
-              for field in devDependencies scripts publishConfig packageManager devEngines; do
-                if jq -e --arg f "$field" 'has($f)' "$manifest" >/dev/null; then
-                  echo "::error::$manifest still has .$field"; exit 1
-                fi
-              done
-              [ "$(jq -r '.private' "$manifest")" = "false" ] || { echo "::error::$manifest .private is not false"; exit 1; }
-              name=$(jq -r '.name' "$manifest")
-              case "$variant" in
-                github) case "$name" in @spencerbeggs/*) ;; *) echo "::error::$manifest github name not scoped: $name"; exit 1;; esac ;;
-                npm)    case "$name" in @spencerbeggs/*) echo "::error::$manifest npm name wrongly scoped: $name"; exit 1;; *) ;; esac ;;
-              esac
-            done
-          done
-          echo "dist publish manifests OK"
-
-      - name: Upload darwin-arm64 binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: sidecar-darwin-arm64
-          path: packages/sidecar-darwin-arm64/bin/vitest-agent-sidecar
-          if-no-files-found: error
-
-      - name: Upload darwin-x64 binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: sidecar-darwin-x64
-          path: packages/sidecar-darwin-x64/bin/vitest-agent-sidecar
-          if-no-files-found: error
-
-      - name: Upload linux-arm64 binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: sidecar-linux-arm64
-          path: packages/sidecar-linux-arm64/bin/vitest-agent-sidecar
-          if-no-files-found: error
-
-      - name: Upload linux-x64 binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: sidecar-linux-x64
-          path: packages/sidecar-linux-x64/bin/vitest-agent-sidecar
-          if-no-files-found: error
-
-      - name: Upload win32-x64 binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: sidecar-win32-x64
-          path: packages/sidecar-win32-x64/bin/vitest-agent-sidecar.exe
-          if-no-files-found: error
-
-  smoke:
-    name: Smoke ${{ matrix.platform }}
-    needs: build
-    timeout-minutes: 10
+  binary:
+    name: Binary ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: darwin-arm64
-            runner: macos-14
+            runner: macos-15
             binary: vitest-agent-sidecar
           - platform: darwin-x64
             runner: macos-15-intel
@@ -166,17 +71,46 @@ jobs:
             runner: windows-2022
             binary: vitest-agent-sidecar.exe
     steps:
-      - name: Download ${{ matrix.platform }} binary
-        uses: actions/download-artifact@v8
-        with:
-          name: sidecar-${{ matrix.platform }}
-          path: bin
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - name: Run binary smoke tests
+      - name: Setup Runtime
+        id: runtime
+        uses: savvy-web/workflow-runtime-action@main
+
+      - name: Build the SEA binary
+        # The child builds on its native runner, so tsdown's `exe`
+        # target matches the host — a native build, no cross-arch
+        # machinery. turbo builds vitest-agent-cli and vitest-agent-sdk
+        # first (the child bundles them into the SEA).
+        run: pnpm turbo run build:prod --filter=vitest-agent-sidecar-${{ matrix.platform }}
+
+      - name: Assert dist publish manifests
         shell: bash
         run: |
           set -euo pipefail
-          binary="bin/${{ matrix.binary }}"
+          for variant in github npm; do
+            manifest="packages/sidecar-${{ matrix.platform }}/dist/${variant}/package.json"
+            test -f "$manifest" || { echo "::error::missing $manifest"; exit 1; }
+            for field in devDependencies scripts publishConfig packageManager devEngines; do
+              if jq -e --arg f "$field" 'has($f)' "$manifest" >/dev/null; then
+                echo "::error::$manifest still has .$field"; exit 1
+              fi
+            done
+            [ "$(jq -r '.private' "$manifest")" = "false" ] || { echo "::error::$manifest .private is not false"; exit 1; }
+            name=$(jq -r '.name' "$manifest")
+            case "$variant" in
+              github) case "$name" in @spencerbeggs/*) ;; *) echo "::error::$manifest github name not scoped: $name"; exit 1;; esac ;;
+              npm)    case "$name" in @spencerbeggs/*) echo "::error::$manifest npm name wrongly scoped: $name"; exit 1;; *) ;; esac ;;
+            esac
+          done
+          echo "dist publish manifests OK"
+
+      - name: Smoke-test the binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="packages/sidecar-${{ matrix.platform }}/bin/${{ matrix.binary }}"
           chmod +x "$binary" 2>/dev/null || true
 
           # 1. inject-env rewrites a Vitest command with the env prefix.
@@ -216,4 +150,11 @@ jobs:
               ;;
           esac
 
-          echo "${{ matrix.platform }} smoke passed"
+          echo "${{ matrix.platform }} build + smoke passed"
+
+      - name: Upload ${{ matrix.platform }} binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: sidecar-${{ matrix.platform }}
+          path: packages/sidecar-${{ matrix.platform }}/bin/${{ matrix.binary }}
+          if-no-files-found: error

@@ -7,8 +7,7 @@
  *
  * `onSuccess` is the shared `sidecarDist` handler (lib/configs): it
  * runs after the SEA `exe` step, renames the binary, and emits the
- * dist/ publish variants. The build mode (dev vs prod) is read from
- * `SIDECAR_DIST_MODE`, set by the `build:dev` / `build:prod` scripts.
+ * three dist/ publish variants (dist/dev, dist/github, dist/npm).
  *
  * The SEA `exe` build requires Node >= 25.7.0 and `@tsdown/exe`.
  */
