@@ -5,13 +5,6 @@
 		"build:dev": {
 			"cache": true,
 			"dependsOn": ["^build:dev"],
-			"inputs": [],
-			"outputLogs": "full",
-			"outputs": ["dist/**", "bin/**"]
-		},
-		"build:prod": {
-			"cache": true,
-			"dependsOn": ["^build:prod"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
@@ -23,6 +16,13 @@
 			],
 			"outputLogs": "full",
 			"outputs": ["dist/**", "bin/**"]
+		},
+		"build:prod": {
+			"cache": true,
+			"dependsOn": ["build:dev"],
+			"inputs": [],
+			"outputLogs": "full",
+			"outputs": []
 		},
 		"types:check": {
 			"cache": true,
