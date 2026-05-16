@@ -64,10 +64,16 @@ if [ -z "$command_raw" ] || [ -z "$PROJECT_DIR" ]; then
 	exit 0
 fi
 
-# Layer 0: bash regex prefilter — skip the sidecar entirely when the
-# command can't possibly invoke Vitest. ~80–90% of Bash calls land here
-# and pay zero sidecar latency.
-SIDECAR_PREFILTER_RE='(^|[[:space:]/])vitest([[:space:]/]|$)|(^|[[:space:]&|;])(npm|pnpm|yarn|bun|npx)([[:space:]]+(run|exec|x))?[[:space:]]+test([s]?|:[a-z_-]+)?([[:space:]]|$)|node[[:space:]]+([^[:space:]]+/)?(vitest|node_modules/\.bin/vitest)'
+# Layer 0: bash regex prefilter — skips the sidecar when the command
+# does not appear to invoke Vitest (~80–90% of Bash calls). Matches
+# the bare vitest runner, conventional test-named PM scripts, and the
+# node bin path. Scripts whose vitest invocation is hidden under a
+# non-test name (e.g. `pnpm run ci`, `pnpm run check`) are a
+# deliberate speed-vs-completeness gap: only the sidecar's
+# detectVitestScripts reads package.json and catches those. False
+# positives (non-Vitest commands that happen to match) are acceptable —
+# Layer 2 gates correctness.
+SIDECAR_PREFILTER_RE='(^|[[:space:]/])vitest([[:space:]/]|$)|(^|[[:space:]&|;])(npm|pnpm|yarn|bun|npx)([[:space:]]+(run|exec|x))?[[:space:]]+test([s]?|[:_-][a-z0-9_-]+)?([[:space:]]|$)|node[[:space:]]+([^[:space:]]+/)?(vitest|node_modules/\.bin/vitest)'
 if ! [[ "$command_raw" =~ $SIDECAR_PREFILTER_RE ]]; then
 	emit_noop
 	exit 0

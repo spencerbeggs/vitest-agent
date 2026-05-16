@@ -10,7 +10,7 @@
  *
  * `dispatch` never throws; it folds every outcome into a
  * `{ stdout, stderr, code }` result. This runner flushes those captured
- * streams to the real stdout/stderr and exits with the result code.
+ * streams to the real stdout/stderr, then sets the exit code and lets the event loop drain so a piped stdout is never truncated.
  *
  * tsdown's `exe` build bundles `vitest-agent-cli` (and the Effect
  * runtime it pulls in) into the SEA — see this package's
@@ -25,7 +25,7 @@ const main = async (): Promise<void> => {
 	const result = await dispatch(process.argv.slice(2));
 	if (result.stdout.length > 0) process.stdout.write(result.stdout);
 	if (result.stderr.length > 0) process.stderr.write(result.stderr);
-	process.exit(result.code);
+	process.exitCode = result.code;
 };
 
 void main();

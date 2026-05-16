@@ -244,6 +244,61 @@ EOF
     [[ "$argv" == "agent inject-env"* ]]
 }
 
+# ---------------------------------------------------------------------------
+# Layer 0 — dash-suffixed test script names (PR #75 fix).
+#
+# The regex was widened from test([s]?|:[a-z_-]+)? to
+# test([s]?|[:_-][a-z_-]+)? so dash-separated names like test-unit and
+# test-e2e match alongside colon-separated names like test:int.
+# ---------------------------------------------------------------------------
+
+@test "Layer 0: 'pnpm run test-unit' reaches the sidecar (dash-suffix fix)" {
+    local payload
+    payload=$(bash_payload "pnpm run test-unit")
+    run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
+    [ "$status" -eq 0 ]
+    [ "$(sidecar_call_count)" -ge 1 ]
+    local argv
+    argv=$(head -n1 "${BATS_ARGV_CAPTURE}" 2>/dev/null || echo "")
+    [[ "$argv" == "agent inject-env"* ]]
+}
+
+@test "Layer 0: 'npm run test-e2e' reaches the sidecar (dash-suffix fix)" {
+    local payload
+    payload=$(bash_payload "npm run test-e2e")
+    run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
+    [ "$status" -eq 0 ]
+    [ "$(sidecar_call_count)" -ge 1 ]
+    local argv
+    argv=$(head -n1 "${BATS_ARGV_CAPTURE}" 2>/dev/null || echo "")
+    [[ "$argv" == "agent inject-env"* ]]
+}
+
+@test "Layer 0: 'yarn test-watch' reaches the sidecar (dash-suffix fix)" {
+    local payload
+    payload=$(bash_payload "yarn test-watch")
+    run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
+    [ "$status" -eq 0 ]
+    [ "$(sidecar_call_count)" -ge 1 ]
+    local argv
+    argv=$(head -n1 "${BATS_ARGV_CAPTURE}" 2>/dev/null || echo "")
+    [[ "$argv" == "agent inject-env"* ]]
+}
+
+@test "Layer 0: 'pnpm run testing' still emits noop (not a test script name)" {
+    local payload
+    payload=$(bash_payload "pnpm run testing")
+    run bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
+    [ "$status" -eq 0 ]
+    local noop_json
+    noop_json=$(echo "$output" | jq -r '.continue // empty')
+    [ "$noop_json" = "true" ]
+    [ "$(sidecar_call_count)" -eq 0 ]
+}
+
 # Layer 0 intentionally accepts false positives — Layer 2 gates
 # correctness, not Layer 0.  Commands that merely mention "vitest" in a
 # string reach the sidecar; that is acceptable behaviour.
