@@ -8,9 +8,17 @@
  * after the SEA `exe` binary is generated.
  *
  * After the build it renames the exe output to the bare binary name,
- * then writes dist/dev (mode "dev") or dist/github + dist/npm (mode
- * "prod"), each holding the binary, a publish-cleaned package.json,
- * README.md, and LICENSE.
+ * then writes the dist/ variants: just dist/dev (mode "dev"), or all
+ * three of dist/dev, dist/github, dist/npm (mode "prod"). Each holds
+ * the binary, a publish-cleaned package.json, README.md, and LICENSE.
+ *
+ * Mode "prod" emits dist/dev too, not only the publish targets: the
+ * parent vitest-agent-sidecar package is rslib-built, and its
+ * build:prod resolves the workspace-protocol optionalDependencies on
+ * these children by reading each child's dist/dev/package.json (the
+ * linkDirectory base). A build:prod-only run — which is what CI does —
+ * must therefore still produce dist/dev or the parent build fails with
+ * "Workspace resolution failed".
  *
  * @packageDocumentation
  */
@@ -69,10 +77,15 @@ export interface SidecarDistOptions {
 	readonly arch: string;
 }
 
-/** Variants emitted per SIDECAR_DIST_MODE value. */
+/**
+ * Variants emitted per SIDECAR_DIST_MODE value. Mode "prod" includes
+ * "dev" so a build:prod-only run still produces dist/dev — the parent
+ * package's rslib build resolves its workspace-protocol optional
+ * dependencies on these children by reading dist/dev/package.json.
+ */
 const VARIANTS_BY_MODE: Record<string, readonly SidecarDistVariant[]> = {
 	dev: ["dev"],
-	prod: ["github", "npm"],
+	prod: ["dev", "github", "npm"],
 };
 
 /**
