@@ -73,11 +73,25 @@ if [ -n "${VITEST_AGENT_AGENT_ID:-}" ] \
 	exit 0
 fi
 
-# Shell out to the sidecar. The sidecar reads VITEST_AGENT_* from env
-# and decides whether to rewrite the command.
-pm_exec=$(detect_pm_exec "$PROJECT_DIR")
-# shellcheck disable=SC2086
-rewritten=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) || rewritten="$command_raw"
+# Layer 2: prefer the native sidecar binary; fall back to the JS CLI.
+# `command -v` is a cheap builtin (no fork). When the per-platform
+# vitest-agent-sidecar optionalDependency is installed it is on PATH
+# and runs directly — no PM wrapper, no Node cold-start. When it is
+# absent (unsupported platform, or the optional dep was skipped) the
+# JS CLI path is byte-identical, just slower.
+sidecar_bin=""
+if command -v vitest-agent-sidecar >/dev/null 2>&1; then
+	sidecar_bin="vitest-agent-sidecar"
+fi
+if [ -n "$sidecar_bin" ]; then
+	rewritten=$("$sidecar_bin" inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) \
+		|| rewritten="$command_raw"
+else
+	pm_exec=$(detect_pm_exec "$PROJECT_DIR")
+	# shellcheck disable=SC2086
+	rewritten=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) \
+		|| rewritten="$command_raw"
+fi
 
 if [ -z "$rewritten" ] || [ "$rewritten" = "$command_raw" ]; then
 	# No rewrite needed — pass through.
