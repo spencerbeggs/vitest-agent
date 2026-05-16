@@ -14,19 +14,21 @@
 		"email": "spencer@beggs.codes",
 		"url": "https://spencerbeg.gs"
 	},
+	"type": "module",
+	"bin": {
+		"vitest-agent-sidecar": "./bin/vitest-agent-sidecar"
+	},
 	"files": ["bin/vitest-agent-sidecar"],
 	"scripts": {
 		"build:dev": "exit 0",
 		"build:prod": "tsdown --config tsdown.config.ts",
 		"types:check": "exit 0"
 	},
-	"dependencies": {
-		"vitest-agent-cli": "workspace:*",
-		"vitest-agent-sdk": "workspace:*"
-	},
 	"devDependencies": {
 		"@tsdown/exe": "^0.22.0",
-		"tsdown": "^0.22.0"
+		"tsdown": "^0.22.0",
+		"vitest-agent-cli": "workspace:*",
+		"vitest-agent-sdk": "workspace:*"
 	},
 	"os": ["darwin"],
 	"cpu": ["x64"]

@@ -23,9 +23,6 @@
 	"exports": {
 		".": "./src/index.ts"
 	},
-	"bin": {
-		"vitest-agent-sidecar": "./bin/launcher.js"
-	},
 	"scripts": {
 		"build:dev": "rslib build --config-loader native --env-mode dev",
 		"build:inspect": "rslib inspect --config-loader native --env-mode npm --verbose",

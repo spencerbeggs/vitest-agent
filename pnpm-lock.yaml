@@ -408,13 +408,6 @@ importers:
     publishDirectory: dist/dev
 
   packages/sidecar-darwin-arm64:
-    dependencies:
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev
     devDependencies:
       '@tsdown/exe':
         specifier: ^0.22.0
@@ -422,15 +415,14 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
 
   packages/sidecar-darwin-x64:
-    dependencies:
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev
     devDependencies:
       '@tsdown/exe':
         specifier: ^0.22.0
@@ -438,15 +430,14 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
 
   packages/sidecar-linux-arm64:
-    dependencies:
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev
     devDependencies:
       '@tsdown/exe':
         specifier: ^0.22.0
@@ -454,15 +445,14 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
 
   packages/sidecar-linux-x64:
-    dependencies:
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev
     devDependencies:
       '@tsdown/exe':
         specifier: ^0.22.0
@@ -470,15 +460,14 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
 
   packages/sidecar-win32-x64:
-    dependencies:
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev
     devDependencies:
       '@tsdown/exe':
         specifier: ^0.22.0
@@ -486,6 +475,12 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
+      vitest-agent-cli:
+        specifier: workspace:*
+        version: link:../cli/dist/dev
+      vitest-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk/dist/dev
 
   packages/ui:
     dependencies:

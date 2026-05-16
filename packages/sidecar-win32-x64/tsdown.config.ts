@@ -20,8 +20,7 @@
  *     sidecar` name the package's `files` field expects.
  *   - `exe.outDir` is `bin/`, so the renamed binary lands at
  *     `bin/vitest-agent-sidecar` — matching the `files` entry and
- *     the parent launcher's `<pkg>/bin/<binaryName>` runtime
- *     resolution.
+ *     the `bin` field of this package.
  *   - `useCodeCache` / `useSnapshot` stay `false`: V8 code caches and
  *     startup snapshots are tied to the building host's V8 build and
  *     do not survive a cross-platform target.

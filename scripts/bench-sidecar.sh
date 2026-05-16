@@ -62,8 +62,8 @@ if [ ! -f "$HOOK" ]; then
 	exit 1
 fi
 
-# Locate the sidecar binary for this host. The Phase C build writes it
-# to packages/sidecar/build/vitest-agent-sidecar-<platform>-<arch>.
+# Locate the sidecar binary for this host. Each per-platform sub-package
+# builds its own SEA into packages/sidecar-<platform>-<arch>/bin/.
 case "$(uname -s)" in
 	Darwin) BENCH_PLATFORM="darwin" ;;
 	Linux) BENCH_PLATFORM="linux" ;;
@@ -74,7 +74,7 @@ case "$(uname -m)" in
 	x86_64 | amd64) BENCH_ARCH="x64" ;;
 	*) BENCH_ARCH="unknown" ;;
 esac
-SIDECAR_BUILD="${REPO_ROOT}/packages/sidecar/build/vitest-agent-sidecar-${BENCH_PLATFORM}-${BENCH_ARCH}"
+SIDECAR_BUILD="${REPO_ROOT}/packages/sidecar-${BENCH_PLATFORM}-${BENCH_ARCH}/bin/vitest-agent-sidecar"
 
 # Scratch state — a temp HOME so the synthetic session-env files never
 # touch the developer's real ~/.claude tree.

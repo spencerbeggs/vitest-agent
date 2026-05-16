@@ -30,8 +30,12 @@ esbuild / sharp distribution model. Supported platforms:
 - `linux-arm64`, `linux-x64`
 - `win32-x64`
 
-On any other platform the launcher exits non-zero and the bash hook
-falls back to the `vitest-agent` JS CLI.
+Each sub-package declares the SEA binary as its own `bin`, so the
+matching one for the host puts `vitest-agent-sidecar` directly on
+`PATH` — the hook runs the native executable with no intermediate
+Node process. On any other platform no sub-package installs, the
+binary is absent from `PATH`, and the bash hook falls back to the
+`vitest-agent` JS CLI.
 
 ## Subcommands
 

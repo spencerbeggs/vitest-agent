@@ -8,12 +8,14 @@ import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
  * The parent NO LONGER cross-builds the five SEA binaries — that work
  * moved to the per-platform `vitest-agent-sidecar-<platform>` child
  * packages, which each compile their own binary from their own
- * `src/bin.ts` thin runner. The argv dispatcher itself lives in
- * `vitest-agent-cli` (`lib/sidecar-dispatch.ts`). The parent now only:
- *
- *   1. ships the `bin/launcher.js` runtime resolver shim, and
- *   2. exposes a programmatic `.` export (`src/index.ts`) that
- *      re-exports `dispatch` / `injectEnv` from `vitest-agent-cli`.
+ * `src/bin.ts` thin runner and declare that binary as their own `bin`.
+ * The argv dispatcher itself lives in `vitest-agent-cli`
+ * (`lib/sidecar-dispatch.ts`). The parent now only declares the five
+ * children as `optionalDependencies` and exposes a programmatic `.`
+ * export (`src/index.ts`) that re-exports `dispatch` / `injectEnv`
+ * from `vitest-agent-cli`. It carries no `bin` of its own — the
+ * matching child package puts the SEA directly on `PATH`, so the hook
+ * runs the native binary with no intermediate Node process.
  *
  * It is built with rslib-builder (like the six lockstep packages) for
  * one decisive reason: rslib-builder emits a transformed
@@ -25,10 +27,6 @@ import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
  * real `package.json` to exist there. tsdown does not emit one — its
  * absence was the `Workspace resolution failed` failure in
  * `vitest-agent-plugin#build:prod`.
- *
- * `bin/launcher.js` is a hand-written CommonJS file, not a TS entry:
- * rslib-builder leaves a non-`.ts` `bin` value untouched and never
- * compiles it. `copyPatterns` ships it verbatim into the dist.
  */
 
 // T12 drift wiring: inline package.json#version as a literal so the
@@ -49,9 +47,6 @@ export default NodeLibraryBuilder.create({
 	define: {
 		"process.env.__PACKAGE_VERSION__": JSON.stringify(PKG_VERSION),
 	},
-	// The CommonJS launcher shim is shipped as-is — it resolves the
-	// matching platform child package at runtime and execs its binary.
-	copyPatterns: [{ from: "bin/launcher.js", to: "bin/launcher.js" }],
 	apiModel: {
 		suppressWarnings: [{ messageId: "ae-forgotten-export", pattern: "_base" }],
 	},
