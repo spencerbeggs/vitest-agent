@@ -23,78 +23,26 @@
  * @packageDocumentation
  */
 
-import { mkdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { Command, Options } from "@effect/cli";
 import { NodeContext } from "@effect/platform-node";
 import { Cause, Chunk, Effect, Option } from "effect";
-import { ProjectIdentityNotResolvableError, resolveProjectKeyFromCwd } from "vitest-agent-sdk";
+import { resolveProjectKeyFromCwd } from "vitest-agent-sdk";
 import { SidecarLive } from "../layers/SidecarLive.js";
 import { endAgentEffect } from "../lib/internal-end-agent.js";
 import { injectEnv } from "../lib/internal-inject-env.js";
 import { registerAgentEffect } from "../lib/internal-register-agent.js";
+import {
+	DATA_DB_FILENAME,
+	REGISTRY_DB_FILENAME,
+	exitCodeForTag,
+	resolveProjectDataDir,
+	resolveRegistryDir,
+	resolveSessionMapPath,
+} from "../lib/sidecar-paths.js";
 import { recordCommand } from "./record.js";
 import { triageCommand } from "./triage.js";
 import { wrapupCommand } from "./wrapup.js";
-
-const SESSIONS_DB_FILENAME = "sessions.db";
-const REGISTRY_DB_FILENAME = "registry.db";
-const DATA_DB_FILENAME = "data.db";
-const APP_NAMESPACE = "vitest-agent";
-
-const resolveXdgDataHome = (): string => {
-	const xdg = process.env.XDG_DATA_HOME;
-	if (xdg !== undefined && xdg.length > 0) return xdg;
-	return join(homedir(), ".local", "share");
-};
-
-const resolveProjectDataDir = (projectKey: string): string => {
-	const dir = join(resolveXdgDataHome(), APP_NAMESPACE, projectKey);
-	mkdirSync(dir, { recursive: true });
-	return dir;
-};
-
-const resolveRegistryDir = (): string => {
-	const dir = join(resolveXdgDataHome(), APP_NAMESPACE);
-	mkdirSync(dir, { recursive: true });
-	return dir;
-};
-
-const resolveSessionMapPath = (): Effect.Effect<string, ProjectIdentityNotResolvableError> =>
-	Effect.sync(() => {
-		const claudePluginData = process.env.CLAUDE_PLUGIN_DATA;
-		if (claudePluginData !== undefined && claudePluginData.length > 0) {
-			mkdirSync(claudePluginData, { recursive: true });
-			return join(claudePluginData, SESSIONS_DB_FILENAME);
-		}
-		const overrideDir = process.env.VITEST_AGENT_SESSION_MAP_DIR;
-		if (overrideDir !== undefined && overrideDir.length > 0) {
-			mkdirSync(overrideDir, { recursive: true });
-			return join(overrideDir, SESSIONS_DB_FILENAME);
-		}
-		const home = process.env.HOME ?? process.env.USERPROFILE;
-		if (home === undefined || home.length === 0) {
-			return null;
-		}
-		const fallbackDir = join(home, ".vitest-agent");
-		mkdirSync(fallbackDir, { recursive: true });
-		return join(fallbackDir, SESSIONS_DB_FILENAME);
-	}).pipe(
-		Effect.flatMap((path) =>
-			path !== null
-				? Effect.succeed(path)
-				: Effect.fail(
-						new ProjectIdentityNotResolvableError({
-							tried: [
-								{ source: "CLAUDE_PLUGIN_DATA", reason: "env var not set" },
-								{ source: "VITEST_AGENT_SESSION_MAP_DIR", reason: "env var not set" },
-								{ source: "HOME", reason: "env var not set (USERPROFILE also unset)" },
-							],
-						}),
-					),
-		),
-	);
 
 const writeStdout = (line: string): Effect.Effect<void> =>
 	Effect.sync(() => {
@@ -120,21 +68,6 @@ const mapDefectToExit = (cause: Cause.Cause<unknown>): Effect.Effect<never> => {
 	const defect = defects[0];
 	const message = defect instanceof Error ? defect.message : String(defect ?? "unknown defect");
 	return writeStderrAndExit(5, "Defect", message);
-};
-
-const exitCodeForTag = (tag: string): number => {
-	switch (tag) {
-		case "RegistrationConflictError":
-			return 1;
-		case "SidecarTimeoutError":
-			return 2;
-		case "DataStoreError":
-			return 3;
-		case "ProjectIdentityNotResolvableError":
-			return 4;
-		default:
-			return 5;
-	}
 };
 
 // register-agent --------------------------------------------------------------

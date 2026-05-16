@@ -20,7 +20,14 @@
 	"fixed": [
 		["vitest-agent-plugin", "vitest-agent-reporter", "vitest-agent-sdk", "vitest-agent-cli", "vitest-agent-mcp"]
 	],
-	"ignore": ["playground"],
+	"ignore": [
+		"playground",
+		"vitest-agent-sidecar-darwin-arm64",
+		"vitest-agent-sidecar-darwin-x64",
+		"vitest-agent-sidecar-linux-arm64",
+		"vitest-agent-sidecar-linux-x64",
+		"vitest-agent-sidecar-win32-x64"
+	],
 	"privatePackages": {
 		"tag": true,
 		"version": true

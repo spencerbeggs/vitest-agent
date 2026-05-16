@@ -1,0 +1,20 @@
+{
+	"name": "vitest-agent-sidecar-linux-arm64",
+	"version": "0.0.0",
+	"private": true,
+	"description": "linux-arm64 prebuilt binary for vitest-agent-sidecar.",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/spencerbeggs/vitest-agent.git",
+		"directory": "packages/sidecar-linux-arm64"
+	},
+	"license": "MIT",
+	"author": {
+		"name": "C. Spencer Beggs",
+		"email": "spencer@beggs.codes",
+		"url": "https://spencerbeg.gs"
+	},
+	"files": ["bin/vitest-agent-sidecar"],
+	"os": ["linux"],
+	"cpu": ["arm64"]
+}

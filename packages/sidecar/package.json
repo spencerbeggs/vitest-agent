@@ -1,0 +1,76 @@
+{
+	"name": "vitest-agent-sidecar",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Fast-path native binary for vitest-agent. Ships a Node SEA executable that handles the per-Bash-call inject-env and register-agent hot paths.",
+	"keywords": ["vitest", "agent", "sidecar", "sea", "binary"],
+	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
+	"bugs": {
+		"url": "https://github.com/spencerbeggs/vitest-agent/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/spencerbeggs/vitest-agent.git",
+		"directory": "packages/sidecar"
+	},
+	"license": "MIT",
+	"author": {
+		"name": "C. Spencer Beggs",
+		"email": "spencer@beggs.codes",
+		"url": "https://spencerbeg.gs"
+	},
+	"type": "module",
+	"bin": {
+		"vitest-agent-sidecar": "./bin/launcher.js"
+	},
+	"scripts": {
+		"build:dev": "tsdown --config tsdown.config.ts",
+		"build:prod": "VITEST_AGENT_SIDECAR_EXE=1 tsdown --config tsdown.config.ts",
+		"types:check": "tsgo --noEmit"
+	},
+	"dependencies": {
+		"@effect/platform": "catalog:silk",
+		"@effect/platform-node": "catalog:silk",
+		"@effect/sql": "catalog:silk",
+		"@effect/sql-sqlite-node": "catalog:silk",
+		"effect": "catalog:silk",
+		"vitest-agent-cli": "workspace:*",
+		"vitest-agent-sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"@savvy-web/rslib-builder": "^0.20.3",
+		"@tsdown/exe": "latest",
+		"@types/node": "catalog:silk",
+		"@vitest/coverage-v8": "^4.1.6",
+		"tsdown": "latest",
+		"vitest": "^4.1.6"
+	},
+	"optionalDependencies": {
+		"vitest-agent-sidecar-darwin-arm64": "workspace:*",
+		"vitest-agent-sidecar-darwin-x64": "workspace:*",
+		"vitest-agent-sidecar-linux-arm64": "workspace:*",
+		"vitest-agent-sidecar-linux-x64": "workspace:*",
+		"vitest-agent-sidecar-win32-x64": "workspace:*"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist/dev",
+		"linkDirectory": true,
+		"targets": [
+			{
+				"protocol": "npm",
+				"registry": "https://npm.pkg.github.com/",
+				"directory": "dist/github",
+				"access": "public",
+				"provenance": true
+			},
+			{
+				"protocol": "npm",
+				"registry": "https://registry.npmjs.org/",
+				"directory": "dist/npm",
+				"access": "public",
+				"provenance": true
+			}
+		]
+	}
+}
