@@ -24,7 +24,7 @@
  * @packageDocumentation
  */
 
-import { access, copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /** A published dist variant. */
@@ -93,20 +93,10 @@ export const sidecarDist =
 		const binaryName = isWindows ? "vitest-agent-sidecar.exe" : "vitest-agent-sidecar";
 
 		// 1. tsdown appends -<platform>-<arch> to the SEA file name when
-		//    `targets` is set; rename it to the bare published name. The
-		//    rename is best-effort: if the source is already gone but the
-		//    destination exists, a prior build already renamed it — that
-		//    is fine, just proceed.
+		//    `targets` is set; rename it to the bare published name.
 		const builtName = `vitest-agent-sidecar-${opts.platform}-${opts.arch}${isWindows ? ".exe" : ""}`;
 		const finalBinary = join(cwd, "bin", binaryName);
-		try {
-			await rename(join(cwd, "bin", builtName), finalBinary);
-		} catch (err: unknown) {
-			const nodeErr = err as NodeJS.ErrnoException;
-			if (nodeErr.code !== "ENOENT") throw err;
-			// Source is gone — verify the destination exists (concurrent rename won).
-			await access(finalBinary);
-		}
+		await rename(join(cwd, "bin", builtName), finalBinary);
 
 		// 2. Emit the three dist variants.
 		const manifest = JSON.parse(await readFile(join(cwd, "package.json"), "utf8")) as Record<string, unknown>;
