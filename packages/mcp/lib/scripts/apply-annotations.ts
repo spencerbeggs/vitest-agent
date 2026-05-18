@@ -14,7 +14,7 @@
 // Usage: pnpm exec tsx packages/mcp/lib/scripts/apply-annotations.ts
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { NodeRuntime } from "@effect/platform-node";
 import { Console, Effect } from "effect";

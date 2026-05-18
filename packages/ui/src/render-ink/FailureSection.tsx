@@ -7,7 +7,6 @@
 
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import * as React from "react";
 import type { FailureRecord } from "vitest-agent-sdk";
 
 export interface FailureSectionProps {

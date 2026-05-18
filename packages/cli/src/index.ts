@@ -12,6 +12,23 @@
  */
 
 export { CliLive } from "./layers/CliLive.js";
+export { SidecarLive, type SidecarPaths } from "./layers/SidecarLive.js";
+export { type InjectEnvInput, injectEnv } from "./lib/internal-inject-env.js";
+export {
+	type RegisterAgentInput,
+	type RegisterAgentOutput,
+	registerAgentEffect,
+} from "./lib/internal-register-agent.js";
+export { type DispatchResult, dispatch } from "./lib/sidecar-dispatch.js";
+export {
+	DATA_DB_FILENAME,
+	REGISTRY_DB_FILENAME,
+	SESSIONS_DB_FILENAME,
+	exitCodeForTag,
+	resolveProjectDataDir,
+	resolveRegistryDir,
+	resolveSessionMapPath,
+} from "./lib/sidecar-paths.js";
 
 // --- Cross-package version constant (T12 drift check) ---
 /**

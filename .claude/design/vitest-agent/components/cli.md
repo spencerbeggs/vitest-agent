@@ -13,6 +13,7 @@ related:
   - ./sdk.md
   - ./mcp.md
   - ./plugin-claude.md
+  - ./sidecar.md
   - ./ui.md
 dependencies: []
 ---
@@ -100,6 +101,8 @@ The group composes six subcommands:
 | `inject-env` | PreToolUse Bash hook | Pure command-rewriter — prepends the `VITEST_AGENT_*` env prefix when the command invokes Vitest, echoes it unchanged otherwise. |
 
 `triage` and `wrapup` keep their `--format markdown|json|silent` axis (the only commands that do — `db query` has its own `--format table|json` axis, everything else emits plain stdout text by convention). `record` and the three sidecar subcommands (`register-agent`, `end-agent`, `inject-env`) relocated under `agent` without body changes; the sidecar bodies still live in `lib/internal-*.ts` (filename prefix retained). The `lib/format-triage.ts` and `lib/format-wrapup.ts` formatters are shared verbatim with the MCP tools `triage_brief` and `wrapup_prompt`, so CLI and MCP outputs are byte-identical.
+
+**Single-source-of-truth for the sidecar package.** Workstream T9.2 added `vitest-agent-sidecar`, a native binary that runs `inject-env` on the per-Bash hot path (see [./sidecar.md](./sidecar.md)). To keep its logic from forking, T9.2 extracted reusable path-resolution and exit-code helpers from `commands/agent.ts` into `packages/cli/src/lib/sidecar-paths.ts`, and `packages/cli/src/index.ts` re-exports `injectEnv`, `registerAgentEffect`, `SidecarLive` and those helpers. The sidecar package consumes `injectEnv` from this CLI surface rather than re-implementing the rewrite; the JS-CLI `agent inject-env` path is also the byte-identical fallback the Bash hook uses when the binary is absent. `register-agent` stays JS-only — its native SQLite binding cannot be bundled into a SEA.
 
 The sidecar subcommands return plain text on stdout for the bash hooks to parse, and structured error info on stderr in the shape `<exit_code> <error_tag>: <message>`. Exit codes follow a fixed contract: `0` success, `1` registration conflict, `2` sidecar timeout, `3` database error, `4` `ProjectIdentityNotResolvableError`, `5` unexpected defect. They resolve all three SQLite store paths from env at invocation time (per-project `data.db`, per-client `sessions.db`, registry `registry.db`) and `mkdirSync` every parent dir before SQLite opens. Path resolution does not depend on workspace-discovery, so the sidecar works in non-pnpm-workspace project shapes.
 

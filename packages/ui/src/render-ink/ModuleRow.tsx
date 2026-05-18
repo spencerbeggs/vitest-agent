@@ -6,7 +6,6 @@
 
 import { Box } from "ink";
 import type { FC } from "react";
-import * as React from "react";
 import type { ModuleRecord } from "vitest-agent-sdk";
 import { ModuleHeader } from "./ModuleHeader.js";
 import { TestRow } from "./TestRow.js";

@@ -6,7 +6,6 @@
 
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import * as React from "react";
 import type { ModuleRecord } from "vitest-agent-sdk";
 import type { StatusIconKind } from "./StatusIcon.js";
 import { StatusIcon } from "./StatusIcon.js";

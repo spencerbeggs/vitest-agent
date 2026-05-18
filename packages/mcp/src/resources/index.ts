@@ -153,7 +153,7 @@ export function registerAllResources(server: McpServer): void {
 			mimeType: "text/markdown",
 		},
 		async (uri, variables) => {
-			const path = variables["path"];
+			const path = variables.path;
 			const relative = Array.isArray(path) ? path.join("/") : String(path);
 			const result = await readUpstreamDoc(vendorRoot, relative);
 			return {
@@ -202,7 +202,7 @@ export function registerAllResources(server: McpServer): void {
 			mimeType: "text/markdown",
 		},
 		async (uri, variables) => {
-			const slug = variables["slug"];
+			const slug = variables.slug;
 			const slugStr = Array.isArray(slug) ? slug[0] : String(slug);
 			const result = await readPattern(patternsRoot, slugStr);
 			return {

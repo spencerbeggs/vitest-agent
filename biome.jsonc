@@ -1,4 +1,19 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
-	"extends": ["@savvy-web/lint-staged/biome/silk.jsonc"]
+	"$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+	"extends": ["@savvy-web/lint-staged/biome/silk.jsonc"],
+	"overrides": [
+		{
+			// `!` non-null assertions are idiomatic in test fixtures the
+			// test itself constructs and fully controls. The rule stays
+			// enforced for src/.
+			"includes": ["**/__test__/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noNonNullAssertion": "off"
+					}
+				}
+			}
+		}
+	]
 }

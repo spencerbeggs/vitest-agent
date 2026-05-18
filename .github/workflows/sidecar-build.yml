@@ -1,0 +1,191 @@
+name: Sidecar Build
+
+# Build-once / smoke-everywhere verification for vitest-agent-sidecar.
+#
+# tsdown's `exe` mode cross-compiles a Node Single Executable
+# Application for any target from a single host: @tsdown/exe downloads
+# the target's Node runtime and postject-injects the bundle, neither of
+# which needs the host arch to match. So all five
+# vitest-agent-sidecar-<platform> binaries are built on one macOS
+# runner.
+#
+# A second matrix then downloads each binary onto its own NATIVE runner
+# and smoke-tests it — proving the cross-built artifact actually runs on
+# the platform it targets. The smoke legs run only the prebuilt binary:
+# no checkout, no Node, no pnpm, no runtime setup.
+#
+# Publishing the five vitest-agent-sidecar-<platform> sub-packages to
+# npm and GitHub Packages is wired into the Wave 4 release flow, not
+# this workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/sidecar/**"
+      - "packages/sidecar-*/**"
+      - "packages/cli/src/**"
+      - ".github/workflows/sidecar-build.yml"
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "packages/sidecar/**"
+      - "packages/sidecar-*/**"
+      - "packages/cli/src/**"
+      - ".github/workflows/sidecar-build.yml"
+
+concurrency:
+  group: sidecar-build-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build all SEA binaries
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Runtime
+        uses: savvy-web/workflow-runtime-action@main
+
+      - name: Build every sidecar binary
+        # tsdown's `exe` mode cross-compiles each target from this one
+        # macOS host; @tsdown/exe caches the downloaded target Node per
+        # platform so the five builds never collide. turbo builds
+        # vitest-agent-cli and vitest-agent-sdk first.
+        run: pnpm turbo run build:prod --filter='vitest-agent-sidecar-*'
+
+      - name: Assert dist publish manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for platform in darwin-arm64 darwin-x64 linux-arm64 linux-x64 win32-x64; do
+            for variant in github npm; do
+              manifest="packages/sidecar-${platform}/dist/${variant}/package.json"
+              test -f "$manifest" || { echo "::error::missing $manifest"; exit 1; }
+              for field in devDependencies scripts publishConfig packageManager devEngines; do
+                if jq -e --arg f "$field" 'has($f)' "$manifest" >/dev/null; then
+                  echo "::error::$manifest still has .$field"; exit 1
+                fi
+              done
+              [ "$(jq -r '.private' "$manifest")" = "false" ] || { echo "::error::$manifest .private is not false"; exit 1; }
+              name=$(jq -r '.name' "$manifest")
+              case "$variant" in
+                github) case "$name" in @spencerbeggs/*) ;; *) echo "::error::$manifest github name not scoped: $name"; exit 1;; esac ;;
+                npm)    case "$name" in @spencerbeggs/*) echo "::error::$manifest npm name wrongly scoped: $name"; exit 1;; *) ;; esac ;;
+              esac
+            done
+          done
+          echo "dist publish manifests OK"
+
+      - name: Upload darwin-arm64 binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: sidecar-darwin-arm64
+          path: packages/sidecar-darwin-arm64/dist/npm/bin/vitest-agent-sidecar
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload linux-arm64 binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: sidecar-linux-arm64
+          path: packages/sidecar-linux-arm64/dist/npm/bin/vitest-agent-sidecar
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload linux-x64 binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: sidecar-linux-x64
+          path: packages/sidecar-linux-x64/dist/npm/bin/vitest-agent-sidecar
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload win32-x64 binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: sidecar-win32-x64
+          path: packages/sidecar-win32-x64/dist/npm/bin/vitest-agent-sidecar.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke:
+    name: Smoke ${{ matrix.platform }}
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-26
+            binary: vitest-agent-sidecar
+          - platform: linux-x64
+            runner: ubuntu-24.04
+            binary: vitest-agent-sidecar
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+            binary: vitest-agent-sidecar
+          - platform: win32-x64
+            runner: windows-2025
+            binary: vitest-agent-sidecar.exe
+    steps:
+      - name: Download ${{ matrix.platform }} binary
+        uses: actions/download-artifact@v7
+        with:
+          name: sidecar-${{ matrix.platform }}
+          path: ./sidecar-bin
+
+      - name: Smoke-test the binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="./sidecar-bin/${{ matrix.binary }}"
+          chmod +x "$binary" 2>/dev/null || true
+
+          # 1. inject-env rewrites a Vitest command with the env prefix.
+          export VITEST_AGENT_CONVERSATION_ID=c1
+          export VITEST_AGENT_AGENT_ID=a1
+          rewritten=$("$binary" inject-env --command "vitest run" --cwd .)
+          expected="VITEST_AGENT_CONVERSATION_ID=c1 VITEST_AGENT_AGENT_ID=a1 vitest run"
+          if [ "$rewritten" != "$expected" ]; then
+            echo "::error::inject-env rewrite mismatch on ${{ matrix.platform }}"
+            echo "  expected: $expected"
+            echo "  actual:   $rewritten"
+            exit 1
+          fi
+
+          # 2. inject-env leaves a non-Vitest command unchanged.
+          passthrough=$("$binary" inject-env --command "ls -la" --cwd .)
+          if [ "$passthrough" != "ls -la" ]; then
+            echo "::error::inject-env passthrough mismatch on ${{ matrix.platform }}"
+            echo "  actual: $passthrough"
+            exit 1
+          fi
+
+          # 3. An unknown subcommand exits 5 with the stderr contract shape.
+          set +e
+          err=$("$binary" frobnicate 2>&1 >/dev/null)
+          code=$?
+          set -e
+          if [ "$code" -ne 5 ]; then
+            echo "::error::unknown-subcommand exit code was $code, expected 5"
+            exit 1
+          fi
+          case "$err" in
+            "5 Defect: unknown subcommand: frobnicate"*) ;;
+            *)
+              echo "::error::unknown-subcommand stderr mismatch: $err"
+              exit 1
+              ;;
+          esac
+
+          echo "${{ matrix.platform }} smoke passed"

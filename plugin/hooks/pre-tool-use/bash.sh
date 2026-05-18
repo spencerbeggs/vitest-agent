@@ -19,26 +19,62 @@
 
 set -euo pipefail
 
+# Hoist dirname: compute once, reuse across all four lib sources.
+# Avoids three extra dirname forks on every hook invocation.
+_HOOK_DIR="$(dirname "$0")"
+
 # shellcheck source=../lib/hook-output.sh
-. "$(dirname "$0")/../lib/hook-output.sh"
+. "$_HOOK_DIR/../lib/hook-output.sh"
 # shellcheck source=../lib/hook-debug.sh
-. "$(dirname "$0")/../lib/hook-debug.sh"
+. "$_HOOK_DIR/../lib/hook-debug.sh"
 # shellcheck source=../lib/detect-pm.sh
-. "$(dirname "$0")/../lib/detect-pm.sh"
+. "$_HOOK_DIR/../lib/detect-pm.sh"
 
 _HOOK="pre-tool-use-bash"
 
 hook_json=$(cat)
 
-session_id=$(jq -r '.session_id // ""' <<< "$hook_json")
-command_raw=$(jq -r '.tool_input.command // ""' <<< "$hook_json")
-description=$(jq -r '.tool_input.description // ""' <<< "$hook_json")
-timeout=$(jq -r '.tool_input.timeout // 120000' <<< "$hook_json")
-run_in_background=$(jq -r '.tool_input.run_in_background // false' <<< "$hook_json")
-cwd=$(jq -r '.cwd // ""' <<< "$hook_json")
+# Single jq invocation for all six payload fields.
+# command and description are base64-encoded because they can contain
+# arbitrary bytes (newlines, tabs, quotes, $) that would break a plain
+# newline-delimited read.  The four scalar fields (session_id, timeout,
+# run_in_background, cwd) are safe to read as plain text lines.
+# read returns 1 at EOF without a trailing newline; || true guards set -e.
+{
+	IFS= read -r session_id        || true
+	IFS= read -r _b64_command      || true
+	IFS= read -r _b64_description  || true
+	IFS= read -r timeout           || true
+	IFS= read -r run_in_background || true
+	IFS= read -r cwd               || true
+} < <(jq -r '
+  (.session_id // ""),
+  ((.tool_input.command // "") | @base64),
+  ((.tool_input.description // "") | @base64),
+  (.tool_input.timeout // 120000 | tostring),
+  (.tool_input.run_in_background // false | tostring),
+  (.cwd // "")
+' <<< "$hook_json")
+command_raw=$(printf '%s' "$_b64_command"     | base64 --decode)
+description=$(printf '%s' "$_b64_description" | base64 --decode)
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$cwd}"
 
 if [ -z "$command_raw" ] || [ -z "$PROJECT_DIR" ]; then
+	emit_noop
+	exit 0
+fi
+
+# Layer 0: bash regex prefilter — skips the sidecar when the command
+# does not appear to invoke Vitest (~80–90% of Bash calls). Matches
+# the bare vitest runner, conventional test-named PM scripts, and the
+# node bin path. Scripts whose vitest invocation is hidden under a
+# non-test name (e.g. `pnpm run ci`, `pnpm run check`) are a
+# deliberate speed-vs-completeness gap: only the sidecar's
+# detectVitestScripts reads package.json and catches those. False
+# positives (non-Vitest commands that happen to match) are acceptable —
+# Layer 2 gates correctness.
+SIDECAR_PREFILTER_RE='(^|[[:space:]/])vitest([[:space:]/]|$)|(^|[[:space:]&|;])(npm|pnpm|yarn|bun|npx)([[:space:]]+(run|exec|x))?[[:space:]]+test([s]?|[:_-][a-z0-9_-]+)?([[:space:]]|$)|node[[:space:]]+([^[:space:]]+/)?(vitest|node_modules/\.bin/vitest)'
+if ! [[ "$command_raw" =~ $SIDECAR_PREFILTER_RE ]]; then
 	emit_noop
 	exit 0
 fi
@@ -47,16 +83,42 @@ fi
 # exports (VITEST_AGENT_CHAT_ID, _CONVERSATION_ID, _MAIN_AGENT_ID,
 # _AGENT_ID). Hook subprocesses do NOT get auto-source per the docs.
 # shellcheck source=../lib/source-session-env.sh
-. "$(dirname "$0")/../lib/source-session-env.sh"
+. "$_HOOK_DIR/../lib/source-session-env.sh"
 if [ -n "$session_id" ]; then
 	source_session_env "$session_id"
 fi
 
-# Shell out to the sidecar. The sidecar reads VITEST_AGENT_* from env
-# and decides whether to rewrite the command.
-pm_exec=$(detect_pm_exec "$PROJECT_DIR")
-# shellcheck disable=SC2086
-rewritten=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) || rewritten="$command_raw"
+# Layer 1: skip the sidecar when the active agent IS the main agent.
+# The auto-sourced VITEST_AGENT_* env is already correct for the
+# spawned Vitest process; only subagent-triggered Bash needs the
+# prefix rewrite. Falls through (does NOT skip) when either var is
+# unset — better to pay the sidecar than silently drop attribution.
+if [ -n "${VITEST_AGENT_AGENT_ID:-}" ] \
+	&& [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ] \
+	&& [ "$VITEST_AGENT_AGENT_ID" = "$VITEST_AGENT_MAIN_AGENT_ID" ]; then
+	emit_noop
+	exit 0
+fi
+
+# Layer 2: prefer the native sidecar binary; fall back to the JS CLI.
+# `command -v` is a cheap builtin (no fork). When the per-platform
+# vitest-agent-sidecar optionalDependency is installed it is on PATH
+# and runs directly — no PM wrapper, no Node cold-start. When it is
+# absent (unsupported platform, or the optional dep was skipped) the
+# JS CLI path is byte-identical, just slower.
+sidecar_bin=""
+if command -v vitest-agent-sidecar >/dev/null 2>&1; then
+	sidecar_bin="vitest-agent-sidecar"
+fi
+if [ -n "$sidecar_bin" ]; then
+	rewritten=$("$sidecar_bin" inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) \
+		|| rewritten="$command_raw"
+else
+	pm_exec=$(detect_pm_exec "$PROJECT_DIR")
+	# shellcheck disable=SC2086
+	rewritten=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) \
+		|| rewritten="$command_raw"
+fi
 
 if [ -z "$rewritten" ] || [ "$rewritten" = "$command_raw" ]; then
 	# No rewrite needed — pass through.

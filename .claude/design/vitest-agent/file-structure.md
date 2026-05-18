@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-14
-last-synced: 2026-05-14
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 90
 related:
   - ./architecture.md
@@ -25,21 +25,26 @@ reporter contract) see [./components/](./components/).
 
 ## Repo layout
 
-Source lives in six pnpm workspaces under `packages/`, plus the file-based
-Claude Code plugin at `plugin/` (NOT a workspace) and the `examples/`
-integration target.
+Source lives in seven pnpm workspaces under `packages/` (plus four
+per-platform sidecar sub-packages) and the file-based Claude Code plugin at
+`plugin/` (NOT a workspace).
 
 ```text
 packages/
   sdk/         vitest-agent-sdk (no internal deps; owns RunEvent + RenderState schemas)
-  plugin/      vitest-agent-plugin (depends on sdk; reporter+cli+mcp peer; streaming hooks + onRunEvent tap)
+  plugin/      vitest-agent-plugin (depends on sdk; reporter+cli+mcp+sidecar peer; streaming hooks + onRunEvent tap)
   reporter/    vitest-agent-reporter (depends on sdk + ui; "build your own reporter" SDK — contract re-exports + dispatcher-input helpers)
   ui/          vitest-agent-ui (depends on sdk; reducer + shape-tailored dispatcher matrix + preassembled _defaultReporter + internal _createLiveInk)
   cli/         vitest-agent-cli (bin: vitest-agent; show command routes through ui)
   mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; spawned by plugin)
+  sidecar/     vitest-agent-sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts re-exports dispatch/injectEnv from cli; no bin)
+  sidecar-darwin-arm64/  per-platform binary sub-package (os: darwin, cpu: arm64)
+  sidecar-linux-arm64/   per-platform binary sub-package (os: linux, cpu: arm64)
+  sidecar-linux-x64/     per-platform binary sub-package (os: linux, cpu: x64)
+  sidecar-win32-x64/     per-platform binary sub-package (os: win32, cpu: x64)
 
-examples/
-  basic/       minimal example app (5th Vitest project)
+lib/
+  configs/     repo-root build/tooling config helpers (NOT a workspace)
 
 plugin/        file-based Claude Code plugin (NOT a pnpm workspace)
   .claude-plugin/plugin.json    inline mcpServers config
@@ -56,10 +61,20 @@ plugin/        file-based Claude Code plugin (NOT a pnpm workspace)
   plans/                        implementation plans
 ```
 
-Each `packages/<name>/` follows the standard layout: `src/` for source,
-`__test__/` for test files (flat layout, not co-located with source), `lib/`
-for build/maintenance scripts where applicable, `dist/dev/` and `dist/npm/`
-produced by `@savvy-web/rslib-builder`.
+Each primary `packages/<name>/` follows the standard layout: `src/` for
+source, `__test__/` for test files (flat layout, not co-located with
+source), `lib/` for build/maintenance scripts where applicable, `dist/dev/`
+and `dist/npm/` produced by `@savvy-web/rslib-builder`. The parent
+`sidecar/` follows the standard rslib layout but ships only a single
+`src/index.ts` re-export entry — no tests. The four `sidecar-*` sub-packages
+depart from the standard layout: each carries a thin `src/bin.ts` runner
+plus its own `lib/scripts/tsdown.ts` programmatic build script and builds a
+Node SEA binary into `bin/` with tsdown's `exe` mode rather than
+rslib-builder (see [./components/sidecar.md](./components/sidecar.md)) — no
+`__test__/`. The per-child `lib/scripts/tsdown.ts` script selects its mode
+from the npm lifecycle event: `build:dev` emits `dist/dev`, `build:prod`
+emits `dist/npm` and `dist/github` — each variant directory holding the SEA
+binary plus a publish-cleaned `package.json`.
 
 The `mcp` package additionally vendors content under `src/`:
 

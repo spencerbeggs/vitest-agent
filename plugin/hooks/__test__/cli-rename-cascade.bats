@@ -99,7 +99,11 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "pre-tool-use/bash.sh calls 'agent inject-env'" {
-    run bash -c "cat '${FIXTURES_DIR}/pre-tool-use-bash.json' | \
+    # Strip ambient VITEST_AGENT_AGENT_ID / VITEST_AGENT_MAIN_AGENT_ID so
+    # Layer 1 (main-agent identity skip, added in T9.2) does not fire and
+    # suppress the sidecar call before it happens.
+    run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        bash -c "cat '${FIXTURES_DIR}/pre-tool-use-bash.json' | \
         bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     local argv

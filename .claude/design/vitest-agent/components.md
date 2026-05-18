@@ -3,19 +3,27 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 90
 related:
   - ./architecture.md
   - ./decisions.md
   - ./data-structures.md
+  - ./components/sdk.md
+  - ./components/plugin.md
+  - ./components/reporter.md
+  - ./components/ui.md
+  - ./components/cli.md
+  - ./components/mcp.md
+  - ./components/sidecar.md
+  - ./components/plugin-claude.md
 dependencies: []
 ---
 
 # Components — `vitest-agent`
 
-The system ships as six pnpm workspaces under `packages/` plus a file-based
+The system ships as seven pnpm workspaces under `packages/` plus a file-based
 Claude Code plugin at `plugin/`. This document is an index — load the
 sub-file for the package you're working on.
 
@@ -31,6 +39,7 @@ sub-file for the package you're working on.
 | [./components/ui.md](./components/ui.md) | event-sourced renderer: `RunEvent` reducer, shape-tailored dispatcher matrix and its 12 cells, L1 MCP tool-pointer footer, preassembled `_defaultReporter`, internal `_createLiveInk` live mount, `RunEventChannel` PubSub, synthesizers |
 | [./components/cli.md](./components/cli.md) | CLI commands (including `show` which routes through `vitest-agent-ui`), the `record` subcommand and its hook-driven actions, `CliLive` |
 | [./components/mcp.md](./components/mcp.md) | MCP tools, idempotency middleware, channel-event resolution, MCP resources, MCP prompts, the snapshot maintenance pipeline, `McpLive` |
+| [./components/sidecar.md](./components/sidecar.md) | the `vitest-agent-sidecar` SEA binary for the per-Bash `inject-env` hot path, tsdown `exe` build, per-platform `optionalDependencies`, the binary-vs-JS-fallback contract |
 | [./components/plugin-claude.md](./components/plugin-claude.md) | the Claude Code plugin: hooks, the TDD orchestrator agent, skills, slash commands, the dogfood system, the MCP loader |
 
 Each sub-file is self-contained for its package and cross-references

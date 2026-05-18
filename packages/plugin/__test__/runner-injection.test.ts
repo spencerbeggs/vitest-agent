@@ -51,7 +51,7 @@ function runVitest(dir: string, extraArgs: string[]): string {
 	} catch (err: unknown) {
 		// execSync throws on non-zero exit; capture stdout from the error.
 		const e = err as { stdout?: string; stderr?: string };
-		return (e.stdout ?? "") + "\n" + (e.stderr ?? "");
+		return `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
 	}
 }
 

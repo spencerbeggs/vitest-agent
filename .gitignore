@@ -54,3 +54,7 @@ packages/mcp/lib/vitest-docs-raw/
 # reproducible from the memo's prose and not tracked in git.
 spike/
 .claude/scheduled_tasks.lock
+
+# Per-platform vitest-agent-sidecar SEA binaries — built by CI, shipped
+# inside the published sub-package, never committed to git.
+packages/sidecar-*/bin/

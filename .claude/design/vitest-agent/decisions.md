@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 100
 related:
   - ./architecture.md
@@ -14,6 +14,7 @@ related:
   - ./components/cli.md
   - ./components/mcp.md
   - ./components/plugin-claude.md
+  - ./components/sidecar.md
   - ./components/ui.md
   - ./data-structures.md
   - ./decisions-retired.md
@@ -1197,23 +1198,151 @@ prose and the `mcp` / `githubActions` derivation rules, and
 
 ### Decision 41: T6 Shape-Tailored Dispatcher Matrix
 
-The T6 UI rewrite replaced the pre-2.0 per-formatter pipeline (one factory per output format — `markdownReporter`, `jsonReporter`, `terminalReporter`, `silentReporter`, `ciAnnotationsReporter`, `githubSummaryReporter` plus the composing `defaultReporter`) with a single shape-tailored 4 × 3 dispatcher matrix. The plugin now owns the default reporter outright; users supply `AgentPlugin({ reporter })` only as a wholesale override.
+The T6 UI rewrite replaced the pre-2.0 per-formatter pipeline (one factory
+per output format — `markdownReporter`, `jsonReporter`, `terminalReporter`,
+`silentReporter`, `ciAnnotationsReporter`, `githubSummaryReporter` plus the
+composing `defaultReporter`) with a single shape-tailored 4 × 3 dispatcher
+matrix. The plugin now owns the default reporter outright; users supply
+`AgentPlugin({ reporter })` only as a wholesale override.
 
 **The four locked design choices.** Ratified against the spec at `docs/superpowers/specs/2.0-ui-rewrite.md`.
 
-**1. The plugin always emits events on the live stream; everything consumes the stream.** Pre-2.0 the system had two ingestion paths — `eventSourcedReporter` consumed `input.reports` at end-of-run while `createLiveInk()` subscribed per-event from the same plugin. Two ingestion paths from one upstream forced users to wire both a `reporter` factory and an `onRunEvent` tap to get the canonical experience. T6 collapses them: the plugin's internal `AgentReporter` is the sole upstream; the preassembled default reporter is one downstream subscriber; the user-facing `onRunEvent` is a parallel read-only tee. Live and batch ingestion both land at the same `RenderState` via `reduceRenderStateAll`.
+**1. The plugin always emits events on the live stream; everything consumes
+the stream.** Pre-2.0 the system had two ingestion paths —
+`eventSourcedReporter` consumed `input.reports` at end-of-run while
+`createLiveInk()` subscribed per-event from the same plugin. Two ingestion
+paths from one upstream forced users to wire both a `reporter` factory and
+an `onRunEvent` tap to get the canonical experience. T6 collapses them: the
+plugin's internal `AgentReporter` is the sole upstream; the preassembled
+default reporter is one downstream subscriber; the user-facing `onRunEvent`
+is a parallel read-only tee. Live and batch ingestion both land at the same
+`RenderState` via `reduceRenderStateAll`.
 
-**2. Output shape is selected by `(RunShape, RunOutcome)`, not by format flag.** The pre-2.0 approach always rendered the workspace table — wasteful for a single-test invocation, noisy for a large workspace. The dispatcher classifies the reduced state into one of four shapes (`single-test`, `single-file`, `single-project`, `workspace`) and one of three outcomes (`all-pass`, `some-fail`, `threshold-violation`) and selects one of 12 cell renderers. Each cell exposes two halves on the same object — an `agent(inputs, opts): string` for token-economy stdout and an `ink(inputs, opts): React.ReactElement` for the live mount. `single-test × threshold-violation` is a documented no-op so the matrix stays total without a default fallback.
+**2. Output shape is selected by `(RunShape, RunOutcome)`, not by format
+flag.** The pre-2.0 approach always rendered the workspace table — wasteful
+for a single-test invocation, noisy for a large workspace. The dispatcher
+classifies the reduced state into one of four shapes (`single-test`,
+`single-file`, `single-project`, `workspace`) and one of three outcomes
+(`all-pass`, `some-fail`, `threshold-violation`) and selects one of 12 cell
+renderers. Each cell exposes two halves on the same object — an
+`agent(inputs, opts): string` for token-economy stdout and an
+`ink(inputs, opts): React.ReactElement` for the live mount.
+`single-test × threshold-violation` is a documented no-op so the matrix
+stays total without a default fallback.
 
-**3. The default reporter is preassembled in `vitest-agent-ui` and the plugin imports it as the built-in.** `_defaultReporter` is exported with a leading underscore to mark its plugin-internal role; users never import a reporter or a live-mount factory. The plugin declares `vitest-agent-ui` as a workspace dependency. `vitest-agent-reporter` stays a separate package as the "build your own reporter" SDK — contract re-exports plus dispatcher-input helpers; this separation is locked for 2.0 (cross-workstream review §6) to keep React/Ink out of custom-reporter authors' dependency footprint.
+**3. The default reporter is preassembled in `vitest-agent-ui` and the
+plugin imports it as the built-in.** `_defaultReporter` is exported with a
+leading underscore to mark its plugin-internal role; users never import a
+reporter or a live-mount factory. The plugin declares `vitest-agent-ui` as a
+workspace dependency. `vitest-agent-reporter` stays a separate package as
+the "build your own reporter" SDK — contract re-exports plus
+dispatcher-input helpers; this separation is locked for 2.0 (cross-workstream
+review §6) to keep React/Ink out of custom-reporter authors' dependency
+footprint.
 
-**4. Each cell appends an L1 MCP tool-pointer footer.** The pre-2.0 output told the agent what happened but never pointed at the next action. The footer mapping is deterministic from the outcome class and dominant failure classification — `file_coverage` for all-pass with below-target files, `test_errors` plus `failure_signature_get` for new/persistent failures, `failure_signature_get` alone for flaky, `test_coverage` for threshold-violation only. The dominant-classification priority is `new-failure → persistent → flaky → recovered → stable`. This rides with the L1 layer of the Topic 9.3 "agents don't auto-use MCP tools" fix.
+**4. Each cell appends an L1 MCP tool-pointer footer.** The pre-2.0 output
+told the agent what happened but never pointed at the next action. The
+footer mapping is deterministic from the outcome class and dominant failure
+classification — `file_coverage` for all-pass with below-target files,
+`test_errors` plus `failure_signature_get` for new/persistent failures,
+`failure_signature_get` alone for flaky, `test_coverage` for
+threshold-violation only. The dominant-classification priority is
+`new-failure → persistent → flaky → recovered → stable`. This rides with the
+L1 layer of the Topic 9.3 "agents don't auto-use MCP tools" fix.
 
-**Trade-offs.** A 4 × 3 matrix is more authoring volume than one workspace template — 12 cells, two halves each, plus their snapshots. The decision favors output quality over template economy: a single-test failure does not need a six-row module table, and a workspace failure block scoped to the failing project beats six duplicated `Tests: …` blocks. The dispatcher is also more discoverable than the prior format-flag dispatch — agents reading the code see one table with deterministic routing rather than chasing a chain of format-aware factories. The cell shape is locked but the matrix itself is open: adding a new run shape or outcome means extending two enums in `packages/sdk/src/contracts/dispatcher.ts` and adding a row (or column) of cells; the dispatcher's table lookup stays a one-liner.
+**Trade-offs.** A 4 × 3 matrix is more authoring volume than one workspace
+template — 12 cells, two halves each, plus their snapshots. The decision
+favors output quality over template economy: a single-test failure does not
+need a six-row module table, and a workspace failure block scoped to the
+failing project beats six duplicated `Tests: …` blocks. The dispatcher is
+also more discoverable than the prior format-flag dispatch — agents reading
+the code see one table with deterministic routing rather than chasing a
+chain of format-aware factories. The cell shape is locked but the matrix
+itself is open: adding a new run shape or outcome means extending two enums
+in `packages/sdk/src/contracts/dispatcher.ts` and adding a row (or column)
+of cells; the dispatcher's table lookup stays a one-liner.
 
-**Tap forwarding semantics changed.** Pre-T6 the plugin gated the `onRunEvent` tap to `consoleMode === "ink"` to keep a live Ink mount from leaking into channels the user opted out of. T6 makes the live mount plugin-internal (the plugin instantiates `_createLiveInk` itself when the resolved mode is `ink`), so the gating is no longer necessary. The user-facing tap is now a stream-tee that fires for every console mode. Throwing user callbacks are caught and logged to stderr by `AgentReporter.emit`.
+**Tap forwarding semantics changed.** Pre-T6 the plugin gated the
+`onRunEvent` tap to `consoleMode === "ink"` to keep a live Ink mount from
+leaking into channels the user opted out of. T6 makes the live mount
+plugin-internal (the plugin instantiates `_createLiveInk` itself when the
+resolved mode is `ink`), so the gating is no longer necessary. The
+user-facing tap is now a stream-tee that fires for every console mode.
+Throwing user callbacks are caught and logged to stderr by
+`AgentReporter.emit`.
 
-**Cross-references:** the canonical spec at `docs/superpowers/specs/2.0-ui-rewrite.md`. See [./components/ui.md](./components/ui.md) for the dispatcher topology and cell helpers, [./components/plugin.md](./components/plugin.md) for the wiring on the plugin side, and [./components/reporter.md](./components/reporter.md) for the reduced "build your own reporter" SDK role. The pre-2.0 per-formatter pipeline (`defaultReporter`, `markdownReporter`, `_kit-context.ts` and the named factory siblings) was deleted in T6 phases 6–9.
+**Cross-references:** the canonical spec at
+`docs/superpowers/specs/2.0-ui-rewrite.md`. See
+[./components/ui.md](./components/ui.md) for the dispatcher topology and cell
+helpers, [./components/plugin.md](./components/plugin.md) for the wiring on
+the plugin side, and [./components/reporter.md](./components/reporter.md) for
+the reduced "build your own reporter" SDK role. The pre-2.0 per-formatter
+pipeline (`defaultReporter`, `markdownReporter`, `_kit-context.ts` and the
+named factory siblings) was deleted in T6 phases 6–9.
+
+### Decision 42: T9.2 Three-Layer Sidecar Performance Fix
+
+The PreToolUse Bash hook fires on every Bash tool call, and before T9.2 it
+unconditionally shelled out to the JS CLI's `inject-env` to detect Vitest
+invocations and rewrite the env prefix. That shell-out cost ~505 ms p95 of
+Node cold-start (the `effect` / `@effect/cli` / `@effect/sql-sqlite-node`
+module graph), paid on the inner loop of agent latency. The Phase 2 latency
+note floated a long-running daemon to amortize that cost. T9.2 rejected the
+daemon in favor of a cheaper layered prefilter, because re-reading the hook
+showed the work was mostly wasted: ~80–90% of Bash calls cannot invoke
+Vitest at all, and main-agent Vitest invocations already carry correct
+attribution in their auto-sourced environment. Only the residual ~2% —
+subagent-triggered Vitest — genuinely needs the rewrite.
+
+**The three layers.** Layer 0 is a POSIX-ERE regex matched against the raw
+command with bash's built-in `[[ =~ ]]` operator (no fork); a non-match
+emits a no-op and exits. Layer 1 compares `VITEST_AGENT_AGENT_ID` against
+`VITEST_AGENT_MAIN_AGENT_ID` after the session env is sourced and skips the
+sidecar when the active actor is the main agent. Layers 0 and 1 together
+eliminate the sidecar from ~98% of Bash calls. Layer 2 is the new
+`vitest-agent-sidecar` package — a native binary for the residual slow path.
+See [./components/plugin-claude.md](./components/plugin-claude.md) for the
+hook-level detail and [./components/sidecar.md](./components/sidecar.md) for
+the package.
+
+**Why a daemon was rejected.** A persistent daemon would have removed the
+cold-start but added a per-instance socket, a lifecycle to manage, and a
+coordination directory — heavyweight machinery for a problem that two
+near-free bash checks plus a binary on the ~2% path solve outright. The
+layered prefilter has no runtime process, no socket and no cleanup story; it
+is strictly cheaper to operate.
+
+**Why a tsdown SEA binary.** Layer 2's binary is built with tsdown's `exe`
+mode, which drives Node's Single Executable Application generation over a
+single-file bundle. tsdown is Rolldown-based and stays inside the Node
+ecosystem, avoiding the Bun/Node mixing pain of earlier spikes. The SEA
+binary runs the same `injectEnv` logic with no module-graph cold-start.
+tsdown's `exe` mode requires Node >= 25.7.0, so the repo's
+`devEngines.runtime` was bumped to 25.9.0.
+
+**Why `inject-env` only, with `register-agent` staying JS.** The binary
+handles `inject-env` and nothing else. `register-agent` pulls in a native
+SQLite binding (`@effect/sql-sqlite-node` → better-sqlite3) that cannot be
+bundled into a JavaScript SEA. It also fires only once per session, off the
+per-turn critical path, so the JS cold-start is tolerable there. Restoring
+`register-agent` to the binary by embedding the native binding per platform
+is a tracked 2.x follow-up.
+
+**Distribution and fallback.** The binary ships per-platform via four
+`optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild /
+sharp model). darwin-x64 is intentionally not shipped — see
+[./components/sidecar.md](./components/sidecar.md). The hook detects the
+binary with a `command -v` probe and falls back to the JS CLI —
+byte-identical output — when it is absent, so an unsupported platform or a
+skipped optional dependency degrades gracefully rather than breaking
+attribution.
+
+**Measured outcome.** Post-fix the hot path is ~16 ms p95 (was ~535 ms
+including hook plumbing) and the subagent-binary path is ~88 ms p95. The
+hook's payload parsing was also tightened — six `jq` forks to one, four
+`dirname` forks to one. Full numbers and the launch-gate analysis are in
+`.claude/notes/phase-3-sidecar-latency.md`; the implementation spec is
+`docs/superpowers/specs/2.0-sidecar-perf.md`.
 
 ### Decision D9: Last Drop-and-Recreate Migration
 
@@ -1570,13 +1699,15 @@ The sidecar binary is a hidden subcommand namespace of the existing
 release. The plugin's `bin/vitest-agent` is a shim into the
 installed CLI.
 
-**Performance constraint:** Node cold-start (≈150ms) is acceptable
-for SessionStart and SubagentStart (one-shot per session/subagent)
-but unacceptable for PreToolUse Bash interception (fires on every
-Bash tool call). PreToolUse uses a **long-running daemon** transport
-that the SessionStart hook launches; PreToolUse hooks contact it via
-a Unix-domain socket. The daemon socket lives in a per-instance
-coordination directory (see Decision D18).
+**Performance constraint:** Node cold-start is acceptable for
+SessionStart and SubagentStart (one-shot per session/subagent) but
+unacceptable for PreToolUse Bash interception (fires on every Bash tool
+call). This spike originally proposed a long-running daemon contacted
+over a Unix-domain socket. **Superseded by Decision 42 (T9.2):** the
+daemon was rejected in favor of a three-layer bash prefilter plus a
+native SEA binary on the residual slow path — cheaper to operate, with
+no socket or coordination directory to manage. The daemon design is
+retained here only as the spike's original conclusion.
 
 ### Decision D17: `CLAUDE_ENV_FILE` Auto-Source + Hook Self-Source Bridge
 

@@ -54,8 +54,7 @@
 		"designDocs": {
 			"maxLineLength": 120,
 			"requireFrontmatter": true,
-			"requireTOC": true,
-			"minSections": ["Overview", "Current State", "Rationale"]
+			"requireTOC": false
 		},
 		"context": {
 			"rootMaxLines": 500,

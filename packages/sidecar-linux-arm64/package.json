@@ -1,0 +1,58 @@
+{
+	"name": "vitest-agent-sidecar-linux-arm64",
+	"version": "1.3.1",
+	"private": true,
+	"description": "linux-arm64 prebuilt binary for vitest-agent-sidecar.",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/spencerbeggs/vitest-agent.git",
+		"directory": "packages/sidecar-linux-arm64"
+	},
+	"license": "MIT",
+	"author": {
+		"name": "C. Spencer Beggs",
+		"email": "spencer@beggs.codes",
+		"url": "https://spencerbeg.gs"
+	},
+	"type": "module",
+	"bin": {
+		"vitest-agent-sidecar": "./bin/vitest-agent-sidecar"
+	},
+	"files": ["README.md", "LICENSE", "bin/vitest-agent-sidecar"],
+	"scripts": {
+		"build:dev": "node lib/scripts/tsdown.ts",
+		"build:prod": "node lib/scripts/tsdown.ts",
+		"types:check": "tsgo --noEmit"
+	},
+	"devDependencies": {
+		"@savvy-web/rslib-builder": "^0.20.3",
+		"@tsdown/exe": "^0.22.0",
+		"@types/node": "catalog:silk",
+		"tsdown": "^0.22.0",
+		"vitest-agent-cli": "workspace:*",
+		"vitest-agent-sdk": "workspace:*"
+	},
+	"os": ["linux"],
+	"cpu": ["arm64"],
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist/dev",
+		"linkDirectory": true,
+		"targets": [
+			{
+				"protocol": "npm",
+				"registry": "https://npm.pkg.github.com/",
+				"directory": "dist/github",
+				"access": "public",
+				"provenance": true
+			},
+			{
+				"protocol": "npm",
+				"registry": "https://registry.npmjs.org/",
+				"directory": "dist/npm",
+				"access": "public",
+				"provenance": true
+			}
+		]
+	}
+}

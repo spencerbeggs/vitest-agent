@@ -11,7 +11,6 @@
 
 import { Box, Text } from "ink";
 import type { ReactElement } from "react";
-import * as React from "react";
 
 /**
  * Render an agent-string output as a column of Ink Text rows, applying
