@@ -1,20 +1,18 @@
 /**
- * vitest-agent
+ * vitest-agent-plugin
  *
  * Vitest plugin for the vitest-agent ecosystem. Owns persistence, history
  * classification, baselines, trend tracking, failure-signature computation,
  * and Vitest reporter-chain wiring. Dispatches the rendering stage to a
- * configurable reporter (default: the preassembled defaultReporter from
- * the vitest-agent-ui package — exposed there as the internal
- * _defaultReporter symbol).
+ * configurable reporter — by default `DefaultVitestAgentReporter` from
+ * `vitest-agent-reporter`, which the internal `AgentReporter` injects
+ * when the user supplies no `reporter` factory option.
  *
- * The current export surface is transitional: `AgentReporter` and
- * `AgentPlugin` are re-exported here as a checkpoint after the file move
- * out of `vitest-agent`. The next refactor pass replaces
- * `AgentReporter` with an internal Vitest-API class that delegates the
- * rendering stage to the user-supplied {@link VitestAgentReporter}, and
- * `AgentPlugin` gains the `reporter` factory option that drives that
- * delegation.
+ * This barrel re-exports `AgentPlugin` (the public plugin factory) and
+ * `AgentReporter` (the internal Vitest-API reporter class).
+ * `AgentReporter` delegates the rendering stage to the user-supplied
+ * {@link VitestAgentReporter}; `AgentPlugin`'s `reporter` factory option
+ * drives that delegation.
  *
  * @packageDocumentation
  */
