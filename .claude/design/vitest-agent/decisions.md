@@ -510,18 +510,19 @@ The system ships as six pnpm workspaces under `packages/`:
 | Package | Role |
 | --- | --- |
 | `vitest-agent-sdk` | data layer, schemas, services, formatters, utilities, XDG path stack — no internal deps |
-| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares reporter, cli, mcp as required peers |
+| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter, sdk and ui directly |
 | `vitest-agent-reporter` | named `VitestAgentReporterFactory` implementations only (no Vitest-API code) |
 | `vitest-agent-ui` | event-sourced renderer family (reducer, shape-tailored dispatcher matrix, preassembled `_defaultReporter`, internal `_createLiveInk`, `RunEventChannel` PubSub). After T6, imported by the plugin as a workspace dependency to wire the built-in default reporter; still an opt-in peer for end-user code |
 | `vitest-agent-cli` | `vitest-agent` bin |
 | `vitest-agent-mcp` | `vitest-agent-mcp` bin |
 
 All six release in lockstep via changesets `linked` config. The plugin
-declares the reporter, CLI, and MCP packages as **required**
-`peerDependencies` so installing the plugin still pulls the agent
-tooling with it. `vitest-agent-ui` is *not* a required peer — it is an
-optional add-on for hosts that want live rendering or the
-event-sourced final-frame.
+declares the CLI and MCP packages as **required** `peerDependencies`
+so installing the plugin still pulls the agent tooling with it;
+`vitest-agent-reporter`, `vitest-agent-sdk` and `vitest-agent-ui` are
+regular `dependencies` of the plugin, not peers. `vitest-agent-sidecar`
+is not a direct plugin peer at all — it is a regular `dependency` of
+`vitest-agent-cli`, so the required cli peer drags it in transitively.
 
 **Why this split:** the shared package boundary is determined by "what
 does more than one runtime package need". The data layer, output

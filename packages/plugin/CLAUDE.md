@@ -6,9 +6,12 @@ baseline/trend computation, and delegates rendering to a
 `VitestAgentReporterFactory`. Wires `_defaultReporter` from
 `vitest-agent-ui` as the built-in when the user does not pass a custom
 `reporter` option, and starts the internal `_createLiveInk` mount when
-`consoleMode === "ink"`. Declares `vitest-agent-reporter`,
-`vitest-agent-cli`, and `vitest-agent-mcp` as required peerDependencies,
-plus a workspace dependency on `vitest-agent-ui`.
+`consoleMode === "ink"`. Declares `vitest-agent-cli` and
+`vitest-agent-mcp` as required peerDependencies, plus workspace
+dependencies on `vitest-agent-reporter`, `vitest-agent-sdk`, and
+`vitest-agent-ui` (`vitest-agent-reporter` is a regular dependency, not
+a peer). `vitest-agent-sidecar` is not a direct dependency — it arrives
+transitively through the required `vitest-agent-cli` peer.
 
 ## Layout
 

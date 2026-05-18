@@ -16,3 +16,7 @@ vitest-agent agent sidecar-path
 The resolution delegates to `resolveSidecarBinaryPath()` from `vitest-agent-sidecar`. Hook scripts call this once per session to capture the path rather than performing a PATH lookup, which would always fail because pnpm and npm never hoist transitive optional-dependency bins into `node_modules/.bin/`.
 
 `vitest-agent-sidecar` is now a runtime dependency of `vitest-agent-cli`.
+
+## Maintenance
+
+The unused `vitest-agent-ui` dependency is removed from `vitest-agent-cli` — the pre-2.0 `show` command that imported it was deleted in the T8 utility-only restructure.

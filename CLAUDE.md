@@ -21,16 +21,11 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 The seven publishable packages live under `packages/`. Four
 per-platform sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `vitest-agent-sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
 
-The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares
-`vitest-agent-cli`, `vitest-agent-mcp`, and `vitest-agent-sidecar` as
-required `peerDependencies`, plus a workspace dependency on
-`vitest-agent-ui` for the preassembled default reporter and the
-internal live-Ink mount.
+The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares exactly two workspace `peerDependencies`, `vitest-agent-cli` and `vitest-agent-mcp`, plus regular `dependencies` on `vitest-agent-reporter`, `vitest-agent-sdk`, and `vitest-agent-ui` (the latter supplies the preassembled default reporter and the internal live-Ink mount). `vitest-agent-sidecar` reaches a consumer transitively rather than as a direct plugin peer: it is a regular `dependency` of `vitest-agent-cli`, which is itself a required peer of the plugin, so installing the plugin (with its required cli peer) pulls `vitest-agent-sidecar` and its four per-platform `optionalDependencies` automatically.
 Users typically configure the plugin with just
 `AgentPlugin({ console, coverageTargets, transport? })` — the plugin
 wires `_defaultReporter` and the Ink mount internally. Custom reporters
-arrive via the plugin's `reporter` option; `vitest-agent-cli` consumes
-`vitest-agent-ui` for the `show` command. The Claude Code plugin's SessionStart hook resolves the
+arrive via the plugin's `reporter` option. The Claude Code plugin's SessionStart hook resolves the
 sidecar binary path once per session via `vitest-agent agent sidecar-path`,
 exports `VITEST_AGENT_SIDECAR_BIN`; the PreToolUse Bash hook reads that
 env var to exec the binary directly, falling back to the JS CLI when absent.
