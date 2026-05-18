@@ -78,9 +78,9 @@ The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) detects the binar
 
 ## CI
 
-`.github/workflows/sidecar-build.yml` is a single matrix job (`binary`) where every platform is both built and smoke-tested on its own native runner — there is no cross-compilation anywhere. Each binary is host-native because a SEA is host-arch-specific machinery: a `darwin-x64` SEA cross-built on an arm64 macOS host segfaults at runtime. The matrix maps each platform to its native runner:
+`.github/workflows/sidecar-build.yml` has two jobs. A single `build` job on a macOS runner cross-compiles all five binaries at once — tsdown's `exe` mode downloads each target's Node runtime and postject-injects the bundle, so the host arch need not match the target — runs the `dist/{github,npm}` manifest assertions, and uploads one artifact per platform. A `smoke` matrix then downloads each binary onto its own native runner and runs it. The smoke legs carry no checkout, Node or pnpm — they exercise only the prebuilt binary, which sidesteps runtime-setup entirely:
 
-| Platform | Runner |
+| Platform | Smoke runner |
 | --- | --- |
 | `darwin-arm64` | `macos-15` |
 | `darwin-x64` | `macos-15-intel` |
@@ -88,7 +88,7 @@ The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) detects the binar
 | `linux-arm64` | `ubuntu-24.04-arm` |
 | `win32-x64` | `windows-2022` |
 
-Each matrix leg builds its child (`turbo run build:prod --filter vitest-agent-sidecar-<platform>`), asserts the `dist/{github,npm}` publish manifests, smoke-tests the binary, and uploads it. The job carries a 30-minute timeout. The "Assert dist publish manifests" step, for every `packages/sidecar-<platform>/dist/{github,npm}/package.json`, asserts the transform held: no `devDependencies`, `scripts`, `publishConfig`, `packageManager` or `devEngines`, `private` is `false`, and the `@spencerbeggs/` name scope is present in `dist/github` and absent in `dist/npm`. The smoke test runs `inject-env` against fixtures and diffs the output against the JS reference. Publishing the sub-packages is wired into the Wave 4 release flow, not this workflow.
+The "Assert dist publish manifests" step, for every `packages/sidecar-<platform>/dist/{github,npm}/package.json`, asserts the transform held: no `devDependencies`, `scripts`, `publishConfig`, `packageManager` or `devEngines`, `private` is `false`, and the `@spencerbeggs/` name scope is present in `dist/github` and absent in `dist/npm`. The smoke test runs `inject-env` against fixtures and checks the unknown-subcommand exit contract. Publishing the sub-packages is wired into the Wave 4 release flow, not this workflow.
 
 ## Measured outcome
 
