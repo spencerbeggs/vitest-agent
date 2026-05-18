@@ -22,9 +22,8 @@ import { render as inkRender } from "ink";
 import { createElement } from "react";
 import type { RenderState, RunEvent } from "vitest-agent-sdk";
 import { initialRenderState } from "vitest-agent-sdk";
-import { reduceRenderState } from "../reducer.js";
-import type { AppOptions } from "../render-ink/App.js";
-import { App } from "../render-ink/App.js";
+import type { AppOptions } from "vitest-agent-ui";
+import { App, reduceRenderState } from "vitest-agent-ui";
 
 export interface CreateLiveInkOptions {
 	/** Initial width hint for the Ink tree. Defaults to terminal columns. */
@@ -100,7 +99,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 				}
 			} catch (err) {
 				process.stderr.write(
-					`vitest-agent-ui: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
+					`vitest-agent-reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
 				);
 				instance = null;
 			}

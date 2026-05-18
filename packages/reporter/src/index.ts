@@ -1,27 +1,25 @@
 /**
  * vitest-agent-reporter
  *
- * The "build your own reporter" SDK for the vitest-agent plugin.
- * After the 2.0 UI rewrite, the plugin ships its own preassembled
- * default reporter inside vitest-agent-ui; this package no longer
- * exports a shipped default. Users who want a custom rendering
- * strategy implement the VitestAgentReporterFactory contract from
- * vitest-agent-sdk and pass it as the plugin's reporter option.
+ * The default reporter for the vitest-agent plugin — and the canonical
+ * worked example for authors building their own.
  *
- * The exports here are convenience re-exports of the contract types
- * and the stream-consumption helpers a custom reporter typically
- * needs. Open question for a 2.x follow-up: fold this package into
- * vitest-agent-ui or vitest-agent-sdk. The separation is locked for
- * 2.0 to keep the dependency story clean for custom-reporter authors,
- * but the surface area is small enough that consolidation is worth
- * revisiting.
+ * `DefaultVitestAgentReporter` is the preassembled `VitestAgentReporterFactory`
+ * the plugin wires as its built-in when the user's `reporter` option is
+ * unset. It branches on every `consoleMode`, dispatches through the
+ * shape × outcome matrix, and owns the live Ink mount lifecycle end to
+ * end. A custom-reporter author depends on this package, reads
+ * `DefaultVitestAgentReporter` next to their own code, and gets the
+ * reporter contract types plus the `buildDispatchInputs` /
+ * `resolveCellOptions` dispatch helpers from one import — no direct
+ * dependency on `vitest-agent-sdk` or `vitest-agent-ui` required.
  *
  * @packageDocumentation
  */
 
-// Factory contract type re-exports from the SDK so a custom-reporter
-// author can pull everything they need from one package without
-// adding vitest-agent-sdk as a direct dependency.
+// Reporter contract type re-exports from the SDK so a custom-reporter
+// author can pull everything they need from one package without adding
+// vitest-agent-sdk as a direct dependency.
 export type {
 	RenderedOutput,
 	ReporterKit,
@@ -30,11 +28,20 @@ export type {
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "vitest-agent-sdk";
-// Stream-consumption helpers from vitest-agent-ui. The
-// buildDispatchInputs and resolveCellOptions helpers let a custom
-// reporter reuse the same inputs assembly the preassembled default
-// uses.
-export { buildDispatchInputs, resolveCellOptions } from "vitest-agent-ui";
+// --- The default reporter + its dispatch helpers ---
+export {
+	DefaultVitestAgentReporter,
+	buildDispatchInputs,
+	renderAgentStringForReport,
+	renderHumanStringForReport,
+	resolveCellOptions,
+} from "./defaultReporter.js";
+// --- Live Ink mount driver (internal to the default reporter) ---
+export {
+	type CreateLiveInkOptions,
+	type LiveInkRenderer,
+	createLiveInk as _createLiveInk,
+} from "./LiveInkRenderer.js";
 
 // --- Cross-package version constant (T12 drift check) ---
 /**

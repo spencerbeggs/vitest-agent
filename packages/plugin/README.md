@@ -12,12 +12,11 @@ npm install vitest-agent-plugin
 ```
 
 Modern pnpm and npm auto-install the required peer dependencies
-(`vitest-agent-reporter`, `vitest-agent-ui`, `vitest-agent-cli`,
-`vitest-agent-mcp`). If your package manager skips peers, install them
-explicitly:
+(`vitest-agent-cli`, `vitest-agent-mcp`). If your package manager skips
+peers, install them explicitly:
 
 ```bash
-pnpm add -D vitest-agent-plugin vitest-agent-reporter vitest-agent-ui vitest-agent-cli vitest-agent-mcp
+pnpm add -D vitest-agent-plugin vitest-agent-cli vitest-agent-mcp
 ```
 
 If a partial upgrade leaves the `vitest-agent-*` packages at different
@@ -83,11 +82,11 @@ AgentPlugin({
 
 Per-slot defaults: `human` → `"passthrough"`, `agent` → `"agent"`, `ci` → `"passthrough"`. Any non-`"passthrough"` value strips Vitest's built-in console reporters and the native coverage text reporter — the plugin owns stdout for the run.
 
-When `console.human` resolves to `"ink"`, the plugin mounts the live React Ink view itself. There is no `createLiveInk` import to wire and no live-event callback to forward — the lifecycle is fully internal.
+When `console.human` resolves to `"ink"`, `DefaultVitestAgentReporter` owns the live React Ink mount lifecycle end to end — the plugin feeds the reporter a run-event `PubSub` channel and the reporter subscribes, drives the mount, and unmounts at end-of-run. There is no `createLiveInk` import to wire and no live-event callback to forward.
 
 `onRunEvent` is an optional read-only tee. The plugin forwards every per-test and per-module `RunEvent` to your callback alongside the built-in renderer; it runs in parallel, not in place of the default. Throwing taps are caught and logged to stderr so persistence never breaks because a callback has a bug.
 
-The `reporter` option overrides the plugin's built-in default. When unset, the plugin wires the preassembled default reporter from `vitest-agent-ui`, which classifies the run into one of four shapes (single-test, single-file, single-project, workspace) and three outcomes (all-pass, some-fail, threshold-violation) and dispatches to the matching cell. Each render carries a footer line pointing at the right MCP tool for the dominant outcome (e.g. ``Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.``). Custom reporters depend on `vitest-agent-reporter` to pull the contract types and dispatch helpers from a single import — see that package's README for the escape-hatch SDK surface.
+The `reporter` option overrides the plugin's built-in default. When unset, the plugin wires `DefaultVitestAgentReporter` from `vitest-agent-reporter`, which classifies the run into one of four shapes (single-test, single-file, single-project, workspace) and three outcomes (all-pass, some-fail, threshold-violation) and dispatches to the matching cell. Each render carries a footer line pointing at the right MCP tool for the dominant outcome (e.g. ``Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.``). Custom reporters depend on `vitest-agent-reporter` to pull the contract types and dispatch helpers from a single import — see that package's README for details and a full worked example.
 
 ## AgentPlugin.discover()
 

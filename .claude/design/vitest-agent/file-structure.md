@@ -32,9 +32,9 @@ per-platform sidecar sub-packages) and the file-based Claude Code plugin at
 ```text
 packages/
   sdk/         vitest-agent-sdk (no internal deps; owns RunEvent + RenderState schemas)
-  plugin/      vitest-agent-plugin (deps on sdk+reporter+ui; cli+mcp required peers; streaming hooks + onRunEvent tap)
-  reporter/    vitest-agent-reporter (depends on sdk + ui; "build your own reporter" SDK — contract re-exports + dispatcher-input helpers)
-  ui/          vitest-agent-ui (depends on sdk; reducer + shape-tailored dispatcher matrix + preassembled _defaultReporter + internal _createLiveInk)
+  plugin/      vitest-agent-plugin (deps on sdk+reporter; cli+mcp required peers; streaming hooks + run-event PubSub channel + onRunEvent tap; owns no rendering)
+  reporter/    vitest-agent-reporter (depends on sdk + ui + react + ink; default reporter package — DefaultVitestAgentReporter + live Ink mount + contract re-exports + dispatch helpers)
+  ui/          vitest-agent-ui (depends on sdk; react/ink peers; pure rendering primitives — reducer + shape-tailored dispatcher matrix + synthesizers + RunEventChannel PubSub)
   cli/         vitest-agent-cli (bin: vitest-agent; depends on sdk + sidecar)
   mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; spawned by plugin)
   sidecar/     vitest-agent-sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts re-exports dispatch/injectEnv from cli; no bin)

@@ -11,6 +11,7 @@
  * @internal
  */
 
+import type { PubSub } from "effect";
 import type {
 	ConsoleMode,
 	Environment,
@@ -18,6 +19,7 @@ import type {
 	OutputFormat,
 	ReporterKit,
 	ResolvedReporterConfig,
+	RunEvent,
 	Transport,
 } from "vitest-agent-sdk";
 import { osc8 } from "vitest-agent-sdk";
@@ -45,6 +47,14 @@ export interface BuildReporterKitInput {
 	readonly coverageTargets?: ResolvedReporterConfig["coverageTargets"];
 	readonly coverageMode: ResolvedReporterConfig["coverageMode"];
 	readonly transport: Transport;
+	/**
+	 * Live run-event channel. The plugin owns the `PubSub` and publishes
+	 * one {@link RunEvent} per Vitest streaming callback onto it; the kit
+	 * carries it through to the reporter factory so a live-painting
+	 * reporter can subscribe. Optional so a kit can be built without the
+	 * channel in tests.
+	 */
+	readonly runEvents?: PubSub.PubSub<RunEvent>;
 	/**
 	 * Project-level `test.passWithNoTests` value captured from the
 	 * resolved Vitest config. Threaded onto {@link ResolvedReporterConfig}
@@ -99,6 +109,7 @@ export const buildReporterKit = (input: BuildReporterKitInput): ReporterKit => {
 		config,
 		stdEnv: input.env,
 		stdOsc8: (url: string, label: string) => osc8(url, label, { enabled: osc8Enabled }),
+		...(input.runEvents !== undefined && { runEvents: input.runEvents }),
 	};
 };
 

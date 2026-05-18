@@ -35,6 +35,8 @@
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"effect": "catalog:silk",
+		"ink": "^7.0.3",
+		"react": "catalog:silk",
 		"vitest-agent-sdk": "workspace:*",
 		"vitest-agent-ui": "workspace:*"
 	},
@@ -42,6 +44,7 @@
 		"@savvy-web/rslib-builder": "^0.20.3",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "catalog:silk",
+		"@types/react": "catalog:silk",
 		"@vitest/coverage-istanbul": "^4.1.6",
 		"@vitest/coverage-v8": "^4.1.6",
 		"better-sqlite3": "^12.10.0",
@@ -51,9 +54,7 @@
 	"peerDependencies": {
 		"@vitest/coverage-istanbul": "^4.1.0",
 		"@vitest/coverage-v8": "^4.1.0",
-		"vitest": "^4.1.0",
-		"vitest-agent-cli": "workspace:*",
-		"vitest-agent-mcp": "workspace:*"
+		"vitest": "^4.1.0"
 	},
 	"peerDependenciesMeta": {
 		"@vitest/coverage-istanbul": {
@@ -63,12 +64,6 @@
 			"optional": true
 		},
 		"vitest": {
-			"optional": false
-		},
-		"vitest-agent-cli": {
-			"optional": false
-		},
-		"vitest-agent-mcp": {
 			"optional": false
 		}
 	},

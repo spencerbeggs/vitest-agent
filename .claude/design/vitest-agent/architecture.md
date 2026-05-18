@@ -49,9 +49,9 @@ workspace).
 | Workspace | Path | Role |
 | --- | --- | --- |
 | `vitest-agent-sdk` | `packages/sdk/` | Shared base. Schemas, migrations, errors, services, layers, formatters, the XDG path-resolution stack, the public reporter contract types, the `RunEvent` and `RenderState` schemas. No internal dependencies. |
-| `vitest-agent-plugin` | `packages/plugin/` | The Vitest plugin. Owns the Vitest lifecycle, persistence, classification, baselines and trends, and the streaming-callback `onRunEvent` tap. Delegates rendering to a reporter factory. |
-| `vitest-agent-reporter` | `packages/reporter/` | "Build your own reporter" SDK. Re-exports the factory contract types from the SDK plus the dispatcher-input helpers (`buildDispatchInputs`, `resolveCellOptions`) from the UI package. No shipped default after T6. |
-| `vitest-agent-ui` | `packages/ui/` | Event-sourced renderer family. Pure `RunEvent` reducer, the shape-tailored dispatcher matrix and its 12 cells, the L1 MCP tool-pointer footer, the preassembled `_defaultReporter` factory the plugin imports as its built-in, the internal `_createLiveInk` live mount, and the Effect `RunEventChannel` PubSub. |
+| `vitest-agent-plugin` | `packages/plugin/` | The Vitest plugin. Owns the Vitest lifecycle, persistence, classification, baselines and trends, the run-event `PubSub` channel and the streaming-callback `onRunEvent` tap. Injects a reporter factory and feeds it the event stream; owns no rendering. |
+| `vitest-agent-reporter` | `packages/reporter/` | The default reporter package and the reference package for custom-reporter authors. Ships `DefaultVitestAgentReporter` (the plugin's built-in factory, which owns the Ink live mount end to end), re-exports the contract types from the SDK plus the dispatch helpers, and declares `react` + `ink` as full deps. |
+| `vitest-agent-ui` | `packages/ui/` | Pure rendering-primitives library. The `RunEvent` reducer, the shape-tailored dispatcher matrix and its 12 cells, the L1 MCP tool-pointer footer, the synthesizers and the Effect `RunEventChannel` PubSub. Knows nothing about the reporter lifecycle. |
 | `vitest-agent-cli` | `packages/cli/` | The `vitest-agent` bin. Utility-only for 2.0: `doctor`, `db` (path / prune / reset / query), and the `agent` namespace for hook-driven plumbing (triage, wrapup, record, sidecar). Test-landscape queries moved to MCP. |
 | `vitest-agent-mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, MCP resources, MCP prompts. |
 | `vitest-agent-sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via four `optionalDependencies` sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`). Added in T9.2. |
@@ -75,17 +75,20 @@ deterministic XDG-derived path. Three independent processes touch it:
   class via `configureVitest`. The reporter implements both the
   end-of-run `onTestRunEnd` hook and the streaming hooks
   (`onTestRunStart`, `onTestModuleQueued`, `onTestModuleStart`,
-  `onTestCaseResult`, `onTestModuleEnd`). After tests finish, the reporter
-  persists the run, computes classifications and trends, then hands a
-  `ReporterKit` to a user-supplied `VitestAgentReporterFactory`. The
-  factory returns one or more `VitestAgentReporter`s; their
-  `RenderedOutput[]` is concatenated and routed to stdout, the GitHub
-  Step Summary file or another target. The reporter fires a `RunEvent`
-  from every streaming callback and forwards it to two consumers: the
-  plugin-internal live Ink mount (active when `consoleMode === "ink"`)
-  and the optional user-supplied `onRunEvent` tap (active for every
-  mode when set). The default factory is `_defaultReporter` from
-  `vitest-agent-ui`; users supply `reporter` only as an override.
+  `onTestCaseResult`, `onTestModuleEnd`). At run start (`onInit`) the
+  reporter invokes the chosen `VitestAgentReporterFactory` with a
+  run-start `ReporterKit` carrying an Effect `PubSub<RunEvent>` channel,
+  so a live-painting reporter can subscribe before the first event. Each
+  streaming callback publishes one `RunEvent` onto that channel and also
+  tees it to the optional user-supplied `onRunEvent` callback. After
+  tests finish, `onTestRunEnd` persists the run, computes classifications
+  and trends, then calls the reporter's `render(input, kit)` with a
+  second, health-aware `ReporterKit`; the returned `RenderedOutput[]` is
+  routed to stdout, the GitHub Step Summary file or another target. The
+  default factory is `DefaultVitestAgentReporter` from
+  `vitest-agent-reporter`, which owns the Ink live mount end to end;
+  users supply `reporter` only as an override. The plugin owns no
+  rendering — it feeds the reporter the event stream and the kit.
 - **The `vitest-agent` CLI** is a short-lived `@effect/cli` process. It
   resolves the same `dbPath` and reads cached data through `DataReader`.
   The `record` subcommand is the only writer on the CLI side; it is
@@ -150,27 +153,31 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   filesystem layout. Resolution fails loudly with
   `WorkspaceRootNotFoundError` rather than hashing a directory. See
   [./file-structure.md](./file-structure.md).
-- **Plugin owns lifecycle, the dispatcher owns rendering.** The
-  `VitestAgentReporter` contract is a single synchronous `render(input)`
-  returning `ReadonlyArray<RenderedOutput>`. The plugin's built-in
-  `_defaultReporter` consumes `input.reports` through the shape-tailored
-  dispatcher matrix in `vitest-agent-ui` (4 run-shapes × 3 outcome
-  classes, 12 cells, agent and Ink halves per cell). Multi-target output
-  (console plus GitHub Step Summary) composes inside the default
-  reporter rather than by chaining reporter factories. Users supply
-  `AgentPlugin({ reporter })` only when they want to replace the
-  built-in entirely; the `reporter` field is an override, not a
-  composition slot.
+- **Plugin owns lifecycle, the reporter owns rendering.** The
+  `VitestAgentReporter` contract is a single synchronous
+  `render(input, kit)` returning `ReadonlyArray<RenderedOutput>`. The
+  built-in `DefaultVitestAgentReporter` (in `vitest-agent-reporter`)
+  consumes `input.reports` through the shape-tailored dispatcher matrix
+  in `vitest-agent-ui` (4 run-shapes × 3 outcome classes, 12 cells,
+  agent and Ink halves per cell) and — for `consoleMode === "ink"` —
+  owns the Ink live-mount lifecycle end to end by subscribing to the
+  kit's run-event channel. Multi-target output (console plus GitHub Step
+  Summary) composes inside the default reporter rather than by chaining
+  reporter factories. Users supply `AgentPlugin({ reporter })` only when
+  they want to replace the built-in entirely; the `reporter` field is an
+  override, not a composition slot. The plugin injects exactly one
+  factory and never touches rendering.
 - **Per-executor console matrix.** The plugin auto-detects the executor
   (`human` / `agent` / `ci`) and looks up `options.console.<slot>` to
   resolve a single `ConsoleMode` value (`passthrough` / `silent` / `ink` /
   `agent` / `ci-annotations`). The resolved mode drives stdout ownership
   (anything non-`passthrough` strips Vitest's built-in console reporters
-  and suppresses its native coverage table). The plugin instantiates
-  the internal live Ink mount itself when the resolved mode is `ink`;
-  the user-supplied `onRunEvent` callback is a read-only stream tee
-  forwarded for every mode (the pre-T6 gating to `consoleMode === "ink"`
-  is gone). The pre-2.0 `mode` + `strategy` pair is retired; see
+  and suppresses its native coverage table) and flows through
+  `ReporterKit.config.consoleMode` to the reporter, which decides what to
+  render. The plugin no longer instantiates the Ink mount itself — the
+  default reporter does, off the run-event channel. The user-supplied
+  `onRunEvent` callback is a read-only stream tee forwarded for every
+  mode. The pre-2.0 `mode` + `strategy` pair is retired; see
   decisions D9 / D26 / D27 in
   [./decisions-retired.md](./decisions-retired.md).
 - **The Claude Code plugin is the AI integration surface.** The npm
@@ -196,8 +203,9 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
 
 - Final-frame output (the agent-string and GHA Step Summary paths) is
   still written post-run in `onTestRunEnd`. Live progress *is* streamed
-  in `ink` mode via the plugin-internal live Ink mount, but every other
-  console mode renders only at end-of-run.
+  in `ink` mode via the default reporter's Ink live mount (which
+  subscribes to the plugin's run-event channel), but every other console
+  mode renders only at end-of-run.
 - Coverage is shared across projects within a single Vitest run; only
   the first project alphabetically processes the global `CoverageMap`.
 - File-to-test mapping is convention-based (`.test.`/`.spec.` strip);

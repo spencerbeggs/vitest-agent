@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-ui
 category: architecture
 created: 2026-05-12
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 90
 related:
   - ../architecture.md
@@ -21,15 +21,16 @@ dependencies:
 
 # UI package (`vitest-agent-ui`)
 
-The shared event-sourced renderer that ships the plugin's preassembled default reporter. The T6 UI rewrite collapsed the pre-2.0 per-formatter pipeline plus the dual ingestion paths (`eventSourcedReporter` end-of-run plus `createLiveInk` per-event tap) into one internal stream that lands at a shape-tailored 4 × 3 dispatcher matrix. Users no longer import a reporter or a live-mount factory — the plugin owns both. The package now exposes the dispatcher primitives, the preassembled reporter, the reducer, the synthesizers and the `RunEventChannel` PubSub for hosts building custom reporters on the same stream.
+The pure rendering-primitives library. The T6 UI rewrite collapsed the pre-2.0 per-formatter pipeline plus the dual ingestion paths into one internal stream that lands at a shape-tailored 4 × 3 dispatcher matrix. The reporter-package restructure (`feat/2.0-reporter-restructure`) then moved the default reporter and the live Ink mount *out* of this package into `vitest-agent-reporter`: `vitest-agent-ui` no longer ships a reporter, a live-mount factory or the dispatch-input helpers. It exposes the dispatcher primitives, the `RunEvent` reducer, the synthesizers and the `RunEventChannel` PubSub — the primitives a reporter is assembled *from*. It knows nothing about the reporter lifecycle.
 
 **npm name:** `vitest-agent-ui`
 **Location:** `packages/ui/`
 **Internal dependencies:** `vitest-agent-sdk`
+**Consumers:** `vitest-agent-reporter` (the only consumer today; the planned MCP triage-dashboard app is the anticipated second — see D34 / D41)
 
 **Key external dependencies:**
 
-- `react`, `ink` — peer deps for the Ink half of every dispatcher cell
+- `react`, `ink` — peer deps for the Ink half of every dispatcher cell. `vitest-agent-ui` renders *with* React/Ink but does not own the instance; its concrete consumer `vitest-agent-reporter` declares them as full dependencies and provides the peer.
 - `effect` — Schema, Match, PubSub, Stream, Layer, Context
 
 ---
@@ -38,36 +39,37 @@ The shared event-sourced renderer that ships the plugin's preassembled default r
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Vitest reporter lifecycle                    │
+│            Vitest reporter lifecycle (vitest-agent-plugin)        │
 │  onTestRunStart → onTestModuleQueued → onTestCaseResult → …      │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              ▼ (per-callback synthesizer in AgentReporter)
+                              ▼ (per-callback emit in AgentReporter)
                        ┌──────────────┐
                        │   RunEvent   │  discriminated union, 11 variants
                        └──────────────┘
                               │
-                  forwarded for every consoleMode
+            PubSub.publish onto kit.runEvents + user onRunEvent tap
                               │
               ┌───────────────┴───────────────┐
               ▼                               ▼
-   plugin-internal live Ink mount     user-supplied onRunEvent tap
-   (consoleMode === "ink")            (optional, every mode)
-              │                               │
-              ▼                               ▼
-   reducer.event → ink.rerender         user callback
+   DefaultVitestAgentReporter         user-supplied onRunEvent tap
+   (in vitest-agent-reporter):        (optional, every mode)
+   subscribes kit.runEvents,                  │
+   drain fiber feeds createLiveInk            ▼
+              │                          user callback
+              ▼
+   reducer.event → ink.rerender (ui primitives)
                               │
                               ▼
-                       end-of-run batch
+                       end-of-run render(input, kit)
                               │
                               ▼
-           _defaultReporter (in vitest-agent-ui)
-             reduceRenderStateAll(synthesizeFromAgentReport(report))
-             classifyRunShape + classifyOutcome
-             dispatch(inputs, opts) → string
+           reduceRenderStateAll(synthesizeFromAgentReport(report))
+           classifyRunShape + classifyOutcome
+           dispatch(inputs, opts) → string  (ui primitives)
 ```
 
-One upstream, one canonical reducer fold, one dispatcher. Live ingestion and end-of-run synthesis land at the same `RenderState` shape; the dispatcher then selects a cell by `(RunShape, RunOutcome)` and renders either an agent string or an Ink tree.
+`vitest-agent-ui` supplies the boxed primitives — the reducer, the synthesizers, the classifiers and the dispatcher. The orchestration around them (subscribing the channel, the drain fiber, the Ink mount lifecycle, the end-of-run render) lives in `DefaultVitestAgentReporter` in `vitest-agent-reporter`. One upstream, one canonical reducer fold, one dispatcher: live ingestion and end-of-run synthesis land at the same `RenderState` shape, and the dispatcher selects a cell by `(RunShape, RunOutcome)`.
 
 ---
 
@@ -113,7 +115,7 @@ dispatchInk(inputs: DispatchInputs, opts: CellOptions): React.ReactElement | nul
 dispatcherTable                                                    // for test introspection
 ```
 
-`DispatchInputs` is plain TypeScript (no Effect Schema, no persistence) and lives in `packages/sdk/src/contracts/dispatcher.ts`. It carries `state`, `shape`, `outcome`, the per-project aggregates the workspace cells need (`ProjectSummary[]`), the optional trend summary and below-target file list, plus the resolved `runCommand`. See `packages/ui/src/factory/defaultReporter.ts` for `buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble these from a `ReporterRenderInput` and a `ReporterKit`.
+`DispatchInputs` is plain TypeScript (no Effect Schema, no persistence) and lives in `packages/sdk/src/contracts/dispatcher.ts`. It carries `state`, `shape`, `outcome`, the per-project aggregates the workspace cells need (`ProjectSummary[]`), the optional trend summary and below-target file list, plus the resolved `runCommand`. The `buildDispatchInputs` and `resolveCellOptions` helpers that assemble these from a `ReporterRenderInput` and a `ReporterKit` no longer live in this package — they moved to `vitest-agent-reporter` with the default reporter. See [./reporter.md](./reporter.md).
 
 ### L1 MCP tool-pointer footer
 
@@ -134,64 +136,23 @@ dispatcherTable                                                    // for test i
 
 ---
 
-## The preassembled default reporter
+## The default reporter no longer lives here
 
-`packages/ui/src/factory/defaultReporter.ts` exports `_defaultReporter` — a `VitestAgentReporterFactory` from `vitest-agent-sdk`. The plugin imports it as its built-in; users never name it directly. The leading underscore marks it as plugin-internal even though it lives in the package's `export *` surface.
-
-`render(input)` branches on `kit.config.consoleMode`:
-
-- `agent` — folds `input.reports` through `synthesizeFromAgentReport` and the reducer, builds `DispatchInputs`, calls `dispatch(inputs, opts)`, returns one `RenderedOutput` with `target: "stdout"` carrying the dispatched string.
-- `silent`, `passthrough`, `ink`, `ci-annotations` — emits no stdout `RenderedOutput`. For `ink`, the plugin's internal live mount paints per-event during the run.
-- For every mode, when `kit.config.githubActions` is `true`, the factory emits an additional `RenderedOutput` with `target: "github-summary"` carrying a GFM-flavored payload. This preserves the pre-2.0 GitHub Step Summary behavior independent of the console mode.
-
-Companion helpers exported alongside the factory:
-
-- `buildDispatchInputs(state, input, overrides?)` — assemble `DispatchInputs` from a reduced state plus a `ReporterRenderInput`. Lifts per-project summaries, the below-target file list and the trend summary into the dispatcher's plain-TypeScript shape.
-- `resolveCellOptions(kit)` — derive `CellOptions` (width, `noColor`, `coverageConsoleLimit`, etc.) from the `ReporterKit`.
-- `renderAgentStringForReport(report)` — synchronous helper used by the CLI's `show` command for an agent-string single-report render.
-- `renderHumanStringForReport(report, options?)` — async helper that dynamic-imports `ink` and returns a stripped-string render of the dispatcher's Ink half. Used by `vitest-agent show --format human`.
+The reporter-package restructure moved `vitest-agent-ui/src/factory/` — the `consoleMode`-branching `VitestAgentReporterFactory` and the live Ink mount driver — into `vitest-agent-reporter/src/`. The `factory/` directory no longer exists in this package, and `packages/ui/src/index.ts` no longer exports `_defaultReporter`, `_createLiveInk`, `buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport` or `renderHumanStringForReport`. The default reporter (now public as `DefaultVitestAgentReporter`), the live mount and the dispatch helpers all live in `vitest-agent-reporter` — see [./reporter.md](./reporter.md). `vitest-agent-ui` is the layer those things are *built from*; it ships only the dispatcher primitives, the reducer, the synthesizers and the PubSub channel.
 
 ---
 
-## Live-mount lifecycle (internal `_createLiveInk`)
+## Package surface
 
-`packages/ui/src/factory/LiveInkRenderer.tsx`. The live Ink mount is now plugin-internal. Re-exported from the package entrypoint (`packages/ui/src/index.ts`) as `_createLiveInk` so the plugin can wire it; consumers do not see it.
+The package entrypoint (`packages/ui/src/index.ts`) re-exports the rendering primitives directly from their source files: the reducer (`reduceRenderState`, `reduceRenderStateAll`), the dispatcher (`dispatch`, `dispatchInk`, `dispatcherTable`, `classifyRunShape`, `classifyOutcome`, `buildFooter`, `dominantClassification`), the agent and Ink render paths, the synthesizers and the PubSub channel. Internal code imports directly from the source file that owns the symbol — there is no barrel beyond the entrypoint.
 
-```ts
-interface LiveInkRenderer {
-  event(e: RunEvent): void;
-  unmount(): void;
-  snapshot(): RenderState;
-}
-```
-
-Behavior:
-
-- `RunStarted` (or any event that flips `state.phase` from `idle`) triggers `ink.render(<App state />)`.
-- Subsequent events run the reducer, then `instance.rerender(<App state />)`. The Ink tree uses the same dispatcher cells via their `ink` half.
-- `RunFinished` schedules `instance.unmount()` on the next tick so the terminal commits the final frame before alt-screen teardown.
-- Mount and rerender failures are caught and logged to stderr; `snapshot()` still advances.
-
-The plugin instantiates the live mount itself when the resolved `consoleMode === "ink"`. The user-supplied `onRunEvent` tap (see `plugin.md`) is now forwarded for every mode and is a read-only tee — it does not gate the live mount.
-
----
-
-## Factory surface
-
-The package entrypoint (`packages/ui/src/index.ts`) re-exports the factory symbols directly from their source files:
-
-- `_defaultReporter`, `buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport` — all live in `packages/ui/src/factory/defaultReporter.ts`.
-- `_createLiveInk` (alias of `createLiveInk`), `CreateLiveInkOptions`, `LiveInkRenderer` — all live in `packages/ui/src/factory/LiveInkRenderer.tsx`.
-
-Internal code in this package imports directly from the source file that owns the symbol — there is no `factory/index.ts` barrel. Only the package entrypoint re-exports.
-
-The pre-2.0 `eventSourcedReporter` factory and the public `createLiveInk` export were deleted in T6 phase 9 along with `render-run.tsx`. Hosts that need their own reporter implement `VitestAgentReporterFactory` directly and consume the dispatcher primitives from this package; see `packages/reporter/` for the convenience re-export package.
+The pre-2.0 `eventSourcedReporter` factory and the public `createLiveInk` export were deleted in T6 phase 9 along with `render-run.tsx`. A reporter is assembled on top of these primitives in `vitest-agent-reporter` — see `DefaultVitestAgentReporter` for the worked example.
 
 ---
 
 ## PubSub channel and Effect transport
 
-`packages/ui/src/pubsub/` ships an Effect `PubSub<RunEvent>` channel for hosts that want multi-subscriber fan-out or Layer-based wiring. The production wiring does not use the channel — the plugin forwards events directly to the live mount and to the user-supplied `onRunEvent` tap — but the channel exists for tests, future remote consumers and Effect-fluent hosts. See `packages/ui/src/pubsub/Channel.ts` for the tag and live layer; `Subscriber.ts` exposes `accumulateUntilFinished`, `forEachRenderState` and `renderStateStream`.
+`packages/ui/src/pubsub/` ships an Effect `PubSub<RunEvent>` channel plus `RunEventChannel` tag and subscriber helpers. After the reporter-package restructure the production wiring *does* use a `PubSub<RunEvent>`: the plugin's `AgentReporter` creates an unbounded `PubSub` per run, threads it onto `ReporterKit.runEvents`, and publishes one event per Vitest streaming callback; `DefaultVitestAgentReporter` subscribes to it for live Ink painting. See [./plugin.md](./plugin.md) and [./reporter.md](./reporter.md) for that flow. The `RunEventChannel` Effect service tag and the `Subscriber.ts` helpers (`accumulateUntilFinished`, `forEachRenderState`, `renderStateStream`) remain for tests, Layer-based wiring and future remote consumers.
 
 ---
 
@@ -200,7 +161,7 @@ The pre-2.0 `eventSourcedReporter` factory and the public `createLiveInk` export
 Two converters in `packages/ui/src/synthesize.ts`:
 
 - `synthesizeRunEvents(modules, options?)` — accepts duck-typed `VitestTestModule[]`. Walks modules plus children, builds a `RunStarted → per-module → per-test → RunFinished` sequence. Bridge for any batch context that has the live module shape.
-- `synthesizeFromAgentReport(report, options?)` — accepts the persisted `AgentReport`. Only failed modules carry per-test detail; passed-only modules summarize via `summary.passed`. Used by `_defaultReporter.render` and the CLI helpers.
+- `synthesizeFromAgentReport(report, options?)` — accepts the persisted `AgentReport`. Only failed modules carry per-test detail; passed-only modules summarize via `summary.passed`. Used by `DefaultVitestAgentReporter.render` (in `vitest-agent-reporter`) and the CLI helpers.
 
 ---
 
@@ -211,7 +172,7 @@ Four granularities:
 1. **Reducer unit tests** (`__test__/reducer.test.ts`).
 2. **Classifier tests** (`__test__/classify.test.ts`) — covers run-shape derivation and the some-fail-vs-threshold-violation precedence rule.
 3. **Dispatcher cell snapshots** — agent-half snapshots in `__test__/dispatcher/cells.snapshot.test.ts` plus Ink-half snapshots in `__test__/dispatcher/cells.ink.snapshot.test.tsx`. 22 files in `__test__/snapshots/dispatcher/` cover the 12 cells across the relevant fixture event sequences.
-4. **Factory and footer tests** — `__test__/default-reporter.test.ts`, `__test__/dispatch.test.ts`, `__test__/footer.test.ts`.
+4. **Dispatcher and footer tests** — `__test__/dispatch.test.ts`, `__test__/footer.test.ts`. The default-reporter and live-renderer tests moved with `factory/` to `packages/reporter/__test__/`.
 
 Canonical fixtures in `__test__/fixtures/events.ts` are shared across all four granularities; `__test__/fixtures/workspace.ts` carries the `ProjectSummary[]` fixtures the workspace cells need.
 

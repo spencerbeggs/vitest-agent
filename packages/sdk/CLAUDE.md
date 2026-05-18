@@ -45,7 +45,7 @@ src/
 | File | Purpose |
 | ---- | ------- |
 | `contracts/reporter.ts` | Public reporter contract types: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory` |
-| `contracts/dispatcher.ts` | Public T6 dispatcher contract types: `RunShape` (4 cases), `RunOutcome` (3 cases), `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`. Consumed by `vitest-agent-ui`'s dispatcher matrix and the preassembled `_defaultReporter` |
+| `contracts/dispatcher.ts` | Public T6 dispatcher contract types: `RunShape` (4 cases), `RunOutcome` (3 cases), `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`. Consumed by `vitest-agent-ui`'s dispatcher matrix and `DefaultVitestAgentReporter` |
 | `services/DataStore.ts` + `layers/DataStoreLive.ts` | All SQLite writes. Defines all write-input types plus `backfillTestCaseTurns(chatId)` and the 2.0 goal/behavior CRUD methods |
 | `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, and the 2.0 goal/behavior read methods |
 | `utils/resolve-data-path.ts` | Deterministic XDG-derived `dbPath` orchestrator (Decision 31) |

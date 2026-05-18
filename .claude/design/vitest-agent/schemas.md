@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-14
-last-synced: 2026-05-14
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 92
 related:
   - ./architecture.md
@@ -85,11 +85,19 @@ The contract is four types:
   time. The `std*` prefix on fields (`stdEnv`, `stdOsc8`) marks these as
   "the plugin gives you these — don't import equivalents yourself"; they are
   pre-resolved with full context (environment, executor, NO_COLOR,
-  target=stdout). Open shape, so future fields don't break existing reporters.
+  target=stdout). The optional `runEvents` field carries an Effect
+  `PubSub<RunEvent>` channel: a live-painting reporter subscribes to it at
+  construction time and drives its renderer off the stream. Open shape, so
+  future fields don't break existing reporters. The plugin builds the kit
+  twice per run — a run-start kit handed to the factory (neutral run
+  health) and a run-end, health-aware kit handed to `render`.
 - **`ReporterRenderInput`** — per-run data handed to `render()`. Carries
   `reports[]` (one per project), `classifications` keyed by
   `TestReport.fullName`, and an optional `trendSummary` present only on full
   (non-scoped) runs.
+- **`VitestAgentReporter.render`** — `(input, kit) => ReadonlyArray<RenderedOutput>`.
+  Takes a second `kit` argument: the factory gets the run-start kit, `render`
+  gets the run-end, health-aware kit resolved after failures are known.
 - **`VitestAgentReporterFactory`** — `(kit) => VitestAgentReporter |
   ReadonlyArray<VitestAgentReporter>`. Returning an array models Vitest's
   multi-reporter pattern; the plugin concatenates each reporter's
@@ -609,10 +617,11 @@ slot:
   Persistence still runs.
 - `agent` — markdown-flavored final-frame string tuned for token economy.
   Emitted by the dispatcher's agent half via the plugin's built-in
-  `_defaultReporter` from `vitest-agent-ui`. Default for `agent`.
-- `ink` — Ink-mounted animated tree from `vitest-agent-ui`'s internal
-  `_createLiveInk` live mount. The plugin instantiates the mount itself
-  when the resolved mode is `ink`; users do not wire it. Strips Vitest's
+  `DefaultVitestAgentReporter` from `vitest-agent-reporter`. Default for
+  `agent`.
+- `ink` — Ink-mounted animated tree. `DefaultVitestAgentReporter` owns the
+  live Ink mount: it subscribes to the plugin's run-event `PubSub` channel
+  and drives the mount itself; users do not wire it. Strips Vitest's
   reporters and owns stdout for the duration of the run. Available only
   on the `human` slot.
 - `ci-annotations` — GitHub Actions workflow-command annotations.
@@ -624,7 +633,7 @@ reporter-internal verbosity knob. After T7 it is no longer on
 `consoleOutput`, resolved inside `buildReporterKit` from the active
 `consoleMode`. T6 deleted the bundled markdown / terminal / silent /
 ci-annotations reporters that branched on it; the preassembled
-`_defaultReporter` from `vitest-agent-ui` dispatches on
+`DefaultVitestAgentReporter` from `vitest-agent-reporter` dispatches on
 `kit.config.consoleMode` and ignores `consoleOutput`. The field remains
 on the resolved config for custom-reporter authors who still want to
 read it.

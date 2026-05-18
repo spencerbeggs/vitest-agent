@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RunEvent } from "vitest-agent-sdk";
-import { createLiveInk } from "../src/factory/LiveInkRenderer.js";
+import { createLiveInk } from "../src/LiveInkRenderer.js";
 
 /**
  * Vitest's stdout shimming breaks Ink's `new console.Console(...)`

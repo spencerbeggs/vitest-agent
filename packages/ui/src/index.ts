@@ -44,19 +44,6 @@ export type { AgentCellFn, Cell, InkCellFn } from "./dispatcher/cell-types.js";
 export { classifyOutcome, classifyRunShape } from "./dispatcher/classify.js";
 export { dispatch, dispatchInk, dispatcherTable } from "./dispatcher/dispatch.js";
 export { buildFooter, dominantClassification } from "./dispatcher/footer.js";
-// Factory surface.
-export {
-	_defaultReporter,
-	buildDispatchInputs,
-	renderAgentStringForReport,
-	renderHumanStringForReport,
-	resolveCellOptions,
-} from "./factory/defaultReporter.js";
-export {
-	type CreateLiveInkOptions,
-	type LiveInkRenderer,
-	createLiveInk as _createLiveInk,
-} from "./factory/LiveInkRenderer.js";
 // PubSub channel (live-event transport).
 export * from "./pubsub/index.js";
 // Reducer + agent renderer + Ink components + synthesizers.
