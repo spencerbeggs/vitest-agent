@@ -1,4 +1,4 @@
-// Tests for agent sidecar-path subcommand wiring
+// Tests for the agent sidecar-path subcommand export
 import { describe, expect, it } from "vitest";
 
 describe("agent sidecar-path subcommand", () => {
@@ -9,15 +9,5 @@ describe("agent sidecar-path subcommand", () => {
 
 		// Then: the subcommand export exists
 		expect(agentModule.sidecarPathSubcommand).toBeDefined();
-	});
-
-	it("should include sidecarPathSubcommand in the agentCommand withSubcommands list", async () => {
-		// Given: the agent commands module
-		const agentModule = await import("../src/commands/agent.js");
-
-		// When: checking the exported agentCommand shape
-		// The presence of the subcommand export implies it is wired in;
-		// the actual withSubcommands wiring is validated by the CLI's help output
-		expect(typeof agentModule.sidecarPathSubcommand).toBe("object");
 	});
 });
