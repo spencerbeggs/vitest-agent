@@ -12,12 +12,14 @@ src/
                          withSubcommands is exactly doctor / db / agent
   index.ts            -- programmatic barrel: re-exports CliLive,
                          SidecarLive, injectEnv, registerAgentEffect,
-                         and the lib/sidecar-paths.ts helpers
+                         and the lib/sidecar-paths.ts helpers (consumed
+                         as devDependencies by per-platform sidecar children)
   commands/           -- thin @effect/cli Command wrappers
     doctor.ts          -- top-level `doctor` diagnostic
     db.ts              -- `db` parent: path / prune / reset / query
     agent.ts           -- `agent` namespace parent: triage, wrapup,
-                          record, register-agent, end-agent, inject-env
+                          record, register-agent, end-agent, inject-env,
+                          sidecar-path
     record.ts triage.ts wrapup.ts
                        -- subcommand bodies composed under `agent`
   lib/                -- pure formatting + sidecar logic (where tests live)
@@ -76,6 +78,7 @@ src/
 
 ## When working in this package
 
+- This package depends on `vitest-agent-sidecar` (not the reverse). `resolveSidecarBinaryPath` is imported from `vitest-agent-sidecar` to back the `agent sidecar-path` subcommand. The per-platform sidecar children import from this package as `devDependencies` bundled into their SEA — that is the only direction the CLI is consumed by the sidecar tree.
 - Adding a subcommand: create or extend the `commands/<group>.ts`
   `@effect/cli` glue and wire it into the relevant parent's
   `withSubcommands` (`db`, `agent`, or the root in `bin.ts`). Only add
@@ -127,15 +130,16 @@ src/
 
 ## Agent-agnostic taxonomy additions (Phases 2 + 4)
 
-**The `agent` namespace** (`commands/agent.ts`) replaces the pre-2.0 hidden `_internal` group. It is a discoverable parent — its `--help` opens with the warning header "Commands intended for agents and hook scripts — humans typically don't invoke these directly." It composes the hook-driven utilities `triage`, `wrapup`, and `record` (all relocated here from top-level) plus three sidecar subcommands:
+**The `agent` namespace** (`commands/agent.ts`) replaces the pre-2.0 hidden `_internal` group. It is a discoverable parent — its `--help` opens with the warning header "Commands intended for agents and hook scripts — humans typically don't invoke these directly." It composes the hook-driven utilities `triage`, `wrapup`, and `record` (all relocated here from top-level) plus four sidecar subcommands:
 
 - `agent register-agent` — composes projectKey resolution, RunContext git capture, PerClientSessionMapWriter, and DataStore.registerAgent end-to-end. Emits JSON to stdout with `agentId`, `conversationId`, `mainAgentId`, `idempotencyKey`, `idempotencyHit`. Hook scripts parse via `jq -r '.agentId'`.
 - `agent end-agent` — sets `agents.ended_at` and optionally `session_map.ended_at` when `--host-session-id` is passed. SubagentStop omits the latter.
 - `agent inject-env` — pure pattern matcher. Reads `VITEST_AGENT_*` from env and `package.json#scripts` from cwd; rewrites the command with the env prefix on Vitest match, returns the original on no-match.
+- `agent sidecar-path` — calls `resolveSidecarBinaryPath()` from `vitest-agent-sidecar` and prints the absolute path of the installed platform binary to stdout (exit 0), or exits non-zero when no platform binary is resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`.
 
 The sidecar subcommand bodies stay in `lib/internal-*.ts` (filename prefix unchanged); only their callers moved up under `agent`.
 
-**Sidecar-facing barrel exports.** `src/index.ts` re-exports the sidecar-facing surface so `vitest-agent-sidecar` can consume the CLI as a library: `injectEnv`, `registerAgentEffect`, `SidecarLive`, and the `lib/sidecar-paths.ts` helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants, `exitCodeForTag`). `sidecar-paths.ts` was extracted from `commands/agent.ts` so the CLI and the native binary share byte-identical path-resolution and exit-code logic.
+**Sidecar-facing barrel exports.** `src/index.ts` re-exports `injectEnv`, `registerAgentEffect`, `SidecarLive`, and the `lib/sidecar-paths.ts` helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants, `exitCodeForTag`) so the per-platform `vitest-agent-sidecar-<platform>` children can consume the CLI as a library (`devDependencies`, bundled into each SEA). `sidecar-paths.ts` was extracted from `commands/agent.ts` so the CLI and the native binary share byte-identical path-resolution and exit-code logic. Note the dependency direction: `vitest-agent-cli` depends on `vitest-agent-sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
 
 **SidecarLive layer** (`layers/SidecarLive.ts`) composes three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — plus the platform context. Each store gets its own `SqlClient` connection.
 

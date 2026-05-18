@@ -5,7 +5,7 @@ category: performance
 created: 2026-05-15
 updated: 2026-05-18
 last-synced: 2026-05-18
-completeness: 90
+completeness: 92
 related:
   - ../architecture.md
   - ../components.md
@@ -21,9 +21,9 @@ dependencies: []
 The seventh publishable workspace. Sole responsibility: ship a fast-path native binary for the `inject-env` operation that fires on the per-Bash-call hot path of the PreToolUse Bash hook. It exists to eliminate Node cold-start latency from that hook without changing the hook's observable behavior.
 
 **npm name:** `vitest-agent-sidecar`
-**Bin:** `vitest-agent-sidecar`
+**Bin:** none (binaries live in per-platform child packages)
 **Location:** `packages/sidecar/`
-**Internal dependencies:** `vitest-agent-cli`, `vitest-agent-sdk`
+**Internal dependencies:** none (the parent package has no runtime workspace deps; `vitest-agent-cli` and `vitest-agent-sdk` are `devDependencies` of the per-platform child packages, bundled into each SEA at build time)
 
 The package landed in workstream T9.2. For the latency problem it solves and the layered approach, see [../decisions.md](../decisions.md) Decision 42 and the implementation spec at `docs/superpowers/specs/2.0-sidecar-perf.md`.
 
@@ -41,7 +41,9 @@ The native binary is built with tsdown's `exe` mode (`@tsdown/exe`), which drive
 
 The single `lib/scripts/tsdown.ts` script backs both `build:dev` and `build:prod`; it selects its mode from `process.env.npm_lifecycle_event`. `build:dev` emits `dist/dev`; `build:prod` emits `dist/npm` and `dist/github`. Splitting the emitted directories per task gives turbo a disjoint output set per build task, so each task caches independently. The intermediate JS bundle and SEA scratch live under a per-mode `dist/.bundle/<mode>` directory and are deleted once the variant directories are written, so turbo only ever caches the final `dist/<variant>` outputs. `dist/dev` is the `linkDirectory` base the parent package links locally; `dist/npm` and `dist/github` are the publish targets.
 
-The TS source is the single source of truth. The argv dispatcher — `dispatch(argv)`, the `DispatchResult` type and the hand-rolled flag parser — lives in `packages/cli/src/lib/sidecar-dispatch.ts` and is exported from `vitest-agent-cli`'s `index.ts` (alongside `injectEnv`, `registerAgentEffect`, `SidecarLive` and the path-resolution helpers). Each per-platform child package carries its own thin `packages/sidecar-<platform>/src/bin.ts` runner that imports `dispatch` from `vitest-agent-cli` as a normal package dependency — no cross-package filesystem path into another package's `src/`. The parent `packages/sidecar/` keeps only `src/index.ts`, an rslib entry re-exporting `dispatch` and `injectEnv` from the CLI for programmatic consumers. See [./cli.md](./cli.md) for the `sidecar-paths.ts` extraction.
+`packages/sidecar/turbo.json` sets `dependsOn: []` for all tasks to break a Turbo task-graph cycle. The dependency inversion (`vitest-agent-cli` now depends on `vitest-agent-sidecar`) would create a circular Turbo dependency if the parent sidecar's build inherited the normal `^build` upstream ordering — Turbo would see cli → sidecar → cli. The parent sidecar build has no workspace compile-time deps (its only source file re-exports from `./resolve-sidecar-binary-path.ts` with no cross-package imports), so `dependsOn: []` is accurate. The per-platform children's SEA builds still declare `^build` to pull in the CLI and SDK builds they bundle.
+
+The TS source is the single source of truth. The argv dispatcher — `dispatch(argv)`, the `DispatchResult` type and the hand-rolled flag parser — lives in `packages/cli/src/lib/sidecar-dispatch.ts` and is exported from `vitest-agent-cli`'s `index.ts` (alongside `injectEnv`, `registerAgentEffect`, `SidecarLive` and the path-resolution helpers). Each per-platform child package carries its own thin `packages/sidecar-<platform>/src/bin.ts` runner that imports `dispatch` from `vitest-agent-cli` as a normal package dependency — no cross-package filesystem path into another package's `src/`. The parent `packages/sidecar/` keeps only `src/index.ts`, an rslib entry that exports `resolveSidecarBinaryPath` and `ResolveSidecarBinaryPathOptions`. The resolver **must** live in this package: `require.resolve` only finds the optional platform sub-packages when the module anchor (`import.meta.url`) is inside `vitest-agent-sidecar`, which is the package that declares them as `optionalDependencies`. `vitest-agent-cli` depends on `vitest-agent-sidecar` (not the reverse) to consume this resolver. See [./cli.md](./cli.md) for the `sidecar-paths.ts` extraction and the `agent sidecar-path` subcommand.
 
 ## Distribution: per-platform optionalDependencies
 
@@ -70,7 +72,7 @@ Each child `package.json` declares a `publishConfig` with the dual npm + GitHub 
 
 ## Hook integration
 
-The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) detects the binary with a cheap `command -v vitest-agent-sidecar` (a shell builtin — no fork) and execs it directly when present. When the binary is absent it falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths are byte-identical in output; the binary path simply avoids Node cold-start and the PM-exec wrapper. `vitest-agent-sidecar` is declared as a `peerDependency` of `vitest-agent-plugin` alongside `vitest-agent-cli` and `vitest-agent-mcp`; it pulls in the matching `vitest-agent-sidecar-<platform>` child via `optionalDependencies`, and the child's own `bin` declaration hoists the SEA executable into `node_modules/.bin/` where the hook's `command -v` finds it.
+The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins — transitive optional-dependency bins are never placed in `node_modules/.bin/`. The SessionStart hook resolves the path at session start instead: it calls `vitest-agent agent sidecar-path` (a CLI subcommand backed by `resolveSidecarBinaryPath`), captures the absolute path from stdout, and writes `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both the session env file and `CLAUDE_ENV_FILE`. The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) Layer 2 reads `$VITEST_AGENT_SIDECAR_BIN`, checks it is non-empty and executable, and execs it directly when valid. When absent or non-executable it falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths are byte-identical in output. `vitest-agent-sidecar` is declared as a `peerDependency` of `vitest-agent-plugin` alongside `vitest-agent-cli` and `vitest-agent-mcp`.
 
 ## CI
 

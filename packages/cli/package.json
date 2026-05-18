@@ -40,6 +40,7 @@
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"effect": "catalog:silk",
 		"vitest-agent-sdk": "workspace:*",
+		"vitest-agent-sidecar": "workspace:*",
 		"vitest-agent-ui": "workspace:*"
 	},
 	"devDependencies": {
