@@ -13,19 +13,22 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { NodeContext } from "@effect/platform-node";
 import type { LogLevel } from "effect";
-import { Effect, Option } from "effect";
+import { Effect, Option, PubSub } from "effect";
+import { DefaultVitestAgentReporter } from "vitest-agent-reporter";
 import type {
 	AgentReport,
 	AgentReporterOptions,
 	ConsoleMode,
 	CoverageBaselines,
 	OutputFormat,
+	ReporterKit,
 	ResolvedThresholds,
 	RunEvent,
 	TestClassification,
 	TestErrorInput,
 	TestOutcome,
 	Transport,
+	VitestAgentReporter,
 	VitestAgentReporterFactory,
 	VitestTestModule,
 } from "vitest-agent-sdk";
@@ -48,8 +51,6 @@ import {
 	resolveLogFile,
 	resolveLogLevel,
 } from "vitest-agent-sdk";
-import type { LiveInkRenderer } from "vitest-agent-ui";
-import { _createLiveInk, _defaultReporter } from "vitest-agent-ui";
 import { ReporterLive } from "./layers/ReporterLive.js";
 import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit.js";
@@ -310,7 +311,33 @@ export class AgentReporter {
 	private logLevel: LogLevel.LogLevel | undefined;
 	private logFile: string | undefined;
 	private onRunEvent: ((event: RunEvent) => void) | undefined;
-	private liveInk: LiveInkRenderer | undefined;
+	/**
+	 * Run-event channel. The plugin publishes one {@link RunEvent} per
+	 * Vitest streaming callback onto this `PubSub`; the reporter factory
+	 * receives it on the {@link ReporterKit} and a live-painting reporter
+	 * (the default reporter in `ink` mode) subscribes to drive its mount.
+	 * The plugin no longer owns any render mount itself.
+	 *
+	 * @internal
+	 */
+	private runEvents: PubSub.PubSub<RunEvent>;
+	/**
+	 * Reporters resolved from the factory at run start (`onInit`). Reused
+	 * by `onTestRunEnd` for the `render` call. Undefined when `onInit` did
+	 * not run (tests invoking `onTestRunEnd` directly) — `onTestRunEnd`
+	 * then resolves the factory itself.
+	 *
+	 * @internal
+	 */
+	private reporters: ReadonlyArray<VitestAgentReporter> | undefined;
+	/**
+	 * Whether the user supplied a custom `reporter` factory. A custom
+	 * reporter may subscribe to the run-event channel in any console mode,
+	 * so the streaming hooks publish events whenever this is true.
+	 *
+	 * @internal
+	 */
+	private readonly hasCustomReporter: boolean;
 	private currentRunId: string | null = null;
 	private moduleStartedAt: Map<string, string> = new Map();
 
@@ -320,18 +347,15 @@ export class AgentReporter {
 		this.logLevel = resolveLogLevel();
 		this.logFile = resolveLogFile();
 		this.onRunEvent = options.onRunEvent;
+		this.hasCustomReporter = options.reporter !== undefined;
 
-		// When the resolved consoleMode is "ink", the plugin owns the live
-		// Ink mount. The default reporter emits nothing in ink mode on the
-		// assumption that the visible work is painted live as events arrive.
-		// Mount is lazy inside _createLiveInk (first RunStarted) so this
-		// is cheap to instantiate even in non-TTY environments — the mount
-		// itself fails silently with a stderr warning when Ink cannot
-		// attach. The user-supplied onRunEvent callback (if any) still runs
-		// alongside the live mount as a read-only tee.
-		if ((options.consoleMode ?? "passthrough") === "ink") {
-			this.liveInk = _createLiveInk();
-		}
+		// The run-event channel. Created unconditionally — it is cheap, and
+		// whether anything subscribes is decided downstream: the default
+		// reporter subscribes only in `ink` mode, a custom reporter may
+		// subscribe in any mode, and the user `onRunEvent` tap is fed
+		// alongside the channel. The plugin only publishes; the reporter
+		// owns every render mount (including the live Ink mount).
+		this.runEvents = Effect.runSync(PubSub.unbounded<RunEvent>());
 
 		// coverageThresholds may be a raw Vitest format (Record<string, unknown>)
 		// when AgentReporter is used directly without AgentPlugin. Resolve it.
@@ -381,7 +405,7 @@ export class AgentReporter {
 			consoleMode,
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
 			...(options.projectFilter !== undefined ? { projectFilter: options.projectFilter } : {}),
-			reporter: options.reporter ?? _defaultReporter,
+			reporter: options.reporter ?? DefaultVitestAgentReporter,
 			coverageMode: options.coverageMode ?? "full",
 			transport: options.transport ?? { kind: "local" },
 			...(options.passWithNoTests !== undefined ? { passWithNoTests: options.passWithNoTests } : {}),
@@ -431,35 +455,95 @@ export class AgentReporter {
 	async onInit(vitest: unknown): Promise<void> {
 		this._vitest = vitest;
 		await this.ensureDbPath();
+		await this.initReporters();
 	}
 
 	/**
-	 * Are there any live subscribers for emitted {@link RunEvent}s? The
-	 * streaming Vitest hooks short-circuit when this is false to skip
-	 * constructing event objects nothing will read.
+	 * Resolve the reporter factory at run start.
+	 *
+	 * The factory is invoked here — before any streaming hook fires — so a
+	 * reporter that paints live (the default reporter's Ink mount in `ink`
+	 * mode) can subscribe to {@link AgentReporter.runEvents | the run-event
+	 * channel} before the first `RunStarted` event. The kit built here
+	 * carries neutral run health; `detail` is resolved health-aware again
+	 * for the render kit at `onTestRunEnd`, and that kit is the one handed
+	 * to `render`.
+	 *
+	 * A resolution failure degrades silently: `this.reporters` stays unset
+	 * and `onTestRunEnd` resolves the factory itself from the render kit.
 	 *
 	 * @internal
 	 */
-	private hasSubscribers(): boolean {
-		return this.onRunEvent !== undefined || this.liveInk !== undefined;
+	private async initReporters(): Promise<void> {
+		const opts = this.options;
+		try {
+			const initProgram = Effect.gen(function* () {
+				const detector = yield* EnvironmentDetector;
+				const executorResolver = yield* ExecutorResolver;
+				const formatSelector = yield* FormatSelector;
+				const detailResolver = yield* DetailResolver;
+				const env = yield* detector.detect();
+				const executor = yield* executorResolver.resolve(env);
+				const format = yield* formatSelector.select(executor, opts.format, env);
+				const detail = yield* detailResolver.resolve(
+					executor,
+					{ hasFailures: false, belowTargets: false, hasTargets: !!opts.coverageTargets },
+					opts.detail,
+				);
+				return { env, executor, format, detail };
+			});
+			const { env, executor, format, detail } = await Effect.runPromise(
+				initProgram.pipe(Effect.provide(OutputPipelineLive), Effect.provide(NodeContext.layer)),
+			);
+			const kit = buildReporterKit({
+				env,
+				executor,
+				format,
+				detail,
+				noColor: !!process.env.NO_COLOR,
+				consoleMode: opts.consoleMode ?? "passthrough",
+				mcp: opts.mcp ?? false,
+				githubActions: opts.githubActions,
+				transport: opts.transport,
+				runEvents: this.runEvents,
+				...(this.dbPath !== null && { dbPath: this.dbPath }),
+				...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
+				...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
+				...(opts.coverageTargets !== undefined && { coverageTargets: opts.coverageTargets }),
+				...(opts.passWithNoTests !== undefined && { passWithNoTests: opts.passWithNoTests }),
+				coverageMode: opts.coverageMode,
+			});
+			this.reporters = normalizeReporters(opts.reporter(kit));
+		} catch (err) {
+			process.stderr.write(`vitest-agent: reporter init failed; retrying at run end (${formatFatalError(err)})\n`);
+		}
 	}
 
 	/**
-	 * Safely emit a {@link RunEvent} to the internal live Ink mount (when
-	 * ink mode is active) and the user-supplied tap. A throwing tap or
-	 * live-mount call is caught and logged to stderr — live-render bugs
-	 * must not break persistence.
+	 * Should the streaming Vitest hooks publish {@link RunEvent}s? The
+	 * hooks short-circuit when this is false to skip constructing event
+	 * objects nothing will read: the default reporter consumes the channel
+	 * only in `ink` mode, a custom reporter may consume it in any mode,
+	 * and the user `onRunEvent` tap is fed off the same stream.
+	 *
+	 * @internal
+	 */
+	private wantsRunEvents(): boolean {
+		return this.onRunEvent !== undefined || this.options.consoleMode === "ink" || this.hasCustomReporter;
+	}
+
+	/**
+	 * Publish a {@link RunEvent} onto the run-event channel and the
+	 * user-supplied tap. A throwing publish or tap is caught and logged to
+	 * stderr — a live-render bug must not break persistence.
 	 *
 	 * @internal
 	 */
 	private emit(event: RunEvent): void {
-		const liveInk = this.liveInk;
-		if (liveInk !== undefined) {
-			try {
-				liveInk.event(event);
-			} catch (err) {
-				process.stderr.write(`vitest-agent: live Ink mount threw: ${formatFatalError(err)}\n`);
-			}
+		try {
+			Effect.runSync(PubSub.publish(this.runEvents, event));
+		} catch (err) {
+			process.stderr.write(`vitest-agent: run-event publish threw: ${formatFatalError(err)}\n`);
 		}
 		const tap = this.onRunEvent;
 		if (tap !== undefined) {
@@ -493,7 +577,7 @@ export class AgentReporter {
 	 * `RunStarted` event for live subscribers.
 	 */
 	onTestRunStart(_specifications: ReadonlyArray<unknown>): void {
-		if (!this.hasSubscribers()) return;
+		if (!this.wantsRunEvents()) return;
 		this.currentRunId = randomUUID();
 		this.moduleStartedAt.clear();
 		this.emit({
@@ -508,7 +592,7 @@ export class AgentReporter {
 	 * Vitest streaming hook: a test module has been queued.
 	 */
 	onTestModuleQueued(testModule: { relativeModuleId: string }): void {
-		if (!this.hasSubscribers()) return;
+		if (!this.wantsRunEvents()) return;
 		this.emit({ _tag: "ModuleQueued", modulePath: testModule.relativeModuleId });
 	}
 
@@ -516,7 +600,7 @@ export class AgentReporter {
 	 * Vitest streaming hook: a test module is starting execution.
 	 */
 	onTestModuleStart(testModule: { relativeModuleId: string }): void {
-		if (!this.hasSubscribers()) return;
+		if (!this.wantsRunEvents()) return;
 		const startedAt = new Date().toISOString();
 		this.moduleStartedAt.set(testModule.relativeModuleId, startedAt);
 		this.emit({ _tag: "ModuleStarted", modulePath: testModule.relativeModuleId, startedAt });
@@ -540,7 +624,7 @@ export class AgentReporter {
 			| undefined;
 		diagnostic(): { duration: number } | undefined;
 	}): void {
-		if (!this.hasSubscribers()) return;
+		if (!this.wantsRunEvents()) return;
 		const modulePath = testCase.module?.relativeModuleId ?? "";
 		if (modulePath === "") return;
 		const suitePath = this.collectSuitePath(testCase);
@@ -587,7 +671,7 @@ export class AgentReporter {
 		};
 		diagnostic(): { duration: number } | undefined;
 	}): void {
-		if (!this.hasSubscribers()) return;
+		if (!this.wantsRunEvents()) return;
 		let pass = 0;
 		let fail = 0;
 		let skip = 0;
@@ -686,7 +770,7 @@ export class AgentReporter {
 		// breaking the live UX. The live Ink mount schedules its own
 		// unmount on next tick once it sees this event (see
 		// LiveInkRenderer.tsx).
-		if (this.hasSubscribers() && this.currentRunId !== null) {
+		if (this.wantsRunEvents() && this.currentRunId !== null) {
 			let pass = 0;
 			let fail = 0;
 			let skip = 0;
@@ -723,6 +807,12 @@ export class AgentReporter {
 		const stashedVitest = this._vitest;
 		const logLevel = this.logLevel;
 		const logFile = this.logFile;
+		// The run-event channel and the reporters resolved at run start
+		// (onInit). `preBuiltReporters` is undefined only when onInit did
+		// not run — tests invoking onTestRunEnd directly — in which case
+		// the factory is resolved here from the render kit instead.
+		const runEvents = this.runEvents;
+		const preBuiltReporters = this.reporters;
 
 		// Resolve dbPath if onInit didn't run (e.g. unit tests calling
 		// onTestRunEnd directly). Memoized after first resolution.
@@ -805,6 +895,7 @@ export class AgentReporter {
 					mcp: opts.mcp ?? false,
 					githubActions: opts.githubActions,
 					transport: opts.transport,
+					runEvents,
 					...(dbPath !== undefined && { dbPath }),
 					...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
 					...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
@@ -813,13 +904,16 @@ export class AgentReporter {
 					coverageMode: opts.coverageMode,
 				});
 
-				const reporters = normalizeReporters(opts.reporter(kit));
+				// Reuse the reporters resolved at run start; resolve the factory
+				// here only when onInit did not run. The render kit (this `kit`)
+				// is health-aware and is the one handed to `render`.
+				const reporters = preBuiltReporters ?? normalizeReporters(opts.reporter(kit));
 				// No history → classifications are empty; no trends → trendSummary is undefined
 				const renderInput = {
 					reports: uiReports,
 					classifications: new Map<string, TestClassification>(),
 				};
-				const allOutputs = reporters.flatMap((r) => r.render(renderInput));
+				const allOutputs = reporters.flatMap((r) => r.render(renderInput, kit));
 				for (const output of allOutputs) {
 					routeRenderedOutput(output, {
 						...(githubSummaryFile !== undefined && { githubSummaryFile }),
@@ -1394,7 +1488,7 @@ export class AgentReporter {
 				}
 			}
 
-			// Build the kit and resolve the user's reporter(s).
+			// Build the render kit and resolve the user's reporter(s).
 			const githubSummaryFile = process.env.GITHUB_STEP_SUMMARY;
 			const kit = buildReporterKit({
 				env,
@@ -1406,6 +1500,7 @@ export class AgentReporter {
 				mcp: opts.mcp ?? false,
 				githubActions: opts.githubActions,
 				transport: opts.transport,
+				runEvents,
 				...(dbPath !== undefined && { dbPath }),
 				...(opts.projectFilter !== undefined && { projectFilter: opts.projectFilter }),
 				...(opts.coverageThresholds !== undefined && { coverageThresholds: opts.coverageThresholds }),
@@ -1414,7 +1509,10 @@ export class AgentReporter {
 				coverageMode: opts.coverageMode,
 			});
 
-			const reporters = normalizeReporters(opts.reporter(kit));
+			// Reuse the reporters resolved at run start; resolve the factory
+			// here only when onInit did not run. This health-aware render kit
+			// is the one handed to `render`.
+			const reporters = preBuiltReporters ?? normalizeReporters(opts.reporter(kit));
 			const renderInput = {
 				reports,
 				classifications,
@@ -1422,7 +1520,7 @@ export class AgentReporter {
 			};
 
 			// Concatenate outputs from every user reporter, then route each.
-			const allOutputs = reporters.flatMap((r) => r.render(renderInput));
+			const allOutputs = reporters.flatMap((r) => r.render(renderInput, kit));
 			yield* Effect.logDebug("reporters rendered").pipe(
 				Effect.annotateLogs({ reporterCount: reporters.length, outputs: allOutputs.length }),
 			);

@@ -3,13 +3,13 @@
 [![npm](https://img.shields.io/npm/v/vitest-agent-reporter?label=npm&color=cb3837)](https://www.npmjs.com/package/vitest-agent-reporter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-4caf50.svg)](https://opensource.org/licenses/MIT)
 
-The escape-hatch SDK for building a custom reporter on top of [vitest-agent-plugin](https://github.com/spencerbeggs/vitest-agent). One package, one import: the reporter contract types from `vitest-agent-sdk` plus the dispatcher helpers from `vitest-agent-ui`. If you only want the default behavior, you do not need this package — install `vitest-agent-plugin` and the built-in reporter wires automatically.
+The default reporter package and the reference package for custom-reporter authors. Ships `DefaultVitestAgentReporter` — the production default `VitestAgentReporterFactory` that `vitest-agent-plugin` wires when no custom `reporter` option is set — and owns the live React Ink mount lifecycle end to end. Also gives custom-reporter authors a single import for the reporter contract types and the dispatch helpers. If you only want the default behavior, you do not need to install this package directly — it is a regular dependency of `vitest-agent-plugin` and is pulled in automatically.
 
 ## Why this package exists
 
-The plugin ships a preassembled default reporter that handles the common cases: a markdown-flavored end-of-run frame for agent runs, a live React Ink view for human runs, footers that point at the right MCP tool for the dominant outcome, GitHub Step Summary output under Actions. Most users never need to think about reporter wiring.
+`DefaultVitestAgentReporter` is the production default: it branches on every `consoleMode`, dispatches through the 12-cell shape × outcome matrix, owns the live React Ink mount lifecycle (mount / rerender / unmount), and emits a footer pointing at the right MCP tool for the dominant outcome. GitHub Actions gets a GFM Step Summary payload alongside. Most users never need to think about reporter wiring.
 
-If the default does not produce the output you want, you write a `VitestAgentReporterFactory` and pass it as the plugin's `reporter` option. This package gives you everything that factory needs in one import:
+If the default does not produce the output you want, write a `VitestAgentReporterFactory` and pass it as the plugin's `reporter` option. Read `DefaultVitestAgentReporter`'s source in this package as a worked example. This package also gives your factory everything it needs in one import:
 
 ```typescript
 import type {
@@ -34,11 +34,11 @@ npm install --save-dev vitest-agent-reporter
 pnpm add -D vitest-agent-reporter
 ```
 
-`vitest-agent-reporter` is a peer dependency of `vitest-agent-plugin`, so a plugin install pulls it in on modern pnpm and npm. Install it explicitly only when authoring a custom reporter or when your package manager skips peers.
+`vitest-agent-reporter` is a regular dependency of `vitest-agent-plugin`, so a plugin install pulls it in automatically. Install it explicitly only when authoring a custom reporter or when your package manager does not hoist transitive dependencies.
 
 ## Building a custom reporter
 
-A reporter factory takes the resolved `ReporterKit` and returns an object whose `render(input)` is called once at end-of-run with the per-project `AgentReport[]`:
+A reporter factory is invoked once at run start with the resolved `ReporterKit`; the returned object's `render(input, kit)` is called once at run end with the per-project reports and a second health-aware kit. Both kits carry the same `runEvents` channel but the render-time kit has a post-run `detail` level:
 
 ```typescript
 import type {
@@ -48,26 +48,23 @@ import type {
   VitestAgentReporter,
   VitestAgentReporterFactory,
 } from "vitest-agent-reporter";
-import {
-  buildDispatchInputs,
-  resolveCellOptions,
-} from "vitest-agent-reporter";
 
-const myReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => ({
-  async render(input: ReporterRenderInput): Promise<RenderedOutput[]> {
-    const dispatchInputs = buildDispatchInputs(input.reports, kit);
-    const cellOptions = resolveCellOptions(kit, dispatchInputs);
-    // dispatchInputs carries shape, outcome, project aggregates, trend,
-    // and below-target listings — all the pre-computed inputs the
-    // built-in cells consume.
-    return [
-      {
+const myReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => {
+  // Construction-time work: subscribe to kit.runEvents for live rendering,
+  // open file handles, capture kit.config — use the factory-time kit here.
+  return {
+    render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
+      // Rendering work: use the health-aware render-time kit for config,
+      // and input.reports / input.classifications for run results.
+      const projectCount = input.reports.length;
+      const passed = input.reports.reduce((n, r) => n + r.summary.passed, 0);
+      return [{
         target: "stdout",
-        content: `Custom report for ${dispatchInputs.projects.length} project(s)\n`,
-      },
-    ];
-  },
-});
+        content: `${passed} passed across ${projectCount} project(s)\n`,
+      }];
+    },
+  };
+};
 ```
 
 Pass the factory to the plugin:
@@ -83,25 +80,29 @@ AgentPlugin({
 
 ## What the helpers do
 
-| Helper | Source | Description |
-| --- | --- | --- |
-| `buildDispatchInputs(reports, kit)` | `vitest-agent-ui` | Assembles a fully-populated `DispatchInputs` from per-project `AgentReport[]`. Pre-computes shape, outcome, project aggregates, trend direction, and below-target listings |
-| `resolveCellOptions(kit, dispatchInputs)` | `vitest-agent-ui` | Resolves the per-cell option object: color flag, OSC-8 enablement, MCP hint flag, etc. |
+`buildDispatchInputs` and `resolveCellOptions` live in this package (they moved from `vitest-agent-ui` in 2.0):
 
-The contract types come from `vitest-agent-sdk`:
+| Helper | Description |
+| --- | --- |
+| `buildDispatchInputs(state, input, overrides?)` | Assembles a fully-populated `DispatchInputs` from the reduced `RenderState` and `ReporterRenderInput`. Pre-computes shape, outcome, project aggregates, trend direction, and below-target listings |
+| `resolveCellOptions(kit)` | Resolves the per-cell option object from the kit: `noColor` flag and the pre-bound OSC-8 hyperlink helper |
+| `renderAgentStringForReport(report)` | One-shot helper: synthesizes events from a stored `AgentReport`, reduces state, and returns the dispatched agent string |
+| `renderHumanStringForReport(report, opts?)` | Same as above but renders the Ink half to a string via `ink`'s `renderToString` |
+
+The contract types come from `vitest-agent-sdk` and are re-exported here:
 
 | Type | Description |
 | --- | --- |
 | `ResolvedReporterConfig` | The resolved facts the plugin computes per run: `consoleMode`, `coverageMode`, `format`, `detail`, environment, executor |
-| `ReporterKit` | The bundle the plugin hands to a factory: `config`, `dbPath`, `noColor`, `osc8`, `env` |
-| `ReporterRenderInput` | The input to `render()`: per-project `reports`, `unhandledErrors`, `reason` |
-| `RenderedOutput` | One emit target: `{ target: "stdout" \| "github-summary" \| "file", content: string }` |
-| `VitestAgentReporter` | The object returned by a factory; has one method `render(input)` |
-| `VitestAgentReporterFactory` | `(kit: ReporterKit) => VitestAgentReporter` |
+| `ReporterKit` | The bundle handed to a factory at run start and to `render` at run end: `config`, `stdEnv`, `stdOsc8`, and optional `runEvents` channel |
+| `ReporterRenderInput` | The input to `render(input, kit)`: per-project `reports`, `classifications`, optional `trendSummary` |
+| `RenderedOutput` | One emit target: `{ target: "stdout" \| "github-summary" \| "file", content, contentType }` |
+| `VitestAgentReporter` | The object returned by a factory; has one method `render(input, kit)` |
+| `VitestAgentReporterFactory` | `(kit: ReporterKit) => VitestAgentReporter \| ReadonlyArray<VitestAgentReporter>` |
 
 ## Documentation
 
-See the [main README](https://github.com/spencerbeggs/vitest-agent#readme) and the [configuration reference](https://github.com/spencerbeggs/vitest-agent/blob/main/docs/configuration.md) for plugin wiring. The [vitest-agent-ui README](https://github.com/spencerbeggs/vitest-agent/blob/main/packages/ui/README.md) covers the dispatcher matrix and the preassembled default reporter that the helpers re-export from here.
+See the [main README](https://github.com/spencerbeggs/vitest-agent#readme) and the [configuration reference](https://github.com/spencerbeggs/vitest-agent/blob/main/docs/configuration.md) for plugin wiring. The `DefaultVitestAgentReporter` source in this package is the canonical worked example for the `VitestAgentReporterFactory` contract.
 
 ## License
 

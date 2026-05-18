@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 93
 related:
   - ../architecture.md
@@ -26,13 +26,18 @@ a user-supplied `VitestAgentReporterFactory`.
 
 **npm name:** `vitest-agent-plugin`
 **Location:** `packages/plugin/`
-**Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-reporter`, `vitest-agent-ui`
+**Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-reporter`
 **Required peers:** `vitest-agent-cli`, `vitest-agent-mcp`, `vitest >= 4.1.0`
 
 The plugin owns persistence, classification, baselines, trends, and Vitest
-lifecycle wiring. Rendering is delegated to whatever reporter(s) the factory
-returns. The `VitestAgentReporter` contract types live in
-[./sdk.md](./sdk.md) (`packages/sdk/src/contracts/reporter.ts`).
+lifecycle wiring. Rendering is delegated entirely to the reporter factory —
+the plugin owns no Ink mount and no rendering code. After the
+reporter-package restructure (`feat/2.0-reporter-restructure`) the plugin
+dropped its direct `vitest-agent-ui` dependency: it imports
+`DefaultVitestAgentReporter` from `vitest-agent-reporter` and nothing from
+`ui`. The plugin also no longer carries `react` or `ink` — JSX lives only
+in `vitest-agent-reporter` now. The `VitestAgentReporter` contract types
+live in [./sdk.md](./sdk.md) (`packages/sdk/src/contracts/reporter.ts`).
 
 For decisions that shaped this design, see [../decisions.md](../decisions.md):
 D40 (T7 five-field options surface), D34 (plugin/reporter split), D28
@@ -46,11 +51,12 @@ D40 (T7 five-field options surface), D34 (plugin/reporter split), D28
 `packages/plugin/src/plugin.ts`. The Vitest plugin entry point. Hooks into
 Vitest's `configureVitest`, detects the environment, parses coverage
 thresholds and targets, picks the user's `VitestAgentReporterFactory`
-(defaulting to `_defaultReporter` from `vitest-agent-ui`), then constructs
-an `AgentReporter` per project and pushes it onto `vitest.config.reporters`.
-After the T6 UI rewrite the preassembled default reporter lives in the UI
-package; `vitest-agent-plugin` declares `vitest-agent-ui` as a workspace
-dependency to import it.
+(defaulting to `DefaultVitestAgentReporter` from `vitest-agent-reporter`),
+then constructs an `AgentReporter` per project and pushes it onto
+`vitest.config.reporters`. The reporter-package restructure made
+`vitest-agent-reporter` the home of the default reporter; the plugin
+imports it as a workspace dependency and no longer touches
+`vitest-agent-ui` directly.
 
 **The 2.0 user-facing options shape.** `AgentPluginOptions` is exactly
 five fields — see [./sdk.md](./sdk.md) for the schema and
@@ -100,17 +106,15 @@ Custom reporters and non-console built-ins (`json`, `junit`, `html`,
 `blob`, `github-actions`) are preserved.
 
 **`onRunEvent` is a stream tee, not a gating switch.** The plugin
-accepts an optional `onRunEvent: (event: RunEvent) => void` callback and
-forwards it for **every** `consoleMode`. The T6 rewrite collapsed live
-ingestion and end-of-run synthesis into one internal stream — the live
-Ink mount is now plugin-internal and is instantiated by the plugin
-itself when `consoleMode === "ink"`. The user-facing callback is a
-read-only tee for custom dashboards, log forwarders or analytics sinks.
-Throwing user callbacks are caught and logged to stderr by
-`AgentReporter.emit` so a buggy tap never breaks persistence or the
-default reporter. Tests live in `packages/plugin/__test__/plugin.test.ts`
-under "tap forwards for every mode" and "throwing user callback
-caught".
+accepts an optional `onRunEvent: (event: RunEvent) => void` callback. It
+is independent of the internal run-event channel: `AgentReporter.emit`
+does `Effect.runSync(PubSub.publish(runEvents, event))` to feed the
+reporter, then calls the user `onRunEvent` tap. The tap is a read-only
+tee for custom dashboards, log forwarders or analytics sinks, fired for
+**every** `consoleMode`. Throwing user callbacks are caught and logged
+to stderr by `emit` so a buggy tap never breaks persistence or the
+reporter. Tests live in `packages/plugin/__test__/plugin.test.ts` under
+"tap forwards for every mode" and "throwing user callback caught".
 
 **Resolved internally (no longer user-facing).** The plugin auto-derives
 two flags from the detected environment and the resolved console mode
@@ -146,28 +150,39 @@ The plugin re-exports the public version constant
 substitution) and a test-only `_resetVersionDriftGuardForTests` hook
 that re-arms the once-per-process gate between integration test cases
 (`packages/plugin/__test__/version-drift.test.ts`). The plugin
-intentionally does not compare against `CURRENT_UI_VERSION` because
-`vitest-agent-ui` is not a hard peer dependency — see the root
-CLAUDE.md "Cross-package version drift" section and D36 in
-[../decisions.md](../decisions.md).
+intentionally does not compare against `CURRENT_UI_VERSION` —
+`vitest-agent-ui` is not a direct plugin dependency at all after the
+reporter-package restructure; it arrives transitively through
+`vitest-agent-reporter`. See the root CLAUDE.md "Cross-package version
+drift" section and D36 in [../decisions.md](../decisions.md).
 
 ## AgentReporter (internal Vitest-API class)
 
 `packages/plugin/src/reporter.ts`. Internal lifecycle class — constructed by
-`AgentPlugin`, never exported as a public API. Standalone reporter consumers
-go through the named factories in `vitest-agent-reporter` or
-`vitest-agent-ui`.
+`AgentPlugin`, never exported as a public API.
 
 The class's job is the persistence pipeline plus the live event stream;
-end-of-run rendering is delegated to the configured factory.
+all rendering is delegated to the configured `VitestAgentReporterFactory`.
+
+**The run-event channel.** The `AgentReporter` constructor creates an
+unbounded Effect `PubSub<RunEvent>` (`Effect.runSync(PubSub.unbounded())`).
+That channel is threaded onto `ReporterKit.runEvents` (an optional field
+on the kit — see [./sdk.md](./sdk.md)) and is the transport by which a
+live-painting reporter receives run events. The reporter-package
+restructure moved live-rendering orchestration into the reporter, so the
+plugin's job here is to publish events onto the channel and hand the
+channel to the factory — it owns no Ink mount.
 
 **Lifecycle hooks:**
 
-- `onInit` resolves `dbPath`. If `options.cacheDir` is set, the helper
-  short-circuits to `<cacheDir>/data.db` — skipping the heavy XDG/workspace
-  layer stack that would otherwise eagerly scan lockfiles. Otherwise it runs
-  `resolveDataPath(process.cwd())` and memoizes on `this.dbPath`. On
-  rejection, prints `formatFatalError(err)` to stderr and returns early.
+- `onInit` resolves `dbPath` (as before — the `cacheDir` short-circuit
+  still applies), then calls `initReporters()`. `initReporters` resolves
+  a run-start `ReporterKit` (neutral run health — `hasFailures: false`)
+  and invokes `opts.reporter(kit)` **at run start** so a live-painting
+  reporter can subscribe to `kit.runEvents` before the first event. The
+  resolved reporters are stashed on the instance for reuse by
+  `onTestRunEnd`. If `initReporters` throws, it logs to stderr and the
+  factory is retried at run end.
 - `onCoverage` stashes coverage data; fires before `onTestRunEnd`.
 - `onTestRunEnd` is the load-bearing hook for persistence and end-of-run
   rendering. See below.
@@ -177,13 +192,15 @@ per-event streaming callbacks (`onTestRunStart`, `onTestModuleQueued`,
 `onTestModuleStart`, `onTestCaseResult`, `onTestModuleEnd`) on every run.
 Each callback constructs the matching `RunEvent` variant (`RunStarted`,
 `ModuleQueued`, `ModuleStarted`, `TestFinished`, `ModuleFinished`) and
-emits it to two consumers: the plugin-internal live Ink mount (active
-only when `consoleMode === "ink"`, via `_createLiveInk` from
-`vitest-agent-ui`) and the user-supplied `onRunEvent` tap (active for
-every mode when set). `onTestRunEnd` also fires `RunFinished` at the top
-of its handler so the live mount sees end-of-run before the heavy
-persistence work runs. The emit helper catches throwing user callbacks
-and logs to stderr — persistence and the default reporter never break
+calls `emit(event)`, which publishes onto the run-event `PubSub` and
+calls the user-supplied `onRunEvent` tap. `onTestRunEnd` also emits
+`RunFinished` at the top of its handler so a subscribed reporter sees
+end-of-run before the heavy persistence work runs. A `wantsRunEvents()`
+gate (true when `onRunEvent` is set, when `consoleMode === "ink"`, or
+when a custom reporter is in use) skips event construction when nothing
+will consume the stream — it replaces the pre-restructure
+`hasSubscribers()` gate. The `emit` helper catches throwing user
+callbacks and logs to stderr — persistence and the reporter never break
 because a tap has a bug.
 
 **`onTestRunEnd` flow:**
@@ -202,10 +219,14 @@ because a tap has a bug.
    entries.
 5. Compute updated baselines, write trends on full (non-scoped) runs, and
    read trend summaries back for the `ReporterRenderInput`.
-6. **Render delegation.** Build a `ReporterKit` via `buildReporterKit`,
-   invoke `opts.reporter(kit)` to get one or more reporters, normalize to an
-   array, concatenate the `RenderedOutput[]` produced by each, then route
-   each entry via `routeRenderedOutput`.
+6. **Render delegation.** Build a second, health-aware `ReporterKit` via
+   `buildReporterKit` (this one carries post-run `detail` and the same
+   `runEvents` channel), reuse the reporters resolved at run start by
+   `initReporters` — resolving the factory here only when `onInit` did
+   not run — call each reporter's `render(input, kit)`, concatenate the
+   `RenderedOutput[]`, then route each entry via `routeRenderedOutput`.
+   The factory is invoked at most once; `render` receives the run-end
+   kit while the factory received the run-start kit.
 
 Each lifecycle hook builds a scoped Effect and runs it with
 `Effect.runPromise` against `ReporterLive(dbPath)`.
@@ -470,9 +491,14 @@ instead.
   `omitPassingTests`, `coverageConsoleLimit`, `includeBareZero`,
   `githubSummary`, and `githubSummaryFile` are computed inside the kit
   builder from `consoleMode` and `process.env`. `transport` is a
-  required input. The pre-bound `stdOsc8` is enabled when `!noColor &&
-  (env === "terminal" || env === "agent-shell")` and is a no-op
-  otherwise.
+  required input. The optional `runEvents` `PubSub<RunEvent>` channel is
+  passed straight through onto `ReporterKit.runEvents` so the reporter
+  can subscribe for live painting. The pre-bound `stdOsc8` is enabled
+  when `!noColor && (env === "terminal" || env === "agent-shell")` and
+  is a no-op otherwise. The builder runs twice per run — once in
+  `initReporters` (run-start, neutral health) and once in `onTestRunEnd`
+  (run-end, health-aware) — so the factory and `render` each get the
+  kit appropriate to their phase.
 - `route-rendered-output.ts` — dispatches a `RenderedOutput` by its declared
   `target`. `stdout` writes to `process.stdout`; `github-summary` appends to
   the resolved `GITHUB_STEP_SUMMARY` file or user override; `file` is
@@ -634,23 +660,25 @@ executor resolves in `onTestRunEnd`. This is a Phase 7 follow-up.
 
 Phase 5 added an early return on the UI-only path in `AgentReporter.onTestRunEnd`:
 
-1. `RunFinished` still fires at the top of the handler so any live mount
-   sees end-of-run before the heavy work would have started.
+1. `RunFinished` is still emitted at the top of the handler so a
+   subscribed reporter sees end-of-run before the heavy work would have
+   started.
 2. `filteredModules` is computed (the per-project filter still applies).
 3. **If `opts.coverageMode === "ui-only"`**, the reporter:
    - Builds `AgentReport[]` from `testModules` via the pure
      `buildAgentReport` helper (no DB read, no classifier).
    - Runs a tiny Effect program against `OutputPipelineLive` +
      `NodeContext.layer` to resolve env, executor, format, and detail.
-   - Builds the kit via `buildReporterKit` (carrying `coverageMode:
-     "ui-only"` through onto `ResolvedReporterConfig`).
-   - Calls the user's reporter factory with the kit and routes the
-     returned `RenderedOutput[]` to its declared targets.
+   - Builds the run-end kit via `buildReporterKit` (carrying
+     `coverageMode: "ui-only"` through onto `ResolvedReporterConfig`,
+     plus the `runEvents` channel).
+   - Calls `render(input, kit)` on the reporters and routes the
+     returned `RenderedOutput[]` to their declared targets.
    - Returns. No `ensureMigrated`, no `DataStore.write*`, no
      `CoverageAnalyzer.process`, no `HistoryTracker.resolve`.
 4. Otherwise the Full-mode pipeline runs end-to-end as before.
 
-The streaming taps that drive a live renderer
+The streaming hooks that publish onto the run-event channel
 (`onTestModuleQueued`, `onTestModuleStart`, `onTestCaseResult`,
 `onTestModuleEnd`, plus the `RunFinished` emit at the top of `onTestRunEnd`)
 fire identically in both modes — UI-only callers see the same event

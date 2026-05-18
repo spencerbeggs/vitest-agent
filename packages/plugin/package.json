@@ -40,7 +40,6 @@
 		"magic-string": "^0.30.0",
 		"vitest-agent-reporter": "workspace:*",
 		"vitest-agent-sdk": "workspace:*",
-		"vitest-agent-ui": "workspace:*",
 		"workspaces-effect": "^1.0.0"
 	},
 	"devDependencies": {

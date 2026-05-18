@@ -226,9 +226,6 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
-      vitest-agent-ui:
-        specifier: workspace:*
-        version: link:../ui/dist/dev
       workspaces-effect:
         specifier: ^1.0.0
         version: 1.0.0(@effect/platform@0.96.1(effect@3.21.2))(effect@3.21.2)
@@ -276,12 +273,12 @@ importers:
       effect:
         specifier: catalog:silk
         version: 3.21.2
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
-      vitest-agent-mcp:
-        specifier: workspace:*
-        version: link:../mcp/dist/dev
+      ink:
+        specifier: ^7.0.3
+        version: 7.0.3(@types/react@19.2.14)(react@19.2.6)
+      react:
+        specifier: catalog:silk
+        version: 19.2.6
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
@@ -298,6 +295,9 @@ importers:
       '@types/node':
         specifier: catalog:silk
         version: 25.8.0
+      '@types/react':
+        specifier: catalog:silk
+        version: 19.2.14
       '@vitest/coverage-istanbul':
         specifier: ^4.1.6
         version: 4.1.6(vitest@4.1.6)

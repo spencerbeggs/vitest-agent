@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-07
-updated: 2026-05-14
-last-synced: 2026-05-14
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 95
 related:
   - ./plugin.md
@@ -333,7 +333,7 @@ export default async () => {
 };
 ```
 
-After T6 the plugin ships its own preassembled default reporter from `vitest-agent-ui` and instantiates the internal live Ink mount itself when `console.human === "ink"`. Users no longer import a reporter factory or a live-mount helper.
+After the reporter-package restructure the plugin imports `DefaultVitestAgentReporter` from `vitest-agent-reporter` as its built-in factory and owns no rendering itself. The live Ink mount is owned by `DefaultVitestAgentReporter`, which subscribes to the plugin's run-event `PubSub` channel. Users no longer import a reporter factory or a live-mount helper.
 
 When the workspace contains a folder that holds tests but is not a
 workspace package, chain addProject:

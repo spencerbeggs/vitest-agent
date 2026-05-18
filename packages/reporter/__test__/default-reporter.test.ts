@@ -1,17 +1,17 @@
 /**
- * Integration tests for the preassembled default reporter.
+ * Integration tests for the default reporter.
  *
- * The factory consumes a `ReporterKit` + `ReporterRenderInput` and
- * returns one stdout-targeted `RenderedOutput` carrying the dispatched
- * agent-string. These tests build the kit / input directly without
- * threading through the plugin so the reporter's contract is
- * exercised in isolation.
+ * The factory consumes a `ReporterKit` and returns a reporter whose
+ * `render(input, kit)` produces one stdout-targeted `RenderedOutput`
+ * carrying the dispatched agent-string. These tests build the kit /
+ * input directly without threading through the plugin so the reporter's
+ * contract is exercised in isolation.
  */
 
 import { describe, expect, it } from "vitest";
 import type { AgentReport, ReporterKit, ReporterRenderInput, VitestAgentReporter } from "vitest-agent-sdk";
 import { initialRenderState } from "vitest-agent-sdk";
-import { _defaultReporter, buildDispatchInputs, resolveCellOptions } from "../src/factory/defaultReporter.js";
+import { DefaultVitestAgentReporter, buildDispatchInputs, resolveCellOptions } from "../src/defaultReporter.js";
 
 const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): ReporterKit => ({
 	config: {
@@ -60,11 +60,11 @@ const makeInput = (overrides: Partial<ReporterRenderInput> = {}): ReporterRender
 	...overrides,
 });
 
-describe("_defaultReporter", () => {
+describe("DefaultVitestAgentReporter", () => {
 	it("renders one stdout RenderedOutput for consoleMode=agent", () => {
 		const kit = makeKit("agent");
-		const reporter = asSingle(_defaultReporter(kit));
-		const output = reporter.render(makeInput());
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		const output = reporter.render(makeInput(), kit);
 		expect(output).toHaveLength(1);
 		const firstOutput = output[0];
 		expect(firstOutput).toBeDefined();
@@ -74,33 +74,38 @@ describe("_defaultReporter", () => {
 	});
 
 	it("emits nothing for consoleMode=silent", () => {
-		const reporter = asSingle(_defaultReporter(makeKit("silent")));
-		expect(reporter.render(makeInput())).toEqual([]);
+		const kit = makeKit("silent");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		expect(reporter.render(makeInput(), kit)).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=passthrough", () => {
-		const reporter = asSingle(_defaultReporter(makeKit("passthrough")));
-		expect(reporter.render(makeInput())).toEqual([]);
+		const kit = makeKit("passthrough");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		expect(reporter.render(makeInput(), kit)).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=ink", () => {
-		const reporter = asSingle(_defaultReporter(makeKit("ink")));
-		expect(reporter.render(makeInput())).toEqual([]);
+		const kit = makeKit("ink");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		expect(reporter.render(makeInput(), kit)).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=ci-annotations", () => {
-		const reporter = asSingle(_defaultReporter(makeKit("ci-annotations")));
-		expect(reporter.render(makeInput())).toEqual([]);
+		const kit = makeKit("ci-annotations");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		expect(reporter.render(makeInput(), kit)).toEqual([]);
 	});
 
 	it("workspace shape kicks in with more than one project report", () => {
-		const reporter = asSingle(_defaultReporter(makeKit("agent")));
+		const kit = makeKit("agent");
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
 		const reports: ReadonlyArray<AgentReport> = [
 			makeReport({ project: "alpha", summary: { total: 5, passed: 5, failed: 0, skipped: 0, duration: 10 } }),
 			makeReport({ project: "beta", summary: { total: 3, passed: 3, failed: 0, skipped: 0, duration: 8 } }),
 			makeReport({ project: "gamma", summary: { total: 2, passed: 2, failed: 0, skipped: 0, duration: 5 } }),
 		];
-		const output = reporter.render(makeInput({ reports }));
+		const output = reporter.render(makeInput({ reports }), kit);
 		expect(output).toHaveLength(1);
 		const firstOutput = output[0];
 		expect(firstOutput).toBeDefined();

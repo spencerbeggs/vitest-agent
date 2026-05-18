@@ -1,23 +1,26 @@
 /**
- * The preassembled default reporter for the 2.0 plugin.
+ * The default reporter for the 2.0 plugin.
  *
  * Implements `VitestAgentReporterFactory` from the SDK. The plugin
  * imports this factory and wires it as its built-in when the user's
- * `reporter` option is unset. Subscribes to the run-event stream the
- * plugin emits, folds events through the reducer, runs the shape ×
- * outcome dispatcher, and emits one RenderedOutput targeted at stdout.
+ * `reporter` option is unset. The factory is invoked at run start; its
+ * `render` call assembles the reduced state, classifies the shape and
+ * outcome, and dispatches to the matching cell, emitting one
+ * RenderedOutput targeted at stdout.
  *
  * Branches on the resolved `consoleMode`:
  *
  * - `agent` → emits the dispatched agent-string for the whole run.
  * - `silent` / `passthrough` / `ci-annotations` → emits nothing; the
  *   visible work happens elsewhere.
- * - `ink` → emits nothing here; the plugin's live Ink mount paints
+ * - `ink` → emits nothing from `render`; the reporter owns a live Ink
+ *   mount that subscribes to the kit's run-event channel and paints
  *   per-event during the run.
  *
  * @packageDocumentation
  */
 
+import { Effect, PubSub, Queue } from "effect";
 import type {
 	AgentReport,
 	CellOptions,
@@ -28,16 +31,22 @@ import type {
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
+	RunEvent,
 	RunOutcome,
 	RunShape,
 	TrendSummary,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "vitest-agent-sdk";
-import { classifyOutcome, classifyRunShape } from "../dispatcher/classify.js";
-import { dispatch, dispatcherTable } from "../dispatcher/dispatch.js";
-import { reduceRenderStateAll } from "../reducer.js";
-import { synthesizeFromAgentReport } from "../synthesize.js";
+import {
+	classifyOutcome,
+	classifyRunShape,
+	dispatch,
+	dispatcherTable,
+	reduceRenderStateAll,
+	synthesizeFromAgentReport,
+} from "vitest-agent-ui";
+import { createLiveInk } from "./LiveInkRenderer.js";
 
 const summarizeProject = (report: AgentReport): ProjectSummary => {
 	const collapsedTagCounts = report.tagCounts !== undefined ? collapseTagCounts(report.tagCounts) : undefined;
@@ -126,12 +135,11 @@ export const resolveCellOptions = (kit: ReporterKit): CellOptions => ({
 const shouldRenderForMode = (mode: ReporterKit["config"]["consoleMode"]): boolean => mode === "agent";
 
 /**
- * Convenience helper for one-shot consumers (e.g. the CLI `show`
- * command replaying a stored run). Synthesizes a minimal
- * `ReporterRenderInput` from a single `AgentReport`, classifies the
- * shape and outcome, and returns the dispatched agent-string for the
- * matching cell. Equivalent to the pre-2.0 `renderRun(events, "agent")`
- * shortcut.
+ * Convenience helper for one-shot consumers (e.g. a CLI command
+ * replaying a stored run). Synthesizes a minimal `ReporterRenderInput`
+ * from a single `AgentReport`, classifies the shape and outcome, and
+ * returns the dispatched agent-string for the matching cell. Equivalent
+ * to the pre-2.0 `renderRun(events, "agent")` shortcut.
  */
 export const renderAgentStringForReport = (report: AgentReport): string => {
 	const events = synthesizeFromAgentReport(report);
@@ -202,33 +210,76 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
 };
 
 /**
- * The preassembled default reporter factory.
+ * Subscribe a live Ink mount to the kit's run-event channel.
+ *
+ * Called from the factory when `consoleMode` is `ink`. The factory runs
+ * at run start — before the plugin publishes the first `RunStarted`
+ * event — so the subscription is registered in time. `Effect.runFork`
+ * advances the forked fiber up to its first suspension (the
+ * `Queue.take` below); that suspension point is past `PubSub.subscribe`,
+ * so the subscription is live before this function returns. The drain
+ * loop runs forever: `createLiveInk` handles `RunFinished` (schedules
+ * unmount) and a subsequent `RunStarted` (remounts) itself, so the loop
+ * stays open across watch-mode reruns and ends only when the process
+ * exits.
+ *
+ * @internal
+ */
+const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
+	const live = createLiveInk();
+	Effect.runFork(
+		Effect.scoped(
+			Effect.gen(function* () {
+				const dequeue = yield* PubSub.subscribe(channel);
+				yield* Effect.forever(
+					Queue.take(dequeue).pipe(Effect.flatMap((event) => Effect.sync(() => live.event(event)))),
+				);
+			}),
+		),
+	);
+};
+
+/**
+ * The default reporter factory.
  *
  * The plugin uses this as its built-in when no user `reporter` option
- * is supplied. The render call assembles the reduced state, classifies
- * the shape and outcome, and dispatches to the matching cell. Output
- * is one stdout entry carrying the cell's string. When
- * `kit.config.githubActions` is true a GFM step-summary payload is
- * appended for routing to GITHUB_STEP_SUMMARY.
+ * is supplied, and a custom-reporter author reads it as the canonical
+ * worked example of the `VitestAgentReporterFactory` contract.
+ *
+ * The factory is invoked once at run start with the run-start kit. In
+ * `consoleMode: "ink"` it subscribes a live Ink mount to the kit's
+ * run-event channel and owns that mount's lifecycle end to end.
+ *
+ * The `render` call (invoked once at run end with the health-aware kit)
+ * assembles the reduced state, classifies the shape and outcome, and
+ * dispatches to the matching cell. Output is one stdout entry carrying
+ * the cell's string. When `kit.config.githubActions` is true a GFM
+ * step-summary payload is appended for routing to GITHUB_STEP_SUMMARY.
+ * In `ink` mode `render` emits nothing — the live mount painted the run.
  */
-export const _defaultReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => ({
-	render(input: ReporterRenderInput): ReadonlyArray<RenderedOutput> {
-		const out: RenderedOutput[] = [];
-		if (shouldRenderForMode(kit.config.consoleMode)) {
-			const events = input.reports.flatMap((r) => synthesizeFromAgentReport(r));
-			const state = reduceRenderStateAll(events);
-			const inputs = buildDispatchInputs(state, input, {
-				runCommand: kit.config.runCommand ?? null,
-			});
-			const opts = resolveCellOptions(kit);
-			const content = dispatch(inputs, opts);
-			if (content.length > 0) {
-				out.push({ target: "stdout", content, contentType: "text/plain" });
+export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => {
+	if (kit.config.consoleMode === "ink" && kit.runEvents !== undefined) {
+		subscribeLiveInk(kit.runEvents);
+	}
+	return {
+		render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
+			const out: RenderedOutput[] = [];
+			if (shouldRenderForMode(renderKit.config.consoleMode)) {
+				const events = input.reports.flatMap((r) => synthesizeFromAgentReport(r));
+				const state = reduceRenderStateAll(events);
+				const inputs = buildDispatchInputs(state, input, {
+					runCommand: renderKit.config.runCommand ?? null,
+				});
+				const opts = resolveCellOptions(renderKit);
+				const content = dispatch(inputs, opts);
+				if (content.length > 0) {
+					out.push({ target: "stdout", content, contentType: "text/plain" });
+				}
 			}
-		}
-		if (kit.config.githubActions === true) {
-			out.push(...renderGithubSummary(input));
-		}
-		return out;
-	},
-});
+			if (renderKit.config.githubActions === true) {
+				out.push(...renderGithubSummary(input));
+			}
+			return out;
+		},
+	};
+};

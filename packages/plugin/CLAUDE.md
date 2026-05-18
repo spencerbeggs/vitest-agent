@@ -2,16 +2,17 @@
 
 The Vitest plugin (`AgentPlugin()`) and internal `AgentReporter` Vitest-API
 class. Owns the Vitest lifecycle hooks, persistence, classification,
-baseline/trend computation, and delegates rendering to a
-`VitestAgentReporterFactory`. Wires `_defaultReporter` from
-`vitest-agent-ui` as the built-in when the user does not pass a custom
-`reporter` option, and starts the internal `_createLiveInk` mount when
-`consoleMode === "ink"`. Declares `vitest-agent-cli` and
-`vitest-agent-mcp` as required peerDependencies, plus workspace
-dependencies on `vitest-agent-reporter`, `vitest-agent-sdk`, and
-`vitest-agent-ui` (`vitest-agent-reporter` is a regular dependency, not
-a peer). `vitest-agent-sidecar` is not a direct dependency — it arrives
-transitively through the required `vitest-agent-cli` peer.
+baseline/trend computation, and delegates rendering entirely to a
+`VitestAgentReporterFactory` — it injects `DefaultVitestAgentReporter` from
+`vitest-agent-reporter` when the user does not pass a custom `reporter`
+option, and never touches rendering itself. The reporter owns mode
+branching and the Ink live-mount lifecycle. Declares `vitest-agent-cli` and
+`vitest-agent-mcp` as required peerDependencies, plus regular workspace
+dependencies on `vitest-agent-reporter` and `vitest-agent-sdk`. The plugin
+no longer depends on `vitest-agent-ui`, `react`, or `ink` — `reporter`
+pulls those transitively. `vitest-agent-sidecar` is not a direct
+dependency — it arrives transitively through the required
+`vitest-agent-cli` peer.
 
 ## Layout
 
@@ -57,8 +58,8 @@ src/
 
 | File | Purpose |
 | ---- | ------- |
-| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + executor + console matrix → single `ConsoleMode` value; strips Vitest reporters and suppresses Vitest's coverage table whenever the resolved mode owns stdout (any value other than `passthrough`); forwards the user's `onRunEvent` tap unconditionally for every consoleMode (the T6 rewrite removed the previous `ink`-only gating); wires `_defaultReporter` from `vitest-agent-ui` when no `reporter` option is supplied; injects `AgentReporter` per project via `configureVitest`. Resolves `coverageMode` from Vitest's native `coverage.enabled` and threads it onto `ResolvedReporterConfig`. Runs the `ConfigValidation` service in `configureVitest` (warnings to stderr via `[vitest-agent:plugin]`; errors throw via `formatFatalError`). Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, `COVERAGE_AUTOUPDATE`, and `discover()` |
-| `reporter.ts` | Internal `AgentReporter` class. `onInit` resolves `dbPath` async; `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline in Full mode, then calls `opts.reporter(kit)` and routes `RenderedOutput[]`. In UI-only mode (`opts.coverageMode === "ui-only"`), the handler short-circuits after `RunFinished` and `filteredModules`: builds reports via `buildAgentReport`, runs a tiny `OutputPipelineLive` + `NodeContext.layer` program to resolve env/executor/format/detail, builds the kit, and routes the renderer output. No `ensureMigrated`, no `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker` |
+| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + executor + console matrix → single `ConsoleMode` value; strips Vitest reporters and suppresses Vitest's coverage table whenever the resolved mode owns stdout (any value other than `passthrough`); forwards the user's `onRunEvent` tap unconditionally for every consoleMode (the T6 rewrite removed the previous `ink`-only gating); injects `DefaultVitestAgentReporter` from `vitest-agent-reporter` when no `reporter` option is supplied; injects `AgentReporter` per project via `configureVitest`. Resolves `coverageMode` from Vitest's native `coverage.enabled` and threads it onto `ResolvedReporterConfig`. Runs the `ConfigValidation` service in `configureVitest` (warnings to stderr via `[vitest-agent:plugin]`; errors throw via `formatFatalError`). Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, `COVERAGE_AUTOUPDATE`, and `discover()` |
+| `reporter.ts` | Internal `AgentReporter` class. Imports `DefaultVitestAgentReporter` from `vitest-agent-reporter`; imports nothing from `vitest-agent-ui`. Creates an Effect `PubSub` run-event channel and publishes one `RunEvent` per Vitest streaming callback onto it; the channel rides `ReporterKit.runEvents` (optional field). The reporter factory is invoked at run start (`onInit`) so a live reporter can subscribe before the first event — the plugin no longer drives the Ink mount, holds a `liveInk` field, or calls `hasSubscribers()`. `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline in Full mode, then calls `opts.reporter.render(input, kit)` and routes `RenderedOutput[]`. In UI-only mode (`opts.coverageMode === "ui-only"`), the handler short-circuits after `RunFinished` and `filteredModules`: builds reports via `buildAgentReport`, runs a tiny `OutputPipelineLive` + `NodeContext.layer` program to resolve env/executor/format/detail, builds the kit, and routes the renderer output. No `ensureMigrated`, no `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker` |
 | `services/CoverageAnalyzer.ts` | Effect service tag for coverage processing. Only lives here because the reporter lifecycle class feeds it coverage data; CLI/MCP read pre-processed coverage from SQLite |
 | `services/ConfigValidation.ts` | Effect service tag `vitest-agent/ConfigValidation` with one method `validate(input): Effect<ValidationResult, never, never>`. `ValidationError` carries optional `path` for pinpointed diagnostics and optional `remediation` for install-command-style fixes |
 | `layers/ConfigValidationLive.ts` | Runs the seven-rule starter registry: `TARGET_WITHOUT_THRESHOLD` (warn), `TARGET_BELOW_THRESHOLD` (error), `THRESHOLD_WITHOUT_TARGET` (silent), `INVALID_TARGET_VALUE` (error, top + nested glob), `UNSUPPORTED_PROVIDER` (error, Full mode only), `MISSING_PROVIDER_PACKAGE` (error via `createRequire`, Full mode only, with install-command remediation), `PERFILE_ON_TARGETS` (warn). Mode resolution reads `vitestConfig.coverage?.enabled` — `false` → UI-only (skip provider rules), anything else → Full |
@@ -257,7 +258,7 @@ single `ConsoleMode` value. Per-slot defaults:
 Two derived decisions follow from the resolved mode:
 
 1. **Stdout ownership.** Any non-`passthrough` value strips Vitest's reporters and suppresses Vitest's native coverage text reporter. The plugin owns stdout for the run.
-2. **Default reporter selection.** When no `reporter` option is supplied, the plugin wires `_defaultReporter` from `vitest-agent-ui`. The preassembled default branches internally on `consoleMode`: emits the agent-string for `agent`, emits nothing for `silent` / `passthrough` / `ci-annotations`, and defers to the live Ink mount for `ink` (mounted by the plugin via the internal `_createLiveInk`).
+2. **Default reporter selection.** When no `reporter` option is supplied, the plugin injects `DefaultVitestAgentReporter` from `vitest-agent-reporter`. That reporter branches internally on `consoleMode` and owns the Ink live-mount lifecycle itself — the plugin only feeds it the run-event stream (via `ReporterKit.runEvents`) and the resolved kit.
 
 The T6 rewrite removed the per-consoleMode gating of the `onRunEvent` tap. The plugin now forwards the user's `onRunEvent` callback to `AgentReporter` for every consoleMode (`AgentReporter.emit` catches thrown taps and logs to stderr — persistence never breaks because a tap has a bug). Channel suppression for non-`ink` modes is the default reporter's responsibility, not the tap's. Tests for the unconditional-forwarding contract live in `__test__/reporter-streaming.test.ts`.
 
@@ -267,11 +268,13 @@ The T6 rewrite removed the per-consoleMode gating of the `onRunEvent` tap. The p
 (`onTestRunStart`, `onTestModuleQueued`, `onTestModuleStart`,
 `onTestCaseResult`, `onTestModuleEnd`) alongside the existing
 `onInit`/`onCoverage`/`onTestRunEnd` trio. Each callback constructs a
-`RunEvent` and fires `options.onRunEvent` (when set). `onTestRunEnd`
-also fires `RunFinished` at the top of the persistence pipeline so
-the live mount sees end-of-run before the heavy persistence work
-runs. Throwing taps are caught and logged to stderr — persistence
-never breaks because a live renderer has a bug.
+`RunEvent`, publishes it on the `ReporterKit.runEvents` PubSub channel
+(so a subscribed reporter sees it live), and fires `options.onRunEvent`
+(when set) as a host-introspection tee. `onTestRunEnd` also publishes
+`RunFinished` at the top of the persistence pipeline so a live reporter
+sees end-of-run before the heavy persistence work runs. Throwing taps
+are caught and logged to stderr — persistence never breaks because a
+live renderer has a bug.
 
 ## Design references
 

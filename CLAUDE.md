@@ -11,33 +11,28 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | --------- | ---- | ------- |
 | `vitest-agent-sdk` | `packages/sdk/` | Shared schemas, data layer, services, formatters, utilities, public reporter + dispatcher contracts (no internal deps) |
 | `vitest-agent-plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ConfigValidation`, `ReporterLive` |
-| `vitest-agent-reporter` | `packages/reporter/` | Escape-hatch SDK for custom reporters: re-exports the `VitestAgentReporterFactory` contract types from sdk plus the `buildDispatchInputs` / `resolveCellOptions` helpers from ui. No shipped factories |
+| `vitest-agent-reporter` | `packages/reporter/` | Default reporter package and reference package for custom-reporter authors: ships `DefaultVitestAgentReporter`, owns the Ink live-mount lifecycle (`_createLiveInk`), re-exports the `VitestAgentReporterFactory` contract types from sdk plus the dispatch helpers from ui |
 | `vitest-agent-cli` | `packages/cli/` | CLI bin (`vitest-agent`) |
 | `vitest-agent-mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
-| `vitest-agent-ui` | `packages/ui/` | Preassembled default reporter (`_defaultReporter`), shape-tailored dispatcher matrix (run-shape x outcome cells), reducer, agent + Ink render paths, PubSub channel, internal `_createLiveInk` |
+| `vitest-agent-ui` | `packages/ui/` | Pure rendering-primitives library: shape-tailored dispatcher matrix (run-shape x outcome cells), reducer, agent + Ink render paths, synthesizers, PubSub channel. Knows nothing about the reporter lifecycle |
 | `vitest-agent-sidecar` | `packages/sidecar/` | Node Single Executable Application binary for the per-Bash-call `inject-env` hot path; prebuilt per-platform binaries ship via `optionalDependencies` |
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
 
 The seven publishable packages live under `packages/`. Four
 per-platform sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `vitest-agent-sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
 
-The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares exactly two workspace `peerDependencies`, `vitest-agent-cli` and `vitest-agent-mcp`, plus regular `dependencies` on `vitest-agent-reporter`, `vitest-agent-sdk`, and `vitest-agent-ui` (the latter supplies the preassembled default reporter and the internal live-Ink mount). `vitest-agent-sidecar` reaches a consumer transitively rather than as a direct plugin peer: it is a regular `dependency` of `vitest-agent-cli`, which is itself a required peer of the plugin, so installing the plugin (with its required cli peer) pulls `vitest-agent-sidecar` and its four per-platform `optionalDependencies` automatically.
+The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares exactly two workspace `peerDependencies`, `vitest-agent-cli` and `vitest-agent-mcp`, plus regular `dependencies` on `vitest-agent-reporter` and `vitest-agent-sdk`. The dependency flow is `plugin → reporter → ui → sdk`: the plugin no longer depends on `vitest-agent-ui` (or `react` / `ink`) directly — `vitest-agent-reporter` supplies the default reporter and the Ink live mount, and pulls `ui` / `react` / `ink` transitively. `vitest-agent-sidecar` reaches a consumer transitively rather than as a direct plugin peer: it is a regular `dependency` of `vitest-agent-cli`, which is itself a required peer of the plugin, so installing the plugin (with its required cli peer) pulls `vitest-agent-sidecar` and its four per-platform `optionalDependencies` automatically.
 Users typically configure the plugin with just
 `AgentPlugin({ console, coverageTargets, transport? })` — the plugin
-wires `_defaultReporter` and the Ink mount internally. Custom reporters
+injects `DefaultVitestAgentReporter` from `vitest-agent-reporter`, which
+owns rendering and the Ink live mount end to end. Custom reporters
 arrive via the plugin's `reporter` option. The Claude Code plugin's SessionStart hook resolves the
 sidecar binary path once per session via `vitest-agent agent sidecar-path`,
 exports `VITEST_AGENT_SIDECAR_BIN`; the PreToolUse Bash hook reads that
 env var to exec the binary directly, falling back to the JS CLI when absent.
 The six non-sidecar packages pin `vitest-agent-sdk` at `workspace:*`.
 
-**Legacy naming — watch out.** Pre-2.0 this whole system was one
-package, `vitest-agent-reporter`. The 2.0 split kept that name for the
-renderer-only package at `packages/reporter/`; the reporter lifecycle
-code now lives in `vitest-agent-plugin` at `packages/plugin/`. Prose and
-comments still occasionally say `vitest-agent-reporter` in the legacy
-whole-system sense when they should say `vitest-agent-plugin` — update
-references as you encounter them.
+**Legacy naming — watch out.** Pre-2.0 this whole system was one package, `vitest-agent-reporter`. The 2.0 split kept that name for `packages/reporter/`; as of the 2.0 reporter-restructure that package ships `DefaultVitestAgentReporter` and owns the Ink live-mount lifecycle. The Vitest API lifecycle (persistence, classification, baselines, trends) lives in `vitest-agent-plugin` at `packages/plugin/`. Prose and comments still occasionally say `vitest-agent-reporter` in the legacy whole-system sense when they should say `vitest-agent-plugin` — update references as you encounter them.
 
 ## Project Status
 

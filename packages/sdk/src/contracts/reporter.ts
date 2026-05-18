@@ -16,6 +16,7 @@
  * @packageDocumentation
  */
 
+import type { PubSub } from "effect";
 import type { RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type {
@@ -26,6 +27,7 @@ import type {
 	OutputFormat,
 	TestClassification,
 } from "../schemas/Common.js";
+import type { RunEvent } from "../schemas/RunEvent.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { Transport } from "../schemas/Transport.js";
 
@@ -128,6 +130,21 @@ export interface ReporterKit {
 	 * reporter can call this directly without consulting environment.
 	 */
 	readonly stdOsc8: (url: string, label: string) => string;
+	/**
+	 * Live run-event channel. The plugin publishes one {@link RunEvent}
+	 * per Vitest streaming callback (`onTestRunStart`, `onTestModuleStart`,
+	 * `onTestCaseResult`, `onTestRunEnd`, …) onto this `PubSub` as the run
+	 * progresses. A reporter that paints live — the default reporter's Ink
+	 * mount in `consoleMode: "ink"` — subscribes here at construction time
+	 * (the factory is invoked at run start, before the first event) and
+	 * drives its renderer off the stream.
+	 *
+	 * Optional at the type level so a reporter constructed directly
+	 * without the plugin (tests, one-shot replay) can omit it; a reporter
+	 * that wants live events must guard for `undefined`. The plugin always
+	 * populates it.
+	 */
+	readonly runEvents?: PubSub.PubSub<RunEvent>;
 }
 
 /**
@@ -160,16 +177,22 @@ export interface ReporterRenderInput {
  * into `vitest-agent`.
  *
  * `render` is called once per test run after the plugin has persisted all
- * data. The reporter returns `RenderedOutput[]` — the plugin routes each
- * entry to its declared `target` (`stdout`, `file`, `github-summary`), so
- * the reporter does not need to know about file paths or write streams.
+ * data. It receives the assembled run plus a second, health-aware
+ * {@link ReporterKit}: the kit handed to the factory is resolved at run
+ * start (before failures are known), while the kit handed to `render` is
+ * resolved at run end and reflects post-run `detail`. A reporter that does
+ * construction-time work reads the factory kit; a reporter that renders
+ * reads the `render` kit. The reporter returns `RenderedOutput[]` — the
+ * plugin routes each entry to its declared `target` (`stdout`, `file`,
+ * `github-summary`), so the reporter does not need to know about file
+ * paths or write streams.
  *
  * A "no-op" reporter is one line: `() => ({ render: () => [] })`. Useful
  * for users who only want persistence (the MCP/CLI tools see the data) and
  * no console output at all.
  */
 export interface VitestAgentReporter {
-	readonly render: (input: ReporterRenderInput) => ReadonlyArray<RenderedOutput>;
+	readonly render: (input: ReporterRenderInput, kit: ReporterKit) => ReadonlyArray<RenderedOutput>;
 }
 
 /**

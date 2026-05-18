@@ -37,6 +37,10 @@ Owned by `vitest-agent-plugin` (see
 to a user-supplied `VitestAgentReporterFactory`.
 
 ```text
+constructor
+  +-- this.runEvents = Effect.runSync(PubSub.unbounded<RunEvent>())
+        the run-event channel a live-painting reporter subscribes to
+
 async onInit(vitest)
   +-- store vitest as this._vitest
   +-- await ensureDbPath()
@@ -47,25 +51,32 @@ async onInit(vitest)
   |           resolveDataPath(cwd) under PathResolutionLive +
   |             NodeContext.layer
   |           (XDG-keyed by workspace identity)
+  +-- await initReporters()
+        build a run-start ReporterKit (neutral run health) carrying
+        this.runEvents, invoke opts.reporter(kit) and stash the
+        resolved reporters. Invoking the factory at run start lets a
+        live-painting reporter subscribe before the first event.
 
-Streaming hooks (always active; emit to plugin-internal live Ink mount
-when consoleMode === "ink" plus the user-supplied onRunEvent tap when set)
+Streaming hooks (active when wantsRunEvents(); publish onto the
+run-event PubSub channel and tee to the user onRunEvent tap)
   onTestRunStart        -> RunStarted     -> emit(event)
   onTestModuleQueued    -> ModuleQueued   -> emit(event)
   onTestModuleStart     -> ModuleStarted  -> emit(event)
   onTestCaseResult      -> TestFinished   -> emit(event)
   onTestModuleEnd       -> ModuleFinished -> emit(event)
-  emit() catches throwing user callbacks and logs to stderr; the
-  internal live mount and persistence never break because a user tap
-  has a bug. T6 removed the pre-2.0 gating that suppressed the tap on
-  every mode except ink.
+  emit() does Effect.runSync(PubSub.publish(runEvents, event)) then
+  calls the user onRunEvent tap; throwing user callbacks are caught and
+  logged to stderr. The reporter (subscribed to the channel) and
+  persistence never break because a user tap has a bug. wantsRunEvents()
+  is true when onRunEvent is set, consoleMode is "ink", or a custom
+  reporter is in use.
 
 onCoverage(coverage)
   +-- stash as this.coverage
 
 async onTestRunEnd(testModules, unhandledErrors, reason)
   |
-  +-- Fire RunFinished -> emit() before persistence so the live mount
+  +-- Emit RunFinished before persistence so the subscribed reporter
   |   and any onRunEvent tap see end-of-run before the heavy work runs
   |
   +-- dbPath = await ensureDbPath()  (defensive — tests can bypass onInit)
@@ -85,9 +96,10 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     HistoryTracker entirely. Build in-memory AgentReports via
   |     buildAgentReport, run a tiny OutputPipelineLive +
   |     NodeContext.layer program to resolve env / executor / format /
-  |     detail, call opts.reporter(kit), and route the RenderedOutput[].
-  |     Classifications are empty; trendSummary is undefined. The
-  |     streaming taps and the RunFinished event above still fire.
+  |     detail, build the run-end kit, call render(input, kit) on the
+  |     reporters and route the RenderedOutput[]. Classifications are
+  |     empty; trendSummary is undefined. The streaming hooks and the
+  |     RunFinished event above still fire.
   |
   +-- Full mode: build Effect program over DataStore | DataReader |
   |   CoverageAnalyzer | HistoryTracker | OutputRenderer
@@ -125,17 +137,20 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   +-- Resolve env / executor / format / detail via SDK pipeline services
   +-- Aggregate per-project classifications into a flat
   |   Map<fullName, TestClassification>
-  +-- buildReporterKit(...) -> ReporterKit
+  +-- buildReporterKit(...) -> run-end ReporterKit (health-aware;
+  |     carries this.runEvents and post-run detail)
   |     stdOsc8 enabled when !noColor &&
   |       (env === "terminal" || env === "agent-shell")
-  +-- opts.reporter(kit) -> normalizeReporters() -> reporter[]
-  +-- For each reporter: render({reports, classifications, trendSummary?})
-  |     The built-in _defaultReporter from vitest-agent-ui folds
-  |     input.reports through synthesizeFromAgentReport + the reducer,
-  |     classifies (RunShape, RunOutcome), assembles DispatchInputs,
-  |     and calls dispatch(inputs, opts) for the agent-mode stdout
-  |     entry. Adds a github-summary RenderedOutput when
-  |     kit.config.githubActions is true.
+  +-- reuse the reporters resolved at run start by initReporters
+  |     (resolve opts.reporter(kit) here only if onInit did not run)
+  +-- For each reporter: render({reports, classifications, trendSummary?}, kit)
+  |     The built-in DefaultVitestAgentReporter from vitest-agent-reporter
+  |     folds input.reports through synthesizeFromAgentReport + the
+  |     reducer, classifies (RunShape, RunOutcome), assembles
+  |     DispatchInputs, and calls dispatch(inputs, opts) for the
+  |     agent-mode stdout entry. Adds a github-summary RenderedOutput
+  |     when kit.config.githubActions is true. (For consoleMode "ink"
+  |     it painted live during the run off the run-event channel.)
   +-- Concatenate all RenderedOutput[] in order
   +-- For each: routeRenderedOutput(out, { githubSummaryFile? })
   |     stdout         -> process.stdout
@@ -188,15 +203,17 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
   "silent"`); the plugin emits a `RenderedOutput` for the Step Summary
   file independent of the console mode.
 - Resolve the `VitestAgentReporterFactory` from `options.reporter`
-  (default `_defaultReporter` from `vitest-agent-ui`; user-supplied
-  factories replace the built-in entirely — there is no composition
-  slot). Pass it through to the internal `AgentReporter` so the factory
-  is invoked once per run with the resolved `ReporterKit` (Flow 1).
+  (default `DefaultVitestAgentReporter` from `vitest-agent-reporter`;
+  user-supplied factories replace the built-in entirely — there is no
+  composition slot). Pass it through to the internal `AgentReporter`,
+  which invokes the factory once at run start (`onInit`) with a
+  run-start `ReporterKit` and calls `render` once at run end with a
+  health-aware kit (Flow 1).
 - Forward `options.onRunEvent` to the reporter unconditionally — the
   T6 rewrite removed the gating that suppressed the tap on every mode
-  except `ink`. The plugin instantiates the internal live Ink mount
-  itself when `consoleMode === "ink"`; the user callback is a separate
-  read-only tee subscriber.
+  except `ink`. The live Ink mount for `consoleMode === "ink"` is owned
+  by `DefaultVitestAgentReporter`, which subscribes to the plugin's
+  run-event channel; the user callback is a separate read-only tee.
 - Push a new `AgentReporter` (with `projectFilter: project.name`,
   `reporter: <resolved factory>`, optional `onRunEvent`, and
   `consoleMode`) into `vitest.config.reporters`. A `WeakSet` keyed on

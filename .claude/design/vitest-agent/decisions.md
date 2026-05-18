@@ -505,14 +505,25 @@ preassembled `_defaultReporter` as its built-in) and of
 The lockstep-release / opt-in-peer story for end users is unchanged.
 See D41 for the dispatcher matrix rationale.
 
+**Amendment (reporter-package restructure, 2026-05-18):** the
+restructure resettled the dependency graph into a clean four-layer
+chain — `plugin → reporter → ui → sdk`. `vitest-agent-plugin` dropped
+its direct `vitest-agent-ui` dependency: it now imports the default
+reporter from `vitest-agent-reporter` and nothing from `ui`.
+`react` + `ink` moved from the plugin to `vitest-agent-reporter` as
+full `dependencies` (the plugin no longer touches JSX); `ui` keeps
+them as `peerDependencies`. `vitest-agent-reporter` dropped its
+redundant `cli` + `mcp` peers. The seven-package lockstep and the
+required cli / mcp plugin peers are unchanged. See D34 and D41.
+
 The system ships as six pnpm workspaces under `packages/`:
 
 | Package | Role |
 | --- | --- |
 | `vitest-agent-sdk` | data layer, schemas, services, formatters, utilities, XDG path stack — no internal deps |
-| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter, sdk and ui directly |
-| `vitest-agent-reporter` | named `VitestAgentReporterFactory` implementations only (no Vitest-API code) |
-| `vitest-agent-ui` | event-sourced renderer family (reducer, shape-tailored dispatcher matrix, preassembled `_defaultReporter`, internal `_createLiveInk`, `RunEventChannel` PubSub). After T6, imported by the plugin as a workspace dependency to wire the built-in default reporter; still an opt-in peer for end-user code |
+| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter and sdk directly (no longer on ui). Owns no rendering |
+| `vitest-agent-reporter` | the default reporter package: `DefaultVitestAgentReporter` (the plugin's built-in factory, owns the Ink live mount), contract re-exports, dispatch helpers. Declares `react` + `ink` as full deps; depends on sdk and ui |
+| `vitest-agent-ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, `RunEventChannel` PubSub). Consumed by `vitest-agent-reporter`; `react` / `ink` are `peerDependencies` |
 | `vitest-agent-cli` | `vitest-agent` bin |
 | `vitest-agent-mcp` | `vitest-agent-mcp` bin |
 
@@ -553,22 +564,25 @@ internal `AgentReporter` Vitest-API class, `CoverageAnalyzer`,
 `ReporterKit`, calls the user-supplied factory, concatenates
 `RenderedOutput[]`, and routes by target.
 
-`vitest-agent-reporter` (`packages/reporter/`) is the "build your own
-reporter" SDK after T6 — it re-exports the factory contract types
-from `vitest-agent-sdk` plus `buildDispatchInputs` and
-`resolveCellOptions` from `vitest-agent-ui` so custom-reporter
-authors get everything they need from one package. The pre-2.0 named
-factories (`defaultReporter`, `markdownReporter`, `terminalReporter`,
-`jsonReporter`, `silentReporter`, `ciAnnotationsReporter`,
-`githubSummaryReporter`) and the private `_kit-context.ts` helper were
-all deleted; the preassembled default lives in `vitest-agent-ui` and is
-imported by the plugin. See D41 for the rationale.
+`vitest-agent-reporter` (`packages/reporter/`) is the default reporter
+package and the reference package for custom-reporter authors. It ships
+`DefaultVitestAgentReporter` — the preassembled `VitestAgentReporterFactory`
+the plugin wires as its built-in — and re-exports the factory contract
+types from `vitest-agent-sdk` plus the `buildDispatchInputs` /
+`resolveCellOptions` dispatch helpers so a custom-reporter author gets a
+real worked example and everything they need from one package. The
+pre-2.0 named factories (`defaultReporter`, `markdownReporter`,
+`terminalReporter`, `jsonReporter`, `silentReporter`,
+`ciAnnotationsReporter`, `githubSummaryReporter`) and the private
+`_kit-context.ts` helper were all deleted in T6. See D41 for the
+dispatcher rationale and the **Amendment** below for the
+reporter-package restructure.
 
 Contract types in `vitest-agent-sdk`
 (`packages/sdk/src/contracts/reporter.ts`):
 `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`,
-`VitestAgentReporter` (single sync `render(input)` method returning
-`RenderedOutput[]`), and `VitestAgentReporterFactory` (returns one
+`VitestAgentReporter` (single sync `render(input, kit)` method returning
+`RenderedOutput[]` — the factory receives the run-start kit, `render` the run-end health-aware kit), and `VitestAgentReporterFactory` (returns one
 reporter or an array).
 
 **Why "reporter as renderer-only" beats "reporter as Vitest-lifecycle
@@ -588,7 +602,7 @@ own multi-reporter pattern (`reporters: ['default', 'github-actions']`)
 is the obvious shape for "multiple outputs from one run". Modeling it
 directly means a factory can emit multiple sinks (e.g. stdout plus a
 GitHub Step Summary entry) without a separate "composite reporter"
-abstraction. After T6 the preassembled `_defaultReporter` handles this
+abstraction. The preassembled `DefaultVitestAgentReporter` handles this
 internally by emitting one `RenderedOutput` per active target rather
 than by returning an array of reporters, but the array form remains
 part of the contract for custom-reporter authors who want to compose.
@@ -596,16 +610,25 @@ Each reporter sees the same `ReporterKit` and `ReporterRenderInput`;
 their `RenderedOutput[]` results are concatenated in factory-
 declaration order before routing.
 
-**Why the default reporter lives in `vitest-agent-ui` (after T6).** The
-pre-2.0 home for the default reporter was `vitest-agent-reporter`; the
-intent was that "what output goes where" should be forkable without
-touching the plugin. T6 reframed the boundary: the dispatcher matrix
-and the cell library are already in `vitest-agent-ui`, so the
-preassembled default that drives them is one short factory that lives
-alongside its cells. `vitest-agent-reporter` retains the "fork the
-default" role by re-exporting the dispatcher-input helpers — a custom
-factory composes the same primitives. See D41 and
-[./components/reporter.md](./components/reporter.md).
+**Amendment (reporter-package restructure, 2026-05-18): the default
+reporter moves back to `vitest-agent-reporter`.** T6 had parked the
+preassembled default in `vitest-agent-ui` as the internal
+`_defaultReporter`, on the reasoning that it should live beside the
+dispatcher cells. That left the package literally named "reporter"
+containing no reporter and exporting a `CURRENT_REPORTER_VERSION`
+drift constant that pointed at the wrong package. The restructure
+moves the default reporter and the live Ink mount into
+`vitest-agent-reporter`, promotes the export to the public name
+`DefaultVitestAgentReporter`, and resettles the layers: `ui` is the
+pure rendering-primitives library, `reporter` is the package that
+assembles a reporter from those primitives and is the canonical worked
+example for custom-reporter authors. The two packages stay separately
+published — `ui`'s anticipated second consumer is the planned MCP
+triage-dashboard app, so merging then resplitting would cost two
+breaking changes. The restructure also folded in the former open
+decision §8.2 (the plugin / reporter live-rendering boundary): live
+orchestration now lives in `DefaultVitestAgentReporter`, not the
+plugin. See D41 and [./components/reporter.md](./components/reporter.md).
 
 The Claude Code plugin manifest at
 `plugin/.claude-plugin/plugin.json` keeps the identity
@@ -872,10 +895,13 @@ Two derived behaviors fall out of the resolved mode:
 1. **Stdout ownership.** Any non-`passthrough` value strips Vitest's
    built-in console reporters AND zeroes `coverage.reporter` so the
    plugin owns stdout for the run.
-2. **Live mount activation.** The plugin instantiates the internal Ink
-   live mount itself (via `_createLiveInk` from `vitest-agent-ui`) when
-   `consoleMode === "ink"`. The user-supplied `onRunEvent` callback is
-   a separate read-only stream tee — see D41 for the post-T6 semantics.
+2. **Live mount activation.** When `consoleMode === "ink"` a live Ink
+   mount paints during the run. After the reporter-package restructure
+   the plugin no longer instantiates that mount — it publishes
+   `RunEvent`s onto a `PubSub` channel threaded onto `ReporterKit.runEvents`,
+   and `DefaultVitestAgentReporter` subscribes to it and owns the mount
+   lifecycle. The user-supplied `onRunEvent` callback is a separate
+   read-only stream tee — see D41 for the post-T6 semantics.
 
 **Amendment (T6, 2026-05-15):** D37's original "live-tap gating" rule
 forwarded `onRunEvent` only when `consoleMode === "ink"` to keep a
@@ -884,12 +910,19 @@ T6 the live mount is plugin-internal and the gating is no longer
 needed; the user-facing tap is now forwarded for every mode as a
 read-only stream tee. See D41.
 
+**Amendment (reporter-package restructure, 2026-05-18):** the live Ink
+mount is no longer plugin-internal at all. The plugin owns a run-event
+`PubSub` channel and feeds it; `DefaultVitestAgentReporter` owns the
+mount. The plugin invokes the reporter factory at run start (`onInit`)
+rather than at run end, so a live-painting reporter can subscribe
+before the first event. See D41 and §8.2 (now resolved).
+
 Alongside the option-shape change, `AgentReporter` now implements
 Vitest's streaming hooks (`onTestRunStart`, `onTestModuleQueued`,
 `onTestModuleStart`, `onTestCaseResult`, `onTestModuleEnd`) and fires a
-matching `RunEvent` from each. After T6 these events are consumed by
-the plugin-internal live Ink mount (when `consoleMode === "ink"`) and
-forwarded to the optional user-supplied `onRunEvent` tap.
+matching `RunEvent` from each. These events are published onto the
+run-event channel the reporter subscribes to and forwarded to the
+optional user-supplied `onRunEvent` tap.
 
 **Why a per-executor matrix beats a single `mode` enum:** humans,
 agents, and CI runners want different visible behavior from the same
@@ -903,13 +936,12 @@ set is narrowed at the type level: it is impossible to ask for an Ink
 mount on a CI run, or for GitHub annotations on a human terminal.
 
 **Why a callback rather than putting live rendering on the factory
-contract:** the `VitestAgentReporterFactory.render(input)` contract is
+contract:** the `VitestAgentReporter.render(input, kit)` contract is
 deliberately a single synchronous batch call (one frame per project,
 end of run). Adding `start` / `event` / `stop` lifecycle methods to the
 factory would couple every reporter to the streaming surface even when
 it only needs the final frame. The callback model keeps the contract
-narrow; after T6 the plugin owns the live mount internally and the
-user-facing `onRunEvent` tap is a read-only stream tee for custom
+narrow; after the reporter-package restructure `DefaultVitestAgentReporter` owns the live mount by subscribing to the run-event `PubSub` channel at factory-invocation time, and the user-facing `onRunEvent` tap is a separate read-only stream tee for custom
 dashboards, log forwarders or analytics sinks.
 
 **Why retire `strategy` ("complement" / "own"):** the two states were
@@ -1214,10 +1246,14 @@ the stream.** Pre-2.0 the system had two ingestion paths —
 `createLiveInk()` subscribed per-event from the same plugin. Two ingestion
 paths from one upstream forced users to wire both a `reporter` factory and
 an `onRunEvent` tap to get the canonical experience. T6 collapses them: the
-plugin's internal `AgentReporter` is the sole upstream; the preassembled
-default reporter is one downstream subscriber; the user-facing `onRunEvent`
+plugin's internal `AgentReporter` is the sole upstream; the default
+reporter is one downstream subscriber; the user-facing `onRunEvent`
 is a parallel read-only tee. Live and batch ingestion both land at the same
-`RenderState` via `reduceRenderStateAll`.
+`RenderState` via `reduceRenderStateAll`. After the reporter-package
+restructure that upstream is concrete: the plugin owns an Effect
+`PubSub<RunEvent>` channel (threaded onto `ReporterKit.runEvents`) and
+publishes one event per Vitest callback; `DefaultVitestAgentReporter`
+subscribes to it.
 
 **2. Output shape is selected by `(RunShape, RunOutcome)`, not by format
 flag.** The pre-2.0 approach always rendered the workspace table — wasteful
@@ -1231,15 +1267,14 @@ renderers. Each cell exposes two halves on the same object — an
 `single-test × threshold-violation` is a documented no-op so the matrix
 stays total without a default fallback.
 
-**3. The default reporter is preassembled in `vitest-agent-ui` and the
-plugin imports it as the built-in.** `_defaultReporter` is exported with a
-leading underscore to mark its plugin-internal role; users never import a
-reporter or a live-mount factory. The plugin declares `vitest-agent-ui` as a
-workspace dependency. `vitest-agent-reporter` stays a separate package as
-the "build your own reporter" SDK — contract re-exports plus
-dispatcher-input helpers; this separation is locked for 2.0 (cross-workstream
-review §6) to keep React/Ink out of custom-reporter authors' dependency
-footprint.
+**3. The default reporter is preassembled and the plugin imports it as the
+built-in.** T6 parked the preassembled default in `vitest-agent-ui` as the
+internal `_defaultReporter`. The reporter-package restructure (2026-05-18)
+moved it into `vitest-agent-reporter` and promoted it to the public name
+`DefaultVitestAgentReporter` — see D34's amendment. `vitest-agent-reporter`
+is now the default reporter package *and* the custom-reporter reference
+package; `vitest-agent-ui` is the pure rendering-primitives layer the
+reporter is assembled from. The two stay separately published.
 
 **4. Each cell appends an L1 MCP tool-pointer footer.** The pre-2.0 output
 told the agent what happened but never pointed at the next action. The
@@ -1265,21 +1300,36 @@ of cells; the dispatcher's table lookup stays a one-liner.
 
 **Tap forwarding semantics changed.** Pre-T6 the plugin gated the
 `onRunEvent` tap to `consoleMode === "ink"` to keep a live Ink mount from
-leaking into channels the user opted out of. T6 makes the live mount
-plugin-internal (the plugin instantiates `_createLiveInk` itself when the
-resolved mode is `ink`), so the gating is no longer necessary. The
-user-facing tap is now a stream-tee that fires for every console mode.
-Throwing user callbacks are caught and logged to stderr by
-`AgentReporter.emit`.
+leaking into channels the user opted out of. T6 dropped the gating once the
+live mount stopped being a user-wired thing. After the reporter-package
+restructure the live mount is owned by `DefaultVitestAgentReporter` (off
+the run-event channel), and the `onRunEvent` tap is an independent
+stream-tee that `AgentReporter.emit` fires for every console mode after
+publishing onto the channel. Throwing user callbacks are caught and logged
+to stderr by `emit`.
 
-**Cross-references:** the canonical spec at
-`docs/superpowers/specs/2.0-ui-rewrite.md`. See
+**Amendment (reporter-package restructure, 2026-05-18).** The folded-in
+former open decision §8.2: live-rendering orchestration moved out of
+`plugin/src/reporter.ts` into `DefaultVitestAgentReporter`. The plugin now
+invokes the reporter factory at run start (`onInit`, via `initReporters()`)
+rather than at run end, so a live-painting reporter subscribes to
+`ReporterKit.runEvents` before the first event. The `render` contract gained
+a second `kit` argument — the factory receives a run-start kit (neutral run
+health) and `render` receives a run-end, health-aware kit. The plugin reuses
+the run-start reporters for the `render` call. The old plugin-side `liveInk`
+/ `_createLiveInk` field and the `hasSubscribers()` gate are gone, replaced
+by `wantsRunEvents()`. The default reporter and the live mount driver moved
+to `vitest-agent-reporter`; see D34's amendment.
+
+**Cross-references:** the canonical specs at
+`docs/superpowers/specs/2.0-ui-rewrite.md` and
+`docs/superpowers/specs/2026-05-18-reporter-package-restructure.md`. See
 [./components/ui.md](./components/ui.md) for the dispatcher topology and cell
 helpers, [./components/plugin.md](./components/plugin.md) for the wiring on
 the plugin side, and [./components/reporter.md](./components/reporter.md) for
-the reduced "build your own reporter" SDK role. The pre-2.0 per-formatter
-pipeline (`defaultReporter`, `markdownReporter`, `_kit-context.ts` and the
-named factory siblings) was deleted in T6 phases 6–9.
+the default reporter package. The pre-2.0 per-formatter pipeline
+(`defaultReporter`, `markdownReporter`, `_kit-context.ts` and the named
+factory siblings) was deleted in T6 phases 6–9.
 
 ### Decision 42: T9.2 Three-Layer Sidecar Performance Fix
 
