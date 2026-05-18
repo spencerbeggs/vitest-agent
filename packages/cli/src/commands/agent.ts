@@ -28,6 +28,7 @@ import { Command, Options } from "@effect/cli";
 import { NodeContext } from "@effect/platform-node";
 import { Cause, Chunk, Effect, Option } from "effect";
 import { resolveProjectKeyFromCwd } from "vitest-agent-sdk";
+import { resolveSidecarBinaryPath } from "vitest-agent-sidecar";
 import { SidecarLive } from "../layers/SidecarLive.js";
 import { endAgentEffect } from "../lib/internal-end-agent.js";
 import { injectEnv } from "../lib/internal-inject-env.js";
@@ -207,6 +208,18 @@ export const injectEnvSubcommand = Command.make("inject-env", { command: command
 	}),
 ).pipe(Command.withDescription("Rewrite a Bash command to prepend VITEST_AGENT_* env vars when it invokes Vitest"));
 
+// sidecar-path ---------------------------------------------------------------
+
+export const sidecarPathSubcommand = Command.make("sidecar-path", {}, () =>
+	Effect.sync(() => {
+		const path = resolveSidecarBinaryPath();
+		if (path === null) {
+			process.exit(1);
+		}
+		process.stdout.write(`${path}\n`);
+	}),
+).pipe(Command.withDescription("Print the absolute path of the platform sidecar binary resolved via require.resolve"));
+
 // agent group -----------------------------------------------------------------
 
 const agentParent = Command.make("agent").pipe(
@@ -223,5 +236,6 @@ export const agentCommand = agentParent.pipe(
 		registerAgentSubcommand,
 		endAgentSubcommand,
 		injectEnvSubcommand,
+		sidecarPathSubcommand,
 	]),
 );

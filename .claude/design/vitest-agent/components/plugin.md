@@ -26,9 +26,8 @@ a user-supplied `VitestAgentReporterFactory`.
 
 **npm name:** `vitest-agent-plugin`
 **Location:** `packages/plugin/`
-**Internal dependencies:** `vitest-agent-sdk`
-**Required peers:** `vitest-agent-reporter`, `vitest-agent-cli`,
-`vitest-agent-mcp`, `vitest >= 4.1.0`
+**Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-reporter`, `vitest-agent-ui`
+**Required peers:** `vitest-agent-cli`, `vitest-agent-mcp`, `vitest >= 4.1.0`
 
 The plugin owns persistence, classification, baselines, trends, and Vitest
 lifecycle wiring. Rendering is delegated to whatever reporter(s) the factory

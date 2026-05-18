@@ -21,19 +21,15 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 The seven publishable packages live under `packages/`. Four
 per-platform sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `vitest-agent-sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
 
-The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares
-`vitest-agent-cli`, `vitest-agent-mcp`, and `vitest-agent-sidecar` as
-required `peerDependencies`, plus a workspace dependency on
-`vitest-agent-ui` for the preassembled default reporter and the
-internal live-Ink mount.
+The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares exactly two workspace `peerDependencies`, `vitest-agent-cli` and `vitest-agent-mcp`, plus regular `dependencies` on `vitest-agent-reporter`, `vitest-agent-sdk`, and `vitest-agent-ui` (the latter supplies the preassembled default reporter and the internal live-Ink mount). `vitest-agent-sidecar` reaches a consumer transitively rather than as a direct plugin peer: it is a regular `dependency` of `vitest-agent-cli`, which is itself a required peer of the plugin, so installing the plugin (with its required cli peer) pulls `vitest-agent-sidecar` and its four per-platform `optionalDependencies` automatically.
 Users typically configure the plugin with just
 `AgentPlugin({ console, coverageTargets, transport? })` — the plugin
 wires `_defaultReporter` and the Ink mount internally. Custom reporters
-arrive via the plugin's `reporter` option; `vitest-agent-cli` consumes
-`vitest-agent-ui` for the `show` command. The Claude Code plugin's Bash
-hook prefers the `vitest-agent-sidecar` binary on PATH and falls back to
-the `vitest-agent` JS CLI when it is absent. The six non-sidecar
-packages pin `vitest-agent-sdk` at `workspace:*`.
+arrive via the plugin's `reporter` option. The Claude Code plugin's SessionStart hook resolves the
+sidecar binary path once per session via `vitest-agent agent sidecar-path`,
+exports `VITEST_AGENT_SIDECAR_BIN`; the PreToolUse Bash hook reads that
+env var to exec the binary directly, falling back to the JS CLI when absent.
+The six non-sidecar packages pin `vitest-agent-sdk` at `workspace:*`.
 
 **Legacy naming — watch out.** Pre-2.0 this whole system was one
 package, `vitest-agent-reporter`. The 2.0 split kept that name for the
@@ -70,7 +66,7 @@ for LLM coding agents. Six primary capabilities:
    three-command tree: `doctor`, `db` (`path` / `prune` / `reset` /
    `query`), and `agent` -- a namespace for hook-driven plumbing
    (`triage`, `wrapup`, `record`, `register-agent`, `end-agent`,
-   `inject-env`). Test-landscape queries (status, overview, coverage,
+   `inject-env`, `sidecar-path`). Test-landscape queries (status, overview, coverage,
    history, trends) moved to the MCP server. `--format` is scoped to
    `agent triage`, `agent wrapup`, `doctor`, and `db query`.
 3. **Suggested actions & failure history** -- actionable suggestions in
@@ -101,7 +97,7 @@ for LLM coding agents. Six primary capabilities:
    integration surface — the npm packages collect and store data; the
    plugin turns that data into agent behavior. The plugin's PreToolUse
    Bash hook routes the `inject-env` hot path through the
-   `vitest-agent-sidecar` native binary, falling back to the JS CLI when
+   `vitest-agent-sidecar` native binary (path resolved once per session by SessionStart and exported as `VITEST_AGENT_SIDECAR_BIN`), falling back to the JS CLI when
    the per-platform binary is absent.
 
 Effect service architecture: I/O encapsulated in Effect services with live

@@ -5,15 +5,14 @@ import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
 /**
  * rslib build config for the `vitest-agent-sidecar` parent package.
  *
- * The parent NO LONGER cross-builds the five SEA binaries — that work
+ * The parent NO LONGER cross-builds the four SEA binaries — that work
  * moved to the per-platform `vitest-agent-sidecar-<platform>` child
  * packages, which each compile their own binary from their own
  * `src/bin.ts` thin runner and declare that binary as their own `bin`.
- * The argv dispatcher itself lives in `vitest-agent-cli`
- * (`lib/sidecar-dispatch.ts`). The parent now only declares the five
- * children as `optionalDependencies` and exposes a programmatic `.`
- * export (`src/index.ts`) that re-exports `dispatch` / `injectEnv`
- * from `vitest-agent-cli`. It carries no `bin` of its own — the
+ * The parent now only declares the four children as
+ * `optionalDependencies` and exposes a programmatic `.` export
+ * (`src/index.ts`) that re-exports the pure `resolveSidecarBinaryPath`
+ * helper from this package. It carries no `bin` of its own — the
  * matching child package puts the SEA directly on `PATH`, so the hook
  * runs the native binary with no intermediate Node process.
  *
@@ -35,15 +34,7 @@ const PKG_VERSION = JSON.parse(readFileSync(fileURLToPath(new URL("./package.jso
 	.version as string;
 
 export default NodeLibraryBuilder.create({
-	externals: [
-		"effect",
-		"@effect/platform",
-		"@effect/platform-node",
-		"@effect/sql",
-		"@effect/sql-sqlite-node",
-		"vitest-agent-cli",
-		"vitest-agent-sdk",
-	],
+	externals: ["effect", "@effect/platform", "@effect/platform-node", "@effect/sql", "@effect/sql-sqlite-node"],
 	define: {
 		"process.env.__PACKAGE_VERSION__": JSON.stringify(PKG_VERSION),
 	},

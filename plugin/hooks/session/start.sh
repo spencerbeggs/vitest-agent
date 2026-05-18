@@ -139,6 +139,24 @@ if [ -n "$agent_id" ]; then
 		done
 		hook_debug "$_HOOK" "synced VITEST_AGENT_* exports to CLAUDE_ENV_FILE and per-session dir"
 	fi
+
+	# Resolve the sidecar binary path once per session and persist it so the
+	# PreToolUse Bash hook can skip the PATH lookup on every invocation.
+	# `vitest-agent agent sidecar-path` resolves the absolute path via
+	# require.resolve (traversing the transitive optionalDependency chain that
+	# `command -v` cannot reach) and prints it to stdout on success, or prints
+	# nothing and exits non-zero when no platform binary is installed.
+	# Skip the export entirely when the command fails or returns empty.
+	_sidecar_bin=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent sidecar-path 2>/dev/null) || _sidecar_bin=""
+	if [ -n "$_sidecar_bin" ] && [ -x "$_sidecar_bin" ]; then
+		printf 'export %s=%q\n' "VITEST_AGENT_SIDECAR_BIN" "$_sidecar_bin" >> "$hook_env_file"
+		if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+			if ! grep -q "^export VITEST_AGENT_SIDECAR_BIN=" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+				printf 'export %s=%q\n' "VITEST_AGENT_SIDECAR_BIN" "$_sidecar_bin" >> "$CLAUDE_ENV_FILE"
+			fi
+		fi
+		hook_debug "$_HOOK" "resolved sidecar binary: $_sidecar_bin"
+	fi
 fi
 
 # 4. Build the additionalContext markdown.

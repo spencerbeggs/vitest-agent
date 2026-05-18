@@ -37,7 +37,7 @@ sub-file for the package you're working on.
 | [./components/plugin.md](./components/plugin.md) | `AgentPlugin`, the internal `AgentReporter` lifecycle class (with streaming hooks and the `onRunEvent` tap), `CoverageAnalyzer`, reporter-side utilities, coverage threshold extraction, the per-executor console matrix |
 | [./components/reporter.md](./components/reporter.md) | "build your own reporter" SDK: factory contract re-exports plus `buildDispatchInputs` / `resolveCellOptions` helpers. No shipped default after T6. |
 | [./components/ui.md](./components/ui.md) | event-sourced renderer: `RunEvent` reducer, shape-tailored dispatcher matrix and its 12 cells, L1 MCP tool-pointer footer, preassembled `_defaultReporter`, internal `_createLiveInk` live mount, `RunEventChannel` PubSub, synthesizers |
-| [./components/cli.md](./components/cli.md) | CLI commands (including `show` which routes through `vitest-agent-ui`), the `record` subcommand and its hook-driven actions, `CliLive` |
+| [./components/cli.md](./components/cli.md) | CLI commands (`doctor`, `db`, the `agent` namespace), the `record` subcommand and its hook-driven actions, `CliLive` |
 | [./components/mcp.md](./components/mcp.md) | MCP tools, idempotency middleware, channel-event resolution, MCP resources, MCP prompts, the snapshot maintenance pipeline, `McpLive` |
 | [./components/sidecar.md](./components/sidecar.md) | the `vitest-agent-sidecar` SEA binary for the per-Bash `inject-env` hot path, tsdown `exe` build, per-platform `optionalDependencies`, the binary-vs-JS-fallback contract |
 | [./components/plugin-claude.md](./components/plugin-claude.md) | the Claude Code plugin: hooks, the TDD orchestrator agent, skills, slash commands, the dogfood system, the MCP loader |

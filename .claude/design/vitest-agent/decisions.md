@@ -510,18 +510,19 @@ The system ships as six pnpm workspaces under `packages/`:
 | Package | Role |
 | --- | --- |
 | `vitest-agent-sdk` | data layer, schemas, services, formatters, utilities, XDG path stack — no internal deps |
-| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares reporter, cli, mcp as required peers |
+| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter, sdk and ui directly |
 | `vitest-agent-reporter` | named `VitestAgentReporterFactory` implementations only (no Vitest-API code) |
 | `vitest-agent-ui` | event-sourced renderer family (reducer, shape-tailored dispatcher matrix, preassembled `_defaultReporter`, internal `_createLiveInk`, `RunEventChannel` PubSub). After T6, imported by the plugin as a workspace dependency to wire the built-in default reporter; still an opt-in peer for end-user code |
 | `vitest-agent-cli` | `vitest-agent` bin |
 | `vitest-agent-mcp` | `vitest-agent-mcp` bin |
 
 All six release in lockstep via changesets `linked` config. The plugin
-declares the reporter, CLI, and MCP packages as **required**
-`peerDependencies` so installing the plugin still pulls the agent
-tooling with it. `vitest-agent-ui` is *not* a required peer — it is an
-optional add-on for hosts that want live rendering or the
-event-sourced final-frame.
+declares the CLI and MCP packages as **required** `peerDependencies`
+so installing the plugin still pulls the agent tooling with it;
+`vitest-agent-reporter`, `vitest-agent-sdk` and `vitest-agent-ui` are
+regular `dependencies` of the plugin, not peers. `vitest-agent-sidecar`
+is not a direct plugin peer at all — it is a regular `dependency` of
+`vitest-agent-cli`, so the required cli peer drags it in transitively.
 
 **Why this split:** the shared package boundary is determined by "what
 does more than one runtime package need". The data layer, output
@@ -1328,14 +1329,7 @@ per-turn critical path, so the JS cold-start is tolerable there. Restoring
 `register-agent` to the binary by embedding the native binding per platform
 is a tracked 2.x follow-up.
 
-**Distribution and fallback.** The binary ships per-platform via four
-`optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild /
-sharp model). darwin-x64 is intentionally not shipped — see
-[./components/sidecar.md](./components/sidecar.md). The hook detects the
-binary with a `command -v` probe and falls back to the JS CLI —
-byte-identical output — when it is absent, so an unsupported platform or a
-skipped optional dependency degrades gracefully rather than breaking
-attribution.
+**Distribution and fallback.** The binary ships per-platform via four `optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild / sharp model). darwin-x64 is intentionally not shipped — see [./components/sidecar.md](./components/sidecar.md). The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins; transitive optional-dependency bins are never placed in `node_modules/.bin/`. Instead, `resolveSidecarBinaryPath()` (exported from `vitest-agent-sidecar`) resolves the path via `createRequire(import.meta.url).resolve` anchored inside the sidecar package, which is the `optionalDependencies` owner. The SessionStart hook calls `vitest-agent agent sidecar-path` once per session, captures the absolute path from stdout, and exports it as `VITEST_AGENT_SIDECAR_BIN`. Layer 2 reads this env var instead of probing `PATH`. When the var is absent or the binary non-executable — unsupported platform or skipped optional dependency — the hook falls back to the JS CLI, byte-identical output, so attribution degrades gracefully rather than breaking.
 
 **Measured outcome.** Post-fix the hot path is ~16 ms p95 (was ~535 ms
 including hook plumbing) and the subagent-binary path is ~88 ms p95. The

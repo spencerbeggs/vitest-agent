@@ -7,8 +7,34 @@ import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
 const PKG_VERSION = JSON.parse(readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf8"))
 	.version as string;
 
+// rslib/SWC defaults to the classic JSX runtime, emitting bare
+// `React.createElement(...)` calls with no `React` namespace binding. The
+// `.tsx` sources here are written for the automatic runtime (matching this
+// package's tsconfig `"jsx": "react-jsx"`), so they only import `react`
+// types. Pin SWC's React transform to the automatic runtime so the dist
+// emits `jsx`/`jsxs` imports from `react/jsx-runtime` instead.
 export default NodeLibraryBuilder.create({
 	externals: ["effect", "react", "ink", "vitest-agent-sdk"],
+	plugins: [
+		{
+			name: "ui-automatic-jsx-runtime",
+			setup(api) {
+				api.modifyRsbuildConfig((config) => {
+					config.tools ??= {};
+					config.tools.swc = {
+						jsc: {
+							transform: {
+								react: {
+									runtime: "automatic",
+								},
+							},
+						},
+					};
+					return config;
+				});
+			},
+		},
+	],
 	define: {
 		"process.env.__PACKAGE_VERSION__": JSON.stringify(PKG_VERSION),
 	},

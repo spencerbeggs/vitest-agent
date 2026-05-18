@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 90
 related:
   - ../architecture.md
@@ -428,7 +428,7 @@ to the CLI's `agent` sidecar subcommands (see
 
 | Hook | Sidecar invocation | Purpose |
 | --- | --- | --- |
-| `session/start.sh` | `agent register-agent --host-kind claude-code --agent-type claude-code-main ...` | Registers the main agent at session boot; parses the JSON result with `jq` and writes seven canonical `VITEST_AGENT_*` exports (the four UUIDs plus `PROJECT_DIR`, `DATA_DIR`, `PLUGIN_ROOT`) to two surfaces: `${CLAUDE_ENV_FILE}` (auto-sourced into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (sourced by other hooks). Values are `printf '%q'` quoted; resumes are idempotent via grep guards. |
+| `session/start.sh` | `agent register-agent --host-kind claude-code --agent-type claude-code-main ...` then `agent sidecar-path` | Registers the main agent at session boot; parses the JSON result with `jq` and writes seven canonical `VITEST_AGENT_*` exports (the four UUIDs plus `PROJECT_DIR`, `DATA_DIR`, `PLUGIN_ROOT`) to two surfaces: `${CLAUDE_ENV_FILE}` (auto-sourced into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (sourced by other hooks). Values are `printf '%q'` quoted; resumes are idempotent via grep guards. After writing those seven exports, calls `vitest-agent agent sidecar-path` once, captures stdout, and writes `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both surfaces using the same two-surface write pattern. Skips the export when the command returns empty or exits non-zero (unsupported platform). |
 | `subagent/start-tdd.sh` | `agent register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation (see the dc1fc65 fix). Also writes a per-dispatch state file under `active-subagents/` so `subagent/stop-tdd.sh` can recover the subagent's `agentId` (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)). |
 | `session/end-record.sh` | `agent end-agent --host-session-id $session_id` | Sets `agents.ended_at` and `session_map.ended_at` for the main agent. |
 | `subagent/stop-tdd.sh` | `agent end-agent` (no `--host-session-id`) | Sets `agents.ended_at` for the subagent. Resolves the subagent's `agentId` by pairing against the per-dispatch state file `subagent/start-tdd.sh` wrote (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)); leaves the main agent's `session_map` row open by design. |
@@ -440,15 +440,15 @@ to the CLI's `agent` sidecar subcommands (see
 
 - **Layer 0 — bash regex prefilter.** A POSIX-ERE regex (`SIDECAR_PREFILTER_RE`) is matched against the raw command with bash's built-in `[[ =~ ]]` operator — no fork, sub-millisecond. If the command contains no `vitest` token and no PM `test`-script shape, the hook emits a no-op and exits before any sidecar work. The regex is deliberately conservative: a false positive costs only the sidecar's latency, but a false negative would silently drop attribution, so all known PM script-indirection shapes are included.
 - **Layer 1 — main-agent skip.** After Layer 0 passes and `source-session-env.sh` populates the canonical exports, the hook compares `VITEST_AGENT_AGENT_ID` against `VITEST_AGENT_MAIN_AGENT_ID`. They are equal when the active actor is the main agent, whose auto-sourced env is already correct for the spawned Vitest process — so the hook skips the sidecar. The check falls through conservatively (does NOT skip) when either var is unset. Layer 1 must run after the source call because hook subprocesses do not get auto-sourcing. Together Layers 0 and 1 eliminate the sidecar from ~98% of Bash calls.
-- **Layer 2 — sidecar binary with JS fallback.** Only subagent-triggered Vitest invocations reach Layer 2. The hook detects the native binary with a cheap `command -v vitest-agent-sidecar` (a shell builtin — no fork). When present, it execs `vitest-agent-sidecar inject-env` directly, avoiding both Node cold-start and the PM-exec wrapper. When absent — an unsupported platform, or a skipped optional dependency — it falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths produce byte-identical rewritten output.
+- **Layer 2 — sidecar binary with JS fallback.** Only subagent-triggered Vitest invocations reach Layer 2. The hook reads `$VITEST_AGENT_SIDECAR_BIN` (set by the SessionStart hook once per session via `vitest-agent agent sidecar-path`), checks that it is non-empty and executable, and execs the binary directly when valid. Using the env var rather than `command -v vitest-agent-sidecar` is necessary because pnpm/npm never hoist transitive optional-dependency bins into `node_modules/.bin/`, so a `command -v` probe always misses. When `VITEST_AGENT_SIDECAR_BIN` is absent or non-executable — an unsupported platform, a skipped optional dependency, or a session that pre-dates the SessionStart resolution — the hook falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths produce byte-identical rewritten output.
 
-`vitest-agent-sidecar` is a `peerDependency` of `vitest-agent-plugin`, declared alongside `vitest-agent-cli` and `vitest-agent-mcp`, so standard bin hoisting puts it in `node_modules/.bin/` where the hook's `command -v` probe finds it. For the package's build, distribution and the `inject-env`-only scope, see [./sidecar.md](./sidecar.md).
+`vitest-agent-sidecar` is not a direct peer of `vitest-agent-plugin` — it is a regular `dependency` of `vitest-agent-cli`, which is itself a required peer of the plugin, so installing the plugin and its cli peer pulls the sidecar and its per-platform binaries in transitively. For the package's build, distribution and the `inject-env`-only scope, see [./sidecar.md](./sidecar.md).
 
 Post-fix latency: the Layer 0 / Layer 1 hot path is ~16 ms p95 (was ~535 ms including the hook's own plumbing), and the subagent-binary path is ~88 ms p95. The hook's payload parsing was tightened in the same workstream — six `jq` forks collapsed to one, four `dirname` forks to one — which roughly halved the residual hot-path plumbing. Full numbers are in `.claude/notes/phase-3-sidecar-latency.md`; the benchmark harness is `scripts/bench-sidecar.sh`.
 
-### Seven canonical env exports
+### Session env exports
 
-The SessionStart hook writes these seven exports to two surfaces:
+The SessionStart hook writes these exports to two surfaces. The first seven come from the `register-agent` JSON result; the eighth is written separately after `agent sidecar-path` resolves:
 
 ```sh
 export VITEST_AGENT_CHAT_ID="..."
@@ -458,6 +458,7 @@ export VITEST_AGENT_AGENT_ID="..."
 export VITEST_AGENT_PROJECT_DIR="..."
 export VITEST_AGENT_DATA_DIR="${CLAUDE_PLUGIN_DATA}"
 export VITEST_AGENT_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+export VITEST_AGENT_SIDECAR_BIN="/abs/path/to/vitest-agent-sidecar"  # omitted when not resolvable
 ```
 
 Values are `printf '%q'` quoted so spaces, quotes, and newlines do

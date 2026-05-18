@@ -24,7 +24,7 @@ The "build your own reporter" SDK for the `vitest-agent` plugin. After the T6 UI
 **Location:** `packages/reporter/`
 **Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-ui`
 
-The plugin still declares this package as a required `peerDependency` so version-drift detection (T12) has a stable handle and so custom-reporter authors can install one package and pull in everything they need. Separation from `vitest-agent-ui` is locked for 2.0 to keep the dependency story clean for users building custom reporters — the contract types stay out of `vitest-agent-sdk`'s general surface and the UI package's React/Ink peers stay an implementation detail of the default reporter rather than a hard requirement for custom-reporter authors.
+The plugin declares this package as a regular workspace `dependency` (pinned at `workspace:*`), not a peer, so version-drift detection (T12) has a stable handle and custom-reporter authors who install `vitest-agent-plugin` get the contract re-exports along with it. Separation from `vitest-agent-ui` is locked for 2.0 to keep the dependency story clean for users building custom reporters — the contract types stay out of `vitest-agent-sdk`'s general surface and the UI package's React/Ink peers stay an implementation detail of the default reporter rather than a hard requirement for custom-reporter authors.
 
 For the contract types (`VitestAgentReporterFactory`, `VitestAgentReporter`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `ResolvedReporterConfig`) see [./sdk.md](./sdk.md). For how the plugin invokes the factory and routes its output see [./plugin.md](./plugin.md). For the preassembled default reporter, the dispatcher matrix and the cell helpers see [./ui.md](./ui.md).
 

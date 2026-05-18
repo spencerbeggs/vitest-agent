@@ -101,14 +101,16 @@ if [ -n "${VITEST_AGENT_AGENT_ID:-}" ] \
 fi
 
 # Layer 2: prefer the native sidecar binary; fall back to the JS CLI.
-# `command -v` is a cheap builtin (no fork). When the per-platform
-# vitest-agent-sidecar optionalDependency is installed it is on PATH
-# and runs directly — no PM wrapper, no Node cold-start. When it is
-# absent (unsupported platform, or the optional dep was skipped) the
-# JS CLI path is byte-identical, just slower.
+# VITEST_AGENT_SIDECAR_BIN is set by the SessionStart hook via
+# `vitest-agent agent sidecar-path`, which resolves the binary's
+# absolute path through require.resolve — the per-platform
+# optionalDependency is NOT hoisted into node_modules/.bin/ so
+# `command -v vitest-agent-sidecar` never finds it. When the env var
+# is non-empty and executable, use it directly (no PM wrapper, no Node
+# cold-start). Otherwise fall through to the JS CLI path.
 sidecar_bin=""
-if command -v vitest-agent-sidecar >/dev/null 2>&1; then
-	sidecar_bin="vitest-agent-sidecar"
+if [ -n "${VITEST_AGENT_SIDECAR_BIN:-}" ] && [ -x "${VITEST_AGENT_SIDECAR_BIN}" ]; then
+	sidecar_bin="${VITEST_AGENT_SIDECAR_BIN}"
 fi
 if [ -n "$sidecar_bin" ]; then
 	rewritten=$("$sidecar_bin" inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) \
