@@ -29,10 +29,6 @@
 		"build:prod": "rslib build --config-loader native --env-mode npm",
 		"types:check": "tsgo --noEmit"
 	},
-	"dependencies": {
-		"vitest-agent-cli": "workspace:*",
-		"vitest-agent-sdk": "workspace:*"
-	},
 	"devDependencies": {
 		"@savvy-web/rslib-builder": "^0.20.3",
 		"@types/node": "catalog:silk",

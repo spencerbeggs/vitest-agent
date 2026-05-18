@@ -16,6 +16,7 @@ export default NodeLibraryBuilder.create({
 		"@effect/sql",
 		"@effect/sql-sqlite-node",
 		"vitest-agent-sdk",
+		"vitest-agent-sidecar",
 	],
 	define: {
 		"process.env.__PACKAGE_VERSION__": JSON.stringify(PKG_VERSION),

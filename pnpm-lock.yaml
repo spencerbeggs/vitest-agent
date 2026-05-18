@@ -93,6 +93,9 @@ importers:
       vitest-agent-reporter:
         specifier: workspace:*
         version: link:packages/reporter/dist/dev
+      vitest-agent-sidecar:
+        specifier: workspace:*
+        version: link:packages/sidecar/dist/dev
       vitest-agent-ui:
         specifier: workspace:*
         version: link:packages/ui/dist/dev
@@ -120,6 +123,9 @@ importers:
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
+      vitest-agent-sidecar:
+        specifier: workspace:*
+        version: link:../sidecar/dist/dev
       vitest-agent-ui:
         specifier: workspace:*
         version: link:../ui/dist/dev
@@ -369,13 +375,6 @@ importers:
     publishDirectory: dist/dev
 
   packages/sidecar:
-    dependencies:
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev
     devDependencies:
       '@savvy-web/rslib-builder':
         specifier: ^0.20.3

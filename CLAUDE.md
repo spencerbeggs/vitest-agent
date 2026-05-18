@@ -30,10 +30,11 @@ Users typically configure the plugin with just
 `AgentPlugin({ console, coverageTargets, transport? })` — the plugin
 wires `_defaultReporter` and the Ink mount internally. Custom reporters
 arrive via the plugin's `reporter` option; `vitest-agent-cli` consumes
-`vitest-agent-ui` for the `show` command. The Claude Code plugin's Bash
-hook prefers the `vitest-agent-sidecar` binary on PATH and falls back to
-the `vitest-agent` JS CLI when it is absent. The six non-sidecar
-packages pin `vitest-agent-sdk` at `workspace:*`.
+`vitest-agent-ui` for the `show` command. The Claude Code plugin's SessionStart hook resolves the
+sidecar binary path once per session via `vitest-agent agent sidecar-path`,
+exports `VITEST_AGENT_SIDECAR_BIN`; the PreToolUse Bash hook reads that
+env var to exec the binary directly, falling back to the JS CLI when absent.
+The six non-sidecar packages pin `vitest-agent-sdk` at `workspace:*`.
 
 **Legacy naming — watch out.** Pre-2.0 this whole system was one
 package, `vitest-agent-reporter`. The 2.0 split kept that name for the
@@ -70,7 +71,7 @@ for LLM coding agents. Six primary capabilities:
    three-command tree: `doctor`, `db` (`path` / `prune` / `reset` /
    `query`), and `agent` -- a namespace for hook-driven plumbing
    (`triage`, `wrapup`, `record`, `register-agent`, `end-agent`,
-   `inject-env`). Test-landscape queries (status, overview, coverage,
+   `inject-env`, `sidecar-path`). Test-landscape queries (status, overview, coverage,
    history, trends) moved to the MCP server. `--format` is scoped to
    `agent triage`, `agent wrapup`, `doctor`, and `db query`.
 3. **Suggested actions & failure history** -- actionable suggestions in
@@ -101,7 +102,7 @@ for LLM coding agents. Six primary capabilities:
    integration surface — the npm packages collect and store data; the
    plugin turns that data into agent behavior. The plugin's PreToolUse
    Bash hook routes the `inject-env` hot path through the
-   `vitest-agent-sidecar` native binary, falling back to the JS CLI when
+   `vitest-agent-sidecar` native binary (path resolved once per session by SessionStart and exported as `VITEST_AGENT_SIDECAR_BIN`), falling back to the JS CLI when
    the per-platform binary is absent.
 
 Effect service architecture: I/O encapsulated in Effect services with live

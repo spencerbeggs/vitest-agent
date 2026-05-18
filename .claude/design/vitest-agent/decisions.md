@@ -1328,14 +1328,7 @@ per-turn critical path, so the JS cold-start is tolerable there. Restoring
 `register-agent` to the binary by embedding the native binding per platform
 is a tracked 2.x follow-up.
 
-**Distribution and fallback.** The binary ships per-platform via four
-`optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild /
-sharp model). darwin-x64 is intentionally not shipped — see
-[./components/sidecar.md](./components/sidecar.md). The hook detects the
-binary with a `command -v` probe and falls back to the JS CLI —
-byte-identical output — when it is absent, so an unsupported platform or a
-skipped optional dependency degrades gracefully rather than breaking
-attribution.
+**Distribution and fallback.** The binary ships per-platform via four `optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild / sharp model). darwin-x64 is intentionally not shipped — see [./components/sidecar.md](./components/sidecar.md). The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins; transitive optional-dependency bins are never placed in `node_modules/.bin/`. Instead, `resolveSidecarBinaryPath()` (exported from `vitest-agent-sidecar`) resolves the path via `createRequire(import.meta.url).resolve` anchored inside the sidecar package, which is the `optionalDependencies` owner. The SessionStart hook calls `vitest-agent agent sidecar-path` once per session, captures the absolute path from stdout, and exports it as `VITEST_AGENT_SIDECAR_BIN`. Layer 2 reads this env var instead of probing `PATH`. When the var is absent or the binary non-executable — unsupported platform or skipped optional dependency — the hook falls back to the JS CLI, byte-identical output, so attribution degrades gracefully rather than breaking.
 
 **Measured outcome.** Post-fix the hot path is ~16 ms p95 (was ~535 ms
 including hook plumbing) and the subagent-binary path is ~88 ms p95. The

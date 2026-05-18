@@ -2,9 +2,12 @@
 # sidecar-layer2.bats — Phase D (T9.2) tests for Layer 2 binary-detection
 # and JS-CLI fallback in pre-tool-use/bash.sh.
 #
-# Layer 2 runs after Layers 0 and 1 have passed.  It tries
-# `vitest-agent-sidecar inject-env ...` first; if the binary is absent
-# from PATH it falls back to `$pm_exec vitest-agent agent inject-env ...`.
+# Layer 2 runs after Layers 0 and 1 have passed.  Detection uses the
+# VITEST_AGENT_SIDECAR_BIN env var (set by SessionStart via
+# `vitest-agent agent sidecar-path`), NOT `command -v vitest-agent-sidecar`.
+# When VITEST_AGENT_SIDECAR_BIN is non-empty and executable, the hook
+# invokes it directly.  When it is absent or empty, the hook falls back to
+# `$pm_exec vitest-agent agent inject-env ...`.
 #
 # Stub strategy:
 #   Two separate capture files live in BATS_TMPDIR —
@@ -13,8 +16,11 @@
 #   Tests can assert "binary was used and JS was not" by checking line
 #   counts: sidecar_count >= 1 && jscli_count == 0, and vice-versa.
 #
-#   The fake vitest-agent-sidecar is only placed on PATH for tests that
-#   exercise the binary-present branch; it is absent for fallback tests.
+#   install_sidecar_stub() writes the fake binary into BATS_STUB_DIR and
+#   sets BATS_SIDECAR_BIN to its absolute path.  Binary-present tests pass
+#   VITEST_AGENT_SIDECAR_BIN=${BATS_SIDECAR_BIN} into the hook subprocess.
+#   Binary-missing tests add -u VITEST_AGENT_SIDECAR_BIN to env so the
+#   ambient var (if any) does not bleed in.
 #
 # Ambient-env note: same issue as sidecar-prefilter.bats.  All Layer 2
 # tests use a subagent context (env -u the two identity vars) so Layer 1
@@ -100,7 +106,10 @@ teardown() {
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Place the fake vitest-agent-sidecar on PATH (binary-present branch).
+# Place the fake vitest-agent-sidecar on PATH and set BATS_SIDECAR_BIN to
+# its absolute path.  Binary-present tests pass VITEST_AGENT_SIDECAR_BIN
+# into the hook subprocess via env(1) so the hook's Layer 2 env-var check
+# finds the stub (the hook no longer uses `command -v` for detection).
 install_sidecar_stub() {
     cat > "${BATS_STUB_DIR}/vitest-agent-sidecar" <<STUB
 #!/bin/bash
@@ -112,6 +121,8 @@ esac
 exit 0
 STUB
     chmod +x "${BATS_STUB_DIR}/vitest-agent-sidecar"
+    BATS_SIDECAR_BIN="${BATS_STUB_DIR}/vitest-agent-sidecar"
+    export BATS_SIDECAR_BIN
 }
 
 # Remove the fake vitest-agent-sidecar (binary-absent branch).
@@ -170,6 +181,7 @@ bash_payload() {
     local payload
     payload=$(bash_payload "vitest run" "${BATS_SESSION_ID}")
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        VITEST_AGENT_SIDECAR_BIN="${BATS_SIDECAR_BIN}" \
         bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     # Binary must have been called at least once.
@@ -186,6 +198,7 @@ bash_payload() {
     local payload
     payload=$(bash_payload "vitest run" "${BATS_SESSION_ID}")
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        VITEST_AGENT_SIDECAR_BIN="${BATS_SIDECAR_BIN}" \
         bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     # JS CLI capture file must remain empty.
@@ -198,6 +211,7 @@ bash_payload() {
     local payload
     payload=$(bash_payload "vitest run" "${BATS_SESSION_ID}")
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        VITEST_AGENT_SIDECAR_BIN="${BATS_SIDECAR_BIN}" \
         bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     # Output must be valid JSON with hookSpecificOutput.updatedInput.command.
@@ -217,6 +231,7 @@ bash_payload() {
     local payload
     payload=$(bash_payload "vitest run" "${BATS_SESSION_ID}")
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        -u VITEST_AGENT_SIDECAR_BIN \
         bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     # JS CLI must have been called.
@@ -232,6 +247,7 @@ bash_payload() {
     local payload
     payload=$(bash_payload "vitest run" "${BATS_SESSION_ID}")
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        -u VITEST_AGENT_SIDECAR_BIN \
         bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     # Binary capture file must remain empty.
@@ -244,6 +260,7 @@ bash_payload() {
     local payload
     payload=$(bash_payload "vitest run" "${BATS_SESSION_ID}")
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        -u VITEST_AGENT_SIDECAR_BIN \
         bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     local cmd
@@ -261,9 +278,10 @@ bash_payload() {
     local payload
     payload=$(bash_payload "vitest run" "${BATS_SESSION_ID}")
 
-    # Run with binary present.
+    # Run with binary present: pass VITEST_AGENT_SIDECAR_BIN into the subprocess.
     install_sidecar_stub
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        VITEST_AGENT_SIDECAR_BIN="${BATS_SIDECAR_BIN}" \
         bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     local cmd_binary
@@ -273,9 +291,11 @@ bash_payload() {
     > "${BATS_SIDECAR_CAPTURE}"
     > "${BATS_JSCLI_CAPTURE}"
 
-    # Run with binary absent.
+    # Run with binary absent: unset VITEST_AGENT_SIDECAR_BIN so the hook
+    # falls through to the JS CLI.
     remove_sidecar_stub
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
+        -u VITEST_AGENT_SIDECAR_BIN \
         bash -c "echo '${payload}' | bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     local cmd_js

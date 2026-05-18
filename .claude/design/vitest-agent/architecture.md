@@ -57,15 +57,9 @@ workspace).
 | `vitest-agent-sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via four `optionalDependencies` sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`). Added in T9.2. |
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
 
-The seven npm workspaces release in lockstep. `vitest-agent-plugin` declares
-`vitest-agent-reporter`, `vitest-agent-cli`, `vitest-agent-mcp` and
-`vitest-agent-sidecar` as required `peerDependencies`; `vitest-agent-ui` is
-an optional add-on that hosts pull in only when they want the event-sourced
-renderer or live Ink mount. All six non-SDK packages pin `vitest-agent-sdk`
-at `workspace:*`. The four per-platform sidecar sub-packages are not counted
-among the seven primary workspaces — they carry only a prebuilt binary and
-an `os` / `cpu` declaration, and are published as `optionalDependencies` of
-`vitest-agent-sidecar`.
+The seven npm workspaces release in lockstep. `vitest-agent-plugin` declares `vitest-agent-reporter`, `vitest-agent-cli`, `vitest-agent-mcp` and `vitest-agent-sidecar` as required `peerDependencies`; `vitest-agent-ui` is an optional add-on that hosts pull in only when they want the event-sourced renderer or live Ink mount. All six non-SDK packages pin `vitest-agent-sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `vitest-agent-sidecar`.
+
+The dependency direction between CLI and sidecar is noteworthy: `vitest-agent-cli` depends on `vitest-agent-sidecar` (to call `resolveSidecarBinaryPath`), not the reverse. The parent `vitest-agent-sidecar` package has no workspace runtime dependencies — its only source file (`src/resolve-sidecar-binary-path.ts`) uses `createRequire` from `node:module` to resolve the per-platform package's bin path. The per-platform children declare `vitest-agent-cli` and `vitest-agent-sdk` as `devDependencies` only, bundled into the SEA at build time. `packages/sidecar/turbo.json` sets `dependsOn: []` on all tasks to prevent a Turbo task-graph cycle that the cli→sidecar→cli dependency chain would otherwise create.
 
 For per-package internals, load the matching file under
 [./components/](./components/) via the [./components.md](./components.md)

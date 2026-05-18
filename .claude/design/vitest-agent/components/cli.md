@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 92
 related:
   - ../architecture.md
@@ -25,7 +25,7 @@ A utility-only bin for LLM agents and humans: database management plus the hook-
 **npm name:** `vitest-agent-cli`
 **Bin:** `vitest-agent`
 **Location:** `packages/cli/`
-**Internal dependencies:** `vitest-agent-sdk`
+**Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-sidecar`
 
 The plugin declares the CLI as a required `peerDependency`, so installing the plugin pulls the CLI along with it. A separate package keeps the `@effect/cli` dependency out of the runtime install for users who only want the reporter or MCP server.
 
@@ -89,7 +89,7 @@ Output is formatted by `lib/format-db-query.ts` — a pure helper, the one new `
 
 `packages/cli/src/commands/agent.ts`. The `agent` parent replaces the pre-2.0 hidden `_internal` group — `commands/internal.ts` was deleted and folded in here. Unlike the old hidden group, `agent` is a discoverable namespace: its `Command.withDescription` carries a warning header — *"Commands intended for agents and hook scripts — humans typically don't invoke these directly."* — that `@effect/cli`'s help formatter renders above the subcommand list.
 
-The group composes six subcommands:
+The group composes seven subcommands:
 
 | Subcommand | Driven by | Purpose |
 | --- | --- | --- |
@@ -99,10 +99,11 @@ The group composes six subcommands:
 | `register-agent` | SessionStart / SubagentStart hooks | Maps host session id and transcript path to canonical conversation/agent ids, captures git context, writes session-map rows. Emits JSON for the hook to parse with `jq`. |
 | `end-agent` | SessionEnd / SubagentStop hooks | Sets `agents.ended_at`; with `--host-session-id` also sets `session_map.ended_at`. |
 | `inject-env` | PreToolUse Bash hook | Pure command-rewriter — prepends the `VITEST_AGENT_*` env prefix when the command invokes Vitest, echoes it unchanged otherwise. |
+| `sidecar-path` | SessionStart hook (once per session) | Calls `resolveSidecarBinaryPath()` from `vitest-agent-sidecar` and prints the absolute path to stdout (exit 0), or exits non-zero when the binary is not resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`. |
 
 `triage` and `wrapup` keep their `--format markdown|json|silent` axis (the only commands that do — `db query` has its own `--format table|json` axis, everything else emits plain stdout text by convention). `record` and the three sidecar subcommands (`register-agent`, `end-agent`, `inject-env`) relocated under `agent` without body changes; the sidecar bodies still live in `lib/internal-*.ts` (filename prefix retained). The `lib/format-triage.ts` and `lib/format-wrapup.ts` formatters are shared verbatim with the MCP tools `triage_brief` and `wrapup_prompt`, so CLI and MCP outputs are byte-identical.
 
-**Single-source-of-truth for the sidecar package.** Workstream T9.2 added `vitest-agent-sidecar`, a native binary that runs `inject-env` on the per-Bash hot path (see [./sidecar.md](./sidecar.md)). To keep its logic from forking, T9.2 extracted reusable path-resolution and exit-code helpers from `commands/agent.ts` into `packages/cli/src/lib/sidecar-paths.ts`, and `packages/cli/src/index.ts` re-exports `injectEnv`, `registerAgentEffect`, `SidecarLive` and those helpers. The sidecar package consumes `injectEnv` from this CLI surface rather than re-implementing the rewrite; the JS-CLI `agent inject-env` path is also the byte-identical fallback the Bash hook uses when the binary is absent. `register-agent` stays JS-only — its native SQLite binding cannot be bundled into a SEA.
+**Dependency relationship with the sidecar package.** Workstream T9.2 added `vitest-agent-sidecar`, a native binary that runs `inject-env` on the per-Bash hot path (see [./sidecar.md](./sidecar.md)). `vitest-agent-cli` depends on `vitest-agent-sidecar` (not the reverse): the sidecar package exports `resolveSidecarBinaryPath`, and the CLI's `agent sidecar-path` subcommand calls it to resolve the binary's absolute path. The per-platform child packages import `injectEnv`, `registerAgentEffect`, `SidecarLive` and the `sidecar-paths.ts` helpers from the CLI as `devDependencies` bundled into each SEA. `packages/cli/src/index.ts` re-exports `injectEnv`, `registerAgentEffect`, `SidecarLive` and the `lib/sidecar-paths.ts` helpers so the per-platform children consume the CLI as a library. `register-agent` stays JS-only — its native SQLite binding cannot be bundled into a SEA.
 
 The sidecar subcommands return plain text on stdout for the bash hooks to parse, and structured error info on stderr in the shape `<exit_code> <error_tag>: <message>`. Exit codes follow a fixed contract: `0` success, `1` registration conflict, `2` sidecar timeout, `3` database error, `4` `ProjectIdentityNotResolvableError`, `5` unexpected defect. They resolve all three SQLite store paths from env at invocation time (per-project `data.db`, per-client `sessions.db`, registry `registry.db`) and `mkdirSync` every parent dir before SQLite opens. Path resolution does not depend on workspace-discovery, so the sidecar works in non-pnpm-workspace project shapes.
 
