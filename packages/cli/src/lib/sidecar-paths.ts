@@ -16,9 +16,9 @@
  *   - the per-client `sessions.db` resolves via `CLAUDE_PLUGIN_DATA`,
  *     then `VITEST_AGENT_SESSION_MAP_DIR`, then `~/.vitest-agent/`
  *
- * `exitCodeForTag` maps a tagged-error `_tag` to the agent-agnostic
- * sidecar exit-code taxonomy (0 success, 1 conflict, 2 timeout, 3 db
- * error, 4 identity unresolvable, 5 other).
+ * The tagged-error → exit-code mapping (`exitCodeForTag`) moved to
+ * `vitest-agent-sdk/dispatch` alongside the rest of the sidecar
+ * dispatch core; import it from there.
  *
  * @packageDocumentation
  */
@@ -106,22 +106,3 @@ export const resolveSessionMapPath = (): Effect.Effect<string, ProjectIdentityNo
 					),
 		),
 	);
-
-/**
- * Map a tagged-error `_tag` to the agent-agnostic sidecar exit-code
- * taxonomy. Unknown tags collapse to `5` (other unexpected defect).
- */
-export const exitCodeForTag = (tag: string): number => {
-	switch (tag) {
-		case "RegistrationConflictError":
-			return 1;
-		case "SidecarTimeoutError":
-			return 2;
-		case "DataStoreError":
-			return 3;
-		case "ProjectIdentityNotResolvableError":
-			return 4;
-		default:
-			return 5;
-	}
-};

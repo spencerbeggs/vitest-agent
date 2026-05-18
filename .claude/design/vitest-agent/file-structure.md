@@ -31,13 +31,13 @@ per-platform sidecar sub-packages) and the file-based Claude Code plugin at
 
 ```text
 packages/
-  sdk/         vitest-agent-sdk (no internal deps; owns RunEvent + RenderState schemas)
-  plugin/      vitest-agent-plugin (deps on sdk+reporter; cli+mcp required peers; streaming hooks + run-event PubSub channel + onRunEvent tap; owns no rendering)
+  sdk/         vitest-agent-sdk (no internal deps; owns RunEvent + RenderState schemas; three entry points: . / ./dispatch / ./testing)
+  plugin/      vitest-agent-plugin (deps on sdk+reporter; cli+mcp+Vitest packages are required peers; streaming hooks + run-event PubSub channel + onRunEvent tap; owns no rendering)
   reporter/    vitest-agent-reporter (depends on sdk + ui + react + ink; default reporter package — DefaultVitestAgentReporter + live Ink mount + contract re-exports + dispatch helpers)
   ui/          vitest-agent-ui (depends on sdk; react/ink peers; pure rendering primitives — reducer + shape-tailored dispatcher matrix + synthesizers + RunEventChannel PubSub)
   cli/         vitest-agent-cli (bin: vitest-agent; depends on sdk + sidecar)
-  mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; spawned by plugin)
-  sidecar/     vitest-agent-sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts re-exports dispatch/injectEnv from cli; no bin)
+  mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; pulled in by the plugin)
+  sidecar/     vitest-agent-sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts exports resolveSidecarBinaryPath; no bin)
   sidecar-darwin-arm64/  per-platform binary sub-package (os: darwin, cpu: arm64)
   sidecar-linux-arm64/   per-platform binary sub-package (os: linux, cpu: arm64)
   sidecar-linux-x64/     per-platform binary sub-package (os: linux, cpu: x64)
@@ -66,8 +66,9 @@ source, `__test__/` for test files (flat layout, not co-located with
 source), `lib/` for build/maintenance scripts where applicable, `dist/dev/`
 and `dist/npm/` produced by `@savvy-web/rslib-builder`. The parent
 `sidecar/` follows the standard rslib layout but ships only a single
-`src/index.ts` re-export entry — no tests. The four `sidecar-*` sub-packages
-depart from the standard layout: each carries a thin `src/bin.ts` runner
+`src/index.ts` entry exporting `resolveSidecarBinaryPath` — no tests. The
+four `sidecar-*` sub-packages depart from the standard layout: each carries a
+thin `src/bin.ts` runner that imports `dispatch` from `vitest-agent-sdk/dispatch`,
 plus its own `lib/scripts/tsdown.ts` programmatic build script and builds a
 Node SEA binary into `bin/` with tsdown's `exe` mode rather than
 rslib-builder (see [./components/sidecar.md](./components/sidecar.md)) — no

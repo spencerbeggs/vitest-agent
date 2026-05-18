@@ -29,12 +29,15 @@ directly with the MCP SDK alongside the tRPC router.
 **Location:** `packages/mcp/`
 **Internal dependencies:** `vitest-agent-sdk`
 
-A separate package because the MCP tool surface evolves on a different
-cadence than the reporter, and the transitive dependency footprint
-(MCP SDK, tRPC, zod) is large enough that users who don't run an MCP
-server should not pay for it. The plugin declares this package as a
-required `peerDependency`, giving lockfile-level coordination without
-bundling the dependency tree.
+A separate package for module-boundary reasons and so the MCP tool
+surface can evolve on its own cadence — not for install-cost reasons.
+The plugin declares `vitest-agent-mcp` as a required `peerDependency`,
+which npm 7+ and pnpm auto-install, so every plugin consumer installs
+it; an MCP server that is downloaded but never started costs a
+non-Claude-Code user only a download. The `@modelcontextprotocol/sdk` /
+tRPC / zod stack staying in its own package is a boundary decision
+(those dependencies are the MCP server's concern alone), not an opt-out
+for users who skip the server.
 
 For the surfaces this package exposes to the Claude Code plugin, see
 [./plugin-claude.md](./plugin-claude.md). For the data layer it reads from

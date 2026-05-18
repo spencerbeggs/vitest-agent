@@ -35,10 +35,12 @@ dispatched by a stronger main model.
 
 For the consumer, the integration is one install: add `vitest-agent-plugin`
 to a project, register `agentPlugin()` in `vitest.config.ts`, and install
-the Claude Code plugin from the marketplace. The lockstep peers pull in the
-reporter, CLI and MCP packages; the hook chain wires up; the MCP server is
-launched on demand by the user's package manager. No runtime configuration
-beyond the plugin call.
+the Claude Code plugin from the marketplace. Declaring the plugin pulls in
+the reporter, CLI, MCP and sidecar packages — the reporter and SDK as regular
+dependencies, the CLI and MCP as required peers that npm 7+ and pnpm
+auto-install; the hook chain wires up; the MCP server is launched on demand
+by the user's package manager. No runtime configuration beyond the plugin
+call.
 
 ## Package landscape
 
@@ -57,9 +59,9 @@ workspace).
 | `vitest-agent-sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via four `optionalDependencies` sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`). Added in T9.2. |
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
 
-The seven npm workspaces release in lockstep. `vitest-agent-plugin` declares exactly two workspace `peerDependencies` — `vitest-agent-cli` and `vitest-agent-mcp` — as required peers; `vitest-agent-reporter`, `vitest-agent-sdk` and `vitest-agent-ui` are regular `dependencies` of the plugin, not peers. `vitest-agent-sidecar` is not a direct peer of the plugin at all — it reaches a consumer's install transitively, as a regular `dependency` of `vitest-agent-cli`, so pulling in the required cli peer pulls the sidecar along with it. All six non-SDK packages pin `vitest-agent-sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `vitest-agent-sidecar`.
+The seven npm workspaces release in lockstep. `vitest-agent-plugin` declares `vitest-agent-cli` and `vitest-agent-mcp` as required workspace `peerDependencies` (alongside the host-supplied Vitest peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`); its regular workspace `dependencies` are `vitest-agent-reporter` and `vitest-agent-sdk` only. The cli / mcp peers are required, not optional — there is no `peerDependenciesMeta`. Declaring `vitest-agent-plugin` still pulls in the whole `vitest-agent-*` family for a published consumer: npm 7+ and pnpm (with this repo's `autoInstallPeers: true`) auto-install required peers, and a peer-installed package lands at the consumer's top level, so its bin resolves — a transitively-nested regular dependency's bin would not. `vitest-agent-sidecar` reaches a consumer transitively through `vitest-agent-cli`, along with its four per-platform binaries. All six non-SDK packages pin `vitest-agent-sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `vitest-agent-sidecar`.
 
-The dependency direction between CLI and sidecar is noteworthy: `vitest-agent-cli` depends on `vitest-agent-sidecar` (to call `resolveSidecarBinaryPath`), not the reverse. The parent `vitest-agent-sidecar` package has no workspace runtime dependencies — its only source file (`src/resolve-sidecar-binary-path.ts`) uses `createRequire` from `node:module` to resolve the per-platform package's bin path. The per-platform children declare `vitest-agent-cli` and `vitest-agent-sdk` as `devDependencies` only, bundled into the SEA at build time. `packages/sidecar/turbo.json` sets `dependsOn: []` on all tasks to prevent a Turbo task-graph cycle that the cli→sidecar→cli dependency chain would otherwise create.
+The dependency direction between CLI and sidecar is noteworthy: `vitest-agent-cli` depends on `vitest-agent-sidecar` (to call `resolveSidecarBinaryPath`), not the reverse. The parent `vitest-agent-sidecar` package has no workspace runtime dependencies — its only source file (`src/resolve-sidecar-binary-path.ts`) uses `createRequire` from `node:module` to resolve the per-platform package's bin path. The per-platform children declare `vitest-agent-sdk` as their only workspace `devDependency`, bundled into the SEA at build time — each child's `src/bin.ts` imports `dispatch` from the dedicated `vitest-agent-sdk/dispatch` entry point. The closing edge of the dependency graph is `vitest-agent-sidecar-<platform> → vitest-agent-sdk` (a true leaf), so there is no workspace dependency cycle: `pnpm install` issues no cyclic-dependency warning and `turbo boundaries` passes. `packages/sidecar/turbo.json` uses the normal topological task ordering (`^build:dev` / `^build:prod`) — the prior `dependsOn: []` cycle workaround is gone now that the cli→sidecar→cli edge no longer exists.
 
 For per-package internals, load the matching file under
 [./components/](./components/) via the [./components.md](./components.md)
@@ -133,14 +135,18 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   `vitest-agent-sdk`. Zod is reserved for tRPC tool input validation in
   the MCP package.
 - **Lockstep release.** The seven npm packages share one version — a bump
-  to any one bumps all seven. The plugin pins the CLI and MCP packages as
-  required `peerDependencies`, so consumers install only `vitest-agent-plugin`
-  and the peers pull in the rest at the matching version; `vitest-agent-sidecar`
-  arrives transitively as a regular dependency of `vitest-agent-cli`, so the
-  required cli peer drags the sidecar and its per-platform binaries in too.
-  `vitest-agent-reporter`, `vitest-agent-sdk` and `vitest-agent-ui` are regular
-  dependencies of the plugin and release in the same lockstep cycle so version
-  sync is preserved. The Claude Code plugin can
+  to any one bumps all seven. The plugin declares `vitest-agent-reporter`
+  and `vitest-agent-sdk` as regular `dependencies` and `vitest-agent-cli`
+  and `vitest-agent-mcp` as required `peerDependencies`, so consumers
+  install only `vitest-agent-plugin` and the rest arrives at the matching
+  version — the regular deps transitively, the required peers via npm 7+ /
+  pnpm auto-install. `vitest-agent-sidecar` arrives through `vitest-agent-cli`
+  along with its four per-platform binaries. The CLI and MCP packages are
+  peers rather than regular deps because the auto-installed peer lands at
+  the consumer's top level, so the `vitest-agent` and `vitest-agent-mcp`
+  bins resolve for the Claude Code plugin's hook scripts — a nested regular
+  dependency's bin would not. The
+  Claude Code plugin can
   lag the npm packages. Runtime version sync is verifiable through
   `process.env.__PACKAGE_VERSION__`, which `rslib-builder` inlines into
   each package's bundle as a string at build time; an inlined-at-build

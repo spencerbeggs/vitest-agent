@@ -29,7 +29,6 @@
 		"@tsdown/exe": "^0.22.0",
 		"@types/node": "catalog:silk",
 		"tsdown": "^0.22.0",
-		"vitest-agent-cli": "workspace:*",
 		"vitest-agent-sdk": "workspace:*"
 	},
 	"os": ["win32"],

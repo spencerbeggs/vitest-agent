@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-14
-last-synced: 2026-05-14
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 95
 related:
   - ../architecture.md
@@ -23,13 +23,16 @@ dependencies: []
 
 The no-internal-dependencies base. Owns the data layer, all shared services
 and layers, formatters, error types, schemas, SQLite migrations, SQL
-helpers, the XDG path-resolution stack, and the public reporter contract
-types. Anything used by more than one runtime package lives here; anything
-used by exactly one package stays in that package.
+helpers, the XDG path-resolution stack, the public reporter contract types,
+and the sidecar dispatch core. Anything used by more than one runtime
+package lives here; anything used by exactly one package stays in that
+package.
 
 **npm name:** `vitest-agent-sdk`
 **Location:** `packages/sdk/`
 **Internal dependencies:** none
+**Entry points:** three — `.` (the main barrel), `./dispatch` (the sidecar
+dispatch core), `./testing` (in-process SQLite test infrastructure)
 
 **Key external dependencies:**
 
@@ -580,6 +583,25 @@ seeds data via `Layer.effectDiscard`:
 remove boilerplate from per-test fixture setup. Use `empty` for tests that
 need precise control; use the named presets when the scenario matches to
 keep tests concise.
+
+## Dispatch subpath
+
+The sidecar dispatch core is exported through a dedicated narrow entry
+point, `vitest-agent-sdk/dispatch` (barrel `packages/sdk/src/dispatch.ts`).
+It re-exports `dispatch` / `DispatchResult` (`src/sidecar-dispatch.ts` — the
+`dispatch(argv)` argv dispatcher plus its hand-rolled flag parser), `injectEnv`
+/ `InjectEnvInput` (`src/internal-inject-env.ts`), and `exitCodeForTag`
+(`src/exit-code-for-tag.ts`). These symbols moved into the SDK from
+`vitest-agent-cli` to break a workspace dependency cycle — see
+[./cli.md](./cli.md) and [./sidecar.md](./sidecar.md).
+
+**Why a dedicated entry, not the main barrel.** The four per-platform
+`vitest-agent-sidecar-<platform>` SEA binaries import `dispatch` from this
+subpath, and the SEA must stay small. Importing from the `.` barrel would
+force the bundler to start from the full module graph — Effect, the SQLite
+data layer, migrations, every service — and tree-shake it away; the dedicated
+`./dispatch` entry guarantees a minimal reachable graph from the start. The
+moved symbols are deliberately **not** re-exported from the main barrel.
 
 ## CURRENT_SDK_VERSION
 

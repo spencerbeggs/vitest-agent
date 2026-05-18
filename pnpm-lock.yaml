@@ -90,15 +90,6 @@ importers:
       vitest-agent-plugin:
         specifier: workspace:*
         version: link:packages/plugin/dist/dev
-      vitest-agent-reporter:
-        specifier: workspace:*
-        version: link:packages/reporter/dist/dev
-      vitest-agent-sidecar:
-        specifier: workspace:*
-        version: link:packages/sidecar/dist/dev
-      vitest-agent-ui:
-        specifier: workspace:*
-        version: link:packages/ui/dist/dev
 
   packages/cli:
     dependencies:
@@ -411,9 +402,6 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
@@ -433,9 +421,6 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
@@ -455,9 +440,6 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev
@@ -477,9 +459,6 @@ importers:
       tsdown:
         specifier: ^0.22.0
         version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
       vitest-agent-sdk:
         specifier: workspace:*
         version: link:../sdk/dist/dev

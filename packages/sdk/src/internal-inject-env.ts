@@ -1,5 +1,5 @@
 /**
- * Sidecar `_internal inject-env` implementation.
+ * Sidecar `inject-env` implementation.
  *
  * Pure pipeline:
  *   1. Read VITEST_AGENT_CONVERSATION_ID, VITEST_AGENT_AGENT_ID
@@ -20,7 +20,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { detectVitestScripts, rewriteBashCommand } from "vitest-agent-sdk";
+import { detectVitestScripts, rewriteBashCommand } from "./utils/match-vitest-command.js";
 
 export interface InjectEnvInput {
 	readonly command: string;

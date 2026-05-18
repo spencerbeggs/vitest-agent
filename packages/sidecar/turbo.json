@@ -4,7 +4,7 @@
 	"tasks": {
 		"build:dev": {
 			"cache": true,
-			"dependsOn": [],
+			"dependsOn": ["^build:dev"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
@@ -22,7 +22,7 @@
 		},
 		"build:prod": {
 			"cache": true,
-			"dependsOn": [],
+			"dependsOn": ["^build:prod"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",

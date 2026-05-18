@@ -37,7 +37,7 @@ const NODE_VERSION = "25.9.0";
  *
  * For every variant: drop the build-only `scripts`, `devDependencies`
  * and `publishConfig` fields. A sidecar child has zero runtime
- * dependencies — the cli/sdk it bundles into the SEA are build-only —
+ * dependencies — the sdk it bundles into the SEA is build-only —
  * so removing `devDependencies` also removes its `workspace:` refs and
  * leaves nothing to resolve at publish time.
  *
@@ -89,8 +89,9 @@ const variants = mode === "dev" ? ["dev"] : ["npm", "github"];
 const scratch = join("dist", ".bundle", mode);
 
 // 1. Build the SEA binary once. tsdown bundles src/bin.ts (and the
-//    vitest-agent-cli graph it imports) into a single file, then the
-//    @tsdown/exe `exe` stage wraps that into a Node SEA executable.
+//    vitest-agent-sdk/dispatch graph it imports) into a single file,
+//    then the @tsdown/exe `exe` stage wraps that into a Node SEA
+//    executable.
 await build({
 	entry: ["src/bin.ts"],
 	format: "esm",

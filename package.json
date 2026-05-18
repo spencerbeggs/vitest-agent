@@ -47,10 +47,7 @@
 		"vitest": "^4.1.6",
 		"vitest-agent-cli": "workspace:*",
 		"vitest-agent-mcp": "workspace:*",
-		"vitest-agent-plugin": "workspace:*",
-		"vitest-agent-reporter": "workspace:*",
-		"vitest-agent-sidecar": "workspace:*",
-		"vitest-agent-ui": "workspace:*"
+		"vitest-agent-plugin": "workspace:*"
 	},
 	"packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8",
 	"devEngines": {

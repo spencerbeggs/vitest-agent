@@ -3,16 +3,30 @@
 The no-internal-deps base package. Owns the data layer, schemas, errors,
 migrations, services, layers, formatters, the XDG path-resolution stack,
 the process-level migration coordinator, the public reporter contract types,
-the `RunEvent` / `RenderState` schemas consumed by `vitest-agent-ui`, and
-the shared `lib/` markdown generators. The plugin, reporter, CLI, MCP, and
-UI packages all depend on this package; changes to its public exports
-ripple to all five runtimes.
+the `RunEvent` / `RenderState` schemas consumed by `vitest-agent-ui`, the
+sidecar dispatch core, and the shared `lib/` markdown generators. The plugin,
+reporter, CLI, MCP, and UI packages all depend on this package; changes to its
+public exports ripple to all five runtimes.
+
+Ships THREE entry points: `.` (the main barrel — `src/index.ts`), `./dispatch`
+(`src/dispatch.ts`), and `./testing` (`src/testing/index.ts`). The `./dispatch`
+entry exports `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`,
+and `exitCodeForTag` — the sidecar dispatch core. These symbols ship ONLY from
+`./dispatch`, never the main barrel, so the SEA bundler's reachable graph from
+`./dispatch` stays minimal (no Effect, no SQLite data layer).
 
 ## Layout
 
 ```text
 src/
-  index.ts            -- public re-exports (only entry point)
+  index.ts            -- main-barrel public re-exports (the `.` entry point)
+  dispatch.ts         -- the `./dispatch` entry-point barrel: exports
+                         dispatch / DispatchResult, injectEnv /
+                         InjectEnvInput, exitCodeForTag. Minimal reachable
+                         graph for the SEA bundler — no Effect, no data layer
+  sidecar-dispatch.ts -- dispatch / DispatchResult (moved from cli)
+  internal-inject-env.ts -- injectEnv / InjectEnvInput (moved from cli)
+  exit-code-for-tag.ts   -- exitCodeForTag (moved from cli)
   contracts/          -- public reporter + dispatcher contract types
     reporter.ts       -- ResolvedReporterConfig, ReporterKit,
                          ReporterRenderInput, VitestAgentReporter,
@@ -57,6 +71,8 @@ src/
 | `utils/validate-phase-transition.ts` | Pure validator for TDD phase transitions; returns acceptance or a typed `DenialReason` + remediation. See Decision D11 |
 | `lib/format-triage.ts` | Pure markdown generator powering both `triage_brief` MCP tool and `triage` CLI subcommand |
 | `lib/format-wrapup.ts` | Pure markdown generator for wrap-up nudges; five `kind` variants. Powers `wrapup_prompt` MCP tool and `wrapup` CLI subcommand |
+| `dispatch.ts` | The `vitest-agent-sdk/dispatch` entry-point barrel. Exports `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`, `exitCodeForTag`. The sidecar SEA bundler imports `dispatch` from here; the barrel deliberately reaches only `sidecar-dispatch.ts` / `internal-inject-env.ts` / `exit-code-for-tag.ts` so no Effect or SQLite data layer enters the bundle |
+| `sidecar-dispatch.ts`, `internal-inject-env.ts`, `exit-code-for-tag.ts` | The dispatch core, relocated from `vitest-agent-cli` to break a workspace dependency cycle. Re-exported only via `dispatch.ts`, never `index.ts` |
 | `testing/layers.ts` | `makeTestLayer(filename)` and the `DataStoreTestLayer` `:memory:` convenience — exported via the `vitest-agent-sdk/testing` subpath |
 | `testing/index.ts` | Five preset factories (`empty`, `singlePassingRun`, `withFailures`, `flaky`, `withTddTask`) that seed representative DB states for use in tests |
 
