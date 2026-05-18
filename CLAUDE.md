@@ -66,9 +66,13 @@ for LLM coding agents. Six primary capabilities:
    Effect service for coverage-config diagnostics, Full and UI-only operating
    modes gated by Vitest's native `coverage.enabled`, and pluggable rendering
    via `VitestAgentReporterFactory`.
-2. **`vitest-agent` CLI** -- `@effect/cli`-based bin with `status`,
-   `overview`, `coverage`, `history`, `trends`, `cache`, `doctor`, `record`,
-   `show`, `triage`, and `wrapup` subcommands. All commands support `--format`.
+2. **`vitest-agent` CLI** -- `@effect/cli`-based utility-only bin with a
+   three-command tree: `doctor`, `db` (`path` / `prune` / `reset` /
+   `query`), and `agent` -- a namespace for hook-driven plumbing
+   (`triage`, `wrapup`, `record`, `register-agent`, `end-agent`,
+   `inject-env`). Test-landscape queries (status, overview, coverage,
+   history, trends) moved to the MCP server. `--format` is scoped to
+   `agent triage`, `agent wrapup`, `doctor`, and `db query`.
 3. **Suggested actions & failure history** -- actionable suggestions in
    console output, per-test failure persistence, and test classification
    (`stable`, `new-failure`, `persistent`, `flaky`, `recovered`).

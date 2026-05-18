@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-16
-last-synced: 2026-05-16
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 90
 related:
   - ./architecture.md
@@ -25,9 +25,9 @@ reporter contract) see [./components/](./components/).
 
 ## Repo layout
 
-Source lives in seven pnpm workspaces under `packages/` (plus five
-per-platform sidecar sub-packages), the file-based Claude Code plugin at
-`plugin/` (NOT a workspace) and the `examples/` integration target.
+Source lives in seven pnpm workspaces under `packages/` (plus four
+per-platform sidecar sub-packages) and the file-based Claude Code plugin at
+`plugin/` (NOT a workspace).
 
 ```text
 packages/
@@ -43,12 +43,8 @@ packages/
   sidecar-linux-x64/     per-platform binary sub-package (os: linux, cpu: x64)
   sidecar-win32-x64/     per-platform binary sub-package (os: win32, cpu: x64)
 
-examples/
-  basic/       minimal example app (5th Vitest project)
-
 lib/
   configs/     repo-root build/tooling config helpers (NOT a workspace)
-    sidecar-dist.ts   shared tsdown onSuccess transform for the sidecar-* children
 
 plugin/        file-based Claude Code plugin (NOT a pnpm workspace)
   .claude-plugin/plugin.json    inline mcpServers config
@@ -70,16 +66,15 @@ source, `__test__/` for test files (flat layout, not co-located with
 source), `lib/` for build/maintenance scripts where applicable, `dist/dev/`
 and `dist/npm/` produced by `@savvy-web/rslib-builder`. The parent
 `sidecar/` follows the standard rslib layout but ships only a single
-`src/index.ts` re-export entry — no tests. The five `sidecar-*` sub-packages
+`src/index.ts` re-export entry — no tests. The four `sidecar-*` sub-packages
 depart from the standard layout: each carries a thin `src/bin.ts` runner
-plus its own `tsdown.config.ts` and builds a Node SEA binary into `bin/`
-with tsdown's `exe` mode rather than rslib-builder (see
-[./components/sidecar.md](./components/sidecar.md)) — no `__test__/`. Each
-child's `tsdown` `onSuccess` handler (the shared `lib/configs/sidecar-dist.ts`
-helper) always emits all three per-child `dist/` publish variants — `dist/dev`,
-`dist/github` and `dist/npm` — each holding the binary plus a publish-cleaned
-`package.json`. The child's `build:dev` is a no-op and `build:prod` owns the
-SEA build.
+plus its own `lib/scripts/tsdown.ts` programmatic build script and builds a
+Node SEA binary into `bin/` with tsdown's `exe` mode rather than
+rslib-builder (see [./components/sidecar.md](./components/sidecar.md)) — no
+`__test__/`. The per-child `lib/scripts/tsdown.ts` script selects its mode
+from the npm lifecycle event: `build:dev` emits `dist/dev`, `build:prod`
+emits `dist/npm` and `dist/github` — each variant directory holding the SEA
+binary plus a publish-cleaned `package.json`.
 
 The `mcp` package additionally vendors content under `src/`:
 

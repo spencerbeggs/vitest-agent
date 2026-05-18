@@ -20,7 +20,7 @@
  * dist/.bundle/<mode> directory and are deleted once the variants are
  * written, so turbo only ever caches the final dist/<variant> outputs.
  *
- * The script is identical across all five children: the platform and
+ * The script is identical across all four children: the platform and
  * arch are derived from the package's own os/cpu fields, so it can be
  * copied verbatim from one child to the next.
  */

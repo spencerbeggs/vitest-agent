@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 90
 related:
   - ./architecture.md
@@ -391,13 +391,30 @@ Three-step propagation chain:
    export VITEST_AGENT_AGENT_ID="..."
    ```
 
-2. **Claude Code auto-sources `CLAUDE_ENV_FILE`** into Bash tool subprocesses and the MCP server child. (Hook subprocesses do NOT get auto-sourcing — non-SessionStart hooks call `lib/source-session-env.sh "$session_id"` to self-source.)
+2. **Claude Code auto-sources `CLAUDE_ENV_FILE`** into Bash tool
+   subprocesses and the MCP server child. (Hook subprocesses do NOT get
+   auto-sourcing — non-SessionStart hooks call
+   `lib/source-session-env.sh "$session_id"` to self-source.)
 
-3. **Reporter / MCP / sidecar** read `process.env.VITEST_AGENT_*` at startup. The reporter records `actor_type='agent'` plus the canonical UUIDs on every `test_runs` row; the MCP server's `SessionContextRef` populates from env at boot and `run_tests` mutates `process.env` from the ref before `createVitest` so the in-process reporter sees current attribution.
+3. **Reporter / MCP / sidecar** read `process.env.VITEST_AGENT_*` at
+   startup. The reporter records `actor_type='agent'` plus the canonical
+   UUIDs on every `test_runs` row; the MCP server's `SessionContextRef`
+   populates from env at boot and `run_tests` mutates `process.env` from the
+   ref before `createVitest` so the in-process reporter sees current
+   attribution.
 
-**Subagent override**: when the active actor for a Bash call is a subagent (e.g., `tdd-task`), the PreToolUse Bash hook sources the session-env dir, computes the override prefix from the active agent context, and rewrites `tool_input.command` to prepend `VITEST_AGENT_AGENT_ID=<subagent_id> VITEST_AGENT_PARENT_AGENT_ID=<main_agent_id> ...`. The POSIX env-prefix scope is the immediately-following process only — main-agent env stays intact for subsequent calls.
+**Subagent override**: when the active actor for a Bash call is a subagent
+(e.g., `tdd-task`), the PreToolUse Bash hook sources the session-env dir,
+computes the override prefix from the active agent context, and rewrites
+`tool_input.command` to prepend `VITEST_AGENT_AGENT_ID=<subagent_id>
+VITEST_AGENT_PARENT_AGENT_ID=<main_agent_id> ...`. The POSIX env-prefix
+scope is the immediately-following process only — main-agent env stays
+intact for subsequent calls.
 
-**Pass-through (no agent context)**: a direct `pnpm vitest run` typed by a human at a terminal, with no Claude window open against this project, runs without the env vars set. The reporter records `actor_type='system'` and NULL `agent_id`.
+**Pass-through (no agent context)**: a direct `pnpm vitest run` typed by a
+human at a terminal, with no Claude window open against this project, runs
+without the env vars set. The reporter records `actor_type='system'` and
+NULL `agent_id`.
 
 ### Sidecar registration flow (SessionStart)
 

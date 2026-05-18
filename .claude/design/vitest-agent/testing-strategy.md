@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: testing
 created: 2026-04-29
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 95
 related:
   - ./architecture.md
@@ -192,7 +192,7 @@ Integration tests verify behavior that unit tests can't reach:
 
 - **End-to-end reporter behavior** -- run actual Vitest test runs
   through `AgentReporter` and assert on the resulting `data.db`
-  contents and console output. The `examples/basic` package is
+  contents and console output. The `playground` package is
   the canonical integration target
 - **Multi-project DB writes** -- a Vitest config with multiple
   projects sharing one `data.db` and assertions that the `project`

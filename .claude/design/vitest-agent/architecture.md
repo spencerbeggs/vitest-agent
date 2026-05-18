@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-15
-last-synced: 2026-05-15
+updated: 2026-05-18
+last-synced: 2026-05-18
 completeness: 90
 related:
   - ./components.md
@@ -62,7 +62,7 @@ The seven npm workspaces release in lockstep. `vitest-agent-plugin` declares
 `vitest-agent-sidecar` as required `peerDependencies`; `vitest-agent-ui` is
 an optional add-on that hosts pull in only when they want the event-sourced
 renderer or live Ink mount. All six non-SDK packages pin `vitest-agent-sdk`
-at `workspace:*`. The five per-platform sidecar sub-packages are not counted
+at `workspace:*`. The four per-platform sidecar sub-packages are not counted
 among the seven primary workspaces — they carry only a prebuilt binary and
 an `os` / `cpu` declaration, and are published as `optionalDependencies` of
 `vitest-agent-sidecar`.
