@@ -37,7 +37,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/changesets": "^0.9.0",
+		"@savvy-web/changesets": "^0.10.0",
 		"@savvy-web/commitlint": "^0.9.0",
 		"@savvy-web/lint-staged": "^1.0.1",
 		"@types/node": "catalog:silk",
