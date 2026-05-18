@@ -54,7 +54,7 @@ workspace).
 | `vitest-agent-ui` | `packages/ui/` | Event-sourced renderer family. Pure `RunEvent` reducer, the shape-tailored dispatcher matrix and its 12 cells, the L1 MCP tool-pointer footer, the preassembled `_defaultReporter` factory the plugin imports as its built-in, the internal `_createLiveInk` live mount, and the Effect `RunEventChannel` PubSub. |
 | `vitest-agent-cli` | `packages/cli/` | The `vitest-agent` bin. Utility-only for 2.0: `doctor`, `db` (path / prune / reset / query), and the `agent` namespace for hook-driven plumbing (triage, wrapup, record, sidecar). Test-landscape queries moved to MCP. |
 | `vitest-agent-mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, MCP resources, MCP prompts. |
-| `vitest-agent-sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via five `optionalDependencies` sub-packages (`vitest-agent-sidecar-{darwin-arm64,darwin-x64,linux-arm64,linux-x64,win32-x64}`). Added in T9.2. |
+| `vitest-agent-sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via four `optionalDependencies` sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`). Added in T9.2. |
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
 
 The seven npm workspaces release in lockstep. `vitest-agent-plugin` declares

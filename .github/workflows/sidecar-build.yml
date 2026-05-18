@@ -92,14 +92,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Upload darwin-x64 binary
-        uses: actions/upload-artifact@v7
-        with:
-          name: sidecar-darwin-x64
-          path: packages/sidecar-darwin-x64/dist/npm/bin/vitest-agent-sidecar
-          if-no-files-found: error
-          retention-days: 1
-
       - name: Upload linux-arm64 binary
         uses: actions/upload-artifact@v7
         with:
@@ -136,9 +128,6 @@ jobs:
           - platform: darwin-arm64
             runner: macos-26
             binary: vitest-agent-sidecar
-          - platform: darwin-x64
-            runner: macos-26-intel
-            binary: vitest-agent-sidecar
           - platform: linux-x64
             runner: ubuntu-24.04
             binary: vitest-agent-sidecar
@@ -154,14 +143,6 @@ jobs:
         with:
           name: sidecar-${{ matrix.platform }}
           path: ./sidecar-bin
-
-      - name: Re-sign darwin-x64 binary (diagnostic)
-        # darwin SEA binaries are ad-hoc code-signed by tsdown's exe
-        # step on the BUILD host, which is arm64 — so darwin-x64 is
-        # cross-arch-signed, a suspected cause of its runtime SIGSEGV.
-        # Re-signing here on this native x64 runner isolates that.
-        if: matrix.platform == 'darwin-x64'
-        run: codesign --force --sign - "./sidecar-bin/${{ matrix.binary }}"
 
       - name: Smoke-test the binary
         shell: bash

@@ -41,7 +41,6 @@
 	},
 	"optionalDependencies": {
 		"vitest-agent-sidecar-darwin-arm64": "workspace:*",
-		"vitest-agent-sidecar-darwin-x64": "workspace:*",
 		"vitest-agent-sidecar-linux-arm64": "workspace:*",
 		"vitest-agent-sidecar-linux-x64": "workspace:*",
 		"vitest-agent-sidecar-win32-x64": "workspace:*"

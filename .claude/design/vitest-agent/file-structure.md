@@ -39,7 +39,6 @@ packages/
   mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; spawned by plugin)
   sidecar/     vitest-agent-sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts re-exports dispatch/injectEnv from cli; no bin)
   sidecar-darwin-arm64/  per-platform binary sub-package (os: darwin, cpu: arm64)
-  sidecar-darwin-x64/    per-platform binary sub-package (os: darwin, cpu: x64)
   sidecar-linux-arm64/   per-platform binary sub-package (os: linux, cpu: arm64)
   sidecar-linux-x64/     per-platform binary sub-package (os: linux, cpu: x64)
   sidecar-win32-x64/     per-platform binary sub-package (os: win32, cpu: x64)

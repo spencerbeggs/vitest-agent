@@ -26,7 +26,7 @@ The platform-specific binary arrives through an `optionalDependencies`
 sub-package (`vitest-agent-sidecar-<platform>`), mirroring the
 esbuild / sharp distribution model. Supported platforms:
 
-- `darwin-arm64`, `darwin-x64`
+- `darwin-arm64`
 - `linux-arm64`, `linux-x64`
 - `win32-x64`
 

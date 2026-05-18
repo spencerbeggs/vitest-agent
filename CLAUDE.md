@@ -18,8 +18,8 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `vitest-agent-sidecar` | `packages/sidecar/` | Node Single Executable Application binary for the per-Bash-call `inject-env` hot path; prebuilt per-platform binaries ship via `optionalDependencies` |
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
 
-The seven publishable packages live under `packages/`. Five
-per-platform sub-packages (`vitest-agent-sidecar-{darwin-arm64,darwin-x64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `vitest-agent-sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
+The seven publishable packages live under `packages/`. Four
+per-platform sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `vitest-agent-sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
 
 The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares
 `vitest-agent-cli`, `vitest-agent-mcp`, and `vitest-agent-sidecar` as

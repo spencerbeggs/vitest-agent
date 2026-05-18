@@ -45,17 +45,16 @@ The TS source is the single source of truth. The argv dispatcher — `dispatch(a
 
 ## Distribution: per-platform optionalDependencies
 
-Distribution follows the esbuild / sharp model. `vitest-agent-sidecar` is a parent package that carries no `bin` at all; the actual binaries ship in five sibling sub-packages, each declaring `os` / `cpu` so npm installs only the matching one:
+Distribution follows the esbuild / sharp model. `vitest-agent-sidecar` is a parent package that carries no `bin` at all; the actual binaries ship in four sibling sub-packages, each declaring `os` / `cpu` so npm installs only the matching one:
 
 | Sub-package | os / cpu |
 | --- | --- |
 | `vitest-agent-sidecar-darwin-arm64` | darwin / arm64 |
-| `vitest-agent-sidecar-darwin-x64` | darwin / x64 |
 | `vitest-agent-sidecar-linux-arm64` | linux / arm64 |
 | `vitest-agent-sidecar-linux-x64` | linux / x64 |
 | `vitest-agent-sidecar-win32-x64` | win32 / x64 |
 
-The five sub-packages are listed as `optionalDependencies` of the parent. Each child declares the SEA binary as its own `bin` — `{ "vitest-agent-sidecar": "./bin/vitest-agent-sidecar" }`, or the `.exe` variant on win32 — so when the matching child installs the native executable lands directly on `PATH` with no intermediate shim and no resolver hop. On an unsupported platform no child installs, `vitest-agent-sidecar` is simply absent from `PATH`, and the hook's `command -v` probe misses and falls back to the JS CLI.
+The four sub-packages are listed as `optionalDependencies` of the parent. darwin-x64 (Intel macOS) is intentionally not shipped — its Node SEA binary segfaults on startup regardless of build host, a `@tsdown/exe` / Node SEA defect for that target; Intel-Mac installs fall back to the JS CLI, which the hook's `command -v` miss already triggers when no binary is on `PATH`. Each child declares the SEA binary as its own `bin` — `{ "vitest-agent-sidecar": "./bin/vitest-agent-sidecar" }`, or the `.exe` variant on win32 — so when the matching child installs the native executable lands directly on `PATH` with no intermediate shim and no resolver hop. On an unsupported platform no child installs, `vitest-agent-sidecar` is simply absent from `PATH`, and the hook's `command -v` probe misses and falls back to the JS CLI.
 
 Each child `package.json` carries `"type": "module"` and declares `vitest-agent-cli` and `vitest-agent-sdk` as `devDependencies` — build-time only. `tsdown`'s `deps.alwaysBundle` folds them into the self-contained SEA, so they are not runtime dependencies of the published child package. A published `vitest-agent-sidecar-<platform>` package has zero runtime dependencies — the SEA binary is its only shipped artifact.
 
@@ -78,15 +77,14 @@ The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) detects the binar
 
 ## CI
 
-`.github/workflows/sidecar-build.yml` has two jobs. A single `build` job on a macOS runner cross-compiles all five binaries at once — tsdown's `exe` mode downloads each target's Node runtime and postject-injects the bundle, so the host arch need not match the target — runs the `dist/{github,npm}` manifest assertions, and uploads one artifact per platform. A `smoke` matrix then downloads each binary onto its own native runner and runs it. The smoke legs carry no checkout, Node or pnpm — they exercise only the prebuilt binary, which sidesteps runtime-setup entirely:
+`.github/workflows/sidecar-build.yml` has two jobs. A single `build` job on a macOS runner cross-compiles all four binaries at once — tsdown's `exe` mode downloads each target's Node runtime and postject-injects the bundle, so the host arch need not match the target — runs the `dist/{github,npm}` manifest assertions, and uploads one artifact per platform. A `smoke` matrix then downloads each binary onto its own native runner and runs it. The smoke legs carry no checkout, Node or pnpm — they exercise only the prebuilt binary, which sidesteps runtime-setup entirely:
 
 | Platform | Smoke runner |
 | --- | --- |
-| `darwin-arm64` | `macos-15` |
-| `darwin-x64` | `macos-15-intel` |
+| `darwin-arm64` | `macos-26` |
 | `linux-x64` | `ubuntu-24.04` |
 | `linux-arm64` | `ubuntu-24.04-arm` |
-| `win32-x64` | `windows-2022` |
+| `win32-x64` | `windows-2025` |
 
 The "Assert dist publish manifests" step, for every `packages/sidecar-<platform>/dist/{github,npm}/package.json`, asserts the transform held: no `devDependencies`, `scripts`, `publishConfig`, `packageManager` or `devEngines`, `private` is `false`, and the `@spencerbeggs/` name scope is present in `dist/github` and absent in `dist/npm`. The smoke test runs `inject-env` against fixtures and checks the unknown-subcommand exit contract. Publishing the sub-packages is wired into the Wave 4 release flow, not this workflow.
 

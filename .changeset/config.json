@@ -26,7 +26,6 @@
 			"vitest-agent-mcp",
 			"vitest-agent-sidecar",
 			"vitest-agent-sidecar-darwin-arm64",
-			"vitest-agent-sidecar-darwin-x64",
 			"vitest-agent-sidecar-linux-arm64",
 			"vitest-agent-sidecar-linux-x64",
 			"vitest-agent-sidecar-win32-x64"

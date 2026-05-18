@@ -393,9 +393,6 @@ importers:
       vitest-agent-sidecar-darwin-arm64:
         specifier: workspace:*
         version: link:../sidecar-darwin-arm64/dist/dev
-      vitest-agent-sidecar-darwin-x64:
-        specifier: workspace:*
-        version: link:../sidecar-darwin-x64/dist/dev
       vitest-agent-sidecar-linux-arm64:
         specifier: workspace:*
         version: link:../sidecar-linux-arm64/dist/dev
@@ -408,28 +405,6 @@ importers:
     publishDirectory: dist/dev
 
   packages/sidecar-darwin-arm64:
-    devDependencies:
-      '@savvy-web/rslib-builder':
-        specifier: ^0.20.3
-        version: 0.20.3(@pnpm/logger@1001.0.1)(@rslib/core@0.21.5(@microsoft/api-extractor@7.58.7(@types/node@25.8.0))(@typescript/native-preview@7.0.0-dev.20260515.1)(typescript@6.0.3))(@types/node@25.8.0)(@types/react@19.2.14)(@typescript/native-preview@7.0.0-dev.20260515.1)(jiti@2.6.1)(react@19.2.6)(typescript@6.0.3)
-      '@tsdown/exe':
-        specifier: ^0.22.0
-        version: 0.22.0(tsdown@0.22.0)
-      '@types/node':
-        specifier: catalog:silk
-        version: 25.8.0
-      tsdown:
-        specifier: ^0.22.0
-        version: 0.22.0(@tsdown/exe@0.22.0)(@typescript/native-preview@7.0.0-dev.20260515.1)(tsx@4.22.0)(typescript@6.0.3)
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev
-    publishDirectory: dist/dev
-
-  packages/sidecar-darwin-x64:
     devDependencies:
       '@savvy-web/rslib-builder':
         specifier: ^0.20.3
