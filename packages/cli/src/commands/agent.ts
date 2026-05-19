@@ -28,15 +28,14 @@ import { Command, Options } from "@effect/cli";
 import { NodeContext } from "@effect/platform-node";
 import { Cause, Chunk, Effect, Option } from "effect";
 import { resolveProjectKeyFromCwd } from "vitest-agent-sdk";
+import { exitCodeForTag, injectEnv } from "vitest-agent-sdk/dispatch";
 import { resolveSidecarBinaryPath } from "vitest-agent-sidecar";
 import { SidecarLive } from "../layers/SidecarLive.js";
 import { endAgentEffect } from "../lib/internal-end-agent.js";
-import { injectEnv } from "../lib/internal-inject-env.js";
 import { registerAgentEffect } from "../lib/internal-register-agent.js";
 import {
 	DATA_DB_FILENAME,
 	REGISTRY_DB_FILENAME,
-	exitCodeForTag,
 	resolveProjectDataDir,
 	resolveRegistryDir,
 	resolveSessionMapPath,

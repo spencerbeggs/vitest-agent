@@ -22,6 +22,7 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
+		"./dispatch": "./src/dispatch.ts",
 		"./testing": "./src/testing/index.ts"
 	},
 	"scripts": {

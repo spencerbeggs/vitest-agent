@@ -6,13 +6,14 @@ baseline/trend computation, and delegates rendering entirely to a
 `VitestAgentReporterFactory` — it injects `DefaultVitestAgentReporter` from
 `vitest-agent-reporter` when the user does not pass a custom `reporter`
 option, and never touches rendering itself. The reporter owns mode
-branching and the Ink live-mount lifecycle. Declares `vitest-agent-cli` and
-`vitest-agent-mcp` as required peerDependencies, plus regular workspace
-dependencies on `vitest-agent-reporter` and `vitest-agent-sdk`. The plugin
-no longer depends on `vitest-agent-ui`, `react`, or `ink` — `reporter`
-pulls those transitively. `vitest-agent-sidecar` is not a direct
-dependency — it arrives transitively through the required
-`vitest-agent-cli` peer.
+branching and the Ink live-mount lifecycle. Declares `vitest-agent-cli`
+and `vitest-agent-mcp` as required `peerDependencies` (alongside the
+Vitest-side peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`,
+`@vitest/coverage-istanbul`), plus regular workspace `dependencies` on
+`vitest-agent-reporter` and `vitest-agent-sdk`. The plugin no longer
+depends on `vitest-agent-ui`, `react`, or `ink` — `reporter` pulls those
+transitively. `vitest-agent-sidecar` is not a direct dependency — it
+arrives transitively through the required `vitest-agent-cli` peer.
 
 ## Layout
 

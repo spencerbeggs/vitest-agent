@@ -5,3 +5,6 @@ autoInstallPeers: true
 configDependencies:
   "@savvy-web/pnpm-plugin-silk": 0.13.0+sha512-R1+Q7p1yjmjQIZzSNpKm0r2oY35JtFSGGOw25u0oq16By6728YeMr6Oa7R2U1CjUVuvXQSKkshzvX8d8+RCZ/g==
 loglevel: info
+publicHoistPattern:
+  - vitest-agent-cli
+  - vitest-agent-mcp

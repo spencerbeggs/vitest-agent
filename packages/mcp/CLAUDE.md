@@ -9,7 +9,11 @@ and MCP 2025-11-25 `audience` / `priority` annotations come from the
 source manifests — `manifest.json` for docs, `_meta.json` for patterns —
 which both registrar `list` callbacks decode via Effect Schema) and six
 framing-only prompts registered directly with the MCP SDK alongside the
-tRPC tool router. Required as a peerDependency by the plugin package.
+tRPC tool router. A regular `dependency` of the plugin package, so every
+plugin consumer installs it. It stays a separate package for
+module-boundary clarity and an independent tool-surface release cadence —
+not for install-cost reasons (the MCP SDK + tRPC + zod footprint ships
+with every plugin install).
 
 ## Layout
 

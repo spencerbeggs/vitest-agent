@@ -404,9 +404,10 @@ loader resolved.
 
 **Trade-off:** the loader knows about four PMs and their `exec`
 syntaxes. Keeping that table current is a small maintenance cost.
-PM-specific peer-dep enforcement varies (npm warns, pnpm errors, yarn
-berry strict, bun varies); the README documents this so install UX
-surprises are mitigated.
+`vitest-agent-mcp` is a required `peerDependency` of the plugin, which
+npm 7+ and pnpm auto-install, so installing the plugin lands the MCP
+server's bin at the consumer's top level where the loader's PM `exec`
+resolves it.
 
 ### Decision 31: Deterministic XDG Path Resolution
 
@@ -513,14 +514,23 @@ reporter from `vitest-agent-reporter` and nothing from `ui`.
 `react` + `ink` moved from the plugin to `vitest-agent-reporter` as
 full `dependencies` (the plugin no longer touches JSX); `ui` keeps
 them as `peerDependencies`. `vitest-agent-reporter` dropped its
-redundant `cli` + `mcp` peers. The seven-package lockstep and the
-required cli / mcp plugin peers are unchanged. See D34 and D41.
+redundant `cli` + `mcp` peers. See D34 and D41.
+
+**Amendment (workspace dependency cleanup, 2026-05-18):** the pre-2.0
+cleanup moved the sidecar dispatch core (`dispatch`, `injectEnv`,
+`exitCodeForTag`) into `vitest-agent-sdk` behind a dedicated
+`./dispatch` entry, so the per-platform sidecar children depend on the
+SDK rather than the CLI — this breaks the prior cli → sidecar → cli
+workspace cycle. The plugin's dependency shape is unchanged: cli and
+mcp remain required `peerDependencies`, reporter and sdk remain regular
+`dependencies`. See [./components/sdk.md](./components/sdk.md) and
+[./components/sidecar.md](./components/sidecar.md).
 
 The system ships as six pnpm workspaces under `packages/`:
 
 | Package | Role |
 | --- | --- |
-| `vitest-agent-sdk` | data layer, schemas, services, formatters, utilities, XDG path stack — no internal deps |
+| `vitest-agent-sdk` | data layer, schemas, services, formatters, utilities, XDG path stack, sidecar dispatch core (`./dispatch` entry) — no internal deps |
 | `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter and sdk directly (no longer on ui). Owns no rendering |
 | `vitest-agent-reporter` | the default reporter package: `DefaultVitestAgentReporter` (the plugin's built-in factory, owns the Ink live mount), contract re-exports, dispatch helpers. Declares `react` + `ink` as full deps; depends on sdk and ui |
 | `vitest-agent-ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, `RunEventChannel` PubSub). Consumed by `vitest-agent-reporter`; `react` / `ink` are `peerDependencies` |
@@ -528,29 +538,46 @@ The system ships as six pnpm workspaces under `packages/`:
 | `vitest-agent-mcp` | `vitest-agent-mcp` bin |
 
 All six release in lockstep via changesets `linked` config. The plugin
-declares the CLI and MCP packages as **required** `peerDependencies`
-so installing the plugin still pulls the agent tooling with it;
+declares the CLI and MCP packages as **required** `peerDependencies` so
+installing the plugin still pulls the agent tooling with it;
 `vitest-agent-reporter`, `vitest-agent-sdk` and `vitest-agent-ui` are
 regular `dependencies` of the plugin, not peers. `vitest-agent-sidecar`
 is not a direct plugin peer at all — it is a regular `dependency` of
-`vitest-agent-cli`, so the required cli peer drags it in transitively.
+`vitest-agent-cli`, so the auto-installed cli peer drags it in
+transitively.
 
 **Why this split:** the shared package boundary is determined by "what
 does more than one runtime package need". The data layer, output
-pipeline, and path-resolution stack are all needed by more than one
-runtime, so they live in `vitest-agent-sdk` — circular imports are
-impossible by construction. The CLI/MCP split is justified by
-dependency footprint: `@effect/cli` is heavy and only the CLI needs
-it; the MCP SDK + tRPC + zod stack is heavy and only MCP needs it.
-Co-located, every install would pay for both.
+pipeline, path-resolution stack and dispatch core are all needed by
+more than one runtime, so they live in `vitest-agent-sdk` — circular
+imports are impossible by construction. The CLI/MCP split is a
+module-boundary decision: `@effect/cli` is the CLI's own concern and
+the MCP SDK + tRPC + zod stack is the MCP server's own concern, so
+each keeps its dependency surface in its own package.
 
-**Why required peer deps (vs optional or full deps):** optional peers
-would let users install only the plugin without the CLI/MCP, but
-they'd silently lose the bin invocations the reporter's "Next steps"
-output suggests and the MCP server the Claude Code plugin needs.
-Direct deps would tie the plugin's lockfile to the CLI/MCP versions
-and prevent independent upgrades. Required peers give lockstep version
-coordination without bundling the dependency graph.
+**Why required peer deps (vs optional or full deps):** the CLI and MCP
+packages are required peers (`optional: false`, no
+`peerDependenciesMeta`) — every plugin consumer needs them, for the bin
+invocations the reporter's "Next steps" output suggests and for the MCP
+server the Claude Code plugin needs. Required peers are the correct
+relationship rather than regular dependencies because npm 7+ and pnpm
+(this repo sets `autoInstallPeers: true`) auto-install required peers,
+and a peer-installed package lands at the consumer's top level — so the
+`vitest-agent` and `vitest-agent-mcp` bins resolve for the Claude Code
+plugin's hook scripts. A transitively-nested regular dependency's bin
+would not. The published `vitest-agent-plugin` carries real registry
+version ranges for these peers (rslib-builder rewrites the `workspace:*`
+protocol to concrete versions at publish time), so the auto-install
+resolves against the registry. In the monorepo dev workspace the peers
+are `workspace:*` ranges that `autoInstallPeers` cannot satisfy from the
+registry, so the root `package.json` declares `vitest-agent-cli` and
+`vitest-agent-mcp` directly as devDependencies and `pnpm-workspace.yaml`
+adds a `publicHoistPattern` for both so their bins land in the root
+`node_modules/.bin`.
+
+**Trade-offs:** six `private: true` package.jsons (rslib-builder
+transforms each on publish), and consumers importing schemas use
+`from "vitest-agent-sdk"`.
 
 **Trade-offs:** six `private: true` package.jsons (rslib-builder
 transforms each on publish), and consumers importing schemas use
@@ -852,11 +879,12 @@ packages share types and runtime contracts at the SDK boundary
 (`DataStore`, `DataReader`, the reporter contract types, the schemas).
 A consumer hitting any cross-package type mismatch sees an opaque
 TypeScript or runtime error rather than a "you upgraded the plugin
-but not the reporter" diagnostic. Required `peerDependencies` (D33)
-make installation lockstep on the consumer's side; build-inlined
-version comparison makes drift detectable at runtime if the lockfile
-ever lies (npm's looser peer-dep enforcement, manual `npm install`
-patterns, monorepo hoist surprises).
+but not the reporter" diagnostic. The plugin's regular `dependencies`
+on reporter and sdk plus its required `peerDependencies` on cli and
+mcp (D33) make installation lockstep on the consumer's side;
+build-inlined version comparison makes drift detectable at runtime if
+the lockfile ever lies (npm's looser peer-dep enforcement, manual
+`npm install` patterns, monorepo hoist surprises).
 
 **Why the Claude Code plugin can lag:** the plugin is a file-based
 distribution through the Claude marketplace (D20). Its release cadence

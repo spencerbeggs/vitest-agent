@@ -14,12 +14,19 @@
  * per session (off the per-turn critical path). Putting `register-agent`
  * back in the binary is tracked as a 2.x follow-up.
  *
- * This lives in `vitest-agent-cli` (not the sidecar package) so the
- * five `vitest-agent-sidecar-<platform>` child packages consume it as a
- * clean package import — `import { dispatch } from "vitest-agent-cli"` —
- * rather than reaching across a package boundary into another
- * package's `src/`. Its only dependencies are cli-local: `injectEnv`
- * and `exitCodeForTag`.
+ * This lives in `vitest-agent-sdk` and ships from the dedicated
+ * `vitest-agent-sdk/dispatch` entry point, so the four
+ * `vitest-agent-sidecar-<platform>` child packages consume it as a
+ * clean package import. `vitest-agent-sdk` is a true leaf package,
+ * which keeps the workspace dependency graph acyclic — the
+ * per-platform packages no longer close a cli → sidecar →
+ * sidecar-platform → cli loop. Its only dependencies are sdk-local:
+ * `injectEnv` and `exitCodeForTag`.
+ *
+ * The narrow entry point matters for binary size: importing from the
+ * sdk main barrel would force the SEA bundler to tree-shake away the
+ * Effect runtime, the SQLite data layer, and every service. The
+ * dedicated entry guarantees the minimal reachable graph.
  *
  * Argv parsing is hand-rolled and dependency-free on purpose — pulling
  * `@effect/cli` into the SEA bundle would bloat it for no benefit.
@@ -34,8 +41,8 @@
  * @packageDocumentation
  */
 
+import { exitCodeForTag } from "./exit-code-for-tag.js";
 import { injectEnv } from "./internal-inject-env.js";
-import { exitCodeForTag } from "./sidecar-paths.js";
 
 /** Result of a {@link dispatch} call: captured stdout/stderr + exit code. */
 export interface DispatchResult {

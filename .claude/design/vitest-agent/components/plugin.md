@@ -27,7 +27,9 @@ a user-supplied `VitestAgentReporterFactory`.
 **npm name:** `vitest-agent-plugin`
 **Location:** `packages/plugin/`
 **Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-reporter`
-**Required peers:** `vitest-agent-cli`, `vitest-agent-mcp`, `vitest >= 4.1.0`
+**Required peers:** `vitest-agent-cli`, `vitest-agent-mcp`, `vitest >= 4.1.0`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`
+
+`vitest-agent-cli` and `vitest-agent-mcp` are required workspace `peerDependencies` — required, not optional, with no `peerDependenciesMeta`. The plugin imports no code from either; they are declared so the `vitest-agent` and `vitest-agent-mcp` bins the Claude Code plugin's hook scripts shell out to are installed and resolvable. Peers are the right relationship rather than regular dependencies because npm 7+ and pnpm auto-install required peers, and an auto-installed peer lands at the consumer's top level where its bin resolves — a transitively-nested regular dependency's bin would not. See D33 in [../decisions.md](../decisions.md).
 
 The plugin owns persistence, classification, baselines, trends, and Vitest
 lifecycle wiring. Rendering is delegated entirely to the reporter factory —

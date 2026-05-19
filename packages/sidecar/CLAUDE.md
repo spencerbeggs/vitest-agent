@@ -17,7 +17,7 @@ __test__/                       -- unit tests for the resolver (dependency injec
                                     via options.resolver; no real binary required)
 ```
 
-The per-platform SEA binaries ship in four sibling child packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`) listed as `optionalDependencies`. Each child declares the binary as its own `bin` entry; pnpm installs only the matching one based on `os`/`cpu` fields.
+The per-platform SEA binaries ship in four sibling child packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`) listed as `optionalDependencies`. Each child declares the binary as its own `bin` entry; pnpm installs only the matching one based on `os`/`cpu` fields. Each child's `src/bin.ts` imports `dispatch` from `vitest-agent-sdk/dispatch` — `vitest-agent-sdk` is the sole workspace devDependency bundled into the SEA.
 
 ## Key API
 
@@ -31,8 +31,8 @@ The per-platform SEA binaries ship in four sibling child packages (`vitest-agent
 
 ## Conventions
 
-- **No runtime workspace deps.** The parent `packages/sidecar/` has zero workspace runtime dependencies. Only `vitest-agent-cli` and `vitest-agent-sdk` appear as devDependencies of the per-platform child packages — they are bundled into each SEA at build time.
-- **`packages/sidecar/turbo.json` sets `dependsOn: []`.** This breaks a Turbo task-graph cycle: `vitest-agent-cli` now depends on `vitest-agent-sidecar`, so inheriting the normal `^build` upstream ordering would create cli → sidecar → cli. The parent sidecar build has no compile-time workspace deps, so `dependsOn: []` is accurate.
+- **No runtime workspace deps.** The parent `packages/sidecar/` has zero workspace runtime dependencies. `vitest-agent-sdk` is the only workspace devDependency of the per-platform child packages — each child's `src/bin.ts` does `import { dispatch } from "vitest-agent-sdk/dispatch"`, bundled into the SEA at build time. The children no longer devDepend on `vitest-agent-cli`.
+- **`packages/sidecar/turbo.json` has no `dependsOn` override.** With the dispatch core moved into `vitest-agent-sdk`, the old `cli → sidecar → sidecar-<platform> → cli` cycle is gone, so the parent sidecar build inherits the normal `^build` topological ordering (`build:dev` uses `["^build:dev"]`, `build:prod` uses `["^build:prod"]`).
 - **Building.** The parent package builds with rslib-builder. The per-platform children build with tsdown's `exe` mode (Node SEA) via `lib/scripts/tsdown.ts`. Use `turbo run build:dev build:prod --filter='./packages/sidecar'` to build the parent.
 
 ## When working in this package
