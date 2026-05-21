@@ -17,7 +17,7 @@ import { MetricThresholds } from "./Thresholds.js";
 export const TestRecord = Schema.Struct({
 	testName: Schema.String,
 	suitePath: Schema.Array(Schema.String),
-	status: Schema.Union(TestState, Schema.Literal("running")),
+	status: Schema.Union(TestState, Schema.Literal("running", "timed-out")),
 	durationMs: Schema.NullOr(Schema.Number),
 	error: Schema.optional(ReportError),
 }).annotations({ identifier: "TestRecord" });
@@ -33,8 +33,23 @@ export const ModuleRecord = Schema.Struct({
 	passCount: Schema.Number,
 	failCount: Schema.Number,
 	skipCount: Schema.Number,
+	timeoutCount: Schema.Number,
 	durationMs: Schema.Number,
 	tests: Schema.Array(TestRecord),
+	/**
+	 * Owning Vitest project name. Optional — events from project-less
+	 * configs or older replays leave it `undefined`, which the renderer
+	 * treats as a single anonymous project.
+	 */
+	projectName: Schema.optional(Schema.String),
+	/**
+	 * ISO wall-clock stamp captured at `onTestModuleStart`. The live
+	 * renderer derives a ticking elapsed column from it while the module
+	 * runs; once finished it shows `durationMs` instead. Optional — a
+	 * module seeded by `ModuleQueued` (or replayed) has no start stamp.
+	 */
+	startedAt: Schema.optional(Schema.String),
+	tagCounts: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Number })),
 }).annotations({ identifier: "ModuleRecord" });
 export type ModuleRecord = typeof ModuleRecord.Type;
 
@@ -48,6 +63,7 @@ export const FailureRecord = Schema.Struct({
 	testName: Schema.String,
 	suitePath: Schema.Array(Schema.String),
 	error: Schema.optional(ReportError),
+	timedOut: Schema.optional(Schema.Boolean),
 	classification: Schema.NullOr(TestClassification),
 }).annotations({ identifier: "FailureRecord" });
 export type FailureRecord = typeof FailureRecord.Type;
@@ -89,6 +105,7 @@ export const RenderTotals = Schema.Struct({
 	passCount: Schema.Number,
 	failCount: Schema.Number,
 	skipCount: Schema.Number,
+	timeoutCount: Schema.Number,
 	durationMs: Schema.Number,
 }).annotations({ identifier: "RenderTotals" });
 export type RenderTotals = typeof RenderTotals.Type;
@@ -99,10 +116,12 @@ export type RenderTotals = typeof RenderTotals.Type;
  *
  * `phase` is the layout discriminator — agent mode emits one final
  * frame when `phase === "finished"`; human mode redraws at every
- * state change.
+ * state change. `"timed-out"` is a terminal phase like `"finished"`
+ * — the run is over, but it ended because `onProcessTimeout` fired
+ * rather than the suite completing.
  */
 export const RenderState = Schema.Struct({
-	phase: Schema.Literal("idle", "running", "finished"),
+	phase: Schema.Literal("idle", "running", "finished", "timed-out"),
 	runId: Schema.NullOr(Schema.String),
 	configHash: Schema.NullOr(Schema.String),
 	startedAt: Schema.NullOr(Schema.String),
@@ -111,6 +130,12 @@ export const RenderState = Schema.Struct({
 	moduleOrder: Schema.Array(Schema.String),
 	totals: RenderTotals,
 	coverage: Schema.NullOr(CoverageRenderState),
+	trend: Schema.NullOr(
+		Schema.Struct({
+			direction: Schema.Literal("improving", "regressing", "stable"),
+			runCount: Schema.Number,
+		}),
+	),
 	failures: Schema.Array(FailureRecord),
 	suggestedActions: Schema.Array(SuggestedActionRecord),
 }).annotations({ identifier: "RenderState" });
@@ -129,8 +154,9 @@ export const initialRenderState: RenderState = {
 	finishedAt: null,
 	modules: {},
 	moduleOrder: [],
-	totals: { passCount: 0, failCount: 0, skipCount: 0, durationMs: 0 },
+	totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 0 },
 	coverage: null,
+	trend: null,
 	failures: [],
 	suggestedActions: [],
 };

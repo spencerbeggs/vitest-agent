@@ -36,7 +36,10 @@ export const accumulateUntilFinished = (
 			const channel = yield* RunEventChannel;
 			const dequeue = yield* PubSub.subscribe(channel);
 			let state = initial;
-			while (state.phase !== "finished") {
+			// `finished` and `timed-out` are both terminal — a run that
+			// timed out never emits `RunFinished`, so accumulating only
+			// against `finished` would hang the agent path forever.
+			while (state.phase !== "finished" && state.phase !== "timed-out") {
 				const event = yield* Queue.take(dequeue);
 				state = reduceRenderState(state, event);
 			}

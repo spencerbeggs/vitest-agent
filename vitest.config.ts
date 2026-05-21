@@ -7,7 +7,7 @@ export default async () => {
 	return defineConfig({
 		plugins: [
 			AgentPlugin({
-				console: { human: "ink", agent: "agent" },
+				console: { human: "stream", agent: "agent" },
 				coverageTargets: coverage.coverageTargets,
 			}),
 		],

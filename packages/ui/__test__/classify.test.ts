@@ -94,7 +94,7 @@ describe("classifyOutcome", () => {
 		const state: RenderState = {
 			...initialRenderState,
 			phase: "finished",
-			totals: { passCount: 1, failCount: 1, skipCount: 0, durationMs: 10 },
+			totals: { passCount: 1, failCount: 1, skipCount: 0, timeoutCount: 0, durationMs: 10 },
 			coverage: {
 				metrics: { lines: 50, branches: 50, functions: 50, statements: 50 },
 				thresholds: { lines: 80, branches: 80, functions: 80, statements: 80 },
@@ -109,7 +109,7 @@ describe("classifyOutcome", () => {
 		const state: RenderState = {
 			...initialRenderState,
 			phase: "finished",
-			totals: { passCount: 5, failCount: 0, skipCount: 0, durationMs: 50 },
+			totals: { passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 50 },
 			coverage: {
 				metrics: { lines: 95, branches: 90, functions: 100, statements: 95 },
 				thresholds: { lines: 80, branches: 80, functions: 80, statements: 80 },

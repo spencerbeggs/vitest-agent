@@ -18,19 +18,9 @@ import type {
 	TestRecord,
 	TrendSummary,
 } from "vitest-agent-sdk";
+import { formatDisplayDuration } from "../format-duration.js";
 
-const SECOND_MS = 1000;
-
-/**
- * Format a duration in milliseconds. Uses `<N>ms` below one second
- * and `<N.N>s` at or above, matching the pre-2.0 console convention.
- */
-export const formatDuration = (ms: number): string => {
-	if (ms < SECOND_MS) return `${ms}ms`;
-	const seconds = ms / SECOND_MS;
-	const rounded = Math.round(seconds * 10) / 10;
-	return `${rounded}s`;
-};
+export { formatDisplayDuration } from "../format-duration.js";
 
 /**
  * Format a coverage percentage. Uses one decimal place for non-integer
@@ -60,7 +50,7 @@ export const formatTotals = (state: RenderState): string => {
 	const parts = [`${passCount}/${total} passed`];
 	if (failCount > 0) parts.push(`${failCount} failed`);
 	if (skipCount > 0) parts.push(`${skipCount} skipped`);
-	return `Tests: ${parts.join(", ")} (${formatDuration(durationMs)})`;
+	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
 };
 
 /**
@@ -165,7 +155,7 @@ export const formatProjectRow = (project: ProjectSummary, nameWidth: number): st
 			: `${project.passCount} passed`;
 	const tagSuffix = formatTagCountSuffix(project.tagCounts);
 	const paddedName = project.name.padEnd(nameWidth);
-	const duration = formatDuration(project.durationMs);
+	const duration = formatDisplayDuration(project.durationMs);
 	const base = `  ${glyph} ${paddedName} ${counts} (${duration})`;
 	return tagSuffix.length === 0 ? base : `${base}  ${tagSuffix}`;
 };
@@ -209,7 +199,7 @@ export const formatWorkspaceTotal = (projects: ReadonlyArray<ProjectSummary>): s
 	const parts = [`${pass}/${total} passed`];
 	if (fail > 0) parts.push(`${fail} failed`);
 	if (skip > 0) parts.push(`${skip} skipped`);
-	return `Total: ${parts.join(", ")} (${formatDuration(durationMs)})`;
+	return `Total: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
 };
 
 const TABLE_COL_FILE = 60;

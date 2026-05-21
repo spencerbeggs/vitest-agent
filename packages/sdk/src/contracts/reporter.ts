@@ -135,7 +135,7 @@ export interface ReporterKit {
 	 * per Vitest streaming callback (`onTestRunStart`, `onTestModuleStart`,
 	 * `onTestCaseResult`, `onTestRunEnd`, …) onto this `PubSub` as the run
 	 * progresses. A reporter that paints live — the default reporter's Ink
-	 * mount in `consoleMode: "ink"` — subscribes here at construction time
+	 * mount in `consoleMode: "stream"` — subscribes here at construction time
 	 * (the factory is invoked at run start, before the first event) and
 	 * drives its renderer off the stream.
 	 *

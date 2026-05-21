@@ -7,6 +7,7 @@
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import type { ModuleRecord } from "vitest-agent-sdk";
+import { formatDisplayDuration } from "../format-duration.js";
 import type { StatusIconKind } from "./StatusIcon.js";
 import { StatusIcon } from "./StatusIcon.js";
 
@@ -34,7 +35,7 @@ export const ModuleHeader: FC<ModuleHeaderProps> = ({ module }) => {
 			<Text> {module.modulePath}</Text>
 			<Text dimColor>
 				{" "}
-				({summary}, {module.durationMs}ms)
+				({summary}, {formatDisplayDuration(module.durationMs)})
 			</Text>
 		</Box>
 	);

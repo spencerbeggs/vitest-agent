@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-07
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-19
+last-synced: 2026-05-19
 completeness: 95
 related:
   - ./plugin.md
@@ -315,7 +315,7 @@ export default async () => {
   return defineConfig({
     plugins: [
       AgentPlugin({
-        console: { human: "ink", agent: "agent" },
+        console: { human: "stream", agent: "agent" },
         coverageTargets: coverage.coverageTargets,
       }),
     ],

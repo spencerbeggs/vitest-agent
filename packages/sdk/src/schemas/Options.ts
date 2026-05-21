@@ -16,8 +16,8 @@ import { Transport } from "./Transport.js";
  * channel without affecting the others.
  *
  * Defaults:
- * - `human` → `"passthrough"` today; users opt into `"ink"` explicitly
- *   alongside wiring `createLiveInk` via `onRunEvent`.
+ * - `human` → `"passthrough"` today; users opt into `"stream"` explicitly
+ *   for the progressively-drawn, animated agent-shaped live renderer.
  * - `agent` → `"agent"` (markdown-flavored final frame).
  * - `ci` → `"passthrough"` (Vitest's reporters produce log-friendly
  *   output). `"ci-annotations"` is opt-in until the dedicated GHA

@@ -12,7 +12,7 @@ const baseState = (overrides: Partial<RenderState> = {}): RenderState => ({
 describe("renderAgent — header", () => {
 	it("renders only the header when there is nothing else to show", () => {
 		const state = baseState({
-			totals: { passCount: 0, failCount: 0, skipCount: 0, durationMs: 0 },
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 0 },
 		});
 		expect(renderAgent(state)).toMatchInlineSnapshot(`
 			"Tests: 0/0 passed (0ms)
@@ -22,7 +22,7 @@ describe("renderAgent — header", () => {
 
 	it("includes failed and skipped counts when nonzero", () => {
 		const state = baseState({
-			totals: { passCount: 2, failCount: 1, skipCount: 3, durationMs: 100 },
+			totals: { passCount: 2, failCount: 1, skipCount: 3, timeoutCount: 0, durationMs: 100 },
 		});
 		const output = renderAgent(state);
 		expect(output.split("\n")[0]).toBe("Tests: 2/6 passed, 1 failed, 3 skipped (100ms)");
@@ -30,7 +30,7 @@ describe("renderAgent — header", () => {
 
 	it("omits failed and skipped when zero", () => {
 		const state = baseState({
-			totals: { passCount: 5, failCount: 0, skipCount: 0, durationMs: 42 },
+			totals: { passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 42 },
 		});
 		expect(renderAgent(state).split("\n")[0]).toBe("Tests: 5/5 passed (42ms)");
 	});
@@ -46,6 +46,7 @@ describe("renderAgent — modules", () => {
 					passCount: 3,
 					failCount: 0,
 					skipCount: 0,
+					timeoutCount: 0,
 					durationMs: 10,
 					tests: [],
 				},
@@ -55,12 +56,13 @@ describe("renderAgent — modules", () => {
 					passCount: 1,
 					failCount: 0,
 					skipCount: 0,
+					timeoutCount: 0,
 					durationMs: 5,
 					tests: [],
 				},
 			},
 			moduleOrder: ["a.test.ts", "b.test.ts"],
-			totals: { passCount: 4, failCount: 0, skipCount: 0, durationMs: 15 },
+			totals: { passCount: 4, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 15 },
 		});
 		expect(renderAgent(state)).toMatchInlineSnapshot(`
 			"Tests: 4/4 passed (15ms)
@@ -79,12 +81,13 @@ describe("renderAgent — modules", () => {
 					passCount: 1,
 					failCount: 0,
 					skipCount: 0,
+					timeoutCount: 0,
 					durationMs: 5,
 					tests: [],
 				},
 			},
 			moduleOrder: ["a.test.ts"],
-			totals: { passCount: 1, failCount: 0, skipCount: 0, durationMs: 5 },
+			totals: { passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 5 },
 		});
 		expect(renderAgent(state).split("\n").slice(2).join("\n")).toBe("1 module all-passed.\n");
 	});
@@ -98,6 +101,7 @@ describe("renderAgent — modules", () => {
 					passCount: 2,
 					failCount: 0,
 					skipCount: 0,
+					timeoutCount: 0,
 					durationMs: 10,
 					tests: [],
 				},
@@ -107,12 +111,13 @@ describe("renderAgent — modules", () => {
 					passCount: 1,
 					failCount: 1,
 					skipCount: 0,
+					timeoutCount: 0,
 					durationMs: 8,
 					tests: [],
 				},
 			},
 			moduleOrder: ["a.test.ts", "b.test.ts"],
-			totals: { passCount: 3, failCount: 1, skipCount: 0, durationMs: 18 },
+			totals: { passCount: 3, failCount: 1, skipCount: 0, timeoutCount: 0, durationMs: 18 },
 		});
 		const output = renderAgent(state);
 		expect(output).toContain("Modules:");
@@ -124,14 +129,14 @@ describe("renderAgent — modules", () => {
 describe("renderAgent — failures block", () => {
 	it("omits the failures block when there are no failures", () => {
 		const state = baseState({
-			totals: { passCount: 1, failCount: 0, skipCount: 0, durationMs: 5 },
+			totals: { passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 5 },
 		});
 		expect(renderAgent(state)).not.toContain("Failures:");
 	});
 
 	it("renders one failure with classification, message, and diff", () => {
 		const state = baseState({
-			totals: { passCount: 0, failCount: 1, skipCount: 0, durationMs: 7 },
+			totals: { passCount: 0, failCount: 1, skipCount: 0, timeoutCount: 0, durationMs: 7 },
 			failures: [
 				{
 					modulePath: "src/math.test.ts",
@@ -159,7 +164,7 @@ describe("renderAgent — failures block", () => {
 
 	it("renders unclassified failures without the trailing tag", () => {
 		const state = baseState({
-			totals: { passCount: 0, failCount: 1, skipCount: 0, durationMs: 1 },
+			totals: { passCount: 0, failCount: 1, skipCount: 0, timeoutCount: 0, durationMs: 1 },
 			failures: [
 				{
 					modulePath: "src/a.test.ts",
@@ -174,7 +179,7 @@ describe("renderAgent — failures block", () => {
 
 	it("includes the stack trace when includeStack is true", () => {
 		const state = baseState({
-			totals: { passCount: 0, failCount: 1, skipCount: 0, durationMs: 1 },
+			totals: { passCount: 0, failCount: 1, skipCount: 0, timeoutCount: 0, durationMs: 1 },
 			failures: [
 				{
 					modulePath: "src/a.test.ts",
@@ -197,7 +202,7 @@ describe("renderAgent — coverage block", () => {
 
 	it("renders metrics, violations, and a single gap with line ranges", () => {
 		const state = baseState({
-			totals: { passCount: 1, failCount: 0, skipCount: 0, durationMs: 10 },
+			totals: { passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 10 },
 			modules: {
 				"a.test.ts": {
 					modulePath: "a.test.ts",
@@ -205,6 +210,7 @@ describe("renderAgent — coverage block", () => {
 					passCount: 1,
 					failCount: 0,
 					skipCount: 0,
+					timeoutCount: 0,
 					durationMs: 10,
 					tests: [],
 				},
@@ -311,7 +317,7 @@ describe("renderAgent — actions block", () => {
 describe("renderAgent — determinism", () => {
 	it("produces byte-identical output for the same state", () => {
 		const state = baseState({
-			totals: { passCount: 1, failCount: 0, skipCount: 0, durationMs: 7 },
+			totals: { passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 7 },
 			modules: {
 				"a.test.ts": {
 					modulePath: "a.test.ts",
@@ -319,6 +325,7 @@ describe("renderAgent — determinism", () => {
 					passCount: 1,
 					failCount: 0,
 					skipCount: 0,
+					timeoutCount: 0,
 					durationMs: 7,
 					tests: [],
 				},

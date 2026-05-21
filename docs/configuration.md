@@ -16,7 +16,7 @@ export default async () => {
   return defineConfig({
     plugins: [
       AgentPlugin({
-        console: { human: "ink", agent: "agent" },
+        console: { human: "stream", agent: "agent" },
         coverageTargets: coverage.coverageTargets,
       }),
     ],
@@ -49,7 +49,7 @@ looks up the matching slot, and resolves a single `ConsoleMode` value.
 ```typescript
 AgentPlugin({
   console: {
-    human?: "passthrough" | "silent" | "ink" | "agent",
+    human?: "passthrough" | "silent" | "stream" | "agent",
     agent?: "passthrough" | "silent" | "agent",
     ci?:    "passthrough" | "silent" | "ci-annotations",
   },
@@ -70,15 +70,15 @@ Available `ConsoleMode` values:
 | --- | --- |
 | `"passthrough"` | Vitest's reporters keep ownership of stdout; the plugin emits no console output |
 | `"silent"` | Plugin strips Vitest's reporters and emits nothing |
-| `"agent"` | Plugin strips Vitest's reporters and emits the markdown-flavored agent string |
-| `"ink"` | Plugin strips Vitest's reporters and renders the live React Ink view; the live-mount lifecycle is owned by the plugin |
+| `"agent"` | Plugin strips Vitest's reporters and emits the plain-text run-shape view — the same output an AI agent consumes, useful for inspecting that exactly |
+| `"stream"` | Plugin strips Vitest's reporters and renders a progressively-drawn, colored, animated view of the agent's run-shape; the live-mount lifecycle is owned by the default reporter |
 | `"ci-annotations"` | Plugin strips Vitest's reporters and emits GitHub Actions annotations |
 
 One derived behavior falls out of the resolved mode:
 
 **Stdout ownership.** Any non-`"passthrough"` value strips Vitest's built-in console reporters (`default`, `verbose`, `tree`, `dot`, `tap`, `tap-flat`, `hanging-process`, `agent`) and suppresses Vitest's native coverage text reporter. Non-console reporters (`json`, `junit`, `html`, `blob`, `github-actions`) and any custom reporters you've registered are preserved.
 
-When `console.human` resolves to `"ink"`, the plugin mounts the live React Ink view itself. There is no `createLiveInk` import for users to wire and no live-event callback to forward — the lifecycle is fully internal in 2.0.
+When `console.human` resolves to `"stream"`, the plugin mounts a live React Ink view that draws the agent's run-shape progressively as the run advances, with color and animation. There is no `createLiveInk` import for users to wire and no live-event callback to forward — the lifecycle is fully internal in 2.0, owned by the default reporter.
 
 ### `onRunEvent`
 
@@ -148,7 +148,7 @@ users never set this; prefer `console` instead.
 | Value | Behavior |
 | --- | --- |
 | `"markdown"` | Structured markdown output |
-| `"terminal"` | Terminal-flavored output (the default for `"agent"` and `"ink"` modes) |
+| `"terminal"` | Terminal-flavored output (the default for `"agent"` and `"stream"` modes) |
 | `"json"` | JSON output |
 | `"vitest-bypass"` | Defer to Vitest's reporters (the default for `"passthrough"`) |
 | `"silent"` | No console output |
@@ -844,8 +844,8 @@ AgentPlugin({ console: { human: "agent" } })
 // Always suppress console output for CI runs
 AgentPlugin({ console: { ci: "silent" } })
 
-// Wire the live Ink view to every executor
-AgentPlugin({ console: { human: "ink", agent: "ink", ci: "ink" } })
+// Draw the live progressive run-shape view on a human terminal
+AgentPlugin({ console: { human: "stream" } })
 ```
 
 Useful for:

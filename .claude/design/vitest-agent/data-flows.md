@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-19
+last-synced: 2026-05-19
 completeness: 90
 related:
   - ./architecture.md
@@ -59,17 +59,22 @@ async onInit(vitest)
 
 Streaming hooks (active when wantsRunEvents(); publish onto the
 run-event PubSub channel and tee to the user onRunEvent tap)
+  Every Vitest 4.x reporter hook is wired to a RunEvent variant — the
+  surface is complete. Notable mappings:
   onTestRunStart        -> RunStarted     -> emit(event)
-  onTestModuleQueued    -> ModuleQueued   -> emit(event)
-  onTestModuleStart     -> ModuleStarted  -> emit(event)
+  onTestModuleQueued    -> ModuleQueued   -> emit(event)  (carries projectName)
+  onTestModuleStart     -> ModuleStarted  -> emit(event)  (carries projectName)
+  onTestCaseReady       -> TestStarted    -> emit(event)  (P0 standalone)
   onTestCaseResult      -> TestFinished   -> emit(event)
-  onTestModuleEnd       -> ModuleFinished -> emit(event)
-  emit() does Effect.runSync(PubSub.publish(runEvents, event)) then
-  calls the user onRunEvent tap; throwing user callbacks are caught and
-  logged to stderr. The reporter (subscribed to the channel) and
-  persistence never break because a user tap has a bug. wantsRunEvents()
-  is true when onRunEvent is set, consoleMode is "ink", or a custom
-  reporter is in use.
+  onTestModuleEnd       -> ModuleFinished -> emit(event)  (carries projectName)
+  CoverageReady / ThresholdViolation are emitted from onTestRunEnd after
+  the CoverageAnalyzer runs (P1). emit() does
+  Effect.runSync(PubSub.publish(runEvents, event)) then calls the user
+  onRunEvent tap; throwing user callbacks are caught and logged to
+  stderr. The reporter (subscribed to the channel) and persistence never
+  break because a user tap has a bug. wantsRunEvents() is true when
+  onRunEvent is set, consoleMode is "stream", or a custom reporter is in
+  use. See ../schemas.md for the full RunEvent variant inventory.
 
 onCoverage(coverage)
   +-- stash as this.coverage
@@ -149,7 +154,7 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     reducer, classifies (RunShape, RunOutcome), assembles
   |     DispatchInputs, and calls dispatch(inputs, opts) for the
   |     agent-mode stdout entry. Adds a github-summary RenderedOutput
-  |     when kit.config.githubActions is true. (For consoleMode "ink"
+  |     when kit.config.githubActions is true. (For consoleMode "stream"
   |     it painted live during the run off the run-event channel.)
   +-- Concatenate all RenderedOutput[] in order
   +-- For each: routeRenderedOutput(out, { githubSummaryFile? })
@@ -211,9 +216,10 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
   health-aware kit (Flow 1).
 - Forward `options.onRunEvent` to the reporter unconditionally — the
   T6 rewrite removed the gating that suppressed the tap on every mode
-  except `ink`. The live Ink mount for `consoleMode === "ink"` is owned
-  by `DefaultVitestAgentReporter`, which subscribes to the plugin's
-  run-event channel; the user callback is a separate read-only tee.
+  except the live one. The live Ink mount for `consoleMode === "stream"`
+  is owned by `DefaultVitestAgentReporter`, which subscribes to the
+  plugin's run-event channel; the user callback is a separate read-only
+  tee.
 - Push a new `AgentReporter` (with `projectFilter: project.name`,
   `reporter: <resolved factory>`, optional `onRunEvent`, and
   `consoleMode`) into `vitest.config.reporters`. A `WeakSet` keyed on

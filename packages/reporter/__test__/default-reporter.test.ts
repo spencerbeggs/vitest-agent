@@ -85,8 +85,8 @@ describe("DefaultVitestAgentReporter", () => {
 		expect(reporter.render(makeInput(), kit)).toEqual([]);
 	});
 
-	it("emits nothing for consoleMode=ink", () => {
-		const kit = makeKit("ink");
+	it("emits nothing for consoleMode=stream", () => {
+		const kit = makeKit("stream");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
 		expect(reporter.render(makeInput(), kit)).toEqual([]);
 	});

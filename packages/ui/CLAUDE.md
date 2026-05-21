@@ -34,9 +34,10 @@ src/
       single-project-threshold.ts, workspace-pass.ts, workspace-fail.ts,
       workspace-threshold.ts
   render-ink/                   -- Ink components (live mount + ink-half cells)
-    App.tsx, StatusIcon.tsx, RunSummary.tsx, ModuleHeader.tsx,
-    TestRow.tsx, ModuleRow.tsx, CoverageBlock.tsx, FailureSection.tsx,
-    SuggestedActions.tsx
+    StreamApp.tsx, StatusIcon.tsx, ModuleHeader.tsx, TestRow.tsx,
+    ProjectRow.tsx, CountColumns.tsx, CoverageBlock.tsx, TrendLine.tsx,
+    FailureSection.tsx, FailuresSection.tsx, SuggestedActions.tsx,
+    spinner.ts, tag-suffix.ts, format-duration.ts
   pubsub/                       -- Effect PubSub channel
     Channel.ts                  -- RunEventChannel tag + Live layer
     Publisher.ts                -- publish / publishAll helpers
@@ -62,7 +63,7 @@ __test__/
 
 | File | Purpose |
 | ---- | ------- |
-| `reducer.ts` | Exhaustive `Match.tag` switch over the `RunEvent` discriminated union. Pure synchronous projection. `reduceRenderStateAll` folds a full sequence for the one-shot path |
+| `reducer.ts` | Exhaustive `Match.tagsExhaustive` switch over the `RunEvent` discriminated union. Pure synchronous projection. `reduceRenderStateAll` folds a full sequence for the one-shot path |
 | `render-agent.ts` | Token-economy markdown-flavored final-frame string. Stable for stable inputs (no timestamps in body). Width-aware diff truncation, top-N gap caps. Still used as a primitive inside dispatcher cells |
 | `synthesize.ts` | Two bridges into the event taxonomy: `synthesizeRunEvents` reads live Vitest module data, `synthesizeFromAgentReport` reads the persisted SDK schema |
 | `dispatcher/classify.ts` | `classifyRunShape(state, projects)` returns one of `single-test`, `single-file`, `single-project`, `workspace`; `classifyOutcome(state)` returns `all-pass`, `some-fail`, `threshold-violation`. Pure |
@@ -84,11 +85,13 @@ __test__/
 
 ## When working in this package
 
-- **Adding a `RunEvent` variant**: extend the schema in `packages/sdk/src/schemas/RunEvent.ts`, then add a `Match.tag` handler in `reducer.ts`. The exhaustive `Match.exhaustive` terminator will fail compilation in `reducer.ts` until the new variant is handled. Update both synthesizers (`synthesize.ts`) if the new event can be derived from either source.
+- **Adding a `RunEvent` variant**: extend the schema in `packages/sdk/src/schemas/RunEvent.ts`, then add a tag handler in the `Match.tagsExhaustive` block in `reducer.ts`. `Match.tagsExhaustive` fails compilation in `reducer.ts` until the new variant is handled. Update both synthesizers (`synthesize.ts`) if the new event can be derived from either source.
 - **Touching the reducer**: the function must stay pure. No I/O, no time, no randomness. Tests in `reducer.test.ts` verify every event type independently plus the four canonical fixture folds.
 - **Touching `render-agent.ts`**: byte-identical output for byte-identical input. Snapshots in `__test__/snapshots/render-agent/` capture each canonical fixture's expected frame.
 - **Adding or editing a dispatcher cell**: cells live under `dispatcher/cells/` named `<shape>-<outcome>.ts`. Each exports both an agent-string renderer and an Ink-half renderer; both consume the shared helpers in `dispatcher/helpers.ts` / `ink-helpers.tsx`. The cell receives `DispatchInputs` plus `CellOptions` — do not reach for the kit or env directly.
 - **Adding an Ink component**: write a `.tsx` file in `render-ink/`, re-export from `render-ink/index.ts`, and add a snapshot test in `__test__/render-ink/`. Use `renderInk(tree, width)` from the test utils to pin the output width.
+- **`StreamApp` is the human-tuned `stream` renderer**: it mirrors the agent view's structure but is a parallel renderer, not the dispatcher. Its layout is a `Projects (N):` / `Modules (N):` / file-path header, count-column rows, a `FailuresSection`, then Coverage / Trend / Total. Aggregate rows render the four `✓ ✗ ↷ ⧖` glyph columns via the shared `CountColumns` component (zeros dimmed); leaf rows show one `StatusIcon`. `StatusIcon` carries a `"timed-out"` kind. The spinner frame index and `nowMs` arrive as props — never `RenderState`. See `2026-05-19-stream-mode-states-design.md`.
+- **Timed-out tests are a render-layer outcome**: the reducer routes a `timedOut` `TestFinished` into `RenderState`'s `timeoutCount` (not `failCount`) and sets the `TestRecord` status to `"timed-out"`. The `TrendComputed` `RunEvent` folds `direction` / `runCount` into `RenderState.trend`, which `TrendLine` renders. There is no SQLite change — the persistence `TestState` enum is unchanged.
 - **Changing the dispatcher contract**: the contract types (`RunShape`, `RunOutcome`, `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`) live in `packages/sdk/src/contracts/dispatcher.ts`. Coordinate changes there before editing cells.
 - **Changing the reporter contract**: every reporter factory extends the same `VitestAgentReporterFactory` contract from `packages/sdk/src/contracts/reporter.ts`. Coordinate changes there.
 - **Adding fields to `kit.config`**: the new field lives in `ResolvedReporterConfig` (`packages/sdk/src/contracts/reporter.ts`) and is populated by `buildReporterKit` in the plugin (`packages/plugin/src/utils/build-reporter-kit.ts`). Factories destructure only what they consume.

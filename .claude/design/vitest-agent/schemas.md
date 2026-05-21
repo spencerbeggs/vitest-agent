@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-19
+last-synced: 2026-05-19
 completeness: 92
 related:
   - ./architecture.md
@@ -39,7 +39,10 @@ shape looks like at runtime and at compile time. See
 The Common schema literals (`Environment`, `Executor`, `OutputFormat`,
 `DetailLevel`, plus the three per-executor `*ConsoleMode` literals and
 their union `ConsoleMode`) live in
-`packages/sdk/src/schemas/Common.ts`. The MCP server's tRPC `McpContext`
+`packages/sdk/src/schemas/Common.ts`. The `human` slot's `HumanConsoleMode`
+is `passthrough | silent | stream | agent` — the `stream` value was the
+pre-2.0 `ink` value, renamed to describe the user-visible behavior rather
+than the rendering library. The MCP server's tRPC `McpContext`
 (carrying a `ManagedRuntime` over `DataReader | DataStore |
 ProjectDiscovery | OutputRenderer`) is defined in
 `packages/mcp/src/context.ts`. Formatter types (`Formatter`,
@@ -51,6 +54,63 @@ union and the `RenderState` reducer projection live in
 `vitest-agent-ui` for convenience. See
 [./components/ui.md](./components/ui.md) for the taxonomy and the
 reducer.
+
+## RunEvent surface and RenderState
+
+`RunEvent` (`packages/sdk/src/schemas/RunEvent.ts`) is the internal
+discriminated union the plugin's `AgentReporter` emits — one variant per
+Vitest 4.x reporter hook. The surface is **complete**: every reporter
+hook that fits the event-sourced model has a wired variant, so future
+consumers (analytics taps, the planned MCP dashboard) never need to
+touch the plugin's Vitest-API layer to widen it. Both these schemas are
+in-memory only — they do not touch any SQLite table or migration.
+
+The union spans run lifecycle (`RunStarted`, `RunFinished`,
+`RunTimedOut`), module lifecycle (`ModuleQueued`, `ModuleStarted`,
+`ModuleCollected`, `ModuleFinished`), suite and hook lifecycle
+(`SuiteStarted`, `SuiteFinished`, `HookStarted`, `HookFinished`), test
+lifecycle (`TestStarted`, `TestFinished`, `TestAnnotated`,
+`TestArtifactRecorded`), console and coverage (`ConsoleLog`,
+`CoverageReady`, `ThresholdViolation`), trend (`TrendComputed`),
+classification (`FailureClassified`, `SuggestedAction`) and watch mode
+(`WatcherReady`, `WatcherRerun`). `TestStarted` is emitted standalone
+from `onTestCaseReady` so the transient running state gets its own
+frame; see [./components/plugin.md](./components/plugin.md) for the
+hook-to-variant mapping and the deliberately-unmapped hooks.
+
+`ModuleQueued`, `ModuleStarted` and `ModuleFinished` each carry an
+optional `projectName` — the Vitest 4.x `TestModule.project.name` the
+reporter has in hand. It is optional so project-less or older events
+decode cleanly as a single anonymous project.
+
+The `stream` console-mode rework added four `RunEvent` fields/variants,
+all in-memory only — **no SQLite or migration change**. `TestFinished`
+gains an optional `timedOut: boolean`; `ModuleFinished` and
+`SuiteFinished` gain an optional `timeoutCount`; `ModuleFinished` also
+gains an optional `tagCounts` (per-tag test count). `TrendComputed` is a
+new variant carrying trend direction and run count, emitted from
+`onTestRunEnd` after trend computation just as `CoverageReady` is
+emitted after the coverage analyzer. A timed-out test still persists as
+`failed` — Vitest has no distinct timed-out test state — so the `⧖`
+distinction is a render-layer concept the reducer derives, not a
+persisted enum.
+
+`RenderState` (`packages/sdk/src/schemas/RenderState.ts`) is the
+projection the `vitest-agent-ui` reducer folds events into. `phase` is
+the run-lifecycle terminal marker; `RunTimedOut` folds into a dedicated
+`"timed-out"` phase so the renderer shows a final frame instead of
+hanging. `ModuleRecord` (the per-module entry keyed by `modulePath`)
+carries an optional `projectName` — threaded through from the module
+events so `StreamApp` can group modules by project — and an optional
+`startedAt` wall-clock stamp the renderer derives per-module elapsed
+time from. The `stream` rework added: a required `timeoutCount` on
+`ModuleRecord` and `RenderTotals`; a `"timed-out"` value on
+`TestRecord.status` (the render projection only — `TestState`, the
+persistence enum, is unchanged so the `test_cases.state` CHECK
+constraint stays intact); an optional `timedOut` on `FailureRecord`; and
+a nullable `trend` field the `TrendComputed` reducer case folds in. See
+[./components/ui.md](./components/ui.md) for the reducer and the
+run-shape grouping.
 
 ## Reporter contract
 
@@ -618,12 +678,15 @@ slot:
 - `agent` — markdown-flavored final-frame string tuned for token economy.
   Emitted by the dispatcher's agent half via the plugin's built-in
   `DefaultVitestAgentReporter` from `vitest-agent-reporter`. Default for
-  `agent`.
-- `ink` — Ink-mounted animated tree. `DefaultVitestAgentReporter` owns the
-  live Ink mount: it subscribes to the plugin's run-event `PubSub` channel
-  and drives the mount itself; users do not wire it. Strips Vitest's
-  reporters and owns stdout for the duration of the run. Available only
-  on the `human` slot.
+  `agent`. Framed as the plain-text debugging view of exactly what an
+  agent consumes — no color, no animation.
+- `stream` — progressively-drawn, colored, animated rendering of the
+  agent's run-shape view (one row per project / module / test by run
+  shape). `DefaultVitestAgentReporter` owns the live Ink mount: it
+  subscribes to the plugin's run-event `PubSub` channel and drives the
+  mount itself; users do not wire it. Strips Vitest's reporters and owns
+  stdout for the duration of the run. Available only on the `human`
+  slot. Was named `ink` pre-2.0.
 - `ci-annotations` — GitHub Actions workflow-command annotations.
   Available only on the `ci` slot.
 
