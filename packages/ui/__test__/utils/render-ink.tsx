@@ -19,16 +19,38 @@ export const stripAnsi = (input: string): string => input.replace(ANSI_PATTERN, 
 export interface RenderResult {
 	readonly frame: string;
 	readonly rawFrame: string;
+	readonly frames: ReadonlyArray<string>;
+	/**
+	 * Concatenated visible output across every committed frame — useful
+	 * for asserting on content that landed in Ink's `<Static>` region
+	 * (which Ink commits once into terminal scrollback and never
+	 * re-emits in subsequent frames). The last live frame ({@link
+	 * RenderResult.frame}) only shows live-region content.
+	 */
+	readonly fullOutput: string;
+	readonly rerender: (tree: ReactElement) => void;
 	readonly cleanup: () => void;
 }
 
 export const renderInk = (tree: ReactElement, width?: number): RenderResult => {
-	const wrapped = width !== undefined ? <Box width={width}>{tree}</Box> : tree;
-	const instance = inkRender(wrapped);
-	const rawFrame = instance.lastFrame() ?? "";
+	const wrap = (node: ReactElement) => (width !== undefined ? <Box width={width}>{node}</Box> : node);
+	const instance = inkRender(wrap(tree));
 	return {
-		frame: stripAnsi(rawFrame),
-		rawFrame,
+		get frame(): string {
+			return stripAnsi(instance.lastFrame() ?? "");
+		},
+		get rawFrame(): string {
+			return instance.lastFrame() ?? "";
+		},
+		get frames(): ReadonlyArray<string> {
+			return instance.frames.map(stripAnsi);
+		},
+		get fullOutput(): string {
+			return instance.frames.map(stripAnsi).join("\n");
+		},
+		rerender: (next: ReactElement) => {
+			instance.rerender(wrap(next));
+		},
 		cleanup: instance.cleanup,
 	};
 };

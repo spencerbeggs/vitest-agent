@@ -58,3 +58,6 @@ spike/
 # Per-platform vitest-agent-sidecar SEA binaries — built by CI, shipped
 # inside the published sub-package, never committed to git.
 packages/sidecar-*/bin/
+
+# Superpowers brainstorm session artifacts (mockups, visual-companion state).
+.superpowers/

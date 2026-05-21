@@ -7,6 +7,7 @@
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import type { TestRecord } from "vitest-agent-sdk";
+import { formatDisplayDuration } from "../format-duration.js";
 import type { StatusIconKind } from "./StatusIcon.js";
 import { StatusIcon } from "./StatusIcon.js";
 
@@ -20,7 +21,7 @@ const testGlyph = (status: TestRecord["status"]): StatusIconKind => status;
 export const TestRow: FC<TestRowProps> = ({ test, indent = 2 }) => {
 	const pad = " ".repeat(indent);
 	const suite = test.suitePath.length > 0 ? `${test.suitePath.join(" > ")} > ` : "";
-	const duration = test.durationMs !== null ? ` (${test.durationMs}ms)` : "";
+	const duration = test.durationMs !== null ? ` (${formatDisplayDuration(test.durationMs)})` : "";
 
 	return (
 		<Box>

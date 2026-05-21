@@ -9,6 +9,7 @@ const moduleOf = (overrides: Partial<ModuleRecord> = {}): ModuleRecord => ({
 	passCount: 1,
 	failCount: 0,
 	skipCount: 0,
+	timeoutCount: 0,
 	durationMs: 12,
 	tests: [],
 	...overrides,

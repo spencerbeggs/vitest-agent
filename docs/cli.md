@@ -128,7 +128,7 @@ npx vitest-agent show --project <name> --format auto|agent|human|json
 - `--format agent` — forces the markdown-flavored agent string.
 - `--format json` — emits the raw `AgentReport`.
 
-This is the same renderer the plugin drives live during a run when `console.human === "ink"`, so a captured run replays byte-identically to what the live view showed. Multi-project workspaces render as a single workspace-aggregate frame — a projects table, a coverage line, a trend line, and a below-target listing — not one frame per project.
+This is the same renderer the plugin drives live during a run when `console.human === "stream"`, so a captured run replays byte-identically to what the live view showed. Multi-project workspaces render as a single workspace-aggregate frame — a projects table, a coverage line, a trend line, and a below-target listing — not one frame per project.
 
 ## trends
 

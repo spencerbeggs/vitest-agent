@@ -28,6 +28,7 @@ import type {
 	VitestTestModule,
 	VitestTestSuite,
 } from "vitest-agent-sdk";
+import { isTimeoutError } from "vitest-agent-sdk";
 
 /**
  * Optional metadata threaded through the synthesized event stream.
@@ -136,6 +137,7 @@ export const synthesizeRunEvents = (
 	let totalFail = 0;
 	let totalSkip = 0;
 	let totalDuration = 0;
+	let totalTimeout = 0;
 	const failureBatches: Array<{ modulePath: string; testName: string }> = [];
 
 	for (const mod of modules) {
@@ -144,8 +146,11 @@ export const synthesizeRunEvents = (
 		let pass = 0;
 		let fail = 0;
 		let skip = 0;
+		let moduleTimeout = 0;
 		const moduleDuration = mod.diagnostic()?.duration ?? 0;
 		totalDuration += moduleDuration;
+
+		const moduleTagCounts: Record<string, number> = {};
 
 		for (const test of mod.children.allTests()) {
 			const suitePath = collectSuitePath(test);
@@ -153,6 +158,11 @@ export const synthesizeRunEvents = (
 			const diag = test.diagnostic();
 			const status = normalizeTestState(result?.state);
 			const durationMs = diag?.duration ?? 0;
+
+			// Accumulate tag counts for this module.
+			for (const tag of test.tags) {
+				moduleTagCounts[tag] = (moduleTagCounts[tag] ?? 0) + 1;
+			}
 
 			events.push({
 				_tag: "TestStarted",
@@ -162,6 +172,11 @@ export const synthesizeRunEvents = (
 			});
 
 			const error = mapTestError(result?.errors);
+			const firstErrorMsg = result?.errors?.[0]?.message;
+			const timedOut = status === "failed" && firstErrorMsg !== undefined && isTimeoutError({ message: firstErrorMsg });
+
+			if (timedOut) moduleTimeout++;
+
 			events.push({
 				_tag: "TestFinished",
 				modulePath: mod.relativeModuleId,
@@ -170,14 +185,25 @@ export const synthesizeRunEvents = (
 				status,
 				durationMs,
 				...(error !== undefined && { error }),
+				...(timedOut && { timedOut: true }),
 			});
 
 			if (status === "passed") pass++;
 			else if (status === "failed") {
-				fail++;
+				// Mirror the live reporter's split (reporter.ts onTestModuleEnd):
+				// a timed-out test is counted in timeoutCount (incremented above),
+				// not failCount. Incrementing both would render the test as `✗1 ⧖1`
+				// on replay versus `✗0 ⧖1` live and inflate the Total line. The test
+				// still joins failureBatches because the reducer keeps timed-out
+				// tests in the failures list (rendered with the ⧖ glyph).
+				if (!timedOut) fail++;
 				failureBatches.push({ modulePath: mod.relativeModuleId, testName: test.name });
 			} else skip++;
 		}
+
+		totalTimeout += moduleTimeout;
+
+		const hasTagCounts = Object.keys(moduleTagCounts).length > 0;
 
 		events.push({
 			_tag: "ModuleFinished",
@@ -186,6 +212,8 @@ export const synthesizeRunEvents = (
 			failCount: fail,
 			skipCount: skip,
 			durationMs: moduleDuration,
+			...(moduleTimeout > 0 && { timeoutCount: moduleTimeout }),
+			...(hasTagCounts && { tagCounts: moduleTagCounts }),
 		});
 
 		totalPass += pass;
@@ -240,6 +268,7 @@ export const synthesizeRunEvents = (
 		failCount: totalFail,
 		skipCount: totalSkip,
 		durationMs: totalDuration,
+		...(totalTimeout > 0 && { timeoutCount: totalTimeout }),
 	});
 
 	return events;
@@ -317,12 +346,15 @@ export const synthesizeFromAgentReport = (
 		events.push({ _tag: "ModuleQueued", modulePath: mod.file });
 	}
 
+	let totalTimeoutCount = 0;
+
 	for (const mod of report.failed) {
 		events.push({ _tag: "ModuleStarted", modulePath: mod.file, startedAt });
 
 		let pass = 0;
 		let fail = 0;
 		let skip = 0;
+		let moduleTimeoutCount = 0;
 		const moduleDuration = mod.duration ?? 0;
 
 		for (const test of mod.tests) {
@@ -364,6 +396,11 @@ export const synthesizeFromAgentReport = (
 						}
 					: undefined;
 
+			const timedOut =
+				test.state === "failed" && firstError !== undefined && isTimeoutError({ message: firstError.message });
+
+			if (timedOut) moduleTimeoutCount++;
+
 			events.push({
 				_tag: "TestFinished",
 				modulePath: mod.file,
@@ -372,13 +409,30 @@ export const synthesizeFromAgentReport = (
 				status: test.state,
 				durationMs: test.duration ?? 0,
 				...(error !== undefined && { error }),
+				...(timedOut && { timedOut: true }),
 			});
 
 			if (test.state === "passed") pass++;
-			else if (test.state === "failed") fail++;
-			else skip++;
+			// Mirror the live split: a timed-out test counts in timeoutCount
+			// (above), not failCount. See synthesizeRunEvents for the rationale.
+			else if (test.state === "failed") {
+				if (!timedOut) fail++;
+			} else skip++;
 		}
 
+		totalTimeoutCount += moduleTimeoutCount;
+
+		// AgentReport carries only run-level tagCounts, not per-module
+		// breakdowns, and TestReport does not persist test-level tags — so
+		// per-module tag counts cannot be reconstructed at replay time.
+		// Attaching the run-level totals to every failed module over-counted
+		// them: `mergeTagCounts` sums each module in the workspace rollup, so
+		// N failed modules multiplied every per-tag total by N, and every
+		// per-module row read as the run total rather than its own
+		// contribution. The replay path therefore omits per-module tagCounts
+		// entirely rather than emit wrong numbers. Restoring a correct tag
+		// suffix on replay needs either a run-level slot on RunFinished plus a
+		// Total-line renderer, or test-level tags persisted on TestReport.
 		events.push({
 			_tag: "ModuleFinished",
 			modulePath: mod.file,
@@ -386,6 +440,7 @@ export const synthesizeFromAgentReport = (
 			failCount: fail,
 			skipCount: skip,
 			durationMs: moduleDuration,
+			...(moduleTimeoutCount > 0 && { timeoutCount: moduleTimeoutCount }),
 		});
 	}
 
@@ -442,6 +497,7 @@ export const synthesizeFromAgentReport = (
 		failCount: report.summary.failed,
 		skipCount: report.summary.skipped,
 		durationMs: report.summary.duration,
+		...(totalTimeoutCount > 0 && { timeoutCount: totalTimeoutCount }),
 	});
 
 	return events;

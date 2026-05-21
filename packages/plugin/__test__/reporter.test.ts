@@ -9,7 +9,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { VitestTestCase, VitestTestModule } from "vitest-agent-sdk";
+import type { RunEvent, VitestTestCase, VitestTestModule } from "vitest-agent-sdk";
 import { AgentReporter } from "../src/reporter.js";
 
 // --- Test Helpers ---
@@ -170,6 +170,85 @@ describe("AgentReporter", () => {
 
 			// DB should exist and have data
 			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
+		});
+
+		it("emits a CoverageReady event from onTestRunEnd once the coverage pipeline finishes", async () => {
+			const events: RunEvent[] = [];
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				onRunEvent: (e) => events.push(e),
+			});
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => [],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+
+			reporter.onTestRunStart([]);
+			reporter.onCoverage(mockCoverage);
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			// `onCoverage` only stashes the raw map — the typed
+			// `CoverageReady` payload is published once the analyzed
+			// report is in hand inside `onTestRunEnd`.
+			const coverageReady = events.find((e) => e._tag === "CoverageReady");
+			expect(coverageReady).toBeDefined();
+		});
+
+		it("emits a TrendComputed event once the trend pipeline has run", async () => {
+			const events: RunEvent[] = [];
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				onRunEvent: (e) => events.push(e),
+			});
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => [],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+
+			reporter.onTestRunStart([]);
+			reporter.onCoverage(mockCoverage);
+			// Two runs so a trend with runCount >= 2 exists.
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+			const reporter2 = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				onRunEvent: (e) => events.push(e),
+			});
+			reporter2.onTestRunStart([]);
+			reporter2.onCoverage(mockCoverage);
+			await reporter2.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			expect(events.some((e) => e._tag === "TrendComputed")).toBe(true);
 		});
 	});
 

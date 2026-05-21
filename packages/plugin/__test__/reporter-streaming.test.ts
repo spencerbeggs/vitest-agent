@@ -15,7 +15,8 @@ interface FakeTestSpec {
 	readonly state: "passed" | "failed" | "skipped";
 	readonly duration?: number;
 	readonly suite?: string;
-	readonly error?: { message: string; diff?: string };
+	readonly error?: { message: string; diff?: string; expected?: unknown; actual?: unknown };
+	readonly tags?: ReadonlyArray<string>;
 }
 
 const makeTestCase = (
@@ -27,6 +28,7 @@ const makeTestCase = (
 	name: spec.name,
 	parent,
 	module,
+	tags: spec.tags ?? [],
 	result: () =>
 		spec.state === undefined
 			? undefined
@@ -37,6 +39,8 @@ const makeTestCase = (
 							{
 								message: spec.error.message,
 								...(spec.error.diff !== undefined && { diff: spec.error.diff }),
+								...(spec.error.expected !== undefined && { expected: spec.error.expected }),
+								...(spec.error.actual !== undefined && { actual: spec.error.actual }),
 							},
 						],
 					}),
@@ -91,7 +95,30 @@ describe("AgentReporter streaming callbacks", () => {
 		expect(tags).toContain("ModuleStarted");
 	});
 
-	it("publishes TestStarted and TestFinished from a single test-case-result hook", () => {
+	it("publishes TestStarted from onTestCaseReady and TestFinished from onTestCaseResult", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const module = makeTestModule("a.test.ts", [{ name: "passes", state: "passed", duration: 4 }]);
+		for (const test of module.children.allTests()) {
+			reporter.onTestCaseReady(test);
+			reporter.onTestCaseResult(test);
+		}
+		const tags = events.map((e) => e._tag);
+		expect(tags).toContain("TestStarted");
+		expect(tags).toContain("TestFinished");
+		// TestStarted must land before TestFinished — `onTestCaseReady`
+		// fires earlier in Vitest's lifecycle, giving the renderer a
+		// frame for the transient "running" state.
+		expect(tags.indexOf("TestStarted")).toBeLessThan(tags.indexOf("TestFinished"));
+		// `onTestCaseResult` emits only `TestFinished` — exactly one
+		// `TestStarted`, and it came from `onTestCaseReady`.
+		expect(events.filter((e) => e._tag === "TestStarted")).toHaveLength(1);
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).toMatchObject({ status: "passed", durationMs: 4 });
+	});
+
+	it("emits only TestFinished from onTestCaseResult — no standalone TestStarted", () => {
 		const events: RunEvent[] = [];
 		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
 		reporter.onTestRunStart([]);
@@ -100,10 +127,8 @@ describe("AgentReporter streaming callbacks", () => {
 			reporter.onTestCaseResult(test);
 		}
 		const tags = events.map((e) => e._tag);
-		expect(tags).toContain("TestStarted");
 		expect(tags).toContain("TestFinished");
-		const finished = events.find((e) => e._tag === "TestFinished");
-		expect(finished).toMatchObject({ status: "passed", durationMs: 4 });
+		expect(tags).not.toContain("TestStarted");
 	});
 
 	it("publishes ModuleFinished with tallied counts", () => {
@@ -171,7 +196,7 @@ describe("AgentReporter streaming callbacks", () => {
 		reporter.onTestRunStart([]);
 		const module = makeTestModule("math.test.ts", [{ name: "adds", state: "passed", suite: "math" }]);
 		for (const test of module.children.allTests()) {
-			reporter.onTestCaseResult(test);
+			reporter.onTestCaseReady(test);
 		}
 		const started = events.find((e) => e._tag === "TestStarted");
 		expect(started).toMatchObject({ testName: "adds", suitePath: ["math"] });
@@ -188,6 +213,149 @@ describe("AgentReporter streaming callbacks", () => {
 			reporter.onTestCaseResult(test);
 		}
 		reporter.onTestModuleEnd(module);
+	});
+
+	it("threads the Vitest project name onto module events", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		reporter.onTestModuleQueued({ relativeModuleId: "a.test.ts", project: { name: "ui" } });
+		reporter.onTestModuleStart({ relativeModuleId: "a.test.ts", project: { name: "ui" } });
+		const queued = events.find((e) => e._tag === "ModuleQueued");
+		const started = events.find((e) => e._tag === "ModuleStarted");
+		expect(queued).toMatchObject({ projectName: "ui" });
+		expect(started).toMatchObject({ projectName: "ui" });
+	});
+
+	it("publishes ModuleCollected with test and suite counts", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		reporter.onTestModuleCollected({
+			relativeModuleId: "a.test.ts",
+			children: {
+				*allTests() {
+					yield {};
+					yield {};
+				},
+				*allSuites() {
+					yield {};
+				},
+			},
+		});
+		expect(events.find((e) => e._tag === "ModuleCollected")).toMatchObject({
+			modulePath: "a.test.ts",
+			testCount: 2,
+			suiteCount: 1,
+		});
+	});
+
+	it("publishes SuiteStarted and SuiteFinished for a test suite", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const suite = {
+			name: "math",
+			module: { relativeModuleId: "a.test.ts" },
+			children: {
+				*allTests() {
+					yield { result: () => ({ state: "passed" }) };
+					yield { result: () => ({ state: "failed" }) };
+				},
+			},
+		};
+		reporter.onTestSuiteReady(suite);
+		reporter.onTestSuiteResult(suite);
+		expect(events.find((e) => e._tag === "SuiteStarted")).toMatchObject({ suiteName: "math", modulePath: "a.test.ts" });
+		expect(events.find((e) => e._tag === "SuiteFinished")).toMatchObject({
+			suiteName: "math",
+			passCount: 1,
+			failCount: 1,
+		});
+	});
+
+	it("publishes HookStarted and HookFinished with a derived duration", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const hook = { name: "beforeAll", entity: { name: "math", relativeModuleId: "a.test.ts", errors: () => [] } };
+		reporter.onHookStart(hook);
+		reporter.onHookEnd(hook);
+		expect(events.find((e) => e._tag === "HookStarted")).toMatchObject({ hookType: "beforeAll", scopeName: "math" });
+		const finished = events.find((e) => e._tag === "HookFinished");
+		expect(finished).toMatchObject({ hookType: "beforeAll", status: "passed" });
+		expect((finished as { durationMs: number }).durationMs).toBeGreaterThanOrEqual(0);
+	});
+
+	it("publishes ConsoleLog for a captured user console line", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		reporter.onUserConsoleLog({ content: "hello", type: "stdout", time: 123 });
+		expect(events.find((e) => e._tag === "ConsoleLog")).toMatchObject({ level: "stdout", content: "hello", time: 123 });
+	});
+
+	it("publishes RunTimedOut when the process timeout fires", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		reporter.onProcessTimeout();
+		expect(events.find((e) => e._tag === "RunTimedOut")).toBeDefined();
+	});
+
+	it("publishes TestAnnotated and TestArtifactRecorded for a test case", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const testCase = { name: "adds", module: { relativeModuleId: "a.test.ts" } };
+		reporter.onTestCaseAnnotate(testCase, { message: "slow path" });
+		reporter.onTestCaseArtifactRecord(testCase, { type: "internal:annotation" });
+		expect(events.find((e) => e._tag === "TestAnnotated")).toMatchObject({ testName: "adds", annotation: "slow path" });
+		expect(events.find((e) => e._tag === "TestArtifactRecorded")).toMatchObject({ testName: "adds" });
+	});
+
+	it("publishes WatcherReady and WatcherRerun for watch-mode transitions", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		reporter.onWatcherStart();
+		reporter.onWatcherRerun(["a.test.ts"], "changed");
+		expect(events.find((e) => e._tag === "WatcherReady")).toBeDefined();
+		expect(events.find((e) => e._tag === "WatcherRerun")).toMatchObject({
+			triggerFiles: ["a.test.ts"],
+			reason: "changed",
+		});
+	});
+
+	it("flags a timeout-flavored failure as timedOut on TestFinished", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const module = makeTestModule("a.test.ts", [
+			{ name: "slow", state: "failed", error: { message: "Test timed out in 5000ms." } },
+		]);
+		for (const test of module.children.allTests()) {
+			reporter.onTestCaseResult(test);
+		}
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).toMatchObject({ status: "failed", timedOut: true });
+	});
+
+	it("counts a timed-out test in ModuleFinished.timeoutCount, not failCount", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const module = makeTestModule("a.test.ts", [
+			{ name: "ok", state: "passed" },
+			{ name: "broke", state: "failed", error: { message: "expected 1 to be 2" } },
+			{ name: "slow", state: "failed", error: { message: "Test timed out in 5000ms." } },
+		]);
+		reporter.onTestModuleEnd(module);
+		expect(events.find((e) => e._tag === "ModuleFinished")).toMatchObject({
+			passCount: 1,
+			failCount: 1,
+			timeoutCount: 1,
+		});
 	});
 
 	it("logs to stderr when the tap throws but does not propagate", () => {
@@ -209,5 +377,97 @@ describe("AgentReporter streaming callbacks", () => {
 		}
 		const combined = errors.join("");
 		expect(combined).toContain("onRunEvent tap threw");
+	});
+
+	it("tallies per-tag test counts onto ModuleFinished", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const module = makeTestModule("a.test.ts", [
+			{ name: "u1", state: "passed", tags: ["unit"] },
+			{ name: "u2", state: "passed", tags: ["unit"] },
+			{ name: "i1", state: "passed", tags: ["int"] },
+		]);
+		reporter.onTestModuleEnd(module);
+		expect(events.find((e) => e._tag === "ModuleFinished")).toMatchObject({
+			tagCounts: { unit: 2, int: 1 },
+		});
+	});
+
+	it("extracts expected/received from Vitest assertion error onto TestFinished", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const module = makeTestModule("math.test.ts", [
+			{
+				name: "adds numbers",
+				state: "failed",
+				error: {
+					message: "AssertionError: expected 3 to be 4",
+					expected: 4,
+					actual: 3,
+				},
+			},
+		]);
+		for (const test of module.children.allTests()) {
+			reporter.onTestCaseResult(test);
+		}
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).toMatchObject({
+			status: "failed",
+			error: {
+				message: "AssertionError: expected 3 to be 4",
+				expected: "4",
+				received: "3",
+			},
+		});
+	});
+
+	it("omits expected/received on TestFinished when the error has no structured values", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const module = makeTestModule("a.test.ts", [
+			{
+				name: "throws",
+				state: "failed",
+				error: { message: "Error: something went wrong" },
+			},
+		]);
+		for (const test of module.children.allTests()) {
+			reporter.onTestCaseResult(test);
+		}
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).toMatchObject({ status: "failed" });
+		const err = (finished as { error?: { expected?: unknown; received?: unknown } })?.error;
+		expect(err?.expected).toBeUndefined();
+		expect(err?.received).toBeUndefined();
+	});
+
+	it("stringifies an object expected/actual value onto TestFinished", () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const module = makeTestModule("obj.test.ts", [
+			{
+				name: "deep equal",
+				state: "failed",
+				error: {
+					message: "AssertionError: expected objects to be equal",
+					expected: { x: 1 },
+					actual: { x: 2 },
+				},
+			},
+		]);
+		for (const test of module.children.allTests()) {
+			reporter.onTestCaseResult(test);
+		}
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).toMatchObject({
+			error: {
+				expected: '{"x":1}',
+				received: '{"x":2}',
+			},
+		});
 	});
 });

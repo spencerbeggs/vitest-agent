@@ -7,7 +7,7 @@
  * - `agent`: returns a token-economy string rendered to stdout once
  *   at end-of-run.
  * - `ink`: returns a React Ink tree rendered live to the terminal
- *   during the run (only meaningful when `consoleMode === "ink"`).
+ *   during the run (only meaningful when `consoleMode === "stream"`).
  *
  * The matrix is total; the `ink` half is optional for cells where
  * the agent rendering is already minimal enough that no special

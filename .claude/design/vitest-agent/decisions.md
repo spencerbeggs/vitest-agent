@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-19
+last-synced: 2026-05-19
 completeness: 100
 related:
   - ./architecture.md
@@ -911,7 +911,7 @@ The plugin replaces the pre-2.0 `mode` (`"agent" | "human" | "ci"`) +
 `strategy` (`"own" | "complement"`) options with a single
 **per-executor console matrix**: `AgentPluginOptions.console: { human?,
 agent?, ci? }`. Each slot accepts only the modes valid for that executor
-— `human` can be `passthrough | silent | ink | agent`; `agent` can be
+— `human` can be `passthrough | silent | stream | agent`; `agent` can be
 `passthrough | silent | agent`; `ci` can be `passthrough | silent |
 ci-annotations`. The plugin auto-detects the executor via
 `EnvironmentDetector`, looks up the matching slot, and resolves a single
@@ -923,7 +923,7 @@ Two derived behaviors fall out of the resolved mode:
 1. **Stdout ownership.** Any non-`passthrough` value strips Vitest's
    built-in console reporters AND zeroes `coverage.reporter` so the
    plugin owns stdout for the run.
-2. **Live mount activation.** When `consoleMode === "ink"` a live Ink
+2. **Live mount activation.** When `consoleMode === "stream"` a live Ink
    mount paints during the run. After the reporter-package restructure
    the plugin no longer instantiates that mount — it publishes
    `RunEvent`s onto a `PubSub` channel threaded onto `ReporterKit.runEvents`,
@@ -945,12 +945,26 @@ mount. The plugin invokes the reporter factory at run start (`onInit`)
 rather than at run end, so a live-painting reporter can subscribe
 before the first event. See D41 and §8.2 (now resolved).
 
-Alongside the option-shape change, `AgentReporter` now implements
-Vitest's streaming hooks (`onTestRunStart`, `onTestModuleQueued`,
-`onTestModuleStart`, `onTestCaseResult`, `onTestModuleEnd`) and fires a
-matching `RunEvent` from each. These events are published onto the
-run-event channel the reporter subscribes to and forwarded to the
-optional user-supplied `onRunEvent` tap.
+**Amendment (stream console mode, 2026-05-19):** the `human`-slot value
+`ink` was renamed `stream` (`HumanConsoleMode` is now `passthrough |
+silent | stream | agent`). `ink` was an implementation detail — the
+rendering library — and `stream` describes the user-visible behavior.
+Pre-2.0, a clean break with no deprecation alias. The mode was also
+reworked: it no longer renders a flat Vitest-shaped per-file list (a
+near-copy of Vitest's default reporter) but a progressively-drawn,
+colored, animated rendering of the agent's run-shape view. Alongside
+the rename, the internal `RunEvent` surface was completed — every
+Vitest 4.x reporter hook now emits a variant — and a wall-clock
+animation clock was added to `createLiveInk` to drive the spinner and
+the ticking elapsed column. See [./components/reporter.md](./components/reporter.md)
+and [./components/ui.md](./components/ui.md); the canonical spec is
+`docs/superpowers/specs/2026-05-19-stream-console-mode.md`.
+
+Alongside the option-shape change, `AgentReporter` implements Vitest's
+streaming hooks and fires a matching `RunEvent` from each — as of the
+2026-05-19 amendment above, every Vitest 4.x reporter hook is wired. The
+events are published onto the run-event channel the reporter subscribes
+to and forwarded to the optional user-supplied `onRunEvent` tap.
 
 **Why a per-executor matrix beats a single `mode` enum:** humans,
 agents, and CI runners want different visible behavior from the same

@@ -10,7 +10,16 @@
 import { Text } from "ink";
 import type { FC } from "react";
 
-export type StatusIconKind = "passed" | "failed" | "skipped" | "pending" | "running" | "queued" | "finished";
+export type StatusIconKind =
+	| "passed"
+	| "failed"
+	| "skipped"
+	| "pending"
+	| "running"
+	| "queued"
+	| "finished"
+	| "threshold"
+	| "timed-out";
 
 export interface StatusIconProps {
 	readonly status: StatusIconKind;
@@ -24,6 +33,8 @@ const GLYPH: Record<StatusIconKind, string> = {
 	running: "…",
 	queued: "·",
 	finished: "✓",
+	threshold: "⚠",
+	"timed-out": "⧖",
 };
 
 const COLOR: Record<StatusIconKind, string> = {
@@ -34,6 +45,8 @@ const COLOR: Record<StatusIconKind, string> = {
 	running: "yellow",
 	queued: "gray",
 	finished: "green",
+	threshold: "yellow",
+	"timed-out": "#e09a4e",
 };
 
 export const StatusIcon: FC<StatusIconProps> = ({ status }) => <Text color={COLOR[status]}>{GLYPH[status]}</Text>;

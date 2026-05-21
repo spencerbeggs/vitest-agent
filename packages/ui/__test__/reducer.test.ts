@@ -22,6 +22,82 @@ describe("reduceRenderState — individual events", () => {
 		expect(next.finishedAt).toBeNull();
 	});
 
+	it("RunStarted after a previous run resets modules, moduleOrder, totals, coverage, trend, failures, and suggestedActions", () => {
+		// First run: accumulate modules, totals, failures, coverage, trend, and a suggested action.
+		const afterFirst = apply([
+			{ _tag: "RunStarted", runId: "r1", startedAt: "T0", configHash: "h1" },
+			{ _tag: "ModuleStarted", modulePath: "a.test.ts", startedAt: "T0" },
+			{
+				_tag: "TestFinished",
+				modulePath: "a.test.ts",
+				testName: "t",
+				suitePath: [],
+				status: "failed",
+				durationMs: 1,
+				error: { message: "boom" },
+			},
+			{
+				_tag: "ModuleFinished",
+				modulePath: "a.test.ts",
+				passCount: 0,
+				failCount: 1,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 1,
+			},
+			{
+				_tag: "CoverageReady",
+				metrics: { lines: 90, branches: 90, functions: 90, statements: 90 },
+				thresholds: {},
+				gaps: [],
+			},
+			{ _tag: "TrendComputed", direction: "stable", runCount: 3 },
+			{ _tag: "SuggestedAction", severity: "info", title: "x", detail: "y" },
+			{
+				_tag: "RunFinished",
+				runId: "r1",
+				finishedAt: "T1",
+				passCount: 0,
+				failCount: 1,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 1,
+			},
+		]);
+		expect(afterFirst.modules).not.toEqual({});
+		expect(afterFirst.failures).toHaveLength(1);
+		expect(afterFirst.coverage).not.toBeNull();
+		expect(afterFirst.trend).not.toBeNull();
+		expect(afterFirst.suggestedActions).toHaveLength(1);
+
+		// Second `RunStarted` (watch mode rerun): everything from the previous
+		// run must be wiped except the fresh-run identity fields.
+		const afterRerunStart = reduceRenderState(afterFirst, {
+			_tag: "RunStarted",
+			runId: "r2",
+			startedAt: "T2",
+			configHash: "h2",
+		});
+		expect(afterRerunStart.modules).toEqual({});
+		expect(afterRerunStart.moduleOrder).toEqual([]);
+		expect(afterRerunStart.totals).toEqual({
+			passCount: 0,
+			failCount: 0,
+			skipCount: 0,
+			timeoutCount: 0,
+			durationMs: 0,
+		});
+		expect(afterRerunStart.coverage).toBeNull();
+		expect(afterRerunStart.trend).toBeNull();
+		expect(afterRerunStart.failures).toEqual([]);
+		expect(afterRerunStart.suggestedActions).toEqual([]);
+		expect(afterRerunStart.phase).toBe("running");
+		expect(afterRerunStart.runId).toBe("r2");
+		expect(afterRerunStart.configHash).toBe("h2");
+		expect(afterRerunStart.startedAt).toBe("T2");
+		expect(afterRerunStart.finishedAt).toBeNull();
+	});
+
 	it("ModuleQueued upserts a module with status=queued", () => {
 		const next = reduceRenderState(initialRenderState, {
 			_tag: "ModuleQueued",
@@ -129,7 +205,7 @@ describe("reduceRenderState — individual events", () => {
 			skipCount: 2,
 			durationMs: 50,
 		});
-		expect(next.totals).toEqual({ passCount: 3, failCount: 1, skipCount: 2, durationMs: 50 });
+		expect(next.totals).toEqual({ passCount: 3, failCount: 1, skipCount: 2, timeoutCount: 0, durationMs: 50 });
 	});
 
 	it("CoverageReady populates the coverage block with empty violations", () => {
@@ -222,7 +298,7 @@ describe("reduceRenderState — individual events", () => {
 		]);
 		expect(next.phase).toBe("finished");
 		expect(next.finishedAt).toBe("y");
-		expect(next.totals).toEqual({ passCount: 7, failCount: 2, skipCount: 1, durationMs: 100 });
+		expect(next.totals).toEqual({ passCount: 7, failCount: 2, skipCount: 1, timeoutCount: 0, durationMs: 100 });
 	});
 });
 
@@ -231,14 +307,14 @@ describe("reduceRenderStateAll — canonical fixtures", () => {
 		const state = reduceRenderStateAll(allPassEvents);
 		expect(state.phase).toBe("finished");
 		expect(state.failures).toEqual([]);
-		expect(state.totals).toEqual({ passCount: 1, failCount: 0, skipCount: 0, durationMs: 80 });
+		expect(state.totals).toEqual({ passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 80 });
 		expect(state.coverage).toBeNull();
 	});
 
 	it("mixedFailEvents records the failing test and its classification", () => {
 		const state = reduceRenderStateAll(mixedFailEvents);
 		expect(state.phase).toBe("finished");
-		expect(state.totals).toEqual({ passCount: 2, failCount: 1, skipCount: 1, durationMs: 100 });
+		expect(state.totals).toEqual({ passCount: 2, failCount: 1, skipCount: 1, timeoutCount: 0, durationMs: 100 });
 		expect(state.failures).toHaveLength(1);
 		expect(state.failures[0]).toMatchObject({
 			modulePath: "src/math.test.ts",
@@ -287,5 +363,209 @@ describe("reduceRenderStateAll — canonical fixtures", () => {
 		const once = reduceRenderState(state, event);
 		const twice = reduceRenderState(state, event);
 		expect(once).toEqual(twice);
+	});
+});
+
+describe("reduceRenderState — Part A completeness variants", () => {
+	const running = reduceRenderState(initialRenderState, {
+		_tag: "RunStarted",
+		runId: "r1",
+		startedAt: "T0",
+		configHash: "h1",
+	});
+
+	it("RunTimedOut moves the run to the terminal timed-out phase", () => {
+		const next = reduceRenderState(running, { _tag: "RunTimedOut", message: "process timeout" });
+		expect(next.phase).toBe("timed-out");
+	});
+
+	const noopEvents: ReadonlyArray<RunEvent> = [
+		{ _tag: "ModuleCollected", modulePath: "a.test.ts", testCount: 2, suiteCount: 1 },
+		{ _tag: "SuiteStarted", modulePath: "a.test.ts", suitePath: [], suiteName: "math" },
+		{
+			_tag: "SuiteFinished",
+			modulePath: "a.test.ts",
+			suitePath: [],
+			suiteName: "math",
+			passCount: 2,
+			failCount: 0,
+			skipCount: 0,
+		},
+		{ _tag: "HookStarted", modulePath: "a.test.ts", hookType: "beforeAll", scopeName: "math" },
+		{
+			_tag: "HookFinished",
+			modulePath: "a.test.ts",
+			hookType: "beforeAll",
+			scopeName: "math",
+			durationMs: 3,
+			status: "passed",
+		},
+		{ _tag: "ConsoleLog", level: "stdout", content: "log line", time: 0 },
+		{ _tag: "TestAnnotated", modulePath: "a.test.ts", testName: "adds", suitePath: [], annotation: "slow" },
+		{ _tag: "TestArtifactRecorded", modulePath: "a.test.ts", testName: "adds", suitePath: [], artifact: "screenshot" },
+		{ _tag: "WatcherReady" },
+		{ _tag: "WatcherRerun", triggerFiles: ["a.test.ts"] },
+	];
+
+	for (const event of noopEvents) {
+		it(`${event._tag} passes through as a no-op leaving state unchanged`, () => {
+			expect(reduceRenderState(running, event)).toBe(running);
+		});
+	}
+});
+
+describe("reduceRenderState — project dimension", () => {
+	it("ModuleQueued threads projectName onto the module record", () => {
+		const next = reduceRenderState(initialRenderState, {
+			_tag: "ModuleQueued",
+			modulePath: "a.test.ts",
+			projectName: "ui",
+		});
+		expect(next.modules["a.test.ts"]?.projectName).toBe("ui");
+	});
+
+	it("ModuleStarted threads projectName and the start stamp onto the module record", () => {
+		const next = reduceRenderState(initialRenderState, {
+			_tag: "ModuleStarted",
+			modulePath: "a.test.ts",
+			startedAt: "2026-05-19T00:00:00.000Z",
+			projectName: "sdk",
+		});
+		expect(next.modules["a.test.ts"]?.projectName).toBe("sdk");
+		expect(next.modules["a.test.ts"]?.startedAt).toBe("2026-05-19T00:00:00.000Z");
+	});
+
+	it("ModuleFinished threads projectName onto the module record", () => {
+		const seed = reduceRenderState(initialRenderState, { _tag: "ModuleQueued", modulePath: "a.test.ts" });
+		const next = reduceRenderState(seed, {
+			_tag: "ModuleFinished",
+			modulePath: "a.test.ts",
+			passCount: 1,
+			failCount: 0,
+			skipCount: 0,
+			durationMs: 5,
+			projectName: "plugin",
+		});
+		expect(next.modules["a.test.ts"]?.projectName).toBe("plugin");
+	});
+
+	it("leaves projectName undefined for a project-less module event", () => {
+		const next = reduceRenderState(initialRenderState, { _tag: "ModuleQueued", modulePath: "a.test.ts" });
+		expect(next.modules["a.test.ts"]?.projectName).toBeUndefined();
+	});
+});
+
+describe("reduceRenderState — timeout routing", () => {
+	it("a timed-out TestFinished sets the test status to timed-out", () => {
+		const next = reduceRenderState(
+			reduceRenderState(initialRenderState, { _tag: "ModuleQueued", modulePath: "a.test.ts" }),
+			{
+				_tag: "TestFinished",
+				modulePath: "a.test.ts",
+				testName: "slow",
+				suitePath: [],
+				status: "failed",
+				durationMs: 5000,
+				timedOut: true,
+			},
+		);
+		expect(next.modules["a.test.ts"]?.tests[0]?.status).toBe("timed-out");
+	});
+
+	it("a timed-out failure record is flagged timedOut", () => {
+		const next = reduceRenderState(initialRenderState, {
+			_tag: "TestFinished",
+			modulePath: "a.test.ts",
+			testName: "slow",
+			suitePath: [],
+			status: "failed",
+			durationMs: 5000,
+			timedOut: true,
+		});
+		expect(next.failures[0]?.timedOut).toBe(true);
+	});
+
+	it("ModuleFinished threads timeoutCount and recomputeTotals sums it", () => {
+		const next = reduceRenderState(initialRenderState, {
+			_tag: "ModuleFinished",
+			modulePath: "a.test.ts",
+			passCount: 8,
+			failCount: 1,
+			skipCount: 0,
+			timeoutCount: 2,
+			durationMs: 50,
+		});
+		expect(next.modules["a.test.ts"]?.timeoutCount).toBe(2);
+		expect(next.totals.timeoutCount).toBe(2);
+	});
+
+	it("RunFinished carries timeoutCount into totals", () => {
+		const next = reduceRenderState(initialRenderState, {
+			_tag: "RunFinished",
+			runId: "r",
+			finishedAt: "T1",
+			passCount: 10,
+			failCount: 1,
+			skipCount: 0,
+			timeoutCount: 3,
+			durationMs: 100,
+		});
+		expect(next.totals.timeoutCount).toBe(3);
+	});
+});
+
+describe("reduceRenderState — TrendComputed", () => {
+	it("folds TrendComputed into state.trend", () => {
+		const next = reduceRenderState(initialRenderState, {
+			_tag: "TrendComputed",
+			direction: "regressing",
+			runCount: 5,
+		});
+		expect(next.trend).toEqual({ direction: "regressing", runCount: 5 });
+	});
+});
+
+describe("reduceRenderState — module tag counts", () => {
+	it("ModuleFinished threads tagCounts onto the module record", () => {
+		const next = reduceRenderState(initialRenderState, {
+			_tag: "ModuleFinished",
+			modulePath: "a.test.ts",
+			passCount: 961,
+			failCount: 0,
+			skipCount: 0,
+			timeoutCount: 0,
+			durationMs: 5,
+			tagCounts: { int: 6, unit: 955 },
+		});
+		expect(next.modules["a.test.ts"]?.tagCounts).toEqual({ int: 6, unit: 955 });
+	});
+
+	it("TestFinished with expected/received lands both fields on the failure record", () => {
+		const next = apply([
+			{ _tag: "ModuleQueued", modulePath: "math.test.ts" },
+			{
+				_tag: "TestFinished",
+				modulePath: "math.test.ts",
+				testName: "adds",
+				suitePath: [],
+				status: "failed",
+				durationMs: 2,
+				error: {
+					message: "AssertionError: expected 3 to be 4",
+					expected: "4",
+					received: "3",
+				},
+			},
+		]);
+		expect(next.failures).toHaveLength(1);
+		expect(next.failures[0]).toMatchObject({
+			modulePath: "math.test.ts",
+			testName: "adds",
+			error: {
+				message: "AssertionError: expected 3 to be 4",
+				expected: "4",
+				received: "3",
+			},
+		});
 	});
 });

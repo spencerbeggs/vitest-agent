@@ -55,14 +55,16 @@ export type ConsoleOutputMode = typeof ConsoleOutputMode.Type;
  * - `silent` — strip Vitest's reporters AND emit nothing from the plugin.
  *   True silence. Persistence still runs.
  * - `agent` — markdown-flavored final-frame string tuned for token economy.
- *   Default for `agent` executor. Set on `human` for debug previewing.
- * - `ink` — Ink-mounted animated tree. Strips Vitest's reporters and owns
- *   stdout for the duration of the run. Human executor only.
+ *   Default for `agent` executor. Set on `human` as the debugging mode for
+ *   inspecting the exact plain-text output an agent consumes.
+ * - `stream` — progressively-drawn, colored, animated rendering of the
+ *   agent's run-shape view. Strips Vitest's reporters and owns stdout for
+ *   the duration of the run. Human executor only.
  * - `ci-annotations` — GitHub Actions `::error::` annotations. Opt-in for
  *   the `ci` executor; the matching dedicated emitter is not yet shipped,
  *   so the default for `ci` is `passthrough` until it lands.
  */
-export const HumanConsoleMode = Schema.Literal("passthrough", "silent", "ink", "agent").annotations({
+export const HumanConsoleMode = Schema.Literal("passthrough", "silent", "stream", "agent").annotations({
 	identifier: "HumanConsoleMode",
 });
 export type HumanConsoleMode = typeof HumanConsoleMode.Type;
@@ -136,11 +138,21 @@ export type DetailLevel = typeof DetailLevel.Type;
 // --- Report Error ---
 
 /**
- * A single test or module error with optional stack trace and diff.
+ * A single test or module error with optional stack trace, diff, and
+ * structured assertion values.
+ *
+ * `expected` / `received` are pre-stringified, one-line representations
+ * of the assertion's expected and received JS values. They are populated
+ * only when the underlying test runner error carries structured `.expected`
+ * / `.actual` properties (assertion errors). The raw JS values stay in
+ * Vitest's internal error object; only the string representation crosses
+ * the schema boundary.
  */
 export const ReportError = Schema.Struct({
 	message: Schema.String,
 	stack: Schema.optional(Schema.String),
 	diff: Schema.optional(Schema.String),
+	expected: Schema.optional(Schema.String),
+	received: Schema.optional(Schema.String),
 }).annotations({ identifier: "ReportError" });
 export type ReportError = typeof ReportError.Type;

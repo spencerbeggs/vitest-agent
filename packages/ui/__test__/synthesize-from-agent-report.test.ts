@@ -91,7 +91,7 @@ describe("synthesizeFromAgentReport — totals authority", () => {
 			}),
 		);
 		const state = reduceRenderStateAll(events);
-		expect(state.totals).toEqual({ passCount: 9, failCount: 1, skipCount: 0, durationMs: 200 });
+		expect(state.totals).toEqual({ passCount: 9, failCount: 1, skipCount: 0, timeoutCount: 0, durationMs: 200 });
 		const output = renderAgent(state);
 		expect(output).toContain("Tests: 9/10 passed, 1 failed (200ms)");
 	});
@@ -216,5 +216,140 @@ describe("synthesizeFromAgentReport — end-to-end render", () => {
 		const first = synthesizeFromAgentReport(report);
 		const second = synthesizeFromAgentReport(report);
 		expect(first).toEqual(second);
+	});
+});
+
+describe("synthesizeFromAgentReport — timeout detection", () => {
+	it("sets timedOut: true on TestFinished for a Vitest timeout error message", () => {
+		const events = synthesizeFromAgentReport(
+			baseReport({
+				summary: { total: 1, passed: 0, failed: 1, skipped: 0, duration: 5 },
+				failed: [
+					{
+						file: "slow.test.ts",
+						state: "failed",
+						tests: [
+							{
+								name: "waits forever",
+								fullName: "waits forever",
+								state: "failed",
+								errors: [{ message: "Test timed out in 5000ms." }],
+							},
+						],
+					},
+				],
+			}),
+		);
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).toMatchObject({ timedOut: true });
+	});
+
+	it("sets ModuleFinished.timeoutCount > 0 when a failing test timed out", () => {
+		const events = synthesizeFromAgentReport(
+			baseReport({
+				summary: { total: 1, passed: 0, failed: 1, skipped: 0, duration: 5 },
+				failed: [
+					{
+						file: "slow.test.ts",
+						state: "failed",
+						tests: [
+							{
+								name: "waits forever",
+								fullName: "waits forever",
+								state: "failed",
+								errors: [{ message: "Test timed out in 5000ms." }],
+							},
+						],
+					},
+				],
+			}),
+		);
+		const moduleFinished = events.find((e) => e._tag === "ModuleFinished");
+		// The timed-out test counts in timeoutCount only, NOT failCount —
+		// mirroring the live reporter so the ✗ / ⧖ columns match.
+		expect(moduleFinished).toMatchObject({ timeoutCount: 1, failCount: 0 });
+	});
+
+	it("sets RunFinished.timeoutCount when a test timed out", () => {
+		const events = synthesizeFromAgentReport(
+			baseReport({
+				summary: { total: 1, passed: 0, failed: 1, skipped: 0, duration: 5 },
+				failed: [
+					{
+						file: "slow.test.ts",
+						state: "failed",
+						tests: [
+							{
+								name: "waits forever",
+								fullName: "waits forever",
+								state: "failed",
+								errors: [{ message: "Test timed out in 10000ms." }],
+							},
+						],
+					},
+				],
+			}),
+		);
+		const runFinished = events.find((e) => e._tag === "RunFinished");
+		expect(runFinished).toMatchObject({ timeoutCount: 1 });
+	});
+
+	it("does not set timedOut on ordinary assertion failures", () => {
+		const events = synthesizeFromAgentReport(
+			baseReport({
+				summary: { total: 1, passed: 0, failed: 1, skipped: 0, duration: 5 },
+				failed: [
+					{
+						file: "a.test.ts",
+						state: "failed",
+						tests: [
+							{
+								name: "broken",
+								fullName: "broken",
+								state: "failed",
+								errors: [{ message: "expected 1 to equal 2" }],
+							},
+						],
+					},
+				],
+			}),
+		);
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).not.toMatchObject({ timedOut: true });
+		const moduleFinished = events.find((e) => e._tag === "ModuleFinished");
+		expect(moduleFinished).not.toMatchObject({ timeoutCount: expect.any(Number) });
+	});
+});
+
+describe("synthesizeFromAgentReport — tagCounts omitted on replay", () => {
+	it("does not attach run-level tagCounts to ModuleFinished (would over-count across modules)", () => {
+		// AgentReport carries only run-level tagCounts. Attaching them to each
+		// failed module multiplied every per-tag total by the number of failed
+		// modules in the workspace rollup (mergeTagCounts sums each module), so
+		// the replay path omits per-module tagCounts entirely. With two failed
+		// modules, neither ModuleFinished carries a tagCounts field.
+		const events = synthesizeFromAgentReport(
+			baseReport({
+				summary: { total: 2, passed: 0, failed: 2, skipped: 0, duration: 10 },
+				tagCounts: { unit: { passed: 2, failed: 1 }, int: { passed: 2 } },
+				failed: [
+					{
+						file: "a.test.ts",
+						state: "failed",
+						tests: [{ name: "x", fullName: "x", state: "failed" }],
+					},
+					{
+						file: "b.test.ts",
+						state: "failed",
+						tests: [{ name: "y", fullName: "y", state: "failed" }],
+					},
+				],
+			}),
+		);
+		const moduleFinished = events.filter((e) => e._tag === "ModuleFinished");
+		expect(moduleFinished).toHaveLength(2);
+		for (const m of moduleFinished) {
+			expect(m).not.toHaveProperty("tagCounts");
+		}
 	});
 });

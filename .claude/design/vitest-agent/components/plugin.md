@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-19
+last-synced: 2026-05-19
 completeness: 93
 related:
   - ../architecture.md
@@ -189,21 +189,59 @@ channel to the factory — it owns no Ink mount.
 - `onTestRunEnd` is the load-bearing hook for persistence and end-of-run
   rendering. See below.
 
-**Streaming hooks (event emission).** The reporter implements Vitest's
-per-event streaming callbacks (`onTestRunStart`, `onTestModuleQueued`,
-`onTestModuleStart`, `onTestCaseResult`, `onTestModuleEnd`) on every run.
-Each callback constructs the matching `RunEvent` variant (`RunStarted`,
-`ModuleQueued`, `ModuleStarted`, `TestFinished`, `ModuleFinished`) and
-calls `emit(event)`, which publishes onto the run-event `PubSub` and
-calls the user-supplied `onRunEvent` tap. `onTestRunEnd` also emits
-`RunFinished` at the top of its handler so a subscribed reporter sees
-end-of-run before the heavy persistence work runs. A `wantsRunEvents()`
-gate (true when `onRunEvent` is set, when `consoleMode === "ink"`, or
-when a custom reporter is in use) skips event construction when nothing
-will consume the stream — it replaces the pre-restructure
-`hasSubscribers()` gate. The `emit` helper catches throwing user
-callbacks and logs to stderr — persistence and the reporter never break
-because a tap has a bug.
+**Streaming hooks (event emission).** `AgentReporter` wires **every**
+Vitest 4.x reporter hook to an emitted `RunEvent`, so the internal event
+surface is complete — future consumers never have to widen the plugin's
+Vitest-API layer. Each callback constructs the matching `RunEvent`
+variant and calls `emit(event)`, which publishes onto the run-event
+`PubSub` and calls the user-supplied `onRunEvent` tap. The variant
+inventory and the deliberately-unmapped hooks (`onInit`,
+`onBrowserInit`, `onServerRestart`, `onTestRemoved`) live in
+[../schemas.md](../schemas.md).
+
+Two emit fixes landed with the surface completion:
+
+- **P0 — `TestStarted` emit point.** `onTestCaseReady` is now wired and
+  emits a standalone `TestStarted`; `onTestCaseResult` emits only
+  `TestFinished`. Previously both were synthesized back-to-back inside
+  `onTestCaseResult`, so the transient running state never got its own
+  render frame. The emit site moved — no schema or reducer change.
+- **P1 — coverage events.** `CoverageReady` and one `ThresholdViolation`
+  per violated metric are emitted from `onTestRunEnd` after the
+  `CoverageAnalyzer` finishes, populated from the analyzed result. The
+  raw `onCoverage` istanbul map cannot fill those payloads, so the
+  events fire once the analyzed coverage is ready.
+
+The three module-event variants (`ModuleQueued`, `ModuleStarted`,
+`ModuleFinished`) are populated with the optional `projectName` from the
+Vitest `TestModule.project.name` in hand.
+
+**Timeout detection.** Vitest reports a timed-out test as `failed` with
+a timeout-flavored error. `isTimeoutError` in
+`packages/plugin/src/utils/detect-timeout.ts` is a pure matcher that
+detects those failures; the reporter runs it per failed test and sets
+the optional `timedOut: boolean` on the emitted `TestFinished` so the
+`vitest-agent-ui` reducer can route the test into `timeoutCount`. The
+distinction is render-layer only — see [../schemas.md](../schemas.md).
+
+**Per-module tag counts.** `onTestModuleEnd` tallies a per-tag test
+count from `TestReport.tags` and sets it as the optional `tagCounts`
+field on the `ModuleFinished` `RunEvent`, which `StreamApp` renders as a
+`tag:count` suffix on aggregate rows.
+
+**`TrendComputed` emit.** `onTestRunEnd` emits a `TrendComputed`
+`RunEvent` after trend computation — mirroring the `CoverageReady` emit
+after the coverage analyzer — carrying trend direction and run count, so
+a live-painting reporter sees trend without reading the database.
+
+`onTestRunEnd` also emits `RunFinished` at the top of its handler so a
+subscribed reporter sees end-of-run before the heavy persistence work
+runs. A `wantsRunEvents()` gate (true when `onRunEvent` is set, when
+`consoleMode === "stream"`, or when a custom reporter is in use) skips
+event construction when nothing will consume the stream — it replaces
+the pre-restructure `hasSubscribers()` gate. The `emit` helper catches
+throwing user callbacks and logs to stderr — persistence and the
+reporter never break because a tap has a bug.
 
 **`onTestRunEnd` flow:**
 
@@ -680,11 +718,11 @@ Phase 5 added an early return on the UI-only path in `AgentReporter.onTestRunEnd
      `CoverageAnalyzer.process`, no `HistoryTracker.resolve`.
 4. Otherwise the Full-mode pipeline runs end-to-end as before.
 
-The streaming hooks that publish onto the run-event channel
-(`onTestModuleQueued`, `onTestModuleStart`, `onTestCaseResult`,
-`onTestModuleEnd`, plus the `RunFinished` emit at the top of `onTestRunEnd`)
-fire identically in both modes — UI-only callers see the same event
-stream as Full-mode callers, just without persistence side effects.
+The streaming hooks that publish onto the run-event channel fire
+identically in both modes — UI-only callers see the same event stream as
+Full-mode callers, just without persistence side effects. The P1
+coverage emit (`CoverageReady` / `ThresholdViolation`) also fires in
+UI-only mode when a coverage map is present.
 
 **Open follow-up.** The kit-building block (env/executor/format/detail
 resolution, factory call, route) is duplicated between Full and UI-only

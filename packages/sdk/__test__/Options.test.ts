@@ -20,11 +20,11 @@ describe("AgentPluginOptions decode", () => {
 
 	it("decodes a fully-specified object with all three schema-decodable fields", () => {
 		const result = Schema.decodeUnknownSync(AgentPluginOptions)({
-			console: { human: "ink", agent: "agent", ci: "passthrough" },
+			console: { human: "stream", agent: "agent", ci: "passthrough" },
 			coverageTargets: { lines: 80, functions: 75 },
 			transport: { kind: "local" },
 		});
-		expect(result.console?.human).toBe("ink");
+		expect(result.console?.human).toBe("stream");
 		expect(result.coverageTargets?.lines).toBe(80);
 		expect(result.transport?.kind).toBe("local");
 	});
@@ -33,8 +33,8 @@ describe("AgentPluginOptions decode", () => {
 		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ console: { human: "manual" } })).toThrow();
 	});
 
-	it("rejects ink in the agent slot (humans only)", () => {
-		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ console: { agent: "ink" } })).toThrow();
+	it("rejects stream in the agent slot (humans only)", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ console: { agent: "stream" } })).toThrow();
 	});
 
 	it("rejects ci-annotations in the human slot", () => {

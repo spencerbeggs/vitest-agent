@@ -11,6 +11,7 @@ interface FakeTestSpec {
 	readonly duration?: number;
 	readonly suite?: string;
 	readonly error?: { message: string; diff?: string };
+	readonly tags?: ReadonlyArray<string>;
 }
 
 interface FakeModuleSpec {
@@ -33,7 +34,7 @@ const makeTest = (spec: FakeTestSpec, parent: VitestTestSuite | VitestTestModule
 	type: "test",
 	name: spec.name,
 	fullName: spec.name,
-	tags: [],
+	tags: spec.tags ?? [],
 	parent,
 	result: () =>
 		spec.state === "pending"
@@ -298,7 +299,7 @@ describe("synthesizeRunEvents — end-to-end with reducer + renderer", () => {
 
 		const state = reduceRenderStateAll(events);
 		expect(state.phase).toBe("finished");
-		expect(state.totals).toEqual({ passCount: 2, failCount: 1, skipCount: 1, durationMs: 19 });
+		expect(state.totals).toEqual({ passCount: 2, failCount: 1, skipCount: 1, timeoutCount: 0, durationMs: 19 });
 		expect(state.failures).toHaveLength(1);
 		expect(state.failures[0]).toMatchObject({
 			modulePath: "src/math.test.ts",
@@ -326,5 +327,102 @@ describe("synthesizeRunEvents — end-to-end with reducer + renderer", () => {
 		expect(viaSync.phase).toBe("finished");
 		expect(viaSync.totals.passCount).toBe(1);
 		expect(viaSync.totals.failCount).toBe(0);
+	});
+});
+
+describe("synthesizeRunEvents — timeout detection", () => {
+	it("sets timedOut: true on TestFinished for a Vitest timeout error", () => {
+		const modules = [
+			makeModule({
+				path: "slow.test.ts",
+				tests: [
+					{
+						name: "waits forever",
+						state: "failed",
+						error: { message: "Test timed out in 5000ms." },
+					},
+				],
+			}),
+		];
+		const events = synthesizeRunEvents(modules);
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).toMatchObject({ timedOut: true });
+	});
+
+	it("sets ModuleFinished.timeoutCount > 0 when a test timed out", () => {
+		const modules = [
+			makeModule({
+				path: "slow.test.ts",
+				tests: [
+					{
+						name: "waits forever",
+						state: "failed",
+						error: { message: "Test timed out in 5000ms." },
+					},
+					{ name: "passes", state: "passed" },
+				],
+			}),
+		];
+		const events = synthesizeRunEvents(modules);
+		const moduleFinished = events.find((e) => e._tag === "ModuleFinished");
+		// The timed-out test counts in timeoutCount only — failCount excludes
+		// it (mirroring the live reporter), so a `✗0 ⧖1` split, not `✗1 ⧖1`.
+		expect(moduleFinished).toMatchObject({ timeoutCount: 1, failCount: 0, passCount: 1 });
+	});
+
+	it("sets RunFinished.timeoutCount when any test timed out", () => {
+		const modules = [
+			makeModule({
+				path: "slow.test.ts",
+				tests: [{ name: "waits forever", state: "failed", error: { message: "Test timed out in 10000ms." } }],
+			}),
+		];
+		const events = synthesizeRunEvents(modules);
+		const runFinished = events.find((e) => e._tag === "RunFinished");
+		expect(runFinished).toMatchObject({ timeoutCount: 1 });
+	});
+
+	it("does not set timedOut on ordinary assertion failures", () => {
+		const modules = [
+			makeModule({
+				path: "math.test.ts",
+				tests: [{ name: "adds", state: "failed", error: { message: "expected 1 to equal 2" } }],
+			}),
+		];
+		const events = synthesizeRunEvents(modules);
+		const finished = events.find((e) => e._tag === "TestFinished");
+		expect(finished).not.toMatchObject({ timedOut: true });
+		const moduleFinished = events.find((e) => e._tag === "ModuleFinished");
+		expect(moduleFinished).not.toMatchObject({ timeoutCount: expect.any(Number) });
+	});
+});
+
+describe("synthesizeRunEvents — tagCounts", () => {
+	it("aggregates per-tag counts onto ModuleFinished", () => {
+		const modules = [
+			makeModule({
+				path: "tagged.test.ts",
+				tests: [
+					{ name: "a", state: "passed", tags: ["unit"] },
+					{ name: "b", state: "passed", tags: ["unit"] },
+					{ name: "c", state: "passed", tags: ["int"] },
+				],
+			}),
+		];
+		const events = synthesizeRunEvents(modules);
+		const moduleFinished = events.find((e) => e._tag === "ModuleFinished");
+		expect(moduleFinished).toMatchObject({ tagCounts: { unit: 2, int: 1 } });
+	});
+
+	it("omits tagCounts from ModuleFinished when no tests have tags", () => {
+		const modules = [
+			makeModule({
+				path: "untagged.test.ts",
+				tests: [{ name: "a", state: "passed" }],
+			}),
+		];
+		const events = synthesizeRunEvents(modules);
+		const moduleFinished = events.find((e) => e._tag === "ModuleFinished");
+		expect(moduleFinished).not.toHaveProperty("tagCounts");
 	});
 });

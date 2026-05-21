@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-19
+last-synced: 2026-05-19
 completeness: 90
 related:
   - ../architecture.md
@@ -58,10 +58,25 @@ The matching `factory/` tests moved to `packages/reporter/__test__/` (`default-r
 
 `packages/reporter/src/defaultReporter.ts` exports `DefaultVitestAgentReporter`. The factory is invoked once at **run start** (by the plugin's `initReporters()` in `onInit`), so a live-painting reporter can subscribe to the run-event channel before the first event. Two things happen:
 
-- **At factory invocation** — when `kit.config.consoleMode === "ink"` and `kit.runEvents` is present, the factory subscribes a live Ink mount to the run-event channel and forks a drain fiber that feeds `createLiveInk`. The reporter owns the Ink mount lifecycle end to end: mount, rerender per event, unmount on `RunFinished`. This is the orchestration that formerly lived in `plugin/src/reporter.ts` (the former open decision §8.2 — see D34 / D41).
-- **At `render(input, kit)`** — called once at run end with a second, health-aware `ReporterKit`. For `consoleMode === "agent"` it folds `input.reports` through the synthesizer and reducer, builds `DispatchInputs`, calls `dispatch(inputs, opts)` and returns one `RenderedOutput` with `target: "stdout"`. For `silent`, `passthrough`, `ink` and `ci-annotations` it emits no stdout output (the `ink` live painting already happened off the stream). When `kit.config.githubActions` is `true` it emits an additional `target: "github-summary"` `RenderedOutput` regardless of console mode.
+- **At factory invocation** — when `kit.config.consoleMode === "stream"` and `kit.runEvents` is present, the factory subscribes a live Ink mount to the run-event channel and forks a drain fiber that feeds `createLiveInk`. The reporter owns the Ink mount lifecycle end to end: mount, rerender per event, unmount on `RunFinished`. This is the orchestration that formerly lived in `plugin/src/reporter.ts` (the former open decision §8.2 — see D34 / D41).
+- **At `render(input, kit)`** — called once at run end with a second, health-aware `ReporterKit`. For `consoleMode === "agent"` it folds `input.reports` through the synthesizer and reducer, builds `DispatchInputs`, calls `dispatch(inputs, opts)` and returns one `RenderedOutput` with `target: "stdout"`. For `silent`, `passthrough`, `stream` and `ci-annotations` it emits no stdout output (the `stream` live painting already happened off the stream). When `kit.config.githubActions` is `true` it emits an additional `target: "github-summary"` `RenderedOutput` regardless of console mode.
 
 The two-kit model is part of the contract: `render(input, kit)` takes a second argument because the factory kit is resolved at run start (neutral run health) and the render kit is resolved at run end (post-run `detail`). See `VitestAgentReporter` in `packages/sdk/src/contracts/reporter.ts`.
+
+---
+
+## The `stream` mount and the animation clock
+
+`stream` mode (renamed from `ink` pre-2.0) mounts the agent-shaped, lifecycle-aware `StreamApp` Ink component from `vitest-agent-ui` — not the deleted flat-list `App`. `StreamApp` reads the same `RenderState` the reducer produces and lays it out by run shape (one row per project / module / test); see [./ui.md](./ui.md) for the component.
+
+`createLiveInk` in `packages/reporter/src/LiveInkRenderer.tsx` owns an **animation clock** the spinner and the ticking elapsed-time column both need. The mechanics:
+
+- The clock is a `setInterval` (~80ms) that calls `instance.rerender()`, so frames advance between discrete `RunEvent` arrivals.
+- It starts in the `RunStarted` branch, **not on mount** — watch mode mounts once and runs many times, so a mount-scoped clock would leave reruns un-animated.
+- It stops on `RunFinished` and defensively in `tearDown` / `unmount`, because the forked drain fiber feeding events is never cancelled and the interval must not outlive the instance.
+- The spinner frame index derives from wall-clock time (`Date.now()`), not a monotonic counter, so it stays correct across watch-mode remounts. The index is passed to `StreamApp` as a prop — it is presentation state and never enters the event-sourced `RenderState`.
+
+This is the one genuinely new mechanic in the restructured live path: the renderer goes from purely event-driven to event-plus-clock-driven while a run is in progress.
 
 ---
 

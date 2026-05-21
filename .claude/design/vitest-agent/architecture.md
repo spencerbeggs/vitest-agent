@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-19
+last-synced: 2026-05-19
 completeness: 90
 related:
   - ./components.md
@@ -165,7 +165,7 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   built-in `DefaultVitestAgentReporter` (in `vitest-agent-reporter`)
   consumes `input.reports` through the shape-tailored dispatcher matrix
   in `vitest-agent-ui` (4 run-shapes × 3 outcome classes, 12 cells,
-  agent and Ink halves per cell) and — for `consoleMode === "ink"` —
+  agent and Ink halves per cell) and — for `consoleMode === "stream"` —
   owns the Ink live-mount lifecycle end to end by subscribing to the
   kit's run-event channel. Multi-target output (console plus GitHub Step
   Summary) composes inside the default reporter rather than by chaining
@@ -175,8 +175,9 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   factory and never touches rendering.
 - **Per-executor console matrix.** The plugin auto-detects the executor
   (`human` / `agent` / `ci`) and looks up `options.console.<slot>` to
-  resolve a single `ConsoleMode` value (`passthrough` / `silent` / `ink` /
-  `agent` / `ci-annotations`). The resolved mode drives stdout ownership
+  resolve a single `ConsoleMode` value (`passthrough` / `silent` /
+  `stream` / `agent` / `ci-annotations`). The resolved mode drives stdout
+  ownership
   (anything non-`passthrough` strips Vitest's built-in console reporters
   and suppresses its native coverage table) and flows through
   `ReporterKit.config.consoleMode` to the reporter, which decides what to
@@ -209,9 +210,10 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
 
 - Final-frame output (the agent-string and GHA Step Summary paths) is
   still written post-run in `onTestRunEnd`. Live progress *is* streamed
-  in `ink` mode via the default reporter's Ink live mount (which
-  subscribes to the plugin's run-event channel), but every other console
-  mode renders only at end-of-run.
+  in `stream` mode via the default reporter's Ink live mount (which
+  subscribes to the plugin's run-event channel and renders the agent's
+  run-shape view progressively), but every other console mode renders
+  only at end-of-run.
 - Coverage is shared across projects within a single Vitest run; only
   the first project alphabetically processes the global `CoverageMap`.
 - File-to-test mapping is convention-based (`.test.`/`.spec.` strip);

@@ -92,10 +92,10 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
  *
  * Per-slot defaults:
  * - `human` → `passthrough` (Vitest's own reporters do the visible work).
- *   Users opt into `ink` for live animation by setting the `human` slot
- *   to `"ink"`; the plugin's internal AgentReporter owns the live Ink
- *   mount (T6 contract — users do not import or wire `createLiveInk`
- *   themselves; that symbol is internal to vitest-agent-ui).
+ *   Users opt into `stream` for the progressively-drawn, animated
+ *   agent-shaped live renderer by setting the `human` slot to `"stream"`;
+ *   the default reporter owns the live Ink mount end to end (T6 contract
+ *   — users do not import or wire the live renderer themselves).
  * - `agent` → `agent` (markdown-flavored final-frame string).
  * - `ci` → `passthrough` (Vitest's reporters produce log-friendly output;
  *   the dedicated `ci-annotations` reporter is opt-in until the GHA
@@ -122,7 +122,7 @@ function resolveConsoleMode(
  * The plugin owns stdout when the resolved console mode produces visible
  * output that would conflict with Vitest's own reporters. Passthrough lets
  * Vitest emit progress normally; silent strips everything; the other modes
- * (ink, agent, ci-annotations) need exclusive stdout access.
+ * (stream, agent, ci-annotations) need exclusive stdout access.
  *
  * @internal
  */
@@ -141,7 +141,7 @@ function ownsStdout(mode: ConsoleMode): boolean {
  */
 function resolveFormat(mode: ConsoleMode): OutputFormat {
 	switch (mode) {
-		case "ink":
+		case "stream":
 		case "agent":
 			return "terminal";
 		case "ci-annotations":

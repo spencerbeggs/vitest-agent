@@ -13,7 +13,7 @@
  * - `agent` → emits the dispatched agent-string for the whole run.
  * - `silent` / `passthrough` / `ci-annotations` → emits nothing; the
  *   visible work happens elsewhere.
- * - `ink` → emits nothing from `render`; the reporter owns a live Ink
+ * - `stream` → emits nothing from `render`; the reporter owns a live Ink
  *   mount that subscribes to the kit's run-event channel and paints
  *   per-event during the run.
  *
@@ -212,7 +212,7 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
 /**
  * Subscribe a live Ink mount to the kit's run-event channel.
  *
- * Called from the factory when `consoleMode` is `ink`. The factory runs
+ * Called from the factory when `consoleMode` is `stream`. The factory runs
  * at run start — before the plugin publishes the first `RunStarted`
  * event — so the subscription is registered in time. `Effect.runFork`
  * advances the forked fiber up to its first suspension (the
@@ -247,7 +247,7 @@ const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
  * worked example of the `VitestAgentReporterFactory` contract.
  *
  * The factory is invoked once at run start with the run-start kit. In
- * `consoleMode: "ink"` it subscribes a live Ink mount to the kit's
+ * `consoleMode: "stream"` it subscribes a live Ink mount to the kit's
  * run-event channel and owns that mount's lifecycle end to end.
  *
  * The `render` call (invoked once at run end with the health-aware kit)
@@ -255,10 +255,10 @@ const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
  * dispatches to the matching cell. Output is one stdout entry carrying
  * the cell's string. When `kit.config.githubActions` is true a GFM
  * step-summary payload is appended for routing to GITHUB_STEP_SUMMARY.
- * In `ink` mode `render` emits nothing — the live mount painted the run.
+ * In `stream` mode `render` emits nothing — the live mount painted the run.
  */
 export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => {
-	if (kit.config.consoleMode === "ink" && kit.runEvents !== undefined) {
+	if (kit.config.consoleMode === "stream" && kit.runEvents !== undefined) {
 		subscribeLiveInk(kit.runEvents);
 	}
 	return {

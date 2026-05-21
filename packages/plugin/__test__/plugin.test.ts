@@ -103,11 +103,11 @@ describe("AgentPlugin", () => {
 	});
 
 	describe("onRunEvent user-facing tee", () => {
-		it("forwards events to the tap in every console mode (ink)", async () => {
+		it("forwards events to the tap in every console mode (stream)", async () => {
 			let received = 0;
 			const plugin = AgentPlugin(
 				{
-					console: { human: "ink" },
+					console: { human: "stream" },
 					onRunEvent: () => {
 						received++;
 					},
@@ -225,8 +225,8 @@ describe("AgentPlugin", () => {
 			expect(vitest.config.reporters).toContain("default");
 		});
 
-		it("strips when human is explicitly set to ink", async () => {
-			const plugin = AgentPlugin({ console: { human: "ink" } }, EnvironmentDetectorTest.layer("terminal"));
+		it("strips when human is explicitly set to stream", async () => {
+			const plugin = AgentPlugin({ console: { human: "stream" } }, EnvironmentDetectorTest.layer("terminal"));
 			const vitest = mockVitest(["default", "verbose"]);
 			await callConfigureVitest(plugin, vitest);
 			const nonAgent = vitest.config.reporters.filter((r) => !(r instanceof AgentReporter));

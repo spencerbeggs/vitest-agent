@@ -12,6 +12,7 @@
  */
 
 import type { ActionSeverity, FailureRecord, ModuleRecord, RenderState, SuggestedActionRecord } from "vitest-agent-sdk";
+import { formatDisplayDuration } from "./format-duration.js";
 
 /**
  * Options controlling agent-mode output. All fields optional; defaults
@@ -53,15 +54,13 @@ const severityLabel: Record<ActionSeverity, string> = {
 	blocker: "blocker",
 };
 
-const formatDurationMs = (ms: number): string => `${ms}ms`;
-
 const formatHeader = (state: RenderState): string => {
 	const { passCount, failCount, skipCount, durationMs } = state.totals;
 	const total = passCount + failCount + skipCount;
 	const parts = [`${passCount}/${total} passed`];
 	if (failCount > 0) parts.push(`${failCount} failed`);
 	if (skipCount > 0) parts.push(`${skipCount} skipped`);
-	return `Tests: ${parts.join(", ")} (${formatDurationMs(durationMs)})`;
+	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
 };
 
 const formatModulesSection = (state: RenderState): string | null => {

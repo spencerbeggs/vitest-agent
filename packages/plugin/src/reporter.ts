@@ -46,6 +46,7 @@ import {
 	computeTrend,
 	ensureMigrated,
 	formatFatalError,
+	isTimeoutError,
 	probeHostMetadataFromEnv,
 	resolveDataPath,
 	resolveLogFile,
@@ -59,6 +60,7 @@ import { captureSettings, hashSettings } from "./utils/capture-settings.js";
 import { processFailure } from "./utils/process-failure.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { routeRenderedOutput } from "./utils/route-rendered-output.js";
+import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
 
 /**
  * Cache of in-flight `resolveDataPath` promises, keyed by `projectDir`.
@@ -315,7 +317,7 @@ export class AgentReporter {
 	 * Run-event channel. The plugin publishes one {@link RunEvent} per
 	 * Vitest streaming callback onto this `PubSub`; the reporter factory
 	 * receives it on the {@link ReporterKit} and a live-painting reporter
-	 * (the default reporter in `ink` mode) subscribes to drive its mount.
+	 * (the default reporter in `stream` mode) subscribes to drive its mount.
 	 * The plugin no longer owns any render mount itself.
 	 *
 	 * @internal
@@ -340,6 +342,16 @@ export class AgentReporter {
 	private readonly hasCustomReporter: boolean;
 	private currentRunId: string | null = null;
 	private moduleStartedAt: Map<string, string> = new Map();
+	/**
+	 * Wall-clock start stamp (`Date.now()`) for an in-flight Vitest
+	 * setup/teardown hook, keyed `modulePath::hookType::scopeName`.
+	 * `onHookStart` writes it, `onHookEnd` reads and clears it to derive
+	 * `HookFinished.durationMs` — `ReportedHookContext` carries no
+	 * duration of its own.
+	 *
+	 * @internal
+	 */
+	private hookStartedAt: Map<string, number> = new Map();
 
 	constructor(options: AgentReporterConstructorOptions = {}) {
 		// logLevel and logFile read from VITEST_REPORTER_LOG_LEVEL /
@@ -351,7 +363,7 @@ export class AgentReporter {
 
 		// The run-event channel. Created unconditionally — it is cheap, and
 		// whether anything subscribes is decided downstream: the default
-		// reporter subscribes only in `ink` mode, a custom reporter may
+		// reporter subscribes only in `stream` mode, a custom reporter may
 		// subscribe in any mode, and the user `onRunEvent` tap is fed
 		// alongside the channel. The plugin only publishes; the reporter
 		// owns every render mount (including the live Ink mount).
@@ -384,7 +396,7 @@ export class AgentReporter {
 			options.format ??
 			(consoleMode === "silent"
 				? "silent"
-				: consoleMode === "ink" || consoleMode === "agent"
+				: consoleMode === "stream" || consoleMode === "agent"
 					? "terminal"
 					: consoleMode === "ci-annotations"
 						? "ci-annotations"
@@ -462,7 +474,7 @@ export class AgentReporter {
 	 * Resolve the reporter factory at run start.
 	 *
 	 * The factory is invoked here — before any streaming hook fires — so a
-	 * reporter that paints live (the default reporter's Ink mount in `ink`
+	 * reporter that paints live (the default reporter's Ink mount in `stream`
 	 * mode) can subscribe to {@link AgentReporter.runEvents | the run-event
 	 * channel} before the first `RunStarted` event. The kit built here
 	 * carries neutral run health; `detail` is resolved health-aware again
@@ -523,13 +535,13 @@ export class AgentReporter {
 	 * Should the streaming Vitest hooks publish {@link RunEvent}s? The
 	 * hooks short-circuit when this is false to skip constructing event
 	 * objects nothing will read: the default reporter consumes the channel
-	 * only in `ink` mode, a custom reporter may consume it in any mode,
+	 * only in `stream` mode, a custom reporter may consume it in any mode,
 	 * and the user `onRunEvent` tap is fed off the same stream.
 	 *
 	 * @internal
 	 */
 	private wantsRunEvents(): boolean {
-		return this.onRunEvent !== undefined || this.options.consoleMode === "ink" || this.hasCustomReporter;
+		return this.onRunEvent !== undefined || this.options.consoleMode === "stream" || this.hasCustomReporter;
 	}
 
 	/**
@@ -589,38 +601,111 @@ export class AgentReporter {
 	}
 
 	/**
+	 * Read the owning Vitest project name off a `TestModule`. Vitest 4.x
+	 * attaches `project` to every module; an empty name (the unnamed
+	 * default project) collapses to `undefined` so the renderer treats it
+	 * as a single anonymous project.
+	 *
+	 * @internal
+	 */
+	private moduleProjectName(testModule: { project?: { name?: string } }): string | undefined {
+		const name = testModule.project?.name;
+		return name !== undefined && name.length > 0 ? name : undefined;
+	}
+
+	/**
 	 * Vitest streaming hook: a test module has been queued.
 	 */
-	onTestModuleQueued(testModule: { relativeModuleId: string }): void {
+	onTestModuleQueued(testModule: { relativeModuleId: string; project?: { name?: string } }): void {
 		if (!this.wantsRunEvents()) return;
-		this.emit({ _tag: "ModuleQueued", modulePath: testModule.relativeModuleId });
+		const projectName = this.moduleProjectName(testModule);
+		this.emit({
+			_tag: "ModuleQueued",
+			modulePath: testModule.relativeModuleId,
+			...(projectName !== undefined && { projectName }),
+		});
 	}
 
 	/**
 	 * Vitest streaming hook: a test module is starting execution.
 	 */
-	onTestModuleStart(testModule: { relativeModuleId: string }): void {
+	onTestModuleStart(testModule: { relativeModuleId: string; project?: { name?: string } }): void {
 		if (!this.wantsRunEvents()) return;
 		const startedAt = new Date().toISOString();
 		this.moduleStartedAt.set(testModule.relativeModuleId, startedAt);
-		this.emit({ _tag: "ModuleStarted", modulePath: testModule.relativeModuleId, startedAt });
+		const projectName = this.moduleProjectName(testModule);
+		this.emit({
+			_tag: "ModuleStarted",
+			modulePath: testModule.relativeModuleId,
+			startedAt,
+			...(projectName !== undefined && { projectName }),
+		});
+	}
+
+	/**
+	 * Vitest streaming hook: a test module has finished collecting its
+	 * tests and suites, before execution begins.
+	 */
+	onTestModuleCollected(testModule: {
+		relativeModuleId: string;
+		children: { allTests(filter?: string): Iterable<unknown>; allSuites(): Iterable<unknown> };
+	}): void {
+		if (!this.wantsRunEvents()) return;
+		let testCount = 0;
+		for (const _ of testModule.children.allTests()) testCount++;
+		let suiteCount = 0;
+		for (const _ of testModule.children.allSuites()) suiteCount++;
+		this.emit({ _tag: "ModuleCollected", modulePath: testModule.relativeModuleId, testCount, suiteCount });
+	}
+
+	/**
+	 * Vitest streaming hook: a test case is about to run.
+	 *
+	 * Emits a standalone `TestStarted` so the renderer gets a render
+	 * frame for the transient "running" state. `onTestCaseReady` fires
+	 * before `onTestCaseResult`; emitting here — rather than synthesizing
+	 * `TestStarted` back-to-back with `TestFinished` inside
+	 * `onTestCaseResult` — gives the running state a real lifetime in the
+	 * event stream and is the prerequisite for any future per-test
+	 * animation.
+	 */
+	onTestCaseReady(testCase: {
+		name: string;
+		parent?: { type: string; name: string; parent?: unknown };
+		module?: { relativeModuleId: string };
+	}): void {
+		if (!this.wantsRunEvents()) return;
+		const modulePath = testCase.module?.relativeModuleId ?? "";
+		if (modulePath === "") return;
+		this.emit({
+			_tag: "TestStarted",
+			modulePath,
+			testName: testCase.name,
+			suitePath: this.collectSuitePath(testCase),
+		});
 	}
 
 	/**
 	 * Vitest streaming hook: a test case has produced a result.
 	 *
-	 * The reporter emits both `TestStarted` and `TestFinished` here —
-	 * Vitest's `onTestCaseReady` fires immediately before this one and
-	 * the gap is too short to matter for the renderer's transient
-	 * "running" state. Treating them as one beat keeps the reducer
-	 * simpler and avoids a no-op event pair.
+	 * Emits only `TestFinished` — the matching `TestStarted` is emitted
+	 * by `onTestCaseReady`, which fires earlier in the lifecycle.
 	 */
 	onTestCaseResult(testCase: {
 		name: string;
 		parent?: { type: string; name: string; parent?: unknown };
 		module?: { relativeModuleId: string };
 		result():
-			| { state: string; errors?: ReadonlyArray<{ message: string; diff?: string; stacks?: ReadonlyArray<unknown> }> }
+			| {
+					state: string;
+					errors?: ReadonlyArray<{
+						message: string;
+						diff?: string;
+						expected?: unknown;
+						actual?: unknown;
+						stacks?: ReadonlyArray<unknown>;
+					}>;
+			  }
 			| undefined;
 		diagnostic(): { duration: number } | undefined;
 	}): void {
@@ -628,12 +713,6 @@ export class AgentReporter {
 		const modulePath = testCase.module?.relativeModuleId ?? "";
 		if (modulePath === "") return;
 		const suitePath = this.collectSuitePath(testCase);
-		this.emit({
-			_tag: "TestStarted",
-			modulePath,
-			testName: testCase.name,
-			suitePath,
-		});
 		const result = testCase.result();
 		const diag = testCase.diagnostic();
 		const status =
@@ -641,13 +720,18 @@ export class AgentReporter {
 				? result.state
 				: "pending";
 		const firstError = result?.errors?.[0];
+		const expectedStr = stringifyFailureValue(firstError?.expected);
+		const receivedStr = stringifyFailureValue(firstError?.actual);
 		const error =
 			firstError !== undefined
 				? {
 						message: firstError.message,
 						...(firstError.diff !== undefined && { diff: firstError.diff }),
+						...(expectedStr !== undefined && { expected: expectedStr }),
+						...(receivedStr !== undefined && { received: receivedStr }),
 					}
 				: undefined;
+		const timedOut = result?.state === "failed" && firstError !== undefined && isTimeoutError(firstError);
 		this.emit({
 			_tag: "TestFinished",
 			modulePath,
@@ -656,6 +740,7 @@ export class AgentReporter {
 			status,
 			durationMs: diag?.duration ?? 0,
 			...(error !== undefined && { error }),
+			...(timedOut && { timedOut: true }),
 		});
 	}
 
@@ -666,8 +751,12 @@ export class AgentReporter {
 	 */
 	onTestModuleEnd(testModule: {
 		relativeModuleId: string;
+		project?: { name?: string };
 		children: {
-			allTests(filter?: string): Iterable<{ result(): { state: string } | undefined }>;
+			allTests(filter?: string): Iterable<{
+				result(): { state: string; errors?: ReadonlyArray<{ message: string; name?: string }> } | undefined;
+				tags?: ReadonlyArray<string>;
+			}>;
 		};
 		diagnostic(): { duration: number } | undefined;
 	}): void {
@@ -675,19 +764,266 @@ export class AgentReporter {
 		let pass = 0;
 		let fail = 0;
 		let skip = 0;
+		let timeout = 0;
 		for (const test of testModule.children.allTests()) {
-			const state = test.result()?.state;
+			const result = test.result();
+			const state = result?.state;
 			if (state === "passed") pass++;
-			else if (state === "failed") fail++;
-			else skip++;
+			else if (state === "failed") {
+				const firstError = result?.errors?.[0];
+				if (firstError !== undefined && isTimeoutError(firstError)) timeout++;
+				else fail++;
+			} else skip++;
 		}
+		const tagCounts: Record<string, number> = {};
+		for (const test of testModule.children.allTests()) {
+			for (const tag of test.tags ?? []) {
+				tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
+			}
+		}
+		const projectName = this.moduleProjectName(testModule);
 		this.emit({
 			_tag: "ModuleFinished",
 			modulePath: testModule.relativeModuleId,
 			passCount: pass,
 			failCount: fail,
 			skipCount: skip,
+			timeoutCount: timeout,
 			durationMs: testModule.diagnostic()?.duration ?? 0,
+			...(projectName !== undefined && { projectName }),
+			...(Object.keys(tagCounts).length > 0 && { tagCounts }),
+		});
+	}
+
+	/**
+	 * Walk a suite/test entity's parent chain to its owning module path.
+	 *
+	 * @internal
+	 */
+	private entityModulePath(entity: { relativeModuleId?: string; module?: { relativeModuleId?: string } }): string {
+		return entity.relativeModuleId ?? entity.module?.relativeModuleId ?? "";
+	}
+
+	/**
+	 * Vitest streaming hook: a test suite is about to run.
+	 */
+	onTestSuiteReady(testSuite: {
+		name: string;
+		module?: { relativeModuleId?: string };
+		parent?: { type: string; name: string; parent?: unknown };
+	}): void {
+		if (!this.wantsRunEvents()) return;
+		const modulePath = this.entityModulePath(testSuite);
+		if (modulePath === "") return;
+		this.emit({
+			_tag: "SuiteStarted",
+			modulePath,
+			suitePath: this.collectSuitePath(testSuite),
+			suiteName: testSuite.name,
+		});
+	}
+
+	/**
+	 * Vitest streaming hook: a test suite has finished running.
+	 */
+	onTestSuiteResult(testSuite: {
+		name: string;
+		module?: { relativeModuleId?: string };
+		parent?: { type: string; name: string; parent?: unknown };
+		children: { allTests(filter?: string): Iterable<{ result(): { state: string } | undefined }> };
+	}): void {
+		if (!this.wantsRunEvents()) return;
+		const modulePath = this.entityModulePath(testSuite);
+		if (modulePath === "") return;
+		let pass = 0;
+		let fail = 0;
+		let skip = 0;
+		for (const test of testSuite.children.allTests()) {
+			const state = test.result()?.state;
+			if (state === "passed") pass++;
+			else if (state === "failed") fail++;
+			else skip++;
+		}
+		this.emit({
+			_tag: "SuiteFinished",
+			modulePath,
+			suitePath: this.collectSuitePath(testSuite),
+			suiteName: testSuite.name,
+			passCount: pass,
+			failCount: fail,
+			skipCount: skip,
+		});
+	}
+
+	/**
+	 * Derive `modulePath` / `scopeName` / a stable key for a Vitest
+	 * setup/teardown hook from its `ReportedHookContext` entity.
+	 *
+	 * @internal
+	 */
+	private hookScope(hook: {
+		name: string;
+		entity?: { name?: string; relativeModuleId?: string; module?: { relativeModuleId?: string } };
+	}): { modulePath: string; scopeName: string } {
+		const entity = hook.entity ?? {};
+		const modulePath = entity.relativeModuleId ?? entity.module?.relativeModuleId ?? "";
+		const scopeName = entity.name ?? entity.relativeModuleId ?? "";
+		return { modulePath, scopeName };
+	}
+
+	/**
+	 * Vitest streaming hook: a `beforeAll` / `afterAll` / `beforeEach` /
+	 * `afterEach` hook is starting.
+	 */
+	onHookStart(hook: {
+		name: string;
+		entity?: { name?: string; relativeModuleId?: string; module?: { relativeModuleId?: string } };
+	}): void {
+		if (!this.wantsRunEvents()) return;
+		if (
+			hook.name !== "beforeAll" &&
+			hook.name !== "afterAll" &&
+			hook.name !== "beforeEach" &&
+			hook.name !== "afterEach"
+		)
+			return;
+		const { modulePath, scopeName } = this.hookScope(hook);
+		this.hookStartedAt.set(`${modulePath}::${hook.name}::${scopeName}`, Date.now());
+		this.emit({ _tag: "HookStarted", modulePath, hookType: hook.name, scopeName });
+	}
+
+	/**
+	 * Vitest streaming hook: a setup/teardown hook has finished. Duration
+	 * is derived from the stamp `onHookStart` recorded — `ReportedHookContext`
+	 * carries none of its own. Status is a best-effort read of the
+	 * entity's collected errors.
+	 */
+	onHookEnd(hook: {
+		name: string;
+		entity?: {
+			name?: string;
+			relativeModuleId?: string;
+			module?: { relativeModuleId?: string };
+			errors?: () => ReadonlyArray<{ message: string; stack?: string; diff?: string }>;
+		};
+	}): void {
+		if (!this.wantsRunEvents()) return;
+		if (
+			hook.name !== "beforeAll" &&
+			hook.name !== "afterAll" &&
+			hook.name !== "beforeEach" &&
+			hook.name !== "afterEach"
+		)
+			return;
+		const { modulePath, scopeName } = this.hookScope(hook);
+		const key = `${modulePath}::${hook.name}::${scopeName}`;
+		const startedAt = this.hookStartedAt.get(key);
+		this.hookStartedAt.delete(key);
+		const durationMs = startedAt !== undefined ? Date.now() - startedAt : 0;
+		const entityErrors = typeof hook.entity?.errors === "function" ? hook.entity.errors() : [];
+		const firstError = entityErrors[0];
+		this.emit({
+			_tag: "HookFinished",
+			modulePath,
+			hookType: hook.name,
+			scopeName,
+			durationMs,
+			status: entityErrors.length > 0 ? "failed" : "passed",
+			...(firstError !== undefined && {
+				error: {
+					message: firstError.message,
+					...(firstError.stack !== undefined && { stack: firstError.stack }),
+					...(firstError.diff !== undefined && { diff: firstError.diff }),
+				},
+			}),
+		});
+	}
+
+	/**
+	 * Vitest streaming hook: a captured `console.log` / `console.error`
+	 * from user test code. The Vitest log carries a `taskId` rather than
+	 * a module/test path; resolving it back to one would need the task
+	 * registry, so `modulePath` / `testName` are left unset.
+	 */
+	onUserConsoleLog(log: { content: string; type: "stdout" | "stderr"; time: number }): void {
+		if (!this.wantsRunEvents()) return;
+		this.emit({ _tag: "ConsoleLog", level: log.type, content: log.content, time: log.time });
+	}
+
+	/**
+	 * Vitest streaming hook: the run exceeded its configured process
+	 * timeout. Terminal — moves the renderer to a final frame.
+	 */
+	onProcessTimeout(): void {
+		if (!this.wantsRunEvents()) return;
+		this.emit({ _tag: "RunTimedOut", message: "Test run exceeded the configured process timeout." });
+	}
+
+	/**
+	 * Vitest streaming hook: a test case recorded an annotation.
+	 */
+	onTestCaseAnnotate(
+		testCase: {
+			name: string;
+			parent?: { type: string; name: string; parent?: unknown };
+			module?: { relativeModuleId: string };
+		},
+		annotation: { message: string },
+	): void {
+		if (!this.wantsRunEvents()) return;
+		const modulePath = testCase.module?.relativeModuleId ?? "";
+		if (modulePath === "") return;
+		this.emit({
+			_tag: "TestAnnotated",
+			modulePath,
+			testName: testCase.name,
+			suitePath: this.collectSuitePath(testCase),
+			annotation: annotation.message,
+		});
+	}
+
+	/**
+	 * Vitest streaming hook: a test case recorded an artifact.
+	 */
+	onTestCaseArtifactRecord(
+		testCase: {
+			name: string;
+			parent?: { type: string; name: string; parent?: unknown };
+			module?: { relativeModuleId: string };
+		},
+		artifact: { type?: string },
+	): void {
+		if (!this.wantsRunEvents()) return;
+		const modulePath = testCase.module?.relativeModuleId ?? "";
+		if (modulePath === "") return;
+		this.emit({
+			_tag: "TestArtifactRecorded",
+			modulePath,
+			testName: testCase.name,
+			suitePath: this.collectSuitePath(testCase),
+			artifact: artifact.type ?? "artifact",
+		});
+	}
+
+	/**
+	 * Vitest streaming hook: watch mode has finished its initial run and
+	 * is waiting for file changes.
+	 */
+	onWatcherStart(): void {
+		if (!this.wantsRunEvents()) return;
+		this.emit({ _tag: "WatcherReady" });
+	}
+
+	/**
+	 * Vitest streaming hook: watch mode is re-running because tracked
+	 * files changed.
+	 */
+	onWatcherRerun(files: ReadonlyArray<string>, trigger?: string): void {
+		if (!this.wantsRunEvents()) return;
+		this.emit({
+			_tag: "WatcherRerun",
+			triggerFiles: [...files],
+			...(trigger !== undefined && { reason: trigger }),
 		});
 	}
 
@@ -774,17 +1110,26 @@ export class AgentReporter {
 			let pass = 0;
 			let fail = 0;
 			let skip = 0;
+			let timeout = 0;
 			let totalDuration = 0;
 			for (const mod of testModules as ReadonlyArray<{
-				children: { allTests(filter?: string): Iterable<{ result(): { state: string } | undefined }> };
+				children: {
+					allTests(filter?: string): Iterable<{
+						result(): { state: string; errors?: ReadonlyArray<{ message: string; name?: string }> } | undefined;
+					}>;
+				};
 				diagnostic(): { duration: number } | undefined;
 			}>) {
 				totalDuration += mod.diagnostic()?.duration ?? 0;
 				for (const test of mod.children.allTests()) {
-					const state = test.result()?.state;
+					const result = test.result();
+					const state = result?.state;
 					if (state === "passed") pass++;
-					else if (state === "failed") fail++;
-					else skip++;
+					else if (state === "failed") {
+						const firstError = result?.errors?.[0];
+						if (firstError !== undefined && isTimeoutError(firstError)) timeout++;
+						else fail++;
+					} else skip++;
 				}
 			}
 			this.emit({
@@ -794,6 +1139,7 @@ export class AgentReporter {
 				passCount: pass,
 				failCount: fail,
 				skipCount: skip,
+				timeoutCount: timeout,
 				durationMs: totalDuration,
 			});
 		}
@@ -813,6 +1159,13 @@ export class AgentReporter {
 		// the factory is resolved here from the render kit instead.
 		const runEvents = this.runEvents;
 		const preBuiltReporters = this.reporters;
+		// Bound emit closure so the Effect.gen program below (a plain
+		// generator function with no `this`) can publish coverage events
+		// once the CoverageAnalyzer result is in hand.
+		const emitEvent = (event: RunEvent): void => {
+			this.emit(event);
+		};
+		const wantsRunEvents = this.wantsRunEvents();
 
 		// Resolve dbPath if onInit didn't run (e.g. unit tests calling
 		// onTestRunEnd directly). Memoized after first resolution.
@@ -1006,6 +1359,33 @@ export class AgentReporter {
 			const coverageResult =
 				stashedCoverage && isFirstProject ? yield* analyzer.process(stashedCoverage, coverageOpts) : Option.none();
 			const coverageReport = Option.getOrUndefined(coverageResult);
+
+			// Emit the coverage events. `onCoverage` only stashes the raw
+			// istanbul map — the analyzed `CoverageReport` is the first
+			// point at which the typed `CoverageReady` / `ThresholdViolation`
+			// payloads can be populated, and it is ready here. A live
+			// subscriber gets a coverage frame; without this the events are
+			// defined and reduced but never published.
+			if (wantsRunEvents && coverageReport !== undefined) {
+				const globalThresholds = coverageReport.thresholds.global;
+				emitEvent({
+					_tag: "CoverageReady",
+					metrics: coverageReport.totals,
+					thresholds: globalThresholds,
+					gaps: coverageReport.lowCoverage.map((fc) => ({
+						file: fc.file,
+						missing: fc.summary,
+						uncoveredLines: fc.uncoveredLines,
+					})),
+				});
+				for (const metric of ["lines", "branches", "functions", "statements"] as const) {
+					const expected = globalThresholds[metric];
+					const actual = coverageReport.totals[metric];
+					if (expected !== undefined && actual < expected) {
+						emitEvent({ _tag: "ThresholdViolation", metric, expected, actual });
+					}
+				}
+			}
 
 			// Build per-project reports
 			// BUG FIX: Pass unhandledErrors to ALL projects, not just "default"
@@ -1448,6 +1828,14 @@ export class AgentReporter {
 						}
 					}
 				}
+			}
+
+			if (wantsRunEvents && trendSummary !== undefined) {
+				emitEvent({
+					_tag: "TrendComputed",
+					direction: trendSummary.direction,
+					runCount: trendSummary.runCount,
+				});
 			}
 
 			yield* Effect.logInfo("reports built").pipe(

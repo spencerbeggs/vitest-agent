@@ -107,6 +107,7 @@ export * from "./utils/classify-test.js";
 export * from "./utils/compress-lines.js";
 export * from "./utils/compute-trend.js";
 export * from "./utils/detect-pm.js";
+export { isTimeoutError } from "./utils/detect-timeout.js";
 export * from "./utils/ensure-migrated.js";
 export * from "./utils/failure-signature.js";
 export * from "./utils/format-console.js";

@@ -26,7 +26,7 @@ export default async () => {
   return defineConfig({
     plugins: [
       AgentPlugin({
-        console: { human: "ink", agent: "agent" },
+        console: { human: "stream", agent: "agent" },
         coverageTargets: coverage.coverageTargets,
       }),
     ],
@@ -52,9 +52,9 @@ Per-slot defaults:
 | --- | --- | --- | --- |
 | `agent` | `std-env` agent detection (Claude Code, Cursor, Gemini CLI, Codex, etc.) | `"agent"` | Markdown-flavored final-frame string, data persisted to SQLite |
 | `ci` | `GITHUB_ACTIONS`, `CI=true` | `"passthrough"` | Keeps Vitest's existing reporters; opt in to `"ci-annotations"` for GHA |
-| `human` | No agent/CI detected | `"passthrough"` | Keeps Vitest's existing reporters; set to `"ink"` for the live React Ink view |
+| `human` | No agent/CI detected | `"passthrough"` | Keeps Vitest's existing reporters; set to `"stream"` for the progressively-drawn live run-shape view |
 
-Set `console.human: "ink"` to get the live React Ink view on a human run. The plugin owns the live-mount lifecycle internally — there is no `createLiveInk` import to wire and no `onRunEvent` callback to forward. Test data is always persisted to the SQLite database regardless of console mode.
+Set `console.human: "stream"` to get the progressively-drawn, colored, animated rendering of the agent's run-shape view on a human run. The plugin owns the live-mount lifecycle internally — there is no `createLiveInk` import to wire and no `onRunEvent` callback to forward. Test data is always persisted to the SQLite database regardless of console mode.
 
 Set `console.agent: "agent"` to get the markdown-flavored end-of-run frame on agent runs. The frame carries a footer line pointing at the right MCP tool for the dominant outcome — e.g. ``Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.``
 
