@@ -133,6 +133,69 @@ describe("DataStore.registerAgent", () => {
 		expect(sub.parentAgentId).toBe(main.agentId);
 	});
 
+	it("accepts a subagent whose parent agent lives in the parent session", async () => {
+		// Real subagent topology: a per-dispatch subagent session (2) whose
+		// parent_session_id points at the main session (1). The parent agent
+		// lives in session 1; the subagent registers under session 2. A strict
+		// same-session check wrongly rejected this (dogfood is-prime-coverage).
+		const program = Effect.gen(function* () {
+			const sql = yield* SqlClient;
+			yield* sql`INSERT INTO sessions (id, chat_id, project, cwd, agent_kind, started_at) VALUES (1, 'main-uuid', 'p', '/c', 'main', '2026-01-01')`;
+			yield* sql`INSERT INTO sessions (id, chat_id, project, cwd, agent_kind, started_at, parent_session_id) VALUES (2, 'main-uuid-subagent-1-2', 'p', '/c', 'subagent', '2026-01-01', 1)`;
+			const store = yield* DataStore;
+			const main = (yield* store.registerAgent({
+				sessionId: 1,
+				agentType: "claude-code-main",
+				parentAgentId: null,
+				conversationId: null,
+				startedAt: 0,
+				idempotencyKey: idempotencyKey("claude-code-main", null, "n1"),
+			})) as Agent;
+			const sub = (yield* store.registerAgent({
+				sessionId: 2,
+				agentType: "claude-code-tdd-task",
+				parentAgentId: main.agentId,
+				conversationId: null,
+				startedAt: 1,
+				idempotencyKey: idempotencyKey("claude-code-tdd-task", main.agentId, "sub-1"),
+			})) as Agent;
+			return { main, sub };
+		}).pipe(Effect.provide(makeLayer()));
+		const { main, sub } = await Effect.runPromise(program);
+		expect(sub._tag).toBe("Agent");
+		expect(sub.sessionId).toBe(2);
+		expect(sub.parentAgentId).toBe(main.agentId);
+	});
+
+	it("rejects a parent agent that belongs to neither the registering session nor its parent", async () => {
+		// Session 2 has no parent_session_id; the parent agent lives in the
+		// unrelated session 1. This must still be rejected.
+		const program = Effect.gen(function* () {
+			const sql = yield* SqlClient;
+			yield* sql`INSERT INTO sessions (id, chat_id, project, cwd, agent_kind, started_at) VALUES (1, 'a-uuid', 'p', '/c', 'main', '2026-01-01')`;
+			yield* sql`INSERT INTO sessions (id, chat_id, project, cwd, agent_kind, started_at) VALUES (2, 'b-uuid', 'p', '/c', 'main', '2026-01-01')`;
+			const store = yield* DataStore;
+			const stranger = (yield* store.registerAgent({
+				sessionId: 1,
+				agentType: "claude-code-main",
+				parentAgentId: null,
+				conversationId: null,
+				startedAt: 0,
+				idempotencyKey: idempotencyKey("claude-code-main", null, "n1"),
+			})) as Agent;
+			return yield* store.registerAgent({
+				sessionId: 2,
+				agentType: "claude-code-tdd-task",
+				parentAgentId: stranger.agentId,
+				conversationId: null,
+				startedAt: 1,
+				idempotencyKey: idempotencyKey("claude-code-tdd-task", stranger.agentId, "x"),
+			});
+		}).pipe(Effect.provide(makeLayer()));
+		const exit = await Effect.runPromiseExit(program);
+		expect(exit._tag).toBe("Failure");
+	});
+
 	it("populates conversation_id and start_git_* columns when supplied", async () => {
 		const program = Effect.gen(function* () {
 			const sql = yield* SqlClient;

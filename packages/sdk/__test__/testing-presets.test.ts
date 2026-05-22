@@ -89,7 +89,9 @@ describe("vitest-agent-sdk/testing preset factories", () => {
 			expect(run.project).toBe("default");
 
 			// The flaky test should be detected: "async > resolves within timeout"
-			// failed in run 1 and passed in run 2
+			// oscillates (passed earlier, failed in run 1, then passed in run 2) —
+			// a fail-after-pass, which is genuine flakiness rather than a clean
+			// monotonic red->green recovery.
 			expect(flakyTests.length).toBeGreaterThanOrEqual(1);
 			const flakyTest = flakyTests.find((t) => t.fullName === "async > resolves within timeout");
 			expect(flakyTest).toBeDefined();

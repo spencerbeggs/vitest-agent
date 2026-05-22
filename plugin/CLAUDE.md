@@ -31,6 +31,10 @@ plugin/
 │   ├── lib/                  # Shared helpers: detect-pm.sh, hook-debug.sh, hook-output.sh,
 │   │                         #   match-tdd-agent.sh, source-session-env.sh,
 │   │                         #   safe-mcp-vitest-agent-ops.txt (PreToolUse allowlist)
+│   ├── __test__/             # BATS tests for hook scripts
+│   │                         #   hook-output-project-dir.bats, sidecar-prefilter.bats,
+│   │                         #   sidecar-layer2.bats, subagent-state-file.bats,
+│   │                         #   cli-rename-cascade.bats
 │   ├── session/              # SessionStart, SessionEnd
 │   ├── user-prompt-submit/   # UserPromptSubmit
 │   ├── pre-tool-use/         # PreToolUse (bash, bash-tdd, mcp, mcp-run-tests,
@@ -101,6 +105,8 @@ The allowlist for `pre-tool-use/mcp.sh` lives at `hooks/lib/safe-mcp-vitest-agen
 `match-tdd-agent.sh` (`hooks/lib/`) provides `is_tdd_agent()` which matches `"vitest-agent:tdd-task"` — the only form CC sends in hook payloads. The legacy `plugin:vitest-agent:tdd-task` and bare `tdd-task` forms were removed after being confirmed never observed in practice.
 
 `hook-debug.sh` (`hooks/lib/`) provides two logging functions sourced by every hook: `hook_error` always writes to `/tmp/vitest-agent-hook-errors.log` (overrideable via `VITEST_AGENT_HOOK_ERROR_LOG`); `hook_debug` writes to `/tmp/vitest-agent-hook-debug.log` only when `VITEST_AGENT_HOOK_DEBUG=1` is set. Recording and artifact hooks use a capture-and-log pattern for CLI failures — `|| true` is no longer used to suppress errors silently.
+
+`hook-output.sh` (`hooks/lib/`) centralizes every JSON shape a hook may emit: `emit_noop`, `emit_allow`, `emit_deny`, `emit_additional_context`, `emit_system_message`. All user strings flow through `jq -n --arg` to prevent embedded quotes or newlines from breaking the payload. It also sets `VITEST_AGENT_PROJECT_DIR` from `CLAUDE_PROJECT_DIR` at source time (only when not already set and then exports it), anchoring every `vitest-agent` CLI call in a hook to the same project root the MCP server uses. This is load-bearing for subagent TDD recording: without it, a hook running from a monorepo sub-package `cwd` would resolve a different `data.db` and silently split evidence across two databases. The BATS test `hooks/__test__/hook-output-project-dir.bats` covers the project-dir propagation contract.
 
 ## Agents
 

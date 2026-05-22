@@ -177,6 +177,21 @@ export function flaky(filename: string) {
 				duration: 300,
 			},
 		]);
+		// An earlier passing observation, so the run-1 failure is a
+		// fail-AFTER-pass: genuine oscillation (pass -> fail -> pass), not a
+		// clean fail -> pass recovery. getFlaky deliberately excludes monotonic
+		// recoveries, so a flaky fixture must actually oscillate.
+		yield* store.writeHistory(
+			"default",
+			"async > resolves within timeout",
+			runId1,
+			"2025-12-31T23:00:00.000Z",
+			"passed",
+			500,
+			false,
+			0,
+			null,
+		);
 		yield* store.writeHistory(
 			"default",
 			"async > resolves within timeout",

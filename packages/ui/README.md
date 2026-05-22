@@ -14,7 +14,7 @@ This package is a transitive dependency of `vitest-agent-plugin` (through `vites
 - `classifyRunShape` / `classifyOutcome` — classify the reduced state into a shape and outcome.
 - `reduceRenderState` / `reduceRenderStateAll` — fold a `RunEvent` stream into a `RenderState`.
 - `synthesizeFromAgentReport` — bridge from a stored `AgentReport` to the `RunEvent` taxonomy.
-- `App` — the root React Ink component for the live and report-time Ink frames.
+- `StreamApp` — the root React Ink component for the live `stream`-mode frames.
 
 `vitest-agent-reporter` owns the live-mount lifecycle (`_createLiveInk`) and the default reporter factory (`DefaultVitestAgentReporter`). `vitest-agent-plugin` no longer imports anything from this package directly.
 

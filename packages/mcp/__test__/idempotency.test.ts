@@ -11,8 +11,12 @@ describe("idempotency key derivation", () => {
 	describe("hypothesis (consolidated)", () => {
 		const { deriveKey } = spec("hypothesis");
 
-		it("record action: sessionId:content key", () => {
-			expect(deriveKey({ action: "record", sessionId: 42, content: "my hypothesis" })).toBe("record:42:my hypothesis");
+		it("record action is not idempotent (append-only, server-resolved session): returns null", () => {
+			// The binding session is resolved server-side and absent from the
+			// input, so there is no safe discriminator to dedup on — content-only
+			// keying would collide across sessions/runs. Record always writes.
+			expect(deriveKey({ action: "record", content: "my hypothesis" })).toBeNull();
+			expect(deriveKey({ action: "record", sessionId: 42, content: "my hypothesis" })).toBeNull();
 		});
 
 		it("validate action: id:outcome key", () => {
@@ -25,7 +29,7 @@ describe("idempotency key derivation", () => {
 
 		it("returns null for malformed inputs", () => {
 			expect(deriveKey(null)).toBeNull();
-			expect(deriveKey({ action: "record", sessionId: "x", content: "y" })).toBeNull();
+			expect(deriveKey({ action: "validate", id: "x", outcome: "confirmed" })).toBeNull();
 		});
 	});
 

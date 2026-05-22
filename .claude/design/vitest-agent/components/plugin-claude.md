@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-21
+last-synced: 2026-05-21
 completeness: 90
 related:
   - ../architecture.md
@@ -165,17 +165,11 @@ through the shared `is_tdd_agent` function so the matching logic lives in one
 place. If Claude Code's identity format changes, this is the only file that
 needs updating.
 
-Hook scripts source a shared logging helper at `hooks/lib/hook-debug.sh` that
-provides two logging functions. `hook_error` always appends to
-`/tmp/vitest-agent-hook-errors.log` (overrideable via
-`VITEST_AGENT_HOOK_ERROR_LOG`); CLI failures in recording and artifact hooks
-write here instead of being silently swallowed. `hook_debug` appends to
-`/tmp/vitest-agent-hook-debug.log` (overrideable via
-`VITEST_AGENT_HOOK_DEBUG_LOG`) but only when `VITEST_AGENT_HOOK_DEBUG=1` is
-set. Recording and artifact hooks use a structured capture-and-log pattern: CLI
-output is captured, exit status is tested, and failures call `hook_error` before
-the hook exits — the previous pattern of appending `|| true` to silence errors
-is gone.
+Hook scripts source two shared helpers from `hooks/lib/`.
+
+`hook-output.sh` centralizes every JSON shape a hook may emit — `emit_noop`, `emit_allow`, `emit_deny`, `emit_additional_context` and `emit_system_message`. All user-provided strings flow through `jq -n --arg` so embedded quotes, newlines and backslashes cannot break the output. The helper also propagates `VITEST_AGENT_PROJECT_DIR` at source time: it applies the assignment `VITEST_AGENT_PROJECT_DIR=${CLAUDE_PROJECT_DIR:-}` only when the var is not already set, then exports it. This anchors every `vitest-agent` CLI invocation spawned by a hook to the same project root the MCP server uses, which is load-bearing for subagent TDD recording: a `post-tool-use/tdd-artifact.sh` hook that runs from a monorepo sub-package `cwd` would otherwise resolve a different per-project `data.db` than the one the MCP server (and the open TDD task) lives in, silently splitting evidence and turn writes across two databases.
+
+`hook-debug.sh` provides two logging functions. `hook_error` always appends to `/tmp/vitest-agent-hook-errors.log` (overrideable via `VITEST_AGENT_HOOK_ERROR_LOG`); CLI failures in recording and artifact hooks write here instead of being silently swallowed. `hook_debug` appends to `/tmp/vitest-agent-hook-debug.log` (overrideable via `VITEST_AGENT_HOOK_DEBUG_LOG`) but only when `VITEST_AGENT_HOOK_DEBUG=1` is set. Recording and artifact hooks use a structured capture-and-log pattern: CLI output is captured, exit status is tested, and failures call `hook_error` before the hook exits — the previous pattern of appending `|| true` to silence errors is gone.
 
 The allowlist file at `hooks/lib/safe-mcp-vitest-agent-ops.txt` is plain text:
 one operation suffix per line, blank lines and `#` comments stripped before
@@ -282,6 +276,8 @@ passes it to `tdd_task({ action: "start", runId, ... })`, where
 then calls `TaskCreate` to create the parent
 `TDD Session: <objective>` task and initializes the `goalById` and
 `behaviorById` state maps before spawning.
+
+**Hypothesis attribution to the running subagent.** The `hypothesis (action: record)` MCP tool resolves the binding session server-side rather than trusting a caller-supplied `sessionId`. The MCP server is one long-lived process whose recovered context always names the main agent's `chatId`; it cannot tell per-call that the caller is the `tdd-task` subagent. The fix: for every `record` call the server looks up the main session via `DataReader.getSessionByChatId`, then calls `DataReader.findActiveSubagentSession(mainSession.id)` — which returns the most-recently-started subagent session with `parent_session_id = mainSession.id` and `ended_at IS NULL`. When one is found, hypotheses are attributed to the subagent's session row; otherwise they fall back to the main session. A caller-supplied `sessionId` is honored only when no host context was recovered at all (dev and test paths). The `record-hypothesis-before-fix` skill therefore instructs the orchestrator not to pass `sessionId` — the server resolves it correctly.
 
 **Channel-event flow.** When the orchestrator hits a lifecycle transition
 (goal/behavior created, started, phase changed, completed, abandoned, blocked,

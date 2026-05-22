@@ -16,7 +16,11 @@ import { formatDbQuery } from "../lib/format-db-query.js";
 
 const pathCommand = Command.make("path", {}, () =>
 	Effect.gen(function* () {
-		const dbPath = yield* resolveDataPath(process.cwd());
+		// Honor the VITEST_AGENT_PROJECT_DIR override before cwd so the `db`
+		// commands resolve the SAME database as hook-driven recording (see
+		// bin.ts) — otherwise `db path` would report a different file than the
+		// one a sub-package-cwd hook actually writes to.
+		const dbPath = yield* resolveDataPath(process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd());
 		yield* Effect.sync(() => process.stdout.write(`${dbPath}\n`));
 	}),
 ).pipe(Command.withDescription("Print the resolved database path"));
@@ -58,7 +62,11 @@ const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 			return;
 		}
 
-		const dbPath = yield* resolveDataPath(process.cwd());
+		// Honor the VITEST_AGENT_PROJECT_DIR override before cwd so the `db`
+		// commands resolve the SAME database as hook-driven recording (see
+		// bin.ts) — otherwise `db path` would report a different file than the
+		// one a sub-package-cwd hook actually writes to.
+		const dbPath = yield* resolveDataPath(process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd());
 
 		// Gate 2: non-TTY without --yes
 		if (!process.stdout.isTTY && !yes) {
@@ -143,7 +151,11 @@ const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOpt
 			return;
 		}
 
-		const dbPath = yield* resolveDataPath(process.cwd());
+		// Honor the VITEST_AGENT_PROJECT_DIR override before cwd so the `db`
+		// commands resolve the SAME database as hook-driven recording (see
+		// bin.ts) — otherwise `db path` would report a different file than the
+		// one a sub-package-cwd hook actually writes to.
+		const dbPath = yield* resolveDataPath(process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd());
 
 		// The connection is opened read-only; SQLite enforces the
 		// invariant, so any mutation surfaces as a driver error rather

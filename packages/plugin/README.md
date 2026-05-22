@@ -42,7 +42,7 @@ export default async () => {
   return defineConfig({
     plugins: [
       AgentPlugin({
-        console: { human: "ink", agent: "agent" },
+        console: { human: "stream", agent: "agent" },
         coverageTargets: coverage.coverageTargets,
       }),
     ],
@@ -60,7 +60,7 @@ export default async () => {
 };
 ```
 
-Most users do not pass `reporter` or `onRunEvent` explicitly — the plugin ships a preassembled default reporter and owns the live-Ink mount when `console.human === "ink"`. In 2.0 the plugin reads coverage thresholds from Vitest's native `test.coverage.thresholds`. See [Coverage Level Presets](#coverage-level-presets) below for the dual-output wiring pattern.
+Most users do not pass `reporter` or `onRunEvent` explicitly — the plugin ships a preassembled default reporter and owns the live-Ink mount when `console.human === "stream"`. In 2.0 the plugin reads coverage thresholds from Vitest's native `test.coverage.thresholds`. See [Coverage Level Presets](#coverage-level-presets) below for the dual-output wiring pattern.
 
 ## Console matrix and options
 
@@ -69,7 +69,7 @@ Most users do not pass `reporter` or `onRunEvent` explicitly — the plugin ship
 ```typescript
 AgentPlugin({
   console: {
-    human?: "passthrough" | "silent" | "ink" | "agent",
+    human?: "passthrough" | "silent" | "stream" | "agent",
     agent?: "passthrough" | "silent" | "agent",
     ci?:    "passthrough" | "silent" | "ci-annotations",
   },
@@ -82,7 +82,7 @@ AgentPlugin({
 
 Per-slot defaults: `human` → `"passthrough"`, `agent` → `"agent"`, `ci` → `"passthrough"`. Any non-`"passthrough"` value strips Vitest's built-in console reporters and the native coverage text reporter — the plugin owns stdout for the run.
 
-When `console.human` resolves to `"ink"`, `DefaultVitestAgentReporter` owns the live React Ink mount lifecycle end to end — the plugin feeds the reporter a run-event `PubSub` channel and the reporter subscribes, drives the mount, and unmounts at end-of-run. There is no `createLiveInk` import to wire and no live-event callback to forward.
+When `console.human` resolves to `"stream"`, `DefaultVitestAgentReporter` owns the live React Ink mount lifecycle end to end — the plugin feeds the reporter a run-event `PubSub` channel and the reporter subscribes, drives the mount, and unmounts at end-of-run. There is no `createLiveInk` import to wire and no live-event callback to forward.
 
 `onRunEvent` is an optional read-only tee. The plugin forwards every per-test and per-module `RunEvent` to your callback alongside the built-in renderer; it runs in parallel, not in place of the default. Throwing taps are caught and logged to stderr so persistence never breaks because a callback has a bug.
 

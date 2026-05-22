@@ -331,6 +331,17 @@ export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 		 * parent chat_id. Returns most recent first.
 		 */
 		readonly findSessionsByChatPrefix: (prefix: string) => Effect.Effect<ReadonlyArray<SessionDetail>, DataStoreError>;
+		/**
+		 * Find the most-recently-started subagent session whose
+		 * `parent_session_id` is `parentSessionId` and that has not ended
+		 * (`ended_at IS NULL`). Used to attribute orchestrator (subagent)
+		 * MCP writes — e.g. `hypothesis record` — to the running subagent's
+		 * own session row instead of the parent main session, since the MCP
+		 * server's recovered context only ever names the main agent.
+		 */
+		readonly findActiveSubagentSession: (
+			parentSessionId: number,
+		) => Effect.Effect<Option.Option<SessionDetail>, DataStoreError>;
 		readonly listSessions: (options: {
 			readonly project?: string;
 			readonly agentKind?: "main" | "subagent";
