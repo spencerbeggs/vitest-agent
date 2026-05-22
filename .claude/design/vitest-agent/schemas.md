@@ -3,9 +3,9 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-19
-last-synced: 2026-05-19
-completeness: 92
+updated: 2026-05-21
+last-synced: 2026-05-21
+completeness: 93
 related:
   - ./architecture.md
   - ./data-structures.md
@@ -426,6 +426,8 @@ schemas because the DataStore commits one row at a time inside a single
   `GoalStatus`, `BehaviorStatus` so callers don't dip into `schemas/`
   directly.
 
+**`registerAgent` cross-session parent validation.** `DataStore.registerAgent` validates a supplied `parentAgentId` against the parent's `session_id`. The constraint is intentionally loose: the parent agent must belong to either the registering session itself **or** that session's `parent_session_id`. A subagent has its own per-dispatch session row whose `parent_session_id` points at the main session; the main agent lives in the main session. A strict same-session check would therefore reject the normal `subagent → parent-main-agent` registration link. The `PARENT_AGENT_NOT_FOUND` error code is returned when the parent `agent_id` does not exist; `RegistrationConflictError` is returned when the parent's session is neither the registering session nor its parent.
+
 **Column-name vs input-name drift.** The `TddSessionInput.agentSessionId`
 input field maps to `tdd_tasks.session_id` (NOT `agent_session_id` — no
 such column exists). Likewise `WriteTddArtifactInput.tddPhaseId` maps to
@@ -478,6 +480,7 @@ The notable ones:
 - **`TddTaskSummary`** — TDD sessions whose `session_id` FK points at
   the given Claude Code session. Used by
   `tdd_task({ action: "resume" })` to find a suitable open TDD session.
+- **`findActiveSubagentSession`** — `(parentSessionId: number) => Effect<Option<SessionDetail>, DataStoreError>`. Returns the most-recently-started subagent session whose `parent_session_id` matches and whose `ended_at IS NULL`. Used by the `hypothesis (action: record)` tool to attribute hypotheses to the running `tdd-task` subagent session rather than the recovered main session — the MCP server's boot context names only the main agent, so per-call subagent identity must be inferred from the active child row.
 - **`FindIdempotentResponse`** — `(procedurePath, key) =>
   Effect<Option<string>, DataStoreError>`. Returns `Option.none()` when no
   cached response exists; otherwise the stored `result_json`.

@@ -411,6 +411,80 @@ describe("DataReaderLive", () => {
 			expect(result[0].passCount).toBe(2);
 			expect(result[0].failCount).toBe(1);
 		});
+
+		it("does not flag a clean red->green recovery (all fails precede all passes) as flaky", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("recovery-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "recovery-hash" });
+
+					// A TDD red->green cycle: three failing red-phase runs, then two
+					// passing runs after the fix. Every failure precedes every pass
+					// (monotonic recovery), so this is a recovery, not flakiness.
+					yield* store.writeHistory(
+						"recovery-proj",
+						"tdd test",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"failed",
+						10,
+						false,
+						0,
+						"boom",
+					);
+					yield* store.writeHistory(
+						"recovery-proj",
+						"tdd test",
+						runId,
+						"2026-03-22T02:00:00.000Z",
+						"failed",
+						10,
+						false,
+						0,
+						"boom",
+					);
+					yield* store.writeHistory(
+						"recovery-proj",
+						"tdd test",
+						runId,
+						"2026-03-22T03:00:00.000Z",
+						"failed",
+						10,
+						false,
+						0,
+						"boom",
+					);
+					yield* store.writeHistory(
+						"recovery-proj",
+						"tdd test",
+						runId,
+						"2026-03-22T04:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"recovery-proj",
+						"tdd test",
+						runId,
+						"2026-03-22T05:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+
+					return yield* reader.getFlaky("recovery-proj");
+				}),
+			);
+			expect(result).toHaveLength(0);
+		});
 	});
 
 	describe("getPersistentFailures", () => {
@@ -1206,6 +1280,97 @@ describe("DataReaderLive", () => {
 				Effect.gen(function* () {
 					const dr = yield* DataReader;
 					return yield* dr.getSessionByChatId("nope");
+				}),
+			);
+			expect(Option.isNone(result)).toBe(true);
+		});
+	});
+
+	describe("findActiveSubagentSession", () => {
+		it("returns the most recent un-ended subagent child of the parent", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+					const mainId = yield* ds.writeSession({
+						chatId: "cc-parent-a",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					// An older subagent child that has already ended, then a newer one
+					// still running. Only the newer, un-ended child should resolve.
+					yield* ds.writeSession({
+						chatId: "cc-parent-a-subagent-1-1",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						agentType: "tdd-task",
+						parentSessionId: mainId,
+						startedAt: "2026-04-29T00:01:00Z",
+					});
+					yield* ds.endSession("cc-parent-a-subagent-1-1", "2026-04-29T00:02:00Z", "completed");
+					yield* ds.writeSession({
+						chatId: "cc-parent-a-subagent-2-2",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						agentType: "tdd-task",
+						parentSessionId: mainId,
+						startedAt: "2026-04-29T00:03:00Z",
+					});
+					return yield* dr.findActiveSubagentSession(mainId);
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			if (Option.isSome(result)) {
+				expect(result.value.chatId).toBe("cc-parent-a-subagent-2-2");
+				expect(result.value.agentKind).toBe("subagent");
+			}
+		});
+
+		it("returns None when every subagent child has ended", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+					const mainId = yield* ds.writeSession({
+						chatId: "cc-parent-b",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.writeSession({
+						chatId: "cc-parent-b-subagent-1-1",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						agentType: "tdd-task",
+						parentSessionId: mainId,
+						startedAt: "2026-04-29T00:01:00Z",
+					});
+					yield* ds.endSession("cc-parent-b-subagent-1-1", "2026-04-29T00:02:00Z", "completed");
+					return yield* dr.findActiveSubagentSession(mainId);
+				}),
+			);
+			expect(Option.isNone(result)).toBe(true);
+		});
+
+		it("returns None when the parent has no subagent children", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+					const mainId = yield* ds.writeSession({
+						chatId: "cc-parent-c",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					return yield* dr.findActiveSubagentSession(mainId);
 				}),
 			);
 			expect(Option.isNone(result)).toBe(true);

@@ -530,7 +530,15 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					FROM test_history th1
 					WHERE th1.project = ${project}
 					GROUP BY th1.full_name, th1.project
-					HAVING pass_count > 0 AND fail_count > 0`;
+					-- Flaky means oscillation, not a clean recovery. A test with both
+						-- passes and fails is only flaky when at least one failure occurs at
+						-- or after the earliest pass (a fail-after-pass regression). A
+						-- monotonic red->green cycle — every failure precedes every pass — is
+						-- a recovery, not flakiness, so it is excluded here. ISO-8601
+						-- timestamps compare lexicographically.
+						HAVING pass_count > 0 AND fail_count > 0
+							AND MAX(CASE WHEN th1.state = 'failed' THEN th1.timestamp END)
+								>= MIN(CASE WHEN th1.state = 'passed' THEN th1.timestamp END)`;
 
 				return rows.map((r) => ({
 					fullName: r.full_name,
@@ -1405,6 +1413,22 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				const rows =
 					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE chat_id LIKE ${pattern} ESCAPE '\\' ORDER BY started_at DESC`;
 				return rows.map(sessionRowToDetail);
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "sessions", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const findActiveSubagentSession = (
+			parentSessionId: number,
+		): Effect.Effect<Option.Option<SessionDetail>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("findActiveSubagentSession").pipe(Effect.annotateLogs({ parentSessionId }));
+				const rows =
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE parent_session_id = ${parentSessionId} AND agent_kind = 'subagent' AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1`;
+				if (rows.length === 0) return Option.none<SessionDetail>();
+				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
@@ -2469,6 +2493,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getSessionById,
 			getSessionByChatId,
 			findSessionsByChatPrefix,
+			findActiveSubagentSession,
 			listSessions,
 			searchTurns,
 			computeAcceptanceMetrics,

@@ -1649,7 +1649,13 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					return new IdempotencyHit({ existingAgentId: existing[0].agent_id as never });
 				}
 
-				// Validate parent agent if supplied — must exist in the same session.
+				// Validate parent agent if supplied — it must exist, and it must
+				// belong to either the registering session itself OR that
+				// session's parent session. A subagent's parent is the MAIN agent
+				// in the PARENT session: the subagent has its own per-dispatch
+				// session row whose `parent_session_id` points at the main row, so
+				// a strict same-session check wrongly rejects the normal
+				// subagent → parent-main link (dogfood chain is-prime-coverage).
 				if (input.parentAgentId !== null) {
 					const parentRows = yield* sql<{ session_id: number }>`
 						SELECT session_id FROM agents WHERE agent_id = ${input.parentAgentId}
@@ -1665,10 +1671,19 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 							}),
 						);
 					}
-					if (parentRows[0].session_id !== input.sessionId) {
+					const sessionRows = yield* sql<{ parent_session_id: number | null }>`
+						SELECT parent_session_id FROM sessions WHERE id = ${input.sessionId} LIMIT 1
+					`.pipe(
+						Effect.mapError(
+							(e) => new DataStoreError({ operation: "read", table: "sessions", reason: extractSqlReason(e) }),
+						),
+					);
+					const registeringParentSessionId = sessionRows[0]?.parent_session_id ?? null;
+					const parentSession = parentRows[0].session_id;
+					if (parentSession !== input.sessionId && parentSession !== registeringParentSessionId) {
 						return yield* Effect.fail(
 							new RegistrationConflictError({
-								reason: `parent agent ${input.parentAgentId} belongs to session ${parentRows[0].session_id}, not ${input.sessionId}`,
+								reason: `parent agent ${input.parentAgentId} belongs to session ${parentSession}, which is neither the registering session ${input.sessionId} nor its parent session ${registeringParentSessionId ?? "(none)"}`,
 							}),
 						);
 					}

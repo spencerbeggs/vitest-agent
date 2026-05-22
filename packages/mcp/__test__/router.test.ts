@@ -406,6 +406,60 @@ describe("MCP Router", () => {
 			expect((second as { id: number }).id).toBeGreaterThan(0);
 		});
 
+		it("hypothesis_record binds to the main session's active subagent child, not the caller value", async () => {
+			// Seed a main session and an active (un-ended) subagent child.
+			const { mainId, subId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const mainId = yield* store.writeSession({
+						chatId: "cc-hyp-resolve-main",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						startedAt: "2026-05-01T00:00:00Z",
+					});
+					const subId = yield* store.writeSession({
+						chatId: "cc-hyp-resolve-main-subagent-1-1",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "subagent",
+						agentType: "tdd-task",
+						parentSessionId: mainId,
+						startedAt: "2026-05-01T00:01:00Z",
+					});
+					return { mainId, subId };
+				}),
+			);
+
+			// The single-process MCP server's recovered context always names the
+			// MAIN agent. The caller passes NO sessionId — the tool must resolve
+			// the running subagent child server-side.
+			const factory = createCallerFactory(appRouter);
+			const caller = factory({
+				runtime: testRuntime as unknown as McpContext["runtime"],
+				cwd: process.cwd(),
+				currentSessionId: createCurrentSessionIdRef(),
+				sessionContext: createSessionContextRef({
+					chatId: "cc-hyp-resolve-main",
+					conversationId: "conv-resolve-1",
+					mainAgentId: "agent-resolve-1",
+				}),
+			});
+
+			const recorded = await caller.hypothesis({
+				action: "record",
+				content: "clamp ignores inverted bounds; a min>max guard will fix it.",
+			});
+			expect((recorded as { id: number }).id).toBeGreaterThan(0);
+
+			// The hypothesis is findable by the SUBAGENT session id (the
+			// seven-step audit query), and is NOT bound to the parent main.
+			const underSub = await caller.hypothesis({ action: "list", sessionId: subId });
+			expect((underSub as { count: number }).count).toBe(1);
+			const underMain = await caller.hypothesis({ action: "list", sessionId: mainId });
+			expect((underMain as { count: number }).count).toBe(0);
+		});
+
 		it("hypothesis validate updates the validation outcome to confirmed", async () => {
 			// Seed session + hypothesis
 			const { hypothesisId } = await testRuntime.runPromise(

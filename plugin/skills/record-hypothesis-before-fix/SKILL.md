@@ -11,16 +11,16 @@ Before editing production code in response to a failing test, call:
 hypothesis (action: record)({
   content: "<your hypothesis>",
   citedTestErrorId: <test_errors.id from test_errors>,
-  citedStackFrameId: <stack_frames.id from the same error>,
-  sessionId: <current sessions.id>
+  citedStackFrameId: <stack_frames.id from the same error>
 })
 ```
 
 ## Rules
 
-1. Both `citedTestErrorId` and `citedStackFrameId` are required. A hypothesis without specific evidence is a vibe.
-2. The hypothesis should describe a causal claim. "The validation function returns null because the type guard runs before the input is normalized" is a hypothesis. "Fix the validation" is not.
-3. After the fix, validate the hypothesis: `hypothesis (action: validate)({ id, outcome: "confirmed" | "refuted" | "abandoned" })`.
+1. Do **not** pass a `sessionId`. The MCP server resolves the binding session from the recovered host context — for the tdd-task subagent that is its own running subagent session. A caller-supplied `sessionId` is ignored; in particular, do not pass the `tddTaskId` here (a common slip after the goal/behavior calls, which do take `tddTaskId`).
+2. Both `citedTestErrorId` and `citedStackFrameId` are required. A hypothesis without specific evidence is a vibe.
+3. The hypothesis should describe a causal claim. "The validation function returns null because the type guard runs before the input is normalized" is a hypothesis. "Fix the validation" is not.
+4. After the fix, validate the hypothesis: `hypothesis (action: validate)({ id, outcome: "confirmed" | "refuted" | "abandoned" })`.
 
 ## Why externalize?
 

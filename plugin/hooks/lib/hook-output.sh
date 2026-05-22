@@ -22,6 +22,21 @@
 # Each helper emits exactly one JSON object on stdout. Exit code is
 # the caller's responsibility — helpers do not exit.
 
+# Propagate the project-root anchor to any `vitest-agent` CLI this hook
+# spawns. The CLI resolves `data.db` from VITEST_AGENT_PROJECT_DIR (falling
+# back to its own cwd); pinning it to CLAUDE_PROJECT_DIR — the same root the
+# MCP server loader uses — keeps hook-driven recording (artifacts, turns,
+# session/agent rows) writing to the SAME database the MCP server reads.
+# Without this, a hook that runs from a sub-package cwd resolves a different
+# per-project `data.db` and the open TDD task ends up split across two files.
+# Sourced under `set -euo pipefail`, so this stays assignment-only: `:=`
+# leaves an already-set value untouched, and the `if` guard avoids the
+# `[ ] && export` short-circuit that would trip `set -e` when unset.
+: "${VITEST_AGENT_PROJECT_DIR:=${CLAUDE_PROJECT_DIR:-}}"
+if [ -n "${VITEST_AGENT_PROJECT_DIR:-}" ]; then
+	export VITEST_AGENT_PROJECT_DIR
+fi
+
 # Silent no-op response. Tells Claude Code "continue normally, nothing
 # to inject, don't clutter the transcript with this response."
 emit_noop() {

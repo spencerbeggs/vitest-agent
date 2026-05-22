@@ -28,9 +28,7 @@ History is always written -- there is no toggle. The data is lightweight
 | `flaky` | Failed in the current run, but the window has a mix of passes and failures |
 | `recovered` | Passed in the current run, but has failures in the window |
 
-The key distinction between `persistent` and `flaky`: if the immediately
-preceding run was also a failure, the test is persistent. If there is a
-mix of passes and failures in the window, it is flaky.
+Two distinctions matter for accurate classification. First, `persistent` vs `flaky`: if the immediately preceding run was also a failure, the test is persistent; a mix of passes and failures in the window classifies it as flaky. Second, `flaky` vs `recovered`: a window where all failures occurred before all passes — a monotonically red-to-green sequence — classifies as `recovered`, not `flaky`. A test is `flaky` only when failures and passes are interleaved without a clean directional boundary.
 
 ## Console Output
 

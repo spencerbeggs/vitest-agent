@@ -3,9 +3,9 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-18
-last-synced: 2026-05-18
-completeness: 95
+updated: 2026-05-21
+last-synced: 2026-05-21
+completeness: 96
 related:
   - ../architecture.md
   - ../components.md
@@ -407,6 +407,8 @@ The non-obvious pieces:
   `chat_id` rotated mid-cycle. Returns the most recent matching
   artifact first so phase-transition auto-resolve can pick the head
   without sorting.
+- **`findActiveSubagentSession` resolves per-call subagent identity.** Returns the most-recently-started subagent session whose `parent_session_id` matches the supplied parent id and whose `ended_at IS NULL`. The MCP server's boot context names only the main agent; this reader call is how the `hypothesis (action: record)` handler attributes writes to the active `tdd-task` subagent instead of the main session.
+- **Flaky classification requires a fail-after-pass.** The `listFlakyTests` reader query (backing `HistoryTracker.classify`) changed to require that at least one failure occurred at or after the earliest pass — `MAX(timestamp WHERE failed) >= MIN(timestamp WHERE passed)`. A monotonic red-to-green cycle (all failures precede all passes) classifies as `recovered`, not `flaky`. Timestamps are ISO-8601 strings and compare lexicographically.
 
 ## Formatters
 

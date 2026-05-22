@@ -75,10 +75,16 @@ Before editing any non-test file, call:
 hypothesis (action: record)({
   content: "<causal claim: why this edit will make the test pass>",
   citedTestErrorId: <id from test_errors output>,
-  citedStackFrameId: <id from test_errors output>,
-  sessionId: <tdd session id>
+  citedStackFrameId: <id from test_errors output>
 })
 ```
+
+Do **not** pass a `sessionId` here. The MCP server resolves the binding
+session automatically from the recovered host context (your running
+subagent session), so any `sessionId` you supply is ignored. Passing the
+`tddTaskId` under a `sessionId` key — an easy slip after the goal/behavior
+calls — would mis-attribute the hypothesis if it were honored; the server
+now prevents it.
 
 Both `citedTestErrorId` and `citedStackFrameId` are required — they prove the hypothesis addresses a specific observed failure. A hypothesis without cited evidence is a guess.
 

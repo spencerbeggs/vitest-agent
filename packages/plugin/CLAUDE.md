@@ -55,6 +55,12 @@ src/
                                    node_modules, .git, dist by default
     tag.ts                     -- Tag class + Tag.make factory
     inject-tags.ts             -- Vite transform for test.tags
+    stringify-failure-value.ts -- converts Vitest .expected/.actual to a
+                                  single-line string for the stream renderer
+    build-module-info.ts       -- builds ModuleInfo (relative path, package
+                                  name, package path) from a Vitest module
+    to-posix-path.ts           -- normalizes Windows backslash paths to
+                                  forward-slash for pattern matching + display
 ```
 
 ## Key files

@@ -20,9 +20,9 @@ export interface IdempotencyKeySpec {
 /**
  * Registered idempotency specs for mutation procedures.
  *
- * Two RC procedures are covered:
- *   - `hypothesis_record`   key: `${sessionId}:${content}`
- *   - `hypothesis_validate` key: `${id}:${outcome}`
+ * `hypothesis validate` is covered (key: `validate:${id}:${outcome}`).
+ * `hypothesis record` is deliberately not covered — see the note in the
+ * hypothesis spec below.
  *
  * Add an entry here whenever a new idempotent mutation is introduced.
  */
@@ -32,9 +32,14 @@ export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 		deriveKey: (input) => {
 			if (input === null || typeof input !== "object" || !("action" in input)) return null;
 			const i = input as Record<string, unknown>;
-			if (i.action === "record" && typeof i.sessionId === "number" && typeof i.content === "string") {
-				return `record:${i.sessionId}:${i.content}`;
-			}
+			// `record` is intentionally NOT idempotent. A hypothesis is an
+			// append-only observation whose binding session is resolved
+			// server-side (and so is absent from the input), leaving no safe
+			// per-call discriminator: content-only keying collides across
+			// different sessions / runs that record the same hypothesis text
+			// and would replay a stale row under the wrong session. A genuine
+			// retry creating a duplicate hypothesis row is harmless by
+			// comparison.
 			if (i.action === "validate" && typeof i.id === "number" && typeof i.outcome === "string") {
 				return `validate:${i.id}:${i.outcome}`;
 			}

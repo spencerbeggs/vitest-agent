@@ -48,7 +48,16 @@ if (CURRENT_CLI_VERSION !== "0.0.0" && CURRENT_SDK_VERSION !== CURRENT_CLI_VERSI
 	);
 }
 
-const projectDir = process.cwd();
+// Resolve the project root used for `data.db` resolution. Honor an explicit
+// `VITEST_AGENT_PROJECT_DIR` override before `process.cwd()` so hook-driven
+// invocations resolve the SAME database the MCP server uses (rooted at
+// `CLAUDE_PROJECT_DIR`). Without this, a PostToolUse/SubagentStart hook that
+// runs from a sub-package cwd (e.g. a monorepo workspace with its own
+// package.json#name) resolves a different per-project `data.db`, so the
+// open TDD task lives in one DB while artifact/turn recording writes to
+// another — silently breaking evidence binding. The plugin's shared hook
+// lib exports `VITEST_AGENT_PROJECT_DIR` from `CLAUDE_PROJECT_DIR`.
+const projectDir = process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd();
 
 const main = resolveDataPath(projectDir).pipe(
 	Effect.flatMap((dbPath) =>

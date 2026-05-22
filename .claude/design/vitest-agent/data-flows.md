@@ -3,9 +3,9 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-19
-last-synced: 2026-05-19
-completeness: 90
+updated: 2026-05-21
+last-synced: 2026-05-21
+completeness: 92
 related:
   - ./architecture.md
   - ./data-structures.md
@@ -362,6 +362,20 @@ incoming MCP request
   |     +-- Option.none():
   |           call next() (the inner procedure body, which runs
   |           DataStore.writeHypothesis or DataStore.validateHypothesis)
+  |
+  +-- hypothesis (action: record) procedure body:
+  |     resolve binding session server-side — the MCP server's recovered
+  |     context always names the main agent; per-call subagent identity
+  |     is unavailable. Resolution:
+  |       DataReader.getSessionByChatId(ctx.sessionContext.chatId)
+  |         -> Option<Session> main
+  |       DataReader.findActiveSubagentSession(main.id)
+  |         -> Option<Session> sub
+  |       resolvedSessionId = sub.id if present, else main.id
+  |     A caller-supplied sessionId is used only when no host context
+  |     was recovered (dev / test paths). This is the canonical fix for
+  |     hypotheses being attributed to the main session instead of the
+  |     running tdd-task subagent session.
   |
   +-- after next() resolves successfully:
   |     DataStore.recordIdempotentResponse({ procedurePath, key,
