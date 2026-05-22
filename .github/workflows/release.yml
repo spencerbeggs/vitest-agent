@@ -1,4 +1,4 @@
-name: Workflow
+name: Silk
 
 on:
   push:
@@ -28,6 +28,7 @@ jobs:
       packages: write
       attestations: write
       checks: write
+      artifact-metadata: write
     with:
       runner: macos-26
       dry-run: ${{ inputs.dry_run || false }}
