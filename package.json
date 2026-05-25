@@ -38,13 +38,13 @@
 	},
 	"devDependencies": {
 		"@savvy-web/changesets": "^0.10.0",
-		"@savvy-web/commitlint": "^0.9.0",
-		"@savvy-web/lint-staged": "^1.0.1",
+		"@savvy-web/commitlint": "^0.9.1",
+		"@savvy-web/lint-staged": "^1.1.0",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"tsx": "catalog:silk",
 		"typescript": "catalog:silk",
-		"vitest": "^4.1.6",
+		"vitest": "^4.1.7",
 		"vitest-agent-cli": "workspace:*",
 		"vitest-agent-mcp": "workspace:*",
 		"vitest-agent-plugin": "workspace:*"

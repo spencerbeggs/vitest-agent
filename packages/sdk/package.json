@@ -42,14 +42,14 @@
 		"config-file-effect": "^0.2.0",
 		"effect": "catalog:silk",
 		"std-env": "^4.1.0",
-		"workspaces-effect": "^1.0.0",
+		"workspaces-effect": "^1.1.0",
 		"xdg-effect": "^1.0.1"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.3",
+		"@savvy-web/rslib-builder": "^0.20.7",
 		"@types/node": "catalog:silk",
-		"@vitest/coverage-v8": "^4.1.6",
-		"vitest": "^4.1.6"
+		"@vitest/coverage-v8": "^4.1.7",
+		"vitest": "^4.1.7"
 	},
 	"publishConfig": {
 		"access": "public",
