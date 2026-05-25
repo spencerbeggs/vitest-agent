@@ -139,7 +139,7 @@ jobs:
             binary: vitest-agent-sidecar.exe
     steps:
       - name: Download ${{ matrix.platform }} binary
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: sidecar-${{ matrix.platform }}
           path: ./sidecar-bin
