@@ -28,7 +28,7 @@ pnpm run test
 
 ## Project Structure
 
-This is a pnpm monorepo with six publishable packages under `packages/`
+This is a pnpm monorepo with seven publishable packages under `packages/`
 and a Claude Code plugin under `plugin/`.
 
 ```text
@@ -67,29 +67,34 @@ vitest-agent/
 │   │       ├── bin.ts              # @effect/cli entry point
 │   │       ├── commands/           # Thin command wrappers (status, show, ...)
 │   │       └── lib/                # Testable formatting logic
-│   └── mcp/                    # vitest-agent-mcp (MCP server bin)
-│       └── src/
-│           ├── server.ts           # @modelcontextprotocol/sdk server
-│           ├── router.ts           # tRPC router (29 tools)
-│           ├── context.ts          # ManagedRuntime context
-│           └── tools/              # MCP tool implementations
+│   ├── mcp/                    # vitest-agent-mcp (MCP server bin)
+│   │   └── src/
+│   │       ├── server.ts           # @modelcontextprotocol/sdk server
+│   │       ├── router.ts           # tRPC router (29 tools)
+│   │       ├── context.ts          # ManagedRuntime context
+│   │       └── tools/              # MCP tool implementations
+│   ├── sidecar/                # vitest-agent-sidecar (Node SEA inject-env binary)
+│   └── sidecar-*/              # Prebuilt per-platform binaries (optionalDependencies)
 ├── plugin/                     # Claude Code plugin (NOT a pnpm workspace)
 │   ├── .claude-plugin/plugin.json  # Manifest with inline mcpServers
 │   ├── bin/start-mcp.sh            # PM-detect + exec loader (POSIX shell)
 │   ├── hooks/                      # SessionStart, PreToolUse, PostToolUse, etc.
 │   ├── skills/                     # tdd, debugging, configuration, coverage-improvement
 │   └── commands/                   # setup, configure, tdd
+├── website/                    # RSPress docs site (vitest-agent.dev)
 ├── playground/                 # Dogfooding sandbox (intentional defects)
-├── docs/                       # User-facing documentation
+├── docs/                       # Contributor docs (dogfooding) — user docs live on the site
 ├── lib/configs/                # Shared tool configuration
 ├── pnpm-workspace.yaml         # Workspace definitions
 └── .claude/design/             # Architecture design documents
 ```
 
 `vitest-agent-sdk` is the dependency hub — `plugin`, `reporter`, `ui`,
-`cli`, and `mcp` all import from it. The `vitest-agent-plugin` package
-declares the other five as required peer dependencies so they
-auto-install together for end users.
+`cli`, and `mcp` all import from it. The dependency flow is
+`plugin → reporter → ui → sdk`. `vitest-agent-plugin` declares
+`vitest-agent-cli` and `vitest-agent-mcp` as required peer dependencies,
+so a single install of the plugin pulls the whole family (including the
+sidecar, which the CLI depends on) for end users.
 
 ## Architecture Patterns
 

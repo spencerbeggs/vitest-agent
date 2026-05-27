@@ -39,7 +39,7 @@
 				"tsconfig.json"
 			],
 			"outputLogs": "full",
-			"outputs": ["dist/npm/**", ".rslib/declarations/npm/**"]
+			"outputs": ["dist/npm/**", ".rslib/declarations/npm/**", "../../website/lib/models/plugin/**"]
 		},
 		"types:check": {
 			"cache": true,

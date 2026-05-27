@@ -1,0 +1,69 @@
+---
+title: TDD workflow
+description: An overview of the vitest-agent TDD methodology — the goal/behavior hierarchy, red-green-refactor cycles, and evidence-bound phase transitions exposed by the MCP server and the Claude Code plugin.
+---
+
+# TDD workflow
+
+vitest-agent prescribes a disciplined test-driven development methodology.
+The methodology is exposed as a set of MCP tools and fully implemented by the
+Claude Code companion plugin.
+
+## The hierarchy
+
+TDD work is organized in three layers:
+
+**Goal.** A high-level description of the feature or change to be
+implemented. A goal decomposes into one or more behaviors.
+
+**Behavior.** A single testable unit of functionality. Each behavior maps
+to one or more tests and drives one red-green-refactor cycle.
+
+**Red-green-refactor.** The classic TDD loop applied to each behavior: write
+a failing test that specifies the behavior, implement just enough to make it
+pass, then refactor while keeping the test green.
+
+The MCP server provides tools (`tdd_goal`, `tdd_behavior`) to declare and
+track each layer. Phase transitions — from red to green, and from green to
+refactor — are gated on evidence from the test run, enforced by the
+`validate-phase-transition` service.
+
+## Evidence-bound phase transitions
+
+Phases do not advance on assertion alone. Each transition requires concrete
+evidence:
+
+- **Red phase** is only valid when the test exists and is failing.
+- **Green phase** is only valid when the previously-failing test now passes
+  and no other tests regressed.
+- **Refactor phase** begins only when the green state is confirmed and ends
+  when the full suite is clean.
+
+An agent cannot write production code without a preceding failing test.
+Attempting a phase skip is denied with a typed reason and a remediation hint.
+
+## The Claude Code implementation
+
+The `tdd-task` orchestrator subagent (`vitest-agent:tdd-task`) drives
+red-green-refactor cycles automatically. It is dispatched via the `/tdd`
+command:
+
+```
+/tdd Add input validation to the user registration handler
+```
+
+The orchestrator decomposes the goal into atomic behaviors, drives a full
+TDD cycle for each, records hypotheses before any non-test file edit, and
+commits at each accepted phase transition. It runs in a forked context with
+its own focused history.
+
+:::tip
+A detailed guide covering the full goal/behavior hierarchy, phase transition
+gates, hypothesis discipline, and commit conventions is forthcoming. This page
+will be expanded with the 2.0 release.
+:::
+
+## Next steps
+
+- [Claude Code companion](/guide/claude-code) — install the plugin and run a TDD cycle
+- [MCP reference](/mcp) — the full tool surface for TDD lifecycle management

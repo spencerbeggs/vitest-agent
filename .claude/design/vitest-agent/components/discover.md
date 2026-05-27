@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-07
-updated: 2026-05-19
-last-synced: 2026-05-19
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 95
 related:
   - ./plugin.md
@@ -18,14 +18,12 @@ dependencies: []
 
 Auto-discovers Vitest project configurations from the pnpm workspace layout
 so the root vitest.config.ts does not require manual per-package entries.
-T5 unified the legacy TagStrategy and the legacy per-package scanner into
-a single DiscoverStrategy contract: one extension point owns both project
-detection and tag classification. The plugin exposes a thenable
+A single DiscoverStrategy contract is the one extension point that owns both
+project detection and tag classification. The plugin exposes a thenable
 DiscoverBuilder that supports an addProject method for folders that hold
-tests but are not workspace packages. Test-kind differentiation continues
-to ride Vitest 4.1 native tags (see
-[../decisions.md](../decisions.md) Decision 23, with the T5 unification
-captured in Decision 39).
+tests but are not workspace packages. Test-kind differentiation rides
+Vitest 4.1 native tags (see [../decisions.md](../decisions.md) Decision 23,
+with the strategy unification captured in Decision 39).
 
 ---
 
@@ -37,8 +35,8 @@ workspace layout once per process, asks the active strategy to build a
 project config per package, and returns a ready-to-use array for
 Vitest's test.projects key plus a tags array for test.tags. A null
 return from the strategy's buildProject method means the package
-contributes no Vitest project — that single predicate replaces the
-pre-2.0 special-case skips (root package, missing src/, etc.). Folders
+contributes no Vitest project — that single predicate covers every skip
+case (root package, missing src/, etc.). Folders
 outside the workspace that hold tests register through
 .addProject({ name, path }) on the returned builder.
 
@@ -91,8 +89,8 @@ the strategy's tagDefinitions.
 ### DiscoverProjectsOptions
 
 Defined in packages/plugin/src/utils/discover-projects.ts. The lower-level
-discoverProjects function (still exported but internal-leaning; expected
-to tighten in T9.6) takes a single options bag:
+discoverProjects function (exported but internal-leaning) takes a single
+options bag:
 
 ```ts
 interface DiscoverProjectsOptions {
@@ -102,7 +100,6 @@ interface DiscoverProjectsOptions {
 }
 ```
 
-The pre-2.0 ProjectsCallback and DiscoveryOptions union were dropped.
 Users that need to mutate projects post-discovery either extend the
 strategy (preferred) or destructure the result and mutate the array
 before spreading it into defineConfig.
@@ -119,8 +116,8 @@ DiscoverStrategy carries:
 - buildProject(input) — async function that takes a DiscoverInput
   ({ name, path, relativePath, workspaceRoot, packageJson? }) and
   returns either a TestProjectInlineConfiguration or null. Null means
-  "this package has no tests, skip it." This single predicate replaces
-  every pre-2.0 special case.
+  "this package has no tests, skip it." This single predicate covers
+  every skip case.
 - classify({ module }) — synchronous function that takes a ModuleInfo
   and returns the tag list for that file. Called by the plugin's Vite
   transform hook.
@@ -296,8 +293,6 @@ transform hook installed by AgentPlugin:
 
 The transform is the working path because Vitest's internal runner reads
 tags from test and it options at parse time, not from JSDoc comments.
-Two earlier smoke tests in `packages/plugin/__test__/runner-injection.test.ts`
-document the JSDoc transform approach that was abandoned.
 
 ---
 
@@ -343,11 +338,10 @@ const { projects, tags } = await AgentPlugin.discover()
   .addProject({ name: "integration", path: "./test-only" });
 ```
 
-The pre-2.0 mode and strategy form is retired — the per-executor
-console matrix and the onRunEvent tap replace it. See
-[../decisions.md](../decisions.md) Decision 37 for the rationale and
-[../decisions-retired.md](../decisions-retired.md) for the previous
-form.
+The console behavior comes from the per-executor console matrix and the
+onRunEvent tap. See [../decisions.md](../decisions.md) Decision 37 for the
+rationale and [../decisions-retired.md](../decisions-retired.md) for the
+superseded single-flag form.
 
 **Why async arrow rather than defineConfig(async () => {}).**
 The async arrow function export preserves string-literal inference for

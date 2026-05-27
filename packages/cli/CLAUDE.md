@@ -123,27 +123,28 @@ src/
   Load when working on subcommands, the `lib/format-*` functions, or
   the `record` subcommand pattern.
 - `@./.claude/design/vitest-agent/data-flows.md`
-  Load when tracing the CLI query pipeline (Flow 3: read-only landscape
-  queries; Flow 6: `record test-case-turns` mutate-and-read flow).
+  Load when tracing the CLI pipeline (Flow 3: CLI commands; Flow 6:
+  plugin record hooks → CLI → DataStore, including the
+  `record test-case-turns` mutate-and-read path).
 - `@./.claude/design/vitest-agent/schemas.md`
   Load when adding a new `DataReader` query or working with output
   formatter types.
 
-## Agent-agnostic taxonomy additions (Phases 2 + 4)
+## The `agent` namespace
 
-**The `agent` namespace** (`commands/agent.ts`) replaces the pre-2.0 hidden `_internal` group. It is a discoverable parent — its `--help` opens with the warning header "Commands intended for agents and hook scripts — humans typically don't invoke these directly." It composes the hook-driven utilities `triage`, `wrapup`, and `record` (all relocated here from top-level) plus four sidecar subcommands:
+`commands/agent.ts` is a discoverable parent — its `--help` opens with the warning header "Commands intended for agents and hook scripts — humans typically don't invoke these directly." It composes the hook-driven utilities `triage`, `wrapup`, and `record` plus four sidecar subcommands:
 
 - `agent register-agent` — composes projectKey resolution, RunContext git capture, PerClientSessionMapWriter, and DataStore.registerAgent end-to-end. Emits JSON to stdout with `agentId`, `conversationId`, `mainAgentId`, `idempotencyKey`, `idempotencyHit`. Hook scripts parse via `jq -r '.agentId'`.
 - `agent end-agent` — sets `agents.ended_at` and optionally `session_map.ended_at` when `--host-session-id` is passed. SubagentStop omits the latter.
 - `agent inject-env` — pure pattern matcher. Reads `VITEST_AGENT_*` from env and `package.json#scripts` from cwd; rewrites the command with the env prefix on Vitest match, returns the original on no-match.
 - `agent sidecar-path` — calls `resolveSidecarBinaryPath()` from `vitest-agent-sidecar` and prints the absolute path of the installed platform binary to stdout (exit 0), or exits non-zero when no platform binary is resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`.
 
-The sidecar subcommand bodies stay in `lib/internal-*.ts` (filename prefix unchanged); only their callers moved up under `agent`.
+The sidecar subcommand bodies live in `lib/internal-*.ts`.
 
-**Barrel exports.** `src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect`, and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those moved to `vitest-agent-sdk` and ship from the `vitest-agent-sdk/dispatch` entry point. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `vitest-agent-sdk/dispatch`, and the per-platform `vitest-agent-sidecar-<platform>` SEAs import `dispatch` from there too — the CLI is no longer consumed by the sidecar tree. The dependency direction is one-way: `vitest-agent-cli` depends on `vitest-agent-sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse, and the former workspace cycle is gone.
+**Barrel exports.** `src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect`, and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `vitest-agent-sdk/dispatch` entry point. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `vitest-agent-sdk/dispatch`, and the per-platform `vitest-agent-sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `vitest-agent-cli` depends on `vitest-agent-sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
 
 **SidecarLive layer** (`layers/SidecarLive.ts`) composes three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — plus the platform context. Each store gets its own `SqlClient` connection.
 
 **Sidecar resolves data paths** from `XDG_DATA_HOME` plus normalized `projectKey` directly (does not depend on workspace-discovery), so it works in non-pnpm-workspace project shapes.
 
-**CLI flag rename** (Phase 4 + 2026-05 chatId/sessionId/tddTaskId): `--cc-session-id` → `--chat-id`, `--parent-cc-session-id` → `--parent-chat-id` across `record` subcommands. The `wrapup` command's integer FK form moved to `--row-id` to free `--chat-id` for the host chat UUID. Plugin hook scripts updated to match.
+**CLI flags for agent-facing IDs.** `record` subcommands take `--chat-id` (host chat UUID) and `--parent-chat-id`. The `wrapup` command takes `--chat-id` (host chat UUID) or `--row-id` (internal integer FK, mostly for debugging).

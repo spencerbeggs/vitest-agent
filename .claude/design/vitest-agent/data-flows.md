@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-21
-last-synced: 2026-05-21
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 92
 related:
   - ./architecture.md
@@ -64,11 +64,11 @@ run-event PubSub channel and tee to the user onRunEvent tap)
   onTestRunStart        -> RunStarted     -> emit(event)
   onTestModuleQueued    -> ModuleQueued   -> emit(event)  (carries projectName)
   onTestModuleStart     -> ModuleStarted  -> emit(event)  (carries projectName)
-  onTestCaseReady       -> TestStarted    -> emit(event)  (P0 standalone)
+  onTestCaseReady       -> TestStarted    -> emit(event)  (standalone)
   onTestCaseResult      -> TestFinished   -> emit(event)
   onTestModuleEnd       -> ModuleFinished -> emit(event)  (carries projectName)
   CoverageReady / ThresholdViolation are emitted from onTestRunEnd after
-  the CoverageAnalyzer runs (P1). emit() does
+  the CoverageAnalyzer runs. emit() does
   Effect.runSync(PubSub.publish(runEvents, event)) then calls the user
   onRunEvent tap; throwing user callbacks are caught and logged to
   stderr. The reporter (subscribed to the channel) and persistence never
@@ -185,9 +185,8 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
 - Resolve `consoleMode` from `options.console.{executor}` with per-slot
   defaults (`human → passthrough`, `agent → agent`, `ci → passthrough`).
   Compute `format` for the legacy bundled reporters from `consoleMode`.
-- Resolve `cacheDir` from `options.reporterOptions.cacheDir` ??
-  `outputFile["vitest-agent"]` (otherwise `undefined`, leaving XDG
-  resolution to `AgentReporter.ensureDbPath`).
+- Resolve `cacheDir` from `options.reporterOptions.cacheDir` (otherwise
+  `undefined`, leaving XDG resolution to `AgentReporter.ensureDbPath`).
 - Resolve `coverageMode` ("full" if Vitest's native `coverage.enabled`
   is truthy, "ui-only" otherwise) and thread it onto
   `ResolvedReporterConfig`. Read `coverage.thresholds` and `coverageTargets`
@@ -214,9 +213,9 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
   which invokes the factory once at run start (`onInit`) with a
   run-start `ReporterKit` and calls `render` once at run end with a
   health-aware kit (Flow 1).
-- Forward `options.onRunEvent` to the reporter unconditionally — the
-  T6 rewrite removed the gating that suppressed the tap on every mode
-  except the live one. The live Ink mount for `consoleMode === "stream"`
+- Forward `options.onRunEvent` to the reporter unconditionally — there
+  is no gating that suppresses the tap on any mode. The live Ink mount
+  for `consoleMode === "stream"`
   is owned by `DefaultVitestAgentReporter`, which subscribes to the
   plugin's run-event channel; the user callback is a separate read-only
   tee.
@@ -235,22 +234,20 @@ Owned by `vitest-agent-cli`. See [./components/cli.md](./components/cli.md).
 - Provides `CliLive(dbPath, logLevel?, logFile?)` to the `@effect/cli`
   `Command.run` effect; executes via `NodeRuntime.runMain`.
 - The top-level tree is exactly three commands: `doctor`, `db`, `agent`.
-  The T8 restructure deleted the six reporting commands (`status`,
-  `overview`, `coverage`, `history`, `trends`, `show`) and their
-  `lib/format-*` formatters — for 2.0 the CLI is utility-only and MCP
-  (Flow 4) is the data path for test-landscape queries.
+  The CLI is utility-only — MCP (Flow 4) is the data path for
+  test-landscape queries.
 - `db path` prints the deterministic XDG path. `db prune --keep-recent N`
   drops old sessions' turn rows (default N=30). `db reset` wipes the DB
   (human-only; agent-blocked via the `VITEST_AGENT_AGENT_ID` / TTY gate).
   `db query <sql>` runs a single read-only SQL statement through a
   read-only `SqliteClient`; SQLite enforces no-write, so mutations
   surface as exit code 3 driver errors.
-- The `agent` namespace (replacing the hidden `_internal` group) carries
-  the hook-driven `triage`, `wrapup`, `record`, and the three sidecar
-  subcommands. The `record` subcommand has six sub-subcommands driven by
-  the plugin hooks (Flow 6): `turn`, `session-start`, `session-end`,
-  `tdd-artifact`, `run-workspace-changes`, `test-case-turns`.
-  - `record turn --cc-session-id <id> <payload-json>` decodes the payload
+- The `agent` namespace carries the hook-driven `triage`, `wrapup`,
+  `record` plus the sidecar subcommands (`register-agent`, `end-agent`,
+  `inject-env`, `sidecar-path`). The `record` subcommand has sub-subcommands
+  driven by the plugin hooks (Flow 6): `turn`, `session-start`,
+  `session-end`, `tdd-artifact`, `run-workspace-changes`, `test-case-turns`.
+  - `record turn --chat-id <id> <payload-json>` decodes the payload
     via `Schema.decodeUnknown(TurnPayload)`, resolves the session via
     `DataReader.getSessionByChatId`, then writes the turn via
     `DataStore.writeTurn` (omitting `turnNo` for auto-assignment).
@@ -341,17 +338,19 @@ encode this rule.
 ## Flow 7: tRPC idempotency middleware
 
 Owned by `vitest-agent-mcp`. The middleware sits between the tRPC input
-parser and the procedure body for any tool wired with `idempotentProcedure`
-(currently `hypothesis_record` and `hypothesis_validate`). See
-[./decisions.md](./decisions.md) for why these tools are idempotent and
+parser and the procedure body for any tool wired with `idempotentProcedure`.
+The `idempotencyKeys` registry in `packages/mcp/src/middleware/idempotency.ts`
+decides which `(tool, action)` pairs derive a key — see
+[./components/mcp.md](./components/mcp.md) for the current set and
+[./decisions.md](./decisions.md) for why those are idempotent and
 [./schemas.md](./schemas.md) for `mcp_idempotent_responses`.
 
 ```text
 incoming MCP request
   |
   +-- derive idempotency key from input via the per-procedure function in
-  |   idempotencyKeys (e.g. `${input.sessionId}:${input.content}` for
-  |   hypothesis_record)
+  |   idempotencyKeys (keyed on the action discriminator; returns null
+  |   for non-idempotent actions, which skips the cache entirely)
   |
   +-- DataReader.findIdempotentResponse(procedurePath, key)
   |     +-- Option.some(resultJson):
@@ -413,7 +412,7 @@ The idempotency middleware (Flow 7) deliberately swallows errors on the
 cache write (not the procedure body) because re-running an idempotent
 procedure is itself safe.
 
-## Agent-agnostic taxonomy flows (Phases 1–4)
+## Agent-agnostic taxonomy flows
 
 ### Attribution flow (env-injection canonical path)
 
@@ -474,11 +473,11 @@ SessionStart hook parses with jq, writes 4 export lines to CLAUDE_ENV_FILE.
 
 ### PreToolUse Bash interception flow
 
-The `pre-tool-use/bash.sh` hook fires on every Bash tool call, so since
-workstream T9.2 it gates the `inject-env` work behind a three-layer
-prefilter — Layer 0 and Layer 1 short-circuit ~98% of Bash calls before any
-sidecar runs. See [./components/plugin-claude.md](./components/plugin-claude.md)
-for the layer rationale and [./decisions.md](./decisions.md) Decision 42.
+The `pre-tool-use/bash.sh` hook fires on every Bash tool call, so it gates
+the `inject-env` work behind a three-layer prefilter — Layer 0 and Layer 1
+short-circuit ~98% of Bash calls before any sidecar runs. See
+[./components/plugin-claude.md](./components/plugin-claude.md) for the layer
+rationale and [./decisions.md](./decisions.md) Decision 42.
 
 ```text
 PreToolUse hook (bash, matcher: Bash)
@@ -488,9 +487,9 @@ PreToolUse hook (bash, matcher: Bash)
   → Layer 1: if VITEST_AGENT_AGENT_ID == VITEST_AGENT_MAIN_AGENT_ID
        (active actor is the main agent, env already correct) → emit noop,
        exit. Falls through when either var is unset.
-  → Layer 2: command -v vitest-agent-sidecar (cheap builtin probe)
-       binary present  → vitest-agent-sidecar inject-env --command "$cmd" --cwd $cwd
-       binary absent    → <pm-exec> vitest-agent agent inject-env --command "$cmd" --cwd $cwd
+  → Layer 2: $VITEST_AGENT_SIDECAR_BIN (set once per session by SessionStart)
+       set & executable → "$VITEST_AGENT_SIDECAR_BIN" inject-env --command "$cmd" --cwd $cwd
+       absent / non-exec → <pm-exec> vitest-agent agent inject-env --command "$cmd" --cwd $cwd
   → injectEnv (same logic on both Layer 2 paths, byte-identical output):
        1. read VITEST_AGENT_CONVERSATION_ID, AGENT_ID, optional PARENT_AGENT_ID from env
           (return original command on miss — no agent context to attribute)

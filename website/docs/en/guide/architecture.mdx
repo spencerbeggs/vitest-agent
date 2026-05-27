@@ -1,0 +1,121 @@
+---
+title: Architecture
+description: A high-level map of the vitest-agent ecosystem — the seven publishable packages, their dependency flow, the shared SQLite store, and the two-plugin model.
+---
+
+# Architecture
+
+vitest-agent is a family of seven publishable packages that layer on top of
+Vitest. This page is the ecosystem map. Each package section links to a
+dedicated reference for deeper treatment.
+
+## The seven packages
+
+| Package | Role |
+| --- | --- |
+| `vitest-agent-sdk` | Shared foundation: Effect schemas, data layer services, SQLite migrations, the XDG path resolver, and public reporter and dispatcher contract types. No internal dependencies. |
+| `vitest-agent-plugin` | The Vitest plugin (`AgentPlugin`). Handles environment detection, reporter injection, coverage config validation, failure persistence, and baselines/trends. |
+| `vitest-agent-reporter` | The default reporter package. Ships `DefaultVitestAgentReporter`, owns the Ink live-mount lifecycle, and re-exports the `VitestAgentReporterFactory` contract types. |
+| `vitest-agent-ui` | Pure rendering primitives: the run-shape dispatcher matrix, the reducer, agent and Ink render paths, synthesizers, and the PubSub channel. Knows nothing about the reporter lifecycle. |
+| `vitest-agent-cli` | The `vitest-agent` CLI bin. Provides the `doctor`, `db`, and `agent` command trees. |
+| `vitest-agent-mcp` | The MCP server bin. Exposes 29 action-keyed tools via a tRPC router for agent-facing queries and TDD lifecycle management. |
+| `vitest-agent-sidecar` | A Node Single Executable Application for the per-Bash-call `inject-env` hot path. Ships prebuilt per-platform binaries via `optionalDependencies`. |
+
+See [Packages](/packages) for per-package API reference.
+
+## Dependency flow
+
+The packages form a directed acyclic graph:
+
+```
+plugin → reporter → ui → sdk
+  ↓
+ cli
+  ↓
+sidecar (optional)
+```
+
+`vitest-agent-plugin` depends on `vitest-agent-reporter` for the default
+reporter, which in turn pulls `vitest-agent-ui` and `vitest-agent-sdk`.
+The plugin does not depend on `vitest-agent-ui` directly — that dependency
+is entirely encapsulated inside `vitest-agent-reporter`.
+
+`vitest-agent-cli` and `vitest-agent-mcp` are required peer dependencies of
+the plugin. Installing `vitest-agent-plugin` with a modern package manager
+(npm 7+, pnpm with `autoInstallPeers: true`) brings `vitest-agent-cli` and
+`vitest-agent-mcp` automatically, and their bins land at the consumer's top
+level. `vitest-agent-sidecar` arrives transitively as a regular dependency of
+`vitest-agent-cli`.
+
+## The shared SQLite database
+
+All packages that need persistent state read and write a single SQLite
+database at a deterministic XDG-derived path:
+
+```
+$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db
+~/.local/share/vitest-agent/<workspaceName>/data.db  (fallback)
+```
+
+`<workspaceName>` is derived from the `name` field in your root
+`package.json`. Two worktrees of the same repo share a database; you can
+override the path via `vitest-agent.config.toml` or the `cacheDir` option.
+
+There is no background process. The plugin writes on each run; the CLI and
+MCP server read on demand.
+
+## The CLI as a human surface
+
+`vitest-agent` is the human-facing query interface. It provides:
+
+- `vitest-agent doctor` — diagnose the installation and configuration
+- `vitest-agent db` — inspect the database path, prune old data, and run raw queries
+- `vitest-agent agent` — hook-driven plumbing used by the Claude Code plugin's lifecycle hooks
+
+See the [CLI reference](/cli) for the full command tree.
+
+## The MCP server as an agent surface
+
+`vitest-agent-mcp` is the agent-facing query interface. It runs as a
+Model Context Protocol server and exposes 29 tools keyed on an `action`
+discriminator. The tools cover:
+
+- TDD lifecycle management (goals, behaviors, phases)
+- Test history queries (flaky, persistent, recovered)
+- Coverage snapshots and trends
+- Hypothesis and note persistence
+- Agent registration and session tracking
+
+See the [MCP reference](/mcp) for the full tool surface.
+
+## The sidecar as the hot-path binary
+
+The `inject-env` command is called on every Bash tool invocation to stamp
+agent context into the environment before Vitest spawns. Doing this via the
+Node CLI would add 200–400 ms of startup overhead per call. The sidecar is
+a prebuilt Node Single Executable Application that starts in under 10 ms.
+
+The Claude Code plugin's `SessionStart` hook resolves the sidecar path once
+and exports it as `VITEST_AGENT_SIDECAR_BIN`. Every subsequent `PreToolUse
+Bash` hook reads that variable and execs the binary directly, falling back
+to the Node CLI when the per-platform binary is absent.
+
+## The two-plugin model
+
+vitest-agent ships two distinct kinds of "plugin":
+
+**The npm plugin** (`vitest-agent-plugin`) is the data and collection
+foundation. It hooks into Vitest's reporter chain, persists test results,
+and handles all the runtime concerns. Every team installs this.
+
+**The Claude Code marketplace plugin** (`vitest-agent@spencerbeggs`) is
+the agent-behavior layer. It auto-registers the MCP server, injects session
+context via lifecycle hooks, ships fifteen TDD skills, and provides the
+`tdd-task` orchestrator subagent and `/tdd` command. Teams using Claude Code
+add this on top of the npm plugin.
+
+The two layers are independent. The npm plugin has no knowledge of Claude Code;
+the marketplace plugin has no knowledge of how Vitest runs internally. They
+communicate only through the shared SQLite database and the MCP server.
+
+See [Claude Code companion](/guide/claude-code) for installation and setup.

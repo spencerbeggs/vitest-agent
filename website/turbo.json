@@ -1,0 +1,35 @@
+{
+	"extends": ["//"],
+	"tasks": {
+		"build": {
+			"cache": false,
+			"dependsOn": [
+				"vitest-agent-sdk#build:prod",
+				"vitest-agent-plugin#build:prod",
+				"vitest-agent-reporter#build:prod",
+				"vitest-agent-ui#build:prod",
+				"vitest-agent-cli#build:prod",
+				"vitest-agent-mcp#build:prod"
+			],
+			"outputLogs": "full",
+			"outputs": ["dist/**"]
+		},
+		"dev": {
+			"cache": false,
+			"dependsOn": ["build"],
+			"interactive": true,
+			"persistent": true
+		},
+		"preview": {
+			"cache": false,
+			"dependsOn": ["build"],
+			"persistent": true
+		},
+		"types:check": {
+			"cache": true,
+			"dependsOn": ["^build:dev"],
+			"outputLogs": "errors-only",
+			"outputs": []
+		}
+	}
+}

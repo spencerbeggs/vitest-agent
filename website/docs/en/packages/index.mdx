@@ -1,0 +1,72 @@
+---
+title: "Packages"
+description: The vitest-agent ecosystem packages — seven npm packages covering the Vitest plugin, data layer, reporter, rendering primitives, CLI, MCP server, and native sidecar binary.
+---
+
+# Packages
+
+The vitest-agent ecosystem is split across seven npm packages. Most users install a single package and get the rest transitively.
+
+## Package map
+
+| Package | Role |
+|---------|------|
+| [vitest-agent-plugin](/plugin) | Vitest plugin — `AgentPlugin()`, project discovery, coverage policy, failure classification, reporter chain |
+| [vitest-agent-sdk](/sdk) | Base layer — Effect Schemas, SQLite data layer, reporter/dispatcher contracts, XDG path resolution, testing utilities |
+| [vitest-agent-reporter](/reporter) | Default reporter — `DefaultVitestAgentReporter`, Ink live-mount lifecycle, contract re-exports, dispatch helpers |
+| [vitest-agent-ui](/ui) | Rendering primitives — `RunEvent` reducer, 12-cell dispatcher matrix, Ink components, PubSub channel, synthesizers |
+| [vitest-agent-cli](/cli) | CLI bin — `doctor`, `db`, `agent` namespace for database management and hook plumbing |
+| [vitest-agent-mcp](/mcp) | MCP server bin — 29 action-keyed tools, four resources, six prompts over stdio |
+| [vitest-agent-sidecar](/sidecar) | Native SEA binary — fast-path `inject-env` for the Claude Code plugin's PreToolUse hook |
+
+## Dependency flow
+
+Packages depend on each other in one direction:
+
+```
+plugin → reporter → ui → sdk
+```
+
+`cli` and `mcp` depend on `sdk` independently. `sidecar` has no runtime workspace dependencies — the per-platform child packages bundle `vitest-agent-sdk/dispatch` into the SEA at build time.
+
+The full transitive chain triggered by installing `vitest-agent-plugin`:
+
+```
+vitest-agent-plugin
+  ├── vitest-agent-reporter (dependency)
+  │   └── vitest-agent-ui (dependency)
+  │       └── vitest-agent-sdk (dependency)
+  ├── vitest-agent-cli (required peer)
+  │   └── vitest-agent-sidecar (dependency)
+  │       └── vitest-agent-sidecar-<platform> (optional, platform-matched)
+  └── vitest-agent-mcp (required peer)
+      └── vitest-agent-sdk (dependency)
+```
+
+## Which package do I install?
+
+**Almost always: just `vitest-agent-plugin`.**
+
+```bash
+npm install --save-dev vitest-agent-plugin
+# or
+pnpm add -D vitest-agent-plugin
+```
+
+This brings in the full ecosystem: reporter, UI primitives, SDK, CLI, MCP server, and the native sidecar binary. The CLI and MCP server land as required peers and are wired automatically by npm 7+ and pnpm with `autoInstallPeers: true`.
+
+Install individual packages directly only when:
+
+| Scenario | What to install |
+|----------|----------------|
+| Building a custom reporter | `vitest-agent-reporter` (for contract types and the worked example) |
+| Building tooling on the data layer | `vitest-agent-sdk` |
+| Building custom rendering | `vitest-agent-ui` |
+| Running the CLI standalone | `vitest-agent-cli` |
+| Running the MCP server standalone | `vitest-agent-mcp` |
+
+## Versioning
+
+The six original packages (`plugin`, `sdk`, `reporter`, `ui`, `cli`, `mcp`) release in lockstep. `vitest-agent-sidecar` (and its per-platform children) versions independently because it follows a separate build and binary-distribution cadence.
+
+The Claude Code marketplace plugin (`vitest-agent@spencerbeggs`) also versions independently of the npm packages.

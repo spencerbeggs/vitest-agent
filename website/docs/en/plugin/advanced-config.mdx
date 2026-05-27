@@ -1,0 +1,116 @@
+---
+title: "Advanced configuration"
+description: The ConfigValidation Effect service and its seven-rule registry, the two operating modes (Full and UI-only), and how the plugin resolves coverage configuration at startup.
+---
+
+# Advanced configuration
+
+This page covers the `ConfigValidation` Effect service that runs at config time and the two operating modes that gate the persistence pipeline.
+
+For custom project discovery and test classification, see [Customize discovery](/guide/customize-discovery). For coverage threshold setup and presets, see [Coverage configuration](/guide/coverage).
+
+## ConfigValidation service
+
+`vitest-agent-plugin` runs a `ConfigValidation` Effect service inside `configureVitest` — before any test starts — to check for mismatches between Vitest's native `coverage.thresholds` and the plugin's `coverageTargets` option.
+
+The service is defined in `packages/plugin/src/services/ConfigValidation.ts` with the Effect tag `vitest-agent/ConfigValidation`. It exposes a single method:
+
+```ts
+validate(input: ValidationInput): Effect<ValidationResult, never, never>
+// ValidationInput  = { vitestConfig: ResolvedConfig; pluginOptions: AgentPluginOptions }
+// ValidationResult = { errors: ValidationError[]; warnings: ValidationError[]; info: ValidationError[] }
+```
+
+`ValidationError` carries:
+
+- `code` — the rule identifier (see the table below)
+- an optional `path?: string` for pinpointed diagnostic locations (for example, `lines` for a top-level metric or `src/**.ts.lines` for a metric inside a glob entry)
+- an optional `remediation?: string` for install-command-style fixes
+
+After `validate` returns:
+
+- **Warnings** print to stderr with the `[vitest-agent:plugin]` prefix and do not fail the build.
+- **Errors** throw via `formatFatalError`, which surfaces the entries including their `path` and `remediation` fields where present. The build fails and Vitest does not start.
+
+### Rule registry
+
+`ConfigValidationLive` in `packages/plugin/src/layers/ConfigValidationLive.ts` ships seven starter rules:
+
+| Code | Severity | Mode | Description |
+|------|----------|------|-------------|
+| `TARGET_WITHOUT_THRESHOLD` | warn | both | A `coverageTargets` metric is set but the matching `coverage.thresholds` metric is unset. The target has no threshold floor to check against. |
+| `TARGET_BELOW_THRESHOLD` | error | both | A `coverageTargets` metric is lower than the matching `coverage.thresholds` metric. Targets must be at or above the threshold floor. |
+| `THRESHOLD_WITHOUT_TARGET` | silent | both | A threshold is set but no target is configured for that metric. Treated as an internal zero target — the rule emits nothing. |
+| `INVALID_TARGET_VALUE` | error | both | A zero or negative numeric value appears in `coverageTargets`, at the top level or inside a nested glob entry. Carries a `path` pointing to the offending key. |
+| `UNSUPPORTED_PROVIDER` | error | Full only | `coverage.provider` is set to a value other than `v8` or `istanbul`. |
+| `MISSING_PROVIDER_PACKAGE` | error | Full only | `coverage.provider` references a supported package (`@vitest/coverage-v8` or `@vitest/coverage-istanbul`) that cannot be resolved by `createRequire(import.meta.url).resolve(packageName)`. The `remediation` field carries the install command (for example `npm install --save-dev @vitest/coverage-v8`). |
+| `PERFILE_ON_TARGETS` | warn | both | The `perFile` key appears inside `coverageTargets`. Users should set `coverage.thresholds.perFile` instead. |
+
+`INVALID_TARGET_VALUE` and `PERFILE_ON_TARGETS` are detected by the SDK's `validateCoverageTargetsShape` helper, which returns structured diagnostics with pinpointed `path` strings. The Live layer calls into it for both the top-level metric map and nested glob entries.
+
+### Test layer
+
+`ConfigValidationTest.layer(override?: ValidationResult)` is the factory for unit tests that need to inject a pre-built validation result. Pass an override `ValidationResult` to assert against fixed errors and warnings, or call with no argument for a no-op success pass-through.
+
+## Operating modes
+
+The plugin operates in one of two modes determined by Vitest's native `coverage.enabled` value, resolved at `configureVitest` time:
+
+### Full mode
+
+When `coverage.enabled` is anything other than `false` (including when `coverage` is not configured at all), the plugin runs in Full mode. The complete pipeline is active:
+
+- Database migration and persistence via `ensureMigrated` + `DataStore`
+- `CoverageAnalyzer` processes the istanbul `CoverageMap`
+- `HistoryTracker` classifies failures as `stable`, `new-failure`, `persistent`, `flaky`, or `recovered`
+- Baseline and trend computation
+- All seven `ConfigValidation` rules run, including the provider rules `UNSUPPORTED_PROVIDER` and `MISSING_PROVIDER_PACKAGE`
+
+### UI-only mode
+
+When `coverage.enabled === false`, the plugin runs in UI-only mode. The `onTestRunEnd` handler takes an early return after building the agent report:
+
+1. `RunFinished` is still emitted at the top of the handler so a subscribed renderer sees end-of-run before the heavy work would have started.
+2. `filteredModules` is computed (per-project filtering still applies).
+3. `AgentReport[]` is built from `testModules` via the pure `buildAgentReport` helper — no database read, no classifier.
+4. The run-end kit is built via `buildReporterKit`, the reporters' `render(input, kit)` is called, and the `RenderedOutput[]` entries are routed to their declared targets.
+5. The handler returns. No `ensureMigrated`, no `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker.resolve`.
+
+The provider rules (`UNSUPPORTED_PROVIDER`, `MISSING_PROVIDER_PACKAGE`) are also skipped in UI-only mode — there is no coverage pipeline to need a provider.
+
+The streaming hooks that publish onto the run-event PubSub channel fire identically in both modes. Coverage events (`CoverageReady`, `ThresholdViolation`) also fire in UI-only mode when a coverage map is present. UI-only callers see the same event stream as Full mode callers, just without persistence side effects.
+
+### Mode threading
+
+The resolved mode is threaded onto `ResolvedReporterConfig.coverageMode` (as `"full"` or `"ui-only"`) so custom reporters that branch on coverage availability can inspect the same value the validation rule registry used. The value is accessible from the `ReporterKit` the factory receives at run start and again at run end.
+
+## The `console` matrix
+
+Console output is controlled by a per-executor matrix rather than a single flag. The plugin auto-detects the executor (`human`, `agent`, `ci`) and looks up the matching slot:
+
+```ts
+AgentPlugin({
+  console: {
+    human?:  "passthrough" | "silent" | "stream" | "agent",
+    agent?:  "passthrough" | "silent" | "agent",
+    ci?:     "passthrough" | "silent" | "ci-annotations",
+  },
+})
+```
+
+Per-slot defaults: `human → passthrough`, `agent → agent`, `ci → passthrough`.
+
+Any non-`passthrough` value gives the plugin stdout ownership: Vitest's built-in console reporters (`default`, `verbose`, `tree`, `dot`, `tap`, `tap-flat`, `hanging-process`, `agent`) are stripped from the reporter chain and Vitest's native coverage text table is suppressed. Custom reporters and non-console built-ins (`json`, `junit`, `html`, `blob`, `github-actions`) are preserved.
+
+Two flags are auto-derived from the resolved mode rather than taken as options:
+
+- `mcp` is `true` when `executor === "agent"`.
+- `githubActions` is `true` when `env === "ci-github"` and `consoleMode !== "silent"`. To suppress the GitHub Step Summary, set `console.ci` to `"silent"`.
+
+Both values are threaded onto `ResolvedReporterConfig` so custom reporters still see them.
+
+## Learn more
+
+- [Coverage configuration](/guide/coverage)
+- [Customize discovery](/guide/customize-discovery)
+- [API reference](/plugin/api)

@@ -18,17 +18,20 @@
 	"scripts": {
 		"build": "turbo run build:dev build:prod",
 		"build:dev": "turbo run build:dev",
+		"build:docs": "turbo run build --filter=docs --output-logs=new-only",
 		"ci:build": "CI=\"true\" turbo run build:dev build:prod",
 		"ci:test": "CI=\"true\" vitest run --coverage",
 		"ci:version": "savvy-changesets version && biome format --write .",
 		"commit:check": "savvy-commit check",
 		"commit:init": "savvy-commit init",
+		"dev": "turbo run dev --filter=docs --ui=tui",
 		"lint": "biome check --max-diagnostics=none",
 		"lint:fix": "biome check --write --max-diagnostics=none",
 		"lint:fix:unsafe": "biome check --write --unsafe --max-diagnostics=none",
 		"lint:md": "markdownlint-cli2 '**/*.{md,mdx}' --config './lib/configs/.markdownlint-cli2.jsonc'",
 		"lint:md:fix": "markdownlint-cli2  --config './lib/configs/.markdownlint-cli2.jsonc' --fix",
 		"prepare": "husky && pnpm run build:dev",
+		"preview": "turbo run preview --filter=docs --ui=tui",
 		"reset": "node lib/scripts/reset.ts",
 		"test": "vitest run",
 		"test:coverage": "vitest run",
@@ -38,7 +41,7 @@
 	},
 	"devDependencies": {
 		"@savvy-web/changesets": "^0.10.0",
-		"@savvy-web/commitlint": "^0.9.0",
+		"@savvy-web/commitlint": "^0.9.1",
 		"@savvy-web/lint-staged": "^1.0.1",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
@@ -49,17 +52,17 @@
 		"vitest-agent-mcp": "workspace:*",
 		"vitest-agent-plugin": "workspace:*"
 	},
-	"packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8",
+	"packageManager": "pnpm@10.34.0+sha512.8736169c56fdb6e26afb5d7e2bd5f4c99cc299620d8bdc288cb354e6dd0936bd4ea62276d1a6b2de4b6e971a00a530e0e08bbeeda63da5d820118d3d7e21ff69",
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "10.33.2",
+			"version": "10.34.0",
 			"onFail": "ignore"
 		},
 		"runtime": [
 			{
 				"name": "node",
-				"version": "25.9.0",
+				"version": "26.2.0",
 				"onFail": "ignore"
 			}
 		]

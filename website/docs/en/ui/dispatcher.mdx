@@ -1,0 +1,140 @@
+---
+title: "The dispatcher matrix"
+description: How vitest-agent-ui selects a shape-appropriate cell renderer from the 4x3 (RunShape x RunOutcome) matrix, and how both the agent string and Ink render paths consume the same projected state.
+---
+
+# The dispatcher matrix
+
+`vitest-agent-ui` does not force every run through a single output template. Instead, the output is produced by a **dispatcher** that selects one of twelve cell renderers keyed on two coordinates: the **run shape** (how many projects and files were exercised) and the **run outcome** (whether the run passed, failed, or hit a coverage threshold violation). The same matrix drives both the agent string path and the Ink live-frame path.
+
+## Coordinates
+
+### RunShape
+
+`RunShape` is a four-case literal union defined in `packages/sdk/src/contracts/dispatcher.ts`:
+
+```ts
+type RunShape = "single-test" | "single-file" | "single-project" | "workspace";
+```
+
+| Value | When it applies |
+|-------|-----------------|
+| `single-test` | Exactly one test across the entire run |
+| `single-file` | Exactly one module, more than one test |
+| `single-project` | One project, more than one module |
+| `workspace` | More than one project |
+
+`classifyRunShape(state, projects)` in `packages/ui/src/dispatcher/classify.ts` derives the value from the reduced `RenderState`: it examines the module count, the distinct-project count carried via `DispatchInputs.projects`, and the test count inside each module.
+
+### RunOutcome
+
+`RunOutcome` is a three-case literal union:
+
+```ts
+type RunOutcome = "all-pass" | "some-fail" | "threshold-violation";
+```
+
+| Value | Condition |
+|-------|-----------|
+| `all-pass` | `totals.failed === 0` and no coverage threshold violations |
+| `some-fail` | `totals.failed > 0` |
+| `threshold-violation` | `totals.failed === 0` and at least one coverage violation present |
+
+`classifyOutcome(state)` derives the value with `some-fail` taking precedence over `threshold-violation` — a run that has both failures and violations is classified as `some-fail`. The `all-pass` case implies neither failures nor violations.
+
+## The 4 × 3 matrix
+
+Twelve cells cover the full coordinate space. Each cell lives under `packages/ui/src/dispatcher/cells/`:
+
+| | `all-pass` | `some-fail` | `threshold-violation` |
+|---|---|---|---|
+| `single-test` | `renderSingleTestPass` | `renderSingleTestFail` | `renderSingleTestThreshold` (no-op) |
+| `single-file` | `renderSingleFilePass` | `renderSingleFileFail` | `renderSingleFileThreshold` |
+| `single-project` | `renderSingleProjectPass` | `renderSingleProjectFail` | `renderSingleProjectThreshold` |
+| `workspace` | `renderWorkspacePass` | `renderWorkspaceFail` | `renderWorkspaceThreshold` |
+
+The `single-test` × `threshold-violation` cell is a documented no-op: a one-line all-pass result cannot carry a threshold violation, so the cell returns an empty string. The matrix stays total without a default fallback.
+
+## Cell structure
+
+Every cell exposes two render halves on the same object — an `agent` half and an `ink` half — typed by the `Cell` shape in `packages/ui/src/dispatcher/cell-types.ts`:
+
+- `agent(inputs: DispatchInputs, opts: CellOptions): string` — produces a token-economy markdown string for agent consumers.
+- `ink(inputs: DispatchInputs, opts: CellOptions): React.ReactElement` — produces a React Ink element for live-frame rendering.
+
+Both halves receive the same `DispatchInputs` and `CellOptions`, so the agent and Ink views always reflect the same state. When a cell's Ink output would be identical to its agent string (formatted as colored text), `packages/ui/src/dispatcher/ink-helpers.tsx` exports `renderAgentStringAsInk` to wrap the agent output in Ink `<Text>` rows rather than duplicating the formatting logic.
+
+## DispatchInputs
+
+`DispatchInputs` is a plain TypeScript interface (no Effect Schema, never persisted) defined in `packages/sdk/src/contracts/dispatcher.ts`:
+
+```ts
+interface DispatchInputs {
+  readonly state: RenderState;
+  readonly shape: RunShape;
+  readonly outcome: RunOutcome;
+  readonly projects: ReadonlyArray<ProjectSummary>;
+  readonly trend: TrendSummary | null;
+  readonly belowTarget: ReadonlyArray<FileCoverageReport>;
+  readonly runCommand: string | null;
+}
+```
+
+`state` is the post-reduce projection of the `RunEvent` stream. `shape` and `outcome` are the coordinates the dispatcher resolved before reaching the cell. `projects` carries per-project aggregates for workspace cells; it is empty for non-workspace shapes. `trend` is `null` for scoped runs and any run without trend history. `belowTarget` lists files that fall below the aspirational `coverageTargets` tier. `runCommand` is the configured test command surfaced in cell footers for copy-paste accuracy.
+
+`buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble `DispatchInputs` from a `ReporterRenderInput` and `ReporterKit` — live in `vitest-agent-reporter`, not in this package. They moved there with the default reporter in the 2.0 restructure.
+
+## CellOptions
+
+`CellOptions` carries render-time flags that do not belong on the state-derived `DispatchInputs`:
+
+```ts
+interface CellOptions {
+  readonly noColor: boolean;
+  readonly osc8: (url: string, label: string) => string;
+}
+```
+
+`noColor` gates ANSI escape sequences and OSC-8 hyperlinks. `osc8` is pre-bound by the plugin, which has already decided whether OSC-8 should be enabled (`target=stdout`, `!noColor`), so cells can call it directly without re-consulting the environment.
+
+## Entry points
+
+```ts
+import { dispatch, dispatchInk, dispatcherTable } from "vitest-agent-ui";
+
+// Agent string output
+const text: string = dispatch(inputs, opts);
+
+// Ink element for live frame
+const element: React.ReactElement | null = dispatchInk(inputs, opts);
+
+// Full table for test introspection
+const table = dispatcherTable;
+```
+
+`classifyRunShape` and `classifyOutcome` are also exported for callers that need to derive the coordinates without calling the dispatcher directly.
+
+## Both render paths share one state
+
+The agent string path and the Ink path both read `RenderState` — the same denormalized projection produced by the reducer. There is no separate state shape for live versus report-time rendering: the plugin publishes `RunEvent`s onto the PubSub channel during a run, the reducer folds each event into `RenderState`, and that state feeds the dispatcher regardless of which render path is active.
+
+The `DefaultVitestAgentReporter` in `vitest-agent-reporter` orchestrates the round-trip: it subscribes to `ReporterKit.runEvents`, folds events as they arrive to drive the Ink live mount, then at run end folds the final sequence via `reduceRenderStateAll` and calls `dispatch` for the agent string. The dispatcher sees identical state in both cases.
+
+## Footer
+
+Each cell appends a trailing MCP-tool-pointer footer built by `buildFooter` in `packages/ui/src/dispatcher/footer.ts`. The pointer varies by outcome and dominant failure classification:
+
+| Outcome | Dominant classification | Footer text |
+|---------|------------------------|-------------|
+| `all-pass` with below-target files | — | Use `file_coverage` to find uncovered functions |
+| `some-fail` | `new-failure` or `persistent` | Use `test_errors` for failure detail; `failure_signature_get` to check known patterns |
+| `some-fail` | `flaky` | Use `failure_signature_get` to confirm the flakiness signature |
+| `threshold-violation` | — | Use `test_coverage` for the workspace coverage breakdown |
+
+`dominantClassification(state)` resolves the most actionable class with priority `new-failure → persistent → flaky → recovered → stable`.
+
+## Learn more
+
+- [Render state](/ui/render-state) — the `RenderState` shape both renderers consume
+- [API reference](/ui/api)
+- [vitest-agent-plugin overview](/plugin) — the plugin owns the PubSub channel and publishes `RunEvent`s

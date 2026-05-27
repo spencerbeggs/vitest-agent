@@ -1,0 +1,101 @@
+---
+title: "Platform binaries"
+description: The four per-platform sub-packages that ship the vitest-agent-sidecar SEA binary — how they install, how the binary path is resolved, and how the hook resolution chain works.
+---
+
+# Platform binaries
+
+`vitest-agent-sidecar` ships its SEA binary through four per-platform sub-packages declared as `optionalDependencies`. This means only the matching platform sub-package installs; every other platform is skipped by the package manager automatically.
+
+## The four sub-packages
+
+| Package | Platform |
+|---------|----------|
+| `vitest-agent-sidecar-darwin-arm64` | macOS Apple Silicon |
+| `vitest-agent-sidecar-linux-arm64` | Linux ARM64 |
+| `vitest-agent-sidecar-linux-x64` | Linux x64 |
+| `vitest-agent-sidecar-win32-x64` | Windows x64 (`vitest-agent-sidecar.exe`) |
+
+Each sub-package declares `os` and `cpu` fields in its `package.json` that match exactly one platform. npm and pnpm filter `optionalDependencies` by `os`/`cpu` and install only the matching entry.
+
+The win32 package's binary is a `.exe` file. All other platforms use a bare binary with no extension. Each sub-package declares its own `bin` entry pointing at the prebuilt SEA binary, so when the matching sub-package installs the binary lands directly in the sub-package's own `bin/` directory (not in `node_modules/.bin/`).
+
+## Why optionalDependencies
+
+The `optionalDependencies` pattern follows the same model used by native packages like `esbuild` and `sharp`. Each sub-package is a pure data package — the binary is its only shipped artifact, it has zero runtime npm dependencies, and it is safe to skip on unsupported platforms. A missing `optionalDependency` does not cause install failure; the parent `vitest-agent-sidecar` package installs regardless, and the hook falls back to the JS CLI when no binary is present.
+
+## Versioning
+
+`vitest-agent-sidecar` and its four per-platform sub-packages version **independently** of the six lockstep packages (`vitest-agent-plugin`, `vitest-agent-reporter`, `vitest-agent-cli`, `vitest-agent-mcp`, `vitest-agent-ui`, `vitest-agent-sdk`). A sidecar release does not require a lockstep bump, and a lockstep release does not require a sidecar bump — they are coordinated only when the `inject-env` logic changes in `vitest-agent-sdk/dispatch`.
+
+## How the binary reaches a consumer
+
+`vitest-agent-sidecar` reaches a consumer **transitively**, not as a direct dependency. The chain is:
+
+```
+vitest-agent-plugin   (consumer installs this)
+  └── vitest-agent-cli  (required peerDependency, auto-installed by npm 7+ / pnpm)
+        └── vitest-agent-sidecar  (regular dependency)
+              └── vitest-agent-sidecar-{platform}  (optionalDependency, one per platform)
+```
+
+Installing `vitest-agent-plugin` and its required peers pulls `vitest-agent-sidecar` and its four per-platform `optionalDependencies` automatically. You rarely need to add `vitest-agent-sidecar` directly.
+
+## resolveSidecarBinaryPath
+
+`vitest-agent-sidecar` exports one function:
+
+```ts
+import { resolveSidecarBinaryPath } from "vitest-agent-sidecar";
+import type { ResolveSidecarBinaryPathOptions } from "vitest-agent-sidecar";
+
+const binaryPath = resolveSidecarBinaryPath();
+// Returns an absolute path string, or null if the platform binary is not installed
+```
+
+The function uses `require.resolve` anchored at `vitest-agent-sidecar`'s own `package.json` to locate the platform sub-package's binary. It **cannot** be moved to another package — `require.resolve` only finds `optionalDependencies` declared in the package where the anchor (`import.meta.url`) lives.
+
+Resolution logic:
+
+1. Derives a `platform-arch` key from `process.platform` and `process.arch` (both overridable via options for testing).
+2. Looks up the key in the `SUPPORTED_PLATFORMS` map. Returns `null` for unsupported combinations (e.g. `darwin-x64`).
+3. Calls `require.resolve("<sub-package>/bin/vitest-agent-sidecar[.exe]")`.
+4. Returns the resolved absolute path, or `null` if the sub-package is absent (`MODULE_NOT_FOUND`).
+
+The function accepts an optional `ResolveSidecarBinaryPathOptions` argument with `platform`, `arch`, and `resolver` fields — all for dependency injection in tests. No real binary is required to test the resolver.
+
+## How the path reaches the Bash hook
+
+The binary is not on `PATH`. npm and pnpm do not hoist transitive optional-dependency bins into `node_modules/.bin/`, so `command -v vitest-agent-sidecar` will not find it. The resolution chain uses explicit path lookup instead:
+
+**Step 1 — SessionStart hook.** Once per session, the `SessionStart` hook runs:
+
+```sh
+vitest-agent agent sidecar-path
+```
+
+This CLI subcommand calls `resolveSidecarBinaryPath()` and prints the absolute path (or nothing) to stdout. The hook captures the result and exports `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both `CLAUDE_ENV_FILE` and the per-session env file.
+
+**Step 2 — PreToolUse Bash hook.** On every subsequent Bash tool call:
+
+- The hook reads `$VITEST_AGENT_SIDECAR_BIN`.
+- If non-empty and executable, it execs the binary directly.
+- If absent or non-executable, it falls back to `vitest-agent agent inject-env` via the project's package manager.
+
+The two paths produce identical output. The binary path is only `null` on unsupported platforms or when the optional sub-package was not installed — both cases the fallback handles transparently.
+
+## Unsupported platforms
+
+On an unsupported platform:
+- `resolveSidecarBinaryPath()` returns `null`.
+- `vitest-agent agent sidecar-path` prints nothing to stdout.
+- `VITEST_AGENT_SIDECAR_BIN` is not exported (or is empty).
+- The PreToolUse hook falls back to the JS CLI automatically.
+
+Intel macOS (`darwin-x64`) is intentionally unsupported. There is no `vitest-agent-sidecar-darwin-x64` package. See [SEA architecture](/sidecar/sea-architecture) for the reason.
+
+## Learn more
+
+- [vitest-agent-sidecar overview](/sidecar)
+- [SEA architecture](/sidecar/sea-architecture) — how the binary is built and cross-compiled
+- [CLI commands](/cli/commands) — the `agent sidecar-path` subcommand

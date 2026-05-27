@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-14
-last-synced: 2026-05-14
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 92
 related:
   - ../architecture.md
@@ -93,13 +93,13 @@ constructing a parallel `t`.
 Tools are organized by surface area in `packages/mcp/src/tools/` — one
 file per tool — and broadly group into:
 
-- **Read-only queries.** Status, overview, coverage, history, trends,
-  errors, file-coverage, configure, cache-health, ping, turn-search,
-  failure-signature-get, acceptance-metrics, commit-changes,
-  settings-list. Schema-driven structured outputs (see below).
-- **Action-keyed consolidated tools.** Five families collapse the
-  prior granular CRUD surface to one tool each, discriminated on an
-  `action` literal:
+- **Read-only queries.** The test-landscape and diagnostic tools (status,
+  overview, coverage, history, trends, errors, file-coverage, ping,
+  turn-search, failure signatures, acceptance metrics, commit changes,
+  settings). Schema-driven structured outputs (see below). One file per
+  tool in `packages/mcp/src/tools/`.
+- **Action-keyed consolidated tools.** Each per-CRUD family collapses
+  to one tool, discriminated on an `action` (or `kind`) literal:
   - `inventory` — replaces `project_list` / `module_list` /
     `suite_list` / `session_list` / `session_get`. `action`
     discriminates on `inventoryKind`.
@@ -146,10 +146,9 @@ the work.
 
 ## Schema-driven structured outputs
 
-Roughly 29 of the ~50 tools now emit `structuredContent` per MCP
-2025-06-18 spec, with `outputSchema` declared via an Effect Schema →
-JSON Schema → zod bridge at `packages/mcp/src/utils/effect-to-zod.ts`.
-The bridge:
+Most tools emit `structuredContent` per MCP 2025-06-18 spec, with
+`outputSchema` declared via an Effect Schema → JSON Schema → zod bridge at
+`packages/mcp/src/utils/effect-to-zod.ts`. The bridge:
 
 1. Runs `JSONSchema.make(EffectSchema)` against the tool's output type.
 2. Inlines all `$ref`s before handing the result to `z.fromJSONSchema`
@@ -219,17 +218,19 @@ The middleware uses the **same** tRPC instance as `publicProcedure` (via
 the `middleware` export from `context.ts`) rather than constructing a
 parallel `t`. Sharing the instance keeps the context type aligned.
 
-**What is and isn't idempotent.** `register_agent`, the `record`
-actions inside `hypothesis` (record + validate), and the `start`
-/ `end` actions inside `tdd_task`, plus the `create` actions inside
-`tdd_goal` and `tdd_behavior`, are registered with the middleware.
-The `tdd_phase_transition_request` tool, every `update`/`delete`/
-`get`/`list` action, and the legacy `tdd_progress_push` are
-intentionally **not** registered — see
-[../decisions.md](../decisions.md). State-dependent reads,
-intentional state transitions, and destructive ops are not
-idempotent in the cache-replay sense. The action-keyed tools branch
-on `input.action` to decide whether the middleware applies.
+**What is and isn't idempotent.** `register_agent`, `hypothesis`'s
+`validate` action, `tdd_task`'s `start` / `end` actions and the `create`
+actions inside `tdd_goal` and `tdd_behavior` derive a key. `hypothesis`'s
+`record` action does **not** — a hypothesis is an append-only observation
+whose binding session is resolved server-side (and so absent from the
+input), leaving no safe per-call discriminator. The
+`tdd_phase_transition_request` tool, every `update` / `delete` / `get` /
+`list` action, and `tdd_progress_push` are intentionally **not** registered
+— see [../decisions.md](../decisions.md). State-dependent reads, intentional
+state transitions, and destructive ops are not idempotent in the
+cache-replay sense. The `idempotencyKeys` registry's per-procedure
+`deriveKey` returns null for non-idempotent actions, branching on
+`input.action`.
 
 **`tdd_task` idempotency key (action: `start`).** Derived from
 `runId` when present: `sid:<sessionId>:run:<runId>` or
@@ -316,13 +317,14 @@ configs use names like `unit` and `integration` — there is no literal
 `"default"` project to fall back to. The `test` tool's `list` and
 `for_tag` modes follow the same pattern.
 
-## Tag filtering and tag introspection (T2)
+## Tag filtering and tag introspection
 
-Vitest 4.1 native tags are the way agents target test subsets in 2.0
+Vitest 4.1 native tags are the way agents target test subsets
 (`unit`, `int`, `e2e`, `slow`, etc.). The plugin's tag-injection
-pipeline already populates the `tags` / `test_case_tags` /
-`test_suite_tags` tables; T2 surfaces that data on three MCP tools
-without adding a new top-level tool. The tool count stays at 29.
+pipeline populates the `tags` / `test_case_tags` / `test_suite_tags`
+tables; that data is surfaced on three MCP tools (`run_tests`,
+`inventory`, `test`) via new input / output variants rather than a new
+top-level tool.
 
 **`run_tests` tag filter.** A new optional `tags` input carries a
 `TagFilter` struct with three optional arrays: `all` (every listed tag
@@ -403,9 +405,8 @@ attribution flow.
 context recovery fails (no env vars set), the orchestrator can call
 `register_agent` with its host metadata to establish the
 `SessionContextRef` mid-session. This is the same flow the
-SessionStart hook would have triggered via the `_internal
-register-agent` sidecar; the MCP tool reaches the same
-`DataStore.registerAgent` code path.
+SessionStart hook would have triggered via the `agent register-agent`
+sidecar; the MCP tool reaches the same `DataStore.registerAgent` code path.
 
 ## MCP resources
 
@@ -425,11 +426,11 @@ against `PatternsManifest`) and emits per-page `{ name, uri, title,
 description, mimeType, annotations? }`. Clients show the "load when"
 descriptions in their resource picker; the optional `annotations` field
 carries MCP 2025-11-25 `audience` and `priority` so clients can rank or
-filter before pulling content into context. The editorial guide for
-priority bands per content type lives at
-`docs/superpowers/specs/2.0-resource-annotations.md` §2. The authored
-per-page descriptions remain the headline reason the manifest carries
-metadata at all — mechanical title extraction is not enough.
+filter before pulling content into context. The path-prefix → priority
+bands are owned by `annotations-heuristic.ts` (see *Snapshot maintenance
+pipeline*). The authored per-page descriptions remain the headline reason
+the manifest carries metadata at all — mechanical title extraction is not
+enough.
 
 **Why two URI schemes:**
 
@@ -518,8 +519,7 @@ to author per-page descriptions between scaffolding and validation:
   drives the agent through rewriting each one. The script also seeds
   every page's `annotations` (`audience: ["assistant"]` + a priority
   band) by calling into `annotations-heuristic.ts` so a fresh snapshot
-  starts with reasonable defaults that the Phase 4 editorial pass then
-  tightens.
+  starts with reasonable defaults that the editorial pass then tightens.
 - **`annotations-heuristic.ts`** — single source of truth for the
   path-prefix → `priority` mapping (API reference 0.85–0.95, coverage
   0.85, core guide 0.75–0.85, experimental browser-mode 0.55, migration
@@ -537,11 +537,10 @@ to author per-page descriptions between scaffolding and validation:
   against `UpstreamManifest`, asserts `pages[]` is non-empty, checks
   every committed `.md` has a manifest entry and every entry resolves to
   a real file, refuses any description still carrying the `[TODO`
-  marker, enforces a 30-character minimum description length, and (new
-  for resource annotations) rejects empty `annotations.audience` arrays
-  and out-of-range `priority` values, plus warns when only a subset of
-  pages carry annotations so partial editorial coverage is visible at
-  commit time.
+  marker, enforces a 30-character minimum description length, rejects
+  empty `annotations.audience` arrays and out-of-range `priority` values,
+  and warns when only a subset of pages carry annotations so partial
+  editorial coverage is visible at commit time.
 
 **Why `execFileSync`, not `execSync`.** The fetcher takes the tag as a
 CLI argument and passes it to `git`. Building a shell command string and
@@ -558,11 +557,9 @@ bundle (wasteful for resources clients fetch by URI) or require a custom
 loader. rslib's `copyPatterns` is the rsbuild-native answer to the same
 problem, declared in `packages/mcp/rslib.config.ts` (`[{ from:
 "src/vendor", to: "vendor" }, { from: "src/patterns", to: "patterns" }]`).
-The 1.x postbuild copier (`scripts/copy-vendor-to-dist.mjs`, chained via
-`&&` from `build:dev` / `build:prod`) is gone. Build outputs at the dist
-level remain unchanged: `dist/<env>/vendor/` and `dist/<env>/patterns/`
-sit as siblings of the compiled `resources/` directory, so the runtime
-path resolution in `resources/index.ts` still works post-build.
+`dist/<env>/vendor/` and `dist/<env>/patterns/` sit as siblings of the
+compiled `resources/` directory, so the runtime path resolution in
+`resources/index.ts` works post-build.
 
 **Adding a resource.** Drop markdown into `src/vendor/vitest-docs/`
 (vendored upstream — managed by the snapshot pipeline) or `src/patterns/`

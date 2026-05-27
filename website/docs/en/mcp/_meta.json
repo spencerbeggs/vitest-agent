@@ -1,0 +1,36 @@
+[
+	{
+		"type": "section-header",
+		"label": "vitest-agent-mcp"
+	},
+	{
+		"type": "file",
+		"name": "index.mdx",
+		"label": "Overview"
+	},
+	{
+		"type": "file",
+		"name": "tools.mdx",
+		"label": "MCP tools"
+	},
+	{
+		"type": "file",
+		"name": "resources-and-prompts.mdx",
+		"label": "Resources and prompts"
+	},
+	{
+		"type": "file",
+		"name": "integrating.mdx",
+		"label": "Integrating non-Claude-Code agents"
+	},
+	{
+		"type": "file",
+		"name": "environment-variables.mdx",
+		"label": "Environment variables"
+	},
+	{
+		"type": "dir",
+		"name": "api",
+		"label": "API Reference"
+	}
+]

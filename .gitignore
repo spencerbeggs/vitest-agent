@@ -55,9 +55,14 @@ packages/mcp/lib/vitest-docs-raw/
 spike/
 .claude/scheduled_tasks.lock
 
+# Superpowers brainstorm session artifacts (mockups, visual-companion state).
+.superpowers/
+
 # Per-platform vitest-agent-sidecar SEA binaries — built by CI, shipped
 # inside the published sub-package, never committed to git.
 packages/sidecar-*/bin/
 
-# Superpowers brainstorm session artifacts (mockups, visual-companion state).
-.superpowers/
+# Docs ignores
+website/lib/models/*
+website/docs/en/*/api/
+website/api-docs-snapshot.db-*

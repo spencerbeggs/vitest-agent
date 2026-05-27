@@ -1,0 +1,88 @@
+---
+title: Failure classification
+description: How vitest-agent classifies tests as stable, new-failure, persistent, flaky, or recovered using a 10-run sliding window, and where classifications surface.
+---
+
+# Failure classification
+
+vitest-agent tracks pass/fail outcomes for every test across runs. At the end
+of each run it classifies every test based on its history in a 10-run sliding
+window. Classifications appear in the agent's console frame and are queryable
+via the MCP server.
+
+## The sliding window
+
+History is stored per test in the SQLite database. On each run the plugin
+prepends the current outcome and prunes the window to a maximum of 10 entries.
+Every test that has ever run has a history entry; the first time a test is
+seen it starts a new history.
+
+History is always written — there is no toggle. The data is lightweight and
+only becomes meaningful once it has been accumulating across multiple runs.
+
+## Classification literals
+
+| Classification | Meaning |
+| --- | --- |
+| `stable` | Passed in the current run with no failures in the window |
+| `new-failure` | Failed in the current run with no prior failures in the window (or first time seen as a failure) |
+| `persistent` | Failed in the current run, and the immediately preceding run also failed |
+| `flaky` | Failed in the current run, but the window contains a mix of passes and failures without a clean directional boundary |
+| `recovered` | Passed in the current run, but has failures somewhere in the window |
+
+### Distinguishing persistent from flaky
+
+`persistent` requires that the run immediately before the current one also
+failed — two consecutive failures. `flaky` covers the rest of the "failed now
+but not always" cases: passes and failures are interleaved in the window
+without a clean trend.
+
+### Distinguishing flaky from recovered
+
+`recovered` applies when the window shows a monotonically red-to-green
+sequence — all failures came before all passes with no interleaving. A test
+that failed three runs ago, then passed twice, then passed again is
+`recovered`, not `flaky`. `flaky` requires failures and passes to be
+interleaved without a clean directional boundary.
+
+## How classifications surface
+
+### In the agent frame
+
+The console output for agent mode includes a classifications section showing
+counts by type:
+
+```
+### Classifications
+- 2 new-failure  ·  40 stable
+```
+
+Failed tests show their classification in brackets next to the test name:
+
+```
+- x compressLines > handles empty array [new-failure]
+- x compressLines > handles duplicates [persistent]
+```
+
+### In "Next steps"
+
+The suggested actions section is prioritized by classification:
+
+1. New failures first — most likely caused by recent changes
+2. Persistent failures — pre-existing, may not be yours
+3. Flaky tests — may pass on retry
+4. Re-run commands for affected files
+5. MCP tool hints when `mcp: true` is set
+
+### Via MCP
+
+The MCP server exposes classification data through several tools:
+
+- `test_history` — returns flaky, persistent, and recovered tests with a
+  P/F run visualization over time
+- `test_errors` — search errors by type or message across projects
+
+The `test_history` tool is the primary surface for understanding recurring
+failures. It sorts flaky tests by fail rate and persistent failures by
+consecutive failure count, and renders a compact P/F timeline for each test
+so an agent can see the pattern at a glance.

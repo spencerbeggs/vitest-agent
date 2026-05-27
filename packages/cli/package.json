@@ -21,7 +21,8 @@
 	},
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./package.json": "./package.json"
 	},
 	"bin": {
 		"vitest-agent": "./src/bin.ts"
@@ -43,7 +44,7 @@
 		"vitest-agent-sidecar": "workspace:*"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.3",
+		"@savvy-web/rslib-builder": "^0.20.8",
 		"@types/node": "catalog:silk",
 		"@vitest/coverage-v8": "^4.1.6",
 		"vitest": "^4.1.6"

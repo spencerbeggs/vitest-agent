@@ -1,0 +1,355 @@
+---
+title: Command reference
+description: Full reference for every vitest-agent command — db, doctor, and agent — with flags, output formats, and exit codes.
+---
+
+# Command reference
+
+The `vitest-agent` bin is a utility-only CLI. It reads cached test data from
+the local SQLite database via `DataReader` and never runs tests or calls AI
+providers. The top-level command tree is exactly three groups: `db`, `doctor`,
+and `agent`.
+
+:::tip
+`vitest-agent-cli` publishes the bin as `vitest-agent` (without the `-cli`
+suffix). It arrives automatically as a required peer of `vitest-agent-plugin`
+with modern pnpm (`autoInstallPeers: true`) and npm 7+.
+:::
+
+## The `--format` flag is scoped
+
+`--format` is not a universal flag. It is available only on the commands listed
+below:
+
+| Command | Values | Default |
+|---------|--------|---------|
+| `doctor` | `markdown`, `json` | `markdown` |
+| `agent triage` | `markdown`, `json`, `silent` | `markdown` |
+| `agent wrapup` | `markdown`, `json` | `markdown` |
+| `db query` | `table`, `json` | `table` |
+
+Every other command emits plain stdout text with no format option.
+
+## db
+
+Database lifecycle management. The CLI opens the connection read-only by
+default — `db query` is the only subcommand that opens SQLite at all, and it
+uses the read-only flag. Mutations belong in the reporter (during a test run)
+or the MCP server.
+
+### db path
+
+Print the deterministic XDG-derived path to `data.db`. The path is computed
+from workspace identity alone and is printed even if no database file exists
+yet.
+
+```bash
+vitest-agent db path
+# /home/user/.local/share/vitest-agent/my-workspace/data.db
+```
+
+The path resolution honors `VITEST_AGENT_PROJECT_DIR` before `cwd` so that
+`db path` reports the same file that hook-driven recording writes to.
+
+### db prune
+
+Drop turn history for old sessions, keeping the most recent N sessions in
+full. Session rows themselves are retained; only the per-turn rows for
+sessions outside the retention window are removed.
+
+```bash
+# Keep the 30 most recent sessions (default)
+vitest-agent db prune
+
+# Keep only the 10 most recent sessions
+vitest-agent db prune --keep-recent 10
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--keep-recent` | integer | `30` | Number of most-recent sessions to retain in full |
+
+### db reset
+
+Delete `data.db` and its `-shm`/`-wal` companions. This command is
+human-only and guards against accidental use in automated contexts:
+
+- Exits with code `4` when `VITEST_AGENT_AGENT_ID` is set (agent context
+  blocked).
+- Exits with code `5` when stdout is not a TTY and `--yes` was not passed.
+- Prompts `Wipe <path>? [y/N]:` on a TTY when `--yes` is not passed.
+
+The operation is idempotent — a missing database is treated as success.
+
+```bash
+# Interactive prompt on a TTY
+vitest-agent db reset
+
+# Skip the confirmation prompt (CI scripts, onboarding)
+vitest-agent db reset --yes
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--yes` | boolean | `false` | Skip the interactive confirmation prompt |
+
+### db query
+
+Run a read-only SQL statement against `data.db`. The SQLite connection is
+opened with the read-only flag, so the engine enforces the invariant — mutation
+attempts surface as driver errors on stderr with exit code `3`. Empty or
+whitespace-only SQL exits with code `2`.
+
+```bash
+# Default table output
+vitest-agent db query "SELECT count(*) FROM test_cases"
+
+# JSON array of row objects
+vitest-agent db query "SELECT * FROM test_runs ORDER BY started_at DESC LIMIT 5" --format json
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--format` | `table` \| `json` | `table` | Output format for query results |
+
+Default `table` output prints column headers and whitespace-padded rows, with
+`(0 rows)` when the result set is empty. `--format json` emits a JSON array of
+row objects.
+
+## doctor
+
+Five-point health diagnostic that checks manifest assembly, latest-run
+integrity per project, history read integrity per project, and staleness of
+the most recent run. Run this when you are not sure whether the plugin is
+writing data correctly.
+
+```bash
+# Markdown report (default)
+vitest-agent doctor
+
+# Machine-readable JSON
+vitest-agent doctor --format json
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--format` | `markdown` \| `json` | `markdown` | Output format |
+
+The five checks are run in order:
+
+1. **Database path** — resolves the XDG path (always passes; a function of
+   workspace identity, not file existence).
+2. **Manifest valid** — reads project metadata from the database.
+3. **Reports** — reads the latest run per project.
+4. **History** — reads the run history per project.
+5. **Last run** — reports the age of the most recent run and flags it as
+   stale when it is older than 24 hours.
+
+`doctor` exits with code `1` if any check fails.
+
+## agent
+
+The `agent` namespace groups subcommands intended for the Claude Code plugin's
+session and Bash hooks. The `--help` output opens with a warning that humans
+typically do not invoke these directly.
+
+:::note
+All `agent` subcommands use plain stdout for their primary output and write
+structured error information to stderr in the format `<exit_code> <tag>:
+<message>`. Hook scripts parse stdout via `jq` or simple string reads.
+:::
+
+### agent triage
+
+Emit the orientation triage brief for the current project — the same brief
+that the MCP server's `triage_brief` tool returns. The Claude Code plugin's
+`SessionStart` hook pipes this into `additionalContext`.
+
+```bash
+# Markdown (default)
+vitest-agent agent triage
+
+# JSON envelope
+vitest-agent agent triage --format json
+
+# Suppress output (useful when only the side-effect matters)
+vitest-agent agent triage --format silent
+
+# Scope to a specific project in a monorepo
+vitest-agent agent triage --project my-package
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--format` | `markdown` \| `json` \| `silent` | `markdown` | Output format |
+| `--project` | string | — | Filter to a specific project |
+| `--max-lines` | integer | — | Truncate output at N lines |
+
+### agent wrapup
+
+Emit the end-of-session wrapup prompt for a session. Driven by the `Stop`,
+`SessionEnd`, `PreCompact`, and `UserPromptSubmit` hooks. Pass `--chat-id`
+(the host chat UUID) in normal use; `--row-id` (internal integer FK) is
+available for debugging.
+
+```bash
+# By host chat UUID
+vitest-agent agent wrapup --chat-id <uuid>
+
+# By internal row ID (debugging only)
+vitest-agent agent wrapup --row-id 42
+
+# JSON envelope
+vitest-agent agent wrapup --chat-id <uuid> --format json
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--chat-id` | string | — | Host chat UUID (`session_id` in the CC hook payload) |
+| `--row-id` | integer | — | Internal session FK (debugging) |
+| `--kind` | `stop` \| `session_end` \| `pre_compact` \| `tdd_handoff` \| `user_prompt_nudge` | `session_end` | Wrapup variant |
+| `--user-prompt-hint` | string | — | Hint text forwarded to `user_prompt_nudge` variant |
+| `--format` | `markdown` \| `json` | `markdown` | Output format |
+
+### agent record
+
+The hook write surface. Subcommands write session and turn data to the
+database. These are called by the Claude Code plugin's hooks, not directly by
+humans.
+
+```bash
+# Backfill test-case turn associations for a chat session;
+# emits JSON: { "updated": N, "latestTestCaseId": <id|null> }
+vitest-agent agent record test-case-turns --chat-id <uuid>
+```
+
+The `record` group includes these subcommands: `turn`, `session-start`,
+`session-end`, `tdd-artifact`, `run-workspace-changes`, `run-trigger`, and
+`test-case-turns`. All emit JSON to stdout on success and write errors to
+stderr with a non-zero exit code.
+
+### agent register-agent
+
+Register an agent invocation in the per-project store and the per-client
+session map. Called by the `SessionStart` hook. Emits a JSON object on
+success.
+
+```bash
+vitest-agent agent register-agent \
+  --host-kind claude-code \
+  --agent-type claude-code/main \
+  --host-session-id <uuid> \
+  --transcript-path /path/to/transcript.jsonl \
+  --cwd /path/to/workspace
+```
+
+Output shape:
+
+```json
+{
+  "agentId": "<uuid>",
+  "conversationId": "<uuid>",
+  "mainAgentId": "<uuid>",
+  "idempotencyKey": "<string>",
+  "idempotencyHit": false
+}
+```
+
+Hook scripts parse the `agentId` field via `jq -r '.agentId'`.
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--host-kind` | string | Yes | Host vendor identifier, e.g. `claude-code` |
+| `--agent-type` | string | Yes | Agent type; must begin with the `host-kind` prefix |
+| `--host-session-id` | string | Yes | Host's native session id (the CC hook `session_id`) |
+| `--transcript-path` | string | Yes | Path to the host transcript file |
+| `--cwd` | string | Yes | Workspace root directory |
+| `--parent-agent-id` | string | No | Parent agent ID for subagent registrations |
+| `--client-nonce` | string | No | Idempotency nonce supplied by the hook |
+| `--project-key` | string | No | Override the resolved project key |
+
+### agent end-agent
+
+Mark an agent invocation as ended. Called by the `SubagentStop` and
+`SessionEnd` hooks.
+
+```bash
+vitest-agent agent end-agent \
+  --agent-id <uuid> \
+  --cwd /path/to/workspace
+
+# Also close the session map entry when ending the host session
+vitest-agent agent end-agent \
+  --agent-id <uuid> \
+  --host-session-id <uuid> \
+  --cwd /path/to/workspace
+```
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--agent-id` | string | Yes | The agent UUID from an earlier `register-agent` call |
+| `--cwd` | string | No | Workspace root (defaults to `process.cwd()`) |
+| `--host-session-id` | string | No | When passed, also marks `session_map.ended_at` |
+| `--ended-at` | integer | No | Unix epoch seconds; defaults to now |
+| `--project-key` | string | No | Override the resolved project key |
+
+### agent inject-env
+
+Rewrite a Bash command to prepend `VITEST_AGENT_*` environment variables when
+the command invokes Vitest. Returns the original command unchanged when the
+command does not match.
+
+This subcommand is on the critical path of every Bash tool call when the
+Claude Code plugin is active. The per-platform sidecar binary
+(`vitest-agent-sidecar`) runs the same logic at native speed and is preferred
+when available.
+
+```bash
+vitest-agent agent inject-env \
+  --command "vitest run --project sdk" \
+  --cwd /path/to/workspace
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--command` | string | — | The Bash command to rewrite |
+| `--cwd` | string | `process.cwd()` | Working directory for `package.json` script resolution |
+
+### agent sidecar-path
+
+Print the absolute path of the installed per-platform sidecar binary to
+stdout. Exits with a non-zero code when no platform binary is resolvable. The
+`SessionStart` hook captures this path once per session and exports it as
+`VITEST_AGENT_SIDECAR_BIN`.
+
+```bash
+vitest-agent agent sidecar-path
+# /path/to/node_modules/.bin/vitest-agent-sidecar-darwin-arm64
+```
+
+No flags. Exit code `0` on success; non-zero when the platform binary is
+absent.
+
+## Exit codes
+
+The `agent` sidecar subcommands (`register-agent`, `end-agent`, `inject-env`,
+`sidecar-path`) share a common exit code taxonomy:
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Registration conflict |
+| `2` | Sidecar timeout |
+| `3` | Database error |
+| `4` | Project identity not resolvable |
+| `5` | Other unexpected defect |
+
+`db reset` uses codes `4` and `5` for its own guards (agent context blocked and
+non-TTY without `--yes`), independent of the sidecar taxonomy. `db query` uses
+code `2` for empty SQL and code `3` for driver errors. `doctor` exits `1` when
+any check fails.
+
+## Related
+
+- [CLI overview](/cli)
+- [API reference](/cli/api)

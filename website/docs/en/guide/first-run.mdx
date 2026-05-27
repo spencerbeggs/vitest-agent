@@ -1,0 +1,80 @@
+---
+title: Your first run
+description: Run your tests and understand what vitest-agent persists and what AI agents receive as structured feedback.
+---
+
+# Your first run
+
+With the plugin installed and configured, run your test suite:
+
+```bash
+npx vitest run
+```
+
+Or through your package manager scripts if you have one configured.
+
+## What the agent sees
+
+When Vitest runs inside an AI agent session (Claude Code, Cursor, Gemini CLI,
+Codex, and others), the plugin detects the agent executor and switches to
+`"agent"` console mode. Instead of the full Vitest reporter output, the agent
+receives a compact markdown final frame:
+
+```
+## Test Results
+
+✓ 42 passed  ·  2 failed  ·  1 skipped
+
+### Classifications
+- 2 new-failure  ·  40 stable
+
+### Coverage
+Lines 94.2%  ·  Branches 88.1%  ·  Functions 96.0%
+
+---
+Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.
+```
+
+The frame carries:
+- Total counts with pass/fail/skip breakdown
+- Per-test classification (stable, new-failure, persistent, flaky, recovered)
+- Coverage summary against your targets
+- A footer pointing at the right MCP tool for the dominant outcome
+
+The footer is the actionable signal: the agent knows exactly which tool to
+call next without scanning thousands of lines of output.
+
+When running as a human with `console.human: "stream"`, you see the same
+information rendered as a progressively-drawn, colored live view instead.
+
+## What gets persisted
+
+Every run — human, agent, or CI — writes structured data to a SQLite
+database at:
+
+```
+$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db
+```
+
+On macOS and Linux without `XDG_DATA_HOME` set, this falls back to:
+
+```
+~/.local/share/vitest-agent/<workspaceName>/data.db
+```
+
+`<workspaceName>` is derived from the `name` field in your root
+`package.json`. Two worktrees of the same repo share a database; you can
+override the location via a `vitest-agent.config.toml` at the workspace root.
+
+The database stores:
+- Every test result with its classification
+- Per-run coverage snapshots
+- Failure history used to classify tests as persistent or flaky across runs
+
+The MCP server reads this database on demand — there is no background process
+running between runs.
+
+## Next steps
+
+Now that you have data flowing, set up the Claude Code companion plugin for
+the full agent-behavior layer: [Claude Code companion](/guide/claude-code).

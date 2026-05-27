@@ -21,7 +21,8 @@
 	},
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./package.json": "./package.json"
 	},
 	"scripts": {
 		"build:dev": "rslib build --config-loader native --env-mode dev",
@@ -34,10 +35,10 @@
 		"vitest-agent-sdk": "workspace:*"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.3",
+		"@savvy-web/rslib-builder": "^0.20.8",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
-		"ink": "^7.0.3",
+		"ink": "^7.0.4",
 		"ink-testing-library": "^4.0.0",
 		"react": "catalog:silk",
 		"vitest": "^4.1.6"

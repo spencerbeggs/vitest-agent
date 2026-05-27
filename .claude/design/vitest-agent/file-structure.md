@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-27
+last-synced: 2026-05-27
 completeness: 90
 related:
   - ./architecture.md
@@ -14,6 +14,7 @@ related:
   - ./decisions.md
   - ./components/sdk.md
   - ./components/ui.md
+  - ./components/docs-site.md
 dependencies: []
 ---
 
@@ -25,9 +26,10 @@ reporter contract) see [./components/](./components/).
 
 ## Repo layout
 
-Source lives in seven pnpm workspaces under `packages/` (plus four
-per-platform sidecar sub-packages) and the file-based Claude Code plugin at
-`plugin/` (NOT a workspace).
+Source lives in seven publishable pnpm workspaces under `packages/` (plus
+four per-platform sidecar sub-packages), the `docs` documentation-site
+workspace at `website/`, and the file-based Claude Code plugin at `plugin/`
+(NOT a workspace).
 
 ```text
 packages/
@@ -45,6 +47,16 @@ packages/
 
 lib/
   configs/     repo-root build/tooling config helpers (NOT a workspace)
+
+website/       docs workspace (package "docs"; RSPress 2.0 site → vitest-agent.dev)
+  rspress.config.ts            site config + ApiExtractorPlugin wiring
+  docs/en/                     locale-scoped MDX (guide/ + per-package dirs + packages/)
+  docs/en/_nav.json            top nav: Guide | Packages
+  lib/models/<short>/          API Extractor models copied in by each package's build:prod (gitignored)
+  docs/en/<pkg>/api/           generated API pages (gitignored)
+  api-docs-snapshot.db         committed generation source of truth (-shm/-wal gitignored)
+
+docs/          repo-root user docs (SUPERSEDED by website/, slated for retirement)
 
 plugin/        file-based Claude Code plugin (NOT a pnpm workspace)
   .claude-plugin/plugin.json    inline mcpServers config
@@ -98,6 +110,10 @@ so a malicious upstream tag cannot inject shell commands.
 
 For per-package source breakdown see the corresponding
 [./components/*.md](./components/) file.
+
+## Docs site
+
+The `website/` workspace (package `docs`) is the RSPress 2.0 site. Its content tree is locale-scoped under `docs/en/` with a Guide spine and a directory per package, and its per-package API pages are generated from API Extractor models that each package's `build:prod` copies into `website/lib/models/<short>/`. The copied models and the generated `docs/en/*/api/` pages are gitignored; `website/api-docs-snapshot.db` is committed as the generation source of truth. The deploy to Cloudflare Pages lives in `.github/workflows/deploy-docs.yml`. The repo-root `docs/*.md` user docs predate the site and are superseded by it — they are slated for retirement, so do not add new user-facing prose there. See [./components/docs-site.md](./components/docs-site.md) for the full pipeline.
 
 ## Test files
 
@@ -195,7 +211,7 @@ package, no colon suffix) is keyed solely by its `name` — `vitest-agent-sdk`,
 the schema; the legacy `splitProject()` utility and `(project, subProject)`
 column pair were dropped in 2.0.
 
-Test-kind differentiation moved to **Vitest-native tags** (Vitest 4.1+).
+Test-kind differentiation uses **Vitest-native tags** (Vitest 4.1+).
 `DiscoverStrategy` in `vitest-agent-plugin` declares the available tags
 (`unit`, `int`, `e2e` by default) and a `classify()` method that maps a
 test file to a tag list. The plugin installs a Vite `transform` hook
@@ -203,8 +219,8 @@ test file to a tag list. The plugin installs a Vite `transform` hook
 `test()` and `it()` call's options argument to add the resolved tags
 array. Filter at the command line via Vitest's standard tag-expression
 syntax (`pnpm vitest --project vitest-agent-sdk --tags-filter "unit"`).
-The classifier-only `TagStrategy` namespace was unified into
-`DiscoverStrategy` in T5; see Decision 39.
+The classifier and project detection share one `DiscoverStrategy`
+contract; see Decision 39.
 
 Aggregated per-tag pass/fail/skip counts surface on `AgentReport.tagCounts`
 and render in the terminal formatter as both an inline summary on the
@@ -212,8 +228,8 @@ project line and an indented per-tag failure breakdown.
 
 ## Package manager detection
 
-The CLI overview and history commands need to output correct run commands.
-Canonical detection logic lives in `packages/sdk/src/utils/detect-pm.ts`
+Run-command output and the MCP loader both need the project's package
+manager. Canonical detection logic lives in `packages/sdk/src/utils/detect-pm.ts`
 behind a `FileSystemAdapter` interface for testability. The plugin's
 `bin/start-mcp.sh` (and `hooks/lib/detect-pm.sh`) ship zero-deps copies
 with the same detection order:
@@ -228,26 +244,26 @@ Two copies exist because the plugin loader cannot import from
 to be installed. The detection order is identical so the two copies do not
 drift in observable behavior.
 
-## Agent-agnostic taxonomy paths (Phases 1–4)
+## Agent-agnostic taxonomy paths
 
 ### Project identity resolution
 
-The legacy `resolveDataPath` chain (workspace name only) is supplemented
+The `resolveDataPath` chain (workspace name only) is supplemented
 by `ProjectIdentity.resolve` (see
 `packages/sdk/src/services/ProjectIdentity.ts`), a 5-source fallback:
 
-1. Explicit option via `AgentPlugin({ projectId: "..." })` in `vitest.config.ts`
+1. Explicit option
 2. `projectKey` field in `vitest-agent.config.toml` at the workspace root
 3. `git config remote.origin.url` (canonicalized)
 4. `package.json#repository.url` (parsed and canonicalized as a git URL)
 5. Normalized `package.json#name`
 
 Failure mode: `ProjectIdentityNotResolvableError` listing every source
-attempted. Used by the sidecar CLI (`packages/cli/src/commands/internal.ts`)
-to compute the per-project data store directory directly from
-`XDG_DATA_HOME` plus the normalized `projectKey`, sidestepping
-workspace-discovery so the sidecar works in non-pnpm-workspace project
-shapes.
+attempted. Used by the CLI's `agent` sidecar subcommands
+(`packages/cli/src/commands/agent.ts`) to compute the per-project data
+store directory directly from `XDG_DATA_HOME` plus the normalized
+`projectKey`, sidestepping workspace-discovery so the sidecar works in
+non-pnpm-workspace project shapes.
 
 URL canonicalization (`packages/sdk/src/utils/canonicalize-git-url.ts`):
 
@@ -268,9 +284,8 @@ The filesystem-safe `projectKey` form replaces `/` with `__`
 | Per-project data store | `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` | `better-sqlite3` via `@effect/sql-sqlite-node` |
 | Per-client session map | `${CLAUDE_PLUGIN_DATA}/sessions.db` (Claude Code) | Same |
 | Global discovery registry | `$XDG_DATA_HOME/vitest-agent/registry.db` | Same |
-| Per-instance ephemeral | `${CLAUDE_PLUGIN_DATA}/sessions/${session_id}/` (planned daemon socket) | Filesystem only |
 
-The sidecar CLI's `_internal` subcommands resolve all three SQLite
+The CLI's `agent` sidecar subcommands resolve all three SQLite
 paths from env at invocation time:
 
 - Per-project: `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` where `<projectKey>` comes from `ProjectIdentity` resolution against `--cwd`
@@ -279,11 +294,3 @@ paths from env at invocation time:
 
 `mkdirSync(..., { recursive: true })` ensures every parent dir exists
 before SQLite opens the file.
-
-### Spike harnesses
-
-The Phase 1.5 spike harness scripts (`spike/phase-1.5/spike-1` through
-`spike-4`) are gitignored. The empirical evidence they captured lives
-in `.claude/plans/archive/2026-05-10-phase-1-5-spike.md` and the
-active decisions at `decisions.md` D16–D19. The harnesses are
-reproducible from the memo's prose if needed.

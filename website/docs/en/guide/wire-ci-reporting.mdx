@@ -1,0 +1,110 @@
+---
+title: CI reporting
+description: How vitest-agent behaves in CI, which reporters are preserved, and how to get GitHub Actions annotations today using Vitest's native reporter.
+---
+
+# CI reporting
+
+## Default CI behavior
+
+When the plugin detects a CI environment (`GITHUB_ACTIONS=true` or `CI=true`),
+the `ci` slot defaults to `"passthrough"`. In passthrough mode the plugin takes
+no ownership of stdout and Vitest's own reporters run exactly as they would
+without vitest-agent. Your existing CI log output is unchanged.
+
+For the executor detection rules and what passthrough means in practice, see
+[Console modes](/guide/console-modes).
+
+## Which reporters are preserved
+
+When you configure a non-passthrough `ci` mode, the plugin strips Vitest's
+built-in console reporters and suppresses the native coverage text output. It
+does not touch non-console reporters. The following Vitest reporters are
+always preserved regardless of the `ci` mode setting:
+
+| Reporter | Format |
+| --- | --- |
+| `json` | `--reporter=json` output file |
+| `junit` | `--reporter=junit` output file |
+| `html` | `--reporter=html` output directory |
+| `blob` | `--reporter=blob` output file |
+| `github-actions` | Inline GitHub Actions annotations |
+
+This means you can combine a custom `ci` mode with any file-based reporter and
+both will run.
+
+## GitHub Actions annotations today
+
+Vitest ships a `github-actions` reporter that emits `::error::` annotations
+natively. Because vitest-agent leaves non-console reporters intact, adding it
+to your reporter list is all you need:
+
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { defineConfig } from "vitest/config";
+
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover();
+
+  return defineConfig({
+    plugins: [AgentPlugin({ coverageTargets: { lines: 80 } })],
+    test: {
+      ...(projects ? { projects } : {}),
+      tags,
+      pool: "forks",
+      reporters: ["default", "github-actions"],
+      coverage: {
+        enabled: true,
+        provider: "v8",
+        thresholds: { lines: 80 },
+      },
+    },
+  });
+};
+```
+
+With the `ci` slot at its default `"passthrough"`, both the `default`
+reporter (human-readable log output) and the `github-actions` reporter (inline
+annotations on failed lines) run together. vitest-agent does not interfere with
+either.
+
+## Silencing CI console output
+
+If you want vitest-agent to suppress Vitest's console output in CI while still
+running file-based reporters, set the `ci` slot to `"silent"`:
+
+```typescript
+AgentPlugin({
+  console: { ci: "silent" },
+})
+```
+
+File-based reporters (`json`, `junit`, `github-actions`, and others) continue
+to run. Only the console text output is suppressed.
+
+## The ci-annotations mode (forthcoming)
+
+The `console` matrix accepts `"ci-annotations"` as a value for the `ci` slot:
+
+```typescript
+AgentPlugin({
+  console: { ci: "ci-annotations" },
+})
+```
+
+The intent is for the plugin to emit its own GitHub Actions `::error::`
+annotations enriched with classification data from the vitest-agent database —
+persistent failures, flaky patterns, and coverage regressions alongside the
+standard line-level errors. The dedicated emitter for this mode has not shipped
+yet. Until it does, `"ci-annotations"` behaves like `"passthrough"` and the
+`ci` slot default stays at `"passthrough"`.
+
+Use Vitest's native `github-actions` reporter (shown above) for annotations
+today.
+
+## Step summaries
+
+vitest-agent does not currently emit a GitHub step summary. If you want a
+formatted summary in the Actions UI, combine Vitest's `json` reporter with a
+separate workflow step that renders the JSON, or use a third-party action that
+consumes JUnit output.

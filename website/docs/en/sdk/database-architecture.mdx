@@ -1,0 +1,163 @@
+---
+title: Database architecture
+description: How vitest-agent-sdk stores test run data — the SQLite data.db path, workspace key derivation, the canonical pre-2.0 migration, WAL mode, and the full table inventory confirmed against the 0001_initial migration.
+---
+
+# Database architecture
+
+`vitest-agent-sdk` persists everything to a single SQLite file, `data.db`, at a deterministic XDG-derived path. Understanding where that file lives and how the schema is organized helps you query it directly, integrate custom tooling on top of it, and reason about what changes when you edit the migration.
+
+## The data.db path
+
+The canonical path follows the XDG Base Directory Specification:
+
+```text
+$XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db
+```
+
+When `XDG_DATA_HOME` is not set the fallback is:
+
+```text
+~/.local/share/vitest-agent/<workspaceKey>/data.db
+```
+
+The `<workspaceKey>` segment is derived from your workspace's identity using a five-source priority chain. Higher entries win:
+
+| Priority | Source |
+|----------|--------|
+| 1 | Programmatic `cacheDir` option passed to `AgentPlugin` |
+| 2 | `cacheDir` field in `vitest-agent.config.toml` at the workspace root |
+| 3 | `projectKey` field in `vitest-agent.config.toml` |
+| 4 | Root `package.json#name`, normalized (`@org/pkg` → `@org__pkg`) |
+| 5 | Fails loudly with `WorkspaceRootNotFoundError` — no silent fallback |
+
+The `resolveDataPath` utility in `vitest-agent-sdk` encapsulates this chain. The CLI command `vitest-agent db path` prints the resolved path for your current workspace.
+
+:::note
+Scoped-package names with a `/` separator are normalized to `__` so they are safe as directory names. `@vitest/runner` becomes `@vitest__runner`.
+:::
+
+## Three-tier storage
+
+`data.db` is the per-project store. Two smaller databases sit alongside it for agent-attribution bookkeeping:
+
+| Tier | Path | Contents |
+|------|------|----------|
+| Per-project | `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` | Test runs, test cases, TDD tasks, coverage, notes, agents |
+| Per-client session map | `${CLAUDE_PLUGIN_DATA}/sessions.db` (Claude Code) | Native-ID translations: transcript path → conversation UUID |
+| Global discovery registry | `$XDG_DATA_HOME/vitest-agent/registry.db` | `known_projects` index for cross-project tooling |
+
+Only `data.db` is described in this page. The session-map and registry schemas are internal to the agent-attribution subsystem.
+
+## The canonical pre-2.0 migration
+
+The entire schema is defined in a single file:
+
+```text
+packages/sdk/src/migrations/0001_initial.ts
+```
+
+Pre-2.0 policy is to edit this file directly whenever the schema changes. There is no incremental migration chain — developers delete their local `data.db` between schema-changing turns and start fresh. Post-2.0, standard ALTER-only migrations take over.
+
+The migration runs via `@effect/sql-sqlite-node`'s `SqliteMigrator`. The `ensureMigrated` utility in `vitest-agent-sdk` coordinates migrations at the process level using a `globalThis`-keyed promise cache so multi-project Vitest configs do not race when several workers share one database file.
+
+The migration immediately enables WAL journal mode and foreign-key enforcement:
+
+```sql
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+```
+
+### Why WAL mode
+
+`better-sqlite3`, the underlying binding, is not thread-safe. The `vitest-agent-plugin` runs in the Vitest `forks` pool — each worker is a separate Node.js process. WAL mode allows concurrent readers alongside a single writer without blocking, which is the typical pattern (one Vitest runner writing, the CLI or MCP server reading). The binding sets a `busy_timeout` so brief writer contention is retried rather than failing immediately.
+
+## Schema overview
+
+The schema is organized around a central **spine** plus several satellite groups.
+
+### Spine: runs, modules, suites, cases
+
+`test_runs` is the root record for every Vitest invocation. Each run owns one or more `test_modules` (one per test file). Each module owns `test_suites` (describe blocks, nested) and `test_cases` (individual test functions). Errors attach via `test_errors`, which own parsed `stack_frames`.
+
+The `files` table is the shared FK target for any path-like column across the schema — test modules, coverage files, source maps, file edits, and changed-file records all point here so paths deduplicate automatically.
+
+### Coverage
+
+Three tables hold coverage data per run:
+
+- `file_coverage` — per-file statement/branch/function/line percentages and an `uncovered_lines` compressed string (e.g. `"42-50,99,120-135"`)
+- `coverage_baselines` — auto-ratcheting high-water marks per project, metric, and optional glob pattern
+- `coverage_trends` — per-project trend snapshots with a `direction` CHECK of `improving | regressing | stable`
+
+### Failure history and signatures
+
+`test_history` is a sliding-window log of pass/fail outcomes per test full name. `failure_signatures` deduplicate structurally identical failures across runs using a 16-character SHA-256 hash over the error name, normalized assertion shape, top-frame function name, and function-boundary line. Each `test_errors` row carries a `signature_hash` FK so you can join directly from an error to its recurrence history.
+
+See [Classification](/guide/classification) for how the history and signatures feed the `stable / new-failure / persistent / flaky / recovered` labels.
+
+### Sessions, agents, and turns
+
+`sessions` records Claude Code conversations; each row has a unique `chat_id`, an `agent_kind` of `main` or `subagent`, and an optional `parent_session_id` self-FK.
+
+`agents` (declared `STRICT`) records first-class agent invocations with a `parent_agent_id` tree, an `idempotency_key` unique per session, and inherited git context columns.
+
+`turns` is the per-session turn log; each row's `payload` is JSON-stringified and typed by a `type` CHECK constraint that mirrors the `TurnPayload` discriminated union (`user_prompt`, `tool_call`, `tool_result`, `file_edit`, `hook_fire`, `note`, `hypothesis`). Two flattened projections — `tool_invocations` and `file_edits` — provide fast access without JSON parsing.
+
+### TDD task tree
+
+The TDD subsystem stores three tiers of planning data:
+
+- `tdd_tasks` — one row per TDD task; the PK `id` is the agent-facing `tddTaskId`
+- `tdd_session_goals` — tier-2 goals decomposed from a task objective; `session_id` FK points at `tdd_tasks(id)` (not a session row, despite the legacy column name)
+- `tdd_session_behaviors` — tier-3 atomic red-green-refactor units; `goal_id` FK
+
+Behavior ordering ships via `tdd_behavior_dependencies`, a junction table that replaced a JSON array column. The reverse-lookup index on `depends_on_id` makes "what depends on behavior X" a single indexed read.
+
+`tdd_phases` records phase transitions (`spike`, `red`, `red.triangulate`, `green`, `green.fake-it`, `refactor`, `extended-red`, `green-without-red`).
+
+`tdd_artifacts` records evidence per phase. The `behavior_id` column on `tdd_artifacts` is a deliberate denormalization — it duplicates the join-path through `tdd_phases` so behavior-scoped artifact queries run without a join, which matters for the orchestrator resume hot path.
+
+### Agent attribution columns
+
+Four tables carry attribution columns that record who initiated each action:
+
+| Table | Columns added |
+|-------|---------------|
+| `test_runs` | `actor_type`, `agent_id`, `conversation_id`, plus git context and host metadata |
+| `notes` | `actor_type`, `agent_id`, `conversation_id` |
+| `hypotheses` | `actor_type`, `agent_id`, `conversation_id` |
+| `tdd_phases` | `actor_type`, `agent_id`, `conversation_id` |
+
+`actor_type` is one of `agent | user | system`. A CHECK pair enforces consistency: when `actor_type = 'agent'` the `agent_id` must be non-NULL, and `conversation_id` may only be non-NULL on agent rows.
+
+Six `AFTER UPDATE` triggers lock `conversation_id` immutable on every table that carries it — set at INSERT time, never changed.
+
+### Other tables
+
+| Table | Purpose |
+|-------|---------|
+| `settings` | Vitest config snapshots, keyed by a hash |
+| `settings_env_vars` | Environment variables per settings snapshot |
+| `scoped_files` | Files included in scoped (filtered) runs |
+| `tags` / `test_case_tags` / `test_suite_tags` | Deduplicated Vitest tags and their associations |
+| `test_annotations` | Notice / warning / error annotations per test case |
+| `test_artifacts` / `attachments` | Artifacts and binary blobs |
+| `import_durations` | Module import timing for slow-import diagnostics |
+| `task_metadata` | Arbitrary key-value metadata per case, suite, or module |
+| `console_logs` | Per-test stdout/stderr capture |
+| `source_test_map` | Source file to test module mapping (`convention`, `import_analysis`, `coverage_correlation`) |
+| `notes` | Scoped, threaded, expiring notes with FTS5 full-text search via `notes_fts` |
+| `hypotheses` | Agent hypotheses with `cited_test_error_id` and `cited_stack_frame_id` evidence FKs |
+| `commits` | Git commit metadata, idempotent on `sha` |
+| `run_changed_files` | Files changed relative to a run, with `change_kind` CHECK |
+| `run_triggers` | 1:1 with `test_runs`; trigger taxonomy (`cli`, `ide`, `ci`, `agent`, `pre-commit`, `watch`) |
+| `build_artifacts` | Captured tsc/biome/eslint output per run |
+| `hook_executions` | Vitest hook lifecycle (`beforeAll`, `beforeEach`, `afterEach`, `afterAll`) |
+| `mcp_idempotent_responses` | Cached MCP mutation results; composite PK `(procedure_path, key)` |
+
+## Related
+
+- [Programmatic data access](/sdk/data-access)
+- [Classification](/guide/classification)
+- [API reference](/sdk/api)

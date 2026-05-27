@@ -1,0 +1,57 @@
+---
+title: Guide
+description: Learn how vitest-agent turns Vitest runs into structured, token-efficient feedback for AI agents and enforces a disciplined TDD workflow.
+---
+
+# Guide
+
+vitest-agent is a Vitest plugin, CLI, and MCP server family that turns test
+runs into structured, token-efficient signal for AI coding agents and enforces
+a disciplined test-driven development workflow. Instead of thousands of lines
+of console noise, agents receive a compact classified final frame — counts,
+classifications, and a direct pointer to the right MCP tool to act on the
+result.
+
+## The two-layer model
+
+vitest-agent ships as two distinct layers that stack on top of each other.
+
+**Layer 1: the npm plugin (everyone installs this)**
+
+`vitest-agent-plugin` is the data and collection foundation. Add it to your
+`vitest.config.ts` and it handles environment detection, per-executor console
+modes, failure classification, coverage policy, and persistence to a local
+SQLite database. The CLI and MCP server are pulled in automatically as
+required peer dependencies.
+
+**Layer 2: the Claude Code marketplace plugin (optional)**
+
+`vitest-agent@spencerbeggs` is the agent-behavior layer. It auto-registers the
+MCP server with Claude Code, adds lifecycle hooks that inject test context at
+session start, ships a library of TDD skills, and provides a `tdd-task`
+orchestrator subagent driven by the `/tdd` command. If you use Claude Code,
+this companion plugin is how the collected data becomes active agent behavior.
+
+You install the npm plugin first. If you use Claude Code, you then add the
+marketplace plugin as a companion.
+
+## Where to go next
+
+**Getting started**
+
+- [Installation](/guide/installation) — add the npm plugin and configure Vitest
+- [Your first run](/guide/first-run) — run your tests and see what the agent sees
+- [Claude Code companion](/guide/claude-code) — install the marketplace plugin and run a TDD cycle
+
+**Reference**
+
+- [Packages](/packages) — per-package API reference for all published packages
+
+**Concepts**
+
+- [Why agent reporting](/guide/why-agent-reporting) — why Vitest's default reporters are not suited for agents
+- [Architecture](/guide/architecture) — the ecosystem map: seven packages, dependency flow, and the two-plugin model
+- [Console modes](/guide/console-modes) — executor detection and the per-executor output matrix
+- [Coverage model](/guide/coverage) — watermarks, thresholds, targets, presets, and baselines
+- [Failure classification](/guide/classification) — the 10-run sliding window and the five classification labels
+- [TDD workflow](/guide/tdd-workflow) — the goal/behavior hierarchy and evidence-bound phase transitions

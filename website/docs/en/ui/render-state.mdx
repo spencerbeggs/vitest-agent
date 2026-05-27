@@ -1,0 +1,132 @@
+---
+title: "Render state"
+description: RenderState is a denormalized projection of the RunEvent stream. A reducer folds the discriminated-union events into a single RenderState that both the agent string and Ink renderers consume.
+---
+
+# Render state
+
+`RenderState` is the shape both renderers in `vitest-agent-ui` read. It is a **denormalized projection** of the `RunEvent` stream: a reducer folds incoming events one by one into a single flat structure, and the dispatcher reads that structure to produce output. Neither renderer touches the raw event stream — they read the reduced state.
+
+## Event-sourced flow
+
+```
+RunEvent stream
+      │
+      ▼  (reduce per event)
+  RenderState
+      │
+      ├──▶ dispatcher (agent string path)
+      │         │
+      │         ▼  dispatch(inputs, opts) → string
+      │
+      └──▶ dispatcher (Ink path)
+                │
+                ▼  dispatchInk(inputs, opts) → React.ReactElement
+```
+
+The plugin publishes `RunEvent`s on an Effect `PubSub<RunEvent>` channel (carried on `ReporterKit.runEvents`) as Vitest reporter callbacks fire. The `DefaultVitestAgentReporter` in `vitest-agent-reporter` subscribes to that channel and feeds each event into the reducer. For live Ink rendering it calls `reduceRenderState(state, event)` on every arrival, triggering a re-render. For the end-of-run agent string it calls `reduceRenderStateAll(events)` to fold the complete sequence at once.
+
+CLI replay follows the same path: `synthesizeFromAgentReport(report)` converts a stored `AgentReport` into a synthetic event sequence, which `reduceRenderStateAll` folds into a `RenderState` before the dispatcher produces output.
+
+## The reducer
+
+`packages/ui/src/reducer.ts` exports:
+
+```ts
+reduceRenderState(state: RenderState, event: RunEvent): RenderState
+reduceRenderStateAll(events: RunEvent[], seed?: RenderState): RenderState
+```
+
+The reducer is a pure `(state, event) => state` function implemented as a `Match.tagsExhaustive` map keyed by `_tag`. Using `tagsExhaustive` rather than a chain of `Match.when` calls means adding a new `RunEvent` variant causes a compile error until the reducer handles the new tag — exhaustiveness is enforced statically.
+
+Most variants fold into state meaningfully. Several variants pass through without modifying `RenderState` (suite lifecycle, hook lifecycle, console logs, annotations, watch mode events) — they are delivered to every PubSub subscriber and the `onRunEvent` tap for external consumers, but do not change what the renderer shows.
+
+Two reducer behaviors are load-bearing:
+
+- **Timeout routing.** Vitest reports a timed-out test as `failed` with a timeout-flavored error. The plugin's `isTimeoutError` detector sets an optional `timedOut: true` flag on the emitted `TestFinished`. The reducer routes those tests into a separate `timeoutCount` rather than `failCount`, and marks the `TestRecord.status` as the render-only `"timed-out"` value. The distinction is display-only — timed-out tests still persist to SQLite as `failed`.
+- **`TrendComputed` fold.** The plugin emits a `TrendComputed` event after end-of-run trend computation. The reducer folds it into the nullable `trend` field on `RenderState` so renderers can show a Trend line without reading the database.
+
+## The RunEvent variants
+
+The `RunEvent` discriminated union is defined in `packages/sdk/src/schemas/RunEvent.ts`. It covers every state-affecting thing that happens during a test run. The variant tags are:
+
+**Run lifecycle:** `RunStarted`, `RunFinished`, `RunTimedOut`
+
+**Module lifecycle:** `ModuleQueued`, `ModuleStarted`, `ModuleCollected`, `ModuleFinished`
+
+**Test lifecycle:** `TestStarted`, `TestFinished`, `TestAnnotated`, `TestArtifactRecorded`
+
+**Suite lifecycle:** `SuiteStarted`, `SuiteFinished`
+
+**Hook lifecycle:** `HookStarted`, `HookFinished`
+
+**Coverage:** `CoverageReady`, `ThresholdViolation`
+
+**Post-run analysis:** `FailureClassified`, `TrendComputed`
+
+**Suggested actions:** `SuggestedAction`
+
+**Console and watch:** `ConsoleLog`, `WatcherReady`, `WatcherRerun`
+
+The plugin publishes one event per Vitest streaming callback. `CoverageReady`, `ThresholdViolation`, `FailureClassified`, `TrendComputed`, and `SuggestedAction` are emitted from `onTestRunEnd` after the post-run analysis pipeline completes.
+
+## The RenderState shape
+
+`RenderState` is defined in `packages/sdk/src/schemas/RenderState.ts` as an Effect Schema struct:
+
+```ts
+const RenderState = Schema.Struct({
+  phase: Schema.Literal("idle", "running", "finished", "timed-out"),
+  runId: Schema.NullOr(Schema.String),
+  configHash: Schema.NullOr(Schema.String),
+  startedAt: Schema.NullOr(Schema.String),
+  finishedAt: Schema.NullOr(Schema.String),
+  modules: Schema.Record({ key: Schema.String, value: ModuleRecord }),
+  moduleOrder: Schema.Array(Schema.String),
+  totals: RenderTotals,
+  coverage: Schema.NullOr(CoverageRenderState),
+  trend: Schema.NullOr(/* direction + runCount */),
+  failures: Schema.Array(FailureRecord),
+  suggestedActions: Schema.Array(SuggestedActionRecord),
+});
+```
+
+**`phase`** is the layout discriminator. Agent mode emits one final frame when `phase === "finished"`. The `"timed-out"` terminal phase indicates the run ended because `onProcessTimeout` fired rather than the suite completing normally.
+
+**`modules`** is keyed on `modulePath` so out-of-order events update the right slot. **`moduleOrder`** preserves arrival order for display.
+
+**`totals`** (`RenderTotals`) carries `passCount`, `failCount`, `skipCount`, `timeoutCount`, and `durationMs` accumulated as `ModuleFinished` events arrive and reconciled against the `RunFinished` event's authoritative counts.
+
+**`coverage`** is `null` until `CoverageReady` arrives. It carries the coverage metrics, configured thresholds, per-file gaps, and accumulated threshold violations.
+
+**`failures`** is an ordered list of `FailureRecord` entries. A failure record may exist before its classification arrives — `FailureClassified` is emitted from a separate pipeline, so `classification` is nullable.
+
+**`suggestedActions`** accumulates `SuggestedActionRecord` entries as they arrive from the plugin's post-run analysis.
+
+## Supporting record shapes
+
+**`ModuleRecord`** — per-module aggregation keyed on `modulePath`. Tracks `status` (`"queued"` | `"running"` | `"finished"`), pass/fail/skip/timeout counts, a `tests` array of `TestRecord`s, an optional `projectName` (from the Vitest module's `project.name`), an optional `startedAt` wall-clock stamp (used for the ticking elapsed column in the live Ink renderer), and optional `tagCounts` (a per-tag test count surfaced as a suffix on aggregate rows).
+
+**`TestRecord`** — per-test record accumulated as `TestStarted` and `TestFinished` events arrive. Tracks `testName`, `suitePath`, `status` (including the render-only `"running"` and `"timed-out"` values beyond the persisted `TestState` cases), `durationMs`, and an optional `error`.
+
+**`FailureRecord`** — one row in the failure list. Carries `modulePath`, `testName`, `suitePath`, optional `error` and `timedOut` flag, and a nullable `classification`.
+
+**`CoverageRenderState`** — coverage block populated only after `CoverageReady`. Carries coverage `metrics`, configured `thresholds`, per-file `gaps`, and accumulated `violations`.
+
+## Initial state
+
+`initialRenderState` is exported from the SDK so tests and renderer bootstrapping code share one definition:
+
+```ts
+import { initialRenderState } from "vitest-agent-sdk"; // or "vitest-agent-ui"
+
+const state = reduceRenderStateAll(events, initialRenderState);
+```
+
+The initial state has `phase: "idle"`, all counts at zero, and all nullable fields set to `null`.
+
+## Learn more
+
+- [The dispatcher matrix](/ui/dispatcher) — how `RenderState` coordinates feed cell selection
+- [API reference](/ui/api)
+- [vitest-agent-plugin overview](/plugin) — the plugin owns the PubSub channel and publishes `RunEvent`s

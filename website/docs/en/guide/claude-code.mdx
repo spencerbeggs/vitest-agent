@@ -1,0 +1,105 @@
+---
+title: Claude Code companion
+description: Install the vitest-agent Claude Code marketplace plugin to add lifecycle hooks, TDD skills, the tdd-task agent, and the /tdd command to your Claude Code sessions.
+---
+
+# Claude Code companion
+
+The Claude Code marketplace plugin is the optional agent-behavior layer of
+vitest-agent. It wraps the npm plugin's collected data in active behavior:
+session hooks, TDD skills, an orchestrator subagent, and a `/tdd` command.
+
+## Install the plugin
+
+First, add the `spencerbeggs` bot marketplace if you have not already:
+
+```bash
+/plugin marketplace add spencerbeggs/bot
+```
+
+Then install the plugin for your project:
+
+```bash
+/plugin install vitest-agent@spencerbeggs --scope project
+```
+
+This adds the following to your `.claude/settings.json`:
+
+```json
+{
+  "enabledPlugins": {
+    "vitest-agent@spencerbeggs": true
+  }
+}
+```
+
+:::note
+`vitest-agent-plugin` must already be installed as a project dependency. The
+marketplace plugin's MCP loader detects your package manager and spawns
+`vitest-agent-mcp` from your project's `node_modules`. If the MCP bin is
+missing, the loader prints install instructions and exits.
+:::
+
+## What it adds
+
+**MCP server (auto-registered)**
+
+The plugin registers the `vitest-agent` MCP server automatically. Claude Code
+spawns it via a zero-dependency shell loader that detects your package manager
+and exec-replaces itself with the MCP bin — no wrapper process remains.
+
+The server exposes 29 action-keyed tools covering test queries, TDD lifecycle
+management, notes, hypotheses, agent registration, and workspace history.
+
+**Lifecycle hooks**
+
+At session start, a hook queries the CLI and injects a markdown summary of
+current test status and available MCP tools into your session context. Other
+hooks record turns for session analytics, auto-allow non-destructive MCP tool
+calls without per-call prompts, gate dangerous TDD operations, and track
+git commits.
+
+**Skills**
+
+Fifteen skills cover the TDD workflow. Ten are preloaded into the `tdd-task`
+agent on dispatch, one (`test-discovery`) is path-triggered, and four
+standalone reference skills (`debugging`, `coverage-improvement`,
+`configuration`, `vitest-context`) load on demand.
+
+**The `tdd-task` agent**
+
+`vitest-agent:tdd-task` is a TDD orchestrator subagent with `context:fork`.
+It drives red-green-refactor cycles with evidence-based phase transitions and
+mandatory MCP gates. It cannot write production code without a preceding
+failing test.
+
+## Run a TDD cycle
+
+With the plugin installed, start a TDD session from the Claude Code slash
+command:
+
+```
+/tdd Add input validation to the user registration handler
+```
+
+The `/tdd` command dispatches the `tdd-task` orchestrator with your goal as
+the prompt. The orchestrator:
+
+1. Decomposes the goal into atomic behaviors using `tdd_goal` and
+   `tdd_behavior` MCP tools
+2. Drives a red-green-refactor cycle for each behavior — writing the failing
+   test first, then implementing to make it pass, then refactoring
+3. Uses `run_tests` via MCP to execute the suite and classify the result
+4. Records hypotheses before any non-test file edit and commits at each
+   accepted phase transition
+5. Hands off a structured summary when the goal is complete
+
+The orchestrator runs in a forked context and does not inherit your session
+history, keeping its reasoning focused on the goal.
+
+## Next steps
+
+- [Packages](/packages) — per-package API reference for all published packages
+
+See [TDD workflow](/guide/tdd-workflow) for an overview of the goal/behavior
+hierarchy, phase transition gates, and evidence-based commit discipline.

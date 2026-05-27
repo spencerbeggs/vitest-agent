@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-19
-last-synced: 2026-05-19
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 100
 related:
   - ./architecture.md
@@ -287,9 +287,8 @@ package; the plugin installs a Vite `transform` hook (see
 and `it()` call's options argument with a tags array derived from
 filename classification (`*.e2e.test.ts` → `["e2e"]`, etc.). The
 classifier and tag declarations live on `DiscoverStrategy` in
-`vitest-agent-plugin` after the T5 unification — see Decision 39.
-`AgentPlugin.discover()` returns `{ projects, tags }` so the tag list
-flows directly into `test.tags`.
+`vitest-agent-plugin` — see Decision 39. `AgentPlugin.discover()` returns
+`{ projects, tags }` so the tag list flows directly into `test.tags`.
 
 Storage uses one `project` column keyed by package name. Per-tag
 pass/fail/skip aggregates are computed by the plugin reporter and
@@ -486,58 +485,35 @@ path, a SQLite client, and a migrator into a single layer. We keep
 Decision 28 remains in force as the canonical fix for the SQLITE_BUSY
 race.
 
-### Decision 33: Five-Package Split
+### Decision 33: Package Split
 
-**Amendment (2026-05-12):** the event-sourced renderer landed as a
-sixth opt-in package, `vitest-agent-ui`. The five-package contract
-this decision describes (mandatory peers for plugin + reporter + cli +
-mcp built on top of sdk) is unchanged — `vitest-agent-ui` participates
-in the same lockstep release cycle and depends only on
-`vitest-agent-sdk`, but it is *not* a required peer of
-`vitest-agent-plugin`. Hosts that want the React Ink mount or the
-event-sourced renderer pull it in directly. See
-[./components/ui.md](./components/ui.md) for the package's contents.
-
-**Amendment (T6, 2026-05-15):** `vitest-agent-ui` is now a workspace
-dependency of `vitest-agent-plugin` (so the plugin can import the
-preassembled `_defaultReporter` as its built-in) and of
-`vitest-agent-reporter` (so the convenience re-exports
-`buildDispatchInputs` and `resolveCellOptions` can flow through).
-The lockstep-release / opt-in-peer story for end users is unchanged.
-See D41 for the dispatcher matrix rationale.
-
-**Amendment (reporter-package restructure, 2026-05-18):** the
-restructure resettled the dependency graph into a clean four-layer
-chain — `plugin → reporter → ui → sdk`. `vitest-agent-plugin` dropped
-its direct `vitest-agent-ui` dependency: it now imports the default
-reporter from `vitest-agent-reporter` and nothing from `ui`.
-`react` + `ink` moved from the plugin to `vitest-agent-reporter` as
-full `dependencies` (the plugin no longer touches JSX); `ui` keeps
-them as `peerDependencies`. `vitest-agent-reporter` dropped its
-redundant `cli` + `mcp` peers. See D34 and D41.
-
-**Amendment (workspace dependency cleanup, 2026-05-18):** the pre-2.0
-cleanup moved the sidecar dispatch core (`dispatch`, `injectEnv`,
-`exitCodeForTag`) into `vitest-agent-sdk` behind a dedicated
-`./dispatch` entry, so the per-platform sidecar children depend on the
-SDK rather than the CLI — this breaks the prior cli → sidecar → cli
-workspace cycle. The plugin's dependency shape is unchanged: cli and
-mcp remain required `peerDependencies`, reporter and sdk remain regular
-`dependencies`. See [./components/sdk.md](./components/sdk.md) and
+The dependency graph is a four-layer chain — `plugin → reporter → ui → sdk`
+— across seven publishable workspaces (the four above plus `cli`, `mcp` and
+`sidecar`). `vitest-agent-plugin` has no direct `vitest-agent-ui`
+dependency: it imports the default reporter from `vitest-agent-reporter` and
+nothing from `ui`. `react` + `ink` are full `dependencies` of
+`vitest-agent-reporter` (the plugin does not touch JSX); `ui` keeps them as
+`peerDependencies`. The sidecar dispatch core (`dispatch`, `injectEnv`,
+`exitCodeForTag`) lives in `vitest-agent-sdk` behind a dedicated `./dispatch`
+entry, so the per-platform sidecar children depend on the SDK rather than the
+CLI — there is no workspace dependency cycle. See
+[./components/sdk.md](./components/sdk.md) and
 [./components/sidecar.md](./components/sidecar.md).
 
-The system ships as six pnpm workspaces under `packages/`:
+The seven workspaces under `packages/`:
 
 | Package | Role |
 | --- | --- |
 | `vitest-agent-sdk` | data layer, schemas, services, formatters, utilities, XDG path stack, sidecar dispatch core (`./dispatch` entry) — no internal deps |
-| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter and sdk directly (no longer on ui). Owns no rendering |
+| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter and sdk directly (not on ui). Owns no rendering |
 | `vitest-agent-reporter` | the default reporter package: `DefaultVitestAgentReporter` (the plugin's built-in factory, owns the Ink live mount), contract re-exports, dispatch helpers. Declares `react` + `ink` as full deps; depends on sdk and ui |
 | `vitest-agent-ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, `RunEventChannel` PubSub). Consumed by `vitest-agent-reporter`; `react` / `ink` are `peerDependencies` |
 | `vitest-agent-cli` | `vitest-agent` bin |
 | `vitest-agent-mcp` | `vitest-agent-mcp` bin |
+| `vitest-agent-sidecar` | per-Bash `inject-env` fast-path native binary; a regular `dependency` of `vitest-agent-cli` |
 
-All six release in lockstep via changesets `linked` config. The plugin
+The six non-sidecar packages release in lockstep via changesets `linked`
+config; `vitest-agent-sidecar` versions independently. The plugin
 declares the CLI and MCP packages as **required** `peerDependencies` so
 installing the plugin still pulls the agent tooling with it;
 `vitest-agent-reporter`, `vitest-agent-sdk` and `vitest-agent-ui` are
@@ -575,13 +551,9 @@ registry, so the root `package.json` declares `vitest-agent-cli` and
 adds a `publicHoistPattern` for both so their bins land in the root
 `node_modules/.bin`.
 
-**Trade-offs:** six `private: true` package.jsons (rslib-builder
-transforms each on publish), and consumers importing schemas use
-`from "vitest-agent-sdk"`.
-
-**Trade-offs:** six `private: true` package.jsons (rslib-builder
-transforms each on publish), and consumers importing schemas use
-`from "vitest-agent-sdk"`.
+**Trade-offs:** every source `package.json` is `private: true`
+(rslib-builder transforms each on publish), and consumers importing schemas
+use `from "vitest-agent-sdk"`.
 
 ### Decision 34: Plugin/Reporter Split
 
@@ -597,13 +569,10 @@ package and the reference package for custom-reporter authors. It ships
 the plugin wires as its built-in — and re-exports the factory contract
 types from `vitest-agent-sdk` plus the `buildDispatchInputs` /
 `resolveCellOptions` dispatch helpers so a custom-reporter author gets a
-real worked example and everything they need from one package. The
-pre-2.0 named factories (`defaultReporter`, `markdownReporter`,
-`terminalReporter`, `jsonReporter`, `silentReporter`,
-`ciAnnotationsReporter`, `githubSummaryReporter`) and the private
-`_kit-context.ts` helper were all deleted in T6. See D41 for the
-dispatcher rationale and the **Amendment** below for the
-reporter-package restructure.
+real worked example and everything they need from one package. There are no
+per-format named factories — the shape-tailored dispatcher matrix replaced
+that pipeline. See D41 for the dispatcher rationale and the **Where the
+default reporter lives** note below.
 
 Contract types in `vitest-agent-sdk`
 (`packages/sdk/src/contracts/reporter.ts`):
@@ -637,25 +606,16 @@ Each reporter sees the same `ReporterKit` and `ReporterRenderInput`;
 their `RenderedOutput[]` results are concatenated in factory-
 declaration order before routing.
 
-**Amendment (reporter-package restructure, 2026-05-18): the default
-reporter moves back to `vitest-agent-reporter`.** T6 had parked the
-preassembled default in `vitest-agent-ui` as the internal
-`_defaultReporter`, on the reasoning that it should live beside the
-dispatcher cells. That left the package literally named "reporter"
-containing no reporter and exporting a `CURRENT_REPORTER_VERSION`
-drift constant that pointed at the wrong package. The restructure
-moves the default reporter and the live Ink mount into
-`vitest-agent-reporter`, promotes the export to the public name
-`DefaultVitestAgentReporter`, and resettles the layers: `ui` is the
-pure rendering-primitives library, `reporter` is the package that
-assembles a reporter from those primitives and is the canonical worked
-example for custom-reporter authors. The two packages stay separately
-published — `ui`'s anticipated second consumer is the planned MCP
-triage-dashboard app, so merging then resplitting would cost two
-breaking changes. The restructure also folded in the former open
-decision §8.2 (the plugin / reporter live-rendering boundary): live
-orchestration now lives in `DefaultVitestAgentReporter`, not the
-plugin. See D41 and [./components/reporter.md](./components/reporter.md).
+**Where the default reporter lives.** `DefaultVitestAgentReporter` and the
+live Ink mount live in `vitest-agent-reporter`, the package that assembles a
+reporter from the `vitest-agent-ui` primitives and is the canonical worked
+example for custom-reporter authors. `vitest-agent-ui` is the pure
+rendering-primitives library. The two stay separately published — `ui`'s
+anticipated second consumer is the planned MCP triage-dashboard app, so
+merging then resplitting would cost two breaking changes. Live-rendering
+orchestration lives in `DefaultVitestAgentReporter`, not the plugin: the
+plugin owns the run-event channel and hands it to the reporter. See D41 and
+[./components/reporter.md](./components/reporter.md).
 
 The Claude Code plugin manifest at
 `plugin/.claude-plugin/plugin.json` keeps the identity
@@ -730,7 +690,7 @@ to database state at prompt-selection time, which is one or two agent
 turns earlier than when the agent uses the data; by then it's stale.
 Framing-only prompts compose with existing tools: `triage` orients
 the agent toward `triage_brief` + `failure_signature_get` +
-`hypothesis_record`, and the agent calls those tools at the right
+`hypothesis`, and the agent calls those tools at the right
 time. Argument validation lives in the prompt (zod), so failures show
 up at prompt selection rather than several turns later in tool calls.
 
@@ -797,12 +757,9 @@ manifest is authored in-tree. They are structurally different —
 one keys on path, the other on slug — but both embed the same
 `ResourceAnnotations` schema (`audience?: ("user"|"assistant")[],
 priority?: number in [0,1]`). Consumers see one annotation contract
-regardless of URI scheme. The editorial guide for priority bands
-per content type lives at
-`docs/superpowers/specs/2.0-resource-annotations.md` §2 (API
-reference 0.85–0.95; coverage 0.85; core guide 0.75–0.85;
-experimental 0.55; migration 0.45; TDD-core patterns 0.9; general
-patterns 0.7).
+regardless of URI scheme. The path-prefix → priority bands are owned by
+`packages/mcp/lib/scripts/annotations-heuristic.ts` (the single source for
+both the snapshot bootstrap and the editorial pass).
 
 **Annotations bootstrap is single-source.** Path-prefix heuristics
 live exclusively in
@@ -924,47 +881,29 @@ Two derived behaviors fall out of the resolved mode:
    built-in console reporters AND zeroes `coverage.reporter` so the
    plugin owns stdout for the run.
 2. **Live mount activation.** When `consoleMode === "stream"` a live Ink
-   mount paints during the run. After the reporter-package restructure
-   the plugin no longer instantiates that mount — it publishes
-   `RunEvent`s onto a `PubSub` channel threaded onto `ReporterKit.runEvents`,
-   and `DefaultVitestAgentReporter` subscribes to it and owns the mount
-   lifecycle. The user-supplied `onRunEvent` callback is a separate
-   read-only stream tee — see D41 for the post-T6 semantics.
+   mount paints during the run. The plugin does not instantiate that mount
+   — it publishes `RunEvent`s onto a `PubSub` channel threaded onto
+   `ReporterKit.runEvents`, and `DefaultVitestAgentReporter` subscribes to
+   it and owns the mount lifecycle. The plugin invokes the reporter factory
+   at run start (`onInit`) so a live-painting reporter can subscribe before
+   the first event. The user-supplied `onRunEvent` callback is a separate
+   read-only stream tee, forwarded for every console mode — not gated. See
+   D41.
 
-**Amendment (T6, 2026-05-15):** D37's original "live-tap gating" rule
-forwarded `onRunEvent` only when `consoleMode === "ink"` to keep a
-live Ink mount from leaking into channels the user opted out of. After
-T6 the live mount is plugin-internal and the gating is no longer
-needed; the user-facing tap is now forwarded for every mode as a
-read-only stream tee. See D41.
+The `human`-slot value is named `stream` (`HumanConsoleMode` is
+`passthrough | silent | stream | agent`) — it describes the user-visible
+behavior rather than the rendering library. It renders a progressively-drawn,
+colored, animated rendering of the agent's run-shape view. The internal
+`RunEvent` surface is complete — every Vitest 4.x reporter hook emits a
+variant — and a wall-clock animation clock in `createLiveInk` drives the
+spinner and the ticking elapsed column. See
+[./components/reporter.md](./components/reporter.md) and
+[./components/ui.md](./components/ui.md).
 
-**Amendment (reporter-package restructure, 2026-05-18):** the live Ink
-mount is no longer plugin-internal at all. The plugin owns a run-event
-`PubSub` channel and feeds it; `DefaultVitestAgentReporter` owns the
-mount. The plugin invokes the reporter factory at run start (`onInit`)
-rather than at run end, so a live-painting reporter can subscribe
-before the first event. See D41 and §8.2 (now resolved).
-
-**Amendment (stream console mode, 2026-05-19):** the `human`-slot value
-`ink` was renamed `stream` (`HumanConsoleMode` is now `passthrough |
-silent | stream | agent`). `ink` was an implementation detail — the
-rendering library — and `stream` describes the user-visible behavior.
-Pre-2.0, a clean break with no deprecation alias. The mode was also
-reworked: it no longer renders a flat Vitest-shaped per-file list (a
-near-copy of Vitest's default reporter) but a progressively-drawn,
-colored, animated rendering of the agent's run-shape view. Alongside
-the rename, the internal `RunEvent` surface was completed — every
-Vitest 4.x reporter hook now emits a variant — and a wall-clock
-animation clock was added to `createLiveInk` to drive the spinner and
-the ticking elapsed column. See [./components/reporter.md](./components/reporter.md)
-and [./components/ui.md](./components/ui.md); the canonical spec is
-`docs/superpowers/specs/2026-05-19-stream-console-mode.md`.
-
-Alongside the option-shape change, `AgentReporter` implements Vitest's
-streaming hooks and fires a matching `RunEvent` from each — as of the
-2026-05-19 amendment above, every Vitest 4.x reporter hook is wired. The
-events are published onto the run-event channel the reporter subscribes
-to and forwarded to the optional user-supplied `onRunEvent` tap.
+`AgentReporter` implements Vitest's streaming hooks and fires a matching
+`RunEvent` from each. The events are published onto the run-event channel
+the reporter subscribes to and forwarded to the optional user-supplied
+`onRunEvent` tap.
 
 **Why a per-executor matrix beats a single `mode` enum:** humans,
 agents, and CI runners want different visible behavior from the same
@@ -983,7 +922,7 @@ deliberately a single synchronous batch call (one frame per project,
 end of run). Adding `start` / `event` / `stop` lifecycle methods to the
 factory would couple every reporter to the streaming surface even when
 it only needs the final frame. The callback model keeps the contract
-narrow; after the reporter-package restructure `DefaultVitestAgentReporter` owns the live mount by subscribing to the run-event `PubSub` channel at factory-invocation time, and the user-facing `onRunEvent` tap is a separate read-only stream tee for custom
+narrow: `DefaultVitestAgentReporter` owns the live mount by subscribing to the run-event `PubSub` channel at factory-invocation time, and the user-facing `onRunEvent` tap is a separate read-only stream tee for custom
 dashboards, log forwarders or analytics sinks.
 
 **Why retire `strategy` ("complement" / "own"):** the two states were
@@ -998,12 +937,11 @@ contract that this decision threads `consoleMode` through), and the
 retired entries D9 / D27 / the old D12 prose in
 [./decisions-retired.md](./decisions-retired.md).
 
-### Decision 38: T4 Coverage Policy — Dual-Output Presets, ConfigValidation Service, Full / UI-only Modes
+### Decision 38: Coverage Policy — Dual-Output Presets, ConfigValidation Service, Full / UI-only Modes
 
-T4 (the 2.0 coverage-policy workstream) reshapes how users wire coverage
-thresholds and aspirational targets, where validation lives, and how the
-reporter behaves when coverage is disabled. Five locked design choices
-emerged across Phases 1–5.
+The coverage-policy design reshapes how users wire coverage thresholds and
+aspirational targets, where validation lives, and how the reporter behaves
+when coverage is disabled. Five design choices:
 
 **1. `coverageMode` belongs on `ResolvedReporterConfig`, not
 `AgentReporterOptions`.** The two operating modes — Full (the full
@@ -1014,8 +952,7 @@ and threads it through `buildReporterKit` onto the resolved kit. It is
 a per-run resolved fact, not a user input. Locking it on the resolved
 kit (rather than on the user-facing `AgentReporterOptions` schema) keeps
 the resolution path single-source-of-truth and avoids forcing users to
-declare the same fact twice. Cross-workstream review section 2.2
-ratified this placement.
+declare the same fact twice.
 
 **2. Dual-output `COVERAGE_LEVELS` presets.** Each
 `AgentPlugin.COVERAGE_LEVELS.<preset>` entry returns a
@@ -1039,9 +976,8 @@ supported directly, so the three tolerance functions ship as plain
 (`standard` floors, `strict` ceils, `lenient` floors and subtracts 2
 clamped to 0). No type augmentation, no plugin-side wrapping. Users
 pass `AgentPlugin.COVERAGE_AUTOUPDATE.standard` straight into
-`coverage.thresholds.autoUpdate`. Phase 4 also dropped the plugin's
-side-effect that previously disabled `autoUpdate` when targets were set
-— Vitest 2.0 owns its own ratchet and the two no longer fight.
+`coverage.thresholds.autoUpdate`. The plugin does not disable or override
+`autoUpdate` — Vitest owns its own ratchet and the two do not fight.
 
 **4. `MISSING_PROVIDER_PACKAGE` checks installability via
 `createRequire`.** The Full-mode validation rule that flags an
@@ -1054,36 +990,28 @@ provider. The `remediation` field on the error carries the install
 command (`npm install --save-dev @vitest/coverage-v8` or
 `@vitest/coverage-istanbul`).
 
-**5. Validation is an Effect service with a starter rule registry.**
-`ConfigValidation` (tag `vitest-agent/ConfigValidation`) replaces the
-inline `validateCoverageConfig` call previously embedded in
-`configureVitest`. The Live layer runs seven rules
-(`TARGET_WITHOUT_THRESHOLD`, `TARGET_BELOW_THRESHOLD`,
-`THRESHOLD_WITHOUT_TARGET` silent, `INVALID_TARGET_VALUE`,
-`UNSUPPORTED_PROVIDER`, `MISSING_PROVIDER_PACKAGE`, `PERFILE_ON_TARGETS`)
-and produces a `ValidationResult` with `errors`, `warnings`, and
-`info` arrays; `ValidationError` carries an optional `path` for
-pinpointed diagnostics. Warnings print to stderr through the
-`[vitest-agent:plugin]` prefix; errors throw via `formatFatalError`.
-The test factory `ConfigValidationTest.layer(override?)` lets tests
-inject pre-built results without spinning up the rule engine.
+**5. Validation is an Effect service with a rule registry.**
+`ConfigValidation` (tag `vitest-agent/ConfigValidation`) owns coverage-config
+diagnostics. The Live layer runs the rule registry — the rule codes and
+modes are in [./components/plugin.md](./components/plugin.md) — and produces
+a `ValidationResult` with `errors`, `warnings`, and `info` arrays;
+`ValidationError` carries an optional `path` for pinpointed diagnostics.
+Warnings print to stderr through the `[vitest-agent:plugin]` prefix; errors
+throw via `formatFatalError`. The test factory
+`ConfigValidationTest.layer(override?)` lets tests inject pre-built results
+without spinning up the rule engine.
 
-**Cross-references:** the canonical spec at
-`docs/superpowers/specs/2.0-coverage-policy.md` and the cross-workstream
-review section 2.2. The schema cleanup that removes `coverageThresholds`
-and `autoUpdate` from the plugin's option surface landed under T7 — see
-D40.
+The schema removes `coverageThresholds` and `autoUpdate` from the plugin's
+option surface — see D40.
 
-### Decision 39: T5 Unified DiscoverStrategy + DiscoverBuilder
+### Decision 39: Unified DiscoverStrategy + DiscoverBuilder
 
-T5 (the 2.0 discovery-unification workstream) collapses the legacy
-`VitestProject` builder class and the legacy `TagStrategy` classifier
-into a single `DiscoverStrategy` extension point. Six locked design
-choices, ratified against the spec at
-`docs/superpowers/specs/2.0-discover-strategy.md`.
+The discovery design collapses a former split between a `VitestProject`
+builder class and a `TagStrategy` classifier
+into a single `DiscoverStrategy` extension point. Six design choices:
 
 **1. One strategy owns project detection and tag classification.** The
-pre-T5 split (one class to declare tags and classify files, a separate
+earlier split (one class to declare tags and classify files, a separate
 builder class wrapping `TestProjectInlineConfiguration`, plus a
 hand-rolled scanner that special-cased every "no tests here" path) was
 hard to extend without forking the scanner. `DiscoverStrategy.create({
@@ -1096,10 +1024,10 @@ replace it. Users that previously had to fork the scanner can now
 subclass through composition.
 
 **2. `null` from `buildProject` is the canonical "no project" signal.**
-The pre-2.0 scanner had three orthogonal skips (root package, missing
-`src/`, missing test files) baked into the function body. T5 deletes
-every special case: the scanner calls `strategy.buildProject(input)`
-once per package and treats a null return as "skip this package."
+Rather than baking three orthogonal skips (root package, missing
+`src/`, missing test files) into the scanner, there is one predicate:
+the scanner calls `strategy.buildProject(input)` once per package and
+treats a null return as "skip this package."
 `DefaultDiscoverStrategy.buildProject` returns null when neither
 `src/` nor `__test__/` contains test files — the same behavior the old
 special cases produced, but expressed as a single predicate the user
@@ -1113,9 +1041,8 @@ path })` call returns a new builder so the original is unchanged.
 `.addProject` is the documented escape hatch for folders that hold
 tests but are not workspace packages — the alternative would have been
 either a parallel options field or a callback, both of which fight the
-scanner's caching model. The thenable shape also keeps the common case
-unchanged: `await AgentPlugin.discover()` works exactly as it did
-before T5.
+scanner's caching model. The thenable shape keeps the common case simple:
+`await AgentPlugin.discover()` resolves the `DiscoverResult` directly.
 
 **4. Added-entry conflicts are loud.** When an `.addProject` entry's
 name or normalized absolute path collides with an existing workspace
@@ -1128,19 +1055,14 @@ added entries were supplied; any `.addProject` chain or explicit
 strategy bypasses the cache because strategy instances cannot be
 fingerprinted.
 
-**5. `VitestProject` is gone; `TestProjectInlineConfiguration` is the
-result type directly.** The pre-T5 `VitestProject` class served as a
-fluent builder around `TestProjectInlineConfiguration` with mutation
-helpers (`.override`, `.addInclude`, `.addExclude`,
-`.addCoverageExclude`). Now that strategies own their own config
-shape, the builder layer adds nothing — strategies return
-`TestProjectInlineConfiguration` directly and `discoverProjects` no
-longer maps through a `.toConfig()` step. The output type of
-`discoverProjects` and `AgentPlugin.discover()` changed from
-`{ projects: VitestProject[]; tags }` to `{ projects:
-TestProjectInlineConfiguration[] | undefined; tags }`; `projects`
-becomes `undefined` rather than an empty array when no projects were
-produced, so Vitest treats the config as having no projects.
+**5. `TestProjectInlineConfiguration` is the result type directly.**
+There is no fluent builder class wrapping it. Strategies own their own
+config shape and return `TestProjectInlineConfiguration` directly;
+`discoverProjects` does not map through a `.toConfig()` step. The output
+type of `discoverProjects` and `AgentPlugin.discover()` is `{ projects:
+TestProjectInlineConfiguration[] | undefined; tags }`; `projects` is
+`undefined` rather than an empty array when no projects were produced, so
+Vitest treats the config as having no projects.
 
 **6. Three standalone classifier helpers plus a public
 `findTestFiles`.** The classifier composition primitives
@@ -1153,43 +1075,35 @@ uses it internally, and custom strategies often need the same walk.
 Exporting the walker keeps users out of the business of reimplementing
 node_modules / .git / dist skipping and brace expansion.
 
-The plugin option that previously held the classifier is renamed:
-`AgentPluginConstructorOptions.tagStrategy` is now
-`discoverStrategy`. The false sentinel still disables the Vite
-transform hook entirely. The classifier-only API (the old
-`TagStrategy` namespace and its `ClassifyBaseFn` / `ClassifyExtendedFn`
-types) is gone; consumers wanting classifier-only composition use the
-helpers above and pass the result into `DiscoverStrategy.create`.
+The plugin option that holds the classifier is
+`AgentPluginConstructorOptions.discoverStrategy`. The false sentinel
+disables the Vite transform hook entirely. Consumers wanting
+classifier-only composition use the helpers above and pass the result into
+`DiscoverStrategy.create`.
 
-**Cross-references:** the canonical spec at
-`docs/superpowers/specs/2.0-discover-strategy.md`. Tightening
-`discoverProjects` itself out of the public surface (so
-`AgentPlugin.discover()` is the only documented entry point) is
-deferred to T9.6. See
-[./components/discover.md](./components/discover.md) for the API
-surface and [./components/plugin.md](./components/plugin.md) for the
-transform-hook wiring.
+`discoverProjects` is exported but internal-leaning; `AgentPlugin.discover()`
+is the documented entry point. See
+[./components/discover.md](./components/discover.md) for the API surface and
+[./components/plugin.md](./components/plugin.md) for the transform-hook
+wiring.
 
-### Decision 40: T7 Options Cleanup — `AgentPluginOptions` Is Exactly Five Fields
+### Decision 40: Options Cleanup — `AgentPluginOptions` Is Exactly Five Fields
 
-T7 (the 2.0 options-cleanup workstream) collapses the pre-2.0 grab bag
-of `~17` plugin options plus a parallel `AgentReporterOptions` carrying
-the same surface a second time into one deliberate five-field shape.
-Five locked design choices, ratified against the spec at
-`docs/superpowers/specs/2.0-options-cleanup.md`.
+`AgentPluginOptions` is one deliberate five-field shape rather than a grab
+bag of options plus a parallel `AgentReporterOptions` carrying the same
+surface a second time. Five design choices:
 
 **1. The final `AgentPluginOptions` shape is exactly five fields:
 `console`, `coverageTargets`, `reporter`, `onRunEvent`, `transport`.**
-Three forces produced the shrink. T4 hands coverage configuration back
+Three forces produced the shrink. Coverage configuration is handed back
 to Vitest (`coverage.thresholds`, `autoUpdate`, and `coverage.enabled`
 are the user's existing knobs and the plugin should not duplicate
-them). T6's UI rewrite makes the plugin own the default reporter, so
+them — D38). The plugin owns the default reporter (D41), so
 `format`, `consoleOutput`, `detail`, `coverageConsoleLimit`,
-`githubSummary`, and `githubSummaryFile` become renderer-internal — a
+`githubSummary`, and `githubSummaryFile` are renderer-internal — a
 custom reporter via `VitestAgentReporterFactory` is the override path.
-The project-keying work and file-structure decisions move `cacheDir`
-to `vitest-agent.config.toml` and `logLevel` / `logFile` to env vars
-(`VITEST_REPORTER_LOG_LEVEL`, `VITEST_REPORTER_LOG_FILE`). What
+`cacheDir` moves to `vitest-agent.config.toml` and `logLevel` / `logFile`
+to env vars (`VITEST_REPORTER_LOG_LEVEL`, `VITEST_REPORTER_LOG_FILE`). What
 survives are the four deliberate user-facing concerns plus the
 forward-declared `transport` shape.
 
@@ -1214,9 +1128,9 @@ the GitHub Step Summary set the matching `console.ci` slot to
 `"silent"` and the derivation cascades. Both values are threaded onto
 `ResolvedReporterConfig` so custom reporters still see them.
 
-**4. `AgentReporterOptions` is intentionally tiny in 2.0 — one field
-(`projectFilter`).** Pre-T7 it carried 18 fields, most of them
-duplicates of `AgentPluginOptions`. The substantive reporter contract
+**4. `AgentReporterOptions` is intentionally tiny — one field
+(`projectFilter`).** It is not a second copy of `AgentPluginOptions`. The
+substantive reporter contract
 lives in `packages/sdk/src/contracts/reporter.ts` as
 `ResolvedReporterConfig` / `ReporterKit` / `ReporterRenderInput` /
 `VitestAgentReporter` / `VitestAgentReporterFactory`; those types are
@@ -1251,54 +1165,47 @@ carries `console`, `coverageTargets`, and `transport`. `reporter` and
 `AgentPluginConstructorOptions` companion interface; Effect Schema
 cannot encode functions cleanly so a struct-plus-companion-interface
 split is the same pattern the plugin already uses. The `discoverStrategy`
-field (T5) stays on the companion interface — orthogonal to T7 and a
-genuine extension point.
+field stays on the companion interface — orthogonal to the data-shaped
+options and a genuine extension point.
 
-`packages/sdk/src/schemas/CoverageTargets.ts` and
-`packages/sdk/src/schemas/Transport.ts` are new files extracted from
-`Options.ts` in the same pass. The old `CoverageOptions` and
-`FormatterOptions` schemas were unused dead code and were deleted.
+`CoverageTargets` and `Transport` live in their own schema files
+(`packages/sdk/src/schemas/CoverageTargets.ts`,
+`packages/sdk/src/schemas/Transport.ts`) rather than inside `Options.ts`.
 
 **Regression safety net.** A sweep test
-(`packages/sdk/__test__/options-removed.test.ts`) greps the 14
-removed field names across `packages/*/src/` and expects zero hits.
-Future copy-paste from old docs or training data trips CI rather
-than silently flowing through.
+(`packages/sdk/__test__/options-removed.test.ts`) greps the removed field
+names across `packages/*/src/` and expects zero hits. Future copy-paste
+from old docs or training data trips CI rather than silently flowing
+through.
 
-**Cross-references:** the canonical spec at
-`docs/superpowers/specs/2.0-options-cleanup.md`. See
-[./components/plugin.md](./components/plugin.md) for the option-table
+See [./components/plugin.md](./components/plugin.md) for the option-table
 prose and the `mcp` / `githubActions` derivation rules, and
 [./components/sdk.md](./components/sdk.md) for the schema-file layout.
 
-### Decision 41: T6 Shape-Tailored Dispatcher Matrix
+### Decision 41: Shape-Tailored Dispatcher Matrix
 
-The T6 UI rewrite replaced the pre-2.0 per-formatter pipeline (one factory
-per output format — `markdownReporter`, `jsonReporter`, `terminalReporter`,
-`silentReporter`, `ciAnnotationsReporter`, `githubSummaryReporter` plus the
-composing `defaultReporter`) with a single shape-tailored 4 × 3 dispatcher
-matrix. The plugin now owns the default reporter outright; users supply
+A single shape-tailored 4 × 3 dispatcher matrix replaces a per-formatter
+pipeline (one factory per output format plus a composing default). The
+plugin owns the default reporter outright; users supply
 `AgentPlugin({ reporter })` only as a wholesale override.
 
-**The four locked design choices.** Ratified against the spec at `docs/superpowers/specs/2.0-ui-rewrite.md`.
+**Four design choices:**
 
 **1. The plugin always emits events on the live stream; everything consumes
-the stream.** Pre-2.0 the system had two ingestion paths —
-`eventSourcedReporter` consumed `input.reports` at end-of-run while
-`createLiveInk()` subscribed per-event from the same plugin. Two ingestion
-paths from one upstream forced users to wire both a `reporter` factory and
-an `onRunEvent` tap to get the canonical experience. T6 collapses them: the
-plugin's internal `AgentReporter` is the sole upstream; the default
-reporter is one downstream subscriber; the user-facing `onRunEvent`
+the stream.** A two-ingestion-path design (one consumer reading
+`input.reports` at end-of-run, another subscribing per-event) would force
+users to wire both a `reporter` factory and an `onRunEvent` tap to get the
+canonical experience. Instead there is one upstream: the plugin's internal
+`AgentReporter` is the sole source; the default reporter is one downstream
+subscriber; the user-facing `onRunEvent`
 is a parallel read-only tee. Live and batch ingestion both land at the same
-`RenderState` via `reduceRenderStateAll`. After the reporter-package
-restructure that upstream is concrete: the plugin owns an Effect
-`PubSub<RunEvent>` channel (threaded onto `ReporterKit.runEvents`) and
-publishes one event per Vitest callback; `DefaultVitestAgentReporter`
-subscribes to it.
+`RenderState` via `reduceRenderStateAll`. The upstream is concrete: the
+plugin owns an Effect `PubSub<RunEvent>` channel (threaded onto
+`ReporterKit.runEvents`) and publishes one event per Vitest callback;
+`DefaultVitestAgentReporter` subscribes to it.
 
 **2. Output shape is selected by `(RunShape, RunOutcome)`, not by format
-flag.** The pre-2.0 approach always rendered the workspace table — wasteful
+flag.** Always rendering the workspace table would be wasteful
 for a single-test invocation, noisy for a large workspace. The dispatcher
 classifies the reduced state into one of four shapes (`single-test`,
 `single-file`, `single-project`, `workspace`) and one of three outcomes
@@ -1310,13 +1217,11 @@ renderers. Each cell exposes two halves on the same object — an
 stays total without a default fallback.
 
 **3. The default reporter is preassembled and the plugin imports it as the
-built-in.** T6 parked the preassembled default in `vitest-agent-ui` as the
-internal `_defaultReporter`. The reporter-package restructure (2026-05-18)
-moved it into `vitest-agent-reporter` and promoted it to the public name
-`DefaultVitestAgentReporter` — see D34's amendment. `vitest-agent-reporter`
-is now the default reporter package *and* the custom-reporter reference
-package; `vitest-agent-ui` is the pure rendering-primitives layer the
-reporter is assembled from. The two stay separately published.
+built-in.** `DefaultVitestAgentReporter` lives in `vitest-agent-reporter` —
+see D34. `vitest-agent-reporter` is the default reporter package *and* the
+custom-reporter reference package; `vitest-agent-ui` is the pure
+rendering-primitives layer the reporter is assembled from. The two stay
+separately published.
 
 **4. Each cell appends an L1 MCP tool-pointer footer.** The pre-2.0 output
 told the agent what happened but never pointed at the next action. The
@@ -1325,8 +1230,8 @@ classification — `file_coverage` for all-pass with below-target files,
 `test_errors` plus `failure_signature_get` for new/persistent failures,
 `failure_signature_get` alone for flaky, `test_coverage` for
 threshold-violation only. The dominant-classification priority is
-`new-failure → persistent → flaky → recovered → stable`. This rides with the
-L1 layer of the Topic 9.3 "agents don't auto-use MCP tools" fix.
+`new-failure → persistent → flaky → recovered → stable`. This is the L1
+layer of the "agents don't auto-use MCP tools" mitigation.
 
 **Trade-offs.** A 4 × 3 matrix is more authoring volume than one workspace
 template — 12 cells, two halves each, plus their snapshots. The decision
@@ -1340,59 +1245,45 @@ itself is open: adding a new run shape or outcome means extending two enums
 in `packages/sdk/src/contracts/dispatcher.ts` and adding a row (or column)
 of cells; the dispatcher's table lookup stays a one-liner.
 
-**Tap forwarding semantics changed.** Pre-T6 the plugin gated the
-`onRunEvent` tap to `consoleMode === "ink"` to keep a live Ink mount from
-leaking into channels the user opted out of. T6 dropped the gating once the
-live mount stopped being a user-wired thing. After the reporter-package
-restructure the live mount is owned by `DefaultVitestAgentReporter` (off
-the run-event channel), and the `onRunEvent` tap is an independent
-stream-tee that `AgentReporter.emit` fires for every console mode after
-publishing onto the channel. Throwing user callbacks are caught and logged
-to stderr by `emit`.
+**Tap forwarding semantics.** The `onRunEvent` tap is not gated by console
+mode. The live Ink mount is owned by `DefaultVitestAgentReporter` (off the
+run-event channel), and the tap is an independent stream-tee that
+`AgentReporter.emit` fires for every console mode after publishing onto the
+channel. Throwing user callbacks are caught and logged to stderr by `emit`.
 
-**Amendment (reporter-package restructure, 2026-05-18).** The folded-in
-former open decision §8.2: live-rendering orchestration moved out of
-`plugin/src/reporter.ts` into `DefaultVitestAgentReporter`. The plugin now
-invokes the reporter factory at run start (`onInit`, via `initReporters()`)
-rather than at run end, so a live-painting reporter subscribes to
-`ReporterKit.runEvents` before the first event. The `render` contract gained
-a second `kit` argument — the factory receives a run-start kit (neutral run
-health) and `render` receives a run-end, health-aware kit. The plugin reuses
-the run-start reporters for the `render` call. The old plugin-side `liveInk`
-/ `_createLiveInk` field and the `hasSubscribers()` gate are gone, replaced
-by `wantsRunEvents()`. The default reporter and the live mount driver moved
-to `vitest-agent-reporter`; see D34's amendment.
+**Run-start factory invocation.** The plugin invokes the reporter factory at
+run start (`onInit`, via `initReporters()`) rather than at run end, so a
+live-painting reporter subscribes to `ReporterKit.runEvents` before the
+first event. The `render` contract takes a second `kit` argument — the
+factory receives a run-start kit (neutral run health) and `render` receives
+a run-end, health-aware kit. The plugin reuses the run-start reporters for
+the `render` call. A `wantsRunEvents()` gate skips event construction when
+nothing will consume the stream. See D34.
 
-**Cross-references:** the canonical specs at
-`docs/superpowers/specs/2.0-ui-rewrite.md` and
-`docs/superpowers/specs/2026-05-18-reporter-package-restructure.md`. See
-[./components/ui.md](./components/ui.md) for the dispatcher topology and cell
-helpers, [./components/plugin.md](./components/plugin.md) for the wiring on
-the plugin side, and [./components/reporter.md](./components/reporter.md) for
-the default reporter package. The pre-2.0 per-formatter pipeline
-(`defaultReporter`, `markdownReporter`, `_kit-context.ts` and the named
-factory siblings) was deleted in T6 phases 6–9.
+See [./components/ui.md](./components/ui.md) for the dispatcher topology and
+cell helpers, [./components/plugin.md](./components/plugin.md) for the wiring
+on the plugin side, and [./components/reporter.md](./components/reporter.md)
+for the default reporter package.
 
-### Decision 42: T9.2 Three-Layer Sidecar Performance Fix
+### Decision 42: Three-Layer Sidecar Performance Fix
 
-The PreToolUse Bash hook fires on every Bash tool call, and before T9.2 it
-unconditionally shelled out to the JS CLI's `inject-env` to detect Vitest
-invocations and rewrite the env prefix. That shell-out cost ~505 ms p95 of
-Node cold-start (the `effect` / `@effect/cli` / `@effect/sql-sqlite-node`
-module graph), paid on the inner loop of agent latency. The Phase 2 latency
-note floated a long-running daemon to amortize that cost. T9.2 rejected the
-daemon in favor of a cheaper layered prefilter, because re-reading the hook
-showed the work was mostly wasted: ~80–90% of Bash calls cannot invoke
-Vitest at all, and main-agent Vitest invocations already carry correct
-attribution in their auto-sourced environment. Only the residual ~2% —
-subagent-triggered Vitest — genuinely needs the rewrite.
+The PreToolUse Bash hook fires on every Bash tool call. A naive hook
+unconditionally shells out to the JS CLI's `inject-env` to detect Vitest
+invocations and rewrite the env prefix; that shell-out pays full Node
+cold-start (the `effect` / `@effect/cli` / `@effect/sql-sqlite-node` module
+graph) on the inner loop of agent latency. A long-running daemon to amortize
+that cost was rejected in favor of a cheaper layered prefilter, because the
+work is mostly wasted: the large majority of Bash calls cannot invoke Vitest
+at all, and main-agent Vitest invocations already carry correct attribution
+in their auto-sourced environment. Only the residual subagent-triggered
+Vitest calls genuinely need the rewrite.
 
 **The three layers.** Layer 0 is a POSIX-ERE regex matched against the raw
 command with bash's built-in `[[ =~ ]]` operator (no fork); a non-match
 emits a no-op and exits. Layer 1 compares `VITEST_AGENT_AGENT_ID` against
 `VITEST_AGENT_MAIN_AGENT_ID` after the session env is sourced and skips the
 sidecar when the active actor is the main agent. Layers 0 and 1 together
-eliminate the sidecar from ~98% of Bash calls. Layer 2 is the new
+eliminate the sidecar from the large majority of Bash calls. Layer 2 is the
 `vitest-agent-sidecar` package — a native binary for the residual slow path.
 See [./components/plugin-claude.md](./components/plugin-claude.md) for the
 hook-level detail and [./components/sidecar.md](./components/sidecar.md) for
@@ -1410,56 +1301,45 @@ mode, which drives Node's Single Executable Application generation over a
 single-file bundle. tsdown is Rolldown-based and stays inside the Node
 ecosystem, avoiding the Bun/Node mixing pain of earlier spikes. The SEA
 binary runs the same `injectEnv` logic with no module-graph cold-start.
-tsdown's `exe` mode requires Node >= 25.7.0, so the repo's
-`devEngines.runtime` was bumped to 25.9.0.
+tsdown's `exe` mode requires Node >= 25.7.0, which sets the repo's
+`devEngines.runtime` floor.
 
 **Why `inject-env` only, with `register-agent` staying JS.** The binary
 handles `inject-env` and nothing else. `register-agent` pulls in a native
 SQLite binding (`@effect/sql-sqlite-node` → better-sqlite3) that cannot be
 bundled into a JavaScript SEA. It also fires only once per session, off the
-per-turn critical path, so the JS cold-start is tolerable there. Restoring
-`register-agent` to the binary by embedding the native binding per platform
-is a tracked 2.x follow-up.
+per-turn critical path, so the JS cold-start is tolerable there.
 
 **Distribution and fallback.** The binary ships per-platform via four `optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild / sharp model). darwin-x64 is intentionally not shipped — see [./components/sidecar.md](./components/sidecar.md). The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins; transitive optional-dependency bins are never placed in `node_modules/.bin/`. Instead, `resolveSidecarBinaryPath()` (exported from `vitest-agent-sidecar`) resolves the path via `createRequire(import.meta.url).resolve` anchored inside the sidecar package, which is the `optionalDependencies` owner. The SessionStart hook calls `vitest-agent agent sidecar-path` once per session, captures the absolute path from stdout, and exports it as `VITEST_AGENT_SIDECAR_BIN`. Layer 2 reads this env var instead of probing `PATH`. When the var is absent or the binary non-executable — unsupported platform or skipped optional dependency — the hook falls back to the JS CLI, byte-identical output, so attribution degrades gracefully rather than breaking.
 
-**Measured outcome.** Post-fix the hot path is ~16 ms p95 (was ~535 ms
-including hook plumbing) and the subagent-binary path is ~88 ms p95. The
-hook's payload parsing was also tightened — six `jq` forks to one, four
-`dirname` forks to one. Full numbers and the launch-gate analysis are in
-`.claude/notes/phase-3-sidecar-latency.md`; the implementation spec is
-`docs/superpowers/specs/2.0-sidecar-perf.md`.
+**Measured outcome.** The hot path is roughly an order of magnitude faster
+than the unconditional JS shell-out; the subagent-binary path sits between
+the two. The hook's payload parsing collapses its `jq` and `dirname` forks
+to one each. The benchmark harness is `scripts/bench-sidecar.sh`.
 
-### Decision D9: Last Drop-and-Recreate Migration
+### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
-**Amendment (pre-2.0 policy).** Before 2.0 ships to npm, the canonical
-schema lives in a single consolidated `0001_initial.ts`. The prior
-`0002_comprehensive.ts` was folded back into `0001_initial.ts` and
-deleted; developers wipe `data.db` on every breaking schema change.
-The "no future drop-and-recreate" invariant below applies once 2.0
-ships and users have published data. Until then, edit
-`0001_initial.ts` directly.
+**Pre-2.0 policy (current).** Before 2.0 ships to npm, the canonical
+per-project schema lives in a single migration file, `0001_initial.ts`.
+Every breaking schema change before 2.0 edits this file directly — no
+`0002_*`, no ALTERs, no backfills. Developers wipe `data.db` on every
+breaking change. (Two sibling files, `session_map_0001_initial.ts` and
+`registry_0001_initial.ts`, cover the per-client and registry SQLite
+scopes the same way.)
 
-`0002_comprehensive` (now folded back into `0001_initial`) is a
-drop-and-recreate. After 2.0 ships, **no future migration is allowed
-to drop and recreate**. 2.0.x and beyond are ALTER-only; for any
+**After 2.0 ships,** once users have published data, **no migration is
+allowed to drop and recreate**. 2.0.x and beyond are ALTER-only; for any
 breaking schema shape that ALTER cannot express, ship a one-shot
 export/import path on a major bump rather than dropping data.
 
-**Why drop-and-recreate for `0002`:**
+**Why a single pre-2.0 migration:**
 
-- Prior data was already lost when the DB location changed to the XDG
-  workspace-keyed path (Decision 31, intentionally no-migration).
-  Adding a preserving migration would help only a small pre-release
-  audience.
-- The schema diff is large. Per-column ALTER scripts (notably the
-  `test_errors.signature_hash` FK requiring `failure_signatures` to
-  exist first, the `stack_frames` source-map columns, the trigger
-  rewrite for `notes_fts`) would be meaningful test-code volume for
-  marginal value.
-- The drop ordering is paid once: drop children before parents, drop
-  FTS triggers before `notes`/`notes_fts` so cascading triggers don't
-  fire against an already-dropped virtual table.
+- Prior data was already lost when the DB location moved to the XDG
+  workspace-keyed path (Decision 31, intentionally no-migration), so a
+  preserving migration would help only a small pre-release audience.
+- The schema diff during pre-2.0 churn is large and fluid. Maintaining
+  per-column ALTER scripts against a still-moving canonical shape would be
+  meaningful test-code volume for marginal value while no users have data.
 
 **Why ALTER-only forever after:**
 
@@ -1755,50 +1635,40 @@ when preservation is semantically appropriate.
 
 ---
 
-## Agent-Agnostic Taxonomy (planned for 2.0 — Phase 1.5 spike outcomes)
+## Agent-agnostic taxonomy
 
-These decisions emerged from the four Phase 1.5 spikes for the
-agent-agnostic-taxonomy refactor (plan at `.claude/plans/agent-agnostic-taxonomy.md`).
-They document Claude Code runtime behavior we discovered empirically
-and the design responses. All four spikes are closed; Phase 1 starts
-from these conclusions.
+These decisions document Claude Code runtime behavior the system relies on
+and the design responses to it. They are the foundation of the
+agent-attribution model.
 
 ### Decision D16: Sidecar CLI over `mcp_tool` Hooks for Hook→MCP Communication
 
-Phase 1.5 Spike 2 ruled out the `mcp_tool` hook event type for the
-`register_agent` flow. The hook's `input` field accepts only
-`${path}` substitutions from the triggering event's JSON payload —
-it cannot carry caller-supplied values like `clientNonce`,
-`startGitBranch`, `startGitCommitSha`, or `startWorktreeDir`, all of
-which are generated or computed in the hook itself.
+The `mcp_tool` hook event type does not work for the `register_agent`
+flow. The hook's `input` field accepts only `${path}` substitutions from
+the triggering event's JSON payload — it cannot carry caller-supplied
+values like `clientNonce`, `startGitBranch`, `startGitCommitSha`, or
+`startWorktreeDir`, all of which are generated or computed in the hook
+itself.
 
-The plan pivoted to a **sidecar CLI pattern**: every hook that
-needs to call `register_agent` (or peers) shells out to
-`${CLAUDE_PLUGIN_ROOT}/bin/vitest-agent _internal register-agent`,
-which runs Node, captures git context via the Effect-side
-`RunContext` service, generates `clientNonce`, and writes through to
-both the per-project `data.db` and the per-client session map in a
-single process.
+The design uses a **sidecar CLI pattern**: every hook that needs to call
+`register_agent` (or peers) shells out to `vitest-agent agent
+register-agent`, which runs Node, captures git context via the Effect-side
+`RunContext` service, generates `clientNonce`, and writes through to both
+the per-project `data.db` and the per-client session map in a single
+process. The sidecar subcommands are the `agent` namespace of the existing
+`vitest-agent-cli` package — no separate distribution, no separate release.
 
-The sidecar binary is a hidden subcommand namespace of the existing
-`vitest-agent-cli` package — no separate distribution, no separate
-release. The plugin's `bin/vitest-agent` is a shim into the
-installed CLI.
-
-**Performance constraint:** Node cold-start is acceptable for
-SessionStart and SubagentStart (one-shot per session/subagent) but
-unacceptable for PreToolUse Bash interception (fires on every Bash tool
-call). This spike originally proposed a long-running daemon contacted
-over a Unix-domain socket. **Superseded by Decision 42 (T9.2):** the
-daemon was rejected in favor of a three-layer bash prefilter plus a
-native SEA binary on the residual slow path — cheaper to operate, with
-no socket or coordination directory to manage. The daemon design is
-retained here only as the spike's original conclusion.
+**Performance constraint:** Node cold-start is acceptable for SessionStart
+and SubagentStart (one-shot per session/subagent) but unacceptable for
+PreToolUse Bash interception (fires on every Bash tool call). A
+long-running daemon contacted over a Unix-domain socket was considered for
+that hot path and rejected in favor of the three-layer bash prefilter plus
+a native SEA binary on the residual slow path — cheaper to operate, with no
+socket or coordination directory to manage. See Decision 42.
 
 ### Decision D17: `CLAUDE_ENV_FILE` Auto-Source + Hook Self-Source Bridge
 
-Phase 1.5 Spike 5 mapped Claude Code's env-propagation surface
-empirically. The model:
+Claude Code's env-propagation surface, mapped empirically, has this shape:
 
 - **SessionStart** (and Setup, CwdChanged, FileChanged) hooks have
   `${CLAUDE_ENV_FILE}` available and write `export KEY=VAL` lines
@@ -1838,38 +1708,28 @@ plugin against the same Claude Code surface.
 shell-script locals and do not propagate. Documented as a hook
 invariant.
 
-### Decision D18: Per-Instance Coordination Directory under `${CLAUDE_PLUGIN_DATA}/sessions/`
+### Decision D18: Per-Instance Identity from `${CLAUDE_PLUGIN_DATA}` + `session_id`
 
-Phase 1.5 Spike 4 confirmed that Claude Code does NOT export any
-per-Claude-instance directory env var (`CLAUDE_SESSION_ENV_DIR`,
-`CLAUDE_CONVERSATION_DIR`, etc. — every candidate name returned
-unset in the empirical PreToolUse dump). What's documented and
-exported is `${CLAUDE_PLUGIN_DATA}` (per-plugin install) and the
-`session_id` field in every hook's stdin payload.
+Claude Code does NOT export any per-Claude-instance directory env var
+(`CLAUDE_SESSION_ENV_DIR`, `CLAUDE_CONVERSATION_DIR`, etc. — every
+candidate name returned unset in the empirical PreToolUse dump). What is
+documented and exported is `${CLAUDE_PLUGIN_DATA}` (per-plugin install) and
+the `session_id` field in every hook's stdin payload. Per-instance
+coordination state therefore composes from those two surfaces:
+`${CLAUDE_PLUGIN_DATA}/sessions/${session_id}/` is unambiguous and
+per-Claude-instance (since `session_id` is unique per running Claude Code
+window).
 
-The canonical coordination directory is therefore
-`${CLAUDE_PLUGIN_DATA}/sessions/${session_id}/`. The composition is
-unambiguous, per-Claude-instance (since `session_id` is unique per
-running Claude Code window), and uses only documented surfaces.
-
-Contents:
-
-- `sidecar.sock` — Unix-domain socket the daemon listens on
-- `sidecar.sock-path` — sentinel file containing the absolute
-  socket path (so the MCP server and PreToolUse hooks can resolve
-  it via filesystem lookup, not just env)
-- `daemon.pid` — daemon's PID for SessionEnd cleanup
-
-SessionStart creates the dir, launches the daemon, and writes the
-sentinel files. SessionEnd kills the daemon, removes the socket
-file, and removes the per-instance subdir. If Claude crashes
-without firing SessionEnd, the next SessionStart sees a stale
-subdir and removes-and-relaunches.
+The daemon-and-socket design this directory was originally specified for
+(a `sidecar.sock` Unix-domain socket plus PID sentinel files) was rejected
+in favor of the three-layer bash prefilter and SEA binary on the hot path
+— see Decision 42. The composition still stands as the rule for any future
+per-instance coordination state that needs documented surfaces only.
 
 ### Decision D19: Effect Schema at the MCP Boundary via `setRequestHandler`
 
-Phase 1.5 review surfaced that the MCP TypeScript SDK v1's
-high-level surfaces (`registerTool`, `server.tool(name, shape, …)`)
+The MCP TypeScript SDK v1's high-level surfaces (`registerTool`,
+`server.tool(name, shape, …)`)
 expect a Zod-shape object and run `zod-to-json-schema` internally.
 There is no public overload that accepts an arbitrary JSON Schema
 literal.
@@ -1907,7 +1767,7 @@ model-side tool-use accuracy without changing functional dispatch.
 
 ### Note N1: tRPC idempotency middleware persist-failure handling
 
-The `hypothesis_record` and `hypothesis_validate` MCP mutation tools are
+Mutation tools wired through `idempotentProcedure` (see N2 for the set) are
 wrapped by the tRPC idempotency middleware. The middleware **swallows**
 persist errors rather than surfacing them as tool errors. The procedure
 already succeeded; surfacing a cache-write failure as a tool error
@@ -1922,11 +1782,11 @@ parallel insert race resolves to a no-op.
 ### Note N2: `tdd_phase_transition_request` is NOT in the idempotency-key registry
 
 The idempotency-registered mutation surfaces are `register_agent`,
-the `record` / `validate` actions inside `hypothesis`, the `start`
-/ `end` actions inside `tdd_task`, and the `create` actions inside
-`tdd_goal` and `tdd_behavior`. `tdd_phase_transition_request` and
-every `update` / `delete` / `get` / `list` action are intentionally
-excluded.
+the `validate` action inside `hypothesis`, the `start` / `end` actions
+inside `tdd_task`, and the `create` actions inside `tdd_goal` and
+`tdd_behavior`. `tdd_phase_transition_request`, the `record` action inside
+`hypothesis`, and every `update` / `delete` / `get` / `list` action are
+intentionally excluded.
 
 **Why `tdd_phase_transition_request` is excluded:** the accept/deny is
 a deterministic function of artifact-log state at the moment of the
@@ -1967,6 +1827,11 @@ hook + permission-prompt layer (Decision D13), not via cache replay.
   `DataStore.registerAgent` boundary maps duplicate registrations to
   `IdempotencyHit`, returning the already-registered agent row
   rather than producing a conflict
+- `hypothesis({ action: "validate" })` (key: `${id}:${outcome}`) —
+  validating the same hypothesis with the same outcome twice is a no-op.
+  `hypothesis({ action: "record" })` is **not** cached: a hypothesis is an
+  append-only observation whose binding session is resolved server-side
+  (and so absent from the input), leaving no safe per-call discriminator
 
 ### Note N3: D7 load-bearing constraint — `tdd_artifact_record` is CLI-only
 

@@ -18,12 +18,12 @@
 		"vitest-agent-reporter": {
 			"path": ".",
 			"designDocsPath": ".claude/design/vitest-agent",
-			"categories": ["architecture", "performance", "integration", "testing"],
+			"categories": ["architecture", "performance", "integration", "testing", "documentation"],
 			"maintainer": "C. Spencer Beggs",
 			"userDocs": {
 				"readme": "README.md",
 				"repoDocs": null,
-				"siteDocs": null
+				"siteDocs": "website/docs/en"
 			}
 		}
 	},

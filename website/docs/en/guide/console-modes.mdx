@@ -1,0 +1,104 @@
+---
+title: Console modes
+description: How vitest-agent detects the executor and resolves a console mode from the per-executor matrix, and what each mode does to stdout.
+---
+
+# Console modes
+
+vitest-agent detects the current executor — human, agent, or CI — at run
+start using environment variables. The resolved executor is looked up in a
+per-executor matrix you configure on the plugin, and the matching slot
+determines how the plugin handles console output for that run.
+
+## Executor detection
+
+The plugin uses [std-env](https://github.com/nicolo-ribaudo/std-env) for
+agent detection. It checks for agent-specific environment variables first,
+then CI variables, and falls back to `"human"` when nothing matches.
+
+Agent variables checked include `CLAUDECODE`, `CURSOR_TRACE_ID`,
+`CLINE_ACTIVE`, `CODEX_SANDBOX`, `GEMINI_CLI`, `AUGMENT_AGENT`, `AI_AGENT`,
+and others maintained by std-env. CI is detected via `GITHUB_ACTIONS` or
+`CI`.
+
+## The console matrix
+
+Configure the `console` option on `AgentPlugin` as a per-executor map:
+
+```typescript
+AgentPlugin({
+  console: {
+    human?: "passthrough" | "silent" | "stream" | "agent",
+    agent?: "passthrough" | "silent" | "agent",
+    ci?:    "passthrough" | "silent" | "ci-annotations",
+  },
+});
+```
+
+Each slot is optional. When a slot is omitted, the default for that executor
+applies.
+
+### Per-slot defaults
+
+| Slot | Default | Rationale |
+| --- | --- | --- |
+| `human` | `"passthrough"` | Vitest's own reporters do the visible work |
+| `agent` | `"agent"` | Compact markdown final frame |
+| `ci` | `"passthrough"` | Vitest's reporters produce log-friendly output |
+
+### Available modes
+
+| Value | Available on | Behavior |
+| --- | --- | --- |
+| `"passthrough"` | all slots | Vitest's reporters keep ownership of stdout; the plugin emits no console output |
+| `"silent"` | all slots | Plugin strips Vitest's reporters and emits nothing |
+| `"agent"` | `human`, `agent` | Plugin strips Vitest's reporters and emits the plain-text run-shape view — the compact markdown frame an AI agent consumes |
+| `"stream"` | `human` only | Plugin strips Vitest's reporters and renders a progressively-drawn, colored, animated Ink view of the run shape |
+| `"ci-annotations"` | `ci` only | Plugin strips Vitest's reporters and emits GitHub Actions annotations |
+
+## Stdout ownership
+
+Any non-`"passthrough"` mode takes ownership of stdout. When the plugin
+takes ownership it:
+
+1. Strips Vitest's built-in console reporters (`default`, `verbose`, `tree`,
+   `dot`, `tap`, `tap-flat`, `hanging-process`, and `agent`) from the
+   reporter chain
+2. Suppresses Vitest's native coverage text reporter
+
+Non-console reporters are preserved regardless of mode. `json`, `junit`,
+`html`, `blob`, and `github-actions` reporters continue to run and write
+their respective files. Any custom reporters you have registered are also
+preserved.
+
+## The stream mode
+
+When `console.human` resolves to `"stream"`, the plugin mounts a live React
+Ink view that draws the run shape progressively as the run advances, with
+color and animation. The lifecycle is fully internal — there is no
+`createLiveInk` import to wire and no live-event callback to forward. The
+mount and unmount are owned by `vitest-agent-reporter`.
+
+## The agent mode
+
+When the resolved mode is `"agent"`, the plugin emits a compact final frame
+after the run completes. The frame includes:
+- Pass/fail/skip counts
+- Per-test classifications (stable, new-failure, persistent, flaky, recovered)
+- A coverage snapshot against configured targets
+- A footer pointing at the right MCP tool for the dominant outcome
+
+## Forcing a specific mode
+
+There is no global "force agent" toggle. Override a slot directly:
+
+```typescript
+// See the agent markdown frame from a human terminal
+AgentPlugin({ console: { human: "agent" } })
+
+// Suppress all console output in CI
+AgentPlugin({ console: { ci: "silent" } })
+
+// Draw the live progressive view on a human terminal
+AgentPlugin({ console: { human: "stream" } })
+```

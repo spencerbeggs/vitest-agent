@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-21
-last-synced: 2026-05-21
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 90
 related:
   - ../architecture.md
@@ -71,7 +71,7 @@ Claude Code session
                               against the user's tests via MCP
 ```
 
-## Current State
+## Current state
 
 ### Loader strategy
 
@@ -367,10 +367,10 @@ load-bearing for design integrity:
   dogfood actionable — without it, "the test passes" is the least
   interesting signal.
 
-The dogfood system was the primary development driver for hook and agent
-behaviors in this directory. Round-1 dogfood runs surfaced the defects that
+The dogfood system is the primary development driver for hook and agent
+behaviors in this directory. Dogfood runs surfaced the defects that
 motivated D11 (evidence binding gaps), D12 (three-tier hierarchy), and D13
-(capability-vs-scoping). Findings from past runs are at
+(capability-vs-scoping). Findings are at
 `docs/superpowers/dogfood/<chain-slug>/findings.md` while a chain is open;
 once absorbed and any system fixes have landed, the chain folder is deleted.
 
@@ -415,24 +415,23 @@ of abstraction. A missing peer dep now surfaces as a PM-level error with
 PM-native install instructions, not a cryptic dynamic-import failure.
 See D30.
 
-## Agent-agnostic taxonomy hooks (Phases 1–4)
+## Agent-agnostic taxonomy hooks
 
-The branch added four lifecycle-event hooks on top of the prior set
-to wire the agent-attribution model end to end. All four shell out
-to the CLI's `agent` sidecar subcommands (see
+Four lifecycle-event hooks wire the agent-attribution model end to end.
+All four shell out to the CLI's `agent` sidecar subcommands (see
 [./cli.md](./cli.md)) rather than performing database writes directly.
 
 | Hook | Sidecar invocation | Purpose |
 | --- | --- | --- |
 | `session/start.sh` | `agent register-agent --host-kind claude-code --agent-type claude-code-main ...` then `agent sidecar-path` | Registers the main agent at session boot; parses the JSON result with `jq` and writes seven canonical `VITEST_AGENT_*` exports (the four UUIDs plus `PROJECT_DIR`, `DATA_DIR`, `PLUGIN_ROOT`) to two surfaces: `${CLAUDE_ENV_FILE}` (auto-sourced into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (sourced by other hooks). Values are `printf '%q'` quoted; resumes are idempotent via grep guards. After writing those seven exports, calls `vitest-agent agent sidecar-path` once, captures stdout, and writes `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both surfaces using the same two-surface write pattern. Skips the export when the command returns empty or exits non-zero (unsupported platform). |
-| `subagent/start-tdd.sh` | `agent register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation (see the dc1fc65 fix). Also writes a per-dispatch state file under `active-subagents/` so `subagent/stop-tdd.sh` can recover the subagent's `agentId` (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)). |
+| `subagent/start-tdd.sh` | `agent register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation. Also writes a per-dispatch state file under `active-subagents/` so `subagent/stop-tdd.sh` can recover the subagent's `agentId` (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)). |
 | `session/end-record.sh` | `agent end-agent --host-session-id $session_id` | Sets `agents.ended_at` and `session_map.ended_at` for the main agent. |
 | `subagent/stop-tdd.sh` | `agent end-agent` (no `--host-session-id`) | Sets `agents.ended_at` for the subagent. Resolves the subagent's `agentId` by pairing against the per-dispatch state file `subagent/start-tdd.sh` wrote (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)); leaves the main agent's `session_map` row open by design. |
 | `pre-tool-use/bash.sh` | sidecar binary `inject-env`, JS-CLI `agent inject-env` fallback | When the active actor is a subagent, rewrites `tool_input.command` to prepend the `VITEST_AGENT_AGENT_ID=...` env prefix. POSIX env-prefix scope is the immediately-following process only — main-agent env stays intact for subsequent calls. Gated behind a three-layer prefilter — see [The PreToolUse Bash hook: three-layer pipeline](#the-pretooluse-bash-hook-three-layer-pipeline). |
 
 ### The PreToolUse Bash hook: three-layer pipeline
 
-`pre-tool-use/bash.sh` fires on every Bash tool call, so it is the inner loop of agent latency. Before workstream T9.2 the hook unconditionally shelled out to the JS CLI's `inject-env`, paying ~505 ms p95 of Node cold-start on every Bash call — most of it wasted, since ~80–90% of Bash calls cannot invoke Vitest and main-agent Vitest invocations already have correct attribution in their environment. T9.2 replaced the single shell-out with a three-layer pipeline that pays sidecar latency only on the ~2% of Bash calls that genuinely need the env-prefix rewrite. See [../decisions.md](../decisions.md) Decision 42 and the spec at `docs/superpowers/specs/2.0-sidecar-perf.md`.
+`pre-tool-use/bash.sh` fires on every Bash tool call, so it is the inner loop of agent latency. A naive hook shells out to the JS CLI's `inject-env` unconditionally, paying full Node cold-start on every Bash call — most of it wasted, since the large majority of Bash calls cannot invoke Vitest and main-agent Vitest invocations already have correct attribution in their environment. The hook instead runs a three-layer pipeline that pays sidecar latency only on the small fraction of Bash calls that genuinely need the env-prefix rewrite. See [../decisions.md](../decisions.md) Decision 42.
 
 - **Layer 0 — bash regex prefilter.** A POSIX-ERE regex (`SIDECAR_PREFILTER_RE`) is matched against the raw command with bash's built-in `[[ =~ ]]` operator — no fork, sub-millisecond. If the command contains no `vitest` token and no PM `test`-script shape, the hook emits a no-op and exits before any sidecar work. The regex is deliberately conservative: a false positive costs only the sidecar's latency, but a false negative would silently drop attribution, so all known PM script-indirection shapes are included.
 - **Layer 1 — main-agent skip.** After Layer 0 passes and `source-session-env.sh` populates the canonical exports, the hook compares `VITEST_AGENT_AGENT_ID` against `VITEST_AGENT_MAIN_AGENT_ID`. They are equal when the active actor is the main agent, whose auto-sourced env is already correct for the spawned Vitest process — so the hook skips the sidecar. The check falls through conservatively (does NOT skip) when either var is unset. Layer 1 must run after the source call because hook subprocesses do not get auto-sourcing. Together Layers 0 and 1 eliminate the sidecar from ~98% of Bash calls.
@@ -440,7 +439,7 @@ to the CLI's `agent` sidecar subcommands (see
 
 `vitest-agent-sidecar` is not a direct peer of `vitest-agent-plugin` — it is a regular `dependency` of `vitest-agent-cli`, which is itself a required peer of the plugin, so installing the plugin and its cli peer pulls the sidecar and its per-platform binaries in transitively. For the package's build, distribution and the `inject-env`-only scope, see [./sidecar.md](./sidecar.md).
 
-Post-fix latency: the Layer 0 / Layer 1 hot path is ~16 ms p95 (was ~535 ms including the hook's own plumbing), and the subagent-binary path is ~88 ms p95. The hook's payload parsing was tightened in the same workstream — six `jq` forks collapsed to one, four `dirname` forks to one — which roughly halved the residual hot-path plumbing. Full numbers are in `.claude/notes/phase-3-sidecar-latency.md`; the benchmark harness is `scripts/bench-sidecar.sh`.
+The Layer 0 / Layer 1 hot path is roughly an order of magnitude faster than the unconditional JS shell-out, with the subagent-binary path in between. The hook's payload parsing collapses its `jq` and `dirname` forks to one each to keep the residual hot-path plumbing low. The benchmark harness is `scripts/bench-sidecar.sh`.
 
 ### Session env exports
 
@@ -484,14 +483,12 @@ directory walk, same `*hook*.sh` filter.
 as shell-script locals and do not propagate to subprocesses.
 Documented as a hook invariant.
 
-### Allowlist updates
+### Allowlist contents
 
-`hooks/lib/safe-mcp-vitest-agent-ops.txt` was updated to reflect
-the consolidated tool surface. The action-keyed tools (`tdd_task`,
-`tdd_goal`, `tdd_behavior`, `note`, `hypothesis`, `inventory`,
-`test`) are present on the allowlist; the granular legacy variants
-were removed. The new `register_agent` and `tdd_artifact_list`
-tools are also present.
+`hooks/lib/safe-mcp-vitest-agent-ops.txt` lists the consolidated tool
+surface. The action-keyed tools (`tdd_task`, `tdd_goal`, `tdd_behavior`,
+`note`, `hypothesis`, `inventory`, `test`) are on the allowlist, alongside
+`register_agent` and `tdd_artifact_list`.
 
 ### State-file pairing for SubagentStop
 
@@ -503,22 +500,21 @@ Claude Code's `SubagentStop` payload carries `agent_type` but not the `agentId` 
 
 `session/end-record.sh` removes the whole `active-subagents/` directory for the closing `chat_id` as janitorial cleanup, so files orphaned by a crashed stop hook do not accumulate.
 
-### Artifact-binding cross-`chat_id` fix
+### Artifact-binding across `chat_id` rotation
 
-Recent (`dc1fc65`) fix surfaced and closed two related bugs:
+Two related concerns shape the artifact-binding path:
 
 1. **Rotated `chat_id` mid-window.** Claude Code rotates
    `chat_id` on compaction, resume, and some network
-   reconnects. The fix added `DataReader.findSessionsByChatPrefix` and
-   `DataReader.listTddTasksForSession({ walkParents })`, both of
-   which walk the `sessions.parent_session_id` chain so artifact
-   queries find rows under either prefix.
-2. **Orphaned subagent rows.** `subagent/start-tdd.sh` now
+   reconnects. `DataReader.findSessionsByChatPrefix` and
+   `DataReader.listTddTasksForSession({ walkParents })` both walk the
+   `sessions.parent_session_id` chain so artifact queries find rows
+   under either prefix.
+2. **Orphaned subagent rows.** `subagent/start-tdd.sh`
    pre-bootstraps the parent main `sessions` row before registering
    the subagent and always sets `parent_session_id`. Combined with
-   the new `DataStore.upsertSession` idempotent insert, the
-   subagent's artifact rows always land under the canonical
-   `sessions.id`.
+   the `DataStore.upsertSession` idempotent insert, the subagent's
+   artifact rows always land under the canonical `sessions.id`.
 
 The shared `resolveSessionForRecording` helper in the CLI is the
 consumer-side library for this. Every `record turn` /

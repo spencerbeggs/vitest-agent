@@ -1,0 +1,89 @@
+---
+title: Installation
+description: Install vitest-agent-plugin and configure your Vitest project to collect structured test feedback for AI agents.
+---
+
+# Installation
+
+## Requirements
+
+- **Vitest** >= 4.1.0
+- **Node.js** >= 22
+
+## Install
+
+Add `vitest-agent-plugin` to your project's dev dependencies. The required
+peer packages (`vitest-agent-cli` and `vitest-agent-mcp`) are installed
+automatically by modern npm and pnpm.
+
+import { PackageManagerTabs } from '@rspress/core/theme';
+
+<PackageManagerTabs command="add -D vitest-agent-plugin" />
+
+If your package manager is configured to skip peer dependency auto-install,
+add the peers explicitly:
+
+```bash
+pnpm add -D vitest-agent-plugin vitest-agent-cli vitest-agent-mcp
+```
+
+## Configure Vitest
+
+Replace your `vitest.config.ts` with the following:
+
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { defineConfig } from "vitest/config";
+
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover();
+  const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
+  return defineConfig({
+    plugins: [
+      AgentPlugin({
+        console: { human: "stream", agent: "agent" },
+        coverageTargets: coverage.coverageTargets,
+      }),
+    ],
+    test: {
+      ...(projects ? { projects } : {}),
+      tags,
+      coverage: { enabled: true, provider: "v8", thresholds: coverage.thresholds },
+    },
+  });
+};
+```
+
+### What each part does
+
+**`AgentPlugin.discover()`**
+
+Scans the monorepo for Vitest projects and tag declarations. In a
+single-package repo it returns `{ projects: undefined, tags: [] }` and the
+spread is a no-op. In a monorepo it populates `projects` so Vitest picks up
+all workspaces automatically.
+
+**`console` matrix**
+
+The plugin auto-detects whether the current executor is a human, an AI agent,
+or CI using environment variables. The `console` option maps each executor to
+a rendering mode:
+
+| Executor | Mode in this config | What you see |
+| --- | --- | --- |
+| Human terminal | `"stream"` | Progressively-drawn, colored live view |
+| AI agent (Claude Code, Cursor, etc.) | `"agent"` | Compact markdown final frame |
+| CI | `"passthrough"` (default) | Vitest's own reporters unchanged |
+
+See [Console modes](/guide/console-modes) for detailed treatment of all modes.
+
+**`COVERAGE_LEVELS.standard`**
+
+Returns a `{ thresholds, coverageTargets }` pair at the "standard" preset
+level. `thresholds` goes directly into Vitest's native coverage config.
+`coverageTargets` goes into `AgentPlugin` so the plugin can detect and report
+when targets drift from actual coverage. See [Coverage model](/guide/coverage) for detailed coverage configuration.
+
+## Next steps
+
+Once installed, run your tests: [Your first run](/guide/first-run).

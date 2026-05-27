@@ -1,11 +1,4 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
-
-// T12 drift wiring: inline package.json#version as a literal so the dist
-// carries CURRENT_REPORTER_VERSION for the plugin's drift check.
-const PKG_VERSION = JSON.parse(readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf8"))
-	.version as string;
 
 // `LiveInkRenderer.tsx` brings JSX into this package. rslib/SWC defaults
 // to the classic JSX runtime, emitting bare `React.createElement(...)`
@@ -49,10 +42,8 @@ export default NodeLibraryBuilder.create({
 			},
 		},
 	],
-	define: {
-		"process.env.__PACKAGE_VERSION__": JSON.stringify(PKG_VERSION),
-	},
 	apiModel: {
+		localPaths: ["../../website/lib/models/reporter"],
 		suppressWarnings: [{ messageId: "ae-forgotten-export", pattern: "_base" }],
 	},
 	transform({ pkg, target }) {
