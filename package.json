@@ -30,7 +30,7 @@
 		"lint:fix:unsafe": "biome check --write --unsafe --max-diagnostics=none",
 		"lint:md": "markdownlint-cli2 '**/*.{md,mdx}' --config './lib/configs/.markdownlint-cli2.jsonc'",
 		"lint:md:fix": "markdownlint-cli2  --config './lib/configs/.markdownlint-cli2.jsonc' --fix",
-		"prepare": "husky && pnpm run build:dev",
+		"prepare": "husky",
 		"preview": "turbo run preview --filter=docs --ui=tui",
 		"reset": "node lib/scripts/reset.ts",
 		"test": "vitest run",
