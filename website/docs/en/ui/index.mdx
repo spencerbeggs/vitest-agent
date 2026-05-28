@@ -1,0 +1,140 @@
+---
+title: "vitest-agent-ui"
+description: Pure rendering primitives for vitest-agent. Owns the RunEvent reducer, the 12-cell dispatcher matrix, two render paths, a PubSub channel for live event transport, and the synthesizers.
+---
+
+# vitest-agent-ui
+
+Pure rendering primitives for vitest-agent. Owns the `RunEvent` reducer, the shape-tailored 12-cell dispatcher matrix, two render paths (agent string and React Ink tree), a PubSub channel for live event transport, and the synthesizers that bridge live Vitest data and stored reports into the event taxonomy.
+
+This package arrives automatically via `vitest-agent-reporter`. Install it directly only when building custom rendering on the primitives. React and Ink are required peer dependencies.
+
+## Features
+
+- **Reducer** — pure `(state, event) => state` fold over the `RunEvent` discriminated union; `reduceRenderStateAll` for one-shot replay
+- **Dispatcher matrix** — `dispatch` and `dispatchInk` route a `DispatchInputs` to the matching `(RunShape, RunOutcome)` cell; `classifyRunShape` and `classifyOutcome` derive the coordinates
+- **Ink components** — `StreamApp` and supporting primitives (`ModuleHeader`, `TestRow`, `CoverageBlock`, `TrendLine`, `FailureSection`, and more) for live `stream`-mode frames
+- **PubSub channel** — `RunEventChannel` Effect tag and helpers (`accumulateUntilFinished`, `forEachRenderState`, `renderStateStream`) for live event transport
+- **Synthesizers** — `synthesizeRunEvents` from live Vitest modules; `synthesizeFromAgentReport` from a stored `AgentReport`
+- **Footer builder** — `buildFooter` assembles the L1 MCP-tool-pointer footer; `dominantClassification` picks the most actionable failure class
+
+## Install
+
+```bash
+npm install vitest-agent-ui
+# or
+pnpm add vitest-agent-ui
+```
+
+React and Ink are required peers:
+
+```bash
+npm install react ink
+```
+
+## The dispatcher matrix
+
+The 12-cell matrix routes by run shape and outcome. Shape is derived from how many projects and files were run; outcome from whether tests passed, failed, or hit a threshold violation:
+
+| Shape | `all-pass` | `some-fail` | `threshold-violation` |
+|-------|-----------|-------------|----------------------|
+| `single-test` | cell | cell | cell |
+| `single-file` | cell | cell | cell |
+| `single-project` | cell | cell | cell |
+| `workspace` | cell | cell | cell |
+
+Each cell produces shape-appropriate copy: a single-test failure leads to a different agent string than a workspace-wide threshold violation. The matrix is the same for both the text (agent string) and Ink (live frame) render paths.
+
+```ts
+import { dispatch, dispatchInk } from "vitest-agent-ui";
+import { buildDispatchInputs, resolveCellOptions } from "vitest-agent-reporter";
+
+// One-shot text output
+const agentString = dispatch(buildDispatchInputs(state, input), opts);
+
+// Ink element for live frame or report-time render
+const inkElement = dispatchInk(buildDispatchInputs(state, input), opts);
+```
+
+## Reducer
+
+The reducer is a pure synchronous projection over the `RunEvent` stream. Use it to fold a complete event sequence into a `RenderState` for replay:
+
+```ts
+import { reduceRenderStateAll } from "vitest-agent-ui";
+
+// Fold a full sequence into a RenderState (one-shot replay)
+const state = reduceRenderStateAll(events);
+
+// Or fold events one at a time
+import { reduce, initialRenderState } from "vitest-agent-ui";
+
+let state = initialRenderState();
+for (const event of events) {
+  state = reduce(state, event);
+}
+```
+
+## PubSub channel
+
+The `RunEventChannel` is an Effect PubSub that carries live events from the plugin's reporter callbacks to any subscriber. `DefaultVitestAgentReporter` uses it to drive the `stream`-mode Ink mount:
+
+```ts
+import {
+  RunEventChannel,
+  accumulateUntilFinished,
+  forEachRenderState,
+} from "vitest-agent-ui";
+
+// Accumulate all events until RunFinished, then return the final state
+const state = await Effect.runPromise(
+  Effect.provide(accumulateUntilFinished, RunEventChannel.Live)
+);
+
+// Drive a live callback for each reduced state as events arrive
+await Effect.runPromise(
+  Effect.provide(
+    forEachRenderState((state) => render(state)),
+    RunEventChannel.Live
+  )
+);
+```
+
+## Synthesizers
+
+Two bridges convert external data into the `RunEvent` taxonomy:
+
+```ts
+import {
+  synthesizeRunEvents,
+  synthesizeFromAgentReport,
+} from "vitest-agent-ui";
+
+// From live Vitest module data (used in the streaming reporter path)
+const events = synthesizeRunEvents(vitestModules);
+
+// From a stored AgentReport (used by the CLI replay path)
+const events = synthesizeFromAgentReport(agentReport);
+```
+
+The two synthesizers are not interchangeable — the live shape carries per-test detail that the stored report schema flattens. CLI replay always uses the report path; the plugin's streaming callbacks derive events from live modules.
+
+## Ink components
+
+The `render-ink` sub-tree exports the React Ink components used by `StreamApp`:
+
+- `StreamApp` — the top-level live `stream`-mode frame
+- `ModuleHeader` — file path + count columns header row
+- `TestRow` — single test result with status icon and duration
+- `ProjectRow` — project aggregate row with count columns
+- `CoverageBlock` — per-file coverage percentages
+- `TrendLine` — run-over-run trend direction indicator
+- `FailureSection` / `FailuresSection` — failure details with stack frames
+
+All components use Ink primitives (`Box`, `Text`, `Newline`, `Spacer`) — no DOM elements.
+
+## Learn more
+
+- [Architecture overview](/guide/architecture)
+- [API reference](/ui/api)
+- [All packages](/packages)

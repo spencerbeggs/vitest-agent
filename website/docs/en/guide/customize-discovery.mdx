@@ -1,0 +1,181 @@
+---
+title: Customize discovery
+description: How AgentPlugin.discover() builds Vitest projects and injects test-kind tags, and how to override the strategy for custom layouts.
+---
+
+# Customize discovery
+
+`AgentPlugin.discover()` scans the workspace for test files and returns a
+`{ projects, tags }` pair that you thread directly into Vitest's config. This
+page covers how discovery works, how to extend or replace it, and how
+test-kind tags flow into Vitest's native filter expressions.
+
+For a map of the overall package structure that discovery works with, see
+[Architecture](/guide/architecture).
+
+## Basic wiring
+
+`discover()` returns a thenable `DiscoverBuilder`. Await it (or `.then()`) to
+materialize the results:
+
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { defineConfig } from "vitest/config";
+
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover();
+
+  return defineConfig({
+    plugins: [AgentPlugin({ coverageTargets: { lines: 80 } })],
+    test: {
+      ...(projects ? { projects } : {}),
+      tags,
+      pool: "forks",
+    },
+  });
+};
+```
+
+`projects` is `TestProjectInlineConfiguration[] | undefined` — the same shape
+Vitest accepts on `test.projects`. When no test files are found, `projects` is
+`undefined`, which is why the conditional spread pattern is used. `tags` is
+always defined and must be passed to `test.tags` so Vitest's tag expression
+parser recognizes every tag the transform injects.
+
+## What the default strategy does
+
+The default `DiscoverStrategy` (exported as `DefaultDiscoverStrategy`) does two
+things:
+
+**Project building.** It emits one Vitest project per pnpm workspace package.
+For each package it looks for test files in two locations:
+
+- `packages/*/__test__/*.test.ts` — canonical flat layout
+- `packages/*/src/**/*.test.ts` — co-located layout (accepted for backward
+  compatibility)
+
+Helper subdirectories inside `__test__/` — `utils/`, `fixtures/`,
+`snapshots/` — are excluded automatically. The pre-2.0 `pkg:unit`, `pkg:int`,
+`pkg:e2e` project-name suffixes are gone; there is one project per package.
+
+**Tag injection.** The strategy also provides a Vite transform that runs at
+parse time and injects a tag into every `test()` and `it()` call based on the
+test file's path. The default classifier rules are:
+
+| File name pattern | Injected tag |
+| --- | --- |
+| `.e2e.test.ts` | `e2e` |
+| `.int.test.ts` | `int` |
+| everything else | `unit` |
+
+The same strategy instance drives both halves, so the projects Vitest runs
+and the tags the transform injects are always in sync.
+
+## Filtering by tag
+
+Once tags are wired, use Vitest's built-in flag to filter by kind:
+
+```bash
+pnpm vitest run --tags-filter "int"
+pnpm vitest run --tags-filter "unit and not e2e"
+pnpm vitest run --tags-filter "e2e"
+```
+
+Tag expressions support `and`, `or`, and `not`. Because tags are injected at
+parse time via the Vite transform, they are available to Vitest's scheduler
+and timeout rules — you can pair `--tags-filter "e2e"` with a longer timeout
+configuration for end-to-end tests.
+
+## Adding a non-package folder
+
+The `DiscoverBuilder` is a thenable with a fluent `.addProject()` method for
+registering folders that hold tests but are not pnpm workspace packages:
+
+```typescript
+const { projects, tags } = await AgentPlugin.discover()
+  .addProject({ name: "integration", path: "./test-only" });
+```
+
+Chain multiple `.addProject()` calls as needed. The builder accumulates them
+and merges them into the final `projects` array. Non-package projects receive
+the same tag injection as package projects.
+
+## Custom strategy
+
+A `DiscoverStrategy` owns both project building and tag classification. The
+most common customization is changing how tags are assigned, which you do by
+extending the default strategy with `.extend()` — it layers a new `classify`
+function (and any `additionalTags`) over the built-in behavior immutably:
+
+```typescript
+import { AgentPlugin, DefaultDiscoverStrategy, Tag } from "vitest-agent-plugin";
+
+const strategy = new DefaultDiscoverStrategy().extend({
+  additionalTags: [Tag.make("smoke")],
+  classify: ({ module }) =>
+    module.relativePath.includes("/smoke/") ? ["smoke"] : [],
+});
+```
+
+`classify` receives a context whose `module` is the parsed file info
+(`path`, `relativePath`, `filename`, `packageName`, `packagePath`) and returns
+the tags for that file. Returning an empty array defers to the inherited
+classifier — so the example adds a `smoke` tag to files under a `smoke/`
+directory and leaves everything else to the default unit/int/e2e rules.
+
+For pattern-based rules, the `classifyByFilename`, `classifyByDirectory`, and
+`combineClassifiers` helpers build a `classify` function for you:
+
+```typescript
+import { DefaultDiscoverStrategy, classifyByDirectory, Tag } from "vitest-agent-plugin";
+
+const strategy = new DefaultDiscoverStrategy().extend({
+  additionalTags: [Tag.make("smoke")],
+  classify: classifyByDirectory({ smoke: ["smoke"] }),
+});
+```
+
+To replace discovery wholesale — including which projects are built — use the
+`DiscoverStrategy.create({ tags, buildProject, classify })` static factory
+instead of extending the default.
+
+Pass your strategy to **both** `AgentPlugin.discover()` and the plugin's
+`discoverStrategy` option so project discovery and the tag-injection transform
+stay in sync:
+
+```typescript
+const { projects, tags } = await AgentPlugin.discover(strategy);
+
+return defineConfig({
+  plugins: [AgentPlugin({ discoverStrategy: strategy })],
+  test: {
+    ...(projects ? { projects } : {}),
+    tags,
+    pool: "forks",
+  },
+});
+```
+
+If the strategy passed to `discover()` and the one on `discoverStrategy`
+diverge, the projects discovered and the tags injected by the transform will
+be out of sync.
+
+## Disabling the Vite transform
+
+To keep project discovery but opt out of tag injection, set
+`discoverStrategy: false` on the plugin:
+
+```typescript
+AgentPlugin({ discoverStrategy: false })
+```
+
+No tags are injected at parse time when `false`. You can still run
+`AgentPlugin.discover()` for the `projects` array; only the transform is
+suppressed. `test.tags` can be omitted when no tags will be used.
+
+## Single-package repos
+
+In a single-package repo (no `pnpm-workspace.yaml`), the default strategy
+still works: it emits a single project for the root package. The conditional
+spread — `...(projects ? { projects } : {})` — is still correct because a
+single-project result returns a one-element array, not `undefined`.

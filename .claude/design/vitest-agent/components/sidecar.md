@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: performance
 created: 2026-05-15
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 92
 related:
   - ../architecture.md
@@ -25,15 +25,15 @@ The seventh publishable workspace. Sole responsibility: ship a fast-path native 
 **Location:** `packages/sidecar/`
 **Internal dependencies:** none (the parent package has no runtime workspace deps; `vitest-agent-sdk` is the only workspace `devDependency` of the per-platform child packages, bundled into each SEA at build time)
 
-The package landed in workstream T9.2. For the latency problem it solves and the layered approach, see [../decisions.md](../decisions.md) Decision 42 and the implementation spec at `docs/superpowers/specs/2.0-sidecar-perf.md`.
+For the latency problem it solves and the layered approach, see [../decisions.md](../decisions.md) Decision 42.
 
 ## Why it exists
 
-Before T9.2, every Bash tool call from a Claude Code agent shelled out to the JS CLI (`vitest-agent agent inject-env`) inside the PreToolUse Bash hook, paying roughly 505 ms p95 of Node cold-start plus the `effect` / `@effect/cli` module-graph load. The hook is the inner loop of agent latency, so that cost was visible per turn. T9.2's three-layer fix is documented in [./plugin-claude.md](./plugin-claude.md) under the Bash hook section; this package is Layer 2 — the residual slow path. The binary is a Node Single Executable Application (SEA) that runs the same `injectEnv` logic with no module-graph cold-start.
+A naive PreToolUse Bash hook shells out to the JS CLI (`vitest-agent agent inject-env`) on every Bash tool call, paying roughly 505 ms p95 of Node cold-start plus the `effect` / `@effect/cli` module-graph load. The hook is the inner loop of agent latency, so that cost is visible per turn. The three-layer fix is documented in [./plugin-claude.md](./plugin-claude.md) under the Bash hook section; this package is Layer 2 — the residual slow path. The binary is a Node Single Executable Application (SEA) that runs the same `injectEnv` logic with no module-graph cold-start.
 
 ## Scope: `inject-env` only
 
-The binary handles `inject-env` and nothing else. `register-agent` stays on the JS CLI path because it pulls in a native SQLite binding (`@effect/sql-sqlite-node` → better-sqlite3) that cannot be bundled into a JavaScript SEA. `register-agent` also fires only once per session, off the per-turn critical path, so the JS cold-start is acceptable there. Restoring `register-agent` to the binary by embedding the native binding per platform is a tracked 2.x follow-up — see `.claude/notes/phase-3-sidecar-latency.md`.
+The binary handles `inject-env` and nothing else. `register-agent` stays on the JS CLI path because it pulls in a native SQLite binding (`@effect/sql-sqlite-node` → better-sqlite3) that cannot be bundled into a JavaScript SEA. `register-agent` also fires only once per session, off the per-turn critical path, so the JS cold-start is acceptable there.
 
 ## Build: tsdown SEA executable
 
@@ -76,17 +76,10 @@ The binary is not discoverable via `command -v` because pnpm/npm only hoist dire
 
 ## CI
 
-`.github/workflows/sidecar-build.yml` has two jobs. A single `build` job on a macOS runner cross-compiles all four binaries at once — tsdown's `exe` mode downloads each target's Node runtime and postject-injects the bundle, so the host arch need not match the target — runs the `dist/{github,npm}` manifest assertions, and uploads one artifact per platform. A `smoke` matrix then downloads each binary onto its own native runner and runs it. The smoke legs carry no checkout, Node or pnpm — they exercise only the prebuilt binary, which sidesteps runtime-setup entirely:
+`.github/workflows/sidecar-build.yml` has two jobs. A single `build` job on a macOS runner cross-compiles all four binaries at once — tsdown's `exe` mode downloads each target's Node runtime and postject-injects the bundle, so the host arch need not match the target — runs the `dist/{github,npm}` manifest assertions, and uploads one artifact per platform. A `smoke` matrix then downloads each binary onto its own native runner (one per supported platform) and runs it. The smoke legs carry no checkout, Node or pnpm — they exercise only the prebuilt binary, which sidesteps runtime-setup entirely.
 
-| Platform | Smoke runner |
-| --- | --- |
-| `darwin-arm64` | `macos-26` |
-| `linux-x64` | `ubuntu-24.04` |
-| `linux-arm64` | `ubuntu-24.04-arm` |
-| `win32-x64` | `windows-2025` |
-
-The "Assert dist publish manifests" step, for every `packages/sidecar-<platform>/dist/{github,npm}/package.json`, asserts the transform held: no `devDependencies`, `scripts`, `publishConfig`, `packageManager` or `devEngines`, `private` is `false`, and the `@spencerbeggs/` name scope is present in `dist/github` and absent in `dist/npm`. The smoke test runs `inject-env` against fixtures and checks the unknown-subcommand exit contract. Publishing the sub-packages is wired into the Wave 4 release flow, not this workflow.
+The "Assert dist publish manifests" step, for every `packages/sidecar-<platform>/dist/{github,npm}/package.json`, asserts the transform held: no `devDependencies`, `scripts`, `publishConfig`, `packageManager` or `devEngines`, `private` is `false`, and the `@spencerbeggs/` name scope is present in `dist/github` and absent in `dist/npm`. The smoke test runs `inject-env` against fixtures and checks the unknown-subcommand exit contract. Publishing the sub-packages happens through the changesets release flow, not this workflow.
 
 ## Measured outcome
 
-After T9.2, the hot path (non-Vitest commands and main-agent Vitest, caught by Layers 0 and 1 before any sidecar runs) is roughly 16 ms p95, down from ~535 ms. The subagent-binary path is roughly 88 ms p95. The JS-fallback path remains at full Node cold-start (~659 ms p95) but runs only on unsupported platforms or skipped optional dependencies. Full numbers and the launch-gate analysis are in `.claude/notes/phase-3-sidecar-latency.md`; the benchmark harness is `scripts/bench-sidecar.sh`.
+The hot path (non-Vitest commands and main-agent Vitest, caught by Layers 0 and 1 before any sidecar runs) is roughly an order of magnitude faster than the unconditional JS shell-out; the subagent-binary path sits between the two. The JS-fallback path remains at full Node cold-start but runs only on unsupported platforms or skipped optional dependencies. The benchmark harness is `scripts/bench-sidecar.sh`.

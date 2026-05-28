@@ -16,9 +16,10 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `vitest-agent-mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
 | `vitest-agent-ui` | `packages/ui/` | Pure rendering-primitives library: shape-tailored dispatcher matrix (run-shape x outcome cells), reducer, agent + Ink render paths, synthesizers, PubSub channel. Knows nothing about the reporter lifecycle |
 | `vitest-agent-sidecar` | `packages/sidecar/` | Node Single Executable Application binary for the per-Bash-call `inject-env` hot path; prebuilt per-platform binaries ship via `optionalDependencies` |
+| `docs` | `website/` | RSPress 2.0 user-facing documentation site for the whole family, deployed to `https://vitest-agent.dev` via Cloudflare Pages. Private (never published), versions independently |
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
 
-The seven publishable packages live under `packages/`. Four
+The seven publishable packages live under `packages/`. The `docs` site (`website/`) is a private workspace — it renders documentation and is never published. Four
 per-platform sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `vitest-agent-sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
 
 The six original packages release in lockstep; `vitest-agent-sidecar` is a new package that versions independently of that group. `vitest-agent-plugin` declares `vitest-agent-cli` and `vitest-agent-mcp` as required `peerDependencies` (alongside the Vitest-side peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`), plus regular workspace `dependencies` on `vitest-agent-reporter` and `vitest-agent-sdk`. Required peers are still pulled for a published consumer — npm 7+ and pnpm (`autoInstallPeers: true`) auto-install required peers, and the published plugin carries concrete registry version ranges — so declaring `vitest-agent-plugin` transitively brings `vitest-agent-cli` and `vitest-agent-mcp`, with their bins landing at the consumer's top level. The dependency flow is `plugin → reporter → ui → sdk`: the plugin no longer depends on `vitest-agent-ui` (or `react` / `ink`) directly — `vitest-agent-reporter` supplies the default reporter and the Ink live mount, and pulls `ui` / `react` / `ink` transitively. `vitest-agent-sidecar` reaches a consumer transitively: it is a regular `dependency` of `vitest-agent-cli`, which is itself a required peer of the plugin, so installing the plugin pulls `vitest-agent-sidecar` and its four per-platform `optionalDependencies` automatically. In the dev workspace, the plugin's peers are `workspace:*` ranges that `autoInstallPeers` cannot satisfy from the registry, so the workspace root `package.json` declares `vitest-agent-cli` and `vitest-agent-mcp` directly as devDependencies, and `pnpm-workspace.yaml` adds a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks; the root no longer lists `vitest-agent-reporter`, `vitest-agent-sidecar`, or `vitest-agent-ui` directly.
@@ -108,6 +109,10 @@ definitions. Schemas are re-exported from `vitest-agent-sdk` for consumer use.
   Per-package deep dives (`sdk.md`, `plugin.md`, `reporter.md`, `cli.md`,
   `mcp.md`, `ui.md`, `plugin-claude.md`). Load only the file for the
   package you are touching.
+- `@./.claude/design/vitest-agent/components/docs-site.md`
+  Load when working on the `docs` site (`website/`): its Guide/Packages IA,
+  the api-extractor model wiring, the committed snapshot db, or the
+  Cloudflare deploy.
 - `@./.claude/design/vitest-agent/schemas.md`
   Load when working with TypeScript types, Effect Schema definitions, or
   the SQLite tables.

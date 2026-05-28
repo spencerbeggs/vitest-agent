@@ -1,0 +1,151 @@
+---
+title: Configure coverage
+description: Wire a COVERAGE_LEVELS preset or custom thresholds and targets into your Vitest config in a few steps.
+---
+
+# Configure coverage
+
+This page walks through the most common coverage configuration tasks. For the
+underlying model — what thresholds, targets, and baselines each do — see the
+[Coverage model](/guide/coverage) concept page.
+
+## Pick a preset and destructure it
+
+`AgentPlugin.COVERAGE_LEVELS` ships five named presets. Each preset returns a
+`{ thresholds, coverageTargets }` pair so you destructure once and hand each
+half to its rightful owner:
+
+```typescript
+import { AgentPlugin } from "vitest-agent-plugin";
+import { defineConfig } from "vitest/config";
+
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover();
+  const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
+
+  return defineConfig({
+    plugins: [
+      AgentPlugin({
+        coverageTargets: coverage.coverageTargets,
+      }),
+    ],
+    test: {
+      ...(projects ? { projects } : {}),
+      tags,
+      pool: "forks",
+      coverage: {
+        enabled: true,
+        provider: "v8",
+        thresholds: coverage.thresholds,
+      },
+    },
+  });
+};
+```
+
+The `thresholds` half goes to Vitest's `test.coverage.thresholds` — that is
+the hard failure floor. The `coverageTargets` half goes to `AgentPlugin` — that
+is the aspirational yellow-tier goal.
+
+### Preset reference
+
+| Preset | Thresholds (lines / branches / functions / statements) | Target tier |
+| --- | --- | --- |
+| `none` | 0 / 0 / 0 / 0 | none |
+| `basic` | 50 / 50 / 50 / 50 | standard values |
+| `standard` | 70 / 65 / 70 / 70 | strict values |
+| `strict` | 80 / 75 / 80 / 80 | full values |
+| `full` | 90 / 85 / 90 / 90 | full values (capped at itself) |
+
+Each preset's `coverageTargets` is the next level up's threshold numbers — so
+`standard` sets the hard floor at 70 % lines and the aspirational goal at 80 %,
+giving you a clear gap to close without blocking the run today.
+
+## Per-file thresholds
+
+Use `COVERAGE_LEVELS_PER_FILE` instead of `COVERAGE_LEVELS` to add
+`perFile: true` to the `thresholds` half. Everything else is identical:
+
+```typescript
+const coverage = AgentPlugin.COVERAGE_LEVELS_PER_FILE.standard;
+```
+
+`perFile: true` tells Vitest to enforce the threshold on every file
+individually rather than the aggregate. The `coverageTargets` half is
+unchanged — targets always operate at the project level.
+
+## Custom thresholds and targets
+
+If the presets do not match your policy, set thresholds and targets
+independently. Thresholds live on Vitest's native config; targets go to
+`AgentPlugin`:
+
+```typescript
+defineConfig({
+  plugins: [
+    AgentPlugin({
+      coverageTargets: {
+        lines: 90,
+        branches: 85,
+        functions: 90,
+        statements: 90,
+      },
+    }),
+  ],
+  test: {
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: {
+        lines: 70,
+        branches: 65,
+        functions: 70,
+        statements: 70,
+        "src/utils/**": { lines: 90 },
+        "src/generated/**": { lines: 0 },
+      },
+    },
+  },
+});
+```
+
+Vitest's `thresholds` accepts per-glob overrides and negative numbers
+(maximum uncovered items). `coverageTargets` accepts per-glob nested entries
+using the same `CoverageTargetsMetrics` shape.
+
+## Auto-ratcheting thresholds
+
+`AgentPlugin.COVERAGE_AUTOUPDATE` provides three tolerance functions for
+Vitest's native `coverage.thresholds.autoUpdate`. When auto-update is on,
+Vitest mutates the threshold numbers on disk after each green run:
+
+```typescript
+defineConfig({
+  test: {
+    coverage: {
+      thresholds: {
+        lines: 80,
+        autoUpdate: AgentPlugin.COVERAGE_AUTOUPDATE.standard,
+      },
+    },
+  },
+});
+```
+
+| Function | Behavior |
+| --- | --- |
+| `standard` | Floors to the nearest integer — no regression, no overshoot |
+| `strict` | Ceils to the nearest integer — always advances |
+| `lenient` | Floors and subtracts 2 — gives headroom for normal variance |
+
+`COVERAGE_AUTOUPDATE` ratchets Vitest's hard thresholds on disk.
+vitest-agent's target baselines (high-water marks stored in SQLite) are a
+separate mechanism that ratchets automatically whenever `coverageTargets` is
+set — you do not configure them directly.
+
+## What happens when coverage is disabled
+
+If `coverage.enabled` is `false` (or you run without `--coverage`), the
+plugin operates in UI-only mode: provider validation rules are skipped and no
+baseline or trend data is written. The renderer still fires so you still see
+test result output. See [Coverage model](/guide/coverage) for details.

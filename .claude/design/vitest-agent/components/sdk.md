@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-21
-last-synced: 2026-05-21
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 96
 related:
   - ../architecture.md
@@ -88,10 +88,9 @@ The shared package owns the services every runtime needs:
 stays with the plugin because only the lifecycle class consumes istanbul
 data. See [./plugin.md](./plugin.md).
 
-### Agent-agnostic taxonomy services (Phases 1–4)
+### Agent-agnostic taxonomy services
 
-The agent-taxonomy refactor added five services to the SDK. All five
-live in `packages/sdk/src/services/`:
+Five services in `packages/sdk/src/services/` back the agent-attribution model:
 
 - **ProjectIdentity** — 5-source fallback resolver for the canonical
   per-project identity (`{ projectKey, projectDir, source }`).
@@ -99,13 +98,12 @@ live in `packages/sdk/src/services/`:
   `projectKey`, `git config remote.origin.url` (canonicalized),
   `package.json#repository.url` (parsed and canonicalized), normalized
   `package.json#name`. Fails with `ProjectIdentityNotResolvableError`
-  listing every source attempted. The sidecar CLI's three `_internal`
-  subcommands call this against `--cwd` to compute the per-project
-  data store directory.
+  listing every source attempted. The CLI's `agent` sidecar subcommands
+  call this against `--cwd` to compute the per-project data store directory.
 - **RunContext** — captures `{ branch, commitSha, dirty, upstream,
   worktreeDir }` via `git rev-parse` calls. Used by the reporter at
   test-run time to stamp the seven `git_*` and three `host_*` columns
-  on every `test_runs` row, and by `_internal register-agent` to
+  on every `test_runs` row, and by `agent register-agent` to
   capture the agent's inherited `start_git_*` context at registration.
   Detached-HEAD state surfaces as literal `'HEAD'` for `branch` with
   `commit_sha` as the reliable identifier.
@@ -153,7 +151,7 @@ live in `packages/sdk/src/services/`:
   string against five Vitest invocation patterns
   (`vitest run`, `vitest`, `pnpm vitest`, `pnpm <script>` →
   one-hop indirection through `package.json#scripts`, etc.). Used by
-  `_internal inject-env` to decide whether to prepend the
+  `agent inject-env` to decide whether to prepend the
   `VITEST_AGENT_*` env prefix to the user's Bash command.
 - **`probe-host-metadata.ts`** — single-shot probe for the
   `host_source` / `host_value` / `host_metadata` triple stamped on
@@ -234,11 +232,11 @@ encode/decode.
 | `Trends.ts` | Coverage trend shapes |
 | `CacheManifest.ts` | Cache manifest shapes (legacy file-based manifest discovery) |
 | `CoverageLevel.ts` | `CoverageLevel` Effect Schema class with five named presets (`none`, `basic`, `standard`, `strict`, `full`), `.withPerFile()` builder, and `.extend({})` override method. Also exports `CoverageLevelName`, `CoverageInput`, and `resolveCoverageInput`. Also exports `validateCoverageConfig`; the plugin no longer calls it (the `ConfigValidation` service is the read path) and it is kept as a public helper for downstream callers |
-| `Options.ts` | After T7: only `ConsoleOutputs`, `AgentPluginOptions`, and `AgentReporterOptions`. `AgentPluginOptions` is the 5-field shape — `console`, `coverageTargets`, `transport` on the schema; `reporter` and `onRunEvent` are function-typed and live on the plugin's `AgentPluginConstructorOptions` companion interface. `AgentReporterOptions` is intentionally tiny — one field (`projectFilter`) — and is the narrow per-instance config bag the reporter implementation accepts; most users never see it. The pre-T7 `CoverageOptions` and `FormatterOptions` schemas were unused dead code and were deleted in the same pass |
-| `CoverageTargets.ts` | Extracted from `Options.ts` in T7. Exports `CoverageTargets` and the nested `CoverageTargetsMetrics` schemas. `CoverageTargets` is a `Schema.Record` whose keys are arbitrary strings (treated as either a top-level metric name or a glob pattern) and values are `Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics)`. A decode-time refinement rejects `true` at any key other than `"100"` so `{ statements: true }` fails parse rather than silently flowing through to a runtime parser that only honors the canonical shorthand at key `"100"`. Negatives and zeros are rejected at decode time |
-| `Transport.ts` | New in T7. Single-member discriminated union `Schema.Union(Schema.Struct({ kind: Schema.Literal("local") }))`. Modeled as a union from day one so the 3.0 cloud-backend swap (D1, Turso, etc.) lands as a pure addition of union members rather than a schema-shape change. See [../decisions.md](../decisions.md) D40 |
+| `Options.ts` | Holds `ConsoleOutputs`, `AgentPluginOptions`, and `AgentReporterOptions`. `AgentPluginOptions` is the 5-field shape — `console`, `coverageTargets`, `transport` on the schema; `reporter` and `onRunEvent` are function-typed and live on the plugin's `AgentPluginConstructorOptions` companion interface. `AgentReporterOptions` is intentionally tiny — one field (`projectFilter`) — and is the narrow per-instance config bag the reporter implementation accepts; most users never see it |
+| `CoverageTargets.ts` | Exports `CoverageTargets` and the nested `CoverageTargetsMetrics` schemas. `CoverageTargets` is a `Schema.Record` whose keys are arbitrary strings (treated as either a top-level metric name or a glob pattern) and values are `Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics)`. A decode-time refinement rejects `true` at any key other than `"100"` so `{ statements: true }` fails parse rather than silently flowing through to a runtime parser that only honors the canonical shorthand at key `"100"`. Negatives and zeros are rejected at decode time |
+| `Transport.ts` | Single-member discriminated union `Schema.Union(Schema.Struct({ kind: Schema.Literal("local") }))`. Modeled as a union from day one so the 3.0 cloud-backend swap (D1, Turso, etc.) lands as a pure addition of union members rather than a schema-shape change. See [../decisions.md](../decisions.md) D40 |
 | `validate-coverage-targets-shape.ts` (in `utils/`) | Pure helper `validateCoverageTargetsShape(input): { errors, warnings, info }`. Walks raw input and emits structured diagnostics with pinpointed paths: `INVALID_TARGET_VALUE` (zero or negative numbers, at the top level or inside glob-pattern entries) and `PERFILE_ON_TARGETS` (the `perFile` key set inside `coverageTargets` rather than on `coverage.thresholds.perFile`). Consumed by the plugin's `ConfigValidation` rule registry |
-| `RunEvent.ts` | Discriminated union over the 11 `RunEvent` variants (`RunStarted`, `ModuleQueued`, `ModuleStarted`, `TestStarted`, `TestFinished`, `ModuleFinished`, `CoverageReady`, `ThresholdViolation`, `FailureClassified`, `SuggestedAction`, `RunFinished`). Fed by the plugin's streaming callbacks and consumed by `vitest-agent-ui`'s reducer |
+| `RunEvent.ts` | Discriminated union over the `RunEvent` variants — one per Vitest 4.x reporter hook that fits the event-sourced model, covering run / module / suite / hook / test lifecycle, console, coverage, trend, classification and watch mode. Fed by the plugin's streaming callbacks and consumed by `vitest-agent-ui`'s reducer. See [../schemas.md](../schemas.md) for the variant inventory |
 | `RenderState.ts` | The projected shape the `vitest-agent-ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`). Both the agent string renderer and the Ink tree read this shape |
 | `History.ts` | `TestRun`, `TestHistory`, `HistoryRecord` |
 | `Config.ts` | `VitestAgentConfig` for the optional `vitest-agent.config.toml`. Both fields (`cacheDir?`, `projectKey?`) are optional; absence falls back to deriving the path from the workspace's `package.json` `name` |
@@ -333,7 +331,7 @@ The non-obvious pieces:
   clientNonce)` then performs an upsert against the
   `(session_id, idempotency_key)` UNIQUE index. Returns either a
   fresh `Agent` or an `IdempotencyHit` carrying the already-registered
-  row. The `_internal register-agent` CLI surface forwards the hit
+  row. The `agent register-agent` CLI surface forwards the hit
   state back to the SessionStart hook through the JSON output so the
   hook can short-circuit re-export of env without re-writing
   rows.
@@ -515,16 +513,14 @@ themselves.
 which feeds them to `@effect/sql-sqlite-node`'s `SqliteMigrator` (WAL
 journal mode, foreign keys enabled).
 
-The per-project data-store migration set is now consolidated to a
-single file: **`0001_initial.ts`**. Per the pre-2.0 policy, every
-schema change before 2.0 ships edits this file directly — there are
-no ALTERs, no backfills, no incremental migration history to apply.
-The prior `0002_comprehensive.ts` was folded back into
-`0001_initial.ts`. Dev databases are deleted and re-created when the
-canonical shape changes.
+The per-project data-store migration set is a single file:
+**`0001_initial.ts`**. Per the pre-2.0 policy, every schema change before
+2.0 ships edits this file directly — there are no ALTERs, no backfills, no
+incremental migration history to apply. Dev databases are deleted and
+re-created when the canonical shape changes.
 
 Two additional migration files cover the per-client and registry
-SQLite scopes added for the agent-agnostic taxonomy (Phases 1–4):
+SQLite scopes for the agent-agnostic taxonomy:
 
 - **`session_map_0001_initial.ts`** — `conversation_map`
   (`transcript_path` → canonical `conversation_id`) and `session_map`

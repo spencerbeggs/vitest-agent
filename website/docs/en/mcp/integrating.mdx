@@ -1,0 +1,121 @@
+---
+title: Integrating non-Claude-Code agents
+description: How any MCP-aware agent connects to vitest-agent-mcp over stdio and how run attribution works via environment variables and register_agent.
+---
+
+# Integrating non-Claude-Code agents
+
+`vitest-agent-mcp` speaks the standard MCP stdio transport, so any MCP-aware agent host can connect to it. This page covers how the server starts, how session attribution works, and what to configure when Claude Code is not the host.
+
+## Starting the server
+
+The server communicates over stdin/stdout using the JSON-RPC transport defined by the MCP specification.
+
+### Manual start
+
+Launch the server directly:
+
+```bash
+npx vitest-agent-mcp
+```
+
+Or with pnpm:
+
+```bash
+pnpm exec vitest-agent-mcp
+```
+
+### Wiring into a `.mcp.json` config
+
+```json
+{
+  "mcpServers": {
+    "vitest-agent": {
+      "command": "npx",
+      "args": ["vitest-agent-mcp"]
+    }
+  }
+}
+```
+
+The server reads the SQLite database from the same XDG-derived path that `AgentPlugin` writes to. The default location is:
+
+```text
+$XDG_DATA_HOME/vitest-agent/<workspaceName>/data.db
+```
+
+with a fallback to:
+
+```text
+~/.local/share/vitest-agent/<workspaceName>/data.db
+```
+
+A single `vitest run` with `AgentPlugin` configured populates data for the MCP tools, the CLI, and the reporter's own console output from the same database file.
+
+## How run attribution works
+
+When `AgentPlugin` records a test run it needs to know which agent triggered it. Attribution flows from the agent host to the reporter via environment variables.
+
+### The canonical path (Claude Code)
+
+When Claude Code is the host, the SessionStart hook runs `vitest-agent agent register-agent` and writes the canonical attribution variables to `CLAUDE_ENV_FILE`. Claude Code then auto-sources that file into Bash tool subprocesses and the MCP server child process. At boot the MCP server calls `sessionContextFromEnv(process.env)` and populates its `SessionContextRef`. When `run_tests` fires a Vitest invocation it injects the attribution from the ref into the child process's environment.
+
+This happens automatically when the Claude Code plugin is active. No manual configuration is needed.
+
+### Attribution for non-Claude-Code hosts
+
+When Claude Code is not the host, the attribution variables are not set automatically. The MCP server starts with no session context — runs still succeed, but they are attributed as actor type `system` rather than `agent`.
+
+To attribute runs to a specific agent session, set the following environment variables before starting the server:
+
+| Variable | Description |
+|----------|-------------|
+| `VITEST_AGENT_CHAT_ID` | The host's per-process chat or session UUID |
+| `VITEST_AGENT_CONVERSATION_ID` | The canonical conversation UUID (survives resume) |
+| `VITEST_AGENT_MAIN_AGENT_ID` | The UUID of the main agent |
+| `VITEST_AGENT_AGENT_ID` | The UUID of the currently active agent |
+
+See [Environment variables](/mcp/environment-variables) for the full set and their exact meanings.
+
+### Using `register_agent` as the explicit fallback
+
+If you cannot set environment variables before the server starts, call the `register_agent` tool after connecting. It writes the agent row to the database and returns the canonical `agentId` and `conversationId` that subsequent tool calls will use for attribution.
+
+```json
+{
+  "tool": "register_agent",
+  "input": {
+    "agentType": "cursor-main",
+    "hostSessionId": "<your-session-id>"
+  }
+}
+```
+
+The `agentType` value must begin with a recognized host-kind prefix followed by a hyphen. Supported prefixes include `claude-code-`, `claude-desktop-`, `cursor-`, `goose-`, `chatgpt-`, and `mcp-inspector-`. Use `unknown-` for hosts not in this list.
+
+`register_agent` is idempotent on `(agentType, parentAgentId, clientNonce)`, so calling it again with the same input replays the cached result rather than creating a duplicate row.
+
+## Project directory resolution
+
+The server resolves the project directory (used to locate the database) from these sources in priority order:
+
+1. `VITEST_AGENT_REPORTER_PROJECT_DIR` — set by the Claude Code plugin loader
+2. `CLAUDE_PROJECT_DIR` — set by Claude Code for hook scripts and MCP subprocesses
+3. `process.cwd()` — fallback for direct invocation outside Claude Code
+
+For non-Claude-Code hosts, set `VITEST_AGENT_REPORTER_PROJECT_DIR` to the absolute path of your project root, or ensure the server is started from that directory.
+
+## Subagent attribution
+
+When a host dispatches a subagent (for example a TDD orchestrator), runs triggered by that subagent should be attributed to the subagent rather than the main agent. To achieve this:
+
+1. Register the subagent with `register_agent`, passing the main agent's `agentId` as `parentAgentId`.
+2. Update `VITEST_AGENT_AGENT_ID` in the environment passed to the Vitest child process to the subagent's `agentId`, while keeping `VITEST_AGENT_MAIN_AGENT_ID` pointing at the main agent.
+
+The PreToolUse Bash hook in the Claude Code plugin does this automatically for the `tdd-task` subagent.
+
+## Related
+
+- [Environment variables](/mcp/environment-variables)
+- [MCP tools](/mcp/tools)
+- [API reference](/mcp/api)

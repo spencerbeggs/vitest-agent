@@ -42,15 +42,16 @@ jobs:
         uses: savvy-web/workflow-runtime-action@main
       - name: Update Config Dependencies
         id: update
-        uses: savvy-web/pnpm-config-dependency-action@main
+        uses: savvy-web/pnpm-config-dependency-action@v1
         with:
-          app-id: ${{ secrets.APP_ID }}
+          app-client-id: ${{ vars.APP_CLIENT_ID }}
           app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
           branch: ${{ inputs.branch || 'pnpm/config-deps' }}
           dry-run: ${{ inputs.dry-run || false }}
           log-level: ${{ inputs.log-level || 'info' }}
-          changesets: false
+          changesets: true
           auto-merge: "squash"
+          upgrade-runtime-node: "^26.0.0"
           config-dependencies: |
             @savvy-web/pnpm-plugin-silk
           dependencies: |
@@ -70,14 +71,4 @@ jobs:
             pnpm savvy-commit init
             pnpm savvy-lint init
             pnpm savvy-changesets init
-            pnpm lint:fix
-      - name: Summary
-        if: always()
-        run: |
-          echo "## Update Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Has Changes:** ${{ steps.update.outputs.has-changes }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Updates Count:** ${{ steps.update.outputs.updates-count }}" >> $GITHUB_STEP_SUMMARY
-          if [ -n "${{ steps.update.outputs.pr-url }}" ]; then
-            echo "- **PR:** ${{ steps.update.outputs.pr-url }}" >> $GITHUB_STEP_SUMMARY
-          fi
+            pnpm lint:fix 2>/dev/null || true

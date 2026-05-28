@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: testing
 created: 2026-04-29
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 95
 related:
   - ./architecture.md
@@ -14,10 +14,9 @@ related:
 dependencies: []
 ---
 
-# Testing Strategy -- vitest-agent-reporter
+# Testing Strategy -- vitest-agent
 
-Testing approach, patterns, and coverage targets for the six-package
-monorepo.
+Testing approach, patterns, and coverage targets for the monorepo.
 
 **Parent document:** [architecture.md](./architecture.md)
 
@@ -29,16 +28,9 @@ Tests live in flat `packages/<name>/__test__/` directories. The
 root `vitest.config.ts` uses `AgentPlugin.discover()` to auto-generate
 one Vitest project per package from the workspace layout; `__test__/`
 files are picked up alongside `src/**/*.test.ts` files by the scanner.
-
-| Package | `__test__/` files |
-| --- | --- |
-| `packages/sdk/` | 71 |
-| `packages/plugin/` | 20 |
-| `packages/cli/` | 14 |
-| `packages/mcp/` | 20 |
-| `packages/ui/` | 19 |
-| `packages/reporter/` | 0 |
-| **Total** | **144** |
+The bulk of the suite lives in `packages/sdk/`, with the plugin, mcp, ui
+and cli packages carrying the next-largest sets; `reporter` and `sidecar`
+carry a handful each.
 
 The `vitest-agent-ui` tests are layered:
 

@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
 
 /**
@@ -28,17 +26,10 @@ import { NodeLibraryBuilder } from "@savvy-web/rslib-builder";
  * `vitest-agent-plugin#build:prod`.
  */
 
-// T12 drift wiring: inline package.json#version as a literal so the
-// dist carries the package version for the cross-package drift check.
-const PKG_VERSION = JSON.parse(readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf8"))
-	.version as string;
-
 export default NodeLibraryBuilder.create({
 	externals: ["effect", "@effect/platform", "@effect/platform-node", "@effect/sql", "@effect/sql-sqlite-node"],
-	define: {
-		"process.env.__PACKAGE_VERSION__": JSON.stringify(PKG_VERSION),
-	},
 	apiModel: {
+		localPaths: ["../../website/lib/models/sidecar"],
 		suppressWarnings: [{ messageId: "ae-forgotten-export", pattern: "_base" }],
 	},
 	transform({ pkg, target }) {

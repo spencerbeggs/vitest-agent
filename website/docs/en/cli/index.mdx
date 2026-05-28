@@ -1,0 +1,99 @@
+---
+title: "vitest-agent-cli"
+description: The vitest-agent CLI bin. Manages the local SQLite database, runs health diagnostics, and provides hook-plumbing subcommands for the Claude Code plugin's session and Bash hooks.
+---
+
+# vitest-agent-cli
+
+The `vitest-agent` CLI bin. Manages the local SQLite database, runs health diagnostics, and provides the hook-plumbing subcommands used by the Claude Code plugin's session and Bash hooks. Reads cached test data from SQLite — never runs tests or calls AI providers.
+
+This package is a required peer of `vitest-agent-plugin` and arrives automatically with modern pnpm and npm. Install it directly only if you want the `vitest-agent` bin on its own.
+
+## Features
+
+- **`doctor`** — five-point health diagnostic covering manifest assembly, latest-run integrity, and staleness
+- **`db`** — `path`, `prune`, `reset`, and `query` subcommands for database lifecycle management
+- **`agent` namespace** — `triage`, `wrapup`, `record`, `register-agent`, `end-agent`, `inject-env`, and `sidecar-path` for hook-driven plumbing
+
+## Install
+
+```bash
+npm install --save-dev vitest-agent-cli
+# or
+pnpm add -D vitest-agent-cli
+```
+
+## Commands
+
+### `doctor`
+
+Five-point health check: manifest assembly, latest-run integrity, and staleness. Run this when you are not sure whether the plugin is writing data correctly:
+
+```bash
+vitest-agent doctor
+
+# Supports --format markdown|json for machine-readable output
+vitest-agent doctor --format json
+```
+
+### `db`
+
+Database lifecycle management:
+
+```bash
+# Print the XDG-derived path to data.db
+vitest-agent db path
+
+# Prune old turn history, keeping the most recent 30 sessions (default)
+vitest-agent db prune
+vitest-agent db prune --keep-recent 10
+
+# Run a read-only SQL query against data.db
+vitest-agent db query "SELECT count(*) FROM test_cases"
+vitest-agent db query "SELECT * FROM test_runs ORDER BY started_at DESC LIMIT 5"
+
+# Wipe data.db completely (human-only — blocked when VITEST_AGENT_AGENT_ID is set)
+vitest-agent db reset
+```
+
+`db query` opens the connection read-only, so mutation attempts produce a driver error. Column headers and whitespace-padded rows are the default; use `--format json` for a JSON array.
+
+### `agent` namespace
+
+The `agent` subcommands are used by the Claude Code plugin's hooks. You can invoke them directly for debugging, but humans typically don't need to.
+
+```bash
+# Produce a triage summary of the latest run (markdown by default)
+vitest-agent agent triage
+vitest-agent agent triage --format json
+
+# Produce an end-of-session wrapup nudge
+vitest-agent agent wrapup
+
+# Print the absolute path to the installed sidecar binary (exit non-zero if absent)
+vitest-agent agent sidecar-path
+
+# Record test-case turn associations for a chat session
+vitest-agent agent record test-case-turns --chat-id <uuid>
+```
+
+`inject-env` is the fastest subcommand — it is on the critical path of every Bash tool call when the Claude Code plugin is active. It reads `VITEST_AGENT_*` from env and the `package.json#scripts` from cwd, then rewrites any Vitest invocation with the canonical env prefix. The per-platform sidecar binary (`vitest-agent-sidecar`) runs the same logic at native speed.
+
+## The `db path` idiom
+
+Knowing the exact database path is useful when you want to open it with a SQL client or verify its location:
+
+```bash
+# Returns something like:
+# /home/user/.local/share/vitest-agent/my-workspace/data.db
+vitest-agent db path
+```
+
+The path is deterministic from workspace identity alone — it exists even before any test run has written data.
+
+## Learn more
+
+- [Claude Code integration](/guide/claude-code)
+- [Architecture overview](/guide/architecture)
+- [API reference](/cli/api)
+- [All packages](/packages)

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-19
-last-synced: 2026-05-19
+updated: 2026-05-27
+last-synced: 2026-05-27
 completeness: 90
 related:
   - ./components.md
@@ -13,6 +13,7 @@ related:
   - ./data-flows.md
   - ./file-structure.md
   - ./testing-strategy.md
+  - ./components/docs-site.md
 dependencies: []
 ---
 
@@ -34,7 +35,7 @@ reliable enough that lower-tier subagents (Sonnet) succeed against tasks
 dispatched by a stronger main model.
 
 For the consumer, the integration is one install: add `vitest-agent-plugin`
-to a project, register `agentPlugin()` in `vitest.config.ts`, and install
+to a project, register `AgentPlugin()` in `vitest.config.ts`, and install
 the Claude Code plugin from the marketplace. Declaring the plugin pulls in
 the reporter, CLI, MCP and sidecar packages — the reporter and SDK as regular
 dependencies, the CLI and MCP as required peers that npm 7+ and pnpm
@@ -45,8 +46,8 @@ call.
 ## Package landscape
 
 The project is a pnpm monorepo. Seven publishable workspaces under
-`packages/` plus a file-based Claude Code plugin at `plugin/` (not a
-workspace).
+`packages/`, a file-based Claude Code plugin at `plugin/` (not a
+workspace) and the `docs` documentation-site workspace at `website/`.
 
 | Workspace | Path | Role |
 | --- | --- | --- |
@@ -56,8 +57,9 @@ workspace).
 | `vitest-agent-ui` | `packages/ui/` | Pure rendering-primitives library. The `RunEvent` reducer, the shape-tailored dispatcher matrix and its 12 cells, the L1 MCP tool-pointer footer, the synthesizers and the Effect `RunEventChannel` PubSub. Knows nothing about the reporter lifecycle. |
 | `vitest-agent-cli` | `packages/cli/` | The `vitest-agent` bin. Utility-only for 2.0: `doctor`, `db` (path / prune / reset / query), and the `agent` namespace for hook-driven plumbing (triage, wrapup, record, sidecar). Test-landscape queries moved to MCP. |
 | `vitest-agent-mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, MCP resources, MCP prompts. |
-| `vitest-agent-sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via four `optionalDependencies` sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`). Added in T9.2. |
+| `vitest-agent-sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via four `optionalDependencies` sub-packages (`vitest-agent-sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`). |
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
+| `docs` | `website/` | RSPress 2.0 documentation site deployed to `vitest-agent.dev` via Cloudflare Pages. Generates per-package API reference from each package's API Extractor model. Private, versions independently, imports nothing from the runtime packages. See [./components/docs-site.md](./components/docs-site.md). |
 
 The seven npm workspaces release in lockstep. `vitest-agent-plugin` declares `vitest-agent-cli` and `vitest-agent-mcp` as required workspace `peerDependencies` (alongside the host-supplied Vitest peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`); its regular workspace `dependencies` are `vitest-agent-reporter` and `vitest-agent-sdk` only. The cli / mcp peers are required, not optional — there is no `peerDependenciesMeta`. Declaring `vitest-agent-plugin` still pulls in the whole `vitest-agent-*` family for a published consumer: npm 7+ and pnpm (with this repo's `autoInstallPeers: true`) auto-install required peers, and a peer-installed package lands at the consumer's top level, so its bin resolves — a transitively-nested regular dependency's bin would not. `vitest-agent-sidecar` reaches a consumer transitively through `vitest-agent-cli`, along with its four per-platform binaries. All six non-SDK packages pin `vitest-agent-sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `vitest-agent-sidecar`.
 
@@ -123,6 +125,7 @@ identity.
 | how data moves end to end (reporter, CLI, MCP, plugin spawn, idempotency) | [./data-flows.md](./data-flows.md) |
 | where files live, the XDG data-path stack, package-manager detection | [./file-structure.md](./file-structure.md) |
 | testing patterns, per-project counts, coverage targets | [./testing-strategy.md](./testing-strategy.md) |
+| the documentation site, its API-reference generation pipeline, the Cloudflare Pages deploy | [./components/docs-site.md](./components/docs-site.md) |
 | a retired or superseded decision | [./decisions-retired.md](./decisions-retired.md) |
 
 The Claude Code plugin's internals (hooks, subagent, dogfood workflow)

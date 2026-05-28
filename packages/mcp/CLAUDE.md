@@ -1,7 +1,7 @@
 # vitest-agent-mcp
 
 The Model Context Protocol server (`vitest-agent-mcp` bin)
-exposing 29 tools to LLM agents over stdio via `@modelcontextprotocol/sdk`.
+exposing the action-keyed tool surface to LLM agents over stdio via `@modelcontextprotocol/sdk`.
 Routes tool calls through a tRPC router; runs as a long-lived process with
 a `ManagedRuntime`. Also surfaces four MCP resources under two URI schemes
 (vendored Vitest docs + curated patterns; per-page titles, descriptions,
@@ -24,12 +24,12 @@ src/
                          calls startMcpServer({ runtime, cwd: projectDir })
   index.ts            -- programmatic entry
   context.ts          -- tRPC McpContext: { runtime, cwd }
-  router.ts           -- tRPC router aggregating all 29 procedures
+  router.ts           -- tRPC router aggregating all tool procedures
   server.ts           -- startMcpServer(): registers all tools, then
                          calls registerAllResources(server) and
                          registerAllPrompts(server) BEFORE constructing
                          StdioServerTransport
-  tools/              -- 29 tool implementations (see design docs for the
+  tools/              -- tool implementations (see design docs for the
                          full inventory); plus the private
                          _tdd-error-envelope.ts helper. Per-CRUD families
                          (`tdd_task`, `tdd_goal`, `tdd_behavior`, `note`,
@@ -115,7 +115,7 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
 | ---- | ------- |
 | `bin.ts` | `resolveProjectDir()` precedence: `VITEST_AGENT_REPORTER_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> `process.cwd()`. Resolves `dbPath` via `resolveDataPath(projectDir)` then constructs the `ManagedRuntime` |
 | `context.ts` | tRPC `McpContext` carrying the `ManagedRuntime` so procedures call `ctx.runtime.runPromise(effect)` |
-| `router.ts` | Aggregates all 29 tool procedures; testable via `createCallerFactory(appRouter)` without starting the MCP server |
+| `router.ts` | Aggregates all tool procedures; testable via `createCallerFactory(appRouter)` without starting the MCP server |
 | `tools/run-tests.ts` | `spawnSync("vitest run", ...)` with configurable timeout (default 120s) |
 | `tools/note.ts` | Single action-keyed tool covering all six note operations (`create`/`list`/`get`/`update`/`delete`/`search`) via the `action` discriminator |
 | `tools/tdd-task.ts` | Action-keyed `tdd_task` tool with `start`/`end`/`get`/`resume` (replaces the 1.x `tdd_session_*` family; the underlying SQLite columns retain the `tdd_tasks` naming). `start` and `end` are idempotent via the middleware registry |
@@ -141,7 +141,7 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
   - `run_tests`: returns text (raw vitest output).
   - `note`: `list`/`search` actions return markdown;
     `create`/`get`/`update`/`delete` actions return JSON.
-- **29 tools, 1 router.** New tools register in `server.ts` AND
+- **One router, one allowlist.** New tools register in `server.ts` AND
   `router.ts`. The Claude Code plugin's allowlist
   (`plugin/hooks/lib/safe-mcp-vitest-agent-ops.txt`) must
   also be updated for auto-allow to work without a permission prompt.
@@ -247,8 +247,8 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
   Load when working on tool implementations, the tRPC router, resources,
   prompts, or the vendor-snapshot pipeline.
 - `@./.claude/design/vitest-agent/data-flows.md`
-  Load when tracing MCP runtime flows (Flow 4: tRPC tool dispatch over
-  `ManagedRuntime`; Flow 7: TDD goal/behavior + phase-transition flow).
+  Load when tracing MCP runtime flows (Flow 4: MCP server / tRPC tool
+  dispatch over `ManagedRuntime`; Flow 7: tRPC idempotency middleware).
 - `@./.claude/design/vitest-agent/schemas.md`
   Load when working with tRPC tool input/output shapes, the idempotency
   registry, or the TDD goal/behavior tables.
@@ -256,24 +256,17 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
   Load for rationale (especially D19 tRPC routing, D35 resources and
   prompts, and the idempotency middleware).
 
-## Agent-agnostic taxonomy additions (Phase 3)
+## Action-keyed tool surface
 
-The MCP tool surface was consolidated. Per-CRUD families are now
-single action-keyed tools that dispatch via
-`Match.discriminatorsExhaustive("action")` (or `"kind"` for
-`inventory`):
+Per-CRUD families collapse into single action-keyed tools that dispatch
+via `Match.discriminatorsExhaustive` on an `action` (or `kind`)
+discriminator: `hypothesis`, `note`, `inventory`, `test`, `tdd_task`,
+`tdd_goal`, and `tdd_behavior`. The `tdd_task` actions replace the
+`tdd_session_*` family (the underlying SQLite columns retain the
+`tdd_tasks` naming). The `help` tool surfaces these groupings to
+clients; for the per-tool variant inventory, load `components/mcp.md`.
 
-| Tool | Variants |
-| ---- | -------- |
-| `hypothesis` | `record`, `validate`, `list` |
-| `note` | `create`, `list`, `get`, `update`, `delete`, `search` |
-| `inventory` | `kind: project`, `kind: module`, `kind: suite`, `kind: session` (with optional `id` for single-row lookup), `kind: tag` (T2; per-tag module/test counts — scoped form omits the per-project breakdown, unscoped form carries a `byProject` inline on every row) |
-| `test` | `list`, `get`, `for_file`, `for_tag` (T2; mirrors `for_file`, groups by project) |
-| `tdd_task` | `start`, `end`, `get`, `resume` (replaces `tdd_session_*`; the underlying SQLite columns retain the `tdd_tasks` naming) |
-| `tdd_goal` | `create`, `update`, `delete`, `get`, `list` |
-| `tdd_behavior` | `create`, `update`, `delete`, `get`, `list_by_goal`, `list_by_tdd_task` |
-
-**`register_agent`** is a new tool that wraps `DataStore.registerAgent`.
+**`register_agent`** wraps `DataStore.registerAgent`.
 Validates that `agentType` begins with `${hostKind}-`. Returns
 `{ ok: true, agentId, conversationId, idempotencyKey }` on insert or
 `{ ok: false, error: { code, ... } }` on the four documented codes:
@@ -298,9 +291,9 @@ procedure paths: `hypothesis` (record/validate), `tdd_task`
 (start/end), `tdd_goal` (create), `tdd_behavior` (create). Key
 derivation considers the `action` discriminator first.
 
-## T2: tag filtering and tag introspection
+## Tag filtering and tag introspection
 
-The `run_tests` tool's input gained a structured `tags` filter
+The `run_tests` tool's input carries a structured `tags` filter
 (`{ all?, any?, none? }`) and a per-call `passWithNoTests` override.
 The three sub-filters AND together with each other and with `project` /
 `files`; `none` covers all negation. The pure `composeTagExpression`
@@ -309,7 +302,7 @@ helper flattens a `TagFilter` to Vitest's native tag expression
 entries, `"not slow and not flaky"` for `none`, three joined by
 ` and `). Returns `null` when every sub-filter is empty.
 
-`RunTestsResult` gained a fourth `kind: "no-match"` discriminator
+`RunTestsResult` carries a `kind: "no-match"` discriminator
 variant. The MCP server emits `no-match` (rather than `ok` with an
 empty report) after `vitest.start` when `testModules.length === 0`
 AND `unhandledErrors.length === 0` AND any filter (`files`,

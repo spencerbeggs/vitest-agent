@@ -1,0 +1,92 @@
+---
+title: Why agent reporting
+description: Understand why Vitest's default reporters are not suited for AI agents and how vitest-agent turns a test run into a compact, classified signal.
+---
+
+# Why agent reporting
+
+Vitest's built-in reporters — `default`, `verbose`, `dot`, `tree` — are
+designed for humans scanning a terminal. They stream test names and errors as
+the run progresses, producing a high-fidelity narrative for someone watching
+in real time.
+
+An AI agent is not watching in real time. It issues a shell command, waits for
+the process to exit, then reads the combined output as a block of text. On a
+non-trivial suite that output can run to thousands of lines: every test name,
+every diff, every stack frame. For an agent, that block of text is token
+consumption — and most of it is noise.
+
+## The problem with raw reporter output
+
+When an agent runs `vitest run` against the default reporter, several things
+go wrong:
+
+**Context rot.** Long outputs push earlier context off the top of the model's
+effective window. If the run result appears in the middle of a tool call
+response buried under other events, the agent may never act on it correctly.
+
+**No actionability signal.** The default reporter distinguishes pass from fail
+but says nothing about whether a failure is new, a pre-existing persistent
+issue, or a test that has been flapping for the last ten runs. The agent has
+to reason about that from the raw error text.
+
+**Redundant coverage noise.** Istanbul's text table prints every file,
+including ones at 100% and ones that are irrelevant to the current change.
+An agent changing one function does not need 80 lines of unrelated file
+metrics.
+
+**No direct pointer.** After reading the output, the agent must decide what
+to do next. A raw failure dump does not tell it which tool to call, which
+file to open, or whether the failure pattern suggests a retry.
+
+## What vitest-agent does instead
+
+The plugin intercepts the reporter chain. When it detects an agent executor
+(Claude Code, Cursor, Codex, Cline, and others) it takes ownership of stdout
+and replaces the default output with a classified final frame:
+
+```
+## Test Results
+
+✓ 42 passed  ·  2 failed  ·  1 skipped
+
+### Classifications
+- 2 new-failure  ·  40 stable
+
+### Coverage
+Lines 94.2%  ·  Branches 88.1%  ·  Functions 96.0%
+
+---
+Use `test_errors` for failure detail; `failure_signature_get` to check known patterns.
+```
+
+This single frame carries everything the agent needs to decide what to do next:
+- A counts summary
+- Per-test classifications that encode run-over-run history
+- A coverage snapshot against configured targets
+- A footer pointing at the right MCP tool for the dominant outcome
+
+The same data is written to a SQLite database so deeper queries (failure
+history, coverage trends, persistent vs flaky breakdown) are available via
+the MCP server without re-running the suite.
+
+## The three executor audiences
+
+vitest-agent models three distinct audiences and resolves a different output
+strategy for each:
+
+**Human.** A developer running tests at a terminal. They want a rich,
+progressive live view — colors, animations, structure — not a compact summary.
+The plugin can render a progressively-drawn Ink view that draws the run shape
+as it advances.
+
+**Agent.** An AI coding agent running tests as a tool call. It wants a
+compact, token-efficient final frame with enough signal to act without
+re-running or making follow-up queries.
+
+**CI.** A headless GitHub Actions runner. It wants Vitest's native reporters
+unchanged (log-friendly, annotation-compatible) plus any machine-readable
+artifacts already configured.
+
+The console mode system handles all three through a single configuration
+matrix. See [Console modes](/guide/console-modes) for the full details.

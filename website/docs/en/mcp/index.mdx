@@ -1,0 +1,118 @@
+---
+title: "vitest-agent-mcp"
+description: The vitest-agent MCP server bin. Exposes 29 action-keyed tools over stdio giving LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more.
+---
+
+# vitest-agent-mcp
+
+The `vitest-agent-mcp` MCP server bin. Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces four MCP resources (vendored Vitest docs and curated testing patterns) and six framing-only prompts.
+
+This package is a required peer of `vitest-agent-plugin` and arrives automatically with modern pnpm and npm. Install it directly only if you run the MCP server standalone.
+
+## Features
+
+- **29 action-keyed tools** — per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`, and more
+- **Four MCP resources** — vendored Vitest documentation (`vitest://docs/`) and curated testing patterns (`vitest-agent://patterns/`) with per-page titles, descriptions, and `audience`/`priority` annotations
+- **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, and `wrapup`
+- **Idempotency middleware** — `tdd_task`, `tdd_goal`, `tdd_behavior`, and `hypothesis` create-actions are idempotent on derived keys
+
+## Install
+
+```bash
+npm install --save-dev vitest-agent-mcp
+# or
+pnpm add -D vitest-agent-mcp
+```
+
+## Quick start
+
+Start the MCP server over stdio:
+
+```bash
+npx vitest-agent-mcp
+```
+
+The server reads the SQLite database written by `AgentPlugin` via the same XDG-derived path, so a single test run populates data for all tools.
+
+## Tool surface
+
+Tools are organized into families. Each family is a single MCP tool that dispatches on an `action` (or `kind`) discriminator:
+
+### Query tools
+
+| Tool | What it returns |
+|------|-----------------|
+| `test_status` | Pass/fail summary for the latest run |
+| `test_overview` | Per-file breakdown of the latest run |
+| `test_coverage` | Coverage percentages and threshold status |
+| `test_errors` | Failure details with stack frames |
+| `test_history` | Recent run history for a project |
+| `test_trends` | Direction and run count for the trend line |
+
+### Action tools
+
+| Tool | Actions |
+|------|---------|
+| `run_tests` | Spawn a Vitest run from within an agent session |
+| `note` | `create`, `list`, `get`, `update`, `delete`, `search` |
+| `hypothesis` | `record`, `validate` |
+| `tdd_task` | `start`, `end`, `get`, `resume` |
+| `tdd_goal` | `create`, `list`, `get`, `update` |
+| `tdd_behavior` | `create`, `list`, `get`, `update` |
+| `inventory` | `project`, `module`, `suite`, `session` |
+| `test` | `list`, `get`, `for_file` |
+| `register_agent` | Register an agent session with the data store |
+
+### `run_tests`
+
+The `run_tests` tool spawns a Vitest run synchronously and returns the structured output. It supports a typed `tags` filter:
+
+```json
+{
+  "tool": "run_tests",
+  "input": {
+    "project": "my-package",
+    "tags": {
+      "all": ["unit"],
+      "none": ["slow"]
+    }
+  }
+}
+```
+
+The three sub-filters (`all`, `any`, `none`) AND together. `run_tests` returns `{ kind: "no-match" }` instead of an empty result when no files match a supplied filter, so agents can distinguish a filter mismatch from a genuine zero-test project.
+
+## Resources
+
+The MCP server exposes two resource URI schemes:
+
+```text
+vitest://docs/{path}          — vendored Vitest documentation snapshot
+vitest-agent://patterns/{slug} — curated testing patterns
+```
+
+Both surface `list` callbacks so MCP clients show typed resource pickers with titles, "load when" descriptions, and `audience`/`priority` annotations. The vendored Vitest docs ship checked into the package — the server works without network egress.
+
+## Framing prompts
+
+Six prompts orient agents toward the right tool sequence without pre-fetching data:
+
+| Prompt | Use |
+|--------|-----|
+| `triage` | Start of a session — what needs attention? |
+| `why-flaky` | Investigate a flaky test |
+| `regression-since-pass` | Find what changed since a test last passed |
+| `explain-failure` | Explain a specific failure in context |
+| `tdd-resume` | Resume a TDD task after an interruption |
+| `wrapup` | End-of-session review nudge |
+
+## Claude Code plugin integration
+
+When the Claude Code plugin is active, the MCP server receives the host session context automatically via env vars set by the SessionStart hook (`VITEST_AGENT_CHAT_ID`, etc.). Tool calls from the plugin's TDD subagent are pre-authorized via the plugin's allowlist — no permission prompt for standard operations.
+
+## Learn more
+
+- [Claude Code integration](/guide/claude-code)
+- [Architecture overview](/guide/architecture)
+- [API reference](/mcp/api)
+- [All packages](/packages)

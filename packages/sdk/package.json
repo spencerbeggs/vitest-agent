@@ -23,7 +23,8 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./dispatch": "./src/dispatch.ts",
-		"./testing": "./src/testing/index.ts"
+		"./testing": "./src/testing/index.ts",
+		"./package.json": "./package.json"
 	},
 	"scripts": {
 		"build:dev": "rslib build --config-loader native --env-mode dev",
@@ -42,11 +43,11 @@
 		"config-file-effect": "^0.2.0",
 		"effect": "catalog:silk",
 		"std-env": "^4.1.0",
-		"workspaces-effect": "^1.0.0",
+		"workspaces-effect": "^1.1.0",
 		"xdg-effect": "^1.0.1"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.3",
+		"@savvy-web/rslib-builder": "^0.20.8",
 		"@types/node": "catalog:silk",
 		"@vitest/coverage-v8": "^4.1.6",
 		"vitest": "^4.1.6"

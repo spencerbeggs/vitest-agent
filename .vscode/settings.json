@@ -81,6 +81,7 @@
 		"**/node_modules": true,
 		"**/.claude/plans": true,
 		"**/.claude/design": true,
+		"website/docs/en/*/api": true,
 		"pnpm-lock.yaml": true
 	},
 	"formattingToggle.affects": [

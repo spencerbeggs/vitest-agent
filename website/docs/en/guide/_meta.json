@@ -1,0 +1,84 @@
+[
+	{
+		"type": "section-header",
+		"label": "Getting Started"
+	},
+	{
+		"type": "file",
+		"name": "index",
+		"label": "Overview"
+	},
+	{
+		"type": "file",
+		"name": "installation",
+		"label": "Installation"
+	},
+	{
+		"type": "file",
+		"name": "first-run",
+		"label": "Your first run"
+	},
+	{
+		"type": "file",
+		"name": "claude-code",
+		"label": "Claude Code companion"
+	},
+	{
+		"type": "section-header",
+		"label": "Concepts"
+	},
+	{
+		"type": "file",
+		"name": "why-agent-reporting",
+		"label": "Why agent reporting"
+	},
+	{
+		"type": "file",
+		"name": "architecture",
+		"label": "Architecture"
+	},
+	{
+		"type": "file",
+		"name": "console-modes",
+		"label": "Console modes"
+	},
+	{
+		"type": "file",
+		"name": "coverage",
+		"label": "Coverage model"
+	},
+	{
+		"type": "file",
+		"name": "classification",
+		"label": "Failure classification"
+	},
+	{
+		"type": "file",
+		"name": "tdd-workflow",
+		"label": "TDD workflow"
+	},
+	{
+		"type": "section-header",
+		"label": "How-to"
+	},
+	{
+		"type": "file",
+		"name": "configure-coverage",
+		"label": "Configure coverage"
+	},
+	{
+		"type": "file",
+		"name": "customize-console-output",
+		"label": "Customize console output"
+	},
+	{
+		"type": "file",
+		"name": "customize-discovery",
+		"label": "Customize discovery"
+	},
+	{
+		"type": "file",
+		"name": "wire-ci-reporting",
+		"label": "CI reporting"
+	}
+]

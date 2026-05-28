@@ -15,6 +15,10 @@
 		"url": "https://spencerbeg.gs"
 	},
 	"type": "module",
+	"exports": {
+		".": "./bin/vitest-agent-sidecar",
+		"./package.json": "./package.json"
+	},
 	"bin": {
 		"vitest-agent-sidecar": "./bin/vitest-agent-sidecar"
 	},
@@ -25,7 +29,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.3",
+		"@savvy-web/rslib-builder": "^0.20.8",
 		"@tsdown/exe": "^0.22.0",
 		"@types/node": "catalog:silk",
 		"tsdown": "^0.22.0",

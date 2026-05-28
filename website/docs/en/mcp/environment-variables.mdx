@@ -1,0 +1,55 @@
+---
+title: Environment variables
+description: The VITEST_AGENT_* environment variable contract — the agent-facing attribution set an external host must set, plus the system-managed operational variables.
+---
+
+# Environment variables
+
+`vitest-agent` uses `VITEST_AGENT_*` environment variables to carry attribution context from the agent host into the reporter, MCP server, and CLI. The variables fall into two groups: the agent-facing attribution set that an external agent host is responsible for setting, and the operational set that the system manages internally.
+
+## Agent-facing attribution variables
+
+These are the variables an external agent host sets so that test runs attribute correctly to the active agent session. When the Claude Code plugin is active, the SessionStart hook writes all of them automatically. When integrating a different host, set these before starting the MCP server or before each Vitest invocation.
+
+| Variable | Description |
+|----------|-------------|
+| `VITEST_AGENT_CHAT_ID` | The host's per-process chat or session UUID. This is the shorter-lived identifier — one conversation can span multiple chat sessions across resume invocations. |
+| `VITEST_AGENT_CONVERSATION_ID` | The canonical conversation UUID. Survives `--resume` and parallel windows; this is the "all work on this feature" rollup identifier. |
+| `VITEST_AGENT_MAIN_AGENT_ID` | UUID of the main (top-level) agent registered for this session. Stable for the lifetime of the agent session. |
+| `VITEST_AGENT_AGENT_ID` | UUID of the currently active agent. Matches `VITEST_AGENT_MAIN_AGENT_ID` when the main agent is active. When a subagent is running, this is overridden to the subagent's UUID while the main agent's UUID is preserved in `VITEST_AGENT_MAIN_AGENT_ID`. |
+| `VITEST_AGENT_PARENT_AGENT_ID` | UUID of the parent agent when the currently active agent is a subagent. Absent when the main agent is active. |
+| `VITEST_AGENT_PROJECT_DIR` | Absolute path to the project root. Used by CLI hook scripts to anchor all `vitest-agent` CLI calls to the correct workspace root and therefore the correct `data.db`. Defaults to `CLAUDE_PROJECT_DIR` when not set explicitly. |
+| `VITEST_AGENT_DATA_DIR` | Path to the Claude Code plugin data directory (`CLAUDE_PLUGIN_DATA`). Used by hook scripts that write to the per-client session map. |
+| `VITEST_AGENT_PLUGIN_ROOT` | Absolute path to the Claude Code plugin root directory. Set by the SessionStart hook and used by hook scripts that need to reference plugin-local resources. |
+
+### Attribution flow
+
+The three-step propagation chain for Claude Code:
+
+1. The SessionStart hook writes `VITEST_AGENT_CHAT_ID`, `VITEST_AGENT_CONVERSATION_ID`, `VITEST_AGENT_MAIN_AGENT_ID`, and `VITEST_AGENT_AGENT_ID` to `CLAUDE_ENV_FILE`.
+2. Claude Code auto-sources `CLAUDE_ENV_FILE` into Bash tool subprocesses and the MCP server child process. Hook subprocesses are not auto-sourced — they call `lib/source-session-env.sh` to self-source.
+3. The reporter, MCP server, and sidecar read `process.env.VITEST_AGENT_*` at startup. The reporter records `actor_type='agent'` plus the canonical UUIDs on every `test_runs` row. The MCP server populates its `SessionContextRef`; `run_tests` injects the attribution into each Vitest child process before it starts.
+
+For non-Claude-Code hosts, set the attribution variables directly in the environment where the MCP server process starts. See [Integrating non-Claude-Code agents](/mcp/integrating) for the full workflow.
+
+## System-managed operational variables
+
+These variables are set by the system itself — the plugin loader, the SessionStart hook, or internal processes. They are documented here for completeness and debugging, but external agent hosts do not need to set them.
+
+| Variable | Set by | Description |
+|----------|--------|-------------|
+| `VITEST_AGENT_SIDECAR_BIN` | SessionStart hook (via `vitest-agent agent sidecar-path`) | Absolute path to the platform-specific `vitest-agent-sidecar` native binary. Resolved once per session and written to both `CLAUDE_ENV_FILE` and the per-session hook env file. The PreToolUse Bash hook reads this variable to exec the binary directly, bypassing the package manager for the `inject-env` hot path. Falls back to the JS CLI when absent or non-executable. |
+| `VITEST_AGENT_SESSION_MAP_DIR` | Override for session-map directory resolution | Directory override for the per-client `sessions.db` path. The default is derived from `CLAUDE_PLUGIN_DATA`; this variable lets the CLI locate the session map in non-Claude-Code environments. Falls back to `~/.vitest-agent/` when neither `CLAUDE_PLUGIN_DATA` nor this variable is set. |
+| `VITEST_AGENT_REPORTER_PROJECT_DIR` | Claude Code plugin MCP loader (`plugin/bin/start-mcp.sh`) | Absolute path to the project root, written by the plugin loader before it exec-replaces itself with the package manager command. This is distinct from `VITEST_AGENT_PROJECT_DIR` — the loader sets this one so the MCP server `bin.ts` can reliably find the right project root regardless of how Claude Code sets `CLAUDE_PROJECT_DIR` in MCP subprocesses. |
+| `VITEST_AGENT_HOOK_DEBUG` | Developer / operator | Set to `1` to enable verbose debug logging in hook scripts. Writes to `/tmp/vitest-agent-hook-debug.log` (or `VITEST_AGENT_HOOK_DEBUG_LOG` when set). |
+| `VITEST_AGENT_HOOK_DEBUG_LOG` | Developer / operator | Overrides the debug log file path used by `hook_debug` in hook scripts. Default: `/tmp/vitest-agent-hook-debug.log`. |
+| `VITEST_AGENT_HOOK_ERROR_LOG` | Developer / operator | Overrides the error log file path used by `hook_error` in hook scripts. Default: `/tmp/vitest-agent-hook-errors.log`. |
+
+:::note
+`VITEST_AGENT_REPORTER_PROJECT_DIR` and `VITEST_AGENT_PROJECT_DIR` serve similar purposes but are read by different consumers at different points. `VITEST_AGENT_REPORTER_PROJECT_DIR` is the MCP server's primary resolver; `VITEST_AGENT_PROJECT_DIR` is the CLI hook scripts' primary resolver. Both fall back to `CLAUDE_PROJECT_DIR` when not set.
+:::
+
+## Related
+
+- [Integrating non-Claude-Code agents](/mcp/integrating)
+- [MCP tools](/mcp/tools)

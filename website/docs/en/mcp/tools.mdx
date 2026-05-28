@@ -1,0 +1,372 @@
+---
+title: MCP tools
+description: Complete catalog of the 29 action-keyed MCP tools exposed by vitest-agent-mcp, grouped by family and purpose.
+---
+
+# MCP tools
+
+The `vitest-agent-mcp` server exposes 29 tools over stdio. Per-CRUD families collapse into a single tool that dispatches on an `action` (or `kind`) discriminator. Every tool emits both a markdown `content[]` response for human-readable display and a typed `structuredContent` payload per MCP 2025-06-18.
+
+## Meta
+
+### `help`
+
+List all available MCP tools with their parameters and descriptions. Returns a complete tool catalog organized by category.
+
+No parameters.
+
+### `ping`
+
+Health check. Returns `{ pong: true }`.
+
+No parameters.
+
+## Read-only test queries
+
+These tools query the SQLite database written by `AgentPlugin` and return markdown for human consumption plus a typed `structuredContent` payload.
+
+### `test_status`
+
+Per-project test pass/fail state from the most recent run.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | `string` | No | Filter to a specific project |
+
+### `test_overview`
+
+Test landscape summary with per-project run metrics.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | `string` | No | Filter to a specific project |
+
+### `test_coverage`
+
+Coverage gap analysis with per-metric thresholds and targets.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | `string` | No | Project name |
+
+### `test_history`
+
+Flaky tests, persistent failures, and recovered tests with run visualization.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | `string` | Yes | Project name |
+
+### `test_trends`
+
+Per-project coverage trend with direction, metrics, and sparkline trajectory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | `string` | Yes | Project name |
+| `limit` | `number` | No | Max number of trend entries to return |
+
+### `test_errors`
+
+Detailed test errors with diffs and stack traces for a project.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | `string` | Yes | Project name |
+| `errorName` | `string` | No | Filter to a specific error name |
+
+### `file_coverage`
+
+Per-file coverage with uncovered line ranges and the test modules that cover the file.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filePath` | `string` | Yes | Source file path to look up |
+
+### `configure`
+
+View captured Vitest settings for a test run.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `settingsHash` | `string` | No | Settings hash from a manifest entry or test run |
+
+### `cache_health`
+
+Database health diagnostic: manifest presence, project states, staleness. No parameters.
+
+### `settings_list`
+
+List all captured Vitest config snapshots with their hashes. No parameters.
+
+### `acceptance_metrics`
+
+Compute the four acceptance-quality ratios: phase-evidence integrity, compliance-hook responsiveness, orientation usefulness, and anti-pattern detection rate. No parameters.
+
+## Discovery
+
+### `inventory`
+
+Unified discovery across projects, test modules, suites, and Claude Code sessions. Dispatches on the `kind` discriminator.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `kind` | `string` | Yes | One of: `project`, `module`, `suite`, `session` |
+| `id` | `string \| number` | No | Single-row lookup |
+| `project` | `string` | No | Filter modules, suites, or sessions to a project (when `id` is absent) |
+| `module` | `string` | No | Filter suites to a module file path |
+| `agentKind` | `string` | No | Sessions only: `"main"` or `"subagent"` |
+| `limit` | `number` | No | Sessions only: max results (default 50) |
+
+### `test`
+
+Read individual test cases or find tests that cover a source file. Dispatches on the `action` discriminator.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `string` | Yes | One of: `list`, `get`, `for_file` |
+| `project` | `string` | No | `list` / `get`: filter by project |
+| `state` | `string` | No | `list`: filter by state (`passed`, `failed`, `skipped`, `pending`) |
+| `module` | `string` | No | `list`: filter by module file path |
+| `limit` | `number` | No | `list`: max results |
+| `fullName` | `string` | `get` only | Full test name (`Suite > nested > test`) |
+| `filePath` | `string` | `for_file` only | Source file path to find tests for |
+
+### `turn_search`
+
+Search the turn log for a session.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sessionId` | `number` | No | Filter by session ID |
+| `type` | `string` | No | Filter by turn type (`user_prompt`, `tool_call`, `tool_result`, `file_edit`, `hook_fire`, `note`, `hypothesis`) |
+| `since` | `string` | No | ISO 8601 lower-bound timestamp |
+| `limit` | `number` | No | Max results (default 50) |
+
+### `failure_signature_get`
+
+Read a failure signature by its hash, including up to 10 recent matching test errors.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `hash` | `string` | Yes | 16-char hex signature hash |
+
+## Execution
+
+### `run_tests`
+
+Execute Vitest for specific files or patterns. Returns a `RunTestsResult` discriminated union:
+
+- `{ kind: "ok", report, classifications }` — the `report` field is the full `AgentReport` (pass/fail counts plus per-module errors); `classifications` maps test full-names to `stable`, `new-failure`, `persistent`, `flaky`, or `recovered`
+- `{ kind: "timeout", timeoutSeconds }` — the run exceeded the configured timeout
+- `{ kind: "error", message }` — the run failed to start
+- `{ kind: "no-match" }` — no files matched the supplied filter (distinct from a zero-test project)
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `files` | `string[]` | No | Test file paths to run |
+| `project` | `string` | No | Project name to filter |
+| `timeout` | `number` | No | Timeout in seconds (default 120) |
+| `tags` | `object` | No | Structured tag filter: `{ all?, any?, none? }` — sub-filters AND together |
+| `passWithNoTests` | `boolean` | No | Per-call override for Vitest's `passWithNoTests` policy |
+
+The `no-match` variant fires when `testModules.length === 0` and any filter (`files`, `project`, or `tags`) was supplied, letting agents distinguish a filter mismatch from a genuine zero-test project.
+
+## Agent registration
+
+### `register_agent`
+
+Record the active agent in the `agents` table. Idempotent on `(agentType, parentAgentId, clientNonce)`. Validates that `agentType` begins with `${hostKind}-`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agentType` | `string` | Yes | Agent type identifier; must begin with the host kind prefix (e.g. `claude-code-main`) |
+| `parentAgentId` | `string` | No | UUID of the parent agent (subagent registration) |
+| `clientNonce` | `string` | No | Caller-supplied nonce for explicit idempotency |
+| `hostSessionId` | `string` | No | Host session id (writes to `session_map`) |
+
+Returns `{ ok: true, agentId, conversationId, idempotencyKey }` on insert or replay. Returns `{ ok: false, error: { code, ... } }` for:
+
+- `AGENT_ALREADY_REGISTERED` — carries `existingAgentId`
+- `PARENT_AGENT_NOT_FOUND`
+- `SESSION_NOT_FOUND`
+- `INVALID_AGENT_TYPE_PREFIX` — carries `expectedPrefix`
+
+When the Claude Code plugin is active, the SessionStart hook calls this automatically. Use `register_agent` directly only when integrating a non-Claude-Code agent host. See [Integrating non-Claude-Code agents](/mcp/integrating).
+
+## Notes
+
+The notes system provides CRUD operations and full-text search for persisting debugging notes across sessions. Notes can be scoped to a project, module, suite, test, or left as free-form.
+
+### `note`
+
+Single action-keyed tool for all note operations. Dispatches on the `action` discriminator.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `string` | Yes | One of: `create`, `list`, `get`, `update`, `delete`, `search` |
+| `title` | `string` | `create` | Note title |
+| `content` | `string` | `create` | Note content (markdown supported) |
+| `scope` | `string` | `create` | One of: `global`, `project`, `module`, `suite`, `test`, `note` |
+| `project` | `string` | No | Project name (create scope filter or list filter) |
+| `testFullName` | `string` | No | Full test name (test scope or list filter) |
+| `modulePath` | `string` | No | Module file path (module scope) |
+| `parentNoteId` | `number` | No | Parent note ID for threading (`note` scope) |
+| `createdBy` | `string` | No | Creator identifier |
+| `expiresAt` | `string` | No | ISO 8601 expiration timestamp |
+| `pinned` | `boolean` | No | Pin the note |
+| `id` | `number` | `get`, `update`, `delete` | Note ID |
+| `query` | `string` | `search` | Search query |
+
+`list` and `search` return markdown. `create`, `get`, `update`, and `delete` return JSON.
+
+#### Note scopes
+
+| Scope | Use case |
+|-------|----------|
+| `global` | Project-wide observations |
+| `project` | Scoped to a Vitest project |
+| `module` | Scoped to a test file |
+| `suite` | Scoped to a test suite |
+| `test` | Scoped to an individual test |
+| `note` | Reply to another note (threaded) |
+
+## Triage and wrap-up
+
+### `triage_brief`
+
+Orientation summary for a new session: recent run status, open failures, and triage context.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | `string` | No | Filter to a specific project |
+| `maxLines` | `number` | No | Max lines in the output |
+
+### `wrapup_prompt`
+
+Interpretive wrap-up nudge. Injected automatically by the Stop, SessionEnd, PreCompact, and UserPromptSubmit hooks; call directly to generate the same content on demand.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `chatId` | `string` | No | Claude Code session ID |
+| `kind` | `string` | No | One of: `stop`, `session_end`, `pre_compact`, `tdd_handoff`, `user_prompt_nudge` |
+| `userPromptHint` | `string` | No | Prompt text for the `user_prompt_nudge` variant |
+
+## Hypotheses
+
+Hypothesis writes go through the tRPC idempotency middleware, so duplicate calls from a retrying agent replay the cached response instead of double-writing.
+
+### `hypothesis`
+
+Record, validate, and list hypotheses about test failures. Dispatches on the `action` discriminator.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `string` | Yes | One of: `record`, `validate`, `list` |
+| `sessionId` | `number` | `record` | Database session ID |
+| `content` | `string` | `record` | Hypothesis text |
+| `citedTestErrorId` | `number` | No | `test_errors.id` FK |
+| `citedStackFrameId` | `number` | No | `stack_frames.id` FK |
+| `createdTurnId` | `number` | No | `turns.id` FK |
+| `id` | `number` | `validate` | Hypothesis ID |
+| `outcome` | `string` | `validate` (input) / `list` (filter) | One of: `confirmed`, `refuted`, `abandoned`, `open` |
+| `validatedAt` | `string` | `validate` | ISO 8601 timestamp |
+| `validatedTurnId` | `number` | No | `turns.id` FK |
+| `limit` | `number` | No | `list`: max results (default 50) |
+
+## TDD lifecycle
+
+These tools drive the TDD orchestrator subagent's state machine. Action-keyed writes (`tdd_task.start`, `tdd_task.end`, `tdd_goal.create`, `tdd_behavior.create`) go through the idempotency middleware.
+
+### `tdd_task`
+
+Manage TDD task sessions. Replaces the 1.x `tdd_session_*` family — the underlying SQLite columns retain the `tdd_tasks` naming. Dispatches on the `action` discriminator.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `string` | Yes | One of: `start`, `end`, `get`, `resume` |
+| `goal` | `string` | `start` | TDD session goal |
+| `sessionId` | `number` | No | Database session ID (use when `chatId` is unavailable) |
+| `chatId` | `string` | No | Claude Code session ID |
+| `parentTddTaskId` | `number` | No | Parent TDD session for delegation |
+| `runId` | `string` | No | `start`: optional retry key stored on the session |
+| `startedAt` | `string` | No | `start`: ISO 8601 timestamp (defaults to now) |
+| `tddTaskId` | `number` | `end` | TDD session ID |
+| `outcome` | `string` | `end` | One of: `succeeded`, `blocked`, `abandoned` |
+| `summaryNoteId` | `number` | No | `end`: optional note FK |
+| `id` | `number` | `get`, `resume` | TDD session ID |
+
+`start` is idempotent on `(sessionId, goal)`. When `runId` is present the idempotency key includes both the session identifier and `runId`, letting the same goal text be retried with a fresh `runId` to create a new session rather than replaying the cached result. `end` is idempotent on `(tddTaskId, outcome)`.
+
+### `tdd_phase_transition_request`
+
+Request a TDD phase transition. Pre-checks goal status and behavior membership, then validates the cited evidence artifact against the D2 binding rules before writing the new phase row. Not idempotent — a retry after state change legitimately yields a different result.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tddTaskId` | `number` | Yes | TDD session ID |
+| `goalId` | `number` | Yes | Goal this transition is for |
+| `requestedPhase` | `string` | Yes | Target phase: `spike`, `red`, `red.triangulate`, `green`, `green.fake-it`, `refactor`, `extended-red`, or `green-without-red` |
+| `citedArtifactId` | `number` | No | Evidence artifact ID (required for `red→green` and `green→refactor`) |
+| `behaviorId` | `number` | No | Behavior this transition is for; triggers `pending→in_progress` auto-promotion on accept |
+| `reason` | `string` | No | Free-text reason |
+
+Returns `{ accepted: true, phase }` or `{ accepted: false, denialReason, remediation }`.
+
+Transitions to `green` from any phase other than `red`, `red.triangulate`, or `green.fake-it` are rejected with `wrong_source_phase`.
+
+### `tdd_goal`
+
+Goal CRUD under a TDD session. Goals follow a closed status lifecycle: `pending → in_progress → done | abandoned`. Dispatches on the `action` discriminator.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `string` | Yes | One of: `create`, `update`, `delete`, `get`, `list` |
+| `sessionId` | `number` | `create`, `list` | TDD session ID |
+| `goal` | `string` | `create` (required) / `update` (optional new text) | Goal text |
+| `id` | `number` | `update`, `delete`, `get` | Goal ID |
+| `status` | `string` | No | `update`: one of `pending`, `in_progress`, `done`, `abandoned` |
+
+`create` is idempotent on `(sessionId, goal)` and returns the full `GoalRow`. `delete` cascades to behaviors, phases, and artifacts; it is reserved for the main agent under explicit user confirmation and denied to the TDD orchestrator subagent at the hook layer.
+
+### `tdd_behavior`
+
+Behavior CRUD under a goal. Behaviors follow the same closed status lifecycle as goals. Dispatches on the `action` discriminator.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | `string` | Yes | One of: `create`, `update`, `delete`, `get`, `list_by_goal`, `list_by_tdd_task` |
+| `goalId` | `number` | `create`, `list_by_goal` | Parent goal ID |
+| `sessionId` | `number` | `list_by_tdd_task` | TDD session ID |
+| `behavior` | `string` | `create` (required) / `update` (optional new text) | Behavior text |
+| `id` | `number` | `update`, `delete`, `get` | Behavior ID |
+| `suggestedTestName` | `string` | No | `create` / `update`: suggested test name |
+| `status` | `string` | No | `update`: one of `pending`, `in_progress`, `done`, `abandoned` |
+| `dependsOnBehaviorIds` | `number[]` | No | `create` / `update`: IDs of behaviors this one depends on (must belong to the same goal) |
+
+`create` is idempotent on `(goalId, behavior)` and returns the full `BehaviorRow`. `update` replaces the full dependency set in one transaction when `dependsOnBehaviorIds` is provided.
+
+### `tdd_artifact_list`
+
+List TDD artifacts (test files, runs, hypotheses) recorded by the plugin's post-tool-use hook for a session.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tddTaskId` | `number` | Yes | TDD session ID |
+
+## Workspace history
+
+### `commit_changes`
+
+Workspace git commit history joined with per-run changed files.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sha` | `string` | No | Specific commit SHA to look up; omit for the 20 most recent |
+
+## Related
+
+- [Resources and prompts](/mcp/resources-and-prompts)
+- [Integrating non-Claude-Code agents](/mcp/integrating)
+- [Environment variables](/mcp/environment-variables)
+- [API reference](/mcp/api)

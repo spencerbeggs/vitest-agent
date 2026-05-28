@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-19
-last-synced: 2026-05-19
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 93
 related:
   - ../architecture.md
@@ -33,16 +33,15 @@ a user-supplied `VitestAgentReporterFactory`.
 
 The plugin owns persistence, classification, baselines, trends, and Vitest
 lifecycle wiring. Rendering is delegated entirely to the reporter factory —
-the plugin owns no Ink mount and no rendering code. After the
-reporter-package restructure (`feat/2.0-reporter-restructure`) the plugin
-dropped its direct `vitest-agent-ui` dependency: it imports
-`DefaultVitestAgentReporter` from `vitest-agent-reporter` and nothing from
-`ui`. The plugin also no longer carries `react` or `ink` — JSX lives only
-in `vitest-agent-reporter` now. The `VitestAgentReporter` contract types
-live in [./sdk.md](./sdk.md) (`packages/sdk/src/contracts/reporter.ts`).
+the plugin owns no Ink mount and no rendering code. The plugin has no direct
+`vitest-agent-ui` dependency: it imports `DefaultVitestAgentReporter` from
+`vitest-agent-reporter` and nothing from `ui`. It carries no `react` or
+`ink` — JSX lives only in `vitest-agent-reporter`. The `VitestAgentReporter`
+contract types live in [./sdk.md](./sdk.md)
+(`packages/sdk/src/contracts/reporter.ts`).
 
 For decisions that shaped this design, see [../decisions.md](../decisions.md):
-D40 (T7 five-field options surface), D34 (plugin/reporter split), D28
+D40 (five-field options surface), D34 (plugin/reporter split), D28
 (process-level migration coordination), D31 (XDG-derived data path), D10
 (failure signatures).
 
@@ -55,12 +54,11 @@ Vitest's `configureVitest`, detects the environment, parses coverage
 thresholds and targets, picks the user's `VitestAgentReporterFactory`
 (defaulting to `DefaultVitestAgentReporter` from `vitest-agent-reporter`),
 then constructs an `AgentReporter` per project and pushes it onto
-`vitest.config.reporters`. The reporter-package restructure made
-`vitest-agent-reporter` the home of the default reporter; the plugin
-imports it as a workspace dependency and no longer touches
-`vitest-agent-ui` directly.
+`vitest.config.reporters`. The default reporter lives in
+`vitest-agent-reporter`; the plugin imports it as a workspace dependency
+and does not touch `vitest-agent-ui` directly.
 
-**The 2.0 user-facing options shape.** `AgentPluginOptions` is exactly
+**The user-facing options shape.** `AgentPluginOptions` is exactly
 five fields — see [./sdk.md](./sdk.md) for the schema and
 [../decisions.md](../decisions.md) D40 for the rationale.
 
@@ -72,10 +70,9 @@ five fields — see [./sdk.md](./sdk.md) for the schema and
 | `reporter` | `AgentPluginConstructorOptions` (companion interface) | `VitestAgentReporterFactory`; function-typed, lives outside the schema |
 | `onRunEvent` | `AgentPluginConstructorOptions` (companion interface) | Tee-out hook for the live `RunEvent` stream |
 
-Plus `discoverStrategy` on the companion interface for the T5 transform-hook
-override. Everything that pre-T7 was a user option but is really a
-plugin-internal resolved fact has moved out of the surface — see the
-**Resolved internally** section below.
+Plus `discoverStrategy` on the companion interface for the transform-hook
+override. Everything that is really a plugin-internal resolved fact stays
+out of the user surface — see the **Resolved internally** section below.
 
 **Cache directory resolution.** Resolved entirely through the XDG path
 stack in `packages/sdk/src/utils/resolve-data-path.ts` — programmatic
@@ -96,8 +93,8 @@ processes the global `CoverageMap`, others skip to avoid double-counting.
 `AgentPluginOptions`), looks up the slot matching the detected executor,
 and resolves a single `ConsoleMode` value. Per-slot defaults: `human →
 passthrough`, `agent → agent`, `ci → passthrough`. The pre-2.0 `mode` and
-`strategy` options are gone — see [../decisions-retired.md](../decisions-retired.md)
-for the retired entries.
+`strategy` design is superseded — see [../decisions-retired.md](../decisions-retired.md)
+for the retired single-flag form.
 
 **Console-reporter stripping.** Whenever the resolved `consoleMode` owns
 stdout (any value other than `passthrough`), the plugin strips Vitest's
@@ -170,10 +167,9 @@ all rendering is delegated to the configured `VitestAgentReporterFactory`.
 unbounded Effect `PubSub<RunEvent>` (`Effect.runSync(PubSub.unbounded())`).
 That channel is threaded onto `ReporterKit.runEvents` (an optional field
 on the kit — see [./sdk.md](./sdk.md)) and is the transport by which a
-live-painting reporter receives run events. The reporter-package
-restructure moved live-rendering orchestration into the reporter, so the
-plugin's job here is to publish events onto the channel and hand the
-channel to the factory — it owns no Ink mount.
+live-painting reporter receives run events. Live-rendering orchestration
+lives in the reporter, so the plugin's job here is to publish events onto
+the channel and hand the channel to the factory — it owns no Ink mount.
 
 **Lifecycle hooks:**
 
@@ -199,14 +195,12 @@ inventory and the deliberately-unmapped hooks (`onInit`,
 `onBrowserInit`, `onServerRestart`, `onTestRemoved`) live in
 [../schemas.md](../schemas.md).
 
-Two emit fixes landed with the surface completion:
+Two emit details are load-bearing:
 
-- **P0 — `TestStarted` emit point.** `onTestCaseReady` is now wired and
-  emits a standalone `TestStarted`; `onTestCaseResult` emits only
-  `TestFinished`. Previously both were synthesized back-to-back inside
-  `onTestCaseResult`, so the transient running state never got its own
-  render frame. The emit site moved — no schema or reducer change.
-- **P1 — coverage events.** `CoverageReady` and one `ThresholdViolation`
+- **`TestStarted` emit point.** `onTestCaseReady` is wired to emit a
+  standalone `TestStarted`; `onTestCaseResult` emits only `TestFinished`,
+  so the transient running state gets its own render frame.
+- **Coverage events.** `CoverageReady` and one `ThresholdViolation`
   per violated metric are emitted from `onTestRunEnd` after the
   `CoverageAnalyzer` finishes, populated from the analyzed result. The
   raw `onCoverage` istanbul map cannot fill those payloads, so the
@@ -238,9 +232,8 @@ a live-painting reporter sees trend without reading the database.
 subscribed reporter sees end-of-run before the heavy persistence work
 runs. A `wantsRunEvents()` gate (true when `onRunEvent` is set, when
 `consoleMode === "stream"`, or when a custom reporter is in use) skips
-event construction when nothing will consume the stream — it replaces
-the pre-restructure `hasSubscribers()` gate. The `emit` helper catches
-throwing user callbacks and logs to stderr — persistence and the
+event construction when nothing will consume the stream. The `emit` helper
+catches throwing user callbacks and logs to stderr — persistence and the
 reporter never break because a tap has a bug.
 
 **`onTestRunEnd` flow:**
@@ -291,9 +284,8 @@ code that feeds it.
 ## DiscoverStrategy + DefaultDiscoverStrategy
 
 `packages/plugin/src/utils/discover-strategy.ts`. The single extension
-point for project detection and tag classification. The T5 wave merged
-the legacy `VitestProject` builder class and `TagStrategy` classifier
-into one contract.
+point for project detection and tag classification — one contract owns
+both concerns.
 
 A `DiscoverStrategy` carries a readonly `Tag` list, exposes a
 `tagDefinitions` getter (the shape that flows into `test.tags`), an
@@ -314,31 +306,29 @@ result as a second argument so they can augment or replace it.
 `DefaultDiscoverStrategy` is the strategy applied when no override is
 passed. Its `buildProject` calls `findTestFiles` for both `src/` and
 `__test__/` patterns and returns null when neither directory contains
-matches — that single predicate replaces every pre-2.0 special case
-(root package skip, missing `src/` skip, no-test-files placeholder).
-Its `classify` is the filename-suffix match (`.e2e.test.ts` to e2e,
-`.int.test.ts` to int, otherwise unit).
+matches — a single predicate covers what would otherwise be several
+special cases (root package skip, missing `src/` skip, no-test-files
+placeholder). Its `classify` is the filename-suffix match (`.e2e.test.ts`
+to e2e, `.int.test.ts` to int, otherwise unit).
 
-The pre-2.0 `VitestProject` builder class and `TagStrategy` classifier
-were both deleted in T5. The three classifier helpers
-(`classifyByFilename`, `classifyByDirectory`, `combineClassifiers`) and
-the standalone `findTestFiles` walker live alongside the strategy and
-are publicly exported so user-defined strategies do not have to
-reinvent the wheel. See [./discover.md](./discover.md) for the full
-API surface.
+The three classifier helpers (`classifyByFilename`, `classifyByDirectory`,
+`combineClassifiers`) and the standalone `findTestFiles` walker live
+alongside the strategy and are publicly exported so user-defined strategies
+do not have to reinvent the wheel. See [./discover.md](./discover.md) for
+the full API surface.
 
 ## discoverProjects
 
 `packages/plugin/src/utils/discover-projects.ts`. Async workspace
-scanner. After T5 the signature is a single options bag:
+scanner. The signature is a single options bag:
 `discoverProjects({ strategy?, cwd?, additionalEntries? })`. Returns
 `{ projects: TestProjectInlineConfiguration[] | undefined; tags:
 TestTagDefinition[] }`. `projects` is `undefined` rather than an empty
 array when no projects were produced so Vitest treats the config as
 having no projects.
 
-The unified algorithm replaces every pre-2.0 special-case skip with a
-single `strategy.buildProject(input)` predicate. The scanner:
+The unified algorithm uses a single `strategy.buildProject(input)`
+predicate to decide whether a package contributes a project. The scanner:
 
 1. Locates the workspace root via `findWorkspaceRootSync` from the
    `workspaces-effect` sync API.
@@ -358,14 +348,11 @@ module-local `Map`. The cache fires only when neither `strategy` nor
 has to be fingerprinted. Any explicit strategy or any `.addProject`
 chain bypasses the cache.
 
-The legacy `ProjectsCallback` argument and the `DiscoveryOptions` union
-shape were dropped along with `VitestProject` and `TagStrategy`. Users
-that want to mutate projects post-discovery either extend the strategy
+Users that want to mutate projects post-discovery either extend the strategy
 (preferred) or destructure the result and mutate the array before
-spreading it into `defineConfig`. `discoverProjects` itself is still
-exported from `vitest-agent-plugin` but is internal-leaning; T9.6 is
-expected to tighten the public surface to `AgentPlugin.discover()` as
-the only documented entry point.
+spreading it into `defineConfig`. `discoverProjects` itself is exported
+from `vitest-agent-plugin` but is internal-leaning; `AgentPlugin.discover()`
+is the documented entry point.
 
 ## Tag injection transform
 
@@ -384,9 +371,9 @@ hook that, for every test file id:
    resolved tags array. Source maps are preserved.
 
 The classifier and the tag declarations both come from a single
-`DiscoverStrategy` instance — supplied via the renamed
-`discoverStrategy` plugin option (formerly `tagStrategy`). Pass false
-to disable the transform entirely. `Tag` and the classifier helpers
+`DiscoverStrategy` instance — supplied via the `discoverStrategy` plugin
+option. Pass false to disable the transform entirely. `Tag` and the
+classifier helpers
 are exported from the package for callers that want to compose the
 classification side without reimplementing project detection. See
 [./discover.md](./discover.md) for the full strategy API.
@@ -508,9 +495,9 @@ instead.
 - `strip-console-reporters.ts` — removes console reporters from Vitest's
   reporter chain.
 - `resolve-thresholds.ts` — parses Vitest-native `coverage.thresholds` into
-  `ResolvedThresholds`. Phase 4 dropped the `autoUpdate`-disable side
-  effect; Vitest 2.0 owns the native ratchet and users opt in by passing
-  one of `AgentPlugin.COVERAGE_AUTOUPDATE.{standard,strict,lenient}` into
+  `ResolvedThresholds`. The plugin does not touch `autoUpdate`; Vitest owns
+  the native ratchet and users opt in by passing one of
+  `AgentPlugin.COVERAGE_AUTOUPDATE.{standard,strict,lenient}` into
   `coverage.thresholds.autoUpdate`.
 - `capture-env.ts` — captures CI/runner environment variables for settings
   storage.
@@ -526,12 +513,12 @@ instead.
   the reporter to feed into `writeErrors` and `writeFailureSignature`.
 - `build-reporter-kit.ts` — pure constructor that produces a `ReporterKit`
   from the resolved configuration plus the detected environment and
-  no-color flag. After T7 the input shape carries only `consoleMode`,
-  `env`, and the plugin-resolved derived flags; `consoleOutput`,
-  `omitPassingTests`, `coverageConsoleLimit`, `includeBareZero`,
-  `githubSummary`, and `githubSummaryFile` are computed inside the kit
-  builder from `consoleMode` and `process.env`. `transport` is a
-  required input. The optional `runEvents` `PubSub<RunEvent>` channel is
+  no-color flag. The input shape carries only `consoleMode`, `env`, and
+  the plugin-resolved derived flags; `consoleOutput`, `omitPassingTests`,
+  `coverageConsoleLimit`, `includeBareZero`, `githubSummary`, and
+  `githubSummaryFile` are computed inside the kit builder from
+  `consoleMode` and `process.env`. `transport` is a required input. The
+  optional `runEvents` `PubSub<RunEvent>` channel is
   passed straight through onto `ReporterKit.runEvents` so the reporter
   can subscribe for live painting. The pre-bound `stdOsc8` is enabled
   when `!noColor && (env === "terminal" || env === "agent-shell")` and
@@ -606,11 +593,10 @@ its own pattern expansion and inheritance rules, and the plugin must see the
 same resolved values Vitest will enforce. `resolveThresholds` in the
 reporter-side utilities does this conversion.
 
-Vitest 2.0 owns its own threshold ratchet via `coverage.thresholds.autoUpdate`.
-The plugin no longer mutates that field — Phase 4 dropped the
-`autoUpdate`-disable side effect. Users who want auto-update behavior pass a
-tolerance function from `AgentPlugin.COVERAGE_AUTOUPDATE` directly into
-Vitest's native field; the plugin's own baseline ratchet still runs
+Vitest owns its own threshold ratchet via `coverage.thresholds.autoUpdate`.
+The plugin does not mutate that field. Users who want auto-update behavior
+pass a tolerance function from `AgentPlugin.COVERAGE_AUTOUPDATE` directly
+into Vitest's native field; the plugin's own baseline ratchet still runs
 unconditionally on full (non-scoped) runs and is independent of Vitest's
 ratchet.
 
@@ -655,9 +641,9 @@ the same source so the reporter's persistence short-circuit (see
 *UI-only mode short-circuit* below) and the validation rule registry
 agree on which mode is active.
 
-### Rule registry (starter set)
+### Rule registry
 
-Seven rules ship in the Live layer:
+The Live layer ships these rules:
 
 | Code | Severity | Mode | Description |
 | ---- | -------- | ---- | ----------- |
@@ -678,9 +664,7 @@ call with no argument for a no-op success.
 
 ## ConfigValidation wired into `configureVitest`
 
-In Phase 4 the plugin's `configureVitest` hook replaced the inline
-`resolveCoverageInput(coverageThresholds, ...)` + `validateCoverageConfig`
-block with a `ConfigValidation.validate(...)` call:
+The plugin's `configureVitest` hook calls `ConfigValidation.validate(...)`:
 
 - Warnings and info entries print to stderr through the
   `[vitest-agent:plugin]` prefix and do not fail the build.
@@ -691,14 +675,13 @@ block with a `ConfigValidation.validate(...)` call:
 through `buildReporterKit` onto `ResolvedReporterConfig`. The kit-building
 path is the only writer of `coverageMode` on the resolved kit.
 
-There is an `@internal` `resolvedConfig` getter on `AgentReporter` (tagged
-`@tag phase7-review`) so tests can verify mode threading. The
-construction-time getter uses placeholder `executor: "ci"`; the real
-executor resolves in `onTestRunEnd`. This is a Phase 7 follow-up.
+An `@internal` `resolvedConfig` getter on `AgentReporter` lets tests verify
+mode threading. The construction-time getter uses placeholder
+`executor: "ci"`; the real executor resolves in `onTestRunEnd`.
 
 ## UI-only mode short-circuit in `onTestRunEnd`
 
-Phase 5 added an early return on the UI-only path in `AgentReporter.onTestRunEnd`:
+`AgentReporter.onTestRunEnd` takes an early return on the UI-only path:
 
 1. `RunFinished` is still emitted at the top of the handler so a
    subscribed reporter sees end-of-run before the heavy work would have
@@ -720,12 +703,10 @@ Phase 5 added an early return on the UI-only path in `AgentReporter.onTestRunEnd
 
 The streaming hooks that publish onto the run-event channel fire
 identically in both modes — UI-only callers see the same event stream as
-Full-mode callers, just without persistence side effects. The P1
-coverage emit (`CoverageReady` / `ThresholdViolation`) also fires in
-UI-only mode when a coverage map is present.
+Full-mode callers, just without persistence side effects. The coverage
+emit (`CoverageReady` / `ThresholdViolation`) also fires in UI-only mode
+when a coverage map is present.
 
-**Open follow-up.** The kit-building block (env/executor/format/detail
-resolution, factory call, route) is duplicated between Full and UI-only
-paths. Extracting a shared helper is viable but requires making the
-kit-building Effect-context-agnostic. T7's options-cleanup pass touches
-the reporter internals and is the natural place to fold this together.
+The kit-building block (env/executor/format/detail resolution, factory
+call, route) is duplicated between the Full and UI-only paths; extracting
+a shared helper requires making the kit-building Effect-context-agnostic.

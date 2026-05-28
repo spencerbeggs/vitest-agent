@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-18
-last-synced: 2026-05-18
+updated: 2026-05-27
+last-synced: 2026-05-27
 completeness: 90
 related:
   - ./architecture.md
@@ -18,14 +18,16 @@ related:
   - ./components/mcp.md
   - ./components/sidecar.md
   - ./components/plugin-claude.md
+  - ./components/docs-site.md
 dependencies: []
 ---
 
 # Components — `vitest-agent`
 
-The system ships as seven pnpm workspaces under `packages/` plus a file-based
-Claude Code plugin at `plugin/`. This document is an index — load the
-sub-file for the package you're working on.
+The system ships as seven publishable pnpm workspaces under `packages/`, a
+file-based Claude Code plugin at `plugin/` and the `docs` documentation-site
+workspace at `website/`. This document is an index — load the sub-file for
+the package you're working on.
 
 **Parent document:** [./architecture.md](./architecture.md)
 
@@ -41,6 +43,7 @@ sub-file for the package you're working on.
 | [./components/mcp.md](./components/mcp.md) | MCP tools, idempotency middleware, channel-event resolution, MCP resources, MCP prompts, the snapshot maintenance pipeline, `McpLive` |
 | [./components/sidecar.md](./components/sidecar.md) | the `vitest-agent-sidecar` SEA binary for the per-Bash `inject-env` hot path, tsdown `exe` build, per-platform `optionalDependencies`, the binary-vs-JS-fallback contract |
 | [./components/plugin-claude.md](./components/plugin-claude.md) | the Claude Code plugin: hooks, the TDD orchestrator agent, skills, slash commands, the dogfood system, the MCP loader |
+| [./components/docs-site.md](./components/docs-site.md) | the `docs` workspace at `website/`: the RSPress 2.0 site, its Guide/Packages IA, the api-extractor generation pipeline (`apiModel.localPaths` → `website/lib/models`), the committed snapshot db and the Cloudflare Pages deploy |
 
 Each sub-file is self-contained for its package and cross-references
 [./decisions.md](./decisions.md) and [./data-structures.md](./data-structures.md)

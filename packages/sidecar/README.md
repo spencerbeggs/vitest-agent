@@ -1,34 +1,32 @@
 # vitest-agent-sidecar
 
-Fast-path native binary for [vitest-agent-plugin](https://github.com/spencerbeggs/vitest-agent).
+[![npm](https://img.shields.io/npm/v/vitest-agent-sidecar?label=npm&color=cb3837)](https://www.npmjs.com/package/vitest-agent-sidecar)
+[![License: MIT](https://img.shields.io/badge/License-MIT-4caf50.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript 6.0](https://img.shields.io/badge/TypeScript-6.0-3178c6.svg)](https://www.typescriptlang.org/)
 
-Every Bash tool call from a Claude Code agent fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` env prefix. Doing that work through the full `vitest-agent` CLI pays ~505 ms of Node cold-start latency per call. This package ships a Node Single Executable Application (SEA) binary that runs the same logic with a fraction of the startup cost.
+> **Part of the [vitest-agent](https://vitest-agent.dev) ecosystem.** Most users want **[vitest-agent-plugin](https://www.npmjs.com/package/vitest-agent-plugin)**, which pulls this package in automatically (it installs automatically with the CLI; you rarely add it directly).
 
-The binary is generated from the same TypeScript that the `vitest-agent-cli` `agent` namespace ships, so the JS fallback and the native binary stay byte-identical.
+A Node Single Executable Application (SEA) binary for the per-Bash-call `inject-env` hot path. Every Bash tool call from a Claude Code agent fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` env prefix. Running that through the full `vitest-agent` CLI pays Node cold-start latency on every call; this binary runs the same logic with a fraction of the startup cost.
+
+## Features
+
+- **Native binary** — Node SEA wrapping the same `inject-env` TypeScript that ships in `vitest-agent-cli`; JS fallback and binary stay byte-identical
+- **Per-platform sub-packages** — `vitest-agent-sidecar-darwin-arm64`, `vitest-agent-sidecar-linux-arm64`, `vitest-agent-sidecar-linux-x64`, `vitest-agent-sidecar-win32-x64` as `optionalDependencies`; only the matching one installs
+- **`resolveSidecarBinaryPath()`** — exported function that returns the absolute path of the installed binary, or `null` on unsupported platforms
 
 ## Install
 
 ```bash
 npm install --save-dev vitest-agent-plugin
-# vitest-agent-sidecar auto-installed via peerDependency
+# vitest-agent-sidecar arrives transitively through vitest-agent-cli
 ```
 
-The platform-specific binary arrives through an `optionalDependencies` sub-package (`vitest-agent-sidecar-<platform>`), mirroring the esbuild / sharp distribution model. Supported platforms:
+The plugin's SessionStart hook resolves the binary path once per session via `vitest-agent agent sidecar-path` and exports `VITEST_AGENT_SIDECAR_BIN`. The PreToolUse Bash hook reads that env var and execs the binary directly — no PATH lookup, no Node startup. On unsupported platforms the hook falls back to the `vitest-agent` JS CLI automatically.
 
-- `darwin-arm64`
-- `linux-arm64`, `linux-x64`
-- `win32-x64`
+## Documentation
 
-When the plugin's SessionStart hook runs, it calls `vitest-agent agent sidecar-path` once to resolve the binary's absolute path via `require.resolve` and exports the result as `VITEST_AGENT_SIDECAR_BIN` for the duration of the session. The PreToolUse Bash hook reads that env var and execs the binary directly — no PATH lookup, no Node cold-start. On unsupported platforms the optional sub-package does not install, `resolveSidecarBinaryPath()` returns `null`, the env var is not set, and the hook falls back to the `vitest-agent` JS CLI.
-
-## Subcommands
-
-```bash
-vitest-agent-sidecar inject-env --command "<cmd>" --cwd "<dir>"
-```
-
-The binary handles `inject-env` only — the per-Bash-call hot path, which is pure and fully self-contained. `register-agent` stays on the `vitest-agent` JS CLI: it touches a native SQLite binding that cannot be bundled into a JS SEA, and it fires only once per session, off the per-turn critical path. Moving `register-agent` into the binary is a tracked 2.x follow-up.
+Package reference at [vitest-agent.dev/sidecar](https://vitest-agent.dev/sidecar).
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](LICENSE)

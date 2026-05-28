@@ -1,0 +1,6 @@
+{
+	"compilerOptions": {
+		"types": ["node"]
+	},
+	"extends": "@savvy-web/rslib-builder/tsconfig/rspress/website.json"
+}

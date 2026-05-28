@@ -1,0 +1,26 @@
+[
+	{
+		"type": "section-header",
+		"label": "vitest-agent-sidecar"
+	},
+	{
+		"type": "file",
+		"name": "index.mdx",
+		"label": "Overview"
+	},
+	{
+		"type": "file",
+		"name": "sea-architecture.mdx",
+		"label": "SEA architecture"
+	},
+	{
+		"type": "file",
+		"name": "platform-binaries.mdx",
+		"label": "Platform binaries"
+	},
+	{
+		"type": "dir",
+		"name": "api",
+		"label": "API Reference"
+	}
+]

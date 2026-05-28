@@ -4,13 +4,16 @@
 		"@savvy-web/changesets/changelog",
 		{
 			"repo": "spencerbeggs/vitest-agent",
-			"versionFiles": [
-				{
-					"glob": "plugin/.claude-plugin/plugin.json",
-					"paths": ["$.version"],
-					"package": "vitest-agent-plugin"
+			"packages": {
+				"vitest-agent-plugin": {
+					"versionFiles": [
+						{
+							"glob": "plugin/.claude-plugin/plugin.json",
+							"paths": ["$.version"]
+						}
+					]
 				}
-			]
+			}
 		}
 	],
 	"commit": false,

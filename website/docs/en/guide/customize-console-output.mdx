@@ -1,0 +1,95 @@
+---
+title: Customize console output
+description: Control what appears on stdout per executor by configuring the console matrix on AgentPlugin.
+---
+
+# Customize console output
+
+The `console` option on `AgentPlugin` is a per-executor map. The plugin
+detects the running executor at startup (human, agent, or CI) and looks up the
+matching slot to decide how it handles stdout. You override a slot to change
+what you see; slots you omit keep their defaults.
+
+For the full mode reference and detection rules, see [Console modes](/guide/console-modes).
+
+## The matrix
+
+```typescript
+AgentPlugin({
+  console: {
+    human?: "passthrough" | "silent" | "stream" | "agent",
+    agent?: "passthrough" | "silent" | "agent",
+    ci?:    "passthrough" | "silent" | "ci-annotations",
+  },
+});
+```
+
+| Slot | Default |
+| --- | --- |
+| `human` | `"passthrough"` — Vitest's own reporters run unchanged |
+| `agent` | `"agent"` — compact markdown final frame |
+| `ci` | `"passthrough"` — Vitest's reporters produce log-friendly output |
+
+## Common scenarios
+
+### See exactly what the agent sees
+
+Set `human` to `"agent"` to receive the same compact markdown frame that AI
+agents get, rendered directly to your terminal:
+
+```typescript
+AgentPlugin({
+  console: { human: "agent" },
+})
+```
+
+This is useful when debugging agent behavior — you can verify what the agent
+will read without switching environments.
+
+### Live animated view during development
+
+Set `human` to `"stream"` for a progressively-drawn, colored live view as the
+run advances:
+
+```typescript
+AgentPlugin({
+  console: { human: "stream" },
+})
+```
+
+The Ink live-mount lifecycle is fully internal — nothing to wire up beyond this
+one option. The view animates as tests complete and resolves to a static final
+frame.
+
+### Suppress all output in CI
+
+When you only want data in SQLite and let other reporters (JSON, JUnit, HTML)
+handle output:
+
+```typescript
+AgentPlugin({
+  console: { ci: "silent" },
+})
+```
+
+Non-console reporters (`json`, `junit`, `html`, `blob`, `github-actions`) are
+preserved regardless of mode — suppressing the console view never silences
+file-based reporters.
+
+### Keep Vitest's default output for humans, use the agent frame for agents
+
+This is already the default behavior. You do not need to configure anything.
+The `human` slot defaults to `"passthrough"` (Vitest reporters run normally)
+and the `agent` slot defaults to `"agent"` (compact markdown frame). Only set
+values when you want to deviate from the defaults.
+
+## Stdout ownership
+
+Any mode other than `"passthrough"` takes stdout ownership. When the plugin
+takes ownership it removes Vitest's built-in console reporters (`default`,
+`verbose`, `tree`, `dot`, `tap`, and others) and suppresses Vitest's native
+coverage text output. Non-console reporters and any custom reporters you have
+registered are always preserved.
+
+This means you can safely combine a custom mode with `--reporter=json` or
+`--reporter=junit` — the file-based reporters keep running.

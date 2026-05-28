@@ -1,0 +1,151 @@
+---
+title: Coverage model
+description: The three independent coverage concerns in vitest-agent — watermarks, thresholds, and targets — and how the two operating modes, presets, and auto-ratcheting fit together.
+---
+
+# Coverage model
+
+vitest-agent separates coverage into three independent concerns that operate
+at different tiers. Understanding which concern does what is the key to
+configuring coverage correctly.
+
+## The three tiers
+
+### Watermarks (istanbul coloring)
+
+Watermarks are a display-only feature of Istanbul's HTML reporter. They
+control the green/yellow/red coloring of the HTML coverage report and have
+no effect on whether a run passes or fails. You configure them on the
+Istanbul reporter directly if you use it; vitest-agent does not read or set
+them.
+
+### Thresholds (Vitest-native, the red floor)
+
+Thresholds are owned by Vitest. Set them on `test.coverage.thresholds` in
+your Vitest config. When coverage falls below a threshold, Vitest exits
+non-zero — this is the hard failure floor.
+
+```typescript
+defineConfig({
+  test: {
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: { lines: 80, branches: 75, functions: 80, statements: 80 },
+    },
+  },
+});
+```
+
+vitest-agent reads the thresholds that Vitest resolves and surfaces "coverage
+gap" diagnostics in console output when coverage falls below them.
+
+### Coverage targets (vitest-agent, the yellow tier)
+
+Targets are aspirational goals owned by vitest-agent. Pass them to
+`AgentPlugin` via the `coverageTargets` option. Falling below a target
+produces a "yellow" hint — not a failure — showing room for improvement
+without blocking the run.
+
+```typescript
+AgentPlugin({
+  coverageTargets: { lines: 90, branches: 85, functions: 90, statements: 90 },
+})
+```
+
+The `CoverageTargets` schema accepts positive numeric values per metric
+(`lines`, `branches`, `functions`, `statements`), the `100: true` shortcut
+for all-metrics-to-100, and nested per-glob `CoverageTargetsMetrics`
+entries. Zeros and negatives are rejected at decode time. `perFile` is
+not accepted directly on targets — it is inherited from
+`coverage.thresholds.perFile`.
+
+## The two operating modes
+
+The plugin derives its operating mode from Vitest's native `coverage.enabled`
+flag:
+
+| Mode | Trigger | Effect |
+| --- | --- | --- |
+| Full | `coverage.enabled` is truthy (or `--coverage` is passed) | All rules run; the plugin persists data, classifies results, and computes baselines and trends |
+| UI-only | `coverage.enabled === false` | Provider validation rules are skipped; the plugin short-circuits before persistence but still fires renderer events |
+
+In UI-only mode the plugin renders what it knows from the current run but
+does not write to the database and does not compute trend deltas.
+
+## COVERAGE_LEVELS presets
+
+`AgentPlugin.COVERAGE_LEVELS` is a namespace constant with five named
+presets. Each preset returns a `{ thresholds, coverageTargets }` pair so you
+can destructure once and pass each half to its rightful owner:
+
+| Preset | `thresholds` (lines / branches / functions / statements) | `coverageTargets` |
+| --- | --- | --- |
+| `none` | 0 / 0 / 0 / 0 | none |
+| `basic` | 50 / 50 / 50 / 50 | standard values |
+| `standard` | 70 / 65 / 70 / 70 | strict values |
+| `strict` | 80 / 75 / 80 / 80 | full values |
+| `full` | 90 / 85 / 90 / 90 | full values (capped at itself) |
+
+The `coverageTargets` half of each preset is the next level up's threshold
+numbers, so selecting `standard` sets the hard floor at the standard level
+and the aspirational goal at the strict level. The `full` preset is capped
+at itself.
+
+`AgentPlugin.COVERAGE_LEVELS_PER_FILE` is the same set of presets with
+`perFile: true` applied to the `thresholds` half only.
+
+Canonical wiring:
+
+```typescript
+const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
+
+defineConfig({
+  plugins: [AgentPlugin({ coverageTargets: coverage.coverageTargets })],
+  test: {
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      thresholds: coverage.thresholds,
+    },
+  },
+});
+```
+
+## COVERAGE_AUTOUPDATE
+
+`AgentPlugin.COVERAGE_AUTOUPDATE` provides three tolerance functions for
+Vitest's native `coverage.thresholds.autoUpdate`. When Vitest's auto-update
+is on, it mutates the threshold numbers on disk after a green run. The
+tolerance functions let you control how aggressively the numbers ratchet up:
+
+| Function | Behavior |
+| --- | --- |
+| `standard` | Floors to the nearest integer (no regression) |
+| `strict` | Ceils to the nearest integer (always advances) |
+| `lenient` | Floors and subtracts 2 (gives headroom for normal variance) |
+
+```typescript
+defineConfig({
+  test: {
+    coverage: {
+      thresholds: {
+        lines: 80,
+        autoUpdate: AgentPlugin.COVERAGE_AUTOUPDATE.standard,
+      },
+    },
+  },
+});
+```
+
+## Per-project baselines and trends
+
+When `coverageTargets` is set, the plugin automatically tracks a
+high-water mark (baseline) for each metric per project. When coverage
+improves the baseline ratchets up; the plugin flags regressions. Baselines
+are stored in the SQLite database and persist across runs.
+
+Separately, the plugin records a coverage trend entry on each full run with
+a 50-entry sliding window per project. The MCP server's coverage tools
+surface trend direction and delta so agents and humans can see whether
+coverage is improving, stable, or drifting.

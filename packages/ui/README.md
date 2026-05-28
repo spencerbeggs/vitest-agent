@@ -1,44 +1,53 @@
 # vitest-agent-ui
 
-The pure rendering-primitives library for [vitest-agent](https://github.com/spencerbeggs/vitest-agent). Owns the streaming `RunEvent` taxonomy, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix, an Effect `PubSub` channel for live event transport, and the synthesizers. Knows nothing about the reporter lifecycle — the default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount driver live in `vitest-agent-reporter`.
+[![npm](https://img.shields.io/npm/v/vitest-agent-ui?label=npm&color=cb3837)](https://www.npmjs.com/package/vitest-agent-ui)
+[![License: MIT](https://img.shields.io/badge/License-MIT-4caf50.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript 6.0](https://img.shields.io/badge/TypeScript-6.0-3178c6.svg)](https://www.typescriptlang.org/)
 
-This package is a transitive dependency of `vitest-agent-plugin` (through `vitest-agent-reporter`), so you do not need to install it directly unless you are authoring a custom dispatcher cell or extending the renderer.
+> **Part of the [vitest-agent](https://vitest-agent.dev) ecosystem.** Most users want **[vitest-agent-plugin](https://www.npmjs.com/package/vitest-agent-plugin)**, which pulls this package in automatically. Install `vitest-agent-ui` directly only if you build custom rendering on the primitives.
 
-`react` and `ink` are peer dependencies of this package; both are required (not optional). `vitest-agent-reporter` satisfies these peers — it is the concrete consumer of `vitest-agent-ui`'s react/ink surface.
+Pure rendering primitives for vitest-agent. Owns the `RunEvent` reducer, the shape-tailored 12-cell dispatcher matrix, two render paths (agent string and React Ink tree), a PubSub channel for live event transport, and the synthesizers that bridge live Vitest data and stored reports into the event taxonomy. React and Ink are required peer dependencies.
 
-## What this package gives vitest-agent-reporter
+## Features
 
-`vitest-agent-reporter` imports the dispatcher matrix, render paths, and synthesizers from this package to power `DefaultVitestAgentReporter`. The primitives it consumes:
+- **Reducer** — pure `(state, event) => state` fold over the `RunEvent` discriminated union; `reduceRenderStateAll` for one-shot replay
+- **Dispatcher matrix** — `dispatch` and `dispatchInk` route a `DispatchInputs` to the matching `(RunShape, RunOutcome)` cell; `classifyRunShape` and `classifyOutcome` derive the coordinates
+- **Ink components** — `StreamApp` and the supporting primitives (`ModuleHeader`, `TestRow`, `CoverageBlock`, `TrendLine`, `FailureSection`, etc.) for live `stream`-mode frames
+- **PubSub channel** — `RunEventChannel` Effect tag and helpers (`accumulateUntilFinished`, `forEachRenderState`, `renderStateStream`) for live event transport
+- **Synthesizers** — `synthesizeRunEvents` from live Vitest modules; `synthesizeFromAgentReport` from a stored `AgentReport`
+- **Footer builder** — `buildFooter` assembles the L1 MCP-tool-pointer footer; `dominantClassification` picks the most actionable failure class
 
-- `dispatch` / `dispatchInk` / `dispatcherTable` — routes a `DispatchInputs` to the matching `(shape, outcome)` cell.
-- `classifyRunShape` / `classifyOutcome` — classify the reduced state into a shape and outcome.
-- `reduceRenderState` / `reduceRenderStateAll` — fold a `RunEvent` stream into a `RenderState`.
-- `synthesizeFromAgentReport` — bridge from a stored `AgentReport` to the `RunEvent` taxonomy.
-- `StreamApp` — the root React Ink component for the live `stream`-mode frames.
+## Install
 
-`vitest-agent-reporter` owns the live-mount lifecycle (`_createLiveInk`) and the default reporter factory (`DefaultVitestAgentReporter`). `vitest-agent-plugin` no longer imports anything from this package directly.
+```bash
+npm install vitest-agent-ui
+# or
+pnpm add vitest-agent-ui
+```
 
-## Public surface for custom-reporter authors
+React and Ink are required peers:
 
-Custom reporters depend on `vitest-agent-reporter`, not `vitest-agent-ui` directly. The reporter package re-exports the `buildDispatchInputs` and `resolveCellOptions` helpers alongside the contract types, so custom authors get everything from one import. If you need lower-level dispatcher primitives, import them from `vitest-agent-ui`:
+```bash
+npm install react ink
+```
 
-| Export | What it does |
-| --- | --- |
-| `dispatch(inputs, opts)` | Routes a `DispatchInputs` to the matching `(shape, outcome)` cell and returns the agent-string render |
-| `dispatchInk(inputs, opts)` | Same as `dispatch` but returns the Ink element for live and report-time Ink frames |
-| `classifyRunShape(state, projects)` | Returns one of `"single-test"`, `"single-file"`, `"single-project"`, `"workspace"` |
-| `classifyOutcome(state)` | Returns one of `"all-pass"`, `"some-fail"`, `"threshold-violation"` |
-| `buildFooter(inputs, opts)` | Assembles the L1 MCP-tool-pointer footer for a render |
-| `dominantClassification(inputs)` | Picks the most actionable failure class so the footer points at the right MCP tool |
-| `reduceRenderState(state, event)` | Fold one `RunEvent` into a `RenderState` |
-| `reduceRenderStateAll(events)` | Fold a full event sequence into a terminal `RenderState` |
+## Quick start
 
-The contract types (`RunShape`, `RunOutcome`, `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`) live in `vitest-agent-sdk` and are re-exported by both `vitest-agent-ui` and `vitest-agent-reporter`.
+```ts
+import { reduceRenderStateAll } from "vitest-agent-ui";
+import { dispatch } from "vitest-agent-ui";
+
+const state = reduceRenderStateAll(events);
+// state is a fully reduced RenderState
+
+const agentString = dispatch(buildDispatchInputs(state, input), opts);
+// agentString is the markdown-flavored final-frame string for the run
+```
 
 ## Documentation
 
-See the [main README](https://github.com/spencerbeggs/vitest-agent#readme) and the [configuration reference](https://github.com/spencerbeggs/vitest-agent/blob/main/docs/configuration.md#console). For the default reporter and the Ink live-mount driver, see the [vitest-agent-reporter README](https://github.com/spencerbeggs/vitest-agent/blob/main/packages/reporter/README.md).
+Package reference at [vitest-agent.dev/ui](https://vitest-agent.dev/ui).
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](LICENSE)

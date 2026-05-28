@@ -1,0 +1,11 @@
+[
+	{
+		"type": "section-header",
+		"label": "Packages"
+	},
+	{
+		"type": "file",
+		"name": "index.mdx",
+		"label": "Overview"
+	}
+]

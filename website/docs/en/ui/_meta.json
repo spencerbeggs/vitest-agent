@@ -1,0 +1,31 @@
+[
+	{
+		"type": "section-header",
+		"label": "vitest-agent-ui"
+	},
+	{
+		"type": "file",
+		"name": "index.mdx",
+		"label": "Overview"
+	},
+	{
+		"type": "file",
+		"name": "dispatcher.mdx",
+		"label": "The dispatcher matrix"
+	},
+	{
+		"type": "file",
+		"name": "render-state.mdx",
+		"label": "Render state"
+	},
+	{
+		"type": "file",
+		"name": "building-renderers.mdx",
+		"label": "Building renderers"
+	},
+	{
+		"type": "dir",
+		"name": "api",
+		"label": "API Reference"
+	}
+]

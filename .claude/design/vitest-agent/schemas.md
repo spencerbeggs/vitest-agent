@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-21
-last-synced: 2026-05-21
+updated: 2026-05-23
+last-synced: 2026-05-23
 completeness: 93
 related:
   - ./architecture.md
@@ -40,9 +40,7 @@ The Common schema literals (`Environment`, `Executor`, `OutputFormat`,
 `DetailLevel`, plus the three per-executor `*ConsoleMode` literals and
 their union `ConsoleMode`) live in
 `packages/sdk/src/schemas/Common.ts`. The `human` slot's `HumanConsoleMode`
-is `passthrough | silent | stream | agent` — the `stream` value was the
-pre-2.0 `ink` value, renamed to describe the user-visible behavior rather
-than the rendering library. The MCP server's tRPC `McpContext`
+is `passthrough | silent | stream | agent`. The MCP server's tRPC `McpContext`
 (carrying a `ManagedRuntime` over `DataReader | DataStore |
 ProjectDiscovery | OutputRenderer`) is defined in
 `packages/mcp/src/context.ts`. Formatter types (`Formatter`,
@@ -83,14 +81,14 @@ optional `projectName` — the Vitest 4.x `TestModule.project.name` the
 reporter has in hand. It is optional so project-less or older events
 decode cleanly as a single anonymous project.
 
-The `stream` console-mode rework added four `RunEvent` fields/variants,
-all in-memory only — **no SQLite or migration change**. `TestFinished`
-gains an optional `timedOut: boolean`; `ModuleFinished` and
-`SuiteFinished` gain an optional `timeoutCount`; `ModuleFinished` also
-gains an optional `tagCounts` (per-tag test count). `TrendComputed` is a
-new variant carrying trend direction and run count, emitted from
-`onTestRunEnd` after trend computation just as `CoverageReady` is
-emitted after the coverage analyzer. A timed-out test still persists as
+Four `RunEvent` fields/variants serve the `stream` console mode, all
+in-memory only — **no SQLite or migration change**. `TestFinished`
+carries an optional `timedOut: boolean`; `ModuleFinished` and
+`SuiteFinished` carry an optional `timeoutCount`; `ModuleFinished` also
+carries an optional `tagCounts` (per-tag test count). `TrendComputed`
+carries trend direction and run count, emitted from `onTestRunEnd` after
+trend computation just as `CoverageReady` is emitted after the coverage
+analyzer. A timed-out test still persists as
 `failed` — Vitest has no distinct timed-out test state — so the `⧖`
 distinction is a render-layer concept the reducer derives, not a
 persisted enum.
@@ -131,11 +129,11 @@ The contract is four types:
   and the plugin's `ConfigValidation` service skips provider rules in the
   same mode. The field lives on the resolved config rather than on
   `AgentReporterOptions` so it is a per-run resolved fact, not a user
-  input. T7 added a `transport?: Transport` field for the same reason —
+  input. A `transport?: Transport` field is threaded the same way —
   the plugin resolves the user's option (or defaults to `{ kind: "local" }`)
   and threads the value through so custom reporters can branch on
-  backend kind. Fields that pre-T7 were user options but became
-  plugin-internal defaults (`consoleOutput`, `format`, `detail`,
+  backend kind. Fields that are plugin-internal defaults rather than user
+  options (`consoleOutput`, `format`, `detail`,
   `coverageConsoleLimit`, `omitPassingTests`, `includeBareZero`,
   `githubActions`, `githubSummary`, `githubSummaryFile`) stay on
   `ResolvedReporterConfig` because the reporter contract still surfaces
@@ -197,7 +195,7 @@ uses these to drive the suggested-actions output.
 
 ## AgentPluginOptions (the 5-field shape)
 
-After T7 the user-facing `AgentPluginOptions` is exactly five fields. The
+The user-facing `AgentPluginOptions` is exactly five fields. The
 schema-decodable struct in `packages/sdk/src/schemas/Options.ts` carries
 the three data-shaped fields; `reporter` and `onRunEvent` are function-typed
 and live on the plugin's `AgentPluginConstructorOptions` companion interface
@@ -211,13 +209,12 @@ because Effect Schema cannot encode functions cleanly.
 | `reporter` | `VitestAgentReporterFactory` (optional) | On `AgentPluginConstructorOptions` |
 | `onRunEvent` | `(event: RunEvent) => void` (optional) | On `AgentPluginConstructorOptions` |
 
-The 14 pre-2.0 fields the plugin used to accept either moved to Vitest's
-own native config (`coverageThresholds` → `coverage.thresholds`,
-`autoUpdate` → `coverage.thresholds.autoUpdate`), to env vars
-(`logLevel` / `logFile` → `VITEST_REPORTER_LOG_LEVEL` /
-`VITEST_REPORTER_LOG_FILE`), to `vitest-agent.config.toml` (`cacheDir`),
-were auto-derived (`mcp` from `executor === "agent"`, `githubActions`
-from `env === "ci-github" && consoleMode !== "silent"`), or became
+Everything else lives elsewhere: in Vitest's own native config
+(`coverage.thresholds`, `coverage.thresholds.autoUpdate`), in env vars
+(`VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE`), in
+`vitest-agent.config.toml` (`cacheDir`), auto-derived (`mcp` from
+`executor === "agent"`, `githubActions` from
+`env === "ci-github" && consoleMode !== "silent"`), or as
 renderer-internal defaults that custom reporters can still inspect via
 `ResolvedReporterConfig` (`format`, `consoleOutput`, `detail`,
 `coverageConsoleLimit`, `omitPassingTests`, `includeBareZero`,
@@ -225,7 +222,7 @@ renderer-internal defaults that custom reporters can still inspect via
 D40 for the full table and the rationale.
 
 `AgentReporterOptions` is the narrow per-instance config bag the reporter
-implementation accepts. After T7 it carries one field — `projectFilter`,
+implementation accepts. It carries one field — `projectFilter`,
 set by the plugin per-project. Custom reporters built via
 `vitest-agent-reporter` consume the substantive `ReporterKit` /
 `ResolvedReporterConfig` types instead and rarely touch this schema.
@@ -246,8 +243,7 @@ ships. See [./decisions.md](./decisions.md) D40.
 
 `packages/sdk/src/schemas/CoverageTargets.ts` defines `CoverageTargets`,
 the typed `Schema.Record` for the `AgentPlugin({ coverageTargets })`
-option. The schema was extracted from `Options.ts` in T7 and lives
-alongside `Transport.ts`.
+option. It lives in its own file alongside `Transport.ts`.
 
 Keys are arbitrary strings — treated either as a top-level coverage metric
 name (`lines`, `functions`, `branches`, `statements`) or as a glob pattern
@@ -455,10 +451,9 @@ The notable ones:
 
 - **`SessionSummary`** / **`ListSessionsOptions`** — backs the
   `inventory({ inventoryKind: "session_list" })` action.
-- **`FailureSignatureDetail`** — `lastSeenAt` is nullable because it has no
-  backfill for rows written before the `failure_signatures.last_seen_at`
-  column was added (now consolidated into `0001_initial`).
-  See `failure_signatures` in the table inventory below for the recurrence
+- **`FailureSignatureDetail`** — `lastSeenAt` is nullable: a signature row
+  carries no last-sighting timestamp until it recurs. See
+  `failure_signatures` in the table inventory below for the recurrence
   semantics.
 - **`TddTaskDetail`** — carries the full goal+behavior tree alongside
   phases and artifacts. The goals are materialized via a single batched
@@ -503,12 +498,12 @@ frame, runs `findFunctionBoundary` on the resolved source, and calls
 `computeFailureSignature` with the parsed pieces. The result feeds
 `DataStore.writeFailureSignature` and the per-frame `stack_frames` rows.
 
-## MCP tag-filtering schemas (T2)
+## MCP tag-filtering schemas
 
-The MCP `run_tests`, `inventory`, and `test` tools gained three input
-variants and three output variants in T2 to surface Vitest 4.1 native
-tags through the agent-facing tool surface. The schemas live alongside
-the existing tool input/output unions in their respective tool files.
+The MCP `run_tests`, `inventory`, and `test` tools carry three input
+variants and three output variants that surface Vitest 4.1 native tags
+through the agent-facing tool surface. The schemas live alongside the
+existing tool input/output unions in their respective tool files.
 
 **`TagFilter`** (input on `run_tests`) — Effect Struct with three
 optional string arrays: `all`, `any`, `none`. All three sub-filters
@@ -559,17 +554,15 @@ group; when supplied, returns a single group. Definition:
 
 ## SQLite table inventory
 
-The canonical per-project schema lives in a single consolidated
-migration: `packages/sdk/src/migrations/0001_initial.ts`. Per the
-pre-2.0 policy, every schema change before 2.0 ships edits this file
-directly — there are no ALTERs, no backfills, no incremental
-migration history. The prior `0002_comprehensive.ts` was folded
-back into `0001_initial.ts` once the agent-attribution model
-stabilized. All migrations run via `@effect/sql-sqlite-node`'s
-`SqliteMigrator` with WAL journal mode and foreign keys enabled.
+The canonical per-project schema lives in a single migration:
+`packages/sdk/src/migrations/0001_initial.ts`. Per the pre-2.0 policy,
+every schema change before 2.0 ships edits this file directly — there are
+no ALTERs, no backfills, no incremental migration history. All migrations
+run via `@effect/sql-sqlite-node`'s `SqliteMigrator` with WAL journal mode
+and foreign keys enabled.
 
 Two additional migration files cover the per-client and registry
-SQLite scopes added for the agent-taxonomy work:
+SQLite scopes for the agent-taxonomy work:
 `session_map_0001_initial.ts` (the per-client `sessions.db`) and
 `registry_0001_initial.ts` (the global `registry.db`). See the
 *Three-tier storage architecture* section below for the path
@@ -689,16 +682,14 @@ slot:
   subscribes to the plugin's run-event `PubSub` channel and drives the
   mount itself; users do not wire it. Strips Vitest's reporters and owns
   stdout for the duration of the run. Available only on the `human`
-  slot. Was named `ink` pre-2.0.
+  slot.
 - `ci-annotations` — GitHub Actions workflow-command annotations.
   Available only on the `ci` slot.
 
-`ConsoleOutputMode` (`"failures" | "full" | "silent"`) is the legacy
-reporter-internal verbosity knob. After T7 it is no longer on
-`AgentReporterOptions` — it surfaces on `ResolvedReporterConfig` as
-`consoleOutput`, resolved inside `buildReporterKit` from the active
-`consoleMode`. T6 deleted the bundled markdown / terminal / silent /
-ci-annotations reporters that branched on it; the preassembled
+`ConsoleOutputMode` (`"failures" | "full" | "silent"`) is a
+reporter-internal verbosity knob. It is not on `AgentReporterOptions` — it
+surfaces on `ResolvedReporterConfig` as `consoleOutput`, resolved inside
+`buildReporterKit` from the active `consoleMode`. The preassembled
 `DefaultVitestAgentReporter` from `vitest-agent-reporter` dispatches on
 `kit.config.consoleMode` and ignores `consoleOutput`. The field remains
 on the resolved config for custom-reporter authors who still want to
@@ -749,11 +740,10 @@ catches tagged TDD errors at the MCP boundary and surfaces them as
 success-shape `{ ok: false, error: { _tag, ..., remediation } }` responses
 so the orchestrator can recover without seeing a tRPC-level failure.
 
-## Agent-agnostic taxonomy schemas (Phases 1–4)
+## Agent-agnostic taxonomy schemas
 
-The 0001_initial migration is now consolidated (the prior 0002 was
-folded in) and adds the agent attribution model on top of the prior
-SQLite shape.
+The `0001_initial` migration carries the agent attribution model alongside
+the rest of the per-project schema.
 
 ### `agents` table
 

@@ -1,0 +1,103 @@
+---
+title: "SEA architecture"
+description: How vitest-agent-sidecar is built as a Node Single Executable Application — wrapping the same inject-env TypeScript as the JS CLI, cross-compiled for four platforms from a single build host using tsdown's exe mode.
+---
+
+# SEA architecture
+
+The sidecar binary is a **Node Single Executable Application (SEA)** that wraps the same `inject-env` TypeScript logic shipped in `vitest-agent-cli`. Its sole purpose is to eliminate Node cold-start latency from the PreToolUse Bash hook, which fires on every Bash tool call made by a Claude Code agent.
+
+## Why a SEA binary exists
+
+Every Bash tool call fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` environment prefix. The naive implementation shells out to `vitest-agent agent inject-env` through the full JS CLI on every call. The full CLI pays Node module-graph cold-start — loading `effect`, `@effect/cli`, and their transitive dependencies — on a path that runs in the inner loop of every agent turn.
+
+The SEA binary eliminates that startup cost. It runs the same `injectEnv` logic from `vitest-agent-sdk/dispatch` with the startup overhead of a precompiled binary rather than a Node module graph load. The qualitative difference is meaningful at agent interaction speed; this is the reason the sidecar exists.
+
+The JS fallback path remains: on unsupported platforms, or when the binary is absent, the hook falls back to `vitest-agent agent inject-env` via the project's package manager. The binary and the JS path are **byte-identical in output** — the binary is not a separate implementation, it is a compiled form of the same TypeScript.
+
+## Scope: inject-env only
+
+The binary handles `inject-env` and nothing else. The `register-agent` command stays on the JS CLI path because it depends on a native SQLite binding (`better-sqlite3`) that cannot be bundled into a JavaScript SEA. More importantly, `register-agent` fires only once per session, not on the per-turn critical path, so JS cold-start is acceptable there.
+
+## What the binary bundles
+
+The SEA bundles `dispatch` from `vitest-agent-sdk/dispatch`. The `./dispatch` entry point is a deliberately minimal subpath that exports only `dispatch`, `injectEnv`, and `exitCodeForTag` — no Effect runtime, no SQLite data layer, no heavy transitive imports. Each per-platform child package's `src/bin.ts` is a thin runner:
+
+```ts
+import { dispatch } from "vitest-agent-sdk/dispatch";
+```
+
+`deps.alwaysBundle` in the tsdown build config folds every non-builtin import into the self-contained SEA. The result is a binary with zero runtime npm dependencies — `vitest-agent-sdk` is a build-time-only devDependency of each child package.
+
+## Build: tsdown exe mode
+
+The native binary is built with tsdown's `exe` mode (`@tsdown/exe`), which drives Node's `--experimental-sea-config` SEA generation over a single-file bundle.
+
+Each `vitest-agent-sidecar-<platform>` child package owns a programmatic build script at `lib/scripts/tsdown.ts` that calls tsdown's `build()` API directly — there is no static `tsdown.config.ts`. The platform and architecture are derived from the child's own `os` and `cpu` `package.json` fields, so the script is identical across all four children and can be copied verbatim.
+
+`tsdown`'s `exe` mode requires Node >= 25.7.0. The repository's `devEngines.runtime` is set to 25.9.0 to satisfy this requirement.
+
+## Cross-compilation from a single host
+
+`@tsdown/exe` downloads each target's Node runtime and postject-injects the bundle, so the host architecture need not match the target. All four binaries for all four platforms — darwin-arm64, linux-arm64, linux-x64, win32-x64 — are built on a single macOS runner in CI.
+
+The `sidecar-build.yml` workflow reflects this design directly: one `build` job on a macOS runner cross-compiles all four platform binaries in a single run. A `smoke` matrix then downloads each prebuilt binary onto its own native runner (one per supported platform) and runs the binary directly — no checkout, no Node, no pnpm — to verify the cross-built artifact actually executes on the platform it targets.
+
+## Parent package vs. child packages
+
+The package named `vitest-agent-sidecar` (`packages/sidecar/`) is the **parent**. It:
+- Exports `resolveSidecarBinaryPath()` — the function that locates the installed binary
+- Declares the four per-platform sub-packages as `optionalDependencies`
+- Builds with `@savvy-web/rslib-builder` like the other six workspace packages
+
+The parent ships no binary of its own. The actual SEA binaries live in the four per-platform **child packages** (`vitest-agent-sidecar-darwin-arm64`, etc.). See [Platform binaries](/sidecar/platform-binaries) for the full distribution model.
+
+## Build outputs and turbo task graph
+
+Each child's build script produces three output variants:
+
+| Variant | Directory | Purpose |
+|---------|-----------|---------|
+| `build:dev` | `dist/dev/` | Workspace link target (rslib-compatible layout) |
+| `build:prod` | `dist/npm/` and `dist/github/` | npm and GitHub Packages publish targets |
+
+The intermediate JS bundle and SEA scratch files live under `dist/.bundle/<mode>/` and are deleted once the variant directories are written, so turbo only caches the final `dist/<variant>` outputs.
+
+The parent's `turbo.json` uses normal topological ordering (`build:dev` → `["^build:dev"]`, `build:prod` → `["^build:prod"]`). There is no cycle to work around: the dispatch core moved into `vitest-agent-sdk`, so the per-platform children depend on `vitest-agent-sdk` rather than `vitest-agent-cli`, and the old `cli → sidecar → cli` dependency edge is gone.
+
+The `dist/dev` variant must always be present even for publish-only builds because the parent package's rslib build resolves workspace-protocol `optionalDependencies` by reading each child's `dist/dev/package.json`. Without it the parent build fails with `Workspace resolution failed`.
+
+## Publish-cleaned manifests
+
+The six rslib packages use `@savvy-web/rslib-builder`'s `transform()` callback to produce clean publish manifests. tsdown has no equivalent, so each sidecar child's build script provides a local `transformManifest(source, variant)` function that:
+
+- Keeps only publishable fields
+- Drops `devDependencies`, `scripts`, `publishConfig`, `packageManager`, `devEngines`
+- Sets `private` to `false`
+- For the `github` variant: scopes the name to `@spencerbeggs/vitest-agent-sidecar-<platform>`
+- For `npm` and `dev` variants: keeps the bare unscoped name
+
+The CI workflow asserts these invariants for every `dist/{github,npm}/package.json` before uploading the built artifacts.
+
+## How the path reaches the hook
+
+The binary is not on `PATH`. npm and pnpm do not hoist transitive optional-dependency bins into `node_modules/.bin/`. The path is resolved at session start instead:
+
+1. The `SessionStart` hook runs `vitest-agent agent sidecar-path` once per session. That subcommand calls `resolveSidecarBinaryPath()` and prints the absolute path to stdout.
+2. The hook exports `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both `CLAUDE_ENV_FILE` and the per-session env file.
+3. On every subsequent Bash tool call, the `PreToolUse` hook reads `$VITEST_AGENT_SIDECAR_BIN` and execs the binary directly — no PATH lookup, no Node startup.
+
+When `VITEST_AGENT_SIDECAR_BIN` is absent or empty (unsupported platform, or the env var has not yet propagated), the hook falls back to `vitest-agent agent inject-env` through the project's package manager.
+
+The `VITEST_AGENT_SIDECAR_BIN` environment variable and the session env export protocol are documented at [Environment variables](/mcp/environment-variables). The CLI subcommand that drives step 1 is documented at [CLI commands](/cli/commands).
+
+## darwin-x64 is intentionally absent
+
+Intel macOS (`darwin-x64`) has no child package. The Node SEA binary for that target segfaults on startup regardless of build host — a known `@tsdown/exe` / Node SEA defect for that target. Intel-Mac installs fall back to the JS CLI; the hook's `command -v` probe misses the absent binary and activates the fallback automatically.
+
+## Learn more
+
+- [vitest-agent-sidecar overview](/sidecar)
+- [Platform binaries](/sidecar/platform-binaries)
+- [CLI commands](/cli/commands) — the `agent sidecar-path` and `agent inject-env` subcommands
+- [Environment variables](/mcp/environment-variables) — `VITEST_AGENT_SIDECAR_BIN`

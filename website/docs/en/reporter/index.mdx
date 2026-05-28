@@ -1,0 +1,138 @@
+---
+title: "vitest-agent-reporter"
+description: The default reporter package and reference for custom-reporter authors. Ships DefaultVitestAgentReporter, owns the Ink live-mount lifecycle, and re-exports the reporter contract types and dispatch helpers.
+---
+
+# vitest-agent-reporter
+
+The default reporter package and the reference for custom-reporter authors. Ships `DefaultVitestAgentReporter`, owns the live React Ink mount lifecycle, and re-exports the reporter contract types and dispatch helpers — everything a custom factory needs in one import.
+
+This package arrives automatically as a dependency of `vitest-agent-plugin`. Install it directly only when authoring a custom reporter.
+
+## Features
+
+- **`DefaultVitestAgentReporter`** — the production default `VitestAgentReporterFactory`; classifies runs into one of 12 shape × outcome cells, owns the Ink live-mount lifecycle for `stream` mode, and emits a GitHub Actions Step Summary in CI
+- **Dispatch helpers** — `buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport`
+- **Contract re-exports** — `VitestAgentReporterFactory`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporter`, `ResolvedReporterConfig` all re-exported from `vitest-agent-sdk` so you need only one import
+- **Worked example** — `DefaultVitestAgentReporter` source is the canonical reference for implementing the `VitestAgentReporterFactory` contract
+
+## Install
+
+```bash
+npm install --save-dev vitest-agent-reporter
+# or
+pnpm add -D vitest-agent-reporter
+```
+
+## The `VitestAgentReporterFactory` contract
+
+A reporter factory is a function that receives a `ReporterKit` at run start and returns an object with a `render` method. The `render` method is called once at run end and must return an array of `RenderedOutput` targets:
+
+```ts
+import type {
+  ReporterKit,
+  ReporterRenderInput,
+  RenderedOutput,
+  VitestAgentReporter,
+  VitestAgentReporterFactory,
+} from "vitest-agent-reporter";
+
+const myReporter: VitestAgentReporterFactory = (
+  kit: ReporterKit
+): VitestAgentReporter => ({
+  render(input: ReporterRenderInput): ReadonlyArray<RenderedOutput> {
+    const passed = input.reports.reduce((n, r) => n + r.summary.passed, 0);
+    return [{ target: "stdout", content: `${passed} passed\n` }];
+  },
+});
+```
+
+Pass the factory to the plugin:
+
+```ts
+import { AgentPlugin } from "vitest-agent-plugin";
+
+export default defineConfig({
+  plugins: [AgentPlugin({ reporter: myReporter })],
+});
+```
+
+## `ReporterKit`
+
+The `kit` argument carries everything a factory needs to start rendering:
+
+```ts
+interface ReporterKit {
+  // The resolved plugin configuration (consoleMode, coverageMode, format, ...)
+  readonly config: ResolvedReporterConfig;
+  // The detected runtime environment (terminal, agent-shell, ci-github, ...)
+  readonly stdEnv: Environment;
+  // Pre-bound OSC-8 hyperlink helper (the plugin decides if it is enabled)
+  readonly stdOsc8: (url: string, label: string) => string;
+  // Live Effect PubSub of RunEvents; subscribe at kit time to receive
+  // events before render() is called. The plugin always populates it.
+  readonly runEvents?: PubSub.PubSub<RunEvent>;
+}
+```
+
+A factory can subscribe to `kit.runEvents` at init time to drive a live Ink frame or accumulate state before `render()` is called. `DefaultVitestAgentReporter` uses this to power `stream` mode.
+
+## `ReporterRenderInput`
+
+`render` receives a fully assembled `ReporterRenderInput` at run end:
+
+```ts
+interface ReporterRenderInput {
+  // One entry per project (coverage lives inside each report)
+  readonly reports: ReadonlyArray<AgentReport>;
+  // stable / new-failure / persistent / flaky / recovered per test,
+  // keyed by TestReport.fullName
+  readonly classifications: ReadonlyMap<string, TestClassification>;
+  // Present only on full (non-scoped) runs where coverage trends were computed
+  readonly trendSummary?: {
+    readonly direction: "improving" | "regressing" | "stable";
+    readonly runCount: number;
+  };
+}
+```
+
+See the [API reference](/reporter/api) for the authoritative `ReporterKit`,
+`ReporterRenderInput`, and `RenderedOutput` types.
+
+## `RenderedOutput` targets
+
+A `render` call returns one or more output targets:
+
+| Target | Behavior |
+|--------|----------|
+| `"stdout"` | Written to `process.stdout` |
+| `"github-summary"` | Appended to the GitHub Actions Step Summary file |
+| `"file"` | Reserved no-op (future use) |
+
+## Dispatch helpers
+
+When building output from a reduced `RenderState`, the dispatch helpers provide the same building blocks used by `DefaultVitestAgentReporter`:
+
+```ts
+import {
+  buildDispatchInputs,
+  resolveCellOptions,
+  renderAgentStringForReport,
+} from "vitest-agent-reporter";
+
+// Build the canonical input object for the dispatcher matrix
+const inputs = buildDispatchInputs(state, renderInput);
+
+// Resolve per-cell options from the reporter kit config
+const opts = resolveCellOptions(kit.config);
+
+// Produce the markdown-flavored agent string for a stored report
+const agentString = renderAgentStringForReport(report, opts);
+```
+
+## Learn more
+
+- [Architecture overview](/guide/architecture)
+- [Customize console output](/guide/customize-console-output)
+- [API reference](/reporter/api)
+- [All packages](/packages)

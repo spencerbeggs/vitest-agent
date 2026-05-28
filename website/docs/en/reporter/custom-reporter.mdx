@@ -1,0 +1,242 @@
+---
+title: Writing a custom reporter
+description: Implement VitestAgentReporterFactory to replace or extend vitest-agent output — from a one-line no-op to a full live-streaming Ink renderer.
+---
+
+# Writing a custom reporter
+
+`vitest-agent-plugin` separates persistence from rendering. The plugin owns the Vitest lifecycle — receiving test results, persisting runs, classifying tests, computing trends. Rendering is delegated to a reporter factory you supply. This page explains the factory contract, the data you receive, the output targets available, and how to wire everything together.
+
+## The factory contract
+
+A custom reporter is a `VitestAgentReporterFactory`: a function that receives a `ReporterKit` at run start and returns a `VitestAgentReporter` — or an array of them.
+
+```ts
+import type {
+  VitestAgentReporterFactory,
+  ReporterKit,
+  VitestAgentReporter,
+  ReporterRenderInput,
+  RenderedOutput,
+} from "vitest-agent-reporter";
+
+const myFactory: VitestAgentReporterFactory = (
+  kit: ReporterKit
+): VitestAgentReporter => ({
+  render(
+    input: ReporterRenderInput,
+    kit: ReporterKit
+  ): ReadonlyArray<RenderedOutput> {
+    // called once at run end
+    return [];
+  },
+});
+```
+
+The plugin invokes the factory once when the run starts, before any test has completed. `render` is called once after the plugin has finished persisting and classifying the run. The `kit` passed to `render` is a health-aware view resolved at run end; it is the same shape as the factory `kit` but reflects any post-run state the plugin has resolved.
+
+## `ReporterKit`
+
+`kit` carries the primitives the plugin has already resolved so your factory does not have to re-derive them:
+
+```ts
+interface ReporterKit {
+  // Plugin configuration: consoleMode, coverageMode, executor, format, ...
+  readonly config: ResolvedReporterConfig;
+  // Detected runtime environment (terminal, agent-shell, ci-github, ...)
+  readonly stdEnv: Environment;
+  // Pre-bound OSC-8 hyperlink helper; enabled/disabled by the plugin
+  readonly stdOsc8: (url: string, label: string) => string;
+  // Effect PubSub of RunEvents; the plugin always populates this
+  readonly runEvents?: PubSub.PubSub<RunEvent>;
+}
+```
+
+`config.consoleMode` tells you the rendering mode the plugin selected for the active executor. `config.executor` is `"human"`, `"agent"`, or `"ci"`. `config.noColor` reflects the resolved `NO_COLOR` value. All fields come pre-resolved — destructure only what you need.
+
+## A worked example
+
+The following factory prints a one-line summary to stdout. It reads `input.reports` to count passed and failed tests across all projects:
+
+```ts
+import type {
+  VitestAgentReporterFactory,
+  ReporterRenderInput,
+} from "vitest-agent-reporter";
+
+export const summaryReporter: VitestAgentReporterFactory = () => ({
+  render(input: ReporterRenderInput) {
+    const passed = input.reports.reduce(
+      (n, r) => n + r.summary.passed,
+      0
+    );
+    const failed = input.reports.reduce(
+      (n, r) => n + r.summary.failed,
+      0
+    );
+    const line = failed > 0
+      ? `${failed} failed, ${passed} passed`
+      : `${passed} passed`;
+    return [{ target: "stdout", content: `${line}\n`, contentType: "text/plain" }];
+  },
+});
+```
+
+`input.reports` is one `AgentReport` per Vitest project. `input.classifications` is a `ReadonlyMap<string, TestClassification>` keyed by `TestReport.fullName` with values `"stable"`, `"new-failure"`, `"persistent"`, `"flaky"`, or `"recovered"`. `input.trendSummary` is present on full runs where coverage trends were computed.
+
+## `RenderedOutput` targets
+
+`render` returns `ReadonlyArray<RenderedOutput>`. Each entry has three fields:
+
+```ts
+interface RenderedOutput {
+  readonly target: "stdout" | "file" | "github-summary";
+  readonly content: string;
+  readonly contentType: string;
+}
+```
+
+The plugin routes each entry based on `target`:
+
+| `target` | Behavior |
+|---|---|
+| `"stdout"` | Written to `process.stdout` |
+| `"github-summary"` | Appended to the GitHub Actions Step Summary file (set `githubSummary: true` in plugin options) |
+| `"file"` | Reserved, no-op in 2.x |
+
+A single `render` call may return entries with different targets — for example, one `"stdout"` entry for the terminal and one `"github-summary"` entry for CI annotation.
+
+## Live rendering via `kit.runEvents`
+
+The factory is invoked at run start, before the first test event. If you want to paint progress as tests run, subscribe to `kit.runEvents` inside the factory and drive a renderer off the stream. `render` is still called once at run end, but your factory will have accumulated live state by then.
+
+```ts
+import type { VitestAgentReporterFactory } from "vitest-agent-reporter";
+import { PubSub } from "effect";
+
+export const liveReporter: VitestAgentReporterFactory = (kit) => {
+  let completed = 0;
+
+  // subscribe at construction time — before the first event fires
+  if (kit.runEvents) {
+    PubSub.subscribe(kit.runEvents).pipe(/* ... */);
+  }
+
+  return {
+    render(input) {
+      const total = input.reports.reduce(
+        (n, r) => n + r.summary.total,
+        0
+      );
+      return [
+        {
+          target: "stdout",
+          content: `Run complete: ${total} tests\n`,
+          contentType: "text/plain",
+        },
+      ];
+    },
+  };
+};
+```
+
+`kit.runEvents` is optional at the type level so the factory compiles without the plugin (for tests and one-shot replay). Guard for `undefined` before subscribing. The plugin always populates the field in a real run.
+
+`DefaultVitestAgentReporter` uses `kit.runEvents` to drive its Ink live-mount in `consoleMode: "stream"`. See the [API reference](/reporter/api) for the full `RunEvent` union.
+
+## Returning multiple reporters
+
+A factory may return an array of reporters instead of a single reporter. The plugin calls `render` on each and concatenates their `RenderedOutput[]` before routing. This models Vitest's own multi-reporter pattern: each reporter handles a single concern and outputs to its own target.
+
+```ts
+import type {
+  VitestAgentReporterFactory,
+  VitestAgentReporter,
+} from "vitest-agent-reporter";
+
+const stdoutReporter: VitestAgentReporter = {
+  render(input) {
+    const passed = input.reports.reduce((n, r) => n + r.summary.passed, 0);
+    return [
+      {
+        target: "stdout",
+        content: `${passed} passed\n`,
+        contentType: "text/plain",
+      },
+    ];
+  },
+};
+
+const summaryReporter: VitestAgentReporter = {
+  render(input) {
+    const lines = input.reports.map((r) => `- ${r.projectName}: ${r.summary.passed} passed`);
+    return [
+      {
+        target: "github-summary",
+        content: lines.join("\n") + "\n",
+        contentType: "text/markdown",
+      },
+    ];
+  },
+};
+
+export const multiReporter: VitestAgentReporterFactory = () => [
+  stdoutReporter,
+  summaryReporter,
+];
+```
+
+Persistence runs exactly once regardless of how many reporters you return. Reporters never receive Vitest events directly — the plugin owns the Vitest lifecycle and the reporters only see the assembled run at `render` time (plus the live event stream if they subscribe via `kit.runEvents`).
+
+## The no-op reporter
+
+When you want persistence — so the MCP tools and CLI can query run history — but no console output at all, use the no-op reporter:
+
+```ts
+import type { VitestAgentReporterFactory } from "vitest-agent-reporter";
+
+export const noopReporter: VitestAgentReporterFactory = () => ({
+  render: () => [],
+});
+```
+
+## Wiring with `AgentPlugin`
+
+Pass your factory as the `reporter` option:
+
+```ts
+import { defineConfig } from "vitest/config";
+import { AgentPlugin } from "vitest-agent-plugin";
+import { myFactory } from "./my-reporter.js";
+
+export default defineConfig({
+  plugins: [
+    AgentPlugin({
+      console: { agent: "summary", human: "stream" },
+      coverageTargets: { statements: 80, branches: 75 },
+      reporter: myFactory,
+    }),
+  ],
+});
+```
+
+When `reporter` is omitted the plugin injects `DefaultVitestAgentReporter` from `vitest-agent-reporter` automatically. Supplying your own factory replaces the default entirely — combine it with [`DefaultVitestAgentReporter`](/reporter/api/variable/defaultvitestagentreporter) in a multi-reporter array if you want to extend rather than replace:
+
+```ts
+import { AgentPlugin } from "vitest-agent-plugin";
+import { DefaultVitestAgentReporter } from "vitest-agent-reporter";
+import { myGitHubSummaryReporter } from "./my-reporter.js";
+
+AgentPlugin({
+  reporter: (kit) => [
+    DefaultVitestAgentReporter(kit),
+    myGitHubSummaryReporter(kit),
+  ],
+});
+```
+
+## Learn more
+
+- [vitest-agent-reporter overview](/reporter)
+- [API reference](/reporter/api)
+- [Console modes](/guide/console-modes)

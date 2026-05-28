@@ -1,0 +1,145 @@
+---
+title: "vitest-agent-plugin"
+description: The Vitest plugin that turns your test suite into a live data source for LLM coding agents. Handles persistence, failure classification, coverage policy, project discovery, and a configurable reporter chain.
+---
+
+# vitest-agent-plugin
+
+The Vitest plugin that turns your test suite into a live data source for LLM coding agents. Drop `AgentPlugin` into `vitest.config.ts` and it handles persistence, failure classification, coverage policy enforcement, project discovery, and a configurable reporter chain — the CLI and MCP server arrive as required peers and wire automatically.
+
+## Features
+
+- **`AgentPlugin`** — four-environment executor detection (human, agent, CI, GitHub Actions) that adapts console output mode automatically
+- **Project discovery** — `AgentPlugin.discover()` scans workspace packages and returns `{ projects, tags }` ready for `test.projects` and `test.tags`
+- **Coverage presets** — `COVERAGE_LEVELS` and `COVERAGE_LEVELS_PER_FILE` return `{ thresholds, coverageTargets }` pairs; `COVERAGE_AUTOUPDATE` tolerance functions plug into Vitest's native `autoUpdate`
+- **Failure classification** — persists per-test errors and classifies tests as `stable`, `new-failure`, `persistent`, `flaky`, or `recovered` across runs
+- **Custom reporters** — pass any `VitestAgentReporterFactory` as the `reporter` option; the default wires `DefaultVitestAgentReporter` automatically
+- **`onRunEvent` tap** — optional read-only callback receiving every `RunEvent` in parallel with the renderer
+
+## Install
+
+```bash
+npm install --save-dev vitest-agent-plugin
+# or
+pnpm add -D vitest-agent-plugin
+```
+
+The required peers `vitest-agent-cli` and `vitest-agent-mcp` install automatically with npm 7+ and pnpm (`autoInstallPeers: true`). You rarely need to install them by hand.
+
+## Quick start
+
+A minimal `vitest.config.ts` using `AgentPlugin.discover()` and the standard coverage preset:
+
+```ts
+import { AgentPlugin } from "vitest-agent-plugin";
+import { defineConfig } from "vitest/config";
+
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover();
+  const coverage = AgentPlugin.COVERAGE_LEVELS.standard;
+
+  return defineConfig({
+    plugins: [
+      AgentPlugin({
+        console: { human: "stream", agent: "agent" },
+        coverageTargets: coverage.coverageTargets,
+      }),
+    ],
+    test: {
+      ...(projects ? { projects } : {}),
+      tags,
+      coverage: {
+        enabled: true,
+        provider: "v8",
+        thresholds: coverage.thresholds,
+      },
+    },
+  });
+};
+```
+
+Vitest now persists every run to SQLite, classifies failures across runs, and exposes structured data to the MCP server and CLI.
+
+## `AgentPlugin` options
+
+`AgentPlugin` accepts five top-level options:
+
+```ts
+AgentPlugin({
+  // Per-executor console output mode
+  console: {
+    human?:  "passthrough" | "silent" | "stream" | "agent",
+    agent?:  "passthrough" | "silent" | "agent",
+    ci?:     "passthrough" | "silent" | "ci-annotations",
+  },
+  // Typed coverage target map (pairs with coverage.thresholds)
+  coverageTargets?: CoverageTargets,
+  // Persistence transport — { kind: "local" } today
+  transport?: Transport,
+  // Custom reporter factory (defaults to DefaultVitestAgentReporter)
+  reporter?: VitestAgentReporterFactory,
+  // Read-only tap on every RunEvent
+  onRunEvent?: (event: RunEvent) => void,
+})
+```
+
+Per-executor defaults: `human → passthrough`, `agent → agent`, `ci → passthrough`. Any non-`passthrough` value gives the plugin stdout ownership and strips Vitest's built-in reporters.
+
+## Project discovery
+
+`AgentPlugin.discover()` returns a `DiscoverBuilder` thenable. Call it in an async config export and destructure the result:
+
+```ts
+// Basic: auto-discover all workspace packages
+const { projects, tags } = await AgentPlugin.discover();
+
+// Add a non-package folder that holds tests
+const { projects, tags } = await AgentPlugin.discover()
+  .addProject({ name: "integration", path: "./test-only" });
+```
+
+The builder scans every workspace package for `src/` and `__test__/` directories. Packages with neither are silently skipped. One Vitest project is emitted per workspace package; test-kind classification (`unit`, `int`, `e2e`) happens through the `DiscoverStrategy.classify` mechanism rather than project splitting.
+
+For fine-grained control over which packages become projects and how test
+files map to tags, supply a custom `DiscoverStrategy` — extend the default with
+`.extend({ classify })` or build one with `DiscoverStrategy.create(...)`, then
+pass it to both `AgentPlugin.discover(strategy)` and the plugin's
+`discoverStrategy` option. See [Customize discovery](/guide/customize-discovery)
+for the full recipe.
+
+## Coverage presets
+
+The plugin ships five named presets — `none`, `basic`, `standard`, `strict`, `full` — each returning a `{ thresholds, coverageTargets }` pair:
+
+```ts
+// Flat thresholds (same percentage applied globally)
+const { thresholds, coverageTargets } = AgentPlugin.COVERAGE_LEVELS.standard;
+
+// Per-file thresholds (tighter limits per file)
+const { thresholds, coverageTargets } = AgentPlugin.COVERAGE_LEVELS_PER_FILE.strict;
+```
+
+Pass `thresholds` straight into `coverage.thresholds` and `coverageTargets` into the plugin option. The plugin's `ConfigValidation` service will warn when the two diverge.
+
+Enable auto-update via a tolerance function:
+
+```ts
+coverage: {
+  thresholds: {
+    ...coverage.thresholds,
+    autoUpdate: AgentPlugin.COVERAGE_AUTOUPDATE.standard(2),
+    // Allows the threshold to drift down up to 2 percentage points before
+    // the auto-updater resets it
+  },
+},
+```
+
+## Learn more
+
+- [Installation guide](/guide/installation)
+- [Coverage configuration](/guide/coverage)
+- [Console modes](/guide/console-modes)
+- [Claude Code integration](/guide/claude-code)
+- [Architecture overview](/guide/architecture)
+- [API reference](/plugin/api)
+- [All packages](/packages)

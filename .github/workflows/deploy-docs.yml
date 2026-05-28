@@ -1,0 +1,52 @@
+# Deploys the RSPress docs site (website/, package "docs") to Cloudflare
+# Pages.
+#
+# Trigger model: all vitest-agent packages release in lockstep from one
+# commit on main, sharing a single semver tag (e.g. 2.0.0) but publishing
+# one GitHub Release per package. We deploy once per release by keying on
+# the plugin package's Release — its name contains "vitest-agent-plugin",
+# which no other package name does. A manual workflow_dispatch also deploys
+# (used for the first test deployment once the Cloudflare secrets are set).
+#
+# Prerequisite: the docs workspace depends on rspress-plugin-api-extractor.
+# Until that plugin is published to npm and website/package.json swaps the
+# local link: dependency for the published version, this build cannot
+# resolve it on a CI runner — so the first dispatch or release deploy
+# requires that swap to have landed on main.
+name: Deploy docs
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-docs
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Run on a manual dispatch, or once per lockstep release when the
+    # plugin package's GitHub Release is the one being published.
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.release.name, 'vitest-agent-plugin') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Setup Runtime
+        uses: savvy-web/workflow-runtime-action@main
+      - name: Build docs
+        run: pnpm exec turbo run build --filter=docs
+        env:
+          NODE_ENV: production
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy website/dist --project-name=vitest-agent --branch=main

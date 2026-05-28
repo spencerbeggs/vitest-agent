@@ -1,0 +1,73 @@
+---
+title: Resources and prompts
+description: The four MCP resources and six framing prompts exposed by vitest-agent-mcp — their URI schemes, audience annotations, and workflow orientation.
+---
+
+# Resources and prompts
+
+In addition to tools, `vitest-agent-mcp` exposes four MCP resources and six framing prompts. Resources give agents reference content to read; prompts orient agents toward the right tool sequence for common workflows.
+
+## Resources
+
+The server exposes four resources under two URI schemes. All resources return `text/markdown`.
+
+| URI | Description |
+|-----|-------------|
+| `vitest://docs/` | Index of the vendored Vitest documentation snapshot |
+| `vitest://docs/{path}` | Any page from the snapshot (e.g. `vitest://docs/api/mock`) |
+| `vitest-agent://patterns/` | Index of the curated testing-patterns library |
+| `vitest-agent://patterns/{slug}` | A single pattern by slug |
+
+Both per-page resource templates supply a `list` callback so MCP clients see typed `resources/list` entries with titles, "load when" descriptions, and MCP 2025-11-25 `audience` and `priority` annotations decoded from the source manifests. Clients that honour annotations can rank or filter the resource picker accordingly.
+
+### `vitest://docs/` — vendored Vitest documentation
+
+Content is a vendored MIT-licensed snapshot of `vitest-dev/vitest` at a pinned upstream tag. The `vendor/vitest-docs/manifest.json` file carries the `tag`, `commitSha`, `capturedAt`, and `source` for verification; `vendor/vitest-docs/ATTRIBUTION.md` carries the MIT-license attribution.
+
+The snapshot ships checked into the package. The MCP server works without network egress — there is no on-demand fetch at runtime. The snapshot is refreshed through an explicit project action using the `update-vitest-snapshot` skill from `packages/mcp/lib/scripts/`.
+
+Use the index URI (`vitest://docs/`) to browse available pages, then fetch specific pages by path. Example paths: `vitest://docs/api/mock`, `vitest://docs/guide/writing-tests`.
+
+### `vitest-agent://patterns/` — curated testing patterns
+
+Project-authored content: a curated testing-patterns library encoding guidance for testing Effect services, Effect schemas, and custom reporters.
+
+Each pattern entry in `_meta.json` carries a `slug`, `title`, `summary`, and optional `audience` / `priority` annotations. The index URI (`vitest-agent://patterns/`) renders a catalog page; individual patterns are reachable by slug.
+
+### Resource annotations
+
+Both URI schemes supply MCP 2025-11-25 `audience` and `priority` annotations per resource entry:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `audience` | `("user" \| "assistant")[]` | Who the resource is intended for |
+| `priority` | `number` (0–1) | Relative importance for the resource picker |
+
+Annotations are optional on individual entries — a partially-annotated manifest decodes cleanly. Clients that do not support annotations see the full resource list unfiltered.
+
+## Prompts
+
+MCP clients can pick these from a prompt menu to orient an agent toward common workflows. Each prompt emits a small templated user message — no tool data is pre-fetched on the server. The agent fetches data via tools after the prompt orients it.
+
+| Name | Arguments | Description |
+|------|-----------|-------------|
+| `triage` | `project?` | Orient toward a failure-triage workflow; composes `triage_brief`, `failure_signature_get`, and `hypothesis` (action `record`) |
+| `why-flaky` | `test`, `project?` | Diagnose a named flaky test; composes `test_history` and `failure_signature_get` |
+| `regression-since-pass` | `test`, `project?` | Find the change that broke a test; composes `test_history`, `commit_changes`, and `turn_search` |
+| `explain-failure` | `signature` | Synthesize a root cause from a failure signature's recurrence history |
+| `tdd-resume` | `chat_id?` | Resume the active TDD session from its current phase and iron-law transitions |
+| `wrapup` | `kind?`, `since?` | Generate the same content the post-hooks emit automatically |
+
+The `kind` argument on `wrapup` accepts the same five values the `wrapup_prompt` tool accepts: `stop`, `session_end`, `pre_compact`, `tdd_handoff`, and `user_prompt_nudge`.
+
+### How prompts work
+
+Prompts are framing-only. Each prompt factory returns one or more templated user-role messages that describe which tools to call and in what order. No `DataReader` or `DataStore` calls happen on the server when a prompt is selected — selection cost is zero tool roundtrips by design.
+
+After a prompt orients the agent, the agent calls the referenced tools to fetch live data. This keeps prompt selection fast and the data always current.
+
+## Related
+
+- [MCP tools](/mcp/tools)
+- [Integrating non-Claude-Code agents](/mcp/integrating)
+- [API reference](/mcp/api)
