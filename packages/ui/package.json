@@ -35,13 +35,13 @@
 		"vitest-agent-sdk": "workspace:*"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.8",
+		"@savvy-web/rslib-builder": "^0.20.10",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"ink": "^7.0.4",
 		"ink-testing-library": "^4.0.0",
 		"react": "catalog:silk",
-		"vitest": "^4.1.6"
+		"vitest": "^4.1.7"
 	},
 	"peerDependencies": {
 		"ink": "^7.0.0",

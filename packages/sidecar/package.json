@@ -31,10 +31,10 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.8",
+		"@savvy-web/rslib-builder": "^0.20.10",
 		"@types/node": "catalog:silk",
-		"@vitest/coverage-v8": "^4.1.6",
-		"vitest": "^4.1.6"
+		"@vitest/coverage-v8": "^4.1.7",
+		"vitest": "^4.1.7"
 	},
 	"optionalDependencies": {
 		"vitest-agent-sidecar-darwin-arm64": "workspace:*",
