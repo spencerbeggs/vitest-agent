@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Runtime
-        uses: savvy-web/workflow-runtime-action@main
+        uses: savvy-web/silk-runtime-action@v1
 
       - name: Build every sidecar binary
         # tsdown's `exe` mode cross-compiles each target from this one

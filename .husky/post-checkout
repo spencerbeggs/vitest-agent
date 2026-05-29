@@ -1,17 +1,10 @@
 #!/usr/bin/env sh
-# Post-checkout hook with savvy-lint managed section
+# Managed by savvy-hooks
 # Custom hooks can go above or below the managed section
 
-# --- BEGIN SAVVY-LINT MANAGED SECTION ---
-# DO NOT EDIT between these markers - managed by savvy-lint
+# --- BEGIN SAVVY-HOOKS MANAGED SECTION ---
 if ! { [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; }; then
-
-# Configure git to ignore executable bit changes
-# This ensures hook scripts can be made executable locally without git tracking the change
-git config core.fileMode false
-
-# Ensure all shell scripts tracked by git are executable
-git ls-files -z '*.sh' | xargs -0 -r chmod +x 2>/dev/null || true
-
+  git config core.fileMode false
+  git ls-files -z '*.sh' | xargs -0 chmod +x 2>/dev/null || true
 fi
-# --- END SAVVY-LINT MANAGED SECTION ---
+# --- END SAVVY-HOOKS MANAGED SECTION ---

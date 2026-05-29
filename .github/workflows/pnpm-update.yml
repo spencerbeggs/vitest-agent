@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0
       - name: Setup Runtime
         id: runtime
-        uses: savvy-web/workflow-runtime-action@main
+        uses: savvy-web/silk-runtime-action@v1
       - name: Update Config Dependencies
         id: update
         uses: savvy-web/pnpm-config-dependency-action@v1
