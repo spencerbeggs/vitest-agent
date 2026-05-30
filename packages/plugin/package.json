@@ -44,7 +44,7 @@
 		"workspaces-effect": "^1.1.0"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.10",
+		"@savvy-web/rslib-builder": "^0.20.11",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "catalog:silk",
 		"@vitest/coverage-istanbul": "^4.1.7",

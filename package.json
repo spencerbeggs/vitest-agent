@@ -40,8 +40,8 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/changesets": "^0.10.0",
-		"@savvy-web/commitlint": "^0.10.0",
+		"@savvy-web/changesets": "^0.10.1",
+		"@savvy-web/commitlint": "^0.10.1",
 		"@savvy-web/lint-staged": "^1.2.1",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",

@@ -35,7 +35,7 @@
 		"vitest-agent-sdk": "workspace:*"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.10",
+		"@savvy-web/rslib-builder": "^0.20.11",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"ink": "^7.0.4",

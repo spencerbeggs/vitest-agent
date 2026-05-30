@@ -11,7 +11,7 @@
 	},
 	"devDependencies": {
 		"@rspress/core": "^2.0.13",
-		"@savvy-web/rslib-builder": "^0.20.10",
+		"@savvy-web/rslib-builder": "^0.20.11",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"@types/react-dom": "catalog:silk",
