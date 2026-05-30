@@ -4,7 +4,7 @@ packages:
   - website
 autoInstallPeers: true
 configDependencies:
-  "@savvy-web/pnpm-plugin-silk": 0.13.3+sha512-wMlch77BpJ6vO3c9pr+hALH5yOYTlnYNs71/xlJMKcXwTLphh96tEVilq7O827kkdnG8ayfALnWudwi/JKIAGQ==
+  "@savvy-web/pnpm-plugin-silk": 0.13.4+sha512-WNNQ5wNiBHfihbxFtX6oti+fxJb0AXHCVosdBCwFFyNXKk9YAWLM3Qa+9Z9b1x1bFedFBTsXjoDQk/kWAlddyg==
 loglevel: info
 publicHoistPattern:
   - vitest-agent-cli
