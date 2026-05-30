@@ -29,7 +29,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.10",
+		"@savvy-web/rslib-builder": "^0.20.11",
 		"@tsdown/exe": "^0.22.0",
 		"@types/node": "catalog:silk",
 		"tsdown": "^0.22.0",
