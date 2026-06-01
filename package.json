@@ -47,7 +47,7 @@
 		"@typescript/native-preview": "catalog:silk",
 		"tsx": "catalog:silk",
 		"typescript": "catalog:silk",
-		"vitest": "^4.1.7",
+		"vitest": "^4.1.8",
 		"vitest-agent-cli": "workspace:*",
 		"vitest-agent-mcp": "workspace:*",
 		"vitest-agent-plugin": "workspace:*"
