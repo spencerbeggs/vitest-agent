@@ -21,7 +21,7 @@ export default defineConfig({
 			placement: "outline",
 		},
 	},
-	llms: false,
+	llms: true,
 	route: { cleanUrls: true },
 	plugins: [
 		ApiExtractorPlugin({

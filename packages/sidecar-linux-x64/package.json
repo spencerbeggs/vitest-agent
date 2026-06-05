@@ -29,10 +29,10 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.11",
-		"@tsdown/exe": "^0.22.0",
+		"@savvy-web/rslib-builder": "^0.21.3",
+		"@tsdown/exe": "^0.22.1",
 		"@types/node": "catalog:silk",
-		"tsdown": "^0.22.0",
+		"tsdown": "^0.22.1",
 		"vitest-agent-sdk": "workspace:*"
 	},
 	"os": ["linux"],

@@ -28,7 +28,6 @@
 	},
 	"scripts": {
 		"build:dev": "rslib build --config-loader native --env-mode dev",
-		"build:inspect": "rslib inspect --config-loader native --env-mode npm --verbose",
 		"build:prod": "rslib build --config-loader native --env-mode npm",
 		"types:check": "tsgo --noEmit"
 	},
@@ -47,10 +46,10 @@
 		"xdg-effect": "^1.0.1"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.11",
+		"@savvy-web/rslib-builder": "^0.21.3",
 		"@types/node": "catalog:silk",
-		"@vitest/coverage-v8": "^4.1.7",
-		"vitest": "^4.1.7"
+		"@vitest/coverage-v8": "^4.1.8",
+		"vitest": "^4.1.8"
 	},
 	"publishConfig": {
 		"access": "public",

@@ -44,7 +44,7 @@ describe("stringifyFailureValue", () => {
 
 	it("falls back to String() for a circular object", () => {
 		const obj: Record<string, unknown> = {};
-		obj["self"] = obj;
+		obj.self = obj;
 		const result = stringifyFailureValue(obj);
 		// JSON.stringify throws on circular refs; String({}) → '[object Object]'
 		expect(result).toBe("[object Object]");

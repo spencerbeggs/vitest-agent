@@ -1,4 +1,4 @@
-name: Update pnpm Config Dependencies
+name: Update Silk Dependencies
 on:
   # schedule:
   #   - cron: 0 0,6,12,18 * * 1-5
@@ -42,7 +42,7 @@ jobs:
         uses: savvy-web/silk-runtime-action@v1
       - name: Update Config Dependencies
         id: update
-        uses: savvy-web/pnpm-config-dependency-action@v1
+        uses: savvy-web/silk-update-action@v2
         with:
           app-client-id: ${{ vars.APP_CLIENT_ID }}
           app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -51,6 +51,7 @@ jobs:
           log-level: ${{ inputs.log-level || 'info' }}
           changesets: true
           auto-merge: "squash"
+          upgrade-package-manager: "^11.0.0"
           upgrade-runtime-node: "^26.0.0"
           config-dependencies: |
             @savvy-web/pnpm-plugin-silk

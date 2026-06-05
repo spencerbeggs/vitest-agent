@@ -26,7 +26,6 @@
 	},
 	"scripts": {
 		"build:dev": "rslib build --config-loader native --env-mode dev",
-		"build:inspect": "rslib inspect --config-loader native --env-mode npm --verbose",
 		"build:prod": "rslib build --config-loader native --env-mode npm",
 		"types:check": "tsgo --noEmit"
 	},
@@ -36,21 +35,21 @@
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"effect": "catalog:silk",
-		"ink": "^7.0.4",
+		"ink": "^7.0.5",
 		"react": "catalog:silk",
 		"vitest-agent-sdk": "workspace:*",
 		"vitest-agent-ui": "workspace:*"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.20.11",
+		"@savvy-web/rslib-builder": "^0.21.3",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
-		"@vitest/coverage-istanbul": "^4.1.7",
-		"@vitest/coverage-v8": "^4.1.7",
+		"@vitest/coverage-istanbul": "^4.1.8",
+		"@vitest/coverage-v8": "^4.1.8",
 		"better-sqlite3": "^12.10.0",
-		"vite": "^8.0.14",
-		"vitest": "^4.1.7"
+		"vite": "^8.0.16",
+		"vitest": "^4.1.8"
 	},
 	"peerDependencies": {
 		"@vitest/coverage-istanbul": "^4.1.0",

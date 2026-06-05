@@ -1,6 +1,6 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
-	"extends": ["@savvy-web/lint-staged/biome/silk.jsonc"],
+	"extends": ["@savvy-web/silk/biome"],
 	"overrides": [
 		{
 			// `!` non-null assertions are idiomatic in test fixtures the

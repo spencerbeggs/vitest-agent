@@ -62,7 +62,7 @@ export const soleTest = (state: RenderState): TestRecord | undefined => {
 	const moduleEntries = Object.values(state.modules);
 	if (moduleEntries.length !== 1) return undefined;
 	const sole = moduleEntries[0];
-	if (!sole || sole.tests.length !== 1) return undefined;
+	if (sole?.tests.length !== 1) return undefined;
 	return sole.tests[0];
 };
 

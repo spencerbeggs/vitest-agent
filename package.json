@@ -21,9 +21,7 @@
 		"build:docs": "turbo run build --filter=docs --output-logs=new-only",
 		"ci:build": "CI=\"true\" turbo run build:dev build:prod",
 		"ci:test": "CI=\"true\" vitest run --coverage",
-		"ci:version": "savvy-changesets version && biome format --write .",
-		"commit:check": "savvy-commit check",
-		"commit:init": "savvy-commit init",
+		"ci:version": "savvy changeset version && biome format --write .",
 		"dev": "turbo run dev --filter=docs --ui=tui",
 		"lint": "biome check --max-diagnostics=none",
 		"lint:fix": "biome check --write --max-diagnostics=none",
@@ -40,29 +38,25 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/changesets": "^0.10.1",
-		"@savvy-web/commitlint": "^0.10.1",
-		"@savvy-web/lint-staged": "^1.2.1",
-		"@types/node": "catalog:silk",
-		"@typescript/native-preview": "catalog:silk",
+		"@savvy-web/silk": "^0.3.1",
 		"tsx": "catalog:silk",
 		"typescript": "catalog:silk",
-		"vitest": "^4.1.7",
+		"vitest": "^4.1.8",
 		"vitest-agent-cli": "workspace:*",
 		"vitest-agent-mcp": "workspace:*",
 		"vitest-agent-plugin": "workspace:*"
 	},
-	"packageManager": "pnpm@10.34.1+sha512.b58fbde6dca66a929538021581f648b4570b6ca19b18e7cbd7f2c07a7b24454155388dacdf08f2af3678e88a6d1fe04f9d609df24bf51735a060ea041b374ab7",
+	"packageManager": "pnpm@11.5.1+sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1d1485",
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "10.34.1",
+			"version": "11.5.1+sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1",
 			"onFail": "ignore"
 		},
 		"runtime": [
 			{
 				"name": "node",
-				"version": "26.2.0",
+				"version": "26.3.0",
 				"onFail": "ignore"
 			}
 		]

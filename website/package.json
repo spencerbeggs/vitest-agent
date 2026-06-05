@@ -11,7 +11,7 @@
 	},
 	"devDependencies": {
 		"@rspress/core": "^2.0.13",
-		"@savvy-web/rslib-builder": "^0.20.11",
+		"@savvy-web/rslib-builder": "^0.21.3",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"@types/react-dom": "catalog:silk",
@@ -19,6 +19,6 @@
 		"open": "^11.0.0",
 		"react": "catalog:silk",
 		"react-dom": "catalog:silk",
-		"rspress-plugin-api-extractor": "^0.1.1"
+		"rspress-plugin-api-extractor": "^0.1.2"
 	}
 }

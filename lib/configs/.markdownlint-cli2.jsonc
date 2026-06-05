@@ -15,7 +15,7 @@
 		"**/.claude/plans",
 		"**/vendor/**"
 	],
-	"customRules": ["@savvy-web/changesets/markdownlint"],
+	"customRules": ["@savvy-web/silk/changesets/markdownlint"],
 	"config": {
 		"default": true,
 		"MD001": true,
