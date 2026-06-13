@@ -3,12 +3,11 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-23
-last-synced: 2026-05-23
+updated: 2026-06-12
+last-synced: 2026-06-12
 completeness: 92
 related:
   - ./architecture.md
-  - ./data-structures.md
   - ./schemas.md
   - ./decisions.md
   - ./components/plugin.md
@@ -262,8 +261,8 @@ Owned by `vitest-agent-cli`. See [./components/cli.md](./components/cli.md).
 
 Owned by `vitest-agent-mcp`. See [./components/mcp.md](./components/mcp.md).
 
-- `bin.ts` resolves `projectDir` from `VITEST_AGENT_PROJECT_DIR` (set by the
-  plugin loader) ?? `CLAUDE_PROJECT_DIR` ?? `process.cwd()`.
+- `bin.ts` resolves `projectDir` from `VITEST_AGENT_REPORTER_PROJECT_DIR` (set
+  by the plugin loader) ?? `CLAUDE_PROJECT_DIR` ?? `process.cwd()`.
 - Resolve `dbPath` via `resolveDataPath(projectDir)` under
   `PathResolutionLive(projectDir) + NodeContext.layer`.
 - Create `ManagedRuntime.make(McpLive(dbPath, logLevel?, logFile?))`,

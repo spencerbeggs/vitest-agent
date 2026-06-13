@@ -3,15 +3,16 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-03-20
-updated: 2026-05-27
-last-synced: 2026-05-27
+updated: 2026-06-12
+last-synced: 2026-06-12
 completeness: 90
 related:
   - ./architecture.md
   - ./decisions.md
-  - ./data-structures.md
+  - ./schemas.md
   - ./components/sdk.md
   - ./components/plugin.md
+  - ./components/discover.md
   - ./components/reporter.md
   - ./components/ui.md
   - ./components/cli.md
@@ -37,6 +38,7 @@ the package you're working on.
 | ---- | -------------------- |
 | [./components/sdk.md](./components/sdk.md) | services, layers, schemas, DataStore/DataReader, migrations, path resolution, formatters, the public reporter contract types, the `RunEvent`/`RenderState` schemas, utilities |
 | [./components/plugin.md](./components/plugin.md) | `AgentPlugin`, the internal `AgentReporter` lifecycle class (with streaming hooks and the `onRunEvent` tap), `CoverageAnalyzer`, reporter-side utilities, coverage threshold extraction, the per-executor console matrix |
+| [./components/discover.md](./components/discover.md) | `AgentPlugin.discover()`, the `DiscoverBuilder` thenable, `discoverProjects`, the `DiscoverStrategy` contract, the classifier helpers and the tag-injection transform |
 | [./components/reporter.md](./components/reporter.md) | the default reporter package and custom-reporter reference: `DefaultVitestAgentReporter`, the live Ink mount it owns, the contract re-exports plus `buildDispatchInputs` / `resolveCellOptions` dispatch helpers |
 | [./components/ui.md](./components/ui.md) | pure rendering-primitives library: `RunEvent` reducer, shape-tailored dispatcher matrix and its 12 cells, L1 MCP tool-pointer footer, synthesizers, `RunEventChannel` PubSub. No reporter or live mount after the reporter-package restructure |
 | [./components/cli.md](./components/cli.md) | CLI commands (`doctor`, `db`, the `agent` namespace), the `record` subcommand and its hook-driven actions, `CliLive` |
@@ -46,5 +48,5 @@ the package you're working on.
 | [./components/docs-site.md](./components/docs-site.md) | the `docs` workspace at `website/`: the RSPress 2.0 site, its Guide/Packages IA, the api-extractor generation pipeline (`apiModel.localPaths` → `website/lib/models`), the committed snapshot db and the Cloudflare Pages deploy |
 
 Each sub-file is self-contained for its package and cross-references
-[./decisions.md](./decisions.md) and [./data-structures.md](./data-structures.md)
+[./decisions.md](./decisions.md) and [./schemas.md](./schemas.md)
 where the rationale or schema details live.

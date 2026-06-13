@@ -3,14 +3,14 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-23
-last-synced: 2026-05-23
+updated: 2026-06-12
+last-synced: 2026-06-12
 completeness: 96
 related:
   - ../architecture.md
   - ../components.md
   - ../decisions.md
-  - ../data-structures.md
+  - ../schemas.md
   - ./plugin.md
   - ./reporter.md
   - ./cli.md
@@ -547,7 +547,7 @@ the TDD tree, etc.). The application-level (camelCase) shapes for the TDD
 hierarchy live in `schemas/Tdd.ts`.
 
 For the table inventory and column-level details see
-[../data-structures.md](../data-structures.md).
+[../schemas.md](../schemas.md).
 
 ## Testing subpath
 
@@ -622,5 +622,7 @@ asserts it matches that package's `package.json#version`.
 
 ## Output pipeline
 
-`packages/sdk/src/layers/OutputPipelineLive.ts` composes the five chained
-services:
+`packages/sdk/src/layers/OutputPipelineLive.ts` merges the five output
+services (`EnvironmentDetectorLive`, `ExecutorResolverLive`,
+`FormatSelectorLive`, `DetailResolverLive`, `OutputRendererLive`) into the
+one composite every runtime composes. See the source for the exact merge.

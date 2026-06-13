@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-23
-last-synced: 2026-05-23
+updated: 2026-06-12
+last-synced: 2026-06-12
 completeness: 92
 related:
   - ../architecture.md
@@ -97,7 +97,7 @@ The group composes seven subcommands:
 | `inject-env` | PreToolUse Bash hook | Pure command-rewriter — prepends the `VITEST_AGENT_*` env prefix when the command invokes Vitest, echoes it unchanged otherwise. |
 | `sidecar-path` | SessionStart hook (once per session) | Calls `resolveSidecarBinaryPath()` from `vitest-agent-sidecar` and prints the absolute path to stdout (exit 0), or exits non-zero when the binary is not resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`. |
 
-`triage` and `wrapup` keep their `--format markdown|json|silent` axis (the only commands that do — `db query` has its own `--format table|json` axis, everything else emits plain stdout text by convention). `agent inject-env` imports `exitCodeForTag` and `injectEnv` from `vitest-agent-sdk/dispatch` — the `injectEnv` core lives in the SDK so the SEA binary can import it without reaching through the CLI. The `lib/format-triage.ts` and `lib/format-wrapup.ts` formatters are shared verbatim with the MCP tools `triage_brief` and `wrapup_prompt`, so CLI and MCP outputs are byte-identical.
+`triage` and `wrapup` keep their `--format markdown|json|silent` axis (the only commands that do — `db query` has its own `--format table|json` axis, everything else emits plain stdout text by convention). `agent inject-env` imports `exitCodeForTag` and `injectEnv` from `vitest-agent-sdk/dispatch` — the `injectEnv` core lives in the SDK so the SEA binary can import it without reaching through the CLI. `triage` and `wrapup` call `formatTriageEffect` / `formatWrapupEffect` from `vitest-agent-sdk` (`packages/sdk/src/lib/format-triage.ts`, `format-wrapup.ts`), shared verbatim with the MCP tools `triage_brief` and `wrapup_prompt`, so CLI and MCP outputs are byte-identical.
 
 **Dependency relationship with the sidecar package.** `vitest-agent-cli` depends on `vitest-agent-sidecar` (not the reverse): the sidecar package exports `resolveSidecarBinaryPath`, and the CLI's `agent sidecar-path` subcommand calls it to resolve the binary's absolute path. The dispatch core the SEA binary actually runs — `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`, `exitCodeForTag` — lives in `vitest-agent-sdk` and is reached through the dedicated `vitest-agent-sdk/dispatch` entry point (see [./sdk.md](./sdk.md)); the per-platform children declare `vitest-agent-sdk` as their only workspace `devDependency` and import `dispatch` from there. They do not depend on `vitest-agent-cli` — the closing edge of the workspace graph is `sidecar-<platform> → sdk`, a true leaf. `packages/cli/src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect` and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants); it deliberately does **not** re-export `dispatch` / `injectEnv` / `exitCodeForTag` — those belong to the SDK. `register-agent` stays JS-only — its native SQLite binding cannot be bundled into a SEA.
 
