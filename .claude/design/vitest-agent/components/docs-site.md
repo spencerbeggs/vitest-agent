@@ -3,8 +3,8 @@ status: current
 module: vitest-agent-reporter
 category: documentation
 created: 2026-05-27
-updated: 2026-05-27
-last-synced: 2026-05-27
+updated: 2026-06-12
+last-synced: 2026-06-12
 completeness: 85
 related:
   - ../architecture.md
@@ -64,6 +64,3 @@ There is a bootstrap caveat documented in the workflow header: until `rspress-pl
 | Build orchestration and per-package `build:prod` dependency | `website/turbo.json` |
 | Generation source of truth | `website/api-docs-snapshot.db` (committed) |
 | Quick-reference layout and conventions | `website/CLAUDE.md` |
-
-</content>
-</invoke>

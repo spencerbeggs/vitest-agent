@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-12
-last-synced: 2026-05-12
+updated: 2026-06-12
+last-synced: 2026-06-12
 completeness: 100
 related:
   - ./decisions.md
@@ -136,7 +136,7 @@ Vitest 4.1's native tag system supports the same query patterns
 my-app") via tag-expression syntax — without making the project name
 carry classification metadata. The 2.0 refactor consolidated to one
 project per workspace package, dropped the `sub_project` column from
-every table in `0002_comprehensive.ts`, removed `subProject` from
+every table in the canonical schema, removed `subProject` from
 `DataStore` / `DataReader` / `HistoryTracker` interfaces, and dropped
 the per-kind override API on `discoverProjects`. The plugin now
 installs a Vite `transform` hook that injects a `tags` array onto

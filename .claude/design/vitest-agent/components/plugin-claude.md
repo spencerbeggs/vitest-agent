@@ -3,14 +3,14 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-06
-updated: 2026-05-23
-last-synced: 2026-05-23
+updated: 2026-06-12
+last-synced: 2026-06-12
 completeness: 90
 related:
   - ../architecture.md
   - ../components.md
   - ../decisions.md
-  - ../data-structures.md
+  - ../schemas.md
 dependencies: []
 ---
 
@@ -220,7 +220,7 @@ available, and it has to cover every package manager Vitest can be invoked
 through.
 
 For the channel event schema and `tdd_artifacts` row schema, see
-[../data-structures.md](../data-structures.md) — channel event section and
+[../schemas.md](../schemas.md) — channel event section and
 SQLite table inventory respectively.
 
 ### Agent architecture

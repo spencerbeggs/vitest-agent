@@ -3,10 +3,11 @@ status: current
 module: vitest-agent-reporter
 category: architecture
 created: 2026-05-07
-updated: 2026-05-23
-last-synced: 2026-05-23
+updated: 2026-06-12
+last-synced: 2026-06-12
 completeness: 95
 related:
+  - ../components.md
   - ./plugin.md
   - ../testing-strategy.md
   - ../decisions.md
