@@ -38,7 +38,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/silk": "^0.3.1",
+		"@savvy-web/silk": "^0.5.0",
 		"tsx": "catalog:silk",
 		"typescript": "catalog:silk",
 		"vitest": "^4.1.8",
