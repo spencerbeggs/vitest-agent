@@ -13,6 +13,7 @@ const makeDiscovery = (packages: ReadonlyArray<WorkspacePackage>) =>
 				return found ? Effect.succeed(found) : Effect.die(new Error(`getPackage stub: ${name} not configured`));
 			},
 			importerMap: () => Effect.succeed(new Map()),
+			refresh: () => Effect.void,
 		}),
 	);
 

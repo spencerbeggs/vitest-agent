@@ -6,7 +6,7 @@
  * UUID, then re-runs and asserts the same agentId comes back
  * (idempotency hit).
  *
- * The CLI bin is invoked via `node dist/dev/bin.js` after the package
+ * The CLI bin is invoked via `node dist/dev/pkg/bin/vitest-agent.js` after the package
  * is built; the test calls `pnpm --filter vitest-agent-cli run prepare`
  * via a setup helper if needed.
  */
@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-const BIN = resolve(__dirname, "..", "dist", "dev", "bin", "vitest-agent.js");
+const BIN = resolve(__dirname, "..", "dist", "dev", "pkg", "bin", "vitest-agent.js");
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

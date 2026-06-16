@@ -3,5 +3,5 @@
 	"compilerOptions": {
 		"jsx": "react-jsx"
 	},
-	"extends": ["@savvy-web/rslib-builder/tsconfig/ecma/lib.json"]
+	"extends": ["@savvy-web/bundler/tsconfig/ecma.json"]
 }

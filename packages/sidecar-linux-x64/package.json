@@ -16,46 +16,32 @@
 	},
 	"type": "module",
 	"exports": {
-		".": "./bin/vitest-agent-sidecar",
+		".": "./src/bin.ts",
 		"./package.json": "./package.json"
 	},
-	"bin": {
-		"vitest-agent-sidecar": "./bin/vitest-agent-sidecar"
-	},
-	"files": ["README.md", "LICENSE", "bin/vitest-agent-sidecar"],
 	"scripts": {
-		"build:dev": "node lib/scripts/tsdown.ts",
-		"build:prod": "node lib/scripts/tsdown.ts",
+		"build:dev": "node savvy.build.ts --target dev",
+		"build:meta": "echo 'no op'",
+		"build:prod": "node savvy.build.ts --target prod",
+		"prepare": "node savvy.build.ts --target dev",
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.21.3",
-		"@tsdown/exe": "^0.22.1",
+		"@savvy-web/bundler": "^0.6.0",
 		"@types/node": "catalog:silk",
-		"tsdown": "^0.22.1",
+		"@typescript/native-preview": "catalog:silk",
+		"typescript": "catalog:silk",
 		"vitest-agent-sdk": "workspace:*"
 	},
 	"os": ["linux"],
 	"cpu": ["x64"],
 	"publishConfig": {
 		"access": "public",
-		"directory": "dist/dev",
+		"directory": "dist/dev/pkg",
 		"linkDirectory": true,
-		"targets": [
-			{
-				"protocol": "npm",
-				"registry": "https://npm.pkg.github.com/",
-				"directory": "dist/github",
-				"access": "public",
-				"provenance": true
-			},
-			{
-				"protocol": "npm",
-				"registry": "https://registry.npmjs.org/",
-				"directory": "dist/npm",
-				"access": "public",
-				"provenance": true
-			}
-		]
+		"targets": {
+			"npm": true,
+			"github": "@spencerbeggs/vitest-agent-sidecar-linux-x64"
+		}
 	}
 }

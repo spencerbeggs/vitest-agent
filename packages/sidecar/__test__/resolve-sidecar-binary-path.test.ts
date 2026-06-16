@@ -3,7 +3,9 @@ import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { resolveSidecarBinaryPath } from "../src/resolve-sidecar-binary-path.js";
 
-// Fake resolver that simulates a successful require.resolve for the given package+binPath
+// Fake resolver that simulates require.resolve for the given package NAME. The resolver now
+// resolves the package's `.` export (the bundler points it at the suffixed SEA), so the stub
+// keys on the package name, not a `/bin/...` subpath.
 function makeResolver(availablePackages: Map<string, string>) {
 	return (packagePath: string): string => {
 		if (availablePackages.has(packagePath)) {
@@ -17,9 +19,9 @@ function makeResolver(availablePackages: Map<string, string>) {
 
 describe("resolveSidecarBinaryPath — supported platforms", () => {
 	it("should return the resolved binary path for darwin-arm64", () => {
-		// Given: a resolver that knows the darwin-arm64 package bin entry
+		// Given: a resolver that knows the darwin-arm64 package
 		const resolver = makeResolver(
-			new Map([["vitest-agent-sidecar-darwin-arm64/bin/vitest-agent-sidecar", "/abs/bin/vitest-agent-sidecar"]]),
+			new Map([["vitest-agent-sidecar-darwin-arm64", "/abs/bin/vitest-agent-sidecar-darwin-arm64"]]),
 		);
 
 		// When: resolving on darwin/arm64
@@ -30,13 +32,13 @@ describe("resolveSidecarBinaryPath — supported platforms", () => {
 		});
 
 		// Then: returns the absolute path from the resolver
-		expect(result).toBe("/abs/bin/vitest-agent-sidecar");
+		expect(result).toBe("/abs/bin/vitest-agent-sidecar-darwin-arm64");
 	});
 
 	it("should return the resolved binary path for linux-arm64", () => {
-		// Given: a resolver that knows the linux-arm64 package bin entry
+		// Given: a resolver that knows the linux-arm64 package
 		const resolver = makeResolver(
-			new Map([["vitest-agent-sidecar-linux-arm64/bin/vitest-agent-sidecar", "/usr/local/bin/vitest-agent-sidecar"]]),
+			new Map([["vitest-agent-sidecar-linux-arm64", "/usr/local/bin/vitest-agent-sidecar-linux-arm64"]]),
 		);
 
 		// When: resolving on linux/arm64
@@ -47,13 +49,13 @@ describe("resolveSidecarBinaryPath — supported platforms", () => {
 		});
 
 		// Then: returns the absolute path
-		expect(result).toBe("/usr/local/bin/vitest-agent-sidecar");
+		expect(result).toBe("/usr/local/bin/vitest-agent-sidecar-linux-arm64");
 	});
 
 	it("should return the resolved binary path for linux-x64", () => {
-		// Given: a resolver that knows the linux-x64 package bin entry
+		// Given: a resolver that knows the linux-x64 package
 		const resolver = makeResolver(
-			new Map([["vitest-agent-sidecar-linux-x64/bin/vitest-agent-sidecar", "/opt/bin/vitest-agent-sidecar"]]),
+			new Map([["vitest-agent-sidecar-linux-x64", "/opt/bin/vitest-agent-sidecar-linux-x64"]]),
 		);
 
 		// When: resolving on linux/x64
@@ -64,18 +66,13 @@ describe("resolveSidecarBinaryPath — supported platforms", () => {
 		});
 
 		// Then: returns the absolute path
-		expect(result).toBe("/opt/bin/vitest-agent-sidecar");
+		expect(result).toBe("/opt/bin/vitest-agent-sidecar-linux-x64");
 	});
 
 	it("should return the resolved binary path for win32-x64 (uses .exe extension)", () => {
-		// Given: a resolver that knows the win32-x64 package bin entry (with .exe)
+		// Given: a resolver that knows the win32-x64 package (its `.` export is the .exe SEA)
 		const resolver = makeResolver(
-			new Map([
-				[
-					"vitest-agent-sidecar-win32-x64/bin/vitest-agent-sidecar.exe",
-					"C:\\Program Files\\bin\\vitest-agent-sidecar.exe",
-				],
-			]),
+			new Map([["vitest-agent-sidecar-win32-x64", "C:\\Program Files\\bin\\vitest-agent-sidecar-win-x64.exe"]]),
 		);
 
 		// When: resolving on win32/x64
@@ -86,7 +83,7 @@ describe("resolveSidecarBinaryPath — supported platforms", () => {
 		});
 
 		// Then: returns the absolute path (with .exe)
-		expect(result).toBe("C:\\Program Files\\bin\\vitest-agent-sidecar.exe");
+		expect(result).toBe("C:\\Program Files\\bin\\vitest-agent-sidecar-win-x64.exe");
 	});
 });
 
@@ -160,7 +157,10 @@ describe("resolveSidecarBinaryPath — real default resolver (no injected resolv
 		// optional dependency is installed (it is a devDependency in this workspace).
 		// No resolver is injected — the function must use its real default resolver.
 		const isBinaryInstalled = existsSync(
-			new URL("../node_modules/vitest-agent-sidecar-darwin-arm64/bin/vitest-agent-sidecar", import.meta.url).pathname,
+			new URL(
+				"../node_modules/vitest-agent-sidecar-darwin-arm64/bin/vitest-agent-sidecar-darwin-arm64",
+				import.meta.url,
+			).pathname,
 		);
 
 		if (!isBinaryInstalled) {

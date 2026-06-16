@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const BIN = resolve(__dirname, "..", "..", "dist", "dev", "bin", "vitest-agent.js");
+const BIN = resolve(__dirname, "..", "..", "dist", "dev", "pkg", "bin", "vitest-agent.js");
 
 interface SpawnResult {
 	stdout: string;

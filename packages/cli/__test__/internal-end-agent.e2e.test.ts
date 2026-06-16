@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-const BIN = resolve(__dirname, "..", "dist", "dev", "bin", "vitest-agent.js");
+const BIN = resolve(__dirname, "..", "dist", "dev", "pkg", "bin", "vitest-agent.js");
 
 interface RegisterAgentResult {
 	readonly agentId: string;

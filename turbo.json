@@ -8,57 +8,74 @@
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
-				"$TURBO_ROOT$/pnpm-lock.yaml",
 				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"$TURBO_ROOT$/vitest.*.ts",
-				"$TURBO_ROOT$/lib/**",
-				"src/**",
-				"lib/**",
-				"!__test__/**",
+				"$TURBO_ROOT$/pnpm-lock.yaml",
+				"$TURBO_ROOT$/tsconfig.json",
+				"README.md",
+				"LICENSE",
 				"package.json",
-				"rslib.config.ts",
-				"tsconfig.json"
+				"tsconfig.json",
+				"*.ts",
+				"*.mts",
+				"*.cts",
+				"public/**/*",
+				"lib/**/*",
+				"src/**/*"
 			],
-			"outputLogs": "full",
-			"outputs": ["dist/dev/**", ".rslib/declarations/dev/**"]
+			"outputLogs": "errors-only",
+			"outputs": ["dist/dev/pkg/**"]
+		},
+		"build:meta": {
+			"cache": true,
+			"dependsOn": ["build:dev"],
+			"inputs": ["$TURBO_DEFAULT$", "dist/dev/pkg/**"],
+			"outputs": ["dist/dev/meta/**"]
 		},
 		"build:prod": {
 			"cache": true,
-			"dependsOn": ["^build:prod"],
+			"dependsOn": ["types:check", "build:meta"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
-				"$TURBO_ROOT$/pnpm-lock.yaml",
 				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"$TURBO_ROOT$/vitest.*.ts",
-				"$TURBO_ROOT$/lib/**",
-				"src/**",
-				"lib/**",
+				"$TURBO_ROOT$/pnpm-lock.yaml",
+				"$TURBO_ROOT$/tsconfig.json",
+				"README.md",
+				"LICENSE",
 				"package.json",
-				"rslib.config.ts",
-				"tsconfig.json"
+				"tsconfig.json",
+				"*.ts",
+				"*.mts",
+				"*.cts",
+				"public/**/*",
+				"lib/**/*",
+				"src/**/*"
 			],
 			"outputLogs": "full",
-			"outputs": ["dist/npm/**", ".rslib/declarations/npm/**"]
+			"outputs": ["dist/prod/**"]
 		},
 		"types:check": {
 			"cache": true,
-			"dependsOn": [],
+			"dependsOn": ["^build:dev"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
-				"$TURBO_ROOT$/package.json",
-				"$TURBO_ROOT$/pnpm-lock.yaml",
-				"$TURBO_ROOT$/pnpm-workspace.yaml",
-				"$TURBO_ROOT$/vitest.*.ts",
-				"$TURBO_ROOT$/lib/**",
-				"__test__/**",
-				"src/**",
-				"lib/**",
-				"package.json",
-				"rslib.config.ts",
-				"tsconfig.json"
+				"*.ts",
+				"*.mts",
+				"*.cts",
+				"src/**/*.ts",
+				"src/**/*.tsx",
+				"src/**/*.mts",
+				"src/**/*.cts",
+				"lib/**/*.ts",
+				"lib/**/*.tsx",
+				"lib/**/*.mts",
+				"lib/**/*.cts",
+				"__test__/**/*.ts",
+				"__test__/**/*.tsx",
+				"__test__/**/*.mts",
+				"__test__/**/*.cts"
 			],
-			"outputLogs": "full",
+			"outputLogs": "errors-only",
 			"outputs": ["dist/.tsbuildinfo.lib"]
 		}
 	}

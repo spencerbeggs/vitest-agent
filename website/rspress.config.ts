@@ -27,7 +27,7 @@ export default defineConfig({
 		ApiExtractorPlugin({
 			siteUrl: "https://vitest-agent.dev",
 			logLevel: "info",
-			apis: ApiExtractorPlugin.api.fromModelsDir("./lib/models"),
+			apis: ApiExtractorPlugin.apis.fromDir("./lib/models"),
 		}),
 	],
 });
