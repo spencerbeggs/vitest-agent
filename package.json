@@ -17,7 +17,6 @@
 	"type": "module",
 	"scripts": {
 		"build": "turbo run build:dev build:prod",
-		"build:dev": "turbo run build:dev",
 		"build:docs": "turbo run build --filter=docs --output-logs=new-only",
 		"ci:build": "CI=\"true\" turbo run build:dev build:prod",
 		"ci:test": "CI=\"true\" vitest run --coverage",

@@ -29,6 +29,7 @@
 			"cache": true,
 			"dependsOn": ["build:dev"],
 			"inputs": ["$TURBO_DEFAULT$", "dist/dev/pkg/**"],
+			"outputLogs": "errors-only",
 			"outputs": ["dist/dev/meta/**"]
 		},
 		"build:prod": {

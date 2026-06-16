@@ -23,7 +23,7 @@
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:meta": "echo 'no op'",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "node savvy.build.ts --target dev",
+		"prepare": "turbo run build:dev --filter=vitest-agent-sidecar-win32-x64",
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {

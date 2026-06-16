@@ -23,11 +23,11 @@
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:meta": "node savvy.build.ts --target meta",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "node savvy.build.ts --target dev",
+		"prepare": "turbo run build:dev --filter=vitest-agent-sidecar-linux-arm64",
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.5.0",
+		"@savvy-web/bundler": "^0.6.0",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"typescript": "catalog:silk",
