@@ -61,12 +61,15 @@ if [ -n "$state_file" ] && [ -f "$state_file" ]; then
 	if [ -n "$subagent_agent_id" ]; then
 		ended_at_unix=$(date -u +%s)
 		# shellcheck disable=SC2086
-		_end_out=$(cd "$cwd" && $pm_exec vitest-agent agent end-agent \
+		_end_err=$(mktemp)
+		# shellcheck disable=SC2086
+		if ! (cd "$cwd" && $pm_exec vitest-agent agent end-agent \
 			--agent-id "$subagent_agent_id" \
 			--ended-at "$ended_at_unix" \
-			--cwd "$cwd" 2>&1) || {
-			hook_error "$_HOOK" "end-agent (subagent) rc=$? agent=$subagent_agent_id: $_end_out"
-		}
+			--cwd "$cwd" >/dev/null 2>"$_end_err"); then
+			hook_error "$_HOOK" "end-agent (subagent) agent=$subagent_agent_id: $(cat "$_end_err")"
+		fi
+		rm -f "$_end_err"
 		hook_debug "$_HOOK" "end-agent (subagent): ok agent=$subagent_agent_id"
 	fi
 	rm -f "$state_file"

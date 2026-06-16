@@ -58,14 +58,17 @@ hook_debug "$_HOOK" "INPUT session_id=$chat_id parent=$parent_chat_id synthetic_
 # without re-firing SessionStart for the new id. `record session-start`
 # is idempotent on `chat_id` (UPSERT via ON CONFLICT DO NOTHING):
 # no-op when the row already exists, bootstrap when it does not.
+_parent_err=$(mktemp)
 _parent_out=$(cd "$cwd" && $pm_exec vitest-agent agent record session-start \
 	--chat-id "$chat_id" \
 	--project "$project" \
 	--cwd "$cwd" \
 	--agent-kind main \
-	--started-at "$started_at" 2>&1) || {
-	hook_error "$_HOOK" "record session-start (parent bootstrap) rc=$? cc=$chat_id: $_parent_out"
+	--started-at "$started_at" 2>"$_parent_err") || {
+	_rc=$?
+	hook_error "$_HOOK" "record session-start (parent bootstrap) rc=$_rc cc=$chat_id: $(cat "$_parent_err")"
 }
+rm -f "$_parent_err"
 hook_debug "$_HOOK" "record session-start (parent bootstrap): $_parent_out"
 
 # Always link the subagent row to the parent main row via the orchestrator's
@@ -73,6 +76,7 @@ hook_debug "$_HOOK" "record session-start (parent bootstrap): $_parent_out"
 # hook payload, but Claude Code does not reliably populate that field for
 # context:fork dispatches, leaving the subagent row orphaned and breaking the
 # parent walk that `record-tdd-artifact` uses to find the open tdd_task.
+_session_err=$(mktemp)
 _session_out=$(cd "$cwd" && $pm_exec vitest-agent agent record session-start \
 	--chat-id "$subagent_session_key" \
 	--project "$project" \
@@ -80,9 +84,11 @@ _session_out=$(cd "$cwd" && $pm_exec vitest-agent agent record session-start \
 	--agent-kind subagent \
 	--agent-type tdd-task \
 	--parent-chat-id "$chat_id" \
-	--started-at "$started_at" 2>&1) || {
-	hook_error "$_HOOK" "record session-start rc=$? synthetic_key=$subagent_session_key: $_session_out"
+	--started-at "$started_at" 2>"$_session_err") || {
+	_rc=$?
+	hook_error "$_HOOK" "record session-start rc=$_rc synthetic_key=$subagent_session_key: $(cat "$_session_err")"
 }
+rm -f "$_session_err"
 hook_debug "$_HOOK" "record session-start: $_session_out"
 
 # Register the subagent in the agent-taxonomy stores. Source the
@@ -102,16 +108,21 @@ if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 		transcript_path="/synthetic/${subagent_session_key}.jsonl"
 	fi
 	# shellcheck disable=SC2086
+	# Capture stderr separately (not 2>&1): pnpm's stderr notices would otherwise
+	# corrupt the JSON jq parses below and zero out the subagent's agentId.
+	_register_err=$(mktemp)
 	_register_out=$(cd "$cwd" && $pm_exec vitest-agent agent register-agent \
 		--host-kind claude-code \
 		--agent-type claude-code-tdd-task \
 		--host-session-id "$subagent_session_key" \
 		--transcript-path "$transcript_path" \
 		--cwd "$cwd" \
-		--parent-agent-id "$VITEST_AGENT_MAIN_AGENT_ID" 2>&1) || {
-		hook_error "$_HOOK" "register-agent (subagent) rc=$? key=$subagent_session_key parent=$VITEST_AGENT_MAIN_AGENT_ID: $_register_out"
+		--parent-agent-id "$VITEST_AGENT_MAIN_AGENT_ID" 2>"$_register_err") || {
+		_rc=$?
+		hook_error "$_HOOK" "register-agent (subagent) rc=$_rc key=$subagent_session_key parent=$VITEST_AGENT_MAIN_AGENT_ID: $(cat "$_register_err")"
 		_register_out=""
 	}
+	rm -f "$_register_err"
 	if [ -n "$_register_out" ]; then
 		subagent_agent_id=$(echo "$_register_out" | jq -r '.agentId // ""' 2>/dev/null || echo "")
 		hook_debug "$_HOOK" "subagent registered: agentId=$subagent_agent_id parent=$VITEST_AGENT_MAIN_AGENT_ID"

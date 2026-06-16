@@ -37,11 +37,14 @@ ended_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # 1. Record a hook_fire turn so acceptance_metrics can track SessionEnd events.
 fire_payload=$(jq -nc --arg cc "$chat_id" \
 	'{type: "hook_fire", hook_kind: "SessionEnd", chat_id: $cc}')
+_fire_err=$(mktemp)
 _fire_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
 	--chat-id "$chat_id" \
-	"$fire_payload" 2>&1) || {
-	hook_error "$_HOOK" "record turn hook_fire rc=$? cc=$chat_id: $_fire_out"
+	"$fire_payload" 2>"$_fire_err") || {
+	_rc=$?
+	hook_error "$_HOOK" "record turn hook_fire rc=$_rc cc=$chat_id: $(cat "$_fire_err")"
 }
+rm -f "$_fire_err"
 hook_debug "$_HOOK" "record turn hook_fire: $_fire_out"
 
 # 2. Record the session end.
@@ -70,13 +73,16 @@ source_session_env "$chat_id"
 if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 	ended_at_unix=$(date -u +%s)
 	# shellcheck disable=SC2086
-	_end_out=$(cd "$cwd" && $pm_exec vitest-agent agent end-agent \
+	_end_err=$(mktemp)
+	# shellcheck disable=SC2086
+	if ! (cd "$cwd" && $pm_exec vitest-agent agent end-agent \
 		--agent-id "$VITEST_AGENT_MAIN_AGENT_ID" \
 		--host-session-id "$chat_id" \
 		--ended-at "$ended_at_unix" \
-		--cwd "$cwd" 2>&1) || {
-		hook_error "$_HOOK" "end-agent rc=$? cc=$chat_id agent=$VITEST_AGENT_MAIN_AGENT_ID: $_end_out"
-	}
+		--cwd "$cwd" >/dev/null 2>"$_end_err"); then
+		hook_error "$_HOOK" "end-agent cc=$chat_id agent=$VITEST_AGENT_MAIN_AGENT_ID: $(cat "$_end_err")"
+	fi
+	rm -f "$_end_err"
 	hook_debug "$_HOOK" "end-agent: ok agent=$VITEST_AGENT_MAIN_AGENT_ID"
 fi
 

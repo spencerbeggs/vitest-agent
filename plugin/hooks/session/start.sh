@@ -50,15 +50,19 @@ started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 hook_debug "$_HOOK" "INPUT session_id=$chat_id PROJECT_DIR=$PROJECT_DIR pm_exec=$pm_exec"
 
 # shellcheck disable=SC2086
+# Capture stderr separately (not 2>&1) so pnpm's config notices don't taint the recorded output logged below.
+_session_err=$(mktemp)
 _session_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent record session-start \
 	--chat-id "$chat_id" \
 	--project "$project" \
 	--cwd "$PROJECT_DIR" \
 	--agent-kind main \
 	--started-at "$started_at" \
-	$triage_flag 2>&1) || {
-	hook_error "$_HOOK" "record session-start rc=$? cc=$chat_id PROJECT_DIR=$PROJECT_DIR: $_session_out"
+	$triage_flag 2>"$_session_err") || {
+	_rc=$?
+	hook_error "$_HOOK" "record session-start rc=$_rc cc=$chat_id PROJECT_DIR=$PROJECT_DIR: $(cat "$_session_err")"
 }
+rm -f "$_session_err"
 hook_debug "$_HOOK" "record session-start: $_session_out"
 
 # 3b. Register the main agent in the agent-taxonomy stores (per-project agents
@@ -70,15 +74,22 @@ conversation_id=""
 main_agent_id=""
 if [ -n "$transcript_path" ]; then
 	# shellcheck disable=SC2086
+	# Capture stderr separately, not via 2>&1: pnpm emits config notices to stderr
+	# (e.g. the dual packageManager/devEngines WARN), and folding them into stdout
+	# corrupts the JSON the jq calls below parse — silently zeroing agentId and
+	# skipping the whole env block (sidecar binary included).
+	_register_err=$(mktemp)
 	_register_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent register-agent \
 		--host-kind claude-code \
 		--agent-type claude-code-main \
 		--host-session-id "$chat_id" \
 		--transcript-path "$transcript_path" \
-		--cwd "$PROJECT_DIR" 2>&1) || {
-		hook_error "$_HOOK" "register-agent rc=$? cc=$chat_id: $_register_out"
+		--cwd "$PROJECT_DIR" 2>"$_register_err") || {
+		_rc=$?
+		hook_error "$_HOOK" "register-agent rc=$_rc cc=$chat_id: $(cat "$_register_err")"
 		_register_out=""
 	}
+	rm -f "$_register_err"
 	if [ -n "$_register_out" ]; then
 		agent_id=$(echo "$_register_out" | jq -r '.agentId // ""' 2>/dev/null || echo "")
 		conversation_id=$(echo "$_register_out" | jq -r '.conversationId // ""' 2>/dev/null || echo "")
