@@ -7,7 +7,7 @@ This directory is a **file-based Claude Code plugin**. It is **not** a pnpm work
 - **Marketplace org/bot:** `spencerbeggs` (bot name not in the enabledPlugins key)
 - **Plugin name:** `vitest-agent`
 - **Installed as:** `"enabledPlugins": { "vitest-agent@spencerbeggs": true }` in `.claude/settings.json`
-- **Versioned independently** from the npm packages — the `version` field in `plugin/.claude-plugin/plugin.json` tracks plugin-specific releases. This independence is the source of the `[vitest-agent-<pkg>] version drift: …` stderr warning users may see when the marketplace plugin trails the npm release; see the root CLAUDE.md "Cross-package version drift" section.
+- **Versioned independently** from the npm packages — the `version` field in `plugin/.claude-plugin/plugin.json` tracks plugin-specific releases. This independence is the source of the `[@vitest-agent/<pkg>] version drift: …` stderr warning users may see when the marketplace plugin trails the npm release; see the root CLAUDE.md "Cross-package version drift" section.
 - **This plugin is the primary AI integration surface for the entire vitest-agent system.** The npm packages collect and store data; the plugin is what turns that data into agent behavior.
 
 ## Directory layout

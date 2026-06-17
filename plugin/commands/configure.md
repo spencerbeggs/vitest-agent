@@ -1,11 +1,11 @@
 ---
-description: View the resolved vitest-agent-plugin configuration
+description: View the resolved @vitest-agent/plugin configuration
 disable-model-invocation: true
 ---
 
-# Configure vitest-agent-plugin
+# Configure @vitest-agent/plugin
 
-Display the project's resolved `vitest-agent-plugin` configuration. This
+Display the project's resolved `@vitest-agent/plugin` configuration. This
 command is read-only — it parses the Vitest config and renders what is
 set; it never mutates the file. To change a setting, edit
 `vitest.config.ts` directly.

@@ -1,6 +1,6 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-12
 updated: 2026-05-23
@@ -18,18 +18,18 @@ related:
 dependencies: []
 ---
 
-# UI package (`vitest-agent-ui`)
+# UI package (`@vitest-agent/ui`)
 
-The pure rendering-primitives library. One internal stream feeds a shape-tailored 4 × 3 dispatcher matrix. The default reporter and the live Ink mount live in `vitest-agent-reporter`, not here: `vitest-agent-ui` does not ship a reporter, a live-mount factory or the dispatch-input helpers. It exposes the dispatcher primitives, the `RunEvent` reducer, the synthesizers and the `RunEventChannel` PubSub — the primitives a reporter is assembled *from*. It knows nothing about the reporter lifecycle.
+The pure rendering-primitives library. One internal stream feeds a shape-tailored 4 × 3 dispatcher matrix. The default reporter and the live Ink mount live in `@vitest-agent/reporter`, not here: `@vitest-agent/ui` does not ship a reporter, a live-mount factory or the dispatch-input helpers. It exposes the dispatcher primitives, the `RunEvent` reducer, the synthesizers and the `RunEventChannel` PubSub — the primitives a reporter is assembled *from*. It knows nothing about the reporter lifecycle.
 
-**npm name:** `vitest-agent-ui`
+**npm name:** `@vitest-agent/ui`
 **Location:** `packages/ui/`
-**Internal dependencies:** `vitest-agent-sdk`
-**Consumers:** `vitest-agent-reporter` (the only consumer today; the planned MCP triage-dashboard app is the anticipated second — see D34 / D41)
+**Internal dependencies:** `@vitest-agent/sdk`
+**Consumers:** `@vitest-agent/reporter` (the only consumer today; the planned MCP triage-dashboard app is the anticipated second — see D34 / D41)
 
 **Key external dependencies:**
 
-- `react`, `ink` — peer deps for the Ink half of every dispatcher cell. `vitest-agent-ui` renders *with* React/Ink but does not own the instance; its concrete consumer `vitest-agent-reporter` declares them as full dependencies and provides the peer.
+- `react`, `ink` — peer deps for the Ink half of every dispatcher cell. `@vitest-agent/ui` renders *with* React/Ink but does not own the instance; its concrete consumer `@vitest-agent/reporter` declares them as full dependencies and provides the peer.
 - `effect` — Schema, Match, PubSub, Stream, Layer, Context
 
 ---
@@ -38,7 +38,7 @@ The pure rendering-primitives library. One internal stream feeds a shape-tailore
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│            Vitest reporter lifecycle (vitest-agent-plugin)        │
+│            Vitest reporter lifecycle (managed by @vitest-agent/plugin)        │
 │  onTestRunStart → onTestModuleQueued → onTestCaseResult → …      │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -52,7 +52,7 @@ The pure rendering-primitives library. One internal stream feeds a shape-tailore
               ┌───────────────┴───────────────┐
               ▼                               ▼
    DefaultVitestAgentReporter         user-supplied onRunEvent tap
-   (in vitest-agent-reporter):        (optional, every mode)
+   (in @vitest-agent/reporter):        (optional, every mode)
    subscribes kit.runEvents,                  │
    drain fiber feeds createLiveInk            ▼
               │                          user callback
@@ -68,13 +68,13 @@ The pure rendering-primitives library. One internal stream feeds a shape-tailore
            dispatch(inputs, opts) → string  (ui primitives)
 ```
 
-`vitest-agent-ui` supplies the boxed primitives — the reducer, the synthesizers, the classifiers and the dispatcher. The orchestration around them (subscribing the channel, the drain fiber, the Ink mount lifecycle, the end-of-run render) lives in `DefaultVitestAgentReporter` in `vitest-agent-reporter`. One upstream, one canonical reducer fold, one dispatcher: live ingestion and end-of-run synthesis land at the same `RenderState` shape, and the dispatcher selects a cell by `(RunShape, RunOutcome)`.
+`@vitest-agent/ui` supplies the boxed primitives — the reducer, the synthesizers, the classifiers and the dispatcher. The orchestration around them (subscribing the channel, the drain fiber, the Ink mount lifecycle, the end-of-run render) lives in `DefaultVitestAgentReporter` in `@vitest-agent/reporter`. One upstream, one canonical reducer fold, one dispatcher: live ingestion and end-of-run synthesis land at the same `RenderState` shape, and the dispatcher selects a cell by `(RunShape, RunOutcome)`.
 
 ---
 
 ## The RunEvent taxonomy and reducer
 
-Schemas live in `packages/sdk/src/schemas/RunEvent.ts` and `packages/sdk/src/schemas/RenderState.ts`, re-exported through `vitest-agent-ui`. The `RunEvent` surface is complete — one variant per Vitest 4.x reporter hook that fits the event-sourced model; see [../schemas.md](../schemas.md) for the variant inventory and [./plugin.md](./plugin.md) for the hook-to-variant mapping the plugin emits.
+Schemas live in `packages/sdk/src/schemas/RunEvent.ts` and `packages/sdk/src/schemas/RenderState.ts`, re-exported through `@vitest-agent/ui`. The `RunEvent` surface is complete — one variant per Vitest 4.x reporter hook that fits the event-sourced model; see [../schemas.md](../schemas.md) for the variant inventory and [./plugin.md](./plugin.md) for the hook-to-variant mapping the plugin emits.
 
 The reducer (`packages/ui/src/reducer.ts`) is the pure `(state, event) => state` function; `reduceRenderStateAll(events, seed?)` is the fold helper. The variant union exceeds `pipe`'s 20-argument ceiling, so the reducer is a single `Match.tagsExhaustive` map keyed by `_tag` rather than a chain of per-tag `Match.when` calls. Adding a `RunEvent` variant forces an exhaustiveness compile failure until the new key is handled — `tagsExhaustive` preserves that discipline.
 
@@ -120,7 +120,7 @@ dispatchInk(inputs: DispatchInputs, opts: CellOptions): React.ReactElement | nul
 dispatcherTable                                                    // for test introspection
 ```
 
-`DispatchInputs` is plain TypeScript (no Effect Schema, no persistence) and lives in `packages/sdk/src/contracts/dispatcher.ts`. It carries `state`, `shape`, `outcome`, the per-project aggregates the workspace cells need (`ProjectSummary[]`), the optional trend summary and below-target file list, plus the resolved `runCommand`. The `buildDispatchInputs` and `resolveCellOptions` helpers that assemble these from a `ReporterRenderInput` and a `ReporterKit` no longer live in this package — they moved to `vitest-agent-reporter` with the default reporter. See [./reporter.md](./reporter.md).
+`DispatchInputs` is plain TypeScript (no Effect Schema, no persistence) and lives in `packages/sdk/src/contracts/dispatcher.ts`. It carries `state`, `shape`, `outcome`, the per-project aggregates the workspace cells need (`ProjectSummary[]`), the optional trend summary and below-target file list, plus the resolved `runCommand`. The `buildDispatchInputs` and `resolveCellOptions` helpers that assemble these from a `ReporterRenderInput` and a `ReporterKit` no longer live in this package — they moved to `@vitest-agent/reporter` with the default reporter. See [./reporter.md](./reporter.md).
 
 ### L1 MCP tool-pointer footer
 
@@ -153,7 +153,7 @@ dispatcherTable                                                    // for test i
 
 `StreamApp` is not byte-identical to `agent` mode — it is its own renderer, agent-*shaped* but human-tuned (color, animation, no LLM-only affordances). Its layout mirrors the agent view's structure and grows downward: a `Projects (N):` / `Modules (N):` / file-path header, then rows, then (for aggregate shapes) a `Failures (N):` section, then Coverage, Trend and a bottom `Total:` line. There is no top summary line. Sections render only when their slice of `RenderState` exists, so they scale by run shape — `workspace` and `single-project` carry every section, `single-file` always keeps Total and shows Coverage / Trend when the run produced them, `single-test` is a single leaf line and nothing else.
 
-`render-ink/` components: `ProjectRow.tsx` is the leaf for the `workspace` shape's per-project rows. `CountColumns.tsx` renders the four fixed glyph count columns — pass `✓`, fail `✗`, skip `↷`, timeout `⧖` — that every aggregate row (project, module) carries, with zero counts dimmed; it is the shared column renderer. `FailuresSection.tsx` is the capped `Failures (N):` block for the aggregate shapes (`workspace`, `single-project`), which cannot expand errors inline; leaf-row shapes expand the error inline under the `✗` row instead. `TrendLine.tsx` is the one-line Trend renderer fed from `RenderState.trend`. `tag-suffix.ts` exports `formatTagSuffix`, the `tag:count` suffix aggregate rows append from `ModuleRecord.tagCounts`. `StatusIcon` carries a `"timed-out"` kind (glyph `⧖`). `spinner.ts` is a small helper exposing a hand-rolled Braille frame array — no `ink-spinner` dependency. The spinner frame index and the ticking elapsed column are driven by the animation clock in `vitest-agent-reporter`'s `createLiveInk`, which passes the wall-clock-derived frame index to `StreamApp` as a prop; see [./reporter.md](./reporter.md).
+`render-ink/` components: `ProjectRow.tsx` is the leaf for the `workspace` shape's per-project rows. `CountColumns.tsx` renders the four fixed glyph count columns — pass `✓`, fail `✗`, skip `↷`, timeout `⧖` — that every aggregate row (project, module) carries, with zero counts dimmed; it is the shared column renderer. `FailuresSection.tsx` is the capped `Failures (N):` block for the aggregate shapes (`workspace`, `single-project`), which cannot expand errors inline; leaf-row shapes expand the error inline under the `✗` row instead. `TrendLine.tsx` is the one-line Trend renderer fed from `RenderState.trend`. `tag-suffix.ts` exports `formatTagSuffix`, the `tag:count` suffix aggregate rows append from `ModuleRecord.tagCounts`. `StatusIcon` carries a `"timed-out"` kind (glyph `⧖`). `spinner.ts` is a small helper exposing a hand-rolled Braille frame array — no `ink-spinner` dependency. The spinner frame index and the ticking elapsed column are driven by the animation clock in `@vitest-agent/reporter`'s `createLiveInk`, which passes the wall-clock-derived frame index to `StreamApp` as a prop; see [./reporter.md](./reporter.md).
 
 Tall-output handling: a `workspace` frame with a Failures section can exceed a short terminal's height, and Ink cannot redraw in place when that happens. `StreamApp` renders finished `workspace` / `single-project` rows through Ink's `<Static>` region — committed once to scrollback, never redrawn — and keeps only the live tail (running rows, the ticking Total) in the dynamic region, so a tall frame does not stack stale frames in scrollback.
 
@@ -161,7 +161,7 @@ Tall-output handling: a `workspace` frame with a Failures section can exceed a s
 
 ## The default reporter does not live here
 
-The default reporter (public as `DefaultVitestAgentReporter`), the live Ink mount driver and the dispatch helpers (`buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport`) live in `vitest-agent-reporter` — see [./reporter.md](./reporter.md). `vitest-agent-ui` is the layer those things are *built from*; it ships only the dispatcher primitives, the reducer, the synthesizers and the PubSub channel.
+The default reporter (public as `DefaultVitestAgentReporter`), the live Ink mount driver and the dispatch helpers (`buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport`) live in `@vitest-agent/reporter` — see [./reporter.md](./reporter.md). `@vitest-agent/ui` is the layer those things are *built from*; it ships only the dispatcher primitives, the reducer, the synthesizers and the PubSub channel.
 
 ---
 
@@ -182,7 +182,7 @@ The package entrypoint (`packages/ui/src/index.ts`) re-exports the rendering pri
 Two converters in `packages/ui/src/synthesize.ts`:
 
 - `synthesizeRunEvents(modules, options?)` — accepts duck-typed `VitestTestModule[]`. Walks modules plus children, builds a `RunStarted → per-module → per-test → RunFinished` sequence. Bridge for any batch context that has the live module shape.
-- `synthesizeFromAgentReport(report, options?)` — accepts the persisted `AgentReport`. Only failed modules carry per-test detail; passed-only modules summarize via `summary.passed`. Used by `DefaultVitestAgentReporter.render` (in `vitest-agent-reporter`) and the CLI helpers.
+- `synthesizeFromAgentReport(report, options?)` — accepts the persisted `AgentReport`. Only failed modules carry per-test detail; passed-only modules summarize via `summary.passed`. Used by `DefaultVitestAgentReporter.render` (in `@vitest-agent/reporter`) and the CLI helpers.
 
 ---
 
@@ -211,4 +211,4 @@ See `../decisions.md` for the recorded design choices:
 
 ## CURRENT_UI_VERSION
 
-`packages/ui/src/index.ts` exports `CURRENT_UI_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`). The constant participates in the shared shape test at `packages/sdk/__test__/version-constants-shape.test.ts` (asserts all six runtime `CURRENT_*_VERSION` strings are non-empty and lockstep-equal) and in `packages/ui/__test__/version-constant.test.ts` (asserts it matches `packages/ui/package.json#version`). No init-time drift check compares against `CURRENT_UI_VERSION` because `vitest-agent-ui` is consumed transitively through the plugin and is not a hard peer dependency. See D36 in [../decisions.md](../decisions.md).
+`packages/ui/src/index.ts` exports `CURRENT_UI_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`). The constant participates in the shared shape test at `packages/sdk/__test__/version-constants-shape.test.ts` (asserts all six runtime `CURRENT_*_VERSION` strings are non-empty and lockstep-equal) and in `packages/ui/__test__/version-constant.test.ts` (asserts it matches `packages/ui/package.json#version`). No init-time drift check compares against `CURRENT_UI_VERSION` because `@vitest-agent/ui` is consumed transitively through the plugin and is not a hard peer dependency. See D36 in [../decisions.md](../decisions.md).

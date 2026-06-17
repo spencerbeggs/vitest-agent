@@ -49,7 +49,7 @@ The plan's targets:
 
 Even the cheapest subcommand (inject-env, no I/O) sits at ~500ms because
 Node's cold-start cost dominates: loading `effect`, `@effect/cli`,
-`@effect/sql`, `@effect/sql-sqlite-node`, `vitest-agent-sdk`, plus the
+`@effect/sql`, `@effect/sql-sqlite-node`, `@vitest-agent/sdk`, plus the
 better-sqlite3 native binding takes most of the budget regardless of
 what the subcommand does.
 

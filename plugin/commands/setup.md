@@ -1,11 +1,11 @@
 ---
-description: Set up vitest-agent-plugin in the current project
+description: Set up @vitest-agent/plugin in the current project
 disable-model-invocation: true
 ---
 
-# Setup vitest-agent-plugin
+# Setup @vitest-agent/plugin
 
-Wire `vitest-agent-plugin` into this project's Vitest configuration and
+Wire `@vitest-agent/plugin` into this project's Vitest configuration and
 emit the canonical 2.0 config. Work through the seven steps below in
 order. The flow is deterministic — verify each prerequisite, then make a
 small number of edits to one config file.
@@ -18,9 +18,9 @@ version is below 4.1, stop and tell the user to install it first, e.g.
 `pnpm add -D vitest@latest`. Do not continue until Vitest 4.1+ is
 present — the plugin requires it.
 
-## 2. Verify `vitest-agent-plugin`
+## 2. Verify `@vitest-agent/plugin`
 
-Look for `vitest-agent-plugin` in `dependencies` or `devDependencies` of
+Look for `@vitest-agent/plugin` in `dependencies` or `devDependencies` of
 the project `package.json`. If it is missing, install it as a dev
 dependency with the project's package manager (npm / pnpm / yarn / bun —
 detect from the lockfile or the `packageManager` field). The plugin's
@@ -49,7 +49,7 @@ the final summary; the file is git-tracked and reversible.
 Write the project's Vitest config to this canonical shape:
 
 ```ts
-import { AgentPlugin } from "vitest-agent-plugin";
+import { AgentPlugin } from "@vitest-agent/plugin";
 import { defineConfig } from "vitest/config";
 
 export default async () => {

@@ -1,6 +1,6 @@
 ---
 name: configuration
-description: Guide vitest-agent-plugin configuration including thresholds, targets, output format, and plugin options. Use when setting up or modifying the plugin configuration.
+description: Guide @vitest-agent/plugin configuration including thresholds, targets, output format, and plugin options. Use when setting up or modifying the plugin configuration.
 disable-model-invocation: true
 ---
 
@@ -11,7 +11,7 @@ disable-model-invocation: true
 The plugin is configured via `AgentPlugin` in your Vitest config:
 
 ```typescript
-import { AgentPlugin } from "vitest-agent-plugin";
+import { AgentPlugin } from "@vitest-agent/plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -96,8 +96,8 @@ AgentPlugin({
 ### Live Ink animation for humans
 
 ```typescript
-import { AgentPlugin } from "vitest-agent-plugin";
-import { createLiveInk, eventSourcedReporter } from "vitest-agent-ui";
+import { AgentPlugin } from "@vitest-agent/plugin";
+import { createLiveInk, eventSourcedReporter } from "@vitest-agent/ui";
 
 const live = createLiveInk();
 

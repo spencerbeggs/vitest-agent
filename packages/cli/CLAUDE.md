@@ -1,4 +1,4 @@
-# vitest-agent-cli
+# @vitest-agent/cli
 
 The `@effect/cli`-based bin (`vitest-agent`) for utility functions, database management, and hook plumbing. For 2.0 the CLI is utility-only — MCP is the data path for test-landscape queries. The top-level tree is exactly three commands: `doctor`, `db`, and `agent`. Reads cached test data from SQLite via `DataReader`; never runs tests or calls AI providers. Required as a peerDependency by the plugin package.
 
@@ -14,7 +14,7 @@ src/
                          SidecarLive, registerAgentEffect, and the
                          lib/sidecar-paths.ts path helpers. Does NOT
                          re-export dispatch / injectEnv / exitCodeForTag —
-                         those moved to vitest-agent-sdk/dispatch
+                         those moved to @vitest-agent/sdk/dispatch
   commands/           -- thin @effect/cli Command wrappers
     doctor.ts          -- top-level `doctor` diagnostic
     db.ts              -- `db` parent: path / prune / reset / query
@@ -30,7 +30,7 @@ src/
     internal-inject-env.ts
     sidecar-paths.ts   -- path-resolution helpers + *_DB_FILENAME
                           constants; re-exported from src/index.ts.
-                          exitCodeForTag moved to vitest-agent-sdk
+                          exitCodeForTag moved to @vitest-agent/sdk
   layers/
     CliLive.ts        -- (dbPath, logLevel?, logFile?) composition:
                          DataReader + ProjectDiscovery + HistoryTracker
@@ -50,7 +50,7 @@ src/
 | `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand` plus the sidecar subcommands `register-agent`, `end-agent`, `inject-env` |
 | `lib/format-db-query.ts` | Pure tabular formatter for `db query` output: column headers, whitespace-padded rows, `(0 rows)` on empty; `--format json` emits a JSON array of row objects |
 | `lib/format-doctor.ts`, `lib/format-triage.ts`, `lib/format-wrapup.ts` | Pure formatting functions tested as plain functions; `format-triage` / `format-wrapup` are shared with the MCP package |
-| `lib/sidecar-paths.ts` | Path-resolution helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). Re-exported from `src/index.ts`. The dispatch core (`dispatch`, `injectEnv`, `exitCodeForTag`) moved to `vitest-agent-sdk/dispatch`; `agent.ts` imports `exitCodeForTag` / `injectEnv` from there |
+| `lib/sidecar-paths.ts` | Path-resolution helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). Re-exported from `src/index.ts`. The dispatch core (`dispatch`, `injectEnv`, `exitCodeForTag`) moved to `@vitest-agent/sdk/dispatch`; `agent.ts` imports `exitCodeForTag` / `injectEnv` from there |
 | `layers/CliLive.ts` | Composition layer for the CLI runtime |
 | `layers/SidecarLive.ts` | Composition layer backing the three sidecar subcommands under `agent` |
 
@@ -73,13 +73,13 @@ src/
   `formatFatalError(cause)` to stderr. Don't swap to `Effect.runPromise`
   at the top level; `runMain` handles signals and exit codes correctly
   for a CLI process.
-- **Bin name vs package name.** Package `vitest-agent-cli` publishes
+- **Bin name vs package name.** Package `@vitest-agent/cli` publishes
   the bin `vitest-agent` (no `-cli` suffix). The plugin's "Next steps"
   output references this short name.
 
 ## When working in this package
 
-- This package depends on `vitest-agent-sidecar` (not the reverse). `resolveSidecarBinaryPath` is imported from `vitest-agent-sidecar` to back the `agent sidecar-path` subcommand. The per-platform sidecar children no longer import the CLI — they bundle `dispatch` from `vitest-agent-sdk/dispatch`. The old `cli → sidecar → sidecar-<platform> → cli` cycle is gone.
+- This package depends on `@vitest-agent/sidecar` (not the reverse). `resolveSidecarBinaryPath` is imported from `@vitest-agent/sidecar` to back the `agent sidecar-path` subcommand. The per-platform sidecar children no longer import the CLI — they bundle `dispatch` from `@vitest-agent/sdk/dispatch`. The old `cli → sidecar → sidecar-<platform> → cli` cycle is gone.
 - Adding a subcommand: create or extend the `commands/<group>.ts`
   `@effect/cli` glue and wire it into the relevant parent's
   `withSubcommands` (`db`, `agent`, or the root in `bin.ts`). Only add
@@ -94,7 +94,7 @@ src/
   `{ "updated": N, "latestTestCaseId": <id|null> }`. Follow this
   pattern for any subcommand that needs to both mutate and read back
   a result.
-- Need a new `DataReader` query: add it to `vitest-agent-sdk`'s `DataReader`
+- Need a new `DataReader` query: add it to `@vitest-agent/sdk`'s `DataReader`
   service, then consume it from the command body. Don't reach into
   SQLite directly from the CLI — except `db query`, which opens
   `data.db` read-only by design.
@@ -137,11 +137,11 @@ src/
 - `agent register-agent` — composes projectKey resolution, RunContext git capture, PerClientSessionMapWriter, and DataStore.registerAgent end-to-end. Emits JSON to stdout with `agentId`, `conversationId`, `mainAgentId`, `idempotencyKey`, `idempotencyHit`. Hook scripts parse via `jq -r '.agentId'`.
 - `agent end-agent` — sets `agents.ended_at` and optionally `session_map.ended_at` when `--host-session-id` is passed. SubagentStop omits the latter.
 - `agent inject-env` — pure pattern matcher. Reads `VITEST_AGENT_*` from env and `package.json#scripts` from cwd; rewrites the command with the env prefix on Vitest match, returns the original on no-match.
-- `agent sidecar-path` — calls `resolveSidecarBinaryPath()` from `vitest-agent-sidecar` and prints the absolute path of the installed platform binary to stdout (exit 0), or exits non-zero when no platform binary is resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`.
+- `agent sidecar-path` — calls `resolveSidecarBinaryPath()` from `@vitest-agent/sidecar` and prints the absolute path of the installed platform binary to stdout (exit 0), or exits non-zero when no platform binary is resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`.
 
 The sidecar subcommand bodies live in `lib/internal-*.ts`.
 
-**Barrel exports.** `src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect`, and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `vitest-agent-sdk/dispatch` entry point. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `vitest-agent-sdk/dispatch`, and the per-platform `vitest-agent-sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `vitest-agent-cli` depends on `vitest-agent-sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
+**Barrel exports.** `src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect`, and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `@vitest-agent/sdk/dispatch` entry point. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `@vitest-agent/sdk/dispatch`, and the per-platform `@vitest-agent/sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
 
 **SidecarLive layer** (`layers/SidecarLive.ts`) composes three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — plus the platform context. Each store gets its own `SqlClient` connection.
 

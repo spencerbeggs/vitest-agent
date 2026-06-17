@@ -1,6 +1,6 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-03-20
 updated: 2026-06-12
@@ -287,7 +287,7 @@ package; the plugin installs a Vite `transform` hook (see
 and `it()` call's options argument with a tags array derived from
 filename classification (`*.e2e.test.ts` → `["e2e"]`, etc.). The
 classifier and tag declarations live on `DiscoverStrategy` in
-`vitest-agent-plugin` — see Decision 39. `AgentPlugin.discover()` returns
+`@vitest-agent/plugin` — see Decision 39. `AgentPlugin.discover()` returns
 `{ projects, tags }` so the tag list flows directly into `test.tags`.
 
 Storage uses one `project` column keyed by package name. Per-tag
@@ -375,7 +375,7 @@ migrator's transaction boundaries are not ours to rewrite.
    `<projectDir>/package.json`, then by lockfile presence
    (`pnpm-lock.yaml` → pnpm, `bun.lock`/`bun.lockb` → bun, `yarn.lock`
    → yarn, `package-lock.json` → npm). Default `npm`.
-3. `exec`-replace the shell with `<pm-exec> vitest-agent-mcp`, exporting
+3. `exec`-replace the shell with `<pm-exec> vitest-agent-mcp` (the bin name), exporting
    `VITEST_AGENT_REPORTER_PROJECT_DIR=projectDir`. PM commands are
    `pnpm exec`, `npx --no-install`, `yarn run`, `bun x`.
 4. Print PM-specific install instructions and exit 1 if the bin is missing.
@@ -386,7 +386,7 @@ the PM process; there is no shell wrapper. A Node.js fallback loader
 `plugin.json` is changed to reference it.
 
 **Why this shape:** the MCP server is its own package
-(`vitest-agent-mcp`) with its own bin. The user's PM already knows how
+(`@vitest-agent/mcp`) with its own bin. The user's PM already knows how
 to find and execute project bins; re-implementing that resolution in
 the loader is the wrong layer. A missing peer dep surfaces as a
 PM-level error with PM-native install instructions, not "couldn't find
@@ -403,7 +403,7 @@ loader resolved.
 
 **Trade-off:** the loader knows about four PMs and their `exec`
 syntaxes. Keeping that table current is a small maintenance cost.
-`vitest-agent-mcp` is a required `peerDependency` of the plugin, which
+`@vitest-agent/mcp` is a required `peerDependency` of the plugin, which
 npm 7+ and pnpm auto-install, so installing the plugin lands the MCP
 server's bin at the consumer's top level where the loader's PM `exec`
 resolves it.
@@ -489,12 +489,12 @@ race.
 
 The dependency graph is a four-layer chain — `plugin → reporter → ui → sdk`
 — across seven publishable workspaces (the four above plus `cli`, `mcp` and
-`sidecar`). `vitest-agent-plugin` has no direct `vitest-agent-ui`
-dependency: it imports the default reporter from `vitest-agent-reporter` and
+`sidecar`). `@vitest-agent/plugin` has no direct `@vitest-agent/ui`
+dependency: it imports the default reporter from `@vitest-agent/reporter` and
 nothing from `ui`. `react` + `ink` are full `dependencies` of
-`vitest-agent-reporter` (the plugin does not touch JSX); `ui` keeps them as
+`@vitest-agent/reporter` (the plugin does not touch JSX); `ui` keeps them as
 `peerDependencies`. The sidecar dispatch core (`dispatch`, `injectEnv`,
-`exitCodeForTag`) lives in `vitest-agent-sdk` behind a dedicated `./dispatch`
+`exitCodeForTag`) lives in `@vitest-agent/sdk` behind a dedicated `./dispatch`
 entry, so the per-platform sidecar children depend on the SDK rather than the
 CLI — there is no workspace dependency cycle. See
 [./components/sdk.md](./components/sdk.md) and
@@ -504,28 +504,28 @@ The seven workspaces under `packages/`:
 
 | Package | Role |
 | --- | --- |
-| `vitest-agent-sdk` | data layer, schemas, services, formatters, utilities, XDG path stack, sidecar dispatch core (`./dispatch` entry) — no internal deps |
-| `vitest-agent-plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter and sdk directly (not on ui). Owns no rendering |
-| `vitest-agent-reporter` | the default reporter package: `DefaultVitestAgentReporter` (the plugin's built-in factory, owns the Ink live mount), contract re-exports, dispatch helpers. Declares `react` + `ink` as full deps; depends on sdk and ui |
-| `vitest-agent-ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, `RunEventChannel` PubSub). Consumed by `vitest-agent-reporter`; `react` / `ink` are `peerDependencies` |
-| `vitest-agent-cli` | `vitest-agent` bin |
-| `vitest-agent-mcp` | `vitest-agent-mcp` bin |
-| `vitest-agent-sidecar` | per-Bash `inject-env` fast-path native binary; a regular `dependency` of `vitest-agent-cli` |
+| `@vitest-agent/sdk` | data layer, schemas, services, formatters, utilities, XDG path stack, sidecar dispatch core (`./dispatch` entry) — no internal deps |
+| `@vitest-agent/plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter and sdk directly (not on ui). Owns no rendering |
+| `@vitest-agent/reporter` | the default reporter package: `DefaultVitestAgentReporter` (the plugin's built-in factory, owns the Ink live mount), contract re-exports, dispatch helpers. Declares `react` + `ink` as full deps; depends on sdk and ui |
+| `@vitest-agent/ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, `RunEventChannel` PubSub). Consumed by `@vitest-agent/reporter`; `react` / `ink` are `peerDependencies` |
+| `@vitest-agent/cli` | `vitest-agent` bin |
+| `@vitest-agent/mcp` | `vitest-agent-mcp` bin |
+| `@vitest-agent/sidecar` | per-Bash `inject-env` fast-path native binary; a regular `dependency` of `@vitest-agent/cli` |
 
 The six non-sidecar packages release in lockstep via changesets `linked`
-config; `vitest-agent-sidecar` versions independently. The plugin
+config; `@vitest-agent/sidecar` versions independently. The plugin
 declares the CLI and MCP packages as **required** `peerDependencies` so
 installing the plugin still pulls the agent tooling with it;
-`vitest-agent-reporter`, `vitest-agent-sdk` and `vitest-agent-ui` are
-regular `dependencies` of the plugin, not peers. `vitest-agent-sidecar`
+`@vitest-agent/reporter`, `@vitest-agent/sdk` and `@vitest-agent/ui` are
+regular `dependencies` of the plugin, not peers. `@vitest-agent/sidecar`
 is not a direct plugin peer at all — it is a regular `dependency` of
-`vitest-agent-cli`, so the auto-installed cli peer drags it in
+`@vitest-agent/cli`, so the auto-installed cli peer drags it in
 transitively.
 
 **Why this split:** the shared package boundary is determined by "what
 does more than one runtime package need". The data layer, output
 pipeline, path-resolution stack and dispatch core are all needed by
-more than one runtime, so they live in `vitest-agent-sdk` — circular
+more than one runtime, so they live in `@vitest-agent/sdk` — circular
 imports are impossible by construction. The CLI/MCP split is a
 module-boundary decision: `@effect/cli` is the CLI's own concern and
 the MCP SDK + tRPC + zod stack is the MCP server's own concern, so
@@ -541,40 +541,40 @@ relationship rather than regular dependencies because npm 7+ and pnpm
 and a peer-installed package lands at the consumer's top level — so the
 `vitest-agent` and `vitest-agent-mcp` bins resolve for the Claude Code
 plugin's hook scripts. A transitively-nested regular dependency's bin
-would not. The published `vitest-agent-plugin` carries real registry
+would not. The published `@vitest-agent/plugin` carries real registry
 version ranges for these peers (rslib-builder rewrites the `workspace:*`
 protocol to concrete versions at publish time), so the auto-install
 resolves against the registry. In the monorepo dev workspace the peers
 are `workspace:*` ranges that `autoInstallPeers` cannot satisfy from the
-registry, so the root `package.json` declares `vitest-agent-cli` and
-`vitest-agent-mcp` directly as devDependencies and `pnpm-workspace.yaml`
+registry, so the root `package.json` declares `@vitest-agent/cli` and
+`@vitest-agent/mcp` directly as devDependencies and `pnpm-workspace.yaml`
 adds a `publicHoistPattern` for both so their bins land in the root
 `node_modules/.bin`.
 
 **Trade-offs:** every source `package.json` is `private: true`
 (rslib-builder transforms each on publish), and consumers importing schemas
-use `from "vitest-agent-sdk"`.
+use `from "@vitest-agent/sdk"`.
 
 ### Decision 34: Plugin/Reporter Split
 
-`vitest-agent-plugin` (`packages/plugin/`) owns the Vitest plugin, the
+`@vitest-agent/plugin` (`packages/plugin/`) owns the Vitest plugin, the
 internal `AgentReporter` Vitest-API class, `CoverageAnalyzer`,
 `ReporterLive`, and reporter-side utilities. It constructs a
 `ReporterKit`, calls the user-supplied factory, concatenates
 `RenderedOutput[]`, and routes by target.
 
-`vitest-agent-reporter` (`packages/reporter/`) is the default reporter
+`@vitest-agent/reporter` (`packages/reporter/`) is the default reporter
 package and the reference package for custom-reporter authors. It ships
 `DefaultVitestAgentReporter` — the preassembled `VitestAgentReporterFactory`
 the plugin wires as its built-in — and re-exports the factory contract
-types from `vitest-agent-sdk` plus the `buildDispatchInputs` /
+types from `@vitest-agent/sdk` plus the `buildDispatchInputs` /
 `resolveCellOptions` dispatch helpers so a custom-reporter author gets a
 real worked example and everything they need from one package. There are no
 per-format named factories — the shape-tailored dispatcher matrix replaced
 that pipeline. See D41 for the dispatcher rationale and the **Where the
 default reporter lives** note below.
 
-Contract types in `vitest-agent-sdk`
+Contract types in `@vitest-agent/sdk`
 (`packages/sdk/src/contracts/reporter.ts`):
 `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`,
 `VitestAgentReporter` (single sync `render(input, kit)` method returning
@@ -607,9 +607,9 @@ their `RenderedOutput[]` results are concatenated in factory-
 declaration order before routing.
 
 **Where the default reporter lives.** `DefaultVitestAgentReporter` and the
-live Ink mount live in `vitest-agent-reporter`, the package that assembles a
-reporter from the `vitest-agent-ui` primitives and is the canonical worked
-example for custom-reporter authors. `vitest-agent-ui` is the pure
+live Ink mount live in `@vitest-agent/reporter`, the package that assembles a
+reporter from the `@vitest-agent/ui` primitives and is the canonical worked
+example for custom-reporter authors. `@vitest-agent/ui` is the pure
 rendering-primitives library. The two stay separately published — `ui`'s
 anticipated second consumer is the planned MCP triage-dashboard app, so
 merging then resplitting would cost two breaking changes. Live-rendering
@@ -618,8 +618,8 @@ plugin owns the run-event channel and hands it to the reporter. See D41 and
 [./components/reporter.md](./components/reporter.md).
 
 The Claude Code plugin manifest at
-`plugin/.claude-plugin/plugin.json` keeps the identity
-`vitest-agent-reporter` (a separate identity from the npm packages).
+`plugin/.claude-plugin/plugin.json` has the marketplace identity
+`vitest-agent@spencerbeggs` (a separate identity from the npm packages).
 Hook scripts call the CLI bin `vitest-agent`.
 
 ### Decision 35: MCP Resources and Prompts (Two URI Schemes, Framing-Only Prompts)
@@ -811,15 +811,15 @@ factory in `packages/plugin/src/plugin.ts` compares
 `CURRENT_REPORTER_VERSION` (gated by a module-level `_hasWarnedDrift`
 flag so multi-project Vitest configs only warn once per process; a
 test-only `_resetVersionDriftGuardForTests` hook re-arms it); the
-`vitest-agent-mcp` bin compares `CURRENT_MCP_VERSION` against
+The `vitest-agent-mcp` bin compares `CURRENT_MCP_VERSION` against
 `CURRENT_SDK_VERSION` inside `main()`; the `vitest-agent` CLI bin
 compares `CURRENT_CLI_VERSION` against `CURRENT_SDK_VERSION` before
 `Command.run`. Each mismatch emits one stderr line of the form
-`[vitest-agent-<pkg>] version drift: <pkg>@<myVersion> with
-<peer>@<peerVersion>. Reinstall vitest-agent-* packages so versions
+`[@vitest-agent/<pkg>] version drift: <pkg>@<myVersion> with
+<peer>@<peerVersion>. Reinstall @vitest-agent/* packages so versions
 match.` and continues — the check is observation-only. The plugin
 intentionally does not compare against `CURRENT_UI_VERSION` because
-`vitest-agent-ui` is not a hard peer dependency.
+`@vitest-agent/ui` is not a hard peer dependency.
 
 **Why build-inlined (vs runtime `package.json` read):** the inlined
 constant has no I/O cost, no path-resolution failure mode, and no
@@ -847,7 +847,7 @@ the lockfile ever lies (npm's looser peer-dep enforcement, manual
 distribution through the Claude marketplace (D20). Its release cadence
 is decoupled from npm's. The plugin's loader (D30) shells out to the
 user's package manager to spawn the MCP server — whichever version
-of `vitest-agent-mcp` the consumer's lockfile resolves is what the
+of `@vitest-agent/mcp` the consumer's lockfile resolves is what the
 plugin gets. The MCP server's startup version check is the gate that
 catches plugin-vs-MCP drift if it happens.
 
@@ -1217,9 +1217,9 @@ renderers. Each cell exposes two halves on the same object — an
 stays total without a default fallback.
 
 **3. The default reporter is preassembled and the plugin imports it as the
-built-in.** `DefaultVitestAgentReporter` lives in `vitest-agent-reporter` —
-see D34. `vitest-agent-reporter` is the default reporter package *and* the
-custom-reporter reference package; `vitest-agent-ui` is the pure
+built-in.** `DefaultVitestAgentReporter` lives in `@vitest-agent/reporter` —
+see D34. `@vitest-agent/reporter` is the default reporter package *and* the
+custom-reporter reference package; `@vitest-agent/ui` is the pure
 rendering-primitives layer the reporter is assembled from. The two stay
 separately published.
 
@@ -1284,7 +1284,7 @@ emits a no-op and exits. Layer 1 compares `VITEST_AGENT_AGENT_ID` against
 `VITEST_AGENT_MAIN_AGENT_ID` after the session env is sourced and skips the
 sidecar when the active actor is the main agent. Layers 0 and 1 together
 eliminate the sidecar from the large majority of Bash calls. Layer 2 is the
-`vitest-agent-sidecar` package — a native binary for the residual slow path.
+`@vitest-agent/sidecar` package — a native binary for the residual slow path.
 See [./components/plugin-claude.md](./components/plugin-claude.md) for the
 hook-level detail and [./components/sidecar.md](./components/sidecar.md) for
 the package.
@@ -1310,7 +1310,7 @@ SQLite binding (`@effect/sql-sqlite-node` → better-sqlite3) that cannot be
 bundled into a JavaScript SEA. It also fires only once per session, off the
 per-turn critical path, so the JS cold-start is tolerable there.
 
-**Distribution and fallback.** The binary ships per-platform via four `optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild / sharp model). darwin-x64 is intentionally not shipped — see [./components/sidecar.md](./components/sidecar.md). The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins; transitive optional-dependency bins are never placed in `node_modules/.bin/`. Instead, `resolveSidecarBinaryPath()` (exported from `vitest-agent-sidecar`) resolves the path via `createRequire(import.meta.url).resolve` anchored inside the sidecar package, which is the `optionalDependencies` owner. The SessionStart hook calls `vitest-agent agent sidecar-path` once per session, captures the absolute path from stdout, and exports it as `VITEST_AGENT_SIDECAR_BIN`. Layer 2 reads this env var instead of probing `PATH`. When the var is absent or the binary non-executable — unsupported platform or skipped optional dependency — the hook falls back to the JS CLI, byte-identical output, so attribution degrades gracefully rather than breaking.
+**Distribution and fallback.** The binary ships per-platform via four `optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild / sharp model). darwin-x64 is intentionally not shipped — see [./components/sidecar.md](./components/sidecar.md). The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins; transitive optional-dependency bins are never placed in `node_modules/.bin/`. Instead, `resolveSidecarBinaryPath()` (exported from `@vitest-agent/sidecar`) resolves the path via `createRequire(import.meta.url).resolve` anchored inside the sidecar package, which is the `optionalDependencies` owner. The SessionStart hook calls `vitest-agent agent sidecar-path` once per session, captures the absolute path from stdout, and exports it as `VITEST_AGENT_SIDECAR_BIN`. Layer 2 reads this env var instead of probing `PATH`. When the var is absent or the binary non-executable — unsupported platform or skipped optional dependency — the hook falls back to the JS CLI, byte-identical output, so attribution degrades gracefully rather than breaking.
 
 **Measured outcome.** The hot path is roughly an order of magnitude faster
 than the unconditional JS shell-out; the subagent-binary path sits between
@@ -1656,7 +1656,7 @@ register-agent`, which runs Node, captures git context via the Effect-side
 `RunContext` service, generates `clientNonce`, and writes through to both
 the per-project `data.db` and the per-client session map in a single
 process. The sidecar subcommands are the `agent` namespace of the existing
-`vitest-agent-cli` package — no separate distribution, no separate release.
+`@vitest-agent/cli` package — no separate distribution, no separate release.
 
 **Performance constraint:** Node cold-start is acceptable for SessionStart
 and SubagentStart (one-shot per session/subagent) but unacceptable for

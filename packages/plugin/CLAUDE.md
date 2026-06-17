@@ -1,19 +1,19 @@
-# vitest-agent-plugin
+# @vitest-agent/plugin
 
 The Vitest plugin (`AgentPlugin()`) and internal `AgentReporter` Vitest-API
 class. Owns the Vitest lifecycle hooks, persistence, classification,
 baseline/trend computation, and delegates rendering entirely to a
 `VitestAgentReporterFactory` — it injects `DefaultVitestAgentReporter` from
-`vitest-agent-reporter` when the user does not pass a custom `reporter`
+`@vitest-agent/reporter` when the user does not pass a custom `reporter`
 option, and never touches rendering itself. The reporter owns mode
-branching and the Ink live-mount lifecycle. Declares `vitest-agent-cli`
-and `vitest-agent-mcp` as required `peerDependencies` (alongside the
+branching and the Ink live-mount lifecycle. Declares `@vitest-agent/cli`
+and `@vitest-agent/mcp` as required `peerDependencies` (alongside the
 Vitest-side peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`,
 `@vitest/coverage-istanbul`), plus regular workspace `dependencies` on
-`vitest-agent-reporter` and `vitest-agent-sdk`. The plugin no longer
-depends on `vitest-agent-ui`, `react`, or `ink` — `reporter` pulls those
-transitively. `vitest-agent-sidecar` is not a direct dependency — it
-arrives transitively through the required `vitest-agent-cli` peer.
+`@vitest-agent/reporter` and `@vitest-agent/sdk`. The plugin no longer
+depends on `@vitest-agent/ui`, `react`, or `ink` — `reporter` pulls those
+transitively. `@vitest-agent/sidecar` is not a direct dependency — it
+arrives transitively through the required `@vitest-agent/cli` peer.
 
 ## Layout
 
@@ -67,8 +67,8 @@ src/
 
 | File | Purpose |
 | ---- | ------- |
-| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + executor + console matrix → single `ConsoleMode` value; strips Vitest reporters and suppresses Vitest's coverage table whenever the resolved mode owns stdout (any value other than `passthrough`); forwards the user's `onRunEvent` tap unconditionally for every consoleMode (the T6 rewrite removed the previous `stream`-only gating); injects `DefaultVitestAgentReporter` from `vitest-agent-reporter` when no `reporter` option is supplied; injects `AgentReporter` per project via `configureVitest`. Resolves `coverageMode` from Vitest's native `coverage.enabled` and threads it onto `ResolvedReporterConfig`. Runs the `ConfigValidation` service in `configureVitest` (warnings to stderr via `[vitest-agent:plugin]`; errors throw via `formatFatalError`). Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, `COVERAGE_AUTOUPDATE`, and `discover()` |
-| `reporter.ts` | Internal `AgentReporter` class. Imports `DefaultVitestAgentReporter` from `vitest-agent-reporter`; imports nothing from `vitest-agent-ui`. Creates an Effect `PubSub` run-event channel and publishes one `RunEvent` per Vitest streaming callback onto it; it wires every Vitest reporter hook, so the channel carries the complete `RunEvent` surface. The channel rides `ReporterKit.runEvents` (optional field). The reporter factory is invoked at run start (`onInit`) so a live reporter can subscribe before the first event — the plugin no longer drives the Ink mount, holds a `liveInk` field, or calls `hasSubscribers()`. `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline in Full mode, then calls `opts.reporter.render(input, kit)` and routes `RenderedOutput[]`. In UI-only mode (`opts.coverageMode === "ui-only"`), the handler short-circuits after `RunFinished` and `filteredModules`: builds reports via `buildAgentReport`, runs a tiny `OutputPipelineLive` + `NodeContext.layer` program to resolve env/executor/format/detail, builds the kit, and routes the renderer output. No `ensureMigrated`, no `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker` |
+| `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + executor + console matrix → single `ConsoleMode` value; strips Vitest reporters and suppresses Vitest's coverage table whenever the resolved mode owns stdout (any value other than `passthrough`); forwards the user's `onRunEvent` tap unconditionally for every consoleMode (the T6 rewrite removed the previous `stream`-only gating); injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` when no `reporter` option is supplied; injects `AgentReporter` per project via `configureVitest`. Resolves `coverageMode` from Vitest's native `coverage.enabled` and threads it onto `ResolvedReporterConfig`. Runs the `ConfigValidation` service in `configureVitest` (warnings to stderr via `[vitest-agent:plugin]`; errors throw via `formatFatalError`). Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, `COVERAGE_AUTOUPDATE`, and `discover()` |
+| `reporter.ts` | Internal `AgentReporter` class. Imports `DefaultVitestAgentReporter` from `@vitest-agent/reporter`; imports nothing from `@vitest-agent/ui`. Creates an Effect `PubSub` run-event channel and publishes one `RunEvent` per Vitest streaming callback onto it; it wires every Vitest reporter hook, so the channel carries the complete `RunEvent` surface. The channel rides `ReporterKit.runEvents` (optional field). The reporter factory is invoked at run start (`onInit`) so a live reporter can subscribe before the first event — the plugin no longer drives the Ink mount, holds a `liveInk` field, or calls `hasSubscribers()`. `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline in Full mode, then calls `opts.reporter.render(input, kit)` and routes `RenderedOutput[]`. In UI-only mode (`opts.coverageMode === "ui-only"`), the handler short-circuits after `RunFinished` and `filteredModules`: builds reports via `buildAgentReport`, runs a tiny `OutputPipelineLive` + `NodeContext.layer` program to resolve env/executor/format/detail, builds the kit, and routes the renderer output. No `ensureMigrated`, no `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker` |
 | `services/CoverageAnalyzer.ts` | Effect service tag for coverage processing. Only lives here because the reporter lifecycle class feeds it coverage data; CLI/MCP read pre-processed coverage from SQLite |
 | `services/ConfigValidation.ts` | Effect service tag `vitest-agent/ConfigValidation` with one method `validate(input): Effect<ValidationResult, never, never>`. `ValidationError` carries optional `path` for pinpointed diagnostics and optional `remediation` for install-command-style fixes |
 | `layers/ConfigValidationLive.ts` | Runs the seven-rule starter registry: `TARGET_WITHOUT_THRESHOLD` (warn), `TARGET_BELOW_THRESHOLD` (error), `THRESHOLD_WITHOUT_TARGET` (silent), `INVALID_TARGET_VALUE` (error, top + nested glob), `UNSUPPORTED_PROVIDER` (error, Full mode only), `MISSING_PROVIDER_PACKAGE` (error via `createRequire`, Full mode only, with install-command remediation), `PERFILE_ON_TARGETS` (warn). Mode resolution reads `vitestConfig.coverage?.enabled` — `false` → UI-only (skip provider rules), anything else → Full |
@@ -175,7 +175,7 @@ user wiring.
 ## When working in this package
 
 - Adding a new reporter option: extend `AgentPluginOptions` in
-  `vitest-agent-sdk`'s `schemas/Options.ts` for data-shaped fields, or
+  `@vitest-agent/sdk`'s `schemas/Options.ts` for data-shaped fields, or
   add it to the plugin's `AgentPluginConstructorOptions` companion
   interface for function-typed fields (the pattern `reporter` and
   `onRunEvent` already use). Thread it through `plugin.ts` ->
@@ -211,7 +211,7 @@ user wiring.
   existing user-supplied tags are preserved.
 - Adding a new utility that only this package uses: put it in
   `utils/`. If the utility is needed by MCP or CLI too, it belongs
-  in `vitest-agent-sdk/utils/` or `vitest-agent-sdk/lib/`.
+  in `@vitest-agent/sdk/utils/` or `@vitest-agent/sdk/lib/`.
 - Changing coverage behavior: `CoverageAnalyzer` lives in this package.
   CLI and MCP read pre-processed coverage from SQLite via `DataReader`;
   they never call `CoverageAnalyzer` directly.
@@ -267,7 +267,7 @@ single `ConsoleMode` value. Per-slot defaults:
 Two derived decisions follow from the resolved mode:
 
 1. **Stdout ownership.** Any non-`passthrough` value strips Vitest's reporters and suppresses Vitest's native coverage text reporter. The plugin owns stdout for the run.
-2. **Default reporter selection.** When no `reporter` option is supplied, the plugin injects `DefaultVitestAgentReporter` from `vitest-agent-reporter`. That reporter branches internally on `consoleMode` and owns the Ink live-mount lifecycle itself — the plugin only feeds it the run-event stream (via `ReporterKit.runEvents`) and the resolved kit.
+2. **Default reporter selection.** When no `reporter` option is supplied, the plugin injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter`. That reporter branches internally on `consoleMode` and owns the Ink live-mount lifecycle itself — the plugin only feeds it the run-event stream (via `ReporterKit.runEvents`) and the resolved kit.
 
 The T6 rewrite removed the per-consoleMode gating of the `onRunEvent` tap. The plugin now forwards the user's `onRunEvent` callback to `AgentReporter` for every consoleMode (`AgentReporter.emit` catches thrown taps and logs to stderr — persistence never breaks because a tap has a bug). Channel suppression for non-`stream` modes is the default reporter's responsibility, not the tap's. Tests for the unconditional-forwarding contract live in `__test__/reporter-streaming.test.ts`.
 
@@ -343,4 +343,4 @@ the result to every `test_runs` row:
 1. Source 1 — read `VITEST_AGENT_AGENT_ID` and `VITEST_AGENT_CONVERSATION_ID` from `process.env`. These are populated upstream by the SessionStart hook (writes to `CLAUDE_ENV_FILE`, auto-sourced into Bash subprocesses + the MCP server child), the PreToolUse Bash hook's `updatedInput.command` rewrite (per-call env prefix on Vitest invocations), and the MCP `run_tests` tool's `process.env` mutation from `SessionContextRef`. When set, the reporter records `actor_type='agent'` plus the canonical UUIDs.
 2. Source 3 — when no env vars are set, records `actor_type='system'` and NULL agent / conversation ids. CI runs and direct `pnpm vitest` invocations from a human at a terminal land here.
 
-Host metadata is captured via `probeHostMetadataFromEnv(process.env)` (the 9-tier probe chain in `vitest-agent-sdk`'s utils). Git context capture rides the `RunContext` service integration on the future per-run path; today the reporter passes the existing `GITHUB_SHA`/`GITHUB_REF_NAME` columns through the new `git_branch` / `git_commit_sha` slots. `host_metadata` serializes via `JSON.stringify`.
+Host metadata is captured via `probeHostMetadataFromEnv(process.env)` (the 9-tier probe chain in `@vitest-agent/sdk`'s utils). Git context capture rides the `RunContext` service integration on the future per-run path; today the reporter passes the existing `GITHUB_SHA`/`GITHUB_REF_NAME` columns through the new `git_branch` / `git_commit_sha` slots. `host_metadata` serializes via `JSON.stringify`.

@@ -1,13 +1,13 @@
 ---
-title: "vitest-agent-ui"
+title: "@vitest-agent/ui"
 description: Pure rendering primitives for vitest-agent. Owns the RunEvent reducer, the 12-cell dispatcher matrix, two render paths, a PubSub channel for live event transport, and the synthesizers.
 ---
 
-# vitest-agent-ui
+# @vitest-agent/ui
 
 Pure rendering primitives for vitest-agent. Owns the `RunEvent` reducer, the shape-tailored 12-cell dispatcher matrix, two render paths (agent string and React Ink tree), a PubSub channel for live event transport, and the synthesizers that bridge live Vitest data and stored reports into the event taxonomy.
 
-This package arrives automatically via `vitest-agent-reporter`. Install it directly only when building custom rendering on the primitives. React and Ink are required peer dependencies.
+This package arrives automatically via `@vitest-agent/reporter`. Install it directly only when building custom rendering on the primitives. React and Ink are required peer dependencies.
 
 ## Features
 
@@ -21,9 +21,9 @@ This package arrives automatically via `vitest-agent-reporter`. Install it direc
 ## Install
 
 ```bash
-npm install vitest-agent-ui
+npm install @vitest-agent/ui
 # or
-pnpm add vitest-agent-ui
+pnpm add @vitest-agent/ui
 ```
 
 React and Ink are required peers:
@@ -46,8 +46,8 @@ The 12-cell matrix routes by run shape and outcome. Shape is derived from how ma
 Each cell produces shape-appropriate copy: a single-test failure leads to a different agent string than a workspace-wide threshold violation. The matrix is the same for both the text (agent string) and Ink (live frame) render paths.
 
 ```ts
-import { dispatch, dispatchInk } from "vitest-agent-ui";
-import { buildDispatchInputs, resolveCellOptions } from "vitest-agent-reporter";
+import { dispatch, dispatchInk } from "@vitest-agent/ui";
+import { buildDispatchInputs, resolveCellOptions } from "@vitest-agent/reporter";
 
 // One-shot text output
 const agentString = dispatch(buildDispatchInputs(state, input), opts);
@@ -61,13 +61,13 @@ const inkElement = dispatchInk(buildDispatchInputs(state, input), opts);
 The reducer is a pure synchronous projection over the `RunEvent` stream. Use it to fold a complete event sequence into a `RenderState` for replay:
 
 ```ts
-import { reduceRenderStateAll } from "vitest-agent-ui";
+import { reduceRenderStateAll } from "@vitest-agent/ui";
 
 // Fold a full sequence into a RenderState (one-shot replay)
 const state = reduceRenderStateAll(events);
 
 // Or fold events one at a time
-import { reduce, initialRenderState } from "vitest-agent-ui";
+import { reduce, initialRenderState } from "@vitest-agent/ui";
 
 let state = initialRenderState();
 for (const event of events) {
@@ -84,7 +84,7 @@ import {
   RunEventChannel,
   accumulateUntilFinished,
   forEachRenderState,
-} from "vitest-agent-ui";
+} from "@vitest-agent/ui";
 
 // Accumulate all events until RunFinished, then return the final state
 const state = await Effect.runPromise(
@@ -108,7 +108,7 @@ Two bridges convert external data into the `RunEvent` taxonomy:
 import {
   synthesizeRunEvents,
   synthesizeFromAgentReport,
-} from "vitest-agent-ui";
+} from "@vitest-agent/ui";
 
 // From live Vitest module data (used in the streaming reporter path)
 const events = synthesizeRunEvents(vitestModules);

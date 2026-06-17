@@ -13,13 +13,13 @@ dedicated reference for deeper treatment.
 
 | Package | Role |
 | --- | --- |
-| `vitest-agent-sdk` | Shared foundation: Effect schemas, data layer services, SQLite migrations, the XDG path resolver, and public reporter and dispatcher contract types. No internal dependencies. |
-| `vitest-agent-plugin` | The Vitest plugin (`AgentPlugin`). Handles environment detection, reporter injection, coverage config validation, failure persistence, and baselines/trends. |
-| `vitest-agent-reporter` | The default reporter package. Ships `DefaultVitestAgentReporter`, owns the Ink live-mount lifecycle, and re-exports the `VitestAgentReporterFactory` contract types. |
-| `vitest-agent-ui` | Pure rendering primitives: the run-shape dispatcher matrix, the reducer, agent and Ink render paths, synthesizers, and the PubSub channel. Knows nothing about the reporter lifecycle. |
-| `vitest-agent-cli` | The `vitest-agent` CLI bin. Provides the `doctor`, `db`, and `agent` command trees. |
-| `vitest-agent-mcp` | The MCP server bin. Exposes 29 action-keyed tools via a tRPC router for agent-facing queries and TDD lifecycle management. |
-| `vitest-agent-sidecar` | A Node Single Executable Application for the per-Bash-call `inject-env` hot path. Ships prebuilt per-platform binaries via `optionalDependencies`. |
+| `@vitest-agent/sdk` | Shared foundation: Effect schemas, data layer services, SQLite migrations, the XDG path resolver, and public reporter and dispatcher contract types. No internal dependencies. |
+| `@vitest-agent/plugin` | The Vitest plugin (`AgentPlugin`). Handles environment detection, reporter injection, coverage config validation, failure persistence, and baselines/trends. |
+| `@vitest-agent/reporter` | The default reporter package. Ships `DefaultVitestAgentReporter`, owns the Ink live-mount lifecycle, and re-exports the `VitestAgentReporterFactory` contract types. |
+| `@vitest-agent/ui` | Pure rendering primitives: the run-shape dispatcher matrix, the reducer, agent and Ink render paths, synthesizers, and the PubSub channel. Knows nothing about the reporter lifecycle. |
+| `@vitest-agent/cli` | The `vitest-agent` CLI bin. Provides the `doctor`, `db`, and `agent` command trees. |
+| `@vitest-agent/mcp` | The MCP server bin. Exposes 29 action-keyed tools via a tRPC router for agent-facing queries and TDD lifecycle management. |
+| `@vitest-agent/sidecar` | A Node Single Executable Application for the per-Bash-call `inject-env` hot path. Ships prebuilt per-platform binaries via `optionalDependencies`. |
 
 See [Packages](/packages) for per-package API reference.
 
@@ -35,17 +35,17 @@ plugin → reporter → ui → sdk
 sidecar (optional)
 ```
 
-`vitest-agent-plugin` depends on `vitest-agent-reporter` for the default
-reporter, which in turn pulls `vitest-agent-ui` and `vitest-agent-sdk`.
-The plugin does not depend on `vitest-agent-ui` directly — that dependency
-is entirely encapsulated inside `vitest-agent-reporter`.
+`@vitest-agent/plugin` depends on `@vitest-agent/reporter` for the default
+reporter, which in turn pulls `@vitest-agent/ui` and `@vitest-agent/sdk`.
+The plugin does not depend on `@vitest-agent/ui` directly — that dependency
+is entirely encapsulated inside `@vitest-agent/reporter`.
 
-`vitest-agent-cli` and `vitest-agent-mcp` are required peer dependencies of
-the plugin. Installing `vitest-agent-plugin` with a modern package manager
-(npm 7+, pnpm with `autoInstallPeers: true`) brings `vitest-agent-cli` and
-`vitest-agent-mcp` automatically, and their bins land at the consumer's top
-level. `vitest-agent-sidecar` arrives transitively as a regular dependency of
-`vitest-agent-cli`.
+`@vitest-agent/cli` and `@vitest-agent/mcp` are required peer dependencies of
+the plugin. Installing `@vitest-agent/plugin` with a modern package manager
+(npm 7+, pnpm with `autoInstallPeers: true`) brings `@vitest-agent/cli` and
+`@vitest-agent/mcp` automatically, and their bins land at the consumer's top
+level. `@vitest-agent/sidecar` arrives transitively as a regular dependency of
+`@vitest-agent/cli`.
 
 ## The shared SQLite database
 
@@ -76,7 +76,7 @@ See the [CLI reference](/cli) for the full command tree.
 
 ## The MCP server as an agent surface
 
-`vitest-agent-mcp` is the agent-facing query interface. It runs as a
+`@vitest-agent/mcp` is the agent-facing query interface. It runs as a
 Model Context Protocol server and exposes 29 tools keyed on an `action`
 discriminator. The tools cover:
 
@@ -104,7 +104,7 @@ to the Node CLI when the per-platform binary is absent.
 
 vitest-agent ships two distinct kinds of "plugin":
 
-**The npm plugin** (`vitest-agent-plugin`) is the data and collection
+**The npm plugin** (`@vitest-agent/plugin`) is the data and collection
 foundation. It hooks into Vitest's reporter chain, persists test results,
 and handles all the runtime concerns. Every team installs this.
 

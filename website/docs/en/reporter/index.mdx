@@ -1,27 +1,27 @@
 ---
-title: "vitest-agent-reporter"
+title: "@vitest-agent/reporter"
 description: The default reporter package and reference for custom-reporter authors. Ships DefaultVitestAgentReporter, owns the Ink live-mount lifecycle, and re-exports the reporter contract types and dispatch helpers.
 ---
 
-# vitest-agent-reporter
+# @vitest-agent/reporter
 
 The default reporter package and the reference for custom-reporter authors. Ships `DefaultVitestAgentReporter`, owns the live React Ink mount lifecycle, and re-exports the reporter contract types and dispatch helpers — everything a custom factory needs in one import.
 
-This package arrives automatically as a dependency of `vitest-agent-plugin`. Install it directly only when authoring a custom reporter.
+This package arrives automatically as a dependency of `@vitest-agent/plugin`. Install it directly only when authoring a custom reporter.
 
 ## Features
 
 - **`DefaultVitestAgentReporter`** — the production default `VitestAgentReporterFactory`; classifies runs into one of 12 shape × outcome cells, owns the Ink live-mount lifecycle for `stream` mode, and emits a GitHub Actions Step Summary in CI
 - **Dispatch helpers** — `buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport`
-- **Contract re-exports** — `VitestAgentReporterFactory`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporter`, `ResolvedReporterConfig` all re-exported from `vitest-agent-sdk` so you need only one import
+- **Contract re-exports** — `VitestAgentReporterFactory`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporter`, `ResolvedReporterConfig` all re-exported from `@vitest-agent/sdk` so you need only one import
 - **Worked example** — `DefaultVitestAgentReporter` source is the canonical reference for implementing the `VitestAgentReporterFactory` contract
 
 ## Install
 
 ```bash
-npm install --save-dev vitest-agent-reporter
+npm install --save-dev @vitest-agent/reporter
 # or
-pnpm add -D vitest-agent-reporter
+pnpm add -D @vitest-agent/reporter
 ```
 
 ## The `VitestAgentReporterFactory` contract
@@ -35,7 +35,7 @@ import type {
   RenderedOutput,
   VitestAgentReporter,
   VitestAgentReporterFactory,
-} from "vitest-agent-reporter";
+} from "@vitest-agent/reporter";
 
 const myReporter: VitestAgentReporterFactory = (
   kit: ReporterKit
@@ -50,7 +50,7 @@ const myReporter: VitestAgentReporterFactory = (
 Pass the factory to the plugin:
 
 ```ts
-import { AgentPlugin } from "vitest-agent-plugin";
+import { AgentPlugin } from "@vitest-agent/plugin";
 
 export default defineConfig({
   plugins: [AgentPlugin({ reporter: myReporter })],
@@ -118,7 +118,7 @@ import {
   buildDispatchInputs,
   resolveCellOptions,
   renderAgentStringForReport,
-} from "vitest-agent-reporter";
+} from "@vitest-agent/reporter";
 
 // Build the canonical input object for the dispatcher matrix
 const inputs = buildDispatchInputs(state, renderInput);

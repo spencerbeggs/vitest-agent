@@ -1,6 +1,6 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
 updated: 2026-06-12
@@ -19,7 +19,7 @@ related:
 dependencies: []
 ---
 
-# SDK package (`vitest-agent-sdk`)
+# SDK package (`@vitest-agent/sdk`)
 
 The no-internal-dependencies base. Owns the data layer, all shared services
 and layers, formatters, error types, schemas, SQLite migrations, SQL
@@ -28,7 +28,7 @@ and the sidecar dispatch core. Anything used by more than one runtime
 package lives here; anything used by exactly one package stays in that
 package.
 
-**npm name:** `vitest-agent-sdk`
+**npm name:** `@vitest-agent/sdk`
 **Location:** `packages/sdk/`
 **Internal dependencies:** none
 **Entry points:** three — `.` (the main barrel), `./dispatch` (the sidecar
@@ -236,8 +236,8 @@ encode/decode.
 | `CoverageTargets.ts` | Exports `CoverageTargets` and the nested `CoverageTargetsMetrics` schemas. `CoverageTargets` is a `Schema.Record` whose keys are arbitrary strings (treated as either a top-level metric name or a glob pattern) and values are `Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics)`. A decode-time refinement rejects `true` at any key other than `"100"` so `{ statements: true }` fails parse rather than silently flowing through to a runtime parser that only honors the canonical shorthand at key `"100"`. Negatives and zeros are rejected at decode time |
 | `Transport.ts` | Single-member discriminated union `Schema.Union(Schema.Struct({ kind: Schema.Literal("local") }))`. Modeled as a union from day one so the 3.0 cloud-backend swap (D1, Turso, etc.) lands as a pure addition of union members rather than a schema-shape change. See [../decisions.md](../decisions.md) D40 |
 | `validate-coverage-targets-shape.ts` (in `utils/`) | Pure helper `validateCoverageTargetsShape(input): { errors, warnings, info }`. Walks raw input and emits structured diagnostics with pinpointed paths: `INVALID_TARGET_VALUE` (zero or negative numbers, at the top level or inside glob-pattern entries) and `PERFILE_ON_TARGETS` (the `perFile` key set inside `coverageTargets` rather than on `coverage.thresholds.perFile`). Consumed by the plugin's `ConfigValidation` rule registry |
-| `RunEvent.ts` | Discriminated union over the `RunEvent` variants — one per Vitest 4.x reporter hook that fits the event-sourced model, covering run / module / suite / hook / test lifecycle, console, coverage, trend, classification and watch mode. Fed by the plugin's streaming callbacks and consumed by `vitest-agent-ui`'s reducer. See [../schemas.md](../schemas.md) for the variant inventory |
-| `RenderState.ts` | The projected shape the `vitest-agent-ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`). Both the agent string renderer and the Ink tree read this shape |
+| `RunEvent.ts` | Discriminated union over the `RunEvent` variants — one per Vitest 4.x reporter hook that fits the event-sourced model, covering run / module / suite / hook / test lifecycle, console, coverage, trend, classification and watch mode. Fed by the plugin's streaming callbacks and consumed by `@vitest-agent/ui`'s reducer. See [../schemas.md](../schemas.md) for the variant inventory |
+| `RenderState.ts` | The projected shape the `@vitest-agent/ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`). Both the agent string renderer and the Ink tree read this shape |
 | `History.ts` | `TestRun`, `TestHistory`, `HistoryRecord` |
 | `Config.ts` | `VitestAgentConfig` for the optional `vitest-agent.config.toml`. Both fields (`cacheDir?`, `projectKey?`) are optional; absence falls back to deriving the path from the workspace's `package.json` `name` |
 | `Tdd.ts` | Application-level (camelCase) shapes for the three-tier hierarchy: `GoalStatus`/`BehaviorStatus`, `GoalRow`, `BehaviorRow`, `GoalDetail`, `BehaviorDetail`. SQL row shapes (snake_case) live in `sql/rows.ts`; these are the API shapes |
@@ -551,7 +551,7 @@ For the table inventory and column-level details see
 
 ## Testing subpath
 
-`packages/sdk/src/testing/` — exported via the `vitest-agent-sdk/testing`
+`packages/sdk/src/testing/` — exported via the `@vitest-agent/sdk/testing`
 subpath (`"./testing": "./src/testing/index.ts"` in `package.json`).
 
 Provides in-process SQLite test infrastructure without requiring the full
@@ -577,7 +577,7 @@ seeds data via `Layer.effectDiscard`:
 | `flaky(filename)` | Two runs with opposing outcomes (flaky classification) |
 | `withTddTask(filename)` | One session, one TDD session, one goal, two behaviors |
 
-**When to use.** Import from `vitest-agent-sdk/testing`. The preset layers
+**When to use.** Import from `@vitest-agent/sdk/testing`. The preset layers
 remove boilerplate from per-test fixture setup. Use `empty` for tests that
 need precise control; use the named presets when the scenario matches to
 keep tests concise.
@@ -585,16 +585,16 @@ keep tests concise.
 ## Dispatch subpath
 
 The sidecar dispatch core is exported through a dedicated narrow entry
-point, `vitest-agent-sdk/dispatch` (barrel `packages/sdk/src/dispatch.ts`).
+point, `@vitest-agent/sdk/dispatch` (barrel `packages/sdk/src/dispatch.ts`).
 It re-exports `dispatch` / `DispatchResult` (`src/sidecar-dispatch.ts` — the
 `dispatch(argv)` argv dispatcher plus its hand-rolled flag parser), `injectEnv`
 / `InjectEnvInput` (`src/internal-inject-env.ts`), and `exitCodeForTag`
 (`src/exit-code-for-tag.ts`). These symbols moved into the SDK from
-`vitest-agent-cli` to break a workspace dependency cycle — see
+`@vitest-agent/cli` to break a workspace dependency cycle — see
 [./cli.md](./cli.md) and [./sidecar.md](./sidecar.md).
 
 **Why a dedicated entry, not the main barrel.** The four per-platform
-`vitest-agent-sidecar-<platform>` SEA binaries import `dispatch` from this
+`@vitest-agent/sidecar-<platform>` SEA binaries import `dispatch` from this
 subpath, and the SEA must stay small. Importing from the `.` barrel would
 force the bundler to start from the full module graph — Effect, the SQLite
 data layer, migrations, every service — and tree-shake it away; the dedicated

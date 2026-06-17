@@ -6,21 +6,21 @@ User documentation lives at [vitest-agent.dev](https://vitest-agent.dev). This R
 
 ## Packages
 
-The seven publishable packages live under `packages/`. `vitest-agent-sdk` has no internal dependencies; the dependency flow is `plugin → reporter → ui → sdk`, with the sidecar reaching consumers through the CLI.
+The seven publishable packages live under `packages/`. `@vitest-agent/sdk` has no internal dependencies; the dependency flow is `plugin → reporter → ui → sdk`, with the sidecar reaching consumers through the CLI.
 
 | Package | Path | Purpose |
 | --- | --- | --- |
-| `vitest-agent-plugin` | [packages/plugin](./packages/plugin/) | Vitest plugin (`AgentPlugin`), internal reporter, `CoverageAnalyzer`, `ConfigValidation` |
-| `vitest-agent-reporter` | [packages/reporter](./packages/reporter/) | Default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount lifecycle; reference for custom-reporter authors |
-| `vitest-agent-ui` | [packages/ui](./packages/ui/) | Rendering primitives: the shape-tailored dispatcher matrix, reducer, agent and Ink render paths, `RunEvent` PubSub channel |
-| `vitest-agent-sdk` | [packages/sdk](./packages/sdk/) | Shared schemas, data layer, services, formatters, utilities and the public reporter contracts |
-| `vitest-agent-cli` | [packages/cli](./packages/cli/) | `vitest-agent` CLI bin |
-| `vitest-agent-mcp` | [packages/mcp](./packages/mcp/) | `vitest-agent-mcp` MCP server bin |
-| `vitest-agent-sidecar` | [packages/sidecar](./packages/sidecar/) | Node Single Executable Application for the per-Bash-call `inject-env` hot path; ships prebuilt per-platform binaries |
+| `@vitest-agent/plugin` | [packages/plugin](./packages/plugin/) | Vitest plugin (`AgentPlugin`), internal reporter, `CoverageAnalyzer`, `ConfigValidation` |
+| `@vitest-agent/reporter` | [packages/reporter](./packages/reporter/) | Default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount lifecycle; reference for custom-reporter authors |
+| `@vitest-agent/ui` | [packages/ui](./packages/ui/) | Rendering primitives: the shape-tailored dispatcher matrix, reducer, agent and Ink render paths, `RunEvent` PubSub channel |
+| `@vitest-agent/sdk` | [packages/sdk](./packages/sdk/) | Shared schemas, data layer, services, formatters, utilities and the public reporter contracts |
+| `@vitest-agent/cli` | [packages/cli](./packages/cli/) | `vitest-agent` CLI bin |
+| `@vitest-agent/mcp` | [packages/mcp](./packages/mcp/) | `vitest-agent-mcp` MCP server bin |
+| `@vitest-agent/sidecar` | [packages/sidecar](./packages/sidecar/) | Node Single Executable Application for the per-Bash-call `inject-env` hot path; ships prebuilt per-platform binaries |
 
-The sidecar's per-platform binaries ship as `optionalDependencies` from four sub-packages — `vitest-agent-sidecar-darwin-arm64`, `-linux-arm64`, `-linux-x64` and `-win32-x64` under `packages/sidecar-*/`. The six original packages release in lockstep; `vitest-agent-sidecar` versions independently.
+The sidecar's per-platform binaries ship as `optionalDependencies` from four sub-packages — `@vitest-agent/sidecar-darwin-arm64`, `-linux-arm64`, `-linux-x64` and `-win32-x64` under `packages/sidecar-*/`. The six original packages release in lockstep; `@vitest-agent/sidecar` versions independently.
 
-`vitest-agent-plugin` declares `vitest-agent-cli` and `vitest-agent-mcp` as required peer dependencies, so a single `npm install vitest-agent-plugin` pulls the whole family on npm 7+ and pnpm with `autoInstallPeers`.
+`@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as required peer dependencies, so a single `npm install @vitest-agent/plugin` pulls the whole family on npm 7+ and pnpm with `autoInstallPeers`.
 
 ## Private workspaces
 
@@ -35,9 +35,9 @@ The Claude Code plugin lives at [`plugin/`](./plugin/) and is a file-based plugi
 
 | Entry | Bin | Package | Purpose |
 | --- | --- | --- | --- |
-| Plugin | library import | `vitest-agent-plugin` | Vitest plugin producing SQLite-persisted test data |
-| CLI | `vitest-agent` | `vitest-agent-cli` | Hook-driven plumbing plus `doctor`, `db` and `agent` commands |
-| MCP server | `vitest-agent-mcp` | `vitest-agent-mcp` | Action-keyed tools over stdio for LLM agent integration, plus MCP resources and prompts |
+| Plugin | library import | `@vitest-agent/plugin` | Vitest plugin producing SQLite-persisted test data |
+| CLI | `vitest-agent` | `@vitest-agent/cli` | Hook-driven plumbing plus `doctor`, `db` and `agent` commands |
+| MCP server | `vitest-agent-mcp` | `@vitest-agent/mcp` | Action-keyed tools over stdio for LLM agent integration, plus MCP resources and prompts |
 
 All three share the Effect service architecture and the same SQLite database, located under `$XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db` where `<workspaceKey>` derives from the root `package.json` `name`.
 

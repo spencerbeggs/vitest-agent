@@ -1,13 +1,13 @@
 ---
-title: "vitest-agent-mcp"
+title: "@vitest-agent/mcp"
 description: The vitest-agent MCP server bin. Exposes 29 action-keyed tools over stdio giving LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more.
 ---
 
-# vitest-agent-mcp
+# @vitest-agent/mcp
 
-The `vitest-agent-mcp` MCP server bin. Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces four MCP resources (vendored Vitest docs and curated testing patterns) and six framing-only prompts.
+The `@vitest-agent/mcp` MCP server bin. Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces four MCP resources (vendored Vitest docs and curated testing patterns) and six framing-only prompts.
 
-This package is a required peer of `vitest-agent-plugin` and arrives automatically with modern pnpm and npm. Install it directly only if you run the MCP server standalone.
+This package is a required peer of `@vitest-agent/plugin` and arrives automatically with modern pnpm and npm. Install it directly only if you run the MCP server standalone.
 
 ## Features
 
@@ -19,9 +19,9 @@ This package is a required peer of `vitest-agent-plugin` and arrives automatical
 ## Install
 
 ```bash
-npm install --save-dev vitest-agent-mcp
+npm install --save-dev @vitest-agent/mcp
 # or
-pnpm add -D vitest-agent-mcp
+pnpm add -D @vitest-agent/mcp
 ```
 
 ## Quick start
@@ -29,7 +29,7 @@ pnpm add -D vitest-agent-mcp
 Start the MCP server over stdio:
 
 ```bash
-npx vitest-agent-mcp
+npx @vitest-agent/mcp
 ```
 
 The server reads the SQLite database written by `AgentPlugin` via the same XDG-derived path, so a single test run populates data for all tools.
