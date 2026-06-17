@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 90
 related:
   - ./architecture.md

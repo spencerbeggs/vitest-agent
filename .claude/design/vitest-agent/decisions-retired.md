@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 100
 related:
   - ./decisions.md
