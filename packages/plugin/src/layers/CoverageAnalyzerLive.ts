@@ -1,6 +1,6 @@
+import type { CoverageReport, FileCoverageReport, MetricThresholds, ResolvedThresholds } from "@vitest-agent/sdk";
+import { compressLines } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
-import type { CoverageReport, FileCoverageReport, MetricThresholds, ResolvedThresholds } from "vitest-agent-sdk";
-import { compressLines } from "vitest-agent-sdk";
 import type { CoverageOptions } from "../services/CoverageAnalyzer.js";
 import { CoverageAnalyzer } from "../services/CoverageAnalyzer.js";
 

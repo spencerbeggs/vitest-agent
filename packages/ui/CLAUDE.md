@@ -1,4 +1,4 @@
-# vitest-agent-ui
+# @vitest-agent/ui
 
 The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent`
 taxonomy re-export, the pure reducer, two render paths (a markdown-flavored
@@ -6,8 +6,8 @@ agent string and a React Ink tree), the shape-tailored dispatcher matrix
 introduced by the T6 rewrite, an Effect `PubSub` channel for live event
 transport, and the synthesizers. Knows nothing about the reporter
 lifecycle — the default reporter and the Ink live-mount driver moved to
-`vitest-agent-reporter`. Declares React and Ink as peer dependencies (it
-renders *with* react/ink but does not own the instance); `vitest-agent-reporter`
+`@vitest-agent/reporter`. Declares React and Ink as peer dependencies (it
+renders *with* react/ink but does not own the instance); `@vitest-agent/reporter`
 is the concrete consumer that provides them. Dependency flow: `plugin → reporter → ui → sdk`.
 
 ## Layout
@@ -81,7 +81,7 @@ __test__/
 - **Two synthesizers**: one for live Vitest data (`VitestTestModule` duck types), one for the persisted `AgentReport`. They are NOT interchangeable — the live shape carries per-test detail the report schema flattens. CLI replay uses the report path; the plugin's streaming callbacks publish events derived from live modules.
 - **Ink component primitives only.** No `<span style>` or DOM-isms. Use Ink's `<Box>`, `<Text>`, `<Newline>`, `<Spacer>`. Each component imports `* as React from "react"` so JSX works under both the classic and automatic compiler runtimes — relevant whenever a non-ui package compiles these via esbuild.
 - **Snapshot pinning**: per-component snapshots use the helper `__test__/utils/render-ink.tsx` which strips ANSI and pins the width via `<Box width={N}>`. `ink-testing-library` reports a fixed 100-column mock stdout, so explicit width wrapping is load-bearing.
-- **No reporter lifecycle here.** This package is pure rendering primitives. The default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount driver (`_createLiveInk`) live in `vitest-agent-reporter`. Adding a shipped reporter or factory means editing `vitest-agent-reporter`, not this package.
+- **No reporter lifecycle here.** This package is pure rendering primitives. The default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount driver (`_createLiveInk`) live in `@vitest-agent/reporter`. Adding a shipped reporter or factory means editing `@vitest-agent/reporter`, not this package.
 
 ## When working in this package
 
@@ -101,7 +101,7 @@ __test__/
 - `@.claude/design/vitest-agent/components/ui.md`
   Load when working on the event taxonomy, the reducer, the dispatcher matrix, the cells, or the render paths.
 - `@.claude/design/vitest-agent/components/reporter.md`
-  Load when working on `DefaultVitestAgentReporter` or the Ink live-mount lifecycle — both moved to `vitest-agent-reporter`.
+  Load when working on `DefaultVitestAgentReporter` or the Ink live-mount lifecycle — both moved to `@vitest-agent/reporter`.
 - `@.claude/design/vitest-agent/schemas.md`
   Load when adding to the `RunEvent` or `RenderState` schemas.
 - `@.claude/design/vitest-agent/decisions.md`

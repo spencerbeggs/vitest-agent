@@ -4,8 +4,8 @@
  * @packageDocumentation
  */
 
+import { CacheManifestEntry, DataReader } from "@vitest-agent/sdk";
 import { Effect, Option, ParseResult, Schema } from "effect";
-import { CacheManifestEntry, DataReader } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 const StatusAvailable = Schema.Struct({

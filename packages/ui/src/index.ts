@@ -1,5 +1,5 @@
 /**
- * vitest-agent-ui
+ * @vitest-agent/ui
  *
  * Shared event-sourced renderer for vitest-agent. The reducer projects
  * a {@link RunEvent} stream into a denormalized {@link RenderState};
@@ -22,7 +22,7 @@ export type {
 	RunOutcome,
 	RunShape,
 	TrendSummary,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
 export {
 	ActionSeverity,
 	CoverageFile,
@@ -37,7 +37,7 @@ export {
 	SuggestedActionRecord,
 	TestRecord,
 	initialRenderState,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
 // Dispatcher surface (T6 UI rewrite) — internal callers can use these
 // to drive the same code paths the preassembled default reporter uses.
 export type { AgentCellFn, Cell, InkCellFn } from "./dispatcher/cell-types.js";

@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 95
 related:
   - ../components.md
@@ -303,7 +303,7 @@ tags from test and it options at parse time, not from JSDoc comments.
 
 ```ts
 import { defineConfig } from "vitest/config";
-import { AgentPlugin } from "vitest-agent-plugin";
+import { AgentPlugin } from "@vitest-agent/plugin";
 
 export default async () => {
   const { projects, tags } = await AgentPlugin.discover();
@@ -329,7 +329,7 @@ export default async () => {
 };
 ```
 
-After the reporter-package restructure the plugin imports `DefaultVitestAgentReporter` from `vitest-agent-reporter` as its built-in factory and owns no rendering itself. The live Ink mount is owned by `DefaultVitestAgentReporter`, which subscribes to the plugin's run-event `PubSub` channel. Users no longer import a reporter factory or a live-mount helper.
+After the reporter-package restructure the plugin imports `DefaultVitestAgentReporter` from `@vitest-agent/reporter` as its built-in factory and owns no rendering itself. The live Ink mount is owned by `DefaultVitestAgentReporter`, which subscribes to the plugin's run-event `PubSub` channel. Users no longer import a reporter factory or a live-mount helper.
 
 When the workspace contains a folder that holds tests but is not a
 workspace package, chain addProject:

@@ -12,37 +12,37 @@
 		"position": "right",
 		"items": [
 			{
-				"text": "vitest-agent-plugin",
+				"text": "@vitest-agent/plugin",
 				"link": "/plugin",
 				"activeMatch": "^/plugin/?$"
 			},
 			{
-				"text": "vitest-agent-sdk",
+				"text": "@vitest-agent/sdk",
 				"link": "/sdk",
 				"activeMatch": "^/sdk(/.*)?$"
 			},
 			{
-				"text": "vitest-agent-mcp",
+				"text": "@vitest-agent/mcp",
 				"link": "/mcp",
 				"activeMatch": "^/mcp(/.*)?$"
 			},
 			{
-				"text": "vitest-agent-cli",
+				"text": "@vitest-agent/cli",
 				"link": "/cli",
 				"activeMatch": "^/cli(/.*)?$"
 			},
 			{
-				"text": "vitest-agent-reporter",
+				"text": "@vitest-agent/reporter",
 				"link": "/reporter",
 				"activeMatch": "^/reporter(/.*)?$"
 			},
 			{
-				"text": "vitest-agent-ui",
+				"text": "@vitest-agent/ui",
 				"link": "/ui",
 				"activeMatch": "^/ui(/.*)?$"
 			},
 			{
-				"text": "vitest-agent-sidecar",
+				"text": "@vitest-agent/sidecar",
 				"link": "/sidecar",
 				"activeMatch": "^/sidecar(/.*)?$"
 			}

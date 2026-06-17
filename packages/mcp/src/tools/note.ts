@@ -9,9 +9,9 @@
  * @packageDocumentation
  */
 
+import type { NoteInput } from "@vitest-agent/sdk";
+import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
-import type { NoteInput } from "vitest-agent-sdk";
-import { DataReader, DataStore } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 const NoteScope = Schema.Literal("global", "project", "module", "suite", "test", "note");

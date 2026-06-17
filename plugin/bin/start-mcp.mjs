@@ -25,10 +25,10 @@ const BIN_NAME = "vitest-agent-mcp";
 
 /** @type {Record<string, { cmd: string; args: string[]; install: string }>} */
 const PM = {
-	npm: { cmd: "npx", args: ["--no-install"], install: "npm install --save-dev vitest-agent-plugin" },
-	pnpm: { cmd: "pnpm", args: ["exec"], install: "pnpm add -D vitest-agent-plugin" },
-	yarn: { cmd: "yarn", args: ["run"], install: "yarn add -D vitest-agent-plugin" },
-	bun: { cmd: "bun", args: ["x"], install: "bun add -d vitest-agent-plugin" },
+	npm: { cmd: "npx", args: ["--no-install"], install: "npm install --save-dev @vitest-agent/plugin" },
+	pnpm: { cmd: "pnpm", args: ["exec"], install: "pnpm add -D @vitest-agent/plugin" },
+	yarn: { cmd: "yarn", args: ["run"], install: "yarn add -D @vitest-agent/plugin" },
+	bun: { cmd: "bun", args: ["x"], install: "bun add -d @vitest-agent/plugin" },
 };
 
 const LOCKFILES = [

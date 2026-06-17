@@ -4,12 +4,12 @@
 		"build": {
 			"cache": false,
 			"dependsOn": [
-				"vitest-agent-sdk#build:meta",
-				"vitest-agent-plugin#build:meta",
-				"vitest-agent-reporter#build:meta",
-				"vitest-agent-ui#build:meta",
-				"vitest-agent-cli#build:meta",
-				"vitest-agent-mcp#build:meta"
+				"@vitest-agent/sdk#build:meta",
+				"@vitest-agent/plugin#build:meta",
+				"@vitest-agent/reporter#build:meta",
+				"@vitest-agent/ui#build:meta",
+				"@vitest-agent/cli#build:meta",
+				"@vitest-agent/mcp#build:meta"
 			],
 			"outputLogs": "full",
 			"outputs": ["dist/**"]

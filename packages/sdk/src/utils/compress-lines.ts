@@ -1,5 +1,5 @@
 /**
- * vitest-agent-sdk
+ * @vitest-agent/sdk
  *
  * Compress an array of line numbers into a compact range string.
  *
@@ -18,7 +18,7 @@
  *
  * @example
  * ```typescript
- * import { compressLines } from "vitest-agent-sdk/utils";
+ * import { compressLines } from "@vitest-agent/sdk/utils";
  *
  * compressLines([1, 2, 3, 5, 10, 11, 12]);
  * // Returns: "1-3,5,10-12"

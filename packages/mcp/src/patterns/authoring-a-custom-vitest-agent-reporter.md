@@ -2,7 +2,7 @@
 
 ## When to use
 
-You want output behavior that the named factories in `vitest-agent-reporter` (`defaultReporter`, `markdownReporter`, `jsonReporter`, etc.) do not provide. Examples: SARIF output for code-scanning ingestion, JUnit XML alongside the default markdown, a side-channel that posts to an internal API.
+You want output behavior that the named factories in `@vitest-agent/reporter` (`defaultReporter`, `markdownReporter`, `jsonReporter`, etc.) do not provide. Examples: SARIF output for code-scanning ingestion, JUnit XML alongside the default markdown, a side-channel that posts to an internal API.
 
 ## The contract
 
@@ -24,7 +24,7 @@ interface VitestAgentReporter {
 ## Minimal example: a SARIF sidecar
 
 ```typescript
-import type { VitestAgentReporterFactory } from "vitest-agent-sdk";
+import type { VitestAgentReporterFactory } from "@vitest-agent/sdk";
 
 export const sarifReporter: VitestAgentReporterFactory = (kit) => ({
  render: (input) => {
@@ -47,7 +47,7 @@ The `target: "file"` slot is reserved for arbitrary on-disk artifacts; the conve
 If you want your reporter to layer on top of the default rather than replace it, return an array:
 
 ```typescript
-import { defaultReporter, type VitestAgentReporterFactory } from "vitest-agent-reporter";
+import { defaultReporter, type VitestAgentReporterFactory } from "@vitest-agent/reporter";
 
 export const myReporter: VitestAgentReporterFactory = (kit) => {
  const inner = defaultReporter(kit);
@@ -61,7 +61,7 @@ export const myReporter: VitestAgentReporterFactory = (kit) => {
 ```typescript
 // vitest.config.ts
 import { defineConfig } from "vitest/config";
-import { agentPlugin } from "vitest-agent-plugin";
+import { agentPlugin } from "@vitest-agent/plugin";
 import { myReporter } from "./my-reporter.js";
 
 export default defineConfig({

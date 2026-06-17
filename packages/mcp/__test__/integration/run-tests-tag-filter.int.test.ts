@@ -11,9 +11,10 @@
  * round trip and composer cover the wire-level contract; the actual
  * Vitest spawn is verified by manual smoke run).
  */
+
+import { DataStore } from "@vitest-agent/sdk";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
-import { DataStore } from "vitest-agent-sdk";
 import type { McpContext } from "../../src/context.js";
 import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../../src/context.js";
 import { appRouter } from "../../src/router.js";

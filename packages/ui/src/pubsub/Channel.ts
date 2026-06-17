@@ -7,8 +7,8 @@
  * @packageDocumentation
  */
 
+import type { RunEvent } from "@vitest-agent/sdk";
 import { Context, Layer, PubSub } from "effect";
-import type { RunEvent } from "vitest-agent-sdk";
 
 /**
  * Service tag for the run-event channel. Consumers depend on this tag;

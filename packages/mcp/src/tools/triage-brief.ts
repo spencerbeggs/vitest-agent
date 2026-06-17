@@ -9,8 +9,8 @@
  * @packageDocumentation
  */
 
+import { formatTriageEffect } from "@vitest-agent/sdk";
 import { Effect, Schema } from "effect";
-import { formatTriageEffect } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 export const TriageBriefResult = Schema.Struct({

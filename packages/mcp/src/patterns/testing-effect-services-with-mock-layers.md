@@ -19,7 +19,7 @@ You compose the live layer in production wiring (`ReporterLive`, `CliLive`, `Mcp
 ```typescript
 import { Effect, Layer, Ref } from "effect";
 import { describe, expect, it } from "vitest";
-import { DataStore } from "vitest-agent-sdk";
+import { DataStore } from "@vitest-agent/sdk";
 
 // Test layer: accumulates writes into a Ref so tests can read them back.
 const DataStoreTest = Layer.effect(

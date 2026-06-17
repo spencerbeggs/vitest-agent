@@ -8,9 +8,9 @@
  * contract is exercised in isolation.
  */
 
+import type { AgentReport, ReporterKit, ReporterRenderInput, VitestAgentReporter } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { AgentReport, ReporterKit, ReporterRenderInput, VitestAgentReporter } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 import { DefaultVitestAgentReporter, buildDispatchInputs, resolveCellOptions } from "../src/defaultReporter.js";
 
 const makeKit = (consoleMode: ReporterKit["config"]["consoleMode"] = "agent"): ReporterKit => ({

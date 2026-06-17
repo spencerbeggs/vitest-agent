@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 92
 related:
   - ./architecture.md
@@ -30,7 +30,7 @@ choices see [./decisions.md](./decisions.md).
 
 ## Flow 1: AgentReporter lifecycle
 
-Owned by `vitest-agent-plugin` (see
+Owned by `@vitest-agent/plugin` (see
 [./components/plugin.md](./components/plugin.md)). The internal
 `AgentReporter` class drives Vitest's reporter API and dispatches rendering
 to a user-supplied `VitestAgentReporterFactory`.
@@ -148,7 +148,7 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   +-- reuse the reporters resolved at run start by initReporters
   |     (resolve opts.reporter(kit) here only if onInit did not run)
   +-- For each reporter: render({reports, classifications, trendSummary?}, kit)
-  |     The built-in DefaultVitestAgentReporter from vitest-agent-reporter
+  |     The built-in DefaultVitestAgentReporter from @vitest-agent/reporter
   |     folds input.reports through synthesizeFromAgentReport + the
   |     reducer, classifies (RunShape, RunOutcome), assembles
   |     DispatchInputs, and calls dispatch(inputs, opts) for the
@@ -171,7 +171,7 @@ a `shouldWriteGfm` block.
 
 ## Flow 2: AgentPlugin.configureVitest
 
-Owned by `vitest-agent-plugin`. Async, runs before reporters are
+Owned by `@vitest-agent/plugin`. Async, runs before reporters are
 instantiated. See [./components/plugin.md](./components/plugin.md).
 
 - `EnvironmentDetector.detect()` -> environment; `envToExecutor(env)`
@@ -206,7 +206,7 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
   "silent"`); the plugin emits a `RenderedOutput` for the Step Summary
   file independent of the console mode.
 - Resolve the `VitestAgentReporterFactory` from `options.reporter`
-  (default `DefaultVitestAgentReporter` from `vitest-agent-reporter`;
+  (default `DefaultVitestAgentReporter` from `@vitest-agent/reporter`;
   user-supplied factories replace the built-in entirely — there is no
   composition slot). Pass it through to the internal `AgentReporter`,
   which invokes the factory once at run start (`onInit`) with a
@@ -226,7 +226,7 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
 
 ## Flow 3: CLI commands
 
-Owned by `vitest-agent-cli`. See [./components/cli.md](./components/cli.md).
+Owned by `@vitest-agent/cli`. See [./components/cli.md](./components/cli.md).
 
 - `bin.ts` resolves `dbPath` via `resolveDataPath(cwd)` under
   `PathResolutionLive(projectDir) + NodeContext.layer`.
@@ -259,7 +259,7 @@ Owned by `vitest-agent-cli`. See [./components/cli.md](./components/cli.md).
 
 ## Flow 4: MCP server
 
-Owned by `vitest-agent-mcp`. See [./components/mcp.md](./components/mcp.md).
+Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components/mcp.md).
 
 - `bin.ts` resolves `projectDir` from `VITEST_AGENT_REPORTER_PROJECT_DIR` (set
   by the plugin loader) ?? `CLAUDE_PROJECT_DIR` ?? `process.cwd()`.
@@ -336,7 +336,7 @@ encode this rule.
 
 ## Flow 7: tRPC idempotency middleware
 
-Owned by `vitest-agent-mcp`. The middleware sits between the tRPC input
+Owned by the `@vitest-agent/mcp` package. The middleware sits between the tRPC input
 parser and the procedure body for any tool wired with `idempotentProcedure`.
 The `idempotencyKeys` registry in `packages/mcp/src/middleware/idempotency.ts`
 decides which `(tool, action)` pairs derive a key — see

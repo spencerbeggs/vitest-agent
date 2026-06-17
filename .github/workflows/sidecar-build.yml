@@ -1,12 +1,12 @@
 name: Sidecar Build
 
-# Build-once / smoke-everywhere verification for vitest-agent-sidecar.
+# Build-once / smoke-everywhere verification for @vitest-agent/sidecar.
 #
 # tsdown's `exe` mode cross-compiles a Node Single Executable
 # Application for any target from a single host: @tsdown/exe downloads
 # the target's Node runtime and postject-injects the bundle, neither of
 # which needs the host arch to match. So all four
-# vitest-agent-sidecar-<platform> binaries are built on one macOS
+# @vitest-agent/sidecar-<platform> binaries are built on one macOS
 # runner.
 #
 # A second matrix then downloads each binary onto its own NATIVE runner
@@ -14,9 +14,8 @@ name: Sidecar Build
 # the platform it targets. The smoke legs run only the prebuilt binary:
 # no checkout, no Node, no pnpm, no runtime setup.
 #
-# Publishing the four vitest-agent-sidecar-<platform> sub-packages to
-# npm and GitHub Packages is wired into the Wave 4 release flow, not
-# this workflow.
+# Publishing the four @vitest-agent/sidecar-<platform> sub-packages to
+# npm is wired into the Wave 4 release flow, not this workflow.
 
 on:
   push:
@@ -58,15 +57,15 @@ jobs:
         # tsdown's `exe` mode cross-compiles each target from this one
         # macOS host; @tsdown/exe caches the downloaded target Node per
         # platform so the four builds never collide. turbo builds
-        # vitest-agent-cli and vitest-agent-sdk first.
-        run: pnpm turbo run build:prod --filter='vitest-agent-sidecar-*'
+        # @vitest-agent/cli and @vitest-agent/sdk first.
+        run: pnpm turbo run build:prod --filter='./packages/sidecar-*'
 
       - name: Assert dist publish manifests
         shell: bash
         run: |
           set -euo pipefail
           for platform in darwin-arm64 linux-arm64 linux-x64 win32-x64; do
-            for variant in github npm; do
+            for variant in npm; do
               manifest="packages/sidecar-${platform}/dist/${variant}/package.json"
               test -f "$manifest" || { echo "::error::missing $manifest"; exit 1; }
               for field in devDependencies scripts publishConfig packageManager devEngines; do
@@ -77,8 +76,7 @@ jobs:
               [ "$(jq -r '.private' "$manifest")" = "false" ] || { echo "::error::$manifest .private is not false"; exit 1; }
               name=$(jq -r '.name' "$manifest")
               case "$variant" in
-                github) case "$name" in @spencerbeggs/*) ;; *) echo "::error::$manifest github name not scoped: $name"; exit 1;; esac ;;
-                npm)    case "$name" in @spencerbeggs/*) echo "::error::$manifest npm name wrongly scoped: $name"; exit 1;; *) ;; esac ;;
+                npm)    case "$name" in @vitest-agent/*) ;; *) echo "::error::$manifest npm name not scoped to @vitest-agent/: $name"; exit 1;; esac ;;
               esac
             done
           done

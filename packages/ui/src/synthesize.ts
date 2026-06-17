@@ -27,8 +27,8 @@ import type {
 	VitestTestCase,
 	VitestTestModule,
 	VitestTestSuite,
-} from "vitest-agent-sdk";
-import { isTimeoutError } from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import { isTimeoutError } from "@vitest-agent/sdk";
 
 /**
  * Optional metadata threaded through the synthesized event stream.

@@ -11,7 +11,7 @@ For custom project discovery and test classification, see [Customize discovery](
 
 ## ConfigValidation service
 
-`vitest-agent-plugin` runs a `ConfigValidation` Effect service inside `configureVitest` — before any test starts — to check for mismatches between Vitest's native `coverage.thresholds` and the plugin's `coverageTargets` option.
+`@vitest-agent/plugin` runs a `ConfigValidation` Effect service inside `configureVitest` — before any test starts — to check for mismatches between Vitest's native `coverage.thresholds` and the plugin's `coverageTargets` option.
 
 The service is defined in `packages/plugin/src/services/ConfigValidation.ts` with the Effect tag `vitest-agent/ConfigValidation`. It exposes a single method:
 

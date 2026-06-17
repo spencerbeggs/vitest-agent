@@ -1,8 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Writable } from "node:stream";
+import type { AgentReport, VitestModuleError } from "@vitest-agent/sdk";
+import { AgentReport as AgentReportSchema, DataReader, DataStore, buildAgentReport } from "@vitest-agent/sdk";
 import { Effect, ParseResult, Schema } from "effect";
-import type { AgentReport, VitestModuleError } from "vitest-agent-sdk";
-import { AgentReport as AgentReportSchema, DataReader, DataStore, buildAgentReport } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 const RunTestsOk = Schema.Struct({

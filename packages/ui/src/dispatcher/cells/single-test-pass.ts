@@ -1,4 +1,4 @@
-import type { DispatchInputs } from "vitest-agent-sdk";
+import type { DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatDisplayDuration, formatTestName, soleTest } from "../helpers.js";

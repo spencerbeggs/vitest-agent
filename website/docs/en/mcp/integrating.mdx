@@ -1,11 +1,11 @@
 ---
 title: Integrating non-Claude-Code agents
-description: How any MCP-aware agent connects to vitest-agent-mcp over stdio and how run attribution works via environment variables and register_agent.
+description: How any MCP-aware agent connects to @vitest-agent/mcp over stdio and how run attribution works via environment variables and register_agent.
 ---
 
 # Integrating non-Claude-Code agents
 
-`vitest-agent-mcp` speaks the standard MCP stdio transport, so any MCP-aware agent host can connect to it. This page covers how the server starts, how session attribution works, and what to configure when Claude Code is not the host.
+`@vitest-agent/mcp` speaks the standard MCP stdio transport, so any MCP-aware agent host can connect to it. This page covers how the server starts, how session attribution works, and what to configure when Claude Code is not the host.
 
 ## Starting the server
 
@@ -16,13 +16,13 @@ The server communicates over stdin/stdout using the JSON-RPC transport defined b
 Launch the server directly:
 
 ```bash
-npx vitest-agent-mcp
+npx @vitest-agent/mcp
 ```
 
 Or with pnpm:
 
 ```bash
-pnpm exec vitest-agent-mcp
+pnpm exec @vitest-agent/mcp
 ```
 
 ### Wiring into a `.mcp.json` config
@@ -32,7 +32,7 @@ pnpm exec vitest-agent-mcp
   "mcpServers": {
     "vitest-agent": {
       "command": "npx",
-      "args": ["vitest-agent-mcp"]
+      "args": ["@vitest-agent/mcp"]
     }
   }
 }

@@ -1,11 +1,11 @@
 ---
 title: Database architecture
-description: How vitest-agent-sdk stores test run data — the SQLite data.db path, workspace key derivation, the canonical pre-2.0 migration, WAL mode, and the full table inventory confirmed against the 0001_initial migration.
+description: How @vitest-agent/sdk stores test run data — the SQLite data.db path, workspace key derivation, the canonical pre-2.0 migration, WAL mode, and the full table inventory confirmed against the 0001_initial migration.
 ---
 
 # Database architecture
 
-`vitest-agent-sdk` persists everything to a single SQLite file, `data.db`, at a deterministic XDG-derived path. Understanding where that file lives and how the schema is organized helps you query it directly, integrate custom tooling on top of it, and reason about what changes when you edit the migration.
+`@vitest-agent/sdk` persists everything to a single SQLite file, `data.db`, at a deterministic XDG-derived path. Understanding where that file lives and how the schema is organized helps you query it directly, integrate custom tooling on top of it, and reason about what changes when you edit the migration.
 
 ## The data.db path
 
@@ -31,7 +31,7 @@ The `<workspaceKey>` segment is derived from your workspace's identity using a f
 | 4 | Root `package.json#name`, normalized (`@org/pkg` → `@org__pkg`) |
 | 5 | Fails loudly with `WorkspaceRootNotFoundError` — no silent fallback |
 
-The `resolveDataPath` utility in `vitest-agent-sdk` encapsulates this chain. The CLI command `vitest-agent db path` prints the resolved path for your current workspace.
+The `resolveDataPath` utility in `@vitest-agent/sdk` encapsulates this chain. The CLI command `vitest-agent db path` prints the resolved path for your current workspace.
 
 :::note
 Scoped-package names with a `/` separator are normalized to `__` so they are safe as directory names. `@vitest/runner` becomes `@vitest__runner`.
@@ -59,7 +59,7 @@ packages/sdk/src/migrations/0001_initial.ts
 
 Pre-2.0 policy is to edit this file directly whenever the schema changes. There is no incremental migration chain — developers delete their local `data.db` between schema-changing turns and start fresh. Post-2.0, standard ALTER-only migrations take over.
 
-The migration runs via `@effect/sql-sqlite-node`'s `SqliteMigrator`. The `ensureMigrated` utility in `vitest-agent-sdk` coordinates migrations at the process level using a `globalThis`-keyed promise cache so multi-project Vitest configs do not race when several workers share one database file.
+The migration runs via `@effect/sql-sqlite-node`'s `SqliteMigrator`. The `ensureMigrated` utility in `@vitest-agent/sdk` coordinates migrations at the process level using a `globalThis`-keyed promise cache so multi-project Vitest configs do not race when several workers share one database file.
 
 The migration immediately enables WAL journal mode and foreign-key enforcement:
 
@@ -70,7 +70,7 @@ PRAGMA foreign_keys=ON;
 
 ### Why WAL mode
 
-`better-sqlite3`, the underlying binding, is not thread-safe. The `vitest-agent-plugin` runs in the Vitest `forks` pool — each worker is a separate Node.js process. WAL mode allows concurrent readers alongside a single writer without blocking, which is the typical pattern (one Vitest runner writing, the CLI or MCP server reading). The binding sets a `busy_timeout` so brief writer contention is retried rather than failing immediately.
+`better-sqlite3`, the underlying binding, is not thread-safe. The `@vitest-agent/plugin` runs in the Vitest `forks` pool — each worker is a separate Node.js process. WAL mode allows concurrent readers alongside a single writer without blocking, which is the typical pattern (one Vitest runner writing, the CLI or MCP server reading). The binding sets a `busy_timeout` so brief writer contention is retried rather than failing immediately.
 
 ## Schema overview
 

@@ -1,11 +1,11 @@
 ---
 title: "The dispatcher matrix"
-description: How vitest-agent-ui selects a shape-appropriate cell renderer from the 4x3 (RunShape x RunOutcome) matrix, and how both the agent string and Ink render paths consume the same projected state.
+description: How @vitest-agent/ui selects a shape-appropriate cell renderer from the 4x3 (RunShape x RunOutcome) matrix, and how both the agent string and Ink render paths consume the same projected state.
 ---
 
 # The dispatcher matrix
 
-`vitest-agent-ui` does not force every run through a single output template. Instead, the output is produced by a **dispatcher** that selects one of twelve cell renderers keyed on two coordinates: the **run shape** (how many projects and files were exercised) and the **run outcome** (whether the run passed, failed, or hit a coverage threshold violation). The same matrix drives both the agent string path and the Ink live-frame path.
+`@vitest-agent/ui` does not force every run through a single output template. Instead, the output is produced by a **dispatcher** that selects one of twelve cell renderers keyed on two coordinates: the **run shape** (how many projects and files were exercised) and the **run outcome** (whether the run passed, failed, or hit a coverage threshold violation). The same matrix drives both the agent string path and the Ink live-frame path.
 
 ## Coordinates
 
@@ -82,7 +82,7 @@ interface DispatchInputs {
 
 `state` is the post-reduce projection of the `RunEvent` stream. `shape` and `outcome` are the coordinates the dispatcher resolved before reaching the cell. `projects` carries per-project aggregates for workspace cells; it is empty for non-workspace shapes. `trend` is `null` for scoped runs and any run without trend history. `belowTarget` lists files that fall below the aspirational `coverageTargets` tier. `runCommand` is the configured test command surfaced in cell footers for copy-paste accuracy.
 
-`buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble `DispatchInputs` from a `ReporterRenderInput` and `ReporterKit` — live in `vitest-agent-reporter`, not in this package. They moved there with the default reporter in the 2.0 restructure.
+`buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble `DispatchInputs` from a `ReporterRenderInput` and `ReporterKit` — live in `@vitest-agent/reporter`, not in this package. They moved there with the default reporter in the 2.0 restructure.
 
 ## CellOptions
 
@@ -100,7 +100,7 @@ interface CellOptions {
 ## Entry points
 
 ```ts
-import { dispatch, dispatchInk, dispatcherTable } from "vitest-agent-ui";
+import { dispatch, dispatchInk, dispatcherTable } from "@vitest-agent/ui";
 
 // Agent string output
 const text: string = dispatch(inputs, opts);
@@ -118,7 +118,7 @@ const table = dispatcherTable;
 
 The agent string path and the Ink path both read `RenderState` — the same denormalized projection produced by the reducer. There is no separate state shape for live versus report-time rendering: the plugin publishes `RunEvent`s onto the PubSub channel during a run, the reducer folds each event into `RenderState`, and that state feeds the dispatcher regardless of which render path is active.
 
-The `DefaultVitestAgentReporter` in `vitest-agent-reporter` orchestrates the round-trip: it subscribes to `ReporterKit.runEvents`, folds events as they arrive to drive the Ink live mount, then at run end folds the final sequence via `reduceRenderStateAll` and calls `dispatch` for the agent string. The dispatcher sees identical state in both cases.
+The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` orchestrates the round-trip: it subscribes to `ReporterKit.runEvents`, folds events as they arrive to drive the Ink live mount, then at run end folds the final sequence via `reduceRenderStateAll` and calls `dispatch` for the agent string. The dispatcher sees identical state in both cases.
 
 ## Footer
 
@@ -137,4 +137,4 @@ Each cell appends a trailing MCP-tool-pointer footer built by `buildFooter` in `
 
 - [Render state](/ui/render-state) — the `RenderState` shape both renderers consume
 - [API reference](/ui/api)
-- [vitest-agent-plugin overview](/plugin) — the plugin owns the PubSub channel and publishes `RunEvent`s
+- [@vitest-agent/plugin overview](/plugin) — the plugin owns the PubSub channel and publishes `RunEvent`s

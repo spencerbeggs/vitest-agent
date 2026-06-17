@@ -1,5 +1,5 @@
+import type { RunEvent } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { RunEvent } from "vitest-agent-sdk";
 import { reduceRenderStateAll } from "../../src/reducer.js";
 import { StreamApp } from "../../src/render-ink/StreamApp.js";
 import { renderInk } from "../utils/render-ink.js";

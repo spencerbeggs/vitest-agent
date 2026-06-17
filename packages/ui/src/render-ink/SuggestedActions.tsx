@@ -4,9 +4,9 @@
  * @packageDocumentation
  */
 
+import type { ActionSeverity, SuggestedActionRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import type { ActionSeverity, SuggestedActionRecord } from "vitest-agent-sdk";
 
 export interface SuggestedActionsProps {
 	readonly actions: ReadonlyArray<SuggestedActionRecord>;

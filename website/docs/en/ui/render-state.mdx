@@ -5,7 +5,7 @@ description: RenderState is a denormalized projection of the RunEvent stream. A 
 
 # Render state
 
-`RenderState` is the shape both renderers in `vitest-agent-ui` read. It is a **denormalized projection** of the `RunEvent` stream: a reducer folds incoming events one by one into a single flat structure, and the dispatcher reads that structure to produce output. Neither renderer touches the raw event stream — they read the reduced state.
+`RenderState` is the shape both renderers in `@vitest-agent/ui` read. It is a **denormalized projection** of the `RunEvent` stream: a reducer folds incoming events one by one into a single flat structure, and the dispatcher reads that structure to produce output. Neither renderer touches the raw event stream — they read the reduced state.
 
 ## Event-sourced flow
 
@@ -24,7 +24,7 @@ RunEvent stream
                 ▼  dispatchInk(inputs, opts) → React.ReactElement
 ```
 
-The plugin publishes `RunEvent`s on an Effect `PubSub<RunEvent>` channel (carried on `ReporterKit.runEvents`) as Vitest reporter callbacks fire. The `DefaultVitestAgentReporter` in `vitest-agent-reporter` subscribes to that channel and feeds each event into the reducer. For live Ink rendering it calls `reduceRenderState(state, event)` on every arrival, triggering a re-render. For the end-of-run agent string it calls `reduceRenderStateAll(events)` to fold the complete sequence at once.
+The plugin publishes `RunEvent`s on an Effect `PubSub<RunEvent>` channel (carried on `ReporterKit.runEvents`) as Vitest reporter callbacks fire. The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` subscribes to that channel and feeds each event into the reducer. For live Ink rendering it calls `reduceRenderState(state, event)` on every arrival, triggering a re-render. For the end-of-run agent string it calls `reduceRenderStateAll(events)` to fold the complete sequence at once.
 
 CLI replay follows the same path: `synthesizeFromAgentReport(report)` converts a stored `AgentReport` into a synthetic event sequence, which `reduceRenderStateAll` folds into a `RenderState` before the dispatcher produces output.
 
@@ -118,7 +118,7 @@ const RenderState = Schema.Struct({
 `initialRenderState` is exported from the SDK so tests and renderer bootstrapping code share one definition:
 
 ```ts
-import { initialRenderState } from "vitest-agent-sdk"; // or "vitest-agent-ui"
+import { initialRenderState } from "@vitest-agent/sdk"; // or "@vitest-agent/ui"
 
 const state = reduceRenderStateAll(events, initialRenderState);
 ```
@@ -129,4 +129,4 @@ The initial state has `phase: "idle"`, all counts at zero, and all nullable fiel
 
 - [The dispatcher matrix](/ui/dispatcher) — how `RenderState` coordinates feed cell selection
 - [API reference](/ui/api)
-- [vitest-agent-plugin overview](/plugin) — the plugin owns the PubSub channel and publishes `RunEvent`s
+- [@vitest-agent/plugin overview](/plugin) — the plugin owns the PubSub channel and publishes `RunEvent`s

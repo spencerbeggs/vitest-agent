@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 92
 related:
   - ../architecture.md
@@ -18,14 +18,14 @@ related:
 dependencies: []
 ---
 
-# CLI package (`vitest-agent-cli`)
+# CLI package (`@vitest-agent/cli`)
 
 A utility-only bin for LLM agents and humans: database management plus the hook-driven recording subcommands that populate the SQLite database with session/turn, TDD evidence, and workspace-history rows. Does not run tests or call AI providers.
 
-**npm name:** `vitest-agent-cli`
+**npm name:** `@vitest-agent/cli`
 **Bin:** `vitest-agent`
 **Location:** `packages/cli/`
-**Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-sidecar`
+**Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/sidecar`
 
 The plugin declares the CLI as a required `peerDependency`, so installing the plugin pulls the CLI along with it (npm 7+ and pnpm auto-install required peers, landing the `vitest-agent` bin at the consumer's top level where the Claude Code plugin's hook scripts resolve it). The CLI stays a separate package for module-boundary reasons — the `@effect/cli` surface is the CLI's own concern.
 
@@ -41,7 +41,7 @@ The bin is a utility-only surface: **MCP is the data path for test-landscape que
 
 `packages/cli/src/bin.ts`. The bin resolves `dbPath` via `resolveDataPath(process.cwd())` under `PathResolutionLive(projectDir) + NodeContext.layer`, then provides `CliLive(dbPath, logLevel, logFile)` to the `@effect/cli` `Command.run` effect. Defects print `formatFatalError(cause)` to stderr.
 
-Immediately before `Command.run`, the bin compares `CURRENT_CLI_VERSION` against `CURRENT_SDK_VERSION` and writes one stderr line on mismatch (`[vitest-agent-cli] version drift: … Reinstall vitest-agent-* packages so versions match.`). The check is observation-only — invocation continues, and the `"0.0.0"` dev-build sentinel skips it. `packages/cli/src/index.ts` exports `CURRENT_CLI_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`). The `doctor` subcommand is unrelated to this check — it covers database health, not cross-package version invariants. Integration coverage: `packages/cli/__test__/bin-version-drift.test.ts` mocks `CURRENT_SDK_VERSION` to assert the warning shape; see D36 in [../decisions.md](../decisions.md).
+Immediately before `Command.run`, the bin compares `CURRENT_CLI_VERSION` against `CURRENT_SDK_VERSION` and writes one stderr line on mismatch (`[@vitest-agent/cli] version drift: … Reinstall @vitest-agent/* packages so versions match.`). The check is observation-only — invocation continues, and the `"0.0.0"` dev-build sentinel skips it. `packages/cli/src/index.ts` exports `CURRENT_CLI_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`). The `doctor` subcommand is unrelated to this check — it covers database health, not cross-package version invariants. Integration coverage: `packages/cli/__test__/bin-version-drift.test.ts` mocks `CURRENT_SDK_VERSION` to assert the warning shape; see D36 in [../decisions.md](../decisions.md).
 
 The top-level command tree is exactly three children, wired in `bin.ts`'s `withSubcommands`:
 
@@ -95,11 +95,11 @@ The group composes seven subcommands:
 | `register-agent` | SessionStart / SubagentStart hooks | Maps host session id and transcript path to canonical conversation/agent ids, captures git context, writes session-map rows. Emits JSON for the hook to parse with `jq`. |
 | `end-agent` | SessionEnd / SubagentStop hooks | Sets `agents.ended_at`; with `--host-session-id` also sets `session_map.ended_at`. |
 | `inject-env` | PreToolUse Bash hook | Pure command-rewriter — prepends the `VITEST_AGENT_*` env prefix when the command invokes Vitest, echoes it unchanged otherwise. |
-| `sidecar-path` | SessionStart hook (once per session) | Calls `resolveSidecarBinaryPath()` from `vitest-agent-sidecar` and prints the absolute path to stdout (exit 0), or exits non-zero when the binary is not resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`. |
+| `sidecar-path` | SessionStart hook (once per session) | Calls `resolveSidecarBinaryPath()` from `@vitest-agent/sidecar` and prints the absolute path to stdout (exit 0), or exits non-zero when the binary is not resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`. |
 
-`triage` and `wrapup` keep their `--format markdown|json|silent` axis (the only commands that do — `db query` has its own `--format table|json` axis, everything else emits plain stdout text by convention). `agent inject-env` imports `exitCodeForTag` and `injectEnv` from `vitest-agent-sdk/dispatch` — the `injectEnv` core lives in the SDK so the SEA binary can import it without reaching through the CLI. `triage` and `wrapup` call `formatTriageEffect` / `formatWrapupEffect` from `vitest-agent-sdk` (`packages/sdk/src/lib/format-triage.ts`, `format-wrapup.ts`), shared verbatim with the MCP tools `triage_brief` and `wrapup_prompt`, so CLI and MCP outputs are byte-identical.
+`triage` and `wrapup` keep their `--format markdown|json|silent` axis (the only commands that do — `db query` has its own `--format table|json` axis, everything else emits plain stdout text by convention). `agent inject-env` imports `exitCodeForTag` and `injectEnv` from `@vitest-agent/sdk/dispatch` — the `injectEnv` core lives in the SDK so the SEA binary can import it without reaching through the CLI. `triage` and `wrapup` call `formatTriageEffect` / `formatWrapupEffect` from `@vitest-agent/sdk` (`packages/sdk/src/lib/format-triage.ts`, `format-wrapup.ts`), shared verbatim with the MCP tools `triage_brief` and `wrapup_prompt`, so CLI and MCP outputs are byte-identical.
 
-**Dependency relationship with the sidecar package.** `vitest-agent-cli` depends on `vitest-agent-sidecar` (not the reverse): the sidecar package exports `resolveSidecarBinaryPath`, and the CLI's `agent sidecar-path` subcommand calls it to resolve the binary's absolute path. The dispatch core the SEA binary actually runs — `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`, `exitCodeForTag` — lives in `vitest-agent-sdk` and is reached through the dedicated `vitest-agent-sdk/dispatch` entry point (see [./sdk.md](./sdk.md)); the per-platform children declare `vitest-agent-sdk` as their only workspace `devDependency` and import `dispatch` from there. They do not depend on `vitest-agent-cli` — the closing edge of the workspace graph is `sidecar-<platform> → sdk`, a true leaf. `packages/cli/src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect` and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants); it deliberately does **not** re-export `dispatch` / `injectEnv` / `exitCodeForTag` — those belong to the SDK. `register-agent` stays JS-only — its native SQLite binding cannot be bundled into a SEA.
+**Dependency relationship with the sidecar package.** `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (not the reverse): the sidecar package exports `resolveSidecarBinaryPath`, and the CLI's `agent sidecar-path` subcommand calls it to resolve the binary's absolute path. The dispatch core the SEA binary actually runs — `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`, `exitCodeForTag` — lives in `@vitest-agent/sdk` and is reached through the dedicated `@vitest-agent/sdk/dispatch` entry point (see [./sdk.md](./sdk.md)); the per-platform children declare `@vitest-agent/sdk` as their only workspace `devDependency` and import `dispatch` from there. They do not depend on `@vitest-agent/cli` — the closing edge of the workspace graph is `sidecar-<platform> → sdk`, a true leaf. `packages/cli/src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect` and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants); it deliberately does **not** re-export `dispatch` / `injectEnv` / `exitCodeForTag` — those belong to the SDK. `register-agent` stays JS-only — its native SQLite binding cannot be bundled into a SEA.
 
 The sidecar subcommands return plain text on stdout for the bash hooks to parse, and structured error info on stderr in the shape `<exit_code> <error_tag>: <message>`. Exit codes follow a fixed contract: `0` success, `1` registration conflict, `2` sidecar timeout, `3` database error, `4` `ProjectIdentityNotResolvableError`, `5` unexpected defect. They resolve all three SQLite store paths from env at invocation time (per-project `data.db`, per-client `sessions.db`, registry `registry.db`) and `mkdirSync` every parent dir before SQLite opens. Path resolution does not depend on workspace-discovery, so the sidecar works in non-pnpm-workspace project shapes.
 

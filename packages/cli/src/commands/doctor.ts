@@ -5,8 +5,8 @@
  */
 
 import { Command, Options } from "@effect/cli";
+import { DataReader, resolveDataPath } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
-import { DataReader, resolveDataPath } from "vitest-agent-sdk";
 import type { CheckResult } from "../lib/format-doctor.js";
 import { formatDoctor } from "../lib/format-doctor.js";
 

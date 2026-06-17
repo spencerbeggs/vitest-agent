@@ -17,7 +17,7 @@ import type {
 	RenderState,
 	TestRecord,
 	TrendSummary,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
 import { formatDisplayDuration } from "../format-duration.js";
 
 export { formatDisplayDuration } from "../format-duration.js";

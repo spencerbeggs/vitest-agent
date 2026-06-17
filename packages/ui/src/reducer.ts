@@ -11,9 +11,9 @@
  * @packageDocumentation
  */
 
+import type { FailureRecord, ModuleRecord, RenderState, RenderTotals, RunEvent, TestRecord } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { Match } from "effect";
-import type { FailureRecord, ModuleRecord, RenderState, RenderTotals, RunEvent, TestRecord } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 
 const queuedModule = (modulePath: string, projectName?: string): ModuleRecord => ({
 	modulePath,

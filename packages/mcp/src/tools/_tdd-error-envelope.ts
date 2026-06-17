@@ -8,14 +8,14 @@
  * channel carries the union `Success | ErrorEnvelope`.
  */
 
-import { Effect } from "effect";
 import {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
 	IllegalStatusTransitionError,
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import { Effect } from "effect";
 
 export interface Remediation {
 	readonly suggestedTool: string;

@@ -1,5 +1,5 @@
 /**
- * vitest-agent-reporter
+ * @vitest-agent/reporter
  *
  * The default reporter for the vitest-agent plugin — and the canonical
  * worked example for authors building their own.
@@ -12,14 +12,14 @@
  * `DefaultVitestAgentReporter` next to their own code, and gets the
  * reporter contract types plus the `buildDispatchInputs` /
  * `resolveCellOptions` dispatch helpers from one import — no direct
- * dependency on `vitest-agent-sdk` or `vitest-agent-ui` required.
+ * dependency on `@vitest-agent/sdk` or `@vitest-agent/ui` required.
  *
  * @packageDocumentation
  */
 
 // Reporter contract type re-exports from the SDK so a custom-reporter
 // author can pull everything they need from one package without adding
-// vitest-agent-sdk as a direct dependency.
+// @vitest-agent/sdk as a direct dependency.
 export type {
 	RenderedOutput,
 	ReporterKit,
@@ -27,7 +27,7 @@ export type {
 	ResolvedReporterConfig,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
 // --- The default reporter + its dispatch helpers ---
 export {
 	DefaultVitestAgentReporter,

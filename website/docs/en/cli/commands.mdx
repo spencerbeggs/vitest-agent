@@ -11,8 +11,8 @@ providers. The top-level command tree is exactly three groups: `db`, `doctor`,
 and `agent`.
 
 :::tip
-`vitest-agent-cli` publishes the bin as `vitest-agent` (without the `-cli`
-suffix). It arrives automatically as a required peer of `vitest-agent-plugin`
+`@vitest-agent/cli` publishes the bin as `vitest-agent` (without the `-cli`
+suffix). It arrives automatically as a required peer of `@vitest-agent/plugin`
 with modern pnpm (`autoInstallPeers: true`) and npm 7+.
 :::
 
@@ -301,7 +301,7 @@ command does not match.
 
 This subcommand is on the critical path of every Bash tool call when the
 Claude Code plugin is active. The per-platform sidecar binary
-(`vitest-agent-sidecar`) runs the same logic at native speed and is preferred
+(`@vitest-agent/sidecar`) runs the same logic at native speed and is preferred
 when available.
 
 ```bash
@@ -324,7 +324,7 @@ stdout. Exits with a non-zero code when no platform binary is resolvable. The
 
 ```bash
 vitest-agent agent sidecar-path
-# /path/to/node_modules/.bin/vitest-agent-sidecar-darwin-arm64
+# /path/to/node_modules/.bin/@vitest-agent/sidecar-darwin-arm64
 ```
 
 No flags. Exit code `0` on success; non-zero when the platform binary is

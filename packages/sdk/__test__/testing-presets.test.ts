@@ -1,10 +1,10 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DataReader } from "@vitest-agent/sdk";
+import { empty, flaky, singlePassingRun, withFailures, withTddTask } from "@vitest-agent/sdk/testing";
 import { Effect, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DataReader } from "vitest-agent-sdk";
-import { empty, flaky, singlePassingRun, withFailures, withTddTask } from "vitest-agent-sdk/testing";
 
 describe("vitest-agent-sdk/testing preset factories", () => {
 	let tmpDir: string;

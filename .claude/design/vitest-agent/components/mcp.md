@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 92
 related:
   - ../architecture.md
@@ -17,21 +17,21 @@ related:
 dependencies: []
 ---
 
-# MCP package (`vitest-agent-mcp`)
+# MCP package (`@vitest-agent/mcp`)
 
 Model Context Protocol server providing tool, resource, and prompt surfaces
 for agent integration. Uses `@modelcontextprotocol/sdk` over stdio
 transport. Tool routing goes through tRPC; resources and prompts register
 directly with the MCP SDK alongside the tRPC router.
 
-**npm name:** `vitest-agent-mcp`
+**npm name:** `@vitest-agent/mcp`
 **Bin:** `vitest-agent-mcp`
 **Location:** `packages/mcp/`
-**Internal dependencies:** `vitest-agent-sdk`
+**Internal dependencies:** `@vitest-agent/sdk`
 
 A separate package for module-boundary reasons and so the MCP tool
 surface can evolve on its own cadence — not for install-cost reasons.
-The plugin declares `vitest-agent-mcp` as a required `peerDependency`,
+The plugin declares `@vitest-agent/mcp` as a required `peerDependency`,
 which npm 7+ and pnpm auto-install, so every plugin consumer installs
 it; an MCP server that is downloaded but never started costs a
 non-Claude-Code user only a download. The `@modelcontextprotocol/sdk` /
@@ -61,8 +61,8 @@ and calls `startMcpServer({ runtime, cwd: projectDir })`.
 Inside `main()`, before `ManagedRuntime.make`, the bin compares
 `CURRENT_MCP_VERSION` against `CURRENT_SDK_VERSION` and writes one
 stderr line on mismatch
-(`[vitest-agent-mcp] version drift: vitest-agent-mcp@<a> with
-vitest-agent-sdk@<b>. Reinstall vitest-agent-* packages so versions
+(`[@vitest-agent/mcp] version drift: @vitest-agent/mcp@<a> with
+@vitest-agent/sdk@<b>. Reinstall @vitest-agent/* packages so versions
 match.`). The check is observation-only — the server boot continues.
 `packages/mcp/src/index.ts` exports `CURRENT_MCP_VERSION` (inlined
 from `process.env.__PACKAGE_VERSION__` via the package's
@@ -176,7 +176,7 @@ from each `tools/<name>.ts` source file rather than catalogued here.
 ## TDD error envelope
 
 `packages/mcp/src/tools/_tdd-error-envelope.ts`. Catches the typed TDD
-errors (from `vitest-agent-sdk`'s `TddErrors`) at the MCP boundary and
+errors (from `@vitest-agent/sdk`'s `TddErrors`) at the MCP boundary and
 surfaces them as success-shape `{ ok: false, error: { _tag, ...,
 remediation: { suggestedTool, suggestedArgs, humanHint } } }` responses.
 This matches the existing `tdd_phase_transition_request` `{ accepted:
@@ -254,7 +254,7 @@ returns `runId: undefined` when the caller did not supply one.
 `tdd_progress_push` is registered directly with the MCP SDK because it
 forwards to a Claude Code notification channel rather than returning data
 through the tRPC tool path. The MCP server validates the payload against
-the `ChannelEvent` discriminated union from `vitest-agent-sdk`, then for
+the `ChannelEvent` discriminated union from `@vitest-agent/sdk`, then for
 behavior-scoped events resolves `goalId` and `sessionId` **server-side**
 from `behaviorId` (via `DataReader.resolveGoalIdForBehavior` and the
 goals→sessions FK).

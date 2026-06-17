@@ -9,10 +9,10 @@
  * @phase red
  */
 
+import type { AgentPluginOptions } from "@vitest-agent/sdk";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import type { ResolvedConfig } from "vitest/node";
-import type { AgentPluginOptions } from "vitest-agent-sdk";
 import { ConfigValidationLive } from "../src/layers/ConfigValidationLive.js";
 import { ConfigValidation } from "../src/services/ConfigValidation.js";
 

@@ -1,11 +1,11 @@
 ---
 title: "Building renderers"
-description: How to build a custom renderer on the vitest-agent-ui primitives — consuming RenderState, using the dispatcher to select a cell, wiring both render paths, and subscribing to the RunEvent PubSub for live rendering.
+description: How to build a custom renderer on the @vitest-agent/ui primitives — consuming RenderState, using the dispatcher to select a cell, wiring both render paths, and subscribing to the RunEvent PubSub for live rendering.
 ---
 
 # Building renderers
 
-`vitest-agent-ui` is a toolkit of rendering primitives, not a renderer itself. The default reporter in `vitest-agent-reporter` is built from these primitives; you can build your own renderer — or a thin rendering layer on top of an existing one — using the same pieces. This page walks through the four building blocks you will use: the projected state, the dispatcher, the two render paths, and the PubSub channel for live delivery.
+`@vitest-agent/ui` is a toolkit of rendering primitives, not a renderer itself. The default reporter in `@vitest-agent/reporter` is built from these primitives; you can build your own renderer — or a thin rendering layer on top of an existing one — using the same pieces. This page walks through the four building blocks you will use: the projected state, the dispatcher, the two render paths, and the PubSub channel for live delivery.
 
 The distinction from writing a full reporter is worth stating up front. A **reporter** wraps rendering in the plugin's lifecycle contract (`VitestAgentReporterFactory`) and manages the Ink live-mount lifecycle via `_createLiveInk`. A **renderer** consumes `RenderState` and calls `dispatch` or `dispatchInk` — it knows nothing about the reporter lifecycle. If you want to replace the default output format, you likely want [a custom reporter](/reporter/custom-reporter). If you want to understand or reuse the rendering layer underneath, this page is the right starting point.
 
@@ -31,7 +31,7 @@ RunEvent stream (from PubSub or batch)
 `RenderState` is the single denormalized projection that both render paths read. It accumulates as `RunEvent`s arrive and is fully described in [Render state](/ui/render-state). The two reduction entry points are:
 
 ```ts
-import { reduceRenderState, reduceRenderStateAll, initialRenderState } from "vitest-agent-ui";
+import { reduceRenderState, reduceRenderStateAll, initialRenderState } from "@vitest-agent/ui";
 
 // One-shot: fold a complete sequence in batch
 const state = reduceRenderStateAll(events);
@@ -43,7 +43,7 @@ for (const event of events) {
 }
 ```
 
-Both return the same `RenderState` shape. The batch form is equivalent to applying the incremental form for each event in order. `initialRenderState` is exported from both `vitest-agent-ui` and `vitest-agent-sdk` so tests and bootstrapping code share one definition.
+Both return the same `RenderState` shape. The batch form is equivalent to applying the incremental form for each event in order. `initialRenderState` is exported from both `@vitest-agent/ui` and `@vitest-agent/sdk` so tests and bootstrapping code share one definition.
 
 The fields you will read most often in a renderer:
 
@@ -67,8 +67,8 @@ import {
   classifyOutcome,
   dispatch,
   dispatchInk,
-} from "vitest-agent-ui";
-import type { DispatchInputs, CellOptions } from "vitest-agent-sdk";
+} from "@vitest-agent/ui";
+import type { DispatchInputs, CellOptions } from "@vitest-agent/sdk";
 
 // Derive coordinates from the reduced state
 const shape = classifyRunShape(state, projects);   // RunShape
@@ -100,9 +100,9 @@ const element: React.ReactElement | null = dispatchInk(inputs, opts);
 
 `classifyRunShape` takes the `state` and `projects` array. `classifyOutcome` takes only `state`. Both are deterministic pure functions — no Effect, no I/O.
 
-`DispatchInputs` and `CellOptions` are plain TypeScript interfaces (not Effect Schemas, never persisted) defined in `packages/sdk/src/contracts/dispatcher.ts` and exported from both `vitest-agent-sdk` and `vitest-agent-ui`.
+`DispatchInputs` and `CellOptions` are plain TypeScript interfaces (not Effect Schemas, never persisted) defined in `packages/sdk/src/contracts/dispatcher.ts` and exported from both `@vitest-agent/sdk` and `@vitest-agent/ui`.
 
-`buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble these structs from a `ReporterRenderInput` and `ReporterKit` — live in `vitest-agent-reporter` rather than this package. They moved there as part of the 2.0 restructure. If you are building a full reporter, use those helpers. If you are building a standalone renderer, construct `DispatchInputs` directly from your own inputs as shown above.
+`buildDispatchInputs` and `resolveCellOptions` — the helpers that assemble these structs from a `ReporterRenderInput` and `ReporterKit` — live in `@vitest-agent/reporter` rather than this package. They moved there as part of the 2.0 restructure. If you are building a full reporter, use those helpers. If you are building a standalone renderer, construct `DispatchInputs` directly from your own inputs as shown above.
 
 ## The two render paths
 
@@ -125,13 +125,13 @@ This path is appropriate for:
 - Live `stream`-mode frames mounted via `ink.render()` during a test run
 - Any TUI context where colored, animated terminal output is wanted
 
-The Ink path requires `react` and `ink` as installed peers. Both are declared as peer dependencies by `vitest-agent-ui`; `vitest-agent-reporter` satisfies the peer and provides the instance used in production.
+The Ink path requires `react` and `ink` as installed peers. Both are declared as peer dependencies by `@vitest-agent/ui`; `@vitest-agent/reporter` satisfies the peer and provides the instance used in production.
 
 When a cell's Ink output would duplicate its agent string exactly, the cell's `ink` half calls `renderAgentStringAsInk` from `packages/ui/src/dispatcher/ink-helpers.tsx`, which wraps the agent string in Ink `<Text>` rows. This means custom cell implementations can share a single formatting function for both halves when the content is identical.
 
 ## Subscribing to the PubSub for live rendering
 
-For live rendering during a test run, `vitest-agent-ui` ships an Effect `PubSub<RunEvent>` channel — `RunEventChannel` — plus subscriber helpers. The plugin's `AgentReporter` creates an unbounded `PubSub` per run and threads it onto `ReporterKit.runEvents`; `DefaultVitestAgentReporter` subscribes to drive the Ink live mount. The same channel is available for your own subscribers.
+For live rendering during a test run, `@vitest-agent/ui` ships an Effect `PubSub<RunEvent>` channel — `RunEventChannel` — plus subscriber helpers. The plugin's `AgentReporter` creates an unbounded `PubSub` per run and threads it onto `ReporterKit.runEvents`; `DefaultVitestAgentReporter` subscribes to drive the Ink live mount. The same channel is available for your own subscribers.
 
 The three subscriber helpers:
 
@@ -141,7 +141,7 @@ import {
   accumulateUntilFinished,
   forEachRenderState,
   renderStateStream,
-} from "vitest-agent-ui";
+} from "@vitest-agent/ui";
 import { Effect } from "effect";
 
 // Accumulate all events until RunFinished, return the final RenderState
@@ -163,7 +163,7 @@ const stream = renderStateStream;
 
 `forEachRenderState` is the typical entry point for a live renderer: it calls your callback with the incrementally reduced `RenderState` after each event, continuing until `RunFinished` (or `RunTimedOut`).
 
-If you are mounting an Ink component, call `ink.rerender(element)` inside the callback with the element produced by `dispatchInk`. The `DefaultVitestAgentReporter` in `vitest-agent-reporter` orchestrates this via `_createLiveInk` — see [the reporter docs](/reporter/custom-reporter) for the full lifecycle.
+If you are mounting an Ink component, call `ink.rerender(element)` inside the callback with the element produced by `dispatchInk`. The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` orchestrates this via `_createLiveInk` — see [the reporter docs](/reporter/custom-reporter) for the full lifecycle.
 
 ## Both paths share one state
 
@@ -176,7 +176,7 @@ This means a custom renderer that subscribes to the PubSub for live frames will 
 The synthesizers allow a renderer to operate outside a live Vitest run. `synthesizeFromAgentReport(report)` converts a stored `AgentReport` into a synthetic event sequence; `reduceRenderStateAll` folds it into a `RenderState`; `dispatch` produces the final string. The `DefaultVitestAgentReporter.render` method and the CLI replay helpers both follow this path.
 
 ```ts
-import { synthesizeFromAgentReport, reduceRenderStateAll } from "vitest-agent-ui";
+import { synthesizeFromAgentReport, reduceRenderStateAll } from "@vitest-agent/ui";
 
 const events = synthesizeFromAgentReport(agentReport);
 const state = reduceRenderStateAll(events);
@@ -187,7 +187,7 @@ const state = reduceRenderStateAll(events);
 
 ## Learn more
 
-- [vitest-agent-ui overview](/ui)
+- [@vitest-agent/ui overview](/ui)
 - [The dispatcher matrix](/ui/dispatcher) — the full 4 × 3 cell matrix and `DispatchInputs` fields
 - [Render state](/ui/render-state) — the `RenderState` shape and `RunEvent` variants
 - [API reference](/ui/api)

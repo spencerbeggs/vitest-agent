@@ -1,9 +1,9 @@
 ---
-title: "vitest-agent-plugin"
+title: "@vitest-agent/plugin"
 description: The Vitest plugin that turns your test suite into a live data source for LLM coding agents. Handles persistence, failure classification, coverage policy, project discovery, and a configurable reporter chain.
 ---
 
-# vitest-agent-plugin
+# @vitest-agent/plugin
 
 The Vitest plugin that turns your test suite into a live data source for LLM coding agents. Drop `AgentPlugin` into `vitest.config.ts` and it handles persistence, failure classification, coverage policy enforcement, project discovery, and a configurable reporter chain — the CLI and MCP server arrive as required peers and wire automatically.
 
@@ -19,19 +19,19 @@ The Vitest plugin that turns your test suite into a live data source for LLM cod
 ## Install
 
 ```bash
-npm install --save-dev vitest-agent-plugin
+npm install --save-dev @vitest-agent/plugin
 # or
-pnpm add -D vitest-agent-plugin
+pnpm add -D @vitest-agent/plugin
 ```
 
-The required peers `vitest-agent-cli` and `vitest-agent-mcp` install automatically with npm 7+ and pnpm (`autoInstallPeers: true`). You rarely need to install them by hand.
+The required peers `@vitest-agent/cli` and `@vitest-agent/mcp` install automatically with npm 7+ and pnpm (`autoInstallPeers: true`). You rarely need to install them by hand.
 
 ## Quick start
 
 A minimal `vitest.config.ts` using `AgentPlugin.discover()` and the standard coverage preset:
 
 ```ts
-import { AgentPlugin } from "vitest-agent-plugin";
+import { AgentPlugin } from "@vitest-agent/plugin";
 import { defineConfig } from "vitest/config";
 
 export default async () => {

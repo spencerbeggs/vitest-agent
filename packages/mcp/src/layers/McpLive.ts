@@ -2,8 +2,6 @@ import { NodeFileSystem } from "@effect/platform-node";
 import * as NodeContext from "@effect/platform-node/NodeContext";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
-import type { LogLevel } from "effect";
-import { Layer } from "effect";
 import {
 	DataReaderLive,
 	DataStoreLive,
@@ -11,7 +9,9 @@ import {
 	OutputPipelineLive,
 	ProjectDiscoveryLive,
 	migration0001,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import type { LogLevel } from "effect";
+import { Layer } from "effect";
 
 export const McpLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
 	const SqliteLayer = sqliteClientLayer({ filename: dbPath });

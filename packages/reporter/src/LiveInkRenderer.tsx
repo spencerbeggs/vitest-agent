@@ -50,11 +50,11 @@
  * @packageDocumentation
  */
 
+import type { RenderState, RunEvent } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
+import { SPINNER_FRAME_MS, StreamApp, reduceRenderState, spinnerFrameForTime } from "@vitest-agent/ui";
 import { Box, render as inkRender, renderToString } from "ink";
 import { createElement } from "react";
-import type { RenderState, RunEvent } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
-import { SPINNER_FRAME_MS, StreamApp, reduceRenderState, spinnerFrameForTime } from "vitest-agent-ui";
 
 export interface CreateLiveInkOptions {
 	/**
@@ -217,7 +217,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 						mount();
 					} catch (err) {
 						process.stderr.write(
-							`vitest-agent-reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
+							`@vitest-agent/reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
 						);
 						instance = null;
 					}
@@ -235,7 +235,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 					instance.rerender(frameElement());
 				} catch (err) {
 					process.stderr.write(
-						`vitest-agent-reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
+						`@vitest-agent/reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
 					);
 					instance = null;
 					stopClock();

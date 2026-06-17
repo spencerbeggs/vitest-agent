@@ -1,18 +1,18 @@
 ---
-title: "vitest-agent-sidecar"
+title: "@vitest-agent/sidecar"
 description: A Node Single Executable Application binary for the per-Bash-call inject-env hot path. Eliminates Node cold-start latency on every Bash tool call from a Claude Code agent.
 ---
 
-# vitest-agent-sidecar
+# @vitest-agent/sidecar
 
 A Node Single Executable Application (SEA) binary for the per-Bash-call `inject-env` hot path. Every Bash tool call from a Claude Code agent fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` env prefix. Running that through the full `vitest-agent` CLI pays Node cold-start latency on every call; this binary runs the same logic with a fraction of the startup cost.
 
-This package arrives automatically via `vitest-agent-cli`, which is itself a required peer of `vitest-agent-plugin`. You rarely need to add it directly.
+This package arrives automatically via `@vitest-agent/cli`, which is itself a required peer of `@vitest-agent/plugin`. You rarely need to add it directly.
 
 ## Features
 
-- **Native binary** — Node SEA wrapping the same `inject-env` TypeScript that ships in `vitest-agent-cli`; the JS fallback and binary stay byte-identical in behavior
-- **Per-platform sub-packages** — `vitest-agent-sidecar-darwin-arm64`, `vitest-agent-sidecar-linux-arm64`, `vitest-agent-sidecar-linux-x64`, `vitest-agent-sidecar-win32-x64` as `optionalDependencies`; only the matching platform installs
+- **Native binary** — Node SEA wrapping the same `inject-env` TypeScript that ships in `@vitest-agent/cli`; the JS fallback and binary stay byte-identical in behavior
+- **Per-platform sub-packages** — `@vitest-agent/sidecar-darwin-arm64`, `@vitest-agent/sidecar-linux-arm64`, `@vitest-agent/sidecar-linux-x64`, `@vitest-agent/sidecar-win32-x64` as `optionalDependencies`; only the matching platform installs
 - **`resolveSidecarBinaryPath()`** — exported function that returns the absolute path of the installed binary, or `null` on unsupported platforms
 
 ## Install
@@ -20,14 +20,14 @@ This package arrives automatically via `vitest-agent-cli`, which is itself a req
 The recommended install path is through the plugin:
 
 ```bash
-npm install --save-dev vitest-agent-plugin
-# vitest-agent-sidecar arrives transitively through vitest-agent-cli
+npm install --save-dev @vitest-agent/plugin
+# @vitest-agent/sidecar arrives transitively through @vitest-agent/cli
 ```
 
 To install standalone:
 
 ```bash
-npm install --save-dev vitest-agent-sidecar
+npm install --save-dev @vitest-agent/sidecar
 ```
 
 pnpm installs only the matching per-platform child (`optionalDependencies` filtered by `os`/`cpu` fields). On an unsupported platform the parent package installs but no binary is present; the hook falls back to the JS CLI automatically.
@@ -46,13 +46,13 @@ If `VITEST_AGENT_SIDECAR_BIN` is unset (unsupported platform, fresh session befo
 The exported function is used by `vitest-agent agent sidecar-path`:
 
 ```ts
-import { resolveSidecarBinaryPath } from "vitest-agent-sidecar";
+import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 
 const binaryPath = resolveSidecarBinaryPath();
 // Returns an absolute path string, or null if the platform binary is not installed
 ```
 
-The resolver uses `require.resolve` anchored inside `vitest-agent-sidecar`'s own `package.json` to find the `optionalDependency` binary. This is why the resolver cannot be moved to another package — `require.resolve` only locates `optionalDependencies` declared in the package that calls it.
+The resolver uses `require.resolve` anchored inside `@vitest-agent/sidecar`'s own `package.json` to find the `optionalDependency` binary. This is why the resolver cannot be moved to another package — `require.resolve` only locates `optionalDependencies` declared in the package that calls it.
 
 ## Per-platform packages
 
@@ -60,12 +60,12 @@ The four child packages each declare their own `bin` entry pointing at the prebu
 
 | Package | Platform |
 |---------|----------|
-| `vitest-agent-sidecar-darwin-arm64` | macOS Apple Silicon |
-| `vitest-agent-sidecar-linux-arm64` | Linux ARM64 |
-| `vitest-agent-sidecar-linux-x64` | Linux x64 |
-| `vitest-agent-sidecar-win32-x64` | Windows x64 |
+| `@vitest-agent/sidecar-darwin-arm64` | macOS Apple Silicon |
+| `@vitest-agent/sidecar-linux-arm64` | Linux ARM64 |
+| `@vitest-agent/sidecar-linux-x64` | Linux x64 |
+| `@vitest-agent/sidecar-win32-x64` | Windows x64 |
 
-Each child's binary bundles `dispatch` from `vitest-agent-sdk/dispatch` — the minimal entry point that carries no Effect or SQLite data layer — keeping the SEA bundle small.
+Each child's binary bundles `dispatch` from `@vitest-agent/sdk/dispatch` — the minimal entry point that carries no Effect or SQLite data layer — keeping the SEA bundle small.
 
 ## Learn more
 

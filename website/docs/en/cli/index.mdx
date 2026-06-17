@@ -1,13 +1,13 @@
 ---
-title: "vitest-agent-cli"
+title: "@vitest-agent/cli"
 description: The vitest-agent CLI bin. Manages the local SQLite database, runs health diagnostics, and provides hook-plumbing subcommands for the Claude Code plugin's session and Bash hooks.
 ---
 
-# vitest-agent-cli
+# @vitest-agent/cli
 
 The `vitest-agent` CLI bin. Manages the local SQLite database, runs health diagnostics, and provides the hook-plumbing subcommands used by the Claude Code plugin's session and Bash hooks. Reads cached test data from SQLite — never runs tests or calls AI providers.
 
-This package is a required peer of `vitest-agent-plugin` and arrives automatically with modern pnpm and npm. Install it directly only if you want the `vitest-agent` bin on its own.
+This package is a required peer of `@vitest-agent/plugin` and arrives automatically with modern pnpm and npm. Install it directly only if you want the `vitest-agent` bin on its own.
 
 ## Features
 
@@ -18,9 +18,9 @@ This package is a required peer of `vitest-agent-plugin` and arrives automatical
 ## Install
 
 ```bash
-npm install --save-dev vitest-agent-cli
+npm install --save-dev @vitest-agent/cli
 # or
-pnpm add -D vitest-agent-cli
+pnpm add -D @vitest-agent/cli
 ```
 
 ## Commands
@@ -77,7 +77,7 @@ vitest-agent agent sidecar-path
 vitest-agent agent record test-case-turns --chat-id <uuid>
 ```
 
-`inject-env` is the fastest subcommand — it is on the critical path of every Bash tool call when the Claude Code plugin is active. It reads `VITEST_AGENT_*` from env and the `package.json#scripts` from cwd, then rewrites any Vitest invocation with the canonical env prefix. The per-platform sidecar binary (`vitest-agent-sidecar`) runs the same logic at native speed.
+`inject-env` is the fastest subcommand — it is on the critical path of every Bash tool call when the Claude Code plugin is active. It reads `VITEST_AGENT_*` from env and the `package.json#scripts` from cwd, then rewrites any Vitest invocation with the canonical env prefix. The per-platform sidecar binary (`@vitest-agent/sidecar`) runs the same logic at native speed.
 
 ## The `db path` idiom
 

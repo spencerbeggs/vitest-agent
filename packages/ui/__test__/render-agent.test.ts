@@ -1,6 +1,6 @@
+import type { RenderState } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { RenderState } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 import { renderAgent } from "../src/index.js";
 
 const baseState = (overrides: Partial<RenderState> = {}): RenderState => ({

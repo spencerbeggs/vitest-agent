@@ -34,17 +34,17 @@ and a Claude Code plugin under `plugin/`.
 ```text
 vitest-agent/
 ├── packages/
-│   ├── plugin/                 # vitest-agent-plugin (Vitest plugin + lifecycle)
+│   ├── plugin/                 # @vitest-agent/plugin (Vitest plugin + lifecycle)
 │   │   └── src/
 │   │       ├── index.ts            # Public API (AgentPlugin)
 │   │       ├── reporter.ts         # Internal AgentReporter class
 │   │       ├── plugin.ts           # AgentPlugin factory + namespace
 │   │       └── layers/             # ReporterLive, CoverageAnalyzerLive
-│   ├── reporter/               # vitest-agent-reporter (named renderer factories)
+│   ├── reporter/               # @vitest-agent/reporter (named renderer factories)
 │   │   └── src/
 │   │       ├── index.ts            # Re-exports for named factories
 │   │       └── *.ts                # defaultReporter, markdownReporter, etc.
-│   ├── ui/                     # vitest-agent-ui (event-sourced renderer)
+│   ├── ui/                     # @vitest-agent/ui (event-sourced renderer)
 │   │   └── src/
 │   │       ├── index.ts            # renderRun, createLiveInk, eventSourcedReporter
 │   │       ├── reducer.ts          # Pure (state, event) => state
@@ -52,7 +52,7 @@ vitest-agent/
 │   │       ├── render-ink/         # React Ink components
 │   │       ├── pubsub/             # RunEvent PubSub channel
 │   │       └── factory/            # EventSourcedReporterFactory, LiveInkRenderer
-│   ├── sdk/                    # vitest-agent-sdk (data layer + services)
+│   ├── sdk/                    # @vitest-agent/sdk (data layer + services)
 │   │   └── src/
 │   │       ├── schemas/            # Effect Schema definitions (RunEvent, RenderState, ...)
 │   │       ├── services/           # Effect Context.Tag definitions
@@ -62,18 +62,18 @@ vitest-agent/
 │   │       ├── migrations/         # SQLite migrations (0001_initial canonical)
 │   │       ├── sql/                # Row types + assemblers
 │   │       └── utils/              # Pure utilities
-│   ├── cli/                    # vitest-agent-cli (CLI bin)
+│   ├── cli/                    # @vitest-agent/cli (CLI bin)
 │   │   └── src/
 │   │       ├── bin.ts              # @effect/cli entry point
 │   │       ├── commands/           # Thin command wrappers (status, show, ...)
 │   │       └── lib/                # Testable formatting logic
-│   ├── mcp/                    # vitest-agent-mcp (MCP server bin)
+│   ├── mcp/                    # @vitest-agent/mcp (MCP server bin)
 │   │   └── src/
 │   │       ├── server.ts           # @modelcontextprotocol/sdk server
 │   │       ├── router.ts           # tRPC router (29 tools)
 │   │       ├── context.ts          # ManagedRuntime context
 │   │       └── tools/              # MCP tool implementations
-│   ├── sidecar/                # vitest-agent-sidecar (Node SEA inject-env binary)
+│   ├── sidecar/                # @vitest-agent/sidecar (Node SEA inject-env binary)
 │   └── sidecar-*/              # Prebuilt per-platform binaries (optionalDependencies)
 ├── plugin/                     # Claude Code plugin (NOT a pnpm workspace)
 │   ├── .claude-plugin/plugin.json  # Manifest with inline mcpServers
@@ -89,10 +89,10 @@ vitest-agent/
 └── .claude/design/             # Architecture design documents
 ```
 
-`vitest-agent-sdk` is the dependency hub — `plugin`, `reporter`, `ui`,
+`@vitest-agent/sdk` is the dependency hub — `plugin`, `reporter`, `ui`,
 `cli`, and `mcp` all import from it. The dependency flow is
-`plugin → reporter → ui → sdk`. `vitest-agent-plugin` declares
-`vitest-agent-cli` and `vitest-agent-mcp` as required peer dependencies,
+`plugin → reporter → ui → sdk`. `@vitest-agent/plugin` declares
+`@vitest-agent/cli` and `@vitest-agent/mcp` as required peer dependencies,
 so a single install of the plugin pulls the whole family (including the
 sidecar, which the CLI depends on) for end users.
 
@@ -190,14 +190,14 @@ pnpm vitest run packages/sdk/src/utils/resolve-data-path.test.ts
 
 ### Testing Effect Services
 
-The `vitest-agent-sdk/testing` subpath provides `makeTestLayer` and five
+The `@vitest-agent/sdk/testing` subpath provides `makeTestLayer` and five
 preset factory functions for seeding representative database states. Import
 from the subpath:
 
 ```typescript
 import { Effect } from "effect";
-import { DataReader } from "vitest-agent-sdk";
-import { singlePassingRun, withFailures } from "vitest-agent-sdk/testing";
+import { DataReader } from "@vitest-agent/sdk";
+import { singlePassingRun, withFailures } from "@vitest-agent/sdk/testing";
 
 it("returns the latest run for a project", async () => {
   const layer = singlePassingRun(":memory:");
@@ -226,8 +226,8 @@ the state directly via `DataStore`:
 
 ```typescript
 import { Effect, Layer } from "effect";
-import { DataStore } from "vitest-agent-sdk";
-import { makeTestLayer } from "vitest-agent-sdk/testing";
+import { DataStore } from "@vitest-agent/sdk";
+import { makeTestLayer } from "@vitest-agent/sdk/testing";
 
 const layer = makeTestLayer(":memory:");
 const seed = Effect.gen(function* () {

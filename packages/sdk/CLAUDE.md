@@ -1,9 +1,9 @@
-# vitest-agent-sdk
+# @vitest-agent/sdk
 
 The no-internal-deps base package. Owns the data layer, schemas, errors,
 migrations, services, layers, formatters, the XDG path-resolution stack,
 the process-level migration coordinator, the public reporter contract types,
-the `RunEvent` / `RenderState` schemas consumed by `vitest-agent-ui`, the
+the `RunEvent` / `RenderState` schemas consumed by `@vitest-agent/ui`, the
 sidecar dispatch core, and the shared `lib/` markdown generators. The plugin,
 reporter, CLI, MCP, and UI packages all depend on this package; changes to its
 public exports ripple to all five runtimes.
@@ -38,7 +38,7 @@ src/
   layers/             -- live + test layer implementations
   schemas/            -- Effect Schema definitions
     RunEvent.ts       -- discriminated union of streaming run events
-                         consumed by `vitest-agent-ui`'s reducer
+                         consumed by `@vitest-agent/ui`'s reducer
     RenderState.ts    -- denormalized projection of a RunEvent stream;
                          the shape both renderers consume
     turns/            -- TurnPayload discriminated union (7 variants)
@@ -51,7 +51,7 @@ src/
   sql/                -- row types + DB-to-domain assemblers
   utils/              -- pure utilities (paths, signatures, validators)
   lib/                -- pure markdown generators (CLI + MCP)
-  testing/            -- exported via `vitest-agent-sdk/testing` subpath
+  testing/            -- exported via `@vitest-agent/sdk/testing` subpath
 ```
 
 ## Key files
@@ -59,7 +59,7 @@ src/
 | File | Purpose |
 | ---- | ------- |
 | `contracts/reporter.ts` | Public reporter contract types: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory` |
-| `contracts/dispatcher.ts` | Public T6 dispatcher contract types: `RunShape` (4 cases), `RunOutcome` (3 cases), `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`. Consumed by `vitest-agent-ui`'s dispatcher matrix and `DefaultVitestAgentReporter` |
+| `contracts/dispatcher.ts` | Public T6 dispatcher contract types: `RunShape` (4 cases), `RunOutcome` (3 cases), `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`. Consumed by `@vitest-agent/ui`'s dispatcher matrix and `DefaultVitestAgentReporter` |
 | `services/DataStore.ts` + `layers/DataStoreLive.ts` | All SQLite writes. Defines all write-input types plus `backfillTestCaseTurns(chatId)` and the 2.0 goal/behavior CRUD methods |
 | `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, and the 2.0 goal/behavior read methods |
 | `utils/resolve-data-path.ts` | Deterministic XDG-derived `dbPath` orchestrator (Decision 31) |
@@ -71,16 +71,16 @@ src/
 | `utils/validate-phase-transition.ts` | Pure validator for TDD phase transitions; returns acceptance or a typed `DenialReason` + remediation. See Decision D11 |
 | `lib/format-triage.ts` | Pure markdown generator powering both `triage_brief` MCP tool and `triage` CLI subcommand |
 | `lib/format-wrapup.ts` | Pure markdown generator for wrap-up nudges; five `kind` variants. Powers `wrapup_prompt` MCP tool and `wrapup` CLI subcommand |
-| `dispatch.ts` | The `vitest-agent-sdk/dispatch` entry-point barrel. Exports `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`, `exitCodeForTag`. The sidecar SEA bundler imports `dispatch` from here; the barrel deliberately reaches only `sidecar-dispatch.ts` / `internal-inject-env.ts` / `exit-code-for-tag.ts` so no Effect or SQLite data layer enters the bundle |
-| `sidecar-dispatch.ts`, `internal-inject-env.ts`, `exit-code-for-tag.ts` | The dispatch core, relocated from `vitest-agent-cli` to break a workspace dependency cycle. Re-exported only via `dispatch.ts`, never `index.ts` |
-| `testing/layers.ts` | `makeTestLayer(filename)` and the `DataStoreTestLayer` `:memory:` convenience — exported via the `vitest-agent-sdk/testing` subpath |
+| `dispatch.ts` | The `@vitest-agent/sdk/dispatch` entry-point barrel. Exports `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`, `exitCodeForTag`. The sidecar SEA bundler imports `dispatch` from here; the barrel deliberately reaches only `sidecar-dispatch.ts` / `internal-inject-env.ts` / `exit-code-for-tag.ts` so no Effect or SQLite data layer enters the bundle |
+| `sidecar-dispatch.ts`, `internal-inject-env.ts`, `exit-code-for-tag.ts` | The dispatch core, relocated from `@vitest-agent/cli` to break a workspace dependency cycle. Re-exported only via `dispatch.ts`, never `index.ts` |
+| `testing/layers.ts` | `makeTestLayer(filename)` and the `DataStoreTestLayer` `:memory:` convenience — exported via the `@vitest-agent/sdk/testing` subpath |
 | `testing/index.ts` | Five preset factories (`empty`, `singlePassingRun`, `withFailures`, `flaky`, `withTddTask`) that seed representative DB states for use in tests |
 
 ## Conventions
 
-- **No internal deps.** Never import from `vitest-agent-plugin`,
-  `vitest-agent-reporter`, `vitest-agent-cli`, `vitest-agent-mcp`, or
-  `vitest-agent-ui`. Keeps the dependency graph acyclic by construction.
+- **No internal deps.** Never import from `@vitest-agent/plugin`,
+  `@vitest-agent/reporter`, `@vitest-agent/cli`, `@vitest-agent/mcp`, or
+  `@vitest-agent/ui`. Keeps the dependency graph acyclic by construction.
 - **Public-API-by-default.** Anything exported from `index.ts` is part
   of the contract used by all five runtime packages. Adding or removing
   exports needs to be considered against all five consumers.
@@ -97,7 +97,7 @@ src/
   the `reason` field on every SQL `mapError`.
 - **Test layers live next to live layers** (`*Live.ts` / `*Test.ts`)
   so consumers can import either side via the same package entry.
-- **Test helpers are in `testing/`, exported via `vitest-agent-sdk/testing`.**
+- **Test helpers are in `testing/`, exported via `@vitest-agent/sdk/testing`.**
   Use `makeTestLayer(":memory:")` (or the `DataStoreTestLayer` shorthand)
   in unit tests; use the preset factories when you need a pre-seeded DB state.
   Tests live in `packages/sdk/__test__/` (flat directory).

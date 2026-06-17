@@ -1,5 +1,5 @@
 /**
- * vitest-agent-sdk
+ * @vitest-agent/sdk
  *
  * Convert a project name to a filesystem-safe filename.
  *
@@ -18,7 +18,7 @@
  *
  * @example
  * ```typescript
- * import { safeFilename } from "vitest-agent-sdk/utils";
+ * import { safeFilename } from "@vitest-agent/sdk/utils";
  *
  * safeFilename("\@savvy-web/my-lib:unit");
  * // Returns: "\@savvy-web__my-lib__unit"

@@ -1,5 +1,5 @@
 /**
- * vitest-agent-plugin
+ * @vitest-agent/plugin
  *
  * {@link AgentPlugin} convenience wrapper that injects {@link AgentReporter}
  * into the Vitest reporter chain via the `configureVitest` hook (Vitest 3.1+).
@@ -8,10 +8,7 @@
  */
 
 import { execSync } from "node:child_process";
-import type { Layer } from "effect";
-import { Effect } from "effect";
-import type { VitestPluginContext } from "vitest/node";
-import { CURRENT_REPORTER_VERSION } from "vitest-agent-reporter";
+import { CURRENT_REPORTER_VERSION } from "@vitest-agent/reporter";
 import type {
 	AgentConsoleMode,
 	AgentPluginOptions,
@@ -24,7 +21,7 @@ import type {
 	OutputFormat,
 	Transport,
 	VitestAgentReporterFactory,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
 import {
 	CURRENT_SDK_VERSION,
 	CoverageLevel,
@@ -32,7 +29,10 @@ import {
 	EnvironmentDetectorLive,
 	formatFatalError,
 	resolveLogLevel,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import type { Layer } from "effect";
+import { Effect } from "effect";
+import type { VitestPluginContext } from "vitest/node";
 import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";
 import { ConfigValidation } from "./services/ConfigValidation.js";
@@ -72,7 +72,7 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	 * progresses. Hosts drive a live renderer (Ink, debug logging) from
 	 * here. Throwing taps are caught and logged to stderr.
 	 */
-	onRunEvent?: (event: import("vitest-agent-sdk").RunEvent) => void;
+	onRunEvent?: (event: import("@vitest-agent/sdk").RunEvent) => void;
 	/**
 	 * Controls the Vite transform hook that rewrites test() and it() call
 	 * options to inject filename-derived tags. Pass a DiscoverStrategy
@@ -221,16 +221,16 @@ function checkVersionDrift(pluginVersion: string): void {
 	if (_hasWarnedDrift) return;
 	if (pluginVersion === "0.0.0") return;
 	const peers: ReadonlyArray<readonly [string, string]> = [
-		["vitest-agent-sdk", CURRENT_SDK_VERSION],
-		["vitest-agent-reporter", CURRENT_REPORTER_VERSION],
+		["@vitest-agent/sdk", CURRENT_SDK_VERSION],
+		["@vitest-agent/reporter", CURRENT_REPORTER_VERSION],
 	];
 	let warned = false;
 	for (const [peerName, peerVersion] of peers) {
 		if (peerVersion !== pluginVersion) {
 			process.stderr.write(
-				`[vitest-agent-plugin] version drift: vitest-agent-plugin@${pluginVersion} ` +
+				`[@vitest-agent/plugin] version drift: @vitest-agent/plugin@${pluginVersion} ` +
 					`with ${peerName}@${peerVersion}. ` +
-					`Reinstall vitest-agent-* packages so versions match.\n`,
+					`Reinstall @vitest-agent/* packages so versions match.\n`,
 			);
 			warned = true;
 		}
@@ -683,7 +683,7 @@ export namespace AgentPlugin {
 	 *
 	 * ```ts
 	 * // vitest.setup.ts
-	 * import { AgentPlugin } from "vitest-agent-plugin";
+	 * import { AgentPlugin } from "@vitest-agent/plugin";
 	 * export function setup() {
 	 *   AgentPlugin.runScript("pnpm exec turbo run build:dev --output-logs=errors-only");
 	 * }

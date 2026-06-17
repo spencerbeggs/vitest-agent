@@ -35,7 +35,7 @@ export type ConsoleOutputs = typeof ConsoleOutputs.Type;
  *
  * Five fields total. Two are function-typed (`reporter`, `onRunEvent`)
  * and live on the `AgentPluginConstructorOptions` companion interface in
- * `vitest-agent-plugin` — Effect Schema cannot encode functions cleanly,
+ * `@vitest-agent/plugin` — Effect Schema cannot encode functions cleanly,
  * so the schema-decodable struct carries the three data-shaped fields.
  */
 export const AgentPluginOptions = Schema.Struct({
@@ -48,7 +48,7 @@ export type AgentPluginOptions = typeof AgentPluginOptions.Type;
 /**
  * Reporter-implementation options.
  *
- * Public for users building custom reporters via `vitest-agent-reporter`;
+ * Public for users building custom reporters via `@vitest-agent/reporter`;
  * most users never see this type — they wire `AgentPlugin({ reporter })`
  * and the factory receives a fully-resolved `ReporterKit` instead.
  *

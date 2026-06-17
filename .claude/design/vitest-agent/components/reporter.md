@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-05-23
-last-synced: 2026-05-23
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 90
 related:
   - ../architecture.md
@@ -16,16 +16,16 @@ related:
 dependencies: []
 ---
 
-# Reporter package (`vitest-agent-reporter`)
+# Reporter package (`@vitest-agent/reporter`)
 
 The default reporter for the `vitest-agent` plugin — and the canonical worked example for authors building their own. This package owns the production default reporter outright. A custom-reporter author depends on this one package, reads a real complete `VitestAgentReporterFactory` next to their own code, and gets the contract types plus the dispatch helpers from a single import.
 
-**npm name:** `vitest-agent-reporter`
+**npm name:** `@vitest-agent/reporter`
 **Location:** `packages/reporter/`
-**Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-ui`
+**Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/ui`
 **External dependencies:** `react`, `ink` (full deps — the package owns the React instance the `ui` primitives render against)
 
-The plugin declares this package as a regular workspace `dependency` (pinned at `workspace:*`), not a peer, so version-drift detection has a stable handle. This package declares `react` and `ink` as full dependencies: `vitest-agent-ui` declares them as `peerDependencies` because it renders *with* React/Ink but does not own the instance, and `reporter` is the concrete consumer of `ui`, so it provides the peer. The plugin does not touch JSX.
+The plugin declares this package as a regular workspace `dependency` (pinned at `workspace:*`), not a peer, so version-drift detection has a stable handle. This package declares `react` and `ink` as full dependencies: `@vitest-agent/ui` declares them as `peerDependencies` because it renders *with* React/Ink but does not own the instance, and `reporter` is the concrete consumer of `ui`, so it provides the peer. The plugin does not touch JSX.
 
 For the contract types (`VitestAgentReporterFactory`, `VitestAgentReporter`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `ResolvedReporterConfig`) see [./sdk.md](./sdk.md). For how the plugin invokes the factory and feeds the run-event stream see [./plugin.md](./plugin.md). For the dispatcher matrix and cell library this package drives see [./ui.md](./ui.md).
 
@@ -36,10 +36,10 @@ For the contract types (`VitestAgentReporterFactory`, `VitestAgentReporter`, `Re
 `packages/reporter/src/index.ts` is the entire public surface. Three groups:
 
 - **The default reporter** — `DefaultVitestAgentReporter`, the preassembled `VitestAgentReporterFactory` the plugin wires as its built-in when the user's `reporter` option is unset.
-- **Contract type re-exports from the SDK** — `RenderedOutput`, `ReporterKit`, `ReporterRenderInput`, `ResolvedReporterConfig`, `VitestAgentReporter`, `VitestAgentReporterFactory`. A custom-reporter author imports everything they need from `vitest-agent-reporter` without adding `vitest-agent-sdk` as a direct dependency.
+- **Contract type re-exports from the SDK** — `RenderedOutput`, `ReporterKit`, `ReporterRenderInput`, `ResolvedReporterConfig`, `VitestAgentReporter`, `VitestAgentReporterFactory`. A custom-reporter author imports everything they need from `@vitest-agent/reporter` without adding `@vitest-agent/sdk` as a direct dependency.
 - **Dispatch helpers** — `buildDispatchInputs(state, input, overrides?)`, `resolveCellOptions(kit)`, `renderAgentStringForReport(report)` and `renderHumanStringForReport(report, options?)`. A custom factory that wants to reuse the dispatcher pipeline composes them. The live-mount driver is exported as `_createLiveInk` (alias of `createLiveInk`) plus the `LiveInkRenderer` / `CreateLiveInkOptions` types; it is internal to the default reporter and consumers do not normally name it.
 
-The dispatcher itself, the cells and the reducer live in `vitest-agent-ui` and can be imported from that package directly for hosts composing at a different layer.
+The dispatcher itself, the cells and the reducer live in `@vitest-agent/ui` and can be imported from that package directly for hosts composing at a different layer.
 
 `LiveInkRenderer.tsx` (`packages/reporter/src/`) carries the JSX in this package, so `packages/reporter/rslib.config.ts` carries the SWC automatic-runtime plugin and `tsconfig.json` sets `"jsx": "react-jsx"`. Its tests live at `packages/reporter/__test__/` (`default-reporter.test.ts`, `live-ink-renderer.test.ts`).
 
@@ -58,7 +58,7 @@ The two-kit model is part of the contract: `render(input, kit)` takes a second a
 
 ## The `stream` mount and the animation clock
 
-`stream` mode mounts the agent-shaped, lifecycle-aware `StreamApp` Ink component from `vitest-agent-ui`. `StreamApp` reads the same `RenderState` the reducer produces and lays it out by run shape (one row per project / module / test); see [./ui.md](./ui.md) for the component.
+`stream` mode mounts the agent-shaped, lifecycle-aware `StreamApp` Ink component from `@vitest-agent/ui`. `StreamApp` reads the same `RenderState` the reducer produces and lays it out by run shape (one row per project / module / test); see [./ui.md](./ui.md) for the component.
 
 `createLiveInk` in `packages/reporter/src/LiveInkRenderer.tsx` owns an **animation clock** the spinner and the ticking elapsed-time column both need. The mechanics:
 
@@ -79,9 +79,9 @@ A custom factory that wants live painting subscribes to `kit.runEvents` at facto
 
 ---
 
-## Why the separation from `vitest-agent-ui` stays
+## Why the separation from `@vitest-agent/ui` stays
 
-`vitest-agent-ui` is the pure rendering-primitives layer; `vitest-agent-reporter` is the default reporter and the reference package. `ui` has exactly one consumer (`reporter`), which on its own would argue for merging the two. The deciding factor against merging is the planned MCP triage-dashboard app — a React-based MCP app would consume `ui`'s rendering primitives directly, and keeping `ui` separate avoids a merge-then-resplit churn when that app lands. See D34 / D41 in [../decisions.md](../decisions.md).
+`@vitest-agent/ui` is the pure rendering-primitives layer; `@vitest-agent/reporter` is the default reporter and the reference package. `ui` has exactly one consumer (`reporter`), which on its own would argue for merging the two. The deciding factor against merging is the planned MCP triage-dashboard app — a React-based MCP app would consume `ui`'s rendering primitives directly, and keeping `ui` separate avoids a merge-then-resplit churn when that app lands. See D34 / D41 in [../decisions.md](../decisions.md).
 
 ## CURRENT_REPORTER_VERSION
 

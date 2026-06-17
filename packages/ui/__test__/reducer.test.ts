@@ -1,6 +1,6 @@
+import type { RenderState, RunEvent } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { RenderState, RunEvent } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 import { reduceRenderState, reduceRenderStateAll } from "../src/index.js";
 import { allPassEvents, coverageViolationEvents, flakyRecoveryEvents, mixedFailEvents } from "./fixtures/events.js";
 

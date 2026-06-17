@@ -26,10 +26,10 @@
 import { join } from "node:path";
 import { Command, Options } from "@effect/cli";
 import { NodeContext } from "@effect/platform-node";
+import { resolveProjectKeyFromCwd } from "@vitest-agent/sdk";
+import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
+import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 import { Cause, Chunk, Effect, Option } from "effect";
-import { resolveProjectKeyFromCwd } from "vitest-agent-sdk";
-import { exitCodeForTag, injectEnv } from "vitest-agent-sdk/dispatch";
-import { resolveSidecarBinaryPath } from "vitest-agent-sidecar";
 import { SidecarLive } from "../layers/SidecarLive.js";
 import { endAgentEffect } from "../lib/internal-end-agent.js";
 import { registerAgentEffect } from "../lib/internal-register-agent.js";

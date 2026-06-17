@@ -2,9 +2,9 @@
 	"$schema": "../../.claude/skills/design-config/json-schemas/current.json",
 	"version": "1.0.0",
 	"project": {
-		"name": "spencerbeggs/vitest-agent-reporter",
+		"name": "spencerbeggs/vitest-agent",
 		"type": "package",
-		"repository": "https://github.com/spencerbeggs/vitest-agent-reporter",
+		"repository": "https://github.com/spencerbeggs/vitest-agent",
 		"maintainer": "C. Spencer Beggs"
 	},
 	"paths": {
@@ -15,7 +15,7 @@
 		"localContext": "CLAUDE.local.md"
 	},
 	"modules": {
-		"vitest-agent-reporter": {
+		"vitest-agent": {
 			"path": ".",
 			"designDocsPath": ".claude/design/vitest-agent",
 			"categories": ["architecture", "performance", "integration", "testing", "documentation"],

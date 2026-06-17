@@ -9,9 +9,9 @@
  */
 
 import { Args, Command, Options } from "@effect/cli";
+import type { ArtifactKind, ChangeKind, RunInvocationMethod } from "@vitest-agent/sdk";
+import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
-import type { ArtifactKind, ChangeKind, RunInvocationMethod } from "vitest-agent-sdk";
-import { DataReader, DataStore } from "vitest-agent-sdk";
 import { recordSessionEnd, recordSessionStart } from "../lib/record-session.js";
 import { recordTddArtifactEffect } from "../lib/record-tdd-artifact.js";
 import { recordTurnEffect } from "../lib/record-turn.js";

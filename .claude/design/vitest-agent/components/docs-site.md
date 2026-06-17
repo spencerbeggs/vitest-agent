@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: documentation
 created: 2026-05-27
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 85
 related:
   - ../architecture.md
@@ -49,7 +49,7 @@ Two classes of generated artifact are deliberately gitignored (see the consolida
 
 The deploy pipeline is `.github/workflows/deploy-docs.yml`. It triggers on `release: published` and on manual `workflow_dispatch`.
 
-All `vitest-agent` packages release in lockstep from one commit sharing a single semver tag, but each package gets its own GitHub Release. To deploy exactly once per release rather than once per package, the workflow's `if` guard keys on the plugin package's Release — it checks that `github.event.release.name` contains `vitest-agent-plugin`, a substring no other package name carries. The job checks out `main`, rebuilds the site from the committed snapshot db, and publishes `website/dist` to the Cloudflare Pages project named `vitest-agent` via `cloudflare/wrangler-action`.
+All `vitest-agent` packages release in lockstep from one commit sharing a single semver tag, but each package gets its own GitHub Release. To deploy exactly once per release rather than once per package, the workflow's `if` guard keys on the plugin package's Release — it checks that `github.event.release.name` contains `@vitest-agent/plugin`, a substring no other package name carries. The job checks out `main`, rebuilds the site from the committed snapshot db, and publishes `website/dist` to the Cloudflare Pages project named `vitest-agent` via `cloudflare/wrangler-action`.
 
 There is a bootstrap caveat documented in the workflow header: until `rspress-plugin-api-extractor` is on npm and `website/package.json` swaps its local dependency for the published version, a CI runner cannot resolve the plugin, so the first dispatch or release deploy requires that swap to have landed on main first.
 

@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { ResolvedThresholds } from "vitest-agent-sdk";
+import type { ResolvedThresholds } from "@vitest-agent/sdk";
 
 const METRIC_KEYS = new Set(["lines", "functions", "branches", "statements"]);
 const RESERVED_KEYS = new Set([...METRIC_KEYS, "100", "perFile", "autoUpdate"]);

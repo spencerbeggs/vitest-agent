@@ -1,6 +1,6 @@
 {
-	"name": "vitest-agent-mcp",
-	"version": "1.3.1",
+	"name": "@vitest-agent/mcp",
+	"version": "0.0.0",
 	"private": true,
 	"description": "Model Context Protocol server for vitest-agent. Exposes 53 tools for agent access to test data, TDD lifecycle, and session management.",
 	"keywords": ["vitest", "agent", "mcp", "model-context-protocol", "claude"],
@@ -31,7 +31,7 @@
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:meta": "node savvy.build.ts --target meta",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev --filter=vitest-agent-mcp",
+		"prepare": "turbo run build:dev --filter=.",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
@@ -43,8 +43,8 @@
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@trpc/server": "^11.17.0",
+		"@vitest-agent/sdk": "workspace:*",
 		"effect": "catalog:silk",
-		"vitest-agent-sdk": "workspace:*",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
@@ -63,8 +63,7 @@
 		"directory": "dist/dev/pkg",
 		"linkDirectory": true,
 		"targets": {
-			"npm": true,
-			"github": "@spencerbeggs/vitest-agent-mcp"
+			"npm": true
 		}
 	}
 }

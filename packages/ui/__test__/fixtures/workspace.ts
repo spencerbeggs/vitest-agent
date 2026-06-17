@@ -8,7 +8,7 @@
  * `AgentReport`; we mirror that shape here.
  */
 
-import type { FileCoverageReport, ProjectSummary, TrendSummary } from "vitest-agent-sdk";
+import type { FileCoverageReport, ProjectSummary, TrendSummary } from "@vitest-agent/sdk";
 
 /**
  * Five-project workspace, all passing. Modeled on the

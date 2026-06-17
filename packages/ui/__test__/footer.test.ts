@@ -1,6 +1,6 @@
+import type { DispatchInputs, FailureRecord, RenderState } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { DispatchInputs, FailureRecord, RenderState } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 import { buildFooter, dominantClassification } from "../src/dispatcher/footer.js";
 import { belowTargetFixture } from "./fixtures/workspace.js";
 

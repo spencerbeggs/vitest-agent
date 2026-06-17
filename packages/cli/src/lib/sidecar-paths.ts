@@ -2,7 +2,7 @@
  * Shared sidecar path-resolution and exit-code helpers.
  *
  * These helpers were extracted from `commands/agent.ts` so the
- * `vitest-agent-cli` `agent` subcommands and the `vitest-agent-sidecar`
+ * `@vitest-agent/cli` `agent` subcommands and the `@vitest-agent/sidecar`
  * native binary call byte-identical path-resolution logic. The sidecar
  * binary re-uses the CLI as a library, so any divergence here would
  * silently fork the two implementations.
@@ -17,7 +17,7 @@
  *     then `VITEST_AGENT_SESSION_MAP_DIR`, then `~/.vitest-agent/`
  *
  * The tagged-error → exit-code mapping (`exitCodeForTag`) moved to
- * `vitest-agent-sdk/dispatch` alongside the rest of the sidecar
+ * `@vitest-agent/sdk/dispatch` alongside the rest of the sidecar
  * dispatch core; import it from there.
  *
  * @packageDocumentation
@@ -26,8 +26,8 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { ProjectIdentityNotResolvableError } from "@vitest-agent/sdk";
 import { Effect } from "effect";
-import { ProjectIdentityNotResolvableError } from "vitest-agent-sdk";
 
 const APP_NAMESPACE = "vitest-agent";
 

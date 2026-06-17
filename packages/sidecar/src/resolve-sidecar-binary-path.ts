@@ -1,5 +1,5 @@
 /**
- * vitest-agent-sidecar
+ * @vitest-agent/sidecar
  *
  * Resolves the absolute path of the platform-specific sidecar binary
  * by using `require.resolve` on the optional platform package's bin entry.
@@ -26,20 +26,20 @@ export interface ResolveSidecarBinaryPathOptions {
  * darwin-x64 is intentionally absent — there is no such package.
  */
 const SUPPORTED_PLATFORMS: ReadonlyMap<string, string> = new Map([
-	["darwin-arm64", "vitest-agent-sidecar-darwin-arm64"],
-	["linux-arm64", "vitest-agent-sidecar-linux-arm64"],
-	["linux-x64", "vitest-agent-sidecar-linux-x64"],
-	["win32-x64", "vitest-agent-sidecar-win32-x64"],
+	["darwin-arm64", "@vitest-agent/sidecar-darwin-arm64"],
+	["linux-arm64", "@vitest-agent/sidecar-linux-arm64"],
+	["linux-x64", "@vitest-agent/sidecar-linux-x64"],
+	["win32-x64", "@vitest-agent/sidecar-win32-x64"],
 ]);
 
 /**
  * Resolve the absolute path of the platform-specific sidecar binary.
  *
  * The four platform packages that ship SEA binaries are:
- *   - `vitest-agent-sidecar-darwin-arm64`  → `bin/vitest-agent-sidecar`
- *   - `vitest-agent-sidecar-linux-arm64`   → `bin/vitest-agent-sidecar`
- *   - `vitest-agent-sidecar-linux-x64`     → `bin/vitest-agent-sidecar`
- *   - `vitest-agent-sidecar-win32-x64`     → `bin/vitest-agent-sidecar.exe`
+ *   - `@vitest-agent/sidecar-darwin-arm64`  → `bin/vitest-agent-sidecar`
+ *   - `@vitest-agent/sidecar-linux-arm64`   → `bin/vitest-agent-sidecar`
+ *   - `@vitest-agent/sidecar-linux-x64`     → `bin/vitest-agent-sidecar`
+ *   - `@vitest-agent/sidecar-win32-x64`     → `bin/vitest-agent-sidecar.exe`
  *
  * The binary path is resolved via `require.resolve` of the platform package's
  * bin entry (not discovered on PATH), so transitive optional dependencies that

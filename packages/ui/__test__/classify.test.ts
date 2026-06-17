@@ -7,9 +7,9 @@
  * a hand-built minimal state.
  */
 
+import type { ProjectSummary, RenderState } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { ProjectSummary, RenderState } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 import { classifyOutcome, classifyRunShape } from "../src/dispatcher/classify.js";
 import { reduceRenderStateAll } from "../src/reducer.js";
 import {

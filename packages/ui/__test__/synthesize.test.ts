@@ -1,5 +1,5 @@
+import type { TestClassification, VitestTestCase, VitestTestModule, VitestTestSuite } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { TestClassification, VitestTestCase, VitestTestModule, VitestTestSuite } from "vitest-agent-sdk";
 import type { RunEvent, SynthesizedCoverage } from "../src/index.js";
 import { reduceRenderStateAll, renderAgent, synthesizeRunEvents } from "../src/index.js";
 

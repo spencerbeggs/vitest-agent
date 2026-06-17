@@ -5,7 +5,7 @@ description: Implement VitestAgentReporterFactory to replace or extend vitest-ag
 
 # Writing a custom reporter
 
-`vitest-agent-plugin` separates persistence from rendering. The plugin owns the Vitest lifecycle — receiving test results, persisting runs, classifying tests, computing trends. Rendering is delegated to a reporter factory you supply. This page explains the factory contract, the data you receive, the output targets available, and how to wire everything together.
+`@vitest-agent/plugin` separates persistence from rendering. The plugin owns the Vitest lifecycle — receiving test results, persisting runs, classifying tests, computing trends. Rendering is delegated to a reporter factory you supply. This page explains the factory contract, the data you receive, the output targets available, and how to wire everything together.
 
 ## The factory contract
 
@@ -18,7 +18,7 @@ import type {
   VitestAgentReporter,
   ReporterRenderInput,
   RenderedOutput,
-} from "vitest-agent-reporter";
+} from "@vitest-agent/reporter";
 
 const myFactory: VitestAgentReporterFactory = (
   kit: ReporterKit
@@ -62,7 +62,7 @@ The following factory prints a one-line summary to stdout. It reads `input.repor
 import type {
   VitestAgentReporterFactory,
   ReporterRenderInput,
-} from "vitest-agent-reporter";
+} from "@vitest-agent/reporter";
 
 export const summaryReporter: VitestAgentReporterFactory = () => ({
   render(input: ReporterRenderInput) {
@@ -111,7 +111,7 @@ A single `render` call may return entries with different targets — for example
 The factory is invoked at run start, before the first test event. If you want to paint progress as tests run, subscribe to `kit.runEvents` inside the factory and drive a renderer off the stream. `render` is still called once at run end, but your factory will have accumulated live state by then.
 
 ```ts
-import type { VitestAgentReporterFactory } from "vitest-agent-reporter";
+import type { VitestAgentReporterFactory } from "@vitest-agent/reporter";
 import { PubSub } from "effect";
 
 export const liveReporter: VitestAgentReporterFactory = (kit) => {
@@ -152,7 +152,7 @@ A factory may return an array of reporters instead of a single reporter. The plu
 import type {
   VitestAgentReporterFactory,
   VitestAgentReporter,
-} from "vitest-agent-reporter";
+} from "@vitest-agent/reporter";
 
 const stdoutReporter: VitestAgentReporter = {
   render(input) {
@@ -193,7 +193,7 @@ Persistence runs exactly once regardless of how many reporters you return. Repor
 When you want persistence — so the MCP tools and CLI can query run history — but no console output at all, use the no-op reporter:
 
 ```ts
-import type { VitestAgentReporterFactory } from "vitest-agent-reporter";
+import type { VitestAgentReporterFactory } from "@vitest-agent/reporter";
 
 export const noopReporter: VitestAgentReporterFactory = () => ({
   render: () => [],
@@ -206,7 +206,7 @@ Pass your factory as the `reporter` option:
 
 ```ts
 import { defineConfig } from "vitest/config";
-import { AgentPlugin } from "vitest-agent-plugin";
+import { AgentPlugin } from "@vitest-agent/plugin";
 import { myFactory } from "./my-reporter.js";
 
 export default defineConfig({
@@ -220,11 +220,11 @@ export default defineConfig({
 });
 ```
 
-When `reporter` is omitted the plugin injects `DefaultVitestAgentReporter` from `vitest-agent-reporter` automatically. Supplying your own factory replaces the default entirely — combine it with [`DefaultVitestAgentReporter`](/reporter/api/variable/defaultvitestagentreporter) in a multi-reporter array if you want to extend rather than replace:
+When `reporter` is omitted the plugin injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` automatically. Supplying your own factory replaces the default entirely — combine it with [`DefaultVitestAgentReporter`](/reporter/api/variable/defaultvitestagentreporter) in a multi-reporter array if you want to extend rather than replace:
 
 ```ts
-import { AgentPlugin } from "vitest-agent-plugin";
-import { DefaultVitestAgentReporter } from "vitest-agent-reporter";
+import { AgentPlugin } from "@vitest-agent/plugin";
+import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
 import { myGitHubSummaryReporter } from "./my-reporter.js";
 
 AgentPlugin({
@@ -237,6 +237,6 @@ AgentPlugin({
 
 ## Learn more
 
-- [vitest-agent-reporter overview](/reporter)
+- [@vitest-agent/reporter overview](/reporter)
 - [API reference](/reporter/api)
 - [Console modes](/guide/console-modes)

@@ -1,6 +1,6 @@
+import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { Effect, Fiber, PubSub, Queue, Ref, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import type { RenderState, RunEvent } from "vitest-agent-sdk";
 import {
 	RunEventChannel,
 	RunEventChannelLive,

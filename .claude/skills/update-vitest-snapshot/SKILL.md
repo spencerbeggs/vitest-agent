@@ -7,7 +7,7 @@ allowed-tools: Read Write Edit Bash Glob Grep
 
 # Update Vitest Snapshot
 
-You are refreshing the vendored upstream Vitest documentation snapshot the MCP server serves under `vitest://docs/...`. The snapshot ships in `vitest-agent-mcp` and is the primary way agents discover Vitest API behavior without a network fetch. Quality of the per-page `description` field directly determines whether future agents can find the right page when they need it.
+You are refreshing the vendored upstream Vitest documentation snapshot the MCP server serves under `vitest://docs/...`. The snapshot ships in `@vitest-agent/mcp` and is the primary way agents discover Vitest API behavior without a network fetch. Quality of the per-page `description` field directly determines whether future agents can find the right page when they need it.
 
 This is not a fast workflow. The user is reviewing alongside you. Take your time with descriptions — this snapshot is refreshed every several months at most.
 

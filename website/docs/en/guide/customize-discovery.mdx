@@ -19,7 +19,7 @@ For a map of the overall package structure that discovery works with, see
 materialize the results:
 
 ```typescript
-import { AgentPlugin } from "vitest-agent-plugin";
+import { AgentPlugin } from "@vitest-agent/plugin";
 import { defineConfig } from "vitest/config";
 
 export default async () => {
@@ -108,7 +108,7 @@ extending the default strategy with `.extend()` — it layers a new `classify`
 function (and any `additionalTags`) over the built-in behavior immutably:
 
 ```typescript
-import { AgentPlugin, DefaultDiscoverStrategy, Tag } from "vitest-agent-plugin";
+import { AgentPlugin, DefaultDiscoverStrategy, Tag } from "@vitest-agent/plugin";
 
 const strategy = new DefaultDiscoverStrategy().extend({
   additionalTags: [Tag.make("smoke")],
@@ -127,7 +127,7 @@ For pattern-based rules, the `classifyByFilename`, `classifyByDirectory`, and
 `combineClassifiers` helpers build a `classify` function for you:
 
 ```typescript
-import { DefaultDiscoverStrategy, classifyByDirectory, Tag } from "vitest-agent-plugin";
+import { DefaultDiscoverStrategy, classifyByDirectory, Tag } from "@vitest-agent/plugin";
 
 const strategy = new DefaultDiscoverStrategy().extend({
   additionalTags: [Tag.make("smoke")],

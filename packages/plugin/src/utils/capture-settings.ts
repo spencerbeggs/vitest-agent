@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { SettingsInput } from "vitest-agent-sdk";
+import type { SettingsInput } from "@vitest-agent/sdk";
 
 export function captureSettings(config: Record<string, unknown>, vitestVersion: string): SettingsInput {
 	const pool = config.pool as string | undefined;

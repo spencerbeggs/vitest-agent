@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: testing
 created: 2026-04-29
-updated: 2026-05-23
-last-synced: 2026-05-23
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 95
 related:
   - ./architecture.md
@@ -32,7 +32,7 @@ The bulk of the suite lives in `packages/sdk/`, with the plugin, mcp, ui
 and cli packages carrying the next-largest sets; `reporter` and `sidecar`
 carry a handful each.
 
-The `vitest-agent-ui` tests are layered:
+The `@vitest-agent/ui` tests are layered:
 
 - Reducer unit tests — pure synchronous fixture folds, no React, no Ink.
 - Agent renderer snapshots — inline assertions plus golden snapshots

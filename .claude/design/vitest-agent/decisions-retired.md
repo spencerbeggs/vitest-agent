@@ -1,10 +1,10 @@
 ---
 status: archived
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 100
 related:
   - ./decisions.md
@@ -105,7 +105,7 @@ single-package install. It depended on an exact `./mcp` subpath export,
 duplicated Node's resolution algorithm (breaking under yarn berry PnP and
 custom store directories), and surfaced errors as "couldn't find ./mcp
 export" rather than "the package isn't installed". When the MCP server
-became its own package (`vitest-agent-mcp`) with its own bin in the
+became its own package (`@vitest-agent/mcp`) with its own bin in the
 five-package split, the user's package manager could resolve and execute
 it directly — re-implementing PM resolution in the loader was the wrong
 layer. D30 rewrote the loader as a zero-deps PM-detect + spawn script
@@ -113,7 +113,7 @@ that delegates to `pnpm exec` / `npx --no-install` / `yarn run` / `bun x`.
 
 **What it was:** the loader resolved the MCP server module by walking up
 from the plugin directory through `node_modules` looking for
-`vitest-agent-reporter`'s `./mcp` subpath export, then dynamically
+`@vitest-agent/reporter`'s `./mcp` subpath export, then dynamically
 imported it as a `file://` URL.
 
 ---

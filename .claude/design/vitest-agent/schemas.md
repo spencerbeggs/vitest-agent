@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 93
 related:
   - ./architecture.md
@@ -48,7 +48,7 @@ ProjectDiscovery | OutputRenderer`) is defined in
 union and the `RenderState` reducer projection live in
 `packages/sdk/src/schemas/RunEvent.ts` and
 `packages/sdk/src/schemas/RenderState.ts`; both are re-exported by
-`vitest-agent-ui` for convenience. See
+`@vitest-agent/ui` for convenience. See
 [./components/ui.md](./components/ui.md) for the taxonomy and the
 reducer.
 
@@ -93,7 +93,7 @@ distinction is a render-layer concept the reducer derives, not a
 persisted enum.
 
 `RenderState` (`packages/sdk/src/schemas/RenderState.ts`) is the
-projection the `vitest-agent-ui` reducer folds events into. `phase` is
+projection the `@vitest-agent/ui` reducer folds events into. `phase` is
 the run-lifecycle terminal marker; `RunTimedOut` folds into a dedicated
 `"timed-out"` phase so the renderer shows a final frame instead of
 hanging. `ModuleRecord` (the per-module entry keyed by `modulePath`)
@@ -112,8 +112,8 @@ run-shape grouping.
 ## Reporter contract
 
 `packages/sdk/src/contracts/reporter.ts` defines the public boundary between
-`vitest-agent-plugin` and any implementer of a `VitestAgentReporterFactory`
-(the named factories in `vitest-agent-reporter`, or any third-party reporter).
+`@vitest-agent/plugin` and any implementer of a `VitestAgentReporterFactory`
+(the named factories in `@vitest-agent/reporter`, or any third-party reporter).
 
 The contract is four types:
 
@@ -223,7 +223,7 @@ D40 for the full table and the rationale.
 `AgentReporterOptions` is the narrow per-instance config bag the reporter
 implementation accepts. It carries one field — `projectFilter`,
 set by the plugin per-project. Custom reporters built via
-`vitest-agent-reporter` consume the substantive `ReporterKit` /
+`@vitest-agent/reporter` consume the substantive `ReporterKit` /
 `ResolvedReporterConfig` types instead and rarely touch this schema.
 
 ## Transport
@@ -672,7 +672,7 @@ slot:
   Persistence still runs.
 - `agent` — markdown-flavored final-frame string tuned for token economy.
   Emitted by the dispatcher's agent half via the plugin's built-in
-  `DefaultVitestAgentReporter` from `vitest-agent-reporter`. Default for
+  `DefaultVitestAgentReporter` from `@vitest-agent/reporter`. Default for
   `agent`. Framed as the plain-text debugging view of exactly what an
   agent consumes — no color, no animation.
 - `stream` — progressively-drawn, colored, animated rendering of the
@@ -689,7 +689,7 @@ slot:
 reporter-internal verbosity knob. It is not on `AgentReporterOptions` — it
 surfaces on `ResolvedReporterConfig` as `consoleOutput`, resolved inside
 `buildReporterKit` from the active `consoleMode`. The preassembled
-`DefaultVitestAgentReporter` from `vitest-agent-reporter` dispatches on
+`DefaultVitestAgentReporter` from `@vitest-agent/reporter` dispatches on
 `kit.config.consoleMode` and ignores `consoleOutput`. The field remains
 on the resolved config for custom-reporter authors who still want to
 read it.

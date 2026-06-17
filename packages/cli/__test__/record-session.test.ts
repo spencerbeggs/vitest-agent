@@ -2,10 +2,10 @@ import * as NodeContext from "@effect/platform-node/NodeContext";
 import type { SqlClient } from "@effect/sql/SqlClient";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
+import type { DataReader, DataStore } from "@vitest-agent/sdk";
+import { DataReaderLive, DataStoreLive, migration0001 } from "@vitest-agent/sdk";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import type { DataReader, DataStore } from "vitest-agent-sdk";
-import { DataReaderLive, DataStoreLive, migration0001 } from "vitest-agent-sdk";
 import { recordSessionEnd, recordSessionStart } from "../src/lib/record-session.js";
 
 // Each call to `run` builds a fresh in-memory DB by re-evaluating the layer.

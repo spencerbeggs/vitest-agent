@@ -4,9 +4,9 @@
  * @packageDocumentation
  */
 
+import type { CoverageRenderState } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import type { CoverageRenderState } from "vitest-agent-sdk";
 
 export interface CoverageBlockProps {
 	readonly coverage: CoverageRenderState;

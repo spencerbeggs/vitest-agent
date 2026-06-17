@@ -1,11 +1,11 @@
 ---
 title: Programmatic data access
-description: How to read and write vitest-agent data programmatically using the DataStore and DataReader Effect services, the vitest-agent-sdk/testing utilities, and the db query CLI path.
+description: How to read and write vitest-agent data programmatically using the DataStore and DataReader Effect services, the @vitest-agent/sdk/testing utilities, and the db query CLI path.
 ---
 
 # Programmatic data access
 
-`vitest-agent-sdk` exposes the full data layer through two Effect services — `DataStore` for writes and `DataReader` for reads — each with a live layer for production use and test layers for isolation. A CLI escape hatch lets you run ad-hoc SQL against the database without writing any Effect code.
+`@vitest-agent/sdk` exposes the full data layer through two Effect services — `DataStore` for writes and `DataReader` for reads — each with a live layer for production use and test layers for isolation. A CLI escape hatch lets you run ad-hoc SQL against the database without writing any Effect code.
 
 ## DataStore and DataReader
 
@@ -13,7 +13,7 @@ Both services are Effect `Context.Tag` definitions. You request them through `Ef
 
 ```ts
 import { Effect } from "effect";
-import { DataReader, DataStore } from "vitest-agent-sdk";
+import { DataReader, DataStore } from "@vitest-agent/sdk";
 
 // Read the latest run for a project (resolves to Option<AgentReport>)
 const readLatest = Effect.flatMap(DataReader, (reader) =>
@@ -38,10 +38,10 @@ The live layers wire the services to a real SQLite file. You compose them with a
 
 ```ts
 import { Effect, Layer } from "effect";
-import { DataReader, DataReaderLive, DataStore, DataStoreLive } from "vitest-agent-sdk";
+import { DataReader, DataReaderLive, DataStore, DataStoreLive } from "@vitest-agent/sdk";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { NodeContext } from "@effect/platform-node";
-import { resolveDataPath } from "vitest-agent-sdk";
+import { resolveDataPath } from "@vitest-agent/sdk";
 
 // Resolve the path via the five-source XDG chain
 const dbPath = "/path/to/data.db"; // or use resolveDataPath(cwd) in an Effect
@@ -59,7 +59,7 @@ await Effect.runPromise(
 ```
 
 :::tip
-Use `resolveDataPath(cwd)` from `vitest-agent-sdk` to derive the correct `dbPath` from your workspace identity instead of hard-coding a path. It returns an `Effect<string, WorkspaceRootNotFoundError>`.
+Use `resolveDataPath(cwd)` from `@vitest-agent/sdk` to derive the correct `dbPath` from your workspace identity instead of hard-coding a path. It returns an `Effect<string, WorkspaceRootNotFoundError>`.
 :::
 
 ### Error handling
@@ -70,7 +70,7 @@ Use `resolveDataPath(cwd)` from `vitest-agent-sdk` to derive the correct `dbPath
 
 ## Testing utilities
 
-The `vitest-agent-sdk/testing` sub-path exports two primitives and five preset factory functions for seeding test state without writing fixtures manually.
+The `@vitest-agent/sdk/testing` sub-path exports two primitives and five preset factory functions for seeding test state without writing fixtures manually.
 
 ### makeTestLayer
 
@@ -78,8 +78,8 @@ The `vitest-agent-sdk/testing` sub-path exports two primitives and five preset f
 
 ```ts
 import { Effect, Option } from "effect";
-import { DataReader } from "vitest-agent-sdk";
-import { makeTestLayer } from "vitest-agent-sdk/testing";
+import { DataReader } from "@vitest-agent/sdk";
+import { makeTestLayer } from "@vitest-agent/sdk/testing";
 
 const layer = makeTestLayer(":memory:");
 
@@ -101,7 +101,7 @@ Pass `":memory:"` for full test isolation. Pass a file path for tests that need 
 `DataStoreTestLayer` is a convenience shorthand for `makeTestLayer(":memory:")`. Use it when you only need the default in-memory configuration and do not want to call the function explicitly:
 
 ```ts
-import { DataStoreTestLayer } from "vitest-agent-sdk/testing";
+import { DataStoreTestLayer } from "@vitest-agent/sdk/testing";
 
 // Equivalent to makeTestLayer(":memory:")
 const layer = DataStoreTestLayer;
@@ -121,14 +121,14 @@ Five preset factories seed representative database states. Each factory is a fun
 
 ```ts
 import { Effect } from "effect";
-import { DataReader } from "vitest-agent-sdk";
+import { DataReader } from "@vitest-agent/sdk";
 import {
   empty,
   singlePassingRun,
   withFailures,
   flaky,
   withTddTask,
-} from "vitest-agent-sdk/testing";
+} from "@vitest-agent/sdk/testing";
 
 describe("classification", () => {
   it("labels a consistently failing test as persistent", async () => {
@@ -166,8 +166,8 @@ Effects compose naturally. A common pattern in tests is to write data with `Data
 
 ```ts
 import { Effect } from "effect";
-import { DataStore, DataReader } from "vitest-agent-sdk";
-import { makeTestLayer } from "vitest-agent-sdk/testing";
+import { DataStore, DataReader } from "@vitest-agent/sdk";
+import { makeTestLayer } from "@vitest-agent/sdk/testing";
 
 const program = Effect.gen(function* () {
   const store = yield* DataStore;
@@ -177,10 +177,10 @@ const program = Effect.gen(function* () {
     title: "Coverage dropped",
     content: "Branches fell below 65% after the refactor.",
     scope: "project",
-    project: "vitest-agent-sdk",
+    project: "@vitest-agent/sdk",
   });
 
-  const notes = yield* reader.getNotes("project", "vitest-agent-sdk");
+  const notes = yield* reader.getNotes("project", "@vitest-agent/sdk");
   return notes;
 });
 
@@ -195,7 +195,7 @@ Outside test code, compose your layer once and reuse it across all program entry
 
 ```ts
 import { Layer, ManagedRuntime } from "effect";
-import { DataReaderLive, DataStoreLive, resolveDataPath } from "vitest-agent-sdk";
+import { DataReaderLive, DataStoreLive, resolveDataPath } from "@vitest-agent/sdk";
 import { SqliteClient } from "@effect/sql-sqlite-node";
 import { NodeContext, NodeFileSystem } from "@effect/platform-node";
 import { Effect } from "effect";
@@ -216,7 +216,7 @@ const buildLayer = (cwd: string) =>
 
 ## Related
 
-- [vitest-agent-sdk overview](/sdk)
+- [@vitest-agent/sdk overview](/sdk)
 - [Database architecture](/sdk/database-architecture)
 - [API reference](/sdk/api)
 - [CLI commands](/cli/commands)

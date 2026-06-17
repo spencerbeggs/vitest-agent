@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 93
 related:
   - ../architecture.md
@@ -17,26 +17,26 @@ related:
 dependencies: []
 ---
 
-# Plugin package (`vitest-agent-plugin`)
+# Plugin package (`@vitest-agent/plugin`)
 
 The plugin package owns everything Vitest-API-aware: the Vitest plugin, the
 internal `AgentReporter` lifecycle class, the istanbul-aware
 `CoverageAnalyzer`, and the reporter-side utilities that bridge the plugin to
 a user-supplied `VitestAgentReporterFactory`.
 
-**npm name:** `vitest-agent-plugin`
+**npm name:** `@vitest-agent/plugin`
 **Location:** `packages/plugin/`
-**Internal dependencies:** `vitest-agent-sdk`, `vitest-agent-reporter`
-**Required peers:** `vitest-agent-cli`, `vitest-agent-mcp`, `vitest >= 4.1.0`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`
+**Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/reporter`
+**Required peers:** `@vitest-agent/cli`, `@vitest-agent/mcp`, `vitest >= 4.1.0`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`
 
-`vitest-agent-cli` and `vitest-agent-mcp` are required workspace `peerDependencies` — required, not optional, with no `peerDependenciesMeta`. The plugin imports no code from either; they are declared so the `vitest-agent` and `vitest-agent-mcp` bins the Claude Code plugin's hook scripts shell out to are installed and resolvable. Peers are the right relationship rather than regular dependencies because npm 7+ and pnpm auto-install required peers, and an auto-installed peer lands at the consumer's top level where its bin resolves — a transitively-nested regular dependency's bin would not. See D33 in [../decisions.md](../decisions.md).
+`@vitest-agent/cli` and `@vitest-agent/mcp` are required workspace `peerDependencies` — required, not optional, with no `peerDependenciesMeta`. The plugin imports no code from either; they are declared so the `vitest-agent` and `vitest-agent-mcp` bins the Claude Code plugin's hook scripts shell out to are installed and resolvable. Peers are the right relationship rather than regular dependencies because npm 7+ and pnpm auto-install required peers, and an auto-installed peer lands at the consumer's top level where its bin resolves — a transitively-nested regular dependency's bin would not. See D33 in [../decisions.md](../decisions.md).
 
 The plugin owns persistence, classification, baselines, trends, and Vitest
 lifecycle wiring. Rendering is delegated entirely to the reporter factory —
 the plugin owns no Ink mount and no rendering code. The plugin has no direct
-`vitest-agent-ui` dependency: it imports `DefaultVitestAgentReporter` from
-`vitest-agent-reporter` and nothing from `ui`. It carries no `react` or
-`ink` — JSX lives only in `vitest-agent-reporter`. The `VitestAgentReporter`
+`@vitest-agent/ui` dependency: it imports `DefaultVitestAgentReporter` from
+`@vitest-agent/reporter` and nothing from `ui`. It carries no `react` or
+`ink` — JSX lives only in `@vitest-agent/reporter`. The `VitestAgentReporter`
 contract types live in [./sdk.md](./sdk.md)
 (`packages/sdk/src/contracts/reporter.ts`).
 
@@ -52,11 +52,11 @@ D40 (five-field options surface), D34 (plugin/reporter split), D28
 `packages/plugin/src/plugin.ts`. The Vitest plugin entry point. Hooks into
 Vitest's `configureVitest`, detects the environment, parses coverage
 thresholds and targets, picks the user's `VitestAgentReporterFactory`
-(defaulting to `DefaultVitestAgentReporter` from `vitest-agent-reporter`),
+(defaulting to `DefaultVitestAgentReporter` from `@vitest-agent/reporter`),
 then constructs an `AgentReporter` per project and pushes it onto
 `vitest.config.reporters`. The default reporter lives in
-`vitest-agent-reporter`; the plugin imports it as a workspace dependency
-and does not touch `vitest-agent-ui` directly.
+`@vitest-agent/reporter`; the plugin imports it as a workspace dependency
+and does not touch `@vitest-agent/ui` directly.
 
 **The user-facing options shape.** `AgentPluginOptions` is exactly
 five fields — see [./sdk.md](./sdk.md) for the schema and
@@ -150,9 +150,9 @@ substitution) and a test-only `_resetVersionDriftGuardForTests` hook
 that re-arms the once-per-process gate between integration test cases
 (`packages/plugin/__test__/version-drift.test.ts`). The plugin
 intentionally does not compare against `CURRENT_UI_VERSION` —
-`vitest-agent-ui` is not a direct plugin dependency at all after the
+`@vitest-agent/ui` is not a direct plugin dependency at all after the
 reporter-package restructure; it arrives transitively through
-`vitest-agent-reporter`. See the root CLAUDE.md "Cross-package version
+`@vitest-agent/reporter`. See the root CLAUDE.md "Cross-package version
 drift" section and D36 in [../decisions.md](../decisions.md).
 
 ## AgentReporter (internal Vitest-API class)
@@ -215,7 +215,7 @@ a timeout-flavored error. `isTimeoutError` in
 `packages/plugin/src/utils/detect-timeout.ts` is a pure matcher that
 detects those failures; the reporter runs it per failed test and sets
 the optional `timedOut: boolean` on the emitted `TestFinished` so the
-`vitest-agent-ui` reducer can route the test into `timeoutCount`. The
+`@vitest-agent/ui` reducer can route the test into `timeoutCount`. The
 distinction is render-layer only — see [../schemas.md](../schemas.md).
 
 **Per-module tag counts.** `onTestModuleEnd` tallies a per-tag test
@@ -351,7 +351,7 @@ chain bypasses the cache.
 Users that want to mutate projects post-discovery either extend the strategy
 (preferred) or destructure the result and mutate the array before
 spreading it into `defineConfig`. `discoverProjects` itself is exported
-from `vitest-agent-plugin` but is internal-leaning; `AgentPlugin.discover()`
+from `@vitest-agent/plugin` but is internal-leaning; `AgentPlugin.discover()`
 is the documented entry point.
 
 ## Tag injection transform
@@ -435,7 +435,7 @@ preset name itself.
   carry `perFile`; it inherits the flag from `coverage.thresholds.perFile`
   when the user wires the dual output through Vitest.
 - `CoverageLevelPreset` is exported as a public type from
-  `vitest-agent-plugin` so user wiring can name the shape directly.
+  `@vitest-agent/plugin` so user wiring can name the shape directly.
 
 **`AgentPlugin.COVERAGE_AUTOUPDATE`.** A frozen record of three
 `(n: number) => number` tolerance functions for Vitest's native

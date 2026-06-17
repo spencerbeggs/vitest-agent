@@ -1,10 +1,10 @@
 ---
 status: current
-module: vitest-agent-reporter
+module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-12
-last-synced: 2026-06-12
+updated: 2026-06-17
+last-synced: 2026-06-17
 completeness: 90
 related:
   - ./architecture.md
@@ -32,13 +32,13 @@ workspace at `website/`, and the file-based Claude Code plugin at `plugin/`
 
 ```text
 packages/
-  sdk/         vitest-agent-sdk (no internal deps; owns RunEvent + RenderState schemas; three entry points: . / ./dispatch / ./testing)
-  plugin/      vitest-agent-plugin (deps on sdk+reporter; cli+mcp+Vitest packages are required peers; streaming hooks + run-event PubSub channel + onRunEvent tap; owns no rendering)
-  reporter/    vitest-agent-reporter (depends on sdk + ui + react + ink; default reporter package — DefaultVitestAgentReporter + live Ink mount + contract re-exports + dispatch helpers)
-  ui/          vitest-agent-ui (depends on sdk; react/ink peers; pure rendering primitives — reducer + shape-tailored dispatcher matrix + synthesizers + RunEventChannel PubSub)
-  cli/         vitest-agent-cli (bin: vitest-agent; depends on sdk + sidecar)
-  mcp/         vitest-agent-mcp (bin: vitest-agent-mcp; pulled in by the plugin)
-  sidecar/     vitest-agent-sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts exports resolveSidecarBinaryPath; no bin)
+  sdk/         @vitest-agent/sdk (no internal deps; owns RunEvent + RenderState schemas; three entry points: . / ./dispatch / ./testing)
+  plugin/      @vitest-agent/plugin (deps on sdk+reporter; cli+mcp+Vitest packages are required peers; streaming hooks + run-event PubSub channel + onRunEvent tap; owns no rendering)
+  reporter/    @vitest-agent/reporter (depends on sdk + ui + react + ink; default reporter package — DefaultVitestAgentReporter + live Ink mount + contract re-exports + dispatch helpers)
+  ui/          @vitest-agent/ui (depends on sdk; react/ink peers; pure rendering primitives — reducer + shape-tailored dispatcher matrix + synthesizers + RunEventChannel PubSub)
+  cli/         @vitest-agent/cli (bin: vitest-agent; depends on sdk + sidecar)
+  mcp/         @vitest-agent/mcp (bin: vitest-agent-mcp; pulled in by the plugin)
+  sidecar/     @vitest-agent/sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts exports resolveSidecarBinaryPath; no bin)
   sidecar-darwin-arm64/  per-platform binary sub-package (os: darwin, cpu: arm64)
   sidecar-linux-arm64/   per-platform binary sub-package (os: linux, cpu: arm64)
   sidecar-linux-x64/     per-platform binary sub-package (os: linux, cpu: x64)
@@ -79,13 +79,13 @@ and `dist/npm/` produced by `@savvy-web/rslib-builder`. The parent
 `sidecar/` follows the standard rslib layout but ships only a single
 `src/index.ts` entry exporting `resolveSidecarBinaryPath` — no tests. The
 four `sidecar-*` sub-packages depart from the standard layout: each carries a
-thin `src/bin.ts` runner that imports `dispatch` from `vitest-agent-sdk/dispatch`,
+thin `src/bin.ts` runner that imports `dispatch` from `@vitest-agent/sdk/dispatch`,
 plus its own `lib/scripts/tsdown.ts` programmatic build script and builds a
 Node SEA binary into `bin/` with tsdown's `exe` mode rather than
 rslib-builder (see [./components/sidecar.md](./components/sidecar.md)) — no
 `__test__/`. The per-child `lib/scripts/tsdown.ts` script selects its mode
 from the npm lifecycle event: `build:dev` emits `dist/dev`, `build:prod`
-emits `dist/npm` and `dist/github` — each variant directory holding the SEA
+emits `dist/npm` — each variant directory holding the SEA
 binary plus a publish-cleaned `package.json`.
 
 The `mcp` package additionally vendors content under `src/`:
@@ -117,7 +117,7 @@ The `website/` workspace (package `docs`) is the RSPress 2.0 site. Its content t
 ## Test files
 
 Test files live under `packages/<name>/__test__/*.test.ts` (flat layout).
-The `discoverProjects` scanner in `vitest-agent-plugin` also picks up any
+The `discoverProjects` scanner in `@vitest-agent/plugin` also picks up any
 `packages/<name>/src/**/*.test.ts` co-located files when present. Helper
 files are separated into `__test__/utils/`, `__test__/fixtures/`, and
 `__test__/snapshots/` subdirectories which the scanner excludes
@@ -205,19 +205,19 @@ projectKey = "my-app"
 ## Project keying and tag classification
 
 The DB is one-per-workspace. Each Vitest project (one per workspace
-package, no colon suffix) is keyed solely by its `name` — `vitest-agent-sdk`,
-`vitest-agent-plugin`, etc. There is no `sub_project` column anywhere in
+package, no colon suffix) is keyed solely by its `name` — `@vitest-agent/sdk`,
+`@vitest-agent/plugin`, etc. There is no `sub_project` column anywhere in
 the schema; the legacy `splitProject()` utility and `(project, subProject)`
 column pair were dropped in 2.0.
 
 Test-kind differentiation uses **Vitest-native tags** (Vitest 4.1+).
-`DiscoverStrategy` in `vitest-agent-plugin` declares the available tags
+`DiscoverStrategy` in `@vitest-agent/plugin` declares the available tags
 (`unit`, `int`, `e2e` by default) and a `classify()` method that maps a
 test file to a tag list. The plugin installs a Vite `transform` hook
 (see `packages/plugin/src/utils/inject-tags.ts`) that rewrites every
 `test()` and `it()` call's options argument to add the resolved tags
 array. Filter at the command line via Vitest's standard tag-expression
-syntax (`pnpm vitest --project vitest-agent-sdk --tags-filter "unit"`).
+syntax (`pnpm vitest --project @vitest-agent/sdk --tags-filter "unit"`).
 The classifier and project detection share one `DiscoverStrategy`
 contract; see Decision 39.
 
@@ -239,7 +239,7 @@ with the same detection order:
 3. Default to `npx` (in the shared utility) or `npm` (in the loader)
 
 Two copies exist because the plugin loader cannot import from
-`vitest-agent-sdk` — it runs before the user's npm packages are guaranteed
+`@vitest-agent/sdk` — it runs before the user's npm packages are guaranteed
 to be installed. The detection order is identical so the two copies do not
 drift in observable behavior.
 
