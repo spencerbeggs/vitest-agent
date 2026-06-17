@@ -74,7 +74,7 @@ The six rslib packages use `@savvy-web/rslib-builder`'s `transform()` callback t
 - Keeps only publishable fields
 - Drops `devDependencies`, `scripts`, `publishConfig`, `packageManager`, `devEngines`
 - Sets `private` to `false`
-- For the `github` variant: scopes the name to `@spencerbeggs/@vitest-agent/sidecar-<platform>`
+- For the `github` variant: scopes the name to `@spencerbeggs/vitest-agent-sidecar-<platform>`
 - For `npm` and `dev` variants: keeps the bare unscoped name
 
 The CI workflow asserts these invariants for every `dist/{github,npm}/package.json` before uploading the built artifacts.
