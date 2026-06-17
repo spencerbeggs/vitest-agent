@@ -1,6 +1,6 @@
+import type { CoverageBaselines, CoverageReport, ResolvedThresholds } from "@vitest-agent/sdk";
 import type { Effect, Option } from "effect";
 import { Context } from "effect";
-import type { CoverageBaselines, CoverageReport, ResolvedThresholds } from "vitest-agent-sdk";
 
 export interface CoverageOptions {
 	readonly thresholds: ResolvedThresholds;

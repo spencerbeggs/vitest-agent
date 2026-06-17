@@ -22,14 +22,14 @@
  * @packageDocumentation
  */
 
-import { Effect, Option } from "effect";
 import {
 	DataReader,
 	DataStore,
 	PerClientSessionMapWriter,
 	RunContextService,
 	deriveIdempotencyKey,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import { Effect, Option } from "effect";
 
 export interface RegisterAgentInput {
 	readonly hostSessionId: string;

@@ -21,7 +21,7 @@
  * @packageDocumentation
  */
 
-import type { DispatchInputs, FailureRecord, RenderState, TestClassification } from "vitest-agent-sdk";
+import type { DispatchInputs, FailureRecord, RenderState, TestClassification } from "@vitest-agent/sdk";
 
 const FOOTER_COVERAGE_GAP = "Use `file_coverage` to find uncovered functions.";
 const FOOTER_FAILURE_PERSISTENT =

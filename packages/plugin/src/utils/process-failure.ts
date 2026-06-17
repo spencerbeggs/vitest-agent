@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import type { StackFrameInput } from "vitest-agent-sdk";
-import { computeFailureSignature, findFunctionBoundary } from "vitest-agent-sdk";
+import type { StackFrameInput } from "@vitest-agent/sdk";
+import { computeFailureSignature, findFunctionBoundary } from "@vitest-agent/sdk";
 
 export interface VitestStackFrameLike {
 	readonly file?: string;

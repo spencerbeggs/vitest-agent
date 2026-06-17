@@ -1,5 +1,5 @@
 {
-	"name": "vitest-agent-cli",
+	"name": "@vitest-agent/cli",
 	"version": "1.3.1",
 	"private": true,
 	"description": "On-demand CLI for vitest-agent. Reads cached test data and reports status, overview, coverage, history, trends, and cache health.",
@@ -31,7 +31,7 @@
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:meta": "node savvy.build.ts --target meta",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev --filter=vitest-agent-cli",
+		"prepare": "turbo run build:dev --filter=.",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
@@ -42,9 +42,9 @@
 		"@effect/rpc": "catalog:silk",
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
-		"effect": "catalog:silk",
-		"vitest-agent-sdk": "workspace:*",
-		"vitest-agent-sidecar": "workspace:*"
+		"@vitest-agent/sdk": "workspace:*",
+		"@vitest-agent/sidecar": "workspace:*",
+		"effect": "catalog:silk"
 	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^0.6.0",

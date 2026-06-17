@@ -27,7 +27,7 @@ export type {
 	ResolvedReporterConfig,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
 // --- The default reporter + its dispatch helpers ---
 export {
 	DefaultVitestAgentReporter,

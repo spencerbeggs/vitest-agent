@@ -13,7 +13,8 @@
 		"**/dist",
 		"**/CHANGELOG.md",
 		"**/.claude/plans",
-		"**/vendor/**"
+		"**/vendor/**",
+		"**/.git/**"
 	],
 	"customRules": ["@savvy-web/silk/changesets/markdownlint"],
 	"config": {

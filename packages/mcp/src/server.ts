@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { ChannelEvent, DataReader } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
-import { ChannelEvent, DataReader } from "vitest-agent-sdk";
 import { z } from "zod";
 import type { McpContext } from "./context.js";
 import { createCallerFactory } from "./context.js";

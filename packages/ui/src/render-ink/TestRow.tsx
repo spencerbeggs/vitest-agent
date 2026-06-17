@@ -4,9 +4,9 @@
  * @packageDocumentation
  */
 
+import type { TestRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
-import type { TestRecord } from "vitest-agent-sdk";
 import { formatDisplayDuration } from "../format-duration.js";
 import type { StatusIconKind } from "./StatusIcon.js";
 import { StatusIcon } from "./StatusIcon.js";

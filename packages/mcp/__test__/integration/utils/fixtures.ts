@@ -2,11 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SqlClient } from "@effect/sql/SqlClient";
+import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/sdk";
+import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/sdk";
+import { makeTestLayer } from "@vitest-agent/sdk/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { test as base } from "vitest";
-import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "vitest-agent-sdk";
-import { OutputPipelineLive, ProjectDiscoveryTest } from "vitest-agent-sdk";
-import { makeTestLayer } from "vitest-agent-sdk/testing";
 
 // Superset of McpContext.runtime — adds SqlClient so tests can do raw SQL
 // assertions while the cast to McpContext["runtime"] still works for the caller.

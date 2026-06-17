@@ -1,6 +1,6 @@
+import { EnvironmentDetectorTest } from "@vitest-agent/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VitestPluginContext } from "vitest/node";
-import { EnvironmentDetectorTest } from "vitest-agent-sdk";
 import { AgentPlugin } from "../src/plugin.js";
 import { AgentReporter } from "../src/reporter.js";
 

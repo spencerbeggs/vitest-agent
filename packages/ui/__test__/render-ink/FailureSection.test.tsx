@@ -1,5 +1,5 @@
+import type { FailureRecord } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { FailureRecord } from "vitest-agent-sdk";
 import { FailureSection } from "../../src/render-ink/index.js";
 import { renderInk } from "../utils/render-ink.js";
 

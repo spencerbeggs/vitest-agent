@@ -4,8 +4,8 @@
  * @packageDocumentation
  */
 
+import { DataReader } from "@vitest-agent/sdk";
 import { Effect, ParseResult, Schema } from "effect";
-import { DataReader } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 const TurnRow = Schema.Struct({

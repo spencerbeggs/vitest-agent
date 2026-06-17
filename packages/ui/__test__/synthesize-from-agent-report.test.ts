@@ -1,5 +1,5 @@
+import type { AgentReport } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { AgentReport } from "vitest-agent-sdk";
 import { reduceRenderStateAll, renderAgent, synthesizeFromAgentReport } from "../src/index.js";
 
 const baseReport = (overrides: Partial<AgentReport> = {}): AgentReport => ({

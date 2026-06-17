@@ -1,6 +1,6 @@
 import { initTRPC } from "@trpc/server";
+import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/sdk";
 import type { ManagedRuntime } from "effect";
-import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "vitest-agent-sdk";
 
 /**
  * Mutable holder for the MCP server's currently-associated host chat

@@ -11,8 +11,8 @@
  * @packageDocumentation
  */
 
+import { DataReader, DataStore, GoalDetail } from "@vitest-agent/sdk";
 import { Effect, Match, Option, ParseResult, Schema } from "effect";
-import { DataReader, DataStore, GoalDetail } from "vitest-agent-sdk";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 
 const TddPhaseRow = Schema.Struct({

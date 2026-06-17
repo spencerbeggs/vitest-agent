@@ -12,9 +12,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { NodeContext } from "@effect/platform-node";
-import type { LogLevel } from "effect";
-import { Effect, Option, PubSub } from "effect";
-import { DefaultVitestAgentReporter } from "vitest-agent-reporter";
+import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
 import type {
 	AgentReport,
 	AgentReporterOptions,
@@ -31,7 +29,7 @@ import type {
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 	VitestTestModule,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
 import {
 	DataReader,
 	DataStore,
@@ -51,7 +49,9 @@ import {
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import type { LogLevel } from "effect";
+import { Effect, Option, PubSub } from "effect";
 import { ReporterLive } from "./layers/ReporterLive.js";
 import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit.js";
@@ -153,7 +153,7 @@ interface ResolvedOptions {
 	githubSummaryFile: string | undefined;
 	format?: "terminal" | "markdown" | "json" | "vitest-bypass" | "silent" | "ci-annotations";
 	detail?: "minimal" | "neutral" | "standard" | "verbose";
-	consoleMode: import("vitest-agent-sdk").ConsoleMode;
+	consoleMode: import("@vitest-agent/sdk").ConsoleMode;
 	mcp?: boolean;
 	projectFilter?: string;
 	reporter: VitestAgentReporterFactory;
@@ -262,7 +262,7 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
  *
  * @example
  * ```typescript
- * import { AgentReporter } from "vitest-agent-plugin";
+ * import { AgentReporter } from "@vitest-agent/plugin";
  * import { defineConfig } from "vitest/config";
  *
  * export default defineConfig({
@@ -432,7 +432,7 @@ export class AgentReporter {
 	 * This getter is @internal — do not reference in user-facing docs.
 	 * @internal
 	 */
-	get resolvedConfig(): import("vitest-agent-sdk").ResolvedReporterConfig {
+	get resolvedConfig(): import("@vitest-agent/sdk").ResolvedReporterConfig {
 		const opts = this.options;
 		return {
 			executor: "ci", // placeholder — kit is assembled per-run; this getter exposes construction-time config only

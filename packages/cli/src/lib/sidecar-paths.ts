@@ -26,8 +26,8 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { ProjectIdentityNotResolvableError } from "@vitest-agent/sdk";
 import { Effect } from "effect";
-import { ProjectIdentityNotResolvableError } from "vitest-agent-sdk";
 
 const APP_NAMESPACE = "vitest-agent";
 

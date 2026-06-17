@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { NodeContext } from "@effect/platform-node";
-import { Effect, ManagedRuntime } from "effect";
 import {
 	CURRENT_SDK_VERSION,
 	PathResolutionLive,
@@ -8,7 +7,8 @@ import {
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import { Effect, ManagedRuntime } from "effect";
 import type { McpContext } from "./context.js";
 import { createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./context.js";
 import { CURRENT_MCP_VERSION } from "./index.js";

@@ -23,7 +23,6 @@ import { NodeFileSystem } from "@effect/platform-node";
 import * as NodeContext from "@effect/platform-node/NodeContext";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
-import { Layer } from "effect";
 import {
 	DataReaderLive,
 	DataStoreLive,
@@ -34,7 +33,8 @@ import {
 	migration0001,
 	registryMigration0001,
 	sessionMapMigration0001,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import { Layer } from "effect";
 
 export interface SidecarPaths {
 	readonly perProjectDbPath: string;

@@ -1,5 +1,5 @@
+import { AgentPlugin } from "@vitest-agent/plugin";
 import { defineConfig } from "vitest/config";
-import { AgentPlugin } from "vitest-agent-plugin";
 
 export default async () => {
 	const { projects, tags } = await AgentPlugin.discover();

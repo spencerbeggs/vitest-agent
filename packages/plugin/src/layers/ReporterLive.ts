@@ -1,8 +1,6 @@
 import * as NodeContext from "@effect/platform-node/NodeContext";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
-import type { LogLevel } from "effect";
-import { Layer } from "effect";
 import {
 	DataReaderLive,
 	DataStoreLive,
@@ -10,7 +8,9 @@ import {
 	LoggerLive,
 	OutputPipelineLive,
 	migration0001,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import type { LogLevel } from "effect";
+import { Layer } from "effect";
 import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";
 
 export const ReporterLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {

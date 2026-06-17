@@ -9,9 +9,9 @@
  * @packageDocumentation
  */
 
+import type { ArtifactKind, DataStoreError } from "@vitest-agent/sdk";
+import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
-import type { ArtifactKind, DataStoreError } from "vitest-agent-sdk";
-import { DataReader, DataStore } from "vitest-agent-sdk";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 
 export interface RecordTddArtifactInput {

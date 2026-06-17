@@ -8,8 +8,8 @@
  */
 
 import { createRequire } from "node:module";
+import { validateCoverageTargetsShape } from "@vitest-agent/sdk";
 import { Effect, Layer } from "effect";
-import { validateCoverageTargetsShape } from "vitest-agent-sdk";
 import type {
 	ValidationError,
 	ValidationInput,

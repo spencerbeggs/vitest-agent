@@ -15,9 +15,9 @@
  * @packageDocumentation
  */
 
+import type { RenderState, RunEvent } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { Effect, PubSub, Queue, Stream } from "effect";
-import type { RenderState, RunEvent } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 import { reduceRenderState } from "../reducer.js";
 import { RunEventChannel } from "./Channel.js";
 

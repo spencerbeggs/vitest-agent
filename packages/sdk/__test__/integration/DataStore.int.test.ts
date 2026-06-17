@@ -1,7 +1,7 @@
 import { SqlClient } from "@effect/sql/SqlClient";
+import { DataStore } from "@vitest-agent/sdk";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
-import { DataStore } from "vitest-agent-sdk";
 import { test } from "./utils/fixtures.js";
 
 describe("DataStore integration", () => {

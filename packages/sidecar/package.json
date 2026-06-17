@@ -1,5 +1,5 @@
 {
-	"name": "vitest-agent-sidecar",
+	"name": "@vitest-agent/sidecar",
 	"version": "1.3.1",
 	"private": true,
 	"description": "Fast-path native binary for vitest-agent. Ships a Node SEA executable that handles the per-Bash-call inject-env hot path.",
@@ -28,7 +28,7 @@
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:meta": "node savvy.build.ts --target meta",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev --filter=vitest-agent-sidecar",
+		"prepare": "turbo run build:dev --filter=.",
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
@@ -40,10 +40,10 @@
 		"vitest": "^4.1.8"
 	},
 	"optionalDependencies": {
-		"vitest-agent-sidecar-darwin-arm64": "workspace:*",
-		"vitest-agent-sidecar-linux-arm64": "workspace:*",
-		"vitest-agent-sidecar-linux-x64": "workspace:*",
-		"vitest-agent-sidecar-win32-x64": "workspace:*"
+		"@vitest-agent/sidecar-darwin-arm64": "workspace:*",
+		"@vitest-agent/sidecar-linux-arm64": "workspace:*",
+		"@vitest-agent/sidecar-linux-x64": "workspace:*",
+		"@vitest-agent/sidecar-win32-x64": "workspace:*"
 	},
 	"publishConfig": {
 		"access": "public",

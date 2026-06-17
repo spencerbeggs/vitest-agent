@@ -1,6 +1,6 @@
 import { Writable } from "node:stream";
+import type { RunEvent } from "@vitest-agent/sdk";
 import { describe, expect, it, vi } from "vitest";
-import type { RunEvent } from "vitest-agent-sdk";
 import { createLiveInk } from "../src/LiveInkRenderer.js";
 
 /** Run `fn` with `process.stderr.write` muted (mount degrades under the shim). */

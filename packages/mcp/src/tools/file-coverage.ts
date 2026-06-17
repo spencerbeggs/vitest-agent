@@ -4,8 +4,8 @@
  * @packageDocumentation
  */
 
+import { CoverageTotals, DataReader, FileCoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, ParseResult, Schema } from "effect";
-import { CoverageTotals, DataReader, FileCoverageReport } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 const CoverageGlobalThresholds = Schema.Struct({

@@ -22,7 +22,7 @@
 
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import type { RenderedOutput } from "vitest-agent-sdk";
+import type { RenderedOutput } from "@vitest-agent/sdk";
 
 export interface RouteOptions {
 	/** Resolved github-summary file path (kit.config.githubSummaryFile). */

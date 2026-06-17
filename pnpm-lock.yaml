@@ -93,6 +93,15 @@ importers:
       '@savvy-web/silk':
         specifier: ^1.1.1
         version: 1.1.1(c14452b29086e897dc4ae7087674e475)
+      '@vitest-agent/cli':
+        specifier: workspace:*
+        version: link:packages/cli/dist/dev/pkg
+      '@vitest-agent/mcp':
+        specifier: workspace:*
+        version: link:packages/mcp/dist/dev/pkg
+      '@vitest-agent/plugin':
+        specifier: workspace:*
+        version: link:packages/plugin/dist/dev/pkg
       tsx:
         specifier: catalog:silk
         version: 4.22.4
@@ -102,15 +111,6 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-istanbul@4.1.9)(@vitest/coverage-v8@4.1.9)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.4)(yaml@2.9.0))
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:packages/cli/dist/dev/pkg
-      vitest-agent-mcp:
-        specifier: workspace:*
-        version: link:packages/mcp/dist/dev/pkg
-      vitest-agent-plugin:
-        specifier: workspace:*
-        version: link:packages/plugin/dist/dev/pkg
 
   packages/cli:
     dependencies:
@@ -135,15 +135,15 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: catalog:silk
         version: 0.52.0(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(@effect/platform@0.96.1(effect@3.21.3))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(effect@3.21.3)
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
+      '@vitest-agent/sidecar':
+        specifier: workspace:*
+        version: link:../sidecar/dist/dev/pkg
       effect:
         specifier: catalog:silk
         version: 3.21.3
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
-      vitest-agent-sidecar:
-        specifier: workspace:*
-        version: link:../sidecar/dist/dev/pkg
     devDependencies:
       '@savvy-web/bundler':
         specifier: ^0.6.0
@@ -191,12 +191,12 @@ importers:
       '@trpc/server':
         specifier: ^11.17.0
         version: 11.17.0(typescript@6.0.3)
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
       effect:
         specifier: catalog:silk
         version: 3.21.3
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -241,6 +241,18 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: catalog:silk
         version: 0.52.0(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(@effect/platform@0.96.1(effect@3.21.3))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(effect@3.21.3)
+      '@vitest-agent/cli':
+        specifier: workspace:*
+        version: link:../cli/dist/dev/pkg
+      '@vitest-agent/mcp':
+        specifier: workspace:*
+        version: link:../mcp/dist/dev/pkg
+      '@vitest-agent/reporter':
+        specifier: workspace:*
+        version: link:../reporter/dist/dev/pkg
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
       '@vitest/runner':
         specifier: ^4.1.0
         version: 4.1.9
@@ -256,18 +268,6 @@ importers:
       magic-string:
         specifier: ^0.30.0
         version: 0.30.21
-      vitest-agent-cli:
-        specifier: workspace:*
-        version: link:../cli/dist/dev/pkg
-      vitest-agent-mcp:
-        specifier: workspace:*
-        version: link:../mcp/dist/dev/pkg
-      vitest-agent-reporter:
-        specifier: workspace:*
-        version: link:../reporter/dist/dev/pkg
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
       workspaces-effect:
         specifier: ^1.1.0
         version: 1.2.0(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3)
@@ -324,6 +324,12 @@ importers:
       '@effect/sql-sqlite-node':
         specifier: catalog:silk
         version: 0.52.0(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(@effect/platform@0.96.1(effect@3.21.3))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(@effect/platform@0.96.1(effect@3.21.3))(effect@3.21.3))(effect@3.21.3)
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
+      '@vitest-agent/ui':
+        specifier: workspace:*
+        version: link:../ui/dist/dev/pkg
       effect:
         specifier: catalog:silk
         version: 3.21.3
@@ -333,12 +339,6 @@ importers:
       react:
         specifier: catalog:silk
         version: 19.2.7
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
-      vitest-agent-ui:
-        specifier: workspace:*
-        version: link:../ui/dist/dev/pkg
     devDependencies:
       '@savvy-web/bundler':
         specifier: ^0.6.0
@@ -461,16 +461,16 @@ importers:
         specifier: ^4.1.8
         version: 4.1.9(@types/node@25.9.3)(@vitest/coverage-istanbul@4.1.9)(@vitest/coverage-v8@4.1.9)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.4)(yaml@2.9.0))
     optionalDependencies:
-      vitest-agent-sidecar-darwin-arm64:
+      '@vitest-agent/sidecar-darwin-arm64':
         specifier: workspace:*
         version: link:../sidecar-darwin-arm64/dist/dev/pkg
-      vitest-agent-sidecar-linux-arm64:
+      '@vitest-agent/sidecar-linux-arm64':
         specifier: workspace:*
         version: link:../sidecar-linux-arm64/dist/dev/pkg
-      vitest-agent-sidecar-linux-x64:
+      '@vitest-agent/sidecar-linux-x64':
         specifier: workspace:*
         version: link:../sidecar-linux-x64/dist/dev/pkg
-      vitest-agent-sidecar-win32-x64:
+      '@vitest-agent/sidecar-win32-x64':
         specifier: workspace:*
         version: link:../sidecar-win32-x64/dist/dev/pkg
     publishDirectory: dist/dev/pkg
@@ -486,12 +486,12 @@ importers:
       '@typescript/native-preview':
         specifier: catalog:silk
         version: 7.0.0-dev.20260616.1
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
       typescript:
         specifier: catalog:silk
         version: 6.0.3
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
     publishDirectory: dist/dev/pkg
 
   packages/sidecar-linux-arm64:
@@ -505,12 +505,12 @@ importers:
       '@typescript/native-preview':
         specifier: catalog:silk
         version: 7.0.0-dev.20260616.1
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
       typescript:
         specifier: catalog:silk
         version: 6.0.3
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
     publishDirectory: dist/dev/pkg
 
   packages/sidecar-linux-x64:
@@ -524,12 +524,12 @@ importers:
       '@typescript/native-preview':
         specifier: catalog:silk
         version: 7.0.0-dev.20260616.1
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
       typescript:
         specifier: catalog:silk
         version: 6.0.3
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
     publishDirectory: dist/dev/pkg
 
   packages/sidecar-win32-x64:
@@ -543,22 +543,22 @@ importers:
       '@typescript/native-preview':
         specifier: catalog:silk
         version: 7.0.0-dev.20260616.1
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
       typescript:
         specifier: catalog:silk
         version: 6.0.3
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
     publishDirectory: dist/dev/pkg
 
   packages/ui:
     dependencies:
+      '@vitest-agent/sdk':
+        specifier: workspace:*
+        version: link:../sdk/dist/dev/pkg
       effect:
         specifier: catalog:silk
         version: 3.21.3
-      vitest-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk/dist/dev/pkg
     devDependencies:
       '@savvy-web/bundler':
         specifier: ^0.6.0

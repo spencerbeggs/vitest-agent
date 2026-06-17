@@ -1,5 +1,5 @@
+import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect } from "effect";
-import { DataReader, DataStore } from "vitest-agent-sdk";
 
 export interface RecordSessionStartInput {
 	readonly chatId: string;

@@ -25,7 +25,7 @@
  * @packageDocumentation
  */
 
-import { dispatch } from "vitest-agent-sdk/dispatch";
+import { dispatch } from "@vitest-agent/sdk/dispatch";
 
 const main = async (): Promise<void> => {
 	const result = await dispatch(process.argv.slice(2));

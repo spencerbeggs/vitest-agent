@@ -8,8 +8,8 @@
  * `list_by_tdd_task`).
  */
 
+import { BehaviorDetail, BehaviorRow, DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
-import { BehaviorDetail, BehaviorRow, DataReader, DataStore } from "vitest-agent-sdk";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
 

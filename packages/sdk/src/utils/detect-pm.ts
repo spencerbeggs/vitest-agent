@@ -18,7 +18,7 @@ import type { PackageManager } from "../schemas/Common.js";
  *
  * @example
  * ```typescript
- * import type { FileSystemAdapter } from "vitest-agent-sdk/detect-pm";
+ * import type { FileSystemAdapter } from "@vitest-agent/sdk/detect-pm";
  * import { readFile, access } from "node:fs/promises";
  *
  * const fsAdapter: FileSystemAdapter = {

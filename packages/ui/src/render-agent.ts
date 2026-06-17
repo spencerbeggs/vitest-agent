@@ -11,7 +11,13 @@
  * @packageDocumentation
  */
 
-import type { ActionSeverity, FailureRecord, ModuleRecord, RenderState, SuggestedActionRecord } from "vitest-agent-sdk";
+import type {
+	ActionSeverity,
+	FailureRecord,
+	ModuleRecord,
+	RenderState,
+	SuggestedActionRecord,
+} from "@vitest-agent/sdk";
 import { formatDisplayDuration } from "./format-duration.js";
 
 /**

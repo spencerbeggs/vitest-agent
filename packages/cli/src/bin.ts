@@ -7,7 +7,6 @@
 
 import { Command } from "@effect/cli";
 import { NodeContext, NodeRuntime } from "@effect/platform-node";
-import { Cause, Console, Effect } from "effect";
 import {
 	CURRENT_SDK_VERSION,
 	PathResolutionLive,
@@ -15,7 +14,8 @@ import {
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import { Cause, Console, Effect } from "effect";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";

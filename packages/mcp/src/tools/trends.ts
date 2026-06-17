@@ -9,8 +9,8 @@
  * @packageDocumentation
  */
 
+import { DataReader, TrendRecord } from "@vitest-agent/sdk";
 import { Effect, Option, ParseResult, Schema } from "effect";
-import { DataReader, TrendRecord } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 const TrendsAvailable = Schema.Struct({

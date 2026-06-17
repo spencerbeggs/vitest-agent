@@ -1,5 +1,5 @@
+import type { CoverageReport } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
-import type { CoverageReport } from "vitest-agent-sdk";
 import { CoverageAnalyzer } from "../services/CoverageAnalyzer.js";
 
 export const CoverageAnalyzerTest = {

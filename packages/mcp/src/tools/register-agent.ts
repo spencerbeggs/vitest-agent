@@ -27,8 +27,8 @@
  * outcome.
  */
 
+import { DataReader, DataStore, deriveIdempotencyKey } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
-import { DataReader, DataStore, deriveIdempotencyKey } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 const RegisterAgentInput = Schema.Struct({

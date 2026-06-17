@@ -18,7 +18,7 @@
  *
  * @example
  * ```typescript
- * import { compressLines } from "vitest-agent-sdk/utils";
+ * import { compressLines } from "@vitest-agent/sdk/utils";
  *
  * compressLines([1, 2, 3, 5, 10, 11, 12]);
  * // Returns: "1-3,5,10-12"

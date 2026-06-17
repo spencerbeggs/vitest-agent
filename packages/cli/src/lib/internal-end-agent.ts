@@ -11,8 +11,8 @@
  * @packageDocumentation
  */
 
+import { DataStore, PerClientSessionMapWriter } from "@vitest-agent/sdk";
 import { Effect } from "effect";
-import { DataStore, PerClientSessionMapWriter } from "vitest-agent-sdk";
 
 export interface EndAgentInput {
 	readonly agentId: string;

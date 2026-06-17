@@ -15,8 +15,8 @@
  * @packageDocumentation
  */
 
+import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "@vitest-agent/sdk";
 import type { ReactElement } from "react";
-import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "vitest-agent-sdk";
 import type { Cell } from "./cell-types.js";
 import { renderSingleFileFail } from "./cells/single-file-fail.js";
 import { renderSingleFilePass } from "./cells/single-file-pass.js";

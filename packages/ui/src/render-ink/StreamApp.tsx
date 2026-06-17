@@ -34,9 +34,9 @@
  * @packageDocumentation
  */
 
+import type { FailureRecord, ModuleRecord, ProjectSummary, RenderState, TestRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactNode } from "react";
-import type { FailureRecord, ModuleRecord, ProjectSummary, RenderState, TestRecord } from "vitest-agent-sdk";
 import { classifyRunShape } from "../dispatcher/classify.js";
 import { formatDisplayDuration } from "../format-duration.js";
 import { CountColumns } from "./CountColumns.js";

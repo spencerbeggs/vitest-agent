@@ -10,8 +10,8 @@ import { FileSystem } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
 import { SqlClient } from "@effect/sql/SqlClient";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
+import { DataStore, resolveDataPath } from "@vitest-agent/sdk";
 import { Effect } from "effect";
-import { DataStore, resolveDataPath } from "vitest-agent-sdk";
 import { formatDbQuery } from "../lib/format-db-query.js";
 
 const pathCommand = Command.make("path", {}, () =>

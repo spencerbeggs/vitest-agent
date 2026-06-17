@@ -11,7 +11,6 @@
  * @internal
  */
 
-import type { PubSub } from "effect";
 import type {
 	ConsoleMode,
 	Environment,
@@ -21,8 +20,9 @@ import type {
 	ResolvedReporterConfig,
 	RunEvent,
 	Transport,
-} from "vitest-agent-sdk";
-import { osc8 } from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
+import { osc8 } from "@vitest-agent/sdk";
+import type { PubSub } from "effect";
 
 export interface BuildReporterKitInput {
 	readonly env: Environment;

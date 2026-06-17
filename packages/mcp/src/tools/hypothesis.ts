@@ -9,8 +9,8 @@
  * @packageDocumentation
  */
 
+import { DataReader, DataStore, DataStoreError } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
-import { DataReader, DataStore, DataStoreError } from "vitest-agent-sdk";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 
 const HypothesisRowSchema = Schema.Struct({

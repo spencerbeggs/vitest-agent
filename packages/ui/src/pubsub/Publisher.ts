@@ -10,8 +10,8 @@
  * @packageDocumentation
  */
 
+import type { RunEvent } from "@vitest-agent/sdk";
 import { Effect, PubSub } from "effect";
-import type { RunEvent } from "vitest-agent-sdk";
 import { RunEventChannel } from "./Channel.js";
 
 /**

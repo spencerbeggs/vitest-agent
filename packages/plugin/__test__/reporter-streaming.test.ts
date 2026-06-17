@@ -6,8 +6,8 @@
  * @packageDocumentation
  */
 
+import type { RunEvent } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { RunEvent } from "vitest-agent-sdk";
 import { AgentReporter } from "../src/reporter.js";
 
 interface FakeTestSpec {

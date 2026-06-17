@@ -4,8 +4,8 @@
  * @packageDocumentation
  */
 
+import { CoverageReport, DataReader } from "@vitest-agent/sdk";
 import { Effect, Option, ParseResult, Schema } from "effect";
-import { CoverageReport, DataReader } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 const CoverageAvailable = Schema.Struct({

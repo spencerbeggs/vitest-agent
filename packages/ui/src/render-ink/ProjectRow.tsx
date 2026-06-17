@@ -8,9 +8,9 @@
  * @packageDocumentation
  */
 
+import type { ProjectSummary } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactElement } from "react";
-import type { ProjectSummary } from "vitest-agent-sdk";
 import { formatDisplayDuration } from "../format-duration.js";
 import { CountColumns } from "./CountColumns.js";
 import { StatusIcon } from "./StatusIcon.js";

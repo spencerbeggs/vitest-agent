@@ -11,9 +11,9 @@
  * project identity.
  */
 
+import type { CellOptions, DispatchInputs, ProjectSummary, RenderState, TrendSummary } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { CellOptions, DispatchInputs, ProjectSummary, RenderState, TrendSummary } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 import { classifyOutcome, classifyRunShape } from "../../src/dispatcher/classify.js";
 import { dispatch } from "../../src/dispatcher/dispatch.js";
 import { reduceRenderStateAll } from "../../src/reducer.js";

@@ -16,8 +16,8 @@
  * @packageDocumentation
  */
 
+import type { CellOptions, DispatchInputs } from "@vitest-agent/sdk";
 import type { ReactElement } from "react";
-import type { CellOptions, DispatchInputs } from "vitest-agent-sdk";
 
 export type AgentCellFn = (inputs: DispatchInputs, opts: CellOptions) => string;
 export type InkCellFn = (inputs: DispatchInputs, opts: CellOptions) => ReactElement;

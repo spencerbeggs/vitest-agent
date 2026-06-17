@@ -52,8 +52,8 @@ export { findTestFiles } from "./utils/find-test-files.js";
 
 // --- Coverage level API (re-exported from SDK so users only need one import) ---
 
-export type { CoverageInput, CoverageLevelName } from "vitest-agent-sdk";
-export { CoverageLevel, resolveCoverageInput, validateCoverageConfig } from "vitest-agent-sdk";
+export type { CoverageInput, CoverageLevelName } from "@vitest-agent/sdk";
+export { CoverageLevel, resolveCoverageInput, validateCoverageConfig } from "@vitest-agent/sdk";
 export type { CoverageLevelPreset } from "./plugin.js";
 
 // Expose the AgentPlugin namespace statics as standalone named exports for convenience

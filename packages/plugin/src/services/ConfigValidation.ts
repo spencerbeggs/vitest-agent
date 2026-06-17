@@ -1,7 +1,7 @@
+import type { AgentPluginOptions } from "@vitest-agent/sdk";
 import type { Effect } from "effect";
 import { Context } from "effect";
 import type { ResolvedConfig } from "vitest/node";
-import type { AgentPluginOptions } from "vitest-agent-sdk";
 
 export interface ValidationError {
 	readonly code: string;

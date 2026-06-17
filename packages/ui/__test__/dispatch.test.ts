@@ -1,6 +1,6 @@
+import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "@vitest-agent/sdk";
+import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "vitest-agent-sdk";
-import { initialRenderState } from "vitest-agent-sdk";
 import { renderSingleFileFail } from "../src/dispatcher/cells/single-file-fail.js";
 import { renderSingleFilePass } from "../src/dispatcher/cells/single-file-pass.js";
 import { renderSingleFileThreshold } from "../src/dispatcher/cells/single-file-threshold.js";

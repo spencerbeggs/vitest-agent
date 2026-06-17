@@ -12,7 +12,7 @@
  * @packageDocumentation
  */
 
-import type { ProjectSummary, RenderState, RunOutcome, RunShape } from "vitest-agent-sdk";
+import type { ProjectSummary, RenderState, RunOutcome, RunShape } from "@vitest-agent/sdk";
 
 /**
  * Compute the run shape from the reduced state plus the per-project

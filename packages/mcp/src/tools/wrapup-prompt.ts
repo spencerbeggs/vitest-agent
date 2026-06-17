@@ -8,8 +8,8 @@
  * @packageDocumentation
  */
 
+import { formatWrapupEffect } from "@vitest-agent/sdk";
 import { Effect, Schema } from "effect";
-import { formatWrapupEffect } from "vitest-agent-sdk";
 import { publicProcedure } from "../context.js";
 
 export const WrapupPromptResult = Schema.Struct({

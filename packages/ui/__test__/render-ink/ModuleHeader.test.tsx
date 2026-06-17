@@ -1,5 +1,5 @@
+import type { ModuleRecord } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import type { ModuleRecord } from "vitest-agent-sdk";
 import { ModuleHeader } from "../../src/render-ink/index.js";
 import { renderInk } from "../utils/render-ink.js";
 

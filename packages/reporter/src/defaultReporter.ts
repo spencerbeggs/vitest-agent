@@ -20,7 +20,6 @@
  * @packageDocumentation
  */
 
-import { Effect, PubSub, Queue } from "effect";
 import type {
 	AgentReport,
 	CellOptions,
@@ -37,7 +36,7 @@ import type {
 	TrendSummary,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
-} from "vitest-agent-sdk";
+} from "@vitest-agent/sdk";
 import {
 	classifyOutcome,
 	classifyRunShape,
@@ -45,7 +44,8 @@ import {
 	dispatcherTable,
 	reduceRenderStateAll,
 	synthesizeFromAgentReport,
-} from "vitest-agent-ui";
+} from "@vitest-agent/ui";
+import { Effect, PubSub, Queue } from "effect";
 import { createLiveInk } from "./LiveInkRenderer.js";
 
 const summarizeProject = (report: AgentReport): ProjectSummary => {

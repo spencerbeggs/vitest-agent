@@ -10,8 +10,8 @@
  */
 
 import { Command, Options } from "@effect/cli";
+import { formatWrapupEffect } from "@vitest-agent/sdk";
 import { Effect } from "effect";
-import { formatWrapupEffect } from "vitest-agent-sdk";
 
 const rowIdOption = Options.optional(Options.integer("row-id"));
 const chatIdOption = Options.optional(Options.text("chat-id"));

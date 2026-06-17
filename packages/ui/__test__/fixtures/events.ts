@@ -10,7 +10,7 @@
  * fixtures.
  */
 
-import type { RunEvent } from "vitest-agent-sdk";
+import type { RunEvent } from "@vitest-agent/sdk";
 
 const RUN_ID = "run-abc";
 const CONFIG_HASH = "cfg-deadbeef";
