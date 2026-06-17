@@ -472,33 +472,31 @@ describe("createLiveInk — terminal-event commit via unmount", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Clear-at-mount: anchor Ink's dynamic region at row 0
+// Mount does not wipe the screen
 // ---------------------------------------------------------------------------
 
-describe("createLiveInk — clear-at-mount scroll anchoring", () => {
-	it("clears the screen and homes the cursor on the first RunStarted when stdout is a TTY", () => {
-		// Mounting clears the screen so Ink's dynamic region is anchored at
-		// row 0. When the anchor sits mid-screen (below pnpm's banner) a
-		// growing Live frame scrolls the terminal and Ink's eraseLines can no
-		// longer reach the lines that slid out, stranding a stale partial
-		// frame. The clear sequence engages even though Vitest's stdout shim
-		// makes the subsequent Ink mount degrade — it is written before the
-		// mount call.
+describe("createLiveInk — inline mount (no screen wipe)", () => {
+	it("does not emit a full-screen erase on the first RunStarted when stdout is a TTY", () => {
+		// The renderer mounts Ink inline, where the cursor already sits. An
+		// earlier revision wiped the whole screen (CSI 2J / CSI H) on mount to
+		// anchor Ink at row 0; that destroyed the user's scrollback and the
+		// preceding command output on every run and was dropped. Mounting must
+		// never write the full-screen erase, even on a TTY.
 		const { stream, output } = captureStream({ tty: true });
 		const live = createLiveInk({ stream });
 		muteStderr(() => {
 			live.event({ _tag: "RunStarted", runId: "r1", startedAt: "T0", configHash: "h" });
 		});
-		// CSI 2 J (erase screen) + CSI H (cursor home). Use new RegExp to
-		// avoid Biome's noControlCharactersInRegex rule.
+		// CSI 2 J = erase entire screen. Built from a char code to avoid
+		// Biome's noControlCharactersInRegex rule.
 		const ESC = String.fromCharCode(27);
-		expect(output()).toContain(`${ESC}[2J${ESC}[H`);
+		expect(output()).not.toContain(`${ESC}[2J`);
 		live.unmount();
 	});
 
-	it("does not emit the clear sequence when stdout is not a TTY", () => {
-		// Piped / non-interactive consumers must not receive raw clear escapes;
-		// they take the plain-text fallback instead.
+	it("does not emit a full-screen erase when stdout is not a TTY", () => {
+		// Piped / non-interactive consumers take the plain-text fallback and
+		// must never receive a raw screen-erase escape.
 		const { stream, output } = captureStream();
 		const live = createLiveInk({ stream });
 		muteStderr(() => {

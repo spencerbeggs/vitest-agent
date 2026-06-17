@@ -1,7 +1,7 @@
 /**
  * End-to-end subprocess tests for `db query`.
  *
- * Spawns the built CLI bin via `node dist/dev/bin/vitest-agent.js` with a
+ * Spawns the built CLI bin via `node dist/dev/pkg/bin/vitest-agent.js` with a
  * controlled XDG_DATA_HOME so each test gets an isolated data.db path.
  * Tests cover:
  *   - SELECT against a fresh database exits 0 with tabular output
@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-const BIN = resolve(__dirname, "..", "..", "dist", "dev", "bin", "vitest-agent.js");
+const BIN = resolve(__dirname, "..", "..", "dist", "dev", "pkg", "bin", "vitest-agent.js");
 
 interface SpawnResult {
 	stdout: string;

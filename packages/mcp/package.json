@@ -28,13 +28,17 @@
 		"vitest-agent-mcp": "./src/bin.ts"
 	},
 	"scripts": {
-		"build:dev": "rslib build --config-loader native --env-mode dev",
-		"build:prod": "rslib build --config-loader native --env-mode npm",
+		"build:dev": "node savvy.build.ts --target dev",
+		"build:meta": "node savvy.build.ts --target meta",
+		"build:prod": "node savvy.build.ts --target prod",
+		"prepare": "turbo run build:dev --filter=vitest-agent-mcp",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
+		"@effect/cluster": "catalog:silk",
 		"@effect/platform": "catalog:silk",
 		"@effect/platform-node": "catalog:silk",
+		"@effect/rpc": "catalog:silk",
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"@modelcontextprotocol/sdk": "^1.29.0",
@@ -44,9 +48,11 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.21.3",
+		"@savvy-web/bundler": "^0.6.0",
 		"@types/node": "catalog:silk",
+		"@typescript/native-preview": "catalog:silk",
 		"@vitest/coverage-v8": "^4.1.8",
+		"typescript": "catalog:silk",
 		"vitest": "^4.1.8"
 	},
 	"peerDependencies": {
@@ -54,23 +60,11 @@
 	},
 	"publishConfig": {
 		"access": "public",
-		"directory": "dist/dev",
+		"directory": "dist/dev/pkg",
 		"linkDirectory": true,
-		"targets": [
-			{
-				"protocol": "npm",
-				"registry": "https://npm.pkg.github.com/",
-				"directory": "dist/github",
-				"access": "public",
-				"provenance": true
-			},
-			{
-				"protocol": "npm",
-				"registry": "https://registry.npmjs.org/",
-				"directory": "dist/npm",
-				"access": "public",
-				"provenance": true
-			}
-		]
+		"targets": {
+			"npm": true,
+			"github": "@spencerbeggs/vitest-agent-mcp"
+		}
 	}
 }

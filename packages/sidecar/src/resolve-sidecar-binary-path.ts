@@ -64,17 +64,17 @@ export function resolveSidecarBinaryPath(options: ResolveSidecarBinaryPathOption
 		return null;
 	}
 
-	// The bin file path inside the package differs by OS
-	const binFile = platform === "win32" ? "bin/vitest-agent-sidecar.exe" : "bin/vitest-agent-sidecar";
-	const resolvePath = `${packageName}/${binFile}`;
-
-	// Use the injected resolver (for tests) or the real `require.resolve`
-	// method — NOT the bare `require` function, which would load and
-	// execute the resolved binary instead of returning its path.
+	// The platform package's `.` export points at its (platform-suffixed, `.exe`-on-win)
+	// SEA binary — programmed by the bundler from the package's `exe` config — so resolving
+	// the package root yields the binary path. No per-OS bin subpath needed here.
+	//
+	// Use the injected resolver (for tests) or the real `require.resolve` method — NOT the
+	// bare `require` function, which would load and execute the resolved binary instead of
+	// returning its path.
 	const resolve = options.resolver ?? createRequire(import.meta.url).resolve;
 
 	try {
-		return resolve(resolvePath);
+		return resolve(packageName);
 	} catch (err) {
 		const code = (err as NodeJS.ErrnoException).code;
 		if (code === "MODULE_NOT_FOUND") {

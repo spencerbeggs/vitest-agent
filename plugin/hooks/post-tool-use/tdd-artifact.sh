@@ -59,10 +59,15 @@ case "$tool_name" in
 			# Backfill test_cases.created_turn_id (BUG-2) and get latest test
 			# case id for this session (BUG-1) in one call.
 			test_case_id_arg=""
+			# Capture stderr separately (not 2>&1) so pnpm's stderr notices don't
+			# corrupt the JSON the jq below parses for latestTestCaseId.
+			_turns_err=$(mktemp)
 			_turns_out=$(cd "$cwd" && $pm_exec vitest-agent agent record test-case-turns \
-				--chat-id "$chat_id" 2>&1) || {
-				hook_error "$_HOOK" "record test-case-turns rc=$? cc=$chat_id: $_turns_out"
+				--chat-id "$chat_id" 2>"$_turns_err") || {
+				_rc=$?
+				hook_error "$_HOOK" "record test-case-turns rc=$_rc cc=$chat_id: $(cat "$_turns_err")"
 			}
+			rm -f "$_turns_err"
 			hook_debug "$_HOOK" "record test-case-turns: $_turns_out"
 			if [ -n "$_turns_out" ]; then
 				latest_id=$(echo "$_turns_out" | jq -r '.latestTestCaseId // empty' 2>/dev/null || echo "")
@@ -70,14 +75,17 @@ case "$tool_name" in
 					test_case_id_arg="--test-case-id $latest_id"
 				fi
 			fi
+			_artifact_err=$(mktemp)
 			# shellcheck disable=SC2086
 			_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
-				$test_case_id_arg 2>&1) || {
-				hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$? cc=$chat_id: $_artifact_out"
+				$test_case_id_arg 2>"$_artifact_err") || {
+				_rc=$?
+				hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$_rc cc=$chat_id: $(cat "$_artifact_err")"
 			}
+			rm -f "$_artifact_err"
 			hook_debug "$_HOOK" "record tdd-artifact kind=$kind: $_artifact_out"
 		fi
 		;;
@@ -129,10 +137,15 @@ case "$tool_name" in
 			# case id for this session (BUG-1). For MCP run_tests, post-test-run.sh
 			# does NOT fire, so this is the only opportunity to backfill.
 			test_case_id_arg=""
+			# Capture stderr separately (not 2>&1) so pnpm's stderr notices don't
+			# corrupt the JSON the jq below parses for latestTestCaseId.
+			_turns_err=$(mktemp)
 			_turns_out=$(cd "$cwd" && $pm_exec vitest-agent agent record test-case-turns \
-				--chat-id "$chat_id" 2>&1) || {
-				hook_error "$_HOOK" "record test-case-turns rc=$? cc=$chat_id: $_turns_out"
+				--chat-id "$chat_id" 2>"$_turns_err") || {
+				_rc=$?
+				hook_error "$_HOOK" "record test-case-turns rc=$_rc cc=$chat_id: $(cat "$_turns_err")"
 			}
+			rm -f "$_turns_err"
 			hook_debug "$_HOOK" "record test-case-turns: $_turns_out"
 			if [ -n "$_turns_out" ]; then
 				latest_id=$(echo "$_turns_out" | jq -r '.latestTestCaseId // empty' 2>/dev/null || echo "")
@@ -140,14 +153,17 @@ case "$tool_name" in
 					test_case_id_arg="--test-case-id $latest_id"
 				fi
 			fi
+			_artifact_err=$(mktemp)
 			# shellcheck disable=SC2086
 			_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
-				$test_case_id_arg 2>&1) || {
-				hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$? cc=$chat_id: $_artifact_out"
+				$test_case_id_arg 2>"$_artifact_err") || {
+				_rc=$?
+				hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$_rc cc=$chat_id: $(cat "$_artifact_err")"
 			}
+			rm -f "$_artifact_err"
 			hook_debug "$_HOOK" "record tdd-artifact kind=$kind: $_artifact_out"
 		fi
 		;;
@@ -165,13 +181,16 @@ case "$tool_name" in
 				kind="code_written"
 				;;
 		esac
+		_artifact_err=$(mktemp)
 		_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
 			--chat-id "$chat_id" \
 			--artifact-kind "$kind" \
 			--file-path "$file_path" \
-			--recorded-at "$recorded_at" 2>&1) || {
-			hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$? cc=$chat_id file=$file_path: $_artifact_out"
+			--recorded-at "$recorded_at" 2>"$_artifact_err") || {
+			_rc=$?
+			hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$_rc cc=$chat_id file=$file_path: $(cat "$_artifact_err")"
 		}
+		rm -f "$_artifact_err"
 		hook_debug "$_HOOK" "record tdd-artifact kind=$kind file=$file_path: $_artifact_out"
 		;;
 esac

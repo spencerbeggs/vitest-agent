@@ -5,10 +5,11 @@
  * watch-mode reruns.
  *
  * Mount happens on the first `RunStarted` event so the renderer doesn't
- * compete with Vitest's stdout setup. The mount clears the screen and
- * homes the cursor first, anchoring Ink's dynamic region at row 0 — see
- * the scroll-anchoring note on `mount` below. Each subsequent event folds
- * the state forward and rerenders the {@link StreamApp} tree.
+ * compete with Vitest's stdout setup. Ink mounts inline, where the cursor
+ * already sits — the renderer does not wipe the screen (see the note on
+ * `mount` below for why the earlier clear-at-mount was dropped). Each
+ * subsequent event folds the state forward and rerenders the
+ * {@link StreamApp} tree.
  *
  * ### Terminal-event commit
  *
@@ -49,7 +50,7 @@
  * @packageDocumentation
  */
 
-import { render as inkRender, renderToString } from "ink";
+import { Box, render as inkRender, renderToString } from "ink";
 import { createElement } from "react";
 import type { RenderState, RunEvent } from "vitest-agent-sdk";
 import { initialRenderState } from "vitest-agent-sdk";
@@ -100,29 +101,50 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 	// the Ink mount degrades.
 	const targetStream: NodeJS.WriteStream = options.stream ?? process.stdout;
 
-	const renderTree = () => {
+	// Constrain Ink's layout to one column narrower than the terminal so no
+	// rendered line ever exactly fills the width. Ink tracks frame height by
+	// counting the `\n`s in its own output and erases exactly that many lines
+	// each frame (`log-update`'s `eraseLines(previousLineCount)`); it has no
+	// notion of the terminal physically wrapping a line. A line whose width
+	// equals the terminal's column count triggers the terminal's auto-wrap,
+	// occupying two physical rows while Ink still counts it as one — so the
+	// next erase comes up short and strands the top rows (the duplicated
+	// "Projects (N):" header). At a narrow width many rows over-wrap and the
+	// header duplicates many times over; at a wide width a single over-wide
+	// row strands a single copy. Wrapping at `columns - 1` keeps every emitted
+	// line strictly narrower than the terminal, so Ink's logical line count
+	// always equals the physical rows and `eraseLines` is always exact.
+	// Re-read every render so a mid-run resize is picked up. Undefined when the
+	// stream reports no width (non-TTY) — the wrap Box simply imposes no limit.
+	const frameWidth = (): number | undefined => {
+		const cols = targetStream.columns;
+		return typeof cols === "number" && cols > 1 ? cols - 1 : undefined;
+	};
+
+	const frameElement = () => {
 		const now = Date.now();
-		return createElement(StreamApp, { state, frameIndex: spinnerFrameForTime(now), nowMs: now });
+		return createElement(
+			Box,
+			{ flexDirection: "column", width: frameWidth() },
+			createElement(StreamApp, { state, frameIndex: spinnerFrameForTime(now), nowMs: now }),
+		);
 	};
 
 	const mount = () => {
 		if (instance !== null) return;
-		// Clear the screen and home the cursor before mounting so Ink's
-		// dynamic region is anchored at row 0. Ink's scroll/overflow handling
-		// assumes the region owns the viewport from its anchor downward; when
-		// the anchor sits mid-screen (below pnpm's banner) a growing Live
-		// frame scrolls the terminal and Ink's `eraseLines` can no longer
-		// reach the lines that slid out of the dynamic region, leaving a
-		// stale partial frame (the "Projects (N):" leak). Anchoring at row 0
-		// keeps Ink's accounting correct: the frame either fits the viewport
-		// or trips Ink's own fullscreen redraw, and never strands lines.
-		// Guarded on `isTTY` so piped / non-interactive output stays free of
-		// raw escape sequences (those consumers take the plain-text fallback).
-		if (targetStream.isTTY === true) {
-			// CSI 2 J → erase entire screen; CSI H → cursor to home (row 1,1).
-			targetStream.write("\x1b[2J\x1b[H");
-		}
-		instance = inkRender(renderTree(), { stdout: targetStream });
+		// Mount Ink inline, where the cursor already sits — no screen wipe.
+		// An earlier revision cleared the whole screen and homed the cursor
+		// (CSI 2J / CSI H) on mount, to anchor Ink's dynamic region at row 0
+		// so a growing frame could never scroll past the viewport top and
+		// strand lines (the "Projects (N):" leak). That trade-off wasn't
+		// worth it: the wipe destroys the user's scrollback and the
+		// preceding command output (pnpm's banner, the `$ vitest run` line)
+		// on every run, and on terminals that ignore the escape it bought
+		// nothing anyway. We accept the rare terminal-specific strand instead
+		// of nuking the console, and let Ink render in place like an ordinary
+		// progressive reporter. The frame-width clamp in `frameWidth` keeps
+		// Ink's line accounting correct for the common case.
+		instance = inkRender(frameElement(), { stdout: targetStream });
 	};
 
 	const stopClock = () => {
@@ -139,7 +161,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 			// (non-TTY) leaves `instance` null — nothing to rerender.
 			if (instance === null) return;
 			try {
-				instance.rerender(renderTree());
+				instance.rerender(frameElement());
 			} catch {
 				instance = null;
 				stopClock();
@@ -210,7 +232,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 				startClock();
 			} else if (instance !== null) {
 				try {
-					instance.rerender(renderTree());
+					instance.rerender(frameElement());
 				} catch (err) {
 					process.stderr.write(
 						`vitest-agent-reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,

@@ -17,7 +17,6 @@
 	"type": "module",
 	"scripts": {
 		"build": "turbo run build:dev build:prod",
-		"build:dev": "turbo run build:dev",
 		"build:docs": "turbo run build --filter=docs --output-logs=new-only",
 		"ci:build": "CI=\"true\" turbo run build:dev build:prod",
 		"ci:test": "CI=\"true\" vitest run --coverage",
@@ -38,7 +37,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/silk": "^0.5.0",
+		"@savvy-web/silk": "^1.1.1",
 		"tsx": "catalog:silk",
 		"typescript": "catalog:silk",
 		"vitest": "^4.1.8",
@@ -46,11 +45,14 @@
 		"vitest-agent-mcp": "workspace:*",
 		"vitest-agent-plugin": "workspace:*"
 	},
-	"packageManager": "pnpm@11.5.1+sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1d1485",
+	"packageManager": "pnpm@11.7.0+sha512.19cc852c120c7125760f2443ee6be0ca5b40f9f50598de1a09a1f177503e010e57c23c77646e01e761de59bf874fb22a3398c33ab9691fc13eb946b6f0f4d620",
+	"engines": {
+		"node": ">=24.11.0"
+	},
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "11.5.1+sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1",
+			"version": "11.7.0+sha512.19cc852c120c7125760f2443ee6be0ca5b40f9f50598de1a09a1f177503e010e57c23c77646e01e761de59bf874fb22a3398c33ab9691fc13eb946b6f0f4d620",
 			"onFail": "ignore"
 		},
 		"runtime": [

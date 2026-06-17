@@ -4,9 +4,7 @@ packages:
   - website
 autoInstallPeers: true
 configDependencies:
-  "@savvy-web/pnpm-plugin-silk": 0.14.5+sha512-bA2uq4Z7cQ2tIUN96J3MjE1arvv1IpDYzwdxlXaaUB0YJud5PlYBjIZ+9dNzvc34KpcfaLIN0AhuIRrg0BFkLA==
-confirmModulesPurge: false
+  "@savvy-web/pnpm-plugin-silk": 0.15.1+sha512-/YweRPSahFlUxa5P5sCspJ9VMyaICvZDEutIP3rPrjNEW7kJGg93lGXzJI2WMwvaTBRzOrjFGVRbTGkx6ZX30g==
+linkWorkspacePackages: deep
 loglevel: info
-publicHoistPattern:
-  - vitest-agent-cli
-  - vitest-agent-mcp
+verifyDepsBeforeRun: false

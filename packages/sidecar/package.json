@@ -25,14 +25,18 @@
 		"./package.json": "./package.json"
 	},
 	"scripts": {
-		"build:dev": "rslib build --config-loader native --env-mode dev",
-		"build:prod": "rslib build --config-loader native --env-mode npm",
+		"build:dev": "node savvy.build.ts --target dev",
+		"build:meta": "node savvy.build.ts --target meta",
+		"build:prod": "node savvy.build.ts --target prod",
+		"prepare": "turbo run build:dev --filter=vitest-agent-sidecar",
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.21.3",
+		"@savvy-web/bundler": "^0.6.0",
 		"@types/node": "catalog:silk",
+		"@typescript/native-preview": "catalog:silk",
 		"@vitest/coverage-v8": "^4.1.8",
+		"typescript": "catalog:silk",
 		"vitest": "^4.1.8"
 	},
 	"optionalDependencies": {
@@ -43,23 +47,11 @@
 	},
 	"publishConfig": {
 		"access": "public",
-		"directory": "dist/dev",
+		"directory": "dist/dev/pkg",
 		"linkDirectory": true,
-		"targets": [
-			{
-				"protocol": "npm",
-				"registry": "https://npm.pkg.github.com/",
-				"directory": "dist/github",
-				"access": "public",
-				"provenance": true
-			},
-			{
-				"protocol": "npm",
-				"registry": "https://registry.npmjs.org/",
-				"directory": "dist/npm",
-				"access": "public",
-				"provenance": true
-			}
-		]
+		"targets": {
+			"npm": true,
+			"github": "@spencerbeggs/vitest-agent-sidecar"
+		}
 	}
 }
