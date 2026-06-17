@@ -130,8 +130,6 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 		);
 	};
 
-	const renderTree = () => frameElement();
-
 	const mount = () => {
 		if (instance !== null) return;
 		// Mount Ink inline, where the cursor already sits — no screen wipe.
@@ -146,7 +144,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 		// of nuking the console, and let Ink render in place like an ordinary
 		// progressive reporter. The frame-width clamp in `frameWidth` keeps
 		// Ink's line accounting correct for the common case.
-		instance = inkRender(renderTree(), { stdout: targetStream });
+		instance = inkRender(frameElement(), { stdout: targetStream });
 	};
 
 	const stopClock = () => {
@@ -163,7 +161,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 			// (non-TTY) leaves `instance` null — nothing to rerender.
 			if (instance === null) return;
 			try {
-				instance.rerender(renderTree());
+				instance.rerender(frameElement());
 			} catch {
 				instance = null;
 				stopClock();
@@ -234,7 +232,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 				startClock();
 			} else if (instance !== null) {
 				try {
-					instance.rerender(renderTree());
+					instance.rerender(frameElement());
 				} catch (err) {
 					process.stderr.write(
 						`vitest-agent-reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
