@@ -2,7 +2,7 @@
 
 ## When to use
 
-You want output behavior that the named factories in `vitest-agent-reporter` (`defaultReporter`, `markdownReporter`, `jsonReporter`, etc.) do not provide. Examples: SARIF output for code-scanning ingestion, JUnit XML alongside the default markdown, a side-channel that posts to an internal API.
+You want output behavior that the named factories in `@vitest-agent/reporter` (`defaultReporter`, `markdownReporter`, `jsonReporter`, etc.) do not provide. Examples: SARIF output for code-scanning ingestion, JUnit XML alongside the default markdown, a side-channel that posts to an internal API.
 
 ## The contract
 

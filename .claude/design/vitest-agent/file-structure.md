@@ -85,7 +85,7 @@ Node SEA binary into `bin/` with tsdown's `exe` mode rather than
 rslib-builder (see [./components/sidecar.md](./components/sidecar.md)) — no
 `__test__/`. The per-child `lib/scripts/tsdown.ts` script selects its mode
 from the npm lifecycle event: `build:dev` emits `dist/dev`, `build:prod`
-emits `dist/npm` and `dist/github` — each variant directory holding the SEA
+emits `dist/npm` — each variant directory holding the SEA
 binary plus a publish-cleaned `package.json`.
 
 The `mcp` package additionally vendors content under `src/`:

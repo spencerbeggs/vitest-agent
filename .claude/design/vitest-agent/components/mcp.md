@@ -61,7 +61,7 @@ and calls `startMcpServer({ runtime, cwd: projectDir })`.
 Inside `main()`, before `ManagedRuntime.make`, the bin compares
 `CURRENT_MCP_VERSION` against `CURRENT_SDK_VERSION` and writes one
 stderr line on mismatch
-(`[vitest-agent-mcp] version drift: vitest-agent-mcp@<a> with
+(`[@vitest-agent/mcp] version drift: @vitest-agent/mcp@<a> with
 @vitest-agent/sdk@<b>. Reinstall @vitest-agent/* packages so versions
 match.`). The check is observation-only — the server boot continues.
 `packages/mcp/src/index.ts` exports `CURRENT_MCP_VERSION` (inlined

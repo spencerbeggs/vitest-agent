@@ -189,7 +189,7 @@ produce dual build outputs via [Rslib](https://rslib.rs/) for each package:
 | Output | Directory | Purpose |
 | ------ | --------- | ------- |
 | Development | `packages/<name>/dist/dev/` | Local development with source maps |
-| Production | `packages/<name>/dist/npm/` | Published to npm and GitHub Packages |
+| Production | `packages/<name>/dist/npm/` | Published to npm |
 
 Each source `package.json` is marked `"private": true` — **this is
 intentional and correct**. The rslib-builder `transform()` callback rewrites
@@ -299,7 +299,7 @@ All commits require:
 
 ### Publishing
 
-All seven packages publish to both GitHub Packages and npm with
+All seven packages publish to npm with
 provenance via the [@savvy-web/changesets](https://github.com/savvy-web/changesets)
 release workflow. The six original packages release in lockstep; `@vitest-agent/sidecar` versions independently.
 

@@ -54,12 +54,12 @@ The parent ships no binary of its own. The actual SEA binaries live in the four 
 
 ## Build outputs and turbo task graph
 
-Each child's build script produces three output variants:
+Each child's build script produces two output variants:
 
 | Variant | Directory | Purpose |
 |---------|-----------|---------|
 | `build:dev` | `dist/dev/` | Workspace link target (rslib-compatible layout) |
-| `build:prod` | `dist/npm/` and `dist/github/` | npm and GitHub Packages publish targets |
+| `build:prod` | `dist/npm/` | npm publish target |
 
 The intermediate JS bundle and SEA scratch files live under `dist/.bundle/<mode>/` and are deleted once the variant directories are written, so turbo only caches the final `dist/<variant>` outputs.
 
@@ -74,10 +74,9 @@ The six rslib packages use `@savvy-web/rslib-builder`'s `transform()` callback t
 - Keeps only publishable fields
 - Drops `devDependencies`, `scripts`, `publishConfig`, `packageManager`, `devEngines`
 - Sets `private` to `false`
-- For the `github` variant: scopes the name to `@spencerbeggs/vitest-agent-sidecar-<platform>`
-- For `npm` and `dev` variants: keeps the bare unscoped name
+- Keeps the `@vitest-agent/sidecar-<platform>` scoped name
 
-The CI workflow asserts these invariants for every `dist/{github,npm}/package.json` before uploading the built artifacts.
+The CI workflow asserts these invariants for every `dist/npm/package.json` before uploading the built artifacts.
 
 ## How the path reaches the hook
 
