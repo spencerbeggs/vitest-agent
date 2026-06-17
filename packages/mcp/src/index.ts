@@ -1,5 +1,5 @@
 /**
- * vitest-agent-mcp
+ * @vitest-agent/mcp
  *
  * Model Context Protocol server for vitest-agent. Exposes 24 tools
  * via tRPC over stdio that give agents structured access to test data,

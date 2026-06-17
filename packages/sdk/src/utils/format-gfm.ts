@@ -1,5 +1,5 @@
 /**
- * vitest-agent-sdk
+ * @vitest-agent/sdk
  *
  * Pure function for formatting {@link AgentReport | AgentReport(s)} as
  * GitHub-Flavored Markdown suitable for writing to `GITHUB_STEP_SUMMARY`.

@@ -17,7 +17,7 @@ import { startMcpServer } from "./server.js";
 
 /**
  * Cross-package version drift check. Compares this MCP package's version
- * against vitest-agent-sdk and writes a single stderr line on mismatch.
+ * against @vitest-agent/sdk and writes a single stderr line on mismatch.
  * Observation-only — never throws. The `"0.0.0"` fallback marks a dev
  * build (rslib-builder did not substitute the literal); skip the check
  * to avoid spurious warnings during local source-loaded runs. See the
@@ -29,9 +29,9 @@ function checkVersionDrift(): void {
 	if (CURRENT_MCP_VERSION === "0.0.0") return;
 	if (CURRENT_SDK_VERSION !== CURRENT_MCP_VERSION) {
 		process.stderr.write(
-			`[vitest-agent-mcp] version drift: vitest-agent-mcp@${CURRENT_MCP_VERSION} ` +
-				`with vitest-agent-sdk@${CURRENT_SDK_VERSION}. ` +
-				`Reinstall vitest-agent-* packages so versions match.\n`,
+			`[@vitest-agent/mcp] version drift: @vitest-agent/mcp@${CURRENT_MCP_VERSION} ` +
+				`with @vitest-agent/sdk@${CURRENT_SDK_VERSION}. ` +
+				`Reinstall @vitest-agent/* packages so versions match.\n`,
 		);
 	}
 }

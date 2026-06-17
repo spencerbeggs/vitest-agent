@@ -217,7 +217,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 						mount();
 					} catch (err) {
 						process.stderr.write(
-							`vitest-agent-reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
+							`@vitest-agent/reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
 						);
 						instance = null;
 					}
@@ -235,7 +235,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 					instance.rerender(frameElement());
 				} catch (err) {
 					process.stderr.write(
-						`vitest-agent-reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
+						`@vitest-agent/reporter: live ink renderer failed; falling back silently (${(err as Error).message})\n`,
 					);
 					instance = null;
 					stopClock();

@@ -1,7 +1,7 @@
 /**
  * Sidecar argv dispatcher.
  *
- * The pure argv-dispatch core of the `vitest-agent-sidecar` native
+ * The pure argv-dispatch core of the `@vitest-agent/sidecar` native
  * binary. One subcommand:
  *
  *   - `inject-env` — pure, fast: rewrites a Bash command with the
@@ -9,15 +9,15 @@
  *
  * `inject-env` is the per-Bash-call hot path and is fully self-contained
  * — no SQLite, no native addon. `register-agent` deliberately stays on
- * the full `vitest-agent-cli` JS path: it pulls in a native SQLite
+ * the full `@vitest-agent/cli` JS path: it pulls in a native SQLite
  * binding that cannot be bundled into a JS SEA, and it fires only once
  * per session (off the per-turn critical path). Putting `register-agent`
  * back in the binary is tracked as a 2.x follow-up.
  *
- * This lives in `vitest-agent-sdk` and ships from the dedicated
- * `vitest-agent-sdk/dispatch` entry point, so the four
- * `vitest-agent-sidecar-<platform>` child packages consume it as a
- * clean package import. `vitest-agent-sdk` is a true leaf package,
+ * This lives in `@vitest-agent/sdk` and ships from the dedicated
+ * `@vitest-agent/sdk/dispatch` entry point, so the four
+ * `@vitest-agent/sidecar-<platform>` child packages consume it as a
+ * clean package import. `@vitest-agent/sdk` is a true leaf package,
  * which keeps the workspace dependency graph acyclic — the
  * per-platform packages no longer close a cli → sidecar →
  * sidecar-platform → cli loop. Its only dependencies are sdk-local:

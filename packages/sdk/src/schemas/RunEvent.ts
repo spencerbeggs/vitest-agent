@@ -4,7 +4,7 @@
  * A `RunEvent` is every state-affecting thing that happens during a
  * test run. The plugin publishes events as Vitest reporter callbacks
  * fire; CLI commands construct synthetic event sequences from database
- * queries. Both feed the same reducer in `vitest-agent-ui`, which
+ * queries. Both feed the same reducer in `@vitest-agent/ui`, which
  * projects the stream into a denormalized {@link RenderState}.
  *
  * @packageDocumentation

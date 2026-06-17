@@ -1,5 +1,5 @@
 /**
- * vitest-agent-plugin
+ * @vitest-agent/plugin
  *
  * {@link AgentPlugin} convenience wrapper that injects {@link AgentReporter}
  * into the Vitest reporter chain via the `configureVitest` hook (Vitest 3.1+).
@@ -221,16 +221,16 @@ function checkVersionDrift(pluginVersion: string): void {
 	if (_hasWarnedDrift) return;
 	if (pluginVersion === "0.0.0") return;
 	const peers: ReadonlyArray<readonly [string, string]> = [
-		["vitest-agent-sdk", CURRENT_SDK_VERSION],
-		["vitest-agent-reporter", CURRENT_REPORTER_VERSION],
+		["@vitest-agent/sdk", CURRENT_SDK_VERSION],
+		["@vitest-agent/reporter", CURRENT_REPORTER_VERSION],
 	];
 	let warned = false;
 	for (const [peerName, peerVersion] of peers) {
 		if (peerVersion !== pluginVersion) {
 			process.stderr.write(
-				`[vitest-agent-plugin] version drift: vitest-agent-plugin@${pluginVersion} ` +
+				`[@vitest-agent/plugin] version drift: @vitest-agent/plugin@${pluginVersion} ` +
 					`with ${peerName}@${peerVersion}. ` +
-					`Reinstall vitest-agent-* packages so versions match.\n`,
+					`Reinstall @vitest-agent/* packages so versions match.\n`,
 			);
 			warned = true;
 		}

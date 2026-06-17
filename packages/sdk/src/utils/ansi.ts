@@ -1,5 +1,5 @@
 /**
- * vitest-agent-sdk
+ * @vitest-agent/sdk
  *
  * ANSI color/style escape code utilities.
  *

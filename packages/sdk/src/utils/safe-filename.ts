@@ -1,5 +1,5 @@
 /**
- * vitest-agent-sdk
+ * @vitest-agent/sdk
  *
  * Convert a project name to a filesystem-safe filename.
  *

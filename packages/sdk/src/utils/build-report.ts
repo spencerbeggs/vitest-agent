@@ -1,5 +1,5 @@
 /**
- * vitest-agent-sdk
+ * @vitest-agent/sdk
  *
  * Pure function for building an {@link AgentReport} from Vitest
  * TestModule/TestCase objects. No I/O -- data transformation only.

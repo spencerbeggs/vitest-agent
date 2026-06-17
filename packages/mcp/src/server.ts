@@ -958,7 +958,7 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			inputSchema: {
 				payload: z
 					.string()
-					.describe("Pre-stringified ChannelEvent JSON (see schemas/ChannelEvent in vitest-agent-sdk)"),
+					.describe("Pre-stringified ChannelEvent JSON (see schemas/ChannelEvent in @vitest-agent/sdk)"),
 			},
 		},
 		async (args) => {

@@ -1,11 +1,11 @@
 /**
- * vitest-agent-plugin
+ * @vitest-agent/plugin
  *
  * Vitest plugin for the vitest-agent ecosystem. Owns persistence, history
  * classification, baselines, trend tracking, failure-signature computation,
  * and Vitest reporter-chain wiring. Dispatches the rendering stage to a
  * configurable reporter — by default `DefaultVitestAgentReporter` from
- * `vitest-agent-reporter`, which the internal `AgentReporter` injects
+ * `@vitest-agent/reporter`, which the internal `AgentReporter` injects
  * when the user supplies no `reporter` factory option.
  *
  * This barrel re-exports `AgentPlugin` (the public plugin factory) and

@@ -1,5 +1,5 @@
 /**
- * vitest-agent-ui
+ * @vitest-agent/ui
  *
  * Shared event-sourced renderer for vitest-agent. The reducer projects
  * a {@link RunEvent} stream into a denormalized {@link RenderState};

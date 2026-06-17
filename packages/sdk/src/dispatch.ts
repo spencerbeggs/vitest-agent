@@ -1,7 +1,7 @@
 /**
- * vitest-agent-sdk/dispatch
+ * @vitest-agent/sdk/dispatch
  *
- * Dedicated narrow entry point for the `vitest-agent-sidecar` native
+ * Dedicated narrow entry point for the `@vitest-agent/sidecar` native
  * binary. Exports only the sidecar argv-dispatch core: {@link dispatch}
  * (the hand-rolled, dependency-free dispatcher), {@link injectEnv} (the
  * `inject-env` hot-path implementation), and {@link exitCodeForTag} (the
@@ -15,8 +15,8 @@
  * → `injectEnv` → the pure `match-vitest-command` helpers, plus the
  * pure `exitCodeForTag` switch.
  *
- * The four `vitest-agent-sidecar-<platform>` child packages import
- * `dispatch` from here; `vitest-agent-cli` imports `injectEnv` /
+ * The four `@vitest-agent/sidecar-<platform>` child packages import
+ * `dispatch` from here; `@vitest-agent/cli` imports `injectEnv` /
  * `exitCodeForTag` from here for its own `agent inject-env` JS-fallback
  * subcommand.
  *

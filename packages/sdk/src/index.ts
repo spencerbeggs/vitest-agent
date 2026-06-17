@@ -1,5 +1,5 @@
 /**
- * vitest-agent-sdk
+ * @vitest-agent/sdk
  *
  * Shared library for the vitest-agent package family. Carries
  * everything both runtime packages (reporter, mcp, cli) need: Effect
@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-// Dispatcher contract (consumed by vitest-agent-ui's renderer cells + plugin)
+// Dispatcher contract (consumed by @vitest-agent/ui's renderer cells + plugin)
 export * from "./contracts/dispatcher.js";
 // Reporter contract (consumed by vitest-agent plugin + reporter implementations)
 export * from "./contracts/reporter.js";

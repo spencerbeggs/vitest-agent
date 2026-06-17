@@ -1,5 +1,5 @@
 /**
- * vitest-agent-plugin
+ * @vitest-agent/plugin
  *
  * Filter out built-in console reporters from a Vitest reporters array.
  *

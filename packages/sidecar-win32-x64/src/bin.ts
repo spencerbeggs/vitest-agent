@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * `vitest-agent-sidecar-win32-x64` SEA entry point.
+ * `@vitest-agent/sidecar-win32-x64` SEA entry point.
  *
  * The thin program runner for this platform's Single Executable
  * Application (SEA) binary. It owns nothing but the process plumbing:
  * the argv-dispatch logic is a clean package export of
- * `vitest-agent-sdk` ({@link dispatch}), imported from its dedicated
- * `vitest-agent-sdk/dispatch` entry point as a normal package
- * dependency. `vitest-agent-sdk` is a true leaf package, so this
+ * `@vitest-agent/sdk` ({@link dispatch}), imported from its dedicated
+ * `@vitest-agent/sdk/dispatch` entry point as a normal package
+ * dependency. `@vitest-agent/sdk` is a true leaf package, so this
  * import closes no workspace dependency cycle.
  *
  * `dispatch` never throws; it folds every outcome into a
@@ -17,7 +17,7 @@
  * truncated.
  *
  * The SEA build (`savvy.build.ts`) bundles the
- * `vitest-agent-sdk/dispatch` graph into the binary — a deliberately
+ * `@vitest-agent/sdk/dispatch` graph into the binary — a deliberately
  * narrow surface (`dispatch`, `injectEnv`, and the pure
  * `match-vitest-command` helpers), none of the Effect runtime or the
  * SQLite data layer.

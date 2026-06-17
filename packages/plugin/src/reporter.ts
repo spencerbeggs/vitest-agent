@@ -1,5 +1,5 @@
 /**
- * vitest-agent-plugin
+ * @vitest-agent/plugin
  *
  * {@link AgentReporter} class implementing the Vitest Reporter interface.
  * Produces structured markdown to console, persistent data to SQLite,
