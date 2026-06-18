@@ -1,13 +1,3 @@
-/**
- * @vitest-agent/plugin
- *
- * {@link AgentReporter} class implementing the Vitest Reporter interface.
- * Produces structured markdown to console, persistent data to SQLite,
- * and optional GFM output for GitHub Actions check runs.
- *
- * @packageDocumentation
- */
-
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -20,6 +10,7 @@ import type {
 	CoverageBaselines,
 	OutputFormat,
 	ReporterKit,
+	ResolvedReporterConfig,
 	ResolvedThresholds,
 	RunEvent,
 	TestClassification,
@@ -153,7 +144,7 @@ interface ResolvedOptions {
 	githubSummaryFile: string | undefined;
 	format?: "terminal" | "markdown" | "json" | "vitest-bypass" | "silent" | "ci-annotations";
 	detail?: "minimal" | "neutral" | "standard" | "verbose";
-	consoleMode: import("@vitest-agent/sdk").ConsoleMode;
+	consoleMode: ConsoleMode;
 	mcp?: boolean;
 	projectFilter?: string;
 	reporter: VitestAgentReporterFactory;
@@ -432,7 +423,7 @@ export class AgentReporter {
 	 * This getter is @internal — do not reference in user-facing docs.
 	 * @internal
 	 */
-	get resolvedConfig(): import("@vitest-agent/sdk").ResolvedReporterConfig {
+	get resolvedConfig(): ResolvedReporterConfig {
 		const opts = this.options;
 		return {
 			executor: "ci", // placeholder — kit is assembled per-run; this getter exposes construction-time config only

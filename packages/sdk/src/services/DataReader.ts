@@ -8,9 +8,8 @@ import type { CoverageReport, FileCoverageReport } from "../schemas/Coverage.js"
 import type { HistoryRecord } from "../schemas/History.js";
 import type { BehaviorDetail, BehaviorRow, GoalDetail } from "../schemas/Tdd.js";
 import type { TrendRecord } from "../schemas/Trends.js";
-import type { CitedArtifact } from "../utils/validate-phase-transition.js";
+import type { ArtifactKind, CitedArtifact } from "../utils/validate-phase-transition.js";
 import type { ChangeKind, Phase } from "./DataStore.js";
-
 export interface ProjectRunSummary {
 	readonly project: string;
 	readonly lastRun: string | null;
@@ -254,7 +253,7 @@ export interface TddArtifactRow {
 	readonly tddTaskId: number;
 	readonly phaseId: number;
 	readonly phaseName: Phase;
-	readonly artifactKind: import("../utils/validate-phase-transition.js").ArtifactKind;
+	readonly artifactKind: ArtifactKind;
 	readonly behaviorId: number | null;
 	readonly testCaseId: number | null;
 	readonly testRunId: number | null;
@@ -389,7 +388,7 @@ export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 		 */
 		readonly listTddArtifactsForTask: (input: {
 			readonly tddTaskId: number;
-			readonly artifactKind?: import("../utils/validate-phase-transition.js").ArtifactKind;
+			readonly artifactKind?: ArtifactKind;
 			readonly phaseId?: number;
 			readonly behaviorId?: number;
 			readonly limit?: number;

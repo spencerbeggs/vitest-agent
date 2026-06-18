@@ -1,0 +1,69 @@
+/* =====================================================================
+   vitest-agent — RSPress 2.0 theme tokens
+   Magenta base (the inverse of Vitest green) + ink shade.
+   Import via rspress.config globalStyles, e.g.
+     globalStyles: path.join(__dirname, 'theme/vitest-agent-theme.css')
+   ===================================================================== */
+
+:where(:root) {
+  /* ---- Reusable project tokens (use anywhere in custom components) ---- */
+  --va-magenta-50:  #FBE6F4;
+  --va-magenta-100: #F7C8E6;
+  --va-magenta-200: #F0A0D2;
+  --va-magenta-300: #E972BE;
+  --va-magenta-400: #E84FB4;
+  --va-magenta-500: #D6219B; /* brand */
+  --va-magenta-600: #B81585;
+  --va-magenta-700: #951068;
+  --va-magenta-800: #6E0C4E;
+  --va-magenta-900: #2A0820; /* ink */
+  --va-ink:   #2A0820;
+  --va-glow:  #FF6BD0; /* agent "eye" accent */
+  --va-violet: #7C5CFF; /* secondary, for gradients */
+
+  /* ---- RSPress brand ramp ---- */
+  --rp-c-brand:         #D6219B;
+  --rp-c-brand-light:   #E84FB4;
+  --rp-c-brand-lighter: #F7C8E6;
+  --rp-c-brand-dark:    #B81585;
+  --rp-c-brand-darker:  #951068;
+  --rp-c-brand-tint:    rgba(214, 33, 155, 0.16);
+}
+
+/* ---- Homepage hero: magenta → violet title gradient ---- */
+:where(html:not(.rp-dark)),
+:where(html.rp-dark) {
+  --rp-home-hero-secondary-color: var(--va-violet);
+  --rp-home-hero-title-color: transparent;
+  --rp-home-hero-title-bg: linear-gradient(
+    90deg,
+    var(--rp-c-brand-dark) 0%,
+    var(--rp-c-brand) 32%,
+    var(--rp-home-hero-secondary-color) 100%
+  );
+}
+
+/* ---- Homepage background glows (light) ---- */
+:where(html:not(.rp-dark)) {
+  --rp-home-background-bg:
+    radial-gradient(42.12% 56.13% at 100% 0%, rgba(214, 33, 155, 0.10) 0%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(42.01% 79.63% at 52.86% 0%, rgba(214, 33, 155, 0.16) 0%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(79.67% 58.09% at 0% 0%, rgba(124, 92, 255, 0.18) 0%, rgba(255, 255, 255, 0) 100%),
+    #fff;
+}
+
+/* ---- Homepage background glows (dark) ---- */
+:where(html.rp-dark) {
+  --rp-home-background-bg:
+    radial-gradient(42.12% 56.13% at 100% 0%, #3A0B2A 0%, rgba(18, 18, 18, 0) 100%),
+    radial-gradient(55.81% 87.78% at 48.37% 0%, #1A0610 0%, rgba(18, 18, 18, 0) 89.55%),
+    radial-gradient(122.65% 88.24% at 0% 0%, #2E1065 0%, rgba(18, 18, 18, 0) 100%),
+    #121212;
+}
+
+/* ---- Optional: nudge a couple of code tokens toward the brand family.
+   Commented out by default to keep code highlighting readable —
+   uncomment if you want keywords to echo the magenta. ----
+:where(html:not(.rp-dark)) { --shiki-token-keyword: #B81585; }
+:where(html.rp-dark)       { --shiki-token-keyword: #FF6BD0; }
+*/

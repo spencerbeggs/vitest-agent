@@ -1,13 +1,5 @@
-/**
- * @vitest-agent/plugin
- *
- * {@link AgentPlugin} convenience wrapper that injects {@link AgentReporter}
- * into the Vitest reporter chain via the `configureVitest` hook (Vitest 3.1+).
- *
- * @packageDocumentation
- */
-
 import { execSync } from "node:child_process";
+import type { TestTagDefinition } from "@vitest/runner";
 import { CURRENT_REPORTER_VERSION } from "@vitest-agent/reporter";
 import type {
 	AgentConsoleMode,
@@ -19,6 +11,7 @@ import type {
 	Executor,
 	HumanConsoleMode,
 	OutputFormat,
+	RunEvent,
 	Transport,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
@@ -32,6 +25,7 @@ import {
 } from "@vitest-agent/sdk";
 import type { Layer } from "effect";
 import { Effect } from "effect";
+import type { TestProjectInlineConfiguration } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";
@@ -72,7 +66,7 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	 * progresses. Hosts drive a live renderer (Ink, debug logging) from
 	 * here. Throwing taps are caught and logged to stderr.
 	 */
-	onRunEvent?: (event: import("@vitest-agent/sdk").RunEvent) => void;
+	onRunEvent?: (event: RunEvent) => void;
 	/**
 	 * Controls the Vite transform hook that rewrites test() and it() call
 	 * options to inject filename-derived tags. Pass a DiscoverStrategy
@@ -534,8 +528,8 @@ export interface AddProjectInput {
  * @public
  */
 export interface DiscoverResult {
-	readonly projects: import("vitest/config").TestProjectInlineConfiguration[] | undefined;
-	readonly tags: import("@vitest/runner").TestTagDefinition[];
+	readonly projects: TestProjectInlineConfiguration[] | undefined;
+	readonly tags: TestTagDefinition[];
 }
 
 /**

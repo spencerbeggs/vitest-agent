@@ -12,14 +12,11 @@ determines how the plugin handles console output for that run.
 
 ## Executor detection
 
-The plugin uses [std-env](https://github.com/nicolo-ribaudo/std-env) for
+The plugin uses [std-env](https://www.npmjs.com/package/std-env) for
 agent detection. It checks for agent-specific environment variables first,
 then CI variables, and falls back to `"human"` when nothing matches.
 
-Agent variables checked include `CLAUDECODE`, `CURSOR_TRACE_ID`,
-`CLINE_ACTIVE`, `CODEX_SANDBOX`, `GEMINI_CLI`, `AUGMENT_AGENT`, `AI_AGENT`,
-and others maintained by std-env. CI is detected via `GITHUB_ACTIONS` or
-`CI`.
+Agent variables checked include `CLAUDECODE`, `CURSOR_TRACE_ID`, `CLINE_ACTIVE`, `CODEX_SANDBOX`, `GEMINI_CLI`, `AUGMENT_AGENT`, `AI_AGENT`, and others maintained by std-env. CI is detected via `GITHUB_ACTIONS` or `CI`.
 
 ## The console matrix
 

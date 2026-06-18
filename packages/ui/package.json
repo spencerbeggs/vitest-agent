@@ -26,9 +26,8 @@
 	},
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
-		"build:meta": "node savvy.build.ts --target meta",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "node savvy.build.ts --target dev",
+		"prepare": "turbo run build:dev",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
@@ -36,18 +35,18 @@
 		"effect": "catalog:silk"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.6.0",
+		"@savvy-web/bundler": "^0.8.0",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
-		"ink": "^7.0.5",
+		"ink": "^7.1.0",
 		"ink-testing-library": "^4.0.0",
 		"react": "catalog:silk",
 		"typescript": "catalog:silk",
 		"vitest": "^4.1.8"
 	},
 	"peerDependencies": {
-		"ink": "^7.0.0",
+		"ink": "^7.1.0",
 		"react": "catalog:silk"
 	},
 	"peerDependenciesMeta": {
@@ -57,6 +56,9 @@
 		"react": {
 			"optional": false
 		}
+	},
+	"engines": {
+		"node": ">=24.11.0"
 	},
 	"publishConfig": {
 		"access": "public",

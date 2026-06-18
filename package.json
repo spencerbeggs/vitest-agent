@@ -16,20 +16,19 @@
 	},
 	"type": "module",
 	"scripts": {
-		"build": "turbo run build:dev build:prod",
+		"build": "turbo run build:dev build:prod --log-order=grouped --log-prefix=none",
 		"build:docs": "turbo run build --filter=docs --output-logs=new-only",
 		"ci:build": "CI=\"true\" turbo run build:dev build:prod",
 		"ci:test": "CI=\"true\" vitest run --coverage",
 		"ci:version": "savvy changeset version && biome format --write .",
-		"dev": "turbo run dev --filter=docs --ui=tui",
+		"dev": "turbo run dev --filter=docs",
 		"lint": "biome check --max-diagnostics=none",
 		"lint:fix": "biome check --write --max-diagnostics=none",
 		"lint:fix:unsafe": "biome check --write --unsafe --max-diagnostics=none",
 		"lint:md": "markdownlint-cli2 '**/*.{md,mdx}' --config './lib/configs/.markdownlint-cli2.jsonc'",
 		"lint:md:fix": "markdownlint-cli2  --config './lib/configs/.markdownlint-cli2.jsonc' --fix",
 		"prepare": "husky",
-		"preview": "turbo run preview --filter=docs --ui=tui",
-		"reset": "node lib/scripts/reset.ts",
+		"preview": "turbo run preview --filter=docs",
 		"test": "vitest run",
 		"test:coverage": "vitest run",
 		"test:watch": "vitest --watch",
@@ -37,7 +36,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/silk": "^1.1.1",
+		"@savvy-web/silk": "^1.2.0",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/plugin": "workspace:*",
@@ -45,14 +44,14 @@
 		"typescript": "catalog:silk",
 		"vitest": "^4.1.8"
 	},
-	"packageManager": "pnpm@11.7.0+sha512.19cc852c120c7125760f2443ee6be0ca5b40f9f50598de1a09a1f177503e010e57c23c77646e01e761de59bf874fb22a3398c33ab9691fc13eb946b6f0f4d620",
+	"packageManager": "pnpm@11.8.0+sha512.c1f5e7c4cb241c8f174b743851d82f42b802324afc8b0f116b96adb15aa06664948dde36960a3ba1079ba5b4b29dd0140135b94b5b5f5263592249d68e555f26",
 	"engines": {
 		"node": ">=24.11.0"
 	},
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "11.7.0+sha512.19cc852c120c7125760f2443ee6be0ca5b40f9f50598de1a09a1f177503e010e57c23c77646e01e761de59bf874fb22a3398c33ab9691fc13eb946b6f0f4d620",
+			"version": "11.8.0+sha512.c1f5e7c4cb241c8f174b743851d82f42b802324afc8b0f116b96adb15aa06664948dde36960a3ba1079ba5b4b29dd0140135b94b5b5f5263592249d68e555f26",
 			"onFail": "ignore"
 		},
 		"runtime": [

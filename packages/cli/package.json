@@ -29,9 +29,8 @@
 	},
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
-		"build:meta": "node savvy.build.ts --target meta",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev --filter=.",
+		"prepare": "turbo run build:dev",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
@@ -47,12 +46,15 @@
 		"effect": "catalog:silk"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.6.0",
+		"@savvy-web/bundler": "^0.8.0",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"@vitest/coverage-v8": "^4.1.8",
 		"typescript": "catalog:silk",
 		"vitest": "^4.1.8"
+	},
+	"engines": {
+		"node": ">=24.11.0"
 	},
 	"publishConfig": {
 		"access": "public",

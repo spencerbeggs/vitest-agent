@@ -30,7 +30,7 @@ RunEvent stream (from PubSub or batch)
 
 `RenderState` is the single denormalized projection that both render paths read. It accumulates as `RunEvent`s arrive and is fully described in [Render state](/ui/render-state). The two reduction entry points are:
 
-```ts
+```ts with-api
 import { reduceRenderState, reduceRenderStateAll, initialRenderState } from "@vitest-agent/ui";
 
 // One-shot: fold a complete sequence in batch
@@ -61,7 +61,7 @@ The dispatcher reads `RenderState` plus a few assembled inputs and routes to one
 
 Before calling `dispatch` or `dispatchInk`, derive the two coordinates and assemble the inputs:
 
-```ts
+```ts with-api
 import {
   classifyRunShape,
   classifyOutcome,
@@ -135,7 +135,7 @@ For live rendering during a test run, `@vitest-agent/ui` ships an Effect `PubSub
 
 The three subscriber helpers:
 
-```ts
+```ts with-api
 import {
   RunEventChannel,
   accumulateUntilFinished,
@@ -175,7 +175,7 @@ This means a custom renderer that subscribes to the PubSub for live frames will 
 
 The synthesizers allow a renderer to operate outside a live Vitest run. `synthesizeFromAgentReport(report)` converts a stored `AgentReport` into a synthetic event sequence; `reduceRenderStateAll` folds it into a `RenderState`; `dispatch` produces the final string. The `DefaultVitestAgentReporter.render` method and the CLI replay helpers both follow this path.
 
-```ts
+```ts with-api
 import { synthesizeFromAgentReport, reduceRenderStateAll } from "@vitest-agent/ui";
 
 const events = synthesizeFromAgentReport(agentReport);

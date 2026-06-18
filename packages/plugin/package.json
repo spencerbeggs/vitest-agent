@@ -26,9 +26,8 @@
 	},
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
-		"build:meta": "node savvy.build.ts --target meta",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev --filter=.",
+		"prepare": "turbo run build:dev",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
@@ -40,14 +39,14 @@
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
-		"acorn": "^8.16.0",
+		"acorn": "^8.17.0",
 		"acorn-typescript": "^1.4.13",
 		"effect": "catalog:silk",
-		"magic-string": "^0.30.0",
-		"workspaces-effect": "^1.1.0"
+		"magic-string": "^0.30.21",
+		"workspaces-effect": "^1.2.0"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.6.0",
+		"@savvy-web/bundler": "^0.8.0",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
@@ -65,6 +64,9 @@
 		"@vitest/coverage-v8": "^4.1.0",
 		"@vitest/runner": "^4.1.0",
 		"vitest": "^4.1.0"
+	},
+	"engines": {
+		"node": ">=24.11.0"
 	},
 	"publishConfig": {
 		"access": "public",

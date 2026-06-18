@@ -17,6 +17,7 @@
 
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
+import type { Scope } from "effect";
 import { Effect, PubSub, Queue, Stream } from "effect";
 import { reduceRenderState } from "../reducer.js";
 import { RunEventChannel } from "./Channel.js";
@@ -78,7 +79,7 @@ export const forEachRenderState = <R, E>(
  */
 export const renderStateStream = (
 	initial: RenderState = initialRenderState,
-): Effect.Effect<Stream.Stream<RenderState>, never, RunEventChannel | import("effect").Scope.Scope> =>
+): Effect.Effect<Stream.Stream<RenderState>, never, RunEventChannel | Scope.Scope> =>
 	Effect.gen(function* () {
 		const channel = yield* RunEventChannel;
 		const stream = yield* Stream.fromPubSub(channel, { scoped: true });
@@ -91,11 +92,7 @@ export const renderStateStream = (
  * application code should prefer {@link forEachRenderState} or
  * {@link renderStateStream}.
  */
-export const subscribeRaw = (): Effect.Effect<
-	Queue.Dequeue<RunEvent>,
-	never,
-	RunEventChannel | import("effect").Scope.Scope
-> =>
+export const subscribeRaw = (): Effect.Effect<Queue.Dequeue<RunEvent>, never, RunEventChannel | Scope.Scope> =>
 	Effect.gen(function* () {
 		const channel = yield* RunEventChannel;
 		return yield* PubSub.subscribe(channel);

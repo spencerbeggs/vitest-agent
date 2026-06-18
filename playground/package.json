@@ -4,9 +4,10 @@
 	"private": true,
 	"type": "module",
 	"devDependencies": {
-		"@savvy-web/rslib-builder": "^0.21.3",
+		"@savvy-web/bundler": "^0.8.0",
 		"@types/node": "catalog:silk",
-		"@vitest/coverage-v8": "^4.1.8",
+		"@typescript/native-preview": "catalog:silk",
+		"typescript": "catalog:silk",
 		"vitest": "^4.1.8"
 	}
 }

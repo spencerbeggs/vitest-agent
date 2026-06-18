@@ -23,24 +23,18 @@
 				"src/**/*"
 			],
 			"outputLogs": "errors-only",
-			"outputs": ["dist/dev/pkg/**"]
-		},
-		"build:meta": {
-			"cache": true,
-			"dependsOn": ["build:dev"],
-			"inputs": ["$TURBO_DEFAULT$", "dist/dev/pkg/**"],
-			"outputLogs": "errors-only",
-			"outputs": ["dist/dev/meta/**"]
+			"outputs": ["dist/dev/**"]
 		},
 		"build:prod": {
 			"cache": true,
-			"dependsOn": ["types:check", "build:meta"],
+			"dependsOn": ["types:check", "build:dev"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/package.json",
 				"$TURBO_ROOT$/pnpm-workspace.yaml",
 				"$TURBO_ROOT$/pnpm-lock.yaml",
 				"$TURBO_ROOT$/tsconfig.json",
+				"$TURBO_ROOT$/.changeset/**",
 				"README.md",
 				"LICENSE",
 				"package.json",

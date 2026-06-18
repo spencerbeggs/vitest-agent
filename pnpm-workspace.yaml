@@ -2,9 +2,15 @@ packages:
   - packages/*
   - playground
   - website
+allowedDeprecatedVersions:
+  glob: 7.2.3
+  inflight: 1.0.6
+  prebuild-install: 7.1.3
 autoInstallPeers: true
 configDependencies:
-  "@savvy-web/pnpm-plugin-silk": 0.15.1+sha512-/YweRPSahFlUxa5P5sCspJ9VMyaICvZDEutIP3rPrjNEW7kJGg93lGXzJI2WMwvaTBRzOrjFGVRbTGkx6ZX30g==
+  "@savvy-web/pnpm-plugin-silk": 0.15.2+sha512-NmPfZm4W8CmiOhOf6C+c0fwU2RC7hznytvZCAow56oDExSGpHbdISL9ykhRDSPQ+iK7CCGTx8Q+ATOnOIPIUlA==
 linkWorkspacePackages: deep
-loglevel: info
+loglevel: warn
+overrides:
+  rspress-plugin-api-extractor: file:../rspress-plugin-api-extractor/plugin/dist/prod/npm/pkg
 verifyDepsBeforeRun: false
