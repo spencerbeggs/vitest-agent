@@ -23,6 +23,7 @@
  *
  * @param name - The raw `name` field from a workspace's `package.json`.
  * @returns A filesystem-safe single path segment.
+ * @public
  */
 export function normalizeWorkspaceKey(name: string): string {
 	return name

@@ -201,6 +201,10 @@ function processCoverageInternal(
 	};
 }
 
+/**
+ * Live implementation of the CoverageAnalyzer service backed by istanbul.
+ * @public
+ */
 export const CoverageAnalyzerLive: Layer.Layer<CoverageAnalyzer> = Layer.succeed(CoverageAnalyzer, {
 	process: (coverage, options) =>
 		Effect.sync(() => {

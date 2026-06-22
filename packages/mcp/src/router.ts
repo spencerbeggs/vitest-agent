@@ -29,6 +29,14 @@ import { triageBrief } from "./tools/triage-brief.js";
 import { turnSearch } from "./tools/turn-search.js";
 import { wrapupPrompt } from "./tools/wrapup-prompt.js";
 
+/**
+ * The tRPC router aggregating all MCP tool procedures.
+ *
+ * Pass to `createCallerFactory` in tests, or to `createCallerFactory(appRouter)`
+ * followed by `startMcpServer` in the bin entry to start the MCP server.
+ *
+ * @public
+ */
 export const appRouter = router({
 	help: help,
 	test_status: testStatus,

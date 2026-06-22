@@ -2,6 +2,10 @@ import type { CoverageReport } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
 import { CoverageAnalyzer } from "../services/CoverageAnalyzer.js";
 
+/**
+ * Test-double layer factory for CoverageAnalyzer. Pass a pre-built `CoverageReport` to inject.
+ * @public
+ */
 export const CoverageAnalyzerTest = {
 	layer: (data?: CoverageReport): Layer.Layer<CoverageAnalyzer> =>
 		Layer.succeed(CoverageAnalyzer, {

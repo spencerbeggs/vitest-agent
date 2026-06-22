@@ -12,12 +12,21 @@ import type { ManagedRuntime } from "effect";
  * SessionStart hook to `CLAUDE_ENV_FILE` and auto-sourced into the MCP
  * child) or from an explicit positional argv. The legacy
  * `set_current_session_id` MCP tool was removed in Phase 3.
+ *
+ * @public
  */
 export interface CurrentSessionIdRef {
 	get(): string | null;
 	set(id: string | null): void;
 }
 
+/**
+ * Creates a new {@link CurrentSessionIdRef} with an optional initial value.
+ *
+ * @param initial - the starting chat id, or `null` when unknown at construction time
+ * @returns a mutable ref holding the current session id
+ * @public
+ */
 export const createCurrentSessionIdRef = (initial: string | null = null): CurrentSessionIdRef => {
 	let value: string | null = initial;
 	return {
@@ -38,6 +47,8 @@ export const createCurrentSessionIdRef = (initial: string | null = null): Curren
  * Read by `run_tests` to populate `VITEST_AGENT_AGENT_ID` and friends
  * on the Vitest child process so the reporter attributes runs back to
  * the active agent.
+ *
+ * @public
  */
 export interface SessionContext {
 	readonly chatId: string;
@@ -45,11 +56,23 @@ export interface SessionContext {
 	readonly mainAgentId: string;
 }
 
+/**
+ * Mutable ref holding the MCP server's recovered {@link SessionContext}.
+ *
+ * @public
+ */
 export interface SessionContextRef {
 	get(): SessionContext | null;
 	set(ctx: SessionContext | null): void;
 }
 
+/**
+ * Creates a new {@link SessionContextRef} with an optional initial value.
+ *
+ * @param initial - the starting session context, or `null` when not yet recovered
+ * @returns a mutable ref holding the current session context
+ * @public
+ */
 export const createSessionContextRef = (initial: SessionContext | null = null): SessionContextRef => {
 	let value: SessionContext | null = initial;
 	return {
@@ -83,6 +106,8 @@ export const sessionContextFromEnv = (env: Record<string, string | undefined> = 
  * The MCP server creates a ManagedRuntime at startup (long-lived
  * process) and passes it through tRPC context so procedures can
  * call Effect services via `ctx.runtime.runPromise(effect)`.
+ *
+ * @public
  */
 export interface McpContext {
 	readonly runtime: ManagedRuntime.ManagedRuntime<DataReader | DataStore | ProjectDiscovery | OutputRenderer, never>;
@@ -95,6 +120,14 @@ const t = initTRPC.context<McpContext>().create();
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
+/**
+ * Factory for creating server-side tRPC callers for the MCP router.
+ *
+ * Use with {@link appRouter} in tests or programmatic contexts to invoke
+ * tool procedures without starting the MCP server.
+ *
+ * @public
+ */
 export const createCallerFactory = t.createCallerFactory;
 /** Exported so middleware modules can attach to the same tRPC instance. */
 export const middleware = t.middleware;

@@ -1,15 +1,20 @@
 /**
  * Coverage section: per-metric percentage, threshold violations, top-N gaps.
- *
- * @packageDocumentation
  */
 
 import type { CoverageRenderState } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 
+/**
+ * Props for the `CoverageBlock` component.
+ *
+ * @public
+ */
 export interface CoverageBlockProps {
+	/** The coverage render state to display. */
 	readonly coverage: CoverageRenderState;
+	/** Maximum number of gap entries to list; defaults to 3. */
 	readonly maxGaps?: number;
 }
 
@@ -20,6 +25,12 @@ const formatPercent = (n: number): string => {
 	return `${rounded}%`;
 };
 
+/**
+ * Renders the coverage section: per-metric percentages, threshold
+ * violations, and top-N gap entries sorted by missing line count.
+ *
+ * @public
+ */
 export const CoverageBlock: FC<CoverageBlockProps> = ({ coverage, maxGaps = 3 }) => {
 	const sortedGaps = [...coverage.gaps].sort((a, b) => b.missing.lines - a.missing.lines);
 	const topGaps = maxGaps > 0 ? sortedGaps.slice(0, maxGaps) : [];

@@ -5,7 +5,7 @@ const Parser = acorn.Parser.extend(
 	// biome-ignore lint/suspicious/noExplicitAny: acorn-typescript's plugin signature is loosely typed
 	tsPlugin() as any,
 );
-
+/** @public */
 export interface FunctionBoundary {
 	readonly line: number;
 	readonly name: string;
@@ -48,6 +48,7 @@ const nodeName = (node: AstNode, parent: AstNode | null): string => {
  * Returns `null` only when the parser rejects the source outright (rare —
  * usually a syntax error). Type annotations, generics, decorators, and `as`
  * casts are all accepted.
+ * @public
  */
 export const findFunctionBoundary = (source: string, line: number): FunctionBoundary | null => {
 	let ast: AstNode;

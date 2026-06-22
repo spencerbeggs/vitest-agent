@@ -1,29 +1,8 @@
-/**
- * Pure markdown generator for W5 wrap-up prompts.
- *
- * Powers the `wrapup` CLI subcommand, the `wrapup_prompt` MCP tool, and
- * the four interpretive hooks (Stop / SessionEnd / PreCompact /
- * UserPromptSubmit). Each caller passes a `kind` so the generator can
- * tailor the prompt — `stop` is lighter-weight than `session_end`,
- * `tdd_handoff` produces the spec's pointer-shaped message, and
- * `user_prompt_nudge` is the lightest of all (a nudge to use
- * test_history / failure_signature_get when the prompt mentions test
- * failure).
- *
- * Returns an empty string when there is no signal worth showing — hooks
- * treat empty as "skip injection."
- *
- * Error channel is `never` — every DataReader call is collapsed via
- * `Effect.orElseSucceed`.
- *
- * @packageDocumentation
- */
-
 import { Effect, Option } from "effect";
 import { DataReader } from "../services/DataReader.js";
-
+/** @public */
 export type WrapupKind = "stop" | "session_end" | "pre_compact" | "tdd_handoff" | "user_prompt_nudge";
-
+/** @public */
 export interface FormatWrapupOptions {
 	readonly sessionId?: number;
 	readonly chatId?: string;
@@ -35,7 +14,7 @@ export interface FormatWrapupOptions {
 // linear-time match guaranteed even on adversarial inputs (the userPromptHint
 // flows directly from the Claude Code envelope).
 const FAILURE_PROMPT_PATTERN = /\b(?:test fail|fix\b[^.]*\btest|why\b[^.]*\bfail(?:ing)?|broken test)\b/i;
-
+/** @public */
 export const formatWrapupEffect = (options: FormatWrapupOptions): Effect.Effect<string, never, DataReader> =>
 	Effect.gen(function* () {
 		const reader = yield* DataReader;

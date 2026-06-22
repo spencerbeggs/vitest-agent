@@ -1,27 +1,3 @@
-/**
- * Resolve the canonical `project_key` from a workspace cwd by reading
- * `package.json` directly.
- *
- * Used by the reporter (via `resolveDataPath`), the sidecar CLI's
- * `_internal` subcommands, and any other code path that needs the
- * `<XDG>/vitest-agent/<projectKey>/` directory segment without
- * pulling in the full Effect-based `ProjectIdentity` resolver.
- *
- * Priority chain (matches the first three sources of `ProjectIdentity`
- * after the explicit / TOML overrides):
- *
- *   1. Walk up from `cwd` to find the nearest `package.json`.
- *   2. If `repository.url` (string or `{ url }`) canonicalizes to a
- *      git URL, use `gitUrlToProjectKey` (`host__path`).
- *   3. Else, normalize `name` via `normalizeWorkspaceKey`.
- *   4. Fall back to the cwd basename (filesystem-normalized).
- *
- * Synchronous and dependency-free so the reporter / sidecar can
- * compute the path before constructing any Effect runtime.
- *
- * @packageDocumentation
- */
-
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { gitUrlToProjectKey } from "./canonicalize-git-url.js";
@@ -63,6 +39,7 @@ const readRepositoryUrl = (parsed: { repository?: unknown }): string | null => {
  * Always returns a non-empty string — falls back to the cwd basename
  * (or `"anonymous-project"`) so callers don't have to handle the
  * empty case.
+ * @public
  */
 export const resolveProjectKeyFromCwd = (cwd: string): string => {
 	const pkgPath = findNearestPackageJson(cwd);

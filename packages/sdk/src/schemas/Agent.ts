@@ -1,20 +1,3 @@
-/**
- * Agent invocation record + supporting result types.
- *
- * One row per agent run, with a `parentAgentId` pointer for subagent
- * trees of arbitrary depth. The `idempotencyKey` is set by every
- * caller (sidecar / MCP / future client) via
- * {@link deriveIdempotencyKey} so a hook retry collapses to the same
- * row instead of creating a duplicate.
- *
- * `Agent` is a `Schema.TaggedClass` — the `_tag` discriminator lets
- * `Match.tag` symmetrically dispatch on the {@link RegisterAgentResult}
- * union (`Agent` vs `IdempotencyHit`) without losing typed-error
- * guarantees.
- *
- * @packageDocumentation
- */
-
 import { Data, Schema } from "effect";
 import { AgentId, ConversationId } from "./Identity.js";
 
@@ -26,6 +9,7 @@ import { AgentId, ConversationId } from "./Identity.js";
  * *what the agent inherited at registration time* — distinct from the
  * per-run git context recorded on `runs`. A divergence between the
  * two reveals a mid-session branch switch, which is itself signal.
+ * @public
  */
 export class Agent extends Schema.TaggedClass<Agent>()("Agent", {
 	agentId: AgentId,
@@ -56,6 +40,7 @@ export class Agent extends Schema.TaggedClass<Agent>()("Agent", {
  * Modeled as a `Data.TaggedClass` so the success channel of
  * `registerAgent` is `Effect<Agent | IdempotencyHit, ...>` and
  * downstream code uses `Match.tag` to branch.
+ * @public
  */
 export class IdempotencyHit extends Data.TaggedClass("IdempotencyHit")<{
 	readonly existingAgentId: typeof AgentId.Type;
@@ -63,6 +48,7 @@ export class IdempotencyHit extends Data.TaggedClass("IdempotencyHit")<{
 
 /**
  * Sum type of the two possible outcomes of `registerAgent`.
+ * @public
  */
 export type RegisterAgentResult = Agent | IdempotencyHit;
 
@@ -70,6 +56,7 @@ export type RegisterAgentResult = Agent | IdempotencyHit;
  * Agent tree — root agent with all descendants nested under
  * `children`. Returned by `DataStore.getAgentTree` for forensics and
  * the `vitest-agent agent list` CLI subcommand.
+ * @public
  */
 export interface AgentTreeNode {
 	readonly agent: Agent;

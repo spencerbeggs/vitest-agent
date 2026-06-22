@@ -9,11 +9,13 @@ import { resolveProjectKeyFromCwd } from "./resolve-project-key-from-cwd.js";
 
 /**
  * Filename of the SQLite database that stores all reporter data.
+ * @public
  */
 export const DATABASE_FILENAME = "data.db";
 
 /**
  * Caller-supplied overrides for `resolveDataPath`.
+ * @public
  */
 export interface ResolveDataPathOptions {
 	/**
@@ -54,6 +56,7 @@ export interface ResolveDataPathOptions {
  *
  * @param projectDir - Absolute path inside the user's workspace.
  * @param options - Optional programmatic overrides.
+ * @public
  */
 export const resolveDataPath = (projectDir: string, options: ResolveDataPathOptions = {}) =>
 	Effect.gen(function* () {

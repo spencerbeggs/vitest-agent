@@ -7,15 +7,27 @@ import { Tag } from "./tag.js";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
+/**
+ * Resolved metadata about a discovered test module.
+ * @public
+ */
 export interface ModuleInfo {
+	/** Absolute path to the module file. */
 	readonly path: string;
+	/** Path relative to the workspace root, using forward slashes. */
 	readonly relativePath: string;
+	/** Basename of the file (e.g. `"foo.test.ts"`). */
 	readonly filename: string;
+	/** The `name` field from the nearest `package.json`. */
 	readonly packageName: string;
+	/** Absolute path to the package directory. */
 	readonly packagePath: string;
 }
 
-/** Parsed package.json fields that strategies may inspect. */
+/**
+ * Parsed `package.json` fields that strategies may inspect.
+ * @public
+ */
 export interface PackageJson {
 	readonly name?: string;
 	readonly version?: string;
@@ -23,34 +35,68 @@ export interface PackageJson {
 	readonly [key: string]: unknown;
 }
 
+/**
+ * Input passed to `DiscoverStrategy.buildProject` for each workspace package.
+ * @public
+ */
 export interface DiscoverInput {
+	/** Package name from `package.json`. */
 	readonly name: string;
+	/** Absolute path to the package directory. */
 	readonly path: string;
+	/** Path relative to the workspace root, using forward slashes. */
 	readonly relativePath: string;
+	/** Absolute path to the workspace root. */
 	readonly workspaceRoot: string;
+	/** Parsed `package.json` contents, when available. */
 	readonly packageJson?: PackageJson;
 }
 
+/**
+ * Context object passed to a `ClassifyFn`.
+ * @public
+ */
 export interface ClassifyContext {
+	/** Metadata for the module being classified. */
 	readonly module: ModuleInfo;
+	/** All tags registered on the active strategy. */
 	readonly tags: ReadonlyArray<Tag>;
+	/** Tag names returned by the previous classifier layer (empty for the base layer). */
 	readonly inherited: ReadonlyArray<string>;
 }
 
+/**
+ * A function that maps a module to an array of tag names.
+ * @public
+ */
 export type ClassifyFn = (ctx: ClassifyContext) => ReadonlyArray<string>;
 
+/**
+ * Options for `DiscoverStrategy.create`.
+ * @public
+ */
 export interface DiscoverStrategyCreateOptions {
+	/** Tags to register on the strategy. */
 	readonly tags: ReadonlyArray<Tag>;
+	/** Function that produces a Vitest project config for a package, or `null` to skip it. */
 	readonly buildProject: (input: DiscoverInput) => Promise<TestProjectInlineConfiguration | null>;
+	/** Function that maps a module to tag names. */
 	readonly classify: ClassifyFn;
 }
 
+/**
+ * Options for `DiscoverStrategy.extend`.
+ * @public
+ */
 export interface DiscoverStrategyExtendOptions {
+	/** Extra tags to append to the strategy's tag list. */
 	readonly additionalTags?: ReadonlyArray<Tag>;
+	/** Override or supplement the project-building logic. Receives the inherited result as a second argument. */
 	readonly buildProject?: (
 		input: DiscoverInput,
 		inherited: TestProjectInlineConfiguration | null,
 	) => Promise<TestProjectInlineConfiguration | null>;
+	/** Override or supplement the classification logic. */
 	readonly classify?: ClassifyFn;
 }
 
@@ -85,6 +131,14 @@ async function detectSetupFile(pkgPath: string): Promise<string | null> {
 
 // ── Abstract base class ────────────────────────────────────────────────────────
 
+/**
+ * Abstract base for workspace discovery strategies. Implement `buildProject` and
+ * `classify` to control which packages become Vitest projects and how their test
+ * files are tagged. Use `DiscoverStrategy.create` to build a concrete instance
+ * from plain functions, or extend `DefaultDiscoverStrategy` to layer on top of
+ * the built-in unit/int/e2e heuristics.
+ * @public
+ */
 export abstract class DiscoverStrategy {
 	abstract readonly tags: ReadonlyArray<Tag>;
 	abstract get tagDefinitions(): ReadonlyArray<TestTagDefinition>;
@@ -177,6 +231,13 @@ const DEFAULT_TAGS: ReadonlyArray<Tag> = [
 const E2E_RE = /\.e2e\.(test|spec)\.(ts|tsx|js|jsx)$/;
 const INT_RE = /\.int\.(test|spec)\.(ts|tsx|js|jsx)$/;
 
+/**
+ * The built-in `DiscoverStrategy` used by `AgentPlugin.discover` when no custom
+ * strategy is supplied. Registers `unit`, `int` (60 s timeout), and `e2e`
+ * (120 s timeout, retry in CI) tags and classifies test files by filename suffix
+ * (`.int.test.*` → `"int"`, `.e2e.test.*` → `"e2e"`, everything else → `"unit"`).
+ * @public
+ */
 export class DefaultDiscoverStrategy extends DiscoverStrategy {
 	readonly tags: ReadonlyArray<Tag> = DEFAULT_TAGS;
 

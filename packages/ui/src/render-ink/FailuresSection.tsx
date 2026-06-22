@@ -6,15 +6,19 @@
  * Each entry: a glyph (⧖ for a timed-out failure, ✗ otherwise), the
  * `module › suite › test` path, the classification tag when known, and
  * one indented line — the first line of the error message.
- *
- * @packageDocumentation
  */
 
 import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 
+/**
+ * Props for the `FailuresSection` component.
+ *
+ * @public
+ */
 export interface FailuresSectionProps {
+	/** The list of failure records to display. */
 	readonly failures: ReadonlyArray<FailureRecord>;
 	/** Maximum entries to list before collapsing the rest into an overflow line. */
 	readonly limit: number;
@@ -29,6 +33,12 @@ const firstLine = (message: string): string => message.split("\n", 1)[0] ?? "";
 
 const FAILURE_VALUE_LIMIT = 200;
 
+/**
+ * Renders the capped failures block for aggregate-row shapes.
+ * Entries beyond `limit` collapse into an overflow line.
+ *
+ * @public
+ */
 export const FailuresSection: FC<FailuresSectionProps> = ({ failures, limit }) => {
 	const shown = failures.slice(0, limit);
 	const overflow = failures.length - shown.length;

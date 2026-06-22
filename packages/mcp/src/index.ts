@@ -27,5 +27,7 @@ export type { Remediation, TddErrorEnvelope } from "./tools/_tdd-error-envelope.
  * Compared against CURRENT_SDK_VERSION at MCP bin init to surface
  * partially-upgraded installs as a single stderr warning. See the root
  * CLAUDE.md "Cross-package version drift" section.
+ *
+ * @public
  */
 export const CURRENT_MCP_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";

@@ -18,10 +18,11 @@ export { DataReader } from "../services/DataReader.js";
 export { DataStore } from "../services/DataStore.js";
 export { DataStoreTestLayer, makeTestLayer } from "./layers.js";
 
+/** @public */
 export function empty(filename: string) {
 	return makeTestLayer(filename);
 }
-
+/** @public */
 export function singlePassingRun(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
@@ -74,7 +75,7 @@ export function singlePassingRun(filename: string) {
 	});
 	return Layer.effectDiscard(seed).pipe(Layer.provideMerge(base));
 }
-
+/** @public */
 export function withFailures(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
@@ -133,7 +134,7 @@ export function withFailures(filename: string) {
 	});
 	return Layer.effectDiscard(seed).pipe(Layer.provideMerge(base));
 }
-
+/** @public */
 export function flaky(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
@@ -276,7 +277,7 @@ export function flaky(filename: string) {
 	});
 	return Layer.effectDiscard(seed).pipe(Layer.provideMerge(base));
 }
-
+/** @public */
 export function withTddTask(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {

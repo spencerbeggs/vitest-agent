@@ -1,15 +1,3 @@
-/**
- * Run-event taxonomy for the shared event-sourced renderer.
- *
- * A `RunEvent` is every state-affecting thing that happens during a
- * test run. The plugin publishes events as Vitest reporter callbacks
- * fire; CLI commands construct synthetic event sequences from database
- * queries. Both feed the same reducer in `@vitest-agent/ui`, which
- * projects the stream into a denormalized {@link RenderState}.
- *
- * @packageDocumentation
- */
-
 import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
 import { CoverageTotals, FileCoverageReport } from "./Coverage.js";
@@ -19,61 +7,74 @@ import { MetricThresholds } from "./Thresholds.js";
 
 /**
  * Coverage metric whose threshold can be violated independently.
+ * @public
  */
 export const CoverageMetric = Schema.Literal("lines", "branches", "functions", "statements").annotations({
 	identifier: "CoverageMetric",
 });
+/** @public */
 export type CoverageMetric = typeof CoverageMetric.Type;
 
 /**
  * Severity tier for a suggested action emitted during a run.
+ * @public
  */
 export const ActionSeverity = Schema.Literal("info", "warn", "blocker").annotations({
 	identifier: "ActionSeverity",
 });
+/** @public */
 export type ActionSeverity = typeof ActionSeverity.Type;
 
 /**
  * Lifecycle scope of a Vitest setup/teardown hook.
+ * @public
  */
 export const HookType = Schema.Literal("beforeAll", "afterAll", "beforeEach", "afterEach").annotations({
 	identifier: "HookType",
 });
+/** @public */
 export type HookType = typeof HookType.Type;
 
 /**
  * Terminal status of a Vitest hook run.
+ * @public
  */
 export const HookStatus = Schema.Literal("passed", "failed").annotations({ identifier: "HookStatus" });
+/** @public */
 export type HookStatus = typeof HookStatus.Type;
 
 /**
  * Output stream a captured user `console.log` was written to.
+ * @public
  */
 export const ConsoleLogLevel = Schema.Literal("stdout", "stderr").annotations({ identifier: "ConsoleLogLevel" });
+/** @public */
 export type ConsoleLogLevel = typeof ConsoleLogLevel.Type;
 
 /**
  * A coverage gap surfaced to the renderer — a per-file shortfall that
  * a renderer may want to call out individually.
+ * @public
  */
 export const CoverageGap = Schema.Struct({
 	file: Schema.String,
 	missing: CoverageTotals,
 	uncoveredLines: Schema.optional(Schema.String),
 }).annotations({ identifier: "CoverageGap" });
+/** @public */
 export type CoverageGap = typeof CoverageGap.Type;
 
 // --- Discriminated union ---
 
 /**
- * The reducer projects this union into {@link RenderState}. Renderers
+ * The reducer projects this union into `RenderState`. Renderers
  * never read the raw event stream — they read the projected state.
  *
  * @remarks
  * Adding a variant here is one change in one place; the reducer's
  * exhaustive `Match.exhaustive` will surface any renderer that hasn't
  * been updated to consume the new state shape.
+ * @public
  */
 export const RunEvent = Schema.Union(
 	Schema.TaggedStruct("RunStarted", {
@@ -207,6 +208,7 @@ export const RunEvent = Schema.Union(
 		timeoutCount: Schema.optional(Schema.Number),
 	}),
 ).annotations({ identifier: "RunEvent" });
+/** @public */
 export type RunEvent = typeof RunEvent.Type;
 
 /**
@@ -214,6 +216,7 @@ export type RunEvent = typeof RunEvent.Type;
  *
  * Useful for callers that want to construct an event by tag without
  * pulling the whole union shape into scope.
+ * @public
  */
 export type RunEventByTag = {
 	[E in RunEvent as E["_tag"]]: E;
@@ -222,5 +225,6 @@ export type RunEventByTag = {
 /**
  * Helper alias for {@link FileCoverageReport} re-exported under the
  * event-domain name used in the spec.
+ * @public
  */
 export { FileCoverageReport as CoverageFile };

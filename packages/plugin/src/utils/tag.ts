@@ -1,5 +1,9 @@
 import type { TestTagDefinition } from "@vitest/runner";
 
+/**
+ * Options for a `Tag`, mirroring `TestTagDefinition` minus the `name` field.
+ * @public
+ */
 export type TagOptions = Omit<TestTagDefinition, "name">;
 
 const RESERVED = new Set(["and", "or", "not"]);
@@ -14,8 +18,14 @@ function validateTagName(name: string): void {
 	}
 }
 
+/**
+ * A validated Vitest tag with its `name` string and a `TestTagDefinition` for registration.
+ * @public
+ */
 export class Tag {
+	/** The tag name string (validated on construction). */
 	readonly name: string;
+	/** The full `TestTagDefinition` object to pass to Vitest's `test.tags` config. */
 	readonly definition: TestTagDefinition;
 
 	private constructor(name: string, options: TagOptions) {
@@ -23,6 +33,12 @@ export class Tag {
 		this.definition = { name, ...options };
 	}
 
+	/**
+	 * Create a validated `Tag`.
+	 * @param name - Tag identifier; must not be empty, reserved, or contain forbidden characters
+	 * @param options - Optional timeout, retry, and other Vitest tag settings
+	 * @returns A new `Tag` instance
+	 */
 	static make(name: string, options: TagOptions = {}): Tag {
 		validateTagName(name);
 		return new Tag(name, options);

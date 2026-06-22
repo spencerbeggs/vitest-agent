@@ -23,6 +23,7 @@ const CONFIG_FILENAME = "vitest-agent.config.toml";
  * @param projectDir - Absolute path inside the user's workspace. Resolvers
  *   anchor here rather than `process.cwd()` so the plugin-spawned MCP server
  *   sees the right config even when invoked from elsewhere.
+ * @public
  */
 export const ConfigLive = (
 	projectDir: string,

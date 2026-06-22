@@ -1,6 +1,7 @@
 import { formatGfm } from "../utils/format-gfm.js";
 import type { Formatter, RenderedOutput } from "./types.js";
 
+/** @public */
 export const GfmFormatter: Formatter = {
 	format: "gfm",
 	render: (reports, _context) => {

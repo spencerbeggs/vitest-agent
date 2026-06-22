@@ -1,20 +1,3 @@
-/**
- * Public dispatcher contract for the 2.0 shape-tailored renderer.
- *
- * The plugin emits one canonical stream of {@link RunEvent}s. The reducer
- * projects that stream into a denormalized {@link RenderState}. The
- * dispatcher reads the reduced state plus a few non-state inputs the
- * plugin computes (per-project aggregates, trend direction, etc.) and
- * picks a cell renderer keyed by `(run-shape, outcome)`.
- *
- * The types here are intentionally plain TypeScript: they flow only
- * inside the reporter pipeline and are never persisted to SQLite. The
- * SDK exports them so cells, the dispatcher, and the plugin can agree
- * on shape across package boundaries without each side restating it.
- *
- * @packageDocumentation
- */
-
 import type { FileCoverageReport } from "../schemas/Coverage.js";
 import type { RenderState } from "../schemas/RenderState.js";
 
@@ -29,6 +12,7 @@ import type { RenderState } from "../schemas/RenderState.js";
  * - `single-file`    — exactly one module, more than one test.
  * - `single-project` — one project, more than one module.
  * - `workspace`      — more than one project.
+ * @public
  */
 export type RunShape = "single-test" | "single-file" | "single-project" | "workspace";
 
@@ -38,6 +22,7 @@ export type RunShape = "single-test" | "single-file" | "single-project" | "works
  * - `all-pass`             — `totals.failed === 0` and no coverage threshold violations.
  * - `some-fail`            — `totals.failed > 0`.
  * - `threshold-violation`  — `totals.failed === 0` and at least one coverage violation.
+ * @public
  */
 export type RunOutcome = "all-pass" | "some-fail" | "threshold-violation";
 
@@ -47,6 +32,7 @@ export type RunOutcome = "all-pass" | "some-fail" | "threshold-violation";
  * Populated by the plugin from `ReporterRenderInput.reports`. Empty for
  * non-workspace shapes. `tagCounts`, `belowTarget`, and `violations` are
  * optional — workspace cells render the columns only when present.
+ * @public
  */
 export interface ProjectSummary {
 	readonly name: string;
@@ -66,6 +52,7 @@ export interface ProjectSummary {
  * to a named type here so the dispatcher and its cells can pass it around
  * without re-declaring it. The plugin populates this from
  * `ReporterRenderInput.trendSummary` before invoking `dispatch`.
+ * @public
  */
 export interface TrendSummary {
 	readonly direction: "improving" | "regressing" | "stable";
@@ -81,10 +68,11 @@ export interface TrendSummary {
 /**
  * Inputs each cell renderer reads to produce its output.
  *
- * `state` carries the post-reduce projection of the {@link RunEvent}
+ * `state` carries the post-reduce projection of the `RunEvent`
  * stream. `shape` and `outcome` are the classified axes the dispatcher
  * keyed on to reach this cell. The remaining fields are non-state
  * helpers the plugin computes once before dispatch so cells stay pure.
+ * @public
  */
 export interface DispatchInputs {
 	readonly state: RenderState;
@@ -117,12 +105,13 @@ export interface DispatchInputs {
 
 /**
  * Render-time options threaded into each cell from the resolved
- * {@link ReporterKit}. These are concerns the cell needs to format its
+ * `ReporterKit`. These are concerns the cell needs to format its
  * output but that do not belong on the state-derived
  * {@link DispatchInputs} struct.
  *
  * The plugin builds this once per run from the kit and passes it into
  * `dispatch(inputs, opts)`. Cells destructure only what they consume.
+ * @public
  */
 export interface CellOptions {
 	/**

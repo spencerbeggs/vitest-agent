@@ -1,12 +1,3 @@
-/**
- * Shared fatal error formatter for all entry points.
- *
- * Extracts meaningful details from Effect FiberFailure, plain Error,
- * or unknown values and appends an issue reporting URL.
- *
- * @packageDocumentation
- */
-
 import { Cause } from "effect";
 
 const ISSUE_URL = "https://github.com/spencerbeggs/vitest-agent/issues";
@@ -20,6 +11,8 @@ const FIBER_FAILURE_CAUSE_KEY = Symbol.for("effect/Runtime/FiberFailure/Cause");
  * 2. Effect FiberFailure — extract Cause and use `Cause.pretty()`
  * 3. Plain Error — extract `.message` and `.stack`
  * 4. Unknown — `String(err)`
+ *
+ * @public
  */
 export function formatFatalError(err: unknown): string {
 	let detail: string;

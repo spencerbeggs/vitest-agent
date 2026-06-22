@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-
+/** @public */
 export interface FailureSignatureInput {
 	readonly error_name: string;
 	readonly assertion_message: string;
@@ -22,7 +22,7 @@ const typeTagOf = (literal: string): string => {
 	if (/^[{[]/.test(trimmed)) return "<object>";
 	return "<expr>";
 };
-
+/** @public */
 export const normalizeAssertionShape = (message: string): string | null => {
 	const match = message.match(ASSERTION_REGEX);
 	if (match === null) return null;
@@ -30,7 +30,7 @@ export const normalizeAssertionShape = (message: string): string | null => {
 	const arg = typeTagOf(match[2]);
 	return arg === "" ? matcher : `${matcher}(${arg})`;
 };
-
+/** @public */
 export const computeFailureSignature = (input: FailureSignatureInput): string => {
 	const shape = normalizeAssertionShape(input.assertion_message) ?? "<unknown>";
 	const lineCoord =

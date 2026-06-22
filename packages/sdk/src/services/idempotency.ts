@@ -1,30 +1,13 @@
-/**
- * Idempotency key derivation for `register_agent`.
- *
- * Both the sidecar CLI and the MCP server import this function so the
- * value computed for a given (agentType, parentAgentId, clientNonce)
- * tuple is bit-for-bit identical across processes. The key is stored
- * in the `agents.idempotency_key` column (UNIQUE per session); a hook
- * retry that re-derives the same triple recovers the existing
- * `agent_id` instead of creating a duplicate.
- *
- * Pure function — no Effect, no I/O. Lives under `services/` rather
- * than `utils/` so future idempotency-related helpers can group here
- * (e.g., a `clientNonce` derivation table that mirrors the per-caller
- * rules from the plan).
- *
- * @packageDocumentation
- */
-
 import { createHash } from "node:crypto";
 
 /**
  * Sentinel substituted for `parentAgentId` when the value is `null`.
  * Avoids ambiguity around hashing the literal string "null" or empty
  * string, both of which could collide with caller-supplied values.
+ * @public
  */
 export const IDEMPOTENCY_ROOT_SENTINEL = "__ROOT__";
-
+/** @public */
 export interface IdempotencyInput {
 	readonly agentType: string;
 	readonly parentAgentId: string | null;
@@ -43,6 +26,7 @@ export interface IdempotencyInput {
  * lowercase to keep the column lexicographically friendly and
  * case-insensitive on filesystems that we never hit but might in
  * future debugging.
+ * @public
  */
 export const deriveIdempotencyKey = (input: IdempotencyInput): string => {
 	const parent = input.parentAgentId ?? IDEMPOTENCY_ROOT_SENTINEL;

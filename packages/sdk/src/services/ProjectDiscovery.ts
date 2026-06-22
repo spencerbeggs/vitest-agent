@@ -1,12 +1,12 @@
 import type { Effect } from "effect";
 import { Context } from "effect";
 import type { DiscoveryError } from "../errors/DiscoveryError.js";
-
+/** @public */
 export interface TestFileEntry {
 	readonly testFile: string;
 	readonly sourceFiles: ReadonlyArray<string>;
 }
-
+/** @public */
 export class ProjectDiscovery extends Context.Tag("vitest-agent/ProjectDiscovery")<
 	ProjectDiscovery,
 	{

@@ -1,14 +1,3 @@
-/**
- * Live and Test layers for {@link DiscoveryRegistry}.
- *
- * The Live layer holds an open `SqlClient` connection to
- * `registry.db` and dispatches all four operations against it. Errors
- * are wrapped in `DataStoreError` so the same `extractSqlReason` flow
- * applies as for the per-project store.
- *
- * @packageDocumentation
- */
-
 import { SqlClient } from "@effect/sql/SqlClient";
 import { Effect, Layer } from "effect";
 import { DataStoreError, extractSqlReason } from "../errors/DataStoreError.js";
@@ -38,7 +27,7 @@ const rowToDomain = (row: KnownProjectRow): KnownProject => ({
 });
 
 const dayInMs = 60 * 60 * 24 * 1000;
-
+/** @public */
 export const DiscoveryRegistryLive: Layer.Layer<DiscoveryRegistry, never, SqlClient> = Layer.effect(
 	DiscoveryRegistry,
 	Effect.gen(function* () {

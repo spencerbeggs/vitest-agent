@@ -10,6 +10,8 @@ import type { BehaviorDetail, BehaviorRow, GoalDetail } from "../schemas/Tdd.js"
 import type { TrendRecord } from "../schemas/Trends.js";
 import type { ArtifactKind, CitedArtifact } from "../utils/validate-phase-transition.js";
 import type { ChangeKind, Phase } from "./DataStore.js";
+
+/** @public */
 export interface ProjectRunSummary {
 	readonly project: string;
 	readonly lastRun: string | null;
@@ -19,7 +21,7 @@ export interface ProjectRunSummary {
 	readonly failed: number;
 	readonly skipped: number;
 }
-
+/** @public */
 export interface FlakyTest {
 	readonly fullName: string;
 	readonly project: string;
@@ -28,7 +30,7 @@ export interface FlakyTest {
 	readonly lastState: "passed" | "failed";
 	readonly lastTimestamp: string;
 }
-
+/** @public */
 export interface PersistentFailure {
 	readonly fullName: string;
 	readonly project: string;
@@ -37,7 +39,7 @@ export interface PersistentFailure {
 	readonly lastFailedAt: string;
 	readonly lastErrorMessage: string | null;
 }
-
+/** @public */
 export interface TestError {
 	/** `test_errors.id` — required by `hypothesis (action: record).citedTestErrorId`. */
 	readonly id: number;
@@ -57,7 +59,7 @@ export interface TestError {
 	readonly testFullName: string | null;
 	readonly moduleFile: string | null;
 }
-
+/** @public */
 export interface NoteRow {
 	readonly id: number;
 	readonly title: string;
@@ -73,7 +75,7 @@ export interface NoteRow {
 	readonly createdAt: string;
 	readonly updatedAt: string;
 }
-
+/** @public */
 export interface SettingsRow {
 	readonly hash: string;
 	readonly reporters: string | null;
@@ -88,7 +90,7 @@ export interface SettingsRow {
 	readonly envVars: Record<string, string>;
 	readonly capturedAt: string;
 }
-
+/** @public */
 export interface TestListEntry {
 	readonly id: number;
 	readonly fullName: string;
@@ -97,7 +99,7 @@ export interface TestListEntry {
 	readonly module: string;
 	readonly classification: string | null;
 }
-
+/** @public */
 export interface ModuleListEntry {
 	readonly id: number;
 	readonly file: string;
@@ -105,7 +107,7 @@ export interface ModuleListEntry {
 	readonly testCount: number;
 	readonly duration: number | null;
 }
-
+/** @public */
 export interface SuiteListEntry {
 	readonly id: number;
 	readonly name: string;
@@ -113,12 +115,12 @@ export interface SuiteListEntry {
 	readonly state: string;
 	readonly testCount: number;
 }
-
+/** @public */
 export interface SettingsListEntry {
 	readonly hash: string;
 	readonly capturedAt: string;
 }
-
+/** @public */
 export interface SessionDetail {
 	readonly id: number;
 	readonly chatId: string;
@@ -132,7 +134,7 @@ export interface SessionDetail {
 	readonly endedAt: string | null;
 	readonly endReason: string | null;
 }
-
+/** @public */
 export interface TurnSummary {
 	readonly id: number;
 	readonly sessionId: number;
@@ -141,21 +143,21 @@ export interface TurnSummary {
 	readonly payload: string;
 	readonly occurredAt: string;
 }
-
+/** @public */
 export interface TurnSearchOptions {
 	readonly sessionId?: number;
 	readonly type?: string;
 	readonly since?: string;
 	readonly limit?: number;
 }
-
+/** @public */
 export interface AcceptanceMetrics {
 	readonly phaseEvidenceIntegrity: { total: number; compliant: number; ratio: number };
 	readonly complianceHookResponsiveness: { total: number; withFollowup: number; ratio: number };
 	readonly orientationUsefulness: { total: number; referencedCount: number; ratio: number };
 	readonly antiPatternDetectionRate: { total: number; cleanSessions: number; ratio: number };
 }
-
+/** @public */
 export interface FailureSignatureDetail {
 	readonly signatureHash: string;
 	readonly firstSeenRunId: number | null;
@@ -168,7 +170,7 @@ export interface FailureSignatureDetail {
 		readonly errorName: string | null;
 	}>;
 }
-
+/** @public */
 export interface TddPhaseDetail {
 	readonly id: number;
 	readonly behaviorId: number | null;
@@ -177,7 +179,7 @@ export interface TddPhaseDetail {
 	readonly endedAt: string | null;
 	readonly transitionReason: string | null;
 }
-
+/** @public */
 export interface TddArtifactDetail {
 	readonly id: number;
 	readonly phaseId: number;
@@ -186,7 +188,7 @@ export interface TddArtifactDetail {
 	readonly testRunId: number | null;
 	readonly recordedAt: string;
 }
-
+/** @public */
 export interface TddTaskDetail {
 	readonly id: number;
 	readonly sessionId: number;
@@ -199,18 +201,18 @@ export interface TddTaskDetail {
 	readonly phases: ReadonlyArray<TddPhaseDetail>;
 	readonly artifacts: ReadonlyArray<TddArtifactDetail>;
 }
-
+/** @public */
 export interface CurrentTddPhase {
 	readonly id: number;
 	readonly phase: Phase;
 	readonly startedAt: string;
 	readonly behaviorId: number | null;
 }
-
+/** @public */
 export interface CitedArtifactRow extends CitedArtifact {
 	readonly phase_id: number;
 }
-
+/** @public */
 export interface CommitChangesEntry {
 	readonly sha: string;
 	readonly parentSha: string | null;
@@ -223,7 +225,7 @@ export interface CommitChangesEntry {
 		readonly changeKind: ChangeKind;
 	}>;
 }
-
+/** @public */
 export interface HypothesisDetail {
 	readonly id: number;
 	readonly sessionId: number;
@@ -233,7 +235,7 @@ export interface HypothesisDetail {
 	readonly validationOutcome: "confirmed" | "refuted" | "abandoned" | null;
 	readonly validatedAt: string | null;
 }
-
+/** @public */
 export interface TddTaskSummary {
 	readonly id: number;
 	readonly sessionId: number;
@@ -247,6 +249,8 @@ export interface TddTaskSummary {
  * Row shape returned by `listTddArtifactsForTask`. Carries every
  * field an agent typically needs to cite an artifact in a subsequent
  * `tdd_phase_transition_request` call without further lookups.
+ *
+ * @public
  */
 export interface TddArtifactRow {
 	readonly id: number;
@@ -260,7 +264,7 @@ export interface TddArtifactRow {
 	readonly testFirstFailureRunId: number | null;
 	readonly recordedAt: string;
 }
-
+/** @public */
 export interface TagInventoryRow {
 	/** The tag name (e.g. `"int"`, `"e2e"`, `"unit"`). */
 	readonly tag: string;
@@ -276,7 +280,7 @@ export interface TagInventoryRow {
 	 */
 	readonly testCount: number;
 }
-
+/** @public */
 export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 	DataReader,
 	{

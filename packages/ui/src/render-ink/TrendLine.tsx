@@ -1,13 +1,17 @@
 /**
  * The one-line trend signal — `Trend: <direction> (<N> runs)`.
- *
- * @packageDocumentation
  */
 
 import { Text } from "ink";
 import type { FC } from "react";
 
+/**
+ * Props for the `TrendLine` component.
+ *
+ * @public
+ */
 export interface TrendLineProps {
+	/** The trend summary to display. */
 	readonly trend: { readonly direction: "improving" | "regressing" | "stable"; readonly runCount: number };
 }
 
@@ -17,6 +21,11 @@ const COLOR: Record<TrendLineProps["trend"]["direction"], string> = {
 	stable: "gray",
 };
 
+/**
+ * Renders the one-line trend signal: direction (colored) and run count.
+ *
+ * @public
+ */
 export const TrendLine: FC<TrendLineProps> = ({ trend }) => {
 	const runs = trend.runCount === 1 ? "1 run" : `${trend.runCount} runs`;
 	return (

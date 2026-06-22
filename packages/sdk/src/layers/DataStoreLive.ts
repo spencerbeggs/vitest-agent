@@ -88,6 +88,7 @@ const behaviorRowFromDb = (row: {
 
 const boolToInt = (v: boolean | undefined): number | null => (v === undefined ? null : v ? 1 : 0);
 
+/** @public */
 export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.effect(
 	DataStore,
 	Effect.gen(function* () {

@@ -8,6 +8,7 @@ import { Data } from "effect";
  * downstream tooling can switch on. `reason` explains why the source
  * didn't produce a value (e.g., "not configured", "git command failed",
  * "URL canonicalization rejected the value").
+ * @public
  */
 export interface ProjectIdentityCandidate {
 	readonly source: string;
@@ -23,6 +24,7 @@ export interface ProjectIdentityCandidate {
  *
  * Replaces the legacy `WorkspaceRootNotFoundError` for callers that
  * went through the new resolver.
+ * @public
  */
 export class ProjectIdentityNotResolvableError extends Data.TaggedError("ProjectIdentityNotResolvableError")<{
 	readonly tried: ReadonlyArray<ProjectIdentityCandidate>;

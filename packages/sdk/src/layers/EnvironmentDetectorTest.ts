@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import type { Environment } from "../schemas/Common.js";
 import { EnvironmentDetector } from "../services/EnvironmentDetector.js";
-
+/** @public */
 export const EnvironmentDetectorTest = {
 	layer: (env: Environment = "terminal") =>
 		Layer.succeed(EnvironmentDetector, {

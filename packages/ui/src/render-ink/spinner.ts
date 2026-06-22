@@ -9,20 +9,30 @@
  * The frame index is presentation state: it is derived from wall-clock
  * time by `createLiveInk` and passed to `StreamApp` as a prop. It never
  * enters the event-sourced `RenderState`.
- *
- * @packageDocumentation
  */
 
-/** The ten Braille spinner frames, in animation order. */
+/**
+ * The ten Braille spinner frames, in animation order.
+ *
+ * @public
+ */
 export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
 
-/** How long each spinner frame is held, in milliseconds. */
+/**
+ * How long each spinner frame is held, in milliseconds.
+ *
+ * @public
+ */
 export const SPINNER_FRAME_MS = 80;
 
 /**
  * Resolve the spinner glyph for a frame index. The index wraps modulo
  * the frame count and tolerates negative values, so a wall-clock-derived
  * index is always valid.
+ *
+ * @param index - the frame index (wraps modulo frame count)
+ * @returns the Braille glyph for the given frame
+ * @public
  */
 export const spinnerFrame = (index: number): string => {
 	const count = SPINNER_FRAMES.length;
@@ -34,5 +44,9 @@ export const spinnerFrame = (index: number): string => {
  * Derive the spinner frame index from a wall-clock timestamp. Using the
  * clock — rather than a monotonic counter — keeps the animation correct
  * across watch-mode remounts with no extra closure state to reset.
+ *
+ * @param nowMs - current wall-clock time in milliseconds
+ * @returns the frame index for the given timestamp
+ * @public
  */
 export const spinnerFrameForTime = (nowMs: number): number => Math.floor(nowMs / SPINNER_FRAME_MS);

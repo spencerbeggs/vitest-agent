@@ -2,13 +2,25 @@ import { readFileSync } from "node:fs";
 import type { StackFrameInput } from "@vitest-agent/sdk";
 import { computeFailureSignature, findFunctionBoundary } from "@vitest-agent/sdk";
 
+/**
+ * A single parsed stack frame as Vitest represents it.
+ * @public
+ */
 export interface VitestStackFrameLike {
+	/** Absolute file path for the frame. */
 	readonly file?: string;
+	/** 1-based source line number. */
 	readonly line?: number;
+	/** 1-based source column number. */
 	readonly column?: number;
+	/** Function or method name at the call site. */
 	readonly method?: string;
 }
 
+/**
+ * A Vitest error object as passed to reporter hooks.
+ * @public
+ */
 export interface VitestErrorLike {
 	readonly name?: string;
 	readonly message: string;
@@ -70,6 +82,7 @@ const readSourceSafe = (filePath: string): string | null => {
  * Returns `null` for the signature when no usable top frame is found
  * (error has no stack, or every frame is in framework code). Frames may
  * still be populated even when the signature is null.
+ * @public
  */
 export const processFailure = (
 	error: VitestErrorLike,

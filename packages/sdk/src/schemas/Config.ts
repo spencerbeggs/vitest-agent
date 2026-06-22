@@ -16,6 +16,7 @@ import { Schema } from "effect";
  *   directory. Use this when two unrelated projects on the same machine
  *   share a `package.json` `name` (the collision case for workspace-name
  *   keying), or when you want a stable key independent of `name` changes.
+ * @public
  */
 export class VitestAgentConfig extends Schema.Class<VitestAgentConfig>("VitestAgentConfig")({
 	cacheDir: Schema.optional(Schema.String),

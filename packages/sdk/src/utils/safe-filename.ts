@@ -1,12 +1,4 @@
 /**
- * @vitest-agent/sdk
- *
- * Convert a project name to a filesystem-safe filename.
- *
- * @packageDocumentation
- */
-
-/**
  * Convert a project name to a filesystem-safe filename.
  *
  * Replaces `/` and `:` characters with `__` (double underscore).

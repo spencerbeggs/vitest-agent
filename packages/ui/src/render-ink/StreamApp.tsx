@@ -4,14 +4,13 @@
  * a single dynamic region.
  *
  * Everything lives in the Live region. On a terminal event
- * (`RunFinished` / `RunTimedOut`), the caller (LiveInkRenderer) simply
+ * (`RunFinished` / `RunTimedOut`), the caller (`LiveInkRenderer`) simply
  * calls `instance.unmount()` and lets Ink commit the final frame: Ink's
  * interactive unmount flushes the pending render, redraws the final frame
  * one last time, then leaves it in place so it lands in terminal
  * scrollback as ordinary content. A plain-text `renderToString` write
  * survives only as the degraded fallback when the Ink mount could not
- * attach (a non-TTY stream). See `LiveInkRenderer`'s terminal-event
- * commit note for the full lifecycle.
+ * attach (a non-TTY stream).
  *
  * Per-shape granularity:
  *
@@ -19,19 +18,12 @@
  * | ----- | ----------- |
  * | `workspace` | `Projects (N):` header + all project rows (finished with resolved glyph, running with spinner, capped at MAX_LIVE_RUNNING_ROWS for running rows) + overflow line + Failures + Coverage + Trend + Total |
  * | `single-project` | `Modules (N):` header + all module rows (finished with resolved glyph, running with spinner, capped) + overflow line + Failures + Coverage + Trend + Total |
- * | `single-file` | `<file-path> — N tests` header + all test rows (finished with resolved glyph, running with spinner), each failing row expanding its error inline + Coverage + Trend + Total |
- * | `single-test` | the single `TestRow`, in place (Live-only by spec §11.7) |
+ * | `single-file` | file-path header + all test rows, each failing row expanding its error inline + Coverage + Trend + Total |
+ * | `single-test` | the single `TestRow`, in place |
  *
  * Leaf shapes (`single-file`, `single-test`) expand each failure inline
- * beneath its row and omit the aggregate `Failures` section, so a failure
- * is never printed twice. Aggregate shapes (`workspace`, `single-project`)
- * render rows without inline errors and rely on the `Failures` section.
- *
- * Running rows beyond MAX_LIVE_RUNNING_ROWS are hidden and replaced with
- * a single "… and N more running" overflow line. Finished rows always
- * appear regardless of count.
- *
- * @packageDocumentation
+ * beneath its row and omit the aggregate `Failures` section. Aggregate
+ * shapes (`workspace`, `single-project`) render rows without inline errors.
  */
 
 import type { FailureRecord, ModuleRecord, ProjectSummary, RenderState, TestRecord } from "@vitest-agent/sdk";
@@ -47,9 +39,17 @@ import { TestRow } from "./TestRow.js";
 import { TrendLine } from "./TrendLine.js";
 import { formatTagSuffix } from "./tag-suffix.js";
 
+/**
+ * Props for the `StreamApp` component.
+ *
+ * @public
+ */
 export interface StreamAppProps {
+	/** The current reduced render state to display. */
 	readonly state: RenderState;
+	/** Current spinner frame index, derived from wall-clock time. */
 	readonly frameIndex: number;
+	/** Current wall-clock time in milliseconds; defaults to `Date.now()`. */
 	readonly nowMs?: number;
 }
 
@@ -518,6 +518,12 @@ const liveRegion = (
 	);
 };
 
+/**
+ * Root Ink component for the `stream` live renderer. Classifies the run
+ * shape and renders the appropriate per-shape live region.
+ *
+ * @public
+ */
 export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 	const now = nowMs ?? Date.now();
 	const frame = spinnerFrame(frameIndex);

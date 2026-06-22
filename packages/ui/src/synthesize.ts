@@ -1,6 +1,6 @@
 /**
  * Convert post-run Vitest module/test data into an ordered
- * {@link RunEvent} sequence suitable for replay through the reducer
+ * `RunEvent` sequence suitable for replay through the reducer
  * and renderers.
  *
  * The synthesizer is the bridge between Vitest's "batch end-of-run"
@@ -9,8 +9,6 @@
  * publishes RunEvents from streaming reporter callbacks instead.
  * Batch synthesis is what every CLI replay command and the current
  * AgentReporter call site rely on.
- *
- * @packageDocumentation
  */
 
 import type {
@@ -32,6 +30,8 @@ import { isTimeoutError } from "@vitest-agent/sdk";
 
 /**
  * Optional metadata threaded through the synthesized event stream.
+ *
+ * @public
  */
 export interface SynthesizeOptions {
 	readonly runId?: string;
@@ -48,10 +48,19 @@ export interface SynthesizeOptions {
 	}>;
 }
 
+/**
+ * Coverage data to thread into the synthesized event stream.
+ *
+ * @public
+ */
 export interface SynthesizedCoverage {
+	/** Aggregated coverage totals for each metric. */
 	readonly metrics: CoverageTotals;
+	/** The configured threshold values for each metric. */
 	readonly thresholds: MetricThresholds;
+	/** Per-file coverage gaps (files below threshold). */
 	readonly gaps: ReadonlyArray<CoverageGap>;
+	/** Threshold violations to emit as `ThresholdViolation` events. */
 	readonly violations?: ReadonlyArray<{
 		readonly metric: CoverageMetric;
 		readonly expected: number;
@@ -112,8 +121,13 @@ const collectSuitePath = (test: VitestTestCase): string[] => {
 
 /**
  * Project a fully-completed Vitest run into the canonical
- * {@link RunEvent} stream. The output is deterministic given a
+ * `RunEvent` stream. The output is deterministic given a
  * stable input.
+ *
+ * @param modules - the array of completed Vitest test modules
+ * @param options - optional metadata to thread into the event stream
+ * @returns an ordered array of run events
+ * @public
  */
 export const synthesizeRunEvents = (
 	modules: ReadonlyArray<VitestTestModule>,
@@ -276,6 +290,8 @@ export const synthesizeRunEvents = (
 
 /**
  * Options for {@link synthesizeFromAgentReport}.
+ *
+ * @public
  */
 export interface SynthesizeFromAgentReportOptions {
 	/** Override runId; defaults to `report.timestamp`. */
@@ -319,16 +335,19 @@ const coverageReportToBlock = (report: AgentReport): SynthesizedCoverage | undef
 };
 
 /**
- * Bridge a persisted {@link AgentReport} into a {@link RunEvent} stream.
+ * Bridge a persisted `AgentReport` into a `RunEvent` stream.
  *
- * AgentReport stores only failed modules in detail; passed-only modules
+ * `AgentReport` stores only failed modules in detail; passed-only modules
  * are summarized via `summary.passed` without per-module breakdown. The
  * synthesized stream reflects this — it emits per-test events for the
  * failed modules and lets `RunFinished` carry the authoritative totals.
  * Renderers see "N passed, M failed" in the header while the Modules
- * section enumerates only the failing modules. The agent-mode collapse
- * "N modules all-passed" remains accurate because failed modules are
- * counted as interesting.
+ * section enumerates only the failing modules.
+ *
+ * @param report - the persisted agent report to synthesize from
+ * @param options - optional overrides for run metadata
+ * @returns an ordered array of run events
+ * @public
  */
 export const synthesizeFromAgentReport = (
 	report: AgentReport,

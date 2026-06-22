@@ -5,7 +5,7 @@ import { Layer } from "effect";
 import { DataReaderLive } from "../layers/DataReaderLive.js";
 import { DataStoreLive } from "../layers/DataStoreLive.js";
 import migration0001 from "../migrations/0001_initial.js";
-
+/** @public */
 export function makeTestLayer(filename: string) {
 	const SqliteLayer = sqliteClientLayer({ filename });
 	const PlatformLayer = NodeContext.layer;
@@ -24,5 +24,5 @@ export function makeTestLayer(filename: string) {
 		PlatformLayer,
 	);
 }
-
+/** @public */
 export const DataStoreTestLayer = makeTestLayer(":memory:");

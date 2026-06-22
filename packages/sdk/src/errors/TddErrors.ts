@@ -1,15 +1,6 @@
-/**
- * Tagged errors for the TDD goal/behavior CRUD surface.
- *
- * Constructors set a derived `message` so `Cause.pretty()` and any
- * Error consumer surfaces the entity, id, and reason instead of the
- * default "An error has occurred".
- *
- * @packageDocumentation
- */
-
 import { Data } from "effect";
 
+/** @public */
 export class GoalNotFoundError extends Data.TaggedError("GoalNotFoundError")<{
 	readonly id: number;
 	readonly reason: string;
@@ -25,6 +16,7 @@ export class GoalNotFoundError extends Data.TaggedError("GoalNotFoundError")<{
 	}
 }
 
+/** @public */
 export class BehaviorNotFoundError extends Data.TaggedError("BehaviorNotFoundError")<{
 	readonly id: number;
 	readonly reason: string;
@@ -40,6 +32,7 @@ export class BehaviorNotFoundError extends Data.TaggedError("BehaviorNotFoundErr
 	}
 }
 
+/** @public */
 export class TddTaskNotFoundError extends Data.TaggedError("TddTaskNotFoundError")<{
 	readonly id: number;
 	readonly reason: string;
@@ -55,8 +48,10 @@ export class TddTaskNotFoundError extends Data.TaggedError("TddTaskNotFoundError
 	}
 }
 
+/** @public */
 export type TddTaskEndOutcome = "succeeded" | "blocked" | "abandoned";
 
+/** @public */
 export class TddTaskAlreadyEndedError extends Data.TaggedError("TddTaskAlreadyEndedError")<{
 	readonly id: number;
 	readonly endedAt: string;
@@ -73,8 +68,10 @@ export class TddTaskAlreadyEndedError extends Data.TaggedError("TddTaskAlreadyEn
 	}
 }
 
+/** @public */
 export type IllegalStatusTransitionEntity = "goal" | "behavior" | "task";
 
+/** @public */
 export class IllegalStatusTransitionError extends Data.TaggedError("IllegalStatusTransitionError")<{
 	readonly entity: IllegalStatusTransitionEntity;
 	readonly id: number;

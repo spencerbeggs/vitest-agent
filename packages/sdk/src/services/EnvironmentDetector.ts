@@ -1,7 +1,7 @@
 import type { Effect } from "effect";
 import { Context } from "effect";
 import type { Environment } from "../schemas/Common.js";
-
+/** @public */
 export class EnvironmentDetector extends Context.Tag("vitest-agent/EnvironmentDetector")<
 	EnvironmentDetector,
 	{

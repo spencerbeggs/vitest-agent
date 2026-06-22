@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import type { SettingsInput } from "@vitest-agent/sdk";
 
+/**
+ * Extract a serializable settings snapshot from the resolved Vitest config.
+ * @param config - The resolved Vitest config record
+ * @param vitestVersion - The running Vitest version string
+ * @returns A `SettingsInput` ready for persistence
+ * @public
+ */
 export function captureSettings(config: Record<string, unknown>, vitestVersion: string): SettingsInput {
 	const pool = config.pool as string | undefined;
 	const environment = config.environment as string | undefined;
@@ -34,6 +41,12 @@ export function captureSettings(config: Record<string, unknown>, vitestVersion: 
 	};
 }
 
+/**
+ * Compute a stable SHA-256 hash of a settings record for change detection.
+ * @param settings - The settings record to hash (keys are sorted for stability)
+ * @returns A hex-encoded SHA-256 digest
+ * @public
+ */
 export function hashSettings(settings: Record<string, unknown>): string {
 	const json = JSON.stringify(settings, Object.keys(settings).sort());
 	return createHash("sha256").update(json).digest("hex");

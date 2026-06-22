@@ -1,22 +1,20 @@
-/**
+/*
  * Sidecar layer composition.
  *
  * Wires the per-project data.db, the per-client sessions.db, the
- * registry.db, and the platform context (`CommandExecutor` for git
- * probes) into a single layer the `_internal` CLI subcommands
+ * registry.db, and the platform context (CommandExecutor for git
+ * probes) into a single layer the _internal CLI subcommands
  * consume.
  *
  * Three SQLite handles are open per sidecar invocation:
- *   - per-project `data.db` — `DataStore` + `DataReader`
- *   - per-client `sessions.db` — `PerClientSessionMapWriter` (also
- *     satisfies `PerClientSessionMapReader`)
- *   - global `registry.db` — `DiscoveryRegistry`
+ *   - per-project data.db — DataStore + DataReader
+ *   - per-client sessions.db — PerClientSessionMapWriter (also
+ *     satisfies PerClientSessionMapReader)
+ *   - global registry.db — DiscoveryRegistry
  *
  * Each handle is short-lived: the sidecar process exits immediately
- * after the subcommand returns. WAL mode plus `busy_timeout=5000`
+ * after the subcommand returns. WAL mode plus busy_timeout=5000
  * absorb concurrency between sidecar processes from parallel hooks.
- *
- * @packageDocumentation
  */
 
 import { NodeFileSystem } from "@effect/platform-node";
@@ -36,9 +34,17 @@ import {
 } from "@vitest-agent/sdk";
 import { Layer } from "effect";
 
+/**
+ * SQLite database paths consumed by {@link SidecarLive}.
+ *
+ * @public
+ */
 export interface SidecarPaths {
+	/** Absolute path to the per-project `data.db`. */
 	readonly perProjectDbPath: string;
+	/** Absolute path to the per-client `sessions.db`. */
 	readonly sessionMapDbPath: string;
+	/** Absolute path to the global `registry.db`. */
 	readonly registryDbPath: string;
 }
 
@@ -48,6 +54,9 @@ export interface SidecarPaths {
  * Each store gets its own `SqlClient` connection (separate scopes,
  * independent migrators) so concurrent operations on the three
  * stores don't share lock state.
+ *
+ * @param paths - the three SQLite database paths to open
+ * @public
  */
 export const SidecarLive = (paths: SidecarPaths) => {
 	const PlatformLayer = NodeContext.layer;

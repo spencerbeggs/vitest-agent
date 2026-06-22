@@ -9,7 +9,6 @@ import type {
 	ConsoleMode,
 	CoverageBaselines,
 	OutputFormat,
-	ReporterKit,
 	ResolvedReporterConfig,
 	ResolvedThresholds,
 	RunEvent,
@@ -177,14 +176,15 @@ interface ResolvedOptions {
  * `VitestAgentReporterFactory` and the plugin calls them with a
  * resolved `ReporterKit`.
  *
- * Extends the schema-defined {@link AgentReporterOptions} (which after
+ * Extends the schema-defined `AgentReporterOptions` (which after
  * the 2.0 cleanup carries only `projectFilter`) plus the function-typed
  * and plugin-resolved fields the reporter needs at construction.
+ * @public
  */
 export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	reporter?: VitestAgentReporterFactory;
 	/**
-	 * Optional event tap. The reporter constructs a {@link RunEvent} for
+	 * Optional event tap. The reporter constructs a `RunEvent` for
 	 * each Vitest streaming callback (`onTestRunStart`,
 	 * `onTestModuleQueued`, `onTestModuleStart`, `onTestCaseResult`,
 	 * `onTestModuleEnd`, `onTestRunEnd`) and invokes this callback with
@@ -269,8 +269,7 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
  * });
  * ```
  *
- * @see {@link AgentPlugin} for the convenience plugin wrapper
- * @see {@link AgentReporterOptions} for all configuration options
+ * @see `AgentPlugin` for the convenience plugin wrapper
  * @see {@link https://vitest.dev/api/advanced/reporters.html | Vitest Reporter API}
  * @public
  */
@@ -305,9 +304,9 @@ export class AgentReporter {
 	private logFile: string | undefined;
 	private onRunEvent: ((event: RunEvent) => void) | undefined;
 	/**
-	 * Run-event channel. The plugin publishes one {@link RunEvent} per
+	 * Run-event channel. The plugin publishes one `RunEvent` per
 	 * Vitest streaming callback onto this `PubSub`; the reporter factory
-	 * receives it on the {@link ReporterKit} and a live-painting reporter
+	 * receives it on the `ReporterKit` and a live-painting reporter
 	 * (the default reporter in `stream` mode) subscribes to drive its mount.
 	 * The plugin no longer owns any render mount itself.
 	 *
@@ -523,7 +522,7 @@ export class AgentReporter {
 	}
 
 	/**
-	 * Should the streaming Vitest hooks publish {@link RunEvent}s? The
+	 * Should the streaming Vitest hooks publish `RunEvent`s? The
 	 * hooks short-circuit when this is false to skip constructing event
 	 * objects nothing will read: the default reporter consumes the channel
 	 * only in `stream` mode, a custom reporter may consume it in any mode,
@@ -536,7 +535,7 @@ export class AgentReporter {
 	}
 
 	/**
-	 * Publish a {@link RunEvent} onto the run-event channel and the
+	 * Publish a `RunEvent` onto the run-event channel and the
 	 * user-supplied tap. A throwing publish or tap is caught and logged to
 	 * stderr — a live-render bug must not break persistence.
 	 *
@@ -560,7 +559,7 @@ export class AgentReporter {
 
 	/**
 	 * Walk the suite parent chain to produce the suite-path array used
-	 * in {@link RunEvent.TestStarted} / {@link RunEvent.TestFinished}.
+	 * in `RunEvent.TestStarted` / `RunEvent.TestFinished`.
 	 *
 	 * @internal
 	 */
@@ -1047,7 +1046,7 @@ export class AgentReporter {
 	 *
 	 * @param coverage - Istanbul CoverageMap (duck-typed at processing time)
 	 *
-	 * @see {@link processCoverage} for the duck-typing logic
+	 * @see `processCoverage` for the duck-typing logic
 	 */
 	onCoverage(coverage: unknown): void {
 		this.coverage = coverage;
@@ -1062,7 +1061,7 @@ export class AgentReporter {
 	 *
 	 * 1. Group test modules by `testModule.project.name`
 	 * 2. Process stashed coverage data (if available)
-	 * 3. Build per-project {@link AgentReport} objects
+	 * 3. Build per-project `AgentReport` objects
 	 * 4. Classify tests via HistoryTracker and attach classifications
 	 * 5. Write settings, run, modules, test cases, and errors to SQLite
 	 * 6. Write per-test history entries

@@ -22,7 +22,6 @@
  *
  * @packageDocumentation
  */
-
 export { exitCodeForTag } from "./exit-code-for-tag.js";
 export { type InjectEnvInput, injectEnv } from "./internal-inject-env.js";
 export { type DispatchResult, dispatch } from "./sidecar-dispatch.js";

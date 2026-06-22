@@ -16,7 +16,7 @@ export {
 	ToolResultPayload,
 	UserPromptPayload,
 };
-
+/** @public */
 export const TurnPayload = Schema.Union(
 	UserPromptPayload,
 	ToolCallPayload,
@@ -27,4 +27,5 @@ export const TurnPayload = Schema.Union(
 	HypothesisPayload,
 );
 
+/** @public */
 export type TurnPayload = typeof TurnPayload.Type;

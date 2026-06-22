@@ -4,8 +4,6 @@
  *
  * The glyph animates while the project has running modules and resolves
  * to the outcome on finish: ✗ failure, ⧖ timeout, ↷ skip-only, ✓ pass.
- *
- * @packageDocumentation
  */
 
 import type { ProjectSummary } from "@vitest-agent/sdk";
@@ -16,6 +14,11 @@ import { CountColumns } from "./CountColumns.js";
 import { StatusIcon } from "./StatusIcon.js";
 import { formatTagSuffix } from "./tag-suffix.js";
 
+/**
+ * Props for the `ProjectRow` component.
+ *
+ * @public
+ */
 export interface ProjectRowProps {
 	/** The per-project rollup. */
 	readonly project: ProjectSummary;
@@ -64,6 +67,13 @@ const projectGlyph = (
 	return <StatusIcon status="passed" />;
 };
 
+/**
+ * Renders one per-project row in the `workspace`-shape live view: status
+ * glyph (animated spinner while running), project name, count columns,
+ * elapsed duration, and optional tag counts.
+ *
+ * @public
+ */
 export const ProjectRow: FC<ProjectRowProps> = ({
 	project,
 	counts,

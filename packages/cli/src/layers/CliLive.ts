@@ -14,6 +14,19 @@ import {
 import type { LogLevel } from "effect";
 import { Layer } from "effect";
 
+/**
+ * Composition layer for the CLI runtime.
+ *
+ * Wires `DataReader`, `ProjectDiscovery`, `HistoryTracker`,
+ * `OutputPipeline`, `SqliteClient`, the DB migrator, `NodeContext`,
+ * `NodeFileSystem`, and `Logger` into a single layer the `vitest-agent`
+ * bin provides to `Command.run`.
+ *
+ * @param dbPath - absolute path to the per-project `data.db`
+ * @param logLevel - optional log level override; defaults to `Info`
+ * @param logFile - optional path for structured log output
+ * @public
+ */
 export const CliLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
 	const SqliteLayer = sqliteClientLayer({ filename: dbPath });
 	const PlatformLayer = NodeContext.layer;

@@ -2,14 +2,14 @@ import { Effect, Layer } from "effect";
 import type { TestClassification } from "../schemas/Common.js";
 import type { HistoryRecord } from "../schemas/History.js";
 import { HistoryTracker } from "../services/HistoryTracker.js";
-
+/** @public */
 export interface HistoryTrackerTestState {
 	readonly classifyCalls: Array<{
 		project: string;
 		timestamp: string;
 	}>;
 }
-
+/** @public */
 export const HistoryTrackerTest = {
 	empty: (): HistoryTrackerTestState => ({
 		classifyCalls: [],

@@ -2,7 +2,7 @@
  * The shape-tailored dispatcher matrix.
  *
  * Given the classified `(run-shape, outcome)` pair on
- * {@link DispatchInputs}, selects the appropriate cell renderer and
+ * `DispatchInputs`, selects the appropriate cell renderer and
  * invokes its `agent` half. Phase 5 adds the `ink` half; phase 2 ships
  * only the agent string output.
  *
@@ -11,8 +11,6 @@
  * default cell, because the matrix is total (every `RunShape × RunOutcome`
  * pair maps to a cell, with `single-test × threshold-violation` being a
  * documented no-op that returns the empty string).
- *
- * @packageDocumentation
  */
 
 import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "@vitest-agent/sdk";
@@ -35,6 +33,8 @@ import { renderWorkspaceThreshold } from "./cells/workspace-threshold.js";
  * The 4×3 cell table. Exported for the test harness so spy-based
  * routing tests can introspect the wiring without re-deriving it from
  * source.
+ *
+ * @public
  */
 export const dispatcherTable: Readonly<Record<RunShape, Readonly<Record<RunOutcome, Cell>>>> = {
 	"single-test": {
@@ -62,6 +62,11 @@ export const dispatcherTable: Readonly<Record<RunShape, Readonly<Record<RunOutco
 /**
  * Dispatch to the cell that matches `(inputs.shape, inputs.outcome)`
  * and return its agent-half string output.
+ *
+ * @param inputs - the classified dispatch inputs
+ * @param opts - cell rendering options
+ * @returns the agent-string output for the matched cell
+ * @public
  */
 export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const cell = dispatcherTable[inputs.shape][inputs.outcome];
@@ -73,6 +78,11 @@ export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
  * and return its Ink-half React tree. Returns `null` when the matched
  * cell does not expose an `ink` half — callers should fall back to
  * the agent string in that case.
+ *
+ * @param inputs - the classified dispatch inputs
+ * @param opts - cell rendering options
+ * @returns the Ink React element, or `null` when the cell has no Ink half
+ * @public
  */
 export const dispatchInk = (inputs: DispatchInputs, opts: CellOptions): ReactElement | null => {
 	const cell = dispatcherTable[inputs.shape][inputs.outcome];

@@ -10,6 +10,7 @@ import type { Formatter, RenderedOutput } from "./types.js";
  * render it. This formatter remains for callers that explicitly request
  * `format: "markdown"`, e.g. when piping the rendered output into a
  * Markdown-aware sink.
+ * @public
  */
 export const MarkdownFormatter: Formatter = {
 	format: "markdown",

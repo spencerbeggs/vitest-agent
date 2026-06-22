@@ -1,7 +1,5 @@
 /**
  * Per-module title line: status glyph, module path, and inline counts.
- *
- * @packageDocumentation
  */
 
 import type { ModuleRecord } from "@vitest-agent/sdk";
@@ -11,7 +9,13 @@ import { formatDisplayDuration } from "../format-duration.js";
 import type { StatusIconKind } from "./StatusIcon.js";
 import { StatusIcon } from "./StatusIcon.js";
 
+/**
+ * Props for the `ModuleHeader` component.
+ *
+ * @public
+ */
 export interface ModuleHeaderProps {
+	/** The module record to display. */
 	readonly module: ModuleRecord;
 }
 
@@ -22,6 +26,12 @@ const moduleGlyph = (m: ModuleRecord): StatusIconKind => {
 	return "passed";
 };
 
+/**
+ * Renders the per-module title line: a status glyph, the module path,
+ * and a dimmed inline summary of pass/fail/skip counts and duration.
+ *
+ * @public
+ */
 export const ModuleHeader: FC<ModuleHeaderProps> = ({ module }) => {
 	const parts: string[] = [];
 	if (module.passCount > 0) parts.push(`${module.passCount} passed`);

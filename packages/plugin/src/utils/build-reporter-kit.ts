@@ -1,9 +1,9 @@
 /**
- * Assemble a {@link ReporterKit} from a fully-resolved reporter config.
+ * Assemble a `ReporterKit` from a fully-resolved reporter config.
  *
  * The plugin calls this once per run, after the data pipeline has resolved
- * `env` (via EnvironmentDetector), `executor` (via ExecutorResolver),
- * `format` (via FormatSelector), and `detail` (via DetailResolver). The
+ * `env` (via `EnvironmentDetector`), `executor` (via `ExecutorResolver`),
+ * `format` (via `FormatSelector`), and `detail` (via `DetailResolver`). The
  * resulting kit is passed to the user's `VitestAgentReporterFactory` and
  * is also handed to the built-in default reporter when no factory is
  * supplied.
@@ -49,7 +49,7 @@ export interface BuildReporterKitInput {
 	readonly transport: Transport;
 	/**
 	 * Live run-event channel. The plugin owns the `PubSub` and publishes
-	 * one {@link RunEvent} per Vitest streaming callback onto it; the kit
+	 * one `RunEvent` per Vitest streaming callback onto it; the kit
 	 * carries it through to the reporter factory so a live-painting
 	 * reporter can subscribe. Optional so a kit can be built without the
 	 * channel in tests.
@@ -57,7 +57,7 @@ export interface BuildReporterKitInput {
 	readonly runEvents?: PubSub.PubSub<RunEvent>;
 	/**
 	 * Project-level `test.passWithNoTests` value captured from the
-	 * resolved Vitest config. Threaded onto {@link ResolvedReporterConfig}
+	 * resolved Vitest config. Threaded onto `ResolvedReporterConfig`
 	 * for consumer reporters / UIs that want to render the resolved
 	 * policy. The MCP `run_tests` tool does not read this snapshot — see
 	 * the field docstring on `ResolvedReporterConfig` for the full note.

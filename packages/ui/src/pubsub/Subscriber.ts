@@ -5,14 +5,12 @@
  *
  * - {@link accumulateUntilFinished} drives the agent path. A single
  *   fiber drains the channel, folds events through the reducer, and
- *   returns the final {@link RenderState} when `RunFinished` arrives.
+ *   returns the final `RenderState` when `RunFinished` arrives.
  *   The agent renderer then runs once on that terminal state.
  *
  * - {@link forEachRenderState} drives the Ink path. The reducer runs
  *   over the channel as a `Stream.scan`, emitting every new state to
  *   the supplied callback so the renderer can redraw.
- *
- * @packageDocumentation
  */
 
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
@@ -24,10 +22,14 @@ import { RunEventChannel } from "./Channel.js";
 
 /**
  * Subscribe, fold the run-event stream into a terminal
- * {@link RenderState}, and return when `RunFinished` arrives.
+ * `RenderState`, and return when `RunFinished` arrives.
  *
  * The subscription is scoped — when this effect completes (or is
  * interrupted), the underlying PubSub releases its slot.
+ *
+ * @param initial - the initial render state to fold from
+ * @returns an Effect that resolves to the terminal render state
+ * @public
  */
 export const accumulateUntilFinished = (
 	initial: RenderState = initialRenderState,
@@ -49,7 +51,7 @@ export const accumulateUntilFinished = (
 	);
 
 /**
- * Run a callback for every projected {@link RenderState} as events
+ * Run a callback for every projected `RenderState` as events
  * arrive. The stream terminates when the PubSub shuts down (typically
  * when the surrounding scope closes).
  *
@@ -57,6 +59,11 @@ export const accumulateUntilFinished = (
  * renderer can make progress concurrently. Returning an Effect from
  * the callback lets the host suspend further rendering on backpressure
  * (e.g. throttling redraws to the next animation frame).
+ *
+ * @param onState - callback invoked with each projected render state
+ * @param initial - the initial render state to fold from
+ * @returns an Effect that completes when the PubSub shuts down
+ * @public
  */
 export const forEachRenderState = <R, E>(
 	onState: (state: RenderState) => Effect.Effect<void, E, R>,
@@ -71,11 +78,15 @@ export const forEachRenderState = <R, E>(
 	);
 
 /**
- * Build a {@link Stream} of accumulated states over the channel.
+ * Build an Effect `Stream` of accumulated states over the channel.
  *
  * Lower-level than {@link forEachRenderState} — useful when the host
  * wants to compose with other stream operators (debouncing, throttling,
  * tee-to-file) before running the terminal sink.
+ *
+ * @param initial - the initial render state to fold from
+ * @returns an Effect that resolves to a Stream of render states
+ * @public
  */
 export const renderStateStream = (
 	initial: RenderState = initialRenderState,
@@ -88,9 +99,12 @@ export const renderStateStream = (
 
 /**
  * Convenience: subscribe and produce a low-level dequeue of raw
- * {@link RunEvent} values. Mostly for tests and ad-hoc consumers; most
+ * `RunEvent` values. Mostly for tests and ad-hoc consumers; most
  * application code should prefer {@link forEachRenderState} or
  * {@link renderStateStream}.
+ *
+ * @returns an Effect that resolves to a dequeue of raw run events
+ * @public
  */
 export const subscribeRaw = (): Effect.Effect<Queue.Dequeue<RunEvent>, never, RunEventChannel | Scope.Scope> =>
 	Effect.gen(function* () {

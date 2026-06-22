@@ -1,17 +1,3 @@
-/**
- * Canonicalize a git remote URL into a stable, presentation-free form
- * that hashes identically across SSH/HTTPS variants, casing variations,
- * and trailing-`.git` differences.
- *
- * The canonical form is `host/path` (e.g.
- * `github.com/spencerbeggs/vitest-agent`). It is the source of truth for
- * the per-project `project_key` — two checkouts of the same repo on
- * different machines, regardless of clone protocol, hash to the same
- * value.
- *
- * @packageDocumentation
- */
-
 const SCHEME_PREFIXES = ["git+ssh://", "git+https://", "ssh://", "https://", "http://"] as const;
 
 const SSH_SHORTHAND_REGEX = /^(?:[\w.-]+@)?([\w.-]+):(.+)$/;
@@ -34,6 +20,7 @@ const SSH_SHORTHAND_REGEX = /^(?:[\w.-]+@)?([\w.-]+):(.+)$/;
  * 6. Lowercase the entire string.
  * 7. Reject if the result is empty or has no `/` (no path) — a bare
  *    host like `github.com` is not a project identity.
+ * @public
  */
 export const canonicalizeGitUrl = (raw: string): string | null => {
 	const trimmed = raw.trim();
@@ -72,6 +59,7 @@ export const canonicalizeGitUrl = (raw: string): string | null => {
  * form. The canonical `host/path` is mapped 1:1 to `host__path` so it
  * can serve as a single path segment under
  * `$XDG_DATA_HOME/vitest-agent/`.
+ * @public
  */
 export const gitUrlToProjectKey = (raw: string): string | null => {
 	const canonical = canonicalizeGitUrl(raw);

@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-
+/** @public */
 export const NotePayload = Schema.Struct({
 	type: Schema.Literal("note"),
 	scope: Schema.String,
@@ -7,4 +7,5 @@ export const NotePayload = Schema.Struct({
 	content: Schema.String,
 });
 
+/** @public */
 export type NotePayload = typeof NotePayload.Type;

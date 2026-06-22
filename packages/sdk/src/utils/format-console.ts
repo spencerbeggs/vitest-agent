@@ -1,12 +1,3 @@
-/**
- * @vitest-agent/sdk
- *
- * Pure function for formatting an {@link AgentReport} as console markdown.
- * Designed for LLM agent consumption: compact, actionable, no noise.
- *
- * @packageDocumentation
- */
-
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { FileCoverageReport } from "../schemas/Coverage.js";
 import type { AnsiOptions } from "./ansi.js";
@@ -41,7 +32,7 @@ export interface ConsoleFormatOptions {
 // --- Helpers ---
 
 /**
- * Return the metric with the lowest percentage from a {@link FileCoverageReport}.
+ * Return the metric with the lowest percentage from a `FileCoverageReport`.
  *
  * @remarks
  * Used to surface the single worst coverage metric per file in console output,
@@ -107,7 +98,7 @@ export function determineTier(report: AgentReport): "green" | "yellow" | "red" {
 // --- Main formatter ---
 
 /**
- * Format an {@link AgentReport} as compact, actionable console markdown.
+ * Format an {@link (AgentReport:variable)} as compact, actionable console markdown.
  *
  * @remarks
  * The output is structured for LLM agent consumption with four sections:

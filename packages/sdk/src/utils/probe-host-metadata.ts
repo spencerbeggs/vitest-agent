@@ -1,19 +1,4 @@
-/**
- * Pure host-metadata probe — given an env map, returns which terminal
- * or CI runner produced the current process, with optional decorating
- * metadata.
- *
- * The probe chain runs in priority order; first match wins. The
- * priority is fixed and tested so a refactor that reorders entries is
- * caught by the test suite.
- *
- * Splitting the env walk from `Effect.gen` keeps it trivially testable
- * — pass a literal env object, no process state needed. The
- * `RunContext` Live layer wraps this in a single `Effect.sync` call.
- *
- * @packageDocumentation
- */
-
+/** @public */
 export interface HostMetadataResult {
 	readonly source: string | null;
 	readonly value: string | null;
@@ -40,6 +25,7 @@ const isUseful = (value: string | undefined): value is string => value !== undef
  * 7. `GITHUB_RUN_ID` + `GITHUB_RUN_ATTEMPT`
  * 8. `BUILDKITE_JOB_ID` / `CIRCLE_BUILD_NUM` / `GITLAB_CI_JOB_ID`
  * 9. `process.ppid` walk (handled by the Live layer)
+ * @public
  */
 export const probeHostMetadataFromEnv = (env: Record<string, string | undefined>): HostMetadataResult => {
 	const decoration = (extra: Record<string, unknown>): Record<string, unknown> => {

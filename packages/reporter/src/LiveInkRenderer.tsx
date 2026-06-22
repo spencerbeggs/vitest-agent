@@ -47,7 +47,6 @@
  * automatically correct across watch-mode remounts with no counter to
  * reset. It is presentation state and never enters `RenderState`.
  *
- * @packageDocumentation
  */
 
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
@@ -56,6 +55,11 @@ import { SPINNER_FRAME_MS, StreamApp, reduceRenderState, spinnerFrameForTime } f
 import { Box, render as inkRender, renderToString } from "ink";
 import { createElement } from "react";
 
+/**
+ * Options for `createLiveInk`.
+ *
+ * @public
+ */
 export interface CreateLiveInkOptions {
 	/**
 	 * Override the stream Ink writes to. Defaults to `process.stdout`.
@@ -64,9 +68,15 @@ export interface CreateLiveInkOptions {
 	readonly stream?: NodeJS.WriteStream;
 }
 
+/**
+ * Imperative handle returned by `createLiveInk`. Drives a live
+ * Ink mount across the lifetime of a test run, including watch-mode reruns.
+ *
+ * @public
+ */
 export interface LiveInkRenderer {
 	/**
-	 * Process a {@link RunEvent}. Mounts the Ink tree and starts the
+	 * Process a `RunEvent`. Mounts the Ink tree and starts the
 	 * animation clock on `RunStarted`, rerenders on every event that
 	 * mutates state, and unmounts on the terminal event so Ink commits
 	 * the final frame to scrollback.
@@ -87,6 +97,15 @@ export interface LiveInkRenderer {
 
 type InkInstance = ReturnType<typeof inkRender>;
 
+/**
+ * Create a {@link LiveInkRenderer} that drives a live Ink mount for
+ * `consoleMode: "stream"`. Call `event(e)` for each `RunEvent` published
+ * by the plugin; the renderer mounts on `RunStarted`, rerenders on each
+ * subsequent event, and commits the final frame on `RunFinished` /
+ * `RunTimedOut`.
+ *
+ * @public
+ */
 export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRenderer => {
 	let state: RenderState = initialRenderState;
 	let instance: InkInstance | null = null;

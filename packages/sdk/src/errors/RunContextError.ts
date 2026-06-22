@@ -7,6 +7,7 @@ import { Data } from "effect";
  * This error is reserved for "the executable is missing" /
  * "permission denied" / other system-level failures the caller cannot
  * meaningfully recover from.
+ * @public
  */
 export class GitCommandError extends Data.TaggedError("GitCommandError")<{
 	readonly command: string;
@@ -29,6 +30,7 @@ export class GitCommandError extends Data.TaggedError("GitCommandError")<{
  * to the caller of `RunContext.captureRunContext`; the public API
  * always returns a complete `RunContext` (with NULLs for missed
  * probes).
+ * @internal
  */
 export class ProbeMissError extends Data.TaggedError("ProbeMissError")<{
 	readonly probe: string;

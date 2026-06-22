@@ -1,13 +1,3 @@
-/**
- * Live and Test layers for {@link RunContextService}.
- *
- * The Live layer wraps `Command.string` for each git probe and the
- * env-walk for host metadata. Failed git commands surface as `null`
- * columns (not errors) — non-git workspaces are valid.
- *
- * @packageDocumentation
- */
-
 import { Command, CommandExecutor } from "@effect/platform";
 import { Effect, Layer, Option } from "effect";
 import { AgentContext, RunContext, RunContextService } from "../services/RunContext.js";
@@ -79,6 +69,7 @@ const captureAgentContextEffect = (
  * directly for host-metadata probes — the env walk is pure but the
  * env source is process-global, captured once when the layer
  * constructs.
+ * @public
  */
 export const RunContextLive: Layer.Layer<RunContextService, never, CommandExecutor.CommandExecutor> = Layer.effect(
 	RunContextService,
@@ -94,6 +85,7 @@ export const RunContextLive: Layer.Layer<RunContextService, never, CommandExecut
 /**
  * Build a Test layer that returns fixed `RunContext` and
  * `AgentContext` values regardless of `cwd`.
+ * @public
  */
 export const RunContextTest = (fixture: {
 	readonly runContext: RunContext;

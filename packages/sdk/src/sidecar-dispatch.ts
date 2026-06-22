@@ -1,50 +1,9 @@
-/**
- * Sidecar argv dispatcher.
- *
- * The pure argv-dispatch core of the `@vitest-agent/sidecar` native
- * binary. One subcommand:
- *
- *   - `inject-env` — pure, fast: rewrites a Bash command with the
- *                    `VITEST_AGENT_*` env prefix on a Vitest match.
- *
- * `inject-env` is the per-Bash-call hot path and is fully self-contained
- * — no SQLite, no native addon. `register-agent` deliberately stays on
- * the full `@vitest-agent/cli` JS path: it pulls in a native SQLite
- * binding that cannot be bundled into a JS SEA, and it fires only once
- * per session (off the per-turn critical path). Putting `register-agent`
- * back in the binary is tracked as a 2.x follow-up.
- *
- * This lives in `@vitest-agent/sdk` and ships from the dedicated
- * `@vitest-agent/sdk/dispatch` entry point, so the four
- * `@vitest-agent/sidecar-<platform>` child packages consume it as a
- * clean package import. `@vitest-agent/sdk` is a true leaf package,
- * which keeps the workspace dependency graph acyclic — the
- * per-platform packages no longer close a cli → sidecar →
- * sidecar-platform → cli loop. Its only dependencies are sdk-local:
- * `injectEnv` and `exitCodeForTag`.
- *
- * The narrow entry point matters for binary size: importing from the
- * sdk main barrel would force the SEA bundler to tree-shake away the
- * Effect runtime, the SQLite data layer, and every service. The
- * dedicated entry guarantees the minimal reachable graph.
- *
- * Argv parsing is hand-rolled and dependency-free on purpose — pulling
- * `@effect/cli` into the SEA bundle would bloat it for no benefit.
- * {@link dispatch} is exported so it can be unit-tested without
- * spawning a process.
- *
- * Error contract: on an unknown subcommand or a thrown error the
- * dispatcher writes `<exitCode> <tag>: <message>` to stderr and exits
- * with the code from `exitCodeForTag` (0 success, 1 conflict, 2
- * timeout, 3 db error, 4 identity unresolvable, 5 other).
- *
- * @packageDocumentation
- */
-
 import { exitCodeForTag } from "./exit-code-for-tag.js";
 import { injectEnv } from "./internal-inject-env.js";
 
-/** Result of a {@link dispatch} call: captured stdout/stderr + exit code. */
+/** Result of a {@link dispatch} call: captured stdout/stderr + exit code.
+ * @public
+ */
 export interface DispatchResult {
 	readonly stdout: string;
 	readonly stderr: string;
@@ -95,6 +54,7 @@ const messageFromError = (err: unknown): string => {
  * Dispatch one argv invocation. `argv` is the post-`node post-bin`
  * slice — i.e. `process.argv.slice(2)`. Never throws: every failure is
  * folded into the returned {@link DispatchResult}.
+ * @public
  */
 export const dispatch = async (argv: readonly string[]): Promise<DispatchResult> => {
 	const subcommand = argv[0];

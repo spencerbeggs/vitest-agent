@@ -11,7 +11,7 @@ interface MutableTestHistory {
 }
 
 const WINDOW_SIZE = 10;
-
+/** @public */
 export const HistoryTrackerLive: Layer.Layer<HistoryTracker, never, DataReader> = Layer.effect(
 	HistoryTracker,
 	Effect.gen(function* () {

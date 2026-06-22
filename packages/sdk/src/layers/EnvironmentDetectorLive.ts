@@ -6,7 +6,7 @@ import { EnvironmentDetector } from "../services/EnvironmentDetector.js";
 const isGitHub = (): boolean => process.env.GITHUB_ACTIONS === "true" || process.env.GITHUB_ACTIONS === "1";
 
 const isCI = (): boolean => isGitHub() || process.env.CI === "true";
-
+/** @public */
 export const EnvironmentDetectorLive: Layer.Layer<EnvironmentDetector> = Layer.succeed(EnvironmentDetector, {
 	detect: () =>
 		Effect.sync((): Environment => {

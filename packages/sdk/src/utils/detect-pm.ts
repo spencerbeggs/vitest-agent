@@ -1,11 +1,3 @@
-/**
- * @vitest-agent/sdk
- *
- * Package manager detection from `packageManager` field and lockfiles.
- *
- * @packageDocumentation
- */
-
 import type { PackageManager } from "../schemas/Common.js";
 
 /**

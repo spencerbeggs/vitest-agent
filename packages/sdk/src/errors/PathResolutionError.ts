@@ -8,6 +8,7 @@ import { Data } from "effect";
  * the root workspace's `package.json`. The path is a function of the
  * workspace's identity, so without one we have no canonical location to
  * write to.
+ * @public
  */
 export class PathResolutionError extends Data.TaggedError("PathResolutionError")<{
 	readonly reason: string;

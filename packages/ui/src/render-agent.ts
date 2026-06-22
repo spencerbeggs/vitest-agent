@@ -1,14 +1,12 @@
 /**
  * Agent-mode renderer: produces a token-efficient final-frame string
- * from a fully-reduced {@link RenderState}.
+ * from a fully-reduced `RenderState`.
  *
  * Output is intentionally separate from the Ink renderer — agents
  * benefit from a different layout than humans (no ANSI, no live
  * progress, no decoration overhead). The output is stable for stable
  * inputs: no timestamps, no derived "time ago" phrasing, no randomized
  * ordering.
- *
- * @packageDocumentation
  */
 
 import type {
@@ -23,6 +21,8 @@ import { formatDisplayDuration } from "./format-duration.js";
 /**
  * Options controlling agent-mode output. All fields optional; defaults
  * match the spec's "80-column, top-3 gaps, no error stack" target.
+ *
+ * @public
  */
 export interface RenderAgentOptions {
 	/**
@@ -191,11 +191,16 @@ const formatAction = (a: SuggestedActionRecord): string => {
 };
 
 /**
- * Project the reduced {@link RenderState} into a single string suitable
+ * Project the reduced `RenderState` into a single string suitable
  * for emission once at the end of a run.
  *
  * The output is deterministic given a stable input — folding the same
  * event sequence twice and rendering produces byte-identical strings.
+ *
+ * @param state - the fully-reduced render state
+ * @param options - optional output-shaping options
+ * @returns the agent-format string
+ * @public
  */
 export const renderAgent = (state: RenderState, options: RenderAgentOptions = {}): string => {
 	const width = options.width ?? DEFAULT_WIDTH;

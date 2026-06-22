@@ -42,9 +42,10 @@ import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
 
 /**
  * Plugin options shape with the (function-typed) `reporter` factory added
- * on top of the schema-defined {@link AgentPluginOptions}. Schema can't
+ * on top of the schema-defined `AgentPluginOptions`. Schema can't
  * easily encode functions, so the factory lives outside the published
  * Effect Schema.
+ * @public
  */
 export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	/**
@@ -62,7 +63,7 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	reporter?: VitestAgentReporterFactory;
 	/**
 	 * Optional live event tap. The plugin forwards every per-test and
-	 * per-module {@link RunEvent} to this callback as the test run
+	 * per-module `RunEvent` to this callback as the test run
 	 * progresses. Hosts drive a live renderer (Ink, debug logging) from
 	 * here. Throwing taps are caught and logged to stderr.
 	 */
@@ -148,15 +149,6 @@ function resolveFormat(mode: ConsoleMode): OutputFormat {
 }
 
 /**
- * Vitest plugin that injects {@link AgentReporter} into the reporter chain.
- *
- * @param options - Plugin configuration options
- * @param _layer - Internal: override the EnvironmentDetector layer (for testing)
- * @returns Vitest plugin object with `configureVitest` hook
- *
- * @public
- */
-/**
  * Set to the Vitest object reference once we've pushed an aggregating
  * reporter for that Vitest instance. The flag is module-scoped (rather
  * than closure-scoped on the plugin) because Vitest can construct the
@@ -176,9 +168,9 @@ const aggregatedReporterByVitest = new WeakSet<object>();
 
 /**
  * The version of this package, inlined at build time from
- * package.json#version via rslib-builder's __PACKAGE_VERSION__ substitution.
- * Re-exported from {@link index.ts} as the public symbol; defined here so
- * the drift-check code path below can read it without a circular import.
+ * `package.json#version` via rslib-builder's `__PACKAGE_VERSION__` substitution.
+ * Re-exported from the package barrel as the public symbol; defined here so
+ * the drift-check code path can read it without a circular import.
  *
  * @public
  */
@@ -250,6 +242,15 @@ function envToExecutor(env: Environment): Executor {
 	return "ci";
 }
 
+/**
+ * Vitest plugin that injects `AgentReporter` into the reporter chain.
+ *
+ * @param options - Plugin configuration options
+ * @param _layer - Internal: override the EnvironmentDetector layer (for testing)
+ * @returns Vitest plugin object with `configureVitest` hook
+ *
+ * @public
+ */
 export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?: Layer.Layer<EnvironmentDetector>) {
 	// Surface cross-package version drift once per process so partially-upgraded
 	// installs (sdk and plugin at different versions, etc.) name themselves
@@ -467,13 +468,14 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 }
 
 /**
- * Dual-output preset shape returned by {@link AgentPlugin.COVERAGE_LEVELS} and
- * {@link AgentPlugin.COVERAGE_LEVELS_PER_FILE}. The `thresholds` half is
+ * Dual-output preset shape returned by `AgentPlugin.COVERAGE_LEVELS` and
+ * `AgentPlugin.COVERAGE_LEVELS_PER_FILE`. The `thresholds` half is
  * passed to Vitest's native `coverage.thresholds`; the `coverageTargets`
  * half is passed to `AgentPlugin({ coverageTargets })`.
  *
  * `thresholds` carries the optional `perFile` flag; `coverageTargets`
  * does not — it inherits `perFile` from `coverage.thresholds.perFile`.
+ * @public
  */
 export interface CoverageLevelPreset {
 	readonly thresholds: {
@@ -533,7 +535,7 @@ export interface DiscoverResult {
 }
 
 /**
- * Thenable builder returned by {@link AgentPlugin.discover}. Calling `.then()`
+ * Thenable builder returned by `AgentPlugin.discover`. Calling `.then()`
  * (or `await`-ing) materializes the discovery: workspace packages + added
  * entries are each run through the active strategy's `buildProject`, with
  * conflict detection on `name` or normalized path collisions.
@@ -578,6 +580,11 @@ function makeDiscoverBuilder(options: DiscoverProjectsOptions): DiscoverBuilder 
 	};
 }
 
+/**
+ * Static namespace attached to the `AgentPlugin` factory function.
+ * Exposes coverage-level preset maps, auto-update tolerance functions, and the `discover` thenable builder.
+ * @public
+ */
 export namespace AgentPlugin {
 	export const COVERAGE_LEVELS: Readonly<Record<CoverageLevelName, CoverageLevelPreset>> = Object.freeze({
 		none: buildPreset(CoverageLevel.none, CoverageLevel.basic, false),

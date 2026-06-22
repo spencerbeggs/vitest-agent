@@ -1,31 +1,21 @@
-/**
- * Pure validator for the shape of a coverageTargets value.
- *
- * Returns structured errors, warnings, and info arrays. Unlike the
- * CoverageTargets Effect Schema (which rejects outright on parse), this
- * helper walks the raw input and emits pinpointed diagnostic entries so
- * the rule layer can surface them with human-readable messages.
- *
- * @packageDocumentation
- */
-
+/** @public */
 export interface CoverageTargetsShapeError {
 	readonly code: string;
 	readonly path: string;
 	readonly message: string;
 }
-
+/** @public */
 export interface CoverageTargetsShapeWarning {
 	readonly code: string;
 	readonly path: string;
 	readonly message: string;
 }
-
+/** @public */
 export interface CoverageTargetsShapeInfo {
 	readonly code: string;
 	readonly message: string;
 }
-
+/** @public */
 export interface CoverageTargetsShapeResult {
 	readonly errors: ReadonlyArray<CoverageTargetsShapeError>;
 	readonly warnings: ReadonlyArray<CoverageTargetsShapeWarning>;
@@ -86,6 +76,7 @@ function checkNestedMetrics(
  *
  * @param input - The raw value passed as coverageTargets.
  * @returns A result object with errors, warnings, and info arrays.
+ * @public
  */
 export function validateCoverageTargetsShape(input: unknown): CoverageTargetsShapeResult {
 	const errors: CoverageTargetsShapeError[] = [];

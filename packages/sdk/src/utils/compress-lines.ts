@@ -1,12 +1,4 @@
 /**
- * @vitest-agent/sdk
- *
- * Compress an array of line numbers into a compact range string.
- *
- * @packageDocumentation
- */
-
-/**
  * Compress an array of line numbers into a compact range string.
  *
  * Consecutive line numbers are collapsed into `start-end` ranges,

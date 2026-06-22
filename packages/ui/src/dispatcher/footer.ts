@@ -4,7 +4,7 @@
  * Each dispatcher cell appends one (sometimes two) trailing lines that
  * point the agent at the most relevant `vitest-agent-mcp` tools for
  * its next action. The footer is a pure function of
- * {@link DispatchInputs}; cells call it directly.
+ * `DispatchInputs`; cells call it directly.
  *
  * Mapping table (UI rewrite spec §3.6):
  *
@@ -17,8 +17,6 @@
  *
  * Inline backtick formatting is included verbatim in the agent output —
  * agents read the literal characters as cues, not markdown.
- *
- * @packageDocumentation
  */
 
 import type { DispatchInputs, FailureRecord, RenderState, TestClassification } from "@vitest-agent/sdk";
@@ -35,6 +33,10 @@ const FOOTER_THRESHOLD = "Use `test_coverage` for the workspace coverage breakdo
  * Priority order (most actionable first): `new-failure`, `persistent`,
  * `flaky`, `recovered`, `stable`. Returns `null` when the failure list
  * is empty or every failure is unclassified.
+ *
+ * @param state - the fully-reduced render state
+ * @returns the most actionable classification, or `null` when none applies
+ * @public
  */
 export const dominantClassification = (state: RenderState): TestClassification | null => {
 	if (state.failures.length === 0) return null;
@@ -54,6 +56,10 @@ export const dominantClassification = (state: RenderState): TestClassification |
  * empty string when no pointer applies. The footer starts with a
  * leading newline so cells can append it directly without crafting
  * their own separator.
+ *
+ * @param inputs - the classified dispatch inputs
+ * @returns the footer string, or an empty string when no pointer applies
+ * @public
  */
 export const buildFooter = (inputs: DispatchInputs): string => {
 	const lines: string[] = [];

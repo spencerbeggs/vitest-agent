@@ -1,25 +1,23 @@
-/**
- * Sidecar `_internal register-agent` implementation.
+/*
+ * Sidecar _internal register-agent implementation.
  *
  * Wires together the four services that registration touches:
  *
- *   - {@link PerClientSessionMapWriter} — translates the host's native
+ *   - PerClientSessionMapWriter — translates the host's native
  *     identifiers (transcript path, host_session_id) into the
  *     canonical conversation_id and main_agent_id UUIDs the
  *     per-project store expects.
- *   - {@link DataStore} — performs the idempotent INSERT into the
- *     per-project `agents` table via `registerAgent(...)`.
- *   - {@link RunContextService} — captures `start_git_*` from the
- *     workspace before insert.
- *   - {@link DataReader} — resolves the integer `sessions.id` FK from
- *     the host_session_id (writes a sessions row first if needed).
+ *   - DataStore — performs the idempotent INSERT into the
+ *     per-project agents table via registerAgent(...).
+ *   - RunContextService — captures start_git_* from the workspace
+ *     before insert.
+ *   - DataReader — resolves the integer sessions.id FK from the
+ *     host_session_id (writes a sessions row first if needed).
  *
  * For main-agent registrations (no parentAgentId), the sidecar also
- * writes the parent `sessions` row with the same `host_session_id` +
- * `conversation_id` so downstream code that queries by integer FK
+ * writes the parent sessions row with the same host_session_id +
+ * conversation_id so downstream code that queries by integer FK
  * still works.
- *
- * @packageDocumentation
  */
 
 import {
@@ -31,21 +29,43 @@ import {
 } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 
+/**
+ * Input for the end-to-end agent registration effect.
+ *
+ * @public
+ */
 export interface RegisterAgentInput {
+	/** The host's native session identifier (e.g. Claude's `session_id`). */
 	readonly hostSessionId: string;
+	/** Absolute path to the host's conversation transcript file. */
 	readonly transcriptPath: string;
+	/** Working directory of the agent process. */
 	readonly cwd: string;
+	/** Host kind string (e.g. `"claude-code"`). */
 	readonly hostKind: string;
+	/** Agent type label (e.g. `"main"` or `"subagent"`). */
 	readonly agentType: string;
+	/** Normalized project key derived from the workspace root `package.json#name`. */
 	readonly projectKey: string;
+	/** Agent ID of the parent when registering a subagent. */
 	readonly parentAgentId?: string;
+	/** Optional idempotency nonce; derived from `hostSessionId + agentType + parentAgentId` when omitted. */
 	readonly clientNonce?: string;
 }
 
+/**
+ * Output of the end-to-end agent registration effect.
+ *
+ * @public
+ */
 export interface RegisterAgentOutput {
+	/** Canonical UUID assigned to this agent in the per-project store. */
 	readonly agentId: string;
+	/** UUID of the conversation this agent belongs to. */
 	readonly conversationId: string;
+	/** Idempotency key used for the `registerAgent` upsert. */
 	readonly idempotencyKey: string;
+	/** `true` when an existing agent row was recovered rather than inserted. */
 	readonly idempotencyHit: boolean;
 }
 
@@ -55,10 +75,16 @@ const deriveDefaultClientNonce = (input: RegisterAgentInput): string => {
 };
 
 /**
- * End-to-end registration. Returns the canonical agentId + the
- * conversation it belongs to + the resolved idempotency_key. The
- * `idempotencyHit` flag is true when the per-project store recovered
- * an existing agent row instead of inserting a new one.
+ * End-to-end agent registration.
+ *
+ * Returns the canonical `agentId` + the conversation it belongs to +
+ * the resolved `idempotencyKey`. The `idempotencyHit` flag is `true`
+ * when the per-project store recovered an existing agent row instead
+ * of inserting a new one.
+ *
+ * @param input - registration inputs including host identifiers and agent metadata
+ * @returns an Effect resolving to `RegisterAgentOutput`
+ * @public
  */
 export const registerAgentEffect = (input: RegisterAgentInput) =>
 	Effect.gen(function* () {

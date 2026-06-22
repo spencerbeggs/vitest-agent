@@ -57,8 +57,14 @@ function walk(node: Node, visit: (n: Node) => void): void {
 	}
 }
 
+/**
+ * Return value of the Vite `transform` hook — the rewritten source code and its source map.
+ * @public
+ */
 export interface InjectTagsResult {
+	/** The transformed source code string with injected `tags` arguments. */
 	code: string;
+	/** Source map correlating transformed positions back to the original source. */
 	map: SourceMap;
 }
 

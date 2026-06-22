@@ -1,17 +1,4 @@
 {
-	"$schema": "https://json.schemastore.org/tsconfig.json",
-	"compilerOptions": {
-		"composite": true,
-		"declaration": true,
-		"module": "node20",
-		"outDir": "dist",
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
-		"strict": true,
-		"strictNullChecks": true,
-		"target": "es2023",
-		"types": ["node"]
-	},
-	"exclude": ["node_modules", "dist", ".turbo"],
-	"include": ["*.ts", "lib/**/*.ts", "types/**/*.d.ts"]
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"extends": ["@savvy-web/silk/tsconfig/node/root.json"]
 }
