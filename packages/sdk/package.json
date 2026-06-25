@@ -40,8 +40,9 @@
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"@types/acorn": "^6.0.4",
-		"acorn": "^8.16.0",
+		"acorn": "^8.17.0",
 		"acorn-typescript": "^1.4.13",
+		"ajv": "^8.20.0",
 		"config-file-effect": "^0.2.3",
 		"effect": "catalog:silk",
 		"std-env": "^4.1.0",
@@ -50,11 +51,11 @@
 	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^0.11.0",
-		"@types/node": "^26.0.0",
+		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
-		"@vitest/coverage-v8": "^4.1.8",
+		"@vitest/coverage-v8": "catalog:silk",
 		"typescript": "catalog:silk",
-		"vitest": "^4.1.8"
+		"vitest": "catalog:silk"
 	},
 	"engines": {
 		"node": ">=24.11.0"

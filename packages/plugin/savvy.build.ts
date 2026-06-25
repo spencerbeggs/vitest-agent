@@ -1,6 +1,7 @@
 import { defineBuild, runBuild } from "@savvy-web/bundler";
 
 const config = defineBuild({
+	dtsExternals: ["@vitest/runner"],
 	meta: {
 		localPaths: ["../../website/lib/models/plugin"],
 		tsdoc: {

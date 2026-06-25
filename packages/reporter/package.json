@@ -46,20 +46,20 @@
 	"devDependencies": {
 		"@savvy-web/bundler": "^0.11.0",
 		"@types/better-sqlite3": "^7.6.13",
-		"@types/node": "^26.0.0",
+		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"@vitest/coverage-istanbul": "^4.1.8",
-		"@vitest/coverage-v8": "^4.1.8",
+		"@vitest/coverage-v8": "catalog:silk",
 		"better-sqlite3": "^12.10.0",
 		"typescript": "catalog:silk",
 		"vite": "^8.1.0",
-		"vitest": "^4.1.8"
+		"vitest": "catalog:silk"
 	},
 	"peerDependencies": {
-		"@vitest/coverage-istanbul": "^4.1.0",
-		"@vitest/coverage-v8": "^4.1.0",
-		"vitest": "^4.1.0"
+		"@vitest/coverage-istanbul": "catalog:silkPeers",
+		"@vitest/coverage-v8": "catalog:silkPeers",
+		"vitest": "catalog:silkPeers"
 	},
 	"peerDependenciesMeta": {
 		"@vitest/coverage-istanbul": {
