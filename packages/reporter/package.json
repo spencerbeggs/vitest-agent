@@ -44,16 +44,16 @@
 		"react": "catalog:silk"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.9.1",
+		"@savvy-web/bundler": "^0.11.0",
 		"@types/better-sqlite3": "^7.6.13",
-		"@types/node": "catalog:silk",
+		"@types/node": "^26.0.0",
 		"@types/react": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"@vitest/coverage-istanbul": "^4.1.8",
 		"@vitest/coverage-v8": "^4.1.8",
 		"better-sqlite3": "^12.10.0",
 		"typescript": "catalog:silk",
-		"vite": "^8.0.16",
+		"vite": "^8.1.0",
 		"vitest": "^4.1.8"
 	},
 	"peerDependencies": {

@@ -66,3 +66,4 @@ packages/sidecar-*/bin/
 website/lib/models/*
 website/docs/en/*/api/
 website/api-docs-snapshot.db-*
+website/api-docs-snapshot.db

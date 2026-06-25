@@ -7,6 +7,4 @@ configDependencies:
   "@savvy-web/pnpm-plugin-silk": 0.16.1+sha512-ezIsMs06mTSjPqip8fcXJCx0KXVzRd3vSyjHr2YvTiqksY3Q+l9yd+YZg7Yo4CMwnyndZAolaqXX2WrN0XEWAw==
 linkWorkspacePackages: deep
 loglevel: warn
-overrides:
-  rspress-plugin-api-extractor: file:../rspress-plugin-api-extractor/plugin/dist/prod/npm/pkg
 verifyDepsBeforeRun: false

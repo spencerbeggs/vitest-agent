@@ -26,8 +26,8 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.9.1",
-		"@types/node": "catalog:silk",
+		"@savvy-web/bundler": "^0.11.0",
+		"@types/node": "^26.0.0",
 		"@typescript/native-preview": "catalog:silk",
 		"@vitest-agent/sdk": "workspace:*",
 		"typescript": "catalog:silk"

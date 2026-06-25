@@ -46,11 +46,13 @@ export default defineConfig({
 	plugins: [
 		ApiExtractorPlugin({
 			siteUrl: "https://vitest-agent.dev",
-			logLevel: "debug",
 			ogImage: {
 				url: "https://vitest-agent.dev/og-image.png",
 			},
 			apis: ApiExtractorPlugin.apis.fromDir("./lib/models"),
+			observability: {
+				logLevel: "info",
+			},
 		}),
 		pluginSitemap({
 			siteUrl: "https://vitest-agent.dev",
