@@ -191,6 +191,10 @@ function runAllRules(input: ValidationInput): ValidationResult {
 	return { errors, warnings, info };
 }
 
+/**
+ * Live implementation of the ConfigValidation service running the built-in rule registry.
+ * @public
+ */
 export const ConfigValidationLive: Layer.Layer<ConfigValidation> = Layer.succeed(ConfigValidation, {
 	validate: (input) => Effect.sync(() => runAllRules(input)),
 });

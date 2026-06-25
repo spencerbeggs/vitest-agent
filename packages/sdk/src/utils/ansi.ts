@@ -1,12 +1,4 @@
 /**
- * @vitest-agent/sdk
- *
- * ANSI color/style escape code utilities.
- *
- * @packageDocumentation
- */
-
-/**
  * Options for ANSI color output control.
  *
  * @internal

@@ -21,17 +21,19 @@
 	},
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
-		"build:meta": "echo 'no op'",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev --filter=.",
+		"prepare": "turbo run build:dev",
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.6.0",
+		"@savvy-web/bundler": "^0.11.0",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"@vitest-agent/sdk": "workspace:*",
 		"typescript": "catalog:silk"
+	},
+	"engines": {
+		"node": ">=24.11.0"
 	},
 	"os": ["linux"],
 	"cpu": ["x64"],

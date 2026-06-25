@@ -133,5 +133,6 @@ export * from "./utils/validate-phase-transition.js";
  * see the `"0.0.0"` fallback — a clear signal the build pipeline has not
  * substituted yet. Read by the plugin / MCP / CLI init-time drift check.
  * See the root CLAUDE.md "Cross-package version drift" section.
+ * @public
  */
 export const CURRENT_SDK_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";

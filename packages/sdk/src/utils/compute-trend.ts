@@ -1,9 +1,3 @@
-/**
- * Compute a coverage trend entry from current run data.
- *
- * @packageDocumentation
- */
-
 import type { CoverageTotals } from "../schemas/Coverage.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { TrendEntry, TrendRecord } from "../schemas/Trends.js";
@@ -17,6 +11,7 @@ const MAX_ENTRIES = 50;
  * Note: JSON.stringify is order-sensitive, but resolveThresholds()
  * always produces keys in METRIC_KEYS iteration order, so the hash
  * is stable for the same logical configuration.
+ * @public
  */
 export function hashTargets(targets: ResolvedThresholds | undefined): string | undefined {
 	if (!targets) return undefined;
@@ -43,6 +38,7 @@ function computeDirection(delta: CoverageTotals): "improving" | "regressing" | "
  *
  * If targets have changed (different hash), the trend history is
  * cleared and the new entry becomes the first data point.
+ * @public
  */
 export function computeTrend(
 	current: CoverageTotals,
@@ -88,6 +84,7 @@ export function computeTrend(
 
 /**
  * Get the overall direction from recent entries.
+ * @public
  */
 export function getRecentDirection(
 	record: TrendRecord,

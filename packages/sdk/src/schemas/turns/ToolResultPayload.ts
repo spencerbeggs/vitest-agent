@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-
+/** @public */
 export const ToolResultPayload = Schema.Struct({
 	type: Schema.Literal("tool_result"),
 	tool_name: Schema.String,
@@ -9,4 +9,5 @@ export const ToolResultPayload = Schema.Struct({
 	duration_ms: Schema.optional(Schema.Number),
 });
 
+/** @public */
 export type ToolResultPayload = typeof ToolResultPayload.Type;

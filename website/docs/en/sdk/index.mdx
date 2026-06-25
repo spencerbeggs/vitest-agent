@@ -30,7 +30,7 @@ pnpm add @vitest-agent/sdk
 
 The main export provides access to the Effect services. Use the testing sub-path to seed in-memory state in unit tests:
 
-```ts
+```ts with-api
 import { Effect } from "effect";
 import { DataReader } from "@vitest-agent/sdk";
 import { singlePassingRun } from "@vitest-agent/sdk/testing";
@@ -61,7 +61,7 @@ The SDK ships three distinct entry points:
 
 The core data services are Effect Context tags with live and test layer implementations:
 
-```ts
+```ts with-api
 import { DataStore, DataReader } from "@vitest-agent/sdk";
 
 // DataStore: all SQLite writes
@@ -74,7 +74,7 @@ const effect = Effect.flatMap(DataReader, (reader) =>
 
 Live layers take the resolved `dbPath` as input. Test layers use `:memory:` for isolation:
 
-```ts
+```ts with-api
 import { makeTestLayer } from "@vitest-agent/sdk/testing";
 
 const testLayer = makeTestLayer(":memory:");
@@ -85,7 +85,7 @@ const testLayer = makeTestLayer(":memory:");
 
 Five preset factories seed representative database states without writing fixtures manually:
 
-```ts
+```ts with-api
 import {
   empty,
   singlePassingRun,
@@ -107,7 +107,7 @@ Each factory returns an Effect `Layer` you provide directly in your test.
 
 The SDK defines the contract shapes consumed by `@vitest-agent/reporter`, `@vitest-agent/ui`, and `@vitest-agent/plugin`:
 
-```ts
+```ts with-api
 import type {
   VitestAgentReporterFactory,
   ReporterKit,
@@ -131,7 +131,7 @@ import type {
 4. Root `package.json#name` (normalized)
 5. Fails loudly — no silent fallback
 
-```ts
+```ts with-api
 import { resolveDataPath } from "@vitest-agent/sdk";
 // resolveDataPath(cwd) → Effect<string, WorkspaceRootNotFoundError>
 ```

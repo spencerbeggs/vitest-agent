@@ -1,15 +1,3 @@
-/**
- * Row assembler functions for converting flat SQL rows into domain types.
- *
- * These are internal helpers that bridge the SQL layer and the public API.
- * They convert aggregated SQL query results into the nested shapes expected
- * by callers of CacheReader/DataReader services.
- *
- * NOT part of the public API.
- *
- * @packageDocumentation
- */
-
 import type { CacheManifest, CacheManifestEntry } from "../schemas/CacheManifest.js";
 import type { TestRun } from "../schemas/History.js";
 
@@ -19,6 +7,7 @@ import type { TestRun } from "../schemas/History.js";
 
 /**
  * Minimal shape of a test_runs aggregation row used to build the manifest.
+ * @public
  */
 export interface ManifestRow {
 	project: string;
@@ -29,6 +18,7 @@ export interface ManifestRow {
 
 /**
  * Minimal shape of a test_history row used to build a history record.
+ * @public
  */
 export interface HistoryRow {
 	full_name: string;
@@ -46,6 +36,7 @@ export interface HistoryRow {
  * This is the internal representation returned by `assembleHistoryRecord`.
  * Callers that need the Effect Schema `HistoryRecord` type should adapt this
  * into the `tests` array format.
+ * @public
  */
 export interface AssembledHistoryRecord {
 	[fullName: string]: { runs: TestRun[] };
@@ -60,6 +51,7 @@ export interface AssembledHistoryRecord {
  *
  * Each row represents the latest run for a project/sub_project pair.
  * The `dbPath` is stored as `cacheDir` so CLI tools can locate the source.
+ * @public
  */
 export function assembleManifest(rows: ManifestRow[], dbPath: string): CacheManifest {
 	const updatedAt = rows.reduce<string>((latest, row) => {
@@ -111,6 +103,7 @@ export function assembleManifest(rows: ManifestRow[], dbPath: string): CacheMani
  *
  * Only rows with state `"passed"` or `"failed"` are included in runs
  * (matching the `TestRun` schema constraint).
+ * @public
  */
 export function assembleHistoryRecord(rows: HistoryRow[]): AssembledHistoryRecord {
 	const record: AssembledHistoryRecord = {};

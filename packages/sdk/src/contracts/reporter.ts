@@ -1,21 +1,3 @@
-/**
- * Public reporter contract for the vitest-agent plugin.
- *
- * The plugin owns persistence, classification, baselines, trends, and the
- * Vitest lifecycle wiring. The reporter is just the rendering stage: it
- * receives an assembled run (reports + classifications + trend context),
- * gets a kit of plugin-resolved primitives (env detection, OSC-8 helper,
- * resolved config), and returns `RenderedOutput[]` to be routed.
- *
- * A reporter is richer than a single Formatter — it can dispatch to multiple
- * formatters internally (e.g. a `GitHubReporter` emits SARIF for code
- * scanning AND markdown for the step summary). The return shape is
- * `RenderedOutput[]` so a single render call can produce multiple targets
- * with different content types.
- *
- * @packageDocumentation
- */
-
 import type { PubSub } from "effect";
 import type { RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
@@ -44,6 +26,7 @@ import type { Transport } from "../schemas/Transport.js";
  * `FormatSelector` / `DetailResolver`) but reporters that want to override
  * can ignore them. `noColor` is the resolved value of the `NO_COLOR` env
  * var; reporters use it to gate ANSI escapes and OSC-8 hyperlinks.
+ * @public
  */
 export interface ResolvedReporterConfig {
 	readonly dbPath?: string;
@@ -55,7 +38,7 @@ export interface ResolvedReporterConfig {
 	 */
 	readonly executor: Executor;
 	/**
-	 * The {@link ConsoleMode} value the plugin selected for the active
+	 * The `ConsoleMode` value the plugin selected for the active
 	 * executor — the result of looking up `console.{executor}` and falling
 	 * back to the per-slot default. Renderers that need to know "what am I
 	 * supposed to produce right now?" read this single field.
@@ -120,6 +103,7 @@ export interface ResolvedReporterConfig {
  * The shape is open to additions: future fields (e.g. `stdLogger`,
  * `stdRuntime`) won't break existing reporters because the parameter is a
  * named-field object. Reporters destructure only what they consume.
+ * @public
  */
 export interface ReporterKit {
 	readonly config: ResolvedReporterConfig;
@@ -131,7 +115,7 @@ export interface ReporterKit {
 	 */
 	readonly stdOsc8: (url: string, label: string) => string;
 	/**
-	 * Live run-event channel. The plugin publishes one {@link RunEvent}
+	 * Live run-event channel. The plugin publishes one `RunEvent`
 	 * per Vitest streaming callback (`onTestRunStart`, `onTestModuleStart`,
 	 * `onTestCaseResult`, `onTestRunEnd`, …) onto this `PubSub` as the run
 	 * progresses. A reporter that paints live — the default reporter's Ink
@@ -156,6 +140,7 @@ export interface ReporterKit {
  * stable / new-failure / persistent / flaky / recovered label assigned by
  * `HistoryTracker`. `trendSummary` is present only on full (non-scoped) runs
  * where coverage trends were computed.
+ * @public
  */
 export interface ReporterRenderInput {
 	readonly reports: ReadonlyArray<AgentReport>;
@@ -190,6 +175,7 @@ export interface ReporterRenderInput {
  * A "no-op" reporter is one line: `() => ({ render: () => [] })`. Useful
  * for users who only want persistence (the MCP/CLI tools see the data) and
  * no console output at all.
+ * @public
  */
 export interface VitestAgentReporter {
 	readonly render: (input: ReporterRenderInput, kit: ReporterKit) => ReadonlyArray<RenderedOutput>;
@@ -212,5 +198,6 @@ export interface VitestAgentReporter {
  * instance) gives implementations a place to do construction-time work
  * (e.g. opening a file handle, capturing config) while still letting
  * the plugin own the kit assembly.
+ * @public
  */
 export type VitestAgentReporterFactory = (kit: ReporterKit) => VitestAgentReporter | ReadonlyArray<VitestAgentReporter>;

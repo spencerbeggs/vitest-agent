@@ -1,12 +1,4 @@
 /**
- * @vitest-agent/plugin
- *
- * Filter out built-in console reporters from a Vitest reporters array.
- *
- * @packageDocumentation
- */
-
-/**
  * Built-in Vitest reporters that write to the console (stdout).
  * These are the reporters suppressed when an agent takes over console output.
  *
@@ -34,7 +26,7 @@ export const CONSOLE_REPORTERS = new Set([
  *
  * Keeps custom reporters (class instances, file paths) and non-console
  * built-in reporters (`json`, `junit`, `html`, `blob`, `github-actions`).
- * Used by {@link AgentPlugin} in agent mode to suppress noisy console output.
+ * Used by `AgentPlugin` in agent mode to suppress noisy console output.
  *
  * @param reporters - The Vitest `config.reporters` array
  * @returns Filtered array with console reporters removed

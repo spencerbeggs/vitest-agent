@@ -1,20 +1,3 @@
-/**
- * Plain-text terminal formatter for stdout-bound agent / human output.
- *
- * Sibling to {@link MarkdownFormatter} and {@link GfmFormatter}. The
- * markdown variants exist for surfaces that *render* markdown — Claude
- * via MCP, GitHub via the step summary file. Terminal output never
- * renders markdown; emitting `## ` and backticks there is pure visual
- * noise. This formatter produces plain text with optional ANSI color,
- * compact columnar project rows, and a coverage section keyed on the
- * threshold-vs-target distinction.
- *
- * OSC-8 hyperlinks for failing-test paths live here (not in the
- * markdown formatter), gated on `target === "stdout" && !ctx.noColor`.
- *
- * @packageDocumentation
- */
-
 import * as path from "node:path";
 import { formatTerminal } from "../utils/format-terminal.js";
 import { osc8 } from "../utils/hyperlink.js";
@@ -44,6 +27,7 @@ import type { Formatter, FormatterContext, RenderedOutput } from "./types.js";
  * relative targets. Resolve the captured value back to absolute
  * against the cwd before handing it to `osc8`. The display label
  * stays relative so the rendered output is unchanged.
+ * @public
  */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escape sequences around the red cross is the whole point
 const FAILED_TEST_ROW = /^( {4}(?:\x1b\[\d+m)?✗(?:\x1b\[\d+m)? )([^ ]+)( > )/gm;
@@ -54,7 +38,7 @@ const wrapHyperlinks = (text: string, ctx: FormatterContext): string =>
 		const linked = osc8(`file://${absolute}`, captured, { enabled: !ctx.noColor });
 		return `${prefix}${linked}${suffix}`;
 	});
-
+/** @public */
 export const TerminalFormatter: Formatter = {
 	format: "terminal",
 	render: (reports, context) => {

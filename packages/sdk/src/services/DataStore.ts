@@ -17,24 +17,25 @@ import type { ArtifactKind, Phase } from "../utils/validate-phase-transition.js"
 
 export type { ArtifactKind, Phase };
 
+/** @public */
 export interface CreateGoalInput {
 	readonly tddTaskId: number;
 	readonly goal: string;
 }
-
+/** @public */
 export interface UpdateGoalInput {
 	readonly id: number;
 	readonly goal?: string;
 	readonly status?: GoalStatus;
 }
-
+/** @public */
 export interface CreateBehaviorInput {
 	readonly goalId: number;
 	readonly behavior: string;
 	readonly suggestedTestName?: string;
 	readonly dependsOnBehaviorIds?: ReadonlyArray<number>;
 }
-
+/** @public */
 export interface UpdateBehaviorInput {
 	readonly id: number;
 	readonly behavior?: string;
@@ -42,7 +43,7 @@ export interface UpdateBehaviorInput {
 	readonly status?: BehaviorStatus;
 	readonly dependsOnBehaviorIds?: ReadonlyArray<number>;
 }
-
+/** @public */
 export interface SettingsInput {
 	readonly vitestVersion: string;
 	readonly pool?: string;
@@ -59,7 +60,7 @@ export interface SettingsInput {
 	readonly sequenceSeed?: number;
 	readonly coverageProvider?: string;
 }
-
+/** @public */
 export interface TestRunInput {
 	readonly invocationId: string;
 	readonly project: string;
@@ -105,12 +106,13 @@ export interface TestRunInput {
 	/**
 	 * Host metadata probe result (terminal pane, CI runner). NULL when no
 	 * probe in the priority chain matched.
+	 * @public
 	 */
 	readonly hostSource?: string | null;
 	readonly hostValue?: string | null;
 	readonly hostMetadata?: Record<string, unknown> | null;
 }
-
+/** @public */
 export interface ModuleInput {
 	readonly fileId: number;
 	readonly relativeModuleId: string;
@@ -122,7 +124,7 @@ export interface ModuleInput {
 	readonly setupDuration?: number;
 	readonly heap?: number;
 }
-
+/** @public */
 export interface TestCaseInput {
 	readonly suiteId?: number;
 	readonly vitestId?: string;
@@ -150,10 +152,11 @@ export interface TestCaseInput {
 	/**
 	 * FK to `turns(id)`. Set by the reporter when the test case row was
 	 * authored within a recorded turn (D2 binding rule 1).
+	 * @public
 	 */
 	readonly createdTurnId?: number;
 }
-
+/** @public */
 export interface StackFrameInput {
 	readonly ordinal: number;
 	readonly method: string | null;
@@ -163,7 +166,7 @@ export interface StackFrameInput {
 	readonly sourceMappedLine?: number;
 	readonly functionBoundaryLine?: number;
 }
-
+/** @public */
 export interface TestErrorInput {
 	readonly testCaseId?: number;
 	readonly testSuiteId?: number;
@@ -180,7 +183,7 @@ export interface TestErrorInput {
 	readonly frames?: ReadonlyArray<StackFrameInput>;
 	readonly ordinal?: number;
 }
-
+/** @public */
 export interface FileCoverageInput {
 	readonly fileId: number;
 	readonly statements: number;
@@ -196,10 +199,11 @@ export interface FileCoverageInput {
 	 *
 	 * Defaults to `'below_threshold'` when omitted, matching the only
 	 * tier that existed before migration 0005.
+	 * @public
 	 */
 	readonly tier?: "below_threshold" | "below_target";
 }
-
+/** @public */
 export interface SuiteInput {
 	readonly parentSuiteId?: number;
 	readonly name: string;
@@ -213,7 +217,7 @@ export interface SuiteInput {
 	readonly locationLine?: number;
 	readonly locationColumn?: number;
 }
-
+/** @public */
 export interface NoteInput {
 	readonly title: string;
 	readonly content: string;
@@ -226,7 +230,7 @@ export interface NoteInput {
 	readonly expiresAt?: string;
 	readonly pinned?: boolean;
 }
-
+/** @public */
 export interface SessionInput {
 	readonly chatId: string;
 	readonly project: string;
@@ -237,7 +241,7 @@ export interface SessionInput {
 	readonly triageWasNonEmpty?: boolean;
 	readonly startedAt: string;
 }
-
+/** @public */
 export interface TurnInput {
 	readonly sessionId: number;
 	/** When omitted, writeTurn computes MAX(turnNo) + 1 for the session. */
@@ -246,13 +250,13 @@ export interface TurnInput {
 	readonly payload: string; // pre-stringified JSON, validated by record CLI
 	readonly occurredAt: string;
 }
-
+/** @public */
 export interface FailureSignatureWriteInput {
 	readonly signatureHash: string;
 	readonly runId: number;
 	readonly seenAt: string;
 }
-
+/** @public */
 export interface HypothesisInput {
 	readonly sessionId: number;
 	readonly content: string;
@@ -260,21 +264,21 @@ export interface HypothesisInput {
 	readonly citedTestErrorId?: number;
 	readonly citedStackFrameId?: number;
 }
-
+/** @public */
 export interface ValidateHypothesisInput {
 	readonly id: number;
 	readonly outcome: "confirmed" | "refuted" | "abandoned";
 	readonly validatedTurnId?: number;
 	readonly validatedAt: string;
 }
-
+/** @public */
 export interface IdempotentResponseInput {
 	readonly procedurePath: string;
 	readonly key: string;
 	readonly resultJson: string;
 	readonly createdAt: string;
 }
-
+/** @public */
 export interface TddTaskInput {
 	readonly sessionId: number;
 	readonly goal: string;
@@ -282,14 +286,14 @@ export interface TddTaskInput {
 	readonly parentTddTaskId?: number;
 	readonly runId?: string;
 }
-
+/** @public */
 export interface EndTddTaskInput {
 	readonly id: number;
 	readonly endedAt: string;
 	readonly outcome: "succeeded" | "blocked" | "abandoned";
 	readonly summaryNoteId?: number;
 }
-
+/** @public */
 export interface WriteTddPhaseInput {
 	readonly tddTaskId: number;
 	readonly behaviorId?: number;
@@ -298,12 +302,12 @@ export interface WriteTddPhaseInput {
 	readonly transitionReason?: string;
 	readonly parentPhaseId?: number;
 }
-
+/** @public */
 export interface WriteTddPhaseOutput {
 	readonly id: number;
 	readonly previousPhaseId: number | null;
 }
-
+/** @public */
 export interface WriteTddArtifactInput {
 	readonly phaseId: number;
 	readonly artifactKind: ArtifactKind;
@@ -314,7 +318,7 @@ export interface WriteTddArtifactInput {
 	readonly diffExcerpt?: string;
 	readonly recordedAt: string;
 }
-
+/** @public */
 export interface WriteCommitInput {
 	readonly sha: string;
 	readonly parentSha?: string;
@@ -323,26 +327,26 @@ export interface WriteCommitInput {
 	readonly committedAt?: string;
 	readonly branch?: string;
 }
-
+/** @public */
 export type ChangeKind = "added" | "modified" | "deleted" | "renamed" | "untracked-modified";
-
+/** @public */
 export interface RunChangedFile {
 	readonly filePath: string;
 	readonly changeKind: ChangeKind;
 	readonly commitSha?: string;
 }
-
+/** @public */
 export interface WriteRunChangedFilesInput {
 	readonly runId: number;
 	readonly files: ReadonlyArray<RunChangedFile>;
 }
-
+/** @public */
 export type RunInvocationMethod = "bash" | "mcp" | "cli";
 
 // chatId is the host's chat UUID string; the live layer resolves it to
 // sessions.id (integer PK) before writing run_triggers.agent_session_id.
 /**
- * Input to {@link DataStore.registerAgent}.
+ * Input to `DataStore.registerAgent`.
  *
  * `sessionId` is the FK to `sessions.id` (integer PK), NOT the host's
  * chat UUID string. Callers that hold only the chat UUID must resolve
@@ -352,6 +356,7 @@ export type RunInvocationMethod = "bash" | "mcp" | "cli";
  * `deriveIdempotencyKey(...)` — both the sidecar CLI and the MCP
  * server compute it the same way so a hook retry collapses to the
  * same row.
+ * @public
  */
 export interface RegisterAgentInput {
 	readonly sessionId: number;
@@ -374,12 +379,12 @@ export interface RegisterAgentInput {
 	 */
 	readonly agentId?: string;
 }
-
+/** @public */
 export interface AssociateRunSessionInput {
 	readonly chatId: string;
 	readonly invocationMethod: RunInvocationMethod;
 }
-
+/** @public */
 export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 	DataStore,
 	{

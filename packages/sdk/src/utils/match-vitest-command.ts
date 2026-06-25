@@ -1,24 +1,3 @@
-/**
- * Pattern matcher for Vitest invocations in a Bash command string.
- *
- * Used by the PreToolUse Bash hook (via the sidecar `inject-env`
- * subcommand) to decide whether to prepend `VITEST_AGENT_*` env-var
- * assignments. Matches the five common shapes documented in the plan:
- *
- *   1. direct global invocation:           `vitest ...`
- *   2. one-off runner:                     `npx vitest ...`, `pnpm dlx vitest ...`, `bunx vitest ...`
- *   3. PM-mediated exec:                   `pnpm exec vitest ...`, `npm exec vitest ...`
- *   4. script indirection:                 `pnpm test` when scripts.test mentions vitest
- *   5. direct binary path:                 `node node_modules/.bin/vitest ...`
- *
- * All patterns anchor at the start of the trimmed command, so
- * `&&`-chained commands where vitest is the second invocation do NOT
- * match — that is a documented limitation; mitigation is "agents
- * prefer separate Bash calls per logical step."
- *
- * @packageDocumentation
- */
-
 const RE_DIRECT = /^\s*vitest(\s|$)/;
 const RE_RUNNER = /^\s*(npx|pnpx|bunx)\s+vitest(\s|$)/;
 const RE_PM_EXEC = /^\s*(npm|pnpm|yarn|bun)\s+(exec|dlx|x)\s+vitest(\s|$)/;
@@ -40,6 +19,7 @@ const matchPmScript = (command: string, scripts: ReadonlySet<string>): boolean =
  * supported shapes. The `vitestScripts` set carries the names of
  * package.json scripts that were detected as containing `vitest`
  * (computed once per project and cached by the sidecar).
+ * @public
  */
 export const isVitestInvocation = (command: string, vitestScripts: ReadonlySet<string>): boolean => {
 	if (RE_DIRECT.test(command)) return true;
@@ -59,6 +39,7 @@ export const isVitestInvocation = (command: string, vitestScripts: ReadonlySet<s
  * POSIX env-prefix syntax scopes the assignments to the
  * immediately-following process — no sticky-env across subsequent
  * Bash calls, no risk of cross-contamination.
+ * @public
  */
 export const buildEnvPrefix = (input: {
 	readonly conversationId: string;
@@ -78,6 +59,7 @@ export const buildEnvPrefix = (input: {
  * Compute the rewritten command for a Bash tool invocation. When the
  * command does not match a Vitest shape, returns the original
  * unchanged. When it matches, prepends the env prefix.
+ * @public
  */
 export const rewriteBashCommand = (input: {
 	readonly command: string;
@@ -103,6 +85,7 @@ export const rewriteBashCommand = (input: {
  * `"test": "pnpm test:unit && pnpm test:int"` finds vitest if either
  * `test:unit` or `test:int` mentions vitest). Multi-hop indirection
  * is a documented limitation.
+ * @public
  */
 export const detectVitestScripts = (scripts: Record<string, string>): Set<string> => {
 	const directHits = new Set<string>();

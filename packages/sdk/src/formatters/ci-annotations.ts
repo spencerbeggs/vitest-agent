@@ -1,14 +1,3 @@
-/**
- * GitHub Actions log annotation formatter.
- *
- * Emits `::error file=...,line=...::<message>` per failed test and a
- * single `::notice::<summary>` when the run passes. Activated via
- * --format=ci-annotations or auto-selected when environment is
- * ci-github.
- *
- * @packageDocumentation
- */
-
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { ReportError } from "../schemas/Common.js";
 import type { Formatter, FormatterContext, RenderedOutput } from "./types.js";
@@ -60,7 +49,7 @@ function annotateFailure(report: AgentReport): string[] {
 	}
 	return lines;
 }
-
+/** @public */
 export const ciAnnotationsFormatter: Formatter = {
 	format: "ci-annotations",
 	render: (reports: ReadonlyArray<AgentReport>, _context: FormatterContext): ReadonlyArray<RenderedOutput> => {

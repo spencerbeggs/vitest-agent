@@ -1,5 +1,5 @@
 /**
- * Classifies a reduced {@link RenderState} into the two axes the
+ * Classifies a reduced `RenderState` into the two axes the
  * dispatcher reads: `RunShape` (single-test / single-file / single-project
  * / workspace) and `RunOutcome` (all-pass / some-fail / threshold-violation).
  *
@@ -8,15 +8,13 @@
  * once on `RunFinished` and reuses the result for the remainder of the
  * run (a mid-run shape change would be jarring — see UI rewrite spec
  * §7 open question 2).
- *
- * @packageDocumentation
  */
 
 import type { ProjectSummary, RenderState, RunOutcome, RunShape } from "@vitest-agent/sdk";
 
 /**
  * Compute the run shape from the reduced state plus the per-project
- * aggregates the plugin carries through {@link DispatchInputs.projects}.
+ * aggregates the plugin carries through `DispatchInputs.projects`.
  *
  * The classification follows the state-shape signal described in the
  * UI rewrite spec §7 open question 1:
@@ -25,6 +23,11 @@ import type { ProjectSummary, RenderState, RunOutcome, RunShape } from "@vitest-
  * 2. One module with exactly one test → `single-test`.
  * 3. One module with more than one test → `single-file`.
  * 4. Otherwise → `single-project`.
+ *
+ * @param state - the fully-reduced render state
+ * @param projects - per-project summaries from the dispatch inputs
+ * @returns the run shape classification
+ * @public
  */
 export const classifyRunShape = (state: RenderState, projects: ReadonlyArray<ProjectSummary>): RunShape => {
 	if (projects.length > 1) {
@@ -48,6 +51,10 @@ export const classifyRunShape = (state: RenderState, projects: ReadonlyArray<Pro
  * failing test and a coverage gap classifies as `some-fail`; the
  * threshold-violation cell is reserved for runs where the test suite
  * itself is clean but coverage policy is not.
+ *
+ * @param state - the fully-reduced render state
+ * @returns the outcome classification
+ * @public
  */
 export const classifyOutcome = (state: RenderState): RunOutcome => {
 	if (state.totals.failCount > 0) {

@@ -1,5 +1,9 @@
 import { Data } from "effect";
 
+/**
+ * Error raised when a SQLite operation fails at read, write, or migration time.
+ * @public
+ */
 export class DataStoreError extends Data.TaggedError("DataStoreError")<{
 	readonly operation: "read" | "write" | "migrate";
 	readonly table: string;
@@ -30,6 +34,7 @@ export class DataStoreError extends Data.TaggedError("DataStoreError")<{
  * message (e.g. "SQLITE_BUSY: database is locked", "UNIQUE constraint failed: ...")
  * lives on `cause.message`, while the SqlError's own `message` is generic
  * ("Failed to execute statement"). Prefer the cause's message when available.
+ * @public
  */
 export const extractSqlReason = (e: unknown): string => {
 	const err = e as { cause?: { message?: string } | string; message?: string };

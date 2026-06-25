@@ -1,13 +1,3 @@
-/**
- * @vitest-agent/sdk
- *
- * Pure function for formatting {@link AgentReport | AgentReport(s)} as
- * GitHub-Flavored Markdown suitable for writing to `GITHUB_STEP_SUMMARY`.
- * No I/O -- string transformation only.
- *
- * @packageDocumentation
- */
-
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { FileCoverageReport } from "../schemas/Coverage.js";
 
@@ -127,7 +117,7 @@ function formatProjectBody(report: AgentReport): string[] {
 // --- Main formatter ---
 
 /**
- * Format one or more {@link AgentReport | AgentReports} as a GitHub-Flavored
+ * Format one or more {@link (AgentReport:variable) | AgentReports} as a GitHub-Flavored
  * Markdown string for writing to `GITHUB_STEP_SUMMARY`.
  *
  * @remarks
@@ -146,7 +136,7 @@ function formatProjectBody(report: AgentReport): string[] {
  * @param reports - One or more agent reports to format
  * @returns GFM-formatted string ready for appending to `GITHUB_STEP_SUMMARY`
  *
- * @internal
+ * @public
  */
 export function formatGfm(reports: AgentReport[]): string {
 	const lines: string[] = [];

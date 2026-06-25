@@ -1,12 +1,3 @@
-/**
- * Pure classification function for test failure history.
- *
- * Shared between {@link HistoryTrackerLive} (real-time classification
- * during test runs) and {@link formatHistory} (CLI history display).
- *
- * @packageDocumentation
- */
-
 import type { TestClassification } from "../schemas/Common.js";
 
 /**
@@ -15,6 +6,7 @@ import type { TestClassification } from "../schemas/Common.js";
  * @param current - The test's state in the current run
  * @param priorRuns - Previous runs (most recent first), before the current run was prepended
  * @returns The test's classification
+ * @public
  */
 export function classifyTest(
 	current: "passed" | "failed",

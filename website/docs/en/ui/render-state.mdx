@@ -117,7 +117,7 @@ const RenderState = Schema.Struct({
 
 `initialRenderState` is exported from the SDK so tests and renderer bootstrapping code share one definition:
 
-```ts
+```ts with-api
 import { initialRenderState } from "@vitest-agent/sdk"; // or "@vitest-agent/ui"
 
 const state = reduceRenderStateAll(events, initialRenderState);

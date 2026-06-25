@@ -3,12 +3,14 @@ import { defineConfig } from "vitest/config";
 
 export default async () => {
 	const { projects, tags } = await AgentPlugin.discover();
-	const coverage = AgentPlugin.COVERAGE_LEVELS.basic;
 	return defineConfig({
 		plugins: [
 			AgentPlugin({
-				console: { human: "stream", agent: "agent" },
-				coverageTargets: coverage.coverageTargets,
+				console: {
+					human: "stream",
+					agent: "agent",
+				},
+				coverageTargets: AgentPlugin.COVERAGE_LEVELS.basic.coverageTargets,
 			}),
 		],
 		test: {
@@ -19,7 +21,7 @@ export default async () => {
 			coverage: {
 				enabled: true,
 				provider: "v8",
-				thresholds: coverage.thresholds,
+				thresholds: AgentPlugin.COVERAGE_LEVELS.basic.thresholds,
 				exclude: [
 					"**/*.{test,spec}.ts",
 					"packages/cli/src/bin.ts",

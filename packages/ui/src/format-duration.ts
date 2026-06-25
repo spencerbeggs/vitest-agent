@@ -10,8 +10,6 @@
  * Display only. Full-precision durations continue to persist to the
  * database unchanged; nothing in the trend / baseline / classification
  * pipeline reads a duration through a formatter.
- *
- * @packageDocumentation
  */
 
 const SECOND_MS = 1000;
@@ -23,6 +21,10 @@ const SECOND_MS = 1000;
  * values at or above one second render as `<N.N>s`. A value that rounds
  * to a whole number drops the trailing `.0` naturally (`Number`
  * stringification), so `1000` → `1s` and `250` → `250ms`.
+ *
+ * @param ms - duration in milliseconds
+ * @returns formatted duration string
+ * @public
  */
 export const formatDisplayDuration = (ms: number): string => {
 	if (ms < SECOND_MS) {

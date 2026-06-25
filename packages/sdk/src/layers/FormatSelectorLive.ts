@@ -12,6 +12,7 @@ import { FormatSelector } from "../services/FormatSelector.js";
  *   text + ANSI color, no markdown syntax in the place that doesn't
  *   render it. Markdown stays available via explicit `format: "markdown"`
  *   for surfaces that *do* render it (MCP tools, GitHub step summary).
+ * @public
  */
 export const FormatSelectorLive = Layer.succeed(FormatSelector, {
 	select: (executor, explicitFormat, environment) =>

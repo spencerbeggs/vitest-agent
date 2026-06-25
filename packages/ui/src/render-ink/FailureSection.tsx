@@ -1,16 +1,21 @@
 /**
  * Failure list: one block per failed test with classification, message,
  * diff, and optionally stack trace.
- *
- * @packageDocumentation
  */
 
 import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 
+/**
+ * Props for the `FailureSection` component.
+ *
+ * @public
+ */
 export interface FailureSectionProps {
+	/** The list of failure records to display. */
 	readonly failures: ReadonlyArray<FailureRecord>;
+	/** When `true`, renders the full stack trace under each failure. */
 	readonly includeStack?: boolean;
 }
 
@@ -64,6 +69,12 @@ const FailureRow: FC<{ failure: FailureRecord; includeStack: boolean }> = ({ fai
 	);
 };
 
+/**
+ * Renders one block per failed test: glyph, path, classification tag,
+ * error message, diff lines, and optionally the stack trace.
+ *
+ * @public
+ */
 export const FailureSection: FC<FailureSectionProps> = ({ failures, includeStack = false }) => {
 	if (failures.length === 0) return null;
 	return (

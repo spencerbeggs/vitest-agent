@@ -17,7 +17,7 @@ const formatters = new Map<string, Formatter>([
 	["vitest-bypass", SilentFormatter],
 	["ci-annotations", ciAnnotationsFormatter],
 ]);
-
+/** @public */
 export const OutputRendererLive = Layer.succeed(OutputRenderer, {
 	render: (reports, format, context) =>
 		Effect.sync(() => {

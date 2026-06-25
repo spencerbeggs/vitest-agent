@@ -6,12 +6,13 @@ import type { HistoryRecord } from "../schemas/History.js";
 
 /**
  * Lightweight test outcome for history classification.
+ * @public
  */
 export interface TestOutcome {
 	readonly fullName: string;
 	readonly state: "passed" | "failed";
 }
-
+/** @public */
 export class HistoryTracker extends Context.Tag("vitest-agent/HistoryTracker")<
 	HistoryTracker,
 	{

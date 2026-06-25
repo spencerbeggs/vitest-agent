@@ -1,15 +1,3 @@
-/**
- * Live and Test layers for {@link ProjectIdentity}.
- *
- * The Live layer collects each candidate from real I/O — git remote
- * via `Command`, TOML config via `VitestAgentConfigFile`, root
- * `package.json` via `WorkspaceDiscovery` plus
- * `FileSystem.readFileString` — and delegates priority resolution to
- * the pure `resolveProjectIdentityFromCandidates` helper.
- *
- * @packageDocumentation
- */
-
 import { Command, CommandExecutor, FileSystem } from "@effect/platform";
 import type { Context } from "effect";
 import { Effect, Layer, Option } from "effect";
@@ -68,7 +56,7 @@ const readPackageRepoUrl = (
  * services (FileSystem, WorkspaceDiscovery, VitestAgentConfigFile,
  * CommandExecutor) rather than reference this type directly.
  *
- * @internal
+ * @public
  */
 export type CandidateContext =
 	| FileSystem.FileSystem
@@ -135,6 +123,7 @@ const candidatesToTriedList = (candidates: ProjectIdentityCandidates): ReadonlyA
  * `FileSystem`, `CommandExecutor`, `WorkspaceDiscovery`, and
  * `VitestAgentConfigFile`. The platform context comes from
  * `NodeContext.layer` at the entry point.
+ * @public
  */
 export const ProjectIdentityLive: Layer.Layer<ProjectIdentity, never, CandidateContext> = Layer.effect(
 	ProjectIdentity,
@@ -167,6 +156,7 @@ export const ProjectIdentityLive: Layer.Layer<ProjectIdentity, never, CandidateC
  * fails with `ProjectIdentityNotResolvableError`). Use in unit tests
  * that depend on `ProjectIdentity` but don't want to wire upstream
  * services.
+ * @public
  */
 export const ProjectIdentityTest = (
 	result: ResolvedIdentity | ProjectIdentityNotResolvableError,

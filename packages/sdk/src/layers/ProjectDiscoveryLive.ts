@@ -35,7 +35,7 @@ function walkDir(fs: FileSystem.FileSystem, dir: string): Effect.Effect<Readonly
 		return results;
 	});
 }
-
+/** @public */
 export const ProjectDiscoveryLive: Layer.Layer<ProjectDiscovery, never, FileSystem.FileSystem> = Layer.effect(
 	ProjectDiscovery,
 	Effect.gen(function* () {

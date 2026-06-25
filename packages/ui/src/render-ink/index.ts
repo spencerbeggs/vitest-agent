@@ -4,8 +4,6 @@
  * `StreamApp` is the agent-shaped, lifecycle-aware root for the `stream`
  * console mode; the remaining files are the leaf components it and the
  * dispatcher cells compose.
- *
- * @packageDocumentation
  */
 
 export { CountColumns, type CountColumnsProps } from "./CountColumns.js";

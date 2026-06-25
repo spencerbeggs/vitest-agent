@@ -1,28 +1,3 @@
-/**
- * Plain-text terminal formatter for `AgentReport` collections.
- *
- * Designed for stdout: no markdown syntax, ANSI color when permitted,
- * compact columnar layout. Sibling to `format-console.ts` (markdown for
- * MCP / GFM) but consumed only by the `terminal` formatter — never
- * reaches MCP responses.
- *
- * Output sections (in order):
- *
- * 1. Project rows — one line per project, with per-project pass/fail
- *    counts and duration. Single-project repos with a default project
- *    name skip the project label entirely.
- * 2. Failures (when present) — grouped by project, with the test name,
- *    classification, error message, and a re-run hint inline.
- * 3. Coverage — header line distinguishing threshold-pass from
- *    target-aspiration, plus per-file rows showing every below-target
- *    metric and the uncovered-line ranges.
- * 4. Trend — single line summarizing direction and run count.
- * 5. Total — aggregated pass/fail/skipped count and total wall time.
- * 6. Next steps — re-run hints when failures exist.
- *
- * @packageDocumentation
- */
-
 import type { AgentReport, TagCountEntry, TestReport } from "../schemas/AgentReport.js";
 import type { FileCoverageReport } from "../schemas/Coverage.js";
 import type { MetricThresholds } from "../schemas/Thresholds.js";

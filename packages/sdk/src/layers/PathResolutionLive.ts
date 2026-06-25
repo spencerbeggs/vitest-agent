@@ -29,6 +29,7 @@ const WorkspaceMinimalLive = WorkspaceDiscoveryLive.pipe(Layer.provide(Workspace
  *
  * @param projectDir - Absolute path inside the user's workspace, used to
  *   anchor the config file resolvers.
+ * @public
  */
 export const PathResolutionLive = (projectDir: string) =>
 	Layer.mergeAll(

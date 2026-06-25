@@ -1,14 +1,18 @@
 /**
  * Suggested-actions queue: severity-prefixed action rows with optional tool hint.
- *
- * @packageDocumentation
  */
 
 import type { ActionSeverity, SuggestedActionRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 
+/**
+ * Props for the `SuggestedActions` component.
+ *
+ * @public
+ */
 export interface SuggestedActionsProps {
+	/** The list of suggested actions to display. */
 	readonly actions: ReadonlyArray<SuggestedActionRecord>;
 }
 
@@ -18,6 +22,12 @@ const SEVERITY_COLOR: Record<ActionSeverity, string> = {
 	blocker: "red",
 };
 
+/**
+ * Renders the suggested-actions queue as severity-prefixed rows with
+ * optional tool hints. Returns `null` when the actions list is empty.
+ *
+ * @public
+ */
 export const SuggestedActions: FC<SuggestedActionsProps> = ({ actions }) => {
 	if (actions.length === 0) return null;
 	return (

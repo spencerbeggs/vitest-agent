@@ -11,7 +11,7 @@
  * This barrel re-exports `AgentPlugin` (the public plugin factory) and
  * `AgentReporter` (the internal Vitest-API reporter class).
  * `AgentReporter` delegates the rendering stage to the user-supplied
- * {@link VitestAgentReporter}; `AgentPlugin`'s `reporter` factory option
+ * `VitestAgentReporter`; `AgentPlugin`'s `reporter` factory option
  * drives that delegation.
  *
  * @packageDocumentation
@@ -58,8 +58,11 @@ export type { CoverageLevelPreset } from "./plugin.js";
 
 // Expose the AgentPlugin namespace statics as standalone named exports for convenience
 import { AgentPlugin as _AgentPlugin } from "./plugin.js";
+/** Preset map for coverage levels without per-file enforcement. Mirrors `AgentPlugin.COVERAGE_LEVELS`. @public */
 export const COVERAGE_LEVELS = _AgentPlugin.COVERAGE_LEVELS;
+/** Preset map for coverage levels with per-file enforcement. Mirrors `AgentPlugin.COVERAGE_LEVELS_PER_FILE`. @public */
 export const COVERAGE_LEVELS_PER_FILE = _AgentPlugin.COVERAGE_LEVELS_PER_FILE;
+/** Auto-update tolerance functions for `coverage.thresholds.autoUpdate`. Mirrors `AgentPlugin.COVERAGE_AUTOUPDATE`. @public */
 export const COVERAGE_AUTOUPDATE = _AgentPlugin.COVERAGE_AUTOUPDATE;
 
 // --- Composition layer ---

@@ -28,7 +28,7 @@ pnpm add -D @vitest-agent/reporter
 
 A reporter factory is a function that receives a `ReporterKit` at run start and returns an object with a `render` method. The `render` method is called once at run end and must return an array of `RenderedOutput` targets:
 
-```ts
+```ts with-api
 import type {
   ReporterKit,
   ReporterRenderInput,
@@ -49,7 +49,7 @@ const myReporter: VitestAgentReporterFactory = (
 
 Pass the factory to the plugin:
 
-```ts
+```ts with-api
 import { AgentPlugin } from "@vitest-agent/plugin";
 
 export default defineConfig({
@@ -113,7 +113,7 @@ A `render` call returns one or more output targets:
 
 When building output from a reduced `RenderState`, the dispatch helpers provide the same building blocks used by `DefaultVitestAgentReporter`:
 
-```ts
+```ts with-api
 import {
   buildDispatchInputs,
   resolveCellOptions,

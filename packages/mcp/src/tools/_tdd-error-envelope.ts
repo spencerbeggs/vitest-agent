@@ -17,12 +17,29 @@ import {
 } from "@vitest-agent/sdk";
 import { Effect } from "effect";
 
+/**
+ * Suggested recovery action attached to a TDD error envelope.
+ *
+ * Tells the agent which tool to call next and provides a human-readable hint
+ * explaining the error context and recommended fix.
+ *
+ * @public
+ */
 export interface Remediation {
 	readonly suggestedTool: string;
 	readonly suggestedArgs: Record<string, unknown>;
 	readonly humanHint: string;
 }
 
+/**
+ * Success-shaped envelope returned by TDD CRUD tools when a known TDD error occurs.
+ *
+ * Instead of letting the five tagged TDD errors propagate as transport errors,
+ * `catchTddErrorsAsEnvelope` maps them to this shape so the agent receives a normal
+ * tool response with `ok: false` and a {@link Remediation} describing the next step.
+ *
+ * @public
+ */
 export interface TddErrorEnvelope {
 	readonly ok: false;
 	readonly error: {

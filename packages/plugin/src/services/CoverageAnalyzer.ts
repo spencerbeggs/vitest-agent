@@ -9,6 +9,10 @@ export interface CoverageOptions {
 	readonly includeBareZero: boolean;
 }
 
+/**
+ * Effect service for processing istanbul coverage maps into structured reports.
+ * @public
+ */
 export class CoverageAnalyzer extends Context.Tag("vitest-agent/CoverageAnalyzer")<
 	CoverageAnalyzer,
 	{

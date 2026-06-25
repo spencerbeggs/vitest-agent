@@ -3,7 +3,7 @@ import { Context } from "effect";
 import type { FormatterContext, RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { OutputFormat } from "../schemas/Common.js";
-
+/** @public */
 export class OutputRenderer extends Context.Tag("vitest-agent/OutputRenderer")<
 	OutputRenderer,
 	{

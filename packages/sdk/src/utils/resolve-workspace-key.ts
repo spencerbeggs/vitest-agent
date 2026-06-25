@@ -18,6 +18,7 @@ import { normalizeWorkspaceKey } from "./normalize-workspace-key.js";
  *
  * @param projectDir - Absolute path inside the workspace. Typically the
  *   reporter's resolved `projectDir` (CLAUDE_PROJECT_DIR or process.cwd()).
+ * @public
  */
 export const resolveWorkspaceKey = (
 	projectDir: string,

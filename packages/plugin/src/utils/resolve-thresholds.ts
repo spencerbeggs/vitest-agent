@@ -1,19 +1,20 @@
-/**
- * Parse Vitest coverage.thresholds format into ResolvedThresholds.
- *
- * @packageDocumentation
- */
-
 import type { ResolvedThresholds } from "@vitest-agent/sdk";
 
 const METRIC_KEYS = new Set(["lines", "functions", "branches", "statements"]);
 const RESERVED_KEYS = new Set([...METRIC_KEYS, "100", "perFile", "autoUpdate"]);
 
 /**
- * Vitest thresholds input -- loose record type matching vitest config.
+ * Loose record type matching Vitest's `coverage.thresholds` config input.
+ * @public
  */
 export type VitestThresholdsInput = Record<string, unknown>;
 
+/**
+ * Parse Vitest `coverage.thresholds` format into a normalized `ResolvedThresholds`.
+ * @param input - The raw `coverage.thresholds` object from Vitest config
+ * @returns Normalized thresholds with global, perFile, and pattern entries
+ * @public
+ */
 export function resolveThresholds(input: VitestThresholdsInput | undefined): ResolvedThresholds {
 	if (!input) {
 		return { global: {}, perFile: false, patterns: [] };

@@ -1,18 +1,9 @@
-/**
- * CoverageLevel Effect Schema class with named presets and validation helpers.
- *
- * Provides a subclassable Schema.Class with five named presets (none, basic,
- * standard, strict, full), fluent builders (withPerFile, extend), and two
- * standalone helpers: resolveCoverageInput and validateCoverageConfig.
- *
- * @packageDocumentation
- */
-
 import { Schema } from "effect";
 
 /**
  * A coverage level configuration with per-metric thresholds and an optional
  * perFile flag. Extend this class to define custom named presets.
+ * @public
  */
 export class CoverageLevel extends Schema.Class<CoverageLevel>("CoverageLevel")({
 	lines: Schema.Number,
@@ -95,10 +86,12 @@ export class CoverageLevel extends Schema.Class<CoverageLevel>("CoverageLevel")(
 	}
 }
 
-/** The named preset identifiers. */
+/** The named preset identifiers.  * @public
+ */
 export type CoverageLevelName = "none" | "basic" | "standard" | "strict" | "full";
 
-/** Accepted input forms: a preset name string or a CoverageLevel instance. */
+/** Accepted input forms: a preset name string or a CoverageLevel instance.  * @public
+ */
 export type CoverageInput = CoverageLevelName | CoverageLevel;
 
 const PRESET_MAP: Readonly<Record<CoverageLevelName, CoverageLevel>> = Object.freeze({
@@ -113,6 +106,7 @@ const PRESET_MAP: Readonly<Record<CoverageLevelName, CoverageLevel>> = Object.fr
  * Resolves a CoverageInput (preset name or CoverageLevel instance) to a
  * CoverageLevel. When input is undefined, returns the named fallback preset.
  * Throws if a string is provided that does not match a known preset name.
+ * @public
  */
 export function resolveCoverageInput(input: CoverageInput | undefined, fallback: CoverageLevelName): CoverageLevel {
 	if (input === undefined) return PRESET_MAP[fallback];
@@ -128,6 +122,7 @@ export function resolveCoverageInput(input: CoverageInput | undefined, fallback:
  * Validates that coverageTargets are not below coverageThresholds for any
  * metric, and that both agree on perFile. Throws a descriptive Error on
  * any violation.
+ * @public
  */
 export function validateCoverageConfig(thresholds: CoverageLevel, targets: CoverageLevel): void {
 	const metrics = ["lines", "functions", "branches", "statements"] as const;

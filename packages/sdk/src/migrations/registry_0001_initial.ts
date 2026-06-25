@@ -13,6 +13,7 @@ import { Effect } from "effect";
  * The registry never blocks anything — its writes are best-effort.
  * Concurrent writers from multiple Claude Code windows converge via
  * the `ON CONFLICT(project_key) DO UPDATE` upsert.
+ * @public
  */
 const migration = Effect.gen(function* () {
 	const sql = yield* SqlClient;

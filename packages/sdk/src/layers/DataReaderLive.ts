@@ -35,7 +35,7 @@ import type {
 } from "../services/DataReader.js";
 import { DataReader } from "../services/DataReader.js";
 import type { ArtifactKind, ChangeKind, Phase } from "../services/DataStore.js";
-
+/** @public */
 export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.effect(
 	DataReader,
 	Effect.gen(function* () {

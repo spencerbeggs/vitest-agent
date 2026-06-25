@@ -127,6 +127,16 @@ function structuredJsonResult<T extends object>(value: T) {
 	return structuredResult(JSON.stringify(value, null, 2), value);
 }
 
+/**
+ * Starts the MCP server over stdio, registering all tools, resources, and prompts.
+ *
+ * Constructs the MCP server instance, registers all tRPC-backed tools (wired through
+ * `ctx.runtime`), calls `registerAllResources` and `registerAllPrompts`, then connects
+ * a `StdioServerTransport`. Returns when the transport disconnects.
+ *
+ * @param ctx - the MCP context carrying the shared ManagedRuntime and session refs
+ * @public
+ */
 export async function startMcpServer(ctx: McpContext): Promise<void> {
 	const server = new McpServer(
 		{

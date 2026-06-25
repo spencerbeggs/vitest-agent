@@ -1,5 +1,6 @@
 import type { Formatter, RenderedOutput } from "./types.js";
 
+/** @public */
 export const JsonFormatter: Formatter = {
 	format: "json",
 	render: (reports, _context) => {

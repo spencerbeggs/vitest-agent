@@ -13,6 +13,10 @@ import type { LogLevel } from "effect";
 import { Layer } from "effect";
 import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";
 
+/**
+ * Composition layer for a single `AgentReporter` run. Wires SQLite, migrations, and all service layers.
+ * @public
+ */
 export const ReporterLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
 	const SqliteLayer = sqliteClientLayer({ filename: dbPath });
 	const PlatformLayer = NodeContext.layer;

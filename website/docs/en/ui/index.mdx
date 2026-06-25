@@ -45,7 +45,7 @@ The 12-cell matrix routes by run shape and outcome. Shape is derived from how ma
 
 Each cell produces shape-appropriate copy: a single-test failure leads to a different agent string than a workspace-wide threshold violation. The matrix is the same for both the text (agent string) and Ink (live frame) render paths.
 
-```ts
+```ts with-api
 import { dispatch, dispatchInk } from "@vitest-agent/ui";
 import { buildDispatchInputs, resolveCellOptions } from "@vitest-agent/reporter";
 
@@ -60,7 +60,7 @@ const inkElement = dispatchInk(buildDispatchInputs(state, input), opts);
 
 The reducer is a pure synchronous projection over the `RunEvent` stream. Use it to fold a complete event sequence into a `RenderState` for replay:
 
-```ts
+```ts with-api
 import { reduceRenderStateAll } from "@vitest-agent/ui";
 
 // Fold a full sequence into a RenderState (one-shot replay)
@@ -79,7 +79,7 @@ for (const event of events) {
 
 The `RunEventChannel` is an Effect PubSub that carries live events from the plugin's reporter callbacks to any subscriber. `DefaultVitestAgentReporter` uses it to drive the `stream`-mode Ink mount:
 
-```ts
+```ts with-api
 import {
   RunEventChannel,
   accumulateUntilFinished,
@@ -104,7 +104,7 @@ await Effect.runPromise(
 
 Two bridges convert external data into the `RunEvent` taxonomy:
 
-```ts
+```ts with-api
 import {
   synthesizeRunEvents,
   synthesizeFromAgentReport,

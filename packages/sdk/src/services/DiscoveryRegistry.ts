@@ -1,21 +1,12 @@
-/**
- * Global discovery registry — `$XDG_DATA_HOME/vitest-agent/registry.db`.
- *
- * Indexes every vitest-agent project the user has run on this
- * machine. Cross-project tooling (`mcp-app`, future
- * `vitest-agent doctor`) reads from here to enumerate projects.
- *
- * Writes are best-effort — a failure to update the registry never
- * fails a test run. Concurrent writers from multiple Claude windows
- * converge cleanly via the `ON CONFLICT` upsert.
- *
- * @packageDocumentation
- */
-
 import type { Effect } from "effect";
 import { Context } from "effect";
 import type { DataStoreError } from "../errors/DataStoreError.js";
 
+/**
+ * Input for upserting a known project into the global discovery registry.
+ *
+ * @public
+ */
 export interface KnownProjectInput {
 	readonly projectKey: string;
 	readonly canonicalForm: string;
@@ -24,6 +15,11 @@ export interface KnownProjectInput {
 	readonly workspaceRoot: string;
 }
 
+/**
+ * A project record as stored in the global discovery registry.
+ *
+ * @public
+ */
 export interface KnownProject {
 	readonly projectKey: string;
 	readonly canonicalForm: string;
@@ -33,7 +29,7 @@ export interface KnownProject {
 	readonly firstSeenAt: number;
 	readonly lastSeenAt: number;
 }
-
+/** @public */
 export class DiscoveryRegistry extends Context.Tag("vitest-agent/DiscoveryRegistry")<
 	DiscoveryRegistry,
 	{

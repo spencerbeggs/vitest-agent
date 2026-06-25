@@ -8,11 +8,19 @@ import { toPosixPath } from "./to-posix-path.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/**
+ * The resolved output of `discoverProjects` — projects and tag definitions ready for `defineConfig`.
+ * @public
+ */
 export interface DiscoverProjectsResult {
 	readonly projects: TestProjectInlineConfiguration[] | undefined;
 	readonly tags: TestTagDefinition[];
 }
 
+/**
+ * Options for `discoverProjects`.
+ * @public
+ */
 export interface DiscoverProjectsOptions {
 	readonly strategy?: DiscoverStrategy;
 	readonly cwd?: string;
@@ -24,6 +32,12 @@ export interface DiscoverProjectsOptions {
 // fingerprinting DiscoverStrategy instances.
 const _cache = new Map<string, DiscoverProjectsResult>();
 
+/**
+ * Scan all workspace packages and additional entries through the active strategy and return projects + tags.
+ * @param options - Optional strategy, working directory, and extra project entries
+ * @returns Resolved projects and tag definitions
+ * @public
+ */
 export async function discoverProjects(options?: DiscoverProjectsOptions): Promise<DiscoverProjectsResult> {
 	const strategy = options?.strategy;
 	const cwd = options?.cwd;

@@ -1,40 +1,20 @@
-/**
- * Per-client session map service tags.
- *
- * The map is a host-specific side-channel that translates the host's
- * native identifiers (transcript UUID, hook-payload session id) into
- * the canonical UUIDs the per-project data store expects. Multiple
- * Claude Code windows write to a single SQLite file at
- * `${CLAUDE_PLUGIN_DATA}/sessions.db`; WAL mode plus idempotent
- * upserts on native-id keys keep them coherent without app-level
- * locking.
- *
- * The Reader / Writer split is a typed-error guarantee. The MCP
- * server opens the SQLite file with `?mode=ro` and depends only on
- * the `Reader` tag. The sidecar opens read-write and provides both
- * tags. Compile-time check: an MCP code path that calls a write
- * method is a type error rather than a runtime
- * `ReadOnlyDatabaseError` throw.
- *
- * @packageDocumentation
- */
-
 import type { Effect, Option } from "effect";
 import { Context } from "effect";
 import type { DataStoreError } from "../errors/DataStoreError.js";
 
+/** @public */
 export interface MapSessionInput {
 	readonly hostSessionId: string;
 	readonly conversationId: string;
 	readonly projectKey: string;
 	readonly projectDir: string;
 }
-
+/** @public */
 export interface MapSessionOutput {
 	readonly mainAgentId: string;
 	readonly conversationId: string;
 }
-
+/** @public */
 export interface SessionContextRow {
 	readonly hostSessionId: string;
 	readonly conversationId: string;
@@ -51,6 +31,7 @@ export interface SessionContextRow {
  * Provided by `PerClientSessionMapReaderLive` (opens SQLite with
  * `?mode=ro`). MCP server depends on this tag — calls to write
  * methods would be a type error.
+ * @public
  */
 export class PerClientSessionMapReader extends Context.Tag("vitest-agent/PerClientSessionMapReader")<
 	PerClientSessionMapReader,
@@ -77,6 +58,7 @@ export class PerClientSessionMapReader extends Context.Tag("vitest-agent/PerClie
  * Read-write side of the session map. Sidecar provides this; the
  * Writer layer also satisfies the Reader tag so consumers of either
  * one resolve.
+ * @public
  */
 export class PerClientSessionMapWriter extends Context.Tag("vitest-agent/PerClientSessionMapWriter")<
 	PerClientSessionMapWriter,

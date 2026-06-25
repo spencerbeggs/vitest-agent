@@ -1,6 +1,7 @@
 import { defineBuild, runBuild } from "@savvy-web/bundler";
 
 const config = defineBuild({
+	bundledPackages: ["@vitest-agent/sdk", "@vitest-agent/ui"],
 	meta: {
 		localPaths: ["../../website/lib/models/reporter"],
 	},

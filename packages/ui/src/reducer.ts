@@ -1,5 +1,5 @@
 /**
- * Pure projection from {@link RunEvent} to {@link RenderState}.
+ * Pure projection from `RunEvent` to `RenderState`.
  *
  * The reducer is the single source of truth for "what events mean for
  * the rendered view." Both the Ink human-mode renderer and the agent
@@ -7,8 +7,6 @@
  * raw event stream. Adding a variant to `RunEvent` produces a
  * compile-time failure at `Match.exhaustive` until the reducer
  * handles it.
- *
- * @packageDocumentation
  */
 
 import type { FailureRecord, ModuleRecord, RenderState, RenderTotals, RunEvent, TestRecord } from "@vitest-agent/sdk";
@@ -110,6 +108,11 @@ const upsertFailure = (failures: ReadonlyArray<FailureRecord>, next: FailureReco
  * The function is pure: no I/O, no time, no randomness. Folding it
  * over an event sequence yields the same state regardless of when the
  * fold runs.
+ *
+ * @param state - the current render state
+ * @param event - the run event to apply
+ * @returns the next render state
+ * @public
  */
 export const reduceRenderState = (state: RenderState, event: RunEvent): RenderState => {
 	// `Match.tagsExhaustive` takes the whole tag→handler map as one
@@ -262,10 +265,15 @@ export const reduceRenderState = (state: RenderState, event: RunEvent): RenderSt
 };
 
 /**
- * Fold a sequence of events into a final {@link RenderState}.
+ * Fold a sequence of events into a final `RenderState`.
  *
  * Convenience for tests, replays, and the agent renderer's
  * accumulate-then-render-once path.
+ *
+ * @param events - the ordered event sequence to fold
+ * @param seed - the initial render state (defaults to `initialRenderState`)
+ * @returns the terminal render state after all events are applied
+ * @public
  */
 export const reduceRenderStateAll = (
 	events: ReadonlyArray<RunEvent>,

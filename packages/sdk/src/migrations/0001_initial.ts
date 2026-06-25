@@ -26,11 +26,13 @@
  * The `tdd_session_goals` / `tdd_session_behaviors` table names retain
  * their legacy "_session_" segment but their `session_id` columns
  * actually point at `tdd_tasks(id)` (a TDD task, not a session row).
+ * @public
  */
 
 import { SqlClient } from "@effect/sql/SqlClient";
 import { Effect } from "effect";
 
+/** @internal */
 const migration = Effect.gen(function* () {
 	const sql = yield* SqlClient;
 
@@ -908,5 +910,5 @@ const migration = Effect.gen(function* () {
 		END
 	`;
 });
-
+/** @public */
 export default migration;

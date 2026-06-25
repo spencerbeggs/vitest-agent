@@ -1,27 +1,8 @@
-/**
- * Sidecar `inject-env` implementation.
- *
- * Pure pipeline:
- *   1. Read VITEST_AGENT_CONVERSATION_ID, VITEST_AGENT_AGENT_ID
- *      (and optionally VITEST_AGENT_PARENT_AGENT_ID) from `process.env`.
- *      These are set by SessionStart via `${CLAUDE_ENV_FILE}` and
- *      auto-sourced into Bash tool subprocesses by Claude Code.
- *   2. Read the workspace `package.json#scripts` to detect script
- *      indirection patterns (`pnpm test` when `scripts.test` mentions
- *      vitest).
- *   3. Match the command via {@link rewriteBashCommand}; return the
- *      rewritten command (with env prefix) or the original (when no
- *      Vitest pattern matches or required env vars are missing).
- *
- * Stateless — no database, no SQLite. Safe to fresh-spawn per call.
- *
- * @packageDocumentation
- */
-
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { detectVitestScripts, rewriteBashCommand } from "./utils/match-vitest-command.js";
 
+/** Input to {@link injectEnv}. @public */
 export interface InjectEnvInput {
 	readonly command: string;
 	readonly cwd: string;
@@ -50,6 +31,7 @@ const readPackageScripts = (cwd: string): Record<string, string> => {
  *
  * Always synchronous — the package.json read is the only I/O and is
  * fast enough not to need Effect wrapping.
+ * @public
  */
 export const injectEnv = (input: InjectEnvInput): string => {
 	const conversationId = input.env.VITEST_AGENT_CONVERSATION_ID;

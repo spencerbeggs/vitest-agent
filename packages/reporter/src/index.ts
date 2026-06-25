@@ -21,10 +21,31 @@
 // author can pull everything they need from one package without adding
 // @vitest-agent/sdk as a direct dependency.
 export type {
+	// SDK types that appear in the public ReporterKit / ReporterRenderInput surface
+	AgentReport,
+	// Dispatcher types referenced by buildDispatchInputs / resolveCellOptions
+	CellOptions,
+	ConsoleMode,
+	DetailLevel,
+	DispatchInputs,
+	Environment,
+	Executor,
+	FileCoverageReport,
+	OutputFormat,
+	ProjectSummary,
+	RenderState,
+	// Core reporter contract types
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
 	ResolvedReporterConfig,
+	ResolvedThresholds,
+	RunEvent,
+	RunOutcome,
+	RunShape,
+	TestClassification,
+	Transport,
+	TrendSummary,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
@@ -51,5 +72,7 @@ export {
  * init-time drift check, but the constant is exported so the plugin can
  * compare against it. See the root CLAUDE.md "Cross-package version drift"
  * section.
+ *
+ * @public
  */
 export const CURRENT_REPORTER_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";

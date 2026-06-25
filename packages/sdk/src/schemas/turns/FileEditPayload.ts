@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-
+/** @public */
 export const FileEditPayload = Schema.Struct({
 	type: Schema.Literal("file_edit"),
 	file_path: Schema.String,
@@ -9,4 +9,5 @@ export const FileEditPayload = Schema.Struct({
 	diff: Schema.optional(Schema.String),
 });
 
+/** @public */
 export type FileEditPayload = typeof FileEditPayload.Type;

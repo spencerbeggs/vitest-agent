@@ -16,8 +16,6 @@
  * - `stream` → emits nothing from `render`; the reporter owns a live Ink
  *   mount that subscribes to the kit's run-event channel and paints
  *   per-event during the run.
- *
- * @packageDocumentation
  */
 
 import type {
@@ -98,11 +96,13 @@ const liftTrendSummary = (input: ReporterRenderInput): TrendSummary | null => {
 };
 
 /**
- * Build a {@link DispatchInputs} from a {@link ReporterRenderInput} and
- * the reduced {@link RenderState}.
+ * Build a `DispatchInputs` from a {@link ReporterRenderInput} and
+ * the reduced `RenderState`.
  *
  * Exported so a custom reporter built on the same dispatcher can reuse
  * this assembly step without rebuilding it from scratch.
+ *
+ * @public
  */
 export const buildDispatchInputs = (
 	state: RenderState,
@@ -124,8 +124,10 @@ export const buildDispatchInputs = (
 };
 
 /**
- * Build {@link CellOptions} from a {@link ReporterKit}. Picks the kit's
+ * Build `CellOptions` from a {@link ReporterKit}. Picks the kit's
  * resolved `noColor` value and the pre-bound OSC-8 hyperlink helper.
+ *
+ * @public
  */
 export const resolveCellOptions = (kit: ReporterKit): CellOptions => ({
 	noColor: kit.config.noColor,
@@ -140,6 +142,8 @@ const shouldRenderForMode = (mode: ReporterKit["config"]["consoleMode"]): boolea
  * from a single `AgentReport`, classifies the shape and outcome, and
  * returns the dispatched agent-string for the matching cell. Equivalent
  * to the pre-2.0 `renderRun(events, "agent")` shortcut.
+ *
+ * @public
  */
 export const renderAgentStringForReport = (report: AgentReport): string => {
 	const events = synthesizeFromAgentReport(report);
@@ -165,6 +169,8 @@ export const renderAgentStringForReport = (report: AgentReport): string => {
  * sequences are preserved so a terminal renders the colors live.
  * Returns the agent-string fallback when the matched cell has no Ink
  * half.
+ *
+ * @public
  */
 export const renderHumanStringForReport = async (
 	report: AgentReport,
@@ -256,6 +262,8 @@ const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
  * the cell's string. When `kit.config.githubActions` is true a GFM
  * step-summary payload is appended for routing to GITHUB_STEP_SUMMARY.
  * In `stream` mode `render` emits nothing — the live mount painted the run.
+ *
+ * @public
  */
 export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => {
 	if (kit.config.consoleMode === "stream" && kit.runEvents !== undefined) {

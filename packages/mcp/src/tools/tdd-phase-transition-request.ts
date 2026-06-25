@@ -1,5 +1,6 @@
-import type { ArtifactKind, Phase } from "@vitest-agent/sdk";
+import type { ArtifactKind, CitedArtifactRow, Phase } from "@vitest-agent/sdk";
 import { DataReader, DataStore, requiredArtifactForTransition, validatePhaseTransition } from "@vitest-agent/sdk";
+
 import { Effect, Option, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
@@ -259,7 +260,7 @@ export const tddPhaseTransitionRequest = publicProcedure
 				// pass a sentinel that the validator will never read (it
 				// returns early when `requiredArtifactForTransition` returns
 				// null). Otherwise load the row.
-				let citedArtifact: import("@vitest-agent/sdk").CitedArtifactRow;
+				let citedArtifact: CitedArtifactRow;
 				if (resolvedArtifactId !== undefined) {
 					const artifactOpt = yield* reader.getTddArtifactWithContext(resolvedArtifactId);
 					if (Option.isNone(artifactOpt)) {

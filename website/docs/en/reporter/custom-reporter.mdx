@@ -11,7 +11,7 @@ description: Implement VitestAgentReporterFactory to replace or extend vitest-ag
 
 A custom reporter is a `VitestAgentReporterFactory`: a function that receives a `ReporterKit` at run start and returns a `VitestAgentReporter` — or an array of them.
 
-```ts
+```ts with-api
 import type {
   VitestAgentReporterFactory,
   ReporterKit,
@@ -58,7 +58,7 @@ interface ReporterKit {
 
 The following factory prints a one-line summary to stdout. It reads `input.reports` to count passed and failed tests across all projects:
 
-```ts
+```ts with-api
 import type {
   VitestAgentReporterFactory,
   ReporterRenderInput,
@@ -110,7 +110,7 @@ A single `render` call may return entries with different targets — for example
 
 The factory is invoked at run start, before the first test event. If you want to paint progress as tests run, subscribe to `kit.runEvents` inside the factory and drive a renderer off the stream. `render` is still called once at run end, but your factory will have accumulated live state by then.
 
-```ts
+```ts with-api
 import type { VitestAgentReporterFactory } from "@vitest-agent/reporter";
 import { PubSub } from "effect";
 
@@ -148,7 +148,7 @@ export const liveReporter: VitestAgentReporterFactory = (kit) => {
 
 A factory may return an array of reporters instead of a single reporter. The plugin calls `render` on each and concatenates their `RenderedOutput[]` before routing. This models Vitest's own multi-reporter pattern: each reporter handles a single concern and outputs to its own target.
 
-```ts
+```ts with-api
 import type {
   VitestAgentReporterFactory,
   VitestAgentReporter,
@@ -204,7 +204,7 @@ export const noopReporter: VitestAgentReporterFactory = () => ({
 
 Pass your factory as the `reporter` option:
 
-```ts
+```ts with-api
 import { defineConfig } from "vitest/config";
 import { AgentPlugin } from "@vitest-agent/plugin";
 import { myFactory } from "./my-reporter.js";
@@ -222,7 +222,7 @@ export default defineConfig({
 
 When `reporter` is omitted the plugin injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` automatically. Supplying your own factory replaces the default entirely — combine it with [`DefaultVitestAgentReporter`](/reporter/api/variable/defaultvitestagentreporter) in a multi-reporter array if you want to extend rather than replace:
 
-```ts
+```ts with-api
 import { AgentPlugin } from "@vitest-agent/plugin";
 import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
 import { myGitHubSummaryReporter } from "./my-reporter.js";

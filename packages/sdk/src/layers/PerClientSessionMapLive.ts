@@ -1,15 +1,3 @@
-/**
- * Live and Test layers for {@link PerClientSessionMapReader} and
- * {@link PerClientSessionMapWriter}.
- *
- * Both layers consume an existing `SqlClient` provided by the entry
- * point. The entry point chooses read-only vs read-write SQLite mode
- * by configuring the `SqlClient` it provides — the layers themselves
- * don't open the connection.
- *
- * @packageDocumentation
- */
-
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { SqlClient } from "@effect/sql/SqlClient";
@@ -93,6 +81,7 @@ const lookupByProjectDirImpl = (sql: SqlClient, projectDir: string) =>
  * Read-only layer. The entry point provides an `SqlClient` configured
  * with the `?mode=ro` URI parameter; this layer wraps the read
  * methods and never declares write methods.
+ * @public
  */
 export const PerClientSessionMapReaderLive: Layer.Layer<PerClientSessionMapReader, never, SqlClient> = Layer.effect(
 	PerClientSessionMapReader,
@@ -109,6 +98,7 @@ export const PerClientSessionMapReaderLive: Layer.Layer<PerClientSessionMapReade
  * Read-write layer. Provides both write methods and the Reader's read
  * methods so the same layer instance satisfies callers of either
  * tag.
+ * @public
  */
 export const PerClientSessionMapWriterLive: Layer.Layer<
 	PerClientSessionMapWriter | PerClientSessionMapReader,

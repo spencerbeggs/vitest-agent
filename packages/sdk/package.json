@@ -28,9 +28,8 @@
 	},
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
-		"build:meta": "node savvy.build.ts --target meta",
 		"build:prod": "node savvy.build.ts --target prod",
-		"prepare": "turbo run build:dev --filter=.",
+		"prepare": "turbo run build:dev",
 		"types:check": "tsgo --noEmit"
 	},
 	"dependencies": {
@@ -41,21 +40,25 @@
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
 		"@types/acorn": "^6.0.4",
-		"acorn": "^8.16.0",
+		"acorn": "^8.17.0",
 		"acorn-typescript": "^1.4.13",
-		"config-file-effect": "^0.2.2",
+		"ajv": "^8.20.0",
+		"config-file-effect": "^0.2.3",
 		"effect": "catalog:silk",
 		"std-env": "^4.1.0",
 		"workspaces-effect": "^1.2.0",
-		"xdg-effect": "^1.0.3"
+		"xdg-effect": "^2.0.1"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.6.0",
+		"@savvy-web/bundler": "^0.11.0",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
-		"@vitest/coverage-v8": "^4.1.8",
+		"@vitest/coverage-v8": "catalog:silk",
 		"typescript": "catalog:silk",
-		"vitest": "^4.1.8"
+		"vitest": "catalog:silk"
+	},
+	"engines": {
+		"node": ">=24.11.0"
 	},
 	"publishConfig": {
 		"access": "public",

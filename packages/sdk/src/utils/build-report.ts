@@ -1,12 +1,3 @@
-/**
- * @vitest-agent/sdk
- *
- * Pure function for building an {@link AgentReport} from Vitest
- * TestModule/TestCase objects. No I/O -- data transformation only.
- *
- * @packageDocumentation
- */
-
 import type { AgentReport, ModuleReport, TestReport } from "../schemas/AgentReport.js";
 import type { ReportError } from "../schemas/Common.js";
 
@@ -19,7 +10,7 @@ import type { ReportError } from "../schemas/Common.js";
  * plain string array. Frames must be formatted before joining; otherwise
  * `[obj].join("\n")` produces "[object Object]".
  *
- * @internal
+ * @public
  */
 export interface VitestParsedStack {
 	method: string;
@@ -34,7 +25,7 @@ export interface VitestParsedStack {
  * `stacks` accepts both already-formatted strings (legacy / coercion path)
  * and `ParsedStack[]` (real Vitest output).
  *
- * @internal
+ * @public
  */
 export interface VitestTestError {
 	message: string;
@@ -48,7 +39,7 @@ export interface VitestTestError {
  * Vitest returns `undefined` for tests that have not finished running
  * (pending/collected state).
  *
- * @internal
+ * @public
  */
 export interface VitestTestResult {
 	state: string;
@@ -58,7 +49,7 @@ export interface VitestTestResult {
 /**
  * Duck-typed Vitest test diagnostic returned by `TestCase.diagnostic()`.
  *
- * @internal
+ * @public
  */
 export interface VitestTestDiagnostic {
 	duration: number;
@@ -74,7 +65,7 @@ export interface VitestTestDiagnostic {
  * Vitest types directly, keeping the formatter a pure data transformer
  * with no dependency on the Vitest runtime.
  *
- * @internal
+ * @public
  */
 export interface VitestTestCase {
 	type: "test";
@@ -90,7 +81,7 @@ export interface VitestTestCase {
 /**
  * Duck-typed Vitest module diagnostic.
  *
- * @internal
+ * @public
  */
 export interface VitestModuleDiagnostic {
 	duration: number;
@@ -99,7 +90,7 @@ export interface VitestModuleDiagnostic {
 /**
  * Duck-typed Vitest module error.
  *
- * @internal
+ * @public
  */
 export interface VitestModuleError {
 	message: string;
@@ -107,19 +98,9 @@ export interface VitestModuleError {
 }
 
 /**
- * Duck-typed Vitest TestModule from the Reporter v2 API.
- *
- * @remarks
- * Each `TestModule` carries a `.project` reference with a `.name` property,
- * which {@link AgentReporter} uses to group results by Vitest project in
- * monorepo configurations.
- *
- * @internal
- */
-/**
  * Duck-typed Vitest TestSuite from the Reporter v2 API.
  *
- * @internal
+ * @public
  */
 export interface VitestTestSuite {
 	type: "suite";
@@ -138,6 +119,16 @@ export interface VitestTestSuite {
 	location?: { line: number; column: number };
 }
 
+/**
+ * Duck-typed Vitest TestModule from the Reporter v2 API.
+ *
+ * @remarks
+ * Each `TestModule` carries a `.project` reference with a `.name` property,
+ * which `AgentReporter` uses to group results by Vitest project in
+ * monorepo configurations.
+ *
+ * @public
+ */
 export interface VitestTestModule {
 	type: "module";
 	moduleId: string;
@@ -200,7 +191,7 @@ function normalizeState(state: string): "passed" | "failed" | "skipped" | "pendi
 // --- buildAgentReport ---
 
 /**
- * Convert Vitest TestModule/TestCase objects into an {@link AgentReport}.
+ * Convert Vitest TestModule/TestCase objects into an `AgentReport`.
  *
  * @remarks
  * This is a pure data transformation function with no I/O. It tallies
@@ -215,7 +206,7 @@ function normalizeState(state: string): "passed" | "failed" | "skipped" | "pendi
  * @param projectName - Optional project name for monorepo grouping
  * @returns Structured report ready for JSON serialization
  *
- * @internal
+ * @public
  */
 export function buildAgentReport(
 	testModules: ReadonlyArray<VitestTestModule>,

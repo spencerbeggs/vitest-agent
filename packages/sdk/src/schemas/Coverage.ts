@@ -1,14 +1,9 @@
-/**
- * Coverage-related schemas.
- *
- * @packageDocumentation
- */
-
 import { Schema } from "effect";
 import { MetricThresholds, PatternThresholds } from "./Thresholds.js";
 
 /**
  * Aggregate coverage percentages across four istanbul metrics.
+ * @public
  */
 export const CoverageTotals = Schema.Struct({
 	statements: Schema.Number,
@@ -16,20 +11,24 @@ export const CoverageTotals = Schema.Struct({
 	functions: Schema.Number,
 	lines: Schema.Number,
 }).annotations({ identifier: "CoverageTotals" });
+/** @public */
 export type CoverageTotals = typeof CoverageTotals.Type;
 
 /**
  * Per-file coverage data including uncovered line ranges.
+ * @public
  */
 export const FileCoverageReport = Schema.Struct({
 	file: Schema.String,
 	summary: CoverageTotals,
 	uncoveredLines: Schema.String,
 }).annotations({ identifier: "FileCoverageReport" });
+/** @public */
 export type FileCoverageReport = typeof FileCoverageReport.Type;
 
 /**
  * Complete coverage report attached to an AgentReport.
+ * @public
  */
 export const CoverageReport = Schema.Struct({
 	totals: CoverageTotals,
@@ -62,4 +61,5 @@ export const CoverageReport = Schema.Struct({
 	belowTarget: Schema.optional(Schema.Array(FileCoverageReport)),
 	belowTargetFiles: Schema.optional(Schema.Array(Schema.String)),
 }).annotations({ identifier: "CoverageReport" });
+/** @public */
 export type CoverageReport = typeof CoverageReport.Type;

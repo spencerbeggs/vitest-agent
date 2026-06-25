@@ -1,14 +1,9 @@
-/**
- * Schema for coverage baselines stored in the cache.
- *
- * @packageDocumentation
- */
-
 import { Schema } from "effect";
 import { MetricThresholds, PatternThresholds } from "./Thresholds.js";
 
 /**
  * Coverage baselines -- the auto-ratcheting high-water mark.
+ * @public
  */
 export const CoverageBaselines = Schema.Struct({
 	updatedAt: Schema.String,
@@ -17,4 +12,5 @@ export const CoverageBaselines = Schema.Struct({
 		default: () => [],
 	}),
 }).annotations({ identifier: "CoverageBaselines" });
+/** @public */
 export type CoverageBaselines = typeof CoverageBaselines.Type;

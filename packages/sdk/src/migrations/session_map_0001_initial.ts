@@ -19,11 +19,13 @@
  * Concurrent writers from multiple Claude Code windows converge via
  * idempotent UPSERTs on the native-id keys; WAL mode plus 5s
  * busy_timeout absorb contention.
+ * @public
  */
 
 import { SqlClient } from "@effect/sql/SqlClient";
 import { Effect } from "effect";
 
+/** @internal */
 const migration = Effect.gen(function* () {
 	const sql = yield* SqlClient;
 
@@ -57,5 +59,5 @@ const migration = Effect.gen(function* () {
 	yield* sql`CREATE INDEX idx_session_map_active ON session_map(project_dir) WHERE ended_at IS NULL`;
 	yield* sql`CREATE INDEX idx_session_map_conversation_id ON session_map(conversation_id)`;
 });
-
+/** @public */
 export default migration;

@@ -1,5 +1,5 @@
 /**
- * @vitest-agent/sidecar
+ * \@vitest-agent/sidecar
  *
  * Resolves the absolute path of the platform-specific sidecar binary
  * by using `require.resolve` on the optional platform package's bin entry.
@@ -11,6 +11,8 @@ import { createRequire } from "node:module";
 
 /**
  * Platform and architecture resolver options for dependency injection in tests.
+ *
+ * @public
  */
 export interface ResolveSidecarBinaryPathOptions {
 	/** Override the platform (defaults to `process.platform`). */
@@ -51,6 +53,7 @@ const SUPPORTED_PLATFORMS: ReadonlyMap<string, string> = new Map([
  *
  * @param options - Optional overrides for platform, arch, and resolver (for testing).
  * @returns The absolute path to the binary, or `null` when not resolvable.
+ * @public
  */
 export function resolveSidecarBinaryPath(options: ResolveSidecarBinaryPathOptions = {}): string | null {
 	const platform = options.platform ?? (process.platform as NodeJS.Platform);

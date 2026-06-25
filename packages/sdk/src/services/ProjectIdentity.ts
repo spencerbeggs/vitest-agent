@@ -1,20 +1,3 @@
-/**
- * Project identity resolver.
- *
- * Replaces `resolveWorkspaceKey`'s package-name-only keying with a
- * deterministic fallback chain: explicit option → TOML config → git
- * remote → `package.json#repository.url` → normalized
- * `package.json#name` → error.
- *
- * The pure `resolveProjectIdentityFromCandidates` function does the
- * priority resolution; the Live layer (in `layers/`) collects each
- * candidate from its source. Splitting them this way keeps unit tests
- * trivial — pass the candidate object, assert the result — while the
- * Live layer is verified by a small integration test.
- *
- * @packageDocumentation
- */
-
 import type { Effect } from "effect";
 import { Context } from "effect";
 import type { ProjectIdentityNotResolvableError } from "../errors/ProjectIdentityError.js";
@@ -31,13 +14,14 @@ import { normalizeWorkspaceKey } from "../utils/normalize-workspace-key.js";
  *   sources, the original `host/path` shape (with slashes preserved).
  * - `source` — which source matched. Useful for diagnostics and the
  *   `vitest-agent doctor`-style commands.
+ * @public
  */
 export interface ResolvedIdentity {
 	readonly projectKey: string;
 	readonly canonicalForm: string;
 	readonly source: ProjectIdentitySource;
 }
-
+/** @public */
 export type ProjectIdentitySource = "explicit" | "toml" | "git-remote" | "package-repository" | "package-name";
 
 /**
@@ -46,6 +30,7 @@ export type ProjectIdentitySource = "explicit" | "toml" | "git-remote" | "packag
  *
  * The Live layer collects these from real I/O (config file, git
  * subprocess, `package.json` read). Tests pass a literal object.
+ * @public
  */
 export interface ProjectIdentityCandidates {
 	readonly explicit?: string;
@@ -60,6 +45,7 @@ export interface ProjectIdentityCandidates {
  *
  * `projectId` is the priority-1 escape hatch — pass when the user has
  * configured `AgentPlugin({ projectId: "..." })` in `vitest.config.ts`.
+ * @public
  */
 export interface ResolveProjectIdentityOptions {
 	readonly projectId?: string;
@@ -76,6 +62,7 @@ const isUseful = (value: string | undefined): value is string => value !== undef
  * `@spencerbeggs/vitest-agent` rather than the underscored form. For
  * git sources, `canonicalForm` is the slash-preserving `host/path`
  * shape from `canonicalizeGitUrl`.
+ * @public
  */
 export const resolveProjectIdentityFromCandidates = (
 	candidates: ProjectIdentityCandidates,
@@ -127,6 +114,7 @@ export const resolveProjectIdentityFromCandidates = (
  * Service tag. The Live layer (in `layers/ProjectIdentityLive.ts`)
  * wires up the I/O sources; tests provide a stub that returns a
  * pre-built `ResolvedIdentity`.
+ * @public
  */
 export class ProjectIdentity extends Context.Tag("vitest-agent/ProjectIdentity")<
 	ProjectIdentity,

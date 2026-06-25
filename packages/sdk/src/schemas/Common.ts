@@ -3,32 +3,34 @@
  *
  * Defines enums/literals and the ReportError struct used by
  * both AgentReport and CacheManifest schemas.
- *
- * @packageDocumentation
  */
-
 import { Schema } from "effect";
 
 // --- Shared Enums ---
 
 /**
  * Possible states for an individual test case.
+ * @public
  */
 export const TestState = Schema.Literal("passed", "failed", "skipped", "pending").annotations({
 	identifier: "TestState",
 });
+/** @public */
 export type TestState = typeof TestState.Type;
 
 /**
  * Overall outcome of a test run.
+ * @public
  */
 export const TestRunReason = Schema.Literal("passed", "failed", "interrupted").annotations({
 	identifier: "TestRunReason",
 });
+/** @public */
 export type TestRunReason = typeof TestRunReason.Type;
 
 /**
  * Classification of a test's failure history across runs.
+ * @public
  */
 export const TestClassification = Schema.Literal(
 	"stable",
@@ -37,14 +39,17 @@ export const TestClassification = Schema.Literal(
 	"flaky",
 	"recovered",
 ).annotations({ identifier: "TestClassification" });
+/** @public */
 export type TestClassification = typeof TestClassification.Type;
 
 /**
  * Console output verbosity mode for AgentReporter.
+ * @public
  */
 export const ConsoleOutputMode = Schema.Literal("failures", "full", "silent").annotations({
 	identifier: "ConsoleOutputMode",
 });
+/** @public */
 export type ConsoleOutputMode = typeof ConsoleOutputMode.Type;
 
 /**
@@ -63,57 +68,72 @@ export type ConsoleOutputMode = typeof ConsoleOutputMode.Type;
  * - `ci-annotations` — GitHub Actions `::error::` annotations. Opt-in for
  *   the `ci` executor; the matching dedicated emitter is not yet shipped,
  *   so the default for `ci` is `passthrough` until it lands.
+ * @public
  */
 export const HumanConsoleMode = Schema.Literal("passthrough", "silent", "stream", "agent").annotations({
 	identifier: "HumanConsoleMode",
 });
+/** @public */
 export type HumanConsoleMode = typeof HumanConsoleMode.Type;
 
+/** @public */
 export const AgentConsoleMode = Schema.Literal("passthrough", "silent", "agent").annotations({
 	identifier: "AgentConsoleMode",
 });
+/** @public */
 export type AgentConsoleMode = typeof AgentConsoleMode.Type;
 
+/** @public */
 export const CiConsoleMode = Schema.Literal("passthrough", "silent", "ci-annotations").annotations({
 	identifier: "CiConsoleMode",
 });
+/** @public */
 export type CiConsoleMode = typeof CiConsoleMode.Type;
 
 /**
  * Union of every legal console-output value across the three executor slots.
  * Useful for type-narrowing in renderers that take the resolved value.
+ * @public
  */
 export const ConsoleMode = Schema.Union(HumanConsoleMode, AgentConsoleMode, CiConsoleMode).annotations({
 	identifier: "ConsoleMode",
 });
+/** @public */
 export type ConsoleMode = typeof ConsoleMode.Type;
 
 /**
  * Supported package managers for run command generation.
+ * @public
  */
 export const PackageManager = Schema.Literal("pnpm", "npm", "yarn", "bun").annotations({
 	identifier: "PackageManager",
 });
+/** @public */
 export type PackageManager = typeof PackageManager.Type;
 
 /**
  * Runtime environment where tests are being executed.
+ * @public
  */
 export const Environment = Schema.Literal("agent-shell", "terminal", "ci-github", "ci-generic").annotations({
 	identifier: "Environment",
 });
+/** @public */
 export type Environment = typeof Environment.Type;
 
 /**
  * Who or what is executing the test run.
+ * @public
  */
 export const Executor = Schema.Literal("human", "agent", "ci").annotations({
 	identifier: "Executor",
 });
+/** @public */
 export type Executor = typeof Executor.Type;
 
 /**
  * Output format for the reporter pipeline.
+ * @public
  */
 export const OutputFormat = Schema.Literal(
 	"terminal",
@@ -125,14 +145,17 @@ export const OutputFormat = Schema.Literal(
 ).annotations({
 	identifier: "OutputFormat",
 });
+/** @public */
 export type OutputFormat = typeof OutputFormat.Type;
 
 /**
  * Level of detail in reporter output.
+ * @public
  */
 export const DetailLevel = Schema.Literal("minimal", "neutral", "standard", "verbose").annotations({
 	identifier: "DetailLevel",
 });
+/** @public */
 export type DetailLevel = typeof DetailLevel.Type;
 
 // --- Report Error ---
@@ -147,6 +170,7 @@ export type DetailLevel = typeof DetailLevel.Type;
  * / `.actual` properties (assertion errors). The raw JS values stay in
  * Vitest's internal error object; only the string representation crosses
  * the schema boundary.
+ * @public
  */
 export const ReportError = Schema.Struct({
 	message: Schema.String,
@@ -155,4 +179,5 @@ export const ReportError = Schema.Struct({
 	expected: Schema.optional(Schema.String),
 	received: Schema.optional(Schema.String),
 }).annotations({ identifier: "ReportError" });
+/** @public */
 export type ReportError = typeof ReportError.Type;

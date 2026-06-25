@@ -1,3 +1,4 @@
+/** @public */
 export type Phase =
 	| "spike"
 	| "red"
@@ -7,7 +8,7 @@ export type Phase =
 	| "refactor"
 	| "extended-red"
 	| "green-without-red";
-
+/** @public */
 export type ArtifactKind =
 	| "test_written"
 	| "test_failed_run"
@@ -15,7 +16,7 @@ export type ArtifactKind =
 	| "test_passed_run"
 	| "refactor"
 	| "test_weakened";
-
+/** @public */
 export interface CitedArtifact {
 	readonly id: number;
 	readonly artifact_kind: ArtifactKind;
@@ -26,7 +27,7 @@ export interface CitedArtifact {
 	readonly test_first_failure_run_id: number | null;
 	readonly behavior_id: number | null;
 }
-
+/** @public */
 export interface PhaseTransitionContext {
 	readonly tdd_task_id: number;
 	readonly current_phase: Phase;
@@ -36,7 +37,7 @@ export interface PhaseTransitionContext {
 	readonly cited_artifact: CitedArtifact;
 	readonly requested_behavior_id: number | null;
 }
-
+/** @public */
 export type DenialReason =
 	| "missing_artifact_evidence"
 	| "wrong_artifact_kind"
@@ -53,13 +54,13 @@ export type DenialReason =
 	| "evidence_not_in_phase_window"
 	| "evidence_not_for_behavior"
 	| "evidence_test_was_already_failing";
-
+/** @public */
 export interface Remediation {
 	readonly suggestedTool: string;
 	readonly suggestedArgs: Record<string, unknown>;
 	readonly humanHint: string;
 }
-
+/** @public */
 export type PhaseTransitionResult =
 	| { readonly accepted: true; readonly phase: Phase }
 	| {
@@ -77,6 +78,7 @@ export type PhaseTransitionResult =
  * the expected kind when the agent omits `citedArtifactId` (auto-resolve
  * to the most recent matching artifact). The transitions without a
  * required artifact (`spike→red`, `*→red`, etc.) return `null`.
+ * @public
  */
 export const requiredArtifactForTransition = (
 	from: Phase,
@@ -105,7 +107,7 @@ export const requiredArtifactForTransition = (
 	}
 	return null;
 };
-
+/** @public */
 export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTransitionResult => {
 	// Guard: green may only be entered from a red-family phase (red, red.triangulate)
 	// or from green.fake-it (the "generalize" sub-step). Jumping from spike or refactor

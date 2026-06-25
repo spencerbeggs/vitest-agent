@@ -1,14 +1,9 @@
-/**
- * Typed schema for the `coverageTargets` plugin option.
- *
- * @packageDocumentation
- */
-
 import { Schema } from "effect";
 
 /**
  * Per-metric leaf shape for coverageTargets entries. Allows optional
  * numeric targets per metric and the `100: true` shortcut.
+ * @public
  */
 export const CoverageTargetsMetrics = Schema.Struct({
 	lines: Schema.optional(Schema.Positive),
@@ -17,6 +12,7 @@ export const CoverageTargetsMetrics = Schema.Struct({
 	statements: Schema.optional(Schema.Positive),
 	100: Schema.optional(Schema.Literal(true)),
 }).annotations({ identifier: "CoverageTargetsMetrics" });
+/** @public */
 export type CoverageTargetsMetrics = typeof CoverageTargetsMetrics.Type;
 
 /**
@@ -32,6 +28,7 @@ export type CoverageTargetsMetrics = typeof CoverageTargetsMetrics.Type;
  * so `{ statements: true }` fails parse rather than silently flowing
  * through to a runtime parser that only honors the canonical shorthand
  * at key `"100"`.
+ * @public
  */
 export const CoverageTargets = Schema.Record({
 	key: Schema.String,
@@ -47,4 +44,5 @@ export const CoverageTargets = Schema.Record({
 	}),
 	Schema.annotations({ identifier: "CoverageTargets" }),
 );
+/** @public */
 export type CoverageTargets = typeof CoverageTargets.Type;

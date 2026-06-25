@@ -6,13 +6,14 @@ import { toPosixPath } from "./to-posix-path.js";
  *
  * Accepts two forms:
  * - `Record<string, ReadonlyArray<string>>` — keys are exact suffix strings
- *   (e.g. ".int.test.ts"); matched via String.prototype.endsWith against
- *   module.filename.
+ *   (e.g. ".int.test.ts"); matched via `String.prototype.endsWith` against
+ *   `module.filename`.
  * - `ReadonlyArray<readonly [RegExp, ReadonlyArray<string>]>` — each tuple is a
- *   [pattern, tags] pair; matched via RegExp.test against module.filename.
+ *   `[pattern, tags]` pair; matched via `RegExp.test` against `module.filename`.
  *   First match wins.
  *
  * No match returns an empty array.
+ * @public
  */
 export function classifyByFilename(
 	suffixMap: Record<string, ReadonlyArray<string>> | ReadonlyArray<readonly [RegExp, ReadonlyArray<string>]>,
@@ -45,14 +46,13 @@ export function classifyByFilename(
 /**
  * Creates a ClassifyFn that maps directory segment paths to tag arrays.
  *
- * Keys are directory-segment paths (e.g. "__test__/integration"). A module
- * matches when module.relativePath contains the segment with "/" boundaries —
- * specifically: the relativePath starts with `<segment>/`, ends with
- * `/<segment>`, or contains `/<segment>/` as a substring. This means key
- * "integration" matches "integration/foo.test.ts" and
- * "src/integration/foo.test.ts" but NOT "my-integration-tests/foo.test.ts".
+ * Keys are directory-segment paths (e.g. `__test__/integration`). A module
+ * matches when `module.relativePath` contains the segment with `/` boundaries.
+ * Key `"integration"` matches `"integration/foo.test.ts"` and
+ * `"src/integration/foo.test.ts"` but NOT `"my-integration-tests/foo.test.ts"`.
  *
- * No match returns [].
+ * No match returns `[]`.
+ * @public
  */
 export function classifyByDirectory(dirMap: Record<string, ReadonlyArray<string>>): ClassifyFn {
 	const entries = Object.entries(dirMap);
@@ -82,10 +82,11 @@ export function classifyByDirectory(dirMap: Record<string, ReadonlyArray<string>
 }
 
 /**
- * Composes multiple ClassifyFns into one. Each classifier is called with the
- * same context; results are concatenated in order and deduplicated by tag name
- * (first occurrence wins). An empty fns list returns a function that always
- * returns [].
+ * Composes multiple `ClassifyFn` values into one. Each classifier is called with
+ * the same context; results are concatenated in order and deduplicated by tag
+ * name (first occurrence wins). An empty list returns a function that always
+ * returns `[]`.
+ * @public
  */
 export function combineClassifiers(...fns: ReadonlyArray<ClassifyFn>): ClassifyFn {
 	if (fns.length === 0) {

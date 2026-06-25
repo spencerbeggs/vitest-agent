@@ -1,6 +1,6 @@
 import { Effect, Option } from "effect";
 import { DataReader } from "../services/DataReader.js";
-
+/** @public */
 export interface FormatTriageOptions {
 	readonly project?: string;
 	readonly maxLines?: number;
@@ -13,6 +13,7 @@ export interface FormatTriageOptions {
  *
  * Error channel is `never` — all DataReader errors are swallowed and
  * replaced with empty defaults so the caller is guaranteed a string.
+ * @public
  */
 export const formatTriageEffect = (options: FormatTriageOptions = {}): Effect.Effect<string, never, DataReader> =>
 	Effect.gen(function* () {

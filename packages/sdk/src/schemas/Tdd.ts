@@ -1,24 +1,17 @@
-/**
- * TDD goal and behavior schemas.
- *
- * Application-level shapes (camelCase) for the three-tier hierarchy
- * Objective → Goal → Behavior. SQL row shapes live in `sql/rows.ts`.
- *
- * @packageDocumentation
- */
-
 import { Schema } from "effect";
-
+/** @public */
 export const GoalStatus = Schema.Literal("pending", "in_progress", "done", "abandoned").annotations({
 	identifier: "GoalStatus",
 });
+/** @public */
 export type GoalStatus = typeof GoalStatus.Type;
-
+/** @public */
 export const BehaviorStatus = Schema.Literal("pending", "in_progress", "done", "abandoned").annotations({
 	identifier: "BehaviorStatus",
 });
+/** @public */
 export type BehaviorStatus = typeof BehaviorStatus.Type;
-
+/** @public */
 export const GoalRow = Schema.Struct({
 	id: Schema.Number,
 	sessionId: Schema.Number,
@@ -27,8 +20,9 @@ export const GoalRow = Schema.Struct({
 	status: GoalStatus,
 	createdAt: Schema.String,
 }).annotations({ identifier: "GoalRow" });
+/** @public */
 export type GoalRow = typeof GoalRow.Type;
-
+/** @public */
 export const BehaviorRow = Schema.Struct({
 	id: Schema.Number,
 	goalId: Schema.Number,
@@ -38,14 +32,16 @@ export const BehaviorRow = Schema.Struct({
 	status: BehaviorStatus,
 	createdAt: Schema.String,
 }).annotations({ identifier: "BehaviorRow" });
+/** @public */
 export type BehaviorRow = typeof BehaviorRow.Type;
-
+/** @public */
 export const GoalDetail = Schema.Struct({
 	...GoalRow.fields,
 	behaviors: Schema.Array(BehaviorRow),
 }).annotations({ identifier: "GoalDetail" });
+/** @public */
 export type GoalDetail = typeof GoalDetail.Type;
-
+/** @public */
 export const BehaviorDetail = Schema.Struct({
 	...BehaviorRow.fields,
 	parentGoal: Schema.Struct({
@@ -55,4 +51,5 @@ export const BehaviorDetail = Schema.Struct({
 	}),
 	dependencies: Schema.Array(BehaviorRow),
 }).annotations({ identifier: "BehaviorDetail" });
+/** @public */
 export type BehaviorDetail = typeof BehaviorDetail.Type;

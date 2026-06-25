@@ -79,11 +79,15 @@ function toRegexFragment(glob: string): string {
 /**
  * Async file walker that returns matched absolute paths.
  *
- * Walks `dir` recursively via node:fs/promises. Skips `node_modules`, `.git`,
+ * Walks `dir` recursively via `node:fs/promises`. Skips `node_modules`, `.git`,
  * and `dist` directories. Matches files against the supplied glob patterns
- * relative to `dir` (e.g. "src/**\/*.test.ts").
+ * relative to `dir` (e.g. `"src/**\/*.test.ts"`).
  *
  * Returns an empty array if `dir` does not exist or no files match.
+ * @param dir - Absolute path to the directory to walk
+ * @param patterns - Glob patterns to match against (relative to `dir`)
+ * @returns Absolute paths of matched test files
+ * @public
  */
 export async function findTestFiles(dir: string, patterns: ReadonlyArray<string>): Promise<ReadonlyArray<string>> {
 	if (patterns.length === 0) return [];

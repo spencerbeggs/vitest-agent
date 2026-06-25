@@ -1,7 +1,4 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig.json",
-	"compilerOptions": {
-		"jsx": "react-jsx"
-	},
 	"extends": ["@savvy-web/bundler/tsconfig/ecma.json"]
 }
