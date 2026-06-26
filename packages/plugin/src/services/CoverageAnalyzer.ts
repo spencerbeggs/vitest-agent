@@ -2,10 +2,19 @@ import type { CoverageBaselines, CoverageReport, ResolvedThresholds } from "@vit
 import type { Effect, Option } from "effect";
 import { Context } from "effect";
 
+/**
+ * Options passed to `CoverageAnalyzer.process` and `CoverageAnalyzer.processScoped`.
+ *
+ * @public
+ */
 export interface CoverageOptions {
+	/** Resolved coverage thresholds to check the report against. */
 	readonly thresholds: ResolvedThresholds;
+	/** Per-file or global coverage targets for policy enforcement. */
 	readonly targets?: ResolvedThresholds;
+	/** Persisted baselines used to compute coverage trends. */
 	readonly baselines?: CoverageBaselines;
+	/** When true, include files with zero coverage rather than omitting them. */
 	readonly includeBareZero: boolean;
 }
 

@@ -73,6 +73,7 @@ export { ReporterLive } from "./layers/ReporterLive.js";
 
 export { CoverageAnalyzerLive } from "./layers/CoverageAnalyzerLive.js";
 export { CoverageAnalyzerTest } from "./layers/CoverageAnalyzerTest.js";
+export type { CoverageOptions } from "./services/CoverageAnalyzer.js";
 export { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 
 // --- ConfigValidation service ---

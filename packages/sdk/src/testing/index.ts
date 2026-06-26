@@ -2,6 +2,10 @@ import { Effect, Layer } from "effect";
 import { DataStore } from "../services/DataStore.js";
 import { makeTestLayer } from "./layers.js";
 
+// Re-export all types that appear in DataStore / DataReader method signatures
+// so that API Extractor can resolve them from the testing entry point.
+// Agent errors
+export { AgentNotFoundError, RegistrationConflictError } from "../errors/AgentErrors.js";
 export { DataStoreError } from "../errors/DataStoreError.js";
 export type { IllegalStatusTransitionEntity, TddTaskEndOutcome } from "../errors/TddErrors.js";
 export {
@@ -11,11 +15,93 @@ export {
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
 } from "../errors/TddErrors.js";
+// Agent schemas — classes carry both value and type
+export { Agent, IdempotencyHit } from "../schemas/Agent.js";
+// AgentReport schema — Schema const+type pair
+export { AgentReport } from "../schemas/AgentReport.js";
+// Baselines schema — Schema const+type pair
+export { CoverageBaselines } from "../schemas/Baselines.js";
+// CacheManifest schema — Schema const+type pair
+export { CacheManifest } from "../schemas/CacheManifest.js";
+// Coverage schemas — Schema const+type pairs
+export { CoverageReport, FileCoverageReport } from "../schemas/Coverage.js";
+// History schema — Schema const+type pair
+export { HistoryRecord } from "../schemas/History.js";
+// Identity schemas — Schema const+type pairs; `export { X }` covers both
+export { AgentId, ChatId } from "../schemas/Identity.js";
+// Tdd schemas — Schema const+type pairs
+export { BehaviorDetail, BehaviorRow, BehaviorStatus, GoalDetail, GoalRow, GoalStatus } from "../schemas/Tdd.js";
+// Trend schemas — Schema const+type pairs
+export { TrendEntry, TrendRecord } from "../schemas/Trends.js";
+// DataReader read/output types (all interfaces — type-only)
+export type {
+	AcceptanceMetrics,
+	CitedArtifactRow,
+	CommitChangesEntry,
+	CurrentTddPhase,
+	FailureSignatureDetail,
+	FlakyTest,
+	HypothesisDetail,
+	ModuleListEntry,
+	NoteRow,
+	PersistentFailure,
+	ProjectRunSummary,
+	SessionDetail,
+	SettingsListEntry,
+	SettingsRow,
+	SuiteListEntry,
+	TagInventoryRow,
+	TddArtifactDetail,
+	TddArtifactRow,
+	TddPhaseDetail,
+	TddTaskDetail,
+	TddTaskSummary,
+	TestError,
+	TestListEntry,
+	TurnSearchOptions,
+	TurnSummary,
+} from "../services/DataReader.js";
 // Re-export service tags and error types whose names appear in the bundled
 // declaration signatures so rslib can resolve them without inlining them as
 // non-exported interfaces (which causes TS4023 in consumers).
 export { DataReader } from "../services/DataReader.js";
+// DataStore write-input types (all interfaces / type aliases — type-only)
+export type {
+	AssociateRunSessionInput,
+	ChangeKind,
+	CreateBehaviorInput,
+	CreateGoalInput,
+	EndTddTaskInput,
+	FailureSignatureWriteInput,
+	FileCoverageInput,
+	HypothesisInput,
+	IdempotentResponseInput,
+	ModuleInput,
+	NoteInput,
+	RegisterAgentInput,
+	RunChangedFile,
+	RunInvocationMethod,
+	SessionInput,
+	SettingsInput,
+	StackFrameInput,
+	SuiteInput,
+	TddTaskInput,
+	TestCaseInput,
+	TestErrorInput,
+	TestRunInput,
+	TurnInput,
+	UpdateBehaviorInput,
+	UpdateGoalInput,
+	ValidateHypothesisInput,
+	WriteCommitInput,
+	WriteRunChangedFilesInput,
+	WriteTddArtifactInput,
+	WriteTddPhaseInput,
+	WriteTddPhaseOutput,
+} from "../services/DataStore.js";
 export { DataStore } from "../services/DataStore.js";
+// Phase-transition pure types (no runtime values)
+export type { ArtifactKind, CitedArtifact, Phase } from "../utils/validate-phase-transition.js";
 export { DataStoreTestLayer, makeTestLayer } from "./layers.js";
 
 /** @public */
