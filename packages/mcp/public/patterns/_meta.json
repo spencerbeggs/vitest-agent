@@ -26,6 +26,42 @@
 				"audience": ["assistant"],
 				"priority": 0.7
 			}
+		},
+		{
+			"slug": "running-tests-via-mcp",
+			"title": "Running Tests via the MCP run_tests Tool",
+			"summary": "Scope runs with project/files/tags (there is no `filter` param), read the four-variant return shape, and understand why subset runs 'fail' coverage thresholds.",
+			"annotations": {
+				"audience": ["assistant"],
+				"priority": 0.9
+			}
+		},
+		{
+			"slug": "silencing-leaking-output-in-tests",
+			"title": "Silencing Leaking Log / Build Output in Tests",
+			"summary": "Decision tree mapping each noise source (Effect logger, console.*, rsbuild, tsdown, API Extractor) to its silencing technique, with an assert-on-output guardrail.",
+			"annotations": {
+				"audience": ["assistant"],
+				"priority": 0.8
+			}
+		},
+		{
+			"slug": "known-issues-and-caveats",
+			"title": "Known Issues & Instrumentation Caveats",
+			"summary": "Distinguishes real vitest-agent issues (DataStoreError UNIQUE race) from upstream Vitest caveats (coverage-dir ENOENT), already-fixed bugs (perf_hooks), and misconceptions (discovery-cache staleness).",
+			"annotations": {
+				"audience": ["assistant"],
+				"priority": 0.7
+			}
+		},
+		{
+			"slug": "operating-vitest-agent-as-an-agent",
+			"title": "Operating vitest-agent as an Agent",
+			"summary": "Read first: the front-loaded facts an agent needs (no run_tests filter param, coverage-in-subset behavior, console output is config-driven not env-driven, attribution is auto-recovered) with links to the deeper patterns.",
+			"annotations": {
+				"audience": ["assistant"],
+				"priority": 0.95
+			}
 		}
 	]
 }

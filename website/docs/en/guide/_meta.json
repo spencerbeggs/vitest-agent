@@ -80,5 +80,19 @@
 		"type": "file",
 		"name": "wire-ci-reporting",
 		"label": "CI reporting"
+	},
+	{
+		"type": "section-header",
+		"label": "Operating as an agent"
+	},
+	{
+		"type": "file",
+		"name": "operating-as-an-agent",
+		"label": "Operating as an agent"
+	},
+	{
+		"type": "file",
+		"name": "known-issues",
+		"label": "Known issues"
 	}
 ]

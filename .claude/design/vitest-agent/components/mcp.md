@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-26
+last-synced: 2026-06-26
 completeness: 92
 related:
   - ../architecture.md
@@ -415,8 +415,7 @@ under two URI schemes:
 
 - `vitest://docs/` — the vendored upstream Vitest documentation snapshot
   at `packages/mcp/public/vendor/vitest-docs/`.
-- `vitest-agent://patterns/` — the curated testing-patterns library at
-  `packages/mcp/public/patterns/`.
+- `vitest-agent://patterns/` — the curated patterns library at `packages/mcp/public/patterns/`, spanning two pattern classes: testing patterns (testing Effect services, schemas, authoring a custom reporter) and agent-operability guidance (operating the tool as an agent, running tests via MCP, silencing leaking output, known issues). The `_meta.json` manifest is the authoritative per-pattern list.
 
 Each scheme has an index URI and a per-page template URI. Both per-page
 templates register a `list` callback that decodes the source manifest
@@ -437,10 +436,7 @@ enough.
 - `vitest://` carries vendored upstream content — a snapshot of
   `vitest-dev/vitest`'s `docs/` tree at a pinned tag. The scheme name
   signals provenance.
-- `vitest-agent://` carries content authored *for* this project — opinions
-  about testing Effect services, testing schemas, authoring a custom
-  reporter. Splitting the schemes makes it impossible to conflate
-  vendored content with curated guidance, even at a glance.
+- `vitest-agent://` carries content authored *for* this project — opinions about testing Effect services, testing schemas and authoring a custom reporter, plus agent-operability guidance for driving the tool itself (an `audience: ["assistant"]` read-first orientation index and its supporting cookbook / troubleshooting pages). Splitting the schemes makes it impossible to conflate vendored content with curated guidance, even at a glance.
 
 **Path-traversal guarding.** `paths.ts`'s `resolveResourcePath` enforces
 three invariants: no null bytes, no absolute paths, and the resolved path
