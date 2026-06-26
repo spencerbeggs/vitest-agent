@@ -1,6 +1,6 @@
 ---
 name: update-vitest-snapshot
-description: Use when refreshing the vendored upstream Vitest documentation snapshot at packages/mcp/src/vendor/vitest-docs/. Drives a 5-phase fetch → prune → scaffold → enrich → validate workflow with explicit user checkpoints. Repo-internal — does not apply to projects that consume vitest-agent as a dependency.
+description: Use when refreshing the vendored upstream Vitest documentation snapshot at packages/mcp/public/vendor/vitest-docs/. Drives a 5-phase fetch → prune → scaffold → enrich → validate workflow with explicit user checkpoints. Repo-internal — does not apply to projects that consume vitest-agent as a dependency.
 argument-hint: "[--tag vN.M.K]"
 allowed-tools: Read Write Edit Bash Glob Grep
 ---
@@ -19,7 +19,7 @@ This is not a fast workflow. The user is reviewing alongside you. Take your time
 
 ## Architecture context
 
-The cleaned snapshot lives at `packages/mcp/src/vendor/vitest-docs/`. Files there ship in the published package via `copyPatterns` in `rslib.config.ts`. The raw upstream download is gitignored at `packages/mcp/lib/vitest-docs-raw/` — a working area, never committed.
+The cleaned snapshot lives at `packages/mcp/public/vendor/vitest-docs/`. Files there ship in the published package because `@savvy-web/bundler` mirrors the package-root `public/` tree into the build output (`dist/<env>/pkg/public/`). The raw upstream download is gitignored at `packages/mcp/lib/vitest-docs-raw/` — a working area, never committed.
 
 `manifest.json` is the source of truth for which pages exist and what `title`/`description` the MCP `resources/list` response advertises. The schema lives at `packages/mcp/src/resources/manifest-schema.ts` and is enforced both at write time (via the build script) and at runtime (via the registrar).
 
@@ -56,7 +56,7 @@ This:
 
 - Strips VitePress YAML frontmatter from every kept file.
 - Derives mechanical titles from H1 headings (or filename casing fallback).
-- Writes the cleaned tree under `packages/mcp/src/vendor/vitest-docs/`.
+- Writes the cleaned tree under `packages/mcp/public/vendor/vitest-docs/`.
 - Generates `manifest.json` with placeholder descriptions marked `[TODO: replace with load-when signal]`.
 - Seeds MCP resource annotations (`audience: ["assistant"]` + a `priority` band) per page from the path-prefix heuristic in `packages/mcp/lib/scripts/annotations-heuristic.ts`. The bands match the editorial guide in `docs/superpowers/specs/2.0-resource-annotations.md` §2: API reference 0.85–0.95; coverage docs 0.85; core guide 0.75–0.85; experimental browser-mode 0.55; migration 0.45.
 - Generates `ATTRIBUTION.md`.
@@ -88,7 +88,7 @@ Read each page's actual content (not just the title). For each:
 3. Mention the specific identifiers an agent would search for, so substring matching surfaces the right page.
 4. Keep it to 1–2 sentences. Aim for under 250 chars and **hard-cap at 320**. If you find yourself listing 7+ identifiers in a single sentence, pick 4–5 representative members and end with `, etc.` — keyword density matters less than skim-ability past that point.
 
-Update each entry's `description` field in `packages/mcp/src/vendor/vitest-docs/manifest.json` directly. Edit the entries one at a time using `Edit` (or batch them via `apply-manifest-patches.ts` with a JSON file). The `[TODO: ...]` marker tells you which haven't been done yet.
+Update each entry's `description` field in `packages/mcp/public/vendor/vitest-docs/manifest.json` directly. Edit the entries one at a time using `Edit` (or batch them via `apply-manifest-patches.ts` with a JSON file). The `[TODO: ...]` marker tells you which haven't been done yet.
 
 For pages with marginal content (single-line code fragments, redirects, deprecation notices), drop them — `api/advanced/import-example.md` is the precedent. Add the relative path to `DENYLIST_PATHS` in `build-snapshot.ts` so future fetches drop it too, then remove both the file and its manifest entry.
 
@@ -130,7 +130,7 @@ Phase 3 seeds every page with `audience: ["assistant"]` plus a heuristic priorit
 - **Browser-mode pages.** The heuristic puts every `browser/` page at 0.55. Bump component-testing landing pages slightly if they are the entry point users actually load (`guide/browser/component-testing`, `guide/browser/index`).
 - **Migration pages.** `guide/migration` is at 0.45 by default. Leave it low — agents loading 2.x docs almost never need 1.x migration notes.
 
-The patterns library at `packages/mcp/src/patterns/_meta.json` follows the same `audience` + `priority` shape; TDD-core entries land at 0.9, general guidance at 0.7.
+The patterns library at `packages/mcp/public/patterns/_meta.json` follows the same `audience` + `priority` shape; TDD-core entries land at 0.9, general guidance at 0.7.
 
 ### Index resources (`vitest://docs/`, `vitest-agent://patterns/`)
 
@@ -154,13 +154,13 @@ Then verify the build:
 pnpm ci:build --filter='./packages/mcp'
 ```
 
-The build copies `src/vendor/vitest-docs/` and `src/patterns/` into `dist/dev/` and `dist/npm/` via `copyPatterns`. If `pnpm ci:build` fails, the path resolution in `packages/mcp/src/resources/index.ts` is the most likely suspect — it has an `existsSync` fallback for source vs built layouts.
+The build mirrors the package-root `public/` tree into `dist/dev/pkg/public/` and `dist/prod/npm/pkg/public/` via `@savvy-web/bundler`'s `syncPublicDir`. If `pnpm ci:build` fails, the path resolution in `packages/mcp/src/resources/index.ts` is the most likely suspect — it has an `existsSync` fallback for source vs built layouts.
 
 Smoke-test the registrar by reading a few resource URIs through an MCP client (or by calling the read functions directly in a Node REPL).
 
 ## Phase 6 — Commit
 
-Stage everything under `packages/mcp/src/vendor/vitest-docs/` plus `manifest.json`. Show the user the diff summary (`git diff --stat`) before committing. Suggested commit message:
+Stage everything under `packages/mcp/public/vendor/vitest-docs/` plus `manifest.json`. Show the user the diff summary (`git diff --stat`) before committing. Suggested commit message:
 
 ```text
 chore(mcp): bump vitest docs snapshot to <tag>
@@ -176,5 +176,5 @@ A patch-level changeset is appropriate (`## Maintenance` section).
 ## What this skill does NOT do
 
 - Bump the Vitest peer-dep version in `packages/plugin/package.json` — that's a separate concern.
-- Resolve broken cross-references in `packages/mcp/src/patterns/` — flag for human follow-up.
+- Resolve broken cross-references in `packages/mcp/public/patterns/` — flag for human follow-up.
 - Run downstream MCP integration tests — defer to CI.

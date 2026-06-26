@@ -88,18 +88,19 @@ from the npm lifecycle event: `build:dev` emits `dist/dev`, `build:prod`
 emits `dist/npm` — each variant directory holding the SEA
 binary plus a publish-cleaned `package.json`.
 
-The `mcp` package additionally vendors content under `src/`:
+The `mcp` package additionally ships a served corpus under a package-root
+`public/` directory:
 
-- `src/vendor/vitest-docs/` — vendored upstream Vitest documentation
-  snapshot, surfaced via `vitest://docs/` MCP resources. Located under
-  `src/` so turbo's build cache invalidates on edits and refreshes show up
-  as build-affecting.
-- `src/patterns/` — curated testing-patterns library, surfaced via
+- `public/vendor/vitest-docs/` — vendored upstream Vitest documentation
+  snapshot, surfaced via `vitest://docs/` MCP resources.
+- `public/patterns/` — curated testing-patterns library, surfaced via
   `vitest-agent://patterns/` MCP resources.
 
-Both trees mirror to `dist/<env>/vendor/` and `dist/<env>/patterns/` at
-build time via rslib's `copyPatterns` config in `rslib.config.ts` — no
-separate postbuild script.
+The package builds with `@savvy-web/bundler`, which mirrors a package-root
+`public/` tree into the build output at `dist/<env>/pkg/public/` (via
+tsdown-plugins' `syncPublicDir`). It does not copy arbitrary `src/`
+subdirectories, so the corpus must live in `public/` to reach the
+built/published package — see [./components/mcp.md](./components/mcp.md).
 
 The `mcp/lib/scripts/` directory holds the Effect-based maintenance scripts
 that refresh the vendored docs snapshot:

@@ -2,14 +2,14 @@
 // packages/mcp/lib/scripts/validate-snapshot.ts
 //
 // Quality gate for the cleaned snapshot at
-// packages/mcp/src/vendor/vitest-docs/. Run after build-snapshot.ts and
+// packages/mcp/public/vendor/vitest-docs/. Run after build-snapshot.ts and
 // after the agent has rewritten descriptions during the
 // update-vitest-snapshot skill.
 //
 // Checks:
 //   1. manifest.json decodes against UpstreamManifest schema
 //   2. manifest carries a non-empty pages[] array
-//   3. every .md file under src/vendor/vitest-docs/ has a manifest entry
+//   3. every .md file under public/vendor/vitest-docs/ has a manifest entry
 //   4. every manifest entry resolves to an existing .md file
 //   5. no description still carries the "[TODO" placeholder marker
 //
@@ -24,7 +24,7 @@ import { decodeUpstreamManifest } from "../../src/resources/manifest-schema.js";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = resolve(SCRIPT_DIR, "..", "..");
-const VENDOR_DIR = resolve(PKG_DIR, "src", "vendor", "vitest-docs");
+const VENDOR_DIR = resolve(PKG_DIR, "public", "vendor", "vitest-docs");
 const MANIFEST_PATH = join(VENDOR_DIR, "manifest.json");
 const PLACEHOLDER_MARKER = "[TODO";
 const MIN_DESCRIPTION_LENGTH = 30;

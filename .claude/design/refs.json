@@ -34,14 +34,14 @@
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "d9700cda4a7b01ab6772fc4d9b1266b50dbd5125d88fbf17082e39ced1a076dc",
-			"recordedAt": "2026-06-17"
+			"hash": "185ba75c680e650ad260cfd962bab46df3fc5c685a3c1ce264f7aaf847eff741",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/file-structure.md",
-			"hash": "c2dfd8a3ea605694555ce62026ab5f67385efd96d10beb2e5768bb87077e82a8",
-			"recordedAt": "2026-06-17"
+			"hash": "7a2b929512a6d6dc91877b9416b37363ebbb10b543f141198bd1e0c2d769e651",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "CLAUDE.md",
@@ -76,8 +76,8 @@
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/mcp.md",
-			"hash": "d57571f2fc77de15899d8740794aa7f07844e8e31e46019ffbb6a297bf840fac",
-			"recordedAt": "2026-06-17"
+			"hash": "9abd94f363bc2d9038eb629a68518f251ec650852142f7349a55e1645f7e2158",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "packages/mcp/CLAUDE.md",
@@ -88,8 +88,8 @@
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "d9700cda4a7b01ab6772fc4d9b1266b50dbd5125d88fbf17082e39ced1a076dc",
-			"recordedAt": "2026-06-17"
+			"hash": "185ba75c680e650ad260cfd962bab46df3fc5c685a3c1ce264f7aaf847eff741",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "packages/mcp/CLAUDE.md",
@@ -118,8 +118,8 @@
 		{
 			"source": "packages/plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "d9700cda4a7b01ab6772fc4d9b1266b50dbd5125d88fbf17082e39ced1a076dc",
-			"recordedAt": "2026-06-17"
+			"hash": "185ba75c680e650ad260cfd962bab46df3fc5c685a3c1ce264f7aaf847eff741",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "packages/plugin/CLAUDE.md",
@@ -142,8 +142,8 @@
 		{
 			"source": "packages/reporter/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "d9700cda4a7b01ab6772fc4d9b1266b50dbd5125d88fbf17082e39ced1a076dc",
-			"recordedAt": "2026-06-17"
+			"hash": "185ba75c680e650ad260cfd962bab46df3fc5c685a3c1ce264f7aaf847eff741",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "packages/reporter/CLAUDE.md",
@@ -166,14 +166,14 @@
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "d9700cda4a7b01ab6772fc4d9b1266b50dbd5125d88fbf17082e39ced1a076dc",
-			"recordedAt": "2026-06-17"
+			"hash": "185ba75c680e650ad260cfd962bab46df3fc5c685a3c1ce264f7aaf847eff741",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/file-structure.md",
-			"hash": "c2dfd8a3ea605694555ce62026ab5f67385efd96d10beb2e5768bb87077e82a8",
-			"recordedAt": "2026-06-17"
+			"hash": "7a2b929512a6d6dc91877b9416b37363ebbb10b543f141198bd1e0c2d769e651",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
@@ -196,8 +196,8 @@
 		{
 			"source": "packages/sidecar/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "d9700cda4a7b01ab6772fc4d9b1266b50dbd5125d88fbf17082e39ced1a076dc",
-			"recordedAt": "2026-06-17"
+			"hash": "185ba75c680e650ad260cfd962bab46df3fc5c685a3c1ce264f7aaf847eff741",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "packages/ui/CLAUDE.md",
@@ -214,8 +214,8 @@
 		{
 			"source": "packages/ui/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "d9700cda4a7b01ab6772fc4d9b1266b50dbd5125d88fbf17082e39ced1a076dc",
-			"recordedAt": "2026-06-17"
+			"hash": "185ba75c680e650ad260cfd962bab46df3fc5c685a3c1ce264f7aaf847eff741",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "packages/ui/CLAUDE.md",
@@ -238,8 +238,8 @@
 		{
 			"source": "plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "d9700cda4a7b01ab6772fc4d9b1266b50dbd5125d88fbf17082e39ced1a076dc",
-			"recordedAt": "2026-06-17"
+			"hash": "185ba75c680e650ad260cfd962bab46df3fc5c685a3c1ce264f7aaf847eff741",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "website/CLAUDE.md",

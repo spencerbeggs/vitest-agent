@@ -16,8 +16,8 @@ import { describe, expect, it } from "vitest";
 import { decodePatternsManifest, decodeUpstreamManifest } from "../src/resources/manifest-schema.js";
 
 const PKG_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const MANIFEST_PATH = join(PKG_DIR, "src", "vendor", "vitest-docs", "manifest.json");
-const PATTERNS_META = join(PKG_DIR, "src", "patterns", "_meta.json");
+const MANIFEST_PATH = join(PKG_DIR, "public", "vendor", "vitest-docs", "manifest.json");
+const PATTERNS_META = join(PKG_DIR, "public", "patterns", "_meta.json");
 
 describe("vendored manifest annotations", () => {
 	it("decodes without error and every page carries annotations after the editorial pass", async () => {

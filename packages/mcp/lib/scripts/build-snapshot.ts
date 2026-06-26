@@ -3,7 +3,7 @@
 //
 // Reads the raw upstream docs at packages/mcp/lib/vitest-docs-raw/ and
 // produces a cleaned, schema-validated snapshot at
-// packages/mcp/src/vendor/vitest-docs/. This is a *first cut*: the script
+// packages/mcp/public/vendor/vitest-docs/. This is a *first cut*: the script
 // applies a hardcoded denylist, strips VitePress frontmatter, derives a
 // mechanical title from the H1 (or filename), and writes a placeholder
 // description per page. The update-vitest-snapshot skill then has the
@@ -17,9 +17,9 @@
 //   packages/mcp/lib/vitest-docs-raw/**/*.md
 //
 // Outputs:
-//   packages/mcp/src/vendor/vitest-docs/manifest.json (schema-validated)
-//   packages/mcp/src/vendor/vitest-docs/ATTRIBUTION.md
-//   packages/mcp/src/vendor/vitest-docs/<cleaned tree>
+//   packages/mcp/public/vendor/vitest-docs/manifest.json (schema-validated)
+//   packages/mcp/public/vendor/vitest-docs/ATTRIBUTION.md
+//   packages/mcp/public/vendor/vitest-docs/<cleaned tree>
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -33,7 +33,7 @@ import { seedAnnotations } from "./annotations-heuristic.js";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = resolve(SCRIPT_DIR, "..", "..");
 const RAW_DIR = resolve(PKG_DIR, "lib", "vitest-docs-raw");
-const VENDOR_DIR = resolve(PKG_DIR, "src", "vendor", "vitest-docs");
+const VENDOR_DIR = resolve(PKG_DIR, "public", "vendor", "vitest-docs");
 const INFO_PATH = join(RAW_DIR, ".upstream-info.json");
 
 // Files and directories the script always drops. These are VitePress site
