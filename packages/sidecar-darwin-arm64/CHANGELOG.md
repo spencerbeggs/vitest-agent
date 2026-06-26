@@ -1,5 +1,7 @@
 # @vitest-agent/sidecar-darwin-arm64
 
+## 1.0.1
+
 ## 1.0.0
 
 ### Features

@@ -1,5 +1,7 @@
 # @vitest-agent/sidecar-win32-x64
 
+## 1.0.1
+
 ## 1.0.0
 
 ### Features

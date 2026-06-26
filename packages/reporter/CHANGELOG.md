@@ -1,5 +1,15 @@
 # @vitest-agent/reporter
 
+## 1.0.1
+
+### Bug Fixes
+
+* [`3cfd166`](https://github.com/spencerbeggs/vitest-agent/commit/3cfd166de45227d28aa77d16f7b4237053509e27) Fixes `MaxPerformanceEntryBufferExceededWarning` on long test runs. React 19's development reconciler emits a `performance.measure()` per component render and nothing drained the global user-timing buffer; the live renderer now clears it after each render cycle.
+  | Dependency        | Type       | Action  | From  | To    |
+  | ----------------- | ---------- | ------- | ----- | ----- |
+  | @vitest-agent/sdk | dependency | updated | 1.0.0 | 1.0.1 |
+  | @vitest-agent/ui  | dependency | updated | 1.0.0 | 1.0.1 |
+
 ## 1.0.0
 
 ### Features
