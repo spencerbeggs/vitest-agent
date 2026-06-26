@@ -106,7 +106,10 @@ src/
 public/               -- package-root corpus mirrored into the build
                          output by @savvy-web/bundler's syncPublicDir
   vendor/vitest-docs/  -- vendored upstream Vitest docs snapshot
-  patterns/           -- curated testing patterns library
+  patterns/           -- curated patterns corpus: Effect-testing
+                         patterns + agent-operability guides
+                         (operating-as-an-agent, running tests via
+                         MCP, output silencing, known issues)
 
 lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
                          build / validate). Refresh via the

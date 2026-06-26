@@ -1,0 +1,46 @@
+---
+title: Known issues
+description: Verified status of common error signatures — which are real vitest-agent issues, which are upstream Vitest caveats, which are already fixed, and which are misconceptions.
+---
+
+# Known issues
+
+When a run surfaces an error that looks like a vitest-agent bug, check it here
+first. Several common signatures are upstream Vitest behavior, an
+already-shipped fix, or a misconception.
+
+## `DataStoreError` on a UNIQUE collision
+
+**Status: live.** Concurrent agent registration (on `idempotency_key`) or
+concurrent turn writes (on `(session_id, turn_no)`) can race the persistence
+layer's check-then-insert and surface a `DataStoreError` carrying
+`UNIQUE constraint failed`. It is not data corruption — retry the operation.
+
+## `coverage/.tmp … ENOENT coverage-0.json`
+
+**Status: inherent Vitest, not a vitest-agent bug.** Two Vitest processes
+running at once (for example a CLI run alongside the `vitest-vscode` extension)
+share Vitest's default `coverage.reportsDirectory`, and one can delete the temp
+dir the other is using. vitest-agent never sets `reportsDirectory`. Give each
+concurrent process its own `coverage.reportsDirectory`, or serialize them.
+
+## `MaxPerformanceEntryBufferExceededWarning`
+
+**Status: resolved.** Fixed in a shipped `@vitest-agent/reporter` release — the
+live renderer now drains Node's user-timing buffer after each render cycle, so
+React 19's development-reconciler `performance.measure()` entries no longer
+accumulate. Update `@vitest-agent/reporter` if you still see it.
+
+## Stale test counts after moving or adding files
+
+**Status: misconception.** There is no warm discovery cache to invalidate.
+Discovery re-walks on every run; the MCP serves counts from the database, which
+updates only when tests are re-run. Re-run the tests — restarting the MCP does
+nothing here.
+
+## A run that rebuilds `dist/` mid-run
+
+**Status: expected.** A host project's Vitest `globalSetup` can call
+`AgentPlugin.runScript(...)` (for example `pnpm turbo run build:dev`), which may
+transiently rebuild `dist/` during the run. That is the host project's
+configuration, not a broken workspace.

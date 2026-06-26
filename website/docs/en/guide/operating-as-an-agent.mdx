@@ -1,0 +1,59 @@
+---
+title: Operating as an agent
+description: The facts an AI agent needs first to drive a vitest-agent project — run_tests scoping, coverage-in-subset behavior, console output, and the env vars the SDK recovers automatically.
+---
+
+# Operating as an agent
+
+If you are an AI agent (or configuring one) driving a project that uses
+`@vitest-agent/*`, this page front-loads the handful of facts that otherwise
+cost trial-and-error. The agent-facing versions of these pages are also served
+through the MCP corpus at `vitest-agent://patterns/` so they are discoverable
+from inside a session.
+
+## The facts that save the most time
+
+1. **Run tests with the `run_tests` MCP tool, not Bash `vitest`.** It persists
+   results, classifications, coverage, and history and fires the post-tool-use
+   hooks. Shelling out bypasses all of that.
+2. **`run_tests` has no `filter` parameter.** Scope a run with `project` (the
+   Vitest project name), `files` (globs), or `tags`. An unknown key is silently
+   dropped, so the whole suite runs.
+3. **Subset runs "fail" coverage thresholds by design.** A single-file run that
+   exits with `ERROR: Coverage … does not meet global threshold` is expected.
+   There is no per-run coverage toggle in `run_tests`; it inherits your
+   `vitest.config`. For isolated inspection use
+   `vitest run <file> --coverage.enabled=false`.
+4. **Stray `console.log` is invisible through `run_tests`** — it null-routes
+   Vitest's stdout. Console behavior is set by the plugin's
+   [`console` matrix](/guide/console-modes), not by environment variables. Use
+   Vitest's native `--disableConsoleIntercept` to see intercepted output.
+5. **Session attribution is recovered for you** from the environment the
+   Claude Code plugin's SessionStart hook writes; you never set `VITEST_AGENT_*`
+   vars by hand.
+6. **Stale counts mean tests were not re-run**, not a warm cache. Discovery
+   re-walks per run; the MCP serves counts from the database.
+7. **Some "leaks" are guardrail tests** that assert on their own output — do not
+   silence them.
+
+## Environment variables
+
+You do not configure vitest-agent through environment variables. The
+`VITEST_AGENT_*` family is attribution plumbing written by the SessionStart
+hook and recovered automatically. The only variables you might set yourself:
+
+| Variable | Effect |
+| --- | --- |
+| `VITEST_REPORTER_LOG_LEVEL` | Level of the diagnostic logger (separate from the console reporter) |
+| `VITEST_REPORTER_LOG_FILE` | File the diagnostic logger writes to |
+| `NO_COLOR` | Disables ANSI color in rendered output |
+
+There is no environment variable that toggles coverage or changes the console
+mode — those are configuration, not environment.
+
+## Deeper references
+
+- [Console modes](/guide/console-modes) — the full per-executor matrix
+- [Known issues](/guide/known-issues) — telling tooling noise from real failures
+- MCP corpus (from inside a session): `vitest-agent://patterns/running-tests-via-mcp`,
+  `vitest-agent://patterns/silencing-leaking-output-in-tests`

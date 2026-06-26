@@ -16,8 +16,8 @@
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/docs-site.md",
-			"hash": "26cbcc47e61a1b9bcd4b766177ea92d432d4abd6beb3f2c2222a63a97ac4c96e",
-			"recordedAt": "2026-06-17"
+			"hash": "903361390bc3666fbf58d0f7829791053b7aac79d7308a4fe16cffecd47baffb",
+			"recordedAt": "2026-06-26"
 		},
 		{
 			"source": "CLAUDE.md",
@@ -76,7 +76,7 @@
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/mcp.md",
-			"hash": "9abd94f363bc2d9038eb629a68518f251ec650852142f7349a55e1645f7e2158",
+			"hash": "7afcaf533bf8f0bb5145c3f5aa1ccec1ed887460d2a625bdbc171277972bc4f9",
 			"recordedAt": "2026-06-26"
 		},
 		{
@@ -244,8 +244,8 @@
 		{
 			"source": "website/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/docs-site.md",
-			"hash": "26cbcc47e61a1b9bcd4b766177ea92d432d4abd6beb3f2c2222a63a97ac4c96e",
-			"recordedAt": "2026-06-17"
+			"hash": "903361390bc3666fbf58d0f7829791053b7aac79d7308a4fe16cffecd47baffb",
+			"recordedAt": "2026-06-26"
 		}
 	]
 }

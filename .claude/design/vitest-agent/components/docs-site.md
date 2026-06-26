@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: documentation
 created: 2026-05-27
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-26
+last-synced: 2026-06-26
 completeness: 85
 related:
   - ../architecture.md
@@ -29,7 +29,7 @@ The site is not one of the seven publishable packages and does not version in lo
 
 Top nav is two entries, **Guide** and **Packages**, wired in `website/docs/en/_nav.json` with a per-package dropdown under Packages.
 
-- `/guide` (`website/docs/en/guide/`) is the learning spine: getting-started, concepts and how-to pages. This is the narrative path a new user follows.
+- `/guide` (`website/docs/en/guide/`) is the learning spine: getting-started, concepts, how-to and operating-as-an-agent pages. This is the narrative path a reader follows — the first three groups target a human user, the operating-as-an-agent group targets an agent driving the tool (mirroring the agent-operability patterns the MCP server serves under `vitest-agent://patterns/`).
 - Each of the seven packages owns a directory under `website/docs/en/<short>/` (`plugin`, `sdk`, `mcp`, `cli`, `reporter`, `ui`, `sidecar`) holding an Overview `index.mdx`, hand-written deep-dive pages and a generated `api/` subtree.
 - `/packages` (`website/docs/en/packages/`) is the ecosystem map that orients a reader across the package family.
 
