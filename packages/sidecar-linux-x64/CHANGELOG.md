@@ -1,5 +1,7 @@
 # @vitest-agent/sidecar-linux-x64
 
+## 1.0.1
+
 ## 1.0.0
 
 ### Features
