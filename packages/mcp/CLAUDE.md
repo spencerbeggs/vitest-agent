@@ -43,10 +43,12 @@ src/
     index.ts          -- registerAllResources(server); resolves vendorRoot
                          and patternsRoot from import.meta.url so the
                          same code works in dev (sources at
-                         packages/mcp/src/<vendor|patterns>/) and
-                         post-build (mirrored to
-                         dist/<env>/<vendor|patterns>/ by rslib's
-                         copyPatterns). Both per-page ResourceTemplates
+                         packages/mcp/public/<vendor|patterns>/) and
+                         built (mirrored to
+                         dist/<env>/pkg/public/<vendor|patterns>/ by
+                         @savvy-web/bundler's syncPublicDir); fails
+                         loudly if the index is absent. Both per-page
+                         ResourceTemplates
                          register a list callback: vitest_docs_page
                          decodes manifest.json via manifest-schema.ts;
                          vitest_agent_pattern decodes _meta.json via
@@ -81,8 +83,6 @@ src/
     indexes.ts        -- renderUpstreamIndex / renderPatternsIndex for
                          the two static index URIs (vitest://docs/
                          and vitest-agent://patterns/)
-  vendor/vitest-docs/  -- vendored upstream Vitest docs snapshot
-  patterns/           -- curated testing patterns library
   prompts/            -- six framing-only prompts:
     index.ts          -- registerAllPrompts(server); wires zod arg
                          schemas + factory functions + a toMessages
@@ -102,6 +102,11 @@ src/
                          DataReader + DataStore + ProjectDiscovery +
                          OutputPipeline + SqliteClient + Migrator +
                          NodeContext + NodeFileSystem + Logger
+
+public/               -- package-root corpus mirrored into the build
+                         output by @savvy-web/bundler's syncPublicDir
+  vendor/vitest-docs/  -- vendored upstream Vitest docs snapshot
+  patterns/           -- curated testing patterns library
 
 lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
                          build / validate). Refresh via the
@@ -175,14 +180,15 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
   `DataStore` to pre-fetch tool data on the server — selection
   cost is zero tool roundtrips by design, and the agent fetches
   data via tools after the prompt orients it.
-- **Vendor snapshot is checked in.** The `src/vendor/vitest-docs/`
+- **Vendor snapshot is checked in.** The `public/vendor/vitest-docs/`
   tree ships in git. Don't fetch on demand at runtime — the MCP
   server often runs without network egress. The snapshot is
   refreshed through an explicit human action (the project-local
   `.claude/skills/update-vitest-snapshot/` skill + the
   `lib/scripts/` TS pipeline), not silently between server starts.
-  Living under `src/` is load-bearing for turbo cache invalidation:
-  refreshes correctly show up as build-affecting.
+  Living under `public/` keeps it git-tracked and therefore part of
+  turbo's default inputs (`$TURBO_DEFAULT$`), so refreshes still show
+  up as build-affecting.
 - **`fetch-upstream-docs.ts` uses `execFileSync` only.** The
   fetcher takes a tag argument and passes it to `git`. Building a
   shell command with `execSync` and string interpolation opens a
@@ -225,7 +231,8 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
   `dbPath` resolution fails at boot, the server should not start --
   surface the error via stderr and exit non-zero so the loader can
   print install instructions.
-- Vendor mirrors into `dist/<env>/` via `copyPatterns`; load
+- Vendor + patterns mirror into `dist/<env>/pkg/public/` via
+  @savvy-web/bundler's `syncPublicDir`; load
   `components/mcp.md` before adding a new content tree or
   build-pipeline change.
 - Adding a prompt: create `prompts/<slug>.ts` exporting a factory
@@ -239,7 +246,7 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
   `.claude/skills/update-vitest-snapshot/SKILL.md` skill, which
   walks through fetch → prune → scaffold → enrich → validate with
   explicit user checkpoints. Commit the rewritten
-  `src/vendor/vitest-docs/` tree as a single change.
+  `public/vendor/vitest-docs/` tree as a single change.
 
 ## Design references
 

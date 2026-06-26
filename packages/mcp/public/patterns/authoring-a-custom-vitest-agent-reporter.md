@@ -77,6 +77,6 @@ export default defineConfig({
 
 ## See also
 
-- `vitest://docs/advanced/reporters` — Vitest's own reporter API (different surface; informative for context)
+- `vitest://docs/api/advanced/reporters` — Vitest's own reporter API (different surface; informative for context)
 - `packages/reporter/src/default.ts` — The composition pattern the default reporter uses
 - `packages/sdk/src/contracts/reporter.ts` — Full type definitions for the contract

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const PATTERNS_DIR = join(here, "../src/patterns");
+const PATTERNS_DIR = join(here, "../public/patterns");
 
 interface PatternsMeta {
 	patterns: Array<{ slug: string; title: string; summary: string }>;

@@ -2,7 +2,7 @@
 // packages/mcp/lib/scripts/draft-config-patches.ts
 //
 // One-shot helper for the update-vitest-snapshot skill. Walks every
-// page under src/vendor/vitest-docs/config/, extracts the H1 option
+// page under public/vendor/vitest-docs/config/, extracts the H1 option
 // name plus the first bullet-list metadata block (Type/Default/CLI),
 // and produces a `Use when configuring <option> ...` description ready
 // to feed into apply-manifest-patches.ts. Output goes to stdout (so it
@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = resolve(SCRIPT_DIR, "..", "..");
-const CONFIG_DIR = resolve(PKG_DIR, "src", "vendor", "vitest-docs", "config");
+const CONFIG_DIR = resolve(PKG_DIR, "public", "vendor", "vitest-docs", "config");
 
 interface PageMeta {
 	readonly title: string;

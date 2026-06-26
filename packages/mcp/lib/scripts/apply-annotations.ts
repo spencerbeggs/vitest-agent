@@ -2,7 +2,7 @@
 // packages/mcp/lib/scripts/apply-annotations.ts
 //
 // One-shot: reads the existing manifest at
-// packages/mcp/src/vendor/vitest-docs/manifest.json, applies the
+// packages/mcp/public/vendor/vitest-docs/manifest.json, applies the
 // path-prefix annotation heuristic from annotations-heuristic.ts, and
 // writes the file back in place. Idempotent — re-running on an
 // already-annotated manifest produces the same output.
@@ -23,7 +23,7 @@ import { seedAnnotations } from "./annotations-heuristic.js";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = resolve(SCRIPT_DIR, "..", "..");
-const MANIFEST_PATH = resolve(PKG_DIR, "src", "vendor", "vitest-docs", "manifest.json");
+const MANIFEST_PATH = resolve(PKG_DIR, "public", "vendor", "vitest-docs", "manifest.json");
 
 const program = Effect.gen(function* () {
 	const raw = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as unknown;

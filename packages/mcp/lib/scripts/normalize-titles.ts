@@ -2,7 +2,7 @@
 // packages/mcp/lib/scripts/normalize-titles.ts
 //
 // One-shot title-normalizer for the upstream Vitest docs manifest. Reads
-// packages/mcp/src/vendor/vitest-docs/manifest.json, produces a patch
+// packages/mcp/public/vendor/vitest-docs/manifest.json, produces a patch
 // JSON keyed by page path that follows the title hierarchy documented in
 // the update-vitest-snapshot skill:
 //
@@ -28,7 +28,7 @@ import { decodeUpstreamManifest } from "../../src/resources/manifest-schema.js";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = resolve(SCRIPT_DIR, "..", "..");
-const MANIFEST_PATH = join(PKG_DIR, "src", "vendor", "vitest-docs", "manifest.json");
+const MANIFEST_PATH = join(PKG_DIR, "public", "vendor", "vitest-docs", "manifest.json");
 
 // Hand-curated overrides for api/ and guide/ pages. Anything not listed
 // here in those sections keeps its current title.

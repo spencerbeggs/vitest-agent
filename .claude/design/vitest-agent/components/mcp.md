@@ -414,9 +414,9 @@ sidecar; the MCP tool reaches the same `DataStore.registerAgent` code path.
 under two URI schemes:
 
 - `vitest://docs/` — the vendored upstream Vitest documentation snapshot
-  at `packages/mcp/src/vendor/vitest-docs/`.
+  at `packages/mcp/public/vendor/vitest-docs/`.
 - `vitest-agent://patterns/` — the curated testing-patterns library at
-  `packages/mcp/src/patterns/`.
+  `packages/mcp/public/patterns/`.
 
 Each scheme has an index URI and a per-page template URI. Both per-page
 templates register a `list` callback that decodes the source manifest
@@ -449,12 +449,18 @@ must stay within the resource root. Naïve `join(root, relative)` would let
 runs as a long-lived process and resource URIs come from clients, so this
 guard is not optional.
 
-**Vendor + patterns layout.** Both content trees live under `src/` so
-turbo treats edits as build-affecting. They are mirrored into
-`dist/<env>/` by rslib's `copyPatterns` config — `vendor/` and `patterns/`
-end up at `dist/<env>/vendor/` and `dist/<env>/patterns/`, siblings of
-the compiled bundle. The registrar resolves the right layout at runtime
-via `existsSync` fallback.
+**Vendor + patterns layout.** Both content trees live under a package-root
+`public/` directory. `@savvy-web/bundler` mirrors `public/` into the build
+output at `dist/<env>/pkg/public/` (via tsdown-plugins' `syncPublicDir`) —
+`vendor/` and `patterns/` end up at `dist/<env>/pkg/public/vendor/` and
+`dist/<env>/pkg/public/patterns/`. `resolveContentRoots()` in
+`resources/index.ts` probes the `public/` layout in both the built and
+source modes (`../public` post-build, `../../public` from source) and
+fails loudly if neither carries `patterns/_meta.json`, so a broken build
+surfaces a clear path list at startup instead of an opaque runtime
+`ENOENT`. `packages/mcp/__test__/content-roots.test.ts` guards this,
+asserting the served corpus resolves under `public/` with both index files
+present (regression coverage for issue #96).
 
 `UpstreamManifest`'s `pages: ReadonlyArray<{ path, title, description,
 annotations? }>` field is **optional** in the schema so the registrar's
@@ -513,7 +519,7 @@ to author per-page descriptions between scaffolding and validation:
   VitePress meta files like `.vitepress/`, `index.md`, `team.md`,
   `todo.md`, `blog.md`, `blog/`, `public/`), strips VitePress YAML
   frontmatter, derives mechanical titles from each page's H1, and writes
-  the cleaned tree to `src/vendor/vitest-docs/` plus a schema-validated
+  the cleaned tree to `public/vendor/vitest-docs/` plus a schema-validated
   `manifest.json`. The `pages[]` entries land with placeholder
   descriptions marked `[TODO: replace with load-when signal]` — the skill
   drives the agent through rewriting each one. The script also seeds
@@ -550,19 +556,21 @@ trusted. `execFileSync("git", [..., "--branch", tag, ...], { cwd })`
 invokes git directly without spawning a shell, so `tag` is treated
 verbatim as one argv element regardless of its contents.
 
-**Build-time copy.** `rslib` only knows how to build TypeScript sources.
-The vendor tree and patterns tree are runtime data, not source. Bundling
-them through a build plugin would either inline the markdown into the JS
-bundle (wasteful for resources clients fetch by URI) or require a custom
-loader. rslib's `copyPatterns` is the rsbuild-native answer to the same
-problem, declared in `packages/mcp/rslib.config.ts` (`[{ from:
-"src/vendor", to: "vendor" }, { from: "src/patterns", to: "patterns" }]`).
-`dist/<env>/vendor/` and `dist/<env>/patterns/` sit as siblings of the
-compiled `resources/` directory, so the runtime path resolution in
-`resources/index.ts` works post-build.
+**Build-time copy.** The bundler only compiles TypeScript sources. The
+vendor tree and patterns tree are runtime data, not source. Bundling them
+through a build plugin would either inline the markdown into the JS bundle
+(wasteful for resources clients fetch by URI) or require a custom loader.
+`@savvy-web/bundler` mirrors a package-root `public/` directory into the
+build output (via tsdown-plugins' `syncPublicDir`) — it does **not** copy
+arbitrary `src/` subdirectories, which is why the corpus lives in
+`public/` rather than `src/`: under the old `src/` layout the built and
+published package shipped neither tree, causing the runtime `ENOENT …
+patterns/_meta.json` of issue #96. `dist/<env>/pkg/public/vendor/` and
+`dist/<env>/pkg/public/patterns/` land next to the compiled bundle, so the
+runtime path resolution in `resources/index.ts` works post-build.
 
-**Adding a resource.** Drop markdown into `src/vendor/vitest-docs/`
-(vendored upstream — managed by the snapshot pipeline) or `src/patterns/`
+**Adding a resource.** Drop markdown into `public/vendor/vitest-docs/`
+(vendored upstream — managed by the snapshot pipeline) or `public/patterns/`
 (curated content — author directly + update `_meta.json`). For the
 vendored tree, every page MUST have a corresponding entry in
 `manifest.json`'s `pages[]` array (path, title, description) — the
@@ -573,12 +581,12 @@ address the file itself; no registrar change unless adding a new URI
 scheme.
 
 **Adding a new content tree** (e.g., `vitest-agent://decisions/`): add
-the source directory under `src/` as a sibling of `src/vendor/` and
-`src/patterns/`, extend `copyPatterns` in `rslib.config.ts` with another
-`{ from, to }` entry to mirror it into `dist/<env>/`, register the new
-scheme in `resources/index.ts`, add a reader file using the
-path-traversal-safe root resolution, and resolve the new root from
-`import.meta.url` using the same dev/post-build dual-path pattern.
+the directory under `public/` as a sibling of `public/vendor/` and
+`public/patterns/` — `syncPublicDir` mirrors it into `dist/<env>/pkg/public/`
+with no config change — register the new scheme in `resources/index.ts`,
+add a reader file using the path-traversal-safe root resolution, and
+resolve the new root from `import.meta.url` using the same dev/post-build
+dual-path pattern.
 
 ## McpLive composition layer
 

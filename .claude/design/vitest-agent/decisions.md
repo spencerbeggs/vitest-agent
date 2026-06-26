@@ -627,8 +627,8 @@ Hook scripts call the CLI bin `vitest-agent`.
 The MCP server exposes two non-tool surfaces alongside the tRPC tool
 router. **Resources under two URI schemes:** `vitest://docs/` exposes
 the vendored upstream Vitest documentation snapshot at
-`packages/mcp/src/vendor/vitest-docs/`; `vitest-agent://patterns/`
-exposes the curated patterns library at `packages/mcp/src/patterns/`.
+`packages/mcp/public/vendor/vitest-docs/`; `vitest-agent://patterns/`
+exposes the curated patterns library at `packages/mcp/public/patterns/`.
 Each scheme registers an index resource and a page template
 (`{+path}` or `{slug}`). All return `text/markdown`. **Framing-only
 prompts:** `triage`, `why-flaky`, `regression-since-pass`,
@@ -705,12 +705,20 @@ re-implementing URI template matching in the router. The two surfaces
 share the same `McpServer` instance, the same stdio transport, and
 the same `ManagedRuntime` indirectly.
 
-**Vendor + patterns under `src/`.** Turbo's build-cache input includes
-`src/` by convention, so snapshot refreshes show up as build-affecting
-deterministically. The dist layout
-(`dist/<env>/vendor/` and `dist/<env>/patterns/`) is produced by
-rslib's `copyPatterns` config in `packages/mcp/rslib.config.ts`. The
-build/copy pair is atomic by construction.
+**Vendor + patterns under `public/`.** The served corpus lives in a
+package-root `public/` directory because the package builds with
+`@savvy-web/bundler`, which mirrors only a package-root `public/` tree into
+the build output (`dist/<env>/pkg/public/`, via tsdown-plugins'
+`syncPublicDir`) — it does not copy arbitrary `src/` subdirectories. The
+original layout kept the corpus under `src/vendor/` and `src/patterns/`
+(mirrored by rslib's `copyPatterns`); after the bundler migration that copy
+mechanism was gone, so the built and published package shipped neither tree
+and the runtime hit `ENOENT … patterns/_meta.json` (issue #96). Moving both
+trees to `public/` restores them to the build output with no per-tree config.
+`resolveContentRoots()` in `src/resources/index.ts` probes the `public/`
+layout in both modes and fails loudly if neither carries
+`patterns/_meta.json`; `packages/mcp/__test__/content-roots.test.ts` guards
+the resolution.
 
 **Snapshot lifecycle is split across three Effect-based scripts.**
 Under `packages/mcp/lib/scripts/`: `fetch-upstream-docs.ts`

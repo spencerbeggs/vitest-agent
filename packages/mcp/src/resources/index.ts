@@ -28,18 +28,35 @@ function toSdkAnnotations(a: ResourceAnnotations): {
 	return out;
 }
 
-function resolveContentRoots(): { vendorRoot: string; patternsRoot: string } {
-	// import.meta.url maps to two layouts:
-	//   source (tsx/vitest):  packages/mcp/src/resources/index.ts -> vendor at ../vendor/vitest-docs
-	//   built (rslib bundle): dist/<env>/<chunk>.js              -> vendor at ./vendor/vitest-docs (via copyPatterns)
+/**
+ * Locate the `public/` directory that holds the served corpus across the
+ * source and built layouts. `@savvy-web/bundler` mirrors the package-root
+ * `public/` tree next to the emitted chunk (`<pkg>/public/`), so:
+ *
+ *   built (bundle):  index.js at dist/<env>/pkg/resources/ -> ../public
+ *   source (vitest): index.ts at packages/mcp/src/resources/ -> ../../public
+ *
+ * Probe both and fail loudly when neither carries the patterns index, so a
+ * broken build surfaces a clear path list at startup instead of an opaque
+ * ENOENT the first time a consumer reads `vitest-agent://patterns/`.
+ */
+export function resolveContentRoots(): { vendorRoot: string; patternsRoot: string } {
 	const here = dirname(fileURLToPath(import.meta.url));
-	const builtBase = here;
-	const sourceBase = join(here, "..");
-	const base = existsSync(join(builtBase, "vendor")) ? builtBase : sourceBase;
-	return {
-		vendorRoot: join(base, "vendor", "vitest-docs"),
-		patternsRoot: join(base, "patterns"),
-	};
+	const candidates = [
+		join(here, "..", "public"), // built: dist/<env>/pkg/resources/ -> pkg/public
+		join(here, "..", "..", "public"), // source: src/resources/ -> packages/mcp/public
+	];
+	for (const base of candidates) {
+		if (existsSync(join(base, "patterns", "_meta.json"))) {
+			return {
+				vendorRoot: join(base, "vendor", "vitest-docs"),
+				patternsRoot: join(base, "patterns"),
+			};
+		}
+	}
+	throw new Error(
+		`[vitest-agent-mcp] cannot locate the served corpus: no public/patterns/_meta.json found (tried: ${candidates.join(", ")})`,
+	);
 }
 
 interface ListedPage {

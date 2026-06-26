@@ -2,7 +2,7 @@
 // packages/mcp/lib/scripts/apply-manifest-patches.ts
 //
 // Reads patches from a JSON file (object keyed by page path) and applies
-// them to packages/mcp/src/vendor/vitest-docs/manifest.json. Patches may
+// them to packages/mcp/public/vendor/vitest-docs/manifest.json. Patches may
 // override `title` and/or `description` per entry. Pages not present in
 // the patch are left untouched.
 //
@@ -24,7 +24,7 @@ import { decodeUpstreamManifest, encodeUpstreamManifest } from "../../src/resour
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_DIR = resolve(SCRIPT_DIR, "..", "..");
-const MANIFEST_PATH = join(PKG_DIR, "src", "vendor", "vitest-docs", "manifest.json");
+const MANIFEST_PATH = join(PKG_DIR, "public", "vendor", "vitest-docs", "manifest.json");
 
 interface Patch {
 	readonly title?: string;
