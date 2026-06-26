@@ -246,6 +246,12 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		expect(exclude?.some((p) => p.includes("__test__/utils"))).toBe(true);
 		expect(exclude?.some((p) => p.includes("__test__/fixtures"))).toBe(true);
 		expect(exclude?.some((p) => p.includes("__test__/snapshots"))).toBe(true);
+		// A custom `test.exclude` REPLACES Vitest's defaults rather than merging,
+		// so it must re-state `**/node_modules/**` and `**/.git/**` — otherwise
+		// the broad `__test__/**` include glob re-walks into nested
+		// `__test__/.../node_modules/**` and runs dependencies' own test files.
+		expect(exclude?.some((p) => p.includes("node_modules"))).toBe(true);
+		expect(exclude?.some((p) => p.includes(".git"))).toBe(true);
 	});
 
 	it("should return config covering both src and __test__ globs for hybrid package", async () => {

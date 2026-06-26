@@ -98,6 +98,34 @@ export interface LiveInkRenderer {
 type InkInstance = ReturnType<typeof inkRender>;
 
 /**
+ * Drain the global user-timing buffer after a render.
+ *
+ * React 19's *development* reconciler — the build Ink loads whenever
+ * `NODE_ENV !== "production"`, which is the norm under Vitest — emits a
+ * `performance.measure()` into the global user-timing buffer on every
+ * component render for its "Component Performance Track" DevTools feature.
+ * Nothing in a Node process consumes that buffer, so across a long run the
+ * live mount's per-event and per-spinner-tick rerenders pile up millions of
+ * `measure` entries until Node prints `MaxPerformanceEntryBufferExceededWarning`
+ * (issue #97). The renderer owns every render call, so it drains the buffer
+ * right after each one, bounding it to a single render's worth of entries.
+ *
+ * Clearing the whole measure/mark buffer is safe here: this runs in the
+ * Vitest main process, where test code executes in forked workers (separate
+ * perf buffers) and nothing downstream reads these entries. Guarded against
+ * runtimes that lack the user-timing API and never allowed to throw — buffer
+ * hygiene must not derail a run.
+ */
+const drainRenderPerfEntries = (): void => {
+	try {
+		performance.clearMeasures?.();
+		performance.clearMarks?.();
+	} catch {
+		// best-effort
+	}
+};
+
+/**
  * Create a {@link LiveInkRenderer} that drives a live Ink mount for
  * `consoleMode: "stream"`. Call `event(e)` for each `RunEvent` published
  * by the plugin; the renderer mounts on `RunStarted`, rerenders on each
@@ -181,6 +209,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 			if (instance === null) return;
 			try {
 				instance.rerender(frameElement());
+				drainRenderPerfEntries();
 			} catch {
 				instance = null;
 				stopClock();
@@ -290,6 +319,13 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 				}
 				firstRunStarted = false;
 			}
+
+			// Drain the user-timing buffer once per event, after every render
+			// path above (mount, event-path rerender, the terminal unmount's
+			// final React commit, and the degraded `renderToString`). React's
+			// dev reconciler emits a `performance.measure()` per render; left
+			// alone the buffer grows unbounded across a run (issue #97).
+			drainRenderPerfEntries();
 		},
 		unmount(): void {
 			tearDown();

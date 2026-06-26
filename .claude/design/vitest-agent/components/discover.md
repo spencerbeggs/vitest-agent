@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-26
+last-synced: 2026-06-26
 completeness: 95
 related:
   - ../components.md
@@ -155,15 +155,7 @@ passed.
   (ts|tsx|js|jsx) get ["e2e"], files ending in .int.(test|spec).
   (ts|tsx|js|jsx) get ["int"], everything else falls through to
   ["unit"].
-- **buildProject.** Scans the package's `src/` and `__test__/`
-  directories for test files via `findTestFiles`. Returns null if
-  neither directory contains a match. Otherwise emits a
-  `TestProjectInlineConfiguration` with `extends: true`, the test name
-  set from the package name, `environment: "node"`, absolute include
-  globs covering whichever of `src/` and `__test__/` produced matches,
-  an exclude list for the helper subdirectories `utils`, `fixtures`,
-  and `snapshots` inside `__test__/`, and a `setupFiles` entry for
-  `vitest.setup.(ts|tsx|js|jsx)` at the package root when present.
+- **buildProject.** Scans the package's `src/` and `__test__/` directories for test files via `findTestFiles`. Returns null if neither directory contains a match. Otherwise emits a `TestProjectInlineConfiguration` with `extends: true`, the test name set from the package name, `environment: "node"`, absolute include globs covering whichever of `src/` and `__test__/` produced matches, an exclude list, and a `setupFiles` entry for `vitest.setup.(ts|tsx|js|jsx)` at the package root when present. The exclude list prepends Vitest's `configDefaults.exclude` (`**/node_modules/**`, `**/.git/**`) ahead of the helper-subdirectory globs (`utils`, `fixtures` and `snapshots` inside `__test__/`). The prepend is load-bearing: a custom `test.exclude` replaces Vitest's defaults rather than merging, so without it the broad `__test__/**` include re-walks into nested `__test__/.../node_modules/**` and Vitest runs dependencies' own test files (e.g. zod's tests under fixture `node_modules`).
 
 The include globs use absolute paths so the same configs work whether
 the consuming vitest.config.ts lives at the monorepo root or inside a
