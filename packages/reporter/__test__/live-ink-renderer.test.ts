@@ -472,6 +472,42 @@ describe("createLiveInk — terminal-event commit via unmount", () => {
 });
 
 // ---------------------------------------------------------------------------
+// perf_hooks buffer hygiene (issue #97)
+// ---------------------------------------------------------------------------
+
+describe("createLiveInk — user-timing buffer hygiene", () => {
+	it("drains the global measure/mark buffer after each rendered event so React's dev-build measures don't leak", () => {
+		// React 19's *development* reconciler — the build Ink loads whenever
+		// NODE_ENV !== "production" (the norm under Vitest) — emits a
+		// `performance.measure()` per component render for its Component
+		// Performance Track. Nothing consumes the global user-timing buffer, so
+		// the live mount's per-event + per-spinner-tick rerenders accumulate
+		// until Node prints `MaxPerformanceEntryBufferExceededWarning` (#97).
+		// The renderer must drain the buffer after each event it renders.
+		performance.clearMeasures();
+		performance.clearMarks();
+		const { stream } = captureStream();
+		const live = createLiveInk({ stream });
+		muteStderr(() => {
+			live.event(runStarted);
+			// Simulate the dev reconciler flooding the global buffer between our
+			// render calls.
+			for (let i = 0; i < 1000; i++) {
+				performance.measure(`react-render-${i}`);
+				performance.mark(`react-mark-${i}`);
+			}
+			expect(performance.getEntriesByType("measure").length).toBeGreaterThan(0);
+			// Processing an event triggers a render; the renderer drains afterward.
+			live.event({ _tag: "ModuleStarted", modulePath: "a.test.ts", startedAt: "T0" });
+			expect(performance.getEntriesByType("measure").length).toBe(0);
+			expect(performance.getEntriesByType("mark").length).toBe(0);
+			live.event(runFinished);
+		});
+		live.unmount();
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Mount does not wipe the screen
 // ---------------------------------------------------------------------------
 

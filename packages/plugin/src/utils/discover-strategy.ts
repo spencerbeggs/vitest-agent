@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 import type { TestTagDefinition } from "@vitest/runner";
 import type { TestProjectInlineConfiguration } from "vitest/config";
+import { configDefaults } from "vitest/config";
 import { findTestFiles } from "./find-test-files.js";
 import { Tag } from "./tag.js";
 
@@ -279,9 +280,14 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 			include.push(join(input.path, "__test__/**/*.{test,spec}.{ts,tsx,js,jsx}"));
 		}
 
-		// Exclude helper subdirs inside __test__/ when __test__ is present (absolute paths)
+		// Exclude helper subdirs inside __test__/ when __test__ is present (absolute paths).
+		// A custom `test.exclude` REPLACES Vitest's defaults rather than merging, so we
+		// must re-state `configDefaults.exclude` (`**/node_modules/**`, `**/.git/**`)
+		// alongside the helper dirs. Without it, the broad `__test__/**` include glob
+		// re-walks into nested `__test__/.../node_modules/**` and Vitest runs
+		// dependencies' own test files (e.g. zod's tests under fixture node_modules).
 		const exclude: string[] | undefined = hasTestDir
-			? TEST_DIR_HELPER_DIRS.map((d) => join(input.path, `__test__/${d}/**`))
+			? [...configDefaults.exclude, ...TEST_DIR_HELPER_DIRS.map((d) => join(input.path, `__test__/${d}/**`))]
 			: undefined;
 
 		// Detect setup file
