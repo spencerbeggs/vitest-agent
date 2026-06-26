@@ -107,6 +107,7 @@ export * from "./utils/canonicalize-git-url.js";
 export * from "./utils/classify-test.js";
 export * from "./utils/compress-lines.js";
 export * from "./utils/compute-trend.js";
+export * from "./utils/console-leaks.js";
 export * from "./utils/detect-pm.js";
 export { isTimeoutError } from "./utils/detect-timeout.js";
 export * from "./utils/ensure-migrated.js";
