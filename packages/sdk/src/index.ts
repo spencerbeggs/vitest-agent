@@ -67,6 +67,7 @@ export * from "./schemas/CacheManifest.js";
 export * from "./schemas/ChannelEvent.js";
 export * from "./schemas/Common.js";
 export * from "./schemas/Config.js";
+export * from "./schemas/ConsoleLeaks.js";
 export * from "./schemas/Coverage.js";
 export * from "./schemas/CoverageLevel.js";
 export * from "./schemas/CoverageTargets.js";
