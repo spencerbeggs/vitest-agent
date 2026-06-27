@@ -57,7 +57,7 @@
 		{
 			"slug": "operating-vitest-agent-as-an-agent",
 			"title": "Operating vitest-agent as an Agent",
-			"summary": "Read first: the front-loaded facts an agent needs (no run_tests filter param, coverage-in-subset behavior, console output is config-driven not env-driven, attribution is auto-recovered) with links to the deeper patterns.",
+			"summary": "Read first: the front-loaded facts an agent needs (no run_tests filter param, coverage-in-subset behavior, consoleLeaks signal in run_tests output, VITEST_AGENT_CONSOLE CLI escape hatch, attribution is auto-recovered) with links to the deeper patterns.",
 			"annotations": {
 				"audience": ["assistant"],
 				"priority": 0.95

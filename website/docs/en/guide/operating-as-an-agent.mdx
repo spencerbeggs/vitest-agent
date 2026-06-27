@@ -24,10 +24,12 @@ from inside a session.
    There is no per-run coverage toggle in `run_tests`; it inherits your
    `vitest.config`. For isolated inspection use
    `vitest run <file> --coverage.enabled=false`.
-4. **Stray `console.log` is invisible through `run_tests`** — it null-routes
-   Vitest's stdout. Console behavior is set by the plugin's
-   [`console` matrix](/guide/console-modes), not by environment variables. Use
-   Vitest's native `--disableConsoleIntercept` to see intercepted output.
+4. **Stray `console.*` is surfaced by `run_tests` as a signal, not raw logs.**
+   The `ok` result carries `report.consoleLeaks` — writes by file with counts,
+   optional per-test attribution, and a truncated sample. `run_tests` still
+   null-routes Vitest's stdout; the signal captures what was printed without
+   forwarding raw log lines. To see raw output for a flagged file, run Vitest
+   on the CLI: `VITEST_AGENT_CONSOLE=passthrough pnpm test`.
 5. **Session attribution is recovered for you** from the environment the
    Claude Code plugin's SessionStart hook writes; you never set `VITEST_AGENT_*`
    vars by hand.
@@ -47,9 +49,9 @@ hook and recovered automatically. The only variables you might set yourself:
 | `VITEST_REPORTER_LOG_LEVEL` | Level of the diagnostic logger (separate from the console reporter) |
 | `VITEST_REPORTER_LOG_FILE` | File the diagnostic logger writes to |
 | `NO_COLOR` | Disables ANSI color in rendered output |
+| `VITEST_AGENT_CONSOLE` | Override the resolved console mode for the active executor on a CLI run (`passthrough` is the universally valid value across all executor slots). Useful when investigating a file flagged by `report.consoleLeaks`. An invalid value for the current slot warns to stderr and is ignored. |
 
-There is no environment variable that toggles coverage or changes the console
-mode — those are configuration, not environment.
+There is no environment variable that toggles coverage — that is configuration.
 
 ## Deeper references
 

@@ -99,3 +99,30 @@ AgentPlugin({ console: { ci: "silent" } })
 // Draw the live progressive view on a human terminal
 AgentPlugin({ console: { human: "stream" } })
 ```
+
+## Per-run CLI override — `VITEST_AGENT_CONSOLE`
+
+For a one-off CLI run where you need to see raw console output (for example,
+when investigating a file flagged by `run_tests`'s `report.consoleLeaks`
+signal), set `VITEST_AGENT_CONSOLE` before running Vitest:
+
+```bash
+VITEST_AGENT_CONSOLE=passthrough pnpm test
+```
+
+This overrides the plugin's resolved console mode to `passthrough` for the
+active executor without touching the permanent config. An invalid value for the
+current executor slot warns to stderr and is ignored.
+
+`passthrough` is the only value valid for every executor slot. Other mode
+values (`stream`, `agent`, `silent`, `ci-annotations`) are slot-specific and
+behave the same as their config counterparts but applied per-run.
+
+### Where stray console output shows up
+
+| Surface | Sees stray `console.*` | Per-test attribution |
+| --- | --- | --- |
+| `run_tests` (MCP) | yes — `consoleLeaks` signal (counts + sample) | per file, per test where resolvable |
+| Human at a TTY | yes — Vitest's own `stdout \|` / `stderr \|` lines | yes (TTY only) |
+| Piped shell (default) | no — agent-shaped summary suppresses it | n/a |
+| Piped shell + `VITEST_AGENT_CONSOLE=passthrough` | yes — raw passthrough | no (raw, unlabeled) |
