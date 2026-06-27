@@ -19,11 +19,14 @@ trial-and-error, then points you at the deeper patterns.
    — global thresholds applied to partial coverage. There is no per-run
    coverage toggle in `run_tests`; it inherits your `vitest.config`. For
    isolated inspection use the CLI: `vitest run <file> --coverage.enabled=false`.
-4. **You cannot see stray `console.log` through `run_tests`** — it null-routes
-   Vitest's stdout. Console behavior is configured via the plugin's `console`
-   matrix (e.g. `console: { agent: "passthrough" }`), **not** environment
-   variables. To see intercepted output, run Vitest directly with
-   `--disableConsoleIntercept` (a native Vitest flag).
+4. **Stray `console.*` is surfaced by `run_tests` as a signal, not raw logs.**
+   The `ok` result's `report.consoleLeaks` field lists writes by file with
+   counts, optional per-test attribution, and a truncated sample. `run_tests`
+   still null-routes Vitest's stdout; the signal captures what was printed
+   without forwarding raw log lines into agent context. To see the raw output
+   for a flagged file, run Vitest on the CLI:
+   `VITEST_AGENT_CONSOLE=passthrough pnpm test`. Details at
+   `vitest-agent://patterns/running-tests-via-mcp`.
 5. **Session attribution is recovered for you.** The SessionStart hook writes
    the `VITEST_AGENT_*` identity into the environment and the SDK recovers it —
    you never set those vars by hand. The only behavioral knobs are
@@ -38,9 +41,15 @@ trial-and-error, then points you at the deeper patterns.
 You do not configure vitest-agent through environment variables. The
 `VITEST_AGENT_*` vars (chat id, conversation id, agent ids, project dir,
 sidecar bin) are attribution plumbing written by the Claude Code plugin's
-SessionStart hook and recovered automatically. The only vars you might set for
-diagnostics are `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` (a
-diagnostic log file, separate from the console reporter) and `NO_COLOR`.
+SessionStart hook and recovered automatically. The vars you might set:
+
+- `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` — diagnostic
+  logger (separate from the console reporter).
+- `NO_COLOR` — disables ANSI color in rendered output.
+- `VITEST_AGENT_CONSOLE=passthrough` — overrides the resolved console mode
+  for the active executor on a CLI `vitest` run. Useful when investigating
+  files flagged by `report.consoleLeaks`. Invalid-for-slot values warn to
+  stderr and are ignored.
 
 ## Where to go next
 

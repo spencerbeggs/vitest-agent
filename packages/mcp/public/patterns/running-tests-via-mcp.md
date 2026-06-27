@@ -51,6 +51,51 @@ This is expected: your global coverage thresholds are applied to a partial run, 
 vitest run path/to/one.test.ts --coverage.enabled=false
 ```
 
+## Stray console output — `report.consoleLeaks`
+
+When the run produces stray `console.*` output, the `report` object on an
+`"ok"` result carries an optional `consoleLeaks` field. It is omitted
+entirely when the run produced no user console output.
+
+Shape:
+
+- `total` — total stray console writes across the run
+- `byFile` — one entry per file that produced writes:
+  - `file` — the test file path
+  - `stdout` — writes to stdout-class streams (`log`, `info`, `debug`)
+  - `stderr` — writes to stderr-class streams (`error`, `warn`)
+  - `tests` (optional) — test names where writes were attributed
+  - `sample` (optional) — truncated excerpt of the first write in this file
+- `truncated` (optional) — `true` when `byFile` was capped
+
+Use `byFile[].file` to locate which files to investigate and `sample` to
+find the call site, without dumping full log content into agent context.
+The markdown summary line also surfaces the leak count inline (e.g.
+`⚠ 3 stray console writes across 2 files (see consoleLeaks)`).
+
+### Console-output visibility by surface
+
+| Surface | Sees stray `console.*` | Per-test attribution |
+| --- | --- | --- |
+| `run_tests` (MCP) | yes — `consoleLeaks` signal (counts + sample) | per file, per test where resolvable |
+| Human at a TTY | yes — Vitest's own `stdout \|` / `stderr \|` lines | yes (TTY only) |
+| Piped shell (default) | no — agent-shaped summary suppresses it | n/a |
+| Piped shell + `VITEST_AGENT_CONSOLE=passthrough` | yes — raw passthrough | no (raw, unlabeled) |
+
+### `VITEST_AGENT_CONSOLE` — CLI escape hatch
+
+To see raw console output for a file that `consoleLeaks` flagged, run
+Vitest directly on the CLI with the override set:
+
+```bash
+VITEST_AGENT_CONSOLE=passthrough pnpm test
+```
+
+This overrides the plugin's resolved console mode to `passthrough` for
+the active executor — Vitest's own reporters emit console output
+unfiltered. An invalid value for the current executor slot warns to
+stderr and is ignored.
+
 ## See also
 
 - `vitest-agent://patterns/operating-vitest-agent-as-an-agent` — the orientation index

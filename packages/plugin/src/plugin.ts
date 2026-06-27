@@ -2,29 +2,29 @@ import { execSync } from "node:child_process";
 import type { TestTagDefinition } from "@vitest/runner";
 import { CURRENT_REPORTER_VERSION } from "@vitest-agent/reporter";
 import type {
-	AgentConsoleMode,
 	AgentPluginOptions,
-	CiConsoleMode,
 	ConsoleMode,
 	CoverageLevelName,
 	Environment,
 	Executor,
-	HumanConsoleMode,
 	OutputFormat,
 	RunEvent,
 	Transport,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
 import {
+	AgentConsoleMode,
 	CURRENT_SDK_VERSION,
+	CiConsoleMode,
 	CoverageLevel,
 	EnvironmentDetector,
 	EnvironmentDetectorLive,
+	HumanConsoleMode,
 	formatFatalError,
 	resolveLogLevel,
 } from "@vitest-agent/sdk";
 import type { Layer } from "effect";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
@@ -98,11 +98,24 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
  *
  * @internal
  */
-function resolveConsoleMode(
+export function resolveConsoleMode(
 	options: AgentPluginConstructorOptions,
 	executor: Executor,
 	_env: Environment,
 ): ConsoleMode {
+	const override = process.env.VITEST_AGENT_CONSOLE;
+	if (override !== undefined && override !== "") {
+		// Each per-slot Schema.is call is a narrowed Literal check.  Forming a
+		// single ternary-produced union of the three Literal schemas confuses
+		// tsgo (annotations-method contravariance), so the three guards stay
+		// separate.
+		if (executor === "human" && Schema.is(HumanConsoleMode)(override)) return override;
+		if (executor === "agent" && Schema.is(AgentConsoleMode)(override)) return override;
+		if (executor !== "human" && executor !== "agent" && Schema.is(CiConsoleMode)(override)) return override;
+		process.stderr.write(
+			`[vitest-agent:plugin] ignoring invalid VITEST_AGENT_CONSOLE="${override}" for ${executor} executor\n`,
+		);
+	}
 	const console = options.console;
 	if (executor === "human") {
 		return (console?.human as HumanConsoleMode | undefined) ?? "passthrough";

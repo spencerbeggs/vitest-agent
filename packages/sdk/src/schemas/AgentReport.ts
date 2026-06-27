@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { ReportError, TestClassification, TestRunReason, TestState } from "./Common.js";
+import { ConsoleLeaks } from "./ConsoleLeaks.js";
 import { CoverageReport } from "./Coverage.js";
 
 /**
@@ -78,6 +79,7 @@ export const AgentReport = Schema.Struct({
 			value: TagCountEntry,
 		}),
 	),
+	consoleLeaks: Schema.optional(ConsoleLeaks),
 }).annotations({ identifier: "AgentReport" });
 /** @public */
 export type AgentReport = typeof AgentReport.Type;
