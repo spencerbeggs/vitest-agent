@@ -124,7 +124,7 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
 | `bin.ts` | `resolveProjectDir()` precedence: `VITEST_AGENT_REPORTER_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> `process.cwd()`. Resolves `dbPath` via `resolveDataPath(projectDir)` then constructs the `ManagedRuntime` |
 | `context.ts` | tRPC `McpContext` carrying the `ManagedRuntime` so procedures call `ctx.runtime.runPromise(effect)` |
 | `router.ts` | Aggregates all tool procedures; testable via `createCallerFactory(appRouter)` without starting the MCP server |
-| `tools/run-tests.ts` | `spawnSync("vitest run", ...)` with configurable timeout (default 120s) |
+| `tools/run-tests.ts` | In-process `createVitest` (`vitest/node`) + `localVitest.start()` with configurable timeout (default 120s); builds the `AgentReport` from `result.testModules` and folds `consoleLeaks` from the post-run `state.getFiles()` task-tree walk |
 | `tools/note.ts` | Single action-keyed tool covering all six note operations (`create`/`list`/`get`/`update`/`delete`/`search`) via the `action` discriminator |
 | `tools/tdd-task.ts` | Action-keyed `tdd_task` tool with `start`/`end`/`get`/`resume` (replaces the 1.x `tdd_session_*` family; the underlying SQLite columns retain the `tdd_tasks` naming). `start` and `end` are idempotent via the middleware registry |
 | `tools/tdd-goal.ts`, `tools/tdd-behavior.ts` | Action-keyed CRUD for the Objective→Goal→Behavior hierarchy. `create` actions are idempotent on `(sessionId, goal)` / `(goalId, behavior)`. The `delete` action is denied to the orchestrator at the plugin's `pre-tool-use/tdd-restricted.sh` hook (the `tool_input.action` matcher); the consolidated tools are listed in `safe-mcp-vitest-agent-ops.txt` so non-delete actions auto-allow |
@@ -199,10 +199,12 @@ lib/scripts/          -- snapshot-maintenance TS pipeline (fetch /
   as one argv element. The new TS script preserves this invariant
   inherited from the 1.x `update-vitest-snapshot.mjs`. Don't regress
   this when editing the script.
-- **`run_tests` uses `spawnSync` deliberately.** The MCP server
-  cannot process other tool requests during a test run; this is
-  acceptable because agents wait for results before proceeding.
-  See Decision 21.
+- **`run_tests` runs Vitest in-process via `createVitest`.** It imports
+  `createVitest` from `vitest/node`, awaits `localVitest.start(...)`, and
+  reads results (including `localVitest.state.getFiles()`, which the
+  `consoleLeaks` task-tree walk depends on) before the call returns. The
+  in-process run blocks the MCP server for its duration; this is acceptable
+  because agents wait for results before proceeding. See Decision 21.
 
 ## When working in this package
 

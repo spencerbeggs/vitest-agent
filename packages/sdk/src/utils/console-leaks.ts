@@ -50,7 +50,13 @@ export function buildConsoleLeaks(entries: ReadonlyArray<ConsoleLeakEntry>): Con
 		if (e.type === "stdout") acc.stdout++;
 		else acc.stderr++;
 		if (e.test !== undefined && e.test !== "") acc.tests.add(e.test);
-		if (acc.sample === undefined) acc.sample = truncateSample(e.content);
+		// Capture the first NON-EMPTY sample. A first write whose first line is
+		// whitespace-only truncates to "", so we leave sample unset and let a
+		// later content-bearing write fill it rather than locking in a blank.
+		if (acc.sample === undefined) {
+			const candidate = truncateSample(e.content);
+			if (candidate !== "") acc.sample = candidate;
+		}
 	}
 
 	const files: ConsoleLeakFile[] = [];
@@ -60,7 +66,7 @@ export function buildConsoleLeaks(entries: ReadonlyArray<ConsoleLeakEntry>): Con
 			stdout: acc.stdout,
 			stderr: acc.stderr,
 			...(acc.tests.size > 0 ? { tests: [...acc.tests].slice(0, MAX_TESTS_PER_FILE) } : {}),
-			...(acc.sample !== undefined && acc.sample !== "" ? { sample: acc.sample } : {}),
+			...(acc.sample !== undefined ? { sample: acc.sample } : {}),
 		});
 	}
 	files.sort((a, b) => b.stdout + b.stderr - (a.stdout + a.stderr));

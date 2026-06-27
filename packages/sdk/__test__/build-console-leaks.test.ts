@@ -62,4 +62,17 @@ describe("buildConsoleLeaks", () => {
 		const entries = Array.from({ length: 12 }, (_, i) => entry({ file: "a.test.ts", test: `t${i}` }));
 		expect(buildConsoleLeaks(entries)?.byFile[0].tests?.length).toBe(10);
 	});
+
+	it("backfills the sample from a later write when the first is whitespace-only", () => {
+		const leaks = buildConsoleLeaks([
+			entry({ file: "a.test.ts", content: "   \n" }),
+			entry({ file: "a.test.ts", content: "DEBUG real content" }),
+		]);
+		expect(leaks?.byFile[0].sample).toBe("DEBUG real content");
+	});
+
+	it("omits sample when every write for a file is whitespace-only", () => {
+		const leaks = buildConsoleLeaks([entry({ file: "a.test.ts", content: "   " })]);
+		expect(leaks?.byFile[0].sample).toBeUndefined();
+	});
 });
