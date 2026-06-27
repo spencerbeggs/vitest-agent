@@ -1,7 +1,14 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Writable } from "node:stream";
-import type { AgentReport, VitestModuleError } from "@vitest-agent/sdk";
-import { AgentReport as AgentReportSchema, DataReader, DataStore, buildAgentReport } from "@vitest-agent/sdk";
+import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
+import {
+	AgentReport as AgentReportSchema,
+	DataReader,
+	DataStore,
+	buildAgentReport,
+	buildConsoleLeaks,
+	collectConsoleLeakEntries,
+} from "@vitest-agent/sdk";
 import { Effect, ParseResult, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
@@ -323,6 +330,13 @@ export function formatReportMarkdown(report: AgentReport, classifications?: Read
 		lines.push(`\nProject: ${report.project}`);
 	}
 
+	if (report.consoleLeaks !== undefined) {
+		const cl = report.consoleLeaks;
+		const writes = `${cl.total} stray console write${cl.total === 1 ? "" : "s"}`;
+		const files = `${cl.byFile.length} file${cl.byFile.length === 1 ? "" : "s"}`;
+		lines.push(`\n⚠ ${writes} across ${files} (see consoleLeaks)`);
+	}
+
 	for (const mod of report.failed) {
 		lines.push(`\n### \u274C \`${mod.file}\``);
 		// Module-level errors (collection / load / hook failures) carry no
@@ -534,7 +548,11 @@ export const runTests = publicProcedure
 					const reason =
 						unhandledErrors.length > 0 || result.testModules.some((m) => m.state() === "failed") ? "failed" : "passed";
 
-					const report = buildAgentReport(testModules, unhandledErrors, reason, { omitPassingTests: true });
+					const baseReport = buildAgentReport(testModules, unhandledErrors, reason, { omitPassingTests: true });
+					const leaks = buildConsoleLeaks(
+						collectConsoleLeakEntries(localVitest.state.getFiles() as unknown as ConsoleLeakTask[]),
+					);
+					const report = leaks !== undefined ? { ...baseReport, consoleLeaks: leaks } : baseReport;
 
 					// Read stored classifications from DB (written by the reporter via
 					// classifyTest() during vitest.start). This avoids reimplementing
