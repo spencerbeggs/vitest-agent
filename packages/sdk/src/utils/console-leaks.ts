@@ -72,3 +72,45 @@ export function buildConsoleLeaks(entries: ReadonlyArray<ConsoleLeakEntry>): Con
 		...(truncated ? { truncated: true } : {}),
 	};
 }
+
+/**
+ * Structural subset of a Vitest runner task (File / Suite / Test) carrying
+ * captured console output. Modeled locally so this util needs no `vitest`
+ * dependency. `logs` is attached to tasks by Vitest's console interception
+ * regardless of which reporter is active, which is why the walk survives
+ * reporter stripping in agent mode.
+ * @public
+ */
+export interface ConsoleLeakTask {
+	readonly type?: string;
+	readonly name?: string;
+	readonly fullTestName?: string;
+	readonly logs?: ReadonlyArray<{ readonly type: "stdout" | "stderr"; readonly content: string }>;
+	readonly tasks?: ReadonlyArray<ConsoleLeakTask>;
+}
+
+/**
+ * Walk a Vitest `File[]` task tree (from `vitest.state.getFiles()`) into flat
+ * {@link ConsoleLeakEntry} values. Each task `log` becomes one entry attributed
+ * to its enclosing file and, when the log sits on a test task, that test's name.
+ * @public
+ */
+export function collectConsoleLeakEntries(files: ReadonlyArray<ConsoleLeakTask>): ConsoleLeakEntry[] {
+	const entries: ConsoleLeakEntry[] = [];
+	const visit = (task: ConsoleLeakTask, file: string, test: string | undefined): void => {
+		const currentTest = task.type === "test" ? (task.fullTestName ?? task.name ?? test) : test;
+		for (const log of task.logs ?? []) {
+			entries.push({
+				file,
+				...(currentTest !== undefined ? { test: currentTest } : {}),
+				type: log.type,
+				content: log.content,
+			});
+		}
+		for (const child of task.tasks ?? []) visit(child, file, currentTest);
+	};
+	for (const file of files) {
+		visit(file, file.name ?? "(unknown)", undefined);
+	}
+	return entries;
+}
