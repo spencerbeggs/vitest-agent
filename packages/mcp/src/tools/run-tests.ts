@@ -333,7 +333,10 @@ export function formatReportMarkdown(report: AgentReport, classifications?: Read
 	if (report.consoleLeaks !== undefined) {
 		const cl = report.consoleLeaks;
 		const writes = `${cl.total} stray console write${cl.total === 1 ? "" : "s"}`;
-		const files = `${cl.byFile.length} file${cl.byFile.length === 1 ? "" : "s"}`;
+		// byFile is capped (see buildConsoleLeaks); when truncated the file count
+		// is a floor, so render "N+ files" rather than understating it.
+		const plural = cl.byFile.length !== 1 || cl.truncated === true;
+		const files = `${cl.byFile.length}${cl.truncated === true ? "+" : ""} file${plural ? "s" : ""}`;
 		lines.push(`\n⚠ ${writes} across ${files} (see consoleLeaks)`);
 	}
 

@@ -21,8 +21,19 @@ describe("formatReportMarkdown console-leak line", () => {
 			],
 		};
 		const md = formatReportMarkdown({ ...baseReport, consoleLeaks });
+		expect(md).toContain("⚠");
 		expect(md).toContain("7 stray console writes across 2 files");
 		expect(md).toContain("consoleLeaks");
+	});
+
+	it("renders the file count as a floor (N+) when byFile was truncated", () => {
+		const consoleLeaks: ConsoleLeaks = {
+			total: 60,
+			byFile: Array.from({ length: 25 }, (_, i) => ({ file: `f${i}.test.ts`, stdout: 1, stderr: 0 })),
+			truncated: true,
+		};
+		const md = formatReportMarkdown({ ...baseReport, consoleLeaks });
+		expect(md).toContain("60 stray console writes across 25+ files");
 	});
 
 	it("uses singular for exactly one write in one file", () => {
