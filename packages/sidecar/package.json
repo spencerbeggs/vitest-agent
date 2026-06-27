@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/sidecar",
-	"version": "1.0.1",
+	"version": "2.0.0",
 	"private": true,
 	"description": "Fast-path native binary for vitest-agent. Ships a Node SEA executable that handles the per-Bash-call inject-env hot path.",
 	"keywords": ["vitest", "agent", "sidecar", "sea", "binary"],

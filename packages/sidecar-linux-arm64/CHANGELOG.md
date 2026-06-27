@@ -1,5 +1,13 @@
 # @vitest-agent/sidecar-linux-arm64
 
+## 2.0.0
+
+### Dependencies
+
+* | [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) | Dependency    | Type    | Action  | From    | To |
+  | --------------------------------------------------------------------------------------------------------- | ------------- | ------- | ------- | ------- | -- |
+  | @savvy-web/bundler                                                                                        | devDependency | updated | ^0.11.0 | ^0.11.1 |    |
+
 ## 1.0.1
 
 ## 1.0.0
