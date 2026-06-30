@@ -35,8 +35,8 @@
 		"effect": "catalog:silk"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.11.1",
-		"@types/node": "catalog:silk",
+		"@savvy-web/bundler": "^1.0.1",
+		"@types/node": "^26.0.0",
 		"@types/react": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"ink": "^7.1.0",
