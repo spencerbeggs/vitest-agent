@@ -1,6 +1,6 @@
-import { defineBuild, runBuild } from "@savvy-web/bundler";
+import { build } from "@savvy-web/bundler";
 
-const config = defineBuild({
+await build({
 	dtsExternals: ["@vitest/runner"],
 	meta: {
 		localPaths: ["../../website/lib/models/plugin"],
@@ -12,9 +12,3 @@ const config = defineBuild({
 		},
 	},
 });
-
-export default config;
-
-if (import.meta.main) {
-	await runBuild(config, { cwd: import.meta.dirname, argv: process.argv.slice(2) });
-}
