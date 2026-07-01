@@ -111,7 +111,7 @@ Structured error and debug logging for all hook scripts is provided by `hooks/li
 | `commit-cycle` | Commit at green and refactor phase exit |
 | `revert-on-extended-red` | Revert if stuck in red for more than 5 turns or 3 failed runs |
 | `decompose-goal-into-behaviors` | Break a goal into atomic red-green-refactor behaviors |
-| `vitest-context` | Vitest-specific test context helpers |
+| `operating-vitest-agent` | Operating the vitest-agent MCP tools: run_tests scoping, coverage-in-subset, console-leaks signal |
 
 ### Commands
 
