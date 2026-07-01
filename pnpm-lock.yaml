@@ -246,10 +246,10 @@ importers:
         specifier: catalog:silk
         version: 0.52.0(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(effect@3.21.4)
       '@vitest-agent/cli':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../cli/dist/dev/pkg
       '@vitest-agent/mcp':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../mcp/dist/dev/pkg
       '@vitest-agent/reporter':
         specifier: workspace:*
