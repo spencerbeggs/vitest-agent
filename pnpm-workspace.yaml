@@ -4,7 +4,7 @@ packages:
   - website
 autoInstallPeers: true
 configDependencies:
-  "@savvy-web/pnpm-plugin-silk": 0.18.0+sha512-jCfqTFQpeocI+kKo3uNkpIEuAthh2zFqNEMQvRNXMmXzyHq/mZ7ou4hGdbLRjcLo4wGPlpRHtufkrCPH2AraNg==
+  "@savvy-web/pnpm-plugin-silk": 0.18.1+sha512-a2QwBB68PUAX3u2qQr/LsSa8wThoau4E3eZLeVuAyCroztBnWbOMu2QDyhMx1A4wc9pUSPpTXnSDJC1qbzY1kA==
 linkWorkspacePackages: deep
 loglevel: warn
 verifyDepsBeforeRun: false
