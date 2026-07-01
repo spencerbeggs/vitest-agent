@@ -1,5 +1,17 @@
 # @vitest-agent/mcp
 
+## 1.3.1
+
+### Bug Fixes
+
+* [`813cf45`](https://github.com/spencerbeggs/vitest-agent/commit/813cf45cb9a8809c1766640d5e20669f1b77a251) Fixes `tdd_phase_transition_request` artifact auto-resolution picking the newest matching artifact for the whole task, ignoring which behavior it belonged to (#115).
+
+- The lookup is now scoped by `behaviorId` only on transitions where behavior-match binding actually applies (`red→green` and `green→refactor`), using the sdk's `transitionEnforcesBehaviorMatch` predicate.
+- `red.triangulate→green` and `refactor→red` remain unscoped, since their evidence legitimately belongs to a different behavior than the one being requested.
+  | Dependency        | Type       | Action  | From  | To    |
+  | ----------------- | ---------- | ------- | ----- | ----- |
+  | @vitest-agent/sdk | dependency | updated | 1.1.0 | 1.2.0 |
+
 ## 1.3.0
 
 ### Features

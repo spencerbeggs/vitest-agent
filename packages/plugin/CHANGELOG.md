@@ -1,5 +1,16 @@
 # @vitest-agent/plugin
 
+## 1.1.3
+
+### Patch Changes
+
+| Dependency             | Type       | Action  | From  | To    |
+| ---------------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/mcp      | dependency | updated | 1.3.0 | 1.3.1 |
+| @vitest-agent/sdk      | dependency | updated | 1.1.0 | 1.2.0 |
+| @vitest-agent/cli      | dependency | updated | 1.0.2 | 1.0.3 |
+| @vitest-agent/reporter | dependency | updated | 1.0.2 | 1.0.3 |
+
 ## 1.1.2
 
 ### Bug Fixes
