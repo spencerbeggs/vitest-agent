@@ -303,7 +303,7 @@ importers:
         specifier: catalog:silk
         version: 6.0.3
       vite:
-        specifier: ^8.1.0
+        specifier: ^8.1.2
         version: 8.1.2(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.4)(yaml@2.9.0)
       vitest:
         specifier: catalog:silk
@@ -374,7 +374,7 @@ importers:
         specifier: catalog:silk
         version: 6.0.3
       vite:
-        specifier: ^8.1.0
+        specifier: ^8.1.2
         version: 8.1.2(@types/node@26.0.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.4)(yaml@2.9.0)
       vitest:
         specifier: catalog:silk
