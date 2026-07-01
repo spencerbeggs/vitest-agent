@@ -6,17 +6,17 @@ importers:
   .:
     configDependencies:
       '@savvy-web/pnpm-plugin-silk':
-        specifier: 0.18.0
-        version: 0.18.0
+        specifier: 0.18.1
+        version: 0.18.1
 
 packages:
 
-  '@savvy-web/pnpm-plugin-silk@0.18.0':
-    resolution: {integrity: sha512-jCfqTFQpeocI+kKo3uNkpIEuAthh2zFqNEMQvRNXMmXzyHq/mZ7ou4hGdbLRjcLo4wGPlpRHtufkrCPH2AraNg==}
+  '@savvy-web/pnpm-plugin-silk@0.18.1':
+    resolution: {integrity: sha512-a2QwBB68PUAX3u2qQr/LsSa8wThoau4E3eZLeVuAyCroztBnWbOMu2QDyhMx1A4wc9pUSPpTXnSDJC1qbzY1kA==}
 
 snapshots:
 
-  '@savvy-web/pnpm-plugin-silk@0.18.0': {}
+  '@savvy-web/pnpm-plugin-silk@0.18.1': {}
 
 ---
 lockfileVersion: '9.0'
@@ -84,14 +84,13 @@ catalogs:
 
 overrides:
   '@isaacs/brace-expansion': ^5.0.1
-  '@types/node': ^26.0.0
   lodash: ^4.17.23
   markdown-it: ^14.1.1
   minimatch: '>=10.2.3'
   smol-toml: '>=1.6.1'
   tmp: ^0.2.7
 
-pnpmfileChecksum: sha256-6jZVth4VKFfr9fLL0GnfLvk9HN1b6Wv8emae+KtJDHs=
+pnpmfileChecksum: sha256-8m4YLKg8fzJ3z+yVbYLAA1hx22LFHFLb5cCraulhqSQ=
 
 importers:
 
@@ -1165,7 +1164,7 @@ packages:
     resolution: {integrity: sha512-RWbSrDiYmO4LbejWY7ttpxczuwQyZLBUyygsA9Nsv95hpzUWwnNTVQmAq3xuh7vNwCp07UTmE5i11XAEExx4RA==}
     engines: {node: '>=18'}
     peerDependencies:
-      '@types/node': ^26.0.0
+      '@types/node': '>=18'
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -1622,7 +1621,7 @@ packages:
   '@rushstack/node-core-library@5.23.1':
     resolution: {integrity: sha512-wlKmIKIYCKuCASbITvOxLZXepPbwXvrv7S6ig6XNWFchSyhL/E2txmVXspHY49Wu2dzf7nI27a2k/yV5BA3EiA==}
     peerDependencies:
-      '@types/node': ^26.0.0
+      '@types/node': '*'
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -1630,7 +1629,7 @@ packages:
   '@rushstack/problem-matcher@0.2.1':
     resolution: {integrity: sha512-gulfhBs6n+I5b7DvjKRfhMGyUejtSgOHTclF/eONr8hcgF1APEDjhxIsfdUYYMzC3rvLwGluqLjbwCFZ8nxrog==}
     peerDependencies:
-      '@types/node': ^26.0.0
+      '@types/node': '*'
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -1641,7 +1640,7 @@ packages:
   '@rushstack/terminal@0.24.0':
     resolution: {integrity: sha512-8ZQS4MMaGsv27EXCBiH7WMPkRZrffeDoIevs6z9TM5dzqiY6+Hn4evfK/G+gvgBTjfvfkHIZPQQmalmI2sM4TQ==}
     peerDependencies:
-      '@types/node': ^26.0.0
+      '@types/node': '*'
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -1871,6 +1870,12 @@ packages:
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
+
+  '@types/node@12.20.55':
+    resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
+
+  '@types/node@25.9.4':
+    resolution: {integrity: sha512-dszCsrKb5U7ZsVZBWiHFklTloVl0mSEnWH/iZXfZUlI4rzCUnsvGmgqfuVRHL54ugE7/wRuxEIXRa2iMZ+BG6g==}
 
   '@types/node@26.0.1':
     resolution: {integrity: sha512-fc3KiUoBt6kie0N9bIW3E47vZsuaMf0PM2AaUpLCLT0s/LvX1nxAim6Fc049cNxODPpGm6qRAuUOB86SkRuPQw==}
@@ -2424,7 +2429,7 @@ packages:
     resolution: {integrity: sha512-Akr82WH1Wfqatyiqpj8HDkO2o2KmJRu1FhKfSNJP3K4IdXwHfEyL7MOb62i1AGQVLtIQM+iCE9CGOtrfhR+mmA==}
     engines: {node: '>=v18'}
     peerDependencies:
-      '@types/node': ^26.0.0
+      '@types/node': '*'
       cosmiconfig: '>=9'
       typescript: '>=5'
 
@@ -4327,11 +4332,6 @@ packages:
     engines: {node: '>=10.13.0'}
     hasBin: true
 
-  prettier@3.9.3:
-    resolution: {integrity: sha512-HWmu+K+zvHNpaMfSnYeqdqrDbR16cuIXaPx8WoHaviQkDJh1/0BNtOZmHVQI5jc3wXv0H1yXc9wjvFdXh+n3hQ==}
-    engines: {node: '>=14'}
-    hasBin: true
-
   prettier@3.9.4:
     resolution: {integrity: sha512-yWG/o/4oJfo036EKAfK6ACAoDOfHeRHx4tuxkfBZiauURiaSmYwlpOr5LQqKtIkRD2z1PLteme2WoxEnj4tHTg==}
     engines: {node: '>=14'}
@@ -5074,6 +5074,9 @@ packages:
   unconfig-core@7.5.0:
     resolution: {integrity: sha512-Su3FauozOGP44ZmKdHy2oE6LPjk51M/TRRjHv2HNCWiDvfvCoxC2lno6jevMA91MYAdCdwP05QnWdWpSbncX/w==}
 
+  undici-types@7.24.6:
+    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
+
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
@@ -5185,7 +5188,7 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
-      '@types/node': ^26.0.0
+      '@types/node': ^20.19.0 || >=22.12.0
       '@vitejs/devtools': ^0.3.0
       esbuild: ^0.27.0 || ^0.28.0
       jiti: '>=1.21.0'
@@ -5230,7 +5233,7 @@ packages:
     peerDependencies:
       '@edge-runtime/vm': '*'
       '@opentelemetry/api': ^1.9.0
-      '@types/node': ^26.0.0
+      '@types/node': ^20.0.0 || ^22.0.0 || >=24.0.0
       '@vitest/browser-playwright': 4.1.9
       '@vitest/browser-preview': 4.1.9
       '@vitest/browser-webdriverio': 4.1.9
@@ -6061,7 +6064,7 @@ snapshots:
   '@manypkg/find-root@1.1.0':
     dependencies:
       '@babel/runtime': 7.29.7
-      '@types/node': 26.0.1
+      '@types/node': 12.20.55
       find-up: 4.1.0
       fs-extra: 8.1.0
 
@@ -6855,6 +6858,12 @@ snapshots:
   '@types/mdx@2.0.14': {}
 
   '@types/ms@2.1.0': {}
+
+  '@types/node@12.20.55': {}
+
+  '@types/node@25.9.4':
+    dependencies:
+      undici-types: 7.24.6
 
   '@types/node@26.0.1':
     dependencies:
@@ -9784,8 +9793,6 @@ snapshots:
 
   prettier@2.8.8: {}
 
-  prettier@3.9.3: {}
-
   prettier@3.9.4: {}
 
   property-information@7.2.0: {}
@@ -10164,7 +10171,7 @@ snapshots:
       mdast-util-from-markdown: 2.0.3
       mdast-util-to-hast: 13.2.1
       open: 11.0.0
-      prettier: 3.9.3
+      prettier: 3.9.4
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
       react-markdown: 10.1.0(@types/react@19.2.17)(react@19.2.7)
@@ -10192,7 +10199,7 @@ snapshots:
       '@types/estree-jsx': 1.0.5
       '@types/hast': 3.0.4
       '@types/mdast': 4.0.4
-      '@types/node': 26.0.1
+      '@types/node': 25.9.4
       clsx: 2.1.1
       lodash-es: 4.18.1
       mdast-util-from-markdown: 2.0.3
@@ -10679,6 +10686,8 @@ snapshots:
     dependencies:
       '@quansync/fs': 1.0.0
       quansync: 1.0.0
+
+  undici-types@7.24.6: {}
 
   undici-types@8.3.0: {}
 
