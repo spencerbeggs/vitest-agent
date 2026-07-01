@@ -2,7 +2,7 @@
 "@vitest-agent/mcp": minor
 ---
 
-## Breaking Changes
+## Refactoring
 
 ### Removed the MCP resource subsystem
 
