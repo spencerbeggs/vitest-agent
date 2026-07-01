@@ -638,6 +638,62 @@ describe("AgentReporter", () => {
 
 			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
 		});
+
+		it("writes distinct per-module test_history rows for two tests sharing a fullName in different modules", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+
+			const testA = makeTestCase({
+				name: "duplicate name",
+				fullName: "Suite > duplicate name",
+				state: "passed",
+				duration: 111,
+			});
+			const testB = makeTestCase({
+				name: "duplicate name",
+				fullName: "Suite > duplicate name",
+				state: "failed",
+				duration: 222,
+				errors: [{ message: "module B failure" }],
+			});
+
+			const moduleA = makeTestModule({ relativeModuleId: "src/a.test.ts", tests: [testA] });
+			const moduleB = makeTestModule({ relativeModuleId: "src/b.test.ts", state: "failed", tests: [testB] });
+
+			await reporter.onTestRunEnd([moduleA, moduleB], [], "failed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new Database(dbPath, { readonly: true });
+			const rows = db
+				.prepare(
+					`SELECT module_path, full_name, state, duration, error_message
+					 FROM test_history
+					 WHERE full_name = 'Suite > duplicate name'
+					 ORDER BY module_path`,
+				)
+				.all() as Array<{
+				module_path: string;
+				full_name: string;
+				state: string;
+				duration: number | null;
+				error_message: string | null;
+			}>;
+			db.close();
+
+			expect(rows).toHaveLength(2);
+			const rowA = rows.find((r) => r.module_path === "src/a.test.ts");
+			const rowB = rows.find((r) => r.module_path === "src/b.test.ts");
+			expect(rowA).toBeDefined();
+			expect(rowB).toBeDefined();
+			expect(rowA?.state).toBe("passed");
+			expect(rowA?.duration).toBe(111);
+			expect(rowA?.error_message).toBeNull();
+			expect(rowB?.state).toBe("failed");
+			expect(rowB?.duration).toBe(222);
+			expect(rowB?.error_message).toBe("module B failure");
+		});
 	});
 
 	describe("failure signatures", () => {

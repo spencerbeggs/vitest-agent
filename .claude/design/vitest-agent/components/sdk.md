@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-01
+last-synced: 2026-07-01
 completeness: 96
 related:
   - ../architecture.md
@@ -407,6 +407,7 @@ The non-obvious pieces:
   without sorting.
 - **`findActiveSubagentSession` resolves per-call subagent identity.** Returns the most-recently-started subagent session whose `parent_session_id` matches the supplied parent id and whose `ended_at IS NULL`. The MCP server's boot context names only the main agent; this reader call is how the `hypothesis (action: record)` handler attributes writes to the active `tdd-task` subagent instead of the main session.
 - **Flaky classification requires a fail-after-pass.** The `listFlakyTests` reader query (backing `HistoryTracker.classify`) changed to require that at least one failure occurred at or after the earliest pass — `MAX(timestamp WHERE failed) >= MIN(timestamp WHERE passed)`. A monotonic red-to-green cycle (all failures precede all passes) classifies as `recovered`, not `flaky`. Timestamps are ISO-8601 strings and compare lexicographically.
+- **History reads are file-qualified.** `getHistory`, `getFlaky` and `getPersistentFailures` group and partition by the composite `(project, module_path, full_name)` and return `modulePath` on each `TestHistory` / `FlakyTest` / `PersistentFailure`. This mirrors the file-qualified write identity (Decision D20) and fixes read-side conflation where a persistent failure could hide behind a same-named passing test in another file. `HistoryTrackerLive.classify` keys its `testMap` and returned classifications by the `historyKey(modulePath, fullName)` helper.
 
 ## Formatters
 

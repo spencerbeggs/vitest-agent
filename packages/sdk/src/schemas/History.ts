@@ -16,6 +16,7 @@ export type TestRun = typeof TestRun.Type;
  * @public
  */
 export const TestHistory = Schema.Struct({
+	modulePath: Schema.String,
 	fullName: Schema.String,
 	runs: Schema.Array(TestRun),
 }).annotations({ identifier: "TestHistory" });

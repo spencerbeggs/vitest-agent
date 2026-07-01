@@ -1645,6 +1645,14 @@ rewrites the top-level `anyOf` to `oneOf` and adds
 `x-discriminator: "action"` for consolidated tools, improving
 model-side tool-use accuracy without changing functional dispatch.
 
+### Decision D20: File-Qualified `test_history` Identity
+
+Vitest's `fullName` is only the describe-chain plus the test name — it is **not** file-qualified. Two test files in the same workspace package that share a `describe › it` name therefore produced the same `fullName`. On the write side the plain `INSERT` into `test_history` collided on the old `UNIQUE(project, full_name, timestamp)` key and threw `UNIQUE constraint failed`; on the read side the two distinct tests were conflated into one series, so a persistent failure in one file could hide behind a same-named passing test in another.
+
+The fix threads a project-relative `module_path` through the whole history path and makes the identity `(project, module_path, full_name)`. Concretely: `test_history` gains a `module_path TEXT NOT NULL` column, the uniqueness constraint and the lookup index both grow the `module_path` segment, `TestHistory` / `FlakyTest` / `PersistentFailure` carry `modulePath`, `DataStore.writeHistory` takes a `modulePath` param, and `DataReaderLive` groups/partitions `getHistory` / `getFlaky` / `getPersistentFailures` by the composite key. The classifier keys its in-memory maps via a shared `historyKey(modulePath, fullName)` helper (exported from `services/HistoryTracker.ts`) so identically-named tests classify independently. The reporter derives each test's `modulePath` from the enclosing `TestModule`'s `relativeModuleId` and passes it into both the classification lookup and `writeHistory`.
+
+The single flat `Map<fullName, TestClassification>` the reporter hands downstream stays keyed by bare `fullName` on purpose — it is a convenience index for `@vitest-agent/ui` consumers that only have a bare test name, while the authoritative, module-qualified classification lives on each `TestReport`. Per the pre-2.0 single-migration policy (Decision D9) this landed as an in-place edit to `0001_initial.ts`, not an incremental migration.
+
 ---
 
 ## Notes

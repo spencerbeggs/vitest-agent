@@ -47,7 +47,7 @@
 		"effect": "catalog:silk",
 		"std-env": "^4.1.0",
 		"workspaces-effect": "^1.2.0",
-		"xdg-effect": "^2.0.1"
+		"xdg-effect": "^2.1.0"
 	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^1.1.0",

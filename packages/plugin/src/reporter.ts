@@ -34,6 +34,7 @@ import {
 	computeTrend,
 	ensureMigrated,
 	formatFatalError,
+	historyKey,
 	isTimeoutError,
 	probeHostMetadataFromEnv,
 	resolveDataPath,
@@ -1640,13 +1641,16 @@ export class AgentReporter {
 					yield* store.writeErrors(runId, inputs);
 				}
 
-				// Extract test outcomes for history classification
+				// Extract test outcomes for history classification. modulePath comes
+				// from the enclosing TestModule's relativeModuleId so identically
+				// named tests in different files are tracked as distinct series.
 				const testOutcomes: TestOutcome[] = [];
 				for (const mod of projectModules) {
+					const modulePath = mod.relativeModuleId ?? "";
 					for (const testCase of mod.children.allTests()) {
 						const state = testCase.result()?.state;
 						if (state === "passed" || state === "failed") {
-							testOutcomes.push({ fullName: testCase.fullName, state });
+							testOutcomes.push({ modulePath, fullName: testCase.fullName, state });
 						}
 					}
 				}
@@ -1654,28 +1658,34 @@ export class AgentReporter {
 				// Classify tests via history and attach classifications to failed test reports
 				const { classifications } = yield* tracker.classify(project, testOutcomes, baseReport.timestamp);
 
-				// Build lookup maps for diagnostics and errors (avoids O(N²) nested loops)
+				// Build lookup maps for diagnostics and errors, keyed by the composite
+				// (modulePath, fullName) so cross-file duplicate fullNames don't clobber
+				// each other's diagnostics/errors (avoids O(N²) nested loops).
 				const diagMap = new Map<string, { duration?: number; flaky?: boolean }>();
 				const errorMap = new Map<string, string | null>();
 				for (const mod of projectModules) {
+					const modulePath = mod.relativeModuleId ?? "";
 					for (const tc of mod.children.allTests()) {
-						diagMap.set(tc.fullName, tc.diagnostic() ?? {});
+						const key = historyKey(modulePath, tc.fullName);
+						diagMap.set(key, tc.diagnostic() ?? {});
 						const tcResult = tc.result();
 						if (tcResult?.state === "failed") {
 							const errors = tcResult.errors;
-							errorMap.set(tc.fullName, errors?.[0]?.message ?? null);
+							errorMap.set(key, errors?.[0]?.message ?? null);
 						}
 					}
 				}
 
 				// Write individual history entries to DB
 				for (const outcome of testOutcomes) {
-					const diag = diagMap.get(outcome.fullName);
-					const errorMessage = outcome.state === "failed" ? (errorMap.get(outcome.fullName) ?? null) : null;
+					const key = historyKey(outcome.modulePath, outcome.fullName);
+					const diag = diagMap.get(key);
+					const errorMessage = outcome.state === "failed" ? (errorMap.get(key) ?? null) : null;
 
 					yield* store.writeHistory(
 						project,
 						outcome.fullName,
+						outcome.modulePath,
 						runId,
 						baseReport.timestamp,
 						outcome.state,
@@ -1690,7 +1700,7 @@ export class AgentReporter {
 				const failedWithClassifications = baseReport.failed.map((mod) => ({
 					...mod,
 					tests: mod.tests.map((test) => {
-						const cls = classifications.get(test.fullName);
+						const cls = classifications.get(historyKey(mod.file, test.fullName));
 						return cls ? { ...test, classification: cls } : test;
 					}),
 				}));
@@ -1857,6 +1867,11 @@ export class AgentReporter {
 			// Aggregate classifications into a flat lookup for the user reporter.
 			// Reports already carry classification on each test object; this
 			// Map gives reporters a global view without traversing reports.
+			// Keyed by plain fullName -- this flat Map is a convenience index for
+			// downstream reporter/ui consumers (e.g. @vitest-agent/ui's synthesize)
+			// that only have a bare test name available, not modulePath. The
+			// authoritative per-test classification (already disambiguated by
+			// (modulePath, fullName) above) lives on each TestReport itself.
 			const classifications = new Map<string, TestClassification>();
 			for (const report of reports) {
 				for (const mod of report.failed) {

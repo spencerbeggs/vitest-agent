@@ -9,9 +9,18 @@ import type { HistoryRecord } from "../schemas/History.js";
  * @public
  */
 export interface TestOutcome {
+	readonly modulePath: string;
 	readonly fullName: string;
 	readonly state: "passed" | "failed";
 }
+
+/**
+ * Builds the composite (modulePath, fullName) key used to key the internal
+ * testMap and the returned classifications Map, so identically-named tests
+ * in different files classify independently instead of colliding.
+ * @public
+ */
+export const historyKey = (modulePath: string, fullName: string): string => `${modulePath} ${fullName}`;
 /** @public */
 export class HistoryTracker extends Context.Tag("vitest-agent/HistoryTracker")<
 	HistoryTracker,

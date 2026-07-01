@@ -379,6 +379,7 @@ const migration = Effect.gen(function* () {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			run_id INTEGER NOT NULL REFERENCES test_runs(id) ON DELETE CASCADE,
 			project TEXT NOT NULL,
+			module_path TEXT NOT NULL,
 			full_name TEXT NOT NULL,
 			timestamp TEXT NOT NULL,
 			state TEXT NOT NULL CHECK (state IN ('passed', 'failed', 'skipped', 'pending')),
@@ -386,10 +387,10 @@ const migration = Effect.gen(function* () {
 			flaky INTEGER CHECK (flaky IN (0, 1)),
 			retry_count INTEGER DEFAULT 0,
 			error_message TEXT,
-			UNIQUE(project, full_name, timestamp)
+			UNIQUE(project, module_path, full_name, timestamp)
 		)
 	`;
-	yield* sql`CREATE INDEX idx_test_history_lookup ON test_history(project, full_name)`;
+	yield* sql`CREATE INDEX idx_test_history_lookup ON test_history(project, module_path, full_name)`;
 	yield* sql`CREATE INDEX idx_test_history_full_name ON test_history(full_name, timestamp)`;
 	yield* sql`CREATE INDEX idx_test_history_run ON test_history(run_id)`;
 

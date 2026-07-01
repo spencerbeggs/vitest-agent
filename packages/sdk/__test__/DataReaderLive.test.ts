@@ -159,6 +159,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"hist-proj",
 						"suite > test A",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T01:00:00.000Z",
 						"passed",
@@ -170,6 +171,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"hist-proj",
 						"suite > test A",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T02:00:00.000Z",
 						"failed",
@@ -181,6 +183,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"hist-proj",
 						"suite > test B",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T01:00:00.000Z",
 						"passed",
@@ -348,6 +351,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"flaky-proj",
 						"flaky test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T01:00:00.000Z",
 						"passed",
@@ -359,6 +363,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"flaky-proj",
 						"flaky test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T02:00:00.000Z",
 						"failed",
@@ -370,6 +375,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"flaky-proj",
 						"flaky test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T03:00:00.000Z",
 						"passed",
@@ -383,6 +389,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"flaky-proj",
 						"stable test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T01:00:00.000Z",
 						"passed",
@@ -394,6 +401,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"flaky-proj",
 						"stable test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T02:00:00.000Z",
 						"passed",
@@ -427,6 +435,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"recovery-proj",
 						"tdd test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T01:00:00.000Z",
 						"failed",
@@ -438,6 +447,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"recovery-proj",
 						"tdd test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T02:00:00.000Z",
 						"failed",
@@ -449,6 +459,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"recovery-proj",
 						"tdd test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T03:00:00.000Z",
 						"failed",
@@ -460,6 +471,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"recovery-proj",
 						"tdd test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T04:00:00.000Z",
 						"passed",
@@ -471,6 +483,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"recovery-proj",
 						"tdd test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T05:00:00.000Z",
 						"passed",
@@ -484,6 +497,91 @@ describe("DataReaderLive", () => {
 				}),
 			);
 			expect(result).toHaveLength(0);
+		});
+
+		it("keeps same-named tests in different modules as distinct series", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("qual-flaky-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "qual-flaky-hash" });
+
+					// Same fullName "dup" in two different files. The flaky.test.ts copy
+					// oscillates pass->fail->pass; the stable.test.ts copy always passes.
+					// If history grouped by full_name only (the pre-file-qualified bug),
+					// the two would merge into one 3-pass/1-fail series and report a
+					// single flaky row. File-qualified, only flaky.test.ts is flaky.
+					yield* store.writeHistory(
+						"qual-proj",
+						"dup",
+						"src/flaky.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"qual-proj",
+						"dup",
+						"src/flaky.test.ts",
+						runId,
+						"2026-03-22T02:00:00.000Z",
+						"failed",
+						10,
+						false,
+						0,
+						"oops",
+					);
+					yield* store.writeHistory(
+						"qual-proj",
+						"dup",
+						"src/flaky.test.ts",
+						runId,
+						"2026-03-22T03:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"qual-proj",
+						"dup",
+						"src/stable.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"qual-proj",
+						"dup",
+						"src/stable.test.ts",
+						runId,
+						"2026-03-22T02:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+
+					return yield* reader.getFlaky("qual-proj");
+				}),
+			);
+			expect(result).toHaveLength(1);
+			expect(result[0].fullName).toBe("dup");
+			expect(result[0].modulePath).toBe("src/flaky.test.ts");
+			expect(result[0].passCount).toBe(2);
+			expect(result[0].failCount).toBe(1);
 		});
 	});
 
@@ -511,6 +609,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"persist-proj",
 						"broken test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T01:00:00.000Z",
 						"passed",
@@ -522,6 +621,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"persist-proj",
 						"broken test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T02:00:00.000Z",
 						"failed",
@@ -533,6 +633,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"persist-proj",
 						"broken test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T03:00:00.000Z",
 						"failed",
@@ -544,6 +645,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"persist-proj",
 						"broken test",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T04:00:00.000Z",
 						"failed",
@@ -557,6 +659,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"persist-proj",
 						"one-time fail",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T01:00:00.000Z",
 						"passed",
@@ -568,6 +671,7 @@ describe("DataReaderLive", () => {
 					yield* store.writeHistory(
 						"persist-proj",
 						"one-time fail",
+						"src/history.test.ts",
 						runId,
 						"2026-03-22T02:00:00.000Z",
 						"failed",
@@ -585,6 +689,77 @@ describe("DataReaderLive", () => {
 			expect(result[0].fullName).toBe("broken test");
 			expect(result[0].consecutiveFailures).toBe(3);
 			expect(result[0].lastErrorMessage).toBe("error 3");
+		});
+
+		it("surfaces a persistent failure that a same-named passing test in another module would hide", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("qual-persist-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "qual-persist-hash" });
+
+					// Same fullName "dup" in two files. failing.test.ts fails twice;
+					// passing.test.ts passes twice at later timestamps. Grouped by
+					// full_name only, the recent passes would break the streak and hide
+					// the persistent failure. File-qualified, failing.test.ts is caught.
+					yield* store.writeHistory(
+						"qual-persist-proj",
+						"dup",
+						"src/failing.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"failed",
+						10,
+						false,
+						0,
+						"boom",
+					);
+					yield* store.writeHistory(
+						"qual-persist-proj",
+						"dup",
+						"src/failing.test.ts",
+						runId,
+						"2026-03-22T02:00:00.000Z",
+						"failed",
+						10,
+						false,
+						0,
+						"boom",
+					);
+					yield* store.writeHistory(
+						"qual-persist-proj",
+						"dup",
+						"src/passing.test.ts",
+						runId,
+						"2026-03-22T03:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"qual-persist-proj",
+						"dup",
+						"src/passing.test.ts",
+						runId,
+						"2026-03-22T04:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+
+					return yield* reader.getPersistentFailures("qual-persist-proj");
+				}),
+			);
+			expect(result).toHaveLength(1);
+			expect(result[0].fullName).toBe("dup");
+			expect(result[0].modulePath).toBe("src/failing.test.ts");
+			expect(result[0].consecutiveFailures).toBe(2);
 		});
 	});
 

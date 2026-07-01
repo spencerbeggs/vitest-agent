@@ -122,8 +122,11 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     aggregate per-tag pass/fail/skip counts via TestReport.tags
   |     attach as report.tagCounts (Record<tag, { passed, failed, skipped }>)
   |     HistoryTracker.classify(project, outcomes, ts)
+  |       outcomes carry { modulePath, fullName, state };
+  |       classifications keyed by historyKey(modulePath, fullName)
   |       -> { history, classifications }
   |     attach classifications to TestReport.classification
+  |       (lookup via historyKey(mod.file, test.fullName))
   |     DataStore.writeRun -> runId
   |     DataStore.writeModules / writeSuites / writeTestCases
   |     For each error:
@@ -131,6 +134,7 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |       DataStore.writeFailureSignature
   |     DataStore.writeErrors (carries signatureHash + frames)
   |     DataStore.writeCoverage / writeHistory / writeSourceMap
+  |       writeHistory keys each row by (project, modulePath, fullName)
   |     If full (non-scoped) run:
   |       computeTrend() -> DataStore.writeTrends
   |
@@ -140,7 +144,9 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   +-- DataReader.getTrends -> trendSummary
   +-- Resolve env / executor / format / detail via SDK pipeline services
   +-- Aggregate per-project classifications into a flat
-  |   Map<fullName, TestClassification>
+  |   Map<fullName, TestClassification> (bare-fullName convenience
+  |   index for ui/reporter consumers; the authoritative,
+  |   module-qualified classification lives on each TestReport)
   +-- buildReporterKit(...) -> run-end ReporterKit (health-aware;
   |     carries this.runEvents and post-run detail)
   |     stdOsc8 enabled when !noColor &&

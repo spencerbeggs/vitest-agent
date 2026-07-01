@@ -14,6 +14,9 @@ import { publicProcedure } from "../context.js";
 
 const FlakyTestRow = Schema.Struct({
 	fullName: Schema.String.annotations({ description: "Full hierarchical test name (`describe > it`)." }),
+	modulePath: Schema.String.annotations({
+		description: "Project-relative test module path -- disambiguates same-named tests across files.",
+	}),
 	project: Schema.String,
 	passCount: Schema.Number.annotations({ description: "Number of passing runs in the recent window." }),
 	failCount: Schema.Number.annotations({ description: "Number of failing runs in the recent window." }),
@@ -26,6 +29,9 @@ const FlakyTestRow = Schema.Struct({
 
 const PersistentFailureRow = Schema.Struct({
 	fullName: Schema.String,
+	modulePath: Schema.String.annotations({
+		description: "Project-relative test module path -- disambiguates same-named tests across files.",
+	}),
 	project: Schema.String,
 	consecutiveFailures: Schema.Number.annotations({
 		description: "Length of the current uninterrupted failure streak.",
@@ -41,6 +47,9 @@ const PersistentFailureRow = Schema.Struct({
 });
 
 const RecoveredTestRow = Schema.Struct({
+	modulePath: Schema.String.annotations({
+		description: "Project-relative test module path -- disambiguates same-named tests across files.",
+	}),
 	fullName: Schema.String,
 	recentRuns: Schema.Array(Schema.Literal("passed", "failed")).annotations({
 		description: "Last 10 run states for this test, oldest first.",
@@ -81,6 +90,7 @@ export const formatTestHistoryMarkdown = (data: TestHistoryResultType): string =
 			lines.push(
 				`### ⚠️ ${test.fullName}`,
 				"",
+				`- Module: \`${test.modulePath}\``,
 				`- Pass rate: ${passRate}% (${test.passCount}/${total})`,
 				`- Last state: ${test.lastState}`,
 				`- Last run: ${new Date(test.lastTimestamp).toLocaleString()}`,
@@ -95,6 +105,7 @@ export const formatTestHistoryMarkdown = (data: TestHistoryResultType): string =
 			lines.push(
 				`### ❌ ${failure.fullName}`,
 				"",
+				`- Module: \`${failure.modulePath}\``,
 				`- Consecutive failures: ${failure.consecutiveFailures}`,
 				`- First failed: ${new Date(failure.firstFailedAt).toLocaleString()}`,
 				`- Last failed: ${new Date(failure.lastFailedAt).toLocaleString()}`,
@@ -108,7 +119,7 @@ export const formatTestHistoryMarkdown = (data: TestHistoryResultType): string =
 		lines.push("## Recovered Tests", "", "Tests that previously failed but are now passing:", "");
 		for (const test of data.recovered) {
 			const runViz = test.recentRuns.map((s) => (s === "passed" ? "P" : "F")).join("");
-			lines.push(`- ✅ **${test.fullName}** — recent runs: \`${runViz}\``);
+			lines.push(`- ✅ **${test.fullName}** (${test.modulePath}) — recent runs: \`${runViz}\``);
 		}
 		lines.push("");
 	}
@@ -147,17 +158,29 @@ export const testHistory = publicProcedure
 						reader.getPersistentFailures(input.project),
 					]);
 
+					// t.runs is ordered most-recent-first (see classifyTest's documented
+					// "priorRuns" convention), so the current/most recent run is
+					// runs[0] and the one before it is runs[1].
 					const recovered = history.tests
 						.filter((t) => {
 							const runs = t.runs;
 							if (runs.length < 2) return false;
-							const last = runs[runs.length - 1];
-							const prev = runs[runs.length - 2];
-							return last !== undefined && prev !== undefined && last.state === "passed" && prev.state === "failed";
+							const mostRecent = runs[0];
+							const previous = runs[1];
+							return (
+								mostRecent !== undefined &&
+								previous !== undefined &&
+								mostRecent.state === "passed" &&
+								previous.state === "failed"
+							);
 						})
 						.map((t) => ({
+							modulePath: t.modulePath,
 							fullName: t.fullName,
-							recentRuns: t.runs.slice(-10).map((r) => r.state),
+							recentRuns: t.runs
+								.slice(0, 10)
+								.reverse()
+								.map((r) => r.state),
 						}));
 
 					const hasData = history.tests.length > 0 || flaky.length > 0 || persistent.length > 0;

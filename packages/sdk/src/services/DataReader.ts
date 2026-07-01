@@ -24,6 +24,7 @@ export interface ProjectRunSummary {
 /** @public */
 export interface FlakyTest {
 	readonly fullName: string;
+	readonly modulePath: string;
 	readonly project: string;
 	readonly passCount: number;
 	readonly failCount: number;
@@ -33,6 +34,7 @@ export interface FlakyTest {
 /** @public */
 export interface PersistentFailure {
 	readonly fullName: string;
+	readonly modulePath: string;
 	readonly project: string;
 	readonly consecutiveFailures: number;
 	readonly firstFailedAt: string;

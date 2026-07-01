@@ -92,7 +92,7 @@ Three tables hold coverage data per run:
 
 ### Failure history and signatures
 
-`test_history` is a sliding-window log of pass/fail outcomes per test full name. `failure_signatures` deduplicate structurally identical failures across runs using a 16-character SHA-256 hash over the error name, normalized assertion shape, top-frame function name, and function-boundary line. Each `test_errors` row carries a `signature_hash` FK so you can join directly from an error to its recurrence history.
+`test_history` is a sliding-window log of pass/fail outcomes per test, keyed by module path plus full name so two tests that share a `describe › it` name in different files stay distinct series rather than colliding. `failure_signatures` deduplicate structurally identical failures across runs using a 16-character SHA-256 hash over the error name, normalized assertion shape, top-frame function name, and function-boundary line. Each `test_errors` row carries a `signature_hash` FK so you can join directly from an error to its recurrence history.
 
 See [Classification](/guide/classification) for how the history and signatures feed the `stable / new-failure / persistent / flaky / recovered` labels.
 

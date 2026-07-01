@@ -271,6 +271,7 @@ export function flaky(filename: string) {
 		yield* store.writeHistory(
 			"default",
 			"async > resolves within timeout",
+			"src/async.test.ts",
 			runId1,
 			"2025-12-31T23:00:00.000Z",
 			"passed",
@@ -282,6 +283,7 @@ export function flaky(filename: string) {
 		yield* store.writeHistory(
 			"default",
 			"async > resolves within timeout",
+			"src/async.test.ts",
 			runId1,
 			"2026-01-01T00:00:00.000Z",
 			"failed",
@@ -293,6 +295,7 @@ export function flaky(filename: string) {
 		yield* store.writeHistory(
 			"default",
 			"async > rejects on error",
+			"src/async.test.ts",
 			runId1,
 			"2026-01-01T00:00:00.000Z",
 			"passed",
@@ -341,6 +344,7 @@ export function flaky(filename: string) {
 		yield* store.writeHistory(
 			"default",
 			"async > resolves within timeout",
+			"src/async.test.ts",
 			runId2,
 			"2026-01-01T01:00:00.000Z",
 			"passed",
@@ -352,6 +356,7 @@ export function flaky(filename: string) {
 		yield* store.writeHistory(
 			"default",
 			"async > rejects on error",
+			"src/async.test.ts",
 			runId2,
 			"2026-01-01T01:00:00.000Z",
 			"passed",

@@ -2,10 +2,11 @@ import { Effect, Layer } from "effect";
 import type { TestClassification } from "../schemas/Common.js";
 import type { TestRun } from "../schemas/History.js";
 import { DataReader } from "../services/DataReader.js";
-import { HistoryTracker } from "../services/HistoryTracker.js";
+import { HistoryTracker, historyKey } from "../services/HistoryTracker.js";
 import { classifyTest } from "../utils/classify-test.js";
 
 interface MutableTestHistory {
+	modulePath: string;
 	fullName: string;
 	runs: Array<TestRun>;
 }
@@ -22,22 +23,23 @@ export const HistoryTrackerLive: Layer.Layer<HistoryTracker, never, DataReader> 
 					const existing = yield* reader.getHistory(project);
 					const testMap = new Map<string, MutableTestHistory>();
 					for (const entry of existing.tests) {
-						testMap.set(entry.fullName, { ...entry, runs: [...entry.runs] });
+						testMap.set(historyKey(entry.modulePath, entry.fullName), { ...entry, runs: [...entry.runs] });
 					}
 
 					const classifications = new Map<string, TestClassification>();
 
 					for (const outcome of testOutcomes) {
-						let entry = testMap.get(outcome.fullName);
+						const key = historyKey(outcome.modulePath, outcome.fullName);
+						let entry = testMap.get(key);
 						if (!entry) {
-							entry = { fullName: outcome.fullName, runs: [] };
-							testMap.set(outcome.fullName, entry);
+							entry = { modulePath: outcome.modulePath, fullName: outcome.fullName, runs: [] };
+							testMap.set(key, entry);
 						}
 
 						const priorRuns = entry.runs;
 						entry.runs = [{ timestamp, state: outcome.state }, ...priorRuns].slice(0, WINDOW_SIZE);
 
-						classifications.set(outcome.fullName, classifyTest(outcome.state, priorRuns));
+						classifications.set(key, classifyTest(outcome.state, priorRuns));
 					}
 
 					return {
