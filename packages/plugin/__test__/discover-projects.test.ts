@@ -257,4 +257,25 @@ describe("discoverProjects()", () => {
 			expect(result1).not.toBe(result2);
 		});
 	});
+
+	describe("cache invalidation via directory signature (issue #100)", () => {
+		// Behavior 1 (TDD): asserts the cached result is invalidated when the on-disk test-file set changes.
+		it("should reflect a newly-added test file after the on-disk set changes following an initial cached call", async () => {
+			// Given: a package with a single src/ unit test, discovered once (populates the process cache)
+			await createPkg("stale-cache", { hasUnit: true });
+			const first = await discoverProjects({ cwd: tmpDir });
+			const firstInclude = first.projects?.[0].test?.include as string[] | undefined;
+			expect(firstInclude?.some((p) => p.includes("__test__/"))).toBe(false);
+
+			// When: a new test file is added under __test__/ after the first (cached) call
+			await mkdir(join(tmpDir, "packages", "stale-cache", "__test__"), { recursive: true });
+			await writeFile(join(tmpDir, "packages", "stale-cache", "__test__", "extra.test.ts"), "");
+			const second = await discoverProjects({ cwd: tmpDir });
+
+			// Then: the second call reflects the new file set instead of the stale first result
+			const secondInclude = second.projects?.[0].test?.include as string[] | undefined;
+			expect(secondInclude?.some((p) => p.includes("__test__/"))).toBe(true);
+			expect(second).not.toBe(first);
+		});
+	});
 });

@@ -157,7 +157,7 @@ Read a failure signature by its hash, including up to 10 recent matching test er
 
 Execute Vitest for specific files or patterns. Returns a `RunTestsResult` discriminated union:
 
-- `{ kind: "ok", report, classifications }` — the `report` field is the full `AgentReport` (pass/fail counts plus per-module errors); `classifications` maps test full-names to `stable`, `new-failure`, `persistent`, `flaky`, or `recovered`
+- `{ kind: "ok", report, classifications, discoveryLastScannedAt }` — the `report` field is the full `AgentReport` (pass/fail counts plus per-module errors); `classifications` maps test full-names to `stable`, `new-failure`, `persistent`, `flaky`, or `recovered`; `discoveryLastScannedAt` is an ISO timestamp of the most recent real disk scan performed by discovery in this process, or `null` when discovery has not scanned disk yet — compare it against a suspicious test count to confirm the count came from a fresh scan
 - `{ kind: "timeout", timeoutSeconds }` — the run exceeded the configured timeout
 - `{ kind: "error", message }` — the run failed to start
 - `{ kind: "no-match" }` — no files matched the supplied filter (distinct from a zero-test project)

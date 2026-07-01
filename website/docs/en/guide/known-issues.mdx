@@ -33,10 +33,25 @@ accumulate. Update `@vitest-agent/reporter` if you still see it.
 
 ## Stale test counts after moving or adding files
 
-**Status: misconception.** There is no warm discovery cache to invalidate.
-Discovery re-walks on every run; the MCP serves counts from the database, which
-updates only when tests are re-run. Re-run the tests — restarting the MCP does
-nothing here.
+**Status: resolved.** The long-lived MCP server cached discovery results per
+process, so adding, removing or moving test files could leave a warm MCP
+reporting counts from before the change until it was restarted. Discovery now
+detects when the set of test files on disk changes and re-scans automatically,
+so counts stay fresh with no restart. Update `@vitest-agent/plugin` if you
+still see stale counts. The `run_tests` result carries `discoveryLastScannedAt`
+— an ISO timestamp of the last real disk scan — so you can confirm a count came
+from a fresh scan.
+
+## `[vite] Failed to load source map` / `ENOENT … .js.map` under coverage
+
+**Status: resolved.** Under v8 coverage, Vite core repeatedly logged
+`Failed to load source map` and `ENOENT: … .js.map` warnings for dependencies
+whose npm tarball ships a `.js` file with a dangling `sourceMappingURL` but no
+`.map` sibling — the TypeScript package is the usual culprit. The warnings are
+harmless. The plugin now installs a Vite logger filter that drops exactly this
+noise and passes every other warning through, so test output under coverage
+stays clean with no configuration. Update `@vitest-agent/plugin` if you still
+see it.
 
 ## A run that rebuilds `dist/` mid-run
 

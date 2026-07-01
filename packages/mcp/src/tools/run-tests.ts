@@ -23,6 +23,12 @@ const RunTestsOk = Schema.Struct({
 	classifications: Schema.Record({ key: Schema.String, value: Schema.String }).annotations({
 		description: "Per-test classification labels: stable, new-failure, persistent, flaky, recovered.",
 	}),
+	discoveryLastScannedAt: Schema.optional(Schema.NullOr(Schema.String)).annotations({
+		description:
+			"ISO timestamp of the most recent real disk scan performed by discoverProjects() in this process (issue #100). " +
+			"`null`/absent means discovery has not scanned disk in this process yet (e.g. a config that doesn't call " +
+			"AgentPlugin.discover()). A stale-looking test count is self-explaining when compared against this value.",
+	}),
 }).annotations({ identifier: "RunTestsOk" });
 
 const RunTestsTimeout = Schema.Struct({
@@ -99,6 +105,29 @@ export function composeTagExpression(tags: TagFilterType | null | undefined): st
 }
 
 const FORBIDDEN_CHARS = /[;|&`$(){}[\]<>!#]/;
+
+// Cross-package "last scan" handshake (issue #100). `@vitest-agent/mcp` cannot
+// import `@vitest-agent/plugin`'s `discover-projects.ts` directly — the
+// plugin package depends on `@vitest-agent/cli`/`@vitest-agent/mcp`, so the
+// reverse import would be circular. Both sides instead read/write the same
+// process-global slot via `Symbol.for()`, which resolves to the identical
+// symbol across module instances in one process (mirrors the `ensureMigrated`
+// globalThis-keyed promise cache, Decision 28). `createVitest` below loads
+// `vitest.config.ts` in-process, which calls `discoverProjects()`, so both
+// sides observe the same global by the time this tool's result is built.
+const DISCOVERY_LAST_SCAN_SYMBOL = Symbol.for("vitest-agent:discovery:last-scan-at");
+
+/**
+ * Reads the ISO timestamp of the most recent real disk scan performed by
+ * `discoverProjects()` in this process. `undefined` when discovery hasn't
+ * scanned disk in this process yet.
+ *
+ * @internal
+ */
+export function readDiscoveryLastScannedAt(): string | undefined {
+	const value = (globalThis as Record<symbol, unknown>)[DISCOVERY_LAST_SCAN_SYMBOL];
+	return typeof value === "string" ? value : undefined;
+}
 
 // AsyncLocalStorage-scoped redirection. The prior implementation mutated
 // `process.stdout.write` / `process.stderr.write` globally for the full
@@ -601,6 +630,7 @@ export const runTests = publicProcedure
 						...(project !== undefined && { project }),
 						report,
 						classifications: classifications ? Object.fromEntries(classifications) : {},
+						discoveryLastScannedAt: readDiscoveryLastScannedAt() ?? null,
 					};
 				} catch (err) {
 					if (err instanceof Error && err.message === "VITEST_TIMEOUT") {
