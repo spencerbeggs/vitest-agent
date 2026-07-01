@@ -616,6 +616,9 @@ describe("MCP Router", () => {
 			expect(recoveredB).toBeDefined();
 			expect(recoveredA?.fullName).toBe("Suite > shared name");
 			expect(recoveredB?.fullName).toBe("Suite > shared name");
+			// recentRuns is oldest-first; each module recovered failed -> passed.
+			expect(recoveredA?.recentRuns).toEqual(["failed", "passed"]);
+			expect(recoveredB?.recentRuns).toEqual(["failed", "passed"]);
 		});
 	});
 

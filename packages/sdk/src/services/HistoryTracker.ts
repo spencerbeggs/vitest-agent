@@ -18,9 +18,14 @@ export interface TestOutcome {
  * Builds the composite (modulePath, fullName) key used to key the internal
  * testMap and the returned classifications Map, so identically-named tests
  * in different files classify independently instead of colliding.
+ *
+ * Uses `JSON.stringify` for an injective encoding: a plain delimiter such as
+ * a space is not collision-proof (e.g. `("a b", "c")` and `("a", "b c")` would
+ * both yield `"a b c"`), which would reintroduce the very collision class this
+ * key exists to prevent.
  * @public
  */
-export const historyKey = (modulePath: string, fullName: string): string => `${modulePath} ${fullName}`;
+export const historyKey = (modulePath: string, fullName: string): string => JSON.stringify([modulePath, fullName]);
 /** @public */
 export class HistoryTracker extends Context.Tag("vitest-agent/HistoryTracker")<
 	HistoryTracker,

@@ -544,9 +544,7 @@ describe("DataStoreLive", () => {
 		});
 
 		it("allows the same (project, full_name, timestamp) key for two different module_path values, tracked as distinct history entries", async () => {
-			// RED: current writeHistory has no modulePath param -- this call shifts
-			// positional args and throws a SQLite3 bind-type error.
-			const TestLayer = makeTestLayer(":memory:");
+			const ModulePathTestLayer = makeTestLayer(":memory:");
 			const result = await Effect.runPromise(
 				Effect.provide(
 					Effect.gen(function* () {
@@ -588,7 +586,7 @@ describe("DataStoreLive", () => {
 
 						return yield* reader.getHistory("modpath-project");
 					}),
-					TestLayer,
+					ModulePathTestLayer,
 				),
 			);
 

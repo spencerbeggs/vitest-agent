@@ -1,5 +1,6 @@
 import type { CacheManifest, CacheManifestEntry } from "../schemas/CacheManifest.js";
 import type { TestRun } from "../schemas/History.js";
+import { historyKey } from "../services/HistoryTracker.js";
 
 // ---------------------------------------------------------------------------
 // Input row types (minimal -- only the fields each assembler needs)
@@ -33,7 +34,7 @@ export interface HistoryRow {
 
 /**
  * A `Record<compositeKey, { modulePath, fullName, runs: TestRun[] }>` keyed by
- * the composite `${modulePath} ${fullName}` string, so identically-named
+ * the injective `historyKey(modulePath, fullName)` string, so identically-named
  * tests in different files are tracked as distinct entries.
  *
  * This is the internal representation returned by `assembleHistoryRecord`.
@@ -118,7 +119,7 @@ export function assembleHistoryRecord(rows: HistoryRow[]): AssembledHistoryRecor
 		const state = row.state === "passed" || row.state === "failed" ? row.state : null;
 		if (state === null) continue;
 
-		const key = `${row.module_path} ${row.full_name}`;
+		const key = historyKey(row.module_path, row.full_name);
 		if (!record[key]) {
 			record[key] = { modulePath: row.module_path, fullName: row.full_name, runs: [] };
 		}
