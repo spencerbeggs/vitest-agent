@@ -143,6 +143,44 @@ describe("RunTestsResult schema with no-match", () => {
 	});
 });
 
+// Behavior 2 (TDD): discoveryLastScannedAt reflects when discovery last scanned disk.
+describe("RunTestsResult discoveryLastScannedAt (issue #100)", () => {
+	const minimalReport = {
+		timestamp: "2026-05-15T00:00:00.000Z",
+		reason: "passed" as const,
+		summary: { total: 0, passed: 0, failed: 0, skipped: 0, duration: 0 },
+		failed: [],
+		unhandledErrors: [],
+		failedFiles: [],
+	};
+
+	it("should round-trip a string discoveryLastScannedAt on the ok variant", () => {
+		const payload: RunTestsResultType = {
+			kind: "ok",
+			report: minimalReport,
+			classifications: {},
+			discoveryLastScannedAt: "2026-07-01T04:00:00.000Z",
+		};
+		const encoded = Schema.encodeUnknownSync(RunTestsResult)(payload);
+		const decoded = Schema.decodeUnknownSync(RunTestsResult)(encoded);
+		expect(decoded.kind).toBe("ok");
+		if (decoded.kind !== "ok") return;
+		expect(decoded.discoveryLastScannedAt).toBe("2026-07-01T04:00:00.000Z");
+	});
+
+	it("should accept null discoveryLastScannedAt when discovery has not scanned yet", () => {
+		const decoded = Schema.decodeUnknownSync(RunTestsResult)({
+			kind: "ok",
+			report: minimalReport,
+			classifications: {},
+			discoveryLastScannedAt: null,
+		});
+		expect(decoded.kind).toBe("ok");
+		if (decoded.kind !== "ok") return;
+		expect(decoded.discoveryLastScannedAt).toBeNull();
+	});
+});
+
 describe("formatNoMatchMarkdown", () => {
 	it("renders the resolved filter context and tag-introspection remediation", () => {
 		const tags: TagFilterType = { all: ["e2e"] };

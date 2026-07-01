@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-07-01
+last-synced: 2026-07-01
 completeness: 92
 related:
   - ./architecture.md
@@ -279,6 +279,7 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
   results (including `state.getFiles()`) before returning. The in-process run
   blocks the long-lived stdio server for its duration, which is acceptable
   because agents wait for results before proceeding.
+- Loading `vitest.config.ts` re-runs `AgentPlugin.discover()` → `discoverProjects()`. In the long-lived MCP process that reused a stale cache before issue #100; the cache is now invalidated by a per-package `src/` + `__test__/` directory signature, so a test-file add/remove/move triggers a rescan. Each real scan writes an ISO timestamp to the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global slot, which the tool reads back into the `RunTestsOk.discoveryLastScannedAt` field (a cross-package handshake avoiding a circular plugin import — see [./decisions.md](./decisions.md) Decision 43).
 
 ## Flow 5: Plugin → MCP server spawn
 

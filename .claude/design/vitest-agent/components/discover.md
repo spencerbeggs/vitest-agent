@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-06-26
-last-synced: 2026-06-26
+updated: 2026-07-01
+last-synced: 2026-07-01
 completeness: 95
 related:
   - ../components.md
@@ -104,6 +104,10 @@ interface DiscoverProjectsOptions {
 Users that need to mutate projects post-discovery either extend the
 strategy (preferred) or destructure the result and mutate the array
 before spreading it into defineConfig.
+
+### getLastDiscoveryScanTimestamp
+
+Exported (@public) from the same file. Returns the ISO timestamp of the most recent real disk scan `discoverProjects` performed in this process, or `undefined` if no scan has happened yet. Cache hits do not update it. It reads the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global slot that `discoverProjects` writes on every real scan, so a caller in another package (notably `@vitest-agent/mcp`) can observe the value without importing this module. See [../decisions.md](../decisions.md) Decision 43.
 
 ### DiscoverStrategy abstract class
 
@@ -226,11 +230,7 @@ The unified algorithm in discoverProjects:
    Throws with a descriptive error if no root is found — there is no
    silent fallback.
 
-2. **Consult process-level cache.** A module-level Map keyed by
-   workspace root is checked first. The cache fires only when neither
-   strategy nor additionalEntries was supplied (the no-arg path).
-   Any explicit strategy or any added entry bypasses the cache because
-   strategy instances cannot be fingerprinted.
+2. **Consult process-level cache with a directory signature.** A module-level Map keyed by workspace root is checked first, but only when neither strategy nor additionalEntries was supplied (the no-arg path); any explicit strategy or added entry bypasses the cache because strategy instances cannot be fingerprinted. Each cache entry now stores `{ result, signature }` where the signature is a cheap fingerprint of every package's `src/` and `__test__/` directories (recursive relative-path + `mtimeMs` pairs, sorted — no file contents read, via `computeDirSignature` / `computeWorkspaceSignature`). On the cacheable path the signature is recomputed and compared before the cached result is returned; a mismatch means a test file was added, removed, moved or renamed since the entry was written, so discovery falls through to a full rescan and refreshes the entry. This fixes issue #100, where the long-lived MCP server returned stale project include-globs after test files moved on disk (symptom: a silent drop of ~1290 tests when `*.test.ts` moved from `src/` to `__test__/`).
 
 3. **Resolve the strategy.** Defaults to a fresh DefaultDiscoverStrategy
    when none was supplied.
@@ -257,8 +257,7 @@ The unified algorithm in discoverProjects:
    undefined so Vitest treats the config as having no projects rather
    than an empty list. Otherwise projects holds the accumulated configs.
 
-9. **Cache (no-options path only).** Store the DiscoverResult for that
-   workspace root.
+9. **Cache and record scan timestamp (no-options path only).** Store `{ result, signature }` for the workspace root. Every real disk scan (not a cache hit) also records an ISO timestamp via `recordDiscoveryScanTimestamp()`, readable through the exported `getLastDiscoveryScanTimestamp()`. Both use a process-global slot keyed by `Symbol.for("vitest-agent:discovery:last-scan-at")` so `@vitest-agent/mcp` can surface the last real scan time on `run_tests` results without importing this module (which would be a circular dependency). See [../decisions.md](../decisions.md) Decision 43.
 
 ---
 
@@ -354,7 +353,7 @@ threads.
 | File | Responsibility |
 | ---- | -------------- |
 | packages/plugin/src/plugin.ts | AgentPlugin namespace; static discover method; DiscoverBuilder thenable; conflict detection; transform hook installation |
-| packages/plugin/src/utils/discover-projects.ts | discoverProjects unified algorithm, process cache, conflict detection across workspace and additional entries |
+| packages/plugin/src/utils/discover-projects.ts | discoverProjects unified algorithm, signature-invalidated process cache, `getLastDiscoveryScanTimestamp` last-scan handshake, conflict detection across workspace and additional entries |
 | packages/plugin/src/utils/discover-strategy.ts | DiscoverStrategy abstract class, DefaultDiscoverStrategy, ModuleInfo, DiscoverInput, ClassifyFn, ClassifyContext, the immutable layered concrete implementation |
 | packages/plugin/src/utils/classify-helpers.ts | classifyByFilename, classifyByDirectory, combineClassifiers — pure ClassifyFn builders |
 | packages/plugin/src/utils/find-test-files.ts | Async glob walker with inline glob-to-regex compiler; default skip set of node_modules, .git, dist |

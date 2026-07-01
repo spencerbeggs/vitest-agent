@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-01
+last-synced: 2026-07-01
 completeness: 100
 related:
   - ./architecture.md
@@ -1142,6 +1142,20 @@ per-turn critical path, so the JS cold-start is tolerable there.
 than the unconditional JS shell-out; the subagent-binary path sits between
 the two. The hook's payload parsing collapses its `jq` and `dirname` forks
 to one each. The benchmark harness is `scripts/bench-sidecar.sh`.
+
+### Decision 43: Discovery Cache Signature Invalidation + Cross-Package Last-Scan Handshake
+
+**Context.** `discoverProjects()` cached its result in a module-level `Map` keyed by workspace root, with no invalidation, for the life of the Node process. That is fine for a one-shot `pnpm vitest run`, but the long-lived MCP server re-loads `vitest.config.ts` → `AgentPlugin.discover()` → `discoverProjects()` on every `run_tests` call. When test files moved on disk (e.g. `*.test.ts` relocated from `src/` to `__test__/`), the stale cache kept returning the old project include-globs, silently dropping ~1290 tests until the process restarted (issue #100).
+
+**Decision.** Cache entries now carry `{ result, signature }`. The signature is a cheap per-package directory fingerprint — a recursive `readdir` + `stat` `mtimeMs` walk over each package's `src/` and `__test__/`, sorted, no file contents read (`computeDirSignature` / `computeWorkspaceSignature`). On the cacheable no-arg path the signature is recomputed and compared before a cached result is returned; a mismatch means a test file was added, removed, moved or renamed, so discovery rescans and refreshes the entry. The explicit-strategy and `additionalEntries` paths still bypass the cache entirely, unchanged.
+
+**Cross-package observability handshake.** Every real disk scan (not a cache hit) records an ISO timestamp into a process-global slot keyed by `Symbol.for("vitest-agent:discovery:last-scan-at")`, exposed by the plugin's exported `getLastDiscoveryScanTimestamp()`. `@vitest-agent/mcp` reads the same slot (via a local `readDiscoveryLastScannedAt()`) to surface `discoveryLastScannedAt` on `RunTestsOk`, letting an agent tell a fresh scan from a stale-looking count. The Symbol slot — rather than a direct import — is load-bearing: `@vitest-agent/plugin` depends on `@vitest-agent/cli` / `@vitest-agent/mcp`, so an mcp → plugin import would be circular. `Symbol.for()` resolves to the identical symbol across module instances in one process, and `createVitest` loads `vitest.config.ts` in-process so both sides observe the same slot. This mirrors the `ensureMigrated` globalThis-keyed promise cache (Decision 28).
+
+### Decision 44: Filter Benign Vite Source-Map Warnings via a `configResolved` Logger Wrap
+
+**Context.** Under v8 coverage, Vite core's `loadAndTransform` emits `[vite] (ssr) Failed to load source map ...` / `ENOENT: ... .js.map` warnings for dependencies that ship a `.js` referencing an unpublished `.js.map` sibling (canonical case: `typescript/lib/typescript.js`). This is a Vite LOGGER warning routed through `environment.logger.warn`, not per-test console output, so it never lands in `task.logs` / `state.getFiles()` and the existing console-leak filter path cannot reach it (issue #110).
+
+**Decision.** The plugin adds a Vite `configResolved(resolvedConfig)` hook that mutates `resolvedConfig.logger.warn` in place (`installViteSourceMapWarningFilter`): messages matching the pure predicate `isBenignViteSourceMapWarning` are dropped, everything else forwards untouched. Verified against vite@8.1.0 that every per-environment logger delegates to the single root `logger.warn` reference, so wrapping that one function intercepts all environments. The wrap rides `configResolved` rather than a `config`-hook `customLogger` because Vite can construct or replace the logger between the two phases — mutating the already-resolved instance is what survives. The predicate matches only the `Failed to load source map` + `ENOENT:.*\.js\.map` shape so unrelated warnings and other-extension ENOENT errors still surface. The backing `ResolvedConfigLike` / `ViteLoggerLike` types stay `@internal` and the `configResolved` field uses an inline structural type, keeping them off api-extractor's public surface.
 
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 

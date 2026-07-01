@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-01
+last-synced: 2026-07-01
 completeness: 93
 related:
   - ../architecture.md
@@ -326,11 +326,7 @@ predicate to decide whether a package contributes a project. The scanner:
    explicit user intent and a silent skip would surprise the caller.
 4. Materializes `tags` as a copy of `strategy.tagDefinitions`.
 
-**Process-level cache.** Results are keyed by workspace root in a
-module-local `Map`. The cache fires only when neither `strategy` nor
-`additionalEntries` was supplied so a `DiscoverStrategy` instance never
-has to be fingerprinted. Any explicit strategy or any `.addProject`
-chain bypasses the cache.
+**Signature-invalidated process cache.** Results are keyed by workspace root in a module-local `Map`. The cache fires only when neither `strategy` nor `additionalEntries` was supplied so a `DiscoverStrategy` instance never has to be fingerprinted. Any explicit strategy or any `.addProject` chain bypasses the cache. Each entry stores `{ result, signature }`: the signature is a cheap fingerprint of every package's `src/` and `__test__/` directories (recursive relative-path + `mtimeMs` pairs, no file contents). On the cacheable path the signature is recomputed and compared before a cached result is returned, so a test file added/removed/moved/renamed on disk triggers a rescan rather than returning stale include-globs (issue #100 — the long-lived MCP server otherwise silently dropped tests after a test-file move). Every real scan also records an ISO timestamp under `Symbol.for("vitest-agent:discovery:last-scan-at")`, readable via the exported `getLastDiscoveryScanTimestamp()`, which `@vitest-agent/mcp` reads back to surface `discoveryLastScannedAt` on `run_tests` results without a circular import. See [./discover.md](./discover.md) and [../decisions.md](../decisions.md) Decision 43.
 
 Users that want to mutate projects post-discovery either extend the strategy
 (preferred) or destructure the result and mutate the array before
@@ -361,6 +357,10 @@ classifier helpers
 are exported from the package for callers that want to compose the
 classification side without reimplementing project detection. See
 [./discover.md](./discover.md) for the full strategy API.
+
+## Vite source-map warning filter (`configResolved`)
+
+Under v8 coverage, Vite core's `loadAndTransform` emits a benign `[vite] (ssr) Failed to load source map ...` / `ENOENT: ... .js.map` warning for dependencies that ship a `.js` referencing a `.js.map` sibling that was never published (canonical case: `typescript/lib/typescript.js`). This rides Vite's `environment.logger.warn`, not per-test console output, so it never reaches `task.logs` / `state.getFiles()` and the console-leak path cannot filter it (issue #110). The plugin adds a Vite `configResolved(resolvedConfig)` hook that calls `installViteSourceMapWarningFilter`, which wraps `resolvedConfig.logger.warn` in place: messages matching `isBenignViteSourceMapWarning` are dropped, everything else forwards untouched. Every per-environment logger (`client`, `ssr`, ...) delegates to the single root `logger.warn` reference, so mutating that one function intercepts all environments. The wrap lives in `configResolved` rather than a `config`-hook `customLogger` because Vite can construct or replace the logger between `config` and `configResolved` — mutating the already-resolved instance is the wiring that survives. The predicate lives in `packages/plugin/src/utils/is-benign-vite-source-map-warning.ts` and matches only the `Failed to load source map` + `ENOENT:.*\.js\.map` shape, so unrelated warnings and other-extension ENOENT errors still surface. The two backing types (`ResolvedConfigLike`, `ViteLoggerLike`) are `@internal`; the `configResolved` field uses an inline structural type so api-extractor's public surface stays clean. See [../decisions.md](../decisions.md) Decision 44.
 
 ## AgentPlugin.discover()
 
@@ -478,6 +478,7 @@ instead.
   plugin's Vite transform hook.
 - `strip-console-reporters.ts` — removes console reporters from Vitest's
   reporter chain.
+- `is-benign-vite-source-map-warning.ts` — pure predicate `isBenignViteSourceMapWarning(message)` matching only the benign Vite `Failed to load source map` / ENOENT `.js.map` noise. Consumed by the `configResolved` logger filter (issue #110).
 - `resolve-thresholds.ts` — parses Vitest-native `coverage.thresholds` into
   `ResolvedThresholds`. The plugin does not touch `autoUpdate`; Vitest owns
   the native ratchet and users opt in by passing one of

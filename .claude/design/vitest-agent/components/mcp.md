@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-01
+last-synced: 2026-07-01
 completeness: 92
 related:
   - ../architecture.md
@@ -352,6 +352,8 @@ even with `passWithNoTests: true` a filtered empty selection still emits
 `no-match`. `formatRunTestsMarkdown` dispatches to `formatNoMatchMarkdown`
 on this branch, echoing the resolved filter and printing
 tag-introspection / `for_file` / `project` remediation pointers.
+
+**`run_tests` `discoveryLastScannedAt` observability.** `RunTestsOk` carries an optional `discoveryLastScannedAt: string | null` — the ISO timestamp of the most recent real disk scan `discoverProjects()` performed in this process, or `null` when discovery has not scanned disk in this process (e.g. a config that never calls `AgentPlugin.discover()`). It lets an agent tell a stale-looking test count apart from a fresh scan (issue #100). The value is read via `readDiscoveryLastScannedAt()` in `packages/mcp/src/tools/run-tests.ts` from the process-global `Symbol.for("vitest-agent:discovery:last-scan-at")` slot that `@vitest-agent/plugin` writes on every real scan. The Symbol handshake exists because `@vitest-agent/mcp` cannot import `@vitest-agent/plugin` (the plugin depends on mcp, so a reverse import is circular); `createVitest` loads `vitest.config.ts` in-process, which calls `discoverProjects()`, so both sides observe the same slot by the time the result is built. Mirrors the `ensureMigrated` globalThis-keyed pattern (Decision 28). See [../decisions.md](../decisions.md) Decision 43.
 
 **`inventory({ kind: "tag" })`.** New input variant with an optional
 `project` scope. The output union gains two distinct

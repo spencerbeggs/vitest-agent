@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-07-01
+last-synced: 2026-07-01
 completeness: 93
 related:
   - ./architecture.md
@@ -519,6 +519,8 @@ post-`vitest.start` `testModules.length === 0` AND
 `unhandledErrors.length === 0` AND any filter was supplied. Filter-driven,
 not result-driven; `passWithNoTests` policy never reshapes the
 discriminator. Definition: `packages/mcp/src/tools/run-tests.ts`.
+
+**`RunTestsOk.discoveryLastScannedAt`** (output on `run_tests`) — optional `string | null` on the `ok` variant of `RunTestsResult`. The ISO timestamp of the most recent real disk scan `discoverProjects()` performed in this process, or `null`/absent when discovery has not scanned disk in this process. Lets an agent distinguish a stale-looking test count from a fresh scan (issue #100). Populated via the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global handshake with `@vitest-agent/plugin`, not a direct import. Definition: `packages/mcp/src/tools/run-tests.ts`. See [decisions.md](decisions.md) Decision 43.
 
 **`TagVariant`** (input on `inventory`) — `{ kind: "tag", project?:
 string }`. New member of the `InventoryInput` union. Definition:

@@ -31,8 +31,11 @@ cost trial-and-error.
 5. **Session attribution is recovered for you** from the environment the
    Claude Code plugin's SessionStart hook writes; you never set `VITEST_AGENT_*`
    vars by hand.
-6. **Stale counts mean tests were not re-run**, not a warm cache. Discovery
-   re-walks per run; the MCP serves counts from the database.
+6. **Test counts stay fresh after you move files.** Discovery caches its scan
+   per process but re-scans automatically when the set of test files on disk
+   changes, so a warm MCP no longer reports phantom counts — no restart needed.
+   The `run_tests` result carries `discoveryLastScannedAt` (an ISO timestamp of
+   the last real disk scan) if you want to confirm a count is fresh.
 7. **Some "leaks" are guardrail tests** that assert on their own output — do not
    silence them.
 

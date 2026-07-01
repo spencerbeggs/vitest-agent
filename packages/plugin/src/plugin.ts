@@ -35,6 +35,7 @@ import type { DiscoverStrategy } from "./utils/discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./utils/discover-strategy.js";
 import type { InjectTagsResult } from "./utils/inject-tags.js";
 import { injectTags } from "./utils/inject-tags.js";
+import { isBenignViteSourceMapWarning } from "./utils/is-benign-vite-source-map-warning.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
 
@@ -206,6 +207,53 @@ function envToExecutor(env: Environment): Executor {
 }
 
 /**
+ * Minimal Vite `Logger` shape this plugin depends on. Only `warn` is
+ * wrapped; every other method is forwarded untouched.
+ * @internal
+ */
+interface ViteLoggerLike {
+	warn: (msg: string, options?: unknown) => void;
+	[key: string]: unknown;
+}
+
+/**
+ * Minimal shape of Vite's resolved config this plugin's `configResolved`
+ * hook depends on.
+ * @internal
+ */
+interface ResolvedConfigLike {
+	logger: ViteLoggerLike;
+}
+
+/**
+ * Wraps `resolvedConfig.logger.warn` in place so the benign Vite
+ * "Failed to load source map" / ENOENT `.js.map` noise (GitHub issue #110)
+ * never reaches stdout, while every other warning still passes through
+ * untouched.
+ *
+ * Every Vite per-environment logger (`environment.logger`) delegates its
+ * `warn` calls to the single root `resolvedConfig.logger.warn` function
+ * reference (see Vite's `PartialEnvironment` constructor), so mutating that
+ * one function here intercepts the warning regardless of which environment
+ * (`client`, `ssr`, ...) triggered it. Wrapping happens in `configResolved`
+ * (rather than returning a `customLogger` from the plugin's `config` hook)
+ * because Vite's own config-resolution pipeline can construct or replace
+ * the logger between `config` and `configResolved` — mutating the already-
+ * resolved logger instance in place is the wiring that survives.
+ *
+ * @internal
+ */
+function installViteSourceMapWarningFilter(resolvedConfig: ResolvedConfigLike): void {
+	const originalWarn = resolvedConfig.logger.warn.bind(resolvedConfig.logger);
+	resolvedConfig.logger.warn = (msg: string, options?: unknown) => {
+		if (isBenignViteSourceMapWarning(msg)) {
+			return;
+		}
+		originalWarn(msg, options);
+	};
+}
+
+/**
  * Vitest plugin that injects `AgentReporter` into the reporter chain.
  *
  * @param options - Plugin configuration options
@@ -230,10 +278,23 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 
 	const pluginObj: {
 		name: "vitest-agent";
+		// Inline structural type (not a named export) so api-extractor's public
+		// surface doesn't need ResolvedConfigLike/ViteLoggerLike exported —
+		// those two interfaces stay @internal implementation details of
+		// installViteSourceMapWarningFilter.
+		configResolved: (resolvedConfig: { logger: { warn: (msg: string, options?: unknown) => void } }) => void;
 		configureVitest(ctx: VitestPluginContext): Promise<void>;
 		transform?: (code: string, id: string) => InjectTagsResult | null;
 	} = {
 		name: "vitest-agent",
+
+		// Installs the benign-source-map-warning filter (GitHub issue #110)
+		// as soon as Vite/Vitest hands us the fully resolved config. See
+		// installViteSourceMapWarningFilter for why this rides configResolved
+		// rather than a config-hook customLogger.
+		configResolved(resolvedConfig) {
+			installViteSourceMapWarningFilter(resolvedConfig as ResolvedConfigLike);
+		},
 
 		async configureVitest(ctx: VitestPluginContext) {
 			try {
