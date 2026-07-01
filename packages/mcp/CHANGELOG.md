@@ -1,5 +1,11 @@
 # @vitest-agent/mcp
 
+## 1.3.0
+
+### Features
+
+* [`3cf7502`](https://github.com/spencerbeggs/vitest-agent/commit/3cf7502360086e80ed5ea96ab1154bf1e9537ef5) Added `discoveryLastScannedAt` to the `run_tests` tool result (`RunTestsOk`) — an ISO timestamp of the most recent real disk scan performed by discovery, or `null` if discovery hasn't scanned disk yet in this process. Lets an agent confirm whether a suspicious test count reflects a fresh scan rather than a stale cache. Additive and backward-compatible.
+
 ## 1.2.0
 
 ### Refactoring
