@@ -81,9 +81,7 @@ for LLM coding agents. Six primary capabilities:
    per-CRUD families collapse into one tool each (`tdd_task`, `tdd_goal`,
    `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) that dispatch
    on an `action` / `kind` discriminator. Also: `register_agent`,
-   `tdd_artifact_list`, four MCP resources under two URI schemes
-   (`vitest://docs/` and `vitest-agent://patterns/`), and six framing-only
-   prompts.
+   `tdd_artifact_list`, and six framing-only prompts.
 6. **Claude Code plugin** -- file-based plugin at `plugin/` distributed via
    the Claude marketplace as `vitest-agent@spencerbeggs`. Ships a PM-detect
    spawn loader, lifecycle hooks, the `tdd-task` subagent (`context:fork`),
