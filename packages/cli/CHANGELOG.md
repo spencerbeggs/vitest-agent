@@ -1,5 +1,21 @@
 # @vitest-agent/cli
 
+## 1.0.2
+
+### Dependencies
+
+* [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) | Dependency | Type | Action | From | To |
+  \| ------------------ | ------------- | ------- | ------- | ------ |
+  \| @savvy-web/bundler | devDependency | updated | ^0.11.1 | ^1.0.1 |
+
+### Maintenance
+
+* [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) Removed the cross-package version drift check from the CLI bin entrypoint. The `vitest-agent` CLI no longer compares its version against `@vitest-agent/sdk` at startup and no longer writes a version drift warning to stderr. The `CURRENT_CLI_VERSION` constant remains exported for version introspection.
+  | Dependency            | Type       | Action  | From  | To    |
+  | --------------------- | ---------- | ------- | ----- | ----- |
+  | @vitest-agent/sdk     | dependency | updated | 1.0.1 | 1.1.0 |
+  | @vitest-agent/sidecar | dependency | updated | 1.0.1 | 1.0.2 |
+
 ## 1.0.1
 
 ### Patch Changes

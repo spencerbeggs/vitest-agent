@@ -1,5 +1,39 @@
 # @vitest-agent/mcp
 
+## 1.1.0
+
+### Features
+
+* [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) ### Console Leak Signal in run\_tests
+
+The `run_tests` tool now collects stray console output during the test run and folds it into the `AgentReport` as an optional `consoleLeaks` field. The structured signal includes:
+
+* Total write count across the run
+* Per-file stdout/stderr split with up to 10 attributable test names per file
+* A truncated first-line sample of the first write seen per file
+* A `truncated` flag when more than 25 files produced stray output
+
+The tool's markdown output includes a one-line warning when leaks are present:
+
+```text
+⚠ N stray console writes across M+ files (see consoleLeaks)
+```
+
+No configuration is required. The signal is omitted entirely on runs with no stray output.
+
+### Dependencies
+
+* [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) | Dependency | Type | Action | From | To |
+  \| ------------------ | ------------- | ------- | ------- | ------ |
+  \| @savvy-web/bundler | devDependency | updated | ^0.11.1 | ^1.0.1 |
+  | Dependency        | Type       | Action  | From  | To    |
+  | ----------------- | ---------- | ------- | ----- | ----- |
+  | @vitest-agent/sdk | dependency | updated | 1.0.1 | 1.1.0 |
+
+### Maintenance
+
+* [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) Removed the cross-package version drift check from the MCP server startup path. `vitest-agent-mcp` no longer compares its version against `@vitest-agent/sdk` at init and no longer writes a version drift warning to stderr. The `CURRENT_MCP_VERSION` constant remains exported for version introspection.
+
 ## 1.0.1
 
 ### Bug Fixes
