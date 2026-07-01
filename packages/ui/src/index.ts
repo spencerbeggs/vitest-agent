@@ -73,13 +73,11 @@ export {
 	synthesizeRunEvents,
 } from "./synthesize.js";
 
-// --- Cross-package version constant (T12 drift check) ---
+// --- Package version constant ---
 /**
  * The version of this package, inlined at build time from
  * `package.json#version` via rslib-builder's `__PACKAGE_VERSION__`
- * substitution. The UI package is consumed through the plugin so it does not
- * run its own init-time drift check, but the constant is exported so the
- * plugin can compare against it.
+ * substitution. Exported for version introspection by downstream tooling.
  *
  * @public
  */

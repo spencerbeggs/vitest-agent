@@ -127,14 +127,13 @@ export * from "./utils/safe-filename.js";
 export * from "./utils/validate-coverage-targets-shape.js";
 export * from "./utils/validate-phase-transition.js";
 
-// --- Cross-package version constant (T12 drift check) ---
+// --- Package version constant ---
 /**
  * The version of this package. Inlined at build time from
  * package.json#version via rslib-builder's __PACKAGE_VERSION__ substitution.
  * Source-level reads (workspace `exports: "./src/index.ts"` during dev)
  * see the `"0.0.0"` fallback — a clear signal the build pipeline has not
- * substituted yet. Read by the plugin / MCP / CLI init-time drift check.
- * See the root CLAUDE.md "Cross-package version drift" section.
+ * substituted yet. Exported for version introspection by downstream tooling.
  * @public
  */
 export const CURRENT_SDK_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";

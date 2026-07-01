@@ -1,4 +1,4 @@
-import { defineBuild, runBuild } from "@savvy-web/bundler";
+import { build } from "@savvy-web/bundler";
 
 // The `vitest-agent-sidecar` parent package does NOT cross-build the four SEA
 // binaries — that work lives in the per-platform `vitest-agent-sidecar-<platform>`
@@ -8,14 +8,8 @@ import { defineBuild, runBuild } from "@savvy-web/bundler";
 // and exposes a programmatic `.` export (`src/index.ts`) re-exporting the pure
 // `resolveSidecarBinaryPath` helper. The matching child puts the SEA directly on
 // PATH, so the hook runs the native binary with no intermediate Node process.
-const config = defineBuild({
+await build({
 	meta: {
 		localPaths: ["../../website/lib/models/sidecar"],
 	},
 });
-
-export default config;
-
-if (import.meta.main) {
-	await runBuild(config, { cwd: import.meta.dirname, argv: process.argv.slice(2) });
-}

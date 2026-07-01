@@ -30,8 +30,7 @@ export {
 /**
  * The version of this package, inlined at build time from
  * `package.json#version` via rslib-builder's `__PACKAGE_VERSION__` substitution.
- * Compared against `CURRENT_SDK_VERSION` at CLI bin init to surface
- * partially-upgraded installs as a single stderr warning.
+ * Exported for version introspection by downstream tooling.
  *
  * @public
  */

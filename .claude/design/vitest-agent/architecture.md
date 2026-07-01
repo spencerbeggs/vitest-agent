@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 90
 related:
   - ./components.md
@@ -61,7 +61,7 @@ workspace) and the `docs` documentation-site workspace at `website/`.
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
 | `docs` | `website/` | RSPress 2.0 documentation site deployed to `vitest-agent.dev` via Cloudflare Pages. Generates per-package API reference from each package's API Extractor model. Private, versions independently, imports nothing from the runtime packages. See [./components/docs-site.md](./components/docs-site.md). |
 
-The seven npm workspaces release in lockstep. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as required workspace `peerDependencies` (alongside the host-supplied Vitest peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`); its regular workspace `dependencies` are `@vitest-agent/reporter` and `@vitest-agent/sdk` only. The cli / mcp peers are required, not optional — there is no `peerDependenciesMeta`. Declaring `@vitest-agent/plugin` still pulls in the whole `@vitest-agent/*` family for a published consumer: npm 7+ and pnpm (with this repo's `autoInstallPeers: true`) auto-install required peers, and a peer-installed package lands at the consumer's top level, so its bin resolves — a transitively-nested regular dependency's bin would not. `@vitest-agent/sidecar` reaches a consumer transitively through `@vitest-agent/cli`, along with its four per-platform binaries. All six non-SDK packages pin `@vitest-agent/sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `@vitest-agent/sidecar`.
+The seven npm workspaces version independently per package — there is no shared release train. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as required workspace `peerDependencies` at a `workspace:^` range (a caret range so a compatible minor bump to either peer does not force a major bump of the plugin), alongside the host-supplied Vitest peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`; its regular workspace `dependencies` are `@vitest-agent/reporter` and `@vitest-agent/sdk` only. The cli / mcp peers are required, not optional — there is no `peerDependenciesMeta`. Declaring `@vitest-agent/plugin` still pulls in the whole `@vitest-agent/*` family for a published consumer: npm 7+ and pnpm (with this repo's `autoInstallPeers: true`) auto-install required peers, and a peer-installed package lands at the consumer's top level, so its bin resolves — a transitively-nested regular dependency's bin would not. `@vitest-agent/sidecar` reaches a consumer transitively through `@vitest-agent/cli`, along with its four per-platform binaries. All six non-SDK packages pin `@vitest-agent/sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `@vitest-agent/sidecar`.
 
 The dependency direction between CLI and sidecar is noteworthy: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath`), not the reverse. The parent `@vitest-agent/sidecar` package has no workspace runtime dependencies — its only source file (`src/resolve-sidecar-binary-path.ts`) uses `createRequire` from `node:module` to resolve the per-platform package's bin path. The per-platform children declare `@vitest-agent/sdk` as their only workspace `devDependency`, bundled into the SEA at build time — each child's `src/bin.ts` imports `dispatch` from the dedicated `@vitest-agent/sdk/dispatch` entry point. The closing edge of the dependency graph is `@vitest-agent/sidecar-<platform> → @vitest-agent/sdk` (a true leaf), so there is no workspace dependency cycle: `pnpm install` issues no cyclic-dependency warning and `turbo boundaries` passes. `packages/sidecar/turbo.json` uses the normal topological task ordering (`^build:dev` / `^build:prod`) — the prior `dependsOn: []` cycle workaround is gone now that the cli→sidecar→cli edge no longer exists.
 
@@ -137,25 +137,7 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   test layer pairs. Domain shapes are Effect Schemas, re-exported from
   `@vitest-agent/sdk`. Zod is reserved for tRPC tool input validation in
   the MCP package.
-- **Lockstep release.** The seven npm packages share one version — a bump
-  to any one bumps all seven. The plugin declares `@vitest-agent/reporter`
-  and `@vitest-agent/sdk` as regular `dependencies` and `@vitest-agent/cli`
-  and `@vitest-agent/mcp` as required `peerDependencies`, so consumers
-  install only `@vitest-agent/plugin` and the rest arrives at the matching
-  version — the regular deps transitively, the required peers via npm 7+ /
-  pnpm auto-install. `@vitest-agent/sidecar` arrives through `@vitest-agent/cli`
-  along with its four per-platform binaries. The CLI and MCP packages are
-  peers rather than regular deps because the auto-installed peer lands at
-  the consumer's top level, so the `vitest-agent` and `vitest-agent-mcp`
-  bins resolve for the Claude Code plugin's hook scripts — a nested regular
-  dependency's bin would not. The
-  Claude Code plugin can
-  lag the npm packages. Runtime version sync is verifiable through
-  `process.env.__PACKAGE_VERSION__`, which `rslib-builder` inlines into
-  each package's bundle as a string at build time; an inlined-at-build
-  constant avoids a runtime `package.json` read and surfaces a mismatch
-  loudly when the invariant is broken (a hand-mixed install, a forgotten
-  lockstep release).
+- **Independent per-package release.** Each npm package versions on its own — changesets no longer pins the family to a single shared version. The plugin declares `@vitest-agent/reporter` and `@vitest-agent/sdk` as regular `dependencies` and `@vitest-agent/cli` and `@vitest-agent/mcp` as required `peerDependencies` (at `workspace:^`), so consumers install only `@vitest-agent/plugin` and the rest arrives — the regular deps transitively, the required peers via npm 7+ / pnpm auto-install. `@vitest-agent/sidecar` arrives through `@vitest-agent/cli` along with its four per-platform binaries. The CLI and MCP packages are peers rather than regular deps because the auto-installed peer lands at the consumer's top level, so the `vitest-agent` and `vitest-agent-mcp` bins resolve for the Claude Code plugin's hook scripts — a nested regular dependency's bin would not. The Claude Code plugin and `@vitest-agent/sidecar` likewise version independently. A release emits a per-package git tag `@vitest-agent/<pkg>@<version>` and one GitHub Release per package, not a single shared-version tag; the docs/deploy trigger keys on the plugin Release name containing `@vitest-agent/plugin`. Each package still inlines its own release version as `process.env.__PACKAGE_VERSION__` (via `rslib-builder` at build time) and re-exports it as a public `CURRENT_<PKG>_VERSION` constant, but nothing consumes those constants for a runtime cross-package check any more — see D36 in [./decisions.md](./decisions.md).
 - **One shared database, deterministic path.** `data.db` lives at
   `$XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db` (with the usual
   XDG fallback). The path is a function of workspace identity, not

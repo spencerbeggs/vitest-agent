@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: documentation
 created: 2026-05-27
-updated: 2026-06-26
-last-synced: 2026-06-26
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 85
 related:
   - ../architecture.md
@@ -23,7 +23,7 @@ The user-facing documentation site for the whole `vitest-agent` family. An RSPre
 **Build entry:** `website/rspress.config.ts`
 **Internal dependencies:** none at runtime — it consumes the published packages' API Extractor models as build inputs, not as imports.
 
-The site is not one of the seven publishable packages and does not version in lockstep with them. Its own `package.json#version` is independent. It exists purely to render documentation; nothing in the runtime packages imports from it.
+The site is not one of the seven publishable packages; like every package in the family it versions independently, keyed off its own `package.json#version`. It exists purely to render documentation; nothing in the runtime packages imports from it.
 
 ## Information architecture
 
@@ -49,7 +49,7 @@ Two classes of generated artifact are deliberately gitignored (see the consolida
 
 The deploy pipeline is `.github/workflows/deploy-docs.yml`. It triggers on `release: published` and on manual `workflow_dispatch`.
 
-All `vitest-agent` packages release in lockstep from one commit sharing a single semver tag, but each package gets its own GitHub Release. To deploy exactly once per release rather than once per package, the workflow's `if` guard keys on the plugin package's Release — it checks that `github.event.release.name` contains `@vitest-agent/plugin`, a substring no other package name carries. The job checks out `main`, rebuilds the site from the committed snapshot db, and publishes `website/dist` to the Cloudflare Pages project named `vitest-agent` via `cloudflare/wrangler-action`.
+A changesets release from one version PR can publish several `@vitest-agent/*` packages at once, and each package gets its own GitHub Release at its own version. To deploy exactly once per release event rather than once per published package, the workflow's `if` guard keys on the plugin package's Release — it checks that `github.event.release.name` contains `@vitest-agent/plugin`, a substring no other package name carries. The job checks out `main`, rebuilds the site from the committed snapshot db, and publishes `website/dist` to the Cloudflare Pages project named `vitest-agent` via `cloudflare/wrangler-action`.
 
 There is a bootstrap caveat documented in the workflow header: until `rspress-plugin-api-extractor` is on npm and `website/package.json` swaps its local dependency for the published version, a CI runner cannot resolve the plugin, so the first dispatch or release deploy requires that swap to have landed on main first.
 

@@ -19,7 +19,7 @@ __test__/
 
 | File | Purpose |
 | ---- | ------- |
-| `src/index.ts` | Public surface. Exports `DefaultVitestAgentReporter`, the dispatch helpers (`buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport`), the live renderer (`_createLiveInk` + `LiveInkRenderer` type). Re-exports the contract types (`ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporter`, `VitestAgentReporterFactory`) from `@vitest-agent/sdk`. Exports `CURRENT_REPORTER_VERSION` for the cross-package drift check |
+| `src/index.ts` | Public surface. Exports `DefaultVitestAgentReporter`, the dispatch helpers (`buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`, `renderHumanStringForReport`), the live renderer (`_createLiveInk` + `LiveInkRenderer` type). Re-exports the contract types (`ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporter`, `VitestAgentReporterFactory`) from `@vitest-agent/sdk`. Exports `CURRENT_REPORTER_VERSION` as public API for version introspection by downstream tooling |
 | `src/defaultReporter.ts` | `DefaultVitestAgentReporter` `VitestAgentReporterFactory`. Subscribes to the run-event stream at run start (`onInit`), folds published events into `RenderState`, classifies, dispatches through the 12-cell matrix, and owns mode orchestration: branches on `kit.config.consoleMode` and owns the Ink live-mount lifecycle (mount / rerender / unmount) for `stream` mode. `render(input, kit)` is called once at run end. Also exposes the dispatch helpers re-exported by `index.ts` |
 | `src/LiveInkRenderer.tsx` | `_createLiveInk` imperative orchestration. Mounts `StreamApp` for `stream` mode and drives an animation clock that ticks the spinner between run events. `event(e)` advances state and rerenders, `unmount()` is idempotent, `snapshot()` exposes the latest reduced state. Mount failures degrade silently with a stderr warning. Driven by `DefaultVitestAgentReporter`, not by the plugin |
 
@@ -37,7 +37,7 @@ __test__/
 - Editing `DefaultVitestAgentReporter`: rendering orchestration (mode branching, Ink mount lifecycle, dispatch wiring) belongs here. Reducer or dispatcher-cell changes belong in `@vitest-agent/ui`; contract changes belong in `@vitest-agent/sdk`; plugin lifecycle wiring belongs in `@vitest-agent/plugin`.
 - `render(input, kit)` takes two arguments — the second is a health-aware `ReporterKit` resolved at run end. Keep the two-argument signature in sync with the contract in `packages/sdk/src/contracts/reporter.ts`.
 - Adding a re-export: confirm the symbol genuinely belongs in the public custom-reporter surface before adding it. Surface bloat propagates to every downstream consumer.
-- Keep `CURRENT_REPORTER_VERSION` wired — the plugin's drift check compares against it, and this package is now its correct home.
+- Keep `CURRENT_REPORTER_VERSION` exported — it is public API for version introspection by downstream tooling. The cross-package runtime drift check was removed, so nothing imports it internally anymore, but it stays part of this package's surface.
 
 ## Design references
 

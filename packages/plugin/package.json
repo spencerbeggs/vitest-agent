@@ -46,9 +46,9 @@
 		"workspaces-effect": "^1.2.0"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^0.11.1",
+		"@savvy-web/bundler": "^1.0.1",
 		"@types/better-sqlite3": "^7.6.13",
-		"@types/node": "catalog:silk",
+		"@types/node": "^26.0.0",
 		"@typescript/native-preview": "catalog:silk",
 		"@vitest/coverage-istanbul": "catalog:silk",
 		"@vitest/coverage-v8": "catalog:silk",
@@ -59,8 +59,8 @@
 		"vitest": "catalog:silk"
 	},
 	"peerDependencies": {
-		"@vitest-agent/cli": "workspace:*",
-		"@vitest-agent/mcp": "workspace:*",
+		"@vitest-agent/cli": "workspace:^",
+		"@vitest-agent/mcp": "workspace:^",
 		"@vitest/coverage-istanbul": "catalog:silkPeers",
 		"@vitest/coverage-v8": "catalog:silkPeers",
 		"vitest": "catalog:silkPeers"

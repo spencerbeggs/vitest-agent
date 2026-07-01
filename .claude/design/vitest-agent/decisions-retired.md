@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 100
 related:
   - ./decisions.md
@@ -150,3 +150,13 @@ SQLite columns. CLI commands (`history`, `status`, `trends`, `coverage`,
 `doctor`) and MCP tools accepted a `subProject` filter parameter.
 `HistoryTracker.classify` keyed on `(project, subProject)`. A null
 `subProject` was distinct from an empty string at the row level.
+
+---
+
+## Decision 36 (Lockstep form): Lockstep Release with Build-Inlined Drift Check (Retired)
+
+**Superseded by:** [Decision 36 — Independent Per-Package Release](./decisions.md#decision-36-independent-per-package-release)
+
+**Why retired:** the six npm packages shared one version (a bump to any one bumped all six) and three init-time checks asserted that every `@vitest-agent/*` package in the same process carried the same build-inlined version, warning on stderr otherwise. Exact version equality only made sense under a lockstep release train. When the family moved to independent per-package versioning the equality assertion became a false positive on every ordinary consumer install — a plugin on one minor legitimately running an mcp on a later compatible minor is not drift — so the lockstep grouping and the drift check were removed together. The `CURRENT_<PKG>_VERSION` constants survive as public API; nothing consumes them across packages now.
+
+**What it was:** changesets pinned the family to one version via a `fixed`/`linked` grouping. Each runtime package exported `CURRENT_<PKG>_VERSION`, inlined from `process.env.__PACKAGE_VERSION__` at build time. Three observation-only checks ran at init: the `AgentPlugin()` factory compared `CURRENT_PLUGIN_VERSION` against `CURRENT_SDK_VERSION` and `CURRENT_REPORTER_VERSION` (gated by a module-level `_hasWarnedDrift` flag, with a test-only `_resetVersionDriftGuardForTests` hook to re-arm it); the `vitest-agent-mcp` bin compared `CURRENT_MCP_VERSION` against `CURRENT_SDK_VERSION` in `main()`; the `vitest-agent` CLI bin compared `CURRENT_CLI_VERSION` against `CURRENT_SDK_VERSION` before `Command.run`. Each mismatch emitted one stderr line of the form `[@vitest-agent/<pkg>] version drift: <pkg>@<a> with <peer>@<b>. Reinstall @vitest-agent/* packages so versions match.` and continued. The plugin never compared against `CURRENT_UI_VERSION` because `@vitest-agent/ui` is not a hard peer. Build-inlining (vs a runtime `package.json` read) was chosen so the check had no I/O cost, no path-resolution ambiguity, and worked in packaged-binary environments where `package.json` is not on disk. The release artifacts matched the lockstep grouping: one unified semver git tag (e.g. `1.0.1`) and a single combined GitHub Release whose body concatenated every package's section and to which all packages' assets were attached — replaced under the independent scheme by per-package `@vitest-agent/<pkg>@<version>` tags and Releases.

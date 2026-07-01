@@ -1,10 +1,11 @@
 # Deploys the RSPress docs site (website/, package "docs") to Cloudflare
 # Pages.
 #
-# Trigger model: all vitest-agent packages release in lockstep from one
-# commit on main, sharing a single semver tag (e.g. 2.0.0) but publishing
-# one GitHub Release per package. We deploy once per release by keying on
-# the plugin package's Release — its name contains "@vitest-agent/plugin",
+# Trigger model: each vitest-agent package versions independently and a
+# release publishes one GitHub Release per package, each tagged
+# "@vitest-agent/<pkg>@<version>". A single commit on main can publish
+# several packages at once, so we deploy once per release cycle by keying
+# on the plugin package's Release — its name contains "@vitest-agent/plugin",
 # which no other package name does. A manual workflow_dispatch also deploys
 # (used for the first test deployment once the Cloudflare secrets are set).
 #
@@ -29,7 +30,7 @@ permissions:
 
 jobs:
   deploy:
-    # Run on a manual dispatch, or once per lockstep release when the
+    # Run on a manual dispatch, or once per release cycle when the
     # plugin package's GitHub Release is the one being published.
     if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.release.name, '@vitest-agent/plugin') }}
     runs-on: ubuntu-latest

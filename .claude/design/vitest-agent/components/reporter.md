@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 90
 related:
   - ../architecture.md
@@ -85,13 +85,4 @@ A custom factory that wants live painting subscribes to `kit.runEvents` at facto
 
 ## CURRENT_REPORTER_VERSION
 
-`packages/reporter/src/index.ts` exports `CURRENT_REPORTER_VERSION`
-(inlined from `process.env.__PACKAGE_VERSION__` via the package's
-`rslib.config.ts` `define`). The plugin imports it and compares
-against `CURRENT_PLUGIN_VERSION` at the top of the `AgentPlugin()`
-factory to surface cross-package drift on stderr — see
-[./plugin.md](./plugin.md) and D36 in [../decisions.md](../decisions.md).
-The package-local
-`packages/reporter/__test__/version-constant.test.ts` imports the
-constant through dist/dev (so it sees the substituted literal) and
-asserts it equals the package's `package.json#version`.
+`packages/reporter/src/index.ts` exports `CURRENT_REPORTER_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`), part of the public API. Under the earlier lockstep design the plugin imported it and compared against `CURRENT_PLUGIN_VERSION` at the top of the `AgentPlugin()` factory to surface cross-package drift; that check (and the package-local `version-constant.test.ts`) was removed with the move to independent per-package versioning, so the constant now has no internal consumer. See [./plugin.md](./plugin.md) and D36 in [../decisions.md](../decisions.md).

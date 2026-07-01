@@ -20,3 +20,7 @@ The tool's markdown output includes a one-line warning when leaks are present:
 ```
 
 No configuration is required. The signal is omitted entirely on runs with no stray output.
+
+## Maintenance
+
+- Removed the cross-package version drift check from the MCP server startup path. `vitest-agent-mcp` no longer compares its version against `@vitest-agent/sdk` at init and no longer writes a version drift warning to stderr. The `CURRENT_MCP_VERSION` constant remains exported for version introspection.
