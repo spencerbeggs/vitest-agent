@@ -5,14 +5,13 @@ description: The vitest-agent MCP server bin. Exposes 29 action-keyed tools over
 
 # @vitest-agent/mcp
 
-The `@vitest-agent/mcp` MCP server bin. Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces four MCP resources (vendored Vitest docs and curated testing patterns) and six framing-only prompts.
+The `@vitest-agent/mcp` MCP server bin. Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces six framing-only prompts.
 
 This package is a required peer of `@vitest-agent/plugin` and arrives automatically with modern pnpm and npm. Install it directly only if you run the MCP server standalone.
 
 ## Features
 
 - **29 action-keyed tools** — per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`, and more
-- **Four MCP resources** — vendored Vitest documentation (`vitest://docs/`) and curated testing patterns (`vitest-agent://patterns/`) with per-page titles, descriptions, and `audience`/`priority` annotations
 - **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, and `wrapup`
 - **Idempotency middleware** — `tdd_task`, `tdd_goal`, `tdd_behavior`, and `hypothesis` create-actions are idempotent on derived keys
 
@@ -81,17 +80,6 @@ The `run_tests` tool spawns a Vitest run synchronously and returns the structure
 ```
 
 The three sub-filters (`all`, `any`, `none`) AND together. `run_tests` returns `{ kind: "no-match" }` instead of an empty result when no files match a supplied filter, so agents can distinguish a filter mismatch from a genuine zero-test project.
-
-## Resources
-
-The MCP server exposes two resource URI schemes:
-
-```text
-vitest://docs/{path}          — vendored Vitest documentation snapshot
-vitest-agent://patterns/{slug} — curated testing patterns
-```
-
-Both surface `list` callbacks so MCP clients show typed resource pickers with titles, "load when" descriptions, and `audience`/`priority` annotations. The vendored Vitest docs ship checked into the package — the server works without network egress.
 
 ## Framing prompts
 

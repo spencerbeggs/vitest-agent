@@ -15,8 +15,8 @@
 	},
 	{
 		"type": "file",
-		"name": "resources-and-prompts.mdx",
-		"label": "Resources and prompts"
+		"name": "prompts.mdx",
+		"label": "Prompts"
 	},
 	{
 		"type": "file",
