@@ -44,9 +44,9 @@
 		"react": "catalog:silk"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^1.0.1",
+		"@savvy-web/bundler": "^1.1.0",
 		"@types/better-sqlite3": "^7.6.13",
-		"@types/node": "^26.0.0",
+		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"@vitest/coverage-istanbul": "^4.1.8",
