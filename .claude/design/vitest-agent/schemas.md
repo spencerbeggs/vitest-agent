@@ -363,6 +363,12 @@ denial branch carries `remediation` with a concrete `suggestedTool` and
 `humanHint` so the orchestrator can recover without a round-trip to the
 human.
 
+The file also exports the pure functions `validatePhaseTransition`,
+`requiredArtifactForTransition` and `transitionEnforcesBehaviorMatch(from, to): boolean`.
+The last is the shared predicate that gates D2 binding rule 2 (behavior-match)
+and scopes the MCP tool's artifact auto-resolution to the same transitions —
+see [./decisions.md](./decisions.md) D11.
+
 **Authoring-window scope (D2 rule 1):** the check applies to
 `test_failed_run` artifacts only. It does not apply to `test_passed_run` or
 other kinds, so `green→refactor` transitions citing a `test_passed_run`

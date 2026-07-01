@@ -1152,6 +1152,193 @@ describe("MCP Router", () => {
 			expect(r.remediation?.humanHint).toMatch(/test_failed_run/);
 		});
 
+		it("auto-resolves the failing run for the REQUESTED behavior on red→green, not the newest across behaviors (issue #115)", async () => {
+			// Given: two behaviors, each with a test_failed_run. Behavior 2's run is the NEWEST by
+			// recorded_at, but behavior 1's is the one we're greening. Before issue #115, auto-resolution
+			// ignored behaviorId and grabbed the newest matching artifact task-wide — behavior 2's — which
+			// the validator then rejected at rule 2 (evidence_not_for_behavior), even though behavior 1's
+			// valid failing run existed. Auto-resolution must scope the lookup to the requested behavior.
+			const { tddId, goalId, sessionId } = await seedTddSessionForTransition("cc-tdd-trans-autoresolve-beh", "g");
+			const caller = createTestCaller();
+			const b1 = (await caller.tdd_behavior({ action: "create", goalId, behavior: "beh-1" })) as {
+				ok: true;
+				behavior: { id: number };
+			};
+			const b2 = (await caller.tdd_behavior({ action: "create", goalId, behavior: "beh-2" })) as {
+				ok: true;
+				behavior: { id: number };
+			};
+
+			const b1PhaseStart = "2026-05-01T01:00:00.000Z";
+			const { b1Artifact } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+
+					// Behavior 2's phase + NEWEST failing run (older phase start, newest recorded_at).
+					const b2Phase = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						behaviorId: b2.behavior.id,
+						phase: "red",
+						startedAt: "2026-05-01T00:00:00.000Z",
+					});
+					yield* store.writeTddArtifact({
+						phaseId: b2Phase.id,
+						artifactKind: "test_failed_run",
+						recordedAt: "2026-05-01T02:00:00.000Z",
+					});
+
+					// Behavior 1's phase (opened last → current open phase) + a fully valid failing run,
+					// recorded BEFORE behavior 2's so it is not the newest.
+					const turnOccurredAt = "2026-05-01T01:00:00.100Z";
+					const turnId = yield* store.writeTurn({
+						sessionId,
+						type: "file_edit",
+						payload: JSON.stringify({ type: "file_edit", file_path: "src/b1.test.ts", edit_kind: "write" }),
+						occurredAt: turnOccurredAt,
+					});
+					yield* store.writeSettings("hash-b1", { vitestVersion: "4.1.0" }, {});
+					const runId = yield* store.writeRun({
+						invocationId: "inv-b1-001",
+						project: "default",
+						settingsHash: "hash-b1",
+						timestamp: turnOccurredAt,
+						commitSha: null,
+						branch: null,
+						reason: "failed",
+						duration: 500,
+						total: 1,
+						passed: 0,
+						failed: 1,
+						skipped: 0,
+						scoped: false,
+					});
+					const fileId = yield* store.ensureFile("src/b1.test.ts");
+					const [moduleId] = yield* store.writeModules(runId, [
+						{ fileId, relativeModuleId: "src/b1.test.ts", state: "failed", duration: 200 },
+					]);
+					const [testCaseId] = yield* store.writeTestCases(moduleId, [
+						{ name: "b1 behavior", fullName: "b1 > behavior", state: "failed", duration: 10, createdTurnId: turnId },
+					]);
+					const b1Phase = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						behaviorId: b1.behavior.id,
+						phase: "red",
+						startedAt: b1PhaseStart,
+					});
+					const b1Artifact = yield* store.writeTddArtifact({
+						phaseId: b1Phase.id,
+						artifactKind: "test_failed_run",
+						testCaseId,
+						testRunId: runId,
+						testFirstFailureRunId: runId,
+						recordedAt: "2026-05-01T01:00:01.000Z",
+					});
+					return { b1Artifact };
+				}),
+			);
+
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				behaviorId: b1.behavior.id,
+				requestedPhase: "green",
+			})) as { accepted: boolean; citedArtifactId?: number; denialReason?: string };
+
+			// Then: accepted, and the auto-resolved artifact is behavior 1's — not behavior 2's newer run.
+			expect(r.accepted).toBe(true);
+			expect(r.citedArtifactId).toBe(b1Artifact);
+		});
+
+		it("auto-resolves the batch failing run (cross-behavior) on red.triangulate→green without behavior-scoping (issue #115)", async () => {
+			// Given: a triangulation batch. Behavior 1 produced the batch's real failing run; behavior 2
+			// is a later member whose own test passed the moment the shared implementation landed, so it
+			// has NO failing run of its own. Requesting red.triangulate→green for behavior 2 must auto-resolve
+			// behavior 1's failing run — the lookup must NOT be scoped to behavior 2 (which owns nothing),
+			// mirroring the validator's decision to skip behavior-match for triangulation.
+			const { tddId, goalId, sessionId } = await seedTddSessionForTransition("cc-tdd-trans-triangulate", "g");
+			const caller = createTestCaller();
+			const b1 = (await caller.tdd_behavior({ action: "create", goalId, behavior: "tri-1" })) as {
+				ok: true;
+				behavior: { id: number };
+			};
+			const b2 = (await caller.tdd_behavior({ action: "create", goalId, behavior: "tri-2" })) as {
+				ok: true;
+				behavior: { id: number };
+			};
+
+			const { b1Artifact } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+
+					// Behavior 1's red.triangulate phase + the batch's real failing run.
+					const turnOccurredAt = "2026-05-02T00:00:00.100Z";
+					const turnId = yield* store.writeTurn({
+						sessionId,
+						type: "file_edit",
+						payload: JSON.stringify({ type: "file_edit", file_path: "src/tri.test.ts", edit_kind: "write" }),
+						occurredAt: turnOccurredAt,
+					});
+					yield* store.writeSettings("hash-tri", { vitestVersion: "4.1.0" }, {});
+					const runId = yield* store.writeRun({
+						invocationId: "inv-tri-001",
+						project: "default",
+						settingsHash: "hash-tri",
+						timestamp: turnOccurredAt,
+						commitSha: null,
+						branch: null,
+						reason: "failed",
+						duration: 500,
+						total: 1,
+						passed: 0,
+						failed: 1,
+						skipped: 0,
+						scoped: false,
+					});
+					const fileId = yield* store.ensureFile("src/tri.test.ts");
+					const [moduleId] = yield* store.writeModules(runId, [
+						{ fileId, relativeModuleId: "src/tri.test.ts", state: "failed", duration: 200 },
+					]);
+					const [testCaseId] = yield* store.writeTestCases(moduleId, [
+						{ name: "tri-1 behavior", fullName: "tri > 1", state: "failed", duration: 10, createdTurnId: turnId },
+					]);
+					const b1Phase = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						behaviorId: b1.behavior.id,
+						phase: "red.triangulate",
+						startedAt: "2026-05-02T00:00:00.000Z",
+					});
+					const b1Artifact = yield* store.writeTddArtifact({
+						phaseId: b1Phase.id,
+						artifactKind: "test_failed_run",
+						testCaseId,
+						testRunId: runId,
+						testFirstFailureRunId: runId,
+						recordedAt: "2026-05-02T00:00:01.000Z",
+					});
+
+					// Behavior 2's red.triangulate phase (opened last → current) with NO failing run of its own.
+					yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						behaviorId: b2.behavior.id,
+						phase: "red.triangulate",
+						startedAt: "2026-05-02T01:00:00.000Z",
+					});
+					return { b1Artifact };
+				}),
+			);
+
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				behaviorId: b2.behavior.id,
+				requestedPhase: "green",
+			})) as { accepted: boolean; citedArtifactId?: number; denialReason?: string };
+
+			// Then: accepted, citing behavior 1's batch failing run — resolution was not scoped to behavior 2.
+			expect(r.accepted).toBe(true);
+			expect(r.citedArtifactId).toBe(b1Artifact);
+		});
+
 		it("echoes citedArtifactSource='explicit-id' when citedArtifactId was supplied", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-explicit-id", "g");
 			const { artifactId } = await testRuntime.runPromise(

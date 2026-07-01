@@ -1262,26 +1262,40 @@ reason and a remediation hint.
 
 **The three D2 binding rules:**
 
-1. **Evidence in phase window AND session.** The cited test must have
-   been authored in the current phase window
-   (`test_case_created_turn_at >= phase_started_at`) AND in the
-   current session (`test_case_authored_in_session === true`).
-   Prevents citing a test written before the phase started or in
-   another session.
-2. **Behavior match.** When the orchestrator requests a transition for
-   a specific behavior, the cited artifact's `behavior_id` must equal
-   the `requested_behavior_id`. Prevents citing the right kind of
-   evidence but for the wrong behavior.
-3. **Test wasn't already failing.** For `red → green` transitions
-   where the cited evidence is a `test_failed_run`, the test's
-   `test_first_failure_run_id` must equal the cited `test_run_id`.
-   Prevents citing a test that was *already* failing on main as proof
-   of "I just put it in red".
+1. **Evidence in phase window AND session.** The cited test must carry
+   a specific `test_case_id`, have been authored in the current phase
+   window (`test_case_created_turn_at >= phase_started_at`) AND in the
+   current session (`test_case_authored_in_session === true`). Prevents
+   citing a test written before the phase started or in another
+   session. The phase-window portion is skipped for
+   `red.triangulate → green` (see below); the specific-test and session
+   portions always apply.
+2. **Behavior match.** Scoped to the transitions whose cited evidence
+   must belong to the behavior being transitioned — `red → green` (this
+   behavior's failing test) and `green → refactor` (its passing test).
+   When the orchestrator requests a transition for a specific behavior,
+   the cited artifact's `behavior_id` must equal the
+   `requested_behavior_id`. It is NOT applied to `refactor → red` (the
+   required `test_passed_run` necessarily belongs to the just-finished
+   behavior, never the new target) or `red.triangulate → green` (the
+   cited failing run belongs to an earlier batch member). Scoping it
+   this way lets a behavior-boundary crossing happen in one
+   `refactor → red` step — with the new `behaviorId` set, citing the
+   prior behavior's passing run — replacing the previous two-step
+   `refactor → red` (no `behaviorId`) then `red → red` rebind. Before
+   this, rule 2 fired for every evidence-bearing transition whenever a
+   `behaviorId` was supplied, which made a one-step crossing impossible.
+3. **Test wasn't already failing.** For `red → green` and
+   `red.triangulate → green` transitions where the cited evidence is a
+   `test_failed_run`, the test's `test_first_failure_run_id` must equal
+   the cited `test_run_id`. Prevents citing a test that was *already*
+   failing on main as proof of "I just put it in red".
 
-**Artifact-kind precondition:** `red → green` requires
-`test_failed_run`, `green → refactor` requires `test_passed_run`,
-`refactor → red` requires `test_passed_run` (refactor must end with
-all tests still passing).
+**Artifact-kind precondition:** `red → green` and
+`red.triangulate → green` require `test_failed_run`,
+`green → refactor` requires `test_passed_run`, `refactor → red`
+requires `test_passed_run` (refactor must end with all tests still
+passing).
 
 **Source-phase guard for `green`:** `validatePhaseTransition` enforces
 that `green` may only be entered from `red`, `red.triangulate`, or
@@ -1291,10 +1305,40 @@ remediation pointing at the missing `→ red` step. Skipping the named
 red phase entirely would leave the `tdd_phases` table without a
 `phase="red"` row, breaking the phase-evidence integrity metric.
 
+**Triangulation-aware `red.triangulate → green` (issue #115):**
+`requiredArtifactForTransition` now returns `test_failed_run` for
+`red.triangulate → green` — previously it returned `null` (it only
+matched `from === "red"`), so the transition was accepted with zero
+evidence, a hole now closed. For this transition the validator keeps
+the artifact-kind check, the specific-test check (`test_case_id`
+non-null), the authored-in-session check and rule 3, but skips the
+phase-window portion of rule 1 and rule 2 entirely. Rationale: in a
+triangulation batch one shared implementation satisfies several
+behaviors, so later behaviors' tests never fail on their own; the
+batch's real failing run (belonging to an earlier behavior) is accepted
+as evidence for each member. A specific real in-session failing test
+must still exist. No new `DenialReason` literals were needed — these
+changes only remove denials and close the zero-evidence hole. The
+three-rule framing still holds; rules 1 (phase-window portion) and 2
+are conditionally skipped as described.
+
+**One predicate keeps validator and auto-resolution in lockstep:** the
+exported pure helper `transitionEnforcesBehaviorMatch(from, to)` (same
+file, returns true only for `red → green` and `green → refactor`) gates
+rule 2 in the validator AND scopes the MCP tool's artifact
+auto-resolution. `tdd_phase_transition_request` passes `behaviorId` to
+`listTddArtifactsForTask` only when the helper is true, so
+auto-resolution narrows the lookup to the requested behavior on exactly
+the transitions where the validator will require it, and stays unscoped
+(batch / prior-behavior) otherwise. This fixed a latent bug where
+auto-resolution picked the newest matching artifact task-wide
+regardless of behavior.
+
 All remaining transitions are evidence-free and accepted
 unconditionally — including `spike → red` (the entry point for every
-TDD cycle), `red.triangulate → red`, `green.fake-it → refactor`, and
-`refactor → red`.
+TDD cycle), `red.triangulate → red`, and `green.fake-it → refactor`.
+(`refactor → red` is evidence-bearing per the artifact-kind
+precondition above, not evidence-free.)
 
 **Why a pure function (vs Effect service):** the function takes a
 context object and returns a result. No I/O, no async. Effect service

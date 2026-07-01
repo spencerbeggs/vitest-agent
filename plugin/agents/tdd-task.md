@@ -136,11 +136,18 @@ The tool runs three classes of pre-checks before validating evidence:
 
 - **Goal validation**: `goalId` must exist and the goal status must be `in_progress` (call `tdd_goal (action: update)({ status: 'in_progress' })` before requesting transitions for a new goal). Denials use `denialReason: 'goal_not_found'` or `'goal_not_in_progress'`.
 - **Behavior validation** (when `behaviorId` is supplied): the behavior must exist and belong to the named goal. Denials use `denialReason: 'behavior_not_found'` or `'behavior_not_in_goal'`.
-- **D2 evidence binding**: the cited test must have been authored in the current phase window AND in this session, the artifact's `behavior_id` must match the requested behavior, and for `red→green` the test must not have been already-failing on main.
+- **D2 evidence binding**: the cited test must have been authored in the current phase window AND in this session, and for `red→green` the test must not have been already-failing on main. Behavior-match — the artifact's `behavior_id` must equal the requested `behaviorId` — is enforced only on `red→green` and `green→refactor`, the transitions whose evidence must belong to the behavior being transitioned. It is deliberately **not** enforced on `refactor→red` or `red.triangulate→green`; the latter also waives the phase-window check. See "Two accepted cross-behavior flows" below.
 
 When the transition is accepted AND a `behaviorId` was supplied AND the behavior is currently `pending`, the tool **auto-promotes the behavior to `in_progress`** in the same call. You do not need to call `tdd_behavior (action: update)` for the start-of-cycle transition; only for the final `done` / `abandoned` transitions.
 
 If the validator denies the transition, it returns a typed `denialReason` and a `remediation` shape. Read the remediation, do what it says, and retry.
+
+### Two accepted cross-behavior flows
+
+Two common orchestration moves used to require undocumented workarounds (issue #115). Both are now first-class — request them directly, in one call, with `citedArtifactId` omitted so auto-resolution finds the right row:
+
+- **Triangulation — close a batch of behaviors satisfied by one implementation.** When a shared implementation makes several behaviors pass at once, only the first behavior's test actually fails; later ones pass the moment the shared code lands and can never produce their own `test_failed_run`. Enter `red.triangulate` (not `red`) for each behavior in the batch. For each later member, request `red.triangulate→green` with that member's `behaviorId` and no `citedArtifactId`: auto-resolution finds the batch's real failing run (from an earlier member) and the validator accepts it — it skips the phase-window and behavior-match rules for this transition. The kind, specific-test, session, and not-already-failing-on-main guarantees still hold, so the batch must still have produced at least one genuine failing run. Do **not** fall back to skipping green with a `red→refactor` jump — that leaves no `green` phase row and depresses the phase-evidence metric.
+- **Cross a behavior boundary — start the next behavior after finishing one.** Request `refactor→red` in a single call with the **new** `behaviorId` and no `citedArtifactId`. The prior behavior's `test_passed_run` is auto-resolved and accepted, because `refactor→red` does not enforce behavior-match (its evidence is the just-finished cycle's passing run by design). The old two-step `refactor→red` (no `behaviorId`) then `red→red` rebind dance is no longer needed.
 
 ## Restricted Bash
 
