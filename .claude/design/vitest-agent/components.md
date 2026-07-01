@@ -42,7 +42,7 @@ the package you're working on.
 | [./components/reporter.md](./components/reporter.md) | the default reporter package and custom-reporter reference: `DefaultVitestAgentReporter`, the live Ink mount it owns, the contract re-exports plus `buildDispatchInputs` / `resolveCellOptions` dispatch helpers |
 | [./components/ui.md](./components/ui.md) | pure rendering-primitives library: `RunEvent` reducer, shape-tailored dispatcher matrix and its 12 cells, L1 MCP tool-pointer footer, synthesizers, `RunEventChannel` PubSub. No reporter or live mount after the reporter-package restructure |
 | [./components/cli.md](./components/cli.md) | CLI commands (`doctor`, `db`, the `agent` namespace), the `record` subcommand and its hook-driven actions, `CliLive` |
-| [./components/mcp.md](./components/mcp.md) | MCP tools, idempotency middleware, channel-event resolution, MCP resources, MCP prompts, the snapshot maintenance pipeline, `McpLive` |
+| [./components/mcp.md](./components/mcp.md) | MCP tools, idempotency middleware, channel-event resolution, MCP prompts, `McpLive` |
 | [./components/sidecar.md](./components/sidecar.md) | the `@vitest-agent/sidecar` SEA binary for the per-Bash `inject-env` hot path, tsdown `exe` build, per-platform `optionalDependencies`, the binary-vs-JS-fallback contract |
 | [./components/plugin-claude.md](./components/plugin-claude.md) | the Claude Code plugin: hooks, the TDD orchestrator agent, skills, slash commands, the dogfood system, the MCP loader |
 | [./components/docs-site.md](./components/docs-site.md) | the `docs` workspace at `website/`: the RSPress 2.0 site, its Guide/Packages IA, the api-extractor generation pipeline (`apiModel.localPaths` → `website/lib/models`), the committed snapshot db and the Cloudflare Pages deploy |

@@ -88,26 +88,6 @@ from the npm lifecycle event: `build:dev` emits `dist/dev`, `build:prod`
 emits `dist/npm` — each variant directory holding the SEA
 binary plus a publish-cleaned `package.json`.
 
-The `mcp` package additionally ships a served corpus under a package-root
-`public/` directory:
-
-- `public/vendor/vitest-docs/` — vendored upstream Vitest documentation
-  snapshot, surfaced via `vitest://docs/` MCP resources.
-- `public/patterns/` — curated testing-patterns library, surfaced via
-  `vitest-agent://patterns/` MCP resources.
-
-The package builds with `@savvy-web/bundler`, which mirrors a package-root
-`public/` tree into the build output at `dist/<env>/pkg/public/` (via
-tsdown-plugins' `syncPublicDir`). It does not copy arbitrary `src/`
-subdirectories, so the corpus must live in `public/` to reach the
-built/published package — see [./components/mcp.md](./components/mcp.md).
-
-The `mcp/lib/scripts/` directory holds the Effect-based maintenance scripts
-that refresh the vendored docs snapshot:
-`fetch-upstream-docs.ts`, `build-snapshot.ts`, `validate-snapshot.ts`. They
-preserve the `execFileSync`-with-array-args discipline for git invocations
-so a malicious upstream tag cannot inject shell commands.
-
 For per-package source breakdown see the corresponding
 [./components/*.md](./components/) file.
 

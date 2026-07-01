@@ -630,65 +630,20 @@ The Claude Code plugin manifest at
 `vitest-agent@spencerbeggs` (a separate identity from the npm packages).
 Hook scripts call the CLI bin `vitest-agent`.
 
-### Decision 35: MCP Resources and Prompts (Two URI Schemes, Framing-Only Prompts)
+### Decision 35: Framing-Only MCP Prompts
 
-The MCP server exposes two non-tool surfaces alongside the tRPC tool
-router. **Resources under two URI schemes:** `vitest://docs/` exposes
-the vendored upstream Vitest documentation snapshot at
-`packages/mcp/public/vendor/vitest-docs/`; `vitest-agent://patterns/`
-exposes the curated patterns library at `packages/mcp/public/patterns/`.
-Each scheme registers an index resource and a page template
-(`{+path}` or `{slug}`). All return `text/markdown`. **Framing-only
-prompts:** `triage`, `why-flaky`, `regression-since-pass`,
+The MCP server exposes framing-only prompts alongside the tRPC tool
+router: `triage`, `why-flaky`, `regression-since-pass`,
 `explain-failure`, `tdd-resume`, `wrapup`. Each takes a zod-validated
 argument set and returns user-role messages that orient the agent
 toward the right tool composition — no tool data is pre-fetched on the
 server.
 
-Registrars (`packages/mcp/src/resources/index.ts` and
-`packages/mcp/src/prompts/index.ts`) are called from `server.ts`
-immediately before `StdioServerTransport` is constructed.
-
-**Why two URI schemes:** the schemes carry content with different
-provenance. `vitest://` is vendored upstream content (a snapshot of
-`vitest-dev/vitest`'s `docs/` tree at a pinned tag, MIT-licensed,
-attributed in `ATTRIBUTION.md` + `manifest.json`).
-`vitest-agent://` is content authored *for* this project (curated
-guidance about testing Effect, schemas, and reporters). Splitting the
-schemes makes provenance visible at a glance, a client UI can render
-the two trees differently, an agent can cite the right source without
-inspecting path prefixes, and a future "trust this source for X but
-not Y" policy becomes expressible at the URI-scheme level.
-
-**Why vendor the Vitest docs (vs fetch on demand):** the MCP server is
-called from agent loops that may have no network egress (sandbox
-policies, airgapped CI, offline dev). A network-fetching handler would
-intermittently fail and agents would interpret it as "the docs are
-gone". `manifest.json` records the exact upstream tag + commit SHA +
-capture timestamp + source URL; `ATTRIBUTION.md` carries the MIT
-license notice. Provenance is verifiable without trusting the build
-pipeline. The Effect-based maintenance scripts under
-`packages/mcp/lib/scripts/`, driven by the project-local
-`.claude/skills/update-vitest-snapshot/` skill, make "bump the Vitest
-docs we ship" a deliberate operation that goes through code review.
-
-**Why `execFileSync` with array args for the snapshot fetcher:** the
-fetcher takes a tag string from the CLI and passes it to `git`.
-Building a shell command and passing it to `execSync` opens a
-shell-injection hole; a malicious upstream tag like
-`v4.0.0; rm -rf $HOME` would execute as written.
-`execFileSync("git", [..., "--branch", tag, ...], { cwd })` invokes
-git directly without spawning a shell.
-
-**Why path-traversal guarding in `paths.ts`:** resource URI template
-variables come from clients. A naïve `join(vendorRoot, relative)`
-would let `vitest://docs/../../etc/passwd` escape the vendored tree.
-`resolveResourcePath` enforces three invariants: no null bytes, no
-absolute paths, and the resolved path must start with `<root><sep>`
-(or equal `root` for empty input). Reader functions
-(`upstream-docs.ts`, `patterns.ts`) must call `resolveResourcePath`
-before any `readFile` — the helper is the security boundary, not a
-performance optimization.
+The registrar (`packages/mcp/src/prompts/index.ts`) is called from
+`server.ts` immediately before `StdioServerTransport` is constructed.
+An earlier form of this decision also registered a resources surface
+alongside the prompts; that surface was removed — see
+[./decisions-retired.md](./decisions-retired.md).
 
 **Why "framing-only" prompts (vs pre-fetching tool data):**
 pre-fetching would invert the cost model — `triage` would call
@@ -704,108 +659,18 @@ up at prompt selection rather than several turns later in tool calls.
 
 **Why direct SDK registration (vs tRPC):** tRPC is the right
 abstraction for tools (input validation + typed context + caller
-factory for testing). Resources are URI-addressable reads; prompts are
-templated message emitters. Both are well-served by the SDK's native
-`registerResource` / `registerPrompt` APIs, which understand URI
-templates and argument schemas natively. Forcing resources through
-tRPC would mean inventing a procedure-per-resource convention and
-re-implementing URI template matching in the router. The two surfaces
-share the same `McpServer` instance, the same stdio transport, and
-the same `ManagedRuntime` indirectly.
+factory for testing). Prompts are templated message emitters,
+well-served by the SDK's native `registerPrompt` API, which
+understands argument schemas natively. Forcing prompts through tRPC
+would mean inventing a procedure-per-prompt convention on top of a
+router designed for request/response tools. The prompt surface shares
+the same `McpServer` instance, the same stdio transport, and the same
+`ManagedRuntime` indirectly as the tRPC tool router.
 
-**Vendor + patterns under `public/`.** The served corpus lives in a
-package-root `public/` directory because the package builds with
-`@savvy-web/bundler`, which mirrors only a package-root `public/` tree into
-the build output (`dist/<env>/pkg/public/`, via tsdown-plugins'
-`syncPublicDir`) — it does not copy arbitrary `src/` subdirectories. The
-original layout kept the corpus under `src/vendor/` and `src/patterns/`
-(mirrored by rslib's `copyPatterns`); after the bundler migration that copy
-mechanism was gone, so the built and published package shipped neither tree
-and the runtime hit `ENOENT … patterns/_meta.json` (issue #96). Moving both
-trees to `public/` restores them to the build output with no per-tree config.
-`resolveContentRoots()` in `src/resources/index.ts` probes the `public/`
-layout in both modes and fails loudly if neither carries
-`patterns/_meta.json`; `packages/mcp/__test__/content-roots.test.ts` guards
-the resolution.
-
-**Snapshot lifecycle is split across three Effect-based scripts.**
-Under `packages/mcp/lib/scripts/`: `fetch-upstream-docs.ts`
-(sparse-clone into a gitignored `lib/vitest-docs-raw/`),
-`build-snapshot.ts` (denylist + strip frontmatter + scaffold
-`manifest.json` with placeholder descriptions marked
-`[TODO: replace with load-when signal]`), and
-`validate-snapshot.ts` (schema-decodes the manifest, asserts `pages[]`
-non-empty, refuses any `[TODO` description, enforces a 30-character
-minimum description length). The split gives the refresh skill a
-place to insert the description-authoring step between scaffolding
-and the gate. Scripts share Effect Schema types
-(`UpstreamManifest` in `src/resources/manifest-schema.ts`) with the
-runtime.
-
-**Maintenance scripts live under `lib/scripts/`, not `src/scripts/`.**
-They are not part of the published bundle. `lib/` is the repo
-convention for build-affecting TypeScript that lives outside the
-bundle, matching the `lib/configs/` directory at the repo root.
-
-**Per-page metadata via SDK `list` callbacks.** Both per-page
-`ResourceTemplate` registrations carry a real `list` callback. The
-`vitest_docs_page` template decodes `manifest.json` against the
-`UpstreamManifest` Effect Schema; the `vitest_agent_pattern`
-template decodes `_meta.json` against the sibling `PatternsManifest`
-schema (both schemas live in `src/resources/manifest-schema.ts`).
-Each emits per-page `{ name, uri, title, description, mimeType,
-annotations? }` for every entry in the source manifest. The
-optional `annotations` field carries MCP 2025-11-25 `audience` and
-`priority` so a client can rank or filter resources before pulling
-content into context. Registering each page as its own
-`server.registerResource` call would tightly couple the registrar to
-content, force a code change for every snapshot refresh, and lose
-the schema-validated single source of truth. The `pages[]` field
-on `UpstreamManifest` is optional in the schema so the registrar
-can fall back gracefully (return `resources: []`) during
-transitional pre-skill-run states; the `validate-snapshot.ts`
-script enforces non-empty `pages[]` as a commit-time quality gate
-and emits a warning when only a subset of pages carry annotations.
-
-**`ResourceAnnotations` is shared, manifests are siblings.** The
-docs manifest is generated by the snapshot pipeline; the patterns
-manifest is authored in-tree. They are structurally different —
-one keys on path, the other on slug — but both embed the same
-`ResourceAnnotations` schema (`audience?: ("user"|"assistant")[],
-priority?: number in [0,1]`). Consumers see one annotation contract
-regardless of URI scheme. The path-prefix → priority bands are owned by
-`packages/mcp/lib/scripts/annotations-heuristic.ts` (the single source for
-both the snapshot bootstrap and the editorial pass).
-
-**Annotations bootstrap is single-source.** Path-prefix heuristics
-live exclusively in
-`packages/mcp/lib/scripts/annotations-heuristic.ts`. Both
-`build-snapshot.ts` (fresh refresh) and `apply-annotations.ts`
-(idempotent one-shot for an existing manifest, no upstream re-fetch
-required) call into it. Re-running `apply-annotations.ts` on an
-already-annotated manifest leaves it unchanged, so the script is
-safe to invoke as a fix-up step outside the full snapshot
-lifecycle.
-
-**The `update-vitest-snapshot` skill is repo-internal.** Located at
-`.claude/skills/update-vitest-snapshot/`, never plugin-shipped. It is
-a 5-phase interactive workflow: fetch → inventory and prune →
-scaffold → **agent rewrites each manifest entry's description as a
-"load when" signal one entry at a time** → validate. Phase 4 is the
-reason the skill exists: per-page `title` and `description` drive
-what MCP clients display in their resource picker, so they directly
-determine discoverability.
-
-**Trade-offs:** the MCP package's release artifact ships markdown
-trees (`vendor/` + `patterns/`) alongside compiled JS. Vendored
-snapshots get stale, but a stale snapshot is still useful and the
-explicit refresh path makes staleness visible in the changelog.
-Prompts cannot dynamically discover tools — a future "this prompt
-should expand to whatever tools are currently registered" need would
-require server-side enumeration the framing-only design doesn't
-support. The maintenance scripts depend on workspace `node_modules`
-(`tsx`, Effect Schema); the gain is sharing the `UpstreamManifest`
-schema with the runtime.
+**Trade-off:** prompts cannot dynamically discover tools — a future
+"this prompt should expand to whatever tools are currently
+registered" need would require server-side enumeration the
+framing-only design doesn't support.
 
 ### Decision 36: Independent Per-Package Release
 
