@@ -38,7 +38,7 @@ plugin/
 │   ├── session/              # SessionStart, SessionEnd
 │   ├── user-prompt-submit/   # UserPromptSubmit
 │   ├── pre-tool-use/         # PreToolUse (bash, bash-tdd, mcp, mcp-run-tests,
-│   │                         #   record, tdd-restricted, vitest-config)
+│   │                         #   record, tdd-restricted)
 │   ├── post-tool-use/        # PostToolUse (git-commit, record, tdd-artifact,
 │   │                         #   test-quality, test-run)
 │   ├── subagent/             # SubagentStart, SubagentStop
@@ -59,7 +59,7 @@ plugin/
     ├── run-and-classify/
     ├── tdd/
     ├── verify-test-quality/
-    └── vitest-context/
+    └── operating-vitest-agent/
 ```
 
 ## MCP loader
@@ -124,7 +124,7 @@ Skills are loaded into the dispatching agent's context via three mechanisms: exp
 
 **Path-triggered (1):** `test-discovery` auto-loads via its `paths:` glob when Claude Code reads any file under `__test__/`, `__fixtures__/`, or `__snapshots__/`.
 
-**Standalone-only (4):** `configuration`, `debugging`, `coverage-improvement`, `vitest-context` — load on demand via the `Skill` tool from any agent.
+**Standalone-only (4):** `configuration`, `debugging`, `coverage-improvement`, `operating-vitest-agent` — load on demand via the `Skill` tool from any agent.
 
 | Skill | Group | Purpose |
 | --- | --- | --- |
@@ -142,7 +142,7 @@ Skills are loaded into the dispatching agent's context via three mechanisms: exp
 | `debugging` | standalone | Systematic failure diagnosis using `test_history`, `test_errors`, `failure_signature_get` |
 | `coverage-improvement` | standalone | Coverage improvement using `file_coverage`, `test_trends` |
 | `configuration` | standalone | `AgentPlugin` setup and option reference |
-| `vitest-context` | standalone | Vitest-specific test context helpers |
+| `operating-vitest-agent` | standalone | Operating the vitest-agent MCP tools: `run_tests` scoping, coverage-in-subset behavior, the consoleLeaks signal |
 
 ## Commands
 
