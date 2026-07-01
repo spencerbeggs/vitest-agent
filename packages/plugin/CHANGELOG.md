@@ -1,5 +1,21 @@
 # @vitest-agent/plugin
 
+## 1.1.1
+
+### Build System
+
+* [`edad2ac`](https://github.com/spencerbeggs/vitest-agent/commit/edad2acebe07258be116f9e7633ca8f66024d8d5) The published `peerDependencies` on `@vitest-agent/cli` and `@vitest-agent/mcp` are now exact-pinned instead of an inexact caret range, so an installed plugin always pulls the exact cli and mcp versions it was built against. They are declared as source `workspace:*` dependencies and promoted back to peers by the build transform.
+
+### Dependencies
+
+* [`edad2ac`](https://github.com/spencerbeggs/vitest-agent/commit/edad2acebe07258be116f9e7633ca8f66024d8d5) | Dependency | Type | Action | From | To |
+  \| ----------------- | -------------- | ------- | ------ | ----- |
+  \| @vitest-agent/cli | peerDependency | updated | ^1.0.2 | 1.0.2 |
+  \| @vitest-agent/mcp | peerDependency | updated | ^1.1.0 | 1.1.0 |
+  | Dependency        | Type       | Action  | From  | To    |
+  | ----------------- | ---------- | ------- | ----- | ----- |
+  | @vitest-agent/mcp | dependency | updated | 1.1.0 | 1.2.0 |
+
 ## 1.1.0
 
 ### Features
