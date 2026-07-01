@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 100
 related:
   - ./architecture.md
@@ -512,8 +512,9 @@ The seven workspaces under `packages/`:
 | `@vitest-agent/mcp` | `vitest-agent-mcp` bin |
 | `@vitest-agent/sidecar` | per-Bash `inject-env` fast-path native binary; a regular `dependency` of `@vitest-agent/cli` |
 
-The six non-sidecar packages release in lockstep via changesets `linked`
-config; `@vitest-agent/sidecar` versions independently. The plugin
+Every `@vitest-agent/*` package versions independently — changesets
+carries no `fixed`/`linked` grouping, so a bump to one package does not
+force the rest (see D36). The plugin
 declares the CLI and MCP packages as **required** `peerDependencies` so
 installing the plugin still pulls the agent tooling with it;
 `@vitest-agent/reporter`, `@vitest-agent/sdk` and `@vitest-agent/ui` are
@@ -542,10 +543,17 @@ and a peer-installed package lands at the consumer's top level — so the
 `vitest-agent` and `vitest-agent-mcp` bins resolve for the Claude Code
 plugin's hook scripts. A transitively-nested regular dependency's bin
 would not. The published `@vitest-agent/plugin` carries real registry
-version ranges for these peers (rslib-builder rewrites the `workspace:*`
-protocol to concrete versions at publish time), so the auto-install
-resolves against the registry. In the monorepo dev workspace the peers
-are `workspace:*` ranges that `autoInstallPeers` cannot satisfy from the
+version ranges for these peers (rslib-builder rewrites the `workspace:^`
+protocol to a concrete caret range at publish time), so the auto-install
+resolves against the registry. The cli and mcp peers use `workspace:^`
+rather than `workspace:*` deliberately: changesets reads a `workspace:*`
+peer as an exact pin, so a minor bump to either peer would treat the
+plugin's peer range as changed and force the plugin to a major bump (a
+changed peer range is a breaking change); `workspace:^` paired with the
+`onlyUpdatePeerDependentsWhenOutOfRange` changeset option keeps the
+plugin on a minor when its peers take a compatible in-range minor (see
+D36). In the monorepo dev workspace the peers
+are `workspace:^` ranges that `autoInstallPeers` cannot satisfy from the
 registry, so the root `package.json` declares `@vitest-agent/cli` and
 `@vitest-agent/mcp` directly as devDependencies and `pnpm-workspace.yaml`
 adds a `publicHoistPattern` for both so their bins land in the root
@@ -799,76 +807,21 @@ support. The maintenance scripts depend on workspace `node_modules`
 (`tsx`, Effect Schema); the gain is sharing the `UpstreamManifest`
 schema with the runtime.
 
-### Decision 36: Lockstep Release with Build-Inlined Version
+### Decision 36: Independent Per-Package Release
 
-The six npm packages release in lockstep — a version bump to any one
-bumps all six — and every bundle carries its release version as a
-build-time string constant `process.env.__PACKAGE_VERSION__`, inlined
-by `rslib-builder` from the source `package.json` at build time. The
-Claude Code plugin versions independently; it can lag the npm packages
-by one or more releases, and is the only piece of the system permitted
-to do so.
+Every `@vitest-agent/*` package versions independently. Changesets carries no `fixed` or `linked` grouping — a bump to one package never forces the others — and the runtime cross-package drift check that the earlier lockstep form relied on has been removed.
 
-The runtime invariant is that the packages running in the same process
-must share the same `__PACKAGE_VERSION__` value. Each runtime package
-exports a `CURRENT_<PKG>_VERSION` constant (sourced from
-`process.env.__PACKAGE_VERSION__`), and three init-time checks compare
-these constants without ever blocking the run: the `AgentPlugin()`
-factory in `packages/plugin/src/plugin.ts` compares
-`CURRENT_PLUGIN_VERSION` against `CURRENT_SDK_VERSION` and
-`CURRENT_REPORTER_VERSION` (gated by a module-level `_hasWarnedDrift`
-flag so multi-project Vitest configs only warn once per process; a
-test-only `_resetVersionDriftGuardForTests` hook re-arms it); the
-The `vitest-agent-mcp` bin compares `CURRENT_MCP_VERSION` against
-`CURRENT_SDK_VERSION` inside `main()`; the `vitest-agent` CLI bin
-compares `CURRENT_CLI_VERSION` against `CURRENT_SDK_VERSION` before
-`Command.run`. Each mismatch emits one stderr line of the form
-`[@vitest-agent/<pkg>] version drift: <pkg>@<myVersion> with
-<peer>@<peerVersion>. Reinstall @vitest-agent/* packages so versions
-match.` and continues — the check is observation-only. The plugin
-intentionally does not compare against `CURRENT_UI_VERSION` because
-`@vitest-agent/ui` is not a hard peer dependency.
+Each runtime package still exports a `CURRENT_<PKG>_VERSION` constant, inlined from `process.env.__PACKAGE_VERSION__` by `rslib-builder` at build time. These remain part of the public API (a consumer or a package's own test can read its release version) but nothing compares them across packages at init any more.
 
-**Why build-inlined (vs runtime `package.json` read):** the inlined
-constant has no I/O cost, no path-resolution failure mode, and no
-ambiguity about *which* `package.json` is read (the package's own,
-the consumer's hoisted copy, a pnpm symlink target). It also makes
-mismatch detectable in environments where `package.json` files are
-not on disk at runtime (bundled, packaged binaries). The trade-off is
-that the build is the source of truth for the version string — but
-that is already the case for everything else `rslib-builder`
-produces.
+**Why independent (vs lockstep):** the lockstep form bumped all six runtime packages on the smallest change to any one and asserted exact version equality across the family at runtime. Once the packages are allowed to move independently that equality assertion is a false positive on every ordinary consumer install — a plugin on one minor legitimately running an mcp on a later compatible minor is not drift — so the shared release train and the drift check were removed together. The package-boundary contracts at the SDK layer (D33, D34) are enforced by the dependency ranges and TypeScript, not by a runtime string compare.
 
-**Why lockstep (vs independent semver per package):** the npm
-packages share types and runtime contracts at the SDK boundary
-(`DataStore`, `DataReader`, the reporter contract types, the schemas).
-A consumer hitting any cross-package type mismatch sees an opaque
-TypeScript or runtime error rather than a "you upgraded the plugin
-but not the reporter" diagnostic. The plugin's regular `dependencies`
-on reporter and sdk plus its required `peerDependencies` on cli and
-mcp (D33) make installation lockstep on the consumer's side;
-build-inlined version comparison makes drift detectable at runtime if
-the lockfile ever lies (npm's looser peer-dep enforcement, manual
-`npm install` patterns, monorepo hoist surprises).
+**The peer-range mechanism.** The plugin's required peers `@vitest-agent/cli` and `@vitest-agent/mcp` are declared `workspace:^`, not `workspace:*`. Changesets reads a `workspace:*` peer as an exact pin, so a minor bump to either peer treats the plugin's peer range as changed and forces the plugin to a major bump (a changed peer range is breaking). `workspace:^` paired with the changeset option `___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH.onlyUpdatePeerDependentsWhenOutOfRange: true` keeps the plugin on a minor when its peers take a compatible in-range minor; `updateInternalDependencies: "patch"` still bumps internal dependents on patch. See `.changeset/config.json` for the live settings.
 
-**Why the Claude Code plugin can lag:** the plugin is a file-based
-distribution through the Claude marketplace (D20). Its release cadence
-is decoupled from npm's. The plugin's loader (D30) shells out to the
-user's package manager to spawn the MCP server — whichever version
-of `@vitest-agent/mcp` the consumer's lockfile resolves is what the
-plugin gets. The MCP server's startup version check is the gate that
-catches plugin-vs-MCP drift if it happens.
+**Release artifacts.** A release now produces, per package, a git tag `@vitest-agent/<pkg>@<version>` (changesets' scoped-package tag format, e.g. `@vitest-agent/sdk@1.1.0`) and one GitHub Release titled with that same tag, each carrying that package's own changelog body, its own provenance assets (npm tarball, SBOM, API report, meta) and a per-package Publish Summary. This replaces the retired lockstep scheme's single unified semver tag (e.g. `1.0.1`) plus one combined Release whose body concatenated every package's section and to which all packages' assets were attached. The docs/deploy trigger still keys on the plugin Release name containing `@vitest-agent/plugin` — unchanged. The two prior unified releases were backfilled to match: the unified `1.0.0` and `1.0.1` git tags and Releases were deleted and re-created per package (`@vitest-agent/<pkg>@1.0.0` / `@1.0.1`, assets re-homed) so history matches the new scheme and the tooling finds a per-package previous-tag reference for changelog generation. The Release marked "Latest" is `@vitest-agent/plugin@1.0.1`.
 
-**Trade-off:** every package release is the size of the smallest
-useful change times six. A docs-only fix in the SDK still bumps the
-plugin, reporter, ui, CLI, and MCP. Acceptable in exchange for the
-runtime sync guarantee.
+**Why the Claude Code plugin and sidecar were already independent:** both versioned on their own before this change — the marketplace plugin is a file-based distribution with its own cadence (D20), and `@vitest-agent/sidecar` ships per-platform binaries that rev separately. Independent versioning generalizes that posture to the whole family.
 
-**Cross-references:** D33 (Five-Package Split — establishes the
-required-peer-deps shape this decision protects) and D30 (Plugin MCP
-Loader — describes why the MCP runs from the consumer's installation
-context, which is what makes the build-inlined version a meaningful
-sync check).
+**Cross-references:** D33 (Five-Package Split — establishes the required-peer-deps shape these ranges live on) and D30 (Plugin MCP Loader — the consumer-rooted spawn that makes the resolved peer version whatever the consumer's lockfile holds). The retired lockstep form, including the removed build-inlined drift check, lives in [./decisions-retired.md](./decisions-retired.md).
 
 ### Decision 37: Per-Executor Console Matrix + Streaming Reporter Tap
 

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 93
 related:
   - ../architecture.md
@@ -137,23 +137,7 @@ stack; `logLevel` and `logFile` resolve from the
 `VITEST_REPORTER_LOG_LEVEL` and `VITEST_REPORTER_LOG_FILE` env vars via
 `resolveLogLevel` / `resolveLogFile` in the SDK.
 
-**Cross-package version drift check.** The very first statement in
-`AgentPlugin()` is a call to the internal `checkVersionDrift` helper,
-which compares `CURRENT_PLUGIN_VERSION` against `CURRENT_SDK_VERSION`
-and `CURRENT_REPORTER_VERSION` and writes one stderr line per
-mismatch. A module-level `_hasWarnedDrift` boolean suppresses repeated
-warnings so multi-project Vitest configs do not duplicate the line.
-The plugin re-exports the public version constant
-`CURRENT_PLUGIN_VERSION` (sourced from
-`process.env.__PACKAGE_VERSION__` via rslib-builder's `define`
-substitution) and a test-only `_resetVersionDriftGuardForTests` hook
-that re-arms the once-per-process gate between integration test cases
-(`packages/plugin/__test__/version-drift.test.ts`). The plugin
-intentionally does not compare against `CURRENT_UI_VERSION` —
-`@vitest-agent/ui` is not a direct plugin dependency at all after the
-reporter-package restructure; it arrives transitively through
-`@vitest-agent/reporter`. See the root CLAUDE.md "Cross-package version
-drift" section and D36 in [../decisions.md](../decisions.md).
+**Version constant (no runtime drift check).** The plugin re-exports the public version constant `CURRENT_PLUGIN_VERSION` (sourced from `process.env.__PACKAGE_VERSION__` via rslib-builder's `define` substitution). Under the earlier lockstep design the `AgentPlugin()` factory compared this against `CURRENT_SDK_VERSION` and `CURRENT_REPORTER_VERSION` and warned on drift; that check (and its `_hasWarnedDrift` guard, `_resetVersionDriftGuardForTests` hook, and `version-drift.test.ts` suite) was removed when the packages moved to independent versioning, so the constant is now public API with no internal consumer. See D36 in [../decisions.md](../decisions.md).
 
 ## AgentReporter (internal Vitest-API class)
 

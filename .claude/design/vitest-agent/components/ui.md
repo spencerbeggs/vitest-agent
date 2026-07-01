@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-12
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 90
 related:
   - ../architecture.md
@@ -211,4 +211,4 @@ See `../decisions.md` for the recorded design choices:
 
 ## CURRENT_UI_VERSION
 
-`packages/ui/src/index.ts` exports `CURRENT_UI_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`). The constant participates in the shared shape test at `packages/sdk/__test__/version-constants-shape.test.ts` (asserts all six runtime `CURRENT_*_VERSION` strings are non-empty and lockstep-equal) and in `packages/ui/__test__/version-constant.test.ts` (asserts it matches `packages/ui/package.json#version`). No init-time drift check compares against `CURRENT_UI_VERSION` because `@vitest-agent/ui` is consumed transitively through the plugin and is not a hard peer dependency. See D36 in [../decisions.md](../decisions.md).
+`packages/ui/src/index.ts` exports `CURRENT_UI_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`), part of the public API. It was never wired into a runtime drift check even under the earlier lockstep design — `@vitest-agent/ui` is consumed transitively through the plugin and is not a hard peer dependency — and the cross-package version checks were removed entirely with the move to independent per-package versioning. See D36 in [../decisions.md](../decisions.md).

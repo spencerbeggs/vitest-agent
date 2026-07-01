@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: performance
 created: 2026-05-15
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 92
 related:
   - ../architecture.md
@@ -68,7 +68,7 @@ The two variants mirror the rslib packages' layout: `dist/dev` is the workspace 
 
 The `dist/dev` variant must always be present — not only the publish target — because the parent `@vitest-agent/sidecar` package is rslib-built and its own `build:prod` resolves the workspace-protocol `optionalDependencies` on these children by reading each child's `dist/dev/package.json` (the `linkDirectory` base). Without `dist/dev` the parent build fails with `Workspace resolution failed`.
 
-Each child `package.json` declares a `publishConfig` pointing at `dist/npm` so the release flow publishes the sidecar children to npm, identically to the lockstep packages.
+Each child `package.json` declares a `publishConfig` pointing at `dist/npm` so the release flow publishes the sidecar children to npm, identically to the primary packages.
 
 ## Hook integration
 

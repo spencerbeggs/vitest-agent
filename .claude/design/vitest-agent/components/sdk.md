@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 96
 related:
   - ../architecture.md
@@ -603,22 +603,7 @@ moved symbols are deliberately **not** re-exported from the main barrel.
 
 ## CURRENT_SDK_VERSION
 
-`packages/sdk/src/index.ts` exports `CURRENT_SDK_VERSION: string`,
-inlined from `process.env.__PACKAGE_VERSION__` by the SDK's
-`rslib.config.ts` `define` block at build time. The constant is the
-authoritative version reference for the cross-package drift checks
-wired in the plugin factory, the MCP bin, and the CLI bin — each peer
-compares its own `CURRENT_<PKG>_VERSION` against this one at init and
-emits a stderr warning on mismatch (see D36).
-
-A shared shape test at
-`packages/sdk/__test__/version-constants-shape.test.ts` imports all six
-`CURRENT_*_VERSION` constants through dist/dev and asserts they are
-non-empty strings and lockstep-equal. Each runtime package also has a
-local `__test__/version-constant.test.ts` that imports its own
-constant through dist/dev (so it sees the substituted literal, not
-the source-time `process.env.__PACKAGE_VERSION__!` expression) and
-asserts it matches that package's `package.json#version`.
+`packages/sdk/src/index.ts` exports `CURRENT_SDK_VERSION: string`, inlined from `process.env.__PACKAGE_VERSION__` by the SDK's `rslib.config.ts` `define` block at build time. Every runtime package exports the analogous `CURRENT_<PKG>_VERSION` constant the same way. These are public API — a consumer can read a package's own release version — but nothing compares them across packages at runtime. The earlier lockstep design wired init-time drift checks (plugin factory, MCP bin, CLI bin) against this constant; those checks, and the version-constant test suites that backed them, were removed with the move to independent per-package versioning. See D36 in [../decisions.md](../decisions.md).
 
 ## Output pipeline
 

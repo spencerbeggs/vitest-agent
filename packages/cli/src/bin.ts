@@ -8,7 +8,6 @@
 import { Command } from "@effect/cli";
 import { NodeContext, NodeRuntime } from "@effect/platform-node";
 import {
-	CURRENT_SDK_VERSION,
 	PathResolutionLive,
 	formatFatalError,
 	resolveDataPath,
@@ -19,7 +18,6 @@ import { Cause, Console, Effect } from "effect";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { CURRENT_CLI_VERSION } from "./index.js";
 import { CliLive } from "./layers/CliLive.js";
 
 const rootCommand = Command.make("vitest-agent").pipe(
@@ -33,20 +31,6 @@ const cli = Command.run(rootCommand, {
 
 const logLevel = resolveLogLevel();
 const logFile = resolveLogFile();
-
-// Cross-package version drift check. Compares this CLI's version against
-// @vitest-agent/sdk and writes a single stderr line on mismatch.
-// Observation-only — never throws. The `"0.0.0"` fallback marks a dev
-// build where rslib-builder did not substitute the literal; skip the
-// check to avoid spurious warnings during local source-loaded runs.
-// See the root CLAUDE.md "Cross-package version drift" section.
-if (CURRENT_CLI_VERSION !== "0.0.0" && CURRENT_SDK_VERSION !== CURRENT_CLI_VERSION) {
-	process.stderr.write(
-		`[@vitest-agent/cli] version drift: @vitest-agent/cli@${CURRENT_CLI_VERSION} ` +
-			`with @vitest-agent/sdk@${CURRENT_SDK_VERSION}. ` +
-			`Reinstall @vitest-agent/* packages so versions match.\n`,
-	);
-}
 
 // Resolve the project root used for `data.db` resolution. Honor an explicit
 // `VITEST_AGENT_PROJECT_DIR` override before `process.cwd()` so hook-driven

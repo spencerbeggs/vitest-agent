@@ -22,7 +22,7 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 The seven publishable packages live under `packages/`. The `docs` site (`website/`) is a private workspace — it renders documentation and is never published. Four
 per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `@vitest-agent/sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
 
-The six original packages release in lockstep; `@vitest-agent/sidecar` is a new package that versions independently of that group. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as required `peerDependencies` (alongside the Vitest-side peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`), plus regular workspace `dependencies` on `@vitest-agent/reporter` and `@vitest-agent/sdk`. Required peers are still pulled for a published consumer — npm 7+ and pnpm (`autoInstallPeers: true`) auto-install required peers, and the published plugin carries concrete registry version ranges — so declaring `@vitest-agent/plugin` transitively brings `@vitest-agent/cli` and `@vitest-agent/mcp`, with their bins landing at the consumer's top level. The dependency flow is `plugin → reporter → ui → sdk`: the plugin no longer depends on `@vitest-agent/ui` (or `react` / `ink`) directly — `@vitest-agent/reporter` supplies the default reporter and the Ink live mount, and pulls `ui` / `react` / `ink` transitively. `@vitest-agent/sidecar` reaches a consumer transitively: it is a regular `dependency` of `@vitest-agent/cli`, which is itself a required peer of the plugin, so installing the plugin pulls `@vitest-agent/sidecar` and its four per-platform `optionalDependencies` automatically. In the dev workspace, the plugin's peers are `workspace:*` ranges that `autoInstallPeers` cannot satisfy from the registry, so the workspace root `package.json` declares `@vitest-agent/cli` and `@vitest-agent/mcp` directly as devDependencies, and `pnpm-workspace.yaml` adds a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks; the root no longer lists `@vitest-agent/reporter`, `@vitest-agent/sidecar`, or `@vitest-agent/ui` directly.
+Every `@vitest-agent/*` package versions independently — a change to one package bumps only that package, plus a patch ripple to its workspace dependents via changesets' `updateInternalDependencies: "patch"`. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as required `peerDependencies` (alongside the Vitest-side peers `vitest`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`), plus regular workspace `dependencies` on `@vitest-agent/reporter` and `@vitest-agent/sdk`. Required peers are still pulled for a published consumer — npm 7+ and pnpm (`autoInstallPeers: true`) auto-install required peers, and the published plugin carries concrete registry version ranges — so declaring `@vitest-agent/plugin` transitively brings `@vitest-agent/cli` and `@vitest-agent/mcp`, with their bins landing at the consumer's top level. The dependency flow is `plugin → reporter → ui → sdk`: the plugin no longer depends on `@vitest-agent/ui` (or `react` / `ink`) directly — `@vitest-agent/reporter` supplies the default reporter and the Ink live mount, and pulls `ui` / `react` / `ink` transitively. `@vitest-agent/sidecar` reaches a consumer transitively: it is a regular `dependency` of `@vitest-agent/cli`, which is itself a required peer of the plugin, so installing the plugin pulls `@vitest-agent/sidecar` and its four per-platform `optionalDependencies` automatically. In the dev workspace, the plugin's internal peers (`@vitest-agent/cli`, `@vitest-agent/mcp`) are `workspace:^` ranges that `autoInstallPeers` cannot satisfy from the registry, so the workspace root `package.json` declares `@vitest-agent/cli` and `@vitest-agent/mcp` directly as devDependencies, and `pnpm-workspace.yaml` adds a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks; the root no longer lists `@vitest-agent/reporter`, `@vitest-agent/sidecar`, or `@vitest-agent/ui` directly.
 Users typically configure the plugin with just
 `AgentPlugin({ console, coverageTargets, transport? })` — the plugin
 injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter`, which
@@ -160,25 +160,9 @@ Resolution precedence (highest first):
 Fails loudly with `WorkspaceRootNotFoundError` if no identity is resolvable.
 No silent fallback to a path hash.
 
-## Cross-package version drift
+## Cross-package versioning
 
-The six original runtime packages release in lockstep; `@vitest-agent/sidecar` and the Claude Code marketplace plugin (`vitest-agent@spencerbeggs`) each version independently.
-If you see a `[@vitest-agent/<pkg>] version drift: …` line on stderr
-during a Vitest run, MCP startup, or CLI invocation, the imported
-`@vitest-agent/*` versions do not match. The warning is informational —
-the run continues — but it usually means a partially-upgraded install.
-Reinstall the `@vitest-agent/*` packages so the versions match.
-
-The check is wired at three points: the top of the `AgentPlugin()`
-factory (compares against `CURRENT_SDK_VERSION` and
-`CURRENT_REPORTER_VERSION`; one warning per mismatched peer, suppressed
-after the first call in the same process), inside the `vitest-agent-mcp`
-bin's `main()` (compares against `CURRENT_SDK_VERSION`), and at the top of
-the `vitest-agent` CLI bin before `Command.run` (compares against
-`CURRENT_SDK_VERSION`). Each runtime package exposes a
-`CURRENT_<PKG>_VERSION` constant inlined by rslib-builder's
-`process.env.__PACKAGE_VERSION__` substitution at build time, sourced
-from the package's own `package.json#version`.
+Every `@vitest-agent/*` package versions independently — there is no lockstep `fixed` group. Consumers only ever install `@vitest-agent/plugin`; its required peers (`cli`, `mcp`) auto-install and the rest arrive transitively, so version skew across the family is invisible to a published consumer. The runtime drift check (the `checkVersionDrift` helper formerly wired into `AgentPlugin()`, the `vitest-agent-mcp` bin, and the `vitest-agent` CLI bin) was removed. Each package still exports a `CURRENT_<PKG>_VERSION` constant (inlined at build time from its own `package.json#version`) as a public API for version introspection by downstream tooling, but nothing imports it internally anymore.
 
 ## Build Pipeline
 
@@ -301,7 +285,7 @@ All commits require:
 
 All seven packages publish to npm with
 provenance via the [@savvy-web/changesets](https://github.com/savvy-web/changesets)
-release workflow. The six original packages release in lockstep; `@vitest-agent/sidecar` versions independently.
+release workflow. Every package versions independently — there is no lockstep `fixed` group. Each release publishes a git tag per package of the form `@vitest-agent/<pkg>@<version>` (e.g. `@vitest-agent/plugin@1.1.0`) plus one GitHub Release per package, replacing the retired unified single-semver-tag (`1.0.0`) + one-combined-release scheme. The prior `1.0.0`/`1.0.1` unified tags/releases were retroactively split into per-package tags/releases so history matches; the bare `1.0.0`/`1.0.1` tags no longer exist.
 
 ## Testing
 

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-06-30
+last-synced: 2026-06-30
 completeness: 90
 related:
   - ../architecture.md
@@ -107,14 +107,7 @@ spawn time. Bundling was rejected because the SDK depends on `better-sqlite3`,
 a native module that must match the user's platform and Node version. See
 D29 (retired) for the dynamic-import approach this replaced.
 
-The PM-walk is also load-bearing for the lockstep release invariant
-(Decision 36). The MCP server must run from the consumer's installation
-context so the version-pinned peer dep on `@vitest-agent/mcp` resolves to
-the same release as the `@vitest-agent/plugin` that wired up the reporter.
-A global `npx vitest-agent-mcp` invocation (or any spawn rooted outside
-the user's package manager) would resolve against an arbitrary version
-and silently drift from the plugin's expected SDK contract. The CLI is
-directory-bound for the same reason.
+The PM-walk is also load-bearing for dependency resolution (Decision 36). The MCP server must run from the consumer's installation context so the peer dep on `@vitest-agent/mcp` resolves to whatever the consumer's lockfile holds — a version compatible with the `@vitest-agent/plugin` that wired up the reporter. A global `npx vitest-agent-mcp` invocation (or any spawn rooted outside the user's package manager) would resolve against an arbitrary version and could drift from the plugin's expected SDK contract. The CLI is directory-bound for the same reason.
 
 ### Hook architecture
 
