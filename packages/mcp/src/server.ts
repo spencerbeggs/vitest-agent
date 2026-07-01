@@ -6,7 +6,6 @@ import { z } from "zod";
 import type { McpContext } from "./context.js";
 import { createCallerFactory } from "./context.js";
 import { registerAllPrompts } from "./prompts/index.js";
-import { registerAllResources } from "./resources/index.js";
 import { appRouter } from "./router.js";
 import { AcceptanceMetricsAsMarkdown, AcceptanceMetricsResult } from "./tools/acceptance-metrics.js";
 import { CacheHealthAsMarkdown, CacheHealthResult } from "./tools/cache-health.js";
@@ -128,10 +127,10 @@ function structuredJsonResult<T extends object>(value: T) {
 }
 
 /**
- * Starts the MCP server over stdio, registering all tools, resources, and prompts.
+ * Starts the MCP server over stdio, registering all tools and prompts.
  *
  * Constructs the MCP server instance, registers all tRPC-backed tools (wired through
- * `ctx.runtime`), calls `registerAllResources` and `registerAllPrompts`, then connects
+ * `ctx.runtime`), calls `registerAllPrompts`, then connects
  * a `StdioServerTransport`. Returns when the transport disconnects.
  *
  * @param ctx - the MCP context carrying the shared ManagedRuntime and session refs
@@ -1093,7 +1092,6 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		},
 	);
 
-	registerAllResources(server);
 	registerAllPrompts(server);
 
 	const transport = new StdioServerTransport();

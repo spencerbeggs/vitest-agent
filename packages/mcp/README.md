@@ -6,12 +6,11 @@
 
 > **Part of the [vitest-agent](https://vitest-agent.dev) ecosystem.** Most users want **[@vitest-agent/plugin](https://www.npmjs.com/package/@vitest-agent/plugin)**, which pulls this package in automatically. Install `@vitest-agent/mcp` directly only if you run the MCP server standalone.
 
-The `vitest-agent-mcp` MCP server bin. Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state and more. Also surfaces four MCP resources (vendored Vitest docs and curated testing patterns) and six framing-only prompts.
+The `vitest-agent-mcp` MCP server bin. Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state and more. Also surfaces six framing-only prompts.
 
 ## Features
 
 - **29 action-keyed tools** — per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior` and more
-- **Four MCP resources** — vendored Vitest documentation (`vitest://docs/`) and curated testing patterns (`vitest-agent://patterns/`) with per-page titles, descriptions and `audience`/`priority` annotations
 - **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, `wrapup`
 - **Idempotency middleware** — `tdd_task`, `tdd_goal`, `tdd_behavior` and `hypothesis` create-actions are idempotent on derived keys
 

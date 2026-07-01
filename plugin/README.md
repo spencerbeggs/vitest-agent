@@ -46,7 +46,7 @@ The plugin registers the `vitest-agent` MCP server automatically via the `mcpSer
 
 This means `@vitest-agent/plugin` must be installed as a dependency of your project for the plugin's MCP server to start. The package's required peer dependencies (`@vitest-agent/mcp` and `@vitest-agent/cli`) are auto-installed by modern pnpm and npm. If the MCP bin is missing, the loader prints PM-specific install instructions and exits non-zero. See [Prerequisites](#prerequisites) below.
 
-The server exposes 29 action-keyed tools, four resources (vendored Vitest docs at `vitest://docs/...` and curated testing patterns at `vitest-agent://patterns/...`) and six framing-only prompts for common workflows. Tools emit both markdown `content[]` and a typed `structuredContent` payload per MCP 2025-06-18. Use the `help` tool for the full tool list with parameters.
+The server exposes 29 action-keyed tools and six framing-only prompts for common workflows. Tools emit both markdown `content[]` and a typed `structuredContent` payload per MCP 2025-06-18. Use the `help` tool for the full tool list with parameters.
 
 | Category | Tools |
 | --- | --- |
@@ -111,7 +111,7 @@ Structured error and debug logging for all hook scripts is provided by `hooks/li
 | `commit-cycle` | Commit at green and refactor phase exit |
 | `revert-on-extended-red` | Revert if stuck in red for more than 5 turns or 3 failed runs |
 | `decompose-goal-into-behaviors` | Break a goal into atomic red-green-refactor behaviors |
-| `vitest-context` | Vitest-specific test context helpers |
+| `operating-vitest-agent` | Operating the vitest-agent MCP tools: run_tests scoping, coverage-in-subset, console-leaks signal |
 
 ### Commands
 

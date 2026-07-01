@@ -315,7 +315,7 @@ decomposing goals into behaviors. All primitives are also referenced by the
 orchestrator's `skills:` frontmatter so they are preloaded on dispatch.
 
 Higher-level skills (`tdd`, `debugging`, `coverage-improvement`,
-`configuration`, `vitest-context`) are available standalone for the main agent
+`configuration`, `operating-vitest-agent`) are available standalone for the main agent
 to load on demand. The `tdd` skill in particular owns the channel-event
 handler — it is what renders the orchestrator's `tdd_progress_push` events
 into the user-visible task panel.

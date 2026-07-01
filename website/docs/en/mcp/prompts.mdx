@@ -1,0 +1,35 @@
+---
+title: Prompts
+description: The six framing prompts exposed by @vitest-agent/mcp — each orients an agent toward the right tool sequence for a common workflow.
+---
+
+# Prompts
+
+In addition to tools, `@vitest-agent/mcp` exposes six framing prompts that orient agents toward the right tool sequence for common workflows.
+
+## Prompts
+
+MCP clients can pick these from a prompt menu to orient an agent toward common workflows. Each prompt emits a small templated user message — no tool data is pre-fetched on the server. The agent fetches data via tools after the prompt orients it.
+
+| Name | Arguments | Description |
+|------|-----------|-------------|
+| `triage` | `project?` | Orient toward a failure-triage workflow; composes `triage_brief`, `failure_signature_get`, and `hypothesis` (action `record`) |
+| `why-flaky` | `test`, `project?` | Diagnose a named flaky test; composes `test_history` and `failure_signature_get` |
+| `regression-since-pass` | `test`, `project?` | Find the change that broke a test; composes `test_history`, `commit_changes`, and `turn_search` |
+| `explain-failure` | `signature` | Synthesize a root cause from a failure signature's recurrence history |
+| `tdd-resume` | `chat_id?` | Resume the active TDD session from its current phase and iron-law transitions |
+| `wrapup` | `kind?`, `since?` | Generate the same content the post-hooks emit automatically |
+
+The `kind` argument on `wrapup` accepts the same five values the `wrapup_prompt` tool accepts: `stop`, `session_end`, `pre_compact`, `tdd_handoff`, and `user_prompt_nudge`.
+
+### How prompts work
+
+Prompts are framing-only. Each prompt factory returns one or more templated user-role messages that describe which tools to call and in what order. No `DataReader` or `DataStore` calls happen on the server when a prompt is selected — selection cost is zero tool roundtrips by design.
+
+After a prompt orients the agent, the agent calls the referenced tools to fetch live data. This keeps prompt selection fast and the data always current.
+
+## Related
+
+- [MCP tools](/mcp/tools)
+- [Integrating non-Claude-Code agents](/mcp/integrating)
+- [API reference](/mcp/api)

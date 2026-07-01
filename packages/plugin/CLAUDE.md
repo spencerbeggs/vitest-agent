@@ -7,15 +7,17 @@ baseline/trend computation, and delegates rendering entirely to a
 `@vitest-agent/reporter` when the user does not pass a custom `reporter`
 option, and never touches rendering itself. The reporter owns mode
 branching and the Ink live-mount lifecycle. Declares `@vitest-agent/cli`
-and `@vitest-agent/mcp` as required `peerDependencies` at `workspace:^`
-(these two version independently, so the caret tracks compatible majors
-rather than pinning exact; alongside the Vitest-side peers `vitest`,
-`@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`),
-plus regular workspace `dependencies` on `@vitest-agent/reporter` and
-`@vitest-agent/sdk`. The plugin no longer
+and `@vitest-agent/mcp` as regular workspace `dependencies` at
+`workspace:*` (alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`);
+the `savvy.build.ts` `transform()` promotes them back into
+`peerDependencies` — exact-pinned — for the published manifest, so a
+cli/mcp release patch-bumps the plugin and re-pins the exact version
+rather than publishing an inexact caret. The Vitest-side peers (`vitest`,
+`@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as
+`peerDependencies` directly. The plugin no longer
 depends on `@vitest-agent/ui`, `react`, or `ink` — `reporter` pulls those
 transitively. `@vitest-agent/sidecar` is not a direct dependency — it
-arrives transitively through the required `@vitest-agent/cli` peer.
+arrives transitively through `@vitest-agent/cli`.
 
 ## Layout
 

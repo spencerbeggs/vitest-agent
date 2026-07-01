@@ -14,7 +14,6 @@ tools:
   - TaskCreate
   - ToolSearch
   - TodoWrite
-  - ListMcpResourcesTool
   - mcp__plugin_vitest-agent_mcp__acceptance_metrics
   - mcp__plugin_vitest-agent_mcp__cache_health
   - mcp__plugin_vitest-agent_mcp__commit_changes

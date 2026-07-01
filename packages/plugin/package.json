@@ -37,6 +37,8 @@
 		"@effect/rpc": "catalog:silk",
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
+		"@vitest-agent/cli": "workspace:*",
+		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
 		"acorn": "^8.17.0",
@@ -59,8 +61,6 @@
 		"vitest": "catalog:silk"
 	},
 	"peerDependencies": {
-		"@vitest-agent/cli": "workspace:^",
-		"@vitest-agent/mcp": "workspace:^",
 		"@vitest/coverage-istanbul": "catalog:silkPeers",
 		"@vitest/coverage-v8": "catalog:silkPeers",
 		"vitest": "catalog:silkPeers"

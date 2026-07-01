@@ -56,7 +56,7 @@ workspace) and the `docs` documentation-site workspace at `website/`.
 | `@vitest-agent/reporter` | `packages/reporter/` | The default reporter package and the reference package for custom-reporter authors. Ships `DefaultVitestAgentReporter` (the plugin's built-in factory, which owns the Ink live mount end to end), re-exports the contract types from the SDK plus the dispatch helpers, and declares `react` + `ink` as full deps. |
 | `@vitest-agent/ui` | `packages/ui/` | Pure rendering-primitives library. The `RunEvent` reducer, the shape-tailored dispatcher matrix and its 12 cells, the L1 MCP tool-pointer footer, the synthesizers and the Effect `RunEventChannel` PubSub. Knows nothing about the reporter lifecycle. |
 | `@vitest-agent/cli` | `packages/cli/` | The `vitest-agent` bin. Utility-only for 2.0: `doctor`, `db` (path / prune / reset / query), and the `agent` namespace for hook-driven plumbing (triage, wrapup, record, sidecar). Test-landscape queries moved to MCP. |
-| `@vitest-agent/mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, MCP resources, MCP prompts. |
+| `@vitest-agent/mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, framing-only MCP prompts. |
 | `@vitest-agent/sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via four `optionalDependencies` sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`). |
 | `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
 | `docs` | `website/` | RSPress 2.0 documentation site deployed to `vitest-agent.dev` via Cloudflare Pages. Generates per-package API reference from each package's API Extractor model. Private, versions independently, imports nothing from the runtime packages. See [./components/docs-site.md](./components/docs-site.md). |
@@ -100,8 +100,7 @@ deterministic XDG-derived path. Three independent processes touch it:
 - **The `vitest-agent-mcp` bin** is a long-lived stdio process built
   on `@modelcontextprotocol/sdk`. It opens the same database under a
   `ManagedRuntime` and exposes a tRPC tool router for read and write
-  operations, plus MCP resources (vendored Vitest docs and a curated
-  patterns library) and framing-only prompts.
+  operations, plus framing-only prompts.
 
 The Claude Code plugin sits above all three. Its loader spawns the MCP
 server through the user's package manager, its hooks invoke

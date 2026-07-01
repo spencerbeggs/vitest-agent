@@ -37,7 +37,7 @@ The Claude Code plugin lives at [`plugin/`](./plugin/) and is a file-based plugi
 | --- | --- | --- | --- |
 | Plugin | library import | `@vitest-agent/plugin` | Vitest plugin producing SQLite-persisted test data |
 | CLI | `vitest-agent` | `@vitest-agent/cli` | Hook-driven plumbing plus `doctor`, `db` and `agent` commands |
-| MCP server | `vitest-agent-mcp` | `@vitest-agent/mcp` | Action-keyed tools over stdio for LLM agent integration, plus MCP resources and prompts |
+| MCP server | `vitest-agent-mcp` | `@vitest-agent/mcp` | Action-keyed tools over stdio for LLM agent integration, plus framing prompts |
 
 All three share the Effect service architecture and the same SQLite database, located under `$XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db` where `<workspaceKey>` derives from the root `package.json` `name`.
 

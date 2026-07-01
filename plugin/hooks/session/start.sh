@@ -191,9 +191,9 @@ If the user's request is ambiguous about whether it warrants TDD, ask once befor
 
 </vitest_agent_reporter>
 
-<vitest_resources>
-MCP resources are available: \`vitest://docs/\` (Vitest upstream docs snapshot) and \`vitest-agent://patterns/\` (curated project patterns). Use \`ListMcpResourcesTool\` to explore, \`ReadMcpResourceTool\` to fetch pages — always load an index URI first. Six user-facing prompts are exposed as slash commands: \`/plugin:vitest-agent:mcp:triage\`, \`why-flaky\`, \`regression-since-pass\`, \`explain-failure\`, \`tdd-resume\`, \`wrapup\`. Load the \`vitest-context\` skill for the full navigation guide.
-</vitest_resources>
+<vitest_prompts>
+Six framing prompts are exposed as slash commands: \`/plugin:vitest-agent:mcp:triage\`, \`why-flaky\`, \`regression-since-pass\`, \`explain-failure\`, \`tdd-resume\`, \`wrapup\`. Load the \`operating-vitest-agent\` skill for the run_tests operating facts (no \`filter\` param, coverage-in-subset behavior, the consoleLeaks signal).
+</vitest_prompts>
 </EXTREMELY_IMPORTANT>"
 
 #    Prefer triage when non-empty; fall back to the empty-state message.

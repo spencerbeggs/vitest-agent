@@ -271,12 +271,14 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
   `createCallerFactory(appRouter)`. Each procedure calls
   `ctx.runtime.runPromise(effect)` against `DataReader`, `DataStore`,
   `ProjectDiscovery`, or `OutputRenderer`.
-- `server.ts` calls `registerAllResources(server)` and
-  `registerAllPrompts(server)` before constructing `StdioServerTransport`,
-  so tool / resource / prompt surfaces are registered as one unit.
-- `run_tests` uses `spawnSync("npx vitest run", ...)` with timeout — it
-  shells out rather than embedding Vitest because the MCP server is a
-  long-lived stdio process and a child run keeps blast radius bounded.
+- `server.ts` calls `registerAllPrompts(server)` before constructing
+  `StdioServerTransport`, so tool / prompt surfaces are registered as one
+  unit.
+- `run_tests` runs Vitest in-process via `createVitest` (from `vitest/node`)
+  with a per-call timeout — it awaits `localVitest.start(...)` and reads
+  results (including `state.getFiles()`) before returning. The in-process run
+  blocks the long-lived stdio server for its duration, which is acceptable
+  because agents wait for results before proceeding.
 
 ## Flow 5: Plugin → MCP server spawn
 

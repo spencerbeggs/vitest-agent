@@ -19,10 +19,10 @@ dependencies: []
 
 # MCP package (`@vitest-agent/mcp`)
 
-Model Context Protocol server providing tool, resource, and prompt surfaces
-for agent integration. Uses `@modelcontextprotocol/sdk` over stdio
-transport. Tool routing goes through tRPC; resources and prompts register
-directly with the MCP SDK alongside the tRPC router.
+Model Context Protocol server providing tool and prompt surfaces for agent
+integration. Uses `@modelcontextprotocol/sdk` over stdio transport. Tool
+routing goes through tRPC; prompts register directly with the MCP SDK
+alongside the tRPC router.
 
 **npm name:** `@vitest-agent/mcp`
 **Bin:** `vitest-agent-mcp`
@@ -44,7 +44,7 @@ For the surfaces this package exposes to the Claude Code plugin, see
 and writes to, see [./sdk.md](./sdk.md).
 
 For decisions: [../decisions.md](../decisions.md) D11/D12/D13 (TDD
-hierarchy and capability-vs-scoping), D33 (resources + prompts surface),
+hierarchy and capability-vs-scoping), D35 (framing-only prompts surface),
 D7 (artifact write authority).
 
 ---
@@ -67,8 +67,8 @@ var. See [./plugin-claude.md](./plugin-claude.md) for the loader side.
 
 `server.ts` registers all tRPC tools with the MCP SDK using zod input
 schemas (the MCP SDK side; tRPC inputs are also zod, kept in sync between
-the two registrations), then calls `registerAllResources(server)` and
-`registerAllPrompts(server)` before constructing `StdioServerTransport`.
+the two registrations), then calls `registerAllPrompts(server)` before
+constructing `StdioServerTransport`.
 
 ## tRPC router and tools
 
@@ -397,67 +397,6 @@ context recovery fails (no env vars set), the orchestrator can call
 SessionStart hook would have triggered via the `agent register-agent`
 sidecar; the MCP tool reaches the same `DataStore.registerAgent` code path.
 
-## MCP resources
-
-`packages/mcp/src/resources/`. The MCP resources surface exposes content
-under two URI schemes:
-
-- `vitest://docs/` — the vendored upstream Vitest documentation snapshot
-  at `packages/mcp/public/vendor/vitest-docs/`.
-- `vitest-agent://patterns/` — the curated patterns library at `packages/mcp/public/patterns/`, spanning two pattern classes: testing patterns (testing Effect services, schemas, authoring a custom reporter) and agent-operability guidance (operating the tool as an agent, running tests via MCP, silencing leaking output, known issues). The `_meta.json` manifest is the authoritative per-pattern list.
-
-Each scheme has an index URI and a per-page template URI. Both per-page
-templates register a `list` callback that decodes the source manifest
-(`vitest_docs_page` reads `manifest.json` validated against
-`UpstreamManifest`; `vitest_agent_pattern` reads `_meta.json` validated
-against `PatternsManifest`) and emits per-page `{ name, uri, title,
-description, mimeType, annotations? }`. Clients show the "load when"
-descriptions in their resource picker; the optional `annotations` field
-carries MCP 2025-11-25 `audience` and `priority` so clients can rank or
-filter before pulling content into context. The path-prefix → priority
-bands are owned by `annotations-heuristic.ts` (see *Snapshot maintenance
-pipeline*). The authored per-page descriptions remain the headline reason
-the manifest carries metadata at all — mechanical title extraction is not
-enough.
-
-**Why two URI schemes:**
-
-- `vitest://` carries vendored upstream content — a snapshot of
-  `vitest-dev/vitest`'s `docs/` tree at a pinned tag. The scheme name
-  signals provenance.
-- `vitest-agent://` carries content authored *for* this project — opinions about testing Effect services, testing schemas and authoring a custom reporter, plus agent-operability guidance for driving the tool itself (an `audience: ["assistant"]` read-first orientation index and its supporting cookbook / troubleshooting pages). Splitting the schemes makes it impossible to conflate vendored content with curated guidance, even at a glance.
-
-**Path-traversal guarding.** `paths.ts`'s `resolveResourcePath` enforces
-three invariants: no null bytes, no absolute paths, and the resolved path
-must stay within the resource root. Naïve `join(root, relative)` would let
-`vitest://docs/../../etc/passwd` escape the vendored tree. The MCP server
-runs as a long-lived process and resource URIs come from clients, so this
-guard is not optional.
-
-**Vendor + patterns layout.** Both content trees live under a package-root
-`public/` directory. `@savvy-web/bundler` mirrors `public/` into the build
-output at `dist/<env>/pkg/public/` (via tsdown-plugins' `syncPublicDir`) —
-`vendor/` and `patterns/` end up at `dist/<env>/pkg/public/vendor/` and
-`dist/<env>/pkg/public/patterns/`. `resolveContentRoots()` in
-`resources/index.ts` probes the `public/` layout in both the built and
-source modes (`../public` post-build, `../../public` from source) and
-fails loudly if neither carries `patterns/_meta.json`, so a broken build
-surfaces a clear path list at startup instead of an opaque runtime
-`ENOENT`. `packages/mcp/__test__/content-roots.test.ts` guards this,
-asserting the served corpus resolves under `public/` with both index files
-present (regression coverage for issue #96).
-
-`UpstreamManifest`'s `pages: ReadonlyArray<{ path, title, description,
-annotations? }>` field is **optional** in the schema so the registrar's
-`list` callback can fall back gracefully during a transitional
-pre-skill-run state (skip enumeration, return empty `resources: []`).
-The per-page `annotations` field is also optional so a partially
-annotated manifest decodes cleanly during an editorial pass. The
-`validate-snapshot.ts` script enforces non-empty `pages[]` as a quality
-gate before commit, so in normal operation the field is always
-populated; partial annotation coverage produces a non-fatal warning
-that the editorial pass is incomplete.
-
 ## MCP prompts
 
 `packages/mcp/src/prompts/`. Framing-only prompts surface canonical
@@ -481,97 +420,6 @@ expects the agent to compose.
 The `wrapup` prompt's `kind` argument is a closed `z.enum([...])` matching
 the `WrapupKind` variants the `format-wrapup` library generator emits;
 the registrar narrows `args.kind` before forwarding to the factory.
-
-## Snapshot maintenance pipeline
-
-`packages/mcp/lib/scripts/`. The `lib/` convention (not `src/`) is the
-repo convention for Effect-based, turbo-cache-affecting TypeScript that
-lives outside the published bundle — matching the `lib/configs/`
-directory at the repo root. Maintenance code is not part of the published
-bundle. Putting it under `src/` would pull it into the rslib build entry
-list.
-
-The pipeline splits the lifecycle so the
-`.claude/skills/update-vitest-snapshot/` skill can pause for the agent
-to author per-page descriptions between scaffolding and validation:
-
-- **`fetch-upstream-docs.ts`** — sparse-clones `vitest-dev/vitest` at the
-  requested tag (`--depth 1 --filter=blob:none --sparse --branch <tag>`,
-  `sparse-checkout set docs`) and writes the cloned tree to a gitignored
-  work area at `lib/vitest-docs-raw/`. Records `.upstream-info.json`
-  validated against the `UpstreamManifest` Effect Schema.
-- **`build-snapshot.ts`** — reads the raw tree, applies a denylist (drops
-  VitePress meta files like `.vitepress/`, `index.md`, `team.md`,
-  `todo.md`, `blog.md`, `blog/`, `public/`), strips VitePress YAML
-  frontmatter, derives mechanical titles from each page's H1, and writes
-  the cleaned tree to `public/vendor/vitest-docs/` plus a schema-validated
-  `manifest.json`. The `pages[]` entries land with placeholder
-  descriptions marked `[TODO: replace with load-when signal]` — the skill
-  drives the agent through rewriting each one. The script also seeds
-  every page's `annotations` (`audience: ["assistant"]` + a priority
-  band) by calling into `annotations-heuristic.ts` so a fresh snapshot
-  starts with reasonable defaults that the editorial pass then tightens.
-- **`annotations-heuristic.ts`** — single source of truth for the
-  path-prefix → `priority` mapping (API reference 0.85–0.95, coverage
-  0.85, core guide 0.75–0.85, experimental browser-mode 0.55, migration
-  0.45). Pure module, no I/O; both `build-snapshot.ts` and
-  `apply-annotations.ts` consume the same function so the seeded values
-  stay consistent.
-- **`apply-annotations.ts`** — idempotent one-shot bootstrap for an
-  existing manifest. Re-runs `annotations-heuristic.ts` against every
-  page in the current `manifest.json`, writes only the entries that
-  changed, and is safe to re-invoke against an already-annotated
-  manifest (no diff produced). Used when bootstrapping annotations onto
-  a snapshot that was generated before the heuristic existed, without
-  re-fetching from upstream.
-- **`validate-snapshot.ts`** — quality gate. Decodes `manifest.json`
-  against `UpstreamManifest`, asserts `pages[]` is non-empty, checks
-  every committed `.md` has a manifest entry and every entry resolves to
-  a real file, refuses any description still carrying the `[TODO`
-  marker, enforces a 30-character minimum description length, rejects
-  empty `annotations.audience` arrays and out-of-range `priority` values,
-  and warns when only a subset of pages carry annotations so partial
-  editorial coverage is visible at commit time.
-
-**Why `execFileSync`, not `execSync`.** The fetcher takes the tag as a
-CLI argument and passes it to `git`. Building a shell command string and
-passing to `execSync` (`git clone ... --branch ${tag} ...`) opens a
-shell-injection hole at the exact boundary where the input is least
-trusted. `execFileSync("git", [..., "--branch", tag, ...], { cwd })`
-invokes git directly without spawning a shell, so `tag` is treated
-verbatim as one argv element regardless of its contents.
-
-**Build-time copy.** The bundler only compiles TypeScript sources. The
-vendor tree and patterns tree are runtime data, not source. Bundling them
-through a build plugin would either inline the markdown into the JS bundle
-(wasteful for resources clients fetch by URI) or require a custom loader.
-`@savvy-web/bundler` mirrors a package-root `public/` directory into the
-build output (via tsdown-plugins' `syncPublicDir`) — it does **not** copy
-arbitrary `src/` subdirectories, which is why the corpus lives in
-`public/` rather than `src/`: under the old `src/` layout the built and
-published package shipped neither tree, causing the runtime `ENOENT …
-patterns/_meta.json` of issue #96. `dist/<env>/pkg/public/vendor/` and
-`dist/<env>/pkg/public/patterns/` land next to the compiled bundle, so the
-runtime path resolution in `resources/index.ts` works post-build.
-
-**Adding a resource.** Drop markdown into `public/vendor/vitest-docs/`
-(vendored upstream — managed by the snapshot pipeline) or `public/patterns/`
-(curated content — author directly + update `_meta.json`). For the
-vendored tree, every page MUST have a corresponding entry in
-`manifest.json`'s `pages[]` array (path, title, description) — the
-registrar's `list` callback in `resources/index.ts` reads it to emit
-the per-page resource list. The existing template URIs
-(`vitest://docs/{+path}`, `vitest-agent://patterns/{slug}`) automatically
-address the file itself; no registrar change unless adding a new URI
-scheme.
-
-**Adding a new content tree** (e.g., `vitest-agent://decisions/`): add
-the directory under `public/` as a sibling of `public/vendor/` and
-`public/patterns/` — `syncPublicDir` mirrors it into `dist/<env>/pkg/public/`
-with no config change — register the new scheme in `resources/index.ts`,
-add a reader file using the path-traversal-safe root resolution, and
-resolve the new root from `import.meta.url` using the same dev/post-build
-dual-path pattern.
 
 ## McpLive composition layer
 
