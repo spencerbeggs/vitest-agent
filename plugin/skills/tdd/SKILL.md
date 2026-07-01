@@ -100,12 +100,18 @@ Skipping this gate is the **UNRECORDED PHASE CHANGE** violation. At every RED→
 ```text
 tdd_phase_transition_request({
   tddTaskId: <id>,
+  goalId: <id>,
   requestedPhase: "green" | "refactor",
   citedArtifactId: <tdd_artifacts.id>
 })
 ```
 
 Phase boundaries without MCP confirmation do not exist in the database. The validator enforces evidence-binding rules (D2): the cited artifact must belong to the current phase window and session. If the validator denies, read the `remediation` field and act on it before retrying. Do not advance the phase unilaterally.
+
+Two cross-behavior moves are first-class — request each in one call with `citedArtifactId` omitted (auto-resolution finds the row):
+
+- **Triangulation.** When one implementation satisfies several behaviors, enter `red.triangulate` (not `red`) for each. Later members' tests pass immediately (no own failing run) — request `red.triangulate→green` with the member's `behaviorId`; the batch's real failing run is accepted (phase-window and behavior-match are waived for this transition). Do not skip green with a `red→refactor` jump.
+- **Next behavior.** Cross a behavior boundary with a single `refactor→red` carrying the **new** `behaviorId`; the prior behavior's `test_passed_run` is accepted because `refactor→red` does not enforce behavior-match. No `refactor→red`-then-`red→red` rebind dance.
 
 ---
 

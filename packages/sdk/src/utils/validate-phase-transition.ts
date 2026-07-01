@@ -91,6 +91,20 @@ export const requiredArtifactForTransition = (
 				"Run the failing test via run_tests, then record the test_failed_run artifact before requesting red→green.",
 		};
 	}
+	if (from === "red.triangulate" && to === "green") {
+		// Triangulation (issue #115): a batch of behaviors is satisfied by one
+		// shared implementation. Later behaviors in the batch never produce their
+		// own failing run (the shared code already passes them), so red.triangulate→green
+		// accepts the batch's failing run as evidence — but a real failing run must
+		// still exist. Returning test_failed_run here (rather than null) both engages
+		// auto-resolution and closes the zero-evidence hole. The validator relaxes the
+		// phase-window and behavior-match binding rules for this transition below.
+		return {
+			kind: "test_failed_run",
+			humanHint:
+				"A triangulation batch must still have produced at least one real failing run; record the batch's test_failed_run before requesting red.triangulate→green.",
+		};
+	}
 	if (from === "green" && to === "refactor") {
 		return {
 			kind: "test_passed_run",
@@ -107,6 +121,23 @@ export const requiredArtifactForTransition = (
 	}
 	return null;
 };
+/**
+ * Whether D2 binding rule 2 (behavior-match) applies to a given transition.
+ *
+ * Only the transitions whose cited evidence must belong to the behavior being
+ * transitioned enforce behavior-match: `red→green` (the failing test for this
+ * behavior) and `green→refactor` (its passing test). It deliberately excludes
+ * `red.triangulate→green` (the cited failing run belongs to an earlier batch
+ * behavior) and `refactor→red` (the required `test_passed_run` is the
+ * just-finished behavior's, never the new target). Exported so the MCP
+ * `tdd_phase_transition_request` tool scopes artifact auto-resolution by
+ * behavior on exactly the same transitions the validator will accept —
+ * keeping the two in lockstep (issue #115).
+ * @public
+ */
+export const transitionEnforcesBehaviorMatch = (from: Phase, to: Phase): boolean =>
+	(from === "red" && to === "green") || (from === "green" && to === "refactor");
+
 /** @public */
 export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTransitionResult => {
 	// Guard: green may only be entered from a red-family phase (red, red.triangulate)
@@ -132,6 +163,13 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 			},
 		};
 	}
+
+	// Triangulation (issue #115): red.triangulate→green accepts the batch's real failing
+	// run as evidence for a later batch member whose own test never failed. The kind,
+	// specific-test (test_case_id), session, and not-pre-existing (rule 3) guarantees still
+	// apply; only the per-behavior phase-window and behavior-match rules are relaxed, because
+	// the cited run legitimately belongs to an earlier behavior in the batch.
+	const isTriangulateGreen = ctx.current_phase === "red.triangulate" && ctx.requested_phase === "green";
 
 	const expected = requiredArtifactForTransition(ctx.current_phase, ctx.requested_phase);
 	if (expected === null) {
@@ -188,6 +226,7 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 	// was written in the red phase (which is the normal TDD pattern).
 	if (expected.kind === "test_failed_run") {
 		if (
+			!isTriangulateGreen &&
 			ctx.cited_artifact.test_case_created_turn_at !== null &&
 			ctx.cited_artifact.test_case_created_turn_at < ctx.phase_started_at
 		) {
@@ -218,8 +257,18 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 		}
 	}
 
-	// D2 binding rule 2: behavior match (if the orchestrator requests transitioning a specific behavior)
-	if (ctx.requested_behavior_id !== null && ctx.cited_artifact.behavior_id !== ctx.requested_behavior_id) {
+	// D2 binding rule 2: behavior match (if the orchestrator requests transitioning a specific behavior).
+	// Scoped (issue #115) to the transitions whose evidence must belong to the behavior being
+	// transitioned — red→green (the failing test for this behavior) and green→refactor (its passing
+	// test). It does NOT apply to:
+	//   - red.triangulate→green: the cited failing run legitimately belongs to an earlier batch behavior;
+	//   - refactor→red: the required test_passed_run is the just-finished behavior's, never the new one,
+	//     so enforcing behavior-match here is a category error that forced a two-step rebind dance.
+	if (
+		transitionEnforcesBehaviorMatch(ctx.current_phase, ctx.requested_phase) &&
+		ctx.requested_behavior_id !== null &&
+		ctx.cited_artifact.behavior_id !== ctx.requested_behavior_id
+	) {
 		return {
 			accepted: false,
 			phase: ctx.current_phase,

@@ -1,5 +1,11 @@
 import type { ArtifactKind, CitedArtifactRow, Phase } from "@vitest-agent/sdk";
-import { DataReader, DataStore, requiredArtifactForTransition, validatePhaseTransition } from "@vitest-agent/sdk";
+import {
+	DataReader,
+	DataStore,
+	requiredArtifactForTransition,
+	transitionEnforcesBehaviorMatch,
+	validatePhaseTransition,
+} from "@vitest-agent/sdk";
 
 import { Effect, Option, Schema } from "effect";
 import { publicProcedure } from "../context.js";
@@ -229,10 +235,21 @@ export const tddPhaseTransitionRequest = publicProcedure
 					resolvedKindSource = "transition-derived";
 				}
 
+				// Scope the artifact lookup to the requested behavior only for the transitions where
+				// the validator enforces behavior-match (rule 2): red→green and green→refactor. For
+				// those, the newest matching artifact task-wide may belong to a different behavior and
+				// get rejected even though the correct one exists (issue #115). We must NOT scope for
+				// red.triangulate→green (the batch's failing run belongs to an earlier behavior) or
+				// refactor→red (the evidence is the just-finished behavior, not the requested one) —
+				// scoping there would filter out the very artifact the validator is willing to accept.
+				const scopeLookupByBehavior =
+					input.behaviorId !== undefined && transitionEnforcesBehaviorMatch(currentPhase, input.requestedPhase);
+
 				if (resolvedArtifactId === undefined && kindToLookUp !== undefined) {
 					const recent = yield* reader.listTddArtifactsForTask({
 						tddTaskId: input.tddTaskId,
 						artifactKind: kindToLookUp,
+						...(scopeLookupByBehavior && { behaviorId: input.behaviorId }),
 						limit: 1,
 					});
 					if (recent.length === 0) {

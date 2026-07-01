@@ -286,10 +286,16 @@ When omitted, the tool auto-resolves the most recent matching artifact
 for the required-evidence rule of the target phase via
 `DataReader.listTddArtifactsForTask({ walkParents: true })` (which
 follows the `sessions.parent_session_id` chain so the resolver finds
-artifacts written under a rotated `chat_id`). The
-auto-resolved artifact id is returned in the response so the
-orchestrator can record what evidence was bound. Explicit citation
-still wins when the agent supplies it.
+artifacts written under a rotated `chat_id`). That lookup is
+behavior-scoped — it passes `behaviorId` — only for `red→green` and
+`green→refactor`, the transitions where the validator enforces
+behavior-match (rule 2), gated by the shared
+`transitionEnforcesBehaviorMatch` predicate from the SDK; it stays
+unscoped for `red.triangulate→green` and `refactor→red` so the batch or
+prior-behavior evidence those transitions rely on is still found
+(issue #115). The auto-resolved artifact id is returned in the response
+so the orchestrator can record what evidence was bound. Explicit
+citation still wins when the agent supplies it.
 
 The `tdd_artifact_list` tool exposes the same reader directly so the
 orchestrator can list candidate artifacts before committing to a
