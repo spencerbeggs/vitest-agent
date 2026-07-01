@@ -100,6 +100,7 @@ Skipping this gate is the **UNRECORDED PHASE CHANGE** violation. At every RED→
 ```text
 tdd_phase_transition_request({
   tddTaskId: <id>,
+  goalId: <id>,
   requestedPhase: "green" | "refactor",
   citedArtifactId: <tdd_artifacts.id>
 })
