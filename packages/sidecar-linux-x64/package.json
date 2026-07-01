@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/sidecar-linux-x64",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"private": true,
 	"description": "linux-x64 prebuilt binary for vitest-agent-sidecar.",
 	"repository": {
