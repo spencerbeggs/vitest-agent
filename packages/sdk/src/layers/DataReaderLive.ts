@@ -35,6 +35,7 @@ import type {
 } from "../services/DataReader.js";
 import { DataReader } from "../services/DataReader.js";
 import type { ArtifactKind, ChangeKind, Phase } from "../services/DataStore.js";
+import { historyKey } from "../services/HistoryTracker.js";
 /** @public */
 export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.effect(
 	DataReader,
@@ -375,7 +376,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				for (const row of rows) {
 					// Only include passed/failed states per HistoryRecord schema
 					if (row.state !== "passed" && row.state !== "failed") continue;
-					const key = `${row.module_path} ${row.full_name}`;
+					const key = historyKey(row.module_path, row.full_name);
 					const existing = testsMap.get(key);
 					if (existing) {
 						existing.runs.push({ timestamp: row.timestamp, state: row.state });
