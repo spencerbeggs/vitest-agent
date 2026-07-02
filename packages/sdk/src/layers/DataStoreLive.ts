@@ -277,6 +277,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		const writeHistory = (
 			project: string,
 			fullName: string,
+			modulePath: string,
 			runId: number,
 			timestamp: string,
 			state: string,
@@ -286,11 +287,11 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			errorMessage: string | null,
 		): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("writeHistory").pipe(Effect.annotateLogs({ project, runId }));
-				yield* sql`INSERT INTO test_history (run_id, project, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage})`;
+				yield* Effect.logDebug("writeHistory").pipe(Effect.annotateLogs({ project, modulePath, runId }));
+				yield* sql`INSERT INTO test_history (run_id, project, module_path, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${modulePath}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage})`;
 
-				// Delete oldest entries beyond 10-entry window per (project, fullName)
-				yield* sql`DELETE FROM test_history WHERE id NOT IN (SELECT id FROM test_history WHERE project = ${project} AND full_name = ${fullName} ORDER BY timestamp DESC LIMIT 10) AND project = ${project} AND full_name = ${fullName}`;
+				// Delete oldest entries beyond 10-entry window per (project, module_path, fullName)
+				yield* sql`DELETE FROM test_history WHERE id NOT IN (SELECT id FROM test_history WHERE project = ${project} AND module_path = ${modulePath} AND full_name = ${fullName} ORDER BY timestamp DESC LIMIT 10) AND project = ${project} AND module_path = ${modulePath} AND full_name = ${fullName}`;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
 				Effect.mapError(

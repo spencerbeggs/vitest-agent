@@ -290,9 +290,7 @@ type still exists because the CLI and MCP surfaces speak it.
 
 ## Failure history
 
-`HistoryRecord` is the per-test sliding-window log. `TestHistory.runs` is
-capped at 10 entries per `fullName`. The DB is the authoritative store; this
-type is the in-memory shape for classification.
+`HistoryRecord` is the per-test sliding-window log. A test's identity is file-qualified: `TestHistory` carries both `modulePath` and `fullName`, and `runs` is capped at 10 entries per `(modulePath, fullName)` pair. Vitest's `fullName` is only the describe-chain plus test name, so two files in one package that share a `describe › it` name would otherwise collide; qualifying by module path keeps them distinct end to end (see Decision D20). The DB is the authoritative store; this type is the in-memory shape for classification.
 
 ## Failure signature
 
@@ -612,7 +610,7 @@ read the already-updated row and accumulate stale tokens.
 | `import_durations` | Module import timing |
 | `task_metadata` | Key-value metadata |
 | `console_logs` | Per-test stdout/stderr capture |
-| `test_history` | Per-test sliding-window history |
+| `test_history` | Per-test sliding-window history; identity is `UNIQUE(project, module_path, full_name, timestamp)` and the lookup index is `(project, module_path, full_name)` |
 | `coverage_baselines` | Auto-ratcheting high-water marks |
 | `coverage_trends` | Per-project trend entries |
 | `file_coverage` | Per-file coverage per run |

@@ -35,6 +35,7 @@ import type {
 } from "../services/DataReader.js";
 import { DataReader } from "../services/DataReader.js";
 import type { ArtifactKind, ChangeKind, Phase } from "../services/DataStore.js";
+import { historyKey } from "../services/HistoryTracker.js";
 /** @public */
 export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.effect(
 	DataReader,
@@ -357,28 +358,39 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getHistory").pipe(Effect.annotateLogs({ project }));
 				const rows = yield* sql<{
+					module_path: string;
 					full_name: string;
 					timestamp: string;
 					state: string;
-				}>`SELECT full_name, timestamp, state
+				}>`SELECT module_path, full_name, timestamp, state
 					FROM test_history
 					WHERE project = ${project}
-					ORDER BY full_name, timestamp DESC`;
+					ORDER BY module_path, full_name, timestamp DESC`;
 
-				// Group by full_name
-				const testsMap = new Map<string, Array<{ timestamp: string; state: "passed" | "failed" }>>();
+				// Group by the composite (module_path, full_name) key so identically
+				// named tests in different files are tracked as distinct series.
+				const testsMap = new Map<
+					string,
+					{ modulePath: string; fullName: string; runs: Array<{ timestamp: string; state: "passed" | "failed" }> }
+				>();
 				for (const row of rows) {
 					// Only include passed/failed states per HistoryRecord schema
 					if (row.state !== "passed" && row.state !== "failed") continue;
-					const existing = testsMap.get(row.full_name);
+					const key = historyKey(row.module_path, row.full_name);
+					const existing = testsMap.get(key);
 					if (existing) {
-						existing.push({ timestamp: row.timestamp, state: row.state });
+						existing.runs.push({ timestamp: row.timestamp, state: row.state });
 					} else {
-						testsMap.set(row.full_name, [{ timestamp: row.timestamp, state: row.state }]);
+						testsMap.set(key, {
+							modulePath: row.module_path,
+							fullName: row.full_name,
+							runs: [{ timestamp: row.timestamp, state: row.state }],
+						});
 					}
 				}
 
-				const tests = Array.from(testsMap.entries()).map(([fullName, runs]) => ({
+				const tests = Array.from(testsMap.values()).map(({ modulePath, fullName, runs }) => ({
+					modulePath,
 					fullName,
 					runs,
 				}));
@@ -512,6 +524,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				yield* Effect.logDebug("getFlaky").pipe(Effect.annotateLogs({ project }));
 				const rows = yield* sql<{
 					full_name: string;
+					module_path: string;
 					project: string;
 					pass_count: number;
 					fail_count: number;
@@ -519,29 +532,33 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					last_timestamp: string;
 				}>`SELECT
 						th1.full_name,
+						th1.module_path,
 						th1.project,
 						SUM(CASE WHEN th1.state = 'passed' THEN 1 ELSE 0 END) as pass_count,
 						SUM(CASE WHEN th1.state = 'failed' THEN 1 ELSE 0 END) as fail_count,
 						(SELECT state FROM test_history th2
 						 WHERE th2.full_name = th1.full_name
+						   AND th2.module_path = th1.module_path
 						   AND th2.project = th1.project
 						 ORDER BY timestamp DESC LIMIT 1) as last_state,
 						MAX(th1.timestamp) as last_timestamp
 					FROM test_history th1
 					WHERE th1.project = ${project}
-					GROUP BY th1.full_name, th1.project
+					GROUP BY th1.full_name, th1.module_path, th1.project
 					-- Flaky means oscillation, not a clean recovery. A test with both
 						-- passes and fails is only flaky when at least one failure occurs at
 						-- or after the earliest pass (a fail-after-pass regression). A
 						-- monotonic red->green cycle — every failure precedes every pass — is
 						-- a recovery, not flakiness, so it is excluded here. ISO-8601
-						-- timestamps compare lexicographically.
+						-- timestamps compare lexicographically. Grouping keys on module_path
+						-- so same-named tests in different files stay distinct series.
 						HAVING pass_count > 0 AND fail_count > 0
 							AND MAX(CASE WHEN th1.state = 'failed' THEN th1.timestamp END)
 								>= MIN(CASE WHEN th1.state = 'passed' THEN th1.timestamp END)`;
 
 				return rows.map((r) => ({
 					fullName: r.full_name,
+					modulePath: r.module_path,
 					project: r.project,
 					passCount: r.pass_count,
 					failCount: r.fail_count,
@@ -562,44 +579,47 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				// trailing failures (replaces previous N+1 pattern)
 				const rows = yield* sql<{
 					full_name: string;
+					module_path: string;
 					project: string;
 					consecutive_failures: number;
 					first_failed_at: string;
 					last_failed_at: string;
 					last_error_message: string | null;
 				}>`WITH ranked AS (
-					SELECT full_name, project, state, timestamp, error_message,
+					SELECT full_name, module_path, project, state, timestamp, error_message,
 						ROW_NUMBER() OVER (
-							PARTITION BY project, full_name
+							PARTITION BY project, module_path, full_name
 							ORDER BY timestamp DESC
 						) as rn
 					FROM test_history
 					WHERE project = ${project}
 				),
 				streak AS (
-					SELECT full_name, project, state, timestamp, error_message, rn,
+					SELECT full_name, module_path, project, state, timestamp, error_message, rn,
 						MIN(CASE WHEN state != 'failed' THEN rn END) OVER (
-							PARTITION BY project, full_name
+							PARTITION BY project, module_path, full_name
 						) as first_pass_rn
 					FROM ranked
 				)
 				SELECT
-					full_name, project,
+					full_name, module_path, project,
 					COUNT(*) as consecutive_failures,
 					MIN(timestamp) as first_failed_at,
 					MAX(timestamp) as last_failed_at,
 					(SELECT error_message FROM streak s2
 					 WHERE s2.full_name = streak.full_name
+					   AND s2.module_path = streak.module_path
 					   AND s2.project = streak.project
 					   AND s2.rn = 1) as last_error_message
 				FROM streak
 				WHERE state = 'failed'
 					AND (first_pass_rn IS NULL OR rn < first_pass_rn)
-				GROUP BY full_name, project
+				GROUP BY full_name, module_path, project
 				HAVING consecutive_failures >= 2`;
 
 				return rows.map((row) => ({
 					fullName: row.full_name,
+					modulePath: row.module_path,
 					project: row.project,
 					consecutiveFailures: row.consecutive_failures,
 					firstFailedAt: row.first_failed_at,

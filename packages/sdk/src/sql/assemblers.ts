@@ -1,5 +1,6 @@
 import type { CacheManifest, CacheManifestEntry } from "../schemas/CacheManifest.js";
 import type { TestRun } from "../schemas/History.js";
+import { historyKey } from "../services/HistoryTracker.js";
 
 // ---------------------------------------------------------------------------
 // Input row types (minimal -- only the fields each assembler needs)
@@ -21,6 +22,7 @@ export interface ManifestRow {
  * @public
  */
 export interface HistoryRow {
+	module_path: string;
 	full_name: string;
 	timestamp: string;
 	state: string;
@@ -31,7 +33,9 @@ export interface HistoryRow {
 // ---------------------------------------------------------------------------
 
 /**
- * A `Record<fullName, { runs: TestRun[] }>` keyed by test full name.
+ * A `Record<compositeKey, { modulePath, fullName, runs: TestRun[] }>` keyed by
+ * the injective `historyKey(modulePath, fullName)` string, so identically-named
+ * tests in different files are tracked as distinct entries.
  *
  * This is the internal representation returned by `assembleHistoryRecord`.
  * Callers that need the Effect Schema `HistoryRecord` type should adapt this
@@ -39,7 +43,7 @@ export interface HistoryRow {
  * @public
  */
 export interface AssembledHistoryRecord {
-	[fullName: string]: { runs: TestRun[] };
+	[compositeKey: string]: { modulePath: string; fullName: string; runs: TestRun[] };
 }
 
 // ---------------------------------------------------------------------------
@@ -96,10 +100,13 @@ export function assembleManifest(rows: ManifestRow[], dbPath: string): CacheMani
 // ---------------------------------------------------------------------------
 
 /**
- * Groups test_history rows by `full_name` into a keyed record.
+ * Groups test_history rows by the composite (module_path, full_name) key
+ * into a keyed record.
  *
- * Returns `Record<fullName, { runs: TestRun[] }>` where `runs` are the
- * accumulated test runs for that test, in the order they appear in `rows`.
+ * Returns `Record<compositeKey, { modulePath, fullName, runs: TestRun[] }>`
+ * where `runs` are the accumulated test runs for that test, in the order
+ * they appear in `rows`. Two rows sharing `full_name` but differing
+ * `module_path` are tracked as distinct entries rather than merged.
  *
  * Only rows with state `"passed"` or `"failed"` are included in runs
  * (matching the `TestRun` schema constraint).
@@ -112,11 +119,12 @@ export function assembleHistoryRecord(rows: HistoryRow[]): AssembledHistoryRecor
 		const state = row.state === "passed" || row.state === "failed" ? row.state : null;
 		if (state === null) continue;
 
-		if (!record[row.full_name]) {
-			record[row.full_name] = { runs: [] };
+		const key = historyKey(row.module_path, row.full_name);
+		if (!record[key]) {
+			record[key] = { modulePath: row.module_path, fullName: row.full_name, runs: [] };
 		}
 
-		(record[row.full_name] as { runs: TestRun[] }).runs.push({
+		record[key].runs.push({
 			timestamp: row.timestamp,
 			state,
 		});

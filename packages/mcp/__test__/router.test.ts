@@ -523,6 +523,105 @@ describe("MCP Router", () => {
 		});
 	});
 
+	describe("test_history tool", () => {
+		it("keeps two recovered tests with the same fullName in different modules distinguishable by modulePath", async () => {
+			const store = await testRuntime.runPromise(Effect.map(DataStore, (s) => s));
+
+			await testRuntime.runPromise(
+				Effect.gen(function* () {
+					yield* store.writeSettings("history-recovered-hash", { vitestVersion: "3.2.0" }, {});
+					const runId = yield* store.writeRun({
+						invocationId: "inv-history-recovered",
+						project: "history-recovered-proj",
+						settingsHash: "history-recovered-hash",
+						timestamp: "2026-03-26T00:00:00.000Z",
+						commitSha: null,
+						branch: null,
+						reason: "passed",
+						duration: 100,
+						total: 2,
+						passed: 2,
+						failed: 0,
+						skipped: 0,
+						scoped: false,
+					});
+
+					// Two distinct files sharing a describe+test name; each recovers
+					// from a failure to a pass -- the "recovered" listing must keep
+					// them as two distinguishable entries, not one collapsed row.
+					yield* store.writeHistory(
+						"history-recovered-proj",
+						"Suite > shared name",
+						"src/a.test.ts",
+						runId,
+						"2026-03-25T00:00:00.000Z",
+						"failed",
+						10,
+						false,
+						0,
+						"boom A",
+					);
+					yield* store.writeHistory(
+						"history-recovered-proj",
+						"Suite > shared name",
+						"src/a.test.ts",
+						runId,
+						"2026-03-26T00:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"history-recovered-proj",
+						"Suite > shared name",
+						"src/b.test.ts",
+						runId,
+						"2026-03-25T00:00:00.000Z",
+						"failed",
+						10,
+						false,
+						0,
+						"boom B",
+					);
+					yield* store.writeHistory(
+						"history-recovered-proj",
+						"Suite > shared name",
+						"src/b.test.ts",
+						runId,
+						"2026-03-26T00:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+				}),
+			);
+
+			const caller = createTestCaller();
+			const result = await caller.test_history({ project: "history-recovered-proj" });
+
+			expect(result.history.tests).toHaveLength(2);
+			const moduleAEntry = result.history.tests.find((t) => t.modulePath === "src/a.test.ts");
+			const moduleBEntry = result.history.tests.find((t) => t.modulePath === "src/b.test.ts");
+			expect(moduleAEntry?.fullName).toBe("Suite > shared name");
+			expect(moduleBEntry?.fullName).toBe("Suite > shared name");
+
+			expect(result.recovered).toHaveLength(2);
+			const recoveredA = result.recovered.find((r) => r.modulePath === "src/a.test.ts");
+			const recoveredB = result.recovered.find((r) => r.modulePath === "src/b.test.ts");
+			expect(recoveredA).toBeDefined();
+			expect(recoveredB).toBeDefined();
+			expect(recoveredA?.fullName).toBe("Suite > shared name");
+			expect(recoveredB?.fullName).toBe("Suite > shared name");
+			// recentRuns is oldest-first; each module recovered failed -> passed.
+			expect(recoveredA?.recentRuns).toEqual(["failed", "passed"]);
+			expect(recoveredB?.recentRuns).toEqual(["failed", "passed"]);
+		});
+	});
+
 	describe("wrapup_prompt tool", () => {
 		it("returns hasContent=false for an unknown session", async () => {
 			const caller = createTestCaller();

@@ -28,13 +28,13 @@
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/data-flows.md",
-			"hash": "1a4a0332d97b6d4f420859aad6293f1d2125c74557f24c466536d9c763445745",
+			"hash": "eccaa0c60486dfc89e1d08afdf0568acb698c89bf10ed1b16fbaa1fcd9410b2f",
 			"recordedAt": "2026-07-01"
 		},
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5985f39aca762e14ba0dee17d1666d3f4862aa16613173c79f34dd422875b6f2",
+			"hash": "9ce52fb37feb6d198290e089d5850def89108bccb3165e1806598fa14feb4193",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -46,7 +46,7 @@
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "9bbf0fd96be8a4ae3e44f1f85c16dbc17115a98cc07384fb8f9202ac19fe8f30",
+			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -64,13 +64,13 @@
 		{
 			"source": "packages/cli/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/data-flows.md",
-			"hash": "1a4a0332d97b6d4f420859aad6293f1d2125c74557f24c466536d9c763445745",
+			"hash": "eccaa0c60486dfc89e1d08afdf0568acb698c89bf10ed1b16fbaa1fcd9410b2f",
 			"recordedAt": "2026-07-01"
 		},
 		{
 			"source": "packages/cli/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "9bbf0fd96be8a4ae3e44f1f85c16dbc17115a98cc07384fb8f9202ac19fe8f30",
+			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -82,19 +82,19 @@
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/data-flows.md",
-			"hash": "1a4a0332d97b6d4f420859aad6293f1d2125c74557f24c466536d9c763445745",
+			"hash": "eccaa0c60486dfc89e1d08afdf0568acb698c89bf10ed1b16fbaa1fcd9410b2f",
 			"recordedAt": "2026-07-01"
 		},
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5985f39aca762e14ba0dee17d1666d3f4862aa16613173c79f34dd422875b6f2",
+			"hash": "9ce52fb37feb6d198290e089d5850def89108bccb3165e1806598fa14feb4193",
 			"recordedAt": "2026-07-01"
 		},
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "9bbf0fd96be8a4ae3e44f1f85c16dbc17115a98cc07384fb8f9202ac19fe8f30",
+			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -112,13 +112,13 @@
 		{
 			"source": "packages/plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/data-flows.md",
-			"hash": "1a4a0332d97b6d4f420859aad6293f1d2125c74557f24c466536d9c763445745",
+			"hash": "eccaa0c60486dfc89e1d08afdf0568acb698c89bf10ed1b16fbaa1fcd9410b2f",
 			"recordedAt": "2026-07-01"
 		},
 		{
 			"source": "packages/plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5985f39aca762e14ba0dee17d1666d3f4862aa16613173c79f34dd422875b6f2",
+			"hash": "9ce52fb37feb6d198290e089d5850def89108bccb3165e1806598fa14feb4193",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -142,13 +142,13 @@
 		{
 			"source": "packages/reporter/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5985f39aca762e14ba0dee17d1666d3f4862aa16613173c79f34dd422875b6f2",
+			"hash": "9ce52fb37feb6d198290e089d5850def89108bccb3165e1806598fa14feb4193",
 			"recordedAt": "2026-07-01"
 		},
 		{
 			"source": "packages/reporter/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "9bbf0fd96be8a4ae3e44f1f85c16dbc17115a98cc07384fb8f9202ac19fe8f30",
+			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -160,13 +160,13 @@
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/sdk.md",
-			"hash": "f22eb2519e632166684b3ec0f472037cf84f15d2e7e6596ca603ef2a91b2b884",
-			"recordedAt": "2026-06-17"
+			"hash": "7b486281438fe4f118543db1a141bff7ad357d60011a7b9024c7d57b7fa1ee7a",
+			"recordedAt": "2026-07-01"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5985f39aca762e14ba0dee17d1666d3f4862aa16613173c79f34dd422875b6f2",
+			"hash": "9ce52fb37feb6d198290e089d5850def89108bccb3165e1806598fa14feb4193",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -178,7 +178,7 @@
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "9bbf0fd96be8a4ae3e44f1f85c16dbc17115a98cc07384fb8f9202ac19fe8f30",
+			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -196,7 +196,7 @@
 		{
 			"source": "packages/sidecar/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5985f39aca762e14ba0dee17d1666d3f4862aa16613173c79f34dd422875b6f2",
+			"hash": "9ce52fb37feb6d198290e089d5850def89108bccb3165e1806598fa14feb4193",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -214,13 +214,13 @@
 		{
 			"source": "packages/ui/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5985f39aca762e14ba0dee17d1666d3f4862aa16613173c79f34dd422875b6f2",
+			"hash": "9ce52fb37feb6d198290e089d5850def89108bccb3165e1806598fa14feb4193",
 			"recordedAt": "2026-07-01"
 		},
 		{
 			"source": "packages/ui/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "9bbf0fd96be8a4ae3e44f1f85c16dbc17115a98cc07384fb8f9202ac19fe8f30",
+			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
 			"recordedAt": "2026-07-01"
 		},
 		{
@@ -238,7 +238,7 @@
 		{
 			"source": "plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5985f39aca762e14ba0dee17d1666d3f4862aa16613173c79f34dd422875b6f2",
+			"hash": "9ce52fb37feb6d198290e089d5850def89108bccb3165e1806598fa14feb4193",
 			"recordedAt": "2026-07-01"
 		},
 		{

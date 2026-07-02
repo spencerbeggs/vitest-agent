@@ -7,7 +7,9 @@ import { describe, expect, it } from "vitest";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import migration0001 from "../src/migrations/0001_initial.js";
 
+import { DataReader } from "../src/services/DataReader.js";
 import { DataStore } from "../src/services/DataStore.js";
+import { makeTestLayer } from "../src/testing/layers.js";
 
 const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
 const PlatformLayer = NodeContext.layer;
@@ -521,6 +523,7 @@ describe("DataStoreLive", () => {
 					yield* store.writeHistory(
 						"my-project",
 						"suite > test one",
+						"src/suite.test.ts",
 						runId,
 						"2026-03-22T00:00:00.000Z",
 						"passed",
@@ -540,6 +543,108 @@ describe("DataStoreLive", () => {
 			);
 		});
 
+		it("allows the same (project, full_name, timestamp) key for two different module_path values, tracked as distinct history entries", async () => {
+			const ModulePathTestLayer = makeTestLayer(":memory:");
+			const result = await Effect.runPromise(
+				Effect.provide(
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const reader = yield* DataReader;
+						yield* store.writeSettings("hist-modpath-hash", settingsInput, {});
+						const runId = yield* store.writeRun({
+							...runInput,
+							project: "modpath-project",
+							settingsHash: "hist-modpath-hash",
+						});
+
+						// Same (project, full_name, timestamp) key, different module_path --
+						// two distinct test files that happen to share a describe+test name.
+						yield* store.writeHistory(
+							"modpath-project",
+							"suite > duplicate name",
+							"src/a.test.ts",
+							runId,
+							"2026-03-22T00:00:00.000Z",
+							"passed",
+							50,
+							false,
+							0,
+							null,
+						);
+						yield* store.writeHistory(
+							"modpath-project",
+							"suite > duplicate name",
+							"src/b.test.ts",
+							runId,
+							"2026-03-22T00:00:00.000Z",
+							"failed",
+							75,
+							false,
+							0,
+							"boom",
+						);
+
+						return yield* reader.getHistory("modpath-project");
+					}),
+					ModulePathTestLayer,
+				),
+			);
+
+			expect(result.tests).toHaveLength(2);
+			const a = result.tests.find((t) => t.modulePath === "src/a.test.ts");
+			const b = result.tests.find((t) => t.modulePath === "src/b.test.ts");
+			expect(a).toBeDefined();
+			expect(b).toBeDefined();
+			expect(a?.fullName).toBe("suite > duplicate name");
+			expect(b?.fullName).toBe("suite > duplicate name");
+			expect(a?.runs).toHaveLength(1);
+			expect(b?.runs).toHaveLength(1);
+			expect(a?.runs[0].state).toBe("passed");
+			expect(b?.runs[0].state).toBe("failed");
+		});
+
+		it("still throws a UNIQUE constraint violation for the exact same (project, module_path, full_name, timestamp) composite key", async () => {
+			// Triangulated by behavior 12's schema/writeHistory implementation.
+			await expect(
+				run(
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						yield* store.writeSettings("hist-exact-dup-hash", settingsInput, {});
+						const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-exact-dup-hash" });
+
+						yield* store.writeHistory(
+							"exact-dup-project",
+							"suite > exact duplicate",
+							"src/exact.test.ts",
+							runId,
+							"2026-03-22T00:00:00.000Z",
+							"passed",
+							50,
+							false,
+							0,
+							null,
+						);
+
+						// Identical (project, module_path, full_name, timestamp) key --
+						// this is a genuine duplicate, not a cross-file collision, and
+						// must still violate the UNIQUE constraint.
+						yield* store.writeHistory(
+							"exact-dup-project",
+							"suite > exact duplicate",
+							"src/exact.test.ts",
+							runId,
+							"2026-03-22T00:00:00.000Z",
+							"failed",
+							75,
+							false,
+							1,
+							"boom",
+						);
+					}),
+				),
+			).rejects.toThrow();
+		});
+
 		it("respects 10-entry sliding window", async () => {
 			await run(
 				Effect.gen(function* () {
@@ -552,6 +657,7 @@ describe("DataStoreLive", () => {
 						yield* store.writeHistory(
 							"window-proj",
 							"windowed test",
+							"src/windowed.test.ts",
 							runId,
 							`2026-03-22T${String(i).padStart(2, "0")}:00:00.000Z`,
 							"passed",
@@ -567,6 +673,59 @@ describe("DataStoreLive", () => {
 						id: number;
 					}>`SELECT id FROM test_history WHERE project = 'window-proj' AND full_name = 'windowed test'`;
 					expect(rows).toHaveLength(10);
+				}),
+			);
+		});
+
+		it("prunes the 10-entry window independently per module_path, not shared across files with the same full_name", async () => {
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeSettings("hist-win-isolated-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-win-isolated-hash" });
+
+					// 12 entries for module A -- should prune to 10.
+					for (let i = 0; i < 12; i++) {
+						yield* store.writeHistory(
+							"window-isolated-proj",
+							"windowed test",
+							"src/a.test.ts",
+							runId,
+							`2026-03-22T${String(i).padStart(2, "0")}:00:00.000Z`,
+							"passed",
+							10,
+							false,
+							0,
+							null,
+						);
+					}
+
+					// 3 entries for module B, same full_name -- must stay untouched by
+					// module A's retention window, and not itself be pruned.
+					for (let i = 0; i < 3; i++) {
+						yield* store.writeHistory(
+							"window-isolated-proj",
+							"windowed test",
+							"src/b.test.ts",
+							runId,
+							`2026-03-23T${String(i).padStart(2, "0")}:00:00.000Z`,
+							"passed",
+							10,
+							false,
+							0,
+							null,
+						);
+					}
+
+					const sql = yield* SqlClient;
+					const rowsA = yield* sql<{
+						id: number;
+					}>`SELECT id FROM test_history WHERE project = 'window-isolated-proj' AND module_path = 'src/a.test.ts' AND full_name = 'windowed test'`;
+					const rowsB = yield* sql<{
+						id: number;
+					}>`SELECT id FROM test_history WHERE project = 'window-isolated-proj' AND module_path = 'src/b.test.ts' AND full_name = 'windowed test'`;
+					expect(rowsA).toHaveLength(10);
+					expect(rowsB).toHaveLength(3);
 				}),
 			);
 		});

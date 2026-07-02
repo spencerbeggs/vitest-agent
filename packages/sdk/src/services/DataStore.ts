@@ -414,6 +414,7 @@ export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 		readonly writeHistory: (
 			project: string,
 			fullName: string,
+			modulePath: string,
 			runId: number,
 			timestamp: string,
 			state: string,

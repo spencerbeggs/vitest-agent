@@ -147,6 +147,7 @@ export const TestHistoryRow = Schema.Struct({
 	id: Schema.Number,
 	run_id: Schema.Number,
 	project: Schema.String,
+	module_path: Schema.String,
 	full_name: Schema.String,
 	timestamp: Schema.String,
 	state: Schema.String,

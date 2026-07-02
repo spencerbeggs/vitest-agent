@@ -32,6 +32,7 @@ describe("TestRun", () => {
 describe("TestHistory", () => {
 	it("accepts valid history entry", () => {
 		const input = {
+			modulePath: "src/suite.test.ts",
 			fullName: "Suite > test name",
 			runs: [
 				{ timestamp: "2026-03-21T00:00:00.000Z", state: "passed" },
@@ -43,7 +44,7 @@ describe("TestHistory", () => {
 	});
 
 	it("accepts empty runs array", () => {
-		const input = { fullName: "test", runs: [] };
+		const input = { modulePath: "src/suite.test.ts", fullName: "test", runs: [] };
 		const result = Schema.decodeUnknownSync(TestHistory)(input);
 		expect(result.runs).toEqual([]);
 	});
@@ -56,6 +57,7 @@ describe("HistoryRecord", () => {
 			updatedAt: "2026-03-21T00:00:00.000Z",
 			tests: [
 				{
+					modulePath: "src/suite.test.ts",
 					fullName: "Suite > test",
 					runs: [{ timestamp: "2026-03-21T00:00:00.000Z", state: "passed" }],
 				},
