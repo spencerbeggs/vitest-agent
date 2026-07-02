@@ -1,5 +1,38 @@
 # @vitest-agent/sdk
 
+## 1.3.0
+
+### Features
+
+* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) `TestHistory` schema and the `FlakyTest` / `PersistentFailure` interfaces gain a `modulePath` field
+* Exported `historyKey` from `HistoryTracker` — builds the composite `(modulePath, fullName)` key so consumers can key their own lookup maps consistently
+* `DataStore.writeHistory` gains a required `modulePath` parameter. Custom reporters or scripts that call `writeHistory` directly need to pass the test module's path:
+
+```ts
+// before
+yield * store.writeHistory(project, fullName, runId, timestamp, state);
+
+// after
+yield *
+  store.writeHistory(project, fullName, modulePath, runId, timestamp, state);
+```
+
+Pre-2.0 note: this changes the `test_history` table shape. Delete your local `data.db` after upgrading (standing pre-2.0 policy — no incremental migration was written).
+
+### Bug Fixes
+
+* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) Test history is now keyed by file, not just by test name. Previously `test_history` rows were identified by `(project, fullName, timestamp)`, so two test files that happened to share a `describe > it` name collided on write (`UNIQUE constraint failed: test_history`) and were conflated on read — flaky/persistent/recovered detection could merge two unrelated tests into one series, potentially hiding a real persistent failure behind a same-named passing test in another file.
+
+- Added a `modulePath` column; history identity is now `(project, modulePath, fullName, timestamp)` end to end
+
+### Dependencies
+
+* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) | Dependency | Type | Action | From | To |
+  \| ------------------ | ---------- | ------- | ------ | ------ |
+  \| config-file-effect | dependency | updated | ^0.2.3 | ^0.3.0 |
+  \| workspaces-effect | dependency | updated | ^1.2.0 | ^1.3.0 |
+  \| xdg-effect | dependency | updated | ^2.0.1 | ^2.1.0 |
+
 ## 1.2.0
 
 ### Features

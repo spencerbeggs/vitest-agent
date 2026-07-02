@@ -1,5 +1,18 @@
 # @vitest-agent/mcp
 
+## 1.3.2
+
+### Features
+
+* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) `test_history` tool output rows (`FlakyTestRow`, `PersistentFailureRow`, `RecoveredTestRow`) and the generated markdown now include `modulePath`, so same-named tests in different files are distinguishable in the results
+  | Dependency        | Type       | Action  | From  | To    |
+  | ----------------- | ---------- | ------- | ----- | ----- |
+  | @vitest-agent/sdk | dependency | updated | 1.2.0 | 1.3.0 |
+
+### Bug Fixes
+
+* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) `test_history`'s "Recovered" detection previously compared the last two entries in `runs` as if the array were oldest-first; `runs` is actually ordered most-recent-first, so the comparison had it backwards. Fixed the ordering so recovered tests (previously failing, now passing) are detected correctly.
+
 ## 1.3.1
 
 ### Bug Fixes

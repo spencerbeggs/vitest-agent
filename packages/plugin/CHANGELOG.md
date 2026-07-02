@@ -1,5 +1,23 @@
 # @vitest-agent/plugin
 
+## 1.1.4
+
+### Bug Fixes
+
+* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) The reporter now threads each test's module path into history writes and classification lookups, so identically-named tests in different files are tracked as independent history series instead of colliding (see the `@vitest-agent/sdk` fix for `test_history` identity)
+  | Dependency             | Type       | Action  | From  | To    |
+  | ---------------------- | ---------- | ------- | ----- | ----- |
+  | @vitest-agent/sdk      | dependency | updated | 1.2.0 | 1.3.0 |
+  | @vitest-agent/mcp      | dependency | updated | 1.3.1 | 1.3.2 |
+  | @vitest-agent/cli      | dependency | updated | 1.0.3 | 1.0.4 |
+  | @vitest-agent/reporter | dependency | updated | 1.0.3 | 1.0.4 |
+
+### Dependencies
+
+* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) | Dependency | Type | Action | From | To |
+  \| ----------------- | ---------- | ------- | ------ | ------ |
+  \| workspaces-effect | dependency | updated | ^1.2.0 | ^1.3.0 |
+
 ## 1.1.3
 
 ### Patch Changes
