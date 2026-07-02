@@ -1,5 +1,14 @@
 # @vitest-agent/reporter
 
+## 1.0.4
+
+### Patch Changes
+
+| Dependency        | Type       | Action  | From  | To    |
+| ----------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/sdk | dependency | updated | 1.2.0 | 1.3.0 |
+| @vitest-agent/ui  | dependency | updated | 1.0.3 | 1.0.4 |
+
 ## 1.0.3
 
 ### Patch Changes
