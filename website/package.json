@@ -10,8 +10,8 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@rspress/core": "^2.0.15",
-		"@rspress/plugin-sitemap": "^2.0.15",
+		"@rspress/core": "^2.0.16",
+		"@rspress/plugin-sitemap": "^2.0.16",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"@types/react-dom": "catalog:silk",
