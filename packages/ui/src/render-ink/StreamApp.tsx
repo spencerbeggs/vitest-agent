@@ -31,13 +31,13 @@ import { Box, Text } from "ink";
 import type { FC, ReactNode } from "react";
 import { classifyRunShape } from "../dispatcher/classify.js";
 import { formatDisplayDuration } from "../format-duration.js";
-import { CountColumns } from "./CountColumns.js";
+import { CountColumns, DURATION_CELL_WIDTH } from "./CountColumns.js";
 import { ProjectRow } from "./ProjectRow.js";
 import { StatusIcon } from "./StatusIcon.js";
 import { spinnerFrame } from "./spinner.js";
+import { TagColumns, tagUnion } from "./TagColumns.js";
 import { TestRow } from "./TestRow.js";
 import { TrendLine } from "./TrendLine.js";
-import { formatTagSuffix } from "./tag-suffix.js";
 
 /**
  * Props for the `StreamApp` component.
@@ -158,7 +158,8 @@ const ModuleStreamRow: FC<{
 	frame: string;
 	nameWidth: number;
 	timedOut: boolean;
-}> = ({ module, nowMs, frame, nameWidth, timedOut }) => {
+	tagUnion: ReadonlyArray<string>;
+}> = ({ module, nowMs, frame, nameWidth, timedOut, tagUnion: rowTagUnion }) => {
 	const running = moduleRunning(module);
 	// When the run has been timed out, modules previously in "running" or
 	// "queued" must not keep spinning. A running-at-timeout module resolves
@@ -190,9 +191,12 @@ const ModuleStreamRow: FC<{
 				skipCount={module.skipCount}
 				timeoutCount={module.timeoutCount}
 			/>
-			<Text dimColor> {formatDisplayDuration(moduleElapsedMs(module, nowMs))}</Text>
-			{formatTagSuffix(module.tagCounts).length > 0 ? (
-				<Text color="cyan"> {formatTagSuffix(module.tagCounts)}</Text>
+			<Text dimColor> {formatDisplayDuration(moduleElapsedMs(module, nowMs)).padStart(DURATION_CELL_WIDTH)}</Text>
+			{rowTagUnion.length > 0 ? (
+				<>
+					<Text>{"  "}</Text>
+					<TagColumns tags={rowTagUnion} counts={module.tagCounts} />
+				</>
 			) : null}
 			{notStartedSuffix}
 		</Box>
@@ -251,16 +255,21 @@ const FailureItem: FC<{ failure: FailureRecord }> = ({ failure }) => (
 	</Box>
 );
 
-const TotalsLine: FC<{ totals: RenderState["totals"] }> = ({ totals }) => (
+/**
+ * The bottom `Total:` rollup line. In the workspace view `labelWidth`
+ * pads the label to the project-row prefix width so the count columns
+ * align with the rows above; other shapes omit it.
+ */
+const TotalsLine: FC<{ totals: RenderState["totals"]; labelWidth?: number | undefined }> = ({ totals, labelWidth }) => (
 	<Text>
-		<Text bold>Total:</Text>{" "}
+		<Text bold>{labelWidth !== undefined ? "Total:".padEnd(labelWidth) : "Total:"}</Text>{" "}
 		<CountColumns
 			passCount={totals.passCount}
 			failCount={totals.failCount}
 			skipCount={totals.skipCount}
 			timeoutCount={totals.timeoutCount}
 		/>
-		<Text dimColor> {formatDisplayDuration(totals.durationMs)}</Text>
+		<Text dimColor> {formatDisplayDuration(totals.durationMs).padStart(DURATION_CELL_WIDTH)}</Text>
 	</Text>
 );
 
@@ -345,14 +354,14 @@ const liveRegion = (
 	// is terminal or when coverage/trend are already available.
 	const coverageItem = <CoverageItem state={state} />;
 	const trendItem = state.trend !== null ? <TrendLine trend={state.trend} /> : null;
-	const totalsItem = (
+	const totalsItem = (labelWidth?: number): ReactNode => (
 		<Box flexDirection="column">
 			{finished && timedOut ? (
 				<Text color="#e09a4e" bold>
 					⧖ Run timed out
 				</Text>
 			) : null}
-			<TotalsLine totals={state.totals} />
+			<TotalsLine totals={state.totals} labelWidth={labelWidth} />
 		</Box>
 	);
 
@@ -360,6 +369,8 @@ const liveRegion = (
 		// Render every project row in discovery order. Running rows beyond
 		// MAX_LIVE_RUNNING_ROWS are hidden; finished rows always appear.
 		const nameWidth = Math.max(0, ...groups.map((g) => g.name.length));
+		const groupTagCounts = new Map(groups.map((g) => [g.name, mergeTagCounts(g.modules)]));
+		const workspaceTags = tagUnion(groups.map((g) => groupTagCounts.get(g.name)));
 		let runningVisible = 0;
 		let runningOverflow = 0;
 		const rows: ReactNode[] = [];
@@ -386,7 +397,8 @@ const liveRegion = (
 							elapsedMs={projectElapsedMs(g, nowMs)}
 							frame={frame}
 							nameWidth={nameWidth}
-							tagCounts={mergeTagCounts(g.modules)}
+							tagCounts={groupTagCounts.get(g.name)}
+							tagUnion={workspaceTags}
 						/>,
 					);
 				} else {
@@ -412,7 +424,8 @@ const liveRegion = (
 						elapsedMs={projectElapsedMs(g, nowMs)}
 						frame={frame}
 						nameWidth={nameWidth}
-						tagCounts={mergeTagCounts(g.modules)}
+						tagCounts={groupTagCounts.get(g.name)}
+						tagUnion={workspaceTags}
 					/>,
 				);
 			}
@@ -425,7 +438,7 @@ const liveRegion = (
 				{failuresSection}
 				{coverageItem}
 				{trendItem}
-				{totalsItem}
+				{totalsItem(nameWidth + 4)}
 			</>
 		);
 	}
@@ -434,6 +447,7 @@ const liveRegion = (
 		// Render every module row in discovery order. Running rows beyond
 		// MAX_LIVE_RUNNING_ROWS are hidden; finished rows always appear.
 		const nameWidth = Math.max(0, ...ordered.map((m) => m.modulePath.length));
+		const moduleTags = tagUnion(ordered.map((m) => m.tagCounts));
 		let runningVisible = 0;
 		let runningOverflow = 0;
 		const rows: ReactNode[] = [];
@@ -450,6 +464,7 @@ const liveRegion = (
 							frame={frame}
 							nameWidth={nameWidth}
 							timedOut={timedOut}
+							tagUnion={moduleTags}
 						/>,
 					);
 				} else {
@@ -465,6 +480,7 @@ const liveRegion = (
 						frame={frame}
 						nameWidth={nameWidth}
 						timedOut={timedOut}
+						tagUnion={moduleTags}
 					/>,
 				);
 			}
@@ -477,7 +493,7 @@ const liveRegion = (
 				{failuresSection}
 				{coverageItem}
 				{trendItem}
-				{totalsItem}
+				{totalsItem()}
 			</>
 		);
 	}
@@ -513,7 +529,7 @@ const liveRegion = (
 			    failuresSection here would print every failure twice. */}
 			{coverageItem}
 			{trendItem}
-			{totalsItem}
+			{totalsItem()}
 		</>
 	);
 };

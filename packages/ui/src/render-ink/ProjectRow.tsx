@@ -10,9 +10,9 @@ import type { ProjectSummary } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactElement } from "react";
 import { formatDisplayDuration } from "../format-duration.js";
-import { CountColumns } from "./CountColumns.js";
+import { CountColumns, DURATION_CELL_WIDTH } from "./CountColumns.js";
 import { StatusIcon } from "./StatusIcon.js";
-import { formatTagSuffix } from "./tag-suffix.js";
+import { TagColumns } from "./TagColumns.js";
 
 /**
  * Props for the `ProjectRow` component.
@@ -37,8 +37,13 @@ export interface ProjectRowProps {
 	readonly frame: string;
 	/** Name-column width so the count columns align across rows. */
 	readonly nameWidth: number;
-	/** Per-tag test counts for the project, merged across its modules. */
-	readonly tagCounts?: Record<string, number>;
+	/** Per-tag test counts for the project, merged across its modules; feeds the TagColumns cells. */
+	readonly tagCounts?: Record<string, number> | undefined;
+	/**
+	 * The view-level tag union. Every row renders every tag in it so the
+	 * tag columns align; empty (the default) renders no tag cells.
+	 */
+	readonly tagUnion?: ReadonlyArray<string>;
 }
 
 /**
@@ -83,6 +88,7 @@ export const ProjectRow: FC<ProjectRowProps> = ({
 	frame,
 	nameWidth,
 	tagCounts,
+	tagUnion = [],
 }) => (
 	<Box>
 		<Text>{"  "}</Text>
@@ -94,7 +100,12 @@ export const ProjectRow: FC<ProjectRowProps> = ({
 			skipCount={counts.skipCount}
 			timeoutCount={counts.timeoutCount}
 		/>
-		<Text dimColor> {formatDisplayDuration(elapsedMs)}</Text>
-		{formatTagSuffix(tagCounts).length > 0 ? <Text color="cyan"> {formatTagSuffix(tagCounts)}</Text> : null}
+		<Text dimColor> {formatDisplayDuration(elapsedMs).padStart(DURATION_CELL_WIDTH)}</Text>
+		{tagUnion.length > 0 ? (
+			<>
+				<Text>{"  "}</Text>
+				<TagColumns tags={tagUnion} counts={tagCounts} />
+			</>
+		) : null}
 	</Box>
 );

@@ -272,6 +272,10 @@ preset.
   (`import { DataStore } from "@vitest-agent/sdk"`),
   never relative paths across package boundaries.
 
+### Dependencies
+
+- Do not prune apparently-unused `@effect/*` dependencies (`@effect/experimental` and `@effect/workflow` in cli/mcp/plugin/reporter/sdk; also `@effect/printer`, `@effect/printer-ansi`, `@effect/typeclass` in cli). They complete the transitive Effect peer closure so no `@effect` peer resolution escapes to the consumer's importer. Rationale in the architecture design doc.
+
 ### Commits
 
 All commits require:

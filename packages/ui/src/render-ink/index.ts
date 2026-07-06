@@ -6,7 +6,7 @@
  * dispatcher cells compose.
  */
 
-export { CountColumns, type CountColumnsProps } from "./CountColumns.js";
+export { CountColumns, type CountColumnsProps, DURATION_CELL_WIDTH } from "./CountColumns.js";
 export { CoverageBlock, type CoverageBlockProps } from "./CoverageBlock.js";
 export { FailureSection, type FailureSectionProps } from "./FailureSection.js";
 export { FailuresSection, type FailuresSectionProps } from "./FailuresSection.js";
@@ -16,5 +16,6 @@ export { StatusIcon, type StatusIconKind, type StatusIconProps } from "./StatusI
 export { StreamApp, type StreamAppProps } from "./StreamApp.js";
 export { SuggestedActions, type SuggestedActionsProps } from "./SuggestedActions.js";
 export { SPINNER_FRAMES, SPINNER_FRAME_MS, spinnerFrame, spinnerFrameForTime } from "./spinner.js";
+export { TagColumns, type TagColumnsProps, tagUnion } from "./TagColumns.js";
 export { TestRow, type TestRowProps } from "./TestRow.js";
 export { TrendLine, type TrendLineProps } from "./TrendLine.js";

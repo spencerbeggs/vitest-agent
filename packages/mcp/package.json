@@ -35,11 +35,13 @@
 	},
 	"dependencies": {
 		"@effect/cluster": "catalog:silk",
+		"@effect/experimental": "catalog:silk",
 		"@effect/platform": "catalog:silk",
 		"@effect/platform-node": "catalog:silk",
 		"@effect/rpc": "catalog:silk",
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
+		"@effect/workflow": "catalog:silk",
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@trpc/server": "^11.18.0",
 		"@vitest-agent/sdk": "workspace:*",

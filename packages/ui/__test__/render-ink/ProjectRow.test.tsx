@@ -119,4 +119,56 @@ describe("ProjectRow", () => {
 		expect(frame).not.toContain("⠹");
 		cleanup();
 	});
+
+	it("renders every union tag as a fixed-width cell, zeros included", () => {
+		const { frame, cleanup } = renderInk(
+			<ProjectRow
+				project={project()}
+				counts={{ passCount: 62, failCount: 0, skipCount: 0, timeoutCount: 0 }}
+				running={false}
+				elapsedMs={38900}
+				frame="⠋"
+				nameWidth={20}
+				tagCounts={{ e2e: 25, unit: 37 }}
+				tagUnion={["e2e", "int", "unit"]}
+			/>,
+			100,
+		);
+		expect(frame).toContain("e2e:  25  int:   0  unit:  37");
+		cleanup();
+	});
+
+	it("right-aligns the duration in a fixed 7-char cell", () => {
+		const { frame, cleanup } = renderInk(
+			<ProjectRow
+				project={project()}
+				counts={{ passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0 }}
+				running={false}
+				elapsedMs={120}
+				frame="⠋"
+				nameWidth={3}
+			/>,
+			80,
+		);
+		// 120ms formats to "120ms" and pads to 7: two leading spaces.
+		expect(frame).toContain("⧖   120ms");
+		cleanup();
+	});
+
+	it("renders no tag cells when the tag union is empty", () => {
+		const { frame, cleanup } = renderInk(
+			<ProjectRow
+				project={project()}
+				counts={{ passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0 }}
+				running={false}
+				elapsedMs={120}
+				frame="⠋"
+				nameWidth={3}
+				tagCounts={{ unit: 5 }}
+			/>,
+			80,
+		);
+		expect(frame).not.toContain("unit:");
+		cleanup();
+	});
 });
