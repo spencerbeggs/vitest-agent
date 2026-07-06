@@ -20,7 +20,6 @@
 		"build:docs": "turbo run build --filter=docs --output-logs=new-only",
 		"ci:build": "CI=\"true\" turbo run build:dev build:prod",
 		"ci:test": "CI=\"true\" vitest run --coverage",
-		"ci:version": "savvy changeset version && biome format --write .",
 		"dev": "turbo run dev --filter=docs",
 		"lint": "biome check --max-diagnostics=none",
 		"lint:fix": "biome check --write --max-diagnostics=none",
@@ -36,7 +35,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/silk": "^1.3.11",
+		"@savvy-web/silk": "^2.0.0",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/plugin": "workspace:*",
