@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/reporter",
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"private": true,
 	"description": "Named VitestAgentReporterFactory implementations for the vitest-agent ecosystem.",
 	"keywords": ["vitest", "reporter", "llm", "ai", "agent", "testing", "coverage", "markdown", "github-actions"],

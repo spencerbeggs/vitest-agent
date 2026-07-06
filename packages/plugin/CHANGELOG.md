@@ -1,5 +1,32 @@
 # @vitest-agent/plugin
 
+## 1.1.6
+
+### Bug Fixes
+
+* Completed the transitive Effect peer closure so no `@effect` peer resolution escapes to the consuming workspace's importer. Previously a consumer workspace that also contained an effect v4 beta project could have its package manager auto-install the v4 beta into the v3 stack, crashing at runtime with module-not-found errors.
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From  | To    |
+| ---------------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/cli      | dependency | updated | 1.0.5 | 1.0.6 |
+| @vitest-agent/mcp      | dependency | updated | 1.3.3 | 1.3.4 |
+| @vitest-agent/reporter | dependency | updated | 1.0.5 | 1.0.6 |
+| @vitest-agent/sdk      | dependency | updated | 1.3.1 | 1.3.2 |
+
+* | Dependency           | Type       | Action | From | To      |                                                                       |
+  | -------------------- | ---------- | ------ | ---- | ------- | --------------------------------------------------------------------- |
+  | @effect/experimental | dependency | added  | —    | ^0.60.0 |                                                                       |
+  | @effect/workflow     | dependency | added  | —    | ^0.18.2 |                                                                       |
+  | @effect/printer      | dependency | added  | —    | ^0.49.0 |                                                                       |
+  | @effect/printer-ansi | dependency | added  | —    | ^0.49.0 |                                                                       |
+  | @effect/typeclass    | dependency | added  | —    | ^0.40.0 | [#128][#128] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+
+### Patch Changes
+
+[#128]: https://github.com/spencerbeggs/vitest-agent/pull/128
+
 ## 1.1.5
 
 ### Dependencies
