@@ -36,11 +36,16 @@
 	"dependencies": {
 		"@effect/cli": "catalog:silk",
 		"@effect/cluster": "catalog:silk",
+		"@effect/experimental": "catalog:silk",
 		"@effect/platform": "catalog:silk",
 		"@effect/platform-node": "catalog:silk",
+		"@effect/printer": "catalog:silk",
+		"@effect/printer-ansi": "catalog:silk",
 		"@effect/rpc": "catalog:silk",
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
+		"@effect/typeclass": "catalog:silk",
+		"@effect/workflow": "catalog:silk",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/sidecar": "workspace:*",
 		"effect": "catalog:silk"

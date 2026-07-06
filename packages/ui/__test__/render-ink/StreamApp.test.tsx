@@ -345,7 +345,7 @@ describe("StreamApp — tag-count suffix", () => {
 			},
 		]);
 		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 120);
-		expect(frame).toContain("int:6  unit:955");
+		expect(frame).toContain("int:   6  unit: 955");
 		cleanup();
 	});
 });
@@ -643,6 +643,168 @@ describe("StreamApp — watch-mode rerun", () => {
 		expect(frame).not.toContain("beta");
 		expect(frame).not.toContain("old/a.test.ts");
 		expect(frame).not.toContain("old/b.test.ts");
+		cleanup();
+	});
+});
+
+describe("StreamApp — fixed-column alignment", () => {
+	const workspaceWithTags = () =>
+		run([
+			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
+			{ _tag: "ModuleStarted", modulePath: "cli/a.test.ts", startedAt: STARTED, projectName: "cli" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "cli/a.test.ts",
+				passCount: 62,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 38900,
+				projectName: "cli",
+				tagCounts: { e2e: 25, unit: 37 },
+			},
+			{ _tag: "ModuleStarted", modulePath: "sdk/b.test.ts", startedAt: STARTED, projectName: "sdk" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "sdk/b.test.ts",
+				passCount: 1012,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 6300,
+				projectName: "sdk",
+				tagCounts: { int: 6, unit: 1006 },
+			},
+			{
+				_tag: "RunFinished",
+				runId: "r",
+				finishedAt: STARTED,
+				passCount: 1074,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 45200,
+			},
+		]);
+
+	it("renders every union tag on every project row, zeros included", () => {
+		const { frame, cleanup } = renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
+		// cli has no int tests; sdk has no e2e tests — both cells still render.
+		expect(frame).toContain("e2e:  25  int:   0  unit:  37");
+		expect(frame).toContain("e2e:   0  int:   6  unit:1006");
+		cleanup();
+	});
+
+	it("aligns count and tag columns across rows of different magnitudes", () => {
+		const { frame, cleanup } = renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
+		const lines = frame.split("\n");
+		const cliLine = lines.find((l) => l.includes(" cli"));
+		const sdkLine = lines.find((l) => l.includes(" sdk"));
+		expect(cliLine).toBeDefined();
+		expect(sdkLine).toBeDefined();
+		expect(cliLine?.indexOf("✗")).toBe(sdkLine?.indexOf("✗"));
+		expect(cliLine?.indexOf("⧖")).toBe(sdkLine?.indexOf("⧖"));
+		expect(cliLine?.indexOf("e2e:")).toBe(sdkLine?.indexOf("e2e:"));
+		cleanup();
+	});
+
+	it("suppresses tag columns entirely when the union is a single tag", () => {
+		const state = run([
+			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
+			{ _tag: "ModuleStarted", modulePath: "cli/a.test.ts", startedAt: STARTED, projectName: "cli" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "cli/a.test.ts",
+				passCount: 62,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 38900,
+				projectName: "cli",
+				tagCounts: { unit: 62 },
+			},
+			{ _tag: "ModuleStarted", modulePath: "sdk/b.test.ts", startedAt: STARTED, projectName: "sdk" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "sdk/b.test.ts",
+				passCount: 10,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 6300,
+				projectName: "sdk",
+				tagCounts: { unit: 10 },
+			},
+			{
+				_tag: "RunFinished",
+				runId: "r",
+				finishedAt: STARTED,
+				passCount: 72,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 45200,
+			},
+		]);
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 100);
+		expect(frame).not.toContain("unit:");
+		cleanup();
+	});
+
+	it("renders union tag cells on single-project module rows", () => {
+		const state = run([
+			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
+			{ _tag: "ModuleStarted", modulePath: "a.test.ts", startedAt: STARTED, projectName: "mcp" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "a.test.ts",
+				passCount: 11,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 900,
+				projectName: "mcp",
+				tagCounts: { int: 11 },
+			},
+			{ _tag: "ModuleStarted", modulePath: "b.test.ts", startedAt: STARTED, projectName: "mcp" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "b.test.ts",
+				passCount: 194,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 600,
+				projectName: "mcp",
+				tagCounts: { unit: 194 },
+			},
+			{
+				_tag: "RunFinished",
+				runId: "r",
+				finishedAt: STARTED,
+				passCount: 205,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 1500,
+			},
+		]);
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 100);
+		expect(frame).toContain("Modules (2):");
+		expect(frame).toContain("int:  11  unit:   0");
+		expect(frame).toContain("int:   0  unit: 194");
+		cleanup();
+	});
+
+	it("aligns the workspace Total counts under the project-row counts", () => {
+		const { frame, cleanup } = renderInk(<StreamApp state={workspaceWithTags()} frameIndex={0} nowMs={NOW} />, 100);
+		const lines = frame.split("\n");
+		const cliLine = lines.find((l) => l.includes(" cli"));
+		const totalLine = lines.find((l) => l.includes("Total:"));
+		expect(cliLine).toBeDefined();
+		expect(totalLine).toBeDefined();
+		expect(totalLine?.indexOf("✗")).toBe(cliLine?.indexOf("✗"));
+		expect(totalLine?.indexOf("⧖")).toBe(cliLine?.indexOf("⧖"));
 		cleanup();
 	});
 });

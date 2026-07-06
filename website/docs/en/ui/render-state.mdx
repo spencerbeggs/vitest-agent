@@ -105,7 +105,7 @@ const RenderState = Schema.Struct({
 
 ## Supporting record shapes
 
-**`ModuleRecord`** — per-module aggregation keyed on `modulePath`. Tracks `status` (`"queued"` | `"running"` | `"finished"`), pass/fail/skip/timeout counts, a `tests` array of `TestRecord`s, an optional `projectName` (from the Vitest module's `project.name`), an optional `startedAt` wall-clock stamp (used for the ticking elapsed column in the live Ink renderer), and optional `tagCounts` (a per-tag test count surfaced as a suffix on aggregate rows).
+**`ModuleRecord`** — per-module aggregation keyed on `modulePath`. Tracks `status` (`"queued"` | `"running"` | `"finished"`), pass/fail/skip/timeout counts, a `tests` array of `TestRecord`s, an optional `projectName` (from the Vitest module's `project.name`), an optional `startedAt` wall-clock stamp (used for the ticking elapsed column in the live Ink renderer), and optional `tagCounts` (a per-tag test count rendered as fixed-width per-tag columns on aggregate rows).
 
 **`TestRecord`** — per-test record accumulated as `TestStarted` and `TestFinished` events arrive. Tracks `testName`, `suitePath`, `status` (including the render-only `"running"` and `"timed-out"` values beyond the persisted `TestState` cases), `durationMs`, and an optional `error`.
 

@@ -23,22 +23,27 @@ export interface CountColumnsProps {
 	readonly timeoutCount: number;
 }
 
-const cell = (count: number, glyph: string, color: string) =>
-	count > 0 ? (
-		<Text color={color}>
-			{count}
-			{glyph}
-		</Text>
-	) : (
-		<Text color="gray">
-			{count}
-			{glyph}
-		</Text>
-	);
+/**
+ * Fixed width of the duration cell that follows the count columns on an
+ * aggregate row — sized for the formatter's widest common output
+ * (`999.9ms`). Longer values overflow their row rather than truncate.
+ *
+ * @public
+ */
+export const DURATION_CELL_WIDTH = 7;
+
+const cell = (count: number, glyph: string, color: string) => (
+	<Text color={count > 0 ? color : "gray"}>
+		{String(count).padStart(4)}
+		{glyph}
+	</Text>
+);
 
 /**
  * Renders four colored count columns (pass ✓, fail ✗, skip ↷, timeout ⧖)
- * for an aggregate row. Zeros are dimmed; all four columns always appear.
+ * for an aggregate row. Counts render right-aligned in fixed 4-digit cells so
+ * columns align across rows; counts of 10,000+ overflow their row without
+ * truncation. Zeros are dimmed; all four columns always appear.
  *
  * @public
  */

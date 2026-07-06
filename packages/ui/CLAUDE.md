@@ -1,14 +1,6 @@
 # @vitest-agent/ui
 
-The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent`
-taxonomy re-export, the pure reducer, two render paths (a markdown-flavored
-agent string and a React Ink tree), the shape-tailored dispatcher matrix
-introduced by the T6 rewrite, an Effect `PubSub` channel for live event
-transport, and the synthesizers. Knows nothing about the reporter
-lifecycle — the default reporter and the Ink live-mount driver moved to
-`@vitest-agent/reporter`. Declares React and Ink as peer dependencies (it
-renders *with* react/ink but does not own the instance); `@vitest-agent/reporter`
-is the concrete consumer that provides them. Dependency flow: `plugin → reporter → ui → sdk`.
+The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent` taxonomy re-export, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix introduced by the T6 rewrite, an Effect `PubSub` channel for live event transport, and the synthesizers. Declares React and Ink as peer dependencies (it renders *with* react/ink but does not own the instance); `@vitest-agent/reporter` is the concrete consumer that provides them. Dependency flow: `plugin → reporter → ui → sdk`.
 
 ## Layout
 
@@ -19,6 +11,7 @@ src/
   render-agent.ts               -- renderAgent(state, opts): string
   synthesize.ts                 -- synthesizeRunEvents (live modules)
                                    + synthesizeFromAgentReport (DB replay)
+  format-duration.ts            -- shared duration formatter
   dispatcher/                   -- T6 shape-tailored renderer matrix
     classify.ts                 -- classifyRunShape, classifyOutcome
     dispatch.ts                 -- dispatcherTable, dispatch, dispatchInk
@@ -33,11 +26,11 @@ src/
       single-project-pass.ts, single-project-fail.ts,
       single-project-threshold.ts, workspace-pass.ts, workspace-fail.ts,
       workspace-threshold.ts
-  render-ink/                   -- Ink components (live mount + ink-half cells)
+  render-ink/                   -- Ink components (stream view + ink-half cells)
     StreamApp.tsx, StatusIcon.tsx, ModuleHeader.tsx, TestRow.tsx,
-    ProjectRow.tsx, CountColumns.tsx, CoverageBlock.tsx, TrendLine.tsx,
-    FailureSection.tsx, FailuresSection.tsx, SuggestedActions.tsx,
-    spinner.ts, tag-suffix.ts, format-duration.ts
+    ProjectRow.tsx, CountColumns.tsx, TagColumns.tsx, CoverageBlock.tsx,
+    TrendLine.tsx, FailureSection.tsx, FailuresSection.tsx,
+    SuggestedActions.tsx, spinner.ts
   pubsub/                       -- Effect PubSub channel
     Channel.ts                  -- RunEventChannel tag + Live layer
     Publisher.ts                -- publish / publishAll helpers
@@ -79,7 +72,7 @@ __test__/
 - **Effect-fluent**: every transport-level abstraction lives in `effect`'s vocabulary (Schema, PubSub, Layer). The reducer itself is synchronous because it has to be cheap to call from React; everything upstream (publisher, subscriber, channel) is Effect-typed.
 - **Shape-tailored cells**: the dispatcher routes by `(RunShape, RunOutcome)`. Cells receive a fully-built `DispatchInputs` plus `CellOptions` from the SDK contract and never re-derive shape, outcome, project aggregates, trend, or below-target listings. Pre-compute in `buildDispatchInputs`, not inside cells.
 - **Two synthesizers**: one for live Vitest data (`VitestTestModule` duck types), one for the persisted `AgentReport`. They are NOT interchangeable — the live shape carries per-test detail the report schema flattens. CLI replay uses the report path; the plugin's streaming callbacks publish events derived from live modules.
-- **Ink component primitives only.** No `<span style>` or DOM-isms. Use Ink's `<Box>`, `<Text>`, `<Newline>`, `<Spacer>`. Each component imports `* as React from "react"` so JSX works under both the classic and automatic compiler runtimes — relevant whenever a non-ui package compiles these via esbuild.
+- **Ink component primitives only.** No `<span style>` or DOM-isms. Use Ink's `<Box>`, `<Text>`, `<Newline>`, `<Spacer>`. Components rely on the automatic JSX runtime (no `import * as React` namespace import) and import only the types they use from `react`.
 - **Snapshot pinning**: per-component snapshots use the helper `__test__/utils/render-ink.tsx` which strips ANSI and pins the width via `<Box width={N}>`. `ink-testing-library` reports a fixed 100-column mock stdout, so explicit width wrapping is load-bearing.
 - **No reporter lifecycle here.** This package is pure rendering primitives. The default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount driver (`_createLiveInk`) live in `@vitest-agent/reporter`. Adding a shipped reporter or factory means editing `@vitest-agent/reporter`, not this package.
 
@@ -90,7 +83,7 @@ __test__/
 - **Touching `render-agent.ts`**: byte-identical output for byte-identical input. Snapshots in `__test__/snapshots/render-agent/` capture each canonical fixture's expected frame.
 - **Adding or editing a dispatcher cell**: cells live under `dispatcher/cells/` named `<shape>-<outcome>.ts`. Each exports both an agent-string renderer and an Ink-half renderer; both consume the shared helpers in `dispatcher/helpers.ts` / `ink-helpers.tsx`. The cell receives `DispatchInputs` plus `CellOptions` — do not reach for the kit or env directly.
 - **Adding an Ink component**: write a `.tsx` file in `render-ink/`, re-export from `render-ink/index.ts`, and add a snapshot test in `__test__/render-ink/`. Use `renderInk(tree, width)` from the test utils to pin the output width.
-- **`StreamApp` is the human-tuned `stream` renderer**: it mirrors the agent view's structure but is a parallel renderer, not the dispatcher. Its layout is a `Projects (N):` / `Modules (N):` / file-path header, count-column rows, a `FailuresSection`, then Coverage / Trend / Total. Aggregate rows render the four `✓ ✗ ↷ ⧖` glyph columns via the shared `CountColumns` component (zeros dimmed); leaf rows show one `StatusIcon`. `StatusIcon` carries a `"timed-out"` kind. The spinner frame index and `nowMs` arrive as props — never `RenderState`. See `2026-05-19-stream-mode-states-design.md`.
+- **`StreamApp` is the human-tuned `stream` renderer**: it mirrors the agent view's structure but is a parallel renderer, not the dispatcher. Its layout is a `Projects (N):` / `Modules (N):` / file-path header, count-column rows, a `FailuresSection`, then Coverage / Trend / Total. Aggregate rows use fixed-width cells so columns align across rows: `CountColumns` renders the four `✓ ✗ ↷ ⧖` glyph counts right-aligned in 4-digit cells (zeros dimmed), the duration cell pads to `DURATION_CELL_WIDTH`, and `TagColumns` renders one `tag:` cell per tag in the view-level union (`tagUnion(rows)`, computed once per frame; a union of ≤1 tag collapses to empty, suppressing tag columns view-wide). In the workspace shape `TotalsLine` takes a `labelWidth` so `Total:` counts align under the project rows. (The dispatcher's agent-string path keeps its own `formatTagCountSuffix` in `dispatcher/helpers.ts` — unrelated.) Leaf rows show one `StatusIcon`; `StatusIcon` carries a `"timed-out"` kind. The spinner frame index and `nowMs` arrive as props — never `RenderState`. See `2026-05-19-stream-mode-states-design.md`.
 - **Timed-out tests are a render-layer outcome**: the reducer routes a `timedOut` `TestFinished` into `RenderState`'s `timeoutCount` (not `failCount`) and sets the `TestRecord` status to `"timed-out"`. The `TrendComputed` `RunEvent` folds `direction` / `runCount` into `RenderState.trend`, which `TrendLine` renders. There is no SQLite change — the persistence `TestState` enum is unchanged.
 - **Changing the dispatcher contract**: the contract types (`RunShape`, `RunOutcome`, `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`) live in `packages/sdk/src/contracts/dispatcher.ts`. Coordinate changes there before editing cells.
 - **Changing the reporter contract**: every reporter factory extends the same `VitestAgentReporterFactory` contract from `packages/sdk/src/contracts/reporter.ts`. Coordinate changes there.

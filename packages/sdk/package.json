@@ -34,11 +34,13 @@
 	},
 	"dependencies": {
 		"@effect/cluster": "catalog:silk",
+		"@effect/experimental": "catalog:silk",
 		"@effect/platform": "catalog:silk",
 		"@effect/platform-node": "catalog:silk",
 		"@effect/rpc": "catalog:silk",
 		"@effect/sql": "catalog:silk",
 		"@effect/sql-sqlite-node": "catalog:silk",
+		"@effect/workflow": "catalog:silk",
 		"@types/acorn": "^6.0.4",
 		"acorn": "^8.17.0",
 		"acorn-typescript": "^1.4.13",

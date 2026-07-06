@@ -3,7 +3,7 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-01
+updated: 2026-07-06
 last-synced: 2026-07-01
 completeness: 93
 related:
@@ -202,10 +202,7 @@ the optional `timedOut: boolean` on the emitted `TestFinished` so the
 `@vitest-agent/ui` reducer can route the test into `timeoutCount`. The
 distinction is render-layer only — see [../schemas.md](../schemas.md).
 
-**Per-module tag counts.** `onTestModuleEnd` tallies a per-tag test
-count from `TestReport.tags` and sets it as the optional `tagCounts`
-field on the `ModuleFinished` `RunEvent`, which `StreamApp` renders as a
-`tag:count` suffix on aggregate rows.
+**Per-module tag counts.** `onTestModuleEnd` tallies a per-tag test count from `TestReport.tags` and sets it as the optional `tagCounts` field on the `ModuleFinished` `RunEvent`, which `StreamApp` renders as fixed-width tag-count columns on aggregate rows (see [./ui.md](./ui.md)).
 
 **`TrendComputed` emit.** `onTestRunEnd` emits a `TrendComputed`
 `RunEvent` after trend computation — mirroring the `CoverageReady` emit
