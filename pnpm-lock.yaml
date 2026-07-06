@@ -267,8 +267,8 @@ importers:
         specifier: ^0.30.21
         version: 0.30.21
       workspaces-effect:
-        specifier: ^1.3.0
-        version: 1.3.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+        specifier: ^2.0.2
+        version: 2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
     devDependencies:
       '@savvy-web/bundler':
         specifier: ^1.1.7
@@ -418,8 +418,8 @@ importers:
         specifier: ^4.1.0
         version: 4.1.0
       workspaces-effect:
-        specifier: ^1.3.0
-        version: 1.3.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+        specifier: ^2.0.2
+        version: 2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       xdg-effect:
         specifier: ^2.1.0
         version: 2.1.0(ebbd840a9936fee4732a1f63bb937b99)
@@ -5244,13 +5244,6 @@ packages:
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
-
-  workspaces-effect@1.3.0:
-    resolution: {integrity: sha512-cGR73JVQAhCW5z8a4Z4iGOVRGQJmL9DWYkfQMDmB3DyetrpD1yLjrBZXPujsgnBpeAsXh1PfvrgPVGwYJtmdyA==}
-    engines: {node: '>=24.11.0'}
-    peerDependencies:
-      '@effect/platform': ^0.96.0
-      effect: ^3.21.0
 
   workspaces-effect@2.0.2:
     resolution: {integrity: sha512-iB5i508qiztbdSyjPiA6dh6l+trD0fsWWWfihuvV+YkrNW3XsylJmlyCl4V8o/CiEE3ILgE1cVg7eipxbjCsQg==}
@@ -10751,19 +10744,6 @@ snapshots:
       string-width: 8.2.1
 
   word-wrap@1.2.5: {}
-
-  workspaces-effect@1.3.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4):
-    dependencies:
-      '@effect/platform': 0.96.2(effect@3.21.4)
-      '@pnpm/catalogs.config': 1100.0.2
-      '@pnpm/catalogs.protocol-parser': 1100.0.0
-      '@pnpm/catalogs.resolver': 1100.0.0
-      '@pnpm/catalogs.types': 1100.0.0
-      effect: 3.21.4
-      jsonc-effect: 0.3.0(effect@3.21.4)
-      minimatch: 10.2.5
-      semver-effect: 0.3.1(effect@3.21.4)
-      yaml-effect: 0.7.2(effect@3.21.4)
 
   workspaces-effect@2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4):
     dependencies:
