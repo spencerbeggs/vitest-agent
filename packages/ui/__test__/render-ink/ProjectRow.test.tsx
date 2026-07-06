@@ -155,6 +155,24 @@ describe("ProjectRow", () => {
 		cleanup();
 	});
 
+	it("pins the full aligned frame for a finished row with tag columns", () => {
+		const { frame, cleanup } = renderInk(
+			<ProjectRow
+				project={project()}
+				counts={{ passCount: 62, failCount: 0, skipCount: 0, timeoutCount: 0 }}
+				running={false}
+				elapsedMs={38900}
+				frame="⠋"
+				nameWidth={3}
+				tagCounts={{ e2e: 25, unit: 37 }}
+				tagUnion={["e2e", "int", "unit"]}
+			/>,
+			100,
+		);
+		expect(frame).toBe("  ✓ ui    62✓     0✗     0↷     0⧖   38.9s  e2e:  25  int:   0  unit:  37");
+		cleanup();
+	});
+
 	it("renders no tag cells when the tag union is empty", () => {
 		const { frame, cleanup } = renderInk(
 			<ProjectRow

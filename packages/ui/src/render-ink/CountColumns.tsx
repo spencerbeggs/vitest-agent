@@ -32,18 +32,12 @@ export interface CountColumnsProps {
  */
 export const DURATION_CELL_WIDTH = 7;
 
-const cell = (count: number, glyph: string, color: string) =>
-	count > 0 ? (
-		<Text color={color}>
-			{String(count).padStart(4)}
-			{glyph}
-		</Text>
-	) : (
-		<Text color="gray">
-			{String(count).padStart(4)}
-			{glyph}
-		</Text>
-	);
+const cell = (count: number, glyph: string, color: string) => (
+	<Text color={count > 0 ? color : "gray"}>
+		{String(count).padStart(4)}
+		{glyph}
+	</Text>
+);
 
 /**
  * Renders four colored count columns (pass ✓, fail ✗, skip ↷, timeout ⧖)
