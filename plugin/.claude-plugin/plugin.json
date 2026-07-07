@@ -1,7 +1,7 @@
 {
 	"name": "vitest-agent",
 	"description": "Vitest test data, coverage analysis, and notes for LLM coding agents via MCP tools",
-	"version": "1.1.5",
+	"version": "1.1.6",
 	"author": {
 		"name": "C. Spencer Beggs",
 		"url": "https://spencerbeg.gs"
