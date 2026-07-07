@@ -12,20 +12,13 @@ description: Install @vitest-agent/plugin and configure your Vitest project to c
 
 ## Install
 
-Add `@vitest-agent/plugin` to your project's dev dependencies. The required
-peer packages (`@vitest-agent/cli` and `@vitest-agent/mcp`) are installed
-automatically by modern npm and pnpm.
+Add `@vitest-agent/plugin` to your project's dev dependencies. The
+`@vitest-agent/cli` and `@vitest-agent/mcp` packages are regular dependencies
+of the plugin, so they install with it on every package manager.
 
 import { PackageManagerTabs } from '@rspress/core/theme';
 
 <PackageManagerTabs command="add -D @vitest-agent/plugin" />
-
-If your package manager is configured to skip peer dependency auto-install,
-add the peers explicitly:
-
-```bash
-pnpm add -D @vitest-agent/plugin @vitest-agent/cli @vitest-agent/mcp
-```
 
 ## Configure Vitest
 

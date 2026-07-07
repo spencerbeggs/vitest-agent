@@ -43,8 +43,6 @@
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
-		"acorn": "^8.17.0",
-		"acorn-typescript": "^1.4.13",
 		"effect": "catalog:silk",
 		"magic-string": "^0.30.21",
 		"workspaces-effect": "^2.0.2"

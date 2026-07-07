@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 90
 related:
   - ../architecture.md
@@ -101,13 +101,13 @@ this env var as the highest-precedence source for `projectDir` resolution. The
 SDK package and MCP server both share this contract — see D30 for the full
 rationale.
 
-The MCP server itself is **not bundled** with the plugin. It is a peer of
+The MCP server itself is **not bundled** with the plugin. It is a dependency of
 `@vitest-agent/plugin` in the user's project and is resolved by the user's PM at
 spawn time. Bundling was rejected because the SDK depends on `better-sqlite3`,
 a native module that must match the user's platform and Node version. See
 D29 (retired) for the dynamic-import approach this replaced.
 
-The PM-walk is also load-bearing for dependency resolution (Decision 36). The MCP server must run from the consumer's installation context so the peer dep on `@vitest-agent/mcp` resolves to whatever the consumer's lockfile holds — a version compatible with the `@vitest-agent/plugin` that wired up the reporter. A global `npx vitest-agent-mcp` invocation (or any spawn rooted outside the user's package manager) would resolve against an arbitrary version and could drift from the plugin's expected SDK contract. The CLI is directory-bound for the same reason.
+The PM-walk is also load-bearing for dependency resolution (Decision 36). The MCP server must run from the consumer's installation context so the dependency on `@vitest-agent/mcp` resolves to whatever the consumer's lockfile holds — a version compatible with the `@vitest-agent/plugin` that wired up the reporter. A global `npx vitest-agent-mcp` invocation (or any spawn rooted outside the user's package manager) would resolve against an arbitrary version and could drift from the plugin's expected SDK contract. The CLI is directory-bound for the same reason.
 
 ### Hook architecture
 
@@ -430,7 +430,7 @@ All four shell out to the CLI's `agent` sidecar subcommands (see
 - **Layer 1 — main-agent skip.** After Layer 0 passes and `source-session-env.sh` populates the canonical exports, the hook compares `VITEST_AGENT_AGENT_ID` against `VITEST_AGENT_MAIN_AGENT_ID`. They are equal when the active actor is the main agent, whose auto-sourced env is already correct for the spawned Vitest process — so the hook skips the sidecar. The check falls through conservatively (does NOT skip) when either var is unset. Layer 1 must run after the source call because hook subprocesses do not get auto-sourcing. Together Layers 0 and 1 eliminate the sidecar from ~98% of Bash calls.
 - **Layer 2 — sidecar binary with JS fallback.** Only subagent-triggered Vitest invocations reach Layer 2. The hook reads `$VITEST_AGENT_SIDECAR_BIN` (set by the SessionStart hook once per session via `vitest-agent agent sidecar-path`), checks that it is non-empty and executable, and execs the binary directly when valid. Using the env var rather than `command -v vitest-agent-sidecar` is necessary because pnpm/npm never hoist transitive optional-dependency bins into `node_modules/.bin/`, so a `command -v` probe always misses. When `VITEST_AGENT_SIDECAR_BIN` is absent or non-executable — an unsupported platform, a skipped optional dependency, or a session that pre-dates the SessionStart resolution — the hook falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths produce byte-identical rewritten output.
 
-`@vitest-agent/sidecar` is not a direct peer of `@vitest-agent/plugin` — it is a regular `dependency` of `@vitest-agent/cli`, which is itself a required peer of the plugin, so installing the plugin and its cli peer pulls the sidecar and its per-platform binaries in transitively. For the package's build, distribution and the `inject-env`-only scope, see [./sidecar.md](./sidecar.md).
+`@vitest-agent/sidecar` is not a direct dependency of `@vitest-agent/plugin` — it is a regular `dependency` of `@vitest-agent/cli`, which is itself a regular `dependency` of the plugin, so installing the plugin pulls the sidecar and its per-platform binaries in transitively. For the package's build, distribution and the `inject-env`-only scope, see [./sidecar.md](./sidecar.md).
 
 The Layer 0 / Layer 1 hot path is roughly an order of magnitude faster than the unconditional JS shell-out, with the subagent-binary path in between. The hook's payload parsing collapses its `jq` and `dirname` forks to one each to keep the residual hot-path plumbing low. The benchmark harness is `scripts/bench-sidecar.sh`.
 

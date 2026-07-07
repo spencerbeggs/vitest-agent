@@ -68,8 +68,9 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
 	 */
 	onRunEvent?: (event: RunEvent) => void;
 	/**
-	 * Controls the Vite transform hook that rewrites test() and it() call
-	 * options to inject filename-derived tags. Pass a DiscoverStrategy
+	 * Controls the Vite transform hook that prepends a tag prelude to each
+	 * classified test file, applying filename-derived tags at collection
+	 * time so every declaration form inherits them. Pass a DiscoverStrategy
 	 * instance to customize classification, or false to disable the
 	 * transform entirely.
 	 *

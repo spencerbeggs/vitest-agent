@@ -22,7 +22,7 @@ npm install --save-dev @vitest-agent/cli
 pnpm add -D @vitest-agent/cli
 ```
 
-`@vitest-agent/cli` is a required peer of `@vitest-agent/plugin` and arrives automatically with modern pnpm and npm.
+`@vitest-agent/cli` is a regular dependency of `@vitest-agent/plugin` and installs with it automatically.
 
 ## Quick start
 

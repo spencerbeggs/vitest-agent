@@ -296,12 +296,6 @@ importers:
       '@vitest-agent/sdk':
         specifier: workspace:*
         version: link:../sdk/dist/dev/pkg
-      acorn:
-        specifier: ^8.17.0
-        version: 8.17.0
-      acorn-typescript:
-        specifier: ^1.4.13
-        version: 1.4.13(acorn@8.17.0)
       effect:
         specifier: catalog:silk
         version: 3.21.4

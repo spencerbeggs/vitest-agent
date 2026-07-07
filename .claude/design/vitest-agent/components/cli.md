@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 92
 related:
   - ../architecture.md
@@ -27,7 +27,7 @@ A utility-only bin for LLM agents and humans: database management plus the hook-
 **Location:** `packages/cli/`
 **Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/sidecar`
 
-The plugin declares the CLI as a required `peerDependency`, so installing the plugin pulls the CLI along with it (npm 7+ and pnpm auto-install required peers, landing the `vitest-agent` bin at the consumer's top level where the Claude Code plugin's hook scripts resolve it). The CLI stays a separate package for module-boundary reasons — the `@effect/cli` surface is the CLI's own concern.
+The plugin declares the CLI as an exact-pinned regular `dependency`, so installing the plugin pulls the CLI along with it; `@savvy-web/pnpm-plugin-silk` publicly hoists the package so the `vitest-agent` bin resolves for the Claude Code plugin's hook scripts. The CLI stays a separate package for module-boundary reasons — the `@effect/cli` surface is the CLI's own concern.
 
 CLI commands are directory-bound. Vitest is itself directory-bound, and the CLI operates in the context of the working directory — workspace identity is resolved from the nearest root `package.json`, the database path is derived from that identity (XDG-rooted), and every command that reaches into `$XDG_DATA_HOME/vitest-agent/` starts by resolving which workspace's data directory to use.
 

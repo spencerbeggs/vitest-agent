@@ -31,6 +31,16 @@ live renderer now drains Node's user-timing buffer after each render cycle, so
 React 19's development-reconciler `performance.measure()` entries no longer
 accumulate. Update `@vitest-agent/reporter` if you still see it.
 
+## `Cannot use two functions as arguments` with `@effect/vitest`
+
+**Status: resolved.** The plugin's tag transform used to rewrite `test()` and
+`it()` call arguments, which corrupted wrapper testers with a
+`(name, self, timeout)` signature — `@effect/vitest`'s `it.effect` failed with
+`Cannot use two functions as arguments` or collected 0 tests. The transform
+now prepends a file-level tag prelude and lets Vitest's runner propagate the
+tags, so every declaration form inherits classification tags without having
+its arguments touched. Update `@vitest-agent/plugin` if you still see it.
+
 ## Stale test counts after moving or adding files
 
 **Status: resolved.** The long-lived MCP server cached discovery results per

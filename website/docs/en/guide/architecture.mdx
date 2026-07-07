@@ -40,12 +40,10 @@ reporter, which in turn pulls `@vitest-agent/ui` and `@vitest-agent/sdk`.
 The plugin does not depend on `@vitest-agent/ui` directly — that dependency
 is entirely encapsulated inside `@vitest-agent/reporter`.
 
-`@vitest-agent/cli` and `@vitest-agent/mcp` are required peer dependencies of
-the plugin. Installing `@vitest-agent/plugin` with a modern package manager
-(npm 7+, pnpm with `autoInstallPeers: true`) brings `@vitest-agent/cli` and
-`@vitest-agent/mcp` automatically, and their bins land at the consumer's top
-level. `@vitest-agent/sidecar` arrives transitively as a regular dependency of
-`@vitest-agent/cli`.
+`@vitest-agent/cli` and `@vitest-agent/mcp` are exact-pinned regular
+dependencies of the plugin, so installing `@vitest-agent/plugin` brings both
+automatically on any package manager. `@vitest-agent/sidecar` arrives
+transitively as a regular dependency of `@vitest-agent/cli`.
 
 ## The shared SQLite database
 

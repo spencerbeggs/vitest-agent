@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-07-01
-last-synced: 2026-07-01
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 95
 related:
   - ../components.md
@@ -274,17 +274,13 @@ transform hook installed by AgentPlugin:
    strategy.classify({ module }) where module is the parsed ModuleInfo.
 3. If the classifier returns an empty tag list, the transform short-
    circuits and returns null. Otherwise it calls
-   injectTags(code, tags) in packages/plugin/src/utils/inject-tags.ts.
-4. injectTags parses with acorn plus acorn-typescript, walks every
-   test and it call expression, and uses magic-string to rewrite the
-   options argument to merge in the resolved tags array. Source maps
-   are preserved.
+   injectTags(source, tags) in packages/plugin/src/utils/inject-tags.ts.
+4. injectTags prepends one guarded prelude per file via magic-string (source maps preserved) that unions the classified tags into the current file task through vitest's public `TestRunner.getCurrentSuite()` static. The runner unions parent tags into every suite and test it registers, so every declaration form inherits the tags — native it/test, wrapper testers like `@effect/vitest`'s `it.effect`, test.extend aliases, numeric-timeout calls and dynamically registered tests. No parsing happens; any failure (changed collector shape, missing `TestRunner` export) degrades to untagged tests via try/catch plus optional chaining, never a crash.
 5. Vitest's runner reads the resulting tags per test, which feeds the
    tag-filter expression syntax (such as pnpm vitest --tags-filter
    "unit" or --tags-filter "e2e and not flaky").
 
-The transform is the working path because Vitest's internal runner reads
-tags from test and it options at parse time, not from JSDoc comments.
+The file-level prelude replaced a per-call acorn AST rewrite of test/it options arguments, which corrupted wrapper testers with a `(name, self, timeout)` signature and collected zero tests (issue #133). See the tag injection transform section in [./plugin.md](./plugin.md) for the full semantics and failure modes.
 
 ---
 
@@ -358,4 +354,4 @@ threads.
 | packages/plugin/src/utils/classify-helpers.ts | classifyByFilename, classifyByDirectory, combineClassifiers — pure ClassifyFn builders |
 | packages/plugin/src/utils/find-test-files.ts | Async glob walker with inline glob-to-regex compiler; default skip set of node_modules, .git, dist |
 | packages/plugin/src/utils/tag.ts | Tag class with Tag.make factory and name validation |
-| packages/plugin/src/utils/inject-tags.ts | AST rewriter that injects the resolved tags array into every test and it call's options argument |
+| packages/plugin/src/utils/inject-tags.ts | Prepends a guarded per-file prelude that unions the classified tags into the file task via TestRunner.getCurrentSuite(); no parsing |

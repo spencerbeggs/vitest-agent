@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-06
-last-synced: 2026-07-01
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 93
 related:
   - ../architecture.md
@@ -26,10 +26,10 @@ a user-supplied `VitestAgentReporterFactory`.
 
 **npm name:** `@vitest-agent/plugin`
 **Location:** `packages/plugin/`
-**Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/reporter`
-**Required peers:** `@vitest-agent/cli`, `@vitest-agent/mcp`, `vitest >= 4.1.0`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`
+**Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/reporter`, `@vitest-agent/cli`, `@vitest-agent/mcp`
+**Required peers:** `vitest >= 4.1.0`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`
 
-`@vitest-agent/cli` and `@vitest-agent/mcp` are required workspace `peerDependencies` — required, not optional, with no `peerDependenciesMeta`. The plugin imports no code from either; they are declared so the `vitest-agent` and `vitest-agent-mcp` bins the Claude Code plugin's hook scripts shell out to are installed and resolvable. Peers are the right relationship rather than regular dependencies because npm 7+ and pnpm auto-install required peers, and an auto-installed peer lands at the consumer's top level where its bin resolves — a transitively-nested regular dependency's bin would not. See D33 in [../decisions.md](../decisions.md).
+`@vitest-agent/cli` and `@vitest-agent/mcp` are regular workspace `dependencies` (`workspace:*`) in source and publish as exact-pinned regular `dependencies` — the earlier `savvy.build.ts` transform that promoted them into `peerDependencies` for the published manifest was removed. The plugin imports no code from either; they are declared so the `vitest-agent` and `vitest-agent-mcp` bins the Claude Code plugin's hook scripts shell out to are installed. Their bins resolve because `@savvy-web/pnpm-plugin-silk` publicly hoists both packages; the peer form was actively harmful — pnpm's `autoInstallPeers` resolution of the cli/mcp peers forced wrong Effect versions into consuming repos. See D33 in [../decisions.md](../decisions.md).
 
 The plugin owns persistence, classification, baselines, trends, and Vitest
 lifecycle wiring. Rendering is delegated entirely to the reporter factory —
@@ -334,18 +334,18 @@ is the documented entry point.
 ## Tag injection transform
 
 `packages/plugin/src/utils/inject-tags.ts` plus the `transform` hook in
-`AgentPlugin()`. Vitest 4.1's runner reads tags from `test()` / `it()`
-options at parse time. The plugin installs a Vite `transform(code, id)`
+`AgentPlugin()`. The plugin installs a Vite `transform(code, id)`
 hook that, for every test file id:
 
 1. Calls `strategy.classify({ module })` to resolve the tag list for
    the file (for example, `["unit"]` for foo.test.ts, `["e2e"]` for
    foo.e2e.test.ts).
-2. Returns null if the tag list is empty (no rewrite, no parse cost).
-3. Parses with acorn plus acorn-typescript and walks every test and
-   it call expression.
-4. Uses magic-string to rewrite the options argument to merge in the
-   resolved tags array. Source maps are preserved.
+2. Returns null if the tag list is empty (no rewrite).
+3. Prepends one guarded two-line prelude via magic-string (source maps preserved): a namespace import of `vitest` plus a try/catch that calls `TestRunner?.getCurrentSuite?.()` (a public static since vitest 4.1, the plugin's peer floor), resolves the file task as `collector?.suite ?? collector?.file` (mirroring vitest's own parent-task resolution) and unions the classified tags into `task.tags`.
+
+Vitest's runner unions parent tags into every suite and test it registers at collection time, so every declaration form inherits the file-level tags: native `it`/`test`, wrapper testers with a `(name, self, timeout)` signature such as `@effect/vitest`'s `it.effect`, `test.extend` aliases, numeric-timeout calls and dynamically registered tests. The previous implementation parsed each file with acorn plus acorn-typescript and rewrote every `test()`/`it()` call's options argument — that corrupted wrapper testers (the injected options object became the test body, vitest threw "Cannot use two functions as arguments" and collected zero tests — issue #133) and could never reach dynamic or numeric-timeout declarations. There is no parsing at all now; acorn and acorn-typescript were dropped from the plugin's dependencies.
+
+Semantics under the prelude: tests declaring their own `tags` get the classification tags unioned in (the old rewrite skipped such calls), user `@module-tag` pragmas coexist and files with no statically visible test calls are still tagged. Every failure mode degrades to untagged tests, never a crash: a changed collector shape is absorbed by the try/catch; an environment whose `vitest` entry lacks the `TestRunner` export (e.g. browser mode) degrades via the namespace import plus optional chaining instead of failing module instantiation; helpers that register tests at import time evaluate before the prelude (ESM import hoisting) and miss the tags; a classified test file importing another classified test file runs the imported prelude during the importer's collection (benign tag bleed).
 
 The classifier and the tag declarations both come from a single
 `DiscoverStrategy` instance — supplied via the `discoverStrategy` plugin
@@ -468,11 +468,7 @@ instead.
   (rejects empty names, the reserved words and, or, not, and the
   forbidden characters open-paren, close-paren, ampersand, pipe,
   exclamation mark, asterisk plus whitespace).
-- `inject-tags.ts` — AST rewriter built on acorn plus acorn-typescript
-  plus magic-string. `injectTags(code, tags)` walks every test and it
-  call expression and rewrites the options argument to merge the
-  resolved tags array. Source maps are preserved. Used by the
-  plugin's Vite transform hook.
+- `inject-tags.ts` — `injectTags(source, tags)` prepends the guarded file-level tag prelude via magic-string (source maps preserved) and returns null only for an empty tag list. No parsing — the acorn AST rewrite was removed (issue #133). Used by the plugin's Vite transform hook; see "Tag injection transform" above.
 - `strip-console-reporters.ts` — removes console reporters from Vitest's
   reporter chain.
 - `is-benign-vite-source-map-warning.ts` — pure predicate `isBenignViteSourceMapWarning(message)` matching only the benign Vite `Failed to load source map` / ENOENT `.js.map` noise. Consumed by the `configResolved` logger filter (issue #110).

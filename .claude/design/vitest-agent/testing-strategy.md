@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: testing
 created: 2026-04-29
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 95
 related:
   - ./architecture.md
@@ -195,6 +195,7 @@ Integration tests verify behavior that unit tests can't reach:
 - **Reporter injection via `AgentPlugin`** -- exercise
   `configureVitest` with a fake Vitest plugin context and assert
   on the final reporters array
+- **Tag-prelude collection semantics** -- `packages/plugin/__test__/inject-tags-prelude.e2e.test.ts` spawns real `vitest run --reporter=json` subprocesses against a self-contained fixture project (`__test__/fixtures/tag-prelude-project/`) whose `vitest.config.ts` wires `injectTags` into a bare inline Vite plugin. It proves the file-level tag prelude across declaration forms the old per-call rewrite corrupted or missed (wrapper testers, numeric-timeout calls, user-declared tags), with positive and negative `--tags-filter` runs (issue #133). Subprocess-spawning tests must use the `.e2e.test.ts` suffix so the classifier grants the e2e timeout budget
 - **CLI bin invocation** -- spawn the bin against a populated
   `data.db` and assert on stdout
 - **MCP tool invocations** -- via tRPC caller factory against a
