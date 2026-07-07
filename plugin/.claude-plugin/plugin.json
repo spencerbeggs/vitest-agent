@@ -12,10 +12,7 @@
 	"mcpServers": {
 		"mcp": {
 			"command": "bash",
-			"args": [
-				"${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh",
-				"--noop=1"
-			]
+			"args": ["${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh", "--noop=1"]
 		}
 	}
 }
