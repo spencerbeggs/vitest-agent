@@ -1,4 +1,5 @@
-import { describe, expect, it, type TestContext } from "vitest";
+import type { TestContext } from "vitest";
+import { describe, expect, it } from "vitest";
 
 // Minimal replica of @effect/vitest's makeTester signature (name, self,
 // timeout): the second argument is the test body, the third is a timeout

@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -20,14 +20,14 @@ interface JsonFileResult {
 function runFixture(extraArgs: string[]): JsonFileResult[] {
 	let output: string;
 	try {
-		output = execSync(`node ${VITEST_BIN} run --reporter=json --no-color ${extraArgs.join(" ")}`, {
+		output = execFileSync("node", [VITEST_BIN, "run", "--reporter=json", "--no-color", ...extraArgs], {
 			cwd: FIXTURE_DIR,
 			encoding: "utf8",
 			env: { ...process.env, CI: "1" },
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 	} catch (err: unknown) {
-		// execSync throws on non-zero exit; the JSON still lands on stdout.
+		// execFileSync throws on non-zero exit; the JSON still lands on stdout.
 		const e = err as { stdout?: string; stderr?: string };
 		output = `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
 	}
