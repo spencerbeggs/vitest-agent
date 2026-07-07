@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 90
 related:
   - ./architecture.md
@@ -33,7 +33,7 @@ workspace at `website/`, and the file-based Claude Code plugin at `plugin/`
 ```text
 packages/
   sdk/         @vitest-agent/sdk (no internal deps; owns RunEvent + RenderState schemas; three entry points: . / ./dispatch / ./testing)
-  plugin/      @vitest-agent/plugin (deps on sdk+reporter; cli+mcp+Vitest packages are required peers; streaming hooks + run-event PubSub channel + onRunEvent tap; owns no rendering)
+  plugin/      @vitest-agent/plugin (deps on sdk+reporter+cli+mcp; Vitest packages are required peers; streaming hooks + run-event PubSub channel + onRunEvent tap; owns no rendering)
   reporter/    @vitest-agent/reporter (depends on sdk + ui + react + ink; default reporter package — DefaultVitestAgentReporter + live Ink mount + contract re-exports + dispatch helpers)
   ui/          @vitest-agent/ui (depends on sdk; react/ink peers; pure rendering primitives — reducer + shape-tailored dispatcher matrix + synthesizers + RunEventChannel PubSub)
   cli/         @vitest-agent/cli (bin: vitest-agent; depends on sdk + sidecar)
@@ -195,9 +195,10 @@ Test-kind differentiation uses **Vitest-native tags** (Vitest 4.1+).
 `DiscoverStrategy` in `@vitest-agent/plugin` declares the available tags
 (`unit`, `int`, `e2e` by default) and a `classify()` method that maps a
 test file to a tag list. The plugin installs a Vite `transform` hook
-(see `packages/plugin/src/utils/inject-tags.ts`) that rewrites every
-`test()` and `it()` call's options argument to add the resolved tags
-array. Filter at the command line via Vitest's standard tag-expression
+(see `packages/plugin/src/utils/inject-tags.ts`) that prepends a
+per-file prelude applying the resolved tags to the file task, which
+every declared suite and test then inherits at collection time.
+Filter at the command line via Vitest's standard tag-expression
 syntax (`pnpm vitest --project @vitest-agent/sdk --tags-filter "unit"`).
 The classifier and project detection share one `DiscoverStrategy`
 contract; see Decision 39.

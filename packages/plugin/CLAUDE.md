@@ -5,14 +5,7 @@ class. Owns the Vitest lifecycle hooks, persistence, classification,
 baseline/trend computation, and delegates rendering entirely to a
 `VitestAgentReporterFactory` — it injects `DefaultVitestAgentReporter` from
 `@vitest-agent/reporter` when the user does not pass a custom `reporter`
-option, and never touches rendering itself. The reporter owns mode
-branching and the Ink live-mount lifecycle. Declares `@vitest-agent/cli`
-and `@vitest-agent/mcp` as regular workspace `dependencies` at
-`workspace:*` (alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`);
-the `savvy.build.ts` `transform()` promotes them back into
-`peerDependencies` — exact-pinned — for the published manifest, so a
-cli/mcp release patch-bumps the plugin and re-pins the exact version
-rather than publishing an inexact caret. The Vitest-side peers (`vitest`,
+option, and never touches rendering itself. The reporter owns mode branching and the Ink live-mount lifecycle. Declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` at `workspace:*` (alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`); they publish as exact-pinned regular `dependencies` — the former `savvy.build.ts` peer promotion was removed because the silk pnpm plugin hoists their bins anyway and the peer form triggered pnpm auto-install-peers, forcing wrong Effect versions into consumer repos. A cli/mcp release still patch-bumps the plugin and re-pins the exact version rather than publishing an inexact caret (changesets reads the source `dependencies` declaration). The Vitest-side peers (`vitest`,
 `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as
 `peerDependencies` directly. The plugin no longer
 depends on `@vitest-agent/ui`, `react`, or `ink` — `reporter` pulls those
@@ -61,7 +54,8 @@ src/
                                    inline glob-to-regex compiler; skips
                                    node_modules, .git, dist by default
     tag.ts                     -- Tag class + Tag.make factory
-    inject-tags.ts             -- Vite transform for test.tags
+    inject-tags.ts             -- prepends a guarded tag prelude per
+                                   classified test file (no AST parsing)
     is-benign-vite-source-map-warning.ts -- pure predicate matching the benign
                                    Vite "Failed to load source map" / ENOENT
                                    .js.map noise (issue #110)
@@ -92,7 +86,7 @@ src/
 | `utils/classify-helpers.ts` | Pure ClassifyFn builders: `classifyByFilename` (record of suffixes or `[RegExp, tags]` tuples), `classifyByDirectory` (slash-bounded segment match), `combineClassifiers` (concat plus dedupe by tag name). Plug into `DiscoverStrategy.create({ classify })` or `.extend({ classify })` |
 | `utils/find-test-files.ts` | Async glob walker built on `node:fs/promises` with an inline glob-to-regex compiler. Skips `node_modules`, `.git`, `dist` by default. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
 | `utils/tag.ts` | `Tag` class with `Tag.make(name, options?)`. Validates the name and exposes a `TestTagDefinition` via `.definition` for Vitest's `test.tags` array |
-| `utils/inject-tags.ts` | Vite `transform` that rewrites `test()`/`it()` call options via acorn plus `magic-string`, adding the resolved tags array. Preserves source maps. The plugin enables this transform whenever a `DiscoverStrategy` is active (the default) and bypasses it entirely when the user passes `discoverStrategy: false` |
+| `utils/inject-tags.ts` | Prepends a guarded two-line prelude to each classified test file: a namespace `vitest` import plus a try/catch that calls `TestRunner?.getCurrentSuite?.()`, resolves `collector?.suite ?? collector?.file`, and unions the resolved tags into the task's `tags`. Vitest's runner unions parent tags into every suite/test at registration, so every declaration form inherits — native `test`/`it`, wrapper testers like `@effect/vitest`'s `it.effect`, `test.extend` aliases, numeric-timeout third-arg calls, dynamic registration (issue #133). No acorn parsing; the `magic-string` prepend preserves source maps, and the try/catch degrades to untagged tests, never a crash. The plugin enables this transform whenever a `DiscoverStrategy` is active (the default) and bypasses it entirely when the user passes `discoverStrategy: false`. Subprocess e2e coverage lives in `__test__/inject-tags-prelude.e2e.test.ts` with the `__test__/fixtures/tag-prelude-project/` fixture |
 | `layers/ReporterLive.ts` | Composition layer for `AgentReporter`. Used per-run via `Effect.runPromise` (not ManagedRuntime — the reporter is short-lived per run) |
 
 ## AgentPlugin.discover()
@@ -216,10 +210,7 @@ user wiring.
   `DefaultDiscoverStrategy` is the only strategy auto-applied;
   user-supplied strategies arrive via
   `AgentPlugin.discover(strategy)` and the renamed
-  `discoverStrategy` plugin option. The classify result flows into
-  the `inject-tags.ts` Vite transform, which mutates the parsed
-  `test()` / `it()` options argument directly so source maps and
-  existing user-supplied tags are preserved.
+  `discoverStrategy` plugin option. The classify result flows into the `inject-tags.ts` Vite transform, which prepends a file-level tag prelude; tags union into the file task at runner level, so existing user-supplied tags are preserved (set union) and every declaration form inherits them.
 - Adding a new utility that only this package uses: put it in
   `utils/`. If the utility is needed by MCP or CLI too, it belongs
   in `@vitest-agent/sdk/utils/` or `@vitest-agent/sdk/lib/`.

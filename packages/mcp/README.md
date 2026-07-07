@@ -22,7 +22,7 @@ npm install --save-dev @vitest-agent/mcp
 pnpm add -D @vitest-agent/mcp
 ```
 
-`@vitest-agent/mcp` is a required peer of `@vitest-agent/plugin` and arrives automatically with modern pnpm and npm.
+`@vitest-agent/mcp` is a regular dependency of `@vitest-agent/plugin` and installs with it automatically.
 
 ## Quick start
 

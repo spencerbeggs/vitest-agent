@@ -44,7 +44,7 @@ Or configure permanently in your Claude Code settings:
 
 The plugin registers the `vitest-agent` MCP server automatically via the `mcpServers` field in `.claude-plugin/plugin.json`. A zero-dependency POSIX shell loader (`bin/start-mcp.sh`) shipped with the plugin detects your package manager (npm, pnpm, yarn or bun) from `packageManager` in `package.json` or your lockfile, then `exec`-replaces itself with the `vitest-agent-mcp` bin so it resolves from your project's `node_modules` with no wrapper process left behind.
 
-This means `@vitest-agent/plugin` must be installed as a dependency of your project for the plugin's MCP server to start. The package's required peer dependencies (`@vitest-agent/mcp` and `@vitest-agent/cli`) are auto-installed by modern pnpm and npm. If the MCP bin is missing, the loader prints PM-specific install instructions and exits non-zero. See [Prerequisites](#prerequisites) below.
+This means `@vitest-agent/plugin` must be installed as a dependency of your project for the plugin's MCP server to start. The `@vitest-agent/mcp` and `@vitest-agent/cli` packages are regular dependencies of the plugin and install with it. If the MCP bin is missing, the loader prints PM-specific install instructions and exits non-zero. See [Prerequisites](#prerequisites) below.
 
 The server exposes 29 action-keyed tools and six framing-only prompts for common workflows. Tools emit both markdown `content[]` and a typed `structuredContent` payload per MCP 2025-06-18. Use the `help` tool for the full tool list with parameters.
 
@@ -131,11 +131,7 @@ npm install --save-dev @vitest-agent/plugin
 pnpm add -D @vitest-agent/plugin
 ```
 
-The required peer dependencies (`@vitest-agent/mcp` for the MCP bin and `@vitest-agent/cli` for the CLI) are auto-installed by modern pnpm and npm. If your package manager is configured to skip peer deps (e.g. pnpm with `auto-install-peers: false`), install them explicitly:
-
-```bash
-pnpm add -D @vitest-agent/plugin @vitest-agent/cli @vitest-agent/mcp
-```
+`@vitest-agent/mcp` (the MCP bin) and `@vitest-agent/cli` (the CLI) are regular dependencies of the plugin, so a single install brings both on every package manager.
 
 Additional setup:
 

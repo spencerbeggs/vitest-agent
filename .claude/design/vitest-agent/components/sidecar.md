@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: performance
 created: 2026-05-15
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 92
 related:
   - ../architecture.md
@@ -72,7 +72,7 @@ Each child `package.json` declares a `publishConfig` pointing at `dist/npm` so t
 
 ## Hook integration
 
-The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins — transitive optional-dependency bins are never placed in `node_modules/.bin/`. The SessionStart hook resolves the path at session start instead: it calls `vitest-agent agent sidecar-path` (a CLI subcommand backed by `resolveSidecarBinaryPath`), captures the absolute path from stdout, and writes `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both the session env file and `CLAUDE_ENV_FILE`. The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) Layer 2 reads `$VITEST_AGENT_SIDECAR_BIN`, checks it is non-empty and executable, and execs it directly when valid. When absent or non-executable it falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths are byte-identical in output. `@vitest-agent/sidecar` reaches a consumer's install transitively rather than as a direct plugin peer: it is a regular `dependency` of `@vitest-agent/cli`, and `@vitest-agent/cli` is a required `peerDependency` of `@vitest-agent/plugin`, so installing the plugin and its auto-installed cli peer pulls the sidecar and its four per-platform `optionalDependencies` automatically.
+The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins — transitive optional-dependency bins are never placed in `node_modules/.bin/`. The SessionStart hook resolves the path at session start instead: it calls `vitest-agent agent sidecar-path` (a CLI subcommand backed by `resolveSidecarBinaryPath`), captures the absolute path from stdout, and writes `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both the session env file and `CLAUDE_ENV_FILE`. The PreToolUse Bash hook (`plugin/hooks/pre-tool-use/bash.sh`) Layer 2 reads `$VITEST_AGENT_SIDECAR_BIN`, checks it is non-empty and executable, and execs it directly when valid. When absent or non-executable it falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths are byte-identical in output. `@vitest-agent/sidecar` reaches a consumer's install transitively rather than as a direct plugin dependency: it is a regular `dependency` of `@vitest-agent/cli`, and `@vitest-agent/cli` is a regular `dependency` of `@vitest-agent/plugin`, so installing the plugin pulls the sidecar and its four per-platform `optionalDependencies` automatically.
 
 ## CI
 

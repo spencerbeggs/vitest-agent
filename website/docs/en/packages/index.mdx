@@ -36,10 +36,10 @@ The full transitive chain triggered by installing `@vitest-agent/plugin`:
   ├── @vitest-agent/reporter (dependency)
   │   └── @vitest-agent/ui (dependency)
   │       └── @vitest-agent/sdk (dependency)
-  ├── @vitest-agent/cli (required peer)
+  ├── @vitest-agent/cli (dependency, exact-pinned)
   │   └── @vitest-agent/sidecar (dependency)
   │       └── @vitest-agent/sidecar-<platform> (optional, platform-matched)
-  └── @vitest-agent/mcp (required peer)
+  └── @vitest-agent/mcp (dependency, exact-pinned)
       └── @vitest-agent/sdk (dependency)
 ```
 
@@ -53,7 +53,7 @@ npm install --save-dev @vitest-agent/plugin
 pnpm add -D @vitest-agent/plugin
 ```
 
-This brings in the full ecosystem: reporter, UI primitives, SDK, CLI, MCP server, and the native sidecar binary. The CLI and MCP server land as required peers and are wired automatically by npm 7+ and pnpm with `autoInstallPeers: true`.
+This brings in the full ecosystem: reporter, UI primitives, SDK, CLI, MCP server, and the native sidecar binary. The CLI and MCP server land as exact-pinned regular dependencies and are wired automatically on any package manager.
 
 Install individual packages directly only when:
 

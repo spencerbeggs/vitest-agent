@@ -34,12 +34,12 @@ The `optionalDependencies` pattern follows the same model used by native package
 
 ```
 @vitest-agent/plugin   (consumer installs this)
-  └── @vitest-agent/cli  (required peerDependency, auto-installed by npm 7+ / pnpm)
+  └── @vitest-agent/cli  (regular dependency, exact-pinned)
         └── @vitest-agent/sidecar  (regular dependency)
               └── @vitest-agent/sidecar-{platform}  (optionalDependency, one per platform)
 ```
 
-Installing `@vitest-agent/plugin` and its required peers pulls `@vitest-agent/sidecar` and its four per-platform `optionalDependencies` automatically. You rarely need to add `@vitest-agent/sidecar` directly.
+Installing `@vitest-agent/plugin` pulls `@vitest-agent/sidecar` and its four per-platform `optionalDependencies` automatically. You rarely need to add `@vitest-agent/sidecar` directly.
 
 ## resolveSidecarBinaryPath
 

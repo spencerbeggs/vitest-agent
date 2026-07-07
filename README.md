@@ -20,7 +20,7 @@ The seven publishable packages live under `packages/`. `@vitest-agent/sdk` has n
 
 The sidecar's per-platform binaries ship as `optionalDependencies` from four sub-packages — `@vitest-agent/sidecar-darwin-arm64`, `-linux-arm64`, `-linux-x64` and `-win32-x64` under `packages/sidecar-*/`. The six original packages release in lockstep; `@vitest-agent/sidecar` versions independently.
 
-`@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as required peer dependencies, so a single `npm install @vitest-agent/plugin` pulls the whole family on npm 7+ and pnpm with `autoInstallPeers`.
+`@vitest-agent/plugin` ships `@vitest-agent/cli` and `@vitest-agent/mcp` as exact-pinned regular dependencies, so a single `npm install @vitest-agent/plugin` pulls the whole family on any package manager.
 
 ## Private workspaces
 

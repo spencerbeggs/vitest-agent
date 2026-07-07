@@ -5,7 +5,7 @@ description: The Vitest plugin that turns your test suite into a live data sourc
 
 # @vitest-agent/plugin
 
-The Vitest plugin that turns your test suite into a live data source for LLM coding agents. Drop `AgentPlugin` into `vitest.config.ts` and it handles persistence, failure classification, coverage policy enforcement, project discovery, and a configurable reporter chain — the CLI and MCP server arrive as required peers and wire automatically.
+The Vitest plugin that turns your test suite into a live data source for LLM coding agents. Drop `AgentPlugin` into `vitest.config.ts` and it handles persistence, failure classification, coverage policy enforcement, project discovery, and a configurable reporter chain — the CLI and MCP server ship as dependencies and wire automatically.
 
 ## Features
 
@@ -24,7 +24,7 @@ npm install --save-dev @vitest-agent/plugin
 pnpm add -D @vitest-agent/plugin
 ```
 
-The required peers `@vitest-agent/cli` and `@vitest-agent/mcp` install automatically with npm 7+ and pnpm (`autoInstallPeers: true`). You rarely need to install them by hand.
+`@vitest-agent/cli` and `@vitest-agent/mcp` are regular dependencies of the plugin and install with it on every package manager. You rarely need to install them by hand.
 
 ## Quick start
 
@@ -98,7 +98,7 @@ const { projects, tags } = await AgentPlugin.discover()
   .addProject({ name: "integration", path: "./test-only" });
 ```
 
-The builder scans every workspace package for `src/` and `__test__/` directories. Packages with neither are silently skipped. One Vitest project is emitted per workspace package; test-kind classification (`unit`, `int`, `e2e`) happens through the `DiscoverStrategy.classify` mechanism rather than project splitting.
+The builder scans every workspace package for `src/` and `__test__/` directories. Packages with neither are silently skipped. One Vitest project is emitted per workspace package; test-kind classification (`unit`, `int`, `e2e`) happens through the `DiscoverStrategy.classify` mechanism rather than project splitting. Classification tags are applied at collection time and inherited by every test declaration form, including wrapper testers like `@effect/vitest`'s `it.effect`.
 
 For fine-grained control over which packages become projects and how test
 files map to tags, supply a custom `DiscoverStrategy` — extend the default with

@@ -7,7 +7,7 @@ description: A Node Single Executable Application binary for the per-Bash-call i
 
 A Node Single Executable Application (SEA) binary for the per-Bash-call `inject-env` hot path. Every Bash tool call from a Claude Code agent fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` env prefix. Running that through the full `vitest-agent` CLI pays Node cold-start latency on every call; this binary runs the same logic with a fraction of the startup cost.
 
-This package arrives automatically via `@vitest-agent/cli`, which is itself a required peer of `@vitest-agent/plugin`. You rarely need to add it directly.
+This package arrives automatically via `@vitest-agent/cli`, which is itself a regular dependency of `@vitest-agent/plugin`. You rarely need to add it directly.
 
 ## Features
 

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-01
-last-synced: 2026-07-01
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 92
 related:
   - ../architecture.md
@@ -31,8 +31,8 @@ alongside the tRPC router.
 
 A separate package for module-boundary reasons and so the MCP tool
 surface can evolve on its own cadence — not for install-cost reasons.
-The plugin declares `@vitest-agent/mcp` as a required `peerDependency`,
-which npm 7+ and pnpm auto-install, so every plugin consumer installs
+The plugin declares `@vitest-agent/mcp` as an exact-pinned regular
+`dependency`, so every plugin consumer installs
 it; an MCP server that is downloaded but never started costs a
 non-Claude-Code user only a download. The `@modelcontextprotocol/sdk` /
 tRPC / zod stack staying in its own package is a boundary decision

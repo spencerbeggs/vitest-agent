@@ -58,9 +58,16 @@ Helper subdirectories inside `__test__/` — `utils/`, `fixtures/`,
 `snapshots/` — are excluded automatically. The pre-2.0 `pkg:unit`, `pkg:int`,
 `pkg:e2e` project-name suffixes are gone; there is one project per package.
 
-**Tag injection.** The strategy also provides a Vite transform that runs at
-parse time and injects a tag into every `test()` and `it()` call based on the
-test file's path. The default classifier rules are:
+**Tag injection.** The strategy also provides a Vite transform that
+classifies each test file by path and prepends a short prelude setting the
+classification tags on the file's task at collection time. Vitest's runner
+unions parent tags into every suite and test it registers, so every
+declaration form inherits the file's tags — native `test()` and `it()` calls,
+wrapper testers like `@effect/vitest`'s `it.effect`, `test.extend` aliases,
+and dynamically registered tests. Tags a test declares itself are kept; the
+classification tags union in. If the runner API is unavailable (for example
+Vitest's browser-mode entries), the prelude degrades to untagged tests rather
+than failing the run. The default classifier rules are:
 
 | File name pattern | Injected tag |
 | --- | --- |
@@ -81,10 +88,10 @@ pnpm vitest run --tags-filter "unit and not e2e"
 pnpm vitest run --tags-filter "e2e"
 ```
 
-Tag expressions support `and`, `or`, and `not`. Because tags are injected at
-parse time via the Vite transform, they are available to Vitest's scheduler
-and timeout rules — you can pair `--tags-filter "e2e"` with a longer timeout
-configuration for end-to-end tests.
+Tag expressions support `and`, `or`, and `not`. Because tags are applied at
+collection time, before any test runs, they are available to Vitest's
+scheduler and timeout rules — you can pair `--tags-filter "e2e"` with a longer
+timeout configuration for end-to-end tests.
 
 ## Adding a non-package folder
 
@@ -169,7 +176,7 @@ To keep project discovery but opt out of tag injection, set
 AgentPlugin({ discoverStrategy: false })
 ```
 
-No tags are injected at parse time when `false`. You can still run
+No classification tags are applied when `false`. You can still run
 `AgentPlugin.discover()` for the `projects` array; only the transform is
 suppressed. `test.tags` can be omitted when no tags will be used.
 

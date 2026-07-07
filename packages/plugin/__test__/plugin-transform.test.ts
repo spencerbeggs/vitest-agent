@@ -14,12 +14,14 @@ const callTransform = (
 describe("AgentPlugin transform hook", () => {
 	const TEST_ID = "/repo/packages/sdk/src/auth.int.test.ts";
 
-	it("rewrites test() to carry the int tag", () => {
+	it("prepends the tag prelude carrying the int tag", () => {
 		const plugin = AgentPlugin();
 		const source = 'import { test } from "vitest";\ntest("a", () => {});\n';
 		const result = callTransform(plugin, source, TEST_ID);
 		expect(result).not.toBeNull();
-		expect(result!.code).toContain('tags: ["int"]');
+		expect(result!.code).toContain("__vitestAgentVitest");
+		expect(result!.code).toContain('...["int"]');
+		expect(result!.code).toContain(source);
 	});
 
 	it("returns null for non-test files", () => {
@@ -53,6 +55,6 @@ describe("AgentPlugin transform hook", () => {
 		});
 		const plugin = AgentPlugin({ discoverStrategy: strategy });
 		const result = callTransform(plugin, 'test("x", () => {});', TEST_ID);
-		expect(result!.code).toContain('tags: ["int", "slow"]');
+		expect(result!.code).toContain('...["int", "slow"]');
 	});
 });

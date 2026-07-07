@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 100
 related:
   - ./decisions.md
@@ -139,9 +139,9 @@ project per workspace package, dropped the `sub_project` column from
 every table in the canonical schema, removed `subProject` from
 `DataStore` / `DataReader` / `HistoryTracker` interfaces, and dropped
 the per-kind override API on `discoverProjects`. The plugin now
-installs a Vite `transform` hook that injects a `tags` array onto
-every `test()` and `it()` call's options argument (see
-`packages/plugin/src/utils/inject-tags.ts`).
+installs a Vite `transform` hook that prepends a per-file tag prelude
+applied to the file task at collection time (see
+`packages/plugin/src/utils/inject-tags.ts` and Decision 23).
 
 **What it was:** Vitest project names included colon-suffixed kinds
 (`"my-app:unit"`, `"my-app:e2e"`); `splitProject()` separated them at

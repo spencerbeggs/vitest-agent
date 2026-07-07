@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-07-01
-last-synced: 2026-07-01
+updated: 2026-07-07
+last-synced: 2026-07-07
 completeness: 100
 related:
   - ./architecture.md
@@ -283,9 +283,14 @@ Test-kind differentiation (`unit`, `int`, `e2e`) uses Vitest 4.1's native
 tag system rather than per-kind project splitting or filename-driven
 project names. `discoverProjects()` emits one project per workspace
 package; the plugin installs a Vite `transform` hook (see
-`packages/plugin/src/utils/inject-tags.ts`) that rewrites every `test()`
-and `it()` call's options argument with a tags array derived from
-filename classification (`*.e2e.test.ts` → `["e2e"]`, etc.). The
+`packages/plugin/src/utils/inject-tags.ts`) that prepends a guarded
+per-file prelude applying a tags array derived from filename
+classification (`*.e2e.test.ts` → `["e2e"]`, etc.) to the file task via
+vitest's public `TestRunner.getCurrentSuite()` static — the runner
+unions parent tags into every registered suite and test, so all
+declaration forms inherit them, including wrapper testers like
+`@effect/vitest`'s `it.effect` that the retired per-call AST rewrite
+corrupted (issue #133). The
 classifier and tag declarations live on `DiscoverStrategy` in
 `@vitest-agent/plugin` — see Decision 39. `AgentPlugin.discover()` returns
 `{ projects, tags }` so the tag list flows directly into `test.tags`.
@@ -403,10 +408,10 @@ loader resolved.
 
 **Trade-off:** the loader knows about four PMs and their `exec`
 syntaxes. Keeping that table current is a small maintenance cost.
-`@vitest-agent/mcp` is a required `peerDependency` of the plugin, which
-npm 7+ and pnpm auto-install, so installing the plugin lands the MCP
-server's bin at the consumer's top level where the loader's PM `exec`
-resolves it.
+`@vitest-agent/mcp` is an exact-pinned regular `dependency` of the
+plugin, and `@savvy-web/pnpm-plugin-silk` publicly hoists it, so
+installing the plugin lands the MCP server's bin where the loader's PM
+`exec` resolves it.
 
 ### Decision 31: Deterministic XDG Path Resolution
 
@@ -505,23 +510,14 @@ The seven workspaces under `packages/`:
 | Package | Role |
 | --- | --- |
 | `@vitest-agent/sdk` | data layer, schemas, services, formatters, utilities, XDG path stack, sidecar dispatch core (`./dispatch` entry) — no internal deps |
-| `@vitest-agent/plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli and mcp as required peers, depends on reporter and sdk directly (not on ui). Owns no rendering |
+| `@vitest-agent/plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli, mcp, reporter and sdk as regular dependencies (not ui). Owns no rendering |
 | `@vitest-agent/reporter` | the default reporter package: `DefaultVitestAgentReporter` (the plugin's built-in factory, owns the Ink live mount), contract re-exports, dispatch helpers. Declares `react` + `ink` as full deps; depends on sdk and ui |
 | `@vitest-agent/ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, `RunEventChannel` PubSub). Consumed by `@vitest-agent/reporter`; `react` / `ink` are `peerDependencies` |
 | `@vitest-agent/cli` | `vitest-agent` bin |
 | `@vitest-agent/mcp` | `vitest-agent-mcp` bin |
 | `@vitest-agent/sidecar` | per-Bash `inject-env` fast-path native binary; a regular `dependency` of `@vitest-agent/cli` |
 
-Every `@vitest-agent/*` package versions independently — changesets
-carries no `fixed`/`linked` grouping, so a bump to one package does not
-force the rest (see D36). The plugin
-declares the CLI and MCP packages as **required** `peerDependencies` so
-installing the plugin still pulls the agent tooling with it;
-`@vitest-agent/reporter`, `@vitest-agent/sdk` and `@vitest-agent/ui` are
-regular `dependencies` of the plugin, not peers. `@vitest-agent/sidecar`
-is not a direct plugin peer at all — it is a regular `dependency` of
-`@vitest-agent/cli`, so the auto-installed cli peer drags it in
-transitively.
+Every `@vitest-agent/*` package versions independently — changesets carries no `fixed`/`linked` grouping, so a bump to one package does not force the rest (see D36). The plugin declares the CLI and MCP packages as regular `dependencies` alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`, so installing the plugin pulls the agent tooling with it. `@vitest-agent/sidecar` is not a direct plugin dependency at all — it is a regular `dependency` of `@vitest-agent/cli`, which drags it in transitively.
 
 **Why this split:** the shared package boundary is determined by "what
 does more than one runtime package need". The data layer, output
@@ -532,32 +528,7 @@ module-boundary decision: `@effect/cli` is the CLI's own concern and
 the MCP SDK + tRPC + zod stack is the MCP server's own concern, so
 each keeps its dependency surface in its own package.
 
-**Why required peer deps (vs optional or full deps):** the CLI and MCP
-packages are required peers (`optional: false`, no
-`peerDependenciesMeta`) — every plugin consumer needs them, for the bin
-invocations the reporter's "Next steps" output suggests and for the MCP
-server the Claude Code plugin needs. Required peers are the correct
-relationship rather than regular dependencies because npm 7+ and pnpm
-(this repo sets `autoInstallPeers: true`) auto-install required peers,
-and a peer-installed package lands at the consumer's top level — so the
-`vitest-agent` and `vitest-agent-mcp` bins resolve for the Claude Code
-plugin's hook scripts. A transitively-nested regular dependency's bin
-would not. The published `@vitest-agent/plugin` carries real registry
-version ranges for these peers (rslib-builder rewrites the `workspace:^`
-protocol to a concrete caret range at publish time), so the auto-install
-resolves against the registry. The cli and mcp peers use `workspace:^`
-rather than `workspace:*` deliberately: changesets reads a `workspace:*`
-peer as an exact pin, so a minor bump to either peer would treat the
-plugin's peer range as changed and force the plugin to a major bump (a
-changed peer range is a breaking change); `workspace:^` paired with the
-`onlyUpdatePeerDependentsWhenOutOfRange` changeset option keeps the
-plugin on a minor when its peers take a compatible in-range minor (see
-D36). In the monorepo dev workspace the peers
-are `workspace:^` ranges that `autoInstallPeers` cannot satisfy from the
-registry, so the root `package.json` declares `@vitest-agent/cli` and
-`@vitest-agent/mcp` directly as devDependencies and `pnpm-workspace.yaml`
-adds a `publicHoistPattern` for both so their bins land in the root
-`node_modules/.bin`.
+**Why regular deps for cli and mcp (vs required peers):** every plugin consumer needs both packages — for the bin invocations the reporter's "Next steps" output suggests and for the MCP server the Claude Code plugin needs. They were previously required `peerDependencies` (source `workspace:*` deps promoted at build by a `savvy.build.ts` manifest transform) on the theory that only an auto-installed peer lands its bin at the consumer's top level. That promotion was removed: `@savvy-web/pnpm-plugin-silk` publicly hoists both packages so their bins resolve regardless, and the peer declaration was actively harmful — pnpm's `autoInstallPeers` resolution of the plugin's cli/mcp peers forced wrong Effect versions into consuming repos. Both now publish as exact-pinned regular `dependencies` (the default manifest transform rewrites the source `workspace:*` protocol to the exact current version at publish). The changesets ripple is unchanged: a cli/mcp release pushes the plugin's `workspace:*` dep out of range and auto-PATCH-bumps the plugin via `updateInternalDependencies: "patch"`, re-pinning the exact version — and with no cli/mcp peer range in the published manifest, the forced-major peer-range hazard is gone entirely (see D36). In the monorepo dev workspace the root `package.json` still declares `@vitest-agent/cli` and `@vitest-agent/mcp` directly as devDependencies and `pnpm-workspace.yaml` keeps a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks.
 
 **Trade-offs:** every source `package.json` is `private: true`
 (rslib-builder transforms each on publish), and consumers importing schemas
@@ -680,13 +651,13 @@ Each runtime package still exports a `CURRENT_<PKG>_VERSION` constant, inlined f
 
 **Why independent (vs lockstep):** the lockstep form bumped all six runtime packages on the smallest change to any one and asserted exact version equality across the family at runtime. Once the packages are allowed to move independently that equality assertion is a false positive on every ordinary consumer install — a plugin on one minor legitimately running an mcp on a later compatible minor is not drift — so the shared release train and the drift check were removed together. The package-boundary contracts at the SDK layer (D33, D34) are enforced by the dependency ranges and TypeScript, not by a runtime string compare.
 
-**The peer-range mechanism.** The plugin's required peers `@vitest-agent/cli` and `@vitest-agent/mcp` are declared `workspace:^`, not `workspace:*`. Changesets reads a `workspace:*` peer as an exact pin, so a minor bump to either peer treats the plugin's peer range as changed and forces the plugin to a major bump (a changed peer range is breaking). `workspace:^` paired with the changeset option `___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH.onlyUpdatePeerDependentsWhenOutOfRange: true` keeps the plugin on a minor when its peers take a compatible in-range minor; `updateInternalDependencies: "patch"` still bumps internal dependents on patch. See `.changeset/config.json` for the live settings.
+**The ripple mechanism.** The plugin declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular `workspace:*` dependencies in source (they publish as exact-pinned regular dependencies — see D33). Any cli/mcp release pushes the plugin's dep out of range, so `updateInternalDependencies: "patch"` auto-PATCH-bumps the plugin and re-pins the exact version. The earlier form declared them as `workspace:^` required peers promoted at build; that shape existed to dodge changesets' changed-peer-range-forces-major rule and became moot when the peer promotion was removed. See `.changeset/config.json` for the live settings.
 
 **Release artifacts.** A release now produces, per package, a git tag `@vitest-agent/<pkg>@<version>` (changesets' scoped-package tag format, e.g. `@vitest-agent/sdk@1.1.0`) and one GitHub Release titled with that same tag, each carrying that package's own changelog body, its own provenance assets (npm tarball, SBOM, API report, meta) and a per-package Publish Summary. This replaces the retired lockstep scheme's single unified semver tag (e.g. `1.0.1`) plus one combined Release whose body concatenated every package's section and to which all packages' assets were attached. The docs/deploy trigger still keys on the plugin Release name containing `@vitest-agent/plugin` — unchanged. The two prior unified releases were backfilled to match: the unified `1.0.0` and `1.0.1` git tags and Releases were deleted and re-created per package (`@vitest-agent/<pkg>@1.0.0` / `@1.0.1`, assets re-homed) so history matches the new scheme and the tooling finds a per-package previous-tag reference for changelog generation. The Release marked "Latest" is `@vitest-agent/plugin@1.0.1`.
 
 **Why the Claude Code plugin and sidecar were already independent:** both versioned on their own before this change — the marketplace plugin is a file-based distribution with its own cadence (D20), and `@vitest-agent/sidecar` ships per-platform binaries that rev separately. Independent versioning generalizes that posture to the whole family.
 
-**Cross-references:** D33 (Five-Package Split — establishes the required-peer-deps shape these ranges live on) and D30 (Plugin MCP Loader — the consumer-rooted spawn that makes the resolved peer version whatever the consumer's lockfile holds). The retired lockstep form, including the removed build-inlined drift check, lives in [./decisions-retired.md](./decisions-retired.md).
+**Cross-references:** D33 (Package Split — establishes the regular-dependency shape these ranges live on) and D30 (Plugin MCP Loader — the consumer-rooted spawn that makes the resolved version whatever the consumer's lockfile holds). The retired lockstep form, including the removed build-inlined drift check, lives in [./decisions-retired.md](./decisions-retired.md).
 
 ### Decision 37: Per-Executor Console Matrix + Streaming Reporter Tap
 

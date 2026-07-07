@@ -7,7 +7,7 @@ description: The vitest-agent CLI bin. Manages the local SQLite database, runs h
 
 The `vitest-agent` CLI bin. Manages the local SQLite database, runs health diagnostics, and provides the hook-plumbing subcommands used by the Claude Code plugin's session and Bash hooks. Reads cached test data from SQLite — never runs tests or calls AI providers.
 
-This package is a required peer of `@vitest-agent/plugin` and arrives automatically with modern pnpm and npm. Install it directly only if you want the `vitest-agent` bin on its own.
+This package is a regular dependency of `@vitest-agent/plugin` and installs with it automatically. Install it directly only if you want the `vitest-agent` bin on its own.
 
 ## Features
 
