@@ -152,7 +152,7 @@ describe("AgentReporter", () => {
 					functions: { pct: 88 },
 					lines: { pct: 92 },
 				}),
-				files: () => [],
+				files: () => ["src/covered.ts"],
 				fileCoverageFor: () => ({
 					toSummary: () => ({
 						statements: { pct: 90 },
@@ -186,7 +186,7 @@ describe("AgentReporter", () => {
 					functions: { pct: 88 },
 					lines: { pct: 92 },
 				}),
-				files: () => [],
+				files: () => ["src/covered.ts"],
 				fileCoverageFor: () => ({
 					toSummary: () => ({
 						statements: { pct: 90 },
@@ -223,7 +223,7 @@ describe("AgentReporter", () => {
 					functions: { pct: 88 },
 					lines: { pct: 92 },
 				}),
-				files: () => [],
+				files: () => ["src/covered.ts"],
 				fileCoverageFor: () => ({
 					toSummary: () => ({
 						statements: { pct: 90 },
@@ -253,6 +253,46 @@ describe("AgentReporter", () => {
 	});
 
 	describe("baselines", () => {
+		it("does not fail the baseline write when the coverage map is empty (issue #130)", async () => {
+			// `vitest run --passWithNoTests` in a workspace with no test files
+			// hands the reporter an empty istanbul coverage map whose summary
+			// pcts are the string "Unknown". The ratchet math turned those into
+			// NaN, which binds as SQL NULL and logged a non-fatal
+			// `DataStoreError: [write coverage_baselines] NOT NULL constraint
+			// failed` on every run.
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const emptyCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: "Unknown" },
+					branches: { pct: "Unknown" },
+					functions: { pct: "Unknown" },
+					lines: { pct: "Unknown" },
+				}),
+				files: () => [],
+				fileCoverageFor: () => {
+					throw new Error("no files in map");
+				},
+			};
+
+			const stderrWrites: string[] = [];
+			const originalWrite = process.stderr.write.bind(process.stderr);
+			process.stderr.write = ((chunk: string | Uint8Array) => {
+				stderrWrites.push(String(chunk));
+				return true;
+			}) as typeof process.stderr.write;
+			try {
+				reporter.onCoverage(emptyCoverage);
+				await reporter.onTestRunEnd([], [], "passed");
+			} finally {
+				process.stderr.write = originalWrite;
+			}
+
+			expect(stderrWrites.join("")).not.toContain("DataStoreError");
+		});
+
 		it("writes baselines when coverage is present", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
@@ -265,7 +305,7 @@ describe("AgentReporter", () => {
 					functions: { pct: 88 },
 					lines: { pct: 92 },
 				}),
-				files: () => [],
+				files: () => ["src/covered.ts"],
 				fileCoverageFor: () => ({
 					toSummary: () => ({
 						statements: { pct: 90 },
@@ -300,7 +340,7 @@ describe("AgentReporter", () => {
 					functions: { pct: 88 },
 					lines: { pct: 92 },
 				}),
-				files: () => [],
+				files: () => ["src/covered.ts"],
 				fileCoverageFor: () => ({
 					toSummary: () => ({
 						statements: { pct: 90 },
@@ -556,7 +596,7 @@ describe("AgentReporter", () => {
 					functions: { pct: 88 },
 					lines: { pct: 92 },
 				}),
-				files: () => [],
+				files: () => ["src/covered.ts"],
 				fileCoverageFor: () => ({
 					toSummary: () => ({
 						statements: { pct: 90 },

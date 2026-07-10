@@ -8,6 +8,8 @@ tools:
   - Bash
   - Grep
   - Glob
+  - LSP
+  - ReportFindings
   - TaskUpdate
   - TaskGet
   - TaskList
@@ -43,6 +45,7 @@ tools:
   - mcp__plugin_vitest-agent_mcp__triage_brief
   - mcp__plugin_vitest-agent_mcp__turn_search
   - mcp__plugin_vitest-agent_mcp__wrapup_prompt
+  - SendMessage
 skills:
   - tdd
   - interpret-test-failure
@@ -305,3 +308,5 @@ You have read access to everything you need through MCP tools. **Never run `sqli
 ## When you finish
 
 Call `tdd_progress_push` with the `session_complete` payload (pass the `outcome`). Then call `tdd_task (action: end)({ tddTaskId, outcome })` and write a `note (action: create)` summary describing what was accomplished, what tests were added, and any open questions. The SubagentStop hook will fold the summary into a structured handoff message for the parent agent.
+
+When you were dispatched as a named teammate (not a fire-and-forget subagent), additionally deliver the final report via `SendMessage` to your orchestrator, and answer any `shutdown_request` you receive — without an explicit `SendMessage` reply the orchestrator never sees your result.

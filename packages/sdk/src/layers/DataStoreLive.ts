@@ -308,10 +308,13 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				// The coverage_baselines table supports per-project rows but the
 				// CoverageBaselines schema is a single global object. Per-project
 				// baselines would require a DataStore.writeBaselines signature change.
+				// Non-finite values (NaN from ratchet math over an empty coverage
+				// run) would bind as SQL NULL and trip the NOT NULL constraint on
+				// coverage_baselines.value — skip them (issue #130).
 				const metrics = ["lines", "functions", "branches", "statements"] as const;
 				for (const metric of metrics) {
 					const value = g[metric];
-					if (value !== undefined) {
+					if (value !== undefined && Number.isFinite(value)) {
 						yield* sql`INSERT INTO coverage_baselines (project, metric, value, pattern, updated_at) VALUES ('__global__', ${metric}, ${value}, '', ${updatedAt}) ON CONFLICT (project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
 					}
 				}
@@ -320,7 +323,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				for (const [pattern, thresholds] of patterns) {
 					for (const metric of metrics) {
 						const value = thresholds[metric];
-						if (value !== undefined) {
+						if (value !== undefined && Number.isFinite(value)) {
 							yield* sql`INSERT INTO coverage_baselines (project, metric, value, pattern, updated_at) VALUES ('__global__', ${metric}, ${value}, ${pattern}, ${updatedAt}) ON CONFLICT (project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
 						}
 					}
