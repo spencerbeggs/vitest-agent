@@ -1,5 +1,17 @@
 # @vitest-agent/sdk
 
+## 1.3.3
+
+### Bug Fixes
+
+* `writeBaselines` now skips non-finite metric values (e.g. `NaN` produced by ratchet math over an empty coverage run) instead of binding them as SQL `NULL`, which tripped the `NOT NULL` constraint on `coverage_baselines.value` (#130) [#141][#141]
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#141]: https://github.com/spencerbeggs/vitest-agent/pull/141
+
 ## 1.3.2
 
 ### Bug Fixes
