@@ -1,5 +1,29 @@
 # @vitest-agent/plugin
 
+## 1.1.8
+
+### Bug Fixes
+
+* The `tdd-task` agent can now deliver its final report and answer a `shutdown_request` when dispatched as a named teammate — added `SendMessage` to its tool allowlist, since without an explicit reply the orchestrator never saw the agent's result (#137)
+* The `tdd-task` agent's tool allowlist also gains `LSP` (post-edit type errors and code navigation during the red-green-refactor loop) and `ReportFindings` (structured finding reports when its test-quality review passes call for them) [#141][#141]
+
+- Fixed `DataStoreError: NOT NULL constraint failed: coverage_baselines.value` on runs with no coverage data (e.g. `vitest run --passWithNoTests` in a workspace with no test files) — an empty coverage map now short-circuits to "no coverage report" instead of producing a report with non-numeric ("Unknown") totals that fed `NaN` into the baseline ratchet math (#130) [#141][#141]
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From  | To    |
+| ---------------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/cli      | dependency | updated | 1.0.6 | 1.0.7 |
+| @vitest-agent/mcp      | dependency | updated | 1.3.4 | 1.3.5 |
+| @vitest-agent/reporter | dependency | updated | 1.0.6 | 1.0.7 |
+| @vitest-agent/sdk      | dependency | updated | 1.3.2 | 1.3.3 |
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#141]: https://github.com/spencerbeggs/vitest-agent/pull/141
+
 ## 1.1.7
 
 ### Bug Fixes
