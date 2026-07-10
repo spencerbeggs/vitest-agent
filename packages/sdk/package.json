@@ -48,11 +48,11 @@
 		"config-file-effect": "^0.3.0",
 		"effect": "catalog:silk",
 		"std-env": "^4.2.0",
-		"workspaces-effect": "^2.0.2",
+		"workspaces-effect": "^2.0.3",
 		"xdg-effect": "^2.1.1"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^1.1.8",
+		"@savvy-web/bundler": "^1.1.9",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
 		"@vitest/coverage-v8": "catalog:silk",

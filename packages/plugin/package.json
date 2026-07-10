@@ -45,10 +45,10 @@
 		"@vitest-agent/sdk": "workspace:*",
 		"effect": "catalog:silk",
 		"magic-string": "^0.30.21",
-		"workspaces-effect": "^2.0.2"
+		"workspaces-effect": "^2.0.3"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^1.1.8",
+		"@savvy-web/bundler": "^1.1.9",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",

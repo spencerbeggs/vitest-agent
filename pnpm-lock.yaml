@@ -110,8 +110,8 @@ importers:
   .:
     devDependencies:
       '@savvy-web/silk':
-        specifier: ^2.2.1
-        version: 2.2.1(@changesets/cli@3.0.0-next.8)(@commitlint/cli@21.2.1(@types/node@26.1.1)(conventional-commits-parser@7.0.1)(typescript@6.0.3))(@commitlint/config-conventional@21.2.0)(@types/node@26.1.1)(@typescript/native-preview@7.0.0-dev.20260707.2)(commitizen@4.3.2(@types/node@26.1.1)(typescript@6.0.3))(husky@9.1.7)(lint-staged@17.0.8)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.0))(markdownlint-cli2@0.23.0)(turbo@2.10.4)(typescript@6.0.3)
+        specifier: ^2.2.2
+        version: 2.2.2(@changesets/cli@3.0.0-next.8)(@commitlint/cli@21.2.1(@types/node@26.1.1)(conventional-commits-parser@7.0.1)(typescript@6.0.3))(@commitlint/config-conventional@21.2.0)(@types/node@26.1.1)(@typescript/native-preview@7.0.0-dev.20260707.2)(commitizen@4.3.2(@types/node@26.1.1)(typescript@6.0.3))(husky@9.1.7)(lint-staged@17.0.8)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.0))(markdownlint-cli2@0.23.0)(turbo@2.10.4)(typescript@6.0.3)
       '@vitest-agent/cli':
         specifier: workspace:*
         version: link:packages/cli/dist/dev/pkg
@@ -177,8 +177,8 @@ importers:
         version: 3.21.4
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -239,8 +239,8 @@ importers:
         version: 4.4.3
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -303,12 +303,12 @@ importers:
         specifier: ^0.30.21
         version: 0.30.21
       workspaces-effect:
-        specifier: ^2.0.2
-        version: 2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+        specifier: ^2.0.3
+        version: 2.0.3(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -384,8 +384,8 @@ importers:
         version: 19.2.7
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -466,15 +466,15 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
       workspaces-effect:
-        specifier: ^2.0.2
-        version: 2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+        specifier: ^2.0.3
+        version: 2.0.3(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       xdg-effect:
         specifier: ^2.1.1
         version: 2.1.1(ebbd840a9936fee4732a1f63bb937b99)
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -495,8 +495,8 @@ importers:
   packages/sidecar:
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -530,8 +530,8 @@ importers:
   packages/sidecar-darwin-arm64:
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -549,8 +549,8 @@ importers:
   packages/sidecar-linux-arm64:
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -568,8 +568,8 @@ importers:
   packages/sidecar-linux-x64:
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -587,8 +587,8 @@ importers:
   packages/sidecar-win32-x64:
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -613,8 +613,8 @@ importers:
         version: 3.21.4
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -644,8 +644,8 @@ importers:
   playground:
     devDependencies:
       '@savvy-web/bundler':
-        specifier: ^1.1.8
-        version: 1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
+        specifier: ^1.1.9
+        version: 1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)
       '@types/node':
         specifier: catalog:silk
         version: 26.1.1
@@ -1696,8 +1696,8 @@ packages:
   '@rushstack/ts-command-line@5.3.10':
     resolution: {integrity: sha512-fwI076HYknC0IrMXdY6UmjDv+PH7NHhNJX3/pY2UblSE5XrXgndXZPiOe/6ZtuFpn6DvVDVNhtkIzQ+Qu/MhVQ==}
 
-  '@savvy-web/bundler@1.1.8':
-    resolution: {integrity: sha512-mNbxt9SW5lgV7VW/g23wcASNWIxjyLx5GV/X5d+5UkNiMLfAH8HRJIpC94bBDT3Rg5LSiJpyeptZQ1ALLiLKew==}
+  '@savvy-web/bundler@1.1.9':
+    resolution: {integrity: sha512-4nyJ6mpKYr0VA9cG5W1vo+BdGQXrWxxX/rVfYvbRL6Lccj8fXoBA/8Dy72MvhcWx69biajA8zh71+JWOcs/Q/Q==}
     peerDependencies:
       '@types/node': ^26.1.0
       '@types/react': ^19.2.0
@@ -1719,22 +1719,22 @@ packages:
   '@savvy-web/changelog@0.1.1':
     resolution: {integrity: sha512-UR0PEbLzFlLpz78jIDxTAfSc73TVQoZNZfGGzeBFP/s6wG8y3m5KUJwzY6CsisBxJrI44wOMBYdWztTM21PgJw==}
 
-  '@savvy-web/cli@1.5.4':
-    resolution: {integrity: sha512-cD8mZIaF6ZZQ7ViKz3jRweFgRZI1h2EXU4xDDaC2B+mKMM0tl8l2X8PsiEsw/WlYlM7M0IsWpItkC7lTS5XeCg==}
+  '@savvy-web/cli@1.5.5':
+    resolution: {integrity: sha512-VPM3nTpO/HmaNChczcyhqPODoMR8047Hdp575KoP/ckmqviAvsRaN6Tgg/wSgFQYZavp7Q2xajqF7y5RHRkEYw==}
     hasBin: true
 
-  '@savvy-web/mcp@1.7.1':
-    resolution: {integrity: sha512-1Pty6jbjhWzb71SlZ1gphuAwykvjNOZPrQ5NxENXabg+F2eOxLjpNMNUnan7b/pkdIUO9iYhZAtSz9vcQgn9/A==}
+  '@savvy-web/mcp@1.7.2':
+    resolution: {integrity: sha512-x6zLSOBUFnfUxDyvuWeb8fl1qJKfn4C1whNQ8/i5BXJrwqJcImB9UOX/NO1au3pLg9GOSzApHfJ0VCKP7ssGdw==}
     hasBin: true
 
-  '@savvy-web/silk-effects@3.2.0':
-    resolution: {integrity: sha512-HAyDLOsrF1C+UAb/KIbra0lQlKBNkttHplW0vY7dpA0vzbxWgbiLEYDRA54+ZwR1AfIBeyCN8UPuotGHApPK3Q==}
+  '@savvy-web/silk-effects@3.2.1':
+    resolution: {integrity: sha512-y2nAV+xtgE8efhO5vRvBucs2BglD9gUGFIZitFdHk2NFn/QMps71ZANJotXYnLZOiMpBNxYpDxuz7Ezwmyv43Q==}
     peerDependencies:
       '@effect/platform': ^0.96.0
       effect: ^3.21.0
 
-  '@savvy-web/silk@2.2.1':
-    resolution: {integrity: sha512-1tT+jVmgXPm7NeDPlPdX3Hxi+9mBIQRMRSqUYSNSv/3rUBVYfdimUUKZifQGVkYzWfKqC3B4OOHRWr75Ty2eUg==}
+  '@savvy-web/silk@2.2.2':
+    resolution: {integrity: sha512-45EzvDKi2ySCbc/EeXKKgm8rzi+atYIHtx/sj7m3TqeIWO7SYxZtKMKp8W5XhNNdBt+Qd/YwYGgXOfNu8AppNQ==}
     peerDependencies:
       '@biomejs/biome': ~2.5.0
       '@changesets/cli': ^3.0.0-next.8
@@ -1753,8 +1753,8 @@ packages:
       '@biomejs/biome':
         optional: true
 
-  '@savvy-web/tsdown-plugins@1.1.7':
-    resolution: {integrity: sha512-6BCoBaTAyTopxC9XUoJ05F+8v7G57pLD+5CaA9geUWZKgTrxoDlnpyQmcTb73RNfe+ChrEW/SC4CwVXuu388OQ==}
+  '@savvy-web/tsdown-plugins@1.1.8':
+    resolution: {integrity: sha512-1xW4483sol+WwJDLYcGY/by8+cCLtsOvZLpfydO0BaDSbvP5LKcAI+eQ4jzQgE1YK5dd5UQKlfzK753ZTzb5xw==}
 
   '@shikijs/core@4.3.1':
     resolution: {integrity: sha512-ANMDxuaPsNMdDC1m4vfvhlDmJweMwkE5XitTwrq2rWHx5jM+dlm4MmHt2PP6t0uejfR77SuhrhJ0zEijIF/uhA==}
@@ -4289,11 +4289,6 @@ packages:
     deprecated: No longer maintained. Please contact the author of the relevant native addon; alternatives are available.
     hasBin: true
 
-  prettier@3.9.4:
-    resolution: {integrity: sha512-yWG/o/4oJfo036EKAfK6ACAoDOfHeRHx4tuxkfBZiauURiaSmYwlpOr5LQqKtIkRD2z1PLteme2WoxEnj4tHTg==}
-    engines: {node: '>=14'}
-    hasBin: true
-
   prettier@3.9.5:
     resolution: {integrity: sha512-/FVl766LpUfB5vXgCYOYa0MeV/441Ia99AeICQIQFTY/Nw0roZwULcXpku5i1/m5kt/baz+s4Zogspd839HSMg==}
     engines: {node: '>=14'}
@@ -5214,8 +5209,8 @@ packages:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
 
-  workspaces-effect@2.0.2:
-    resolution: {integrity: sha512-iB5i508qiztbdSyjPiA6dh6l+trD0fsWWWfihuvV+YkrNW3XsylJmlyCl4V8o/CiEE3ILgE1cVg7eipxbjCsQg==}
+  workspaces-effect@2.0.3:
+    resolution: {integrity: sha512-qoITmeJdpB/DxOA/EZmitlRW0Dsg8hkQTv6F6wqOB0wd0LSG4k5Xi3MzC8JRYt48Ncu8ohu/L1s+RBlaLW2NOg==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@effect/platform': ^0.96.0
@@ -6382,9 +6377,9 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@savvy-web/bundler@1.1.8(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)':
+  '@savvy-web/bundler@1.1.9(@types/node@26.1.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tsx@4.23.0)(typescript@6.0.3)':
     dependencies:
-      '@savvy-web/tsdown-plugins': 1.1.7(@types/node@26.1.1)
+      '@savvy-web/tsdown-plugins': 1.1.8(@types/node@26.1.1)
       '@tsdown/exe': 0.22.4(tsdown@0.22.4)
       '@types/node': 26.1.1
       '@typescript/native-preview': 7.0.0-dev.20260707.2
@@ -6418,7 +6413,7 @@ snapshots:
       jju: 1.4.0
       semver: 7.8.5
 
-  '@savvy-web/cli@1.5.4':
+  '@savvy-web/cli@1.5.5':
     dependencies:
       '@effect/cli': 0.75.2(@effect/platform@0.96.2(effect@3.21.4))(@effect/printer-ansi@0.49.0(@effect/typeclass@0.40.0(effect@3.21.4))(effect@3.21.4))(@effect/printer@0.49.0(@effect/typeclass@0.40.0(effect@3.21.4))(effect@3.21.4))(effect@3.21.4)
       '@effect/cluster': 0.59.0(@effect/platform@0.96.2(effect@3.21.4))(@effect/rpc@0.75.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/workflow@0.18.2(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(@effect/rpc@0.75.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(effect@3.21.4))(effect@3.21.4)
@@ -6431,10 +6426,10 @@ snapshots:
       '@effect/sql': 0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       '@effect/typeclass': 0.40.0(effect@3.21.4)
       '@effect/workflow': 0.18.2(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(@effect/rpc@0.75.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(effect@3.21.4)
-      '@savvy-web/silk-effects': 3.2.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+      '@savvy-web/silk-effects': 3.2.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       effect: 3.21.4
       jsonc-effect: 0.3.1(effect@3.21.4)
-      workspaces-effect: 2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+      workspaces-effect: 2.0.3(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       yaml: 2.9.0
     transitivePeerDependencies:
       - bufferutil
@@ -6443,7 +6438,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@savvy-web/mcp@1.7.1':
+  '@savvy-web/mcp@1.7.2':
     dependencies:
       '@effect/cluster': 0.59.0(@effect/platform@0.96.2(effect@3.21.4))(@effect/rpc@0.75.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/workflow@0.18.2(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(@effect/rpc@0.75.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(effect@3.21.4))(effect@3.21.4)
       '@effect/experimental': 0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
@@ -6453,9 +6448,9 @@ snapshots:
       '@effect/sql': 0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       '@effect/workflow': 0.18.2(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(@effect/rpc@0.75.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(effect@3.21.4)
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
-      '@savvy-web/silk-effects': 3.2.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+      '@savvy-web/silk-effects': 3.2.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       effect: 3.21.4
-      workspaces-effect: 2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+      workspaces-effect: 2.0.3(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       zod: 4.4.3
     transitivePeerDependencies:
       - '@cfworker/json-schema'
@@ -6465,7 +6460,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@savvy-web/silk-effects@3.2.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)':
+  '@savvy-web/silk-effects@3.2.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)':
     dependencies:
       '@changesets/apply-release-plan': 8.0.0-next.7
       '@changesets/config': 4.0.0-next.6
@@ -6477,7 +6472,7 @@ snapshots:
       jsonc-effect: 0.3.1(effect@3.21.4)
       mdast-util-heading-range: 4.0.0
       mdast-util-to-string: 4.0.0
-      prettier: 3.9.4
+      prettier: 3.9.5
       remark-gfm: 4.0.1
       remark-parse: 11.0.0
       remark-stringify: 11.0.0
@@ -6488,23 +6483,23 @@ snapshots:
       unified: 11.0.5
       unified-lint-rule: 3.0.1
       unist-util-visit: 5.1.0
-      workspaces-effect: 2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+      workspaces-effect: 2.0.3(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       yaml: 2.9.0
       yaml-effect: 0.7.2(effect@3.21.4)
       yaml-lint: 1.7.0
     transitivePeerDependencies:
       - supports-color
 
-  '@savvy-web/silk@2.2.1(@changesets/cli@3.0.0-next.8)(@commitlint/cli@21.2.1(@types/node@26.1.1)(conventional-commits-parser@7.0.1)(typescript@6.0.3))(@commitlint/config-conventional@21.2.0)(@types/node@26.1.1)(@typescript/native-preview@7.0.0-dev.20260707.2)(commitizen@4.3.2(@types/node@26.1.1)(typescript@6.0.3))(husky@9.1.7)(lint-staged@17.0.8)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.0))(markdownlint-cli2@0.23.0)(turbo@2.10.4)(typescript@6.0.3)':
+  '@savvy-web/silk@2.2.2(@changesets/cli@3.0.0-next.8)(@commitlint/cli@21.2.1(@types/node@26.1.1)(conventional-commits-parser@7.0.1)(typescript@6.0.3))(@commitlint/config-conventional@21.2.0)(@types/node@26.1.1)(@typescript/native-preview@7.0.0-dev.20260707.2)(commitizen@4.3.2(@types/node@26.1.1)(typescript@6.0.3))(husky@9.1.7)(lint-staged@17.0.8)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.0))(markdownlint-cli2@0.23.0)(turbo@2.10.4)(typescript@6.0.3)':
     dependencies:
       '@changesets/cli': 3.0.0-next.8
       '@commitlint/cli': 21.2.1(@types/node@26.1.1)(conventional-commits-parser@7.0.1)(typescript@6.0.3)
       '@commitlint/config-conventional': 21.2.0
       '@effect/platform': 0.96.2(effect@3.21.4)
       '@savvy-web/changelog': 0.1.1
-      '@savvy-web/cli': 1.5.4
-      '@savvy-web/mcp': 1.7.1
-      '@savvy-web/silk-effects': 3.2.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+      '@savvy-web/cli': 1.5.5
+      '@savvy-web/mcp': 1.7.2
+      '@savvy-web/silk-effects': 3.2.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
       '@types/node': 26.1.1
       '@typescript/native-preview': 7.0.0-dev.20260707.2
       commitizen: 4.3.2(@types/node@26.1.1)(typescript@6.0.3)
@@ -6524,7 +6519,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@savvy-web/tsdown-plugins@1.1.7(@types/node@26.1.1)':
+  '@savvy-web/tsdown-plugins@1.1.8(@types/node@26.1.1)':
     dependencies:
       '@changesets/get-release-plan': 5.0.0-next.7
       '@effect/cluster': 0.59.0(@effect/platform@0.96.2(effect@3.21.4))(@effect/rpc@0.75.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/sql@0.51.1(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/workflow@0.18.2(@effect/experimental@0.60.0(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(@effect/platform@0.96.2(effect@3.21.4))(@effect/rpc@0.75.1(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4))(effect@3.21.4))(effect@3.21.4)
@@ -6544,7 +6539,7 @@ snapshots:
       sort-package-json: 4.0.0
       std-env: 4.2.0
       typescript: 6.0.3
-      workspaces-effect: 2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
+      workspaces-effect: 2.0.3(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4)
     transitivePeerDependencies:
       - '@types/node'
       - bufferutil
@@ -9480,8 +9475,6 @@ snapshots:
       tar-fs: 2.1.5
       tunnel-agent: 0.6.0
 
-  prettier@3.9.4: {}
-
   prettier@3.9.5: {}
 
   property-information@7.2.0: {}
@@ -10522,7 +10515,7 @@ snapshots:
 
   word-wrap@1.2.5: {}
 
-  workspaces-effect@2.0.2(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4):
+  workspaces-effect@2.0.3(@effect/platform@0.96.2(effect@3.21.4))(effect@3.21.4):
     dependencies:
       '@effect/platform': 0.96.2(effect@3.21.4)
       '@pnpm/catalogs.config': 1100.0.2

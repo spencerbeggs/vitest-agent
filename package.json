@@ -35,7 +35,7 @@
 		"types:check": "tsgo --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/silk": "^2.2.1",
+		"@savvy-web/silk": "^2.2.2",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/plugin": "workspace:*",
@@ -55,7 +55,7 @@
 		"runtime": [
 			{
 				"name": "node",
-				"version": "26.4.0",
+				"version": "26.5.0",
 				"onFail": "ignore"
 			}
 		]
