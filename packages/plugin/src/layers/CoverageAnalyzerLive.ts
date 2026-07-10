@@ -95,6 +95,12 @@ function processCoverageInternal(
 ): CoverageReport | undefined {
 	if (!isIstanbulCoverageMap(coverageMap)) return undefined;
 
+	// An empty coverage map means no coverage data was collected (e.g.
+	// `vitest run --passWithNoTests` with no test files). Istanbul reports
+	// pct as the string "Unknown" for every metric in that case, which would
+	// leak non-numeric totals into the baseline/trend writes (issue #130).
+	if (coverageMap.files().length === 0) return undefined;
+
 	const { includeBareZero } = options;
 	const scoped = testedFiles !== undefined;
 

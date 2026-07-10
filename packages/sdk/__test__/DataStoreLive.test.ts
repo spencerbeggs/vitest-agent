@@ -811,6 +811,31 @@ describe("DataStoreLive", () => {
 				}),
 			);
 		});
+		it("skips non-finite metric values instead of failing the NOT NULL constraint", async () => {
+			// Regression for issue #130: with no coverage data the ratchet math
+			// upstream can produce NaN, and better-sqlite3 binds NaN as NULL,
+			// tripping `NOT NULL constraint failed: coverage_baselines.value`.
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeBaselines({
+						updatedAt: "2026-03-22T00:00:00.000Z",
+						global: { lines: Number.NaN, branches: 70 },
+						patterns: [["src/**/*.ts", { lines: Number.NaN, functions: 85 }]],
+					});
+
+					const sql = yield* SqlClient;
+					const rows = yield* sql<{
+						metric: string;
+						pattern: string;
+						value: number;
+					}>`SELECT metric, pattern, value FROM coverage_baselines WHERE project = '__global__' ORDER BY pattern, metric`;
+					expect(rows).toHaveLength(2);
+					expect(rows[0]).toMatchObject({ metric: "branches", pattern: "", value: 70 });
+					expect(rows[1]).toMatchObject({ metric: "functions", pattern: "src/**/*.ts", value: 85 });
+				}),
+			);
+		});
 	});
 
 	describe("writeTrends", () => {

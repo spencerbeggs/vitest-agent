@@ -42,6 +42,40 @@ const run = <A>(effect: Effect.Effect<A, never, CoverageAnalyzer>) =>
 	Effect.runPromise(Effect.provide(effect, CoverageAnalyzerLive));
 
 describe("CoverageAnalyzerLive", () => {
+	it("returns none for an empty coverage map (no test files)", async () => {
+		// Istanbul reports pct as the string "Unknown" for every metric when
+		// the coverage map has no files (e.g. `vitest run --passWithNoTests`
+		// in a workspace with no tests). Producing a report from that map
+		// leaks non-numeric totals into the baseline/trend writes (issue #130).
+		const emptyIstanbulMap = {
+			getCoverageSummary: () => ({
+				statements: { pct: "Unknown" },
+				branches: { pct: "Unknown" },
+				functions: { pct: "Unknown" },
+				lines: { pct: "Unknown" },
+			}),
+			files: () => [],
+			fileCoverageFor: () => {
+				throw new Error("no files in map");
+			},
+		};
+
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(emptyIstanbulMap, {
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+
+		expect(Option.isNone(result)).toBe(true);
+	});
+
 	it("returns correct totals", async () => {
 		const map = mockCoverageMap(
 			{
@@ -301,7 +335,14 @@ describe("CoverageAnalyzerLive", () => {
 		});
 
 		it("sets scoped=true in result", async () => {
-			const map = mockCoverageMap({});
+			// The map needs at least one file: an empty coverage map means no
+			// coverage data and short-circuits to none (issue #130).
+			const map = mockCoverageMap({
+				"src/covered.ts": {
+					summary: { statements: 95, branches: 90, functions: 100, lines: 92 },
+					uncoveredLines: [],
+				},
+			});
 
 			const result = await run(
 				Effect.flatMap(CoverageAnalyzer, (ca) =>
@@ -325,7 +366,12 @@ describe("CoverageAnalyzerLive", () => {
 		});
 
 		it("populates scopedFiles with input files", async () => {
-			const map = mockCoverageMap({});
+			const map = mockCoverageMap({
+				"src/covered.ts": {
+					summary: { statements: 95, branches: 90, functions: 100, lines: 92 },
+					uncoveredLines: [],
+				},
+			});
 			const testedFiles = ["src/a.ts", "src/b.ts"];
 
 			const result = await run(
