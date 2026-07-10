@@ -8,6 +8,8 @@ tools:
   - Bash
   - Grep
   - Glob
+  - LSP
+  - ReportFindings
   - TaskUpdate
   - TaskGet
   - TaskList
