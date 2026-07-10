@@ -1,5 +1,17 @@
 # @vitest-agent/sdk
 
+## 1.3.3
+
+### Dependencies
+
+* | Dependency        | Type       | Action  | From   | To     |                                                                            |
+  | ----------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+  | workspaces-effect | dependency | updated | ^2.0.2 | ^2.0.3 | [#138][#138] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#138]: https://github.com/spencerbeggs/vitest-agent/pull/138
+
 ## 1.3.2
 
 ### Bug Fixes
