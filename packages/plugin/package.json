@@ -48,7 +48,7 @@
 		"workspaces-effect": "^2.0.3"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^1.1.9",
+		"@savvy-web/bundler": "^1.1.11",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "catalog:silk",
 		"@typescript/native-preview": "catalog:silk",
