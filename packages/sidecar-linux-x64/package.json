@@ -28,7 +28,6 @@
 	"devDependencies": {
 		"@savvy-web/bundler": "^1.1.11",
 		"@types/node": "catalog:silk",
-		"@typescript/native-preview": "catalog:silk",
 		"@vitest-agent/sdk": "workspace:*",
 		"typescript": "catalog:silk"
 	},

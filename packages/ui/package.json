@@ -38,7 +38,6 @@
 		"@savvy-web/bundler": "^1.1.11",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
-		"@typescript/native-preview": "catalog:silk",
 		"ink": "^7.1.0",
 		"ink-testing-library": "^4.0.0",
 		"react": "catalog:silk",
