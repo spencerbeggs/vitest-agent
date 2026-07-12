@@ -63,6 +63,9 @@ catalogs:
     '@effect/workflow':
       specifier: ^0.18.2
       version: 0.18.2
+    '@rspress/core':
+      specifier: ^2.0.17
+      version: 2.0.17
     '@types/node':
       specifier: ^26.1.1
       version: 26.1.1
@@ -662,7 +665,7 @@ importers:
   website:
     devDependencies:
       '@rspress/core':
-        specifier: ^2.0.17
+        specifier: catalog:silk
         version: 2.0.17(@rspack/core@2.1.3(@swc/helpers@0.5.23))(@types/mdast@4.0.4)(@types/react@19.2.17)(micromark-util-types@2.0.2)(micromark@4.0.2)
       '@rspress/plugin-sitemap':
         specifier: ^2.0.17
@@ -676,9 +679,6 @@ importers:
       '@types/react-dom':
         specifier: catalog:silk
         version: 19.2.3(@types/react@19.2.17)
-      '@typescript/native-preview':
-        specifier: catalog:silk
-        version: 7.0.0-dev.20260707.2
       react:
         specifier: catalog:silk
         version: 19.2.7

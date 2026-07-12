@@ -244,7 +244,7 @@ as pure functions.
 ## TypeScript
 
 - Extends `@savvy-web/rslib-builder/tsconfig/ecma/lib.json`
-- Type-checking via `tsgo --noEmit`
+- Type-checking via `tsc --noEmit`
 - Strict mode with `exactOptionalPropertyTypes`
 
 ### Import Conventions

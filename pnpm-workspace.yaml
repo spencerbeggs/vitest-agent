@@ -7,7 +7,4 @@ configDependencies:
   "@savvy-web/pnpm-plugin-silk": 0.22.1+sha512-BCYsx9ezKBWsGGHPlE4WcEjgDX+5pNEnWsCa8Ud8VEiDKbpcjP8XeO8Iap1r3wmiHaQos5xQEKvDF3jblk4mWQ==
 linkWorkspacePackages: deep
 loglevel: warn
-minimumReleaseAgeExclude:
-  - prettier@3.9.5
-  - vite@8.1.4
 verifyDepsBeforeRun: false

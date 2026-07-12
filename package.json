@@ -32,7 +32,7 @@
 		"test:coverage": "vitest run",
 		"test:watch": "vitest --watch",
 		"typecheck": "turbo run types:check",
-		"types:check": "tsgo --noEmit"
+		"types:check": "tsc --noEmit"
 	},
 	"devDependencies": {
 		"@savvy-web/silk": "^2.3.1",
