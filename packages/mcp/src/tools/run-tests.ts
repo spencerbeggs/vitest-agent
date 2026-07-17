@@ -9,43 +9,43 @@ import {
 	buildConsoleLeaks,
 	collectConsoleLeakEntries,
 } from "@vitest-agent/sdk";
-import { Effect, ParseResult, Schema } from "effect";
+import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const RunTestsOk = Schema.Struct({
-	kind: Schema.Literal("ok").annotations({
+	kind: Schema.Literal("ok").annotate({
 		description: "Discriminant — `true` test run completed (with or without failures).",
 	}),
 	project: Schema.optional(Schema.String),
-	report: AgentReportSchema.annotations({
+	report: AgentReportSchema.annotate({
 		description: "Full AgentReport including pass/fail counts and per-module errors.",
 	}),
-	classifications: Schema.Record({ key: Schema.String, value: Schema.String }).annotations({
+	classifications: Schema.Record(Schema.String, Schema.String).annotate({
 		description: "Per-test classification labels: stable, new-failure, persistent, flaky, recovered.",
 	}),
-	discoveryLastScannedAt: Schema.optional(Schema.NullOr(Schema.String)).annotations({
+	discoveryLastScannedAt: Schema.optional(Schema.NullOr(Schema.String)).annotate({
 		description:
 			"ISO timestamp of the most recent real disk scan performed by discoverProjects() in this process (issue #100). " +
 			"`null`/absent means discovery has not scanned disk in this process yet (e.g. a config that doesn't call " +
 			"AgentPlugin.discover()). A stale-looking test count is self-explaining when compared against this value.",
 	}),
-}).annotations({ identifier: "RunTestsOk" });
+}).annotate({ identifier: "RunTestsOk" });
 
 const RunTestsTimeout = Schema.Struct({
 	kind: Schema.Literal("timeout"),
 	timeoutSeconds: Schema.Number,
-}).annotations({ identifier: "RunTestsTimeout" });
+}).annotate({ identifier: "RunTestsTimeout" });
 
 const RunTestsError = Schema.Struct({
 	kind: Schema.Literal("error"),
 	message: Schema.String,
-}).annotations({ identifier: "RunTestsError" });
+}).annotate({ identifier: "RunTestsError" });
 
 const TagFilter = Schema.Struct({
 	all: Schema.optional(Schema.Array(Schema.String)),
 	any: Schema.optional(Schema.Array(Schema.String)),
 	none: Schema.optional(Schema.Array(Schema.String)),
-}).annotations({
+}).annotate({
 	identifier: "TagFilter",
 	description:
 		"All three sub-filters AND together with `project` and `files`. `all` requires every listed tag on the test. `any` requires at least one. `none` excludes any test carrying a listed tag.",
@@ -53,7 +53,7 @@ const TagFilter = Schema.Struct({
 export type TagFilterType = Schema.Schema.Type<typeof TagFilter>;
 
 const RunTestsNoMatch = Schema.Struct({
-	kind: Schema.Literal("no-match").annotations({
+	kind: Schema.Literal("no-match").annotate({
 		description:
 			"Discriminant — the resolved filter set matched zero test cases. Tests did not run; this is independent of passWithNoTests policy.",
 	}),
@@ -63,9 +63,9 @@ const RunTestsNoMatch = Schema.Struct({
 		tags: Schema.NullOr(TagFilter),
 		resolvedExpression: Schema.NullOr(Schema.String),
 	}),
-}).annotations({ identifier: "RunTestsNoMatch" });
+}).annotate({ identifier: "RunTestsNoMatch" });
 
-export const RunTestsResult = Schema.Union(RunTestsOk, RunTestsTimeout, RunTestsError, RunTestsNoMatch).annotations({
+export const RunTestsResult = Schema.Union([RunTestsOk, RunTestsTimeout, RunTestsError, RunTestsNoMatch]).annotate({
 	identifier: "RunTestsResult",
 	title: "run_tests result",
 	description:
@@ -312,12 +312,12 @@ export function formatNoMatchMarkdown(filter: {
 	return lines.join("\n");
 }
 
-export const RunTestsAsMarkdown = Schema.transformOrFail(RunTestsResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatRunTestsMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "RunTestsAsMarkdown is one-way.")),
-});
+export const RunTestsAsMarkdown = RunTestsResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatRunTestsMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "RunTestsAsMarkdown is one-way."),
+	}),
+);
 
 /**
  * Format an AgentReport as concise markdown suitable for MCP tool output.
@@ -434,7 +434,7 @@ export function formatReportMarkdown(report: AgentReport, classifications?: Read
 
 export const runTests = publicProcedure
 	.input(
-		Schema.standardSchemaV1(
+		Schema.toStandardSchemaV1(
 			Schema.Struct({
 				files: Schema.optional(Schema.Array(Schema.String)),
 				project: Schema.optional(Schema.String),

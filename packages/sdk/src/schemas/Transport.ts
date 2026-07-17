@@ -9,7 +9,7 @@ import { Schema } from "effect";
  * diff and no breaking API change at the call site.
  * @public
  */
-export const Transport = Schema.Union(Schema.Struct({ kind: Schema.Literal("local") })).annotations({
+export const Transport = Schema.Union([Schema.Struct({ kind: Schema.Literal("local") })]).annotate({
 	identifier: "Transport",
 });
 /** @public */

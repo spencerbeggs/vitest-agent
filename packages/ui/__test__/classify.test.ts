@@ -21,8 +21,8 @@ import {
 	singleProjectThresholdEvents,
 	singleTestFailEvents,
 	singleTestPassEvents,
-} from "./fixtures/events.js";
-import { workspaceFailProjects, workspacePassProjects } from "./fixtures/workspace.js";
+} from "./utils/events.js";
+import { workspaceFailProjects, workspacePassProjects } from "./utils/workspace.js";
 
 describe("classifyRunShape", () => {
 	it("returns single-test for one module with one test", () => {

@@ -1,9 +1,9 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { LogLevel } from "effect";
 import { Effect, Layer } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { LoggerLive } from "../layers/LoggerLive.js";
 import migration0001 from "../migrations/0001_initial.js";
 
@@ -34,7 +34,7 @@ export function ensureMigrated(dbPath: string, logLevel?: LogLevel.LogLevel, log
 	if (cached) return cached;
 
 	const SqliteLayer = sqliteClientLayer({ filename: dbPath });
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,

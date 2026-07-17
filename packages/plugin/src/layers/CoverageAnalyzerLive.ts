@@ -72,7 +72,12 @@ function matchGlob(filePath: string, pattern: string): boolean {
  * overrides first, falling back to global thresholds.
  */
 function resolveEffectiveThresholds(filePath: string, resolved: ResolvedThresholds): MetricThresholds {
-	for (const [pattern, metrics] of resolved.patterns) {
+	// v4 behavior change: `patterns` carries a Schema decoding default (`[]`),
+	// which does NOT apply on the constructor/passthrough path. A
+	// ResolvedThresholds handed in as a plain literal (or `.make()`) without
+	// `patterns` therefore arrives `undefined` rather than `[]`, so default it
+	// here before iterating.
+	for (const [pattern, metrics] of resolved.patterns ?? []) {
 		if (matchGlob(filePath, pattern)) {
 			return metrics;
 		}

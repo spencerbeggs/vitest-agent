@@ -1,10 +1,10 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import { Effect } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { afterEach, describe, expect, it } from "vitest";
 import { _resetMigrationCacheForTesting, ensureMigrated } from "../src/utils/ensure-migrated.js";
 
@@ -54,7 +54,7 @@ describe("ensureMigrated", () => {
 					name: string;
 				}>`SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'`;
 				return rows.length;
-			}).pipe(Effect.provide(sqliteClientLayer({ filename: dbPath })), Effect.provide(NodeContext.layer)),
+			}).pipe(Effect.provide(sqliteClientLayer({ filename: dbPath })), Effect.provide(NodeServices.layer)),
 		);
 		expect(tables).toBe(1);
 	});
@@ -70,7 +70,7 @@ describe("ensureMigrated", () => {
 					name: string;
 				}>`SELECT name FROM sqlite_master WHERE type='table' AND name='mcp_idempotent_responses'`;
 				return rows.length;
-			}).pipe(Effect.provide(sqliteClientLayer({ filename: dbPath })), Effect.provide(NodeContext.layer)),
+			}).pipe(Effect.provide(sqliteClientLayer({ filename: dbPath })), Effect.provide(NodeServices.layer)),
 		);
 		expect(tables).toBe(1);
 	});

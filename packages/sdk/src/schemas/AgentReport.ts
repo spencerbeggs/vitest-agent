@@ -13,7 +13,7 @@ export const ReportSummary = Schema.Struct({
 	failed: Schema.Number,
 	skipped: Schema.Number,
 	duration: Schema.Number,
-}).annotations({ identifier: "ReportSummary" });
+}).annotate({ identifier: "ReportSummary" });
 /** @public */
 export type ReportSummary = typeof ReportSummary.Type;
 
@@ -30,7 +30,7 @@ export const TestReport = Schema.Struct({
 	slow: Schema.optional(Schema.Boolean),
 	errors: Schema.optional(Schema.Array(ReportError)),
 	classification: Schema.optional(TestClassification),
-}).annotations({ identifier: "TestReport" });
+}).annotate({ identifier: "TestReport" });
 /** @public */
 export type TestReport = typeof TestReport.Type;
 
@@ -44,7 +44,7 @@ export const ModuleReport = Schema.Struct({
 	duration: Schema.optional(Schema.Number),
 	errors: Schema.optional(Schema.Array(ReportError)),
 	tests: Schema.Array(TestReport),
-}).annotations({ identifier: "ModuleReport" });
+}).annotate({ identifier: "ModuleReport" });
 /** @public */
 export type ModuleReport = typeof ModuleReport.Type;
 
@@ -56,7 +56,7 @@ export const TagCountEntry = Schema.Struct({
 	passed: Schema.optional(Schema.Number),
 	failed: Schema.optional(Schema.Number),
 	skipped: Schema.optional(Schema.Number),
-}).annotations({ identifier: "TagCountEntry" });
+}).annotate({ identifier: "TagCountEntry" });
 /** @public */
 export type TagCountEntry = typeof TagCountEntry.Type;
 
@@ -73,13 +73,8 @@ export const AgentReport = Schema.Struct({
 	unhandledErrors: Schema.Array(ReportError),
 	failedFiles: Schema.Array(Schema.String),
 	coverage: Schema.optional(CoverageReport),
-	tagCounts: Schema.optional(
-		Schema.Record({
-			key: Schema.String,
-			value: TagCountEntry,
-		}),
-	),
+	tagCounts: Schema.optional(Schema.Record(Schema.String, TagCountEntry)),
 	consoleLeaks: Schema.optional(ConsoleLeaks),
-}).annotations({ identifier: "AgentReport" });
+}).annotate({ identifier: "AgentReport" });
 /** @public */
 export type AgentReport = typeof AgentReport.Type;

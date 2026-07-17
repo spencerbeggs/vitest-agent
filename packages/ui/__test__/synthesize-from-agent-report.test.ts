@@ -1,6 +1,11 @@
 import type { AgentReport } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import { reduceRenderStateAll, renderAgent, synthesizeFromAgentReport } from "../src/index.js";
+import {
+	SUITE_LOAD_FAILURE_LABEL,
+	reduceRenderStateAll,
+	renderAgent,
+	synthesizeFromAgentReport,
+} from "../src/index.js";
 
 const baseReport = (overrides: Partial<AgentReport> = {}): AgentReport => ({
 	timestamp: "2026-05-12T00:00:00.000Z",
@@ -351,5 +356,65 @@ describe("synthesizeFromAgentReport — tagCounts omitted on replay", () => {
 		for (const m of moduleFinished) {
 			expect(m).not.toHaveProperty("tagCounts");
 		}
+	});
+});
+
+describe("synthesizeFromAgentReport — suite-level (collection/load) failures", () => {
+	// A module that failed to import lands in `report.failed` with no failed
+	// test case (allTests was empty) and `summary.failed` stays 0. The
+	// synthesizer must surface it so the run does not render all-green.
+	const collectionFailureReport = (): AgentReport =>
+		baseReport({
+			reason: "failed",
+			// summary stays pure — the load failure is NOT a test case
+			summary: { total: 0, passed: 0, failed: 0, skipped: 0, duration: 0 },
+			failed: [
+				{
+					file: "src/broken.test.ts",
+					state: "failed",
+					duration: 0,
+					tests: [],
+					errors: [{ message: "Cannot find package 'better-sqlite3'" }],
+				},
+			],
+			failedFiles: ["src/broken.test.ts"],
+		});
+
+	it("emits a synthetic failed test carrying the module's import error", () => {
+		const events = synthesizeFromAgentReport(collectionFailureReport());
+		const testFinished = events.filter((e) => e._tag === "TestFinished");
+		expect(testFinished).toHaveLength(1);
+		const tf = testFinished[0] as Extract<(typeof events)[number], { _tag: "TestFinished" }>;
+		expect(tf.modulePath).toBe("src/broken.test.ts");
+		expect(tf.testName).toBe(SUITE_LOAD_FAILURE_LABEL);
+		expect(tf.status).toBe("failed");
+		expect(tf.error?.message).toContain("Cannot find package 'better-sqlite3'");
+	});
+
+	it("counts the load failure in the run totals so the outcome is a failure", () => {
+		const events = synthesizeFromAgentReport(collectionFailureReport());
+		const runFinished = events.find((e) => e._tag === "RunFinished") as Extract<
+			(typeof events)[number],
+			{ _tag: "RunFinished" }
+		>;
+		// summary.failed is 0, but the RunFinished total counts the suite failure
+		expect(runFinished.failCount).toBe(1);
+	});
+
+	it("reduces to a RenderState with the failure named and counted", () => {
+		const state = reduceRenderStateAll(synthesizeFromAgentReport(collectionFailureReport()));
+		expect(state.totals.failCount).toBe(1);
+		expect(state.failures).toHaveLength(1);
+		expect(state.failures[0].modulePath).toBe("src/broken.test.ts");
+		expect(state.failures[0].testName).toBe(SUITE_LOAD_FAILURE_LABEL);
+		expect(state.failures[0].error?.message).toContain("Cannot find package 'better-sqlite3'");
+	});
+
+	it("renders the failed file and its error in the agent Failures section", () => {
+		const state = reduceRenderStateAll(synthesizeFromAgentReport(collectionFailureReport()));
+		const out = renderAgent(state);
+		expect(out).toContain("src/broken.test.ts");
+		expect(out).toContain(SUITE_LOAD_FAILURE_LABEL);
+		expect(out).toContain("Cannot find package 'better-sqlite3'");
 	});
 });

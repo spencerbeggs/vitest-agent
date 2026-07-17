@@ -32,13 +32,13 @@
 	},
 	"dependencies": {
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:silk"
+		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^1.1.14",
+		"@savvy-web/bundler": "^2.0.3",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
-		"ink": "^7.1.0",
+		"ink": "^7.1.1",
 		"ink-testing-library": "^4.0.0",
 		"react": "catalog:silk",
 		"typescript": "catalog:silk",

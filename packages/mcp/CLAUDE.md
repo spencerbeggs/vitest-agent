@@ -43,7 +43,7 @@ src/
     McpLive.ts        -- (dbPath, logLevel?, logFile?) composition:
                          DataReader + DataStore + ProjectDiscovery +
                          OutputPipeline + SqliteClient + Migrator +
-                         NodeContext + NodeFileSystem + Logger
+                         NodeServices + Logger
 ```
 
 ## Key files

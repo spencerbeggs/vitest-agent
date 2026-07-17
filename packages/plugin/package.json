@@ -31,32 +31,24 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/cluster": "catalog:silk",
-		"@effect/experimental": "catalog:silk",
-		"@effect/platform": "catalog:silk",
-		"@effect/platform-node": "catalog:silk",
-		"@effect/rpc": "catalog:silk",
-		"@effect/sql": "catalog:silk",
-		"@effect/sql-sqlite-node": "catalog:silk",
-		"@effect/workflow": "catalog:silk",
+		"@effect/platform-node": "catalog:effect",
+		"@effect/sql-sqlite-node": "catalog:effect",
+		"@effected/workspaces": "^0.3.1",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:silk",
-		"magic-string": "^0.30.21",
-		"workspaces-effect": "^2.1.0"
+		"effect": "catalog:effect",
+		"magic-string": "^1.0.0"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^1.1.14",
-		"@types/better-sqlite3": "^7.6.13",
+		"@savvy-web/bundler": "^2.0.3",
 		"@types/node": "catalog:silk",
 		"@vitest/coverage-istanbul": "catalog:silk",
 		"@vitest/coverage-v8": "catalog:silk",
-		"@vitest/runner": "^4.1.0",
-		"better-sqlite3": "^12.10.0",
+		"@vitest/runner": "^4.1.10",
 		"typescript": "catalog:silk",
-		"vite": "^8.1.4",
+		"vite": "^8.1.5",
 		"vitest": "catalog:silk"
 	},
 	"peerDependencies": {

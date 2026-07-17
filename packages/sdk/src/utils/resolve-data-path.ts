@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { AppDirs } from "@effected/xdg";
 import { Effect } from "effect";
-import { AppDirs } from "xdg-effect";
 import { VitestAgentConfig } from "../schemas/Config.js";
 import { VitestAgentConfigFile } from "../services/Config.js";
 import { normalizeWorkspaceKey } from "./normalize-workspace-key.js";
@@ -32,8 +32,8 @@ export interface ResolveDataPathOptions {
  *
  * The directory containing the database is ensured to exist before the
  * function returns, so callers can open the database immediately without
- * needing to create parent directories. better-sqlite3 creates the file but
- * not its parent.
+ * needing to create parent directories. The SQLite driver creates the file
+ * but not its parent.
  *
  * Precedence (highest first):
  *

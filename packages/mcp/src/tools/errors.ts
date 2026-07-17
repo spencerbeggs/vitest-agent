@@ -6,8 +6,8 @@
  *   - types the procedure's return value;
  *   - drives `formatTestErrorsMarkdown` (input typed via `Schema.Type`);
  *   - composes into `TestErrorsAsMarkdown`, a one-way
- *     `Schema.transformOrFail` whose `encode` direction renders the
- *     markdown the text channel carries (decode is forbidden because
+ *     `Schema.decodeTo` whose `decode` direction renders the
+ *     markdown the text channel carries (encode is forbidden because
  *     markdown rendering is lossy);
  *   - bridges to zod via `effectToZodSchema` for the SDK's
  *     `outputSchema` field, so the structured shape we declare to MCP
@@ -17,51 +17,51 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, ParseResult, Schema } from "effect";
+import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 /** One row in the structured `errors[]` array. */
 export const TestErrorRow = Schema.Struct({
-	id: Schema.Number.annotations({
+	id: Schema.Number.annotate({
 		title: "test_errors.id",
 		description:
 			"Numeric primary key of this error row. Pass as `citedTestErrorId` when calling `hypothesis (action: record)`.",
 	}),
-	topStackFrameId: Schema.NullOr(Schema.Number).annotations({
+	topStackFrameId: Schema.NullOr(Schema.Number).annotate({
 		title: "stack_frames.id (top frame)",
 		description:
 			"`stack_frames.id` of the top frame (ordinal=0); `null` when no frames were captured. Pass as `citedStackFrameId` to `hypothesis (action: record)`.",
 	}),
-	name: Schema.NullOr(Schema.String).annotations({
+	name: Schema.NullOr(Schema.String).annotate({
 		description:
 			"Error class name (e.g. `AssertionError`, `TypeError`); `null` when the underlying throw provided no name.",
 	}),
-	message: Schema.String.annotations({ description: "Error message text as the test framework reported it." }),
-	diff: Schema.NullOr(Schema.String).annotations({
+	message: Schema.String.annotate({ description: "Error message text as the test framework reported it." }),
+	diff: Schema.NullOr(Schema.String).annotate({
 		description:
 			"Unified-diff representation of expected vs. actual when the assertion produced one; `null` otherwise.",
 	}),
-	actual: Schema.NullOr(Schema.String).annotations({
+	actual: Schema.NullOr(Schema.String).annotate({
 		description: "Actual value the assertion received, when captured.",
 	}),
-	expected: Schema.NullOr(Schema.String).annotations({
+	expected: Schema.NullOr(Schema.String).annotate({
 		description: "Expected value the assertion compared against, when captured.",
 	}),
-	stack: Schema.NullOr(Schema.String).annotations({
+	stack: Schema.NullOr(Schema.String).annotate({
 		description:
 			"Newline-joined stack frames as the framework formatted them; structured frames live in `stack_frames`.",
 	}),
-	scope: Schema.Literal("test", "suite", "module", "unhandled").annotations({
+	scope: Schema.Literals(["test", "suite", "module", "unhandled"]).annotate({
 		description:
 			"Where the error fired: `test` (a single test case), `suite` (a `describe` setup), `module` (collection / import time), or `unhandled` (uncaught from a background context).",
 	}),
-	testFullName: Schema.NullOr(Schema.String).annotations({
+	testFullName: Schema.NullOr(Schema.String).annotate({
 		description: "Full hierarchical test name (`describe > it`); `null` for non-test scopes (`module`, `unhandled`).",
 	}),
-	moduleFile: Schema.NullOr(Schema.String).annotations({
+	moduleFile: Schema.NullOr(Schema.String).annotate({
 		description: "Repo-relative path of the test module the error originated in.",
 	}),
-}).annotations({
+}).annotate({
 	identifier: "TestErrorRow",
 	title: "Test error row",
 	description: "Single error captured during a test run, joined with stack frame and source-location context.",
@@ -69,20 +69,20 @@ export const TestErrorRow = Schema.Struct({
 
 /** Top-level structured payload — populates `structuredContent`. */
 export const TestErrorsResult = Schema.Struct({
-	project: Schema.String.annotations({
+	project: Schema.String.annotate({
 		title: "Project name",
 		description: "Workspace project key the run was attributed to (e.g. `playground`, `@org/pkg`).",
 		examples: ["playground", "@org/pkg"],
 	}),
-	errorName: Schema.optional(Schema.String).annotations({
+	errorName: Schema.optional(Schema.String).annotate({
 		description: "Echo of the optional `errorName` filter the caller passed; absent when no filter was applied.",
 	}),
-	count: Schema.Number.annotations({ description: "Total error rows in `errors`." }),
-	errors: Schema.Array(TestErrorRow).annotations({
+	count: Schema.Number.annotate({ description: "Total error rows in `errors`." }),
+	errors: Schema.Array(TestErrorRow).annotate({
 		description:
 			"Errors from the most recent test run for this project, optionally filtered by `errorName`. Empty when no errors matched.",
 	}),
-}).annotations({
+}).annotate({
 	identifier: "TestErrorsResult",
 	title: "test_errors result",
 	description:
@@ -154,7 +154,7 @@ export const formatTestErrorsMarkdown = (data: TestErrorsResultType): string => 
 /**
  * One-way codec: structured `TestErrorsResult` → markdown text.
  *
- * `Schema.transformOrFail`'s `decode` direction goes
+ * `Schema.decodeTo`'s `decode` direction goes
  * `From.Type → To.Encoded`; in this transform `From = TestErrorsResult`
  * and `To = Schema.String`, so the resulting schema is
  * `Schema<string, TestErrorsResultType>` — its parsed Type is the
@@ -168,22 +168,19 @@ export const formatTestErrorsMarkdown = (data: TestErrorsResultType): string => 
  * suites can drive the same path without mocking anything — the
  * transform IS the rendering contract.
  */
-export const TestErrorsAsMarkdown = Schema.transformOrFail(TestErrorsResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTestErrorsMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(
-			new ParseResult.Forbidden(
-				ast,
-				text,
+export const TestErrorsAsMarkdown = TestErrorsResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTestErrorsMarkdown(data)),
+		encode: SchemaGetter.forbidden(
+			() =>
 				"TestErrorsAsMarkdown is one-way: markdown cannot be parsed back to TestErrorsResult. Consume the procedure's structured output (or MCP structuredContent) directly.",
-			),
 		),
-});
+	}),
+);
 
 export const testErrors = publicProcedure
 	.input(
-		Schema.standardSchemaV1(
+		Schema.toStandardSchemaV1(
 			Schema.Struct({
 				project: Schema.String,
 				errorName: Schema.optional(Schema.String),

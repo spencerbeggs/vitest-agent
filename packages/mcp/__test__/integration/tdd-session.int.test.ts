@@ -1,6 +1,6 @@
-import { SqlClient } from "@effect/sql/SqlClient";
 import { DataStore } from "@vitest-agent/sdk";
 import { Effect } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect } from "vitest";
 import type { McpContext } from "../../src/context.js";
 import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../../src/context.js";

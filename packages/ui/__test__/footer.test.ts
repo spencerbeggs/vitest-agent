@@ -2,7 +2,7 @@ import type { DispatchInputs, FailureRecord, RenderState } from "@vitest-agent/s
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { buildFooter, dominantClassification } from "../src/dispatcher/footer.js";
-import { belowTargetFixture } from "./fixtures/workspace.js";
+import { belowTargetFixture } from "./utils/workspace.js";
 
 const stateWithFailure = (classification: FailureRecord["classification"]): RenderState => ({
 	...initialRenderState,

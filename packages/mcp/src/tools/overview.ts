@@ -5,32 +5,32 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, Option, ParseResult, Schema } from "effect";
+import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const ProjectRunSummary = Schema.Struct({
 	project: Schema.String,
 	lastRun: Schema.NullOr(Schema.String),
-	lastResult: Schema.NullOr(Schema.Literal("passed", "failed", "interrupted")),
+	lastResult: Schema.NullOr(Schema.Literals(["passed", "failed", "interrupted"])),
 	total: Schema.Number,
 	passed: Schema.Number,
 	failed: Schema.Number,
 	skipped: Schema.Number,
-}).annotations({ identifier: "ProjectRunSummary", description: "One row per project's most recent run summary." });
+}).annotate({ identifier: "ProjectRunSummary", description: "One row per project's most recent run summary." });
 
 const OverviewAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true),
 	projectFilter: Schema.optional(Schema.String),
 	runs: Schema.Array(ProjectRunSummary),
-}).annotations({ identifier: "TestOverviewAvailable" });
+}).annotate({ identifier: "TestOverviewAvailable" });
 
 const OverviewAbsent = Schema.Struct({
 	dataAvailable: Schema.Literal(false),
 	projectFilter: Schema.optional(Schema.String),
-	reason: Schema.Literal("no_runs", "project_filter_empty"),
-}).annotations({ identifier: "TestOverviewAbsent" });
+	reason: Schema.Literals(["no_runs", "project_filter_empty"]),
+}).annotate({ identifier: "TestOverviewAbsent" });
 
-export const TestOverviewResult = Schema.Union(OverviewAvailable, OverviewAbsent).annotations({
+export const TestOverviewResult = Schema.Union([OverviewAvailable, OverviewAbsent]).annotate({
 	identifier: "TestOverviewResult",
 	title: "test_overview result",
 	description: "Per-project run metrics. Discriminate on `dataAvailable` for cold-start handling.",
@@ -80,15 +80,15 @@ export const formatTestOverviewMarkdown = (data: TestOverviewResultType): string
 	return lines.join("\n");
 };
 
-export const TestOverviewAsMarkdown = Schema.transformOrFail(TestOverviewResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTestOverviewMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "TestOverviewAsMarkdown is one-way.")),
-});
+export const TestOverviewAsMarkdown = TestOverviewResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTestOverviewMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "TestOverviewAsMarkdown is one-way."),
+	}),
+);
 
 export const testOverview = publicProcedure
-	.input(Schema.standardSchemaV1(Schema.Struct({ project: Schema.optional(Schema.String) })))
+	.input(Schema.toStandardSchemaV1(Schema.Struct({ project: Schema.optional(Schema.String) })))
 	.query(
 		async ({ ctx, input }): Promise<TestOverviewResultType> =>
 			ctx.runtime.runPromise(

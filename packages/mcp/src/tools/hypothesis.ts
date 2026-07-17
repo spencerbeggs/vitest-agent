@@ -16,26 +16,26 @@ import { idempotentProcedure } from "../middleware/idempotency.js";
 const HypothesisRowSchema = Schema.Struct({
 	id: Schema.Number,
 	sessionId: Schema.Number,
-	content: Schema.String.annotations({
+	content: Schema.String.annotate({
 		description: "Free-text hypothesis the agent recorded before attempting a fix.",
 	}),
-	citedTestErrorId: Schema.NullOr(Schema.Number).annotations({
+	citedTestErrorId: Schema.NullOr(Schema.Number).annotate({
 		description: "Optional `test_errors.id` the hypothesis cites as the failing observation.",
 	}),
-	citedStackFrameId: Schema.NullOr(Schema.Number).annotations({
+	citedStackFrameId: Schema.NullOr(Schema.Number).annotate({
 		description: "Optional `stack_frames.id` for the specific frame the hypothesis blames.",
 	}),
-	validationOutcome: Schema.NullOr(Schema.Literal("confirmed", "refuted", "abandoned")).annotations({
+	validationOutcome: Schema.NullOr(Schema.Literals(["confirmed", "refuted", "abandoned"])).annotate({
 		description: "Outcome recorded by `hypothesis (action: validate)`; `null` while still open.",
 	}),
-	validatedAt: Schema.NullOr(Schema.String).annotations({
+	validatedAt: Schema.NullOr(Schema.String).annotate({
 		description: "ISO-8601 validation timestamp; `null` while open.",
 	}),
-}).annotations({ identifier: "HypothesisRow" });
+}).annotate({ identifier: "HypothesisRow" });
 
 const HypothesisRecordOk = Schema.Struct({
 	action: Schema.Literal("record"),
-	id: Schema.Number.annotations({ description: "Newly inserted hypothesis row primary key." }),
+	id: Schema.Number.annotate({ description: "Newly inserted hypothesis row primary key." }),
 });
 
 const HypothesisValidateOk = Schema.Struct({
@@ -48,7 +48,7 @@ const HypothesisListOk = Schema.Struct({
 	hypotheses: Schema.Array(HypothesisRowSchema),
 });
 
-export const HypothesisResult = Schema.Union(HypothesisRecordOk, HypothesisValidateOk, HypothesisListOk).annotations({
+export const HypothesisResult = Schema.Union([HypothesisRecordOk, HypothesisValidateOk, HypothesisListOk]).annotate({
 	identifier: "HypothesisResult",
 	title: "hypothesis result",
 	description:
@@ -84,7 +84,7 @@ const RecordVariant = Schema.Struct({
 const ValidateVariant = Schema.Struct({
 	action: Schema.Literal("validate"),
 	id: Schema.Number,
-	outcome: Schema.Literal("confirmed", "refuted", "abandoned"),
+	outcome: Schema.Literals(["confirmed", "refuted", "abandoned"]),
 	validatedTurnId: Schema.optional(Schema.Number),
 	validatedAt: Schema.String,
 });
@@ -92,14 +92,14 @@ const ValidateVariant = Schema.Struct({
 const ListVariant = Schema.Struct({
 	action: Schema.Literal("list"),
 	sessionId: Schema.optional(Schema.Number),
-	outcome: Schema.optional(Schema.Literal("confirmed", "refuted", "abandoned", "open")),
+	outcome: Schema.optional(Schema.Literals(["confirmed", "refuted", "abandoned", "open"])),
 	limit: Schema.optional(Schema.Number),
 });
 
-const HypothesisInput = Schema.Union(RecordVariant, ValidateVariant, ListVariant);
+const HypothesisInput = Schema.Union([RecordVariant, ValidateVariant, ListVariant]);
 
 export const hypothesis = idempotentProcedure
-	.input(Schema.standardSchemaV1(HypothesisInput))
+	.input(Schema.toStandardSchemaV1(HypothesisInput))
 	.mutation(async ({ ctx, input }): Promise<HypothesisResultType> => {
 		return ctx.runtime.runPromise(
 			Match.value(input).pipe(

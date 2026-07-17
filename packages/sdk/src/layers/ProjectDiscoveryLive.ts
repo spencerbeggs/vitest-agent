@@ -1,6 +1,5 @@
-import { FileSystem } from "@effect/platform";
-import type { PlatformError } from "@effect/platform/Error";
-import { Effect, Layer } from "effect";
+import type { PlatformError } from "effect";
+import { Effect, FileSystem, Layer } from "effect";
 import { DiscoveryError } from "../errors/DiscoveryError.js";
 import type { TestFileEntry } from "../services/ProjectDiscovery.js";
 import { ProjectDiscovery } from "../services/ProjectDiscovery.js";
@@ -17,7 +16,10 @@ function testFileToSource(testFile: string): string {
 	return testFile.replace(/\.(test|spec)\.(ts|tsx)$/, ".$2");
 }
 
-function walkDir(fs: FileSystem.FileSystem, dir: string): Effect.Effect<ReadonlyArray<string>, PlatformError> {
+function walkDir(
+	fs: FileSystem.FileSystem,
+	dir: string,
+): Effect.Effect<ReadonlyArray<string>, PlatformError.PlatformError> {
 	return Effect.gen(function* () {
 		const entries = yield* fs.readDirectory(dir);
 		const results: string[] = [];

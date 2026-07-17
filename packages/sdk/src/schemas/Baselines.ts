@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { MetricThresholds, PatternThresholds } from "./Thresholds.js";
 
 /**
@@ -8,9 +8,7 @@ import { MetricThresholds, PatternThresholds } from "./Thresholds.js";
 export const CoverageBaselines = Schema.Struct({
 	updatedAt: Schema.String,
 	global: MetricThresholds,
-	patterns: Schema.optionalWith(Schema.Array(PatternThresholds), {
-		default: () => [],
-	}),
-}).annotations({ identifier: "CoverageBaselines" });
+	patterns: Schema.Array(PatternThresholds).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
+}).annotate({ identifier: "CoverageBaselines" });
 /** @public */
 export type CoverageBaselines = typeof CoverageBaselines.Type;

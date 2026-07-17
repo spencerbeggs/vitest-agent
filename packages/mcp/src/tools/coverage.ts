@@ -5,21 +5,21 @@
  */
 
 import { CoverageReport, DataReader } from "@vitest-agent/sdk";
-import { Effect, Option, ParseResult, Schema } from "effect";
+import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const CoverageAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true),
 	project: Schema.String,
 	coverage: CoverageReport,
-}).annotations({ identifier: "TestCoverageAvailable" });
+}).annotate({ identifier: "TestCoverageAvailable" });
 
 const CoverageAbsent = Schema.Struct({
 	dataAvailable: Schema.Literal(false),
 	project: Schema.String,
-}).annotations({ identifier: "TestCoverageAbsent" });
+}).annotate({ identifier: "TestCoverageAbsent" });
 
-export const TestCoverageResult = Schema.Union(CoverageAvailable, CoverageAbsent).annotations({
+export const TestCoverageResult = Schema.Union([CoverageAvailable, CoverageAbsent]).annotate({
 	identifier: "TestCoverageResult",
 	title: "test_coverage result",
 	description: "Per-project coverage report. Discriminate on `dataAvailable` for cold-start handling.",
@@ -58,15 +58,15 @@ export const formatTestCoverageMarkdown = (data: TestCoverageResultType): string
 	return lines.join("\n");
 };
 
-export const TestCoverageAsMarkdown = Schema.transformOrFail(TestCoverageResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTestCoverageMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "TestCoverageAsMarkdown is one-way.")),
-});
+export const TestCoverageAsMarkdown = TestCoverageResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTestCoverageMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "TestCoverageAsMarkdown is one-way."),
+	}),
+);
 
 export const testCoverage = publicProcedure
-	.input(Schema.standardSchemaV1(Schema.Struct({ project: Schema.optional(Schema.String) })))
+	.input(Schema.toStandardSchemaV1(Schema.Struct({ project: Schema.optional(Schema.String) })))
 	.query(
 		async ({ ctx, input }): Promise<TestCoverageResultType> =>
 			ctx.runtime.runPromise(

@@ -1,6 +1,6 @@
 # @vitest-agent/cli
 
-The `@effect/cli`-based bin (`vitest-agent`) for utility functions, database management, and hook plumbing. For 2.0 the CLI is utility-only — MCP is the data path for test-landscape queries. The top-level tree is exactly three commands: `doctor`, `db`, and `agent`. Reads cached test data from SQLite via `DataReader`; never runs tests or calls AI providers. An exact-pinned regular dependency of the plugin package (the former peer promotion was removed).
+The `effect/unstable/cli`-based bin (`vitest-agent`) for utility functions, database management, and hook plumbing. For 2.0 the CLI is utility-only — MCP is the data path for test-landscape queries. The top-level tree is exactly three commands: `doctor`, `db`, and `agent`. Reads cached test data from SQLite via `DataReader`; never runs tests or calls AI providers. An exact-pinned regular dependency of the plugin package (the former peer promotion was removed).
 
 ## Layout
 
@@ -15,7 +15,7 @@ src/
                          lib/sidecar-paths.ts path helpers. Does NOT
                          re-export dispatch / injectEnv / exitCodeForTag —
                          those moved to @vitest-agent/sdk/dispatch
-  commands/           -- thin @effect/cli Command wrappers
+  commands/           -- thin effect/unstable/cli Command wrappers
     doctor.ts          -- top-level `doctor` diagnostic
     db.ts              -- `db` parent: path / prune / reset / query
     agent.ts           -- `agent` namespace parent: triage, wrapup,
@@ -35,7 +35,7 @@ src/
     CliLive.ts        -- (dbPath, logLevel?, logFile?) composition:
                          DataReader + ProjectDiscovery + HistoryTracker
                          + OutputPipeline + SqliteClient + Migrator
-                         + NodeContext + NodeFileSystem + Logger
+                         + NodeServices + Logger
     SidecarLive.ts    -- per-project / per-client / registry SQLite scopes
                          backing the three sidecar subcommands
 ```
@@ -44,7 +44,7 @@ src/
 
 | File | Purpose |
 | ---- | ------- |
-| `bin.ts` | Bin entry. Pipeline: `resolveDataPath(cwd)` -> provide `PathResolutionLive(projectDir) + NodeContext.layer` -> provide `CliLive(dbPath, ...)` -> `cli(process.argv)`. `withSubcommands` is `[dbCommand, doctorCommand, agentCommand]` |
+| `bin.ts` | Bin entry. Pipeline: `resolveDataPath(cwd)` -> provide `PathResolutionLive(projectDir) + NodeServices.layer` -> provide `CliLive(dbPath, ...)` -> run the `Command.run(rootCommand, { version })` Effect (v4 `Command.run` drops the `name` arg — the name comes from `Command.make` — and reads argv from the Stdio service rather than an explicit `process.argv`). `withSubcommands` is `[dbCommand, doctorCommand, agentCommand]` |
 | `commands/db.ts` | `db` parent with four subcommands. `db path` prints the deterministic XDG path (no probing); `db prune --keep-recent N` drops old sessions' turn history (default N=30); `db reset` wipes the DB (human-only, agent-blocked); `db query <sql>` runs read-only SQL |
 | `commands/doctor.ts` | 5-point health diagnostic (manifest assembly, latest-run integrity, staleness check). Keeps `--format markdown\|json` |
 | `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand` plus the sidecar subcommands `register-agent`, `end-agent`, `inject-env` |
@@ -56,8 +56,8 @@ src/
 
 ## Conventions
 
-- **`@effect/cli` command pattern.** Each command in `commands/` is an
-  `@effect/cli` `Command.make(...)`. Commands with non-trivial output
+- **`effect/unstable/cli` command pattern.** Each command in `commands/` is an
+  `effect/unstable/cli` `Command.make(...)`. Commands with non-trivial output
   delegate to a pure function in `lib/`; utility commands emit plain
   stdout text inline. Tests live next to the lib functions, not the
   commands (commands are too thin to test meaningfully).
@@ -81,7 +81,7 @@ src/
 
 - This package depends on `@vitest-agent/sidecar` (not the reverse). `resolveSidecarBinaryPath` is imported from `@vitest-agent/sidecar` to back the `agent sidecar-path` subcommand. The per-platform sidecar children no longer import the CLI — they bundle `dispatch` from `@vitest-agent/sdk/dispatch`. The old `cli → sidecar → sidecar-<platform> → cli` cycle is gone.
 - Adding a subcommand: create or extend the `commands/<group>.ts`
-  `@effect/cli` glue and wire it into the relevant parent's
+  `effect/unstable/cli` glue and wire it into the relevant parent's
   `withSubcommands` (`db`, `agent`, or the root in `bin.ts`). Only add
   a `lib/format-<name>.ts` + `.test.ts` pair when the command produces
   non-trivial structured output worth testing as a pure function;
@@ -111,9 +111,9 @@ src/
 - `db path` returns the resolved XDG path even when no DB has been
   written yet -- the path is a function of identity, not artifact
   presence. The pre-2.0 `node_modules/.vite/...` probing is gone.
-- Adding a flag: `@effect/cli` validates types at the `Command` layer
+- Adding a flag: `effect/unstable/cli` validates types at the `Command` layer
   but the lib function should still accept a typed options object.
-  Keep the lib function callable without `@effect/cli` for testing.
+  Keep the lib function callable without `effect/unstable/cli` for testing.
 - Per-call layer construction is fine here (CLI is short-lived); only
   MCP uses `ManagedRuntime`.
 

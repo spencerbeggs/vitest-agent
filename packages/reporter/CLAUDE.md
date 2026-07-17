@@ -41,11 +41,11 @@ __test__/
 
 ## Design references
 
-- `@.claude/design/vitest-agent/components/reporter.md`
+- `@./.claude/design/vitest-agent/components/reporter.md`
   Load for the default-reporter role, the four-layer model, and the reference-package design.
-- `@.claude/design/vitest-agent/components/ui.md`
+- `@./.claude/design/vitest-agent/components/ui.md`
   Load when working on the dispatcher matrix, cells, or render paths consumed by `DefaultVitestAgentReporter`.
-- `@.claude/design/vitest-agent/schemas.md`
+- `@./.claude/design/vitest-agent/schemas.md`
   Load when working with the public reporter contract types (`ReporterKit`, `ReporterRenderInput`, `RenderedOutput`, `VitestAgentReporterFactory`).
-- `@.claude/design/vitest-agent/decisions.md`
+- `@./.claude/design/vitest-agent/decisions.md`
   Load for rationale on the plugin/reporter split and the T6 dispatcher matrix.

@@ -29,6 +29,16 @@ import type {
 import { isTimeoutError } from "@vitest-agent/sdk";
 
 /**
+ * Synthetic test name used to surface a suite-level (collection/load)
+ * failure in the Failures detail. A module that fails to import has no real
+ * test case to attach the error to, so the synthesizer emits one failed
+ * "test" under this label carrying the module's import error.
+ *
+ * @public
+ */
+export const SUITE_LOAD_FAILURE_LABEL = "test suite failed to load";
+
+/**
  * Optional metadata threaded through the synthesized event stream.
  *
  * @public
@@ -366,6 +376,7 @@ export const synthesizeFromAgentReport = (
 	}
 
 	let totalTimeoutCount = 0;
+	let suiteFailureCount = 0;
 
 	for (const mod of report.failed) {
 		events.push({ _tag: "ModuleStarted", modulePath: mod.file, startedAt });
@@ -437,6 +448,36 @@ export const synthesizeFromAgentReport = (
 			else if (test.state === "failed") {
 				if (!timedOut) fail++;
 			} else skip++;
+		}
+
+		// A module that landed in `report.failed` with no failed test case and
+		// no timeout is a suite-level (collection/load) failure — an import
+		// error or top-level throw. It contributes nothing to `summary.failed`
+		// (which stays tied to test cases), so surface it here: count it as one
+		// failed unit AND emit a synthetic failed "test" carrying the module
+		// error, so the file and its import error show up in the Failures
+		// detail (there is no real test case to attach the error to). Without
+		// this the run renders all-green while the process exits non-zero.
+		if (fail === 0 && moduleTimeoutCount === 0) {
+			fail = 1;
+			suiteFailureCount++;
+			const moduleError = mod.errors?.[0];
+			events.push({ _tag: "TestStarted", modulePath: mod.file, testName: SUITE_LOAD_FAILURE_LABEL, suitePath: [] });
+			events.push({
+				_tag: "TestFinished",
+				modulePath: mod.file,
+				testName: SUITE_LOAD_FAILURE_LABEL,
+				suitePath: [],
+				status: "failed",
+				durationMs: 0,
+				...(moduleError !== undefined && {
+					error: {
+						message: moduleError.message,
+						...(moduleError.diff !== undefined && { diff: moduleError.diff }),
+						...(moduleError.stack !== undefined && { stack: moduleError.stack }),
+					},
+				}),
+			});
 		}
 
 		totalTimeoutCount += moduleTimeoutCount;
@@ -513,7 +554,11 @@ export const synthesizeFromAgentReport = (
 		runId,
 		finishedAt,
 		passCount: report.summary.passed,
-		failCount: report.summary.failed,
+		// summary.failed counts failed test cases only; add suite-level
+		// (collection/load) failures so RunFinished — which the reducer uses to
+		// set the authoritative run totals — classifies the run as failed and
+		// routes to the some-fail render cell (which shows the Failures detail).
+		failCount: report.summary.failed + suiteFailureCount,
 		skipCount: report.summary.skipped,
 		durationMs: report.summary.duration,
 		...(totalTimeoutCount > 0 && { timeoutCount: totalTimeoutCount }),

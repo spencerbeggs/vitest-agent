@@ -1,14 +1,14 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { DataReader, DataStore } from "@vitest-agent/sdk";
 import { DataReaderLive, DataReader as DataReaderTag, DataStoreLive, migration0001 } from "@vitest-agent/sdk";
 import { Effect, Layer } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { recordRunWorkspaceChangesEffect } from "../src/lib/record-workspace-changes.js";
 
-const PlatformLayer = NodeContext.layer;
+const PlatformLayer = NodeServices.layer;
 
 const buildLive = () => {
 	const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });

@@ -70,7 +70,7 @@ PRAGMA foreign_keys=ON;
 
 ### Why WAL mode
 
-`better-sqlite3`, the underlying binding, is not thread-safe. The `@vitest-agent/plugin` runs in the Vitest `forks` pool — each worker is a separate Node.js process. WAL mode allows concurrent readers alongside a single writer without blocking, which is the typical pattern (one Vitest runner writing, the CLI or MCP server reading). The binding sets a `busy_timeout` so brief writer contention is retried rather than failing immediately.
+The underlying binding is Node's built-in `node:sqlite` module (via `@effect/sql-sqlite-node`), and each database connection is single-threaded. The `@vitest-agent/plugin` runs in the Vitest `forks` pool — each worker is a separate Node.js process. WAL mode allows concurrent readers alongside a single writer without blocking, which is the typical pattern (one Vitest runner writing, the CLI or MCP server reading). A `busy_timeout` is set so brief writer contention is retried rather than failing immediately.
 
 ## Schema overview
 

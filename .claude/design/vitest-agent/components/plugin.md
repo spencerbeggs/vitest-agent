@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 93
 related:
   - ../architecture.md
@@ -242,6 +242,14 @@ reporter never break because a tap has a bug.
    The factory is invoked at most once; `render` receives the run-end
    kit while the factory received the run-start kit.
 
+The health-aware kit's `hasFailures` keys off
+`report.failedFiles.length > 0 || report.unhandledErrors.length > 0`, NOT
+`summary.failed` — so a module that failed to *collect / load* (which
+produces zero failing test cases) still marks the run red. This is the
+plugin-side half of the false-green fix; `summary` stays a pure test-case
+count and the suite-level failure is folded in at the render/health seam.
+See Decision 45 in [../decisions.md](../decisions.md).
+
 Each lifecycle hook builds a scoped Effect and runs it with
 `Effect.runPromise` against `ReporterLive(dbPath)`.
 
@@ -311,8 +319,11 @@ having no projects.
 The unified algorithm uses a single `strategy.buildProject(input)`
 predicate to decide whether a package contributes a project. The scanner:
 
-1. Locates the workspace root via `findWorkspaceRootSync` from the
-   `workspaces-effect` sync API.
+1. Locates the workspace root via the bare `findWorkspaceRootSync(options)`
+   const from `@effected/workspaces` (with `nodeSyncOps` from
+   `@effected/workspaces/node-sync`), then enumerates packages via
+   `getWorkspacePackagesSync(root, nodeSyncOps)`. This is the raw sync-ops
+   form, not the arg-less `WorkspacesSync` namespace the kit docs describe.
 2. Iterates every workspace package, calling `strategy.buildProject`
    with the package metadata. A null return appends nothing; otherwise
    the config is added to the result list.
@@ -514,7 +525,7 @@ instead.
 
 `packages/plugin/src/layers/ReporterLive.ts`. Composes the live layers the
 plugin's lifecycle class needs from the SDK plus the agent-local
-`CoverageAnalyzerLive`. Does not pull `NodeContext` directly because
+`CoverageAnalyzerLive`. Does not pull `NodeServices` directly because
 `ensureMigrated` and `resolveDataPath` provide their own platform layers
 earlier in the pipeline.
 
@@ -669,7 +680,7 @@ mode threading. The construction-time getter uses placeholder
    - Builds `AgentReport[]` from `testModules` via the pure
      `buildAgentReport` helper (no DB read, no classifier).
    - Runs a tiny Effect program against `OutputPipelineLive` +
-     `NodeContext.layer` to resolve env, executor, format, and detail.
+     `NodeServices.layer` to resolve env, executor, format, and detail.
    - Builds the run-end kit via `buildReporterKit` (carrying
      `coverageMode: "ui-only"` through onto `ResolvedReporterConfig`,
      plus the `runEvents` channel).

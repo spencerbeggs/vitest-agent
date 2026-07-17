@@ -2,7 +2,7 @@ import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { reduceRenderState, reduceRenderStateAll } from "../src/index.js";
-import { allPassEvents, coverageViolationEvents, flakyRecoveryEvents, mixedFailEvents } from "./fixtures/events.js";
+import { allPassEvents, coverageViolationEvents, flakyRecoveryEvents, mixedFailEvents } from "./utils/events.js";
 
 const apply = (events: ReadonlyArray<RunEvent>, seed: RenderState = initialRenderState): RenderState =>
 	events.reduce<RenderState>(reduceRenderState, seed);

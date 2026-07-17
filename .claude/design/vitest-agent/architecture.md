@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 90
 related:
   - ./components.md
@@ -62,7 +62,7 @@ workspace) and the `docs` documentation-site workspace at `website/`.
 
 The seven npm workspaces version independently per package — there is no shared release train. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` (`workspace:*`) alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`, so a cli or mcp release auto-PATCH-bumps the plugin and re-pins their exact version; they publish as exact-pinned regular `dependencies` too — the earlier `savvy.build.ts` transform that promoted cli and mcp into required `peerDependencies` for the published manifest was removed, because `@savvy-web/pnpm-plugin-silk` already publicly hoists both bins and the peer declaration made pnpm's `autoInstallPeers` force wrong Effect versions into consuming repos (see D33 in [./decisions.md](./decisions.md)). The host-supplied Vitest peers (`vitest`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as `peerDependencies`. Declaring `@vitest-agent/plugin` pulls in the whole `@vitest-agent/*` family for a published consumer transitively. `@vitest-agent/sidecar` reaches a consumer through `@vitest-agent/cli`, along with its four per-platform binaries. All six non-SDK packages pin `@vitest-agent/sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `@vitest-agent/sidecar`.
 
-One deliberate wrinkle in the manifests: every runtime package (sdk, ui, reporter, plugin, cli, mcp) declares the full transitive-peer closure of its `@effect/*` stack as regular dependencies — entries like `@effect/experimental` and `@effect/workflow` appear even where no source file imports them. Without the closure, pnpm auto-installs the escaped `@effect` peer at the consumer's top level, where a workspace on a different `effect` major (e.g. a v4 beta) poisons the v3 stack (issue #127). Do not prune apparently-unused `@effect/*` dependencies.
+The whole family runs on **Effect v4** (`effect@4.0.0-beta.98`). Every package pins `effect` (and its `@effect/*` companions) to the `catalog:effect` catalog injected by `@effected/pnpm-plugin-effect` — note the catalog naming: `catalog:silk` is the v3 catalog (3.22.0), `catalog:effect` is v4. The v4 port collapsed several standalone `@effect/*` packages into core `effect/unstable/*` namespaces: `@effect/cli` → `effect/unstable/cli`, `@effect/sql` → `effect/unstable/sql`, and the non-node `@effect/platform` `FileSystem` / `Path` / `PlatformError` primitives into the core `effect` barrel; `@effect/platform-node` stays a separate edge package but renamed `NodeContext` → `NodeServices`. The data layer stays direct on `@effect/sql-sqlite-node` (v4, now on Node's built-in `node:sqlite`, so `better-sqlite3` is removed), and the granular `@effected/*` kit (`@effected/xdg`, `@effected/config-file`, `@effected/workspaces`) is adopted directly — NOT via `@effected/app` / `@effected/store`. See Decision 46 in [./decisions.md](./decisions.md).
 
 The dependency direction between CLI and sidecar is noteworthy: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath`), not the reverse. The parent `@vitest-agent/sidecar` package has no workspace runtime dependencies — its only source file (`src/resolve-sidecar-binary-path.ts`) uses `createRequire` from `node:module` to resolve the per-platform package's bin path. The per-platform children declare `@vitest-agent/sdk` as their only workspace `devDependency`, bundled into the SEA at build time — each child's `src/bin.ts` imports `dispatch` from the dedicated `@vitest-agent/sdk/dispatch` entry point. The closing edge of the dependency graph is `@vitest-agent/sidecar-<platform> → @vitest-agent/sdk` (a true leaf), so there is no workspace dependency cycle: `pnpm install` issues no cyclic-dependency warning and `turbo boundaries` passes. `packages/sidecar/turbo.json` uses the normal topological task ordering (`^build:dev` / `^build:prod`) — the prior `dependsOn: []` cycle workaround is gone now that the cli→sidecar→cli edge no longer exists.
 
@@ -94,7 +94,7 @@ deterministic XDG-derived path. Three independent processes touch it:
   `@vitest-agent/reporter`, which owns the Ink live mount end to end;
   users supply `reporter` only as an override. The plugin owns no
   rendering — it feeds the reporter the event stream and the kit.
-- **The `vitest-agent` CLI** is a short-lived `@effect/cli` process. It
+- **The `vitest-agent` CLI** is a short-lived `effect/unstable/cli` process. It
   resolves the same `dbPath` and reads cached data through `DataReader`.
   The `record` subcommand is the only writer on the CLI side; it is
   driven by the Claude Code plugin's hooks.

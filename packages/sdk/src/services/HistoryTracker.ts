@@ -27,7 +27,7 @@ export interface TestOutcome {
  */
 export const historyKey = (modulePath: string, fullName: string): string => JSON.stringify([modulePath, fullName]);
 /** @public */
-export class HistoryTracker extends Context.Tag("vitest-agent/HistoryTracker")<
+export class HistoryTracker extends Context.Service<
 	HistoryTracker,
 	{
 		readonly classify: (
@@ -42,4 +42,4 @@ export class HistoryTracker extends Context.Tag("vitest-agent/HistoryTracker")<
 			DataStoreError
 		>;
 	}
->() {}
+>()("vitest-agent/HistoryTracker") {}

@@ -9,7 +9,7 @@ import { MetricThresholds } from "./Thresholds.js";
  * Coverage metric whose threshold can be violated independently.
  * @public
  */
-export const CoverageMetric = Schema.Literal("lines", "branches", "functions", "statements").annotations({
+export const CoverageMetric = Schema.Literals(["lines", "branches", "functions", "statements"]).annotate({
 	identifier: "CoverageMetric",
 });
 /** @public */
@@ -19,7 +19,7 @@ export type CoverageMetric = typeof CoverageMetric.Type;
  * Severity tier for a suggested action emitted during a run.
  * @public
  */
-export const ActionSeverity = Schema.Literal("info", "warn", "blocker").annotations({
+export const ActionSeverity = Schema.Literals(["info", "warn", "blocker"]).annotate({
 	identifier: "ActionSeverity",
 });
 /** @public */
@@ -29,7 +29,7 @@ export type ActionSeverity = typeof ActionSeverity.Type;
  * Lifecycle scope of a Vitest setup/teardown hook.
  * @public
  */
-export const HookType = Schema.Literal("beforeAll", "afterAll", "beforeEach", "afterEach").annotations({
+export const HookType = Schema.Literals(["beforeAll", "afterAll", "beforeEach", "afterEach"]).annotate({
 	identifier: "HookType",
 });
 /** @public */
@@ -39,7 +39,7 @@ export type HookType = typeof HookType.Type;
  * Terminal status of a Vitest hook run.
  * @public
  */
-export const HookStatus = Schema.Literal("passed", "failed").annotations({ identifier: "HookStatus" });
+export const HookStatus = Schema.Literals(["passed", "failed"]).annotate({ identifier: "HookStatus" });
 /** @public */
 export type HookStatus = typeof HookStatus.Type;
 
@@ -47,7 +47,7 @@ export type HookStatus = typeof HookStatus.Type;
  * Output stream a captured user `console.log` was written to.
  * @public
  */
-export const ConsoleLogLevel = Schema.Literal("stdout", "stderr").annotations({ identifier: "ConsoleLogLevel" });
+export const ConsoleLogLevel = Schema.Literals(["stdout", "stderr"]).annotate({ identifier: "ConsoleLogLevel" });
 /** @public */
 export type ConsoleLogLevel = typeof ConsoleLogLevel.Type;
 
@@ -60,7 +60,7 @@ export const CoverageGap = Schema.Struct({
 	file: Schema.String,
 	missing: CoverageTotals,
 	uncoveredLines: Schema.optional(Schema.String),
-}).annotations({ identifier: "CoverageGap" });
+}).annotate({ identifier: "CoverageGap" });
 /** @public */
 export type CoverageGap = typeof CoverageGap.Type;
 
@@ -76,7 +76,7 @@ export type CoverageGap = typeof CoverageGap.Type;
  * been updated to consume the new state shape.
  * @public
  */
-export const RunEvent = Schema.Union(
+export const RunEvent = Schema.Union([
 	Schema.TaggedStruct("RunStarted", {
 		runId: Schema.String,
 		startedAt: Schema.String,
@@ -113,7 +113,7 @@ export const RunEvent = Schema.Union(
 		durationMs: Schema.Number,
 		projectName: Schema.optional(Schema.String),
 		timeoutCount: Schema.optional(Schema.Number),
-		tagCounts: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Number })),
+		tagCounts: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
 	}),
 	Schema.TaggedStruct("ModuleCollected", {
 		modulePath: Schema.String,
@@ -174,7 +174,7 @@ export const RunEvent = Schema.Union(
 		reason: Schema.optional(Schema.String),
 	}),
 	Schema.TaggedStruct("TrendComputed", {
-		direction: Schema.Literal("improving", "regressing", "stable"),
+		direction: Schema.Literals(["improving", "regressing", "stable"]),
 		runCount: Schema.Number,
 	}),
 	Schema.TaggedStruct("CoverageReady", {
@@ -207,7 +207,7 @@ export const RunEvent = Schema.Union(
 		durationMs: Schema.Number,
 		timeoutCount: Schema.optional(Schema.Number),
 	}),
-).annotations({ identifier: "RunEvent" });
+]).annotate({ identifier: "RunEvent" });
 /** @public */
 export type RunEvent = typeof RunEvent.Type;
 

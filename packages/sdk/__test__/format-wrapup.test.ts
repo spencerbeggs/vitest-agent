@@ -1,8 +1,8 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { DataStoreError } from "../src/errors/DataStoreError.js";
 import { DataReaderLive } from "../src/layers/DataReaderLive.js";
@@ -14,7 +14,7 @@ import { DataReader } from "../src/services/DataReader.js";
 import { DataStore } from "../src/services/DataStore.js";
 
 const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-const PlatformLayer = NodeContext.layer;
+const PlatformLayer = NodeServices.layer;
 
 const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
@@ -337,7 +337,7 @@ describe("formatWrapupEffect", () => {
 					Effect.fail(new DataStoreError({ operation: "read", table: "hypotheses", reason: "boom" })),
 				// Unused methods can be left as `null as never` since formatWrapupEffect
 				// never reaches them.
-			} as unknown as DataReader["Type"]);
+			} as unknown as DataReader["Service"]);
 			const FailingReaderLayer = Layer.succeed(DataReader, failingReader);
 
 			// Drive line 60 (getSessionByChatId fallback): pass chatId, force the

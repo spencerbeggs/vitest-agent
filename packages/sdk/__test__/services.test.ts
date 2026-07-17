@@ -34,6 +34,6 @@ describe("EnvironmentDetector", () => {
 describe("ProjectDiscovery", () => {
 	it("is a valid Context.Tag", () => {
 		expect(ProjectDiscovery).toBeDefined();
-		expect(Context.isTag(ProjectDiscovery)).toBe(true);
+		expect(Context.isKey(ProjectDiscovery)).toBe(true);
 	});
 });

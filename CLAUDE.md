@@ -58,7 +58,7 @@ for LLM coding agents. Six primary capabilities:
    Effect service for coverage-config diagnostics, Full and UI-only operating
    modes gated by Vitest's native `coverage.enabled`, and pluggable rendering
    via `VitestAgentReporterFactory`.
-2. **`vitest-agent` CLI** -- `@effect/cli`-based utility-only bin with a
+2. **`vitest-agent` CLI** -- `effect/unstable/cli`-based utility-only bin with a
    three-command tree: `doctor`, `db` (`path` / `prune` / `reset` /
    `query`), and `agent` -- a namespace for hook-driven plumbing
    (`triage`, `wrapup`, `record`, `register-agent`, `end-agent`,
@@ -274,7 +274,7 @@ preset.
 
 ### Dependencies
 
-- Do not prune apparently-unused `@effect/*` dependencies (`@effect/experimental` and `@effect/workflow` in cli/mcp/plugin/reporter/sdk; also `@effect/printer`, `@effect/printer-ansi`, `@effect/typeclass` in cli). They complete the transitive Effect peer closure so no `@effect` peer resolution escapes to the consumer's importer. Rationale in the architecture design doc.
+- Effect v4 collapsed the standalone `@effect/*` packages into `effect/unstable/*` namespaces (e.g. `@effect/cli` → `effect/unstable/cli`, `@effect/sql` → `effect/unstable/sql`), so the old peer-closure padding (`@effect/experimental`, `@effect/workflow`, `@effect/printer`, `@effect/printer-ansi`, `@effect/typeclass`) is gone. The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node` — both directly imported in source. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. Rationale in the architecture design doc.
 
 ### Commits
 

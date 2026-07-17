@@ -1,9 +1,10 @@
 import type { Dirent } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize, relative } from "node:path";
+import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
+import { nodeSyncOps } from "@effected/workspaces/node-sync";
 import type { TestTagDefinition } from "@vitest/runner";
 import type { TestProjectInlineConfiguration } from "vitest/config";
-import { findWorkspaceRootSync, getWorkspacePackagesSync } from "workspaces-effect";
 import type { DiscoverStrategy } from "./discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./discover-strategy.js";
 import { toPosixPath } from "./to-posix-path.js";
@@ -128,7 +129,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	const strategy = options?.strategy;
 	const cwd = options?.cwd;
 	const additionalEntries = options?.additionalEntries ?? [];
-	const root = findWorkspaceRootSync(cwd ?? process.cwd());
+	const root = findWorkspaceRootSync({ ...nodeSyncOps, cwd: cwd ?? process.cwd() });
 	if (!root) {
 		throw new Error(
 			`[vitest-agent] Could not find workspace root from ${cwd ?? process.cwd()}. ` +
@@ -141,7 +142,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	// the cache because we can't fingerprint DiscoverStrategy instances.
 	const useCache = strategy === undefined && additionalEntries.length === 0;
 	const resolvedStrategy = strategy ?? new DefaultDiscoverStrategy();
-	const packages = getWorkspacePackagesSync(root);
+	const packages = getWorkspacePackagesSync(root, nodeSyncOps);
 
 	// Issue #100: a cached result is only valid while the on-disk test-file set
 	// it was computed from is unchanged. Compute the cheap directory signature

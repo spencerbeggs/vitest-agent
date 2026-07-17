@@ -33,7 +33,7 @@ export interface SessionContextRow {
  * methods would be a type error.
  * @public
  */
-export class PerClientSessionMapReader extends Context.Tag("vitest-agent/PerClientSessionMapReader")<
+export class PerClientSessionMapReader extends Context.Service<
 	PerClientSessionMapReader,
 	{
 		/**
@@ -52,7 +52,7 @@ export class PerClientSessionMapReader extends Context.Tag("vitest-agent/PerClie
 			projectDir: string,
 		) => Effect.Effect<Option.Option<SessionContextRow>, DataStoreError>;
 	}
->() {}
+>()("vitest-agent/PerClientSessionMapReader") {}
 
 /**
  * Read-write side of the session map. Sidecar provides this; the
@@ -60,7 +60,7 @@ export class PerClientSessionMapReader extends Context.Tag("vitest-agent/PerClie
  * one resolve.
  * @public
  */
-export class PerClientSessionMapWriter extends Context.Tag("vitest-agent/PerClientSessionMapWriter")<
+export class PerClientSessionMapWriter extends Context.Service<
 	PerClientSessionMapWriter,
 	{
 		/**
@@ -94,4 +94,4 @@ export class PerClientSessionMapWriter extends Context.Tag("vitest-agent/PerClie
 			projectDir: string,
 		) => Effect.Effect<Option.Option<SessionContextRow>, DataStoreError>;
 	}
->() {}
+>()("vitest-agent/PerClientSessionMapWriter") {}

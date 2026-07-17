@@ -47,7 +47,7 @@ __test__/
   render-ink/*.test.tsx                           -- per-component frames
   pubsub.test.ts                                  -- roundtrip + fan-out
   synthesize*.test.ts                             -- both synthesizer paths
-  fixtures/events.ts                              -- canonical event sequences
+  utils/events.ts + workspace.ts                  -- canonical event + workspace fixtures
   snapshots/                                      -- file-based goldens
   utils/render-ink.tsx                            -- stripAnsi + renderInk helper
 ```
@@ -91,11 +91,11 @@ __test__/
 
 ## Design references
 
-- `@.claude/design/vitest-agent/components/ui.md`
+- `@./.claude/design/vitest-agent/components/ui.md`
   Load when working on the event taxonomy, the reducer, the dispatcher matrix, the cells, or the render paths.
-- `@.claude/design/vitest-agent/components/reporter.md`
+- `@./.claude/design/vitest-agent/components/reporter.md`
   Load when working on `DefaultVitestAgentReporter` or the Ink live-mount lifecycle — both moved to `@vitest-agent/reporter`.
-- `@.claude/design/vitest-agent/schemas.md`
+- `@./.claude/design/vitest-agent/schemas.md`
   Load when adding to the `RunEvent` or `RenderState` schemas.
-- `@.claude/design/vitest-agent/decisions.md`
+- `@./.claude/design/vitest-agent/decisions.md`
   Load for rationale on D41 (T6 shape-tailored dispatcher matrix) and the plugin / reporter / ui layering.

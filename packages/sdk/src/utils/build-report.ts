@@ -309,3 +309,20 @@ export function buildAgentReport(
 		failedFiles,
 	};
 }
+
+/**
+ * Count suite-level (collection/load) failures in a report.
+ *
+ * A collection failure is a module that failed before any test case could
+ * run — an import error, a top-level throw, a syntax error. Such a module
+ * lands in `report.failed` with no failed test case, so it contributes
+ * nothing to `summary.failed` (which stays tied to test cases). Renderers
+ * and the plugin's `hasFailures` health check add this count so a suite that
+ * never loaded surfaces instead of showing a misleading all-green result.
+ *
+ * @param report - the report to inspect
+ * @returns the number of modules in `report.failed` with no failed test case
+ * @public
+ */
+export const countSuiteFailures = (report: Pick<AgentReport, "failed">): number =>
+	report.failed.filter((mod) => !mod.tests.some((test) => test.state === "failed")).length;

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 100
 related:
   - ./architecture.md
@@ -78,9 +78,9 @@ TypeScript interfaces, not schemas.
 Report and manifest data must be type-safe in TypeScript and serializable
 to/from JSON. Effect Schema definitions live under
 `packages/sdk/src/schemas/`. TypeScript types derive via
-`typeof Schema.Type`; JSON encode/decode via `Schema.decodeUnknown` /
-`Schema.encodeUnknown`. Schemas compose with Effect services without
-bridging.
+`typeof Schema.Type`; JSON encode/decode via the v4 effectful codecs
+(`Schema.decodeUnknownEffect` / `Schema.encodeUnknownEffect`). Schemas
+compose with Effect services without bridging.
 
 `zod` is a runtime dependency only for tRPC procedure input validation in
 the MCP server. Effect Schema remains the source of truth for data
@@ -95,10 +95,12 @@ APIs directly. The output pipeline needed distinct stages
 (detect → resolve → select → resolve detail → render) to be individually
 testable. The data layer split (`DataStore` writes, `DataReader` reads)
 enables different composition in different contexts (reporter writes,
-CLI/MCP read).
+CLI/MCP read). On Effect v4 the service tag constructor is `Context.Service`
+(the v3 `Context.Tag` rename).
 
-Live layers use `@effect/platform` `FileSystem` and
-`@effect/sql-sqlite-node`; test layers swap in mock implementations.
+Live layers use the core `effect` `FileSystem` (absorbed from
+`@effect/platform` on v4) and `@effect/sql-sqlite-node`; test layers swap in
+mock implementations.
 
 ### Decision 7: Scoped `Effect.runPromise` in Reporter
 
@@ -223,7 +225,11 @@ all three.
 The migration story uses `@effect/sql-sqlite-node`'s `SqliteMigrator`
 with WAL journal mode. Composition layers (`ReporterLive`, `CliLive`,
 `McpLive`) are functions of `dbPath` that construct the `SqliteClient`
-layer inline.
+layer inline. On Effect v4 the SQL core (`SqlClient`, `SqlError`,
+`Statement`) lives in `effect/unstable/sql`; the driver
+(`@effect/sql-sqlite-node`, v4) now runs on Node's built-in `node:sqlite`
+(`DatabaseSync`), so the former `better-sqlite3` native binding is removed
+entirely.
 
 ### Decision 19: tRPC for MCP Routing
 
@@ -352,8 +358,8 @@ In multi-project Vitest configurations sharing a single `data.db`, each
 `SqliteClient` connection. With a fresh database, two connections would
 both start deferred transactions and then attempt to upgrade to write,
 producing `SQLITE_BUSY`. SQLite's busy handler is not invoked for
-write-write upgrade conflicts on deferred transactions, so
-better-sqlite3's busy_timeout did not help.
+write-write upgrade conflicts on deferred transactions, so the SQLite
+driver's busy_timeout did not help.
 
 The fix is `ensureMigrated(dbPath, logLevel?, logFile?)` in
 `packages/sdk/src/utils/ensure-migrated.ts`. A promise cache keyed at
@@ -422,8 +428,9 @@ The data path is a deterministic function of the workspace's identity:
 `<workspaceKey>` is the root `package.json` `name` normalized via
 `normalizeWorkspaceKey` (`@org/pkg` → `@org__pkg`). Without
 `XDG_DATA_HOME`, falls back to
-`~/.local/share/vitest-agent/<workspaceKey>/data.db` per `xdg-effect`'s
-`AppDirs` semantics. An optional `vitest-agent.config.toml` lets users
+`~/.local/share/vitest-agent/<workspaceKey>/data.db` per `@effected/xdg`'s
+`AppDirs` semantics (`AppDirs.layer({ namespace })` over `Xdg.layer`; the
+v3-era `AppDirsConfig` class is gone). An optional `vitest-agent.config.toml` lets users
 override the `<workspaceKey>` segment (`projectKey` field) or the
 entire data directory (`cacheDir` field). The plugin's programmatic
 `reporter.cacheDir` option is highest precedence. See
@@ -433,7 +440,7 @@ entire data directory (`cacheDir` field). The plugin's programmatic
 project-build-output — it doesn't belong under `node_modules` (wiped
 by `rm -rf node_modules`) or in the project tree (clutters git
 status). XDG's "user data" category is the right semantic match and
-`xdg-effect` honors `XDG_DATA_HOME` cross-platform with a sensible
+`@effected/xdg` honors `XDG_DATA_HOME` cross-platform with a sensible
 fallback.
 
 **Why workspace-name keying (vs path hash):** worktree consistency
@@ -456,7 +463,7 @@ instead of identity. Anyone hitting this error has a one-line fix
 
 **Why TOML for the config file:** TOML's distinction between strings
 and identifiers reads more naturally for path-like config than
-JSON's everything-is-a-string, `config-file-effect`'s `TomlCodec`
+JSON's everything-is-a-string, `@effected/config-file`'s `TomlCodec`
 integrates cleanly with Effect Schema decoding, and TOML is familiar
 from Cargo and Python tooling.
 
@@ -466,22 +473,26 @@ share a DB. Mitigations: the `projectKey` config override, the
 human-readable XDG layout makes collisions discoverable on
 inspection, and the README documents the behavior.
 
-### Decision 32: Keep `ensureMigrated` Instead of `xdg-effect`'s `SqliteState.Live`
+### Decision 32: Keep `ensureMigrated` Instead of the kit's bundled SQLite-state layer
 
-`xdg-effect` ships a `SqliteState.Live` that combines an XDG-resolved
-path, a SQLite client, and a migrator into a single layer. We keep
-`ensureMigrated` and our existing migrator setup instead.
+The `@effected/xdg` line ships a bundled state layer that combines an
+XDG-resolved path, a SQLite client, and a migrator into a single layer. We
+keep `ensureMigrated` and our existing migrator setup instead — and, more
+broadly, keep the whole data layer in direct composition on
+`@effect/sql-sqlite-node` rather than adopting `@effected/store` /
+`@effected/app` (the migration plan initially proposed the app/store
+adoption; the shipped implementation did not take it).
 
 **Why:**
 
-- `SqliteState.Live` constructs migrations as part of layer
+- A bundled state layer constructs migrations as part of layer
   construction, with no process-level coordination across independent
   layer instances. In multi-project Vitest configs each reporter
   instance constructs its own runtime (Decision 25), so multiple
   migrations would race on a fresh DB and reintroduce the SQLITE_BUSY
   issue Decision 28 fixes.
-- The migration tracking tables differ: `xdg-effect` uses
-  `_xdg_migrations`, `@effect/sql-sqlite-node`'s `SqliteMigrator` uses
+- The migration tracking tables differ from the kit's, and
+  `@effect/sql-sqlite-node`'s `SqliteMigrator` uses
   `effect_sql_migrations`. Reconciling them would be a bootstrap path
   with real test cost.
 - `ensureMigrated`'s `globalThis`-keyed promise cache is small (~50
@@ -524,9 +535,9 @@ does more than one runtime package need". The data layer, output
 pipeline, path-resolution stack and dispatch core are all needed by
 more than one runtime, so they live in `@vitest-agent/sdk` — circular
 imports are impossible by construction. The CLI/MCP split is a
-module-boundary decision: `@effect/cli` is the CLI's own concern and
-the MCP SDK + tRPC + zod stack is the MCP server's own concern, so
-each keeps its dependency surface in its own package.
+module-boundary decision: the `effect/unstable/cli` surface is the CLI's
+own concern and the MCP SDK + tRPC + zod stack is the MCP server's own
+concern, so each keeps its dependency surface in its own package.
 
 **Why regular deps for cli and mcp (vs required peers):** every plugin consumer needs both packages — for the bin invocations the reporter's "Next steps" output suggests and for the MCP server the Claude Code plugin needs. They were previously required `peerDependencies` (source `workspace:*` deps promoted at build by a `savvy.build.ts` manifest transform) on the theory that only an auto-installed peer lands its bin at the consumer's top level. That promotion was removed: `@savvy-web/pnpm-plugin-silk` publicly hoists both packages so their bins resolve regardless, and the peer declaration was actively harmful — pnpm's `autoInstallPeers` resolution of the plugin's cli/mcp peers forced wrong Effect versions into consuming repos. Both now publish as exact-pinned regular `dependencies` (the default manifest transform rewrites the source `workspace:*` protocol to the exact current version at publish). The changesets ripple is unchanged: a cli/mcp release pushes the plugin's `workspace:*` dep out of range and auto-PATCH-bumps the plugin via `updateInternalDependencies: "patch"`, re-pinning the exact version — and with no cli/mcp peer range in the published manifest, the forced-major peer-range hazard is gone entirely (see D36). In the monorepo dev workspace the root `package.json` still declares `@vitest-agent/cli` and `@vitest-agent/mcp` directly as devDependencies and `pnpm-workspace.yaml` keeps a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks.
 
@@ -1067,8 +1078,8 @@ for the default reporter package.
 The PreToolUse Bash hook fires on every Bash tool call. A naive hook
 unconditionally shells out to the JS CLI's `inject-env` to detect Vitest
 invocations and rewrite the env prefix; that shell-out pays full Node
-cold-start (the `effect` / `@effect/cli` / `@effect/sql-sqlite-node` module
-graph) on the inner loop of agent latency. A long-running daemon to amortize
+cold-start (the `effect` / `effect/unstable/cli` / `@effect/sql-sqlite-node`
+module graph) on the inner loop of agent latency. A long-running daemon to amortize
 that cost was rejected in favor of a cheaper layered prefilter, because the
 work is mostly wasted: the large majority of Bash calls cannot invoke Vitest
 at all, and main-agent Vitest invocations already carry correct attribution
@@ -1102,10 +1113,11 @@ tsdown's `exe` mode requires Node >= 25.7.0, which sets the repo's
 `devEngines.runtime` floor.
 
 **Why `inject-env` only, with `register-agent` staying JS.** The binary
-handles `inject-env` and nothing else. `register-agent` pulls in a native
-SQLite binding (`@effect/sql-sqlite-node` → better-sqlite3) that cannot be
-bundled into a JavaScript SEA. It also fires only once per session, off the
-per-turn critical path, so the JS cold-start is tolerable there.
+handles `inject-env` and nothing else. `register-agent` pulls in the full
+SDK data-layer graph (`@effect/sql-sqlite-node` on Node's built-in
+`node:sqlite`) that the trimmed `inject-env` SEA bundle deliberately
+excludes. It also fires only once per session, off the per-turn critical
+path, so the JS cold-start is tolerable there.
 
 **Distribution and fallback.** The binary ships per-platform via four `optionalDependencies` sub-packages declaring `os` / `cpu` (the esbuild / sharp model). darwin-x64 is intentionally not shipped — see [./components/sidecar.md](./components/sidecar.md). The binary is not discoverable via `command -v` because pnpm/npm only hoist direct-dependency bins; transitive optional-dependency bins are never placed in `node_modules/.bin/`. Instead, `resolveSidecarBinaryPath()` (exported from `@vitest-agent/sidecar`) resolves the path via `createRequire(import.meta.url).resolve` anchored inside the sidecar package, which is the `optionalDependencies` owner. The SessionStart hook calls `vitest-agent agent sidecar-path` once per session, captures the absolute path from stdout, and exports it as `VITEST_AGENT_SIDECAR_BIN`. Layer 2 reads this env var instead of probing `PATH`. When the var is absent or the binary non-executable — unsupported platform or skipped optional dependency — the hook falls back to the JS CLI, byte-identical output, so attribution degrades gracefully rather than breaking.
 
@@ -1127,6 +1139,112 @@ to one each. The benchmark harness is `scripts/bench-sidecar.sh`.
 **Context.** Under v8 coverage, Vite core's `loadAndTransform` emits `[vite] (ssr) Failed to load source map ...` / `ENOENT: ... .js.map` warnings for dependencies that ship a `.js` referencing an unpublished `.js.map` sibling (canonical case: `typescript/lib/typescript.js`). This is a Vite LOGGER warning routed through `environment.logger.warn`, not per-test console output, so it never lands in `task.logs` / `state.getFiles()` and the existing console-leak filter path cannot reach it (issue #110).
 
 **Decision.** The plugin adds a Vite `configResolved(resolvedConfig)` hook that mutates `resolvedConfig.logger.warn` in place (`installViteSourceMapWarningFilter`): messages matching the pure predicate `isBenignViteSourceMapWarning` are dropped, everything else forwards untouched. Verified against vite@8.1.0 that every per-environment logger delegates to the single root `logger.warn` reference, so wrapping that one function intercepts all environments. The wrap rides `configResolved` rather than a `config`-hook `customLogger` because Vite can construct or replace the logger between the two phases — mutating the already-resolved instance is what survives. The predicate matches only the `Failed to load source map` + `ENOENT:.*\.js\.map` shape so unrelated warnings and other-extension ENOENT errors still surface. The backing `ResolvedConfigLike` / `ViteLoggerLike` types stay `@internal` and the `configResolved` field uses an inline structural type, keeping them off api-extractor's public surface.
+
+### Decision 45: Suite-Load Failures Count as Failures (False-Green Fix)
+
+**Context.** A test file that failed to *import* (a syntax error, a missing
+module, a throwing top-level side effect) rendered all-green. The root cause:
+`buildAgentReport` deliberately kept collection / load failures OUT of
+`AgentReport.summary.failed`, which counts test *cases* only — a file that
+never produced a test case contributed nothing. But every render consumer and
+health check keyed off `summary`, so a zero-test-case module that failed to
+load looked identical to a clean run.
+
+**Decision.** Keep `summary` pure (test-case counts only) and fix the
+consumers to fold in suite-level failures explicitly:
+
+- A new SDK helper `countSuiteFailures(report)` (in
+  `packages/sdk/src/utils/build-report.ts`) counts modules that failed to
+  collect/load.
+- `@vitest-agent/reporter`'s `defaultReporter.ts` — `summarizeProject.failCount`
+  now adds `countSuiteFailures(report)` on top of `summary.failed`.
+- `@vitest-agent/ui`'s `synthesize.ts` — `synthesizeFromAgentReport` emits, for
+  a collection-failed module, a `ModuleFinished` with `failCount: 1` plus a
+  synthetic `TestStarted` / `TestFinished` pair labeled
+  `SUITE_LOAD_FAILURE_LABEL` (`"test suite failed to load"`) carrying the
+  module's import error, and `RunFinished.failCount` includes suite failures.
+  The reducer treats `RunFinished.failCount` as the authoritative total, so a
+  suite-load failure routes the run to the some-fail render cell (D41) rather
+  than the all-pass cell.
+- `@vitest-agent/plugin`'s `reporter.ts` — the `hasFailures` health check keys
+  off `failedFiles.length` so the persistence-side health signal also sees
+  load failures.
+
+**Why keep `summary` pure rather than fold suite failures into it:**
+`summary.failed` is a test-case count with downstream consumers (history,
+classification, trend math) that must not have a synthetic non-test-case
+failure injected into their per-test arithmetic. Adding a parallel
+`countSuiteFailures` seam lets the *render* and *health* paths see the true
+red state without corrupting the test-case accounting. See
+[./components/reporter.md](./components/reporter.md),
+[./components/ui.md](./components/ui.md),
+[./components/plugin.md](./components/plugin.md), and the run-end render flow
+in [./data-flows.md](./data-flows.md).
+
+### Decision 46: Effect v4 + `@effected` Kit — v4-Era Behavior Changes
+
+**Context.** The whole family migrated off Effect v3 (`effect@3.22.0`,
+`catalog:silk`) onto Effect v4 (`effect@4.0.0-beta.98`, `catalog:effect`
+injected by `@effected/pnpm-plugin-effect`) and adopted the granular
+`@effected/*` kit **directly** — NOT via `@effected/app` / `@effected/store`.
+The data layer stays direct on `@effect/sql-sqlite-node` +
+`effect/unstable/sql`. The migration plan
+([../../plans/effect-v4-and-effected-kit-migration.md](../../plans/effect-v4-and-effected-kit-migration.md))
+initially proposed the app/store control plane; the shipped implementation
+did not take it.
+
+**Where the surfaces moved (v3 → v4):**
+
+- `@effect/cli` (dead) → `effect/unstable/cli`: `Command`, `Flag`←Options,
+  `Argument`←Args, `Primitive`, `Prompt`, `CliError`←ValidationError.
+  `Command.run` dropped the `name` field and sources argv from the `Stdio`
+  service.
+- `@effect/sql` (gone) → `effect/unstable/sql` (`SqlClient`, `SqlError`,
+  `Statement`). `@effect/sql-sqlite-node` stays a separate v4 driver but now
+  runs on Node's built-in `node:sqlite` (`DatabaseSync`) — **better-sqlite3
+  removed entirely**.
+- `@effect/platform-node`: `NodeContext` → `NodeServices` (`NodeServices.layer`).
+  The non-node `@effect/platform` `FileSystem` / `Path` / `PlatformError`
+  primitives collapsed into the core `effect` barrel.
+- Kit predecessors → `@effected/*`: `xdg-effect` → `@effected/xdg`
+  (`AppDirs.layer({ namespace })` + `Xdg.layer`; the `AppDirsConfig` class is
+  gone), `config-file-effect` → `@effected/config-file`
+  (`ConfigFile.Service<Self, A>()(id)` + `ConfigFile.layer` with
+  `ConfigResolver.workspaceRoot`/`gitRoot`/`upwardWalk`,
+  `MergeStrategy.firstMatch()`, `TomlCodec`), `workspaces-effect` →
+  `@effected/workspaces`. The plugin's SYNC discovery path uses the bare
+  `findWorkspaceRootSync(options)` / `getWorkspacePackagesSync(root, options)`
+  consts with `nodeSyncOps` from `@effected/workspaces/node-sync`.
+- Core renames throughout: `Effect.catchAll` → `Effect.catch`, `Effect.either`
+  → `Effect.result`, `Effect.fork` → `Effect.forkChild`, `Context.Tag` →
+  `Context.Service`, `Schema.decodeUnknown` → `Schema.decodeUnknownEffect`,
+  `JSONSchema` → `JsonSchema`, variadic `Schema.Literal`/`Union` → array form,
+  `.annotations` → `.annotate`, and `LogLevel` as a string union (`"Warn"`).
+
+**Behavior changes worth pinning:**
+
+1. **Stricter `isUUID`.** v4 validates the RFC version/variant nibbles, so
+   placeholder fixtures like `aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa` are now
+   rejected. Test fixtures that relied on lax UUIDs were regenerated to valid
+   v4 UUIDs.
+2. **`.git` is no longer a workspace-root boundary.** `@effected/workspaces`
+   recognizes only `pnpm-workspace.yaml` or a `workspaces` field as a root
+   marker; a bare-`.git` single-package consumer repo (no workspace manifest)
+   now fails discovery where the v3 `workspaces-effect` accepted it. **This is
+   a KNOWN OPEN ITEM — deferred by the maintainer, not resolved here.** A
+   single-package consumer must currently set `projectKey` in
+   `vitest-agent.config.toml` (or otherwise supply workspace identity) until
+   the boundary policy is decided. See Decision 31 for the identity-resolution
+   precedence this interacts with.
+3. **`node:sqlite` double-wraps driver errors.** The v4 `node:sqlite` driver
+   nests two `cause` wrappers, so the real message sits at
+   `cause.cause.message` rather than on the top-level `SqlError`. `extractSqlReason`
+   (`packages/sdk/src/errors/DataStoreError.ts`) was rewritten to walk the full
+   `cause` chain (with cycle guards) to the deepest useful message.
+4. **`Schema.withDecodingDefaultKey` is decode-only.** The default applies on
+   `decode` but is `undefined` on the constructor / passthrough path, so code
+   that reads a defaulted field off a freshly constructed (not decoded) value
+   must not assume the default is present.
 
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
@@ -1593,23 +1711,27 @@ To use **Effect Schema** at the MCP boundary (consistent with the
 rest of the SDK), drop down to
 `server.setRequestHandler(ListToolsRequestSchema, …)` and
 `setRequestHandler(CallToolRequestSchema, …)`. The `tools/list`
-handler returns `JSONSchema.make(EffectSchema)` per tool;
+handler returns `Schema.toJsonSchemaDocument(EffectSchema)` per tool
+(the v4 JSON-Schema emitter; on v3 this was `JSONSchema.make`);
 `tools/call` validates incoming payloads via
-`Schema.decodeUnknown(EffectSchema)`. Resources and prompts stay on
+`Schema.decodeUnknownEffect(EffectSchema)`. Resources and prompts stay on
 the SDK's high-level `registerResource` / `registerPrompt` API —
 mixing the two layers is supported and preserves the SDK's auto-
 registration of `resources/*`, `prompts/*`, `ping`, and
 `notifications/*` handlers.
 
 **Brand schemas use `Schema.UUID`** as the base
-(`Schema.UUID.pipe(Schema.brand("AgentId"))`) so `JSONSchema.make`
+(`Schema.UUID.pipe(Schema.brand("AgentId"))`) so the JSON-Schema emitter
+(`Schema.toJsonSchemaDocument` on v4; `JSONSchema.make` on v3)
 reliably emits `{ type: "string", format: "uuid", pattern: <rfc-4122> }`
 across Effect versions. The historical `Schema.pattern` chained
 after `Schema.brand` has had emission inconsistencies; `Schema.UUID`
-avoids them.
+avoids them. Note that v4's `isUUID` validation is stricter (it checks the
+RFC version/variant nibbles), so placeholder fixtures like `aaaa…` are now
+rejected — see Decision 46.
 
 **Tagged unions emit `anyOf`, not `oneOf` + discriminator.**
-Effect's `JSONSchema.make` produces JSON Schema `anyOf` for
+Effect's JSON-Schema emitter produces JSON Schema `anyOf` for
 discriminated unions; JSON Schema 2020-12 has no `discriminator`
 keyword (that's an OpenAPI extension). A small post-processing step
 rewrites the top-level `anyOf` to `oneOf` and adds
@@ -1787,15 +1909,15 @@ The unit tests for `parseAndValidateTurnPayload`, `recordTurnEffect`,
 `recordSessionStart`, and `recordSessionEnd` exercise the lib functions
 against an in-memory `SqliteClient`. The bin's wiring is thin
 (`bin.ts` resolves `dbPath`, builds `CliLive`, hands the
-`Command.run` effect to `@effect/cli`).
+`Command.run` effect to `effect/unstable/cli`).
 
 **Why acceptable:** the build-and-spawn loop would add the rslib
 production build to the critical path of `pnpm test` and bring up a
 fresh Node process per test case. The hook scripts — the CLI's
 real-world callers — exercise the bin via the hook driver, which is a
-more realistic e2e. The `@effect/cli` command tree breaking silently
-is the main risk; manual smoke testing through hook scripts catches
-command-tree wiring.
+more realistic e2e. The `effect/unstable/cli` command tree breaking
+silently is the main risk; manual smoke testing through hook scripts
+catches command-tree wiring.
 
 ### Note N8: Single-statement ordinal allocation
 
@@ -1878,8 +2000,8 @@ too.
 
 - **Where used:** All Effect services
 - **Why used:** Clean separation between service interface
-  (`Context.Tag`) and implementation (Layer). Enables swapping live
-  I/O for test mocks
+  (`Context.Service`, the v4 rename of `Context.Tag`) and implementation
+  (Layer). Enables swapping live I/O for test mocks
 - **Implementation:** Service tags in `packages/sdk/src/services/`
   (plus `packages/plugin/src/services/CoverageAnalyzer.ts`), live and
   test layers in `packages/sdk/src/layers/` (plus the

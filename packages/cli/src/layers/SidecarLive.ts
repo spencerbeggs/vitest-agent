@@ -2,7 +2,7 @@
  * Sidecar layer composition.
  *
  * Wires the per-project data.db, the per-client sessions.db, the
- * registry.db, and the platform context (CommandExecutor for git
+ * registry.db, and the platform context (ChildProcessSpawner for git
  * probes) into a single layer the _internal CLI subcommands
  * consume.
  *
@@ -17,8 +17,7 @@
  * absorb concurrency between sidecar processes from parallel hooks.
  */
 
-import { NodeFileSystem } from "@effect/platform-node";
-import * as NodeContext from "@effect/platform-node/NodeContext";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import {
@@ -59,7 +58,7 @@ export interface SidecarPaths {
  * @public
  */
 export const SidecarLive = (paths: SidecarPaths) => {
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 
 	// Per-project data.db
 	const ProjectSqliteLayer = sqliteClientLayer({ filename: paths.perProjectDbPath });
@@ -94,7 +93,6 @@ export const SidecarLive = (paths: SidecarPaths) => {
 
 	return Layer.mergeAll(ProjectStoreLayer, SessionMapLayer, RegistryLayer, RunContextLive).pipe(
 		Layer.provideMerge(PlatformLayer),
-		Layer.provideMerge(NodeFileSystem.layer),
 		Layer.provideMerge(LoggerLive()),
 	);
 };

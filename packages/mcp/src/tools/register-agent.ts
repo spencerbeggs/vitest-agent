@@ -44,45 +44,45 @@ const RegisterAgentInput = Schema.Struct({
 });
 
 const RegisterAgentSuccess = Schema.Struct({
-	ok: Schema.Literal(true).annotations({
+	ok: Schema.Literal(true).annotate({
 		description: "Discriminant — `true` when the agent row was inserted (or an existing one recovered).",
 	}),
-	agentId: Schema.String.annotations({
+	agentId: Schema.String.annotate({
 		title: "agents.agent_id",
 		description: "Canonical UUID for the registered agent — pass to subsequent attribution-bearing calls.",
 	}),
-	conversationId: Schema.NullOr(Schema.String).annotations({
+	conversationId: Schema.NullOr(Schema.String).annotate({
 		description: "Conversation UUID from the host's transcript when one was supplied; `null` otherwise.",
 	}),
-	idempotencyKey: Schema.String.annotations({
+	idempotencyKey: Schema.String.annotate({
 		description:
 			"26-char base32 SHA-256 of (agentType, parentAgentId|sentinel, clientNonce). Stable across retries with identical input.",
 	}),
-}).annotations({ identifier: "RegisterAgentSuccess" });
+}).annotate({ identifier: "RegisterAgentSuccess" });
 
 const RegisterAgentFailure = Schema.Struct({
-	ok: Schema.Literal(false).annotations({ description: "Discriminant — `false` when registration was refused." }),
+	ok: Schema.Literal(false).annotate({ description: "Discriminant — `false` when registration was refused." }),
 	error: Schema.Struct({
-		code: Schema.Literal(
+		code: Schema.Literals([
 			"AGENT_ALREADY_REGISTERED",
 			"PARENT_AGENT_NOT_FOUND",
 			"SESSION_NOT_FOUND",
 			"INVALID_AGENT_TYPE_PREFIX",
-		).annotations({
+		]).annotate({
 			description:
 				"Refusal reason. AGENT_ALREADY_REGISTERED carries `existingAgentId` so the caller can recover. INVALID_AGENT_TYPE_PREFIX carries `expectedPrefix`.",
 		}),
-		message: Schema.String.annotations({ description: "Human-readable refusal explanation." }),
-		existingAgentId: Schema.optional(Schema.String).annotations({
+		message: Schema.String.annotate({ description: "Human-readable refusal explanation." }),
+		existingAgentId: Schema.optional(Schema.String).annotate({
 			description: "Present only when `code = AGENT_ALREADY_REGISTERED`. Use this id instead of registering a new one.",
 		}),
-		expectedPrefix: Schema.optional(Schema.String).annotations({
+		expectedPrefix: Schema.optional(Schema.String).annotate({
 			description: "Present only when `code = INVALID_AGENT_TYPE_PREFIX`. The required `<hostKind>-` prefix.",
 		}),
 	}),
-}).annotations({ identifier: "RegisterAgentFailure" });
+}).annotate({ identifier: "RegisterAgentFailure" });
 
-export const RegisterAgentResult = Schema.Union(RegisterAgentSuccess, RegisterAgentFailure).annotations({
+export const RegisterAgentResult = Schema.Union([RegisterAgentSuccess, RegisterAgentFailure]).annotate({
 	identifier: "RegisterAgentResult",
 	title: "register_agent result",
 	description: "Discriminate on `ok`. The four failure codes are documented per their `code` literal.",
@@ -90,7 +90,7 @@ export const RegisterAgentResult = Schema.Union(RegisterAgentSuccess, RegisterAg
 export type RegisterAgentOutput = Schema.Schema.Type<typeof RegisterAgentResult>;
 
 export const registerAgent = publicProcedure
-	.input(Schema.standardSchemaV1(RegisterAgentInput))
+	.input(Schema.toStandardSchemaV1(RegisterAgentInput))
 	.mutation(async ({ ctx, input }): Promise<RegisterAgentOutput> => {
 		const hostKind = input.hostKind ?? "claude-code";
 		const expectedPrefix = `${hostKind}-`;

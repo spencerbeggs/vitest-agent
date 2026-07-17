@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: performance
 created: 2026-05-15
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 92
 related:
   - ../architecture.md
@@ -29,11 +29,11 @@ For the latency problem it solves and the layered approach, see [../decisions.md
 
 ## Why it exists
 
-A naive PreToolUse Bash hook shells out to the JS CLI (`vitest-agent agent inject-env`) on every Bash tool call, paying roughly 505 ms p95 of Node cold-start plus the `effect` / `@effect/cli` module-graph load. The hook is the inner loop of agent latency, so that cost is visible per turn. The three-layer fix is documented in [./plugin-claude.md](./plugin-claude.md) under the Bash hook section; this package is Layer 2 — the residual slow path. The binary is a Node Single Executable Application (SEA) that runs the same `injectEnv` logic with no module-graph cold-start.
+A naive PreToolUse Bash hook shells out to the JS CLI (`vitest-agent agent inject-env`) on every Bash tool call, paying roughly 505 ms p95 of Node cold-start plus the `effect` / `effect/unstable/cli` module-graph load. The hook is the inner loop of agent latency, so that cost is visible per turn. The three-layer fix is documented in [./plugin-claude.md](./plugin-claude.md) under the Bash hook section; this package is Layer 2 — the residual slow path. The binary is a Node Single Executable Application (SEA) that runs the same `injectEnv` logic with no module-graph cold-start.
 
 ## Scope: `inject-env` only
 
-The binary handles `inject-env` and nothing else. `register-agent` stays on the JS CLI path because it pulls in a native SQLite binding (`@effect/sql-sqlite-node` → better-sqlite3) that cannot be bundled into a JavaScript SEA. `register-agent` also fires only once per session, off the per-turn critical path, so the JS cold-start is acceptable there.
+The binary handles `inject-env` and nothing else. `register-agent` stays on the JS CLI path because it pulls in the full SDK data-layer graph (`@effect/sql-sqlite-node` on Node's built-in `node:sqlite`) that the trimmed `inject-env` SEA bundle deliberately excludes. `register-agent` also fires only once per session, off the per-turn critical path, so the JS cold-start is acceptable there.
 
 ## Build: tsdown SEA executable
 

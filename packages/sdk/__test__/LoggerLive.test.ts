@@ -1,4 +1,4 @@
-import { Layer, LogLevel } from "effect";
+import { Layer } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LoggerLive, resolveLogFile, resolveLogLevel } from "../src/layers/LoggerLive.js";
 
@@ -17,50 +17,50 @@ describe("resolveLogLevel", () => {
 	it("returns LogLevel.Debug for 'debug' (lowercase)", () => {
 		const result = resolveLogLevel("debug");
 		expect(result).toBeDefined();
-		expect(result?._tag).toBe("Debug");
+		expect(result).toBe("Debug");
 	});
 
 	it("returns LogLevel.Debug for 'Debug' (capitalized)", () => {
 		const result = resolveLogLevel("Debug");
 		expect(result).toBeDefined();
-		expect(result?._tag).toBe("Debug");
+		expect(result).toBe("Debug");
 	});
 
 	it("returns LogLevel.Info for 'INFO' (uppercase)", () => {
 		const result = resolveLogLevel("INFO");
 		expect(result).toBeDefined();
-		expect(result?._tag).toBe("Info");
+		expect(result).toBe("Info");
 	});
 
 	it("falls back to env var when option is not provided", () => {
 		vi.stubEnv("VITEST_REPORTER_LOG_LEVEL", "info");
 		const result = resolveLogLevel(undefined);
 		expect(result).toBeDefined();
-		expect(result?._tag).toBe("Info");
+		expect(result).toBe("Info");
 	});
 
 	it("explicit option takes priority over env var", () => {
 		vi.stubEnv("VITEST_REPORTER_LOG_LEVEL", "info");
 		const result = resolveLogLevel("debug");
-		expect(result?._tag).toBe("Debug");
+		expect(result).toBe("Debug");
 	});
 
-	it("resolves 'warn' alias to Warning", () => {
+	it("resolves 'warn' alias to Warn", () => {
 		const result = resolveLogLevel("warn");
 		expect(result).toBeDefined();
-		expect(result?._tag).toBe("Warning");
+		expect(result).toBe("Warn");
 	});
 
-	it("resolves 'warning' to Warning", () => {
+	it("resolves 'warning' to Warn", () => {
 		const result = resolveLogLevel("warning");
 		expect(result).toBeDefined();
-		expect(result?._tag).toBe("Warning");
+		expect(result).toBe("Warn");
 	});
 
-	it("resolves 'WARN' to Warning", () => {
+	it("resolves 'WARN' to Warn", () => {
 		const result = resolveLogLevel("WARN");
 		expect(result).toBeDefined();
-		expect(result?._tag).toBe("Warning");
+		expect(result).toBe("Warn");
 	});
 });
 
@@ -109,22 +109,22 @@ describe("LoggerLive", () => {
 	});
 
 	it("returns a silent layer when level is LogLevel.None", () => {
-		const layer = LoggerLive(LogLevel.None);
+		const layer = LoggerLive("None");
 		expect(Layer.isLayer(layer)).toBe(true);
 	});
 
 	it("returns a non-silent layer (merged) when level is Debug", () => {
-		const layer = LoggerLive(LogLevel.Debug);
+		const layer = LoggerLive("Debug");
 		expect(Layer.isLayer(layer)).toBe(true);
 	});
 
 	it("returns a layer with file logging when logFile is provided", () => {
-		const layer = LoggerLive(LogLevel.Debug, "/tmp/test-log.ndjson");
+		const layer = LoggerLive("Debug", "/tmp/test-log.ndjson");
 		expect(Layer.isLayer(layer)).toBe(true);
 	});
 
 	it("returns a layer without file logging when only level is provided", () => {
-		const layer = LoggerLive(LogLevel.Info);
+		const layer = LoggerLive("Info");
 		expect(Layer.isLayer(layer)).toBe(true);
 	});
 });

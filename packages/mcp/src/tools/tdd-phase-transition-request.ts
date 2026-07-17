@@ -10,7 +10,7 @@ import {
 import { Effect, Option, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
-const phaseLiteral = Schema.Literal(
+const phaseLiteral = Schema.Literals([
 	"spike",
 	"red",
 	"red.triangulate",
@@ -19,18 +19,18 @@ const phaseLiteral = Schema.Literal(
 	"refactor",
 	"extended-red",
 	"green-without-red",
-);
+]);
 
-const artifactKindLiteral = Schema.Literal(
+const artifactKindLiteral = Schema.Literals([
 	"test_written",
 	"test_failed_run",
 	"code_written",
 	"test_passed_run",
 	"refactor",
 	"test_weakened",
-);
+]);
 
-const denialReasonLiteral = Schema.Literal(
+const denialReasonLiteral = Schema.Literals([
 	"missing_artifact_evidence",
 	"wrong_artifact_kind",
 	"wrong_source_phase",
@@ -46,47 +46,47 @@ const denialReasonLiteral = Schema.Literal(
 	"evidence_not_in_phase_window",
 	"evidence_not_for_behavior",
 	"evidence_test_was_already_failing",
-);
+]);
 
 const RemediationSchema = Schema.Struct({
-	suggestedTool: Schema.String.annotations({ description: "Next tool the agent should call to make progress." }),
-	suggestedArgs: Schema.Record({ key: Schema.String, value: Schema.Unknown }).annotations({
+	suggestedTool: Schema.String.annotate({ description: "Next tool the agent should call to make progress." }),
+	suggestedArgs: Schema.Record(Schema.String, Schema.Unknown).annotate({
 		description: "Concrete arguments for `suggestedTool` that fix the underlying issue.",
 	}),
-	humanHint: Schema.String.annotations({ description: "Plain-language explanation of what to do next." }),
-}).annotations({ identifier: "PhaseTransitionRemediation" });
+	humanHint: Schema.String.annotate({ description: "Plain-language explanation of what to do next." }),
+}).annotate({ identifier: "PhaseTransitionRemediation" });
 
 const PhaseTransitionAccepted = Schema.Struct({
-	accepted: Schema.Literal(true).annotations({ description: "Discriminant — `true` when the transition was granted." }),
-	phase: phaseLiteral.annotations({ description: "Phase the session is now in (echo of `requestedPhase`)." }),
-	newPhaseId: Schema.Number.annotations({ description: "`tdd_phases.id` of the freshly opened row." }),
-	previousPhaseId: Schema.NullOr(Schema.Number).annotations({
+	accepted: Schema.Literal(true).annotate({ description: "Discriminant — `true` when the transition was granted." }),
+	phase: phaseLiteral.annotate({ description: "Phase the session is now in (echo of `requestedPhase`)." }),
+	newPhaseId: Schema.Number.annotate({ description: "`tdd_phases.id` of the freshly opened row." }),
+	previousPhaseId: Schema.NullOr(Schema.Number).annotate({
 		description: "`tdd_phases.id` of the phase that was closed (`null` for the first transition).",
 	}),
-	citedArtifactId: Schema.optional(Schema.Number).annotations({
+	citedArtifactId: Schema.optional(Schema.Number).annotate({
 		description:
 			"Resolved `tdd_artifacts.id` actually used. Absent only for transitions that need no artifact (e.g. spike→red).",
 	}),
 	citedArtifactSource: Schema.optional(
-		Schema.Literal("explicit-id", "explicit-kind", "transition-derived", "none"),
-	).annotations({
+		Schema.Literals(["explicit-id", "explicit-kind", "transition-derived", "none"]),
+	).annotate({
 		description:
 			"Where `citedArtifactId` came from: `explicit-id` (caller passed it), `explicit-kind` (resolved from caller's `citedArtifactKind`), `transition-derived` (resolved from the transition's required-evidence rule), or `none` (no artifact needed).",
 	}),
-}).annotations({ identifier: "PhaseTransitionAccepted" });
+}).annotate({ identifier: "PhaseTransitionAccepted" });
 
 const PhaseTransitionDenied = Schema.Struct({
-	accepted: Schema.Literal(false).annotations({
+	accepted: Schema.Literal(false).annotate({
 		description: "Discriminant — `false` when the transition was refused.",
 	}),
-	phase: phaseLiteral.annotations({ description: "Phase the session remains in (the current phase, unchanged)." }),
-	denialReason: denialReasonLiteral.annotations({
+	phase: phaseLiteral.annotate({ description: "Phase the session remains in (the current phase, unchanged)." }),
+	denialReason: denialReasonLiteral.annotate({
 		description: "Categorical refusal reason; see `remediation` for the suggested fix.",
 	}),
 	remediation: RemediationSchema,
-}).annotations({ identifier: "PhaseTransitionDenied" });
+}).annotate({ identifier: "PhaseTransitionDenied" });
 
-export const PhaseTransitionResult = Schema.Union(PhaseTransitionAccepted, PhaseTransitionDenied).annotations({
+export const PhaseTransitionResult = Schema.Union([PhaseTransitionAccepted, PhaseTransitionDenied]).annotate({
 	identifier: "PhaseTransitionResult",
 	title: "tdd_phase_transition_request result",
 	description:
@@ -95,7 +95,7 @@ export const PhaseTransitionResult = Schema.Union(PhaseTransitionAccepted, Phase
 
 export const tddPhaseTransitionRequest = publicProcedure
 	.input(
-		Schema.standardSchemaV1(
+		Schema.toStandardSchemaV1(
 			Schema.Struct({
 				tddTaskId: Schema.Number,
 				goalId: Schema.Number,
@@ -344,13 +344,15 @@ export const tddPhaseTransitionRequest = publicProcedure
 				//    Failures here are swallowed so a partial promotion doesn't block phase
 				//    advancement (the orchestrator can detect drift via tdd_behavior_get).
 				if (input.behaviorId !== undefined) {
-					yield* Effect.ignoreLogged(
-						Effect.gen(function* () {
-							const behOpt = yield* reader.getBehaviorById(input.behaviorId as number);
-							if (Option.isSome(behOpt) && behOpt.value.status === "pending") {
-								yield* store.updateBehavior({ id: input.behaviorId as number, status: "in_progress" });
-							}
-						}),
+					yield* Effect.gen(function* () {
+						const behOpt = yield* reader.getBehaviorById(input.behaviorId as number);
+						if (Option.isSome(behOpt) && behOpt.value.status === "pending") {
+							yield* store.updateBehavior({ id: input.behaviorId as number, status: "in_progress" });
+						}
+					}).pipe(
+						// v4 dropped `Effect.ignoreLogged`; swallow the failure so a partial
+						// promotion doesn't block phase advancement, but keep the debug log.
+						Effect.catchCause((cause) => Effect.logDebug("behavior auto-promotion failed", cause)),
 					);
 				}
 

@@ -1,8 +1,8 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import type { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer, Option } from "effect";
+import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { DataReaderLive } from "../src/layers/DataReaderLive.js";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
@@ -12,7 +12,7 @@ import { DataReader } from "../src/services/DataReader.js";
 import { DataStore } from "../src/services/DataStore.js";
 
 const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-const PlatformLayer = NodeContext.layer;
+const PlatformLayer = NodeServices.layer;
 
 const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({

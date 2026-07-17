@@ -12,31 +12,31 @@
  */
 
 import { CacheManifest, DataReader } from "@vitest-agent/sdk";
-import { Effect, Option, ParseResult, Schema } from "effect";
+import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const ManifestPresent = Schema.Struct({
-	manifestPresent: Schema.Literal(true).annotations({
+	manifestPresent: Schema.Literal(true).annotate({
 		description: "Discriminant — `true` when a cache manifest exists.",
 	}),
-	manifest: CacheManifest.annotations({
+	manifest: CacheManifest.annotate({
 		description: "Full cache manifest content as written by the reporter.",
 	}),
-	ageMs: Schema.Number.annotations({
+	ageMs: Schema.Number.annotate({
 		description: "Milliseconds since the manifest was last updated. Computed at query time, not stored.",
 	}),
-	stale: Schema.Boolean.annotations({
+	stale: Schema.Boolean.annotate({
 		description: "Convenience flag — `true` when `ageMs` exceeds 24 hours, otherwise `false`.",
 	}),
-}).annotations({ identifier: "CacheHealthPresent", title: "Cache manifest present" });
+}).annotate({ identifier: "CacheHealthPresent", title: "Cache manifest present" });
 
 const ManifestAbsent = Schema.Struct({
-	manifestPresent: Schema.Literal(false).annotations({
+	manifestPresent: Schema.Literal(false).annotate({
 		description: "Discriminant — `false` when no manifest has been written yet (run tests to populate the cache).",
 	}),
-}).annotations({ identifier: "CacheHealthAbsent", title: "Cache manifest absent" });
+}).annotate({ identifier: "CacheHealthAbsent", title: "Cache manifest absent" });
 
-export const CacheHealthResult = Schema.Union(ManifestPresent, ManifestAbsent).annotations({
+export const CacheHealthResult = Schema.Union([ManifestPresent, ManifestAbsent]).annotate({
 	identifier: "CacheHealthResult",
 	title: "cache_health result",
 	description: "Cache health snapshot. Discriminate on `manifestPresent` to see whether the manifest exists.",
@@ -82,18 +82,14 @@ export const formatCacheHealthMarkdown = (data: CacheHealthResultType): string =
 	return lines.join("\n");
 };
 
-export const CacheHealthAsMarkdown = Schema.transformOrFail(CacheHealthResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatCacheHealthMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(
-			new ParseResult.Forbidden(
-				ast,
-				text,
-				"CacheHealthAsMarkdown is one-way: markdown cannot be parsed back to CacheHealthResult.",
-			),
+export const CacheHealthAsMarkdown = CacheHealthResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatCacheHealthMarkdown(data)),
+		encode: SchemaGetter.forbidden(
+			() => "CacheHealthAsMarkdown is one-way: markdown cannot be parsed back to CacheHealthResult.",
 		),
-});
+	}),
+);
 
 export const cacheHealth = publicProcedure.query(
 	async ({ ctx }): Promise<CacheHealthResultType> =>

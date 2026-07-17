@@ -9,18 +9,18 @@
  * @packageDocumentation
  */
 
-import { Command, Options } from "@effect/cli";
 import { formatWrapupEffect } from "@vitest-agent/sdk";
 import { Effect } from "effect";
+import { Command, Flag } from "effect/unstable/cli";
 
-const rowIdOption = Options.optional(Options.integer("row-id"));
-const chatIdOption = Options.optional(Options.text("chat-id"));
-const kindOption = Options.withDefault(
-	Options.choice("kind", ["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"]),
+const rowIdOption = Flag.optional(Flag.integer("row-id"));
+const chatIdOption = Flag.optional(Flag.string("chat-id"));
+const kindOption = Flag.withDefault(
+	Flag.choice("kind", ["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"]),
 	"session_end",
 );
-const userPromptHintOption = Options.optional(Options.text("user-prompt-hint"));
-const formatOption = Options.withDefault(Options.choice("format", ["markdown", "json"]), "markdown");
+const userPromptHintOption = Flag.optional(Flag.string("user-prompt-hint"));
+const formatOption = Flag.withDefault(Flag.choice("format", ["markdown", "json"]), "markdown");
 
 export const wrapupCommand = Command.make(
 	"wrapup",

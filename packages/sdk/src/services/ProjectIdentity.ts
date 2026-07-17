@@ -116,7 +116,7 @@ export const resolveProjectIdentityFromCandidates = (
  * pre-built `ResolvedIdentity`.
  * @public
  */
-export class ProjectIdentity extends Context.Tag("vitest-agent/ProjectIdentity")<
+export class ProjectIdentity extends Context.Service<
 	ProjectIdentity,
 	{
 		readonly resolve: (
@@ -124,4 +124,4 @@ export class ProjectIdentity extends Context.Tag("vitest-agent/ProjectIdentity")
 			options?: ResolveProjectIdentityOptions,
 		) => Effect.Effect<ResolvedIdentity, ProjectIdentityNotResolvableError>;
 	}
->() {}
+>()("vitest-agent/ProjectIdentity") {}

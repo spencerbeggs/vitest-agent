@@ -33,26 +33,23 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/cluster": "catalog:silk",
-		"@effect/experimental": "catalog:silk",
-		"@effect/platform": "catalog:silk",
-		"@effect/platform-node": "catalog:silk",
-		"@effect/rpc": "catalog:silk",
-		"@effect/sql": "catalog:silk",
-		"@effect/sql-sqlite-node": "catalog:silk",
-		"@effect/workflow": "catalog:silk",
-		"@types/acorn": "^6.0.4",
+		"@effect/platform-node": "catalog:effect",
+		"@effect/sql-sqlite-node": "catalog:effect",
+		"@effected/config-file": "^0.1.2",
+		"@effected/jsonc": "^0.2.0",
+		"@effected/toml": "^0.1.0",
+		"@effected/walker": "^0.2.1",
+		"@effected/workspaces": "^0.3.1",
+		"@effected/xdg": "^0.1.2",
+		"@effected/yaml": "^0.3.0",
 		"acorn": "^8.17.0",
 		"acorn-typescript": "^1.4.13",
 		"ajv": "^8.20.0",
-		"config-file-effect": "^0.3.0",
-		"effect": "catalog:silk",
-		"std-env": "^4.2.0",
-		"workspaces-effect": "^2.1.0",
-		"xdg-effect": "^2.1.1"
+		"effect": "catalog:effect",
+		"std-env": "^4.2.0"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^1.1.14",
+		"@savvy-web/bundler": "^2.0.3",
 		"@types/node": "catalog:silk",
 		"typescript": "catalog:silk"
 	},

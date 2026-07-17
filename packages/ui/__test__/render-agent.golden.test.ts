@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { reduceRenderStateAll, renderAgent } from "../src/index.js";
-import { allPassEvents, coverageViolationEvents, flakyRecoveryEvents, mixedFailEvents } from "./fixtures/events.js";
+import { allPassEvents, coverageViolationEvents, flakyRecoveryEvents, mixedFailEvents } from "./utils/events.js";
 
 describe("renderAgent — golden fixtures", () => {
 	it("all-pass", async () => {

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-01
-last-synced: 2026-07-01
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 92
 related:
   - ./architecture.md
@@ -48,7 +48,7 @@ async onInit(vitest)
   |     |     mkdirSync recursive; this.dbPath = `${cacheDir}/data.db`
   |     +-- else:
   |           resolveDataPath(cwd) under PathResolutionLive +
-  |             NodeContext.layer
+  |             NodeServices.layer
   |           (XDG-keyed by workspace identity)
   +-- await initReporters()
         build a run-start ReporterKit (neutral run health) carrying
@@ -99,7 +99,7 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     skip ensureMigrated, DataStore, DataReader, CoverageAnalyzer,
   |     HistoryTracker entirely. Build in-memory AgentReports via
   |     buildAgentReport, run a tiny OutputPipelineLive +
-  |     NodeContext.layer program to resolve env / executor / format /
+  |     NodeServices.layer program to resolve env / executor / format /
   |     detail, build the run-end kit, call render(input, kit) on the
   |     reporters and route the RenderedOutput[]. Classifications are
   |     empty; trendSummary is undefined. The streaming hooks and the
@@ -149,6 +149,10 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |   module-qualified classification lives on each TestReport)
   +-- buildReporterKit(...) -> run-end ReporterKit (health-aware;
   |     carries this.runEvents and post-run detail)
+  |     run health `hasFailures` keys off report.failedFiles.length
+  |       (+ unhandledErrors), NOT summary.failed — so a module that
+  |       failed to COLLECT/import (zero test cases) still marks the
+  |       run red instead of rendering green [false-green fix, D45]
   |     stdOsc8 enabled when !noColor &&
   |       (env === "terminal" || env === "agent-shell")
   +-- reuse the reporters resolved at run start by initReporters
@@ -156,7 +160,10 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   +-- For each reporter: render({reports, classifications, trendSummary?}, kit)
   |     The built-in DefaultVitestAgentReporter from @vitest-agent/reporter
   |     folds input.reports through synthesizeFromAgentReport + the
-  |     reducer, classifies (RunShape, RunOutcome), assembles
+  |     reducer (a collection-failed module synthesizes a failing
+  |       SUITE_LOAD_FAILURE_LABEL test + ModuleFinished.failCount:1, and
+  |       RunFinished.failCount includes suite failures — D45),
+  |     classifies (RunShape, RunOutcome), assembles
   |     DispatchInputs, and calls dispatch(inputs, opts) for the
   |     agent-mode stdout entry. Adds a github-summary RenderedOutput
   |     when kit.config.githubActions is true. (For consoleMode "stream"
@@ -235,8 +242,8 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
 Owned by `@vitest-agent/cli`. See [./components/cli.md](./components/cli.md).
 
 - `bin.ts` resolves `dbPath` via `resolveDataPath(cwd)` under
-  `PathResolutionLive(projectDir) + NodeContext.layer`.
-- Provides `CliLive(dbPath, logLevel?, logFile?)` to the `@effect/cli`
+  `PathResolutionLive(projectDir) + NodeServices.layer`.
+- Provides `CliLive(dbPath, logLevel?, logFile?)` to the `effect/unstable/cli`
   `Command.run` effect; executes via `NodeRuntime.runMain`.
 - The top-level tree is exactly three commands: `doctor`, `db`, `agent`.
   The CLI is utility-only — MCP (Flow 4) is the data path for
@@ -253,7 +260,7 @@ Owned by `@vitest-agent/cli`. See [./components/cli.md](./components/cli.md).
   driven by the plugin hooks (Flow 6): `turn`, `session-start`,
   `session-end`, `tdd-artifact`, `run-workspace-changes`, `test-case-turns`.
   - `record turn --chat-id <id> <payload-json>` decodes the payload
-    via `Schema.decodeUnknown(TurnPayload)`, resolves the session via
+    via `Schema.decodeUnknownEffect(TurnPayload)`, resolves the session via
     `DataReader.getSessionByChatId`, then writes the turn via
     `DataStore.writeTurn` (omitting `turnNo` for auto-assignment).
   - `record test-case-turns` runs `DataStore.backfillTestCaseTurns(chatId)`
@@ -270,7 +277,7 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
 - `bin.ts` resolves `projectDir` from `VITEST_AGENT_REPORTER_PROJECT_DIR` (set
   by the plugin loader) ?? `CLAUDE_PROJECT_DIR` ?? `process.cwd()`.
 - Resolve `dbPath` via `resolveDataPath(projectDir)` under
-  `PathResolutionLive(projectDir) + NodeContext.layer`.
+  `PathResolutionLive(projectDir) + NodeServices.layer`.
 - Create `ManagedRuntime.make(McpLive(dbPath, logLevel?, logFile?))`,
   call `startMcpServer({ runtime, cwd: projectDir })`.
 - `StdioServerTransport` connects; tool invocations route through tRPC via
@@ -334,7 +341,7 @@ schema decode and the DataStore write.
 **Why hooks call the CLI rather than the DataStore directly.** Hooks are
 shell scripts. The CLI owns the Effect runtime, the schema decode, and the
 migration check. Going through the CLI keeps the hook scripts thin and
-shell-portable while preserving the `Schema.decodeUnknown(TurnPayload)`
+shell-portable while preserving the `Schema.decodeUnknownEffect(TurnPayload)`
 contract on every write path.
 
 **Hook output channel rules.** Claude Code's hook output schema only permits

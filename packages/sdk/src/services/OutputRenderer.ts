@@ -4,7 +4,7 @@ import type { FormatterContext, RenderedOutput } from "../formatters/types.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { OutputFormat } from "../schemas/Common.js";
 /** @public */
-export class OutputRenderer extends Context.Tag("vitest-agent/OutputRenderer")<
+export class OutputRenderer extends Context.Service<
 	OutputRenderer,
 	{
 		readonly render: (
@@ -13,4 +13,4 @@ export class OutputRenderer extends Context.Tag("vitest-agent/OutputRenderer")<
 			context: FormatterContext,
 		) => Effect.Effect<ReadonlyArray<RenderedOutput>>;
 	}
->() {}
+>()("vitest-agent/OutputRenderer") {}

@@ -5,9 +5,10 @@ and instructions for development.
 
 ## Prerequisites
 
-- Node.js 22+ (the development environment uses 24.x; published
-  packages declare `node >= 22`)
-- pnpm 10+
+- Node.js 24.11+ (the published packages declare `node >= 24.11.0`, which is
+  where the built-in `node:sqlite` module the data layer uses is available;
+  the development environment runs Node 26.x)
+- pnpm 11+
 
 ## Development Setup
 
@@ -64,7 +65,7 @@ vitest-agent/
 │   │       └── utils/              # Pure utilities
 │   ├── cli/                    # @vitest-agent/cli (CLI bin)
 │   │   └── src/
-│   │       ├── bin.ts              # @effect/cli entry point
+│   │       ├── bin.ts              # effect/unstable/cli entry point
 │   │       ├── commands/           # Thin command wrappers (status, show, ...)
 │   │       └── lib/                # Testable formatting logic
 │   ├── mcp/                    # @vitest-agent/mcp (MCP server bin)
@@ -92,9 +93,9 @@ vitest-agent/
 `@vitest-agent/sdk` is the dependency hub — `plugin`, `reporter`, `ui`,
 `cli`, and `mcp` all import from it. The dependency flow is
 `plugin → reporter → ui → sdk`. `@vitest-agent/plugin` declares
-`@vitest-agent/cli` and `@vitest-agent/mcp` as required peer dependencies,
-so a single install of the plugin pulls the whole family (including the
-sidecar, which the CLI depends on) for end users.
+`@vitest-agent/cli` and `@vitest-agent/mcp` as exact-pinned regular
+dependencies, so a single install of the plugin pulls the whole family
+(including the sidecar, which the CLI depends on) for end users.
 
 ## Architecture Patterns
 
@@ -106,8 +107,9 @@ and service composition. Key patterns:
 - **Services** (`packages/sdk/src/services/`) define interfaces via
   `Context.Tag`
 - **Live layers** (`packages/sdk/src/layers/*Live.ts`) provide
-  production implementations using `@effect/platform` for file I/O and
-  `@effect/sql-sqlite-node` for the database
+  production implementations using `@effect/platform-node` for file I/O and
+  `@effect/sql-sqlite-node` (backed by Node's built-in `node:sqlite`) for the
+  database
 - **Test layers** (`packages/sdk/src/layers/*Test.ts`) provide mock
   implementations with state containers for assertions
 - **Schemas** (`packages/sdk/src/schemas/`) use Effect Schema (not

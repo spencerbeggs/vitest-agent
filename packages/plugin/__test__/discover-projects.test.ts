@@ -156,15 +156,19 @@ describe("discoverProjects()", () => {
 
 	describe("Phase 4: new fixtures (spec §5)", () => {
 		it("should return one project for a single-package repo (validates relativePath==='.' skip removal)", async () => {
-			// Given: a single-package tmp dir with a .git marker (so findWorkspaceRootSync
-			// recognises it as a project root) + package.json + src/foo.test.ts.
-			// No pnpm-workspace.yaml — workspaces-effect@1.x uses .git as the boundary.
+			// Given: a single-package tmp dir marked as a workspace root via a
+			// `workspaces` field in package.json + package.json + src/foo.test.ts.
+			// @effected/workspaces@0.3 recognises a workspace root by a
+			// pnpm-workspace.yaml or a package.json `workspaces` field — the
+			// former `.git`-as-boundary heuristic of workspaces-effect@1.x was
+			// dropped, so the root marker is now the self-referencing workspaces
+			// field. The root package is still enumerated with relativePath ".".
 			const singlePkgDir = await mkdtemp(join(tmpdir(), "vitest-agent-single-"));
 			try {
-				await writeFile(join(singlePkgDir, "package.json"), JSON.stringify({ name: "single-pkg", version: "0.0.0" }));
-				// .git must be a directory (git) or can be a plain file (git worktree);
-				// findWorkspaceRootSync just stat-checks its presence.
-				await mkdir(join(singlePkgDir, ".git"), { recursive: true });
+				await writeFile(
+					join(singlePkgDir, "package.json"),
+					JSON.stringify({ name: "single-pkg", version: "0.0.0", workspaces: ["."] }),
+				);
 				await mkdir(join(singlePkgDir, "src"), { recursive: true });
 				await writeFile(join(singlePkgDir, "src", "foo.test.ts"), "");
 

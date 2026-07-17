@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: testing
 created: 2026-04-29
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 95
 related:
   - ./architecture.md
@@ -56,9 +56,10 @@ separately testable.
 ### Pattern 1: Effect Test Layer Composition
 
 Each Effect service test follows the state-container pattern. Live
-layers swap `@effect/platform` `FileSystem` and
-`@effect/sql-sqlite-node` `SqlClient` for in-memory mocks; the test
-program runs against the test layer instead of the live layer.
+layers swap the core `effect` `FileSystem` (absorbed from `@effect/platform`
+on v4) and the `effect/unstable/sql` `SqlClient` (backed by
+`@effect/sql-sqlite-node`) for in-memory mocks; the test program runs
+against the test layer instead of the live layer.
 
 ```typescript
 const writeState = { runs: [], modules: [], testCases: [] };
@@ -145,7 +146,7 @@ suite covers four scenarios:
 ### Pattern 5: Pure Function Tests for CLI Lib
 
 CLI commands are not tested directly -- they are thin wrappers
-around `@effect/cli` `Command` definitions. The testable formatting
+around `effect/unstable/cli` `Command` definitions. The testable formatting
 logic lives in `packages/cli/src/lib/format-*.ts` and is exercised
 as plain pure functions taking domain inputs (e.g. `AgentReport`,
 `CoverageReport`) and returning rendered strings.
@@ -172,9 +173,10 @@ layout. Excluded paths:
 - Layer composition factories that only merge other layers
 - Types-only modules with no runtime behavior
 
-`pool` is `forks` (not threads) for broader compatibility with
-`better-sqlite3`'s native bindings. CI sets `CI=true` and enables
-the v8 coverage provider via `pnpm run ci:test`.
+`pool` is `forks` (not threads) for broader compatibility with the
+SQLite driver (on v4, `@effect/sql-sqlite-node` over Node's built-in
+`node:sqlite`). CI sets `CI=true` and enables the v8 coverage provider
+via `pnpm run ci:test`.
 
 ---
 

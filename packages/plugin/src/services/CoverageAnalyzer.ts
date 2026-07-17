@@ -22,7 +22,7 @@ export interface CoverageOptions {
  * Effect service for processing istanbul coverage maps into structured reports.
  * @public
  */
-export class CoverageAnalyzer extends Context.Tag("vitest-agent/CoverageAnalyzer")<
+export class CoverageAnalyzer extends Context.Service<
 	CoverageAnalyzer,
 	{
 		readonly process: (coverage: unknown, options: CoverageOptions) => Effect.Effect<Option.Option<CoverageReport>>;
@@ -32,4 +32,4 @@ export class CoverageAnalyzer extends Context.Tag("vitest-agent/CoverageAnalyzer
 			testedFiles: ReadonlyArray<string>,
 		) => Effect.Effect<Option.Option<CoverageReport>>;
 	}
->() {}
+>()("vitest-agent/CoverageAnalyzer") {}

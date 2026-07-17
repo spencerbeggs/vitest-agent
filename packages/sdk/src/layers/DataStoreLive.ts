@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { SqlClient } from "@effect/sql/SqlClient";
 import { Effect, Layer, Option } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { AgentNotFoundError, RegistrationConflictError } from "../errors/AgentErrors.js";
 import { DataStoreError, extractSqlReason } from "../errors/DataStoreError.js";
 import {
@@ -95,7 +95,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		const sql = yield* SqlClient;
 
 		// Ensure FK enforcement on every connection (PRAGMA is per-connection, not persistent)
-		yield* sql`PRAGMA foreign_keys=ON`.pipe(Effect.catchAll(() => Effect.void));
+		yield* sql`PRAGMA foreign_keys=ON`.pipe(Effect.catch(() => Effect.void));
 
 		const ensureFile = (filePath: string): Effect.Effect<number, DataStoreError> =>
 			Effect.gen(function* () {

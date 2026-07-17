@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { VitestTestCase, VitestTestModule } from "../src/utils/build-report.js";
-import { buildAgentReport } from "../src/utils/build-report.js";
+import { buildAgentReport, countSuiteFailures } from "../src/utils/build-report.js";
 
 // --- Test Helpers ---
 
@@ -451,6 +451,61 @@ describe("buildAgentReport", () => {
 		// fabricate a synthetic failed test count.
 		expect(report.summary.total).toBe(0);
 		expect(report.summary.failed).toBe(0);
+		// ...but the suite-level failure IS counted separately so renderers
+		// and the health check can surface it without inflating summary.failed.
+		expect(countSuiteFailures(report)).toBe(1);
+	});
+
+	describe("countSuiteFailures", () => {
+		it("returns 0 when every failed module has a failed test case", () => {
+			const modules = [
+				makeTestModule({
+					relativeModuleId: "src/a.test.ts",
+					state: "failed",
+					tests: [makeTestCase({ name: "boom", state: "failed", errors: [{ message: "x" }] })],
+				}),
+			];
+			const report = buildAgentReport(modules, [], "failed", { omitPassingTests: true });
+			expect(report.summary.failed).toBe(1);
+			expect(countSuiteFailures(report)).toBe(0);
+		});
+
+		it("counts a collection-failed module (zero tests, module errors) as a suite failure", () => {
+			const modules = [
+				makeTestModule({
+					relativeModuleId: "src/broken.test.ts",
+					state: "failed",
+					tests: [],
+					errors: [{ message: "Cannot find package 'better-sqlite3'" }],
+				}),
+			];
+			const report = buildAgentReport(modules, [], "failed", { omitPassingTests: true });
+			expect(countSuiteFailures(report)).toBe(1);
+		});
+
+		it("counts only the suite-level failures in a mixed report", () => {
+			const modules = [
+				makeTestModule({
+					relativeModuleId: "src/passes.test.ts",
+					state: "passed",
+					tests: [makeTestCase({ name: "ok", state: "passed" })],
+				}),
+				makeTestModule({
+					relativeModuleId: "src/test-fails.test.ts",
+					state: "failed",
+					tests: [makeTestCase({ name: "bad", state: "failed", errors: [{ message: "y" }] })],
+				}),
+				makeTestModule({
+					relativeModuleId: "src/wont-load.test.ts",
+					state: "failed",
+					tests: [],
+					errors: [{ message: "import error" }],
+				}),
+			];
+			const report = buildAgentReport(modules, [], "failed", { omitPassingTests: true });
+			expect(report.summary.failed).toBe(1); // one failed test case
+			expect(countSuiteFailures(report)).toBe(1); // one suite that never loaded
+		});
 	});
 
 	it("handles tests where diagnostic() returns undefined (skipped/todo)", () => {

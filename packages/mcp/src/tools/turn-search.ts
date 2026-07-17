@@ -5,27 +5,27 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, ParseResult, Schema } from "effect";
+import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const TurnRow = Schema.Struct({
-	id: Schema.Number.annotations({ description: "Numeric primary key of this turn row." }),
-	sessionId: Schema.Number.annotations({ description: "Owning `sessions.id` (integer FK)." }),
-	turnNo: Schema.Number.annotations({ description: "Turn ordinal within the session (1-based)." }),
-	type: Schema.String.annotations({
+	id: Schema.Number.annotate({ description: "Numeric primary key of this turn row." }),
+	sessionId: Schema.Number.annotate({ description: "Owning `sessions.id` (integer FK)." }),
+	turnNo: Schema.Number.annotate({ description: "Turn ordinal within the session (1-based)." }),
+	type: Schema.String.annotate({
 		description:
 			"Turn category (`user_prompt`, `tool_call`, `tool_result`, `file_edit`, `hook_fire`, `note`, `hypothesis`).",
 	}),
-	payload: Schema.String.annotations({
+	payload: Schema.String.annotate({
 		description: "Type-specific payload as a JSON-encoded string. Decode shape depends on `type`.",
 	}),
-	occurredAt: Schema.String.annotations({ description: "ISO-8601 timestamp the turn was recorded at." }),
-}).annotations({ identifier: "TurnRow", description: "One row from the turns log." });
+	occurredAt: Schema.String.annotate({ description: "ISO-8601 timestamp the turn was recorded at." }),
+}).annotate({ identifier: "TurnRow", description: "One row from the turns log." });
 
 export const TurnSearchResult = Schema.Struct({
-	count: Schema.Number.annotations({ description: "Number of matching turn rows returned." }),
-	turns: Schema.Array(TurnRow).annotations({ description: "Matching turns ordered by `occurredAt` ascending." }),
-}).annotations({
+	count: Schema.Number.annotate({ description: "Number of matching turn rows returned." }),
+	turns: Schema.Array(TurnRow).annotate({ description: "Matching turns ordered by `occurredAt` ascending." }),
+}).annotate({
 	identifier: "TurnSearchResult",
 	title: "turn_search result",
 	description: "Turn-log search results across all sessions, optionally filtered by session, time, type.",
@@ -41,27 +41,23 @@ export const formatTurnSearchMarkdown = (data: TurnSearchResultType): string => 
 	return lines.join("\n");
 };
 
-export const TurnSearchAsMarkdown = Schema.transformOrFail(TurnSearchResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTurnSearchMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(
-			new ParseResult.Forbidden(
-				ast,
-				text,
-				"TurnSearchAsMarkdown is one-way: markdown cannot be parsed back to TurnSearchResult.",
-			),
+export const TurnSearchAsMarkdown = TurnSearchResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTurnSearchMarkdown(data)),
+		encode: SchemaGetter.forbidden(
+			() => "TurnSearchAsMarkdown is one-way: markdown cannot be parsed back to TurnSearchResult.",
 		),
-});
+	}),
+);
 
 export const turnSearch = publicProcedure
 	.input(
-		Schema.standardSchemaV1(
+		Schema.toStandardSchemaV1(
 			Schema.Struct({
 				sessionId: Schema.optional(Schema.Number),
 				since: Schema.optional(Schema.String),
 				type: Schema.optional(
-					Schema.Literal("user_prompt", "tool_call", "tool_result", "file_edit", "hook_fire", "note", "hypothesis"),
+					Schema.Literals(["user_prompt", "tool_call", "tool_result", "file_edit", "hook_fire", "note", "hypothesis"]),
 				),
 				limit: Schema.optional(Schema.Number),
 			}),

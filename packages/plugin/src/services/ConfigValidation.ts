@@ -55,9 +55,9 @@ export interface ValidationInput {
  * Effect service for validating Vitest + plugin coverage configuration.
  * @public
  */
-export class ConfigValidation extends Context.Tag("vitest-agent/ConfigValidation")<
+export class ConfigValidation extends Context.Service<
 	ConfigValidation,
 	{
 		readonly validate: (input: ValidationInput) => Effect.Effect<ValidationResult, never, never>;
 	}
->() {}
+>()("vitest-agent/ConfigValidation") {}

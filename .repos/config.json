@@ -1,0 +1,15 @@
+{
+	"repos": {
+		"effect-smol": {
+			"url": "https://github.com/Effect-TS/effect-smol.git",
+			"ref": "effect@4.0.0-beta.98",
+			"purpose": "Read-only Effect v4 source pinned to the tag matching the effect catalog — the authority on what v4 actually exports, plus the v3→v4 migration notes.",
+			"sparse": [
+				"packages/effect",
+				"migration",
+				"MIGRATION.md",
+				"LLMS.md"
+			]
+		}
+	}
+}

@@ -5,31 +5,31 @@
  */
 
 import { CacheManifestEntry, DataReader } from "@vitest-agent/sdk";
-import { Effect, Option, ParseResult, Schema } from "effect";
+import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const StatusAvailable = Schema.Struct({
-	dataAvailable: Schema.Literal(true).annotations({
+	dataAvailable: Schema.Literal(true).annotate({
 		description: "Discriminant — `true` when at least one project entry exists in the manifest.",
 	}),
 	manifestUpdatedAt: Schema.String,
-	projectFilter: Schema.optional(Schema.String).annotations({
+	projectFilter: Schema.optional(Schema.String).annotate({
 		description: "Echo of the optional `project` filter.",
 	}),
-	entries: Schema.Array(CacheManifestEntry).annotations({
+	entries: Schema.Array(CacheManifestEntry).annotate({
 		description: "Per-project last-run summary rows. Filtered by `projectFilter` when set.",
 	}),
-}).annotations({ identifier: "TestStatusAvailable" });
+}).annotate({ identifier: "TestStatusAvailable" });
 
 const StatusAbsent = Schema.Struct({
-	dataAvailable: Schema.Literal(false).annotations({
+	dataAvailable: Schema.Literal(false).annotate({
 		description: "Discriminant — `false` when no manifest exists or the project filter matched nothing.",
 	}),
 	projectFilter: Schema.optional(Schema.String),
-	reason: Schema.Literal("no_manifest", "project_filter_empty"),
-}).annotations({ identifier: "TestStatusAbsent" });
+	reason: Schema.Literals(["no_manifest", "project_filter_empty"]),
+}).annotate({ identifier: "TestStatusAbsent" });
 
-export const TestStatusResult = Schema.Union(StatusAvailable, StatusAbsent).annotations({
+export const TestStatusResult = Schema.Union([StatusAvailable, StatusAbsent]).annotate({
 	identifier: "TestStatusResult",
 	title: "test_status result",
 	description: "Per-project last-run summary. Discriminate on `dataAvailable` for cold-start handling.",
@@ -61,15 +61,15 @@ export const formatTestStatusMarkdown = (data: TestStatusResultType): string => 
 	return lines.join("\n");
 };
 
-export const TestStatusAsMarkdown = Schema.transformOrFail(TestStatusResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTestStatusMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "TestStatusAsMarkdown is one-way.")),
-});
+export const TestStatusAsMarkdown = TestStatusResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTestStatusMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "TestStatusAsMarkdown is one-way."),
+	}),
+);
 
 export const testStatus = publicProcedure
-	.input(Schema.standardSchemaV1(Schema.Struct({ project: Schema.optional(Schema.String) })))
+	.input(Schema.toStandardSchemaV1(Schema.Struct({ project: Schema.optional(Schema.String) })))
 	.query(
 		async ({ ctx, input }): Promise<TestStatusResultType> =>
 			ctx.runtime.runPromise(

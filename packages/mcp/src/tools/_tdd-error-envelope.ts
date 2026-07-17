@@ -149,7 +149,7 @@ export const catchTddErrorsAsEnvelope = <A, E, R>(
 	effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A | TddErrorEnvelope, Exclude<E, KnownTddError>, R> =>
 	effect.pipe(
-		Effect.catchAll((e: E) =>
+		Effect.catch((e: E) =>
 			isKnownTddError(e) ? Effect.succeed(tddErrorToEnvelope(e)) : Effect.fail(e as Exclude<E, KnownTddError>),
 		),
 	);

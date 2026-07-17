@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 90
 related:
   - ./architecture.md
@@ -132,8 +132,8 @@ On systems without `XDG_DATA_HOME` set, falls back to:
 | `@org/pkg` | `@org__pkg` |
 | `weird name with spaces!` | `weird_name_with_spaces_` |
 
-`AppDirs.ensureData` from `xdg-effect` creates the directory if missing so
-better-sqlite3 can open the DB without separately mkdir'ing the parent.
+`AppDirs.ensureData` from `@effected/xdg` creates the directory if missing
+so the SQLite driver can open the DB without separately mkdir'ing the parent.
 
 ### Resolution precedence
 
@@ -150,7 +150,7 @@ better-sqlite3 can open the DB without separately mkdir'ing the parent.
    `<workspaceKey>` segment under the XDG data root. Normalized via
    `normalizeWorkspaceKey`.
 4. **Workspace name from root `package.json`** — resolved via
-   `WorkspaceDiscovery` from `workspaces-effect`, then normalized.
+   `WorkspaceDiscovery` from `@effected/workspaces`, then normalized.
 5. **Fail with `WorkspaceRootNotFoundError`** if no root workspace is
    discoverable.
 
@@ -158,14 +158,25 @@ better-sqlite3 can open the DB without separately mkdir'ing the parent.
 2.0 leaves behind. If the system can't decide where the DB belongs, it must
 fail loudly so the user can fix the workspace identity.
 
+**Known open item — `.git` is no longer a workspace-root boundary.** The v4
+`@effected/workspaces` recognizes only `pnpm-workspace.yaml` or a
+`workspaces` field as a workspace-root marker; it dropped the `.git`
+boundary the v3 `workspaces-effect` honored. A single-package consumer repo
+whose only root marker is `.git` (no workspace manifest) now fails step 4
+and raises `WorkspaceRootNotFoundError`. The workaround today is to set
+`projectKey` (or `cacheDir`) in `vitest-agent.config.toml`. This boundary
+policy is **deferred by the maintainer, not yet resolved** — see Decision 46
+in [./decisions.md](./decisions.md).
+
 ### `vitest-agent.config.toml`
 
 The optional config is loaded by `ConfigLive(projectDir)` via
-`config-file-effect`'s `FirstMatch` strategy. The resolver chain:
+`@effected/config-file`'s `MergeStrategy.firstMatch()` strategy. The
+resolver chain (from `ConfigResolver`):
 
-1. `WorkspaceRoot` (the pnpm/npm/yarn workspace root)
-2. `GitRoot` (the git repo root)
-3. `UpwardWalk` (walks upward from `projectDir`)
+1. `workspaceRoot` (the pnpm/npm/yarn workspace root)
+2. `gitRoot` (the git repo root)
+3. `upwardWalk` (walks upward from `projectDir`)
 
 The first file found wins. Both fields are optional:
 
@@ -262,7 +273,7 @@ The filesystem-safe `projectKey` form replaces `/` with `__`
 
 | Store | Path | Driver |
 | --- | --- | --- |
-| Per-project data store | `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` | `better-sqlite3` via `@effect/sql-sqlite-node` |
+| Per-project data store | `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` | Node's built-in `node:sqlite` via `@effect/sql-sqlite-node` (v4) |
 | Per-client session map | `${CLAUDE_PLUGIN_DATA}/sessions.db` (Claude Code) | Same |
 | Global discovery registry | `$XDG_DATA_HOME/vitest-agent/registry.db` | Same |
 

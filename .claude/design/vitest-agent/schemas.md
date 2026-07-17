@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-01
-last-synced: 2026-07-01
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 93
 related:
   - ./architecture.md
@@ -230,8 +230,9 @@ set by the plugin per-project. Custom reporters built via
 
 `packages/sdk/src/schemas/Transport.ts` defines the persistence-layer
 transport binding. 2.x ships only `{ kind: "local" }`. The schema is a
-single-member discriminated union from day one — `Schema.Union(
-Schema.Struct({ kind: Schema.Literal("local") }))` — so the 3.0
+single-member discriminated union from day one — `Schema.Union([
+Schema.Struct({ kind: Schema.Literal("local") })])` (the v4 array-form
+`Union`, closed with `.annotate(...)`) — so the 3.0
 cloud-backend swap lands as a pure addition of new union members (D1,
 Turso, etc.) rather than a schema-shape change. The plugin reads the
 field and threads it onto `ResolvedReporterConfig.transport` so custom
@@ -247,7 +248,10 @@ option. It lives in its own file alongside `Transport.ts`.
 Keys are arbitrary strings — treated either as a top-level coverage metric
 name (`lines`, `functions`, `branches`, `statements`) or as a glob pattern
 for per-file scoping (`src/**.ts`, `packages/sdk/**`, etc.). Values are
-`Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics)`:
+`Schema.Union([PositivePercent, Schema.Literal(true), CoverageTargetsMetrics])`
+(v4 array-form `Union`; `PositivePercent` is
+`Schema.Number.check(Schema.isGreaterThan(0))`, the v4 replacement for the
+v3 `Schema.Positive`):
 
 - A bare positive number sets the target for a top-level metric or, on a
   glob entry, applies to every metric under that pattern.

@@ -7,10 +7,10 @@ export interface TestFileEntry {
 	readonly sourceFiles: ReadonlyArray<string>;
 }
 /** @public */
-export class ProjectDiscovery extends Context.Tag("vitest-agent/ProjectDiscovery")<
+export class ProjectDiscovery extends Context.Service<
 	ProjectDiscovery,
 	{
 		readonly discoverTestFiles: (rootDir: string) => Effect.Effect<ReadonlyArray<TestFileEntry>, DiscoveryError>;
 		readonly mapTestToSource: (testFile: string) => Effect.Effect<ReadonlyArray<string>, DiscoveryError>;
 	}
->() {}
+>()("vitest-agent/ProjectDiscovery") {}

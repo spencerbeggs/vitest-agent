@@ -1,12 +1,13 @@
 #!/usr/bin/env node
+
 /**
  * CLI entry point for vitest-agent.
  *
  * @packageDocumentation
  */
 
-import { Command } from "@effect/cli";
-import { NodeContext, NodeRuntime } from "@effect/platform-node";
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
 	PathResolutionLive,
 	formatFatalError,
@@ -15,6 +16,7 @@ import {
 	resolveLogLevel,
 } from "@vitest-agent/sdk";
 import { Cause, Console, Effect } from "effect";
+import { Command } from "effect/unstable/cli";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
@@ -25,7 +27,6 @@ const rootCommand = Command.make("vitest-agent").pipe(
 );
 
 const cli = Command.run(rootCommand, {
-	name: "vitest-agent",
 	version: "0.0.0",
 });
 
@@ -44,13 +45,11 @@ const logFile = resolveLogFile();
 const projectDir = process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd();
 
 const main = resolveDataPath(projectDir).pipe(
-	Effect.flatMap((dbPath) =>
-		Effect.suspend(() => cli(process.argv)).pipe(Effect.provide(CliLive(dbPath, logLevel, logFile))),
-	),
+	Effect.flatMap((dbPath) => cli.pipe(Effect.provide(CliLive(dbPath, logLevel, logFile)))),
 	Effect.provide(PathResolutionLive(projectDir)),
-	Effect.provide(NodeContext.layer),
-	Effect.catchAllCause((cause) => {
-		const defects = Cause.defects(cause);
+	Effect.provide(NodeServices.layer),
+	Effect.catchCause((cause) => {
+		const defects = cause.reasons.filter(Cause.isDieReason);
 		if (defects.length > 0) {
 			return Console.error(`vitest-agent: ${formatFatalError(cause)}`).pipe(Effect.andThen(Effect.failCause(cause)));
 		}

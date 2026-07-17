@@ -16,7 +16,7 @@
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import type { Scope } from "effect";
-import { Effect, PubSub, Queue, Stream } from "effect";
+import { Effect, PubSub, Stream } from "effect";
 import { reduceRenderState } from "../reducer.js";
 import { RunEventChannel } from "./Channel.js";
 
@@ -37,13 +37,13 @@ export const accumulateUntilFinished = (
 	Effect.scoped(
 		Effect.gen(function* () {
 			const channel = yield* RunEventChannel;
-			const dequeue = yield* PubSub.subscribe(channel);
+			const subscription = yield* PubSub.subscribe(channel);
 			let state = initial;
 			// `finished` and `timed-out` are both terminal — a run that
 			// timed out never emits `RunFinished`, so accumulating only
 			// against `finished` would hang the agent path forever.
 			while (state.phase !== "finished" && state.phase !== "timed-out") {
-				const event = yield* Queue.take(dequeue);
+				const event = yield* PubSub.take(subscription);
 				state = reduceRenderState(state, event);
 			}
 			return state;
@@ -72,7 +72,7 @@ export const forEachRenderState = <R, E>(
 	Effect.scoped(
 		Effect.gen(function* () {
 			const channel = yield* RunEventChannel;
-			const stream = yield* Stream.fromPubSub(channel, { scoped: true });
+			const stream = Stream.fromPubSub(channel);
 			yield* stream.pipe(Stream.scan(initial, reduceRenderState), Stream.runForEach(onState));
 		}),
 	);
@@ -90,10 +90,10 @@ export const forEachRenderState = <R, E>(
  */
 export const renderStateStream = (
 	initial: RenderState = initialRenderState,
-): Effect.Effect<Stream.Stream<RenderState>, never, RunEventChannel | Scope.Scope> =>
+): Effect.Effect<Stream.Stream<RenderState>, never, RunEventChannel> =>
 	Effect.gen(function* () {
 		const channel = yield* RunEventChannel;
-		const stream = yield* Stream.fromPubSub(channel, { scoped: true });
+		const stream = Stream.fromPubSub(channel);
 		return stream.pipe(Stream.scan(initial, reduceRenderState));
 	});
 
@@ -106,7 +106,7 @@ export const renderStateStream = (
  * @returns an Effect that resolves to a dequeue of raw run events
  * @public
  */
-export const subscribeRaw = (): Effect.Effect<Queue.Dequeue<RunEvent>, never, RunEventChannel | Scope.Scope> =>
+export const subscribeRaw = (): Effect.Effect<PubSub.Subscription<RunEvent>, never, RunEventChannel | Scope.Scope> =>
 	Effect.gen(function* () {
 		const channel = yield* RunEventChannel;
 		return yield* PubSub.subscribe(channel);

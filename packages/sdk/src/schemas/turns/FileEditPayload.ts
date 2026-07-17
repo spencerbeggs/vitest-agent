@@ -3,7 +3,7 @@ import { Schema } from "effect";
 export const FileEditPayload = Schema.Struct({
 	type: Schema.Literal("file_edit"),
 	file_path: Schema.String,
-	edit_kind: Schema.Literal("write", "edit", "multi_edit"),
+	edit_kind: Schema.Literals(["write", "edit", "multi_edit"]),
 	lines_added: Schema.optional(Schema.Number),
 	lines_removed: Schema.optional(Schema.Number),
 	diff: Schema.optional(Schema.String),

@@ -1,8 +1,8 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import migration0001 from "../src/migrations/0001_initial.js";
@@ -12,7 +12,7 @@ import { deriveIdempotencyKey } from "../src/services/idempotency.js";
 
 const makeLayer = () => {
 	const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({ "0001_initial": migration0001 }),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
@@ -201,13 +201,13 @@ describe("DataStore.registerAgent", () => {
 			const sql = yield* SqlClient;
 			// Seed session with conversation_id at INSERT (the immutability
 			// trigger forbids UPDATE).
-			yield* sql`INSERT INTO sessions (id, chat_id, project, cwd, agent_kind, started_at, conversation_id) VALUES (1, 'cc-session-uuid', 'p', '/c', 'main', '2026-01-01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')`;
+			yield* sql`INSERT INTO sessions (id, chat_id, project, cwd, agent_kind, started_at, conversation_id) VALUES (1, 'cc-session-uuid', 'p', '/c', 'main', '2026-01-01', '550e8400-e29b-41d4-a716-446655440000')`;
 			const store = yield* DataStore;
 			const agent = (yield* store.registerAgent({
 				sessionId: 1,
 				agentType: "claude-code-main",
 				parentAgentId: null,
-				conversationId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+				conversationId: "550e8400-e29b-41d4-a716-446655440000",
 				startedAt: 1700000000,
 				startGitBranch: "feat/x",
 				startGitCommitSha: "deadbeef",
@@ -217,7 +217,7 @@ describe("DataStore.registerAgent", () => {
 			return agent;
 		}).pipe(Effect.provide(makeLayer()));
 		const agent = await Effect.runPromise(program);
-		expect(agent.conversationId).toBe("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+		expect(agent.conversationId).toBe("550e8400-e29b-41d4-a716-446655440000");
 		expect(agent.startGitBranch).toBe("feat/x");
 		expect(agent.startGitCommitSha).toBe("deadbeef");
 		expect(agent.startWorktreeDir).toBe("/work");

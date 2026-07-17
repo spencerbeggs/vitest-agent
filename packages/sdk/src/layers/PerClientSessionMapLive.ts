@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
-import { SqlClient } from "@effect/sql/SqlClient";
 import { Effect, Layer, Option } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { DataStoreError, extractSqlReason } from "../errors/DataStoreError.js";
 import type { MapSessionInput, MapSessionOutput, SessionContextRow } from "../services/PerClientSessionMap.js";
 import { PerClientSessionMapReader, PerClientSessionMapWriter } from "../services/PerClientSessionMap.js";

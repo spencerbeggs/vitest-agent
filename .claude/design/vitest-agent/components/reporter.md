@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 90
 related:
   - ../architecture.md
@@ -53,6 +53,8 @@ The dispatcher itself, the cells and the reducer live in `@vitest-agent/ui` and 
 - **At `render(input, kit)`** — called once at run end with a second, health-aware `ReporterKit`. For `consoleMode === "agent"` it folds `input.reports` through the synthesizer and reducer, builds `DispatchInputs`, calls `dispatch(inputs, opts)` and returns one `RenderedOutput` with `target: "stdout"`. For `silent`, `passthrough`, `stream` and `ci-annotations` it emits no stdout output (the `stream` live painting already happened off the stream). When `kit.config.githubActions` is `true` it emits an additional `target: "github-summary"` `RenderedOutput` regardless of console mode.
 
 The two-kit model is part of the contract: `render(input, kit)` takes a second argument because the factory kit is resolved at run start (neutral run health) and the render kit is resolved at run end (post-run `detail`). See `VitestAgentReporter` in `packages/sdk/src/contracts/reporter.ts`.
+
+**Suite-load failures count in the per-project summary.** `summarizeProject`'s `failCount` is `report.summary.failed + countSuiteFailures(report)` — `summary.failed` is a pure test-case count, so a module that failed to *import* (zero test cases) would otherwise render green. The SDK helper `countSuiteFailures(report)` (in `packages/sdk/src/utils/build-report.ts`) supplies the suite-level count that the render path folds back in. This is the reporter-side half of the false-green fix; see Decision 45 in [../decisions.md](../decisions.md).
 
 ---
 

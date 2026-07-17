@@ -1,5 +1,5 @@
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
-import { Effect, Fiber, PubSub, Queue, Ref, Stream } from "effect";
+import { Effect, Fiber, PubSub, Ref, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import {
 	RunEventChannel,
@@ -9,7 +9,7 @@ import {
 	reduceRenderStateAll,
 	renderStateStream,
 } from "../src/index.js";
-import { allPassEvents, coverageViolationEvents, flakyRecoveryEvents, mixedFailEvents } from "./fixtures/events.js";
+import { allPassEvents, coverageViolationEvents, flakyRecoveryEvents, mixedFailEvents } from "./utils/events.js";
 
 /**
  * Helper: drive a publisher/consumer pair inside the live channel
@@ -19,9 +19,9 @@ import { allPassEvents, coverageViolationEvents, flakyRecoveryEvents, mixedFailE
 const runRoundtrip = (events: ReadonlyArray<RunEvent>): Promise<RenderState> =>
 	Effect.scoped(
 		Effect.gen(function* () {
-			const fiber = yield* Effect.fork(accumulateUntilFinished());
+			const fiber = yield* Effect.forkChild(accumulateUntilFinished());
 			// Small synchronous yield to let the subscriber register before publish.
-			yield* Effect.yieldNow();
+			yield* Effect.yieldNow;
 			yield* publishAll(events);
 			return yield* Fiber.join(fiber);
 		}),
@@ -50,7 +50,7 @@ describe("RunEventChannel — multi-subscriber fan-out", () => {
 					const received: RunEvent[] = [];
 					let done = false;
 					while (!done) {
-						const event = yield* Queue.take(dequeue);
+						const event = yield* PubSub.take(dequeue);
 						received.push(event);
 						if (event._tag === "RunFinished") done = true;
 					}
@@ -60,9 +60,9 @@ describe("RunEventChannel — multi-subscriber fan-out", () => {
 
 		const program = Effect.scoped(
 			Effect.gen(function* () {
-				const fiberA = yield* Effect.fork(subscribe());
-				const fiberB = yield* Effect.fork(subscribe());
-				yield* Effect.yieldNow();
+				const fiberA = yield* Effect.forkChild(subscribe());
+				const fiberB = yield* Effect.forkChild(subscribe());
+				yield* Effect.yieldNow;
 				yield* publishAll(allPassEvents);
 				const a = yield* Fiber.join(fiberA);
 				const b = yield* Fiber.join(fiberB);
@@ -87,8 +87,8 @@ describe("RunEventChannel — renderStateStream", () => {
 					yield* stream.pipe(Stream.runForEach((state) => Ref.update(seen, (xs) => [...xs, state.phase])));
 				});
 
-				const fiber = yield* Effect.fork(consumer);
-				yield* Effect.yieldNow();
+				const fiber = yield* Effect.forkChild(consumer);
+				yield* Effect.yieldNow;
 				yield* publishAll(allPassEvents);
 				// Give the scan time to drain before we interrupt.
 				yield* Effect.sleep("50 millis");

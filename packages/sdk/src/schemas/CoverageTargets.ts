@@ -1,17 +1,23 @@
 import { Schema } from "effect";
 
 /**
+ * A strictly-positive coverage percentage. Negatives and zeros are rejected
+ * at decode time.
+ */
+const PositivePercent = Schema.Number.check(Schema.isGreaterThan(0));
+
+/**
  * Per-metric leaf shape for coverageTargets entries. Allows optional
  * numeric targets per metric and the `100: true` shortcut.
  * @public
  */
 export const CoverageTargetsMetrics = Schema.Struct({
-	lines: Schema.optional(Schema.Positive),
-	functions: Schema.optional(Schema.Positive),
-	branches: Schema.optional(Schema.Positive),
-	statements: Schema.optional(Schema.Positive),
+	lines: Schema.optional(PositivePercent),
+	functions: Schema.optional(PositivePercent),
+	branches: Schema.optional(PositivePercent),
+	statements: Schema.optional(PositivePercent),
 	100: Schema.optional(Schema.Literal(true)),
-}).annotations({ identifier: "CoverageTargetsMetrics" });
+}).annotate({ identifier: "CoverageTargetsMetrics" });
 /** @public */
 export type CoverageTargetsMetrics = typeof CoverageTargetsMetrics.Type;
 
@@ -30,19 +36,20 @@ export type CoverageTargetsMetrics = typeof CoverageTargetsMetrics.Type;
  * at key `"100"`.
  * @public
  */
-export const CoverageTargets = Schema.Record({
-	key: Schema.String,
-	value: Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics),
-}).pipe(
-	Schema.filter((targets) => {
-		for (const [key, value] of Object.entries(targets)) {
-			if (value === true && key !== "100") {
-				return `coverageTargets.${key} cannot be true. The "true" shorthand is only valid at key "100" (meaning 100% across all metrics).`;
+export const CoverageTargets = Schema.Record(
+	Schema.String,
+	Schema.Union([PositivePercent, Schema.Literal(true), CoverageTargetsMetrics]),
+)
+	.check(
+		Schema.makeFilter((targets) => {
+			for (const [key, value] of Object.entries(targets)) {
+				if (value === true && key !== "100") {
+					return `coverageTargets.${key} cannot be true. The "true" shorthand is only valid at key "100" (meaning 100% across all metrics).`;
+				}
 			}
-		}
-		return undefined;
-	}),
-	Schema.annotations({ identifier: "CoverageTargets" }),
-);
+			return undefined;
+		}),
+	)
+	.annotate({ identifier: "CoverageTargets" });
 /** @public */
 export type CoverageTargets = typeof CoverageTargets.Type;

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 92
 related:
   - ../architecture.md
@@ -27,7 +27,7 @@ A utility-only bin for LLM agents and humans: database management plus the hook-
 **Location:** `packages/cli/`
 **Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/sidecar`
 
-The plugin declares the CLI as an exact-pinned regular `dependency`, so installing the plugin pulls the CLI along with it; `@savvy-web/pnpm-plugin-silk` publicly hoists the package so the `vitest-agent` bin resolves for the Claude Code plugin's hook scripts. The CLI stays a separate package for module-boundary reasons — the `@effect/cli` surface is the CLI's own concern.
+The plugin declares the CLI as an exact-pinned regular `dependency`, so installing the plugin pulls the CLI along with it; `@savvy-web/pnpm-plugin-silk` publicly hoists the package so the `vitest-agent` bin resolves for the Claude Code plugin's hook scripts. The CLI stays a separate package for module-boundary reasons — the `effect/unstable/cli` surface is the CLI's own concern.
 
 CLI commands are directory-bound. Vitest is itself directory-bound, and the CLI operates in the context of the working directory — workspace identity is resolved from the nearest root `package.json`, the database path is derived from that identity (XDG-rooted), and every command that reaches into `$XDG_DATA_HOME/vitest-agent/` starts by resolving which workspace's data directory to use.
 
@@ -39,7 +39,7 @@ The bin is a utility-only surface: **MCP is the data path for test-landscape que
 
 ## Bin and command surface
 
-`packages/cli/src/bin.ts`. The bin resolves `dbPath` via `resolveDataPath(process.cwd())` under `PathResolutionLive(projectDir) + NodeContext.layer`, then provides `CliLive(dbPath, logLevel, logFile)` to the `@effect/cli` `Command.run` effect. Defects print `formatFatalError(cause)` to stderr.
+`packages/cli/src/bin.ts`. The bin resolves `dbPath` via `resolveDataPath(process.cwd())` under `PathResolutionLive(projectDir) + NodeServices.layer`, then provides `CliLive(dbPath, logLevel, logFile)` to the `effect/unstable/cli` `Command.run` effect (built from `Command.make("vitest-agent")` + `Command.withSubcommands([...])`; on v4 `Command.run` takes an options object and no longer a `name` field, sourcing argv from the `Stdio` service). Defects print `formatFatalError(cause)` to stderr.
 
 `packages/cli/src/index.ts` exports `CURRENT_CLI_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`), part of the public API. Under the earlier lockstep design the bin compared it against `CURRENT_SDK_VERSION` before `Command.run` and warned on mismatch; that drift check (and its `bin-version-drift.test.ts` coverage) was removed with the move to independent per-package versioning, so the bin now runs straight into `Command.run`. The `doctor` subcommand covers database health, not cross-package version invariants. See D36 in [../decisions.md](../decisions.md).
 
@@ -71,7 +71,7 @@ The top-level command tree is exactly three children, wired in `bin.ts`'s `withS
 3. TTY without `--yes` → interactive `Wipe <path>? [y/N]:` prompt; empty / `n` / `N` aborts with exit 0 and `aborted` on stdout.
 4. `--yes` skips the prompt unconditionally (still subject to gate 1).
 
-On success it removes `data.db` and the `-shm` / `-wal` sidecars via `FileSystem.FileSystem`, each wrapped in `Effect.catchAll(() => Effect.void)` so a missing file is success-equivalent — the operation is idempotent. The deletion path provides `NodeContext.layer` locally.
+On success it removes `data.db` and the `-shm` / `-wal` sidecars via `FileSystem.FileSystem`, each wrapped in `Effect.catch(() => Effect.void)` (the v4 rename of `Effect.catchAll`) so a missing file is success-equivalent — the operation is idempotent. The deletion path provides `NodeServices.layer` locally.
 
 ### `db query` semantics
 
@@ -83,7 +83,7 @@ Output is formatted by `lib/format-db-query.ts`. `--format table` (default) rend
 
 ## The `agent` namespace
 
-`packages/cli/src/commands/agent.ts`. The `agent` parent is a discoverable namespace: its `Command.withDescription` carries a warning header — *"Commands intended for agents and hook scripts — humans typically don't invoke these directly."* — that `@effect/cli`'s help formatter renders above the subcommand list.
+`packages/cli/src/commands/agent.ts`. The `agent` parent is a discoverable namespace: its `Command.withDescription` carries a warning header — *"Commands intended for agents and hook scripts — humans typically don't invoke these directly."* — that `effect/unstable/cli`'s help formatter renders above the subcommand list.
 
 The group composes seven subcommands:
 
@@ -103,7 +103,7 @@ The group composes seven subcommands:
 
 The sidecar subcommands return plain text on stdout for the bash hooks to parse, and structured error info on stderr in the shape `<exit_code> <error_tag>: <message>`. Exit codes follow a fixed contract: `0` success, `1` registration conflict, `2` sidecar timeout, `3` database error, `4` `ProjectIdentityNotResolvableError`, `5` unexpected defect. They resolve all three SQLite store paths from env at invocation time (per-project `data.db`, per-client `sessions.db`, registry `registry.db`) and `mkdirSync` every parent dir before SQLite opens. Path resolution does not depend on workspace-discovery, so the sidecar works in non-pnpm-workspace project shapes.
 
-> **Help-rendering quirk.** `@effect/cli`'s root `--help` renders the four-level-nested `agent record <sub>` entries with a doubled `agent agent record <sub>` prefix. This is an upstream help-formatter artifact only — the actual invocation path `vitest-agent agent record <sub>` works correctly.
+> **Help-rendering quirk.** `effect/unstable/cli`'s root `--help` renders the four-level-nested `agent record <sub>` entries with a doubled `agent agent record <sub>` prefix. This is an upstream help-formatter artifact only — the actual invocation path `vitest-agent agent record <sub>` works correctly.
 
 ## The `record` subcommand
 
@@ -128,7 +128,7 @@ The `test-case-turns` action is the linkage that makes `tdd-artifact` correctly 
 
 ## CliLive composition layer
 
-`packages/cli/src/layers/CliLive.ts`. Composes `DataReaderLive`, `DataStoreLive`, `ProjectDiscoveryLive`, `HistoryTrackerLive`, `OutputPipelineLive`, `SqliteClient`, `Migrator`, `NodeContext`, `NodeFileSystem`, and `LoggerLive`. The bin uses `NodeRuntime.runMain` to execute against this composite. It backs `doctor`, `triage`, `wrapup`, and the `record` group.
+`packages/cli/src/layers/CliLive.ts`. Composes `DataReaderLive`, `DataStoreLive`, `ProjectDiscoveryLive`, `HistoryTrackerLive`, `OutputPipelineLive`, `SqliteClient` (from `@effect/sql-sqlite-node`), `SqliteMigrator`, `NodeServices`, and `LoggerLive`. The bin uses `NodeRuntime.runMain` to execute against this composite. It backs `doctor`, `triage`, `wrapup`, and the `record` group.
 
 ## `SidecarLive` composition layer
 

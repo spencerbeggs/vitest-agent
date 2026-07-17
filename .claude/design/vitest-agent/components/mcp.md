@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 92
 related:
   - ../architecture.md
@@ -55,7 +55,7 @@ D7 (artifact write authority).
 precedence: `VITEST_AGENT_REPORTER_PROJECT_DIR` (set by the plugin loader)
 → `CLAUDE_PROJECT_DIR` → `process.cwd()`. Then resolves `dbPath` via
 `resolveDataPath(projectDir)` under `PathResolutionLive(projectDir) +
-NodeContext.layer`, creates `ManagedRuntime.make(McpLive(dbPath, ...))`,
+NodeServices.layer`, creates `ManagedRuntime.make(McpLive(dbPath, ...))`,
 and calls `startMcpServer({ runtime, cwd: projectDir })`.
 
 `packages/mcp/src/index.ts` exports `CURRENT_MCP_VERSION` (inlined from `process.env.__PACKAGE_VERSION__` via the package's `rslib.config.ts` `define`), part of the public API. Under the earlier lockstep design the bin compared it against `CURRENT_SDK_VERSION` inside `main()` and warned on mismatch; that drift check (and its `bin-version-drift.test.ts` coverage) was removed with the move to independent per-package versioning, so the bin now boots straight into `ManagedRuntime.make`. See D36 in [../decisions.md](../decisions.md).
@@ -139,9 +139,13 @@ Most tools emit `structuredContent` per MCP 2025-06-18 spec, with
 `outputSchema` declared via an Effect Schema → JSON Schema → zod bridge at
 `packages/mcp/src/utils/effect-to-zod.ts`. The bridge:
 
-1. Runs `JSONSchema.make(EffectSchema)` against the tool's output type.
-2. Inlines all `$ref`s before handing the result to `z.fromJSONSchema`
-   (the SDK's object-only requirement does not accept refs).
+1. Runs `Schema.toJsonSchemaDocument(EffectSchema)` against the tool's output
+   type (the v4 JSON-Schema emitter; it returns
+   `{ dialect, schema, definitions }`).
+2. Inlines all `$ref`s from `definitions` before handing the result to
+   zod 4's `z.fromJSONSchema` (the SDK's object-only requirement does not
+   accept refs, and zod's experimental `fromJSONSchema` does not resolve them
+   either).
 3. Wraps non-object zod roots in `z.object({}).catchall(z.unknown())`
    so `Schema.Union` outputs (e.g., the discriminated-action tool
    results) pass through.
@@ -433,7 +437,9 @@ the registrar narrows `args.kind` before forwarding to the factory.
 
 `packages/mcp/src/layers/McpLive.ts`. Composes `DataReaderLive`,
 `DataStoreLive`, `ProjectDiscoveryLive`, `OutputPipelineLive`,
-`SqliteClient`, `Migrator`, `NodeContext`, `NodeFileSystem`, and
+`SqliteClient`, `SqliteMigrator`, and `NodeServices` (the v4 aggregate that
+subsumes the old `NodeContext` + `NodeFileSystem` — FileSystem | Path |
+ChildProcessSpawner | Crypto | Stdio | Terminal), plus
 `LoggerLive`. The bin uses `ManagedRuntime` to execute against this
 composite. The runtime is held for the process lifetime; database
 connections persist for the long-running MCP server process.

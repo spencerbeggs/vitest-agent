@@ -22,7 +22,7 @@ export const ConsoleOutputs = Schema.Struct({
 	human: Schema.optional(HumanConsoleMode),
 	agent: Schema.optional(AgentConsoleMode),
 	ci: Schema.optional(CiConsoleMode),
-}).annotations({ identifier: "ConsoleOutputs" });
+}).annotate({ identifier: "ConsoleOutputs" });
 /** @public */
 export type ConsoleOutputs = typeof ConsoleOutputs.Type;
 
@@ -39,7 +39,7 @@ export const AgentPluginOptions = Schema.Struct({
 	console: Schema.optional(ConsoleOutputs),
 	coverageTargets: Schema.optional(CoverageTargets),
 	transport: Schema.optional(Transport),
-}).annotations({ identifier: "AgentPluginOptions" });
+}).annotate({ identifier: "AgentPluginOptions" });
 /** @public */
 export type AgentPluginOptions = typeof AgentPluginOptions.Type;
 
@@ -57,6 +57,6 @@ export type AgentPluginOptions = typeof AgentPluginOptions.Type;
 export const AgentReporterOptions = Schema.Struct({
 	/** Set by the plugin per-project. Filters reports to one project. */
 	projectFilter: Schema.optional(Schema.String),
-}).annotations({ identifier: "AgentReporterOptions" });
+}).annotate({ identifier: "AgentReporterOptions" });
 /** @public */
 export type AgentReporterOptions = typeof AgentReporterOptions.Type;

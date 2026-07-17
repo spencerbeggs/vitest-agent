@@ -11,7 +11,7 @@ export const CacheManifestEntry = Schema.Struct({
 	historyFile: Schema.optional(Schema.String),
 	lastRun: Schema.NullOr(Schema.String),
 	lastResult: Schema.NullOr(TestRunReason),
-}).annotations({ identifier: "CacheManifestEntry" });
+}).annotate({ identifier: "CacheManifestEntry" });
 /** @public */
 export type CacheManifestEntry = typeof CacheManifestEntry.Type;
 
@@ -23,6 +23,6 @@ export const CacheManifest = Schema.Struct({
 	updatedAt: Schema.String,
 	cacheDir: Schema.String,
 	projects: Schema.Array(CacheManifestEntry),
-}).annotations({ identifier: "CacheManifest" });
+}).annotate({ identifier: "CacheManifest" });
 /** @public */
 export type CacheManifest = typeof CacheManifest.Type;

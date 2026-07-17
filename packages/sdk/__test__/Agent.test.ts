@@ -10,10 +10,10 @@ const VALID_UUID_D = "880e8400-e29b-41d4-a716-446655440003";
 describe("Agent (Schema.TaggedClass)", () => {
 	it("constructs from a literal with all required fields", () => {
 		const agent = new Agent({
-			agentId: Schema.decodeUnknownSync(Schema.UUID)(VALID_UUID_A),
+			agentId: Schema.decodeUnknownSync(Schema.String.check(Schema.isUUID()))(VALID_UUID_A),
 			sessionId: 1,
 			parentAgentId: null,
-			conversationId: Schema.decodeUnknownSync(Schema.UUID)(VALID_UUID_C),
+			conversationId: Schema.decodeUnknownSync(Schema.String.check(Schema.isUUID()))(VALID_UUID_C),
 			agentType: "claude-code-main",
 			startedAt: 1700000000,
 			endedAt: null,
@@ -29,7 +29,7 @@ describe("Agent (Schema.TaggedClass)", () => {
 	it("rejects construction with an invalid UUID via decodeUnknown", () => {
 		expect(() =>
 			Effect.runSync(
-				Schema.decodeUnknown(Agent)({
+				Schema.decodeUnknownEffect(Agent)({
 					_tag: "Agent",
 					agentId: "not-a-uuid",
 					sessionId: 1,
@@ -49,7 +49,7 @@ describe("Agent (Schema.TaggedClass)", () => {
 
 	it("decodes a tagged literal with valid UUIDs", () => {
 		const decoded = Effect.runSync(
-			Schema.decodeUnknown(Agent)({
+			Schema.decodeUnknownEffect(Agent)({
 				_tag: "Agent",
 				agentId: VALID_UUID_A,
 				sessionId: 1,
@@ -73,7 +73,7 @@ describe("Agent (Schema.TaggedClass)", () => {
 describe("IdempotencyHit", () => {
 	it("carries the existing agentId", () => {
 		const hit = new IdempotencyHit({
-			existingAgentId: Schema.decodeUnknownSync(Schema.UUID)(VALID_UUID_A) as never,
+			existingAgentId: Schema.decodeUnknownSync(Schema.String.check(Schema.isUUID()))(VALID_UUID_A) as never,
 		});
 		expect(hit._tag).toBe("IdempotencyHit");
 		expect(hit.existingAgentId).toBe(VALID_UUID_A);
@@ -82,7 +82,7 @@ describe("IdempotencyHit", () => {
 
 describe("RegisterAgentResult dispatch via Match.tag", () => {
 	const agent = new Agent({
-		agentId: Schema.decodeUnknownSync(Schema.UUID)(VALID_UUID_A),
+		agentId: Schema.decodeUnknownSync(Schema.String.check(Schema.isUUID()))(VALID_UUID_A),
 		// sessionId is an integer FK to sessions.id, not a UUID — it
 		// references the per-project sessions table's auto-increment PK.
 		sessionId: 1,
@@ -98,7 +98,7 @@ describe("RegisterAgentResult dispatch via Match.tag", () => {
 	} as never);
 
 	const hit = new IdempotencyHit({
-		existingAgentId: Schema.decodeUnknownSync(Schema.UUID)(VALID_UUID_A) as never,
+		existingAgentId: Schema.decodeUnknownSync(Schema.String.check(Schema.isUUID()))(VALID_UUID_A) as never,
 	});
 
 	const dispatch = (r: RegisterAgentResult) =>

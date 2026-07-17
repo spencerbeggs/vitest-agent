@@ -1,9 +1,9 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { AppDirs, ResolvedAppDirs } from "@effected/xdg";
 import { Effect, Layer, Option } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AppDirs } from "xdg-effect";
 import { VitestAgentConfig } from "../src/schemas/Config.js";
 import type { VitestAgentConfigFileService } from "../src/services/Config.js";
 import { VitestAgentConfigFile } from "../src/services/Config.js";
@@ -35,16 +35,20 @@ const fakeAppDirs = (root: string) =>
 	Layer.succeed(
 		AppDirs,
 		AppDirs.of({
-			config: Effect.succeed(`${root}/config`),
-			data: Effect.succeed(root),
-			cache: Effect.succeed(`${root}/cache`),
-			state: Effect.succeed(`${root}/state`),
-			runtime: Effect.succeed(Option.none()),
+			namespace: "vitest-agent",
+			dirs: new ResolvedAppDirs({
+				config: `${root}/config`,
+				data: root,
+				cache: `${root}/cache`,
+				state: `${root}/state`,
+				configSearchPath: [`${root}/config`],
+				dataSearchPath: [root],
+			}),
 			ensureConfig: Effect.succeed(`${root}/config`),
 			ensureData: Effect.succeed(root),
 			ensureCache: Effect.succeed(`${root}/cache`),
 			ensureState: Effect.succeed(`${root}/state`),
-			resolveAll: Effect.die(new Error("resolveAll stub: not configured")),
+			ensureRuntime: Effect.succeed(Option.none()),
 			ensure: Effect.die(new Error("ensure stub: not configured")),
 		}),
 	);

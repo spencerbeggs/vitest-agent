@@ -14,11 +14,11 @@ import { Effect, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
 export const TriageBriefResult = Schema.Struct({
-	hasContent: Schema.Boolean.annotations({
+	hasContent: Schema.Boolean.annotate({
 		description: "`false` when no orientation signal is available yet (run tests to populate).",
 	}),
-	markdown: Schema.String.annotations({ description: "Pre-rendered markdown brief or the empty-state message." }),
-}).annotations({
+	markdown: Schema.String.annotate({ description: "Pre-rendered markdown brief or the empty-state message." }),
+}).annotate({
 	identifier: "TriageBriefResult",
 	title: "triage_brief result",
 	description: "Orientation triage envelope. Branch on `hasContent` for cold-start; consume `markdown` for rendering.",
@@ -27,7 +27,7 @@ export type TriageBriefResultType = Schema.Schema.Type<typeof TriageBriefResult>
 
 export const triageBrief = publicProcedure
 	.input(
-		Schema.standardSchemaV1(
+		Schema.toStandardSchemaV1(
 			Schema.Struct({
 				project: Schema.optional(Schema.String),
 				maxLines: Schema.optional(Schema.Number),

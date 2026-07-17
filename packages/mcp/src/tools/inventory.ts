@@ -12,18 +12,18 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, Match, Option, ParseResult, Schema } from "effect";
+import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const ProjectRunSummary = Schema.Struct({
 	project: Schema.String,
 	lastRun: Schema.NullOr(Schema.String),
-	lastResult: Schema.NullOr(Schema.Literal("passed", "failed", "interrupted")),
+	lastResult: Schema.NullOr(Schema.Literals(["passed", "failed", "interrupted"])),
 	total: Schema.Number,
 	passed: Schema.Number,
 	failed: Schema.Number,
 	skipped: Schema.Number,
-}).annotations({ identifier: "InventoryProjectRow" });
+}).annotate({ identifier: "InventoryProjectRow" });
 
 const ModuleRow = Schema.Struct({
 	id: Schema.Number,
@@ -31,7 +31,7 @@ const ModuleRow = Schema.Struct({
 	state: Schema.String,
 	testCount: Schema.Number,
 	duration: Schema.NullOr(Schema.Number),
-}).annotations({ identifier: "InventoryModuleRow" });
+}).annotate({ identifier: "InventoryModuleRow" });
 
 const SuiteRow = Schema.Struct({
 	id: Schema.Number,
@@ -39,93 +39,93 @@ const SuiteRow = Schema.Struct({
 	module: Schema.String,
 	state: Schema.String,
 	testCount: Schema.Number,
-}).annotations({ identifier: "InventorySuiteRow" });
+}).annotate({ identifier: "InventorySuiteRow" });
 
 const SessionRow = Schema.Struct({
 	id: Schema.Number,
 	chatId: Schema.String,
 	project: Schema.String,
 	cwd: Schema.String,
-	agentKind: Schema.Literal("main", "subagent"),
+	agentKind: Schema.Literals(["main", "subagent"]),
 	agentType: Schema.NullOr(Schema.String),
 	parentSessionId: Schema.NullOr(Schema.Number),
 	triageWasNonEmpty: Schema.Boolean,
 	startedAt: Schema.String,
 	endedAt: Schema.NullOr(Schema.String),
 	endReason: Schema.NullOr(Schema.String),
-}).annotations({ identifier: "InventorySessionRow" });
+}).annotate({ identifier: "InventorySessionRow" });
 
 const ProjectInventory = Schema.Struct({
 	inventoryKind: Schema.Literal("project"),
 	count: Schema.Number,
 	projects: Schema.Array(ProjectRunSummary),
-}).annotations({ identifier: "ProjectInventory" });
+}).annotate({ identifier: "ProjectInventory" });
 
 const ModuleGroup = Schema.Struct({ project: Schema.String, modules: Schema.Array(ModuleRow) });
 const ModuleInventory = Schema.Struct({
 	inventoryKind: Schema.Literal("module"),
 	count: Schema.Number,
 	groups: Schema.Array(ModuleGroup),
-}).annotations({ identifier: "ModuleInventory" });
+}).annotate({ identifier: "ModuleInventory" });
 
 const SuiteGroup = Schema.Struct({ project: Schema.String, suites: Schema.Array(SuiteRow) });
 const SuiteInventory = Schema.Struct({
 	inventoryKind: Schema.Literal("suite"),
 	count: Schema.Number,
 	groups: Schema.Array(SuiteGroup),
-}).annotations({ identifier: "SuiteInventory" });
+}).annotate({ identifier: "SuiteInventory" });
 
 const SessionDetailFound = Schema.Struct({
 	inventoryKind: Schema.Literal("session_detail"),
 	found: Schema.Literal(true),
 	session: SessionRow,
-}).annotations({ identifier: "SessionDetailFound" });
+}).annotate({ identifier: "SessionDetailFound" });
 
 const SessionDetailMissing = Schema.Struct({
 	inventoryKind: Schema.Literal("session_detail"),
 	found: Schema.Literal(false),
 	id: Schema.Number,
-}).annotations({ identifier: "SessionDetailMissing" });
+}).annotate({ identifier: "SessionDetailMissing" });
 
 const SessionListInventory = Schema.Struct({
 	inventoryKind: Schema.Literal("session_list"),
 	count: Schema.Number,
 	sessions: Schema.Array(SessionRow),
-}).annotations({ identifier: "SessionListInventory" });
+}).annotate({ identifier: "SessionListInventory" });
 
 const TagProjectBreakdown = Schema.Struct({
 	project: Schema.String,
 	moduleCount: Schema.Number,
 	testCount: Schema.Number,
-}).annotations({ identifier: "TagProjectBreakdown" });
+}).annotate({ identifier: "TagProjectBreakdown" });
 
 const TagRowScoped = Schema.Struct({
 	tag: Schema.String,
 	moduleCount: Schema.Number,
 	testCount: Schema.Number,
-}).annotations({ identifier: "TagRowScoped" });
+}).annotate({ identifier: "TagRowScoped" });
 
 const TagRowUnscoped = Schema.Struct({
 	tag: Schema.String,
 	moduleCount: Schema.Number,
 	testCount: Schema.Number,
 	byProject: Schema.Array(TagProjectBreakdown),
-}).annotations({ identifier: "TagRowUnscoped" });
+}).annotate({ identifier: "TagRowUnscoped" });
 
 const TagInventoryScoped = Schema.Struct({
 	inventoryKind: Schema.Literal("tag_scoped"),
 	project: Schema.String,
 	count: Schema.Number,
 	tags: Schema.Array(TagRowScoped),
-}).annotations({ identifier: "TagInventoryScoped" });
+}).annotate({ identifier: "TagInventoryScoped" });
 
 const TagInventoryUnscoped = Schema.Struct({
 	inventoryKind: Schema.Literal("tag_unscoped"),
 	count: Schema.Number,
 	tags: Schema.Array(TagRowUnscoped),
-}).annotations({ identifier: "TagInventoryUnscoped" });
+}).annotate({ identifier: "TagInventoryUnscoped" });
 
-export const InventoryResult = Schema.Union(
+export const InventoryResult = Schema.Union([
 	ProjectInventory,
 	ModuleInventory,
 	SuiteInventory,
@@ -134,7 +134,7 @@ export const InventoryResult = Schema.Union(
 	SessionListInventory,
 	TagInventoryScoped,
 	TagInventoryUnscoped,
-).annotations({
+]).annotate({
 	identifier: "InventoryResult",
 	title: "inventory result",
 	description:
@@ -232,12 +232,12 @@ export const formatInventoryMarkdown = (data: InventoryResultType): string => {
 	return lines.join("\n");
 };
 
-export const InventoryAsMarkdown = Schema.transformOrFail(InventoryResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatInventoryMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "InventoryAsMarkdown is one-way.")),
-});
+export const InventoryAsMarkdown = InventoryResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatInventoryMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "InventoryAsMarkdown is one-way."),
+	}),
+);
 
 const ProjectVariant = Schema.Struct({ kind: Schema.Literal("project") });
 const ModuleVariant = Schema.Struct({
@@ -253,7 +253,7 @@ const SessionVariant = Schema.Struct({
 	kind: Schema.Literal("session"),
 	id: Schema.optional(Schema.Number),
 	project: Schema.optional(Schema.String),
-	agentKind: Schema.optional(Schema.Literal("main", "subagent")),
+	agentKind: Schema.optional(Schema.Literals(["main", "subagent"])),
 	limit: Schema.optional(Schema.Number),
 });
 const TagVariant = Schema.Struct({
@@ -261,10 +261,10 @@ const TagVariant = Schema.Struct({
 	project: Schema.optional(Schema.String),
 });
 
-const InventoryInput = Schema.Union(ProjectVariant, ModuleVariant, SuiteVariant, SessionVariant, TagVariant);
+const InventoryInput = Schema.Union([ProjectVariant, ModuleVariant, SuiteVariant, SessionVariant, TagVariant]);
 
 export const inventory = publicProcedure
-	.input(Schema.standardSchemaV1(InventoryInput))
+	.input(Schema.toStandardSchemaV1(InventoryInput))
 	.query(async ({ ctx, input }): Promise<InventoryResultType> => {
 		return ctx.runtime.runPromise(
 			Match.value(input).pipe(

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-12
-updated: 2026-07-06
-last-synced: 2026-07-06
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 90
 related:
   - ../architecture.md
@@ -184,6 +184,8 @@ Two converters in `packages/ui/src/synthesize.ts`:
 - `synthesizeRunEvents(modules, options?)` — accepts duck-typed `VitestTestModule[]`. Walks modules plus children, builds a `RunStarted → per-module → per-test → RunFinished` sequence. Bridge for any batch context that has the live module shape.
 - `synthesizeFromAgentReport(report, options?)` — accepts the persisted `AgentReport`. Only failed modules carry per-test detail; passed-only modules summarize via `summary.passed`. Used by `DefaultVitestAgentReporter.render` (in `@vitest-agent/reporter`) and the CLI helpers.
 
+**Suite-load failures synthesize a failing cell.** A module that failed to *collect / import* produces zero test cases, so `summary` alone would render it green. For such a module `synthesizeFromAgentReport` emits a `ModuleFinished` with `failCount: 1` plus a synthetic `TestStarted` / `TestFinished` pair labeled `SUITE_LOAD_FAILURE_LABEL` (`"test suite failed to load"`, exported from `synthesize.ts`) carrying the module's import error, and `RunFinished.failCount` includes suite failures. Because the reducer treats `RunFinished.failCount` as the authoritative run total, this routes the run to the some-fail render cell instead of the all-pass cell. This is the synthesizer-side half of the false-green fix; see Decision 45 in [../decisions.md](../decisions.md).
+
 ---
 
 ## Testing strategy
@@ -195,7 +197,7 @@ Four granularities:
 3. **Dispatcher cell snapshots** — agent-half snapshots in `__test__/dispatcher/cells.snapshot.test.ts` plus Ink-half snapshots in `__test__/dispatcher/cells.ink.snapshot.test.tsx`, with golden files under `__test__/snapshots/dispatcher/` covering the 12 cells across the relevant fixture event sequences.
 4. **Dispatcher and footer tests** — `__test__/dispatch.test.ts`, `__test__/footer.test.ts`. The default-reporter and live-renderer tests live in `packages/reporter/__test__/`.
 
-Canonical fixtures in `__test__/fixtures/events.ts` are shared across all four granularities; `__test__/fixtures/workspace.ts` carries the `ProjectSummary[]` fixtures the workspace cells need.
+Canonical fixtures in `__test__/utils/events.ts` are shared across all four granularities; `__test__/utils/workspace.ts` carries the `ProjectSummary[]` fixtures the workspace cells need. (These moved out of `__test__/fixtures/` because the `@savvy-web/bundler` 2.0.2 tsconfig excludes a `fixtures/` directory from typecheck; the self-contained fixture *projects* under `mcp/` and `plugin/` stay excluded via their own tsconfigs.)
 
 ---
 

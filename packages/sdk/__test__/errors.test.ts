@@ -90,6 +90,19 @@ describe("extractSqlReason", () => {
 		expect(extractSqlReason(err)).toBe("SQLITE_BUSY: database is locked");
 	});
 
+	it("walks past double-wrapped v4 driver errors to the deepest message", () => {
+		// The v4 node:sqlite driver nests two generic wrappers before the real
+		// SQLite text, which lands at cause.cause.message.
+		const err = {
+			message: "Failed to execute statement",
+			cause: {
+				message: "Failed to execute statement",
+				cause: { message: "UNIQUE constraint failed: test_history.full_name" },
+			},
+		};
+		expect(extractSqlReason(err)).toBe("UNIQUE constraint failed: test_history.full_name");
+	});
+
 	it("falls back to message when cause is missing", () => {
 		const err = { message: "Failed to execute statement" };
 		expect(extractSqlReason(err)).toBe("Failed to execute statement");

@@ -1,14 +1,14 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import migration0001 from "../src/migrations/0001_initial.js";
 
 const makeLayer = () => {
 	const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({ "0001_initial": migration0001 }),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
@@ -18,14 +18,28 @@ const makeLayer = () => {
 const run = <A, E>(effect: Effect.Effect<A, E, SqlClient>) => Effect.runPromise(Effect.provide(effect, makeLayer()));
 
 const causeMessage = (e: unknown): string => {
-	const wrapped = e as { cause?: { message?: string } | string; message?: string };
-	if (wrapped && typeof wrapped === "object") {
-		if (typeof wrapped.cause === "object" && wrapped.cause !== null && typeof wrapped.cause.message === "string") {
-			return wrapped.cause.message;
+	// v4's `@effect/sql-sqlite-node` wraps the underlying `node:sqlite` error
+	// twice ("Failed to execute statement" → SqlError → driver error), so the
+	// raw SQLite text ("CHECK constraint failed", RAISE messages, …) lives at
+	// the deepest `.cause`. Walk the whole chain and join every message.
+	const parts: string[] = [];
+	let cur: unknown = e;
+	let depth = 0;
+	while (cur != null && depth < 10) {
+		if (typeof cur === "string") {
+			parts.push(cur);
+			break;
 		}
-		if (typeof wrapped.cause === "string") return wrapped.cause;
+		if (typeof cur === "object") {
+			const node = cur as { message?: unknown; cause?: unknown };
+			if (typeof node.message === "string") parts.push(node.message);
+			cur = node.cause;
+		} else {
+			break;
+		}
+		depth++;
 	}
-	return String(e);
+	return parts.length > 0 ? parts.join(" | ") : String(e);
 };
 
 describe("0001_initial migration (consolidated)", () => {

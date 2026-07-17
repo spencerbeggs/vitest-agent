@@ -5,7 +5,7 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, Option, ParseResult, Schema } from "effect";
+import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const RecentError = Schema.Struct({
@@ -15,8 +15,8 @@ const RecentError = Schema.Struct({
 });
 
 const SignatureFound = Schema.Struct({
-	found: Schema.Literal(true).annotations({ description: "Discriminant — `true` when a signature row matched." }),
-	signatureHash: Schema.String.annotations({
+	found: Schema.Literal(true).annotate({ description: "Discriminant — `true` when a signature row matched." }),
+	signatureHash: Schema.String.annotate({
 		title: "failure_signatures.signature_hash",
 		description:
 			"16-char SHA-256 over (error_name, normalized assertion shape, top-frame function name, function-boundary line).",
@@ -24,7 +24,7 @@ const SignatureFound = Schema.Struct({
 	firstSeenRunId: Schema.NullOr(Schema.Number),
 	firstSeenAt: Schema.String,
 	lastSeenAt: Schema.NullOr(Schema.String),
-	occurrenceCount: Schema.Number.annotations({ description: "Total times this signature has been observed." }),
+	occurrenceCount: Schema.Number.annotate({ description: "Total times this signature has been observed." }),
 	recentErrors: Schema.Array(RecentError),
 });
 
@@ -33,7 +33,7 @@ const SignatureMissing = Schema.Struct({
 	requestedHash: Schema.String,
 });
 
-export const FailureSignatureGetResult = Schema.Union(SignatureFound, SignatureMissing).annotations({
+export const FailureSignatureGetResult = Schema.Union([SignatureFound, SignatureMissing]).annotate({
 	identifier: "FailureSignatureGetResult",
 	title: "failure_signature_get result",
 	description: "Discriminate on `found`. Found rows carry first/last-seen timestamps and recent occurrences.",
@@ -61,15 +61,15 @@ export const formatFailureSignatureMarkdown = (data: FailureSignatureGetResultTy
 	return lines.join("\n");
 };
 
-export const FailureSignatureGetAsMarkdown = Schema.transformOrFail(FailureSignatureGetResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatFailureSignatureMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "FailureSignatureGetAsMarkdown is one-way.")),
-});
+export const FailureSignatureGetAsMarkdown = FailureSignatureGetResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatFailureSignatureMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "FailureSignatureGetAsMarkdown is one-way."),
+	}),
+);
 
 export const failureSignatureGet = publicProcedure
-	.input(Schema.standardSchemaV1(Schema.Struct({ hash: Schema.String })))
+	.input(Schema.toStandardSchemaV1(Schema.Struct({ hash: Schema.String })))
 	.query(
 		async ({ ctx, input }): Promise<FailureSignatureGetResultType> =>
 			ctx.runtime.runPromise(

@@ -13,57 +13,60 @@ import { Effect, Match, Option, Schema } from "effect";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
 
-const GoalStatus = Schema.Literal("pending", "in_progress", "done", "abandoned");
+const GoalStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]);
 
 const TddErrorEnvelope = Schema.Struct({
-	ok: Schema.Literal(false).annotations({ description: "Discriminant — `false` when a tagged TDD error was caught." }),
-	error: Schema.Struct({
-		_tag: Schema.String.annotations({
-			description: "Tagged error name (e.g. GoalNotFoundError, TddTaskNotFoundError).",
+	ok: Schema.Literal(false).annotate({ description: "Discriminant — `false` when a tagged TDD error was caught." }),
+	error: Schema.StructWithRest(
+		Schema.Struct({
+			_tag: Schema.String.annotate({
+				description: "Tagged error name (e.g. GoalNotFoundError, TddTaskNotFoundError).",
+			}),
+			message: Schema.String,
+			remediation: Schema.optional(Schema.String).annotate({ description: "Suggested next action when known." }),
 		}),
-		message: Schema.String,
-		remediation: Schema.optional(Schema.String).annotations({ description: "Suggested next action when known." }),
-	}).pipe(Schema.extend(Schema.Record({ key: Schema.String, value: Schema.Unknown }))),
-}).annotations({ identifier: "TddErrorEnvelope" });
+		[Schema.Record(Schema.String, Schema.Unknown)],
+	),
+}).annotate({ identifier: "TddErrorEnvelope" });
 
 const TddGoalCreateOk = Schema.Struct({
 	ok: Schema.Literal(true),
 	action: Schema.Literal("create"),
-	goal: GoalRow.annotations({ description: "Newly inserted goal row." }),
-}).annotations({ identifier: "TddGoalCreateOk" });
+	goal: GoalRow.annotate({ description: "Newly inserted goal row." }),
+}).annotate({ identifier: "TddGoalCreateOk" });
 
 const TddGoalUpdateOk = Schema.Struct({
 	ok: Schema.Literal(true),
 	action: Schema.Literal("update"),
-	goal: GoalRow.annotations({ description: "Updated goal row." }),
-}).annotations({ identifier: "TddGoalUpdateOk" });
+	goal: GoalRow.annotate({ description: "Updated goal row." }),
+}).annotate({ identifier: "TddGoalUpdateOk" });
 
 const TddGoalDeleteOk = Schema.Struct({
 	ok: Schema.Literal(true),
 	action: Schema.Literal("delete"),
 	id: Schema.Number,
-}).annotations({ identifier: "TddGoalDeleteOk" });
+}).annotate({ identifier: "TddGoalDeleteOk" });
 
 const TddGoalGetFound = Schema.Struct({
 	action: Schema.Literal("get"),
 	found: Schema.Literal(true),
-	goal: GoalDetail.annotations({ description: "Goal with nested behaviors[]." }),
-}).annotations({ identifier: "TddGoalGetFound" });
+	goal: GoalDetail.annotate({ description: "Goal with nested behaviors[]." }),
+}).annotate({ identifier: "TddGoalGetFound" });
 
 const TddGoalGetMissing = Schema.Struct({
 	action: Schema.Literal("get"),
 	found: Schema.Literal(false),
 	id: Schema.Number,
-}).annotations({ identifier: "TddGoalGetMissing" });
+}).annotate({ identifier: "TddGoalGetMissing" });
 
 const TddGoalListOk = Schema.Struct({
 	ok: Schema.Literal(true),
 	action: Schema.Literal("list"),
 	tddTaskId: Schema.Number,
-	goals: Schema.Array(GoalDetail).annotations({ description: "All goals for the TDD task, with their behaviors." }),
-}).annotations({ identifier: "TddGoalListOk" });
+	goals: Schema.Array(GoalDetail).annotate({ description: "All goals for the TDD task, with their behaviors." }),
+}).annotate({ identifier: "TddGoalListOk" });
 
-export const TddGoalResult = Schema.Union(
+export const TddGoalResult = Schema.Union([
 	TddGoalCreateOk,
 	TddGoalUpdateOk,
 	TddGoalDeleteOk,
@@ -71,7 +74,7 @@ export const TddGoalResult = Schema.Union(
 	TddGoalGetMissing,
 	TddGoalListOk,
 	TddErrorEnvelope,
-).annotations({
+]).annotate({
 	identifier: "TddGoalResult",
 	title: "tdd_goal result",
 	description:
@@ -106,10 +109,10 @@ const ListVariant = Schema.Struct({
 	tddTaskId: Schema.Number,
 });
 
-const TddGoalInput = Schema.Union(CreateVariant, UpdateVariant, DeleteVariant, GetVariant, ListVariant);
+const TddGoalInput = Schema.Union([CreateVariant, UpdateVariant, DeleteVariant, GetVariant, ListVariant]);
 
 export const tddGoal = idempotentProcedure
-	.input(Schema.standardSchemaV1(TddGoalInput))
+	.input(Schema.toStandardSchemaV1(TddGoalInput))
 	.mutation(async ({ ctx, input }) => {
 		return ctx.runtime.runPromise(
 			Match.value(input).pipe(

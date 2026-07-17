@@ -11,10 +11,10 @@ import { MetricThresholds } from "./Thresholds.js";
 export const TestRecord = Schema.Struct({
 	testName: Schema.String,
 	suitePath: Schema.Array(Schema.String),
-	status: Schema.Union(TestState, Schema.Literal("running", "timed-out")),
+	status: Schema.Union([TestState, Schema.Literals(["running", "timed-out"])]),
 	durationMs: Schema.NullOr(Schema.Number),
 	error: Schema.optional(ReportError),
-}).annotations({ identifier: "TestRecord" });
+}).annotate({ identifier: "TestRecord" });
 /** @public */
 export type TestRecord = typeof TestRecord.Type;
 
@@ -25,7 +25,7 @@ export type TestRecord = typeof TestRecord.Type;
  */
 export const ModuleRecord = Schema.Struct({
 	modulePath: Schema.String,
-	status: Schema.Literal("queued", "running", "finished"),
+	status: Schema.Literals(["queued", "running", "finished"]),
 	passCount: Schema.Number,
 	failCount: Schema.Number,
 	skipCount: Schema.Number,
@@ -45,8 +45,8 @@ export const ModuleRecord = Schema.Struct({
 	 * module seeded by `ModuleQueued` (or replayed) has no start stamp.
 	 */
 	startedAt: Schema.optional(Schema.String),
-	tagCounts: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.Number })),
-}).annotations({ identifier: "ModuleRecord" });
+	tagCounts: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
+}).annotate({ identifier: "ModuleRecord" });
 /** @public */
 export type ModuleRecord = typeof ModuleRecord.Type;
 
@@ -63,7 +63,7 @@ export const FailureRecord = Schema.Struct({
 	error: Schema.optional(ReportError),
 	timedOut: Schema.optional(Schema.Boolean),
 	classification: Schema.NullOr(TestClassification),
-}).annotations({ identifier: "FailureRecord" });
+}).annotate({ identifier: "FailureRecord" });
 /** @public */
 export type FailureRecord = typeof FailureRecord.Type;
 
@@ -83,7 +83,7 @@ export const CoverageRenderState = Schema.Struct({
 			actual: Schema.Number,
 		}),
 	),
-}).annotations({ identifier: "CoverageRenderState" });
+}).annotate({ identifier: "CoverageRenderState" });
 /** @public */
 export type CoverageRenderState = typeof CoverageRenderState.Type;
 
@@ -96,7 +96,7 @@ export const SuggestedActionRecord = Schema.Struct({
 	title: Schema.String,
 	detail: Schema.String,
 	targetTool: Schema.optional(Schema.String),
-}).annotations({ identifier: "SuggestedActionRecord" });
+}).annotate({ identifier: "SuggestedActionRecord" });
 /** @public */
 export type SuggestedActionRecord = typeof SuggestedActionRecord.Type;
 
@@ -111,7 +111,7 @@ export const RenderTotals = Schema.Struct({
 	skipCount: Schema.Number,
 	timeoutCount: Schema.Number,
 	durationMs: Schema.Number,
-}).annotations({ identifier: "RenderTotals" });
+}).annotate({ identifier: "RenderTotals" });
 /** @public */
 export type RenderTotals = typeof RenderTotals.Type;
 
@@ -127,24 +127,24 @@ export type RenderTotals = typeof RenderTotals.Type;
  * @public
  */
 export const RenderState = Schema.Struct({
-	phase: Schema.Literal("idle", "running", "finished", "timed-out"),
+	phase: Schema.Literals(["idle", "running", "finished", "timed-out"]),
 	runId: Schema.NullOr(Schema.String),
 	configHash: Schema.NullOr(Schema.String),
 	startedAt: Schema.NullOr(Schema.String),
 	finishedAt: Schema.NullOr(Schema.String),
-	modules: Schema.Record({ key: Schema.String, value: ModuleRecord }),
+	modules: Schema.Record(Schema.String, ModuleRecord),
 	moduleOrder: Schema.Array(Schema.String),
 	totals: RenderTotals,
 	coverage: Schema.NullOr(CoverageRenderState),
 	trend: Schema.NullOr(
 		Schema.Struct({
-			direction: Schema.Literal("improving", "regressing", "stable"),
+			direction: Schema.Literals(["improving", "regressing", "stable"]),
 			runCount: Schema.Number,
 		}),
 	),
 	failures: Schema.Array(FailureRecord),
 	suggestedActions: Schema.Array(SuggestedActionRecord),
-}).annotations({ identifier: "RenderState" });
+}).annotate({ identifier: "RenderState" });
 /** @public */
 export type RenderState = typeof RenderState.Type;
 
