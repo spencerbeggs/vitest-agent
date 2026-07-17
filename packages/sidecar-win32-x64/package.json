@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/sidecar-win32-x64",
-	"version": "1.0.2",
+	"version": "2.0.0",
 	"private": true,
 	"description": "win32-x64 prebuilt binary for vitest-agent-sidecar.",
 	"repository": {
