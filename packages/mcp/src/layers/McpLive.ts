@@ -1,5 +1,4 @@
-import { NodeFileSystem } from "@effect/platform-node";
-import * as NodeContext from "@effect/platform-node/NodeContext";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import {
@@ -17,7 +16,7 @@ import { Layer } from "effect";
  * Builds the Effect Layer that provides all services required by the MCP server.
  *
  * Composes DataReader, DataStore, ProjectDiscovery, OutputPipeline, SQLite
- * client, migrator, NodeContext, NodeFileSystem, and the logger into a single
+ * client, migrator, NodeServices, and the logger into a single
  * layer suitable for `ManagedRuntime.make`.
  *
  * @param dbPath - absolute path to the SQLite database file
@@ -28,7 +27,10 @@ import { Layer } from "effect";
  */
 export const McpLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
 	const SqliteLayer = sqliteClientLayer({ filename: dbPath });
-	const PlatformLayer = NodeContext.layer;
+	// `NodeServices.layer` aggregates FileSystem | Path | ChildProcessSpawner |
+	// Crypto | Stdio | Terminal — it subsumes the v3 NodeContext + the separate
+	// NodeFileSystem layer.
+	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
@@ -39,7 +41,6 @@ export const McpLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: 
 		Layer.provideMerge(MigratorLayer),
 		Layer.provideMerge(SqliteLayer),
 		Layer.provideMerge(PlatformLayer),
-		Layer.provideMerge(NodeFileSystem.layer),
 		Layer.provideMerge(LoggerLive(logLevel, logFile)),
 	);
 };

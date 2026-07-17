@@ -6,8 +6,8 @@ import { Schema } from "effect";
  */
 export const TestRun = Schema.Struct({
 	timestamp: Schema.String,
-	state: Schema.Literal("passed", "failed"),
-}).annotations({ identifier: "TestRun" });
+	state: Schema.Literals(["passed", "failed"]),
+}).annotate({ identifier: "TestRun" });
 /** @public */
 export type TestRun = typeof TestRun.Type;
 
@@ -19,7 +19,7 @@ export const TestHistory = Schema.Struct({
 	modulePath: Schema.String,
 	fullName: Schema.String,
 	runs: Schema.Array(TestRun),
-}).annotations({ identifier: "TestHistory" });
+}).annotate({ identifier: "TestHistory" });
 /** @public */
 export type TestHistory = typeof TestHistory.Type;
 
@@ -31,6 +31,6 @@ export const HistoryRecord = Schema.Struct({
 	project: Schema.String,
 	updatedAt: Schema.String,
 	tests: Schema.Array(TestHistory),
-}).annotations({ identifier: "HistoryRecord" });
+}).annotate({ identifier: "HistoryRecord" });
 /** @public */
 export type HistoryRecord = typeof HistoryRecord.Type;

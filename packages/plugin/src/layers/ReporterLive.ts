@@ -1,4 +1,4 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import {
@@ -19,7 +19,7 @@ import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";
  */
 export const ReporterLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
 	const SqliteLayer = sqliteClientLayer({ filename: dbPath });
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,

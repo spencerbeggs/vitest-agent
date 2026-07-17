@@ -30,7 +30,7 @@ export interface KnownProject {
 	readonly lastSeenAt: number;
 }
 /** @public */
-export class DiscoveryRegistry extends Context.Tag("vitest-agent/DiscoveryRegistry")<
+export class DiscoveryRegistry extends Context.Service<
 	DiscoveryRegistry,
 	{
 		/**
@@ -51,4 +51,4 @@ export class DiscoveryRegistry extends Context.Tag("vitest-agent/DiscoveryRegist
 		 */
 		readonly prune: (maxAgeDays: number) => Effect.Effect<number, DataStoreError>;
 	}
->() {}
+>()("vitest-agent/DiscoveryRegistry") {}

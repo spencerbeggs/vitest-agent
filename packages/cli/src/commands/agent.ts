@@ -24,12 +24,12 @@
  */
 
 import { join } from "node:path";
-import { Command, Options } from "@effect/cli";
-import { NodeContext } from "@effect/platform-node";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { resolveProjectKeyFromCwd } from "@vitest-agent/sdk";
 import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
-import { Cause, Chunk, Effect, Option } from "effect";
+import { Cause, Effect, Option } from "effect";
+import { Command, Flag } from "effect/unstable/cli";
 import { SidecarLive } from "../layers/SidecarLive.js";
 import { endAgentEffect } from "../lib/internal-end-agent.js";
 import { registerAgentEffect } from "../lib/internal-register-agent.js";
@@ -56,38 +56,39 @@ const writeStderrAndExit = (exitCode: number, tag: string, message: string): Eff
 	}) as Effect.Effect<never>;
 
 const mapDefectToExit = (cause: Cause.Cause<unknown>): Effect.Effect<never> => {
-	const failures = Chunk.toReadonlyArray(Cause.failures(cause));
+	const failures = cause.reasons.filter(Cause.isFailReason);
 	if (failures.length > 0) {
-		const tagged = failures[0] as { _tag?: string; reason?: string; message?: string };
+		const error = failures[0].error;
+		const tagged = error as { _tag?: string; reason?: string; message?: string };
 		const tag = tagged._tag ?? "UnknownError";
-		const message = tagged.reason ?? tagged.message ?? String(failures[0]);
+		const message = tagged.reason ?? tagged.message ?? String(error);
 		const exitCode = exitCodeForTag(tag);
 		return writeStderrAndExit(exitCode, tag, message);
 	}
-	const defects = Chunk.toReadonlyArray(Cause.defects(cause));
-	const defect = defects[0];
+	const defects = cause.reasons.filter(Cause.isDieReason);
+	const defect = defects[0]?.defect;
 	const message = defect instanceof Error ? defect.message : String(defect ?? "unknown defect");
 	return writeStderrAndExit(5, "Defect", message);
 };
 
 // register-agent --------------------------------------------------------------
 
-const hostKindOpt = Options.text("host-kind").pipe(
-	Options.withDescription("Host vendor identifier; e.g. 'claude-code', 'cursor', 'goose'"),
+const hostKindOpt = Flag.string("host-kind").pipe(
+	Flag.withDescription("Host vendor identifier; e.g. 'claude-code', 'cursor', 'goose'"),
 );
-const agentTypeOpt = Options.text("agent-type").pipe(
-	Options.withDescription("Agent type, must begin with the host-kind prefix"),
+const agentTypeOpt = Flag.string("agent-type").pipe(
+	Flag.withDescription("Agent type, must begin with the host-kind prefix"),
 );
-const hostSessionIdOpt = Options.text("host-session-id").pipe(
-	Options.withDescription("Host's native session id (host chat UUID; `session_id` in the CC hook payload)"),
+const hostSessionIdOpt = Flag.string("host-session-id").pipe(
+	Flag.withDescription("Host's native session id (host chat UUID; `session_id` in the CC hook payload)"),
 );
-const transcriptPathOpt = Options.text("transcript-path").pipe(
-	Options.withDescription("Path to the host's transcript file (basename UUID is the conversation key)"),
+const transcriptPathOpt = Flag.string("transcript-path").pipe(
+	Flag.withDescription("Path to the host's transcript file (basename UUID is the conversation key)"),
 );
-const cwdOpt = Options.text("cwd").pipe(Options.withDescription("Workspace root directory the agent is running in"));
-const parentAgentIdOpt = Options.optional(Options.text("parent-agent-id"));
-const clientNonceOpt = Options.optional(Options.text("client-nonce"));
-const projectKeyOverrideOpt = Options.optional(Options.text("project-key"));
+const cwdOpt = Flag.string("cwd").pipe(Flag.withDescription("Workspace root directory the agent is running in"));
+const parentAgentIdOpt = Flag.optional(Flag.string("parent-agent-id"));
+const clientNonceOpt = Flag.optional(Flag.string("client-nonce"));
+const projectKeyOverrideOpt = Flag.optional(Flag.string("project-key"));
 
 export const registerAgentSubcommand = Command.make(
 	"register-agent",
@@ -109,7 +110,7 @@ export const registerAgentSubcommand = Command.make(
 
 			const perProjectDbPath = join(resolveProjectDataDir(projectKey), DATA_DB_FILENAME);
 			const registryDbPath = join(resolveRegistryDir(), REGISTRY_DB_FILENAME);
-			const sessionMapDbPath = yield* resolveSessionMapPath().pipe(Effect.catchAllCause(mapDefectToExit));
+			const sessionMapDbPath = yield* resolveSessionMapPath().pipe(Effect.catchCause(mapDefectToExit));
 
 			const sidecar = SidecarLive({
 				perProjectDbPath,
@@ -128,7 +129,7 @@ export const registerAgentSubcommand = Command.make(
 				...(Option.isSome(opts.clientNonce) && { clientNonce: opts.clientNonce.value }),
 			});
 
-			const result = yield* program.pipe(Effect.provide(sidecar), Effect.catchAllCause(mapDefectToExit));
+			const result = yield* program.pipe(Effect.provide(sidecar), Effect.catchCause(mapDefectToExit));
 
 			yield* writeStdout(
 				JSON.stringify({
@@ -139,21 +140,21 @@ export const registerAgentSubcommand = Command.make(
 					idempotencyHit: result.idempotencyHit,
 				}),
 			);
-		}).pipe(Effect.provide(NodeContext.layer)),
+		}).pipe(Effect.provide(NodeServices.layer)),
 ).pipe(Command.withDescription("Register an agent invocation in the per-project store and the per-client session map"));
 
 // end-agent ------------------------------------------------------------------
 
-const agentIdOpt = Options.text("agent-id").pipe(
-	Options.withDescription("The agent_id (UUID) returned by an earlier register-agent call"),
+const agentIdOpt = Flag.string("agent-id").pipe(
+	Flag.withDescription("The agent_id (UUID) returned by an earlier register-agent call"),
 );
-const endedAtOpt = Options.optional(Options.integer("ended-at"));
-const endHostSessionIdOpt = Options.optional(Options.text("host-session-id"));
-const endCwdOpt = Options.text("cwd").pipe(
-	Options.withDefault(process.cwd()),
-	Options.withDescription("Workspace root, used to locate the per-project data.db"),
+const endedAtOpt = Flag.optional(Flag.integer("ended-at"));
+const endHostSessionIdOpt = Flag.optional(Flag.string("host-session-id"));
+const endCwdOpt = Flag.string("cwd").pipe(
+	Flag.withDefault(process.cwd()),
+	Flag.withDescription("Workspace root, used to locate the per-project data.db"),
 );
-const endProjectKeyOverrideOpt = Options.optional(Options.text("project-key"));
+const endProjectKeyOverrideOpt = Flag.optional(Flag.string("project-key"));
 
 export const endAgentSubcommand = Command.make(
 	"end-agent",
@@ -172,7 +173,7 @@ export const endAgentSubcommand = Command.make(
 
 			const perProjectDbPath = join(resolveProjectDataDir(projectKey), DATA_DB_FILENAME);
 			const registryDbPath = join(resolveRegistryDir(), REGISTRY_DB_FILENAME);
-			const sessionMapDbPath = yield* resolveSessionMapPath().pipe(Effect.catchAllCause(mapDefectToExit));
+			const sessionMapDbPath = yield* resolveSessionMapPath().pipe(Effect.catchCause(mapDefectToExit));
 
 			const sidecar = SidecarLive({
 				perProjectDbPath,
@@ -186,18 +187,18 @@ export const endAgentSubcommand = Command.make(
 				agentId: opts.agentId,
 				endedAt,
 				...(Option.isSome(opts.hostSessionId) && { hostSessionId: opts.hostSessionId.value }),
-			}).pipe(Effect.provide(sidecar), Effect.catchAllCause(mapDefectToExit));
-		}).pipe(Effect.provide(NodeContext.layer)),
+			}).pipe(Effect.provide(sidecar), Effect.catchCause(mapDefectToExit));
+		}).pipe(Effect.provide(NodeServices.layer)),
 ).pipe(Command.withDescription("Mark an agent (and optionally its session) as ended"));
 
 // inject-env -----------------------------------------------------------------
 
-const commandOpt = Options.text("command").pipe(
-	Options.withDescription("The Bash command to (possibly) rewrite with VITEST_AGENT_* env-prefix"),
+const commandOpt = Flag.string("command").pipe(
+	Flag.withDescription("The Bash command to (possibly) rewrite with VITEST_AGENT_* env-prefix"),
 );
-const cwdInjectOpt = Options.text("cwd").pipe(
-	Options.withDefault(process.cwd()),
-	Options.withDescription("Working directory; used to find package.json scripts"),
+const cwdInjectOpt = Flag.string("cwd").pipe(
+	Flag.withDefault(process.cwd()),
+	Flag.withDescription("Working directory; used to find package.json scripts"),
 );
 
 export const injectEnvSubcommand = Command.make("inject-env", { command: commandOpt, cwd: cwdInjectOpt }, (opts) =>

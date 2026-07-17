@@ -18,7 +18,7 @@ The seven publishable packages live under `packages/`. `@vitest-agent/sdk` has n
 | `@vitest-agent/mcp` | [packages/mcp](./packages/mcp/) | `vitest-agent-mcp` MCP server bin |
 | `@vitest-agent/sidecar` | [packages/sidecar](./packages/sidecar/) | Node Single Executable Application for the per-Bash-call `inject-env` hot path; ships prebuilt per-platform binaries |
 
-The sidecar's per-platform binaries ship as `optionalDependencies` from four sub-packages — `@vitest-agent/sidecar-darwin-arm64`, `-linux-arm64`, `-linux-x64` and `-win32-x64` under `packages/sidecar-*/`. The six original packages release in lockstep; `@vitest-agent/sidecar` versions independently.
+The sidecar's per-platform binaries ship as `optionalDependencies` from four sub-packages — `@vitest-agent/sidecar-darwin-arm64`, `-linux-arm64`, `-linux-x64` and `-win32-x64` under `packages/sidecar-*/`. Every `@vitest-agent/*` package versions independently — there is no lockstep release train.
 
 `@vitest-agent/plugin` ships `@vitest-agent/cli` and `@vitest-agent/mcp` as exact-pinned regular dependencies, so a single `npm install @vitest-agent/plugin` pulls the whole family on any package manager.
 

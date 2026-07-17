@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-01
-last-synced: 2026-07-01
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 96
 related:
   - ../architecture.md
@@ -36,17 +36,26 @@ dispatch core), `./testing` (in-process SQLite test infrastructure)
 
 **Key external dependencies:**
 
-- `xdg-effect` — `AppDirs` namespace, `XdgLive` layer
-- `config-file-effect` — TOML config file resolution with `FirstMatch`
-  strategy across `WorkspaceRoot`/`GitRoot`/`UpwardWalk` resolvers
-- `workspaces-effect` — `WorkspaceDiscovery`, `WorkspaceRoot`,
-  `WorkspaceRootNotFoundError`
+- `@effected/xdg` — `AppDirs` namespace (`AppDirs.layer({ namespace })`) over
+  `Xdg.layer`. The v3-era `AppDirsConfig` class is gone; the namespace and any
+  dir overrides pass through `AppDirs.layer` options.
+- `@effected/config-file` — TOML config file resolution:
+  `ConfigFile.Service<Self, A>()(id)` + `ConfigFile.layer(...)` with a
+  `MergeStrategy.firstMatch()` strategy across
+  `ConfigResolver.workspaceRoot` / `gitRoot` / `upwardWalk` resolvers and the
+  `TomlCodec` (pulls the `@effected/toml` codec peer)
+- `@effected/workspaces` — `WorkspaceDiscovery`, `WorkspaceRoot`,
+  `WorkspaceRootNotFoundError`; plus the bare sync consts
+  `findWorkspaceRootSync` / `getWorkspacePackagesSync` (with `nodeSyncOps`
+  from `@effected/workspaces/node-sync`) used by the plugin's config-load path
 - `acorn` + `acorn-typescript` — AST parser used by `findFunctionBoundary`
   to identify the smallest enclosing function for a given source line.
   TypeScript plugin lets us parse `.ts` sources with type annotations,
   generics, decorators, and `as` casts without throwing
-- `effect`, `@effect/platform`, `@effect/platform-node`, `@effect/sql`,
-  `@effect/sql-sqlite-node`, `std-env`
+- `effect` (v4, `catalog:effect`; the core barrel now carries `FileSystem` /
+  `Path` / `PlatformError` and the SQL surface at `effect/unstable/sql`),
+  `@effect/platform-node` (`NodeServices`), `@effect/sql-sqlite-node` (v4
+  driver on Node's built-in `node:sqlite`), `std-env`
 
 For decisions referenced throughout: see [../decisions.md](../decisions.md).
 
@@ -54,8 +63,9 @@ For decisions referenced throughout: see [../decisions.md](../decisions.md).
 
 ## Effect services
 
-`packages/sdk/src/services/`. Each service is an `Context.Tag` with a typed
-interface. Live implementations use `@effect/platform` and
+`packages/sdk/src/services/`. Each service is a `Context.Service` (the v4
+rename of `Context.Tag`) with a typed interface. Live implementations use the
+core `effect` `FileSystem` (absorbed from `@effect/platform` on v4) and
 `@effect/sql-sqlite-node` for I/O; test implementations use mock state
 containers.
 
@@ -81,8 +91,9 @@ The shared package owns the services every runtime needs:
   has no SQLite dependency.
 - **HistoryTracker** — classifies test outcomes against stored history (see
   *Failure history & classification* below).
-- **VitestAgentReporterConfigFile** — typed `Context.Tag` for the loaded
-  TOML config; live layer is `ConfigLive(projectDir)`.
+- **VitestAgentReporterConfigFile** — typed `Context.Service` for the loaded
+  TOML config, a `@effected/config-file` `ConfigFile.Service`; live layer is
+  `ConfigLive(projectDir)`.
 
 `CoverageAnalyzer` is the one service that lives outside this package — it
 stays with the plugin because only the lifecycle class consumes istanbul
@@ -193,9 +204,14 @@ Test layers exist for `DataStore`, `EnvironmentDetector`,
 - `DataStoreError` — `{ operation, table, reason }`. Constructor sets a
   derived message via `Object.defineProperty` so `Cause.pretty()` surfaces
   the operation/table/reason instead of the default "An error has
-  occurred". Also exports `extractSqlReason(e)` which pulls
-  `SqlError.cause.message` (the actual SQLite text like `SQLITE_BUSY: ...`)
-  instead of the generic `"Failed to execute statement"` wrapper.
+  occurred". Also exports `extractSqlReason(e)` which pulls the actual
+  SQLite text (like `SQLITE_BUSY: ...`) instead of the generic
+  `"Failed to execute statement"` wrapper. On Effect v4 the
+  `@effect/sql-sqlite-node` driver runs on Node's built-in `node:sqlite` and
+  **double-wraps** the driver error — the real message sits at
+  `cause.cause.message`, not on the top-level `SqlError` — so
+  `extractSqlReason` walks the full `cause` chain (with cycle guards) to the
+  deepest useful message rather than reading a single `.cause`.
   `DataStoreLive` and `DataReaderLive` route every `Effect.mapError` site
   through this so the underlying SQLite text reaches the user.
 - `DiscoveryError` — same derived-message pattern, scoped to
@@ -219,7 +235,8 @@ Test layers exist for `DataStore`, `EnvironmentDetector`,
 
 `packages/sdk/src/schemas/`. Single source of truth for all data
 structures. Defines Effect Schema definitions with `typeof Schema.Type` for
-TypeScript types and `Schema.decodeUnknown`/`Schema.encodeUnknown` for JSON
+TypeScript types and `Schema.decodeUnknownEffect`/`Schema.encodeUnknownEffect`
+for JSON
 encode/decode.
 
 | File | Contents |
@@ -437,8 +454,8 @@ Precedence (highest first):
 
 1. Programmatic `options.cacheDir`. Used by the reporter's `ensureDbPath`
    short-circuit when `reporter.cacheDir` is set — skips the heavy
-   XDG/workspace layer stack entirely (since `WorkspacesLive` eagerly scans
-   lockfiles and walks the package graph at layer construction).
+   XDG/workspace layer stack entirely (since the `WorkspaceDiscovery` layer
+   eagerly scans lockfiles and walks the package graph at layer construction).
 2. `cacheDir` from `vitest-agent.config.toml`.
 3. `projectKey` from the same TOML, used as the workspace-key segment under
    the XDG data root.
@@ -447,9 +464,11 @@ Precedence (highest first):
 5. Fail with `WorkspaceRootNotFoundError`. **No silent fallback to a path
    hash.**
 
-The XDG data root is `AppDirs.ensureData` from `xdg-effect` with
-`namespace: "vitest-agent"`. `ensureData` creates the directory if missing
-so better-sqlite3 can open without a separate `mkdir`.
+The XDG data root is `AppDirs.ensureData` from `@effected/xdg` with
+`namespace: "vitest-agent"` (`AppDirs.layer({ namespace: APP_NAMESPACE })`
+over `Xdg.layer`, bound to a `const` so the layer memoizes by reference).
+`ensureData` creates the directory if missing so the SQLite driver can open
+without a separate `mkdir`.
 
 `normalizeWorkspaceKey` (`packages/sdk/src/utils/normalize-workspace-key.ts`)
 is the path-segment normalizer: replaces `/` with `__` so `@org/pkg`
@@ -457,9 +476,11 @@ collapses to `@org__pkg`, replaces any character outside
 `[A-Za-z0-9._@-]` with `_`, and collapses runs of underscores produced by
 the second step.
 
-`PathResolutionLive(projectDir)` composes `XdgLive`, `ConfigLive`, and
-`WorkspacesLive` in one shot. Callers still need to provide `FileSystem`
-and `Path` (typically via `NodeContext.layer`).
+`PathResolutionLive(projectDir)` composes the `AppDirs`/`Xdg` layer,
+`ConfigLive(projectDir)`, and the `WorkspaceDiscovery`/`WorkspaceRoot`
+layers (anchored at `projectDir`) in one shot. Callers still need to provide
+`FileSystem` and `Path` (typically via `@effect/platform-node`'s
+`NodeServices.layer`).
 
 ## TOML config file
 
@@ -469,8 +490,12 @@ without code changes. Both fields (`cacheDir`, `projectKey`) are optional.
 `projectKey` is the override for the "two unrelated `my-app`s" collision
 case, or when a stable key independent of `name` changes is needed.
 
-`ConfigLive(projectDir)` chains `WorkspaceRoot → GitRoot → UpwardWalk`
-resolvers. When no file is present, downstream callers use
+`ConfigLive(projectDir)` builds a `@effected/config-file`
+`ConfigFile.layer(...)` over the `VitestAgentConfigFile`
+`ConfigFile.Service` with the `TomlCodec` and a
+`MergeStrategy.firstMatch()` chain of
+`ConfigResolver.workspaceRoot → gitRoot → upwardWalk` resolvers. When no
+file is present, downstream callers use
 `config.loadOrDefault(new VitestAgentConfig({}))` to get an empty config —
 never an error.
 
@@ -497,7 +522,7 @@ two connections both starting deferred transactions and then upgrading to
 write produced `SQLITE_BUSY` — SQLite's busy handler is not invoked for
 write-write upgrade conflicts in deferred transactions. With migration
 serialized through this coordinator, subsequent concurrent writes work
-normally under WAL mode plus better-sqlite3's busy timeout. See D28.
+normally under WAL mode plus the SQLite driver's busy timeout. See D28.
 
 **Why it lives on `globalThis`.** The cache (`Map<dbPath, Promise<void>>`)
 is keyed by `Symbol.for("vitest-agent/migration-promises")`. Vite's
@@ -561,7 +586,7 @@ Effect runtime. Two layers:
 - **`makeTestLayer(filename)`** — builds a fully-migrated SQLite layer from
   a path or `:memory:`. Composes `DataStoreLive`, `DataReaderLive`,
   `SqliteMigrator` (running both migrations), `SqliteClient`, and
-  `NodeContext`. Tests pass this as the `provide` argument to `Effect.runPromise`
+  `NodeServices`. Tests pass this as the `provide` argument to `Effect.runPromise`
   or as the layer in `it.effect`.
 - **`DataStoreTestLayer`** — `makeTestLayer(":memory:")`. The shared in-memory
   convenience for tests that don't need a persistent file.

@@ -34,24 +34,14 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/cli": "catalog:silk",
-		"@effect/cluster": "catalog:silk",
-		"@effect/experimental": "catalog:silk",
-		"@effect/platform": "catalog:silk",
-		"@effect/platform-node": "catalog:silk",
-		"@effect/printer": "catalog:silk",
-		"@effect/printer-ansi": "catalog:silk",
-		"@effect/rpc": "catalog:silk",
-		"@effect/sql": "catalog:silk",
-		"@effect/sql-sqlite-node": "catalog:silk",
-		"@effect/typeclass": "catalog:silk",
-		"@effect/workflow": "catalog:silk",
+		"@effect/platform-node": "catalog:effect",
+		"@effect/sql-sqlite-node": "catalog:effect",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/sidecar": "workspace:*",
-		"effect": "catalog:silk"
+		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^1.1.14",
+		"@savvy-web/bundler": "^2.0.3",
 		"@types/node": "catalog:silk",
 		"typescript": "catalog:silk",
 		"vitest": "catalog:silk"

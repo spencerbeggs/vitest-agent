@@ -3,37 +3,37 @@
  *
  * Hook scripts in plugin/hooks/ shell out to these subcommands. The
  * record-turn and record-session libs (in ../lib) implement the actual
- * write effects; commands here are thin \@effect/cli wrappers.
+ * write effects; commands here are thin `effect/unstable/cli` wrappers.
  *
  * @packageDocumentation
  */
 
-import { Args, Command, Options } from "@effect/cli";
 import type { ArtifactKind, ChangeKind, RunInvocationMethod } from "@vitest-agent/sdk";
 import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
+import { Argument, Command, Flag } from "effect/unstable/cli";
 import { recordSessionEnd, recordSessionStart } from "../lib/record-session.js";
 import { recordTddArtifactEffect } from "../lib/record-tdd-artifact.js";
 import { recordTurnEffect } from "../lib/record-turn.js";
 import { recordRunWorkspaceChangesEffect } from "../lib/record-workspace-changes.js";
 
-const chatId = Options.text("chat-id").pipe(
-	Options.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
+const chatId = Flag.string("chat-id").pipe(
+	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
 );
 
-const occurredAt = Options.text("occurred-at").pipe(
-	Options.withDefault(new Date().toISOString()),
-	Options.withDescription("ISO 8601 timestamp; defaults to now"),
+const occurredAt = Flag.string("occurred-at").pipe(
+	Flag.withDefault(new Date().toISOString()),
+	Flag.withDescription("ISO 8601 timestamp; defaults to now"),
 );
 
-const payloadArg = Args.text({ name: "payload-json" }).pipe(
-	Args.withDescription("Stringified JSON payload (validated against TurnPayload)"),
+const payloadArg = Argument.string("payload-json").pipe(
+	Argument.withDescription("Stringified JSON payload (validated against TurnPayload)"),
 );
 
-const project = Options.text("project");
-const cwd = Options.text("cwd");
-const projectOptional = Options.optional(Options.text("project"));
-const cwdOptional = Options.optional(Options.text("cwd"));
+const project = Flag.string("project");
+const cwd = Flag.string("cwd");
+const projectOptional = Flag.optional(Flag.string("project"));
+const cwdOptional = Flag.optional(Flag.string("cwd"));
 
 const turnSubcommand = Command.make(
 	"turn",
@@ -47,7 +47,7 @@ const turnSubcommand = Command.make(
 			...(cwd._tag === "Some" && { cwd: cwd.value }),
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-			Effect.catchAll((err) =>
+			Effect.catch((err) =>
 				Effect.sync(() => {
 					process.stderr.write(`record turn: ${err instanceof Error ? err.message : String(err)}\n`);
 					process.exit(1);
@@ -55,11 +55,11 @@ const turnSubcommand = Command.make(
 			),
 		),
 ).pipe(Command.withDescription("Validate a TurnPayload JSON and write a turn row"));
-const agentKind = Options.choice("agent-kind", ["main", "subagent"]).pipe(Options.withDefault("main"));
-const agentType = Options.optional(Options.text("agent-type"));
-const parentChatId = Options.optional(Options.text("parent-chat-id"));
-const triageWasNonEmpty = Options.boolean("triage-was-non-empty").pipe(Options.withDefault(false));
-const startedAt = Options.text("started-at").pipe(Options.withDefault(new Date().toISOString()));
+const agentKind = Flag.choice("agent-kind", ["main", "subagent"]).pipe(Flag.withDefault("main"));
+const agentType = Flag.optional(Flag.string("agent-type"));
+const parentChatId = Flag.optional(Flag.string("parent-chat-id"));
+const triageWasNonEmpty = Flag.boolean("triage-was-non-empty").pipe(Flag.withDefault(false));
+const startedAt = Flag.string("started-at").pipe(Flag.withDefault(new Date().toISOString()));
 
 const sessionStartSubcommand = Command.make(
 	"session-start",
@@ -87,7 +87,7 @@ const sessionStartSubcommand = Command.make(
 			startedAt: opts.startedAt,
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-			Effect.catchAll((err) =>
+			Effect.catch((err) =>
 				Effect.sync(() => {
 					process.stderr.write(`record session-start: ${err instanceof Error ? err.message : String(err)}\n`);
 					process.exit(1);
@@ -96,8 +96,8 @@ const sessionStartSubcommand = Command.make(
 		),
 ).pipe(Command.withDescription("Insert a new sessions row"));
 
-const endedAt = Options.text("ended-at").pipe(Options.withDefault(new Date().toISOString()));
-const endReason = Options.optional(Options.text("end-reason"));
+const endedAt = Flag.string("ended-at").pipe(Flag.withDefault(new Date().toISOString()));
+const endReason = Flag.optional(Flag.string("end-reason"));
 
 const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endReason }, (opts) =>
 	recordSessionEnd({
@@ -106,7 +106,7 @@ const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endR
 		endReason: opts.endReason._tag === "Some" ? opts.endReason.value : null,
 	}).pipe(
 		Effect.flatMap(() => Effect.sync(() => process.stdout.write(`{"ok":true}\n`))),
-		Effect.catchAll((err) =>
+		Effect.catch((err) =>
 			Effect.sync(() => {
 				process.stderr.write(`record session-end: ${err instanceof Error ? err.message : String(err)}\n`);
 				process.exit(1);
@@ -115,7 +115,7 @@ const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endR
 	),
 ).pipe(Command.withDescription("Update sessions.ended_at + end_reason"));
 
-const artifactKindOpt = Options.choice("artifact-kind", [
+const artifactKindOpt = Flag.choice("artifact-kind", [
 	"test_written",
 	"test_failed_run",
 	"code_written",
@@ -123,12 +123,12 @@ const artifactKindOpt = Options.choice("artifact-kind", [
 	"refactor",
 	"test_weakened",
 ]);
-const filePathOpt = Options.optional(Options.text("file-path"));
-const testCaseIdOpt = Options.optional(Options.integer("test-case-id"));
-const testRunIdOpt = Options.optional(Options.integer("test-run-id"));
-const testFirstFailureRunIdOpt = Options.optional(Options.integer("test-first-failure-run-id"));
-const diffExcerptOpt = Options.optional(Options.text("diff-excerpt"));
-const recordedAtOpt = Options.text("recorded-at").pipe(Options.withDefault(new Date().toISOString()));
+const filePathOpt = Flag.optional(Flag.string("file-path"));
+const testCaseIdOpt = Flag.optional(Flag.integer("test-case-id"));
+const testRunIdOpt = Flag.optional(Flag.integer("test-run-id"));
+const testFirstFailureRunIdOpt = Flag.optional(Flag.integer("test-first-failure-run-id"));
+const diffExcerptOpt = Flag.optional(Flag.string("diff-excerpt"));
+const recordedAtOpt = Flag.string("recorded-at").pipe(Flag.withDefault(new Date().toISOString()));
 
 const tddArtifactSubcommand = Command.make(
 	"tdd-artifact",
@@ -168,7 +168,7 @@ const tddArtifactSubcommand = Command.make(
 			});
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-			Effect.catchAll((err) =>
+			Effect.catch((err) =>
 				Effect.sync(() => {
 					process.stderr.write(`record tdd-artifact: ${err instanceof Error ? err.message : String(err)}\n`);
 					process.exit(1);
@@ -186,7 +186,7 @@ const testCaseTurnsSubcommand = Command.make("test-case-turns", { chatId }, ({ c
 		return { updated, latestTestCaseId: Option.getOrNull(latestId) };
 	}).pipe(
 		Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-		Effect.catchAll((err) =>
+		Effect.catch((err) =>
 			Effect.sync(() => {
 				process.stderr.write(`record test-case-turns: ${err instanceof Error ? err.message : String(err)}\n`);
 				process.exit(1);
@@ -197,9 +197,9 @@ const testCaseTurnsSubcommand = Command.make("test-case-turns", { chatId }, ({ c
 	Command.withDescription("Backfill test_cases.created_turn_id from file_edits in the current session (BUG-2 fix)"),
 );
 
-const invocationMethodOpt = Options.choice("invocation-method", ["bash", "mcp", "cli"]).pipe(
-	Options.withDescription('How tests were invoked: "bash", "mcp", or "cli"'),
-	Options.withDefault("bash"),
+const invocationMethodOpt = Flag.choice("invocation-method", ["bash", "mcp", "cli"]).pipe(
+	Flag.withDescription('How tests were invoked: "bash", "mcp", or "cli"'),
+	Flag.withDefault("bash"),
 );
 
 const runTriggerSubcommand = Command.make(
@@ -213,7 +213,7 @@ const runTriggerSubcommand = Command.make(
 				invocationMethod: invocationMethod as RunInvocationMethod,
 			});
 		}).pipe(
-			Effect.catchAll((err) =>
+			Effect.catch((err) =>
 				Effect.sync(() => {
 					process.stderr.write(`record run-trigger: ${err instanceof Error ? err.message : String(err)}\n`);
 					process.exit(1);
@@ -222,15 +222,15 @@ const runTriggerSubcommand = Command.make(
 		),
 ).pipe(Command.withDescription("Associate the latest test run with the current Claude Code session"));
 
-const shaOpt = Options.text("sha");
-const parentShaOpt = Options.optional(Options.text("parent-sha"));
-const messageOpt = Options.optional(Options.text("message"));
-const authorOpt = Options.optional(Options.text("author"));
-const committedAtOpt = Options.optional(Options.text("committed-at"));
-const branchOpt = Options.optional(Options.text("branch"));
-const projectOpt = Options.optional(Options.text("project"));
-const filesArg = Args.text({ name: "files-json" }).pipe(
-	Args.withDescription('JSON array of {"filePath","changeKind"} objects'),
+const shaOpt = Flag.string("sha");
+const parentShaOpt = Flag.optional(Flag.string("parent-sha"));
+const messageOpt = Flag.optional(Flag.string("message"));
+const authorOpt = Flag.optional(Flag.string("author"));
+const committedAtOpt = Flag.optional(Flag.string("committed-at"));
+const branchOpt = Flag.optional(Flag.string("branch"));
+const projectOpt = Flag.optional(Flag.string("project"));
+const filesArg = Argument.string("files-json").pipe(
+	Argument.withDescription('JSON array of {"filePath","changeKind"} objects'),
 );
 
 const runWorkspaceChangesSubcommand = Command.make(
@@ -267,7 +267,7 @@ const runWorkspaceChangesSubcommand = Command.make(
 			});
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
-			Effect.catchAll((err) =>
+			Effect.catch((err) =>
 				Effect.sync(() => {
 					process.stderr.write(`record run-workspace-changes: ${err instanceof Error ? err.message : String(err)}\n`);
 					process.exit(1);

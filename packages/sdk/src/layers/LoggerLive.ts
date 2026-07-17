@@ -1,45 +1,45 @@
 import { appendFileSync } from "node:fs";
-import { Layer, LogLevel, Logger } from "effect";
+import { Layer, LogLevel, Logger, References } from "effect";
 
 /**
  * Create a structured JSON (NDJSON) logger layer for stderr.
  *
- * When level is undefined or LogLevel.None, replaces the default logger with Logger.none (silent).
- * When logFile is set, composes with a file logger via Logger.zip.
- * Uses Logger.structuredLogger serialized to JSON for machine-readable output.
+ * When level is undefined or `"None"`, installs an empty logger set (silent).
+ * When logFile is set, composes the stderr logger with a file logger.
+ * Uses `Logger.formatJson` / `Logger.formatStructured` for machine-readable
+ * output.
  * @public
  */
 export const LoggerLive = (level?: LogLevel.LogLevel, logFile?: string): Layer.Layer<never> => {
-	if (!level || level._tag === "None") {
-		return Logger.replace(Logger.defaultLogger, Logger.none);
+	if (!level || level === "None") {
+		return Logger.layer([]);
 	}
 
-	// Build a stderr NDJSON logger from structuredLogger
-	const stderrLogger = Logger.structuredLogger.pipe(
-		Logger.map((entry) => JSON.stringify(entry)),
-		Logger.withConsoleError,
-	);
+	// Build a stderr NDJSON logger from formatJson (a Logger<unknown, string>).
+	const stderrLogger = Logger.formatJson.pipe(Logger.withConsoleError);
 
-	const baseLogger = logFile
-		? (() => {
-				const fileLogger = Logger.make<unknown, void>(({ message, date, logLevel, annotations }) => {
-					const entry = JSON.stringify({
-						timestamp: date.toISOString(),
-						level: logLevel._tag,
-						message,
-						...Object.fromEntries(annotations),
+	const fileLogger = logFile
+		? Logger.formatStructured.pipe(
+				Logger.map((entry) => {
+					const line = JSON.stringify({
+						timestamp: entry.timestamp,
+						level: entry.level,
+						message: entry.message,
+						...entry.annotations,
 					});
 					try {
-						appendFileSync(logFile, `${entry}\n`);
+						appendFileSync(logFile, `${line}\n`);
 					} catch {
 						// Silently ignore file write failures in logging
 					}
-				});
-				return Logger.zip(stderrLogger, fileLogger).pipe(Logger.map(() => undefined));
-			})()
-		: stderrLogger;
+					return line;
+				}),
+			)
+		: undefined;
 
-	return Layer.merge(Logger.replace(Logger.defaultLogger, baseLogger), Logger.minimumLogLevel(level));
+	const loggers = fileLogger ? [stderrLogger, fileLogger] : [stderrLogger];
+
+	return Layer.merge(Logger.layer(loggers), Layer.succeed(References.MinimumLogLevel, level));
 };
 
 /**
@@ -47,9 +47,10 @@ export const LoggerLive = (level?: LogLevel.LogLevel, logFile?: string): Layer.L
  * Priority: explicit option \> VITEST_REPORTER_LOG_LEVEL env var \> undefined
  * @public
  */
-// Map common shorthand names to Effect's LogLevel.Literal values
-const LEVEL_ALIASES: Record<string, string> = {
-	warn: "Warning",
+// Map common shorthand names to Effect's LogLevel string values
+const LEVEL_ALIASES: Record<string, LogLevel.LogLevel> = {
+	warn: "Warn",
+	warning: "Warn",
 	error: "Error",
 	info: "Info",
 	debug: "Debug",
@@ -57,15 +58,14 @@ const LEVEL_ALIASES: Record<string, string> = {
 	fatal: "Fatal",
 	all: "All",
 	none: "None",
-	warning: "Warning",
 };
 /** @public */
 export function resolveLogLevel(option?: string): LogLevel.LogLevel | undefined {
 	const raw = option ?? process.env.VITEST_REPORTER_LOG_LEVEL;
 	if (!raw) return undefined;
-	// Resolve alias first ("warn" -> "Warning"), then try title-case normalization
+	// Resolve alias first ("warn" -> "Warn"), then try title-case normalization
 	const normalized = LEVEL_ALIASES[raw.toLowerCase()] ?? `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()}`;
-	return LogLevel.fromLiteral(normalized as LogLevel.Literal);
+	return LogLevel.values.includes(normalized as LogLevel.LogLevel) ? (normalized as LogLevel.LogLevel) : undefined;
 }
 
 /**

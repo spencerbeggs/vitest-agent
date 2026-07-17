@@ -269,7 +269,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 	// Plugin's own debug-log helper reads VITEST_REPORTER_LOG_LEVEL via
 	// resolveLogLevel; `logLevel` is no longer a user option.
 	const logLevel = resolveLogLevel();
-	const shouldLog = logLevel !== undefined && logLevel._tag !== "None";
+	const shouldLog = logLevel !== undefined && logLevel !== "None";
 	const log = shouldLog
 		? (...args: unknown[]) => process.stderr.write(`[vitest-agent:plugin] ${args.map(String).join(" ")}\n`)
 		: (..._args: unknown[]) => {};

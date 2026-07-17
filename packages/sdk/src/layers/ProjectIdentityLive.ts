@@ -1,7 +1,6 @@
-import { Command, CommandExecutor, FileSystem } from "@effect/platform";
-import type { Context } from "effect";
-import { Effect, Layer, Option } from "effect";
-import { WorkspaceDiscovery } from "workspaces-effect";
+import { WorkspaceDiscovery } from "@effected/workspaces";
+import { Effect, FileSystem, Layer, Option } from "effect";
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import type { ProjectIdentityCandidate } from "../errors/ProjectIdentityError.js";
 import { ProjectIdentityNotResolvableError } from "../errors/ProjectIdentityError.js";
 import { VitestAgentConfig } from "../schemas/Config.js";
@@ -9,23 +8,24 @@ import { VitestAgentConfigFile } from "../services/Config.js";
 import type { ProjectIdentityCandidates, ResolvedIdentity } from "../services/ProjectIdentity.js";
 import { ProjectIdentity, resolveProjectIdentityFromCandidates } from "../services/ProjectIdentity.js";
 
-const readGitRemote = (cwd: string): Effect.Effect<Option.Option<string>, never, CommandExecutor.CommandExecutor> =>
-	Command.make("git", "config", "--get", "remote.origin.url").pipe(
-		Command.workingDirectory(cwd),
-		Command.string,
-		Effect.map((output) => {
-			const trimmed = output.trim();
-			return trimmed.length > 0 ? Option.some(trimmed) : Option.none<string>();
-		}),
-		Effect.catchAll(() => Effect.succeed(Option.none<string>())),
-	);
+const readGitRemote = (
+	cwd: string,
+): Effect.Effect<Option.Option<string>, never, ChildProcessSpawner.ChildProcessSpawner> =>
+	Effect.gen(function* () {
+		const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+		const output = yield* spawner.string(
+			ChildProcess.make("git", ["config", "--get", "remote.origin.url"]).pipe(ChildProcess.setCwd(cwd)),
+		);
+		const trimmed = output.trim();
+		return trimmed.length > 0 ? Option.some(trimmed) : Option.none<string>();
+	}).pipe(Effect.catch(() => Effect.succeed(Option.none<string>())));
 
 const readPackageRepoUrl = (
 	packageJsonPath: string,
 ): Effect.Effect<Option.Option<string>, never, FileSystem.FileSystem> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
-		const raw = yield* fs.readFileString(packageJsonPath).pipe(Effect.catchAll(() => Effect.succeed("")));
+		const raw = yield* fs.readFileString(packageJsonPath).pipe(Effect.catch(() => Effect.succeed("")));
 		if (raw.length === 0) return Option.none<string>();
 		try {
 			const parsed = JSON.parse(raw) as { repository?: unknown };
@@ -61,8 +61,8 @@ const readPackageRepoUrl = (
 export type CandidateContext =
 	| FileSystem.FileSystem
 	| WorkspaceDiscovery
-	| Context.Tag.Identifier<typeof VitestAgentConfigFile>
-	| CommandExecutor.CommandExecutor;
+	| VitestAgentConfigFile
+	| ChildProcessSpawner.ChildProcessSpawner;
 
 const collectCandidates = (
 	workspaceRoot: string,
@@ -72,14 +72,12 @@ const collectCandidates = (
 		const configFile = yield* VitestAgentConfigFile;
 		const tomlConfig = yield* configFile
 			.loadOrDefault(new VitestAgentConfig({}))
-			.pipe(Effect.catchAll(() => Effect.succeed(new VitestAgentConfig({}))));
+			.pipe(Effect.catch(() => Effect.succeed(new VitestAgentConfig({}))));
 
 		const gitRemote = yield* readGitRemote(workspaceRoot);
 
 		const discovery = yield* WorkspaceDiscovery;
-		const packages = yield* discovery
-			.listPackages(workspaceRoot)
-			.pipe(Effect.catchAll(() => Effect.succeed([] as never[])));
+		const packages = yield* discovery.listPackages().pipe(Effect.catch(() => Effect.succeed([] as never[])));
 		const root = packages.find((pkg) => pkg.isRootWorkspace);
 
 		const packageJsonRepoUrl = root ? yield* readPackageRepoUrl(root.packageJsonPath) : Option.none<string>();
@@ -122,7 +120,7 @@ const candidatesToTriedList = (candidates: ProjectIdentityCandidates): ReadonlyA
  * Live layer that wires the resolver into real I/O. Requires
  * `FileSystem`, `CommandExecutor`, `WorkspaceDiscovery`, and
  * `VitestAgentConfigFile`. The platform context comes from
- * `NodeContext.layer` at the entry point.
+ * `NodeServices.layer` at the entry point.
  * @public
  */
 export const ProjectIdentityLive: Layer.Layer<ProjectIdentity, never, CandidateContext> = Layer.effect(
@@ -131,14 +129,14 @@ export const ProjectIdentityLive: Layer.Layer<ProjectIdentity, never, CandidateC
 		const fs = yield* FileSystem.FileSystem;
 		const discovery = yield* WorkspaceDiscovery;
 		const configFile = yield* VitestAgentConfigFile;
-		const executor = yield* CommandExecutor.CommandExecutor;
+		const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 		return {
 			resolve: (workspaceRoot: string, options = {}) =>
 				collectCandidates(workspaceRoot, options).pipe(
 					Effect.provideService(FileSystem.FileSystem, fs),
 					Effect.provideService(WorkspaceDiscovery, discovery),
 					Effect.provideService(VitestAgentConfigFile, configFile),
-					Effect.provideService(CommandExecutor.CommandExecutor, executor),
+					Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
 					Effect.flatMap((candidates) => {
 						const result = resolveProjectIdentityFromCandidates(candidates);
 						if (result === null) {

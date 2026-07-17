@@ -8,9 +8,9 @@ export interface RunHealth {
 	readonly hasTargets?: boolean;
 }
 /** @public */
-export class DetailResolver extends Context.Tag("vitest-agent/DetailResolver")<
+export class DetailResolver extends Context.Service<
 	DetailResolver,
 	{
 		readonly resolve: (executor: Executor, health: RunHealth, explicit?: DetailLevel) => Effect.Effect<DetailLevel>;
 	}
->() {}
+>()("vitest-agent/DetailResolver") {}

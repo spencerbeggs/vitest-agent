@@ -12,7 +12,7 @@
  */
 
 import { DataReader, DataStore, GoalDetail } from "@vitest-agent/sdk";
-import { Effect, Match, Option, ParseResult, Schema } from "effect";
+import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 
 const TddPhaseRow = Schema.Struct({
@@ -22,7 +22,7 @@ const TddPhaseRow = Schema.Struct({
 	startedAt: Schema.String,
 	endedAt: Schema.NullOr(Schema.String),
 	transitionReason: Schema.NullOr(Schema.String),
-}).annotations({ identifier: "TddTaskPhaseRow" });
+}).annotate({ identifier: "TddTaskPhaseRow" });
 
 const TddArtifactDetailRow = Schema.Struct({
 	id: Schema.Number,
@@ -31,7 +31,7 @@ const TddArtifactDetailRow = Schema.Struct({
 	testCaseId: Schema.NullOr(Schema.Number),
 	testRunId: Schema.NullOr(Schema.Number),
 	recordedAt: Schema.String,
-}).annotations({ identifier: "TddTaskArtifactRow" });
+}).annotate({ identifier: "TddTaskArtifactRow" });
 
 const TddTaskDetailSchema = Schema.Struct({
 	tddTaskId: Schema.Number,
@@ -44,40 +44,40 @@ const TddTaskDetailSchema = Schema.Struct({
 	goals: Schema.Array(GoalDetail),
 	phases: Schema.Array(TddPhaseRow),
 	artifacts: Schema.Array(TddArtifactDetailRow),
-}).annotations({ identifier: "TddTaskDetailSchema" });
+}).annotate({ identifier: "TddTaskDetailSchema" });
 
 const CurrentPhaseLookup = Schema.Struct({
 	id: Schema.Number,
 	phase: Schema.String,
 	startedAt: Schema.String,
 	behaviorId: Schema.NullOr(Schema.Number),
-}).annotations({ identifier: "TddTaskCurrentPhaseLookup" });
+}).annotate({ identifier: "TddTaskCurrentPhaseLookup" });
 
 const TddTaskStartOk = Schema.Struct({
 	action: Schema.Literal("start"),
 	tddTaskId: Schema.Number,
 	goal: Schema.String,
 	runId: Schema.optional(Schema.String),
-}).annotations({ identifier: "TddTaskStartOk" });
+}).annotate({ identifier: "TddTaskStartOk" });
 
 const TddTaskEndOk = Schema.Struct({
 	action: Schema.Literal("end"),
 	tddTaskId: Schema.Number,
-	outcome: Schema.Literal("succeeded", "blocked", "abandoned"),
-}).annotations({ identifier: "TddTaskEndOk" });
+	outcome: Schema.Literals(["succeeded", "blocked", "abandoned"]),
+}).annotate({ identifier: "TddTaskEndOk" });
 
 const TddTaskGetFound = Schema.Struct({
 	action: Schema.Literal("get"),
 	found: Schema.Literal(true),
 	task: TddTaskDetailSchema,
 	currentPhase: Schema.NullOr(CurrentPhaseLookup),
-}).annotations({ identifier: "TddTaskGetFound" });
+}).annotate({ identifier: "TddTaskGetFound" });
 
 const TddTaskGetMissing = Schema.Struct({
 	action: Schema.Literal("get"),
 	found: Schema.Literal(false),
 	tddTaskId: Schema.Number,
-}).annotations({ identifier: "TddTaskGetMissing" });
+}).annotate({ identifier: "TddTaskGetMissing" });
 
 const TddTaskResumeFound = Schema.Struct({
 	action: Schema.Literal("resume"),
@@ -88,22 +88,22 @@ const TddTaskResumeFound = Schema.Struct({
 	currentPhase: Schema.NullOr(CurrentPhaseLookup),
 	phasesRecorded: Schema.Number,
 	artifactsRecorded: Schema.Number,
-}).annotations({ identifier: "TddTaskResumeFound" });
+}).annotate({ identifier: "TddTaskResumeFound" });
 
 const TddTaskResumeMissing = Schema.Struct({
 	action: Schema.Literal("resume"),
 	found: Schema.Literal(false),
 	tddTaskId: Schema.Number,
-}).annotations({ identifier: "TddTaskResumeMissing" });
+}).annotate({ identifier: "TddTaskResumeMissing" });
 
-export const TddTaskResult = Schema.Union(
+export const TddTaskResult = Schema.Union([
 	TddTaskStartOk,
 	TddTaskEndOk,
 	TddTaskGetFound,
 	TddTaskGetMissing,
 	TddTaskResumeFound,
 	TddTaskResumeMissing,
-).annotations({
+]).annotate({
 	identifier: "TddTaskResult",
 	title: "tdd_task result",
 	description:
@@ -177,12 +177,12 @@ export const formatTddTaskMarkdown = (data: TddTaskResultType): string => {
 	return lines.join("\n");
 };
 
-export const TddTaskAsMarkdown = Schema.transformOrFail(TddTaskResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTddTaskMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "TddTaskAsMarkdown is one-way.")),
-});
+export const TddTaskAsMarkdown = TddTaskResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTddTaskMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "TddTaskAsMarkdown is one-way."),
+	}),
+);
 
 const StartVariant = Schema.Struct({
 	action: Schema.Literal("start"),
@@ -197,7 +197,7 @@ const StartVariant = Schema.Struct({
 const EndVariant = Schema.Struct({
 	action: Schema.Literal("end"),
 	tddTaskId: Schema.Number,
-	outcome: Schema.Literal("succeeded", "blocked", "abandoned"),
+	outcome: Schema.Literals(["succeeded", "blocked", "abandoned"]),
 	summaryNoteId: Schema.optional(Schema.Number),
 });
 
@@ -211,10 +211,10 @@ const ResumeVariant = Schema.Struct({
 	tddTaskId: Schema.Number,
 });
 
-const TddTaskInput = Schema.Union(StartVariant, EndVariant, GetVariant, ResumeVariant);
+const TddTaskInput = Schema.Union([StartVariant, EndVariant, GetVariant, ResumeVariant]);
 
 export const tddTask = idempotentProcedure
-	.input(Schema.standardSchemaV1(TddTaskInput))
+	.input(Schema.toStandardSchemaV1(TddTaskInput))
 	.mutation(async ({ ctx, input }): Promise<TddTaskResultType> => {
 		return ctx.runtime.runPromise(
 			Match.value(input).pipe(

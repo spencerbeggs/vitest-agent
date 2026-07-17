@@ -1,12 +1,12 @@
 import { Schema } from "effect";
 /** @public */
-export const GoalStatus = Schema.Literal("pending", "in_progress", "done", "abandoned").annotations({
+export const GoalStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]).annotate({
 	identifier: "GoalStatus",
 });
 /** @public */
 export type GoalStatus = typeof GoalStatus.Type;
 /** @public */
-export const BehaviorStatus = Schema.Literal("pending", "in_progress", "done", "abandoned").annotations({
+export const BehaviorStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]).annotate({
 	identifier: "BehaviorStatus",
 });
 /** @public */
@@ -19,7 +19,7 @@ export const GoalRow = Schema.Struct({
 	goal: Schema.String,
 	status: GoalStatus,
 	createdAt: Schema.String,
-}).annotations({ identifier: "GoalRow" });
+}).annotate({ identifier: "GoalRow" });
 /** @public */
 export type GoalRow = typeof GoalRow.Type;
 /** @public */
@@ -31,14 +31,14 @@ export const BehaviorRow = Schema.Struct({
 	suggestedTestName: Schema.NullOr(Schema.String),
 	status: BehaviorStatus,
 	createdAt: Schema.String,
-}).annotations({ identifier: "BehaviorRow" });
+}).annotate({ identifier: "BehaviorRow" });
 /** @public */
 export type BehaviorRow = typeof BehaviorRow.Type;
 /** @public */
 export const GoalDetail = Schema.Struct({
 	...GoalRow.fields,
 	behaviors: Schema.Array(BehaviorRow),
-}).annotations({ identifier: "GoalDetail" });
+}).annotate({ identifier: "GoalDetail" });
 /** @public */
 export type GoalDetail = typeof GoalDetail.Type;
 /** @public */
@@ -50,6 +50,6 @@ export const BehaviorDetail = Schema.Struct({
 		status: GoalStatus,
 	}),
 	dependencies: Schema.Array(BehaviorRow),
-}).annotations({ identifier: "BehaviorDetail" });
+}).annotate({ identifier: "BehaviorDetail" });
 /** @public */
 export type BehaviorDetail = typeof BehaviorDetail.Type;

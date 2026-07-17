@@ -1,5 +1,5 @@
-import { SqlClient } from "@effect/sql/SqlClient";
 import { Effect, Layer, Option } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { DataStoreError, extractSqlReason } from "../errors/DataStoreError.js";
 import type { AgentReport } from "../schemas/AgentReport.js";
 import type { CoverageBaselines } from "../schemas/Baselines.js";
@@ -976,7 +976,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				// PRAGMA database_list returns one row per attached database;
 				// the "main" database is the one we opened.
 				const dbList = yield* sql<{ name: string; file: string }>`PRAGMA database_list`.pipe(
-					Effect.catchAll(() => Effect.succeed([] as ReadonlyArray<{ name: string; file: string }>)),
+					Effect.catch(() => Effect.succeed([] as ReadonlyArray<{ name: string; file: string }>)),
 				);
 				const mainDb = dbList.find((d) => d.name === "main");
 				const dbPath = mainDb?.file ?? "";

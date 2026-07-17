@@ -2,10 +2,10 @@ import { Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
 export const HelpResult = Schema.Struct({
-	helpText: Schema.String.annotations({
+	helpText: Schema.String.annotate({
 		description: "Markdown table of every MCP tool with parameters and a one-line description.",
 	}),
-}).annotations({
+}).annotate({
 	identifier: "HelpResult",
 	title: "help result",
 	description:

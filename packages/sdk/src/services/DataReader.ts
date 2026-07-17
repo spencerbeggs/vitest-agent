@@ -283,7 +283,7 @@ export interface TagInventoryRow {
 	readonly testCount: number;
 }
 /** @public */
-export class DataReader extends Context.Tag("vitest-agent/DataReader")<
+export class DataReader extends Context.Service<
 	DataReader,
 	{
 		readonly getLatestRun: (project: string) => Effect.Effect<Option.Option<AgentReport>, DataStoreError>;
@@ -426,4 +426,4 @@ export class DataReader extends Context.Tag("vitest-agent/DataReader")<
 			options?: { readonly project?: string },
 		) => Effect.Effect<ReadonlyArray<TestListEntry>, DataStoreError>;
 	}
->() {}
+>()("vitest-agent/DataReader") {}

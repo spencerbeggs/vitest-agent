@@ -13,14 +13,14 @@ import { Effect, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
 export const WrapupPromptResult = Schema.Struct({
-	hasContent: Schema.Boolean.annotations({
+	hasContent: Schema.Boolean.annotate({
 		description: "`false` when there is nothing to wrap up for the named session/kind.",
 	}),
-	kind: Schema.Literal("stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge").annotations({
+	kind: Schema.Literals(["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"]).annotate({
 		description: "Echo of the wrap-up kind that was rendered (defaulted to `session_end` when omitted).",
 	}),
-	markdown: Schema.String.annotations({ description: "Pre-rendered wrap-up markdown or the empty-state message." }),
-}).annotations({
+	markdown: Schema.String.annotate({ description: "Pre-rendered wrap-up markdown or the empty-state message." }),
+}).annotate({
 	identifier: "WrapupPromptResult",
 	title: "wrapup_prompt result",
 	description: "Wrap-up envelope. Branch on `hasContent` for the empty case; consume `markdown` for rendering.",
@@ -29,11 +29,13 @@ export type WrapupPromptResultType = Schema.Schema.Type<typeof WrapupPromptResul
 
 export const wrapupPrompt = publicProcedure
 	.input(
-		Schema.standardSchemaV1(
+		Schema.toStandardSchemaV1(
 			Schema.Struct({
 				sessionId: Schema.optional(Schema.Number),
 				chatId: Schema.optional(Schema.String),
-				kind: Schema.optional(Schema.Literal("stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge")),
+				kind: Schema.optional(
+					Schema.Literals(["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"]),
+				),
 				userPromptHint: Schema.optional(Schema.String),
 			}),
 		),

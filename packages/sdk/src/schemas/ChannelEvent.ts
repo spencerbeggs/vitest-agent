@@ -11,11 +11,11 @@
 import { Schema } from "effect";
 
 /** @public */
-export const SessionOutcome = Schema.Literal("succeeded", "blocked", "abandoned");
+export const SessionOutcome = Schema.Literals(["succeeded", "blocked", "abandoned"]);
 /** @public */
 export type SessionOutcome = typeof SessionOutcome.Type;
 
-const PhaseLiteral = Schema.Literal(
+const PhaseLiteral = Schema.Literals([
 	"spike",
 	"red",
 	"red.triangulate",
@@ -24,7 +24,7 @@ const PhaseLiteral = Schema.Literal(
 	"refactor",
 	"extended-red",
 	"green-without-red",
-);
+]);
 
 const GoalSummary = Schema.Struct({
 	id: Schema.Number,
@@ -171,7 +171,7 @@ export const SessionCompleteEvent = Schema.Struct({
 export type SessionCompleteEvent = typeof SessionCompleteEvent.Type;
 
 /** @public */
-export const ChannelEvent = Schema.Union(
+export const ChannelEvent = Schema.Union([
 	GoalsReadyEvent,
 	GoalAddedEvent,
 	GoalStartedEvent,
@@ -185,7 +185,7 @@ export const ChannelEvent = Schema.Union(
 	BehaviorAbandonedEvent,
 	BlockedEvent,
 	SessionCompleteEvent,
-);
+]);
 /** @public */
 export type ChannelEvent = typeof ChannelEvent.Type;
 

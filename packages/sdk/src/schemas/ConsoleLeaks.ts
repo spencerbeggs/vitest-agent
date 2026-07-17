@@ -11,7 +11,7 @@ export const ConsoleLeakFile = Schema.Struct({
 	stderr: Schema.Number,
 	tests: Schema.optional(Schema.Array(Schema.String)),
 	sample: Schema.optional(Schema.String),
-}).annotations({ identifier: "ConsoleLeakFile" });
+}).annotate({ identifier: "ConsoleLeakFile" });
 /** @public */
 export type ConsoleLeakFile = typeof ConsoleLeakFile.Type;
 
@@ -24,6 +24,6 @@ export const ConsoleLeaks = Schema.Struct({
 	total: Schema.Number,
 	byFile: Schema.Array(ConsoleLeakFile),
 	truncated: Schema.optional(Schema.Boolean),
-}).annotations({ identifier: "ConsoleLeaks" });
+}).annotate({ identifier: "ConsoleLeaks" });
 /** @public */
 export type ConsoleLeaks = typeof ConsoleLeaks.Type;

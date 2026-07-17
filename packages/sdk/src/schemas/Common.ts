@@ -12,7 +12,7 @@ import { Schema } from "effect";
  * Possible states for an individual test case.
  * @public
  */
-export const TestState = Schema.Literal("passed", "failed", "skipped", "pending").annotations({
+export const TestState = Schema.Literals(["passed", "failed", "skipped", "pending"]).annotate({
 	identifier: "TestState",
 });
 /** @public */
@@ -22,7 +22,7 @@ export type TestState = typeof TestState.Type;
  * Overall outcome of a test run.
  * @public
  */
-export const TestRunReason = Schema.Literal("passed", "failed", "interrupted").annotations({
+export const TestRunReason = Schema.Literals(["passed", "failed", "interrupted"]).annotate({
 	identifier: "TestRunReason",
 });
 /** @public */
@@ -32,13 +32,13 @@ export type TestRunReason = typeof TestRunReason.Type;
  * Classification of a test's failure history across runs.
  * @public
  */
-export const TestClassification = Schema.Literal(
+export const TestClassification = Schema.Literals([
 	"stable",
 	"new-failure",
 	"persistent",
 	"flaky",
 	"recovered",
-).annotations({ identifier: "TestClassification" });
+]).annotate({ identifier: "TestClassification" });
 /** @public */
 export type TestClassification = typeof TestClassification.Type;
 
@@ -46,7 +46,7 @@ export type TestClassification = typeof TestClassification.Type;
  * Console output verbosity mode for AgentReporter.
  * @public
  */
-export const ConsoleOutputMode = Schema.Literal("failures", "full", "silent").annotations({
+export const ConsoleOutputMode = Schema.Literals(["failures", "full", "silent"]).annotate({
 	identifier: "ConsoleOutputMode",
 });
 /** @public */
@@ -70,21 +70,21 @@ export type ConsoleOutputMode = typeof ConsoleOutputMode.Type;
  *   so the default for `ci` is `passthrough` until it lands.
  * @public
  */
-export const HumanConsoleMode = Schema.Literal("passthrough", "silent", "stream", "agent").annotations({
+export const HumanConsoleMode = Schema.Literals(["passthrough", "silent", "stream", "agent"]).annotate({
 	identifier: "HumanConsoleMode",
 });
 /** @public */
 export type HumanConsoleMode = typeof HumanConsoleMode.Type;
 
 /** @public */
-export const AgentConsoleMode = Schema.Literal("passthrough", "silent", "agent").annotations({
+export const AgentConsoleMode = Schema.Literals(["passthrough", "silent", "agent"]).annotate({
 	identifier: "AgentConsoleMode",
 });
 /** @public */
 export type AgentConsoleMode = typeof AgentConsoleMode.Type;
 
 /** @public */
-export const CiConsoleMode = Schema.Literal("passthrough", "silent", "ci-annotations").annotations({
+export const CiConsoleMode = Schema.Literals(["passthrough", "silent", "ci-annotations"]).annotate({
 	identifier: "CiConsoleMode",
 });
 /** @public */
@@ -95,7 +95,7 @@ export type CiConsoleMode = typeof CiConsoleMode.Type;
  * Useful for type-narrowing in renderers that take the resolved value.
  * @public
  */
-export const ConsoleMode = Schema.Union(HumanConsoleMode, AgentConsoleMode, CiConsoleMode).annotations({
+export const ConsoleMode = Schema.Union([HumanConsoleMode, AgentConsoleMode, CiConsoleMode]).annotate({
 	identifier: "ConsoleMode",
 });
 /** @public */
@@ -105,7 +105,7 @@ export type ConsoleMode = typeof ConsoleMode.Type;
  * Supported package managers for run command generation.
  * @public
  */
-export const PackageManager = Schema.Literal("pnpm", "npm", "yarn", "bun").annotations({
+export const PackageManager = Schema.Literals(["pnpm", "npm", "yarn", "bun"]).annotate({
 	identifier: "PackageManager",
 });
 /** @public */
@@ -115,7 +115,7 @@ export type PackageManager = typeof PackageManager.Type;
  * Runtime environment where tests are being executed.
  * @public
  */
-export const Environment = Schema.Literal("agent-shell", "terminal", "ci-github", "ci-generic").annotations({
+export const Environment = Schema.Literals(["agent-shell", "terminal", "ci-github", "ci-generic"]).annotate({
 	identifier: "Environment",
 });
 /** @public */
@@ -125,7 +125,7 @@ export type Environment = typeof Environment.Type;
  * Who or what is executing the test run.
  * @public
  */
-export const Executor = Schema.Literal("human", "agent", "ci").annotations({
+export const Executor = Schema.Literals(["human", "agent", "ci"]).annotate({
 	identifier: "Executor",
 });
 /** @public */
@@ -135,14 +135,14 @@ export type Executor = typeof Executor.Type;
  * Output format for the reporter pipeline.
  * @public
  */
-export const OutputFormat = Schema.Literal(
+export const OutputFormat = Schema.Literals([
 	"terminal",
 	"markdown",
 	"json",
 	"vitest-bypass",
 	"silent",
 	"ci-annotations",
-).annotations({
+]).annotate({
 	identifier: "OutputFormat",
 });
 /** @public */
@@ -152,7 +152,7 @@ export type OutputFormat = typeof OutputFormat.Type;
  * Level of detail in reporter output.
  * @public
  */
-export const DetailLevel = Schema.Literal("minimal", "neutral", "standard", "verbose").annotations({
+export const DetailLevel = Schema.Literals(["minimal", "neutral", "standard", "verbose"]).annotate({
 	identifier: "DetailLevel",
 });
 /** @public */
@@ -178,6 +178,6 @@ export const ReportError = Schema.Struct({
 	diff: Schema.optional(Schema.String),
 	expected: Schema.optional(Schema.String),
 	received: Schema.optional(Schema.String),
-}).annotations({ identifier: "ReportError" });
+}).annotate({ identifier: "ReportError" });
 /** @public */
 export type ReportError = typeof ReportError.Type;

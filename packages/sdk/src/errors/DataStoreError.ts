@@ -30,24 +30,34 @@ export class DataStoreError extends Data.TaggedError("DataStoreError")<{
 /**
  * Extract a human-readable reason string from an Effect SqlError or unknown error.
  *
- * SqlError wraps the underlying better-sqlite3 error in `cause`. The actual SQLite
- * message (e.g. "SQLITE_BUSY: database is locked", "UNIQUE constraint failed: ...")
- * lives on `cause.message`, while the SqlError's own `message` is generic
- * ("Failed to execute statement"). Prefer the cause's message when available.
+ * SqlError wraps the underlying `node:sqlite` driver error in `cause`. The actual
+ * SQLite message (e.g. "SQLITE_BUSY: database is locked", "UNIQUE constraint
+ * failed: ...") lives on the DEEPEST node in the `cause` chain, while the outer
+ * `message`s are generic ("Failed to execute statement"). The v4 driver commonly
+ * nests two such wrappers, so the real reason sits at `cause.cause.message` — we
+ * walk the full chain and return the deepest non-empty message. Guarded against
+ * circular `cause` references.
  * @public
  */
 export const extractSqlReason = (e: unknown): string => {
-	const err = e as { cause?: { message?: string } | string; message?: string };
-	if (err && typeof err === "object") {
-		if (err.cause) {
-			if (typeof err.cause === "string") return err.cause;
-			if (typeof err.cause === "object" && typeof err.cause.message === "string") {
-				return err.cause.message;
-			}
+	const seen = new Set<unknown>();
+	let best: string | undefined;
+	let node: unknown = e;
+	while (node && typeof node === "object" && !seen.has(node)) {
+		seen.add(node);
+		const n = node as { message?: unknown; cause?: unknown };
+		if (typeof n.message === "string" && n.message.length > 0) {
+			best = n.message;
 		}
-		if (typeof err.message === "string" && err.message.length > 0) {
-			return err.message;
+		// A string cause is itself the reason and terminates the chain.
+		if (typeof n.cause === "string") {
+			if (n.cause.length > 0) best = n.cause;
+			break;
 		}
+		node = n.cause;
+	}
+	if (best !== undefined) return best;
+	if (e && typeof e === "object") {
 		// Object with no useful message/cause — JSON.stringify gives more
 		// information than `String(e)` would (which produces "[object Object]").
 		try {

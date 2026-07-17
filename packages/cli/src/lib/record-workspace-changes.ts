@@ -13,10 +13,10 @@
  * @packageDocumentation
  */
 
-import { SqlClient } from "@effect/sql/SqlClient";
 import type { ChangeKind, DataStoreError } from "@vitest-agent/sdk";
 import { DataStore } from "@vitest-agent/sdk";
 import { Effect } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 
 export interface RecordWorkspaceChangesInput {
 	readonly sha: string;

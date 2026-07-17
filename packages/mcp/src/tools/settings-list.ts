@@ -5,22 +5,22 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, ParseResult, Schema } from "effect";
+import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const SettingsRow = Schema.Struct({
-	hash: Schema.String.annotations({
+	hash: Schema.String.annotate({
 		description: "Stable SHA-1 of the captured Vitest settings; FK target on test_runs.",
 	}),
-	capturedAt: Schema.String.annotations({ description: "ISO-8601 timestamp the settings row was first written." }),
-}).annotations({ identifier: "SettingsListRow" });
+	capturedAt: Schema.String.annotate({ description: "ISO-8601 timestamp the settings row was first written." }),
+}).annotate({ identifier: "SettingsListRow" });
 
 export const SettingsListResult = Schema.Struct({
 	count: Schema.Number,
-	settings: Schema.Array(SettingsRow).annotations({
+	settings: Schema.Array(SettingsRow).annotate({
 		description: "Distinct captured settings hashes the reporter has written, newest first.",
 	}),
-}).annotations({
+}).annotate({
 	identifier: "SettingsListResult",
 	title: "settings_list result",
 	description: "Roster of distinct Vitest settings hashes the reporter has captured.",
@@ -34,14 +34,14 @@ export const formatSettingsListMarkdown = (data: SettingsListResultType): string
 	return lines.join("\n");
 };
 
-export const SettingsListAsMarkdown = Schema.transformOrFail(SettingsListResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatSettingsListMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "SettingsListAsMarkdown is one-way.")),
-});
+export const SettingsListAsMarkdown = SettingsListResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatSettingsListMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "SettingsListAsMarkdown is one-way."),
+	}),
+);
 
-export const settingsList = publicProcedure.input(Schema.standardSchemaV1(Schema.Struct({}))).query(
+export const settingsList = publicProcedure.input(Schema.toStandardSchemaV1(Schema.Struct({}))).query(
 	async ({ ctx }): Promise<SettingsListResultType> =>
 		ctx.runtime.runPromise(
 			Effect.gen(function* () {

@@ -40,13 +40,13 @@ export class AgentContext extends Schema.Class<AgentContext>("vitest-agent/Agent
  * returns whatever the test fixture passes.
  * @public
  */
-export class RunContext$ extends Context.Tag("vitest-agent/RunContextService")<
+export class RunContext$ extends Context.Service<
 	RunContext$,
 	{
 		readonly captureRunContext: (cwd: string) => Effect.Effect<RunContext>;
 		readonly captureAgentContext: (cwd: string) => Effect.Effect<AgentContext>;
 	}
->() {}
+>()("vitest-agent/RunContextService") {}
 
 /**
  * Re-export the service tag under a less-collision-prone name. The

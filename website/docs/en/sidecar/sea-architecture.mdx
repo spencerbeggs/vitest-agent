@@ -9,7 +9,7 @@ The sidecar binary is a **Node Single Executable Application (SEA)** that wraps 
 
 ## Why a SEA binary exists
 
-Every Bash tool call fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` environment prefix. The naive implementation shells out to `vitest-agent agent inject-env` through the full JS CLI on every call. The full CLI pays Node module-graph cold-start — loading `effect`, `@effect/cli`, and their transitive dependencies — on a path that runs in the inner loop of every agent turn.
+Every Bash tool call fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` environment prefix. The naive implementation shells out to `vitest-agent agent inject-env` through the full JS CLI on every call. The full CLI pays Node module-graph cold-start — loading `effect`, its `effect/unstable/cli` command framework, and their transitive dependencies — on a path that runs in the inner loop of every agent turn.
 
 The SEA binary eliminates that startup cost. It runs the same `injectEnv` logic from `@vitest-agent/sdk/dispatch` with the startup overhead of a precompiled binary rather than a Node module graph load. The qualitative difference is meaningful at agent interaction speed; this is the reason the sidecar exists.
 
@@ -17,7 +17,7 @@ The JS fallback path remains: on unsupported platforms, or when the binary is ab
 
 ## Scope: inject-env only
 
-The binary handles `inject-env` and nothing else. The `register-agent` command stays on the JS CLI path because it depends on a native SQLite binding (`better-sqlite3`) that cannot be bundled into a JavaScript SEA. More importantly, `register-agent` fires only once per session, not on the per-turn critical path, so JS cold-start is acceptable there.
+The binary handles `inject-env` and nothing else. The `register-agent` command stays on the JS CLI path because it pulls in the full Effect runtime and the SQLite data layer (`@effect/sql-sqlite-node` over the built-in `node:sqlite`) — the heavy module graph the SEA exists to avoid. And `register-agent` fires only once per session, not on the per-turn critical path, so JS cold-start is acceptable there.
 
 ## What the binary bundles
 
@@ -35,7 +35,7 @@ The native binary is built with tsdown's `exe` mode (`@tsdown/exe`), which drive
 
 Each `@vitest-agent/sidecar-<platform>` child package owns a programmatic build script at `lib/scripts/tsdown.ts` that calls tsdown's `build()` API directly — there is no static `tsdown.config.ts`. The platform and architecture are derived from the child's own `os` and `cpu` `package.json` fields, so the script is identical across all four children and can be copied verbatim.
 
-`tsdown`'s `exe` mode requires Node >= 25.7.0. The repository's `devEngines.runtime` is set to 25.9.0 to satisfy this requirement.
+`tsdown`'s `exe` mode requires Node >= 25.7.0. The repository's `devEngines.runtime` is set to 26.5.0 to satisfy this requirement.
 
 ## Cross-compilation from a single host
 

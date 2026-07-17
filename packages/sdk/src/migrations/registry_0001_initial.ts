@@ -1,5 +1,5 @@
-import { SqlClient } from "@effect/sql/SqlClient";
 import { Effect } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 
 /**
  * Migration for the global discovery registry SQLite at

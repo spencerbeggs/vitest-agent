@@ -5,13 +5,12 @@
  */
 
 import * as readline from "node:readline";
-import { Args, Command, Options } from "@effect/cli";
-import { FileSystem } from "@effect/platform";
-import { NodeContext } from "@effect/platform-node";
-import { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import { DataStore, resolveDataPath } from "@vitest-agent/sdk";
-import { Effect } from "effect";
+import { Effect, FileSystem } from "effect";
+import { Argument, Command, Flag } from "effect/unstable/cli";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { formatDbQuery } from "../lib/format-db-query.js";
 
 const pathCommand = Command.make("path", {}, () =>
@@ -27,8 +26,8 @@ const pathCommand = Command.make("path", {}, () =>
 
 // prune -----------------------------------------------------------------------
 
-const keepRecentOption = Options.withDefault(Options.integer("keep-recent"), 30).pipe(
-	Options.withDescription("Number of most-recent sessions to keep in full"),
+const keepRecentOption = Flag.withDefault(Flag.integer("keep-recent"), 30).pipe(
+	Flag.withDescription("Number of most-recent sessions to keep in full"),
 );
 
 const pruneCommand = Command.make("prune", { keepRecent: keepRecentOption }, ({ keepRecent }) =>
@@ -45,9 +44,9 @@ const pruneCommand = Command.make("prune", { keepRecent: keepRecentOption }, ({ 
 
 // reset -----------------------------------------------------------------------
 
-const yesOption = Options.boolean("yes").pipe(
-	Options.withDefault(false),
-	Options.withDescription("Skip the interactive confirmation prompt"),
+const yesOption = Flag.boolean("yes").pipe(
+	Flag.withDefault(false),
+	Flag.withDescription("Skip the interactive confirmation prompt"),
 );
 
 const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
@@ -104,25 +103,25 @@ const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 		// Perform deletion of data.db and its -shm / -wal companions
 		const fs = yield* FileSystem.FileSystem;
 
-		yield* fs.remove(dbPath).pipe(Effect.catchAll(() => Effect.void));
-		yield* fs.remove(`${dbPath}-shm`).pipe(Effect.catchAll(() => Effect.void));
-		yield* fs.remove(`${dbPath}-wal`).pipe(Effect.catchAll(() => Effect.void));
+		yield* fs.remove(dbPath).pipe(Effect.catch(() => Effect.void));
+		yield* fs.remove(`${dbPath}-shm`).pipe(Effect.catch(() => Effect.void));
+		yield* fs.remove(`${dbPath}-wal`).pipe(Effect.catch(() => Effect.void));
 
 		yield* Effect.sync(() => {
 			process.stdout.write(`Deleted database at ${dbPath}\n`);
 		});
-	}).pipe(Effect.provide(NodeContext.layer)),
+	}).pipe(Effect.provide(NodeServices.layer)),
 ).pipe(Command.withDescription("Wipe the database (human-only; blocked in agent contexts)"));
 
 // query -----------------------------------------------------------------------
 
-const queryFormatOption = Options.choice("format", ["table", "json"]).pipe(
-	Options.withDefault("table"),
-	Options.withDescription("Output format for query results"),
+const queryFormatOption = Flag.choice("format", ["table", "json"]).pipe(
+	Flag.withDefault("table"),
+	Flag.withDescription("Output format for query results"),
 );
 
-const sqlArg = Args.text({ name: "sql" }).pipe(
-	Args.withDescription("Read-only SQL statement to execute against data.db"),
+const sqlArg = Argument.string("sql").pipe(
+	Argument.withDescription("Read-only SQL statement to execute against data.db"),
 );
 
 /**
@@ -132,13 +131,23 @@ const sqlArg = Args.text({ name: "sql" }).pipe(
  */
 const describeError = (error: unknown): string => {
 	if (!(error instanceof Error)) return String(error);
-	const parts: string[] = [error.message];
-	let cause: unknown = error.cause;
-	while (cause instanceof Error && !parts.includes(cause.message)) {
-		parts.push(cause.message);
-		cause = cause.cause;
+	// Walk the full `.cause` chain, collecting each distinct message. v4's
+	// `@effect/sql` wraps the driver error twice with the same top-level text
+	// ("Failed to prepare/execute statement") before the real `node:sqlite`
+	// message ("attempt to write a readonly database", "... syntax error")
+	// appears deeper, so we must skip duplicate messages without halting the
+	// walk. A `seen` set guards against a cyclic cause chain.
+	const parts: string[] = [];
+	const seen = new Set<Error>();
+	let current: unknown = error;
+	while (current instanceof Error && !seen.has(current)) {
+		seen.add(current);
+		if (current.message.length > 0 && !parts.includes(current.message)) {
+			parts.push(current.message);
+		}
+		current = current.cause;
 	}
-	return parts.filter((part) => part.length > 0).join(": ");
+	return parts.join(": ");
 };
 
 const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOption }, ({ sql, format }) =>
@@ -168,7 +177,7 @@ const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOpt
 			});
 		}).pipe(
 			Effect.provide(sqliteClientLayer({ filename: dbPath, readonly: true })),
-			Effect.catchAll((error) =>
+			Effect.catch((error) =>
 				Effect.sync(() => {
 					process.stderr.write(`db query: ${describeError(error)}\n`);
 					process.exit(3);

@@ -15,9 +15,9 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import type { VitestTestCase, VitestTestModule } from "@vitest-agent/sdk";
 import { EnvironmentDetectorTest } from "@vitest-agent/sdk";
-import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VitestPluginContext } from "vitest/node";
 import { AgentPlugin } from "../src/plugin.js";
@@ -166,7 +166,7 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 		await reporter.onTestRunEnd([makePhase5TestModule()], [], "passed");
 
 		// Then: at least one row exists in test_runs
-		const db = new Database(path.join(tmpDir, "data.db"), { readonly: true });
+		const db = new DatabaseSync(path.join(tmpDir, "data.db"), { readOnly: true });
 		const rows = db.prepare("SELECT COUNT(*) AS cnt FROM test_runs").all() as Array<{ cnt: number }>;
 		db.close();
 		expect(rows[0].cnt).toBeGreaterThanOrEqual(1);
@@ -197,7 +197,7 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 		const dbFile = path.join(tmpDir, "data.db");
 		let rowCount = 0;
 		if (fs.existsSync(dbFile)) {
-			const db = new Database(dbFile, { readonly: true });
+			const db = new DatabaseSync(dbFile, { readOnly: true });
 			try {
 				const rows = db.prepare("SELECT COUNT(*) AS cnt FROM test_runs").all() as Array<{ cnt: number }>;
 				rowCount = rows[0].cnt;
@@ -226,7 +226,7 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 		await fullReporter.onTestRunEnd([makePhase5TestModule()], [], "passed");
 
 		// Verify we have exactly 1 row after the full run
-		const db1 = new Database(path.join(tmpDir, "data.db"), { readonly: true });
+		const db1 = new DatabaseSync(path.join(tmpDir, "data.db"), { readOnly: true });
 		const after1 = (db1.prepare("SELECT COUNT(*) AS cnt FROM test_runs").all() as Array<{ cnt: number }>)[0].cnt;
 		db1.close();
 		expect(after1).toBe(1);
@@ -240,7 +240,7 @@ describe("coverageMode persistence (Phase 5 §5.3)", () => {
 		await uiOnlyReporter.onTestRunEnd([makePhase5TestModule()], [], "passed");
 
 		// Then: still exactly 1 row (ui-only run added nothing)
-		const db2 = new Database(path.join(tmpDir, "data.db"), { readonly: true });
+		const db2 = new DatabaseSync(path.join(tmpDir, "data.db"), { readOnly: true });
 		const after2 = (db2.prepare("SELECT COUNT(*) AS cnt FROM test_runs").all() as Array<{ cnt: number }>)[0].cnt;
 		db2.close();
 		expect(after2).toBe(1);

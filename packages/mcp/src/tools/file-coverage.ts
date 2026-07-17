@@ -5,7 +5,7 @@
  */
 
 import { CoverageTotals, DataReader, FileCoverageReport } from "@vitest-agent/sdk";
-import { Effect, Option, ParseResult, Schema } from "effect";
+import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const CoverageGlobalThresholds = Schema.Struct({
@@ -22,7 +22,7 @@ const FileCoverageMatched = Schema.Struct({
 	report: FileCoverageReport,
 	globalThresholds: CoverageGlobalThresholds,
 	relatedTestFiles: Schema.Array(Schema.String),
-}).annotations({ identifier: "FileCoverageMatched" });
+}).annotate({ identifier: "FileCoverageMatched" });
 
 const FileCoverageNoMatch = Schema.Struct({
 	dataAvailable: Schema.Literal(true),
@@ -30,22 +30,20 @@ const FileCoverageNoMatch = Schema.Struct({
 	filePath: Schema.String,
 	totals: CoverageTotals,
 	relatedTestFiles: Schema.Array(Schema.String),
-}).annotations({ identifier: "FileCoverageNoMatch" });
+}).annotate({ identifier: "FileCoverageNoMatch" });
 
 const FileCoverageAbsent = Schema.Struct({
 	dataAvailable: Schema.Literal(false),
 	filePath: Schema.String,
-}).annotations({ identifier: "FileCoverageAbsent" });
+}).annotate({ identifier: "FileCoverageAbsent" });
 
-export const FileCoverageResult = Schema.Union(
-	FileCoverageMatched,
-	FileCoverageNoMatch,
-	FileCoverageAbsent,
-).annotations({
-	identifier: "FileCoverageResult",
-	title: "file_coverage result",
-	description: "Per-file coverage with related tests. Discriminate on `dataAvailable` then on `matched`.",
-});
+export const FileCoverageResult = Schema.Union([FileCoverageMatched, FileCoverageNoMatch, FileCoverageAbsent]).annotate(
+	{
+		identifier: "FileCoverageResult",
+		title: "file_coverage result",
+		description: "Per-file coverage with related tests. Discriminate on `dataAvailable` then on `matched`.",
+	},
+);
 export type FileCoverageResultType = Schema.Schema.Type<typeof FileCoverageResult>;
 
 export const formatFileCoverageMarkdown = (data: FileCoverageResultType): string => {
@@ -101,16 +99,16 @@ export const formatFileCoverageMarkdown = (data: FileCoverageResultType): string
 	return lines.join("\n");
 };
 
-export const FileCoverageAsMarkdown = Schema.transformOrFail(FileCoverageResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatFileCoverageMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "FileCoverageAsMarkdown is one-way.")),
-});
+export const FileCoverageAsMarkdown = FileCoverageResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatFileCoverageMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "FileCoverageAsMarkdown is one-way."),
+	}),
+);
 
 export const fileCoverage = publicProcedure
 	.input(
-		Schema.standardSchemaV1(
+		Schema.toStandardSchemaV1(
 			Schema.Struct({
 				filePath: Schema.String,
 				project: Schema.optional(Schema.String),

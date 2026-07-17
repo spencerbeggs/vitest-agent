@@ -14,13 +14,13 @@ import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
-const NoteScope = Schema.Literal("global", "project", "module", "suite", "test", "note");
+const NoteScope = Schema.Literals(["global", "project", "module", "suite", "test", "note"]);
 
 const NoteRowSchema = Schema.Struct({
-	id: Schema.Number.annotations({ description: "Note primary key." }),
+	id: Schema.Number.annotate({ description: "Note primary key." }),
 	title: Schema.String,
 	content: Schema.String,
-	scope: NoteScope.annotations({
+	scope: NoteScope.annotate({
 		description:
 			"`global` (project-agnostic), `project`, `module`, `suite`, `test` (scoped), or `note` (child note attached via `parentNoteId`).",
 	}),
@@ -33,17 +33,17 @@ const NoteRowSchema = Schema.Struct({
 	pinned: Schema.Boolean,
 	createdAt: Schema.String,
 	updatedAt: Schema.String,
-}).annotations({ identifier: "NoteRow" });
+}).annotate({ identifier: "NoteRow" });
 
 const NoteCreateOk = Schema.Struct({
 	action: Schema.Literal("create"),
-	id: Schema.Number.annotations({ description: "Primary key of the newly inserted note." }),
+	id: Schema.Number.annotate({ description: "Primary key of the newly inserted note." }),
 });
 
 const NoteListOk = Schema.Struct({
 	action: Schema.Literal("list"),
 	count: Schema.Number,
-	notes: Schema.Array(NoteRowSchema).annotations({
+	notes: Schema.Array(NoteRowSchema).annotate({
 		description: "Notes matching the optional scope/project/test filters.",
 	}),
 });
@@ -74,10 +74,10 @@ const NoteSearchOk = Schema.Struct({
 	action: Schema.Literal("search"),
 	query: Schema.String,
 	count: Schema.Number,
-	notes: Schema.Array(NoteRowSchema).annotations({ description: "Notes whose title or content match the FTS5 query." }),
+	notes: Schema.Array(NoteRowSchema).annotate({ description: "Notes whose title or content match the FTS5 query." }),
 });
 
-export const NoteResult = Schema.Union(
+export const NoteResult = Schema.Union([
 	NoteCreateOk,
 	NoteListOk,
 	NoteGetFound,
@@ -85,7 +85,7 @@ export const NoteResult = Schema.Union(
 	NoteUpdateOk,
 	NoteDeleteOk,
 	NoteSearchOk,
-).annotations({
+]).annotate({
 	identifier: "NoteResult",
 	title: "note result",
 	description: "Discriminate on `action`. `get` further discriminates on `found`.",
@@ -169,17 +169,17 @@ const SearchVariant = Schema.Struct({
 	query: Schema.String,
 });
 
-const NoteInputUnion = Schema.Union(
+const NoteInputUnion = Schema.Union([
 	CreateVariant,
 	ListVariant,
 	GetVariant,
 	UpdateVariant,
 	DeleteVariant,
 	SearchVariant,
-);
+]);
 
 export const note = publicProcedure
-	.input(Schema.standardSchemaV1(NoteInputUnion))
+	.input(Schema.toStandardSchemaV1(NoteInputUnion))
 	.mutation(async ({ ctx, input }): Promise<NoteResultType> => {
 		return ctx.runtime.runPromise(
 			Match.value(input).pipe(

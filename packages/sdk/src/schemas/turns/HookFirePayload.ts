@@ -2,7 +2,7 @@ import { Schema } from "effect";
 /** @public */
 export const HookFirePayload = Schema.Struct({
 	type: Schema.Literal("hook_fire"),
-	hook_kind: Schema.Literal(
+	hook_kind: Schema.Literals([
 		"SessionStart",
 		"SessionEnd",
 		"Stop",
@@ -16,7 +16,7 @@ export const HookFirePayload = Schema.Struct({
 		"PostToolUseFailure",
 		"UserPromptSubmit",
 		"FileChanged",
-	),
+	]),
 	chat_id: Schema.optional(Schema.String),
 	previous_record_failures: Schema.optional(Schema.Array(Schema.String)),
 });

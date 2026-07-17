@@ -10,7 +10,7 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, Match, Option, ParseResult, Schema } from "effect";
+import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const TestRowSchema = Schema.Struct({
@@ -20,26 +20,26 @@ const TestRowSchema = Schema.Struct({
 	duration: Schema.NullOr(Schema.Number),
 	module: Schema.String,
 	classification: Schema.NullOr(Schema.String),
-}).annotations({ identifier: "TestListRow" });
+}).annotate({ identifier: "TestListRow" });
 
 const TestErrorRowMini = Schema.Struct({
 	name: Schema.NullOr(Schema.String),
 	message: Schema.String,
 	diff: Schema.NullOr(Schema.String),
 	stack: Schema.NullOr(Schema.String),
-}).annotations({ identifier: "TestGetErrorRow" });
+}).annotate({ identifier: "TestGetErrorRow" });
 
 const TestRunRow = Schema.Struct({
-	state: Schema.Literal("passed", "failed"),
+	state: Schema.Literals(["passed", "failed"]),
 	timestamp: Schema.String,
-}).annotations({ identifier: "TestGetRunRow" });
+}).annotate({ identifier: "TestGetRunRow" });
 
 const TestListGroup = Schema.Struct({ project: Schema.String, tests: Schema.Array(TestRowSchema) });
 const TestListResult = Schema.Struct({
 	action: Schema.Literal("list"),
 	count: Schema.Number,
 	groups: Schema.Array(TestListGroup),
-}).annotations({ identifier: "TestList" });
+}).annotate({ identifier: "TestList" });
 
 const TestGetFound = Schema.Struct({
 	action: Schema.Literal("get"),
@@ -48,36 +48,36 @@ const TestGetFound = Schema.Struct({
 	test: TestRowSchema,
 	errors: Schema.Array(TestErrorRowMini),
 	runs: Schema.Array(TestRunRow),
-}).annotations({ identifier: "TestGetFound" });
+}).annotate({ identifier: "TestGetFound" });
 
 const TestGetMissing = Schema.Struct({
 	action: Schema.Literal("get"),
 	found: Schema.Literal(false),
 	project: Schema.String,
 	fullName: Schema.String,
-}).annotations({ identifier: "TestGetMissing" });
+}).annotate({ identifier: "TestGetMissing" });
 
 const TestForFileResult = Schema.Struct({
 	action: Schema.Literal("for_file"),
 	filePath: Schema.String,
 	count: Schema.Number,
 	testFiles: Schema.Array(Schema.String),
-}).annotations({ identifier: "TestForFile" });
+}).annotate({ identifier: "TestForFile" });
 
 const TestForTagResult = Schema.Struct({
 	action: Schema.Literal("for_tag"),
 	tag: Schema.String,
 	count: Schema.Number,
 	groups: Schema.Array(TestListGroup),
-}).annotations({ identifier: "TestForTag" });
+}).annotate({ identifier: "TestForTag" });
 
-export const TestResult = Schema.Union(
+export const TestResult = Schema.Union([
 	TestListResult,
 	TestGetFound,
 	TestGetMissing,
 	TestForFileResult,
 	TestForTagResult,
-).annotations({
+]).annotate({
 	identifier: "TestResult",
 	title: "test result",
 	description:
@@ -207,11 +207,12 @@ export const formatTestMarkdown = (data: TestResultType): string => {
 	return lines.join("\n");
 };
 
-export const TestAsMarkdown = Schema.transformOrFail(TestResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTestMarkdown(data)),
-	encode: (text, _options, ast) => ParseResult.fail(new ParseResult.Forbidden(ast, text, "TestAsMarkdown is one-way.")),
-});
+export const TestAsMarkdown = TestResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTestMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "TestAsMarkdown is one-way."),
+	}),
+);
 
 const ListVariant = Schema.Struct({
 	action: Schema.Literal("list"),
@@ -238,10 +239,10 @@ const ForTagVariant = Schema.Struct({
 	project: Schema.optional(Schema.String),
 });
 
-const TestInput = Schema.Union(ListVariant, GetVariant, ForFileVariant, ForTagVariant);
+const TestInput = Schema.Union([ListVariant, GetVariant, ForFileVariant, ForTagVariant]);
 
 export const test = publicProcedure
-	.input(Schema.standardSchemaV1(TestInput))
+	.input(Schema.toStandardSchemaV1(TestInput))
 	.query(async ({ ctx, input }): Promise<TestResultType> => {
 		return ctx.runtime.runPromise(
 			Match.value(input).pipe(

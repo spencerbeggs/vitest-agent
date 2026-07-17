@@ -53,9 +53,9 @@ describe("vitest-agent CLI surface", () => {
 		it(`should reject the removed command: ${removed}`, () => {
 			const result = runBin([removed]);
 
-			// Then: non-zero exit, the parser reports an invalid subcommand
+			// Then: non-zero exit, the parser reports an unknown subcommand
 			expect(result.status).not.toBe(0);
-			expect(result.stdout + result.stderr).toContain("Invalid subcommand");
+			expect(result.stdout + result.stderr).toContain("Unknown subcommand");
 		});
 	}
 });

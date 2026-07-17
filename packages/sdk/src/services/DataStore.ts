@@ -385,7 +385,7 @@ export interface AssociateRunSessionInput {
 	readonly invocationMethod: RunInvocationMethod;
 }
 /** @public */
-export class DataStore extends Context.Tag("vitest-agent/DataStore")<
+export class DataStore extends Context.Service<
 	DataStore,
 	{
 		readonly writeSettings: (
@@ -527,4 +527,4 @@ export class DataStore extends Context.Tag("vitest-agent/DataStore")<
 		 */
 		readonly endAgent: (agentId: string, endedAt: number) => Effect.Effect<void, AgentNotFoundError | DataStoreError>;
 	}
->() {}
+>()("vitest-agent/DataStore") {}

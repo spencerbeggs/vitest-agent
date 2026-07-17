@@ -9,9 +9,9 @@ export const TrendEntry = Schema.Struct({
 	timestamp: Schema.String,
 	coverage: CoverageTotals,
 	delta: CoverageTotals,
-	direction: Schema.Literal("improving", "regressing", "stable"),
+	direction: Schema.Literals(["improving", "regressing", "stable"]),
 	targetsHash: Schema.optional(Schema.String),
-}).annotations({ identifier: "TrendEntry" });
+}).annotate({ identifier: "TrendEntry" });
 /** @public */
 export type TrendEntry = typeof TrendEntry.Type;
 
@@ -21,6 +21,6 @@ export type TrendEntry = typeof TrendEntry.Type;
  */
 export const TrendRecord = Schema.Struct({
 	entries: Schema.Array(TrendEntry),
-}).annotations({ identifier: "TrendRecord" });
+}).annotate({ identifier: "TrendRecord" });
 /** @public */
 export type TrendRecord = typeof TrendRecord.Type;

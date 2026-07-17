@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ChannelEvent, DataReader } from "@vitest-agent/sdk";
-import { Effect, Option, Schema } from "effect";
+import { Effect, Exit, Option, Schema } from "effect";
 import { z } from "zod";
 import type { McpContext } from "./context.js";
 import { createCallerFactory } from "./context.js";
@@ -45,15 +45,15 @@ import { effectToZodSchema } from "./utils/effect-to-zod.js";
  * Returns the enriched event object or the original on resolution failure.
  */
 async function resolveChannelEvent(ctx: McpContext, raw: unknown): Promise<unknown> {
-	const decoded = Schema.decodeUnknownEither(ChannelEvent)(raw);
-	if (decoded._tag === "Left") {
+	const decoded = Schema.decodeUnknownExit(ChannelEvent)(raw);
+	if (Exit.isFailure(decoded)) {
 		// Pass through invalid payloads — channel push is best-effort and
 		// we don't want to break the orchestrator if a future event type
 		// has not been added to the schema yet. The receiving main agent
 		// will still parse the JSON and apply its own handler.
 		return raw;
 	}
-	const event = decoded.right;
+	const event = decoded.value;
 	return ctx.runtime.runPromise(
 		Effect.gen(function* () {
 			const reader = yield* DataReader;
@@ -118,7 +118,7 @@ function structuredResult<T extends object>(
  * tools that previously rendered their result as JSON.stringify; the
  * structured payload is identical, so the agent gets the typed object
  * via MCP's structuredContent channel without paying the markdown
- * formatter ceremony of `Schema.transformOrFail`.
+ * formatter ceremony of `Schema.decodeTo`.
  *
  * @internal
  */

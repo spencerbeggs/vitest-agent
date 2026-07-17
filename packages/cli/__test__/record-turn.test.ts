@@ -1,15 +1,15 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import type { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { DataReader, DataStore } from "@vitest-agent/sdk";
 import { DataReaderLive, DataStoreLive, migration0001 } from "@vitest-agent/sdk";
 import { Effect, Layer } from "effect";
+import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { recordSessionStart } from "../src/lib/record-session.js";
 import { parseAndValidateTurnPayload, recordTurnEffect } from "../src/lib/record-turn.js";
 
-const PlatformLayer = NodeContext.layer;
+const PlatformLayer = NodeServices.layer;
 
 const buildLive = () => {
 	const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });

@@ -1,5 +1,4 @@
-import { NodeFileSystem } from "@effect/platform-node";
-import * as NodeContext from "@effect/platform-node/NodeContext";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import {
@@ -18,8 +17,8 @@ import { Layer } from "effect";
  * Composition layer for the CLI runtime.
  *
  * Wires `DataReader`, `ProjectDiscovery`, `HistoryTracker`,
- * `OutputPipeline`, `SqliteClient`, the DB migrator, `NodeContext`,
- * `NodeFileSystem`, and `Logger` into a single layer the `vitest-agent`
+ * `OutputPipeline`, `SqliteClient`, the DB migrator, the Node platform
+ * services, and `Logger` into a single layer the `vitest-agent`
  * bin provides to `Command.run`.
  *
  * @param dbPath - absolute path to the per-project `data.db`
@@ -29,7 +28,7 @@ import { Layer } from "effect";
  */
 export const CliLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
 	const SqliteLayer = sqliteClientLayer({ filename: dbPath });
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
@@ -42,7 +41,6 @@ export const CliLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: 
 		Layer.provideMerge(MigratorLayer),
 		Layer.provideMerge(SqliteLayer),
 		Layer.provideMerge(PlatformLayer),
-		Layer.provideMerge(NodeFileSystem.layer),
 		Layer.provideMerge(LoggerLive(logLevel, logFile)),
 	);
 };

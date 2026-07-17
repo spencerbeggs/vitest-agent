@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { NodeContext } from "@effect/platform-node";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
 	PathResolutionLive,
 	formatFatalError,
@@ -62,7 +62,10 @@ async function main() {
 	const initialSessionId = resolveInitialSessionId();
 
 	const dbPath = await Effect.runPromise(
-		resolveDataPath(projectDir).pipe(Effect.provide(PathResolutionLive(projectDir)), Effect.provide(NodeContext.layer)),
+		resolveDataPath(projectDir).pipe(
+			Effect.provide(PathResolutionLive(projectDir)),
+			Effect.provide(NodeServices.layer),
+		),
 	);
 
 	const logLevel = resolveLogLevel();

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-07-17
+last-synced: 2026-07-17
 completeness: 95
 related:
   - ../components.md
@@ -224,18 +224,23 @@ that flows into test.tags).
 
 The unified algorithm in discoverProjects:
 
-1. **Locate workspace root.** Calls findWorkspaceRootSync(cwd ??
-   process.cwd()) from workspaces-effect. Searches upward for
+1. **Locate workspace root.** Calls the bare
+   findWorkspaceRootSync({ ...nodeSyncOps, cwd: cwd ?? process.cwd() })
+   const from @effected/workspaces (nodeSyncOps imported from
+   @effected/workspaces/node-sync). Searches upward for
    pnpm-workspace.yaml or a package.json with a workspaces field.
-   Throws with a descriptive error if no root is found — there is no
-   silent fallback.
+   Note the v4 kit dropped `.git` as a root marker, so a bare-`.git`
+   single-package repo no longer resolves here (see file-structure.md
+   and D46). Throws with a descriptive error if no root is found —
+   there is no silent fallback.
 
 2. **Consult process-level cache with a directory signature.** A module-level Map keyed by workspace root is checked first, but only when neither strategy nor additionalEntries was supplied (the no-arg path); any explicit strategy or added entry bypasses the cache because strategy instances cannot be fingerprinted. Each cache entry now stores `{ result, signature }` where the signature is a cheap fingerprint of every package's `src/` and `__test__/` directories (recursive relative-path + `mtimeMs` pairs, sorted — no file contents read, via `computeDirSignature` / `computeWorkspaceSignature`). On the cacheable path the signature is recomputed and compared before the cached result is returned; a mismatch means a test file was added, removed, moved or renamed since the entry was written, so discovery falls through to a full rescan and refreshes the entry. This fixes issue #100, where the long-lived MCP server returned stale project include-globs after test files moved on disk (symptom: a silent drop of ~1290 tests when `*.test.ts` moved from `src/` to `__test__/`).
 
 3. **Resolve the strategy.** Defaults to a fresh DefaultDiscoverStrategy
    when none was supplied.
 
-4. **List workspace packages** via getWorkspacePackagesSync(root).
+4. **List workspace packages** via getWorkspacePackagesSync(root,
+   nodeSyncOps) from @effected/workspaces.
 
 5. **Iterate packages.** For each package, call strategy.buildProject
    with { name, path, relativePath, workspaceRoot }. A null return means
@@ -337,10 +342,10 @@ options such as provider: "v8". The defineConfig wrapper applies its own
 type narrowing that can widen literals to string when the callback is
 async.
 
-**Why pool: forks.** The better-sqlite3 native binding is not
-thread-safe. forks isolates each project in a child process, avoiding
-SQLITE_BUSY and native-binding re-entry issues that appear with
-threads.
+**Why pool: forks.** The SQLite driver (on v4, `@effect/sql-sqlite-node`
+over Node's built-in `node:sqlite`) is not thread-safe. forks isolates
+each project in a child process, avoiding SQLITE_BUSY and native-binding
+re-entry issues that appear with threads.
 
 ---
 

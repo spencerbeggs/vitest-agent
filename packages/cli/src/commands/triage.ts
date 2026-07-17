@@ -8,13 +8,13 @@
  * @packageDocumentation
  */
 
-import { Command, Options } from "@effect/cli";
 import { formatTriageEffect } from "@vitest-agent/sdk";
 import { Effect } from "effect";
+import { Command, Flag } from "effect/unstable/cli";
 
-const formatOption = Options.withDefault(Options.choice("format", ["markdown", "json", "silent"]), "markdown");
-const projectOption = Options.optional(Options.text("project"));
-const maxLinesOption = Options.optional(Options.integer("max-lines"));
+const formatOption = Flag.withDefault(Flag.choice("format", ["markdown", "json", "silent"]), "markdown");
+const projectOption = Flag.optional(Flag.string("project"));
+const maxLinesOption = Flag.optional(Flag.integer("max-lines"));
 
 export const triageCommand = Command.make(
 	"triage",

@@ -23,7 +23,8 @@ import {
 	singleProjectThresholdEvents,
 	singleTestFailEvents,
 	singleTestPassEvents,
-} from "../fixtures/events.js";
+} from "../utils/events.js";
+import { renderInk } from "../utils/render-ink.js";
 import {
 	belowTargetFixture,
 	regressingTrend,
@@ -31,8 +32,7 @@ import {
 	workspaceFailProjects,
 	workspacePassProjects,
 	workspaceThresholdProjects,
-} from "../fixtures/workspace.js";
-import { renderInk } from "../utils/render-ink.js";
+} from "../utils/workspace.js";
 
 const noColorOpts: CellOptions = {
 	noColor: true,

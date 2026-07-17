@@ -52,7 +52,7 @@ describe("effectToZodSchema", () => {
 	});
 
 	it("respects literal unions", () => {
-		const E = Schema.Struct({ scope: Schema.Literal("test", "suite", "module", "unhandled") });
+		const E = Schema.Struct({ scope: Schema.Literals(["test", "suite", "module", "unhandled"]) });
 		const z = effectToZodSchema(E);
 		expect(z.safeParse({ scope: "test" }).success).toBe(true);
 		expect(z.safeParse({ scope: "bogus" }).success).toBe(false);
@@ -61,13 +61,13 @@ describe("effectToZodSchema", () => {
 	it("preserves Schema annotations (title, description, examples) through the bridge", async () => {
 		const z3 = await import("zod");
 		const E = Schema.Struct({
-			project: Schema.String.annotations({
+			project: Schema.String.annotate({
 				title: "Project name",
 				description: "Workspace project key the run was attributed to.",
 				examples: ["playground", "@org/pkg"],
 			}),
-			count: Schema.Number.annotations({ description: "Total error rows." }),
-		}).annotations({ title: "TestErrorsResult", description: "Top-level test_errors payload." });
+			count: Schema.Number.annotate({ description: "Total error rows." }),
+		}).annotate({ title: "TestErrorsResult", description: "Top-level test_errors payload." });
 		const zodified = effectToZodSchema(E);
 		const json = z3.z.toJSONSchema(zodified) as {
 			title?: string;

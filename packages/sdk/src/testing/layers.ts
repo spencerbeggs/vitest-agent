@@ -1,4 +1,4 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Layer } from "effect";
@@ -8,7 +8,7 @@ import migration0001 from "../migrations/0001_initial.js";
 /** @public */
 export function makeTestLayer(filename: string) {
 	const SqliteLayer = sqliteClientLayer({ filename });
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({

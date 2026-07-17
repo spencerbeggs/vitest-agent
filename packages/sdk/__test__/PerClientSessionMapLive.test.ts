@@ -1,4 +1,4 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer, Option } from "effect";
@@ -9,7 +9,7 @@ import { PerClientSessionMapReader, PerClientSessionMapWriter } from "../src/ser
 
 const makeWriterLayer = () => {
 	const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({ "0001_initial": sessionMapMigration }),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
@@ -174,7 +174,7 @@ describe("PerClientSessionMapReader (Writer satisfies Reader tag)", () => {
 		// same connection — the "reader" guarantee here is just that the
 		// methods exist and return None for an empty table.
 		const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-		const PlatformLayer = NodeContext.layer;
+		const PlatformLayer = NodeServices.layer;
 		const MigratorLayer = SqliteMigrator.layer({
 			loader: SqliteMigrator.fromRecord({ "0001_initial": sessionMapMigration }),
 		}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));

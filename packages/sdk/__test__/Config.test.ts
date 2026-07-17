@@ -2,7 +2,7 @@ import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { VitestAgentConfig } from "../src/schemas/Config.js";
 
-const decode = (input: unknown) => Effect.runPromise(Schema.decodeUnknown(VitestAgentConfig)(input));
+const decode = (input: unknown) => Effect.runPromise(Schema.decodeUnknownEffect(VitestAgentConfig)(input));
 
 describe("VitestAgentConfig", () => {
 	it("decodes an empty object", async () => {

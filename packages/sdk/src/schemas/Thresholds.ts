@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 /**
  * Per-metric threshold values. All optional -- only set metrics are enforced.
@@ -9,7 +9,7 @@ export const MetricThresholds = Schema.Struct({
 	functions: Schema.optional(Schema.Number),
 	branches: Schema.optional(Schema.Number),
 	statements: Schema.optional(Schema.Number),
-}).annotations({ identifier: "MetricThresholds" });
+}).annotate({ identifier: "MetricThresholds" });
 /** @public */
 export type MetricThresholds = typeof MetricThresholds.Type;
 
@@ -17,7 +17,7 @@ export type MetricThresholds = typeof MetricThresholds.Type;
  * A glob pattern paired with its metric thresholds.
  * @public
  */
-export const PatternThresholds = Schema.Tuple(Schema.String, MetricThresholds).annotations({
+export const PatternThresholds = Schema.Tuple([Schema.String, MetricThresholds]).annotate({
 	identifier: "PatternThresholds",
 });
 /** @public */
@@ -29,10 +29,8 @@ export type PatternThresholds = typeof PatternThresholds.Type;
  */
 export const ResolvedThresholds = Schema.Struct({
 	global: MetricThresholds,
-	perFile: Schema.optionalWith(Schema.Boolean, { default: () => false }),
-	patterns: Schema.optionalWith(Schema.Array(PatternThresholds), {
-		default: () => [],
-	}),
-}).annotations({ identifier: "ResolvedThresholds" });
+	perFile: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
+	patterns: Schema.Array(PatternThresholds).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
+}).annotate({ identifier: "ResolvedThresholds" });
 /** @public */
 export type ResolvedThresholds = typeof ResolvedThresholds.Type;

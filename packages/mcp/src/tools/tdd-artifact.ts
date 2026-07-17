@@ -12,26 +12,26 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, ParseResult, Schema } from "effect";
+import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
-const ArtifactKindSchema = Schema.Literal(
+const ArtifactKindSchema = Schema.Literals([
 	"test_written",
 	"test_failed_run",
 	"code_written",
 	"test_passed_run",
 	"refactor",
 	"test_weakened",
-);
+]);
 
 const TddArtifactRow = Schema.Struct({
-	id: Schema.Number.annotations({
+	id: Schema.Number.annotate({
 		title: "tdd_artifacts.id",
 		description: "Pass as `citedArtifactId` to `tdd_phase_transition_request`.",
 	}),
 	tddTaskId: Schema.Number,
 	phaseId: Schema.Number,
-	phaseName: Schema.Literal(
+	phaseName: Schema.Literals([
 		"spike",
 		"red",
 		"red.triangulate",
@@ -40,27 +40,27 @@ const TddArtifactRow = Schema.Struct({
 		"refactor",
 		"extended-red",
 		"green-without-red",
-	),
+	]),
 	artifactKind: ArtifactKindSchema,
 	behaviorId: Schema.NullOr(Schema.Number),
 	testCaseId: Schema.NullOr(Schema.Number),
 	testRunId: Schema.NullOr(Schema.Number),
 	testFirstFailureRunId: Schema.NullOr(Schema.Number),
 	recordedAt: Schema.String,
-}).annotations({ identifier: "TddArtifactListRow" });
+}).annotate({ identifier: "TddArtifactListRow" });
 
 const ArtifactFilters = Schema.Struct({
 	artifactKind: Schema.optional(ArtifactKindSchema),
 	phaseId: Schema.optional(Schema.Number),
 	behaviorId: Schema.optional(Schema.Number),
-}).annotations({ identifier: "TddArtifactFilters" });
+}).annotate({ identifier: "TddArtifactFilters" });
 
 export const TddArtifactListResult = Schema.Struct({
 	tddTaskId: Schema.Number,
 	filters: ArtifactFilters,
 	count: Schema.Number,
 	artifacts: Schema.Array(TddArtifactRow),
-}).annotations({
+}).annotate({
 	identifier: "TddArtifactListResult",
 	title: "tdd_artifact_list result",
 	description:
@@ -91,12 +91,12 @@ export const formatTddArtifactListMarkdown = (data: TddArtifactListResultType): 
 	return lines.join("\n");
 };
 
-export const TddArtifactListAsMarkdown = Schema.transformOrFail(TddArtifactListResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTddArtifactListMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(new ParseResult.Forbidden(ast, text, "TddArtifactListAsMarkdown is one-way.")),
-});
+export const TddArtifactListAsMarkdown = TddArtifactListResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTddArtifactListMarkdown(data)),
+		encode: SchemaGetter.forbidden(() => "TddArtifactListAsMarkdown is one-way."),
+	}),
+);
 
 const TddArtifactListInput = Schema.Struct({
 	tddTaskId: Schema.Number,
@@ -106,7 +106,7 @@ const TddArtifactListInput = Schema.Struct({
 	limit: Schema.optional(Schema.Number),
 });
 
-export const tddArtifactList = publicProcedure.input(Schema.standardSchemaV1(TddArtifactListInput)).query(
+export const tddArtifactList = publicProcedure.input(Schema.toStandardSchemaV1(TddArtifactListInput)).query(
 	async ({ ctx, input }): Promise<TddArtifactListResultType> =>
 		ctx.runtime.runPromise(
 			Effect.gen(function* () {

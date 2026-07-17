@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { NodeContext } from "@effect/platform-node";
+import { NodeServices } from "@effect/platform-node";
 import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
 import type {
 	AgentReport,
@@ -78,7 +78,10 @@ function resolveDataPathCached(projectDir: string): Promise<string> {
 	const cached = dbPathCache.get(projectDir);
 	if (cached !== undefined) return cached;
 	const promise = Effect.runPromise(
-		resolveDataPath(projectDir).pipe(Effect.provide(PathResolutionLive(projectDir)), Effect.provide(NodeContext.layer)),
+		resolveDataPath(projectDir).pipe(
+			Effect.provide(PathResolutionLive(projectDir)),
+			Effect.provide(NodeServices.layer),
+		),
 	);
 	dbPathCache.set(projectDir, promise);
 	// Surface rejection to callers without leaving an unhandled-rejection
@@ -496,7 +499,7 @@ export class AgentReporter {
 				return { env, executor, format, detail };
 			});
 			const { env, executor, format, detail } = await Effect.runPromise(
-				initProgram.pipe(Effect.provide(OutputPipelineLive), Effect.provide(NodeContext.layer)),
+				initProgram.pipe(Effect.provide(OutputPipelineLive), Effect.provide(NodeServices.layer)),
 			);
 			const kit = buildReporterKit({
 				env,
@@ -1222,7 +1225,7 @@ export class AgentReporter {
 				const executor = yield* executorResolver.resolve(env);
 				const format = yield* formatSelector.select(executor, opts.format, env);
 				const health = {
-					hasFailures: uiReports.some((r) => r.summary.failed > 0 || r.unhandledErrors.length > 0),
+					hasFailures: uiReports.some((r) => r.failedFiles.length > 0 || r.unhandledErrors.length > 0),
 					belowTargets: false,
 					hasTargets: !!opts.coverageTargets,
 				};
@@ -1266,7 +1269,7 @@ export class AgentReporter {
 			});
 
 			await Effect.runPromise(
-				uiProgram.pipe(Effect.provide(OutputPipelineLive), Effect.provide(NodeContext.layer)),
+				uiProgram.pipe(Effect.provide(OutputPipelineLive), Effect.provide(NodeServices.layer)),
 			).catch((err) => {
 				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 			});
@@ -1327,7 +1330,7 @@ export class AgentReporter {
 			// Read existing baselines from DB
 			const baselinesOpt = yield* reader
 				.getBaselines("__global__")
-				.pipe(Effect.catchAll(() => Effect.succeed(Option.none<CoverageBaselines>())));
+				.pipe(Effect.catch(() => Effect.succeed(Option.none<CoverageBaselines>())));
 			const baselines = Option.getOrUndefined(baselinesOpt);
 
 			// Process coverage via service
@@ -1777,7 +1780,7 @@ export class AgentReporter {
 				if (coverageReport && !coverageReport.scoped) {
 					const existingTrends = yield* reader.getTrends(project).pipe(
 						Effect.map((opt) => Option.getOrUndefined(opt)),
-						Effect.catchAll(() => Effect.succeed(undefined)),
+						Effect.catch(() => Effect.succeed(undefined)),
 					);
 					const updatedTrends = computeTrend(coverageReport.totals, existingTrends, opts.coverageTargets);
 					// Write the latest trend entry
@@ -1806,7 +1809,7 @@ export class AgentReporter {
 				const firstProjectKey = Array.from(projectGroups.keys())[0];
 				if (firstProjectKey) {
 					const tp = firstProjectKey === "default" ? "default" : firstProjectKey;
-					const trendsOpt = yield* reader.getTrends(tp).pipe(Effect.catchAll(() => Effect.succeed(Option.none())));
+					const trendsOpt = yield* reader.getTrends(tp).pipe(Effect.catch(() => Effect.succeed(Option.none())));
 					if (Option.isSome(trendsOpt)) {
 						const entries = trendsOpt.value.entries;
 						if (entries.length >= 2) {
@@ -1853,7 +1856,7 @@ export class AgentReporter {
 			const executor = yield* executorResolver.resolve(env);
 			const format = yield* formatSelector.select(executor, opts.format, env);
 			const health = {
-				hasFailures: reports.some((r) => r.summary.failed > 0 || r.unhandledErrors.length > 0),
+				hasFailures: reports.some((r) => r.failedFiles.length > 0 || r.unhandledErrors.length > 0),
 				belowTargets: reports.some((r) => {
 					const cov = r.coverage as { belowTarget?: unknown[] } | undefined;
 					return (cov?.belowTarget?.length ?? 0) > 0;

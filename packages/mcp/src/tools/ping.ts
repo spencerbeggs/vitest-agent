@@ -12,10 +12,10 @@ import { Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
 export const PingResult = Schema.Struct({
-	message: Schema.Literal("pong").annotations({
+	message: Schema.Literal("pong").annotate({
 		description: "Constant `pong`. Presence confirms the MCP server responded.",
 	}),
-}).annotations({
+}).annotate({
 	identifier: "PingResult",
 	title: "ping result",
 	description: "Liveness probe. Carries no data beyond the constant `pong` discriminant.",

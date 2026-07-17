@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { MetricThresholds, PatternThresholds } from "./Thresholds.js";
 
 /**
@@ -10,7 +10,7 @@ export const CoverageTotals = Schema.Struct({
 	branches: Schema.Number,
 	functions: Schema.Number,
 	lines: Schema.Number,
-}).annotations({ identifier: "CoverageTotals" });
+}).annotate({ identifier: "CoverageTotals" });
 /** @public */
 export type CoverageTotals = typeof CoverageTotals.Type;
 
@@ -22,7 +22,7 @@ export const FileCoverageReport = Schema.Struct({
 	file: Schema.String,
 	summary: CoverageTotals,
 	uncoveredLines: Schema.String,
-}).annotations({ identifier: "FileCoverageReport" });
+}).annotate({ identifier: "FileCoverageReport" });
 /** @public */
 export type FileCoverageReport = typeof FileCoverageReport.Type;
 
@@ -34,32 +34,26 @@ export const CoverageReport = Schema.Struct({
 	totals: CoverageTotals,
 	thresholds: Schema.Struct({
 		global: MetricThresholds,
-		patterns: Schema.optionalWith(Schema.Array(PatternThresholds), {
-			default: () => [],
-		}),
+		patterns: Schema.Array(PatternThresholds).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
 	}),
 	targets: Schema.optional(
 		Schema.Struct({
 			global: MetricThresholds,
-			patterns: Schema.optionalWith(Schema.Array(PatternThresholds), {
-				default: () => [],
-			}),
+			patterns: Schema.Array(PatternThresholds).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
 		}),
 	),
 	baselines: Schema.optional(
 		Schema.Struct({
 			global: MetricThresholds,
-			patterns: Schema.optionalWith(Schema.Array(PatternThresholds), {
-				default: () => [],
-			}),
+			patterns: Schema.Array(PatternThresholds).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
 		}),
 	),
-	scoped: Schema.optionalWith(Schema.Boolean, { default: () => false }),
+	scoped: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
 	scopedFiles: Schema.optional(Schema.Array(Schema.String)),
 	lowCoverage: Schema.Array(FileCoverageReport),
 	lowCoverageFiles: Schema.Array(Schema.String),
 	belowTarget: Schema.optional(Schema.Array(FileCoverageReport)),
 	belowTargetFiles: Schema.optional(Schema.Array(Schema.String)),
-}).annotations({ identifier: "CoverageReport" });
+}).annotate({ identifier: "CoverageReport" });
 /** @public */
 export type CoverageReport = typeof CoverageReport.Type;

@@ -5,45 +5,45 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, ParseResult, Schema } from "effect";
+import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const FileRow = Schema.Struct({
-	filePath: Schema.String.annotations({ description: "Repo-relative path of the changed file." }),
-	changeKind: Schema.Literal("added", "modified", "deleted", "renamed", "untracked-modified").annotations({
+	filePath: Schema.String.annotate({ description: "Repo-relative path of the changed file." }),
+	changeKind: Schema.Literals(["added", "modified", "deleted", "renamed", "untracked-modified"]).annotate({
 		description:
 			"How the file changed in this commit (or `untracked-modified` for working-tree changes attributed to a commit).",
 	}),
-}).annotations({ identifier: "CommitFileRow" });
+}).annotate({ identifier: "CommitFileRow" });
 
 const CommitRow = Schema.Struct({
-	sha: Schema.String.annotations({ description: "Full git commit SHA-1." }),
-	parentSha: Schema.NullOr(Schema.String).annotations({
+	sha: Schema.String.annotate({ description: "Full git commit SHA-1." }),
+	parentSha: Schema.NullOr(Schema.String).annotate({
 		description: "Parent commit SHA, or `null` for the root commit / when no parent was recorded.",
 	}),
-	message: Schema.NullOr(Schema.String).annotations({
+	message: Schema.NullOr(Schema.String).annotate({
 		description: "Commit message subject + body, or `null` if not captured.",
 	}),
-	author: Schema.NullOr(Schema.String).annotations({
+	author: Schema.NullOr(Schema.String).annotate({
 		description: "Commit author in `Name <email>` form when captured.",
 	}),
-	committedAt: Schema.NullOr(Schema.String).annotations({ description: "ISO-8601 commit timestamp." }),
-	branch: Schema.NullOr(Schema.String).annotations({
+	committedAt: Schema.NullOr(Schema.String).annotate({ description: "ISO-8601 commit timestamp." }),
+	branch: Schema.NullOr(Schema.String).annotate({
 		description: "Branch the commit was recorded on at hook fire time.",
 	}),
-	files: Schema.Array(FileRow).annotations({ description: "Files this commit changed, with per-file change kinds." }),
-}).annotations({ identifier: "CommitRow" });
+	files: Schema.Array(FileRow).annotate({ description: "Files this commit changed, with per-file change kinds." }),
+}).annotate({ identifier: "CommitRow" });
 
 export const CommitChangesResult = Schema.Struct({
-	filterSha: Schema.optional(Schema.String).annotations({
+	filterSha: Schema.optional(Schema.String).annotate({
 		description:
 			"Echo of the optional `sha` filter the caller passed; absent when no filter was applied (recent commits returned).",
 	}),
-	count: Schema.Number.annotations({ description: "Number of commit rows returned." }),
-	commits: Schema.Array(CommitRow).annotations({
+	count: Schema.Number.annotate({ description: "Number of commit rows returned." }),
+	commits: Schema.Array(CommitRow).annotate({
 		description: "Matching commits, newest first when `sha` was omitted; up to 20 rows.",
 	}),
-}).annotations({
+}).annotate({
 	identifier: "CommitChangesResult",
 	title: "commit_changes result",
 	description: "Commit metadata + per-file changes captured by the post-commit Bash hook.",
@@ -71,21 +71,17 @@ export const formatCommitChangesMarkdown = (data: CommitChangesResultType): stri
 	return lines.join("\n").trim();
 };
 
-export const CommitChangesAsMarkdown = Schema.transformOrFail(CommitChangesResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatCommitChangesMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(
-			new ParseResult.Forbidden(
-				ast,
-				text,
-				"CommitChangesAsMarkdown is one-way: markdown cannot be parsed back to CommitChangesResult.",
-			),
+export const CommitChangesAsMarkdown = CommitChangesResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatCommitChangesMarkdown(data)),
+		encode: SchemaGetter.forbidden(
+			() => "CommitChangesAsMarkdown is one-way: markdown cannot be parsed back to CommitChangesResult.",
 		),
-});
+	}),
+);
 
 export const commitChanges = publicProcedure
-	.input(Schema.standardSchemaV1(Schema.Struct({ sha: Schema.optional(Schema.String) })))
+	.input(Schema.toStandardSchemaV1(Schema.Struct({ sha: Schema.optional(Schema.String) })))
 	.query(
 		async ({ ctx, input }): Promise<CommitChangesResultType> =>
 			ctx.runtime.runPromise(

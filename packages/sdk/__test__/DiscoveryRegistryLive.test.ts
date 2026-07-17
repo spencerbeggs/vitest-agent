@@ -1,4 +1,4 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
@@ -9,7 +9,7 @@ import { DiscoveryRegistry } from "../src/services/DiscoveryRegistry.js";
 
 const makeRegistryLayer = () => {
 	const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-	const PlatformLayer = NodeContext.layer;
+	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({ "0001_initial": registryMigration }),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));

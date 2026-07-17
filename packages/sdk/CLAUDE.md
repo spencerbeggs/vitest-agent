@@ -34,7 +34,7 @@ src/
     dispatcher.ts     -- RunShape, RunOutcome, ProjectSummary,
                          TrendSummary, DispatchInputs, CellOptions
                          (T6 UI rewrite)
-  services/           -- 14 Effect Context.Tag definitions
+  services/           -- 14 Effect Context.Service definitions
   layers/             -- live + test layer implementations
   schemas/            -- Effect Schema definitions
     RunEvent.ts       -- discriminated union of streaming run events
@@ -84,11 +84,14 @@ src/
 - **Public-API-by-default.** Anything exported from `index.ts` is part
   of the contract used by all five runtime packages. Adding or removing
   exports needs to be considered against all five consumers.
-- **Three external Effect-ecosystem deps unique to this package:**
-  `xdg-effect`, `config-file-effect`, `workspaces-effect`. Don't add
-  these to the runtime packages; consume the resolved layers/services
-  from here instead. Also unique here: `acorn ^8.16.0` and
-  `acorn-typescript ^1.4.13` for `function-boundary.ts`'s AST walk.
+- **External `@effected/*` kit deps unique to this package:**
+  `@effected/xdg`, `@effected/config-file`, `@effected/workspaces`
+  (plus the codec deps `@effected/jsonc`, `@effected/toml`,
+  `@effected/walker`, `@effected/yaml`). Adopted directly — NOT via
+  `@effected/app` / `@effected/store`. Don't add these to the runtime
+  packages; consume the resolved layers/services from here instead. Also
+  unique here: `acorn ^8.17.0` and `acorn-typescript ^1.4.13` for
+  `function-boundary.ts`'s AST walk.
 - **Effect Schema is the source of truth** for data structures. Zod
   belongs only in the MCP package (for tRPC tool input validation).
 - **Errors use `Data.TaggedError`** with derived `[operation
@@ -141,7 +144,8 @@ src/
   `extractSqlReason(e)` in `mapError`, and consider whether MCP/CLI
   consumers will want it.
 - Touching `resolveDataPath`/`PathResolutionLive`: callers still need
-  `NodeContext.layer` (or `NodeFileSystem.layer`); don't bake it into
+  `NodeServices.layer` (the v4 layer subsuming the former
+  `NodeContext` + `NodeFileSystem`); don't bake it into
   `PathResolutionLive` itself.
 - Touching `ensureMigrated`: the `globalThis`-keyed cache is intentional
   (Vite can load this module twice in one process for multi-project

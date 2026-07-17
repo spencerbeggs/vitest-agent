@@ -1,6 +1,6 @@
+import type { WorkspaceDiscoveryFailure } from "@effected/workspaces";
+import { WorkspaceDiscovery, WorkspaceRootNotFoundError } from "@effected/workspaces";
 import { Effect } from "effect";
-import type { WorkspaceDiscoveryError } from "workspaces-effect";
-import { WorkspaceDiscovery, WorkspaceRootNotFoundError } from "workspaces-effect";
 import { normalizeWorkspaceKey } from "./normalize-workspace-key.js";
 
 /**
@@ -12,9 +12,14 @@ import { normalizeWorkspaceKey } from "./normalize-workspace-key.js";
  * `$XDG_DATA_HOME/vitest-agent/` where the SQLite database lives.
  *
  * Fails with `WorkspaceRootNotFoundError` when no root workspace is
- * discoverable from `projectDir`. `WorkspacePackage.name` is enforced
- * non-empty by `workspaces-effect`'s schema, so a successful root lookup
- * always yields a usable name.
+ * discoverable. `WorkspacePackage.name` is enforced non-empty by
+ * `@effected/workspaces`'s schema, so a successful root lookup always yields a
+ * usable name.
+ *
+ * Note (v4): `@effected/workspaces` anchors discovery at the `WorkspaceDiscovery`
+ * layer's `cwd`, not at a per-call path — `discovery.listPackages()` takes no
+ * argument. `projectDir` is retained for the not-found diagnostic; callers that
+ * need to anchor at a specific directory build `WorkspaceDiscovery.layer({ cwd })`.
  *
  * @param projectDir - Absolute path inside the workspace. Typically the
  *   reporter's resolved `projectDir` (CLAUDE_PROJECT_DIR or process.cwd()).
@@ -22,16 +27,16 @@ import { normalizeWorkspaceKey } from "./normalize-workspace-key.js";
  */
 export const resolveWorkspaceKey = (
 	projectDir: string,
-): Effect.Effect<string, WorkspaceRootNotFoundError | WorkspaceDiscoveryError, WorkspaceDiscovery> =>
+): Effect.Effect<string, WorkspaceRootNotFoundError | WorkspaceDiscoveryFailure, WorkspaceDiscovery> =>
 	Effect.gen(function* () {
 		const discovery = yield* WorkspaceDiscovery;
-		const packages = yield* discovery.listPackages(projectDir);
+		const packages = yield* discovery.listPackages();
 		const root = packages.find((pkg) => pkg.isRootWorkspace);
 		if (!root) {
 			return yield* Effect.fail(
 				new WorkspaceRootNotFoundError({
 					searchPath: projectDir,
-					reason: "No root workspace package found in the discovered package list.",
+					markers: [],
 				}),
 			);
 		}

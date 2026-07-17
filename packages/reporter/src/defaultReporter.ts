@@ -35,6 +35,7 @@ import type {
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
+import { countSuiteFailures } from "@vitest-agent/sdk";
 import {
 	classifyOutcome,
 	classifyRunShape,
@@ -43,7 +44,7 @@ import {
 	reduceRenderStateAll,
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
-import { Effect, PubSub, Queue } from "effect";
+import { Effect, PubSub } from "effect";
 import { createLiveInk } from "./LiveInkRenderer.js";
 
 const summarizeProject = (report: AgentReport): ProjectSummary => {
@@ -57,7 +58,10 @@ const summarizeProject = (report: AgentReport): ProjectSummary => {
 	return {
 		name: report.project ?? "default",
 		passCount: report.summary.passed,
-		failCount: report.summary.failed,
+		// summary.failed counts failed test cases only; add suite-level
+		// (collection/load) failures so a file that never loaded turns the
+		// project row red instead of showing a misleading all-green pass.
+		failCount: report.summary.failed + countSuiteFailures(report),
 		skipCount: report.summary.skipped,
 		durationMs: report.summary.duration,
 		...(tagCountsHasEntries && collapsedTagCounts !== undefined ? { tagCounts: collapsedTagCounts } : {}),
@@ -222,7 +226,7 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
  * at run start — before the plugin publishes the first `RunStarted`
  * event — so the subscription is registered in time. `Effect.runFork`
  * advances the forked fiber up to its first suspension (the
- * `Queue.take` below); that suspension point is past `PubSub.subscribe`,
+ * `PubSub.take` below); that suspension point is past `PubSub.subscribe`,
  * so the subscription is live before this function returns. The drain
  * loop runs forever: `createLiveInk` handles `RunFinished` (schedules
  * unmount) and a subsequent `RunStarted` (remounts) itself, so the loop
@@ -236,9 +240,9 @@ const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
 	Effect.runFork(
 		Effect.scoped(
 			Effect.gen(function* () {
-				const dequeue = yield* PubSub.subscribe(channel);
+				const subscription = yield* PubSub.subscribe(channel);
 				yield* Effect.forever(
-					Queue.take(dequeue).pipe(Effect.flatMap((event) => Effect.sync(() => live.event(event)))),
+					PubSub.take(subscription).pipe(Effect.flatMap((event) => Effect.sync(() => live.event(event)))),
 				);
 			}),
 		),

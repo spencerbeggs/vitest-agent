@@ -8,13 +8,12 @@
  * @packageDocumentation
  */
 
-import type { Schema } from "effect";
-import { JSONSchema } from "effect";
+import { Schema } from "effect";
 import { z } from "zod";
 
 /**
- * Convert an Effect `Schema.Schema<A, I, never>` to a zod schema by
- * serializing it to JSON Schema (`JSONSchema.make`) and ingesting the
+ * Convert an Effect `Schema.Codec<A, I>` to a zod schema by
+ * serializing it to JSON Schema (`Schema.toJsonSchemaDocument`) and ingesting the
  * result via zod 4's `z.fromJSONSchema`.
  *
  * Trade-offs:
@@ -32,7 +31,7 @@ import { z } from "zod";
  *
  * Implementation note: zod 4's `z.fromJSONSchema` does not resolve
  * `$ref` lookups into `$defs` — every `{ $ref: "#/$defs/X" }` it
- * encounters throws "Reference not found". Effect's `JSONSchema.make`
+ * encounters throws "Reference not found". Effect's `Schema.toJsonSchemaDocument`
  * emits a `$ref`-and-`$defs` representation whenever a Schema carries
  * an `identifier` annotation. The bridge therefore inlines every
  * `$ref` in the document before handing it to zod (recursive
@@ -51,8 +50,13 @@ import { z } from "zod";
  * source schema as a single `Schema.Struct` with a discriminator field
  * if the rich listing matters.
  */
-export const effectToZodSchema = <A, I>(schema: Schema.Schema<A, I, never>): z.ZodTypeAny => {
-	const jsonSchema = JSONSchema.make(schema) as unknown as Record<string, unknown>;
+export const effectToZodSchema = <A, I>(schema: Schema.Codec<A, I>): z.ZodTypeAny => {
+	// v4 `toJsonSchemaDocument` returns `{ dialect, schema, definitions }`
+	// rather than v3's bare JSON Schema. Shared subschemas live under
+	// `definitions` and are referenced as `#/$defs/X`, so rebuild the
+	// v3-shaped root the inliner expects: the root schema with `$defs`.
+	const document = Schema.toJsonSchemaDocument(schema);
+	const jsonSchema = { ...document.schema, $defs: document.definitions } as unknown as Record<string, unknown>;
 	const inlined = inlineAllRefs(jsonSchema);
 	const zodSchema = z.fromJSONSchema(inlined as never) as z.ZodTypeAny;
 	if (isObjectLike(zodSchema)) return zodSchema;

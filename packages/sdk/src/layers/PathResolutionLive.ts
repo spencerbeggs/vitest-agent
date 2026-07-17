@@ -1,39 +1,36 @@
+import { WorkspaceDiscovery, WorkspaceRoot } from "@effected/workspaces";
+import { AppDirs, Xdg } from "@effected/xdg";
 import { Layer } from "effect";
-import { WorkspaceDiscoveryLive, WorkspaceRootLive } from "workspaces-effect";
-import { AppDirsConfig, XdgLive } from "xdg-effect";
 import { ConfigLive } from "./ConfigLive.js";
 
 const APP_NAMESPACE = "vitest-agent";
 
 /**
- * Minimal slice of `workspaces-effect` for `resolveWorkspaceKey`.
- *
- * `WorkspacesLive` from `workspaces-effect` composes seven services and
- * runs eager I/O at layer construction in `LockfileReaderLive` (reads and
- * parses the entire lockfile). We only call `WorkspaceDiscovery.listPackages`
- * to read the root `package.json`'s `name` — `WorkspaceRoot` is the only
- * upstream dependency `WorkspaceDiscoveryLive` actually needs. Skipping
- * the rest avoids the lockfile-read cost on every reporter init, which
- * otherwise fires once per Vitest project (5+ reads on monorepos).
+ * `AppDirs` over the ambient `Xdg` environment, bound to a `const` so the
+ * layer memoizes by reference (calling `AppDirs.layer(...)` inline at two
+ * provide sites would resolve two independent services). Requires
+ * `FileSystem` + `Path` at the edge.
  */
-const WorkspaceMinimalLive = WorkspaceDiscoveryLive.pipe(Layer.provide(WorkspaceRootLive));
+const AppDirsLive = AppDirs.layer({ namespace: APP_NAMESPACE }).pipe(Layer.provide(Xdg.layer));
 
 /**
  * Composite layer providing every service `resolveDataPath` requires:
  * `AppDirs` (XDG path resolution), `VitestAgentConfigFile` (TOML
- * config loader), `WorkspaceDiscovery` and `WorkspaceRoot` (workspace name
+ * config loader), and `WorkspaceDiscovery` / `WorkspaceRoot` (workspace name
  * lookup).
  *
  * Callers still need to provide `FileSystem` and `Path` from
- * `@effect/platform-node`'s `NodeContext.layer` (or the equivalent on Bun).
+ * `@effect/platform-node`'s `NodeServices.layer` (or the equivalent on Bun).
+ *
+ * `WorkspaceDiscovery` is anchored at `projectDir`: on v4,
+ * `@effected/workspaces` resolves the workspace root from the layer's `cwd`
+ * rather than a per-call path, so the `cwd` is pinned here.
  *
  * @param projectDir - Absolute path inside the user's workspace, used to
- *   anchor the config file resolvers.
+ *   anchor the config file resolvers and workspace discovery.
  * @public
  */
-export const PathResolutionLive = (projectDir: string) =>
-	Layer.mergeAll(
-		XdgLive(new AppDirsConfig({ namespace: APP_NAMESPACE })),
-		ConfigLive(projectDir),
-		WorkspaceMinimalLive,
-	);
+export const PathResolutionLive = (projectDir: string) => {
+	const WorkspaceMinimalLive = WorkspaceDiscovery.layer({ cwd: projectDir }).pipe(Layer.provide(WorkspaceRoot.layer));
+	return Layer.mergeAll(AppDirsLive, ConfigLive(projectDir), WorkspaceMinimalLive);
+};

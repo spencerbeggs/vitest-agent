@@ -4,13 +4,13 @@
  * @packageDocumentation
  */
 
-import { Command, Options } from "@effect/cli";
 import { DataReader, resolveDataPath } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
+import { Command, Flag } from "effect/unstable/cli";
 import type { CheckResult } from "../lib/format-doctor.js";
 import { formatDoctor } from "../lib/format-doctor.js";
 
-const formatOption = Options.withDefault(Options.choice("format", ["markdown", "json"]), "markdown");
+const formatOption = Flag.withDefault(Flag.choice("format", ["markdown", "json"]), "markdown");
 
 const writeOutput = (results: CheckResult[], format: string) =>
 	Effect.sync(() => {
@@ -35,7 +35,7 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 		});
 
 		// Check 2: Manifest (can read project data from DB)
-		const manifestOpt = yield* reader.getManifest().pipe(Effect.catchAll(() => Effect.succeed(Option.none<never>())));
+		const manifestOpt = yield* reader.getManifest().pipe(Effect.catch(() => Effect.succeed(Option.none<never>())));
 
 		if (Option.isNone(manifestOpt)) {
 			results.push({
@@ -63,7 +63,7 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 			const project = entry.project;
 			const reportOpt = yield* reader
 				.getLatestRun(project)
-				.pipe(Effect.catchAll(() => Effect.succeed(Option.none<never>())));
+				.pipe(Effect.catch(() => Effect.succeed(Option.none<never>())));
 
 			if (Option.isNone(reportOpt)) {
 				reportIssues.push(`\`${entry.project}\` no report data`);
@@ -96,7 +96,7 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 			const project = entry.project;
 			const history = yield* reader.getHistory(project).pipe(
 				Effect.map((h) => ({ ok: true as const, record: h })),
-				Effect.catchAll(() => Effect.succeed({ ok: false as const, record: null })),
+				Effect.catch(() => Effect.succeed({ ok: false as const, record: null })),
 			);
 
 			if (!history.ok) {

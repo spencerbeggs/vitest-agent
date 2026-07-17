@@ -10,7 +10,7 @@
  */
 
 import { DataReader } from "@vitest-agent/sdk";
-import { Effect, ParseResult, Schema } from "effect";
+import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const totalAnnotation = { description: "Sample size — number of observations the metric ratio is computed over." };
@@ -20,48 +20,48 @@ const ratioAnnotation = {
 
 export const AcceptanceMetricsResult = Schema.Struct({
 	phaseEvidenceIntegrity: Schema.Struct({
-		total: Schema.Number.annotations(totalAnnotation),
-		compliant: Schema.Number.annotations({
+		total: Schema.Number.annotate(totalAnnotation),
+		compliant: Schema.Number.annotate({
 			description: "Phase transitions that cited a valid artifact and passed binding-rule validation.",
 		}),
-		ratio: Schema.Number.annotations(ratioAnnotation),
-	}).annotations({
+		ratio: Schema.Number.annotate(ratioAnnotation),
+	}).annotate({
 		title: "Phase-evidence integrity",
 		description:
 			"Fraction of accepted TDD phase transitions whose cited artifact satisfied the D2 binding rules. Spec target ≥80%.",
 	}),
 	complianceHookResponsiveness: Schema.Struct({
-		total: Schema.Number.annotations(totalAnnotation),
-		withFollowup: Schema.Number.annotations({
+		total: Schema.Number.annotate(totalAnnotation),
+		withFollowup: Schema.Number.annotate({
 			description: "PreToolUse denials / `additionalContext` reminders the orchestrator acknowledged in the next turn.",
 		}),
-		ratio: Schema.Number.annotations(ratioAnnotation),
-	}).annotations({
+		ratio: Schema.Number.annotate(ratioAnnotation),
+	}).annotate({
 		title: "Compliance-hook responsiveness",
 		description: "Fraction of compliance signals from PreToolUse hooks the orchestrator acted on. Spec target ≥40%.",
 	}),
 	orientationUsefulness: Schema.Struct({
-		total: Schema.Number.annotations(totalAnnotation),
-		referencedCount: Schema.Number.annotations({
+		total: Schema.Number.annotate(totalAnnotation),
+		referencedCount: Schema.Number.annotate({
 			description: "Sessions where `triage_brief` / `wrapup_prompt` content was referenced in subsequent decisions.",
 		}),
-		ratio: Schema.Number.annotations(ratioAnnotation),
-	}).annotations({
+		ratio: Schema.Number.annotate(ratioAnnotation),
+	}).annotate({
 		title: "Orientation usefulness",
 		description:
 			"Fraction of sessions where orientation prompts measurably steered orchestrator behaviour. Spec target ≥50%.",
 	}),
 	antiPatternDetectionRate: Schema.Struct({
-		total: Schema.Number.annotations(totalAnnotation),
-		cleanSessions: Schema.Number.annotations({
+		total: Schema.Number.annotate(totalAnnotation),
+		cleanSessions: Schema.Number.annotate({
 			description: "Sessions that produced no `tdd_artifacts(kind='test_weakened')` rows or DATABASE_BYPASS notes.",
 		}),
-		ratio: Schema.Number.annotations(ratioAnnotation),
-	}).annotations({
+		ratio: Schema.Number.annotate(ratioAnnotation),
+	}).annotate({
 		title: "Anti-pattern detection rate",
 		description: "Fraction of sessions free of weakening edits or sqlite3 bypass attempts. Spec target ≥95%.",
 	}),
-}).annotations({
+}).annotate({
 	identifier: "AcceptanceMetricsResult",
 	title: "Acceptance metrics",
 	description:
@@ -82,20 +82,16 @@ export const formatAcceptanceMetricsMarkdown = (m: AcceptanceMetricsResultType):
 		`4. Anti-pattern detection rate: ${fmtBucket(m.antiPatternDetectionRate)} — target ≥95%`,
 	].join("\n");
 
-export const AcceptanceMetricsAsMarkdown = Schema.transformOrFail(AcceptanceMetricsResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatAcceptanceMetricsMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(
-			new ParseResult.Forbidden(
-				ast,
-				text,
-				"AcceptanceMetricsAsMarkdown is one-way: markdown cannot be parsed back to AcceptanceMetricsResult.",
-			),
+export const AcceptanceMetricsAsMarkdown = AcceptanceMetricsResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatAcceptanceMetricsMarkdown(data)),
+		encode: SchemaGetter.forbidden(
+			() => "AcceptanceMetricsAsMarkdown is one-way: markdown cannot be parsed back to AcceptanceMetricsResult.",
 		),
-});
+	}),
+);
 
-export const acceptanceMetrics = publicProcedure.input(Schema.standardSchemaV1(Schema.Struct({}))).query(
+export const acceptanceMetrics = publicProcedure.input(Schema.toStandardSchemaV1(Schema.Struct({}))).query(
 	async ({ ctx }): Promise<AcceptanceMetricsResultType> =>
 		ctx.runtime.runPromise(
 			Effect.gen(function* () {

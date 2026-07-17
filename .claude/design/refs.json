@@ -4,14 +4,14 @@
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/architecture.md",
-			"hash": "b430b76f1ef4b8ddc8c2b861ad43b1b21afb5401fd675497c18b0612b9c99ff3",
-			"recordedAt": "2026-07-07"
+			"hash": "b3830ebe9e4eb7c2e26a17fb133f8a5397a75156ab2df1c6679ef053c2780c7c",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/discover.md",
-			"hash": "58ef03b25044677591dcdd5ffe4e1cf8ee714c2b50a218548db4d740feb08026",
-			"recordedAt": "2026-07-07"
+			"hash": "f13c3439274bd201a98582c5b757474cd6c8dacf563a60fb894c700318012012",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "CLAUDE.md",
@@ -22,224 +22,224 @@
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/plugin-claude.md",
-			"hash": "5e430da894b10c32797912a2484cd32276bcee005dca6e76a526c3118e1723b5",
-			"recordedAt": "2026-07-07"
+			"hash": "6bc57fc6aefa503f58cb6446968fb6a92fb7d0947f78c6c9f45bc7f73d124759",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/data-flows.md",
-			"hash": "eccaa0c60486dfc89e1d08afdf0568acb698c89bf10ed1b16fbaa1fcd9410b2f",
-			"recordedAt": "2026-07-01"
+			"hash": "8a72c4071bc72f8b3449968f8a4e9c12e116f82d421ca1d2ca944b7079ef115e",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5346c9b6e2db5b28fb6e772761053997c896a3c52d1656f1ee6127fe6cae4fc8",
-			"recordedAt": "2026-07-07"
+			"hash": "2481e414e860e6c250ef418640d6fea9539b7f77374fa8732684b17f38d74534",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/file-structure.md",
-			"hash": "781c326955923931146be07bbc9f77789e519064502b29204665bec0b1495e53",
-			"recordedAt": "2026-07-07"
+			"hash": "ca346bc8f652fa98ad2cae314cf74fb605a093a00d1c8ec4577c8a6dbcd8e9c2",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
-			"recordedAt": "2026-07-01"
+			"hash": "cc9afaad2f2a25088f05d9838bc3a7d06d223ec1a2b26b9a6379b08373dbcbf5",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "CLAUDE.md",
 			"target": ".claude/design/vitest-agent/testing-strategy.md",
-			"hash": "a0fda0df384ba332847a0f8be123bc51e00c0d6b81b73a7edd7df406e729e429",
-			"recordedAt": "2026-07-07"
+			"hash": "83153014a339cb529e30bc83c3c7c5b6680c649b6d49a0ed35b603698ef069a1",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/cli/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/cli.md",
-			"hash": "cb399be2599d5798a7e773c8adad601b8b5e0a019270c0e86568741ad5a5ce80",
-			"recordedAt": "2026-07-07"
+			"hash": "cd19564f4823e3ac58466bc82228534097787f8b95c8833b12459e0c746927a6",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/cli/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/data-flows.md",
-			"hash": "eccaa0c60486dfc89e1d08afdf0568acb698c89bf10ed1b16fbaa1fcd9410b2f",
-			"recordedAt": "2026-07-01"
+			"hash": "8a72c4071bc72f8b3449968f8a4e9c12e116f82d421ca1d2ca944b7079ef115e",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/cli/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
-			"recordedAt": "2026-07-01"
+			"hash": "cc9afaad2f2a25088f05d9838bc3a7d06d223ec1a2b26b9a6379b08373dbcbf5",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/mcp.md",
-			"hash": "bf24ddc489ea29c88b018346f1d076a634554696b49fe1c91e4a49cceb9a297e",
-			"recordedAt": "2026-07-07"
+			"hash": "c1008e193bc45a9fd15dd05138a44e47b976aa9c56900488390d541d2103eaf0",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/data-flows.md",
-			"hash": "eccaa0c60486dfc89e1d08afdf0568acb698c89bf10ed1b16fbaa1fcd9410b2f",
-			"recordedAt": "2026-07-01"
+			"hash": "8a72c4071bc72f8b3449968f8a4e9c12e116f82d421ca1d2ca944b7079ef115e",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5346c9b6e2db5b28fb6e772761053997c896a3c52d1656f1ee6127fe6cae4fc8",
-			"recordedAt": "2026-07-07"
+			"hash": "2481e414e860e6c250ef418640d6fea9539b7f77374fa8732684b17f38d74534",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/mcp/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
-			"recordedAt": "2026-07-01"
+			"hash": "cc9afaad2f2a25088f05d9838bc3a7d06d223ec1a2b26b9a6379b08373dbcbf5",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/discover.md",
-			"hash": "58ef03b25044677591dcdd5ffe4e1cf8ee714c2b50a218548db4d740feb08026",
-			"recordedAt": "2026-07-07"
+			"hash": "f13c3439274bd201a98582c5b757474cd6c8dacf563a60fb894c700318012012",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/plugin.md",
-			"hash": "fad9ca682c3048d4ad68a8ebed728d670251d71c2929873ff36ef7bd7590e9e8",
-			"recordedAt": "2026-07-07"
+			"hash": "0fa075ddecb023fff67bc48d99f33538df65725ce1144bcf4bcf9220ed9264ea",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/data-flows.md",
-			"hash": "eccaa0c60486dfc89e1d08afdf0568acb698c89bf10ed1b16fbaa1fcd9410b2f",
-			"recordedAt": "2026-07-01"
+			"hash": "8a72c4071bc72f8b3449968f8a4e9c12e116f82d421ca1d2ca944b7079ef115e",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5346c9b6e2db5b28fb6e772761053997c896a3c52d1656f1ee6127fe6cae4fc8",
-			"recordedAt": "2026-07-07"
+			"hash": "2481e414e860e6c250ef418640d6fea9539b7f77374fa8732684b17f38d74534",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/testing-strategy.md",
-			"hash": "a0fda0df384ba332847a0f8be123bc51e00c0d6b81b73a7edd7df406e729e429",
-			"recordedAt": "2026-07-07"
+			"hash": "83153014a339cb529e30bc83c3c7c5b6680c649b6d49a0ed35b603698ef069a1",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/reporter/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/reporter.md",
-			"hash": "f97e60a9dab2ce156ea007a9a9f88d06c7a2354477b74653cebeb6e5c942bf96",
-			"recordedAt": "2026-07-06"
+			"hash": "f77490d0d6829ff51b62daac0bf4c2d95806397138e06ffca58c989a1fe215e4",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/reporter/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/ui.md",
-			"hash": "a24a6f20f3673e2cf5610d6cef01d3cea3bc696fb863a71537ad0933ddc46dd6",
-			"recordedAt": "2026-07-06"
+			"hash": "800cd6121e1904c4ede5332e0d8144ae1be40d43f3efebc8f022b9507a1a834f",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/reporter/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5346c9b6e2db5b28fb6e772761053997c896a3c52d1656f1ee6127fe6cae4fc8",
-			"recordedAt": "2026-07-07"
+			"hash": "2481e414e860e6c250ef418640d6fea9539b7f77374fa8732684b17f38d74534",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/reporter/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
-			"recordedAt": "2026-07-01"
+			"hash": "cc9afaad2f2a25088f05d9838bc3a7d06d223ec1a2b26b9a6379b08373dbcbf5",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/discover.md",
-			"hash": "58ef03b25044677591dcdd5ffe4e1cf8ee714c2b50a218548db4d740feb08026",
-			"recordedAt": "2026-07-07"
+			"hash": "f13c3439274bd201a98582c5b757474cd6c8dacf563a60fb894c700318012012",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/sdk.md",
-			"hash": "7b486281438fe4f118543db1a141bff7ad357d60011a7b9024c7d57b7fa1ee7a",
-			"recordedAt": "2026-07-01"
+			"hash": "11626312dce58f5175fdb5a34ad0a29f102496826fd1ff8c1113ff4070574564",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5346c9b6e2db5b28fb6e772761053997c896a3c52d1656f1ee6127fe6cae4fc8",
-			"recordedAt": "2026-07-07"
+			"hash": "2481e414e860e6c250ef418640d6fea9539b7f77374fa8732684b17f38d74534",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/file-structure.md",
-			"hash": "781c326955923931146be07bbc9f77789e519064502b29204665bec0b1495e53",
-			"recordedAt": "2026-07-07"
+			"hash": "ca346bc8f652fa98ad2cae314cf74fb605a093a00d1c8ec4577c8a6dbcd8e9c2",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
-			"recordedAt": "2026-07-01"
+			"hash": "cc9afaad2f2a25088f05d9838bc3a7d06d223ec1a2b26b9a6379b08373dbcbf5",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/sdk/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/testing-strategy.md",
-			"hash": "a0fda0df384ba332847a0f8be123bc51e00c0d6b81b73a7edd7df406e729e429",
-			"recordedAt": "2026-07-07"
+			"hash": "83153014a339cb529e30bc83c3c7c5b6680c649b6d49a0ed35b603698ef069a1",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/sidecar/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/sidecar.md",
-			"hash": "3e7ecb7271b22a3833ee7b116daab920dd464b5fe5b4d51405ed9399568839ad",
-			"recordedAt": "2026-07-07"
+			"hash": "7c62ac9ccfb6a2ad11e82bf7fae01f4a1a1688f3ce9069106b123a8bc8db79bf",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/sidecar/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5346c9b6e2db5b28fb6e772761053997c896a3c52d1656f1ee6127fe6cae4fc8",
-			"recordedAt": "2026-07-07"
+			"hash": "2481e414e860e6c250ef418640d6fea9539b7f77374fa8732684b17f38d74534",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/ui/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/reporter.md",
-			"hash": "f97e60a9dab2ce156ea007a9a9f88d06c7a2354477b74653cebeb6e5c942bf96",
-			"recordedAt": "2026-07-06"
+			"hash": "f77490d0d6829ff51b62daac0bf4c2d95806397138e06ffca58c989a1fe215e4",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/ui/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/ui.md",
-			"hash": "a24a6f20f3673e2cf5610d6cef01d3cea3bc696fb863a71537ad0933ddc46dd6",
-			"recordedAt": "2026-07-06"
+			"hash": "800cd6121e1904c4ede5332e0d8144ae1be40d43f3efebc8f022b9507a1a834f",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/ui/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5346c9b6e2db5b28fb6e772761053997c896a3c52d1656f1ee6127fe6cae4fc8",
-			"recordedAt": "2026-07-07"
+			"hash": "2481e414e860e6c250ef418640d6fea9539b7f77374fa8732684b17f38d74534",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "packages/ui/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/schemas.md",
-			"hash": "d676943a909773643db739163632d799911c2086c3965bc467eccd381869f61a",
-			"recordedAt": "2026-07-01"
+			"hash": "cc9afaad2f2a25088f05d9838bc3a7d06d223ec1a2b26b9a6379b08373dbcbf5",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/architecture.md",
-			"hash": "b430b76f1ef4b8ddc8c2b861ad43b1b21afb5401fd675497c18b0612b9c99ff3",
-			"recordedAt": "2026-07-07"
+			"hash": "b3830ebe9e4eb7c2e26a17fb133f8a5397a75156ab2df1c6679ef053c2780c7c",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/plugin-claude.md",
-			"hash": "5e430da894b10c32797912a2484cd32276bcee005dca6e76a526c3118e1723b5",
-			"recordedAt": "2026-07-07"
+			"hash": "6bc57fc6aefa503f58cb6446968fb6a92fb7d0947f78c6c9f45bc7f73d124759",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "plugin/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
-			"hash": "5346c9b6e2db5b28fb6e772761053997c896a3c52d1656f1ee6127fe6cae4fc8",
-			"recordedAt": "2026-07-07"
+			"hash": "2481e414e860e6c250ef418640d6fea9539b7f77374fa8732684b17f38d74534",
+			"recordedAt": "2026-07-17"
 		},
 		{
 			"source": "website/CLAUDE.md",

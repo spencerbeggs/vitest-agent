@@ -1,6 +1,6 @@
-import { Effect, Layer } from "effect";
+import { WorkspaceDiscovery, WorkspacePackage } from "@effected/workspaces";
+import { Effect, Layer, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { WorkspaceDiscovery, WorkspacePackage } from "workspaces-effect";
 import { resolveWorkspaceKey } from "../src/utils/resolve-workspace-key.js";
 
 const makeDiscovery = (packages: ReadonlyArray<WorkspacePackage>) =>
@@ -14,6 +14,9 @@ const makeDiscovery = (packages: ReadonlyArray<WorkspacePackage>) =>
 			},
 			importerMap: () => Effect.succeed(new Map()),
 			refresh: () => Effect.void,
+			info: () => Effect.die(new Error("info stub: not configured")),
+			resolveFile: () => Effect.succeed(Option.none()),
+			resolveFiles: () => Effect.succeed([]),
 		}),
 	);
 
@@ -63,7 +66,7 @@ describe("resolveWorkspaceKey", () => {
 			childPkg("@org/child-a", "packages/child-a"),
 			childPkg("@org/child-b", "packages/child-b"),
 		]);
-		await expect(promise).rejects.toThrow(/Workspace root not found/);
+		await expect(promise).rejects.toThrow(/No workspace root above/);
 	});
 
 	it("returns the same key for two different projectDirs sharing a workspace name", async () => {

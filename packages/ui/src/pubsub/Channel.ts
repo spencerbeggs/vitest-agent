@@ -15,10 +15,9 @@ import { Context, Layer, PubSub } from "effect";
  *
  * @public
  */
-export class RunEventChannel extends Context.Tag("vitest-agent-ui/RunEventChannel")<
-	RunEventChannel,
-	PubSub.PubSub<RunEvent>
->() {}
+export class RunEventChannel extends Context.Service<RunEventChannel, PubSub.PubSub<RunEvent>>()(
+	"vitest-agent-ui/RunEventChannel",
+) {}
 
 /**
  * Default live layer providing an unbounded Effect `PubSub` for
@@ -35,7 +34,7 @@ export class RunEventChannel extends Context.Tag("vitest-agent-ui/RunEventChanne
  *
  * @public
  */
-export const RunEventChannelLive: Layer.Layer<RunEventChannel> = Layer.scoped(
+export const RunEventChannelLive: Layer.Layer<RunEventChannel> = Layer.effect(
 	RunEventChannel,
 	PubSub.unbounded<RunEvent>(),
 );

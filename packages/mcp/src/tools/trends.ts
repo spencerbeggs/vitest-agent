@@ -10,27 +10,27 @@
  */
 
 import { DataReader, TrendRecord } from "@vitest-agent/sdk";
-import { Effect, Option, ParseResult, Schema } from "effect";
+import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const TrendsAvailable = Schema.Struct({
-	dataAvailable: Schema.Literal(true).annotations({
+	dataAvailable: Schema.Literal(true).annotate({
 		description: "Discriminant — `true` when at least one trend entry exists for the project.",
 	}),
 	project: Schema.String,
-	trends: TrendRecord.annotations({
+	trends: TrendRecord.annotate({
 		description: "Trend entries oldest-first; the latest entry drives `direction` and the headline metrics.",
 	}),
-}).annotations({ identifier: "TestTrendsAvailable" });
+}).annotate({ identifier: "TestTrendsAvailable" });
 
 const TrendsAbsent = Schema.Struct({
-	dataAvailable: Schema.Literal(false).annotations({
+	dataAvailable: Schema.Literal(false).annotate({
 		description: "Discriminant — `false` when fewer than two runs have been recorded for the project.",
 	}),
 	project: Schema.String,
-}).annotations({ identifier: "TestTrendsAbsent" });
+}).annotate({ identifier: "TestTrendsAbsent" });
 
-export const TestTrendsResult = Schema.Union(TrendsAvailable, TrendsAbsent).annotations({
+export const TestTrendsResult = Schema.Union([TrendsAvailable, TrendsAbsent]).annotate({
 	identifier: "TestTrendsResult",
 	title: "test_trends result",
 	description: "Coverage trend record per project. Discriminate on `dataAvailable` to handle the cold-start case.",
@@ -109,22 +109,18 @@ export const formatTestTrendsMarkdown = (data: TestTrendsResultType): string => 
 	return lines.join("\n");
 };
 
-export const TestTrendsAsMarkdown = Schema.transformOrFail(TestTrendsResult, Schema.String, {
-	strict: true,
-	decode: (data) => ParseResult.succeed(formatTestTrendsMarkdown(data)),
-	encode: (text, _options, ast) =>
-		ParseResult.fail(
-			new ParseResult.Forbidden(
-				ast,
-				text,
-				"TestTrendsAsMarkdown is one-way: markdown cannot be parsed back to TestTrendsResult.",
-			),
+export const TestTrendsAsMarkdown = TestTrendsResult.pipe(
+	Schema.decodeTo(Schema.String, {
+		decode: SchemaGetter.transform((data) => formatTestTrendsMarkdown(data)),
+		encode: SchemaGetter.forbidden(
+			() => "TestTrendsAsMarkdown is one-way: markdown cannot be parsed back to TestTrendsResult.",
 		),
-});
+	}),
+);
 
 export const testTrends = publicProcedure
 	.input(
-		Schema.standardSchemaV1(
+		Schema.toStandardSchemaV1(
 			Schema.Struct({
 				project: Schema.String,
 				limit: Schema.optional(Schema.Number),

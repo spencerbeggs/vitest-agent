@@ -6,7 +6,7 @@ import { Schema } from "effect";
  * agent's lifetime.
  * @public
  */
-export const AgentId = Schema.UUID.pipe(Schema.brand("AgentId"));
+export const AgentId = Schema.String.check(Schema.isUUID()).pipe(Schema.brand("AgentId"));
 /** @public */
 export type AgentId = Schema.Schema.Type<typeof AgentId>;
 
@@ -16,7 +16,7 @@ export type AgentId = Schema.Schema.Type<typeof AgentId>;
  * transcript filename for Claude Code.
  * @public
  */
-export const ConversationId = Schema.UUID.pipe(Schema.brand("ConversationId"));
+export const ConversationId = Schema.String.check(Schema.isUUID()).pipe(Schema.brand("ConversationId"));
 /** @public */
 export type ConversationId = Schema.Schema.Type<typeof ConversationId>;
 
@@ -27,7 +27,7 @@ export type ConversationId = Schema.Schema.Type<typeof ConversationId>;
  * `sessions.id` (the SQLite agent-run PK).
  * @public
  */
-export const ChatId = Schema.UUID.pipe(Schema.brand("ChatId"));
+export const ChatId = Schema.String.check(Schema.isUUID()).pipe(Schema.brand("ChatId"));
 /** @public */
 export type ChatId = Schema.Schema.Type<typeof ChatId>;
 
@@ -36,7 +36,7 @@ export type ChatId = Schema.Schema.Type<typeof ChatId>;
  * vocabulary so "session" is unambiguous in the codebase.
  * @public
  */
-export const TddTaskId = Schema.UUID.pipe(Schema.brand("TddTaskId"));
+export const TddTaskId = Schema.String.check(Schema.isUUID()).pipe(Schema.brand("TddTaskId"));
 /** @public */
 export type TddTaskId = Schema.Schema.Type<typeof TddTaskId>;
 
@@ -48,7 +48,7 @@ export type TddTaskId = Schema.Schema.Type<typeof TddTaskId>;
  * value is `ProjectIdentityNotResolvableError`, not an empty string).
  * @public
  */
-export const ProjectKey = Schema.String.pipe(Schema.minLength(1), Schema.brand("ProjectKey"));
+export const ProjectKey = Schema.String.check(Schema.isMinLength(1)).pipe(Schema.brand("ProjectKey"));
 /** @public */
 export type ProjectKey = Schema.Schema.Type<typeof ProjectKey>;
 
@@ -61,7 +61,7 @@ export type ProjectKey = Schema.Schema.Type<typeof ProjectKey>;
  * - `system` — a CI run, scheduler, or other non-human/non-agent actor
  * @public
  */
-export const ActorType = Schema.Literal("agent", "user", "system").annotations({
+export const ActorType = Schema.Literals(["agent", "user", "system"]).annotate({
 	identifier: "ActorType",
 });
 /** @public */
@@ -77,7 +77,7 @@ export type ActorType = typeof ActorType.Type;
  * match a known pattern — preferred over guessing.
  * @public
  */
-export const HostKind = Schema.Literal(
+export const HostKind = Schema.Literals([
 	"claude-code",
 	"claude-desktop",
 	"cursor",
@@ -85,6 +85,6 @@ export const HostKind = Schema.Literal(
 	"chatgpt",
 	"mcp-inspector",
 	"unknown",
-).annotations({ identifier: "HostKind" });
+]).annotate({ identifier: "HostKind" });
 /** @public */
 export type HostKind = typeof HostKind.Type;

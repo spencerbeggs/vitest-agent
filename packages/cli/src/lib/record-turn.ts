@@ -12,11 +12,11 @@ export const parseAndValidateTurnPayload = (raw: string): ParseResult => {
 	} catch (e) {
 		return { ok: false, error: `Invalid JSON: ${e instanceof Error ? e.message : String(e)}` };
 	}
-	const decoded = Schema.decodeUnknownEither(TurnPayload)(parsed);
-	if (decoded._tag === "Left") {
-		return { ok: false, error: `Invalid TurnPayload: ${decoded.left.message}` };
+	const decoded = Schema.decodeUnknownResult(TurnPayload)(parsed);
+	if (decoded._tag === "Failure") {
+		return { ok: false, error: `Invalid TurnPayload: ${decoded.failure.message}` };
 	}
-	return { ok: true, payload: decoded.right };
+	return { ok: true, payload: decoded.success };
 };
 
 export interface RecordTurnInput {

@@ -1,8 +1,8 @@
-import * as NodeContext from "@effect/platform-node/NodeContext";
-import { SqlClient } from "@effect/sql/SqlClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import migration0001 from "../src/migrations/0001_initial.js";
@@ -12,7 +12,7 @@ import { DataStore } from "../src/services/DataStore.js";
 import { makeTestLayer } from "../src/testing/layers.js";
 
 const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-const PlatformLayer = NodeContext.layer;
+const PlatformLayer = NodeServices.layer;
 
 const MigratorLayer = SqliteMigrator.layer({
 	loader: SqliteMigrator.fromRecord({
@@ -1650,11 +1650,11 @@ describe("DataStoreLive", () => {
 						startedAt: "2026-04-29T00:00:02Z",
 						runId: "run-conflict",
 					});
-				}).pipe(Effect.either),
+				}).pipe(Effect.result),
 			);
-			expect(result._tag).toBe("Left");
-			if (result._tag === "Left") {
-				expect(result.left.message).toMatch(/runId conflict/);
+			expect(result._tag).toBe("Failure");
+			if (result._tag === "Failure") {
+				expect(result.failure.message).toMatch(/runId conflict/);
 			}
 		});
 

@@ -13,29 +13,32 @@ import { Effect, Match, Option, Schema } from "effect";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
 
-const BehaviorStatus = Schema.Literal("pending", "in_progress", "done", "abandoned");
+const BehaviorStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]);
 
 const TddBehaviorErrorEnvelope = Schema.Struct({
-	ok: Schema.Literal(false).annotations({ description: "Discriminant — `false` when a tagged TDD error was caught." }),
-	error: Schema.Struct({
-		_tag: Schema.String.annotations({
-			description: "Tagged error name (e.g. BehaviorNotFoundError, GoalNotFoundError).",
+	ok: Schema.Literal(false).annotate({ description: "Discriminant — `false` when a tagged TDD error was caught." }),
+	error: Schema.StructWithRest(
+		Schema.Struct({
+			_tag: Schema.String.annotate({
+				description: "Tagged error name (e.g. BehaviorNotFoundError, GoalNotFoundError).",
+			}),
+			message: Schema.String,
+			remediation: Schema.optional(Schema.String),
 		}),
-		message: Schema.String,
-		remediation: Schema.optional(Schema.String),
-	}).pipe(Schema.extend(Schema.Record({ key: Schema.String, value: Schema.Unknown }))),
-}).annotations({ identifier: "TddBehaviorErrorEnvelope" });
+		[Schema.Record(Schema.String, Schema.Unknown)],
+	),
+}).annotate({ identifier: "TddBehaviorErrorEnvelope" });
 
 const TddBehaviorCreateOk = Schema.Struct({
 	ok: Schema.Literal(true),
 	action: Schema.Literal("create"),
-	behavior: BehaviorRow.annotations({ description: "Newly inserted behavior row." }),
+	behavior: BehaviorRow.annotate({ description: "Newly inserted behavior row." }),
 });
 
 const TddBehaviorUpdateOk = Schema.Struct({
 	ok: Schema.Literal(true),
 	action: Schema.Literal("update"),
-	behavior: BehaviorRow.annotations({ description: "Updated behavior row." }),
+	behavior: BehaviorRow.annotate({ description: "Updated behavior row." }),
 });
 
 const TddBehaviorDeleteOk = Schema.Struct({
@@ -47,7 +50,7 @@ const TddBehaviorDeleteOk = Schema.Struct({
 const TddBehaviorGetFound = Schema.Struct({
 	action: Schema.Literal("get"),
 	found: Schema.Literal(true),
-	behavior: BehaviorDetail.annotations({ description: "Behavior with parentGoal + dependencies[]." }),
+	behavior: BehaviorDetail.annotate({ description: "Behavior with parentGoal + dependencies[]." }),
 });
 
 const TddBehaviorGetMissing = Schema.Struct({
@@ -70,7 +73,7 @@ const TddBehaviorListByTddTaskOk = Schema.Struct({
 	behaviors: Schema.Array(BehaviorRow),
 });
 
-export const TddBehaviorResult = Schema.Union(
+export const TddBehaviorResult = Schema.Union([
 	TddBehaviorCreateOk,
 	TddBehaviorUpdateOk,
 	TddBehaviorDeleteOk,
@@ -79,7 +82,7 @@ export const TddBehaviorResult = Schema.Union(
 	TddBehaviorListByGoalOk,
 	TddBehaviorListByTddTaskOk,
 	TddBehaviorErrorEnvelope,
-).annotations({
+]).annotate({
 	identifier: "TddBehaviorResult",
 	title: "tdd_behavior result",
 	description: "Discriminate on `action` (or `ok=false` for the tagged-error envelope).",
@@ -122,17 +125,17 @@ const ListByTddTaskVariant = Schema.Struct({
 	tddTaskId: Schema.Number,
 });
 
-const TddBehaviorInput = Schema.Union(
+const TddBehaviorInput = Schema.Union([
 	CreateVariant,
 	UpdateVariant,
 	DeleteVariant,
 	GetVariant,
 	ListByGoalVariant,
 	ListByTddTaskVariant,
-);
+]);
 
 export const tddBehavior = idempotentProcedure
-	.input(Schema.standardSchemaV1(TddBehaviorInput))
+	.input(Schema.toStandardSchemaV1(TddBehaviorInput))
 	.mutation(async ({ ctx, input }) => {
 		return ctx.runtime.runPromise(
 			Match.value(input).pipe(
