@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/mcp",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"private": true,
 	"description": "Model Context Protocol server for vitest-agent. Exposes 53 tools for agent access to test data, TDD lifecycle, and session management.",
 	"keywords": ["vitest", "agent", "mcp", "model-context-protocol", "claude"],
