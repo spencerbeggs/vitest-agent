@@ -49,6 +49,7 @@ jobs:
           config-dependencies: |
             @savvy-web/pnpm-plugin-silk
           dependencies: |
+            @effected/*
             @modelcontextprotocol/*
             @rspress/*
             @savvy-web/*
@@ -56,15 +57,12 @@ jobs:
             acorn
             acorn-typescript
             ajv
-            config-file-effect
             ink
             magic-string
             rspress-plugin-api-extractor
             rspress-plugin-mermaid
             std-env
             vite
-            workspaces-effect
-            xdg-effect
             zod
           run: |
             pnpm savvy init
