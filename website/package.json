@@ -11,7 +11,7 @@
 	},
 	"devDependencies": {
 		"@rspress/core": "catalog:silk",
-		"@rspress/plugin-sitemap": "^2.0.17",
+		"@rspress/plugin-sitemap": "^2.0.18",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"@types/react-dom": "catalog:silk",
