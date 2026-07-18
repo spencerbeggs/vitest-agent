@@ -129,7 +129,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	const strategy = options?.strategy;
 	const cwd = options?.cwd;
 	const additionalEntries = options?.additionalEntries ?? [];
-	const root = findWorkspaceRootSync({ ...nodeSyncOps, cwd: cwd ?? process.cwd() });
+	const root = findWorkspaceRootSync(cwd ?? process.cwd(), nodeSyncOps);
 	if (!root) {
 		throw new Error(
 			`[vitest-agent] Could not find workspace root from ${cwd ?? process.cwd()}. ` +
