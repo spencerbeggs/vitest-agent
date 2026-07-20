@@ -41,7 +41,7 @@
 		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.0.3",
+		"@savvy-web/bundler": "^2.0.4",
 		"@types/node": "catalog:silk",
 		"typescript": "catalog:silk",
 		"vitest": "catalog:silk"
