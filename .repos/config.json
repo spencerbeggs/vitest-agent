@@ -1,14 +1,34 @@
 {
 	"repos": {
 		"effect-smol": {
-			"url": "https://github.com/Effect-TS/effect-smol.git",
-			"ref": "effect@4.0.0-beta.98",
-			"purpose": "Read-only Effect v4 source pinned to the tag matching the effect catalog — the authority on what v4 actually exports, plus the v3→v4 migration notes.",
+			"url": "https://github.com/Effect-TS/effect.git",
+			"ref": "effect@4.0.0-beta.99",
+			"purpose": "Read-only Effect v4 source pinned to the tag matching the effect catalog — the authority on what v4 actually exports, plus the v3→v4 migration notes and the @effect/vitest reference implementation. Vendored from the main Effect-TS/effect monorepo since 2026-07-19; v4 development moved back there when effect-smol was archived (same layout, directory name kept).",
 			"sparse": [
 				"packages/effect",
+				"packages/vitest",
 				"migration",
-				"MIGRATION.md",
-				"LLMS.md"
+				"ai-docs",
+				"LLMS.md",
+				"MIGRATION.md"
+			],
+			"orientation": {
+				"layout": "Sparse checkout: packages/effect (core source + package.json exports map), packages/vitest (@effect/vitest reference implementation), migration/ (per-domain v3→v4 notes), ai-docs/, LLMS.md, MIGRATION.md.",
+				"keyPaths": {
+					"effect-source": "packages/effect/src",
+					"unstable-modules": "packages/effect/src/unstable",
+					"migration-notes": "migration",
+					"vitest-reference": "packages/vitest/src"
+				},
+				"startHere": "packages/effect/src settles what v4 actually exports (evidence-ladder rung 2); migration/*.md settles v3→v4 renames (rung 1). Before trusting an answer, check the pin matches the installed effect version — node_modules wins on disagreement."
+			},
+			"notes": [
+				{
+					"id": "n-5fda",
+					"date": "2026-07-20",
+					"ref": "effect@4.0.0-beta.99",
+					"note": "Services/tags live in Context.ts — there is no ServiceMap.ts (re-verified at beta.99; agents coming from other Effect lines reliably look for the wrong filename). Key consumer-side fact settled there: Context.Key<Id, Shape> extends Effect<Shape, never, Id> (Context.ts:65) — v4 tags/Service classes are still first-class Effects, flatMap-able without .asEffect()."
+				}
 			]
 		}
 	}
