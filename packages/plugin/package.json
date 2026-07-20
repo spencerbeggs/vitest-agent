@@ -33,7 +33,7 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
-		"@effected/workspaces": "^0.4.0",
+		"@effected/workspaces": "^0.4.1",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",
@@ -42,7 +42,7 @@
 		"magic-string": "^1.0.0"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.0.3",
+		"@savvy-web/bundler": "^2.0.4",
 		"@types/node": "catalog:silk",
 		"@vitest/coverage-istanbul": "catalog:silk",
 		"@vitest/coverage-v8": "catalog:silk",
