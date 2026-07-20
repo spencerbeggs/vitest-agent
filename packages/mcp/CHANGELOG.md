@@ -1,5 +1,19 @@
 # @vitest-agent/mcp
 
+## 2.0.2
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From  | To    |
+| ----------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/sdk | dependency | updated | 2.0.1 | 2.0.2 |
+
+* | Dependency              | Type       | Action  | From          | To            |                                                          |
+  | ----------------------- | ---------- | ------- | ------------- | ------------- | -------------------------------------------------------- |
+  | @effect/platform-node   | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |                                                          |
+  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |                                                          |
+  | effect                  | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 | Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+
 ## 2.0.1
 
 ### Dependencies
