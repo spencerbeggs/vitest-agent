@@ -4,10 +4,7 @@ packages:
   - website
 autoInstallPeers: true
 configDependencies:
-  '@effected/pnpm-plugin-effect': 0.1.1+sha512-TpmnUekTiRjpnHbFSEPqKeyhX+jQ3WXpUjOcp+F8rNqHBXb6KDL4mMKueHUjFeDbwi0EM0/gOA0bHzDsM5pVAQ==
-  '@savvy-web/pnpm-plugin-silk': 0.24.1+sha512-JlfQjiEYQAjdKDg2obndB29rmWVOYEo7A+gwUxprVVjbGsUvbvlNs+e7UGGRhTfkZmgTBHgBWYSXCQSeFMTNwg==
+  "@effected/pnpm-plugin-effect": 0.2.0+sha512-9FlDPXsSI7DfPHa80G1kSj4HEn9qB33K3uWMSIN0p/YyIJRNUh0xnPbbMnB4Ixm59D1/Jka0tNNe9H79zYjsdA==
+  "@savvy-web/pnpm-plugin-silk": 0.24.1+sha512-JlfQjiEYQAjdKDg2obndB29rmWVOYEo7A+gwUxprVVjbGsUvbvlNs+e7UGGRhTfkZmgTBHgBWYSXCQSeFMTNwg==
 linkWorkspacePackages: deep
-loglevel: warn
-minimumReleaseAgeExclude:
-  - '@rspress/plugin-sitemap@2.0.18'
 verifyDepsBeforeRun: false

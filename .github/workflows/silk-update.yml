@@ -48,6 +48,7 @@ jobs:
           upgrade-runtime-node: "^26.0.0"
           config-dependencies: |
             @savvy-web/pnpm-plugin-silk
+            @effected/pnpm-plugin-effect
           dependencies: |
             @effected/*
             @modelcontextprotocol/*
