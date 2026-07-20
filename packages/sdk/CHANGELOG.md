@@ -1,5 +1,29 @@
 # @vitest-agent/sdk
 
+## 2.0.2
+
+### Dependencies
+
+* | Dependency              | Type       | Action  | From          | To            |                                                          |
+  | ----------------------- | ---------- | ------- | ------------- | ------------- | -------------------------------------------------------- |
+  | @effect/platform-node   | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |                                                          |
+  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |                                                          |
+  | effect                  | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 | Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+
+- | Dependency            | Type       | Action  | From   | To     |                                                                            |
+  | --------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+  | @effected/config-file | dependency | updated | ^0.1.3 | ^0.1.4 |                                                                            |
+  | @effected/jsonc       | dependency | updated | ^0.3.0 | ^0.4.0 |                                                                            |
+  | @effected/toml        | dependency | updated | ^0.1.0 | ^0.2.0 |                                                                            |
+  | @effected/walker      | dependency | updated | ^0.2.1 | ^0.2.2 |                                                                            |
+  | @effected/workspaces  | dependency | updated | ^0.4.0 | ^0.4.1 |                                                                            |
+  | @effected/xdg         | dependency | updated | ^0.1.3 | ^0.1.4 |                                                                            |
+  | @effected/yaml        | dependency | updated | ^0.3.1 | ^0.4.0 | [#168][#168] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#168]: https://github.com/spencerbeggs/vitest-agent/pull/168
+
 ## 2.0.1
 
 ### Dependencies
