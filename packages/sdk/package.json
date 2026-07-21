@@ -39,7 +39,7 @@
 		"@effected/jsonc": "^0.5.0",
 		"@effected/toml": "^0.3.0",
 		"@effected/walker": "^0.3.1",
-		"@effected/workspaces": "^0.5.2",
+		"@effected/workspaces": "^0.6.0",
 		"@effected/xdg": "^0.1.7",
 		"@effected/yaml": "^0.5.0",
 		"acorn": "^8.17.0",
