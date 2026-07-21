@@ -27,6 +27,7 @@ const rootPkg = (name: string) =>
 		path: "/repo",
 		packageJsonPath: "/repo/package.json",
 		relativePath: ".",
+		workspaceRoot: "/repo",
 	});
 
 const childPkg = (name: string, relativePath: string) =>
@@ -36,6 +37,7 @@ const childPkg = (name: string, relativePath: string) =>
 		path: `/repo/${relativePath}`,
 		packageJsonPath: `/repo/${relativePath}/package.json`,
 		relativePath,
+		workspaceRoot: "/repo",
 	});
 
 const run = <A, E>(effect: Effect.Effect<A, E, WorkspaceDiscovery>, packages: ReadonlyArray<WorkspacePackage>) =>
