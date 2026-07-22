@@ -1,5 +1,17 @@
 # @vitest-agent/sdk
 
+## 2.0.5
+
+### Bug Fixes
+
+* Added `DataReader.getSessionByTddTaskId`, resolving the session a TDD task was opened under. Powers the MCP `hypothesis` tool's deterministic session binding by `tddTaskId`. [#177][#177]
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#177]: https://github.com/spencerbeggs/vitest-agent/pull/177
+
 ## 2.0.4
 
 ### Dependencies
