@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-07-22
+last-synced: 2026-07-22
 completeness: 96
 related:
   - ../architecture.md
@@ -422,7 +422,8 @@ The non-obvious pieces:
   `chat_id` rotated mid-cycle. Returns the most recent matching
   artifact first so phase-transition auto-resolve can pick the head
   without sorting.
-- **`findActiveSubagentSession` resolves per-call subagent identity.** Returns the most-recently-started subagent session whose `parent_session_id` matches the supplied parent id and whose `ended_at IS NULL`. The MCP server's boot context names only the main agent; this reader call is how the `hypothesis (action: record)` handler attributes writes to the active `tdd-task` subagent instead of the main session.
+- **`findActiveSubagentSession` resolves per-call subagent identity.** Returns the most-recently-started subagent session whose `parent_session_id` matches the supplied parent id and whose `ended_at IS NULL`. The MCP server's boot context names only the main agent; this reader call is how the `hypothesis (action: record)` handler attributes writes to the active `tdd-task` subagent instead of the main session — the context-based fallback when the caller supplies no `tddTaskId`.
+- **`getSessionByTddTaskId` resolves a task's binding session.** Returns the `sessions` row whose `id` equals `tdd_tasks.session_id` for the supplied task id, `Option.none` when the task (or its session) does not exist. This is the deterministic head of the `hypothesis (action: record)` resolution precedence: the orchestrator holds an unambiguous `tddTaskId` from `tdd_task (action: start)`, so binding through it sidesteps the fragile recovered host context entirely (see [./mcp.md](./mcp.md) "Hypothesis session binding").
 - **Flaky classification requires a fail-after-pass.** The `listFlakyTests` reader query (backing `HistoryTracker.classify`) changed to require that at least one failure occurred at or after the earliest pass — `MAX(timestamp WHERE failed) >= MIN(timestamp WHERE passed)`. A monotonic red-to-green cycle (all failures precede all passes) classifies as `recovered`, not `flaky`. Timestamps are ISO-8601 strings and compare lexicographically.
 - **History reads are file-qualified.** `getHistory`, `getFlaky` and `getPersistentFailures` group and partition by the composite `(project, module_path, full_name)` and return `modulePath` on each `TestHistory` / `FlakyTest` / `PersistentFailure`. This mirrors the file-qualified write identity (Decision D20) and fixes read-side conflation where a persistent failure could hide behind a same-named passing test in another file. `HistoryTrackerLive.classify` keys its `testMap` and returned classifications by the `historyKey(modulePath, fullName)` helper.
 

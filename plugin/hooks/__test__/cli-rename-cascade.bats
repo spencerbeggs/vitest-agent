@@ -460,35 +460,43 @@ STUB
 }
 
 # ---------------------------------------------------------------------------
-# session/end-record.sh
+# session/end-record.sh  +  session/end-record-worker.sh
+#
+# The SessionEnd hook is a fast foreground shim: on true exit reasons it
+# DETACHES the persistence into end-record-worker.sh (so the host's
+# teardown can't cancel the hook mid-run), and on clear/resume it runs the
+# worker synchronously. The CLI cascade lives in the worker now, so the
+# subcommand-namespace assertions target the worker directly — synchronous
+# and race-free, unlike the detached path. The shim's clear-path routing
+# is exercised end-to-end at the bottom of this block.
 # ---------------------------------------------------------------------------
 
-@test "session/end-record.sh calls 'agent record turn'" {
-    run bash -c "cat '${FIXTURES_DIR}/session-end.json' | \
-        bash '${HOOKS_DIR}/session/end-record.sh'"
+WORKER_CC="test-session-id-bats-001"
+WORKER_CWD="/Users/spencer/workspaces/spencerbeggs/vitest-agent"
+
+@test "end-record-worker.sh calls 'agent record turn'" {
+    run bash "${HOOKS_DIR}/session/end-record-worker.sh" "$WORKER_CC" "$WORKER_CWD" other quiet
     [ "$status" -eq 0 ]
     local argv
     argv=$(grep 'agent record turn' "${BATS_ARGV_CAPTURE}" 2>/dev/null | head -n1 || echo "")
     [[ "$argv" == agent\ record\ turn* ]]
 }
 
-@test "session/end-record.sh calls 'agent record session-end'" {
-    run bash -c "cat '${FIXTURES_DIR}/session-end.json' | \
-        bash '${HOOKS_DIR}/session/end-record.sh'"
+@test "end-record-worker.sh calls 'agent record session-end'" {
+    run bash "${HOOKS_DIR}/session/end-record-worker.sh" "$WORKER_CC" "$WORKER_CWD" other quiet
     [ "$status" -eq 0 ]
     local argv
     argv=$(grep 'agent record session-end' "${BATS_ARGV_CAPTURE}" 2>/dev/null | head -n1 || echo "")
     [[ "$argv" == agent\ record\ session-end* ]]
 }
 
-@test "session/end-record.sh calls 'agent end-agent' when VITEST_AGENT_MAIN_AGENT_ID is set" {
-    local env_dir="${HOME}/.claude/session-env/test-session-id-bats-001"
+@test "end-record-worker.sh calls 'agent end-agent' when VITEST_AGENT_MAIN_AGENT_ID is set" {
+    local env_dir="${HOME}/.claude/session-env/${WORKER_CC}"
     mkdir -p "$env_dir"
     local hook_env="${env_dir}/vitest-agent-hook.sh"
     echo "export VITEST_AGENT_MAIN_AGENT_ID=fake-main-agent-uuid-001" > "$hook_env"
 
-    run bash -c "cat '${FIXTURES_DIR}/session-end.json' | \
-        bash '${HOOKS_DIR}/session/end-record.sh'"
+    run bash "${HOOKS_DIR}/session/end-record-worker.sh" "$WORKER_CC" "$WORKER_CWD" other quiet
     [ "$status" -eq 0 ]
 
     rm -f "$hook_env"
@@ -499,23 +507,28 @@ STUB
     [[ "$argv" == agent\ end-agent* ]]
 }
 
-@test "session/end-record.sh calls 'agent wrapup'" {
-    run bash -c "cat '${FIXTURES_DIR}/session-end.json' | \
-        bash '${HOOKS_DIR}/session/end-record.sh'"
+@test "end-record-worker.sh calls 'agent wrapup' in wrapup mode" {
+    run bash "${HOOKS_DIR}/session/end-record-worker.sh" "$WORKER_CC" "$WORKER_CWD" clear wrapup
     [ "$status" -eq 0 ]
     local argv
     argv=$(grep 'agent wrapup' "${BATS_ARGV_CAPTURE}" 2>/dev/null | head -n1 || echo "")
     [[ "$argv" == agent\ wrapup* ]]
 }
 
-@test "session/end-record.sh does not call '_internal end-agent'" {
-    local env_dir="${HOME}/.claude/session-env/test-session-id-bats-001"
+@test "end-record-worker.sh skips 'agent wrapup' in quiet mode" {
+    run bash "${HOOKS_DIR}/session/end-record-worker.sh" "$WORKER_CC" "$WORKER_CWD" other quiet
+    [ "$status" -eq 0 ]
+    run grep 'agent wrapup' "${BATS_ARGV_CAPTURE}"
+    [ "$status" -ne 0 ]
+}
+
+@test "end-record-worker.sh does not call '_internal end-agent'" {
+    local env_dir="${HOME}/.claude/session-env/${WORKER_CC}"
     mkdir -p "$env_dir"
     local hook_env="${env_dir}/vitest-agent-hook.sh"
     echo "export VITEST_AGENT_MAIN_AGENT_ID=fake-main-agent-uuid-001" > "$hook_env"
 
-    run bash -c "cat '${FIXTURES_DIR}/session-end.json' | \
-        bash '${HOOKS_DIR}/session/end-record.sh'"
+    run bash "${HOOKS_DIR}/session/end-record-worker.sh" "$WORKER_CC" "$WORKER_CWD" other quiet
     [ "$status" -eq 0 ]
 
     rm -f "$hook_env"
@@ -525,4 +538,16 @@ STUB
         run grep '_internal' "${BATS_ARGV_CAPTURE}"
         [ "$status" -ne 0 ]
     fi
+}
+
+@test "session/end-record.sh runs the worker synchronously on a clear (continuation) reason" {
+    local fixture
+    fixture=$(jq -nc --arg cc "$WORKER_CC" --arg cwd "$WORKER_CWD" \
+        '{session_id: $cc, cwd: $cwd, reason: "clear", hook_event_name: "SessionEnd"}')
+    run bash -c "printf '%s' '${fixture}' | bash '${HOOKS_DIR}/session/end-record.sh'"
+    [ "$status" -eq 0 ]
+    # The clear path is synchronous, so the cascade is visible immediately.
+    local argv
+    argv=$(grep 'agent record turn' "${BATS_ARGV_CAPTURE}" 2>/dev/null | head -n1 || echo "")
+    [[ "$argv" == agent\ record\ turn* ]]
 }

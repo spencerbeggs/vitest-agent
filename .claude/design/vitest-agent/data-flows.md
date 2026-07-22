@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-07-22
+last-synced: 2026-07-22
 completeness: 92
 related:
   - ./architecture.md
@@ -331,7 +331,7 @@ schema decode and the DataStore write.
 | `PostToolUse` (Bash test run) | `post-tool-use/test-run.sh` | writes the `run-trigger` row, then calls `record test-case-turns` best-effort so `test_cases.created_turn_id` is populated for Bash-initiated runs |
 | `PreCompact` | `pre-compact/record.sh` | `HookFirePayload` via `record turn`; calls `wrapup --kind=pre_compact` and emits via top-level `systemMessage` |
 | `Stop` | `stop/record.sh` | `hook_fire` turn; calls `wrapup --kind=stop` and emits via top-level `systemMessage` |
-| `SessionEnd` | `session/end-record.sh` | `record session-end` to update `sessions.ended_at` / `sessions.end_reason`; calls `wrapup --kind=session_end` and emits via `systemMessage` |
+| `SessionEnd` | `session/end-record.sh` → `session/end-record-worker.sh` | fast foreground shim over a worker script. On exit-type end reasons the shim detaches the worker (`nohup`, disowned, fds redirected to a per-session log) and emits a no-op immediately — the worker then records the `hook_fire` turn, `record session-end` (`sessions.ended_at` / `end_reason`), `agent end-agent`, and janitorial cleanup after Claude Code exits. On `clear` / `resume` the session continues, so the shim runs the worker synchronously and surfaces `wrapup --kind=session_end` via `systemMessage` |
 | `SubagentStart` (TDD) | `subagent/start-tdd.sh` | scoped via `lib/match-tdd-agent.sh`; writes `sessions` with `agent_kind='subagent'`, `parent_session_id` set |
 | `SubagentStop` (TDD) | `subagent/stop-tdd.sh` | `record session-end` with `end_reason="subagent_stop"`; generates a `wrapup --kind=tdd_handoff` note and records it as a turn on the parent session |
 | `PostToolUse` (TDD-scoped) | `post-tool-use/tdd-artifact.sh` | records `test_failed_run` / `test_passed_run` from Bash test runs and `test_written` / `code_written` from Edit/Write outcomes via `record tdd-artifact` |
@@ -349,6 +349,8 @@ contract on every write path.
 `PostToolUse`, and `PostToolBatch`. `Stop` / `SessionEnd` / `PreCompact`
 must use top-level fields like `systemMessage` instead. The hook scripts
 encode this rule.
+
+**Why SessionEnd detaches.** Claude Code runs SessionEnd hooks under an abortable timeout and cancels in-flight hooks unconditionally on interactive exit ("Hook cancelled"); the worker's serial `<pm> exec vitest-agent` spawns can outlast that window on a cold cache, leaving rows half-written. Detaching the worker on exit-type reasons gives the host nothing to abort; the wrap-up computation is skipped there (`quiet` mode) because nobody is listening after exit. See [./components/plugin-claude.md](./components/plugin-claude.md) for the shim/worker contract.
 
 ## Flow 7: tRPC idempotency middleware
 
@@ -378,18 +380,24 @@ incoming MCP request
   |           DataStore.writeHypothesis or DataStore.validateHypothesis)
   |
   +-- hypothesis (action: record) procedure body:
-  |     resolve binding session server-side — the MCP server's recovered
-  |     context always names the main agent; per-call subagent identity
-  |     is unavailable. Resolution:
-  |       DataReader.getSessionByChatId(ctx.sessionContext.chatId)
-  |         -> Option<Session> main
-  |       DataReader.findActiveSubagentSession(main.id)
-  |         -> Option<Session> sub
-  |       resolvedSessionId = sub.id if present, else main.id
-  |     A caller-supplied sessionId is used only when no host context
-  |     was recovered (dev / test paths). This is the canonical fix for
-  |     hypotheses being attributed to the main session instead of the
-  |     running tdd-task subagent session.
+  |     resolve binding session server-side. Precedence:
+  |       1. tddTaskId (preferred, deterministic — the orchestrator
+  |          holds the id returned by tdd_task action:start):
+  |          DataReader.getSessionByTddTaskId(tddTaskId) -> the session
+  |          the task was opened under; unknown id is a hard typed
+  |          DataStoreError, not a silent misattribution. Accepts a
+  |          number or numeric string on both registration sides.
+  |       2. recovered host context sc — always names the main agent;
+  |          per-call subagent identity is unavailable:
+  |          DataReader.getSessionByChatId(sc.chatId)
+  |            -> Option<Session> main
+  |          DataReader.findActiveSubagentSession(main.id)
+  |            -> Option<Session> sub
+  |          resolvedSessionId = sub.id if present, else main.id
+  |       3. caller-supplied sessionId, honored only when no host
+  |          context was recovered (dev / test paths).
+  |     See components/mcp.md "Hypothesis session binding" for the
+  |     dual-registration hand-sync lesson behind the tddTaskId input.
   |
   +-- after next() resolves successfully:
   |     DataStore.recordIdempotentResponse({ procedurePath, key,
@@ -518,15 +526,8 @@ description/timeout/run_in_background unchanged).
 
 ### MCP boot context recovery
 
-MCP server entry (`packages/mcp/src/bin.ts`) reads
-`process.env.VITEST_AGENT_*` at startup via `sessionContextFromEnv` and
-populates `McpContext.sessionContext` (a `SessionContextRef`). The
-`run_tests` tool reads from the ref before each Vitest invocation.
-This works because Claude Code auto-sources `CLAUDE_ENV_FILE` into the
-MCP server child process — the SessionStart hook's exports flow
-naturally into the MCP server's `process.env` without any explicit
-session-map lookup.
+MCP server entry (`packages/mcp/src/bin.ts`) reads `process.env.VITEST_AGENT_*` at startup via `sessionContextFromEnv` and populates `McpContext.sessionContext` (a `SessionContextRef`). The `run_tests` tool reads from the ref before each Vitest invocation. The boot-time path relies on Claude Code auto-sourcing `CLAUDE_ENV_FILE` into the MCP server child process, but that alone loses two races: a fresh launch can spawn the MCP child before SessionStart writes the env file, and `/reload-plugins` restarts the MCP with no session env at all.
 
-The session map's `lookupByProjectDir` is the dev / test fallback when
-`CLAUDE_ENV_FILE` isn't available; the per-project `data.db` itself
-never reads from the session map at runtime.
+Recovery is therefore also lazy: `createSessionContextRef(initial, recover)` invokes `recoverSessionContextFromSessionEnv({ projectDir })` at the first `get()` that finds a null value and caches the first non-null result — reading the newest `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh` whose `VITEST_AGENT_PROJECT_DIR` matches the server's `projectDir`. Two live windows on the same project resolve to the newest session; that ambiguity is accepted. See [./components/mcp.md](./components/mcp.md) "MCP boot context recovery" for details.
+
+The session map's `lookupByProjectDir` is the dev / test fallback when `CLAUDE_ENV_FILE` isn't available; the per-project `data.db` itself never reads from the session map at runtime.

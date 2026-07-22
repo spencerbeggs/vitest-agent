@@ -460,6 +460,206 @@ describe("MCP Router", () => {
 			expect((underMain as { count: number }).count).toBe(0);
 		});
 
+		it("hypothesis_record binds via tddTaskId to the task's session, with no recovered context", async () => {
+			// Seed a session and a TDD task opened under it. No host context
+			// is recovered (default caller has an empty sessionContext), so
+			// the ONLY way to attribute the hypothesis is the tddTaskId.
+			const { sessionId, tddTaskId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sessionId = yield* store.writeSession({
+						chatId: "cc-hyp-tddtask-a",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "subagent",
+						agentType: "tdd-task",
+						startedAt: "2026-05-02T00:00:00Z",
+					});
+					const tddTaskId = yield* store.writeTddTask({
+						sessionId,
+						goal: "obj",
+						startedAt: "2026-05-02T00:00:01Z",
+					});
+					return { sessionId, tddTaskId };
+				}),
+			);
+
+			const caller = createTestCaller();
+			const recorded = await caller.hypothesis({
+				action: "record",
+				tddTaskId,
+				content: "the reducer drops the last event; flush on unmount fixes it.",
+			});
+			expect((recorded as { id: number }).id).toBeGreaterThan(0);
+
+			const underSession = await caller.hypothesis({ action: "list", sessionId });
+			expect((underSession as { count: number }).count).toBe(1);
+		});
+
+		it("hypothesis_record tddTaskId takes precedence over a set recovered context", async () => {
+			// Seed BOTH: (1) a TDD task under its own session, and (2) an
+			// unrelated main session with an active subagent child that the
+			// recovered context (sc) would otherwise resolve to. The
+			// tddTaskId must win and bind to the task's session, ignoring sc.
+			const { taskSessionId, mainId, subId, tddTaskId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const taskSessionId = yield* store.writeSession({
+						chatId: "cc-hyp-tddtask-b",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "subagent",
+						agentType: "tdd-task",
+						startedAt: "2026-05-03T00:00:00Z",
+					});
+					const tddTaskId = yield* store.writeTddTask({
+						sessionId: taskSessionId,
+						goal: "obj",
+						startedAt: "2026-05-03T00:00:01Z",
+					});
+					const mainId = yield* store.writeSession({
+						chatId: "cc-hyp-tddtask-b-main",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						startedAt: "2026-05-03T00:00:02Z",
+					});
+					const subId = yield* store.writeSession({
+						chatId: "cc-hyp-tddtask-b-main-subagent-1-1",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "subagent",
+						agentType: "tdd-task",
+						parentSessionId: mainId,
+						startedAt: "2026-05-03T00:00:03Z",
+					});
+					return { taskSessionId, mainId, subId, tddTaskId };
+				}),
+			);
+
+			const factory = createCallerFactory(appRouter);
+			const caller = factory({
+				runtime: testRuntime as unknown as McpContext["runtime"],
+				cwd: process.cwd(),
+				currentSessionId: createCurrentSessionIdRef(),
+				sessionContext: createSessionContextRef({
+					chatId: "cc-hyp-tddtask-b-main",
+					conversationId: "conv-precedence-1",
+					mainAgentId: "agent-precedence-1",
+				}),
+			});
+
+			const recorded = await caller.hypothesis({
+				action: "record",
+				tddTaskId,
+				content: "off-by-one in the range clamp; inclusive upper bound fixes it.",
+			});
+			expect((recorded as { id: number }).id).toBeGreaterThan(0);
+
+			// Bound to the task's session, NOT the sc-resolved subagent/main.
+			const underTask = await caller.hypothesis({ action: "list", sessionId: taskSessionId });
+			expect((underTask as { count: number }).count).toBe(1);
+			const underSub = await caller.hypothesis({ action: "list", sessionId: subId });
+			expect((underSub as { count: number }).count).toBe(0);
+			const underMain = await caller.hypothesis({ action: "list", sessionId: mainId });
+			expect((underMain as { count: number }).count).toBe(0);
+		});
+
+		it("hypothesis_record fails with a typed error for an unknown tddTaskId", async () => {
+			const caller = createTestCaller();
+			await expect(
+				caller.hypothesis({
+					action: "record",
+					tddTaskId: 987654,
+					content: "this should never be written.",
+				}),
+			).rejects.toThrow(/unknown tddTaskId 987654/);
+		});
+
+		it("hypothesis_record accepts a stringified tddTaskId and binds to the same session as the numeric form", async () => {
+			// Regression guard: LLM orchestrators routinely stringify numeric
+			// tool inputs. A real dogfood run passed `tddTaskId: "5"` (a
+			// string), which the former `Schema.Number` field REJECTED — the
+			// deterministic tddTaskId branch never ran and the hypothesis was
+			// misattributed. The field now coerces a numeric string to a
+			// number, so the string form must resolve via
+			// getSessionByTddTaskId exactly like the numeric form, ignoring
+			// the (absent) host context.
+			const { sessionId, tddTaskId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sessionId = yield* store.writeSession({
+						chatId: "cc-hyp-tddtask-str",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "subagent",
+						agentType: "tdd-task",
+						startedAt: "2026-05-04T00:00:00Z",
+					});
+					const tddTaskId = yield* store.writeTddTask({
+						sessionId,
+						goal: "obj",
+						startedAt: "2026-05-04T00:00:01Z",
+					});
+					return { sessionId, tddTaskId };
+				}),
+			);
+
+			const caller = createTestCaller();
+			const recorded = await caller.hypothesis({
+				action: "record",
+				// Passed as a STRING, the exact shape the dogfood orchestrator sent.
+				tddTaskId: String(tddTaskId),
+				content: "stringified tddTaskId must bind the same as the numeric form.",
+			});
+			expect((recorded as { id: number }).id).toBeGreaterThan(0);
+
+			const underSession = await caller.hypothesis({ action: "list", sessionId });
+			expect((underSession as { count: number }).count).toBe(1);
+		});
+
+		it("hypothesis_record accepts a stringified sessionId in the fallback path", async () => {
+			// With no recovered host context, the caller-supplied sessionId is
+			// honored (dev / tests). It, too, must accept a numeric string.
+			const sessionId = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					return yield* store.writeSession({
+						chatId: "cc-hyp-sessionid-str",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						startedAt: "2026-05-04T01:00:00Z",
+					});
+				}),
+			);
+
+			const caller = createTestCaller();
+			const recorded = await caller.hypothesis({
+				action: "record",
+				sessionId: String(sessionId),
+				content: "stringified sessionId fallback must bind.",
+			});
+			expect((recorded as { id: number }).id).toBeGreaterThan(0);
+
+			const underSession = await caller.hypothesis({ action: "list", sessionId });
+			expect((underSession as { count: number }).count).toBe(1);
+		});
+
+		it("hypothesis_record rejects a non-numeric string tddTaskId (no silent NaN/0 coercion)", async () => {
+			// FiniteFromString rejects NaN, so a genuinely non-numeric string
+			// fails validation rather than coercing to NaN (or 0) and slipping
+			// through as a bogus id.
+			const caller = createTestCaller();
+			await expect(
+				caller.hypothesis({
+					action: "record",
+					tddTaskId: "abc",
+					content: "this should never be written.",
+				}),
+			).rejects.toThrow();
+		});
+
 		it("hypothesis validate updates the validation outcome to confirmed", async () => {
 			// Seed session + hypothesis
 			const { hypothesisId } = await testRuntime.runPromise(

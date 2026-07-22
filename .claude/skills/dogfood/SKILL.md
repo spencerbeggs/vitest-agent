@@ -59,7 +59,7 @@ No handoff file. Dispatches the tdd-task agent with a fixed prompt that walks th
 
 ### Dispatch
 
-Complete the standard pre-dispatch setup above (`inventory({ kind: "session", agentKind: "main", limit: 1 })` → TaskCreate → initialize maps), then dispatch with `run_in_background: true`. Prepend `chatId` and `parentTaskId` to the prompt, then append the verbatim block below without modification.
+Complete the standard pre-dispatch setup above (`inventory({ kind: "session", agentKind: "main", limit: 1 })` → TaskCreate if available → initialize maps), then dispatch as a **plain background subagent** — `run_in_background: true`, `subagent_type: "vitest-agent:tdd-task"`, and **no `name`/team argument** (a named teammate spawns a detached session with its own conversation that splits artifact attribution and denies the phase gates). Prepend `chatId` and `parentTaskId` (if captured — it's optional) to the prompt, then append the verbatim block below without modification.
 
 ### Verbatim prompt (append after chatId/parentTaskId lines — do not add other framing)
 
@@ -96,7 +96,7 @@ Steps:
     `run_tests({ project: "playground", files: ["playground/src/lifecycle.test.ts"] })`
     Confirm all tests pass.
 11. Call `tdd_phase_transition_request` for the `green` phase, citing the `test_failed_run` artifact from step 8 (not the passing run from step 10 — `red→green` requires proof that the test was failing before the fix). Record the outcome.
-12. Mark the behavior completed: `tdd_behavior({ action: "update", id: behaviorId, status: "completed" })`. Mark the goal completed: `tdd_goal({ action: "update", id: goalId, status: "completed" })`.
+12. Mark the behavior done: `tdd_behavior({ action: "update", id: behaviorId, status: "done" })`. Mark the goal done: `tdd_goal({ action: "update", id: goalId, status: "done" })`.
 13. Call `tdd_task({ action: "end", tddTaskId: tddTaskId, outcome: "succeeded" })`.
 14. Delete `playground/src/lifecycle.test.ts` to leave the playground clean. Do NOT delete or revert `playground/src/lifecycle.ts`.
 
@@ -107,7 +107,7 @@ Report: for each phase-transition call (steps 6 and 11), state whether it was gr
 
 Run these five checks after the background completion notification arrives.
 
-1. **`tdd_task({ action: "get", id: <id> })`** — `ended` must be non-null (session closed). Phase ledger must have at least one entry. Goal and behavior must both show `completed`.
+1. **`tdd_task({ action: "get", id: <id> })`** — `ended` must be non-null (session closed). Phase ledger must have at least one entry. Goal and behavior must both show `done`.
 2. **`acceptance_metrics({})`** — `phase_evidence_integrity` must be 100%. Any value below 100% means a phase transition was accepted without valid evidence binding.
 3. **`inventory({ kind: "session", agentKind: "subagent", limit: 1 })`** — a subagent row must appear with a key in the format `<parent-cc-id>-subagent-<ts>-<pid>`. If absent, the SubagentStart hook did not fire or `is_tdd_agent` failed to match the agent_type CC sent.
 4. **Restore the playground defect:** `git checkout playground/src/lifecycle.ts` — reverts `lifecycle.ts` to `return a + b + 1` so the next lifecycle run starts from a broken state. If the orchestrator committed the fix, also run `git reset HEAD~1` first (or `git revert HEAD` if the branch has been pushed).
@@ -135,10 +135,10 @@ Before spawning, complete the standard pre-dispatch setup (mirrors the `tdd` ski
 
 1. Call `inventory({ kind: "session", agentKind: "main", limit: 1 })` — capture the `chat_id` field from the first row as `chatId`. Do **not** assume an in-memory current-session ref — that can be stale after a prior subagent ran, and `inventory` reads the canonical row from the DB.
 2. Generate a `runId`: `` `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` ``.
-3. Call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
+3. The Task tools are usually not available, so you will usually skip this and proceed without a `parentTaskId`. When they are available, call `TaskCreate({ subject: "TDD Session: <objective>", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` and capture the returned task ID as `parentTaskId`.
 4. Initialize: `goalById = new Map()`, `behaviorById = new Map()`.
 
-Dispatch with **`run_in_background: true`** and `subagent_type: "vitest-agent:tdd-task"`. Pass `chatId`, `runId`, and `parentTaskId` in the launch prompt alongside the task. The dispatch prompt body contains **only** the contents of the handoff's `# Task for the TDD orchestrator` section — never the frontmatter, never the `# What the orchestrator MUST NOT know` section, never the verification checklist, never the cheatsheet.
+Dispatch as a **plain background subagent** — **`run_in_background: true`**, `subagent_type: "vitest-agent:tdd-task"`, and **no `name`/team argument** (an unnamed subagent fires SubagentStart and links to this session so artifacts funnel to the `chatId` you pass; a named teammate detaches into its own conversation and splits attribution). Pass `chatId`, `runId`, and `parentTaskId` (if captured — it's optional) in the launch prompt alongside the task. The dispatch prompt body contains **only** the contents of the handoff's `# Task for the TDD orchestrator` section — never the frontmatter, never the `# What the orchestrator MUST NOT know` section, never the verification checklist, never the cheatsheet.
 
 Immediately after dispatching (the background call returns before the agent completes), capture the session id:
 

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-07-22
+last-synced: 2026-07-22
 completeness: 92
 related:
   - ../architecture.md
@@ -65,10 +65,9 @@ Code does not reliably propagate `CLAUDE_PROJECT_DIR` to MCP server
 subprocesses, so the plugin loader passes it through this dedicated env
 var. See [./plugin-claude.md](./plugin-claude.md) for the loader side.
 
-`server.ts` registers all tRPC tools with the MCP SDK using zod input
-schemas (the MCP SDK side; tRPC inputs are also zod, kept in sync between
-the two registrations), then calls `registerAllPrompts(server)` before
-constructing `StdioServerTransport`.
+`server.ts` splits the bootstrap in two: `buildMcpServer(ctx)` constructs the fully-registered `McpServer` — all tRPC-backed tools registered with the MCP SDK using zod input schemas, then `registerAllPrompts(server)` — without connecting a transport; `startMcpServer(ctx)` builds via `buildMcpServer` and connects `StdioServerTransport`. Both are exported from `index.ts` (alongside `parseSessionEnvExports` / `recoverSessionContextFromSessionEnv`, see *MCP boot context recovery* below).
+
+The split is a testability seam with a hard-won rationale: **every tool input is registered twice** — the tRPC input schema in `tools/<name>.ts` and the MCP-SDK `inputSchema` in `server.ts`, hand-synced. A missed sync is invisible to router-level caller tests: a field the SDK registration never declares or forwards is simply unreachable from a real MCP client even though the tRPC procedure handles it (this is exactly how the `hypothesis` `tddTaskId` binding shipped dead on arrival). `buildMcpServer` lets tests connect the identical server to an `InMemoryTransport` client and assert the *served* tool schemas and descriptions — see `packages/mcp/__test__/server-hypothesis-schema.test.ts` and the served-schema pattern in [../testing-strategy.md](../testing-strategy.md).
 
 ## tRPC router and tools
 
@@ -211,19 +210,7 @@ The middleware uses the **same** tRPC instance as `publicProcedure` (via
 the `middleware` export from `context.ts`) rather than constructing a
 parallel `t`. Sharing the instance keeps the context type aligned.
 
-**What is and isn't idempotent.** `register_agent`, `hypothesis`'s
-`validate` action, `tdd_task`'s `start` / `end` actions and the `create`
-actions inside `tdd_goal` and `tdd_behavior` derive a key. `hypothesis`'s
-`record` action does **not** — a hypothesis is an append-only observation
-whose binding session is resolved server-side (and so absent from the
-input), leaving no safe per-call discriminator. The
-`tdd_phase_transition_request` tool, every `update` / `delete` / `get` /
-`list` action, and `tdd_progress_push` are intentionally **not** registered
-— see [../decisions.md](../decisions.md). State-dependent reads, intentional
-state transitions, and destructive ops are not idempotent in the
-cache-replay sense. The `idempotencyKeys` registry's per-procedure
-`deriveKey` returns null for non-idempotent actions, branching on
-`input.action`.
+**What is and isn't idempotent.** `register_agent`, `hypothesis`'s `validate` action, `tdd_task`'s `start` / `end` actions and the `create` actions inside `tdd_goal` and `tdd_behavior` derive a key. `hypothesis`'s `record` action does **not** — a hypothesis is an append-only observation whose binding session is resolved server-side (see *Hypothesis session binding* below), leaving no safe per-call discriminator. The `tdd_phase_transition_request` tool, every `update` / `delete` / `get` / `list` action, and `tdd_progress_push` are intentionally **not** registered — see [../decisions.md](../decisions.md). State-dependent reads, intentional state transitions, and destructive ops are not idempotent in the cache-replay sense. The `idempotencyKeys` registry's per-procedure `deriveKey` returns null for non-idempotent actions, branching on `input.action`.
 
 **`tdd_task` idempotency key (action: `start`).** Derived from
 `runId` when present: `sid:<sessionId>:run:<runId>` or
@@ -242,7 +229,15 @@ index does not cover NULL rows, so only the middleware goal-text
 cache (`cc:<chatId>:<goal>`) provides idempotency. The tool
 returns `runId: undefined` when the caller did not supply one.
 
-## Channel-event resolution
+## Hypothesis session binding
+
+`hypothesis (action: record)` resolves its binding session server-side rather than trusting a caller-guessed `sessionId`. Resolution precedence:
+
+1. **`tddTaskId` (preferred, deterministic).** The orchestrator always holds the unambiguous id returned by `tdd_task (action: start)`; the server resolves the session the task was opened under via `DataReader.getSessionByTddTaskId`, ignoring the recovered host context entirely. An unknown `tddTaskId` is a hard typed failure, not a silent misattribution. Both registration sides accept a number **or a numeric string** (a `Schema.Number | FiniteFromString` union on the tRPC side, `z.coerce.number` on the MCP SDK side) because LLM callers routinely stringify numeric tool inputs — a bare number schema silently dropped the deterministic branch. `FiniteFromString` is deliberate over `NumberFromString`: a genuinely non-numeric string still fails validation instead of coercing to `NaN`.
+2. **Recovered host context.** The long-lived MCP server's context always names the main agent's `chatId`; the server resolves the main session via `DataReader.getSessionByChatId`, then attributes to the active (un-ended) subagent child from `DataReader.findActiveSubagentSession` when one exists, else the main session.
+3. **Caller-supplied `sessionId`**, honored only when no host context was recovered (dev / test paths).
+
+The served tool description in `server.ts` is part of this contract — it is the text the model actually reads, and the earlier description steered callers toward `sessionId`. It now steers toward `tddTaskId` and explicitly warns against passing a `tddTaskId` value under the `sessionId` key. The dual-registration hand-sync failure that made the `tddTaskId` branch unreachable is the motivating case for the `buildMcpServer` served-schema tests (see *Server bootstrap*).
 
 `tdd_progress_push` is registered directly with the MCP SDK because it
 forwards to a Claude Code notification channel rather than returning data
@@ -386,21 +381,13 @@ the tag, or a single group when `project` is supplied). Delegates to
 
 ## MCP boot context recovery
 
-The MCP server entry (`packages/mcp/src/bin.ts`) reads
-`process.env.VITEST_AGENT_*` at startup via `sessionContextFromEnv`
-and populates `McpContext.sessionContext` (a `SessionContextRef`).
-The `run_tests` tool reads from the ref before each Vitest invocation
-and mutates `process.env` so the spawned reporter inherits the
-canonical UUIDs.
+The MCP server entry (`packages/mcp/src/bin.ts`) reads `process.env.VITEST_AGENT_*` at startup via `sessionContextFromEnv` and populates `McpContext.sessionContext` (a `SessionContextRef`). The `run_tests` tool reads from the ref before each Vitest invocation and mutates `process.env` so the spawned reporter inherits the canonical UUIDs.
 
-This works because Claude Code auto-sources `CLAUDE_ENV_FILE` into
-the MCP server child process — the SessionStart hook's exports flow
-naturally into the MCP server's `process.env` without any explicit
-session-map lookup. The session map's `lookupByProjectDir` is the
-dev / test fallback when `CLAUDE_ENV_FILE` isn't available; the
-per-project `data.db` itself never reads from the session map at
-runtime. See [../data-flows.md](../data-flows.md) for the full
-attribution flow.
+The boot-time path works when Claude Code auto-sources `CLAUDE_ENV_FILE` into the MCP server child process — but that alone loses two races, both observed live: (a) on a fresh Claude Code launch the MCP child can spawn *before* the SessionStart hook writes `CLAUDE_ENV_FILE`, so even a full restart can boot with a null context; (b) `/reload-plugins` restarts the MCP mid-session with no session env at all. `createSessionContextRef(initial, recover)` therefore takes a lazy recovery thunk: when `get()` finds a null value it invokes `recoverSessionContextFromSessionEnv({ projectDir })` (`packages/mcp/src/session-env.ts`) and caches the first non-null result. The recoverer reads the SessionStart hook's second, known-name surface — `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh` — selecting the newest-mtime file whose `VITEST_AGENT_PROJECT_DIR` matches the server's `projectDir`. By first-tool-call time that file is reliably on disk. Recovery is best-effort and never throws; a null result falls through to the pre-existing null-context behavior.
+
+**Accepted ambiguity:** two live Claude Code windows on the same project resolve to the newest session's exports. That is inherent to a per-project (not per-process) surface and is accepted — the alternative was no attribution at all.
+
+The session map's `lookupByProjectDir` is the dev / test fallback when `CLAUDE_ENV_FILE` isn't available; the per-project `data.db` itself never reads from the session map at runtime. See [../data-flows.md](../data-flows.md) for the full attribution flow.
 
 `register_agent` is the explicit-call recovery path: when boot-time
 context recovery fails (no env vars set), the orchestrator can call

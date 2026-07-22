@@ -73,7 +73,8 @@ Hook scripts are grouped by event into subdirectories under `hooks/`. All source
 
 | Script | Trigger | Behavior |
 | --- | --- | --- |
-| `session/start.sh` | `SessionStart` | Writes the session row; injects project test status and MCP tool reference into context; calls `vitest-agent _internal register-agent` and writes the canonical `VITEST_AGENT_*` exports to `${CLAUDE_ENV_FILE}` and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` |
+| `session/start.sh` | `SessionStart` | Writes the session row; injects project test status and MCP tool reference into context; calls `vitest-agent agent register-agent` and writes the canonical `VITEST_AGENT_*` exports to `${CLAUDE_ENV_FILE}` and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` |
+| `session/end-record.sh` | `SessionEnd` | Records the session-end timestamp, closes the agent row and computes the wrap-up note. On interactive exit it detaches a background worker (`session/end-record-worker.sh`) so Claude Code's exit teardown cannot cancel recording; on `/clear` and resume it runs synchronously and surfaces the wrap-up message |
 | `pre-tool-use/mcp.sh` | `PreToolUse` (MCP tools) | Auto-allows non-destructive MCP tools without per-call prompts |
 | `pre-tool-use/tdd-restricted.sh` | `PreToolUse` (tdd-task subagent) | Reads `tool_input.action` on the consolidated `tdd_goal` and `tdd_behavior` tools and denies the `delete` action inside the orchestrator |
 | `pre-tool-use/bash-tdd.sh` | `PreToolUse` (Bash, tdd-task subagent) | Blocks `--update`, `--bail`, `--testNamePattern`; injects reminder to use `run_tests` MCP |

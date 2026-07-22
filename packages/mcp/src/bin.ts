@@ -12,6 +12,7 @@ import type { McpContext } from "./context.js";
 import { createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./context.js";
 import { McpLive } from "./layers/McpLive.js";
 import { startMcpServer } from "./server.js";
+import { recoverSessionContextFromSessionEnv } from "./session-env.js";
 
 /**
  * Resolve the user's project directory.
@@ -84,7 +85,13 @@ async function main() {
 		runtime: runtime as unknown as McpContext["runtime"],
 		cwd: projectDir,
 		currentSessionId: createCurrentSessionIdRef(initialSessionId ?? recoveredContext?.chatId ?? null),
-		sessionContext: createSessionContextRef(recoveredContext),
+		// Boot-time env recovery races the SessionStart hook (fresh launch)
+		// and is empty entirely after /reload-plugins. The lazy recover
+		// thunk re-reads the hook's session-env surface at the first tool
+		// call that needs context, when the file is reliably on disk.
+		sessionContext: createSessionContextRef(recoveredContext, () =>
+			recoverSessionContextFromSessionEnv({ projectDir }),
+		),
 	};
 
 	// Diagnostic logs report presence only; the full UUIDs are

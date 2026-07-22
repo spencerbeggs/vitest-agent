@@ -1552,6 +1552,46 @@ describe("DataReaderLive", () => {
 		});
 	});
 
+	describe("getSessionByTddTaskId", () => {
+		it("resolves the session a TDD task was opened under", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-tddtask-session",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const tddId = yield* ds.writeTddTask({
+						sessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+					const session = yield* dr.getSessionByTddTaskId(tddId);
+					return { sessionId, session };
+				}),
+			);
+			expect(Option.isSome(result.session)).toBe(true);
+			if (Option.isSome(result.session)) {
+				expect(result.session.value.id).toBe(result.sessionId);
+				expect(result.session.value.chatId).toBe("cc-tddtask-session");
+			}
+		});
+
+		it("returns None for an unknown tddTaskId", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const dr = yield* DataReader;
+					return yield* dr.getSessionByTddTaskId(999999);
+				}),
+			);
+			expect(Option.isNone(result)).toBe(true);
+		});
+	});
+
 	describe("computeAcceptanceMetrics", () => {
 		it("returns zeros on an empty DB", async () => {
 			const result = await run(

@@ -7,7 +7,7 @@ This directory is a **file-based Claude Code plugin**. It is **not** a pnpm work
 - **Marketplace org/bot:** `spencerbeggs` (bot name not in the enabledPlugins key)
 - **Plugin name:** `vitest-agent`
 - **Installed as:** `"enabledPlugins": { "vitest-agent@spencerbeggs": true }` in `.claude/settings.json`
-- **Versioned independently** from the npm packages — the `version` field in `plugin/.claude-plugin/plugin.json` tracks plugin-specific releases. This independence is the source of the `[@vitest-agent/<pkg>] version drift: …` stderr warning users may see when the marketplace plugin trails the npm release; see the root CLAUDE.md "Cross-package version drift" section.
+- **Versioned independently** from the npm packages — the `version` field in `plugin/.claude-plugin/plugin.json` tracks plugin-specific releases. (The former runtime version-drift stderr warning was removed; see the root CLAUDE.md "Cross-package versioning" section.)
 - **This plugin is the primary AI integration surface for the entire vitest-agent system.** The npm packages collect and store data; the plugin is what turns that data into agent behavior.
 
 ## Directory layout
@@ -33,9 +33,10 @@ plugin/
 │   │                         #   safe-mcp-vitest-agent-ops.txt (PreToolUse allowlist)
 │   ├── __test__/             # BATS tests for hook scripts
 │   │                         #   hook-output-project-dir.bats, sidecar-prefilter.bats,
-│   │                         #   sidecar-layer2.bats, subagent-state-file.bats,
-│   │                         #   cli-rename-cascade.bats
-│   ├── session/              # SessionStart, SessionEnd
+│   │                         #   sidecar-layer2.bats, sidecar-env-warn.bats,
+│   │                         #   subagent-state-file.bats, cli-rename-cascade.bats
+│   ├── session/              # SessionStart; SessionEnd shim (end-record.sh)
+│   │                         #   + detached worker (end-record-worker.sh)
 │   ├── user-prompt-submit/   # UserPromptSubmit
 │   ├── pre-tool-use/         # PreToolUse (bash, bash-tdd, mcp, mcp-run-tests,
 │   │                         #   record, tdd-restricted)
@@ -92,7 +93,7 @@ Hook scripts in `hooks/` are POSIX shell, grouped by hook event into subdirector
 | `post-tool-use/test-quality.sh` | `PostToolUse` (Write/Edit, tdd-task) | Detects test-weakening edits (`it.skip`, `.todo`, snapshot mutations); records `test_weakened` artifact |
 | `subagent/start-tdd.sh` | `SubagentStart` | Self-sources the session env, creates a synthetic subagent session row in `sessions` (key: `${chat_id}-subagent-<ts>-<pid>`), then calls `vitest-agent agent register-agent --parent-agent-id $VITEST_AGENT_MAIN_AGENT_ID` to record the subagent in `agents` |
 | `subagent/stop-tdd.sh` | `SubagentStop` | Runs `vitest-agent agent wrapup --kind tdd_handoff`, records the handoff note on the parent session, then pairs the stop to a `SubagentStart` via the per-dispatch state file under `~/.claude/session-env/${chat_id}/active-subagents/` (oldest-start-with-oldest-stop on matching `agent_type`), reads the matched `agentId`, calls `vitest-agent agent end-agent --agent-id $agentId` to set `agents.ended_at`, and removes the state file |
-| `session/end-record.sh` | `SessionEnd` | Records a `hook_fire` turn, records the session-end timestamp, emits the wrap-up prompt, then calls `vitest-agent agent end-agent --agent-id $VITEST_AGENT_MAIN_AGENT_ID --host-session-id $chat_id` to close both `agents.ended_at` and `session_map.ended_at` |
+| `session/end-record.sh` | `SessionEnd` | Fast foreground shim over `session/end-record-worker.sh`. On true exit reasons (`other`, `prompt_input_exit`, `bypass_permissions_disabled`, `logout`) it detaches the worker (`nohup … & disown`, fds redirected to `~/.claude/session-env/${chat_id}/session-end-worker.log`) and returns `emit_noop` within milliseconds, so CC's exit-teardown abort ("Hook cancelled") can neither cancel nor truncate persistence; on continuation reasons (`clear`, `resume`) it runs the worker synchronously and surfaces the wrap-up `systemMessage`. The worker records the `hook_fire` turn and session-end timestamp, calls `vitest-agent agent end-agent --agent-id $VITEST_AGENT_MAIN_AGENT_ID --host-session-id $chat_id` to close both `agents.ended_at` and `session_map.ended_at`, cleans up `active-subagents/`, and computes the wrap-up prompt |
 | `post-tool-use/record.sh` | `PostToolUse` (all) | Records tool-call turns for session analytics |
 | `user-prompt-submit/record.sh` | `UserPromptSubmit` | Records user prompt turns |
 | `pre-compact/record.sh` | `PreCompact` | Records pre-compaction turn for analytics |
@@ -116,6 +117,8 @@ The allowlist for `pre-tool-use/mcp.sh` lives at `hooks/lib/safe-mcp-vitest-agen
 
 `context: fork` gives the agent a clean conversation context — it does not inherit the dispatching agent's history. Task prompts must be self-contained. This is correct for dogfood dispatches (prevents cheatsheet leakage) and for production use (the agent should reason from its prompt, not accumulated conversation state).
 
+**Dispatch contract:** the agent is spawned as a plain unnamed background subagent (`run_in_background: true`, no `name`/team argument) — a named-teammate dispatch spawns a detached session with its own `conversation_id`, splitting the task from its artifacts so every phase gate denies. Task-panel tools and `TodoWrite` are host-session-gated and may be absent; the agent treats them as best-effort mirrors while `tdd_progress_push` events remain the mandatory progress signal, and the main agent narrates progress in text when the panel is unavailable. The main agent cleans up any dispatched agents once the run completes. If a launch prompt carries no `chatId` (raw dispatch that skipped the bootstrap), the agent self-bootstraps into its own session rather than borrowing one.
+
 ## Skills
 
 Skills are loaded into the dispatching agent's context via three mechanisms: explicit invocation through the `Skill` tool, preloading through an agent's `skills:` frontmatter, or path-triggered auto-loading when files matching the skill's `paths:` glob are read. The 15 skills below split into four groups by load mechanism.
@@ -134,7 +137,7 @@ Skills are loaded into the dispatching agent's context via three mechanisms: exp
 | `derive-test-shape-from-name` | preloaded primitive | Choose `it`, `describe/it`, parametric, etc. from test name |
 | `verify-test-quality` | preloaded primitive | Check written test for escape hatches and weak assertions |
 | `run-and-classify` | preloaded primitive | Run tests via MCP, classify result, record artifact |
-| `record-hypothesis-before-fix` | preloaded primitive | Gate 2 — record hypothesis before any non-test file edit |
+| `record-hypothesis-before-fix` | preloaded primitive | Gate 2 — record hypothesis before any non-test file edit; pass `tddTaskId` on `hypothesis (action: record)` for deterministic session binding |
 | `commit-cycle` | preloaded primitive | Commit at every accepted phase transition |
 | `revert-on-extended-red` | preloaded primitive | Revert if stuck in red for >5 turns or >3 failed runs |
 | `decompose-goal-into-behaviors` | preloaded primitive | Break a goal into atomic red-green-refactor behaviors |
@@ -233,9 +236,9 @@ Values are quoted with `printf '%q'` to safely handle anything that might contai
 
 **SubagentStart hook** (`subagent/start-tdd.sh`) self-sources the env dir to recover `VITEST_AGENT_MAIN_AGENT_ID`, then calls `vitest-agent agent register-agent` with `--parent-agent-id` set so the subagent gets its own row in `agents` with `parent_agent_id` linked to the main agent.
 
-**SessionEnd hook** (`session/end-record.sh`) self-sources, then calls `vitest-agent agent end-agent --agent-id $VITEST_AGENT_MAIN_AGENT_ID --host-session-id $chat_id` to set `agents.ended_at` and `session_map.ended_at` together.
+**SessionEnd hook** (`session/end-record.sh` shim → `session/end-record-worker.sh`) — the worker self-sources, then calls `vitest-agent agent end-agent --agent-id $VITEST_AGENT_MAIN_AGENT_ID --host-session-id $chat_id` to set `agents.ended_at` and `session_map.ended_at` together. The shim detaches the worker on true exit reasons (so CC's exit-teardown abort cannot cancel the writes) and runs it synchronously on `clear` / `resume`.
 
-**SubagentStop end-agent integration** pairs stops to starts via a per-dispatch state file. `subagent/start-tdd.sh` writes `~/.claude/session-env/${chat_id}/active-subagents/<ts>-<pid>.json` (the file name is the synthetic-key tail with the `${chat_id}-subagent-` prefix stripped) holding `agentId`, `agentType`, `syntheticKey`, and `startedAt`. `subagent/stop-tdd.sh` pairs on `agent_type` (oldest-start-with-oldest-stop), reads the matched `agentId`, calls `vitest-agent agent end-agent --agent-id $agentId` — with no `--host-session-id`, so the subagent stop sets `agents.ended_at` but leaves the main agent's `session_map` row open — then removes the state file. `session/end-record.sh` removes the whole `active-subagents/` directory for the closing `chat_id` as janitorial cleanup against orphan files from crashed SubagentStop hooks. Pairing is deterministic for sequential same-type dispatches and approximate for concurrent same-type dispatches, but the total open-subagent count stays correct.
+**SubagentStop end-agent integration** pairs stops to starts via a per-dispatch state file. `subagent/start-tdd.sh` writes `~/.claude/session-env/${chat_id}/active-subagents/<ts>-<pid>.json` (the file name is the synthetic-key tail with the `${chat_id}-subagent-` prefix stripped) holding `agentId`, `agentType`, `syntheticKey`, and `startedAt`. `subagent/stop-tdd.sh` pairs on `agent_type` (oldest-start-with-oldest-stop), reads the matched `agentId`, calls `vitest-agent agent end-agent --agent-id $agentId` — with no `--host-session-id`, so the subagent stop sets `agents.ended_at` but leaves the main agent's `session_map` row open — then removes the state file. `session/end-record-worker.sh` removes the whole `active-subagents/` directory for the closing `chat_id` as janitorial cleanup against orphan files from crashed SubagentStop hooks. Pairing is deterministic for sequential same-type dispatches and approximate for concurrent same-type dispatches, but the total open-subagent count stays correct.
 
 **PreToolUse Bash hook** (`pre-tool-use/bash.sh`) is a three-layer `inject-env` pipeline. Layer 0 is a bash regex prefilter that emits a no-op before any sidecar work when the command cannot invoke Vitest (~80–90% of Bash calls). Layer 1 self-sources the session env and skips the sidecar when the active agent is the main agent — the auto-sourced `VITEST_AGENT_*` env is already correct, so only subagent-triggered Bash needs the rewrite. Layer 2 reads `$VITEST_AGENT_SIDECAR_BIN` (an absolute path written once per session by `session/start.sh` via `vitest-agent agent sidecar-path`); when the var is non-empty and executable the binary is exec'd directly — no PATH lookup, no PM wrapper. When absent or non-executable it falls back to running `vitest-agent agent inject-env` through the detected package manager. The sidecar binary is not discoverable via `command -v` because pnpm/npm do not hoist transitive optional-dependency bins into `node_modules/.bin/`. The sidecar matches the command against the five Vitest invocation shapes (direct, runner, pm exec, pm script, node bin path); on match it returns the command prepended with `VITEST_AGENT_CONVERSATION_ID=<uuid> VITEST_AGENT_AGENT_ID=<uuid>` so the spawned Vitest process inherits attribution. Hook returns `hookSpecificOutput.updatedInput.command` per the PreToolUse contract. Payload parsing was consolidated to one `jq` call and one `dirname` lookup.
 

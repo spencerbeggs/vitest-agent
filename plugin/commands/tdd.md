@@ -16,14 +16,14 @@ Before spawning, complete three setup steps:
 
 1. Call `inventory (kind: session)({ agentKind: "main", limit: 1 })` — capture the `chat_id` field from the first row as `chatId`. Do **not** use `(removed: session id is auto-recovered at MCP boot from VITEST_AGENT_CHAT_ID)()` — that in-memory ref can be stale if a prior subagent overwrote it.
 2. Generate a `runId`: `` `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` ``. Do **not** reuse a `runId` across dispatches — a fresh id per dispatch is the invariant.
-3. Call `TaskCreate({ subject: "TDD Session: {{ goal }}", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` — capture the returned task ID as `parentTaskId`.
+3. The Task tools are usually not available, so you will usually skip this and proceed without a `parentTaskId`. When they are available, call `TaskCreate({ subject: "TDD Session: {{ goal }}", description: "Behavior tasks will appear as the orchestrator decomposes the goal." })` and capture the returned task ID as `parentTaskId`.
 
-Then spawn `vitest-agent:tdd-task` **in the background** (`run_in_background: true`) with a prompt that includes:
+Then spawn `vitest-agent:tdd-task` as a **plain background subagent** — `run_in_background: true`, `subagent_type: "vitest-agent:tdd-task"`, and **no `name`/team argument** (a named teammate spawns a detached session that splits attribution and makes phase gates deny; an unnamed subagent links to this session so the passed `chatId` aligns the task with its artifacts). Pass a prompt that includes:
 
 - The goal: `{{ goal }}`
 - The `chatId` from step 1
 - The `runId` from step 2
-- The `parentTaskId` from step 3
+- The `parentTaskId` from step 3, if one was captured — it is optional and its absence is fine
 
 Tell the user that behavior tasks will appear in the task panel as the orchestrator decomposes the goal, then return control.
 

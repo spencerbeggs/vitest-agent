@@ -347,6 +347,17 @@ export class DataReader extends Context.Service<
 		readonly findActiveSubagentSession: (
 			parentSessionId: number,
 		) => Effect.Effect<Option.Option<SessionDetail>, DataStoreError>;
+		/**
+		 * Resolve the session a TDD task was opened under: the `sessions`
+		 * row whose `id` equals `tdd_tasks.session_id` for `tddTaskId`.
+		 * Returns `Option.none` when the task — or its session — does not
+		 * exist. Lets `hypothesis (action: record)` bind a hypothesis
+		 * deterministically from the orchestrator's unambiguous
+		 * `tddTaskId` (returned by `tdd_task (action: start)`) instead of
+		 * the fragile recovered host context or a caller-guessed
+		 * `sessionId`.
+		 */
+		readonly getSessionByTddTaskId: (tddTaskId: number) => Effect.Effect<Option.Option<SessionDetail>, DataStoreError>;
 		readonly listSessions: (options: {
 			readonly project?: string;
 			readonly agentKind?: "main" | "subagent";

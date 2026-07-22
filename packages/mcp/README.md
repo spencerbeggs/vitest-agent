@@ -13,6 +13,7 @@ The `vitest-agent-mcp` MCP server bin. Exposes action-keyed tools over stdio tha
 - **29 action-keyed tools** — per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior` and more
 - **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, `wrapup`
 - **Idempotency middleware** — `tdd_task`, `tdd_goal`, `tdd_behavior` and `hypothesis` create-actions are idempotent on derived keys
+- **Programmatic API** — `buildMcpServer` constructs the server without connecting a transport; `parseSessionEnvExports` and `recoverSessionContextFromSessionEnv` recover the host session context from the Claude Code plugin's session-env files, so agent attribution survives a plugin reload
 
 ## Install
 
