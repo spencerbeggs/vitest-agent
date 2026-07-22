@@ -1,7 +1,7 @@
 /**
  * @vitest-agent/mcp
  *
- * Model Context Protocol server for vitest-agent. Exposes 24 tools
+ * Model Context Protocol server for vitest-agent. Exposes 29 tools
  * via tRPC over stdio that give agents structured access to test data,
  * coverage, history, trends, errors, and notes — backed by the SQLite
  * database that the reporter writes during test runs.
@@ -17,7 +17,8 @@ export type { CurrentSessionIdRef, McpContext, SessionContext, SessionContextRef
 export { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "./context.js";
 export { McpLive } from "./layers/McpLive.js";
 export { appRouter } from "./router.js";
-export { startMcpServer } from "./server.js";
+export { buildMcpServer, startMcpServer } from "./server.js";
+export { parseSessionEnvExports, recoverSessionContextFromSessionEnv } from "./session-env.js";
 export type { Remediation, TddErrorEnvelope } from "./tools/_tdd-error-envelope.js";
 
 // --- Package version constant ---

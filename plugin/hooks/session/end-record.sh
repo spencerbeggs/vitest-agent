@@ -1,10 +1,27 @@
 #!/bin/bash
-# SessionEnd hook: record + inject full wrap-up prompt.
+# SessionEnd hook: fast foreground shim over end-record-worker.sh.
 #
-# Per spec W5: agent reviews touched tests/files, records insights via
-# note_create, marks hypotheses validated/invalidated, updates
-# tdd_tasks.outcome. Wrap-up content from formatWrapupEffect via
-# the wrapup CLI.
+# Why a shim + worker split: the host runs SessionEnd hooks under
+# `signal: AbortSignal.timeout(budget)` and, on an interactive interrupt
+# (Ctrl+C), aborts the in-flight hook unconditionally. Our persistence
+# does several serial `<pm> exec vitest-agent` spawns that can outlast
+# that window on a cold cache, so the host would kill the hook mid-run
+# and print "SessionEnd hook [...] failed: Hook cancelled" — and leave
+# rows half-written. (Verified against the Claude Code binary: an aborted
+# hook returns ABORT_ERR -> the "Hook cancelled" message; the SessionEnd
+# budget is max(per-hook timeout)*1000, overridable via
+# CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS.)
+#
+# Fix: on true exit reasons (other / prompt_input_exit /
+# bypass_permissions_disabled / logout) the process is tearing down, so
+# we DETACH the worker into a disowned background job whose fds point at
+# a log file (never the host's stdout/stderr pipe). The foreground shim
+# returns emit_noop within milliseconds, so the host has nothing to
+# abort, and the worker completes the writes after the session exits.
+#
+# On continuation reasons (clear / resume) the session keeps running,
+# there is no teardown, and the wrap-up systemMessage is still worth
+# showing — so we run the worker synchronously and surface its output.
 
 set -euo pipefail
 
@@ -28,82 +45,31 @@ if [ -z "$chat_id" ] || [ -z "$cwd" ]; then
 	exit 0
 fi
 
-# shellcheck source=../lib/detect-pm.sh
-. "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+worker="$(dirname "$0")/end-record-worker.sh"
 
-ended_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-# 1. Record a hook_fire turn so acceptance_metrics can track SessionEnd events.
-fire_payload=$(jq -nc --arg cc "$chat_id" \
-	'{type: "hook_fire", hook_kind: "SessionEnd", chat_id: $cc}')
-_fire_err=$(mktemp)
-_fire_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
-	--chat-id "$chat_id" \
-	"$fire_payload" 2>"$_fire_err") || {
-	_rc=$?
-	hook_error "$_HOOK" "record turn hook_fire rc=$_rc cc=$chat_id: $(cat "$_fire_err")"
-}
-rm -f "$_fire_err"
-hook_debug "$_HOOK" "record turn hook_fire: $_fire_out"
-
-# 2. Record the session end.
-if [ -n "$reason" ]; then
-	cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record session-end \
-		--chat-id "$chat_id" \
-		--ended-at "$ended_at" \
-		--end-reason "$reason" \
-		>/dev/null 2>&1 \
-		|| true
-else
-	cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record session-end \
-		--chat-id "$chat_id" \
-		--ended-at "$ended_at" \
-		>/dev/null 2>&1 \
-		|| true
-fi
-
-# 2b. Close the agent-taxonomy rows. Source the session-env dir to pull
-# in VITEST_AGENT_MAIN_AGENT_ID written by SessionStart; CLAUDE_ENV_FILE
-# is NOT auto-sourced into hook subprocesses.
-# shellcheck source=../lib/source-session-env.sh
-. "$(dirname "$0")/../lib/source-session-env.sh"
-source_session_env "$chat_id"
-
-if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
-	ended_at_unix=$(date -u +%s)
-	# shellcheck disable=SC2086
-	_end_err=$(mktemp)
-	# shellcheck disable=SC2086
-	if ! (cd "$cwd" && $pm_exec vitest-agent agent end-agent \
-		--agent-id "$VITEST_AGENT_MAIN_AGENT_ID" \
-		--host-session-id "$chat_id" \
-		--ended-at "$ended_at_unix" \
-		--cwd "$cwd" >/dev/null 2>"$_end_err"); then
-		hook_error "$_HOOK" "end-agent cc=$chat_id agent=$VITEST_AGENT_MAIN_AGENT_ID: $(cat "$_end_err")"
-	fi
-	rm -f "$_end_err"
-	hook_debug "$_HOOK" "end-agent: ok agent=$VITEST_AGENT_MAIN_AGENT_ID"
-fi
-
-# Janitorial cleanup: remove the active-subagents dir so orphaned files
-# from SubagentStop crashes don't accumulate across sessions.
-rm -rf "$HOME/.claude/session-env/$chat_id/active-subagents" 2>/dev/null || true
-
-# 3. Compute the wrap-up prompt.
-wrapup=$(cd "$cwd" && $pm_exec vitest-agent agent wrapup \
-	--chat-id "$chat_id" \
-	--kind session_end \
-	--format markdown 2>/dev/null || echo "")
-
-# 4. Surface via systemMessage. Claude Code's SessionEnd envelope
-# does not accept hookSpecificOutput.additionalContext — that field
-# is restricted to PreToolUse / UserPromptSubmit / PostToolUse /
-# PostToolBatch.
-if [ -n "$wrapup" ]; then
-	emit_system_message "$wrapup"
-else
-	emit_noop
-fi
+case "$reason" in
+	clear | resume)
+		# Session continues — no teardown to race. Run synchronously and
+		# surface the wrap-up prompt if the worker produced one.
+		wrapup=$(bash "$worker" "$chat_id" "$cwd" "$reason" wrapup 2>/dev/null || echo "")
+		if [ -n "$wrapup" ]; then
+			emit_system_message "$wrapup"
+		else
+			emit_noop
+		fi
+		;;
+	*)
+		# True exit — detach so the host's abort/timeout can neither cancel
+		# nor truncate the persistence. All worker fds are redirected away
+		# from this hook's stdout/stderr pipe so the host's stream-close
+		# wait resolves as soon as the shim exits.
+		log_dir="${HOME}/.claude/session-env/${chat_id}"
+		mkdir -p "$log_dir" 2>/dev/null || true
+		nohup bash "$worker" "$chat_id" "$cwd" "$reason" quiet \
+			</dev/null >>"${log_dir}/session-end-worker.log" 2>&1 &
+		disown 2>/dev/null || true
+		emit_noop
+		;;
+esac
 
 exit 0

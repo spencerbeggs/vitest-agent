@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: testing
 created: 2026-04-29
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-07-22
+last-synced: 2026-07-22
 completeness: 95
 related:
   - ./architecture.md
@@ -111,6 +111,8 @@ const result = await caller.test_status({ project: "my-app" });
 
 This avoids stdio transport, MCP SDK initialization, and process
 boundaries -- procedures are tested as plain async functions.
+
+**Served-schema tests complement the caller factory.** Router-level caller tests cannot catch a missed hand-sync between a tool's tRPC input schema (`tools/<name>.ts`) and its MCP-SDK `inputSchema` registration in `server.ts` — a field the SDK registration never declares or forwards is unreachable from a real client even though the tRPC procedure handles it. For that bug class, connect `buildMcpServer(ctx)` (the transport-less half of the `buildMcpServer` / `startMcpServer` split) to an `InMemoryTransport` client and assert the schemas and descriptions a real MCP client is actually served. See `packages/mcp/__test__/server-hypothesis-schema.test.ts` and the *Server bootstrap* section of [./components/mcp.md](./components/mcp.md).
 
 ### Pattern 3: Duck-Typed Vitest Fixtures
 

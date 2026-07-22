@@ -61,7 +61,7 @@ src/
 | `contracts/reporter.ts` | Public reporter contract types: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory` |
 | `contracts/dispatcher.ts` | Public T6 dispatcher contract types: `RunShape` (4 cases), `RunOutcome` (3 cases), `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`. Consumed by `@vitest-agent/ui`'s dispatcher matrix and `DefaultVitestAgentReporter` |
 | `services/DataStore.ts` + `layers/DataStoreLive.ts` | All SQLite writes. Defines all write-input types plus `backfillTestCaseTurns(chatId)` and the 2.0 goal/behavior CRUD methods |
-| `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, and the 2.0 goal/behavior read methods |
+| `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, `getSessionByTddTaskId` (resolves the session a TDD task was opened under; powers the MCP `hypothesis` tool's deterministic `tddTaskId` binding), and the 2.0 goal/behavior read methods |
 | `utils/resolve-data-path.ts` | Deterministic XDG-derived `dbPath` orchestrator (Decision 31) |
 | `utils/ensure-migrated.ts` | Process-level migration coordinator using a `globalThis`-keyed promise cache (Decision 28). Registers `0001_initial` only on the main `data.db`; the registry and session-map DBs use their own single-file migrations |
 | `layers/PathResolutionLive.ts` | Composite: `XdgLive` + `ConfigLive` + `WorkspacesLive` |

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-07-22
+last-synced: 2026-07-22
 completeness: 93
 related:
   - ./architecture.md
@@ -482,7 +482,8 @@ The notable ones:
 - **`TddTaskSummary`** — TDD sessions whose `session_id` FK points at
   the given Claude Code session. Used by
   `tdd_task({ action: "resume" })` to find a suitable open TDD session.
-- **`findActiveSubagentSession`** — `(parentSessionId: number) => Effect<Option<SessionDetail>, DataStoreError>`. Returns the most-recently-started subagent session whose `parent_session_id` matches and whose `ended_at IS NULL`. Used by the `hypothesis (action: record)` tool to attribute hypotheses to the running `tdd-task` subagent session rather than the recovered main session — the MCP server's boot context names only the main agent, so per-call subagent identity must be inferred from the active child row.
+- **`findActiveSubagentSession`** — `(parentSessionId: number) => Effect<Option<SessionDetail>, DataStoreError>`. Returns the most-recently-started subagent session whose `parent_session_id` matches and whose `ended_at IS NULL`. Used by the `hypothesis (action: record)` tool's context-based fallback to attribute hypotheses to the running `tdd-task` subagent session rather than the recovered main session — the MCP server's boot context names only the main agent, so per-call subagent identity must be inferred from the active child row.
+- **`getSessionByTddTaskId`** — `(tddTaskId: number) => Effect<Option<SessionDetail>, DataStoreError>`. Resolves the session a TDD task was opened under (`sessions.id = tdd_tasks.session_id`). The deterministic head of the `hypothesis (action: record)` resolution precedence — see [./components/mcp.md](./components/mcp.md) "Hypothesis session binding".
 - **`FindIdempotentResponse`** — `(procedurePath, key) =>
   Effect<Option<string>, DataStoreError>`. Returns `Option.none()` when no
   cached response exists; otherwise the stored `result_json`.

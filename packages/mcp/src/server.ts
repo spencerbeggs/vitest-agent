@@ -127,16 +127,19 @@ function structuredJsonResult<T extends object>(value: T) {
 }
 
 /**
- * Starts the MCP server over stdio, registering all tools and prompts.
+ * Builds the fully-registered MCP server without connecting a transport.
  *
- * Constructs the MCP server instance, registers all tRPC-backed tools (wired through
- * `ctx.runtime`), calls `registerAllPrompts`, then connects
- * a `StdioServerTransport`. Returns when the transport disconnects.
+ * Constructs the MCP server instance, registers all tRPC-backed tools
+ * (wired through `ctx.runtime`), and calls `registerAllPrompts`. Split
+ * from {@link startMcpServer} so tests can connect the identical server
+ * to an in-memory transport and assert the *served* tool schemas — the
+ * MCP-SDK-side registrations here are hand-synced with the tRPC inputs
+ * in `tools/`, and a missed sync is invisible to router-level tests.
  *
  * @param ctx - the MCP context carrying the shared ManagedRuntime and session refs
  * @public
  */
-export async function startMcpServer(ctx: McpContext): Promise<void> {
+export function buildMcpServer(ctx: McpContext): McpServer {
 	const server = new McpServer(
 		{
 			name: "vitest-agent",
@@ -903,12 +906,21 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 		"hypothesis",
 		{
 			description:
-				"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (sessionId, content, optional citation ids) writes a hypothesis; action='validate' (id, outcome, validatedAt) records a validation outcome; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
+				"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (content, tddTaskId?, optional citation ids) writes a hypothesis — the binding session is resolved server-side from the recovered host context (active TDD subagent, else main session); pass tddTaskId (returned by tdd_task action='start') to bind deterministically to that task's session, and do not pass sessionId when recording; action='validate' (id, outcome, validatedAt) records a validation outcome; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
 			inputSchema: {
 				action: z.enum(["record", "validate", "list"]).describe("CRUD discriminator"),
 				// Shared
-				sessionId: z.optional(z.coerce.number()).describe("Session id (required for record; filter for list)"),
+				sessionId: z
+					.optional(z.coerce.number())
+					.describe(
+						"list: filter by session id. record: dev/test fallback only — ignored when host context is recovered; never pass a tddTaskId value here",
+					),
 				// record
+				tddTaskId: z
+					.optional(z.coerce.number())
+					.describe(
+						"record: tdd task id returned by tdd_task action='start' — binds the hypothesis to that task's session deterministically",
+					),
 				content: z.optional(z.string()).describe("Hypothesis content (action=record)"),
 				createdTurnId: z.optional(z.coerce.number()),
 				citedTestErrorId: z.optional(z.coerce.number()),
@@ -929,8 +941,12 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 			if (args.action === "record") {
 				const result = await caller.hypothesis({
 					action: "record",
-					sessionId: args.sessionId as number,
 					content: args.content as string,
+					// tddTaskId is the deterministic binding — forwarding it is
+					// load-bearing (the tRPC-side resolution is unreachable
+					// without it; see the RecordVariant in tools/hypothesis.ts).
+					...(args.tddTaskId !== undefined && { tddTaskId: args.tddTaskId }),
+					...(args.sessionId !== undefined && { sessionId: args.sessionId }),
 					...(args.createdTurnId !== undefined && { createdTurnId: args.createdTurnId }),
 					...(args.citedTestErrorId !== undefined && { citedTestErrorId: args.citedTestErrorId }),
 					...(args.citedStackFrameId !== undefined && { citedStackFrameId: args.citedStackFrameId }),
@@ -1094,6 +1110,20 @@ export async function startMcpServer(ctx: McpContext): Promise<void> {
 
 	registerAllPrompts(server);
 
+	return server;
+}
+
+/**
+ * Starts the MCP server over stdio, registering all tools and prompts.
+ *
+ * Builds the server via {@link buildMcpServer}, then connects a
+ * `StdioServerTransport`. Returns when the transport disconnects.
+ *
+ * @param ctx - the MCP context carrying the shared ManagedRuntime and session refs
+ * @public
+ */
+export async function startMcpServer(ctx: McpContext): Promise<void> {
+	const server = buildMcpServer(ctx);
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 }

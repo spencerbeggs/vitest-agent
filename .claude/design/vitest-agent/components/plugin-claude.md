@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-07-22
+last-synced: 2026-07-22
 completeness: 90
 related:
   - ../architecture.md
@@ -117,14 +117,7 @@ Every hook script is POSIX shell, sources shared helpers from `hooks/lib/`, and
 returns JSON to Claude Code via stdout. Hooks fall into four functional
 categories:
 
-- **Recording hooks.** Capture session, prompt, tool-call, file-edit, and
-  hook-fire turns into the SQLite database via `vitest-agent agent record`. These
-  drive session analytics and the wrap-up nudges. They run on every event,
-  unscoped — every turn in every session is captured. `session/end-record.sh`
-  additionally records a `hook_fire` turn (kind `SessionEnd`) **before** the
-  session-end write so that `computeAcceptanceMetrics` metric 2 counts the
-  event regardless of whether the wrap-up note was produced; hook errors are
-  logged to `hook_error` rather than silently swallowed.
+- **Recording hooks.** Capture session, prompt, tool-call, file-edit, and hook-fire turns into the SQLite database via `vitest-agent agent record`. These drive session analytics and the wrap-up nudges. They run on every event, unscoped — every turn in every session is captured. Hook errors are logged to `hook_error` rather than silently swallowed. `session/end-record.sh` is a **fast foreground shim over `session/end-record-worker.sh`**: Claude Code runs SessionEnd hooks under an abortable timeout and cancels in-flight hooks unconditionally on interactive exit ("Hook cancelled"), which killed the serial CLI spawns mid-run and left rows half-written. On exit-type end reasons the shim detaches the worker (`nohup`, disowned, all fds redirected to a per-session log under `~/.claude/session-env/<chat_id>/`) and emits a no-op within milliseconds — the host has nothing to abort, and the worker completes the session-end recording (`hook_fire` turn first so `computeAcceptanceMetrics` metric 2 counts the event, then `session-end`, `end-agent`, janitorial cleanup) after Claude Code exits, skipping the wrap-up computation since nobody is listening. On `clear` / `resume` the session continues, so the shim runs the worker synchronously and surfaces the wrap-up `systemMessage`.
 - **Context-injection hooks.** Run on `SessionStart`, `UserPromptSubmit`,
   `Stop`, `SessionEnd`, and `PreCompact`, calling the `agent triage` and `agent wrapup`
   CLIs and emitting their output back to Claude Code as session context or
@@ -255,23 +248,13 @@ context (session-start triage, MCP tool reference) compensates for this by
 giving every dispatch the same baseline awareness of the project's test
 state.
 
-**Pre-dispatch sequence.** Session-id lookup over MCP is no longer
-required: the four canonical UUIDs
-(`VITEST_AGENT_CHAT_ID`, `_CONVERSATION_ID`, `_MAIN_AGENT_ID`,
-`_AGENT_ID`) are already exported into the main agent's shell by the
-SessionStart hook, and the MCP server reads them from
-`process.env` at boot via `SessionContextRef`. The legacy
-`get_current_session_id` / `set_current_session_id` tools are
-removed. Before spawning the orchestrator, the main agent generates a
-fresh `runId` (`Date.now().toString(36)`) for each dispatch and
-passes it to `tdd_task({ action: "start", runId, ... })`, where
-`runId` becomes the idempotency key so retry dispatches with new
-`runId` values are not collapsed to the cached session. The agent
-then calls `TaskCreate` to create the parent
-`TDD Session: <objective>` task and initializes the `goalById` and
-`behaviorById` state maps before spawning.
+**Pre-dispatch sequence.** Session-id lookup over MCP is no longer required: the four canonical UUIDs (`VITEST_AGENT_CHAT_ID`, `_CONVERSATION_ID`, `_MAIN_AGENT_ID`, `_AGENT_ID`) are already exported into the main agent's shell by the SessionStart hook, and the MCP server reads them from `process.env` at boot via `SessionContextRef`. The legacy `get_current_session_id` / `set_current_session_id` tools are removed. Before spawning the orchestrator, the main agent generates a fresh `runId` (`Date.now().toString(36)`) for each dispatch and passes it to `tdd_task({ action: "start", runId, ... })`, where `runId` becomes the idempotency key so retry dispatches with new `runId` values are not collapsed to the cached session. The agent then calls `TaskCreate` (when available — see *Task tools are optional* below) to create the parent `TDD Session: <objective>` task and initializes the `goalById` and `behaviorById` state maps before spawning.
 
-**Hypothesis attribution to the running subagent.** The `hypothesis (action: record)` MCP tool resolves the binding session server-side rather than trusting a caller-supplied `sessionId`. The MCP server is one long-lived process whose recovered context always names the main agent's `chatId`; it cannot tell per-call that the caller is the `tdd-task` subagent. The fix: for every `record` call the server looks up the main session via `DataReader.getSessionByChatId`, then calls `DataReader.findActiveSubagentSession(mainSession.id)` — which returns the most-recently-started subagent session with `parent_session_id = mainSession.id` and `ended_at IS NULL`. When one is found, hypotheses are attributed to the subagent's session row; otherwise they fall back to the main session. A caller-supplied `sessionId` is honored only when no host context was recovered at all (dev and test paths). The `record-hypothesis-before-fix` skill therefore instructs the orchestrator not to pass `sessionId` — the server resolves it correctly.
+**Dispatch contract: plain unnamed background subagent, never a named teammate.** The orchestrator is spawned with `run_in_background: true`, `subagent_type: "vitest-agent:tdd-task"` and **no name/team argument**. An unnamed background subagent fires `SubagentStart`, which registers the run under a parent-prefixed session key (`<chatId>-subagent-<ts>-<pid>`) sharing the dispatching session's `conversation_id` — so the subagent's test-run and edit artifacts funnel back to the session passed as `chatId`, and the `tdd_task (action: start)` opened against that `chatId` finds them (evidence-based phase gates pass). A **named teammate** dispatch instead spawns a detached session with its own `conversation_id` and no parent link: the task opens under the dispatcher's session while artifacts land under the detached one, and every `tdd_phase_transition_request` denies with `missing_artifact_evidence`. This contract is encoded in both `commands/tdd.md` and `skills/tdd/SKILL.md`, and was validated live in a dogfood lifecycle run. After the run, the main agent cleans up whatever it dispatched — a plain background subagent completes on its own, but a named or otherwise persistent agent (or an early-terminated run) is explicitly stopped so dispatched agents do not linger.
+
+**Task tools are optional; narration is primary.** The Task-panel tools (`TaskCreate` / `TaskUpdate` / `TaskGet` / `TaskList`) and `TodoWrite` are host-session-gated: they may simply be absent from a session's tool set, and a subagent can only inherit tools the parent session actually has. The agent frontmatter grants them anyway so sessions that *do* have them get the UI mirror, and both the agent prompt and the `tdd` skill treat them strictly best-effort — plain-text progress narration keyed to channel events is the primary channel, with the task panel an optional parallel mirror. `tdd_progress_push` events are persisted server-side regardless of whether any panel renders, so they remain inspectable via `tdd_task (action: get)`; narration is a live-viewing convenience, not the record of truth. `SendMessage` similarly applies only to named-teammate dispatch, which the contract above forbids for TDD runs — on the common fire-and-forget path the final report returns via the normal agent-completion channel.
+
+**Hypothesis attribution via `tddTaskId`.** The `hypothesis (action: record)` MCP tool resolves the binding session server-side rather than trusting a caller-supplied `sessionId`. The preferred, deterministic path is the `tddTaskId` the orchestrator captured from `tdd_task (action: start)`: the server resolves the session the task was opened under via `DataReader.getSessionByTddTaskId`, and an unknown id is a hard typed failure. Absent a `tddTaskId`, the server falls back to the recovered host context — the long-lived MCP process's context always names the main agent's `chatId`, so it looks up the main session and attributes to the active (un-ended) subagent child from `DataReader.findActiveSubagentSession` when one exists. A caller-supplied `sessionId` is honored only when no host context was recovered at all (dev and test paths). The orchestrator's workflow instructs it to pass `tddTaskId` and never a raw `sessionId` — and in particular never the `tddTaskId` under a `sessionId` key, the slip that mis-attributed hypotheses in dogfood runs. See [./mcp.md](./mcp.md) "Hypothesis session binding" for the full precedence and the dual-registration lesson.
 
 **Channel-event flow.** When the orchestrator hits a lifecycle transition
 (goal/behavior created, started, phase changed, completed, abandoned, blocked,
@@ -328,7 +311,7 @@ primitive content embedded inline.
 
 ### Slash commands
 
-`/setup` and `/configure` are config helpers for `AgentPlugin` in a project's Vitest config. `/setup` runs a deterministic seven-step flow: verify Vitest 4.1+, `@vitest-agent/plugin` and a coverage provider; detect and convert the config shape to async-arrow; emit the canonical 2.0 config (an `AgentPlugin.discover()` destructure, the five-field options surface with only `coverageTargets` emitted, and split coverage); and migrate pre-2.0 option patterns when upgrading. `/configure` is display-only — it parses the config and renders a five-field options table plus the Vitest coverage block, then points the user at the file for manual edits. It does not mutate the config. `/tdd` launches a TDD session by dispatching the orchestrator with the user's goal as the task prompt — the command does nothing beyond forwarding the goal; all the real work is in the agent.
+`/setup` and `/configure` are config helpers for `AgentPlugin` in a project's Vitest config. `/setup` runs a deterministic seven-step flow: verify Vitest 4.1+, `@vitest-agent/plugin` and a coverage provider; detect and convert the config shape to async-arrow; emit the canonical 2.0 config (an `AgentPlugin.discover()` destructure, the five-field options surface with only `coverageTargets` emitted, and split coverage); and migrate pre-2.0 option patterns when upgrading. `/configure` is display-only — it parses the config and renders a five-field options table plus the Vitest coverage block, then points the user at the file for manual edits. It does not mutate the config. `/tdd` launches a TDD session: it performs the pre-dispatch sequence (session lookup, fresh `runId`) and dispatches the orchestrator with the user's goal as the task prompt, following the plain-unnamed-subagent dispatch contract (see *Agent architecture*); all the real TDD work is in the agent.
 
 ### Dogfood system
 
@@ -419,7 +402,7 @@ All four shell out to the CLI's `agent` sidecar subcommands (see
 | --- | --- | --- |
 | `session/start.sh` | `agent register-agent --host-kind claude-code --agent-type claude-code-main ...` then `agent sidecar-path` | Registers the main agent at session boot; parses the JSON result with `jq` and writes seven canonical `VITEST_AGENT_*` exports (the four UUIDs plus `PROJECT_DIR`, `DATA_DIR`, `PLUGIN_ROOT`) to two surfaces: `${CLAUDE_ENV_FILE}` (auto-sourced into Bash subprocs and the MCP child) and `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` (sourced by other hooks). Values are `printf '%q'` quoted; resumes are idempotent via grep guards. After writing those seven exports, calls `vitest-agent agent sidecar-path` once, captures stdout, and writes `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both surfaces using the same two-surface write pattern. Skips the export when the command returns empty or exits non-zero (unsupported platform). |
 | `subagent/start-tdd.sh` | `agent register-agent --agent-type claude-code-tdd-task --parent-host-session-id $session_id ...` | Registers the orchestrator subagent at dispatch and pre-bootstraps the parent main row + always-set `parent_session_id` so artifact-binding works across `chat_id` rotation. Also writes a per-dispatch state file under `active-subagents/` so `subagent/stop-tdd.sh` can recover the subagent's `agentId` (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)). |
-| `session/end-record.sh` | `agent end-agent --host-session-id $session_id` | Sets `agents.ended_at` and `session_map.ended_at` for the main agent. |
+| `session/end-record.sh` (via `end-record-worker.sh`) | `agent end-agent --host-session-id $session_id` | Sets `agents.ended_at` and `session_map.ended_at` for the main agent. The invocation runs in the worker, detached on exit-type end reasons so host teardown cannot cancel it (see *Hook architecture*). |
 | `subagent/stop-tdd.sh` | `agent end-agent` (no `--host-session-id`) | Sets `agents.ended_at` for the subagent. Resolves the subagent's `agentId` by pairing against the per-dispatch state file `subagent/start-tdd.sh` wrote (see [State-file pairing for SubagentStop](#state-file-pairing-for-subagentstop)); leaves the main agent's `session_map` row open by design. |
 | `pre-tool-use/bash.sh` | sidecar binary `inject-env`, JS-CLI `agent inject-env` fallback | When the active actor is a subagent, rewrites `tool_input.command` to prepend the `VITEST_AGENT_AGENT_ID=...` env prefix. POSIX env-prefix scope is the immediately-following process only — main-agent env stays intact for subsequent calls. Gated behind a three-layer prefilter — see [The PreToolUse Bash hook: three-layer pipeline](#the-pretooluse-bash-hook-three-layer-pipeline). |
 
@@ -492,7 +475,7 @@ Claude Code's `SubagentStop` payload carries `agent_type` but not the `agentId` 
 
 `subagent/stop-tdd.sh` pairs on `agentType`, matching the oldest unconsumed start with the current stop. It reads `agentId` from the matched file, calls `vitest-agent agent end-agent` (no `--host-session-id`) and removes the file. Pairing is deterministic for sequential same-type dispatches; for concurrent same-type dispatches it is approximate but the ended-agent count stays correct.
 
-`session/end-record.sh` removes the whole `active-subagents/` directory for the closing `chat_id` as janitorial cleanup, so files orphaned by a crashed stop hook do not accumulate.
+`session/end-record-worker.sh` removes the whole `active-subagents/` directory for the closing `chat_id` as janitorial cleanup, so files orphaned by a crashed stop hook do not accumulate.
 
 ### Artifact-binding across `chat_id` rotation
 

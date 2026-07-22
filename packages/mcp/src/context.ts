@@ -69,14 +69,32 @@ export interface SessionContextRef {
 /**
  * Creates a new {@link SessionContextRef} with an optional initial value.
  *
+ * When a `recover` thunk is supplied, `get()` invokes it lazily while the
+ * held value is `null` and caches the first non-null result. This is how
+ * a null boot-time context heals at the first tool call that needs it:
+ * boot-time env recovery loses both the fresh-launch race (the MCP child
+ * can spawn before SessionStart writes `CLAUDE_ENV_FILE`) and the
+ * `/reload-plugins` restart (fresh environment, no session exports), but
+ * by first-tool-call time the SessionStart hook's session-env file is on
+ * disk for the recover thunk to read.
+ *
  * @param initial - the starting session context, or `null` when not yet recovered
+ * @param recover - optional call-time recovery attempted by `get()` while the value is `null`
  * @returns a mutable ref holding the current session context
  * @public
  */
-export const createSessionContextRef = (initial: SessionContext | null = null): SessionContextRef => {
+export const createSessionContextRef = (
+	initial: SessionContext | null = null,
+	recover?: () => SessionContext | null,
+): SessionContextRef => {
 	let value: SessionContext | null = initial;
 	return {
-		get: () => value,
+		get: () => {
+			if (value === null && recover !== undefined) {
+				value = recover();
+			}
+			return value;
+		},
 		set: (ctx) => {
 			value = ctx;
 		},

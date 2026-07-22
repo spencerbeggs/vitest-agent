@@ -127,13 +127,15 @@ subagent_stop_fixture() {
 session_end_fixture() {
     local session_id="${1:-${BATS_CHAT_ID}}"
     local cwd="${2:-/Users/spencer/workspaces/spencerbeggs/vitest-agent}"
+    local reason="${3:-user_ended}"
     jq -n \
         --arg sid "$session_id" \
         --arg cwd "$cwd" \
+        --arg reason "$reason" \
         '{
             session_id: $sid,
             cwd: $cwd,
-            reason: "user_ended",
+            reason: $reason,
             hook_event_name: "SessionEnd"
         }'
 }
@@ -368,8 +370,11 @@ session_end_fixture() {
         > "${state_dir}/99999-99999.json"
     [ -f "${state_dir}/99999-99999.json" ]
 
+    # Use a continuation reason (clear) so the shim runs the worker
+    # synchronously — on true exit reasons the janitorial cleanup is
+    # detached and would race this assertion.
     local end_fixture
-    end_fixture=$(session_end_fixture "$BATS_CHAT_ID")
+    end_fixture=$(session_end_fixture "$BATS_CHAT_ID" "" clear)
     run bash -c "echo '${end_fixture}' | bash '${HOOKS_DIR}/session/end-record.sh'"
     [ "$status" -eq 0 ]
 
@@ -382,8 +387,9 @@ session_end_fixture() {
     local state_dir="${HOME}/.claude/session-env/${BATS_CHAT_ID}/active-subagents"
     [ ! -d "$state_dir" ]
 
+    # Continuation reason keeps the worker in the foreground (see above).
     local end_fixture
-    end_fixture=$(session_end_fixture "$BATS_CHAT_ID")
+    end_fixture=$(session_end_fixture "$BATS_CHAT_ID" "" clear)
     run bash -c "echo '${end_fixture}' | bash '${HOOKS_DIR}/session/end-record.sh'"
     [ "$status" -eq 0 ]
 }

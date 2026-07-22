@@ -69,12 +69,30 @@ export const formatHypothesisListMarkdown = (data: HypothesisResultType): string
 
 const RecordVariant = Schema.Struct({
 	action: Schema.Literal("record"),
-	// Optional and, in practice, ignored: the binding session is resolved
-	// server-side from the recovered host context (main session -> active
-	// subagent child). A caller-supplied value is honored only as a
-	// fallback when no host context is recovered (dev / tests). See the
-	// resolution block in the `record` handler.
-	sessionId: Schema.optional(Schema.Number),
+	// Preferred, deterministic binding: the orchestrator always holds an
+	// unambiguous `tddTaskId` (returned by `tdd_task (action: start)`).
+	// When supplied, the binding session is resolved server-side as the
+	// session the task was opened under, ignoring the recovered host
+	// context entirely. See the resolution block in the `record` handler.
+	//
+	// Accepts either a number or a numeric string, decoding to a number:
+	// LLM orchestrators routinely stringify numeric tool inputs (a real
+	// dogfood run passed `tddTaskId: "5"`), which a bare `Schema.Number`
+	// rejects — silently dropping the deterministic branch and
+	// misattributing the hypothesis. `FiniteFromString` (not
+	// `NumberFromString`) is deliberate: it rejects `NaN`/`Infinity`, so a
+	// genuinely non-numeric string like "abc" still fails validation
+	// rather than coercing to `NaN`. Decoded type stays `number | undefined`.
+	tddTaskId: Schema.optional(Schema.Union([Schema.Number, Schema.FiniteFromString])),
+	// Fallback only, and in practice ignored during a live run: when no
+	// `tddTaskId` is supplied the binding session is resolved from the
+	// recovered host context (main session -> active subagent child). A
+	// caller-supplied value is honored only when no host context is
+	// recovered (dev / tests). See the resolution block in the handler.
+	//
+	// Same number-or-numeric-string coercion as `tddTaskId` above; decoded
+	// type stays `number | undefined`.
+	sessionId: Schema.optional(Schema.Union([Schema.Number, Schema.FiniteFromString])),
 	content: Schema.String,
 	createdTurnId: Schema.optional(Schema.Number),
 	citedTestErrorId: Schema.optional(Schema.Number),
@@ -108,36 +126,56 @@ export const hypothesis = idempotentProcedure
 						Effect.gen(function* () {
 							const store = yield* DataStore;
 							const reader = yield* DataReader;
-							// Resolve the binding session server-side rather than trusting
-							// the caller. The MCP server is one long-lived process whose
-							// recovered context always names the MAIN agent; it cannot tell
-							// per call that the caller is the tdd-task subagent. Trusting the
-							// caller's sessionId produced unreliable attribution (it landed
-							// variously on the parent main session, the tddTaskId, or — only
-							// when the orchestrator happened to pass the right value — the
-							// subagent session). Hypotheses are written only by the
-							// orchestrator subagent (a Gate-2 action), so the correct target
-							// during a TDD run is the main session's active (un-ended)
-							// subagent child; absent one, the main session itself. The
-							// caller-supplied sessionId is honored only when no host context
-							// was recovered (dev / tests).
-							const sc = ctx.sessionContext.get();
-							let resolvedSessionId = variant.sessionId;
-							if (sc !== null) {
-								const main = yield* reader.getSessionByChatId(sc.chatId);
-								if (Option.isSome(main)) {
-									const sub = yield* reader.findActiveSubagentSession(main.value.id);
-									resolvedSessionId = Option.isSome(sub) ? sub.value.id : main.value.id;
+							// Resolve the binding session server-side rather than trusting a
+							// caller-guessed sessionId. Precedence:
+							//
+							//   1. tddTaskId (preferred, deterministic). The orchestrator
+							//      always holds an unambiguous tddTaskId (returned by
+							//      tdd_task action: start), so resolve the session the task
+							//      was opened under and bind there — ignoring the recovered
+							//      host context entirely. An unknown tddTaskId is a hard,
+							//      typed failure (not a silent misattribution).
+							//   2. Recovered host context (sc). The MCP server is one
+							//      long-lived process whose recovered context always names
+							//      the MAIN agent; hypotheses are written only by the
+							//      orchestrator subagent, so the correct target is the main
+							//      session's active (un-ended) subagent child, else the main
+							//      session itself.
+							//   3. Caller-supplied sessionId, honored only when no host
+							//      context was recovered (dev / tests).
+							let resolvedSessionId: number | undefined;
+							if (variant.tddTaskId !== undefined) {
+								const bound = yield* reader.getSessionByTddTaskId(variant.tddTaskId);
+								if (Option.isNone(bound)) {
+									return yield* Effect.fail(
+										new DataStoreError({
+											operation: "write",
+											table: "hypotheses",
+											reason: `unknown tddTaskId ${variant.tddTaskId}: no session found to attribute hypothesis`,
+										}),
+									);
 								}
-							}
-							if (resolvedSessionId === undefined) {
-								return yield* Effect.fail(
-									new DataStoreError({
-										operation: "write",
-										table: "hypotheses",
-										reason: "no recovered session context and no sessionId supplied to attribute hypothesis",
-									}),
-								);
+								resolvedSessionId = bound.value.id;
+							} else {
+								const sc = ctx.sessionContext.get();
+								resolvedSessionId = variant.sessionId;
+								if (sc !== null) {
+									const main = yield* reader.getSessionByChatId(sc.chatId);
+									if (Option.isSome(main)) {
+										const sub = yield* reader.findActiveSubagentSession(main.value.id);
+										resolvedSessionId = Option.isSome(sub) ? sub.value.id : main.value.id;
+									}
+								}
+								if (resolvedSessionId === undefined) {
+									return yield* Effect.fail(
+										new DataStoreError({
+											operation: "write",
+											table: "hypotheses",
+											reason:
+												"no recovered session context: pass tddTaskId (the id returned by tdd_task action:start) to bind this hypothesis to your task's session — do not retry with a raw sessionId, and never pass tddTaskId under a sessionId key",
+										}),
+									);
+								}
 							}
 							const id = yield* store.writeHypothesis({
 								sessionId: resolvedSessionId,

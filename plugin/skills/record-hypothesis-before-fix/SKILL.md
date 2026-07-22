@@ -10,6 +10,7 @@ Before editing production code in response to a failing test, call:
 ```text
 hypothesis (action: record)({
   content: "<your hypothesis>",
+  tddTaskId: <the id returned by tdd_task (action: start)>,
   citedTestErrorId: <test_errors.id from test_errors>,
   citedStackFrameId: <stack_frames.id from the same error>
 })
@@ -17,7 +18,7 @@ hypothesis (action: record)({
 
 ## Rules
 
-1. Do **not** pass a `sessionId`. The MCP server resolves the binding session from the recovered host context — for the tdd-task subagent that is its own running subagent session. A caller-supplied `sessionId` is ignored; in particular, do not pass the `tddTaskId` here (a common slip after the goal/behavior calls, which do take `tddTaskId`).
+1. Pass `tddTaskId` (the id returned by `tdd_task (action: start)`) — it binds the hypothesis deterministically to your task's session. Do **not** pass a `sessionId`: the field is a dev/test fallback the server ignores when host context is available, and passing the tddTaskId value under the `sessionId` key misattributes the hypothesis to an unrelated session. Without a `tddTaskId` the server still resolves the binding session from the recovered host context, so omitting both ids is acceptable; a wrong `sessionId` is not.
 2. Both `citedTestErrorId` and `citedStackFrameId` are required. A hypothesis without specific evidence is a vibe.
 3. The hypothesis should describe a causal claim. "The validation function returns null because the type guard runs before the input is normalized" is a hypothesis. "Fix the validation" is not.
 4. After the fix, validate the hypothesis: `hypothesis (action: validate)({ id, outcome: "confirmed" | "refuted" | "abandoned" })`.

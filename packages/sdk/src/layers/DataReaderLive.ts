@@ -1456,6 +1456,20 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
+		const getSessionByTddTaskId = (tddTaskId: number): Effect.Effect<Option.Option<SessionDetail>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("getSessionByTddTaskId").pipe(Effect.annotateLogs({ tddTaskId }));
+				const rows =
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE id = (SELECT session_id FROM tdd_tasks WHERE id = ${tddTaskId}) LIMIT 1`;
+				if (rows.length === 0) return Option.none<SessionDetail>();
+				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "sessions", reason: extractSqlReason(e) }),
+				),
+			);
+
 		const searchTurns = (options: TurnSearchOptions): Effect.Effect<ReadonlyArray<TurnSummary>, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("searchTurns").pipe(Effect.annotateLogs({ ...options }));
@@ -2514,6 +2528,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getSessionByChatId,
 			findSessionsByChatPrefix,
 			findActiveSubagentSession,
+			getSessionByTddTaskId,
 			listSessions,
 			searchTurns,
 			computeAcceptanceMetrics,

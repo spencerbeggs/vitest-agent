@@ -7,14 +7,25 @@ The Model Context Protocol server (`vitest-agent-mcp` bin) exposing the action-k
 ```text
 src/
   bin.ts              -- bin entry: resolves projectDir, dbPath, builds
-                         ManagedRuntime.make(McpLive(dbPath, ...)),
-                         calls startMcpServer({ runtime, cwd: projectDir })
-  index.ts            -- programmatic entry
-  context.ts          -- tRPC McpContext: { runtime, cwd }
+                         ManagedRuntime.make(McpLive(dbPath, ...)), wires
+                         the session refs (with the lazy recover thunk
+                         from session-env.ts), calls startMcpServer(ctx)
+  index.ts            -- programmatic entry; also exports buildMcpServer,
+                         parseSessionEnvExports,
+                         recoverSessionContextFromSessionEnv
+  context.ts          -- tRPC McpContext: { runtime, cwd,
+                         currentSessionId, sessionContext };
+                         createSessionContextRef(initial, recover?)
+  session-env.ts      -- lazy call-time SessionContext recovery: reads
+                         the newest ~/.claude/session-env/<chat_id>/
+                         vitest-agent-hook.sh whose exports match this
+                         server's projectDir
   router.ts           -- tRPC router aggregating all tool procedures
-  server.ts           -- startMcpServer(): registers all tools, then
-                         calls registerAllPrompts(server) BEFORE
-                         constructing StdioServerTransport
+  server.ts           -- buildMcpServer(): constructs the server and
+                         registers all tools, then registerAllPrompts,
+                         transport-free (served-schema tests);
+                         startMcpServer(): buildMcpServer + connects a
+                         StdioServerTransport
   tools/              -- tool implementations (see design docs for the
                          full inventory); plus the private
                          _tdd-error-envelope.ts helper. Per-CRUD families
@@ -58,6 +69,7 @@ src/
 | `tools/tdd-task.ts` | Action-keyed `tdd_task` tool with `start`/`end`/`get`/`resume` (replaces the 1.x `tdd_session_*` family; the underlying SQLite columns retain the `tdd_tasks` naming). `start` and `end` are idempotent via the middleware registry |
 | `tools/tdd-goal.ts`, `tools/tdd-behavior.ts` | Action-keyed CRUD for the Objective→Goal→Behavior hierarchy. `create` actions are idempotent on `(sessionId, goal)` / `(goalId, behavior)`. The `delete` action is denied to the orchestrator at the plugin's `pre-tool-use/tdd-restricted.sh` hook (the `tool_input.action` matcher); the consolidated tools are listed in `safe-mcp-vitest-agent-ops.txt` so non-delete actions auto-allow |
 | `tools/tdd-artifact.ts` | `tdd_artifact_list` (read-only listing). Artifact writes happen only via the plugin's `post-tool-use/tdd-artifact.sh` hook calling the CLI |
+| `tools/hypothesis.ts` | Action-keyed `hypothesis` tool. `record` resolves the binding session server-side with precedence: `tddTaskId` (deterministic — the session the task was opened under, via `DataReader.getSessionByTddTaskId`; accepts a number or numeric string, and an unknown id is a hard typed failure) → recovered host context (main session → active subagent child) → caller `sessionId` only when no host context is recovered (dev/tests). The MCP-SDK-side registration in `server.ts` must declare AND forward `tddTaskId` — it is hand-synced with this tRPC input |
 | `tools/register-agent.ts` | Wraps `DataStore.registerAgent`; validates `agentType` prefix; returns the documented success / `{ ok: false, error: { code } }` envelope |
 | `tools/_tdd-error-envelope.ts` | Private 2.0 helper that catches the five tagged TDD errors (`GoalNotFoundError`, `BehaviorNotFoundError`, `TddTaskNotFoundError`, `TddTaskAlreadyEndedError`, `IllegalStatusTransitionError`) and surfaces them as success-shape `{ ok: false, error: { _tag, ..., remediation } }` responses |
 | `tools/tdd-phase-transition-request.ts` | 2.0: `goalId` is now required; the tool pre-checks goal status and behavior membership before running the D2 binding-rule validator. On accept with a `behaviorId`, auto-promotes the behavior `pending → in_progress` in the same SQL transaction as `writeTddPhase`. The validator also rejects `spike→green` and `refactor→green` with `wrong_source_phase` — the red phase must be entered explicitly first |
@@ -122,7 +134,12 @@ src/
   to wrap the catch.
 - Testing tools: use `createCallerFactory(appRouter)` with a mock
   context. See `router.test.ts` and `tools/run-tests.test.ts` for
-  the pattern -- don't start the MCP server in tests.
+  the pattern -- don't start the MCP server in tests. To assert the
+  *served* (MCP-SDK-side) tool schemas, connect `buildMcpServer(ctx)`
+  to an `InMemoryTransport` pair instead — see
+  `server-hypothesis-schema.test.ts`. The `server.ts` registrations
+  are hand-synced with the tRPC inputs, and a missed sync (a field
+  never declared or forwarded) is invisible to router-level tests.
 - Tool input validation uses zod (tRPC requirement). Keep zod
   schemas minimal -- they're just for argument shape, not domain
   validation. Domain validation happens in the underlying
@@ -177,14 +194,22 @@ Validates that `agentType` begins with `${hostKind}-`. Returns
 
 **Removed**: `set_current_session_id` and `get_current_session_id` (the
 elicitation flow that depended on them is gone too). The MCP server
-now recovers the host session id at boot from `process.env`
+recovers the host session id at boot from `process.env`
 (`VITEST_AGENT_CHAT_ID`, `_CONVERSATION_ID`, `_MAIN_AGENT_ID` —
 written by SessionStart hook to `CLAUDE_ENV_FILE` and auto-sourced
-into the MCP child).
+into the MCP child). Boot recovery loses both the fresh-launch race
+(the MCP child can spawn before SessionStart writes the env file) and
+the `/reload-plugins` restart (fresh environment, no exports), so
+`session-env.ts` also recovers lazily: at the first `get()` that
+finds a null context it reads the newest
+`~/.claude/session-env/<chat_id>/vitest-agent-hook.sh` whose exports
+match this server's `projectDir`.
 
 **`McpContext.sessionContext: SessionContextRef`** holds the recovered
-context. `run_tests` mutates `process.env.VITEST_AGENT_*` from this
-ref before calling `createVitest`, so the in-process reporter
+context; `createSessionContextRef(initial, recover?)` invokes the
+recover thunk while the held value is null and caches the first
+non-null result. `run_tests` mutates `process.env.VITEST_AGENT_*` from
+this ref before calling `createVitest`, so the in-process reporter
 attributes the run to the active agent.
 
 **Idempotency middleware** spec registry updated for the consolidated
