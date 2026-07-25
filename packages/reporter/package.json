@@ -40,7 +40,7 @@
 		"react": "catalog:silk"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.0.9",
+		"@savvy-web/bundler": "^2.0.11",
 		"@types/node": "catalog:silk",
 		"@types/react": "catalog:silk",
 		"@vitest/coverage-istanbul": "catalog:silk",
