@@ -1,5 +1,15 @@
 # @vitest-agent/sdk
 
+## 2.0.9
+
+### Other
+
+* Bump sdk to force rebuild sidecar packages.
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 2.0.8
 
 ### Dependencies
