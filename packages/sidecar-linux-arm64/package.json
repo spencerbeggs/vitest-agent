@@ -25,10 +25,12 @@
 		"prepare": "turbo run build:dev",
 		"types:check": "tsc --noEmit"
 	},
+	"dependencies": {
+		"@vitest-agent/sdk": "workspace:*"
+	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^2.0.11",
 		"@types/node": "catalog:silk",
-		"@vitest-agent/sdk": "workspace:*",
 		"typescript": "catalog:silk"
 	},
 	"engines": {
