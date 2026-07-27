@@ -1,5 +1,13 @@
 # @vitest-agent/sidecar-darwin-arm64
 
+## 2.0.2
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From  | To     |
+| ----------------- | ---------- | ------- | ----- | ------ |
+| @vitest-agent/sdk | dependency | updated | 2.0.9 | 2.0.10 |
+
 ## 2.0.1
 
 ### Dependencies
