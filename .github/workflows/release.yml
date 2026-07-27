@@ -11,7 +11,7 @@ on:
       dry_run:
         description: Run in dry-run mode
         type: boolean
-        default: true
+        default: false
 
 concurrency:
   group: release-${{ github.event.pull_request.number || github.sha }}
@@ -32,7 +32,6 @@ jobs:
     with:
       runner: macos-26
       dry-run: ${{ inputs.dry_run || false }}
-      app-bot-id: ${{ vars.APP_BOT_ID }}
-      app-bot-name: ${{ vars.APP_BOT_NAME }}
+      auto-merge: "squash"
       skip-claude-review: false
     secrets: inherit
