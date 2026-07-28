@@ -42,7 +42,7 @@
 		"magic-string": "^1.1.0"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.0.13",
+		"@savvy-web/bundler": "^2.1.0",
 		"@types/node": "catalog:silk",
 		"@vitest/coverage-istanbul": "catalog:silk",
 		"@vitest/coverage-v8": "catalog:silk",
