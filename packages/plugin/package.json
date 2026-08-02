@@ -48,7 +48,7 @@
 		"@vitest/coverage-v8": "catalog:silk",
 		"@vitest/runner": "^4.1.10",
 		"typescript": "catalog:silk",
-		"vite": "^8.1.5",
+		"vite": "^8.2.0",
 		"vitest": "catalog:silk"
 	},
 	"peerDependencies": {
