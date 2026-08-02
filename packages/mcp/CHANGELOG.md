@@ -1,5 +1,21 @@
 # @vitest-agent/mcp
 
+## 2.0.11
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From   | To     |
+| ----------------- | ---------- | ------- | ------ | ------ |
+| @vitest-agent/sdk | dependency | updated | 2.0.10 | 2.0.11 |
+
+* | Dependency                | Type       | Action  | From    | To      |                                                                            |
+  | ------------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+  | @modelcontextprotocol/sdk | dependency | updated | ^1.29.0 | ^1.30.0 | [#205][#205] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#205]: https://github.com/spencerbeggs/vitest-agent/pull/205
+
 ## 2.0.10
 
 ### Dependencies

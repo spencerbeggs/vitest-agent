@@ -1,5 +1,16 @@
 # @vitest-agent/plugin
 
+## 2.0.11
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From   | To     |
+| ---------------------- | ---------- | ------- | ------ | ------ |
+| @vitest-agent/cli      | dependency | updated | 2.0.10 | 2.0.11 |
+| @vitest-agent/mcp      | dependency | updated | 2.0.10 | 2.0.11 |
+| @vitest-agent/reporter | dependency | updated | 2.0.10 | 2.0.11 |
+| @vitest-agent/sdk      | dependency | updated | 2.0.10 | 2.0.11 |
+
 ## 2.0.10
 
 ### Dependencies
