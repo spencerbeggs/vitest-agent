@@ -36,7 +36,7 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
-		"@modelcontextprotocol/sdk": "^1.29.0",
+		"@modelcontextprotocol/sdk": "^1.30.0",
 		"@trpc/server": "^11.18.0",
 		"@vitest-agent/sdk": "workspace:*",
 		"effect": "catalog:effect",

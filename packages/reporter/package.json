@@ -46,7 +46,7 @@
 		"@vitest/coverage-istanbul": "catalog:silk",
 		"@vitest/coverage-v8": "catalog:silk",
 		"typescript": "catalog:silk",
-		"vite": "^8.1.5",
+		"vite": "^8.2.0",
 		"vitest": "catalog:silk"
 	},
 	"peerDependencies": {

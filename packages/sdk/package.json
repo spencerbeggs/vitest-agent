@@ -42,7 +42,7 @@
 		"@effected/workspaces": "^0.9.1",
 		"@effected/xdg": "^0.1.9",
 		"@effected/yaml": "^0.6.0",
-		"acorn": "^8.17.0",
+		"acorn": "^8.18.0",
 		"acorn-typescript": "^1.4.13",
 		"ajv": "^8.20.0",
 		"effect": "catalog:effect",
