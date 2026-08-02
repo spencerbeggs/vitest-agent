@@ -1,5 +1,17 @@
 # @vitest-agent/sdk
 
+## 2.0.11
+
+### Dependencies
+
+* | Dependency | Type       | Action  | From    | To      |                                                                            |
+  | ---------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+  | acorn      | dependency | updated | ^8.17.0 | ^8.18.0 | [#205][#205] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#205]: https://github.com/spencerbeggs/vitest-agent/pull/205
+
 ## 2.0.10
 
 ### Dependencies
