@@ -1,5 +1,22 @@
 # @vitest-agent/reporter
 
+## 2.0.12
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From   | To     |
+| ----------------- | ---------- | ------- | ------ | ------ |
+| @vitest-agent/sdk | dependency | updated | 2.0.11 | 2.0.12 |
+| @vitest-agent/ui  | dependency | updated | 2.0.11 | 2.0.12 |
+
+* | Dependency | Type           | Action  | From   | To     |                                                                            |
+  | ---------- | -------------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+  | vitest     | peerDependency | updated | 4.1.10 | ^4.1.0 | [#208][#208] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#208]: https://github.com/spencerbeggs/vitest-agent/pull/208
+
 ## 2.0.11
 
 ### Dependencies
