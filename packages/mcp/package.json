@@ -43,13 +43,13 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.0",
-		"@types/node": "catalog:silk",
-		"@vitest/coverage-v8": "catalog:silk",
-		"typescript": "catalog:silk"
+		"@savvy-web/bundler": "^2.1.2",
+		"@types/node": "catalog:build",
+		"@vitest/coverage-v8": "catalog:test",
+		"typescript": "catalog:build"
 	},
 	"peerDependencies": {
-		"vitest": "^4.1.0"
+		"vitest": "catalog:test:peers"
 	},
 	"engines": {
 		"node": ">=24.11.0"

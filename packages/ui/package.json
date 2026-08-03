@@ -35,18 +35,18 @@
 		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.0",
-		"@types/node": "catalog:silk",
-		"@types/react": "catalog:silk",
+		"@savvy-web/bundler": "^2.1.2",
+		"@types/node": "catalog:build",
+		"@types/react": "catalog:build",
 		"ink": "^7.1.1",
 		"ink-testing-library": "^4.0.0",
-		"react": "catalog:silk",
-		"typescript": "catalog:silk",
-		"vitest": "catalog:silk"
+		"react": "catalog:build",
+		"typescript": "catalog:build",
+		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
 		"ink": "^7.1.0",
-		"react": "catalog:silkPeers"
+		"react": "catalog:build:peers"
 	},
 	"peerDependenciesMeta": {
 		"ink": {
