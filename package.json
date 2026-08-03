@@ -39,9 +39,7 @@
 		"@savvy-web/silk": "^3.3.1",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
-		"@vitest-agent/plugin": "workspace:*",
-		"tsx": "catalog:silk",
-		"vitest": "catalog:silk"
+		"@vitest-agent/plugin": "workspace:*"
 	},
 	"engines": {
 		"node": ">=24.11.0"

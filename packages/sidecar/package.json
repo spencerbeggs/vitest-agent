@@ -32,10 +32,10 @@
 	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^2.1.2",
-		"@types/node": "catalog:silk",
-		"@vitest/coverage-v8": "catalog:silk",
-		"typescript": "catalog:silk",
-		"vitest": "catalog:silk"
+		"@types/node": "catalog:build",
+		"@vitest/coverage-v8": "catalog:test",
+		"typescript": "catalog:build",
+		"vitest": "catalog:test"
 	},
 	"optionalDependencies": {
 		"@vitest-agent/sidecar-darwin-arm64": "workspace:*",

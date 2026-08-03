@@ -52,7 +52,6 @@ jobs:
           dependencies: |
             @effected/*
             @modelcontextprotocol/*
-            @rspress/*
             @savvy-web/*
             @trpc/*
             acorn
@@ -61,7 +60,6 @@ jobs:
             ink
             magic-string
             rspress-plugin-api-extractor
-            rspress-plugin-mermaid
             std-env
             vite
             zod

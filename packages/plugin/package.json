@@ -43,18 +43,18 @@
 	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^2.1.2",
-		"@types/node": "catalog:silk",
-		"@vitest/coverage-istanbul": "catalog:silk",
-		"@vitest/coverage-v8": "catalog:silk",
+		"@types/node": "catalog:build",
+		"@vitest/coverage-istanbul": "catalog:test",
+		"@vitest/coverage-v8": "catalog:test",
 		"@vitest/runner": "^4.1.10",
-		"typescript": "catalog:silk",
+		"typescript": "catalog:build",
 		"vite": "^8.2.0",
-		"vitest": "catalog:silk"
+		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
-		"@vitest/coverage-istanbul": "catalog:silkPeers",
-		"@vitest/coverage-v8": "catalog:silkPeers",
-		"vitest": "catalog:silkPeers"
+		"@vitest/coverage-istanbul": "catalog:test:peers",
+		"@vitest/coverage-v8": "catalog:test:peers",
+		"vitest": "catalog:test:peers"
 	},
 	"engines": {
 		"node": ">=24.11.0"
