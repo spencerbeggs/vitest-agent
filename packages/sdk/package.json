@@ -39,7 +39,7 @@
 		"@effected/jsonc": "^0.5.2",
 		"@effected/toml": "^0.3.2",
 		"@effected/walker": "^0.3.4",
-		"@effected/workspaces": "^0.9.4",
+		"@effected/workspaces": "^0.10.2",
 		"@effected/xdg": "^0.1.10",
 		"@effected/yaml": "^0.6.1",
 		"acorn": "^8.18.0",
@@ -49,7 +49,7 @@
 		"std-env": "^4.2.0"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.3",
+		"@savvy-web/bundler": "^2.1.6",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
