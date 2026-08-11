@@ -25,7 +25,7 @@ const ArtifactKindSchema = Schema.Literals([
 ]);
 
 const TddArtifactRow = Schema.Struct({
-	id: Schema.Number.annotate({
+	id: Schema.Finite.annotate({
 		title: "tdd_artifacts.id",
 		description: "Pass as `citedArtifactId` to `tdd_phase_transition_request`.",
 	}),

@@ -38,6 +38,17 @@ import { z } from "zod";
  * substitution, then drop `$defs`). The schemas don't use
  * `Schema.suspend`, so the substitution is acyclic.
  *
+ * Annotation lifting: Effect lowers a checked numeric schema
+ * (`Schema.Finite`, `Schema.Int`) to `{ type, allOf: [{ description }] }`
+ * rather than putting the annotation on the node itself, and
+ * `z.fromJSONSchema` preserves that nesting verbatim. A tool's
+ * `outputSchema` would then advertise no description for the field. The
+ * bridge therefore lifts annotation-only `allOf` members onto their
+ * parent before handing the document to zod. Only the JSON Schema
+ * annotation vocabulary is lifted -- a member carrying any constraint
+ * keyword (`pattern`, `minimum`, ...) stays put so validation semantics
+ * are never changed.
+ *
  * MCP SDK constraint: `outputSchema` must normalise to a Zod object
  * schema (`normalizeObjectSchema` returns `undefined` for unions, then
  * `safeParseAsync(undefined, ...)` crashes with "Cannot read properties
@@ -71,6 +82,60 @@ const isObjectLike = (schema: z.ZodTypeAny): boolean => {
 const REF_PREFIX = "#/$defs/";
 
 /**
+ * The JSON Schema annotation vocabulary -- keywords that describe a
+ * schema without constraining what it accepts. Only these are safe to
+ * hoist out of an `allOf` member onto the parent node.
+ */
+const ANNOTATION_KEYWORDS = new Set([
+	"title",
+	"description",
+	"examples",
+	"default",
+	"deprecated",
+	"readOnly",
+	"writeOnly",
+	"contentEncoding",
+	"contentMediaType",
+]);
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+	value !== null && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * Hoist the annotation keywords out of every `allOf` member onto
+ * `node`, leaving each member's constraint keywords exactly where they
+ * were. A member reduced to nothing is dropped, and `allOf` disappears
+ * once every member has been consumed.
+ *
+ * Keys already present on the node win -- a nested annotation never
+ * overwrites a more specific one -- and the first member to supply a
+ * given key wins among siblings.
+ */
+const liftAnnotations = (node: Record<string, unknown>): Record<string, unknown> => {
+	const members = node.allOf;
+	if (!Array.isArray(members)) return node;
+	const kept: Array<unknown> = [];
+	const lifted: Record<string, unknown> = {};
+	for (const member of members) {
+		if (!isPlainObject(member)) {
+			kept.push(member);
+			continue;
+		}
+		const constraints: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(member)) {
+			if (!ANNOTATION_KEYWORDS.has(key)) constraints[key] = value;
+			else if (!(key in node) && !(key in lifted)) lifted[key] = value;
+		}
+		if (Object.keys(constraints).length > 0) kept.push(constraints);
+	}
+	if (Object.keys(lifted).length === 0) return node;
+	const out: Record<string, unknown> = { ...node, ...lifted };
+	if (kept.length > 0) out.allOf = kept;
+	else delete out.allOf;
+	return out;
+};
+
+/**
  * Walk a JSON Schema tree and replace every `$ref: "#/$defs/X"` node
  * with the contents of `$defs.X`, recursively. The `$defs` table is
  * dropped from the returned root.
@@ -91,7 +156,7 @@ const inlineAllRefs = (root: Record<string, unknown>): Record<string, unknown> =
 			if (k === "$defs") continue;
 			out[k] = visit(v);
 		}
-		return out;
+		return liftAnnotations(out);
 	};
 	return visit(root) as Record<string, unknown>;
 };

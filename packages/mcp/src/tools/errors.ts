@@ -22,7 +22,7 @@ import { publicProcedure } from "../context.js";
 
 /** One row in the structured `errors[]` array. */
 export const TestErrorRow = Schema.Struct({
-	id: Schema.Number.annotate({
+	id: Schema.Finite.annotate({
 		title: "test_errors.id",
 		description:
 			"Numeric primary key of this error row. Pass as `citedTestErrorId` when calling `hypothesis (action: record)`.",
@@ -77,7 +77,7 @@ export const TestErrorsResult = Schema.Struct({
 	errorName: Schema.optional(Schema.String).annotate({
 		description: "Echo of the optional `errorName` filter the caller passed; absent when no filter was applied.",
 	}),
-	count: Schema.Number.annotate({ description: "Total error rows in `errors`." }),
+	count: Schema.Finite.annotate({ description: "Total error rows in `errors`." }),
 	errors: Schema.Array(TestErrorRow).annotate({
 		description:
 			"Errors from the most recent test run for this project, optionally filtered by `errorName`. Empty when no errors matched.",

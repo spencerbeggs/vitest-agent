@@ -9,9 +9,9 @@ import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
 const TurnRow = Schema.Struct({
-	id: Schema.Number.annotate({ description: "Numeric primary key of this turn row." }),
-	sessionId: Schema.Number.annotate({ description: "Owning `sessions.id` (integer FK)." }),
-	turnNo: Schema.Number.annotate({ description: "Turn ordinal within the session (1-based)." }),
+	id: Schema.Finite.annotate({ description: "Numeric primary key of this turn row." }),
+	sessionId: Schema.Finite.annotate({ description: "Owning `sessions.id` (integer FK)." }),
+	turnNo: Schema.Finite.annotate({ description: "Turn ordinal within the session (1-based)." }),
 	type: Schema.String.annotate({
 		description:
 			"Turn category (`user_prompt`, `tool_call`, `tool_result`, `file_edit`, `hook_fire`, `note`, `hypothesis`).",
@@ -23,7 +23,7 @@ const TurnRow = Schema.Struct({
 }).annotate({ identifier: "TurnRow", description: "One row from the turns log." });
 
 export const TurnSearchResult = Schema.Struct({
-	count: Schema.Number.annotate({ description: "Number of matching turn rows returned." }),
+	count: Schema.Finite.annotate({ description: "Number of matching turn rows returned." }),
 	turns: Schema.Array(TurnRow).annotate({ description: "Matching turns ordered by `occurredAt` ascending." }),
 }).annotate({
 	identifier: "TurnSearchResult",
