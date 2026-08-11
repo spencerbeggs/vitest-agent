@@ -35,7 +35,7 @@ const HypothesisRowSchema = Schema.Struct({
 
 const HypothesisRecordOk = Schema.Struct({
 	action: Schema.Literal("record"),
-	id: Schema.Number.annotate({ description: "Newly inserted hypothesis row primary key." }),
+	id: Schema.Finite.annotate({ description: "Newly inserted hypothesis row primary key." }),
 });
 
 const HypothesisValidateOk = Schema.Struct({

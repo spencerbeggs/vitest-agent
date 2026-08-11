@@ -59,7 +59,7 @@ const RemediationSchema = Schema.Struct({
 const PhaseTransitionAccepted = Schema.Struct({
 	accepted: Schema.Literal(true).annotate({ description: "Discriminant — `true` when the transition was granted." }),
 	phase: phaseLiteral.annotate({ description: "Phase the session is now in (echo of `requestedPhase`)." }),
-	newPhaseId: Schema.Number.annotate({ description: "`tdd_phases.id` of the freshly opened row." }),
+	newPhaseId: Schema.Finite.annotate({ description: "`tdd_phases.id` of the freshly opened row." }),
 	previousPhaseId: Schema.NullOr(Schema.Number).annotate({
 		description: "`tdd_phases.id` of the phase that was closed (`null` for the first transition).",
 	}),

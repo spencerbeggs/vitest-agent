@@ -7,4 +7,8 @@ configDependencies:
   "@effected/pnpm-plugin-effect": 0.4.0+sha512-NAflOLRpoX/hgzZlaTi+XUKhz3wl5CL2C9S96T1Qx27mh7ridUA7pQmP3TUwlHmjGzP6dTzxGkVafaSLtHtGVQ==
   "@savvy-web/pnpm-plugin-silk": 0.26.0+sha512-gZI90mPS/NS+a5URwM6PvGO7mUXxfPucE2UvMd88qgwUSRhmaVPVxrLFeblYpnDjFZH8Zjl3TybekT/O8UiJJA==
 linkWorkspacePackages: deep
+packageExtensions:
+  "@effected/workspaces":
+    dependencies:
+      "@effected/semver": ^0.4.0
 verifyDepsBeforeRun: false

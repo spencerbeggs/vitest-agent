@@ -18,8 +18,8 @@ const FlakyTestRow = Schema.Struct({
 		description: "Project-relative test module path -- disambiguates same-named tests across files.",
 	}),
 	project: Schema.String,
-	passCount: Schema.Number.annotate({ description: "Number of passing runs in the recent window." }),
-	failCount: Schema.Number.annotate({ description: "Number of failing runs in the recent window." }),
+	passCount: Schema.Finite.annotate({ description: "Number of passing runs in the recent window." }),
+	failCount: Schema.Finite.annotate({ description: "Number of failing runs in the recent window." }),
 	lastState: Schema.Literals(["passed", "failed"]).annotate({ description: "State of the most recent run." }),
 	lastTimestamp: Schema.String.annotate({ description: "ISO-8601 timestamp of the most recent run." }),
 }).annotate({
@@ -33,7 +33,7 @@ const PersistentFailureRow = Schema.Struct({
 		description: "Project-relative test module path -- disambiguates same-named tests across files.",
 	}),
 	project: Schema.String,
-	consecutiveFailures: Schema.Number.annotate({
+	consecutiveFailures: Schema.Finite.annotate({
 		description: "Length of the current uninterrupted failure streak.",
 	}),
 	firstFailedAt: Schema.String.annotate({ description: "ISO-8601 timestamp of the first failure in this streak." }),

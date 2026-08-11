@@ -17,7 +17,7 @@ import { publicProcedure } from "../context.js";
 const NoteScope = Schema.Literals(["global", "project", "module", "suite", "test", "note"]);
 
 const NoteRowSchema = Schema.Struct({
-	id: Schema.Number.annotate({ description: "Note primary key." }),
+	id: Schema.Finite.annotate({ description: "Note primary key." }),
 	title: Schema.String,
 	content: Schema.String,
 	scope: NoteScope.annotate({
@@ -37,7 +37,7 @@ const NoteRowSchema = Schema.Struct({
 
 const NoteCreateOk = Schema.Struct({
 	action: Schema.Literal("create"),
-	id: Schema.Number.annotate({ description: "Primary key of the newly inserted note." }),
+	id: Schema.Finite.annotate({ description: "Primary key of the newly inserted note." }),
 });
 
 const NoteListOk = Schema.Struct({

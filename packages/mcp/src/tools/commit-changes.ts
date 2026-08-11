@@ -39,7 +39,7 @@ export const CommitChangesResult = Schema.Struct({
 		description:
 			"Echo of the optional `sha` filter the caller passed; absent when no filter was applied (recent commits returned).",
 	}),
-	count: Schema.Number.annotate({ description: "Number of commit rows returned." }),
+	count: Schema.Finite.annotate({ description: "Number of commit rows returned." }),
 	commits: Schema.Array(CommitRow).annotate({
 		description: "Matching commits, newest first when `sha` was omitted; up to 20 rows.",
 	}),
