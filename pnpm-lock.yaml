@@ -110,8 +110,6 @@ catalogs:
 overrides:
   '@microsoft/api-extractor>typescript': ^6.0.3
 
-packageExtensionsChecksum: sha256-+GtBGz9Ph8d7gqstdFIWzUXiLDfUKGXSnBT9XTIVVfw=
-
 pnpmfileChecksum: sha256-lpAU9VF8i+58WyjvuxEkNbGZQVWMfRX8IRX9nb8Ejv4=
 
 importers:
@@ -120,7 +118,7 @@ importers:
     devDependencies:
       '@savvy-web/silk':
         specifier: ^3.5.1
-        version: 3.5.1(@changesets/cli@3.0.0-next.12)(@commitlint/cli@21.2.1(@types/node@26.2.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.0)(@types/bun@1.3.14)(@types/node@26.2.0)(@vitest/coverage-istanbul@4.1.10)(@vitest/coverage-v8@4.1.10)(husky@9.1.7)(ioredis@5.11.1(supports-color@9.4.0))(lint-staged@17.3.0)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2(supports-color@9.4.0)))(markdownlint-cli2@0.23.2(supports-color@9.4.0))(supports-color@9.4.0)(tsx@4.23.12)(turbo@2.10.9)(typescript@7.0.2)(vitest@4.1.10)
+        version: 3.5.1(@changesets/cli@3.0.0-next.12)(@commitlint/cli@21.2.1(@types/node@26.2.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.0)(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(@types/bun@1.3.14)(@types/node@26.2.0)(@vitest/coverage-istanbul@4.1.10)(@vitest/coverage-v8@4.1.10)(husky@9.1.7)(ioredis@5.11.1(supports-color@9.4.0))(lint-staged@17.3.0)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2(supports-color@9.4.0)))(markdownlint-cli2@0.23.2(supports-color@9.4.0))(supports-color@9.4.0)(tsx@4.23.12)(turbo@2.10.9)(typescript@7.0.2)(vitest@4.1.10)
       '@vitest-agent/cli':
         specifier: workspace:*
         version: link:packages/cli/dist/dev/pkg
@@ -213,8 +211,8 @@ importers:
         specifier: catalog:effect
         version: 4.0.0-beta.107(effect@4.0.0-beta.107)
       '@effected/workspaces':
-        specifier: ^0.11.0
-        version: 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+        specifier: ^0.11.1
+        version: 0.11.1(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
       '@vitest-agent/cli':
         specifier: workspace:*
         version: link:../cli/dist/dev/pkg
@@ -331,8 +329,8 @@ importers:
         specifier: ^0.4.0
         version: 0.4.0(@effected/glob@0.3.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
       '@effected/workspaces':
-        specifier: ^0.11.0
-        version: 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+        specifier: ^0.11.1
+        version: 0.11.1(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
       '@effected/xdg':
         specifier: ^0.2.0
         version: 0.2.0(@effected/config-file@0.3.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/toml@0.4.0(effect@4.0.0-beta.107))(@effected/walker@0.4.0(@effected/glob@0.3.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107))(@effected/yaml@0.7.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107))(@effected/walker@0.4.0(@effected/glob@0.3.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
@@ -910,6 +908,12 @@ packages:
 
   '@effected/workspaces@0.11.0':
     resolution: {integrity: sha512-C4tmZC4DqEhj0d5LBaUUhDfgXkKCAOq+JHgQ7HTBvWIvunyKD5JpwRm4m+rpaSnwWvtM/IQhq0AIXSJE95MDiA==}
+    engines: {node: '>=24.11.0'}
+    peerDependencies:
+      effect: 4.0.0-beta.107
+
+  '@effected/workspaces@0.11.1':
+    resolution: {integrity: sha512-M7ax/R9hbsGKPOpQUeucXCdIqRfG8Htq4MDOPJGZ39ovO5VzLST6yjw564YlmYJ86PKsAZKStYYLo8xBgYP2iQ==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       effect: 4.0.0-beta.107
@@ -5254,7 +5258,26 @@ snapshots:
       '@effected/glob': 0.3.0(effect@4.0.0-beta.107)
       effect: 4.0.0-beta.107
 
-  '@effected/workspaces@0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)':
+  '@effected/workspaces@0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)':
+    dependencies:
+      '@effected/commands': 0.4.0(effect@4.0.0-beta.107)
+      '@effected/git': 0.7.0(effect@4.0.0-beta.107)
+      '@effected/glob': 0.3.0(effect@4.0.0-beta.107)
+      '@effected/lockfiles': 0.4.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/npm@0.9.0(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(@effected/yaml@0.7.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+      '@effected/npm': 0.9.0(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+      '@effected/package-json': 0.8.0(effect@4.0.0-beta.107)
+      '@effected/walker': 0.4.0(@effected/glob@0.3.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+      '@effected/yaml': 0.7.0(effect@4.0.0-beta.107)
+      '@pnpm/catalogs.config': 1100.0.4
+      '@pnpm/catalogs.protocol-parser': 1100.0.1
+      '@pnpm/catalogs.resolver': 1100.0.1
+      '@pnpm/catalogs.types': 1100.0.1
+      effect: 4.0.0-beta.107
+    transitivePeerDependencies:
+      - '@effected/jsonc'
+      - '@effected/semver'
+
+  '@effected/workspaces@0.11.1(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)':
     dependencies:
       '@effected/commands': 0.4.0(effect@4.0.0-beta.107)
       '@effected/git': 0.7.0(effect@4.0.0-beta.107)
@@ -5844,42 +5867,44 @@ snapshots:
       jju: 1.4.0
       semver: 7.8.5
 
-  '@savvy-web/cli@2.4.1(ioredis@5.11.1(supports-color@9.4.0))(supports-color@9.4.0)':
+  '@savvy-web/cli@2.4.1(@effected/semver@0.4.0(effect@4.0.0-beta.107))(ioredis@5.11.1(supports-color@9.4.0))(supports-color@9.4.0)':
     dependencies:
       '@effect/platform-node': 4.0.0-beta.107(effect@4.0.0-beta.107)(ioredis@5.11.1(supports-color@9.4.0))
       '@effected/commands': 0.4.0(effect@4.0.0-beta.107)
       '@effected/git': 0.7.0(effect@4.0.0-beta.107)
       '@effected/jsonc': 0.6.0(effect@4.0.0-beta.107)
       '@effected/templates': 0.2.0(effect@4.0.0-beta.107)
-      '@effected/workspaces': 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+      '@effected/workspaces': 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
       '@effected/yaml': 0.7.0(effect@4.0.0-beta.107)
-      '@savvy-web/silk-effects': 5.5.1(effect@4.0.0-beta.107)(supports-color@9.4.0)
+      '@savvy-web/silk-effects': 5.5.1(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)(supports-color@9.4.0)
       effect: 4.0.0-beta.107
     transitivePeerDependencies:
+      - '@effected/semver'
       - bufferutil
       - ioredis
       - supports-color
       - utf-8-validate
 
-  '@savvy-web/mcp@2.2.1(ioredis@5.11.1(supports-color@9.4.0))(supports-color@9.4.0)':
+  '@savvy-web/mcp@2.2.1(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(ioredis@5.11.1(supports-color@9.4.0))(supports-color@9.4.0)':
     dependencies:
       '@effect/platform-node': 4.0.0-beta.107(effect@4.0.0-beta.107)(ioredis@5.11.1(supports-color@9.4.0))
       '@effected/commands': 0.4.0(effect@4.0.0-beta.107)
       '@effected/git': 0.7.0(effect@4.0.0-beta.107)
-      '@effected/workspaces': 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+      '@effected/workspaces': 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
       '@modelcontextprotocol/sdk': 1.30.0(supports-color@9.4.0)(zod@4.4.3)
-      '@savvy-web/silk-effects': 5.5.1(effect@4.0.0-beta.107)(supports-color@9.4.0)
+      '@savvy-web/silk-effects': 5.5.1(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)(supports-color@9.4.0)
       effect: 4.0.0-beta.107
       zod: 4.4.3
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@effected/jsonc'
+      - '@effected/semver'
       - bufferutil
       - ioredis
       - supports-color
       - utf-8-validate
 
-  '@savvy-web/silk-effects@5.5.1(effect@4.0.0-beta.107)(supports-color@9.4.0)':
+  '@savvy-web/silk-effects@5.5.1(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)(supports-color@9.4.0)':
     dependencies:
       '@changesets/apply-release-plan': 8.0.0-next.11
       '@changesets/config': 4.0.0-next.10
@@ -5892,7 +5917,7 @@ snapshots:
       '@effected/package-json': 0.8.0(effect@4.0.0-beta.107)
       '@effected/templates': 0.2.0(effect@4.0.0-beta.107)
       '@effected/walker': 0.4.0(@effected/glob@0.3.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
-      '@effected/workspaces': 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+      '@effected/workspaces': 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
       '@effected/yaml': 0.7.0(effect@4.0.0-beta.107)
       '@manypkg/get-packages': 3.1.0
       effect: 4.0.0-beta.107
@@ -5908,18 +5933,19 @@ snapshots:
       unist-util-visit: 5.1.0
       yaml-lint: 1.7.0
     transitivePeerDependencies:
+      - '@effected/semver'
       - supports-color
 
-  '@savvy-web/silk@3.5.1(@changesets/cli@3.0.0-next.12)(@commitlint/cli@21.2.1(@types/node@26.2.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.0)(@types/bun@1.3.14)(@types/node@26.2.0)(@vitest/coverage-istanbul@4.1.10)(@vitest/coverage-v8@4.1.10)(husky@9.1.7)(ioredis@5.11.1(supports-color@9.4.0))(lint-staged@17.3.0)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2(supports-color@9.4.0)))(markdownlint-cli2@0.23.2(supports-color@9.4.0))(supports-color@9.4.0)(tsx@4.23.12)(turbo@2.10.9)(typescript@7.0.2)(vitest@4.1.10)':
+  '@savvy-web/silk@3.5.1(@changesets/cli@3.0.0-next.12)(@commitlint/cli@21.2.1(@types/node@26.2.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.0)(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(@types/bun@1.3.14)(@types/node@26.2.0)(@vitest/coverage-istanbul@4.1.10)(@vitest/coverage-v8@4.1.10)(husky@9.1.7)(ioredis@5.11.1(supports-color@9.4.0))(lint-staged@17.3.0)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2(supports-color@9.4.0)))(markdownlint-cli2@0.23.2(supports-color@9.4.0))(supports-color@9.4.0)(tsx@4.23.12)(turbo@2.10.9)(typescript@7.0.2)(vitest@4.1.10)':
     dependencies:
       '@changesets/cli': 3.0.0-next.12
       '@commitlint/cli': 21.2.1(@types/node@26.2.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2)
       '@commitlint/config-conventional': 21.2.0
       '@effected/templates': 0.2.0(effect@4.0.0-beta.107)
       '@savvy-web/changelog': 0.1.1
-      '@savvy-web/cli': 2.4.1(ioredis@5.11.1(supports-color@9.4.0))(supports-color@9.4.0)
-      '@savvy-web/mcp': 2.2.1(ioredis@5.11.1(supports-color@9.4.0))(supports-color@9.4.0)
-      '@savvy-web/silk-effects': 5.5.1(effect@4.0.0-beta.107)(supports-color@9.4.0)
+      '@savvy-web/cli': 2.4.1(@effected/semver@0.4.0(effect@4.0.0-beta.107))(ioredis@5.11.1(supports-color@9.4.0))(supports-color@9.4.0)
+      '@savvy-web/mcp': 2.2.1(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(ioredis@5.11.1(supports-color@9.4.0))(supports-color@9.4.0)
+      '@savvy-web/silk-effects': 5.5.1(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)(supports-color@9.4.0)
       '@types/bun': 1.3.14
       '@types/node': 26.2.0
       '@vitest/coverage-istanbul': 4.1.10(supports-color@9.4.0)(vitest@4.1.10)
@@ -5937,6 +5963,7 @@ snapshots:
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@effected/jsonc'
+      - '@effected/semver'
       - bufferutil
       - ioredis
       - supports-color
@@ -5949,7 +5976,7 @@ snapshots:
       '@effected/npm': 0.9.0(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
       '@effected/package-json': 0.8.0(effect@4.0.0-beta.107)
       '@effected/tsconfig-json': 0.5.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/walker@0.4.0(@effected/glob@0.3.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
-      '@effected/workspaces': 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
+      '@effected/workspaces': 0.11.0(@effected/jsonc@0.6.0(effect@4.0.0-beta.107))(@effected/semver@0.4.0(effect@4.0.0-beta.107))(effect@4.0.0-beta.107)
       '@microsoft/api-extractor': 7.58.12(@types/node@26.2.0)
       '@microsoft/tsdoc': 0.16.0
       '@microsoft/tsdoc-config': 0.18.1
