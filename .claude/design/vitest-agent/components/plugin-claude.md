@@ -113,7 +113,7 @@ The PM-walk is also load-bearing for dependency resolution (Decision 36). The MC
 ### Hook architecture
 
 Hooks register against Claude Code's lifecycle events through `hooks/hooks.json`.
-Every hook script is POSIX shell, sources shared helpers from `hooks/lib/`, and
+Every hook script is Bash — `#!/bin/bash`, almost all under `set -euo pipefail`, and invoked as `bash <script>` by every `hooks.json` registration. Each sources shared helpers from `hooks/lib/`, and
 returns JSON to Claude Code via stdout. Hooks fall into four functional
 categories:
 
@@ -383,7 +383,7 @@ keeps the plugin surface independent of the npm release cadence. See D20.
 
 **Why hooks in shell, not Node.** Hooks fire dozens of times per session and
 must start fast. A Node-based hook pays a 100–200ms startup cost per
-invocation; a POSIX shell hook is essentially instant. The shell scripts use
+invocation; a shell hook is essentially instant. The shell scripts use
 `jq` for JSON parsing and shell out to `vitest-agent` for any database
 writes — the heavy lifting is in the CLI binary, not the hook itself.
 

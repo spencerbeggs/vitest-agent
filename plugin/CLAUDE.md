@@ -79,7 +79,7 @@ The MCP server communicates with CC over stdin/stdout. When CC closes its sessio
 
 ## Hooks
 
-Hook scripts in `hooks/` are POSIX shell, grouped by hook event into subdirectories. All source shared helpers from `hooks/lib/` via `$(dirname "$0")/../lib/<helper>`. Key scripts:
+Hook scripts in `hooks/` are Bash (`#!/bin/bash`, almost all under `set -euo pipefail`), grouped by hook event into subdirectories, and every registration in `hooks.json` invokes them with `bash`. Only `bin/start-mcp.sh` is POSIX `sh`, because it is the MCP loader rather than a hook. All source shared helpers from `hooks/lib/` via `$(dirname "$0")/../lib/<helper>`. Key scripts:
 
 | Script | Trigger | Behavior |
 | --- | --- | --- |

@@ -73,7 +73,7 @@ vitest-agent agent wrapup
 # Print the absolute path to the installed sidecar binary (exit non-zero if absent)
 vitest-agent agent sidecar-path
 
-# Ask whether Vitest can collect a test file at this path
+# Ask whether this path is a valid location for a test file
 # (prints {"verdict":…} JSON; exits 1 with no output when the rule has no verdict)
 vitest-agent agent check-test-path packages/sdk/__test__/resolve-data-path.test.ts
 

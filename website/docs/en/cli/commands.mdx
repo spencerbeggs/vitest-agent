@@ -332,10 +332,17 @@ absent.
 
 ### agent check-test-path
 
-Classify one file path against the test-layout rule: a test file is
+Classify one file **path** against the test-layout rule: a test file is
 discoverable only under a workspace package's own `src/` or `__test__/`
 directory, both anchored at the package root. On success, prints a single line
 of JSON to stdout.
+
+This classifies the location, not the file. It does not read the file, and it
+does not check whether the basename matches a test-file pattern — so
+`check-test-path src/index.ts` reports `valid`, meaning "a test file would be
+collected here", not "this file is a test". Callers that care about the
+filename filter on it themselves; the `test-location` PreToolUse hook applies
+exactly that prefilter before it ever invokes this command.
 
 ```bash
 vitest-agent agent check-test-path packages/sdk/__test__/resolve-data-path.test.ts
@@ -348,14 +355,14 @@ vitest-agent agent check-test-path lib/scripts/__test__/generate-schema.test.ts
 | Field | Type | Description |
 |-------|------|-------------|
 | `verdict` | `valid` \| `excluded` \| `invalid` | See the table below |
-| `workspace` | string \| null | Name of the deepest workspace package containing the path |
-| `suggestedPath` | string \| null | For `invalid` only: where the file belongs instead |
+| `workspace` | string | Name of the deepest workspace package containing the path. Never null on a successful exit — a path no workspace contains exits `1` instead |
+| `suggestedPath` | string \| null | For `invalid` only: the location a test file here should move to |
 
 | Verdict | Meaning |
 |---------|---------|
-| `valid` | Vitest collects it where it is |
-| `excluded` | Deliberately not collected, and correct where it is — a helper directory under `__test__/` (`fixtures/`, `snapshots/`, `utils/`) |
-| `invalid` | Not a legal test location; Vitest will never collect it. `suggestedPath` names the corresponding valid location |
+| `valid` | A discoverable location — a test file placed here is collected |
+| `excluded` | A location that is deliberately not collected and correct as it is — a helper directory under `__test__/` (`fixtures/`, `snapshots/`, `utils/`) |
+| `invalid` | Not a legal test location; a test file here is never collected. `suggestedPath` names the corresponding valid location |
 
 | Argument | Type | Description |
 |----------|------|-------------|

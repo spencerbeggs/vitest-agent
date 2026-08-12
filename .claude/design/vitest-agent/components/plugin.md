@@ -404,12 +404,20 @@ in issue #184, which turned out to be an invalid report (see
 [../decisions-retired.md](../decisions-retired.md)). The rule now lives in
 one place, `classifyTestPath` in `@vitest-agent/sdk`'s
 `utils/test-location.ts`, and these globs are generated from the same
-constants that back it. Because an anchored include cannot reach build
-output, the former `**/dist/**` exclude is gone. The helper-subdirectory
-excludes (`utils`, `fixtures`, `snapshots`) are anchored under
-`<path>/__test__/**/{fixtures,snapshots,utils}/**` — helper-directory
-exclusion applies under `__test__/` only, never under `src/`. The exclude
-list is emitted whenever the `__test__` bucket produced matches.
+constants that back it. The unanchored `**/dist/**` exclude is gone,
+replaced by bounded globs: each `NON_DISCOVERABLE_DIRS` entry
+(`node_modules`, `.git`, `dist`) is excluded under BOTH include roots,
+`<path>/{src,__test__}/**/<dir>/**`. An anchored include already cannot
+reach a package's own top-level `dist/`, but it can reach one nested deeper
+(`src/foo/dist/x.test.ts`), which `configDefaults.exclude` does not cover —
+so the emitted config now prunes exactly what `findTestFiles` prunes,
+closing the last divergence between the walker and the glob. The
+helper-subdirectory excludes (`utils`, `fixtures`, `snapshots`) are
+anchored under `<path>/__test__/**/{fixtures,snapshots,utils}/**` —
+helper-directory exclusion applies under `__test__/` only, never under
+`src/`. The exclude list is now emitted unconditionally; only the
+helper-subdirectory entries are conditional on the `__test__` bucket
+producing matches.
 
 The three classifier helpers (`classifyByFilename`, `classifyByDirectory`,
 `combineClassifiers`) and the standalone `findTestFiles` walker live

@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 import type { TestTagDefinition } from "@vitest/runner";
-import { SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX, TEST_HELPER_DIRS } from "@vitest-agent/sdk";
+import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX, TEST_HELPER_DIRS } from "@vitest-agent/sdk";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 import { configDefaults } from "vitest/config";
 import { findTestFiles } from "./find-test-files.js";
@@ -270,12 +270,26 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 
 		// A custom `test.exclude` REPLACES Vitest's defaults rather than merging,
 		// so `configDefaults.exclude` must be re-stated or we lose
-		// `**/node_modules/**` and `**/.git/**`. The helper-dir globs are bounded
-		// under `__test__/`, where the `**` cannot escape the project, and cover
-		// both the flat layout and the kind-nested one (`__test__/integration/`).
-		const exclude: string[] | undefined = hasTestDirTests
-			? [...configDefaults.exclude, ...TEST_HELPER_DIRS.map((d) => join(input.path, TEST_DIR, "**", d, "**"))]
-			: undefined;
+		// `**/node_modules/**` and `**/.git/**`.
+		//
+		// The `NON_DISCOVERABLE_DIRS` globs close the last divergence between the
+		// walker and the emitted glob. `findTestFiles` prunes those directories, so
+		// build output can never be the *reason* a project is emitted — but once a
+		// project exists for other tests, `<path>/src/**` would still match a test
+		// nested inside one, and Vitest's defaults cover only `node_modules` and
+		// `.git`. Bounding each under both include roots keeps the two views of
+		// "what is a test file" agreeing.
+		//
+		// The helper-dir globs are bounded under `__test__/`, where the `**` cannot
+		// escape the project, and cover both the flat layout and the kind-nested
+		// one (`__test__/integration/`).
+		const exclude: string[] = [
+			...configDefaults.exclude,
+			...[SRC_DIR, TEST_DIR].flatMap((root) =>
+				[...NON_DISCOVERABLE_DIRS].map((d) => join(input.path, root, "**", d, "**")),
+			),
+			...(hasTestDirTests ? TEST_HELPER_DIRS.map((d) => join(input.path, TEST_DIR, "**", d, "**")) : []),
+		];
 
 		// Detect setup file
 		const setupFile = await detectSetupFile(input.path);
@@ -286,7 +300,7 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 				name: input.name,
 				environment: "node",
 				include,
-				...(exclude ? { exclude } : {}),
+				exclude,
 				...(setupFile ? { setupFiles: [join(input.path, setupFile)] } : {}),
 			},
 		};

@@ -63,15 +63,15 @@ anchored at the package root:
 
 Helper subdirectories inside the package's `__test__/` — `utils/`,
 `fixtures/`, `snapshots/` — are excluded automatically (this exclusion
-applies under `__test__/` only, never under `src/`), as is
-`node_modules/` and `.git/`. There is no separate `dist/` exclude: both
-include globs are anchored at the package root, so a package's own
-top-level `dist/` is out of reach of either one. A `dist/` nested deeper —
-inside `src/`, say — is a narrower case: the scan that decides which
-projects to emit skips it, so build output can never be the reason a
-project exists, but nothing then excludes it from that project's include
-glob. Keep build output out of your source tree and the question does not
-arise. The scan also stops at a nested `package.json`: a
+applies under `__test__/` only, never under `src/`).
+
+`node_modules/`, `.git/` and `dist/` are excluded under both include roots.
+A package's own top-level `dist/` is already out of reach, since both globs
+are anchored at the package root — but a `dist/` nested deeper, inside
+`src/` say, is not, so each is bounded explicitly under `src/**` and
+`__test__/**`. That keeps the emitted globs agreeing with the scan that
+produced them: the scan prunes those directories, and now so does the
+config it emits. The scan also stops at a nested `package.json`: a
 directory that declares its own manifest belongs to whichever project is
 built for it, so a
 package that structurally contains other packages does not absorb their tests.
