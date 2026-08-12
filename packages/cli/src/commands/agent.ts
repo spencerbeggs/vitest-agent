@@ -23,13 +23,15 @@
  * @packageDocumentation
  */
 
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { resolveProjectKeyFromCwd } from "@vitest-agent/sdk";
+import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
+import { nodeSyncOps } from "@effected/workspaces/node-sync";
+import { classifyTestPath, resolveProjectKeyFromCwd } from "@vitest-agent/sdk";
 import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 import { Cause, Effect, Option } from "effect";
-import { Command, Flag } from "effect/unstable/cli";
+import { Argument, Command, Flag } from "effect/unstable/cli";
 import { SidecarLive } from "../layers/SidecarLive.js";
 import { endAgentEffect } from "../lib/internal-end-agent.js";
 import { registerAgentEffect } from "../lib/internal-register-agent.js";
@@ -220,6 +222,30 @@ export const sidecarPathSubcommand = Command.make("sidecar-path", {}, () =>
 	}),
 ).pipe(Command.withDescription("Print the absolute path of the platform sidecar binary resolved via require.resolve"));
 
+// check-test-path -------------------------------------------------------------
+
+const testPathArg = Argument.string("path").pipe(
+	Argument.withDescription("Absolute or cwd-relative path to classify against the workspace test layout"),
+);
+
+export const checkTestPathSubcommand = Command.make("check-test-path", { path: testPathArg }, (opts) =>
+	Effect.sync(() => {
+		const from = process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd();
+		const absolute = isAbsolute(opts.path) ? opts.path : resolve(from, opts.path);
+
+		const root = findWorkspaceRootSync(from, nodeSyncOps);
+		if (root === null) process.exit(1);
+
+		const classification = classifyTestPath(getWorkspacePackagesSync(root, nodeSyncOps), absolute);
+		// A null classification means no workspace contains the path — the rule has
+		// nothing to say. Exit non-zero so callers fail open rather than reading a
+		// verdict that was never rendered.
+		if (classification === null) process.exit(1);
+
+		process.stdout.write(`${JSON.stringify(classification)}\n`);
+	}),
+).pipe(Command.withDescription("Classify a test file path as valid, excluded, or invalid for Vitest discovery"));
+
 // agent group -----------------------------------------------------------------
 
 const agentParent = Command.make("agent").pipe(
@@ -237,5 +263,6 @@ export const agentCommand = agentParent.pipe(
 		endAgentSubcommand,
 		injectEnvSubcommand,
 		sidecarPathSubcommand,
+		checkTestPathSubcommand,
 	]),
 );
