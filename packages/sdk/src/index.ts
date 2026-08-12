@@ -125,6 +125,7 @@ export * from "./utils/resolve-data-path.js";
 export * from "./utils/resolve-project-key-from-cwd.js";
 export * from "./utils/resolve-workspace-key.js";
 export * from "./utils/safe-filename.js";
+export * from "./utils/test-location.js";
 export * from "./utils/validate-coverage-targets-shape.js";
 export * from "./utils/validate-phase-transition.js";
 
