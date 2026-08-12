@@ -20,14 +20,19 @@
  *   4 = project identity not resolvable
  *   5 = other unexpected defect
  *
+ * `check-test-path` is not part of that family and does not share the
+ * taxonomy: it exits 1, with nothing on stdout, to mean "no verdict was
+ * rendered — fail open."
+ *
  * @packageDocumentation
  */
 
-import { isAbsolute, join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
-import { classifyTestPath, resolveProjectKeyFromCwd } from "@vitest-agent/sdk";
+import { classifyTestPath, findOwningWorkspace, resolveProjectKeyFromCwd } from "@vitest-agent/sdk";
 import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 import { Cause, Effect, Option } from "effect";
@@ -225,8 +230,35 @@ export const sidecarPathSubcommand = Command.make("sidecar-path", {}, () =>
 // check-test-path -------------------------------------------------------------
 
 const testPathArg = Argument.string("path").pipe(
-	Argument.withDescription("Absolute or cwd-relative path to classify against the workspace test layout"),
+	Argument.withDescription(
+		"Path to classify against the workspace test layout; relative paths resolve against VITEST_AGENT_PROJECT_DIR, or cwd when that is unset",
+	),
 );
+
+/**
+ * True when any directory between `ownerPath` and `filePath`'s own directory
+ * declares its own `package.json`.
+ *
+ * This is the one boundary `classifyTestPath` cannot check: a nested manifest
+ * marks an independent unit — a vendored upstream checkout under `.repos/`, a
+ * fixture package shaped like a real one — whose tests belong to a different
+ * discovery pass. `findTestFiles` stops there, so the layout rule has nothing
+ * to say about what sits beyond it, and the caller must fail open. The probe
+ * lives in this seam rather than in the pure classifier because it needs the
+ * filesystem.
+ *
+ * @internal
+ */
+function crossesNestedPackageBoundary(ownerPath: string, filePath: string): boolean {
+	const rel = relative(ownerPath, dirname(filePath));
+	if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return false;
+	let dir = ownerPath;
+	for (const segment of rel.split(sep)) {
+		dir = join(dir, segment);
+		if (existsSync(join(dir, "package.json"))) return true;
+	}
+	return false;
+}
 
 export const checkTestPathSubcommand = Command.make("check-test-path", { path: testPathArg }, (opts) =>
 	Effect.sync(() => {
@@ -236,10 +268,18 @@ export const checkTestPathSubcommand = Command.make("check-test-path", { path: t
 		const root = findWorkspaceRootSync(from, nodeSyncOps);
 		if (root === null) process.exit(1);
 
-		const classification = classifyTestPath(getWorkspacePackagesSync(root, nodeSyncOps), absolute);
-		// A null classification means no workspace contains the path — the rule has
-		// nothing to say. Exit non-zero so callers fail open rather than reading a
-		// verdict that was never rendered.
+		const packages = getWorkspacePackagesSync(root, nodeSyncOps);
+
+		// Every exit-1 path below means the same thing: no verdict was rendered,
+		// so callers must fail open. Nothing is written to stdout in those cases.
+		const owner = findOwningWorkspace(packages, absolute);
+		if (owner === null) process.exit(1);
+		if (crossesNestedPackageBoundary(owner.path, absolute)) process.exit(1);
+
+		const classification = classifyTestPath(packages, absolute);
+		// A null classification means no workspace contains the path, or the path
+		// crosses a directory discovery never walks into. Either way the rule has
+		// nothing to say.
 		if (classification === null) process.exit(1);
 
 		process.stdout.write(`${JSON.stringify(classification)}\n`);
