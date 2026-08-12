@@ -22,7 +22,7 @@ const ManifestPresent = Schema.Struct({
 	manifest: CacheManifest.annotate({
 		description: "Full cache manifest content as written by the reporter.",
 	}),
-	ageMs: Schema.Number.annotate({
+	ageMs: Schema.Finite.annotate({
 		description: "Milliseconds since the manifest was last updated. Computed at query time, not stored.",
 	}),
 	stale: Schema.Boolean.annotate({

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-22
-last-synced: 2026-07-22
+updated: 2026-08-11
+last-synced: 2026-08-11
 completeness: 92
 related:
   - ./architecture.md
@@ -42,7 +42,8 @@ constructor
 
 async onInit(vitest)
   +-- store vitest as this._vitest
-  +-- await ensureDbPath()
+  +-- await ensureDbPath()   (best-effort — a rejection is swallowed so
+  |     onInit never rejects; onTestRunEnd re-attempts resolution)
   |     +-- if memoized: return
   |     +-- options.cacheDir set:
   |     |     mkdirSync recursive; this.dbPath = `${cacheDir}/data.db`
@@ -82,16 +83,13 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |
   +-- Emit RunFinished before persistence so the subscribed reporter
   |   and any onRunEvent tap see end-of-run before the heavy work runs
+  |     carries collectedModules = testModules.length so the reducer
+  |     knows the true module count on the live path too
   |
   +-- dbPath = await ensureDbPath()  (defensive — tests can bypass onInit)
-  |     on rejection: stderr.write(formatFatalError(err)) and return
-  |
-  +-- mkdirSync(dirname(dbPath), recursive: true)  (defensive no-op)
-  |
-  +-- await ensureMigrated(dbPath)
-  |     on rejection: stderr.write(formatFatalError(err)) and return early
-  |     migration cached on a globalThis Symbol so concurrent reporter
-  |     instances share one promise
+  |     on rejection: leave dbPath undefined, record persistDisabled and
+  |     keep going — the render program is DB-free, so results still
+  |     render (the same contract as a migration failure)
   |
   +-- Filter testModules by projectFilter if set
   |
@@ -105,8 +103,27 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     empty; trendSummary is undefined. The streaming hooks and the
   |     RunFinished event above still fire.
   |
-  +-- Full mode: build Effect program over DataStore | DataReader |
-  |   CoverageAnalyzer | HistoryTracker | OutputRenderer
+  +-- mkdirSync(dirname(dbPath), recursive: true)  (defensive no-op;
+  |     skipped when dbPath is undefined, and a throw records
+  |     persistDisabled rather than aborting the render)
+  |
+  +-- Build fallbackReports up front, outside any Effect:
+  |     same per-project grouping as the persist program, through
+  |     buildAgentReport, no DB and no classifier. Whole build wrapped
+  |     in try/catch — a throwing duck-typed Vitest getter degrades to
+  |     stderr.write(formatFatalError(err)) and return. That is the only
+  |     FAILURE path that still produces no render; the other two
+  |     no-render exits are ordinary guards (the `rendered` idempotence
+  |     check and an empty filteredModules under a projectFilter).
+  |
+  +-- await ensureMigrated(dbPath)
+  |     migration cached on a globalThis Symbol so concurrent reporter
+  |     instances share one promise
+  |     on rejection: record persistDisabled and SKIP the persist
+  |     program — rendering below still runs
+  |
+  +-- PERSIST program (needs SQLite): DataStore | DataReader |
+  |   CoverageAnalyzer | HistoryTracker
   |     +-- captureSettings(vitestConfig, vitestVersion) -> settings
   |     +-- hashSettings(settings) -> settingsHash
   |     +-- captureEnvVars(process.env) -> envVars
@@ -127,7 +144,11 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |       -> { history, classifications }
   |     attach classifications to TestReport.classification
   |       (lookup via historyKey(mod.file, test.fullName))
-  |     DataStore.writeRun -> runId
+  |     derive projectReason from THIS project's own report
+  |       (interrupted passes through globally; otherwise failed when
+  |       summary.failed > 0 || failedFiles.length > 0) — the Vitest
+  |       `reason` is process-wide and marked every project failed [#147]
+  |     DataStore.writeRun (reason: projectReason) -> runId
   |     DataStore.writeModules / writeSuites / writeTestCases
   |     For each error:
   |       processFailure(error, options) -> { frames, signatureHash }
@@ -142,11 +163,19 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   +-- DataStore.writeBaselines
   |
   +-- DataReader.getTrends -> trendSummary
-  +-- Resolve env / executor / format / detail via SDK pipeline services
   +-- Aggregate per-project classifications into a flat
   |   Map<fullName, TestClassification> (bare-fullName convenience
   |   index for ui/reporter consumers; the authoritative,
   |   module-qualified classification lives on each TestReport)
+  +-- returns PersistResult { reports, classifications, trendSummary? }
+  |     on rejection: record persistFailure; rendering still runs
+  |
+  +-- RENDER program (no SQLite): OutputPipelineLive + NodeServices.layer
+  |   — the same DB-free wiring the UI-only branch uses. ALWAYS runs.
+  |   Input is the PersistResult, or — when persistence was disabled or
+  |   failed — one synthesized from fallbackReports with empty
+  |   classifications and no trendSummary.
+  +-- Resolve env / executor / format / detail via SDK pipeline services
   +-- buildReporterKit(...) -> run-end ReporterKit (health-aware;
   |     carries this.runEvents and post-run detail)
   |     run health `hasFailures` keys off report.failedFiles.length
@@ -174,7 +203,15 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     github-summary -> append to summary file
   |     file           -> reserved (no-op)
   |
-  +-- Effect.runPromise(program.pipe(Effect.provide(ReporterLive(dbPath))))
+  +-- Effect.runPromise(persistProgram.pipe(
+  |     Effect.provide(ReporterLive(dbPath))))            [may be skipped]
+  +-- Effect.runPromise(renderProgram.pipe(
+  |     Effect.provide(OutputPipelineLive),
+  |     Effect.provide(NodeServices.layer)))              [always runs]
+  |
+  +-- if persistDisabled ?? persistFailure:
+        stderr.write("vitest-agent: persistence failed — results above
+        were rendered but NOT recorded: <reason>")
 ```
 
 **No standalone GFM write path.** Under GitHub Actions the default reporter
@@ -422,9 +459,16 @@ Errors flow back through Effect's `Cause` channel. Each tagged error
 sets a derived `message` of the form `[operation entity] reason` so
 `Cause.pretty()` produces useful stderr output.
 
-The reporter (Flow 1) prints `formatFatalError(err)` to stderr and returns
-early on migration or DB-write failures rather than crashing the test run —
-a busted DB should not block the user from seeing their test results.
+The reporter (Flow 1) never lets a persistence failure cost the user their
+results. A migration rejection or a persist-program rejection disables
+persistence, the DB-free render program still runs against reports built up
+front by `buildAgentReport`, and the reason is reported afterwards on a
+single stderr line
+(`persistence failed — results above were rendered but NOT recorded: …`).
+Only a throw from the fallback report build itself — a malformed Vitest
+module shape, before any renderable data exists — degrades to the old floor
+of `formatFatalError(err)` on stderr and an early return. See Decision 47
+in [./decisions.md](./decisions.md).
 
 The MCP server (Flow 4) catches tagged TDD errors at the boundary via the
 `_tdd-error-envelope.ts` helper and surfaces them as success-shape

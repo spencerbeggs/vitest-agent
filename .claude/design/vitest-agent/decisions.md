@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-08-11
+last-synced: 2026-08-11
 completeness: 100
 related:
   - ./architecture.md
@@ -1132,6 +1132,8 @@ to one each. The benchmark harness is `scripts/bench-sidecar.sh`.
 
 **Decision.** Cache entries now carry `{ result, signature }`. The signature is a cheap per-package directory fingerprint — a recursive `readdir` + `stat` `mtimeMs` walk over each package's `src/` and `__test__/`, sorted, no file contents read (`computeDirSignature` / `computeWorkspaceSignature`). On the cacheable no-arg path the signature is recomputed and compared before a cached result is returned; a mismatch means a test file was added, removed, moved or renamed, so discovery rescans and refreshes the entry. The explicit-strategy and `additionalEntries` paths still bypass the cache entirely, unchanged.
 
+**Extension (issue #184): nested `__test__` dirs and guarded walks.** The signature originally fingerprinted only a package-root `__test__/`, so a test file under `lib/scripts/__test__/` never invalidated the cache. `findNestedTestDirs` now locates every `__test__` directory under a package at any depth and each one contributes its own signature. Both walks — the directory finder and the per-directory `mtimeMs` walk, the latter rewritten from a single recursive `readdir` into a manual per-directory descent — prune `node_modules`, `.git` and `dist` **before** recursing rather than filtering results afterwards. That ordering is load-bearing: Node's recursive `readdir` follows symlinked directories and a pnpm package's `node_modules` is entirely symlinks into the content-addressed store, so an unguarded walk from a package root (or from a `__test__` dir holding a fixture package's own `node_modules`) traverses the store or hits a cycle. The walks deliberately do **not** stop at the nested-`package.json` boundary that `findTestFiles` respects — over-including a fixture package's tests in the signature costs at most an extra rescan, and failing safe toward rescanning is always preferable to serving a stale project list.
+
 **Cross-package observability handshake.** Every real disk scan (not a cache hit) records an ISO timestamp into a process-global slot keyed by `Symbol.for("vitest-agent:discovery:last-scan-at")`, exposed by the plugin's exported `getLastDiscoveryScanTimestamp()`. `@vitest-agent/mcp` reads the same slot (via a local `readDiscoveryLastScannedAt()`) to surface `discoveryLastScannedAt` on `RunTestsOk`, letting an agent tell a fresh scan from a stale-looking count. The Symbol slot — rather than a direct import — is load-bearing: `@vitest-agent/plugin` depends on `@vitest-agent/cli` / `@vitest-agent/mcp`, so an mcp → plugin import would be circular. `Symbol.for()` resolves to the identical symbol across module instances in one process, and `createVitest` loads `vitest.config.ts` in-process so both sides observe the same slot. This mirrors the `ensureMigrated` globalThis-keyed promise cache (Decision 28).
 
 ### Decision 44: Filter Benign Vite Source-Map Warnings via a `configResolved` Logger Wrap
@@ -1180,6 +1182,19 @@ red state without corrupting the test-case accounting. See
 [./components/ui.md](./components/ui.md),
 [./components/plugin.md](./components/plugin.md), and the run-end render flow
 in [./data-flows.md](./data-flows.md).
+
+**Extension (issue #213): the gate widened at the source.** D45 fixed the
+*consumers* of `AgentReport` while leaving `buildAgentReport`'s own
+failed-module gate narrow — it required `module.state() === "failed"` **and**
+a non-empty `module.errors()`. Two shapes slipped through: a module Vitest
+marks failed without populating `errors()`, and a `beforeAll` / `afterAll`
+throw, which attaches to the *suite* entity and can leave `module.state()`
+green while the file is red. The gate now also fires on module state alone
+and on a suite scan (`children.allSuites()`, reading each suite's `state()`
+and its new optional `errors()`), folding suite-attached errors into the
+module's error list. `summary` stays pure — the widening changes which
+modules land in `failed[]`, not the test-case arithmetic. See Decision 48
+for the reason self-correction that rides along with it.
 
 ### Decision 46: Effect v4 + `@effected` Kit — v4-Era Behavior Changes
 
@@ -1245,6 +1260,143 @@ did not take it.
    `decode` but is `undefined` on the constructor / passthrough path, so code
    that reads a defaulted field off a freshly constructed (not decoded) value
    must not assume the default is present.
+
+### Decision 47: Rendering Never Depends on Persistence
+
+**Context.** `AgentReporter.onTestRunEnd` ran one Effect program over the
+DB-backed services and rendered from inside it. Any persistence failure —
+a rejected migration, a `SQLITE_BUSY`, a bad bind — took the render with it:
+the user got a `formatFatalError` line and *no test results at all*. Worse,
+the failures that triggered this were often caused by the failing tests
+themselves. A test that threw a non-string value bound that value to a
+`TEXT` column and killed the write, so the exact run the agent most needed
+to see was the one that printed nothing (issues #195 / #193 / #143).
+
+**Decision — split the handler into a persist phase and a render phase.**
+
+- **Fallback reports are built first**, outside any Effect, using the same
+  per-project grouping the persist program uses. They are pure
+  `buildAgentReport` output: no DB read, no classifier.
+- **Migration failure is no longer fatal.** It records a `persistDisabled`
+  reason and skips the persist program instead of returning early. The
+  two earlier DB-path steps take the same route: a rejecting
+  `ensureDbPath()` (unreadable cache dir, unresolvable workspace
+  identity) leaves `dbPath` undefined and a throwing defensive
+  `mkdirSync` records the same reason — both used to `return`. `onInit`'s
+  `ensureDbPath()` is best-effort for the same reason: Vitest awaits
+  `onInit`, so rejecting there would kill the run before a single test.
+- **The persist program** keeps every DB-dependent concern and returns a
+  `PersistResult` (`{ reports, classifications, trendSummary? }`). The flat
+  classifications index moved into it, since it is derived from persisted
+  history.
+- **The render program always runs**, provided `OutputPipelineLive` +
+  `NodeServices.layer` and nothing else — the same DB-free wiring the
+  UI-only branch already used. Its input is the `PersistResult`, or one
+  synthesized from the fallback reports with empty classifications and no
+  trend when persistence was disabled or failed.
+- **Failure is reported, not hidden.** After rendering, a disabled or failed
+  persist phase writes one stderr line:
+  `persistence failed — results above were rendered but NOT recorded: <reason>`.
+  Degrading silently would be worse than crashing — an agent would bank on
+  history that was never written.
+
+**The one remaining no-render failure path** is a throw from the fallback
+build itself. `buildAgentReport` walks duck-typed Vitest getters bare, so a
+malformed module shape (a throwing `state()` / `errors()`) is caught there
+and degrades to the old floor: `formatFatalError` on stderr, return. At
+that point there is no renderable data to protect. The only other
+no-render exits are the two ordinary guards that precede the pipeline —
+the `rendered` idempotence check and an empty `filteredModules` under a
+`projectFilter` — neither of which is a failure.
+
+**Companion: coerce untrusted error text at every boundary.** The crashes
+that motivated the split came from values typed as `string` that were not.
+`coerceErrorText` (`@vitest-agent/sdk`) is applied wherever such a value
+meets a typed sink — `DataStoreLive.writeErrors`' text binds, the reporter's
+three `TestErrorInput` push sites and its `errorMap`, and `mapErrors` inside
+`buildAgentReport`. A follow-up added the companion `coerceErrorField(source,
+key)`, which guards the property READ as well: `coerceErrorText(e.message)`
+evaluates a live getter at the call site and never reaches the helper's own
+exception handling, so every read off a raw Vitest error object (the
+reporter's push sites and `errorMap`, `mapErrors`) now goes through
+`coerceErrorField` — a throwing getter yields `"<unreadable field>"` —
+while `coerceErrorText` stays the helper for values already in hand.
+Spreading a raw error into `processFailure` was dropped for the same
+reason: `{ ...e }` invokes every enumerable getter. The formatters on the
+failure path
+(`extractSqlReason`, `formatFatalError`, `normalizeAssertionShape`,
+`stringifyFailureValue`) were made exception-safe in the same pass, because
+a throwing `message` getter — Effect's `ConfigError` is the canonical case —
+otherwise escapes the very code meant to report the failure. See
+[./components/sdk.md](./components/sdk.md) and
+[./components/plugin.md](./components/plugin.md).
+
+### Decision 48: Honest Run Reporting — Collected Counts and Self-Correcting Reasons
+
+**Context.** Three separate ways the output lied about a run, all found
+together: a fully-green run rendered "0 modules all-passed" (issue #204),
+a run that collected nothing rendered as a satisfied pass, and every project
+in a multi-project run recorded `reason = "failed"` when a single project
+failed (issue #147).
+
+**Decision — carry the collected count explicitly rather than inferring it.**
+`AgentReport.summary` gained an optional `modules`; `RunFinished` and
+`RenderState` gained an optional `collectedModules`. `moduleOrder` cannot
+serve as the count because a report replay only queues *failing* modules —
+on a green run it is empty, which is exactly how "0 modules" got printed.
+All three producers populate the field (the plugin's live emit, both
+`@vitest-agent/ui` synthesizers), and every field is optional so older
+replay data and hand-built fixtures still decode and fall back to
+`moduleOrder.length`.
+
+**Renderers state what they know and admit what they don't.** A zero-test
+run prints an explicit `0 tests collected.` plus its likely causes rather
+than a green summary — with `timeoutCount` included in the "did anything
+run?" sum, since a lone timed-out test is a real collected test. A nonzero
+test total with no knowable module count drops the module sentence entirely
+instead of printing "0 modules". `formatTotals` appends `across N files`
+when the count is known.
+
+**`reason` self-corrects inside `buildAgentReport`.** A caller-supplied
+`"passed"` becomes `"failed"` when the walk produced any failed files or
+unhandled errors, so no caller can report green over a red walk. The MCP
+`run_tests` tool leans on this and passes a deliberately preliminary reason.
+
+**Per-project run rows derive their own reason.** `writeRun` no longer
+writes Vitest's process-wide `reason` to every project's row; it computes
+`failed` from that project's own `summary.failed` / `failedFiles`, with
+`interrupted` passing through globally because a killed run is killed for
+everyone. This intentionally diverges from `baseReport.reason` for an
+unhandled-error-only project: the persisted per-project reason looks only at
+that project's own failed tests and files.
+
+### Decision 49: Per-Invocation Coverage Directory for MCP Runs
+
+**Context.** Vitest's v8 coverage provider `rm -rf`s its reports directory
+at run start (`clean: true` by default). Two runs in one checkout — an MCP
+`run_tests` alongside a Bash `vitest run`, or two MCP calls — share
+`./coverage` and delete each other's `.tmp` files mid-flight, so one dies
+with `ENOENT ... coverage-N.json` (issues #159 / #191 / #194). The obvious
+alternatives were both wrong: forcing `coverage.enabled: false` for MCP runs
+overrides intentional user configuration (and was already reverted once for
+that reason), and serializing MCP runs against every other Vitest process in
+the checkout is not enforceable.
+
+**Decision.** `makeCoverageDirOverride()` gives each `run_tests` invocation
+its own `mkdtemp` `coverage.reportsDirectory`, spread onto the `createVitest`
+overrides as a field-level merge so `enabled`, provider and thresholds still
+come from the user's config. The override is created *inside* the tool's
+`try` so a throwing `mkdtempSync` returns the tool's normal error envelope
+instead of escaping the tRPC resolver, and cleanup is a best-effort `rmSync`
+in `finally`.
+
+**Trade-off accepted.** Final coverage artifacts (html, lcov) from MCP-driven
+runs land in the throwaway directory rather than `./coverage`. That is
+tolerable precisely because the MCP path never reads coverage from disk:
+`CoverageAnalyzer` consumes the in-memory `CoverageMap` via `onCoverage` and
+persists to SQLite, which is what every MCP coverage tool queries. A user who
+wants the on-disk report runs Vitest directly. See
+[./components/mcp.md](./components/mcp.md).
 
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 

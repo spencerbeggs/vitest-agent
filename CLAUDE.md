@@ -275,6 +275,7 @@ preset.
 ### Dependencies
 
 - Effect v4 collapsed the standalone `@effect/*` packages into `effect/unstable/*` namespaces (e.g. `@effect/cli` → `effect/unstable/cli`, `@effect/sql` → `effect/unstable/sql`), so the old peer-closure padding (`@effect/experimental`, `@effect/workflow`, `@effect/printer`, `@effect/printer-ansi`, `@effect/typeclass`) is gone. The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node` — both directly imported in source. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. Rationale in the architecture design doc.
+- **TEMPORARY `packageExtensions` entry in `pnpm-workspace.yaml`.** `@effected/lockfiles@0.4.0` added `@effected/semver` to its non-optional peers, but `@effected/workspaces@0.11.0` — which depends on lockfiles — did not add semver to its own dependencies, so the peer bubbles up unmet to us and `pnpm peers check` fails. The `packageExtensions` block supplies it. **Delete that block once `@effected/workspaces` republishes with `@effected/semver` in its dependencies.** The removal condition lives here because `savvy lint fmt pnpm-workspace` strips every YAML comment from that file — do not try to document it inline, it will not survive a commit.
 
 ### Commits
 
@@ -301,8 +302,9 @@ release workflow. Every package versions independently — there is no lockstep 
   is still available via `--project`; test-kind filtering moved to
   Vitest-native tag expressions (e.g. `--tags-filter "int"`).
 - **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
-  (flat directory). The default discovery strategy also recognises
-  tests co-located under `src/` for backward compatibility.
+  (flat directory). The default discovery strategy also finds nested
+  `__test__/` dirs at any depth, and recognises tests co-located under
+  `src/` for backward compatibility.
   Test-kind differentiation comes from `DiscoverStrategy.classify`
   (default classifies `.e2e.`, `.int.`, and otherwise `unit` by
   filename), not from project splits — there is one Vitest project

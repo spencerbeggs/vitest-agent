@@ -67,4 +67,7 @@ website/lib/models/*
 website/docs/en/*/api/
 website/api-docs-snapshot.db-*
 website/api-docs-snapshot.db
+# rspress-plugin-api-extractor >= 0.8.4 writes the snapshot db and the
+# API Extractor issues report here instead of website/api-docs-snapshot.db.
+website/.api-docs/
 .claude/handoffs/

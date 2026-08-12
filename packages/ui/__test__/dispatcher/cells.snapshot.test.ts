@@ -127,6 +127,72 @@ describe("dispatcher cells — agent-half snapshots", () => {
 		);
 	});
 
+	it("single-project × all-pass renders the true module count on a green replay (issue #204)", () => {
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 59, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 500 },
+			collectedModules: 3,
+		};
+		const inputs = buildInputs(state);
+		expect(inputs.shape).toBe("single-project");
+		expect(inputs.outcome).toBe("all-pass");
+		const out = dispatch(inputs, noColorOpts);
+		expect(out).toContain("3 modules all-passed.");
+		expect(out).not.toContain("0 modules");
+	});
+
+	it("single-project × all-pass warns instead of celebrating a zero-collected run (issue #192)", () => {
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 0 },
+			collectedModules: 0,
+		};
+		const inputs = buildInputs(state);
+		expect(inputs.shape).toBe("single-project");
+		expect(inputs.outcome).toBe("all-pass");
+		const out = dispatch(inputs, noColorOpts);
+		expect(out).toContain("0 tests collected");
+		expect(out).not.toContain("all-passed");
+	});
+
+	it("single-project × all-pass never prints a 0-module count when no real count is knowable (issue #204 regression)", () => {
+		// No `collectedModules` (older/hand-built report) AND an empty
+		// `moduleOrder` (report replay only tracks failed modules), but a
+		// nonzero total — the fallback `collected` would compute to 0 without
+		// the guard, reproducing the exact "0 modules all-passed" bug.
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 12, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 250 },
+		};
+		const inputs = buildInputs(state);
+		expect(inputs.shape).toBe("single-project");
+		expect(inputs.outcome).toBe("all-pass");
+		const out = dispatch(inputs, noColorOpts);
+		expect(out).not.toContain("0 modules");
+		expect(out).toContain("Tests: 12/12 passed (250ms)");
+	});
+
+	it("single-project × all-pass counts a lone timed-out test instead of reporting 0 tests collected", () => {
+		// pass=fail=skip=0 but one test timed out — the zero-collected
+		// guard must fold timeoutCount into the total or this reads as
+		// "0 tests collected" for a run that actually ran one test.
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 1, durationMs: 100 },
+			collectedModules: 1,
+		};
+		const inputs = buildInputs(state);
+		expect(inputs.shape).toBe("single-project");
+		expect(inputs.outcome).toBe("all-pass");
+		const out = dispatch(inputs, noColorOpts);
+		expect(out).not.toContain("0 tests collected");
+		expect(out).toContain("1 module all-passed.");
+	});
+
 	it("single-project × some-fail", async () => {
 		const state = reduceRenderStateAll(mixedFailEvents);
 		const inputs = buildInputs(state);

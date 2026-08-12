@@ -43,6 +43,7 @@ import type {
 	WriteTddPhaseOutput,
 } from "../services/DataStore.js";
 import { DataStore } from "../services/DataStore.js";
+import { coerceErrorText } from "../utils/coerce-error-text.js";
 
 const isLegalLifecycleTransition = (from: string, to: string): boolean => {
 	if (from === to) return true;
@@ -223,10 +224,12 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeErrors").pipe(Effect.annotateLogs({ runId, count: errors.length }));
 				for (const err of errors) {
-					yield* sql`INSERT INTO test_errors (run_id, test_case_id, test_suite_id, module_id, scope, name, message, diff, actual, expected, stack, cause_error_id, signature_hash, ordinal) VALUES (${runId}, ${err.testCaseId ?? null}, ${err.testSuiteId ?? null}, ${err.moduleId ?? null}, ${err.scope}, ${err.name ?? null}, ${err.message}, ${err.diff ?? null}, ${err.actual ?? null}, ${err.expected ?? null}, ${err.stack ?? null}, ${err.causeErrorId ?? null}, ${err.signatureHash ?? null}, ${err.ordinal ?? 0})`;
+					const message = coerceErrorText(err.message) ?? "<missing message>";
+					yield* sql`INSERT INTO test_errors (run_id, test_case_id, test_suite_id, module_id, scope, name, message, diff, actual, expected, stack, cause_error_id, signature_hash, ordinal) VALUES (${runId}, ${err.testCaseId ?? null}, ${err.testSuiteId ?? null}, ${err.moduleId ?? null}, ${err.scope}, ${coerceErrorText(err.name) ?? null}, ${message}, ${coerceErrorText(err.diff) ?? null}, ${coerceErrorText(err.actual) ?? null}, ${coerceErrorText(err.expected) ?? null}, ${coerceErrorText(err.stack) ?? null}, ${err.causeErrorId ?? null}, ${err.signatureHash ?? null}, ${err.ordinal ?? 0})`;
 
 					// Persist structured frames. Prefer caller-provided frames (with
 					// source-map and function-boundary annotations) over regex parsing.
+					const stackText = coerceErrorText(err.stack);
 					if (err.frames && err.frames.length > 0) {
 						const errorIdRows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 						const errorId = errorIdRows[0].id;
@@ -234,11 +237,11 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 							const fileId = yield* ensureFile(frame.filePath);
 							yield* sql`INSERT INTO stack_frames (error_id, ordinal, method, file_id, line, col, source_mapped_line, function_boundary_line) VALUES (${errorId}, ${frame.ordinal}, ${frame.method}, ${fileId}, ${frame.line}, ${frame.col}, ${frame.sourceMappedLine ?? null}, ${frame.functionBoundaryLine ?? null})`;
 						}
-					} else if (err.stack) {
+					} else if (stackText) {
 						const errorIdRows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
 						const errorId = errorIdRows[0].id;
 						const framePattern = /at\s+(?:(.+?)\s+)?\(?(.+?):(\d+):(\d+)\)?/g;
-						const frames = [...err.stack.matchAll(framePattern)];
+						const frames = [...stackText.matchAll(framePattern)];
 						for (let frameOrdinal = 0; frameOrdinal < frames.length; frameOrdinal++) {
 							const m = frames[frameOrdinal];
 							const method = m[1] ?? null;

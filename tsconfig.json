@@ -1,4 +1,15 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig.json",
+	"compilerOptions": {
+		// Matches every package base (@savvy-web/bundler/tsconfig/ecma.json),
+		// which the silk root base does not set. Without it the pre-commit
+		// `tsgo --noEmit` type-checks dependency .d.ts files that the per-package
+		// `types:check` never looks at, so the two disagree.
+		//
+		// The concrete trigger is Effect-TS/effect#7187: effect 4.0.0-beta.107
+		// strips SchemaAST.Sentinel as @internal while Schema.d.ts still
+		// references it publicly, so Schema.d.ts fails to type-check on its own.
+		"skipLibCheck": true
+	},
 	"extends": "@savvy-web/silk/tsconfig/node/root.json"
 }

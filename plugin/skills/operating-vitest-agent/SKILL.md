@@ -38,12 +38,46 @@ coverage-in-subset, the `consoleLeaks` signal), see
    [references/running-tests.md](references/running-tests.md).
 5. **Session attribution is recovered for you.** The SessionStart hook writes
    the `VITEST_AGENT_*` identity into the environment and the SDK recovers it —
-   you never set those vars by hand. The only behavioral knobs are
-   `VITEST_REPORTER_LOG_LEVEL`, `VITEST_REPORTER_LOG_FILE`, and `NO_COLOR`.
+   you never set those vars by hand. Beyond identity, the behavioral knobs are
+   `VITEST_REPORTER_LOG_LEVEL`, `VITEST_REPORTER_LOG_FILE`, `NO_COLOR`, and
+   the `VITEST_AGENT_CONSOLE` output override documented below.
 6. **Stale counts mean tests were not re-run**, not a warm cache. Discovery
    re-walks per Vitest run; the MCP serves counts from the database.
 7. **Some "leaks" are guardrail tests** that assert on their own output. Do not
    silence output a test captures and `expect`s on.
+
+## Results that lie
+
+- Judge a run by the collected count, never by `0 failed` alone. When
+  `collectedModules` is known and nonzero, the totals line carries
+  `across N files` — a lower N than you expected means files failed to
+  load or were never collected, not that fewer tests existed.
+- `0 tests collected` is a warning, not a pass. The agent-facing render
+  says so explicitly: *"0 tests collected. A zero-test run usually means
+  a wrong working directory, a filter that matched nothing, or a
+  load-time error — verify before trusting it."*
+- Suite/hook errors (an `afterAll` throw) and load-time collection
+  failures now fail the `AgentReport`: `failedFiles` is non-empty and
+  `reason` coerces to `"failed"` even when every individual `it` block
+  passed. A green summary with a non-empty `failedFiles` means the
+  report predates this fix — rerun on a current build.
+- Each project's `test_runs.reason` is now derived from that project's
+  own report, not the whole-process outcome — one failing project no
+  longer marks every project in a `triage_brief` as failed.
+  `"interrupted"` still passes straight through as a global outcome (a
+  killed run is killed for everyone).
+- If stderr shows `vitest-agent: persistence failed — results above
+  were rendered but NOT recorded: <error>`, the rendered output you're
+  looking at is real but nothing reached SQLite for that run —
+  `test_status` / `test_history` will not reflect it until the next
+  successful run.
+- Always invoke vitest from the absolute repo root in the same command
+  (`cd /abs/repo && pnpm vitest run --project …`) — a `cd` for one tool
+  silently poisons the next command's project filter.
+- Never pipe a vitest invocation whose exit code you intend to read
+  (`vitest run … | tail` reports tail's exit code, always 0). Use
+  `run_tests`' structured return, or the JSON reporter's `outputFile`,
+  for machine-readable results.
 
 ## Environment, briefly
 
@@ -55,10 +89,24 @@ SessionStart hook and recovered automatically. The vars you might set:
 - `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` — diagnostic
   logger (separate from the console reporter).
 - `NO_COLOR` — disables ANSI color in rendered output.
-- `VITEST_AGENT_CONSOLE=passthrough` — overrides the resolved console mode
-  for the active executor on a CLI `vitest` run. Useful when investigating
-  files flagged by `report.consoleLeaks`. Invalid-for-slot values warn to
-  stderr and are ignored.
+- `VITEST_AGENT_CONSOLE=<value>` — overrides the resolved console mode for
+  the active executor on a CLI `vitest` run. Console output inside tests
+  is swallowed by design; this is the escape hatch to see it raw when
+  investigating a file flagged by `report.consoleLeaks`. The accepted
+  values are per-executor-slot literal unions (verbatim from
+  `packages/sdk/src/schemas/Common.ts`):
+  - `human` executor: `passthrough` | `silent` | `stream` | `agent`
+  - `agent` executor: `passthrough` | `silent` | `agent`
+  - `ci` executor: `passthrough` | `silent` | `ci-annotations`
+
+  A value invalid for the active executor's slot warns to stderr
+  (`[vitest-agent:plugin] ignoring invalid VITEST_AGENT_CONSOLE="…" for
+  <executor> executor` — `packages/plugin/src/plugin.ts`) and is ignored;
+  the plugin falls back to that slot's normal default. This only changes
+  what gets *printed* — `console.log` inside a test is still swallowed by
+  design in every mode except `passthrough`, so **assertions
+  (`expect(...)`), not `console.log`, are the reliable way to read a
+  value out of a probe test.**
 
 ## Where to go next
 

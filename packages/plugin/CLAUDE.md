@@ -45,14 +45,16 @@ src/
     discover-projects.ts       -- unified workspace scanner; strategy.buildProject
                                    decides per-package skips, .addProject entries
                                    are merged in with conflict detection. Process
-                                   cache is signature-invalidated (issue #100) and
-                                   records a last-real-scan timestamp into a
+                                   cache is signature-invalidated (issue #100) over
+                                   src/ plus every nested __test__/ dir (issue #184)
+                                   and records a last-real-scan timestamp into a
                                    Symbol.for() process-global for the mcp handshake
     classify-helpers.ts        -- classifyByFilename, classifyByDirectory,
                                    combineClassifiers (pure ClassifyFn builders)
     find-test-files.ts         -- async glob walker (node:fs/promises) with an
                                    inline glob-to-regex compiler; skips
-                                   node_modules, .git, dist by default
+                                   node_modules, .git, dist by default and stops
+                                   at any nested package.json boundary
     tag.ts                     -- Tag class + Tag.make factory
     inject-tags.ts             -- prepends a guarded tag prelude per
                                    classified test file (no AST parsing)
@@ -72,7 +74,7 @@ src/
 | File | Purpose |
 | ---- | ------- |
 | `plugin.ts` | `AgentPlugin(options?)` factory + `AgentPlugin` namespace. Resolves env + executor + console matrix → single `ConsoleMode` value; strips Vitest reporters and suppresses Vitest's coverage table whenever the resolved mode owns stdout (any value other than `passthrough`); forwards the user's `onRunEvent` tap unconditionally for every consoleMode (the T6 rewrite removed the previous `stream`-only gating); injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` when no `reporter` option is supplied; injects `AgentReporter` per project via `configureVitest`. Resolves `coverageMode` from Vitest's native `coverage.enabled` and threads it onto `ResolvedReporterConfig`. Runs the `ConfigValidation` service in `configureVitest` (warnings to stderr via `[vitest-agent:plugin]`; errors throw via `formatFatalError`). Namespace exposes `COVERAGE_LEVELS`, `COVERAGE_LEVELS_PER_FILE`, `COVERAGE_AUTOUPDATE`, and `discover()`. A `configResolved` hook wraps the root Vite `logger.warn` in place via `installViteSourceMapWarningFilter` to drop the benign source-map/ENOENT-`.js.map` noise (issue #110); `ResolvedConfigLike` / `ViteLoggerLike` are `@internal` and kept off the public d.ts via an inline structural type on the plugin object |
-| `reporter.ts` | Internal `AgentReporter` class. Imports `DefaultVitestAgentReporter` from `@vitest-agent/reporter`; imports nothing from `@vitest-agent/ui`. Creates an Effect `PubSub` run-event channel and publishes one `RunEvent` per Vitest streaming callback onto it; it wires every Vitest reporter hook, so the channel carries the complete `RunEvent` surface. The channel rides `ReporterKit.runEvents` (optional field). The reporter factory is invoked at run start (`onInit`) so a live reporter can subscribe before the first event — the plugin no longer drives the Ink mount, holds a `liveInk` field, or calls `hasSubscribers()`. `onTestRunEnd` runs the full persistence/classification/baseline/trend pipeline in Full mode, then calls `opts.reporter.render(input, kit)` and routes `RenderedOutput[]`. In UI-only mode (`opts.coverageMode === "ui-only"`), the handler short-circuits after `RunFinished` and `filteredModules`: builds reports via `buildAgentReport`, runs a tiny `OutputPipelineLive` + `NodeServices.layer` program to resolve env/executor/format/detail, builds the kit, and routes the renderer output. No `ensureMigrated`, no `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker` |
+| `reporter.ts` | Internal `AgentReporter` class. Imports `DefaultVitestAgentReporter` from `@vitest-agent/reporter`; imports nothing from `@vitest-agent/ui`. Creates an Effect `PubSub` run-event channel and publishes one `RunEvent` per Vitest streaming callback onto it; it wires every Vitest reporter hook, so the channel carries the complete `RunEvent` surface. The channel rides `ReporterKit.runEvents` (optional field). The reporter factory is invoked at run start (`onInit`) so a live reporter can subscribe before the first event — the plugin no longer drives the Ink mount, holds a `liveInk` field, or calls `hasSubscribers()`. `onTestRunEnd` is split into two phases in Full mode: a persist program (persistence/classification/baseline/trend, returning `PersistResult`) and a render program that ALWAYS runs — on migration or persist failure it renders `fallbackReports` (built up front, guarded, with empty classifications and no trend) and writes a `persistence failed — results above were rendered but NOT recorded` line to stderr. The render program needs no SQLite (`OutputPipelineLive` + `NodeServices.layer`), then calls `opts.reporter.render(input, kit)` and routes `RenderedOutput[]`. Each project's `test_runs.reason` is derived from that project's own report, not the whole-process Vitest `reason` (`interrupted` stays global). In UI-only mode (`opts.coverageMode === "ui-only"`), the handler short-circuits after `RunFinished` and `filteredModules`: builds reports via `buildAgentReport`, runs a tiny `OutputPipelineLive` + `NodeServices.layer` program to resolve env/executor/format/detail, builds the kit, and routes the renderer output. No `ensureMigrated`, no `DataStore.write*`, no `CoverageAnalyzer.process`, no `HistoryTracker` |
 | `services/CoverageAnalyzer.ts` | Effect service tag for coverage processing. Only lives here because the reporter lifecycle class feeds it coverage data; CLI/MCP read pre-processed coverage from SQLite |
 | `services/ConfigValidation.ts` | Effect service tag `vitest-agent/ConfigValidation` with one method `validate(input): Effect<ValidationResult, never, never>`. `ValidationError` carries optional `path` for pinpointed diagnostics and optional `remediation` for install-command-style fixes |
 | `layers/ConfigValidationLive.ts` | Runs the seven-rule starter registry: `TARGET_WITHOUT_THRESHOLD` (warn), `TARGET_BELOW_THRESHOLD` (error), `THRESHOLD_WITHOUT_TARGET` (silent), `INVALID_TARGET_VALUE` (error, top + nested glob), `UNSUPPORTED_PROVIDER` (error, Full mode only), `MISSING_PROVIDER_PACKAGE` (error via `createRequire`, Full mode only, with install-command remediation), `PERFILE_ON_TARGETS` (warn). Mode resolution reads `vitestConfig.coverage?.enabled` — `false` → UI-only (skip provider rules), anything else → Full |
@@ -80,11 +82,11 @@ src/
 | `utils/process-failure.ts` | Per-error signature pipeline. Called from `onTestRunEnd` for each error before `DataStore.writeErrors`. Returns `frames: StackFrameInput[]` and `signatureHash` |
 | `utils/build-reporter-kit.ts` | Constructs `ReporterKit` from resolved config + detected environment + `noColor` flag. `stdOsc8` is enabled when `!noColor && (env === "terminal" \|\| env === "agent-shell")` |
 | `utils/route-rendered-output.ts` | Dispatches a single `RenderedOutput` to its target: `stdout`, `github-summary` (append), or `file` (no-op) |
-| `utils/discover-strategy.ts` | `DiscoverStrategy` abstract class plus the `DefaultDiscoverStrategy` concrete subclass. Base factory is `DiscoverStrategy.create({ tags, buildProject, classify })`; `.extend({ additionalTags?, buildProject?, classify? })` chains immutable layers. The default strategy ships unit / int / e2e tags and a filename-suffix classifier, and its `buildProject` returns null when neither `src/` nor `__test__/` has tests |
-| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries? })` runs the unified scan: every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path, and is invalidated by a cheap per-package `src/`/`__test__/` directory signature (recursive readdir + mtimeMs, no content reads) so the long-lived MCP server never serves stale include-globs (issue #100). Every real scan records an ISO last-scan timestamp into a `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global; `getLastDiscoveryScanTimestamp()` reads it (mcp reads the same slot directly — it cannot import the plugin) |
+| `utils/discover-strategy.ts` | `DiscoverStrategy` abstract class plus the `DefaultDiscoverStrategy` concrete subclass. Base factory is `DiscoverStrategy.create({ tags, buildProject, classify })`; `.extend({ additionalTags?, buildProject?, classify? })` chains immutable layers. The default strategy ships unit / int / e2e tags and a filename-suffix classifier, and its `buildProject` returns null when neither `src/` nor any `__test__/` dir has tests. The `__test__` include/exclude globs are `**/__test__/**`-shaped (nested dirs at any depth, issue #184) and the exclude list re-states `configDefaults.exclude` plus `**/dist/**` |
+| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries? })` runs the unified scan: every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path, and is invalidated by a cheap per-package signature over `src/` plus every nested `__test__/` dir (per-directory readdir + mtimeMs, no content reads) so the long-lived MCP server never serves stale include-globs (issues #100 / #184). The walks prune `node_modules` / `.git` / `dist` BEFORE recursing — Node's recursive readdir follows symlinks and a fixture `node_modules` would otherwise drag in the pnpm store. Every real scan records an ISO last-scan timestamp into a `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global; `getLastDiscoveryScanTimestamp()` reads it (mcp reads the same slot directly — it cannot import the plugin) |
 | `utils/is-benign-vite-source-map-warning.ts` | Pure `isBenignViteSourceMapWarning(message)` predicate matching only the benign Vite "Failed to load source map" + ENOENT `.js.map` shape (issue #110). Consumed by `plugin.ts`'s `configResolved` logger filter |
 | `utils/classify-helpers.ts` | Pure ClassifyFn builders: `classifyByFilename` (record of suffixes or `[RegExp, tags]` tuples), `classifyByDirectory` (slash-bounded segment match), `combineClassifiers` (concat plus dedupe by tag name). Plug into `DiscoverStrategy.create({ classify })` or `.extend({ classify })` |
-| `utils/find-test-files.ts` | Async glob walker built on `node:fs/promises` with an inline glob-to-regex compiler. Skips `node_modules`, `.git`, `dist` by default. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
+| `utils/find-test-files.ts` | Async glob walker built on `node:fs/promises` with an inline glob-to-regex compiler. Skips `node_modules`, `.git`, `dist`, and stops at a nested `package.json` boundary (any directory but the walk root that declares one is another unit — keeps `**/`-shaped patterns from double-counting sibling packages). The boundary applies to every pattern, anchored or not. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
 | `utils/tag.ts` | `Tag` class with `Tag.make(name, options?)`. Validates the name and exposes a `TestTagDefinition` via `.definition` for Vitest's `test.tags` array |
 | `utils/inject-tags.ts` | Prepends a guarded two-line prelude to each classified test file: a namespace `vitest` import plus a try/catch that calls `TestRunner?.getCurrentSuite?.()`, resolves `collector?.suite ?? collector?.file`, and unions the resolved tags into the task's `tags`. Vitest's runner unions parent tags into every suite/test at registration, so every declaration form inherits — native `test`/`it`, wrapper testers like `@effect/vitest`'s `it.effect`, `test.extend` aliases, numeric-timeout third-arg calls, dynamic registration (issue #133). No acorn parsing; the `magic-string` prepend preserves source maps, and the try/catch degrades to untagged tests, never a crash. The plugin enables this transform whenever a `DiscoverStrategy` is active (the default) and bypasses it entirely when the user passes `discoverStrategy: false`. Subprocess e2e coverage lives in `__test__/inject-tags-prelude.e2e.test.ts` with the `__test__/fixtures/tag-prelude-project/` fixture |
 | `layers/ReporterLive.ts` | Composition layer for `AgentReporter`. Used per-run via `Effect.runPromise` (not ManagedRuntime — the reporter is short-lived per run) |
@@ -159,11 +161,17 @@ user wiring.
   `Effect.runPromise` in `onTestRunEnd` with `ReporterLive(dbPath)` inline.
   This is appropriate because the reporter runs briefly per test suite.
   Only the MCP server uses `ManagedRuntime`.
-- **`ensureMigrated` must be awaited before the main Effect.** In
+- **Rendering never depends on persistence (D47).** Keep `onTestRunEnd`'s
+  persist and render programs separate: a DB, migration, or classification
+  failure disables persistence and warns on stderr, but the render program
+  still runs against `fallbackReports`. Never `return` early out of
+  `onTestRunEnd` for a persistence-side failure, and never move
+  DB-requiring services into the render program.
+- **`ensureMigrated` must be awaited before the persist Effect.** In
   multi-project configs, multiple reporter instances share one `data.db`;
   `ensureMigrated` serializes the migration step via the `globalThis`
-  promise cache (Decision 28). On rejection, print `formatFatalError` and
-  return early.
+  promise cache (Decision 28). On rejection, record the formatted error
+  and skip persistence — do not skip the render.
 - **`process-failure.ts` is the only place signatures are computed.**
   Don't compute failure signatures directly in `reporter.ts`. The pipeline:
   `processFailure(error, options)` -> `{ frames, signatureHash }` ->
@@ -197,9 +205,10 @@ user wiring.
   the abstract contract and the default implementation, or
   `utils/discover-projects.ts` for the scanner. The default strategy
   recognises both `src/` (legacy) and `__test__/` (canonical) test
-  directories and emits one project per workspace package (no kind
-  suffix splitting — that moved to `DiscoverStrategy.classify`).
-  Helper subdirs (`utils/`, `fixtures/`, `snapshots/`) inside
+  directories — the latter at any depth, e.g. `lib/scripts/__test__/` —
+  and emits one project per workspace package (no kind suffix
+  splitting — that moved to `DiscoverStrategy.classify`).
+  Helper subdirs (`utils/`, `fixtures/`, `snapshots/`) inside any
   `__test__/` are excluded automatically. A null return from
   `buildProject` for a workspace package is a silent skip; a null
   return for an `.addProject` entry throws.
@@ -294,7 +303,9 @@ it implements `onTestRunStart`, `onTestModuleQueued`,
 core union. Coverage events (`CoverageReady` / `ThresholdViolation`)
 are emitted from `onTestRunEnd`, which also publishes `RunFinished` at
 the top of the persistence pipeline so a live reporter sees end-of-run
-before the heavy persistence work runs. Throwing taps are caught and
+before the heavy persistence work runs. That `RunFinished` carries
+`collectedModules` (the full collected count, passing modules included)
+for parity with both `@vitest-agent/ui` synthesizers. Throwing taps are caught and
 logged to stderr — persistence never breaks because a live renderer
 has a bug.
 
@@ -324,7 +335,8 @@ to SQLite as `failed` (no schema or migration change).
 - `@./.claude/design/vitest-agent/decisions.md`
   Load when you need rationale (especially D40 T7 five-field options
   surface and the `transport` forward-declaration, D34 plugin/reporter
-  split, D38 T4 coverage policy — `coverageMode`, dual-output
+  split, D47 render-never-depends-on-persistence, D48 honest run
+  reporting, D38 T4 coverage policy — `coverageMode`, dual-output
   `COVERAGE_LEVELS` presets, `COVERAGE_AUTOUPDATE`, `ConfigValidation`
   service — D7 per-call `Effect.runPromise`, D28 `ensureMigrated`
   globalThis cache, D10 failure signatures).

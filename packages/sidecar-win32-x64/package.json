@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/sidecar-win32-x64",
-	"version": "2.0.6",
+	"version": "2.0.8",
 	"private": true,
 	"description": "win32-x64 prebuilt binary for vitest-agent-sidecar.",
 	"repository": {
@@ -29,7 +29,7 @@
 		"@vitest-agent/sdk": "workspace:*"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.6",
+		"@savvy-web/bundler": "^2.1.7",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},

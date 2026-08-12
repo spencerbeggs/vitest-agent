@@ -187,6 +187,9 @@ describe("AgentReporter streaming callbacks", () => {
 			failCount: 1,
 			skipCount: 0,
 			durationMs: 5,
+			// Parity with the two synthesizers in @vitest-agent/ui, which both
+			// populate `collectedModules` on their RunFinished.
+			collectedModules: 1,
 		});
 	});
 

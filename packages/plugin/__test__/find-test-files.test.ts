@@ -101,6 +101,62 @@ describe("findTestFiles", () => {
 		expect(results[0]).toBe(join(tmpDir, "src", "real.test.ts"));
 	});
 
+	// ── issue #184: nested __test__ discovery must not cross package boundaries ──
+
+	it("should not descend into a nested directory with its own package.json", async () => {
+		// Given: a root with its own test file, plus a nested dir that has both
+		// a package.json (marking it as an independent package) and a test file
+		await mkdir(join(tmpDir, "src"), { recursive: true });
+		await writeFile(join(tmpDir, "src", "real.test.ts"), "");
+		await mkdir(join(tmpDir, "packages", "nested-pkg", "__test__"), { recursive: true });
+		await writeFile(join(tmpDir, "packages", "nested-pkg", "package.json"), JSON.stringify({ name: "nested-pkg" }));
+		await writeFile(join(tmpDir, "packages", "nested-pkg", "__test__", "other.test.ts"), "");
+
+		// When: walking with an unanchored pattern that would otherwise reach the nested package
+		const results = await findTestFiles(tmpDir, ["**/__test__/**/*.test.ts", "src/**/*.test.ts"]);
+
+		// Then: only the root's own test file is found; the nested package's test is excluded
+		expect(results).toContain(join(tmpDir, "src", "real.test.ts"));
+		expect(results).not.toContain(join(tmpDir, "packages", "nested-pkg", "__test__", "other.test.ts"));
+	});
+
+	it("should still match files directly in the walk root, even though the root itself has a package.json", async () => {
+		// Given: the walk root has its own package.json (as every real package does)
+		await writeFile(join(tmpDir, "package.json"), JSON.stringify({ name: "root-pkg" }));
+		await mkdir(join(tmpDir, "__test__"), { recursive: true });
+		await writeFile(join(tmpDir, "__test__", "foo.test.ts"), "");
+
+		// When: finding test files from that same root
+		const results = await findTestFiles(tmpDir, ["__test__/**/*.test.ts"]);
+
+		// Then: the root's own package.json does not block scanning its own children
+		expect(results).toContain(join(tmpDir, "__test__", "foo.test.ts"));
+	});
+
+	it("should apply the package-boundary rule even to an anchored src/** pattern (documented, intended)", async () => {
+		// Given: a root with its own src/ test, plus a nested package under src/
+		// that has its own package.json AND its own src/ test file. Pinning this:
+		// the boundary check runs once per directory regardless of which pattern
+		// is being matched, so an anchored "src/**" pattern loses visibility into
+		// a nested package.json-bearing dir even though the pattern itself never
+		// needed to reach past src/ to find it. There is no live case of this in
+		// this repo today (no package nests another package.json under its own
+		// src/), but the rule applies uniformly, so this test documents the
+		// tradeoff rather than leaving it as an undocumented side effect.
+		await mkdir(join(tmpDir, "src"), { recursive: true });
+		await writeFile(join(tmpDir, "src", "real.test.ts"), "");
+		await mkdir(join(tmpDir, "src", "vendored-pkg"), { recursive: true });
+		await writeFile(join(tmpDir, "src", "vendored-pkg", "package.json"), JSON.stringify({ name: "vendored-pkg" }));
+		await writeFile(join(tmpDir, "src", "vendored-pkg", "inner.test.ts"), "");
+
+		// When: walking with only the anchored src/** pattern
+		const results = await findTestFiles(tmpDir, ["src/**/*.test.ts"]);
+
+		// Then: the root's own src/ test is found; the nested package.json-bearing dir is excluded
+		expect(results).toContain(join(tmpDir, "src", "real.test.ts"));
+		expect(results).not.toContain(join(tmpDir, "src", "vendored-pkg", "inner.test.ts"));
+	});
+
 	// ── Goal 16, Behavior 31: returns empty array for no matches ──────────────
 
 	it("should return [] for a path with no matching files", async () => {

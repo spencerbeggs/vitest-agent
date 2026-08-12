@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { VitestTestCase, VitestTestModule } from "../src/utils/build-report.js";
+import type { VitestTestCase, VitestTestModule, VitestTestSuite } from "../src/utils/build-report.js";
 import { buildAgentReport, countSuiteFailures } from "../src/utils/build-report.js";
 
 // --- Test Helpers ---
@@ -48,6 +48,21 @@ function makeTestCase(
 	};
 }
 
+const makeTestSuite = (overrides: {
+	name?: string;
+	state?: string;
+	errors?: Array<{ message: string; stacks?: string[] }>;
+}): VitestTestSuite =>
+	({
+		type: "suite" as const,
+		name: overrides.name ?? "suite",
+		fullName: overrides.name ?? "suite",
+		state: () => overrides.state ?? "passed",
+		parent: undefined as never,
+		options: {},
+		errors: () => overrides.errors ?? [],
+	}) as VitestTestSuite;
+
 function makeTestModule(
 	overrides: Partial<{
 		moduleId: string;
@@ -56,6 +71,7 @@ function makeTestModule(
 		state: string;
 		duration: number;
 		tests: VitestTestCase[];
+		suites: VitestTestSuite[];
 		errors: Array<{ message: string; stacks?: string[] }>;
 		/** When true, diagnostic() returns undefined */
 		noDiagnostic: boolean;
@@ -63,6 +79,7 @@ function makeTestModule(
 ): VitestTestModule {
 	const relativeId = overrides.relativeModuleId ?? "src/foo.test.ts";
 	const tests = overrides.tests ?? [];
+	const suites = overrides.suites ?? [];
 
 	return {
 		type: "module",
@@ -75,7 +92,7 @@ function makeTestModule(
 				for (const t of tests) yield t;
 			},
 			*allSuites() {
-				// No suites in test helpers
+				for (const s of suites) yield s;
 			},
 		},
 		diagnostic: () => {
@@ -115,6 +132,21 @@ describe("buildAgentReport", () => {
 		expect(report.unhandledErrors).toHaveLength(0);
 		expect(report.project).toBeUndefined();
 		expect(report.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+	});
+
+	it("reports the collected module count including passing modules (issue #146)", () => {
+		const passing = makeTestModule({
+			relativeModuleId: "a.test.ts",
+			state: "passed",
+			tests: [makeTestCase({ name: "x", state: "passed" })],
+		});
+		const failing = makeTestModule({
+			relativeModuleId: "b.test.ts",
+			state: "failed",
+			tests: [makeTestCase({ name: "y", state: "failed", errors: [{ message: "nope" }] })],
+		});
+		const report = buildAgentReport([passing, failing], [], "failed", {});
+		expect(report.summary.modules).toBe(2);
 	});
 
 	it("sets project name when provided", () => {
@@ -569,5 +601,68 @@ describe("buildAgentReport", () => {
 		// Module with undefined diagnostic contributes 0 to total duration
 		expect(report.summary.duration).toBe(100);
 		expect(report.summary.total).toBe(2);
+	});
+
+	it("fails a module whose afterAll hook threw even though every test passed (issue #213)", () => {
+		const mod = makeTestModule({
+			relativeModuleId: "hooky.test.ts",
+			state: "passed", // vitest may leave the module green when only the suite entity failed
+			tests: [makeTestCase({ name: "t1", state: "passed" })],
+			suites: [makeTestSuite({ state: "failed", errors: [{ message: "AsyncFiberError: ..." }] })],
+		});
+		const report = buildAgentReport([mod], [], "passed", {});
+		expect(report.failedFiles).toContain("hooky.test.ts");
+		expect(report.reason).toBe("failed");
+		expect(report.failed[0].errors?.[0].message).toContain("AsyncFiberError");
+	});
+
+	it("fails a module in state failed with empty errors() (issue #213 variant)", () => {
+		const mod = makeTestModule({
+			relativeModuleId: "hooky2.test.ts",
+			state: "failed",
+			tests: [makeTestCase({ name: "t1", state: "passed" })],
+		});
+		const report = buildAgentReport([mod], [], "passed", {});
+		expect(report.failedFiles).toContain("hooky2.test.ts");
+		expect(report.reason).toBe("failed");
+	});
+
+	it("self-corrects reason to failed when a collection failure exists (issues #192/#166)", () => {
+		const broken = makeTestModule({
+			relativeModuleId: "broken.test.ts",
+			state: "failed",
+			tests: [],
+			errors: [{ message: "Cannot find module './nope.js'" }],
+		});
+		const fine = makeTestModule({
+			relativeModuleId: "fine.test.ts",
+			state: "passed",
+			tests: [makeTestCase({ name: "ok", state: "passed" })],
+		});
+		const report = buildAgentReport([broken, fine], [], "passed", {});
+		expect(report.reason).toBe("failed");
+		expect(report.failedFiles).toEqual(["broken.test.ts"]);
+	});
+
+	it("survives an error whose message getter throws at the property access (issue #193 shape)", () => {
+		// coerceErrorText(e.message) evaluates the getter BEFORE the helper's
+		// try/catch — the read itself must be guarded (coerceErrorField).
+		const hostile: Record<string, unknown> = { stacks: [] };
+		Object.defineProperty(hostile, "message", {
+			get(): string {
+				throw new TypeError("this.cause.toString is not a function");
+			},
+			enumerable: true,
+		});
+		const mod = makeTestModule({
+			relativeModuleId: "hostile.test.ts",
+			state: "failed",
+			tests: [],
+			errors: [hostile as unknown as { message: string }],
+		});
+		expect(() => buildAgentReport([mod], [], "passed", {})).not.toThrow();
+		const report = buildAgentReport([mod], [], "passed", {});
+		expect(report.failedFiles).toContain("hostile.test.ts");
+		expect(report.failed[0].errors?.[0].message).toBe("<unreadable field>");
 	});
 });

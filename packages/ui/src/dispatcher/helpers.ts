@@ -50,7 +50,9 @@ export const formatTotals = (state: RenderState): string => {
 	const parts = [`${passCount}/${total} passed`];
 	if (failCount > 0) parts.push(`${failCount} failed`);
 	if (skipCount > 0) parts.push(`${skipCount} skipped`);
-	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
+	const suffix =
+		state.collectedModules !== undefined && state.collectedModules > 0 ? ` across ${state.collectedModules} files` : "";
+	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})${suffix}`;
 };
 
 /**

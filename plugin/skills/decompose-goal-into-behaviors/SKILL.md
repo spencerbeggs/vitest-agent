@@ -10,7 +10,7 @@ Given an objective like `"add login validation"`, produce a small set of goals (
 ## Process
 
 1. **Read the objective.** What system or capability does the user want? Identify what success looks like in observable terms.
-2. **Identify goals.** Group related observable outcomes into goals. A typical objective decomposes into 1–5 goals; one if the objective is already atomic, three to five if it spans multiple concerns. For each goal, call `tdd_goal (action: create)({ sessionId, goal: <text> })` and capture the returned `goalId`.
+2. **Identify goals.** Group related observable outcomes into goals. A typical objective decomposes into 1–5 goals; one if the objective is already atomic, three to five if it spans multiple concerns. For each goal, call `tdd_goal (action: create)({ tddTaskId, goal: <text> })` and capture the returned `goalId`. The field is `tddTaskId` (the id `tdd_task (action: start)` returned) — not `sessionId`; passing the tddTaskId value under a `sessionId` key is the slip that mis-attributes a later `hypothesis (action: record)` call.
 3. **For each goal, identify behaviors.** A behavior is a single observable outcome that fits one red-green-refactor cycle. Call `tdd_behavior (action: create)({ goalId, behavior: <text>, suggestedTestName?, dependsOnBehaviorIds? })` for each behavior. Pass `dependsOnBehaviorIds` when one behavior cannot meaningfully be tested without another already passing — the orchestrator will respect ordering.
 4. **Push the channel events.** After all goals are created, push `goals_ready`. After all behaviors for a goal are created, push `behaviors_ready` for that goal. The main agent renders the task list from these events.
 

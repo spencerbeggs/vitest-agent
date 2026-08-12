@@ -20,43 +20,43 @@ const ratioAnnotation = {
 
 export const AcceptanceMetricsResult = Schema.Struct({
 	phaseEvidenceIntegrity: Schema.Struct({
-		total: Schema.Number.annotate(totalAnnotation),
-		compliant: Schema.Number.annotate({
+		total: Schema.Finite.annotate(totalAnnotation),
+		compliant: Schema.Finite.annotate({
 			description: "Phase transitions that cited a valid artifact and passed binding-rule validation.",
 		}),
-		ratio: Schema.Number.annotate(ratioAnnotation),
+		ratio: Schema.Finite.annotate(ratioAnnotation),
 	}).annotate({
 		title: "Phase-evidence integrity",
 		description:
 			"Fraction of accepted TDD phase transitions whose cited artifact satisfied the D2 binding rules. Spec target ≥80%.",
 	}),
 	complianceHookResponsiveness: Schema.Struct({
-		total: Schema.Number.annotate(totalAnnotation),
-		withFollowup: Schema.Number.annotate({
+		total: Schema.Finite.annotate(totalAnnotation),
+		withFollowup: Schema.Finite.annotate({
 			description: "PreToolUse denials / `additionalContext` reminders the orchestrator acknowledged in the next turn.",
 		}),
-		ratio: Schema.Number.annotate(ratioAnnotation),
+		ratio: Schema.Finite.annotate(ratioAnnotation),
 	}).annotate({
 		title: "Compliance-hook responsiveness",
 		description: "Fraction of compliance signals from PreToolUse hooks the orchestrator acted on. Spec target ≥40%.",
 	}),
 	orientationUsefulness: Schema.Struct({
-		total: Schema.Number.annotate(totalAnnotation),
-		referencedCount: Schema.Number.annotate({
+		total: Schema.Finite.annotate(totalAnnotation),
+		referencedCount: Schema.Finite.annotate({
 			description: "Sessions where `triage_brief` / `wrapup_prompt` content was referenced in subsequent decisions.",
 		}),
-		ratio: Schema.Number.annotate(ratioAnnotation),
+		ratio: Schema.Finite.annotate(ratioAnnotation),
 	}).annotate({
 		title: "Orientation usefulness",
 		description:
 			"Fraction of sessions where orientation prompts measurably steered orchestrator behaviour. Spec target ≥50%.",
 	}),
 	antiPatternDetectionRate: Schema.Struct({
-		total: Schema.Number.annotate(totalAnnotation),
-		cleanSessions: Schema.Number.annotate({
+		total: Schema.Finite.annotate(totalAnnotation),
+		cleanSessions: Schema.Finite.annotate({
 			description: "Sessions that produced no `tdd_artifacts(kind='test_weakened')` rows or DATABASE_BYPASS notes.",
 		}),
-		ratio: Schema.Number.annotate(ratioAnnotation),
+		ratio: Schema.Finite.annotate(ratioAnnotation),
 	}).annotate({
 		title: "Anti-pattern detection rate",
 		description: "Fraction of sessions free of weakening edits or sqlite3 bypass attempts. Spec target ≥95%.",

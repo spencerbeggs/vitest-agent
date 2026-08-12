@@ -66,7 +66,7 @@ describe("effectToZodSchema", () => {
 				description: "Workspace project key the run was attributed to.",
 				examples: ["playground", "@org/pkg"],
 			}),
-			count: Schema.Number.annotate({ description: "Total error rows." }),
+			count: Schema.Finite.annotate({ description: "Total error rows." }),
 		}).annotate({ title: "TestErrorsResult", description: "Top-level test_errors payload." });
 		const zodified = effectToZodSchema(E);
 		const json = z3.z.toJSONSchema(zodified) as {
@@ -80,5 +80,20 @@ describe("effectToZodSchema", () => {
 		expect(json.properties?.project?.description).toContain("Workspace project key");
 		expect(json.properties?.project?.examples).toEqual(["playground", "@org/pkg"]);
 		expect(json.properties?.count?.description).toBe("Total error rows.");
+	});
+
+	it("lifts a checked schema's annotation out of its allOf wrapper", async () => {
+		// Effect lowers a *checked* schema to `{ type, allOf: [{ ...check,
+		// description }] }` rather than annotating the node directly, and
+		// `z.fromJSONSchema` keeps that nesting, so the description would
+		// never reach the served tool schema without the bridge's lift.
+		const z3 = await import("zod");
+		const E = Schema.Struct({
+			name: Schema.String.check(Schema.isMinLength(3)).annotate({ description: "At least three characters." }),
+		});
+		const json = z3.z.toJSONSchema(effectToZodSchema(E)) as {
+			properties?: Record<string, { description?: string }>;
+		};
+		expect(json.properties?.name?.description).toBe("At least three characters.");
 	});
 });

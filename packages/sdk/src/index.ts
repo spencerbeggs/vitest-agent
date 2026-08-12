@@ -105,6 +105,7 @@ export * from "./utils/ansi.js";
 export * from "./utils/build-report.js";
 export * from "./utils/canonicalize-git-url.js";
 export * from "./utils/classify-test.js";
+export * from "./utils/coerce-error-text.js";
 export * from "./utils/compress-lines.js";
 export * from "./utils/compute-trend.js";
 export * from "./utils/console-leaks.js";

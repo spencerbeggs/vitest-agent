@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-08-11
+last-synced: 2026-08-11
 completeness: 95
 related:
   - ../components.md
@@ -159,7 +159,7 @@ passed.
   (ts|tsx|js|jsx) get ["e2e"], files ending in .int.(test|spec).
   (ts|tsx|js|jsx) get ["int"], everything else falls through to
   ["unit"].
-- **buildProject.** Scans the package's `src/` and `__test__/` directories for test files via `findTestFiles`. Returns null if neither directory contains a match. Otherwise emits a `TestProjectInlineConfiguration` with `extends: true`, the test name set from the package name, `environment: "node"`, absolute include globs covering whichever of `src/` and `__test__/` produced matches, an exclude list, and a `setupFiles` entry for `vitest.setup.(ts|tsx|js|jsx)` at the package root when present. The exclude list prepends Vitest's `configDefaults.exclude` (`**/node_modules/**`, `**/.git/**`) ahead of the helper-subdirectory globs (`utils`, `fixtures` and `snapshots` inside `__test__/`). The prepend is load-bearing: a custom `test.exclude` replaces Vitest's defaults rather than merging, so without it the broad `__test__/**` include re-walks into nested `__test__/.../node_modules/**` and Vitest runs dependencies' own test files (e.g. zod's tests under fixture `node_modules`).
+- **buildProject.** Scans the package for test files with a single `findTestFiles` walk against two patterns — `src/**/*.{test,spec}.{ts,tsx,js,jsx}` and `**/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}`. Returns null if neither pattern matches. Otherwise emits a `TestProjectInlineConfiguration` with `extends: true`, the test name set from the package name, `environment: "node"`, absolute include globs covering whichever of the two buckets produced matches, an exclude list, and a `setupFiles` entry for `vitest.setup.(ts|tsx|js|jsx)` at the package root when present. Results are bucketed by "under `src/` or not" — the `__test__` pattern is `**/__test__/**`, not root-only `__test__/**`, so a nested directory such as `lib/scripts/__test__/` is discovered too (issue #184) and has no fixed prefix to test against. The exclude list is emitted whenever the `__test__` bucket produced matches (previously: whenever a root `__test__/` directory merely existed) and prepends Vitest's `configDefaults.exclude` (`**/node_modules/**`, `**/.git/**`) ahead of `**/dist/**` and the helper-subdirectory globs (`utils`, `fixtures` and `snapshots`, now matched at any depth via `**/__test__/<dir>/**`). The prepend is load-bearing: a custom `test.exclude` replaces Vitest's defaults rather than merging, so without it the broad `**/__test__/**` include re-walks into nested `__test__/.../node_modules/**` and Vitest runs dependencies' own test files (e.g. zod's tests under fixture `node_modules`). `**/dist/**` is stated explicitly because `configDefaults.exclude` does not cover build output and the broadened include can now reach into it.
 
 The include globs use absolute paths so the same configs work whether
 the consuming vitest.config.ts lives at the monorepo root or inside a
@@ -208,6 +208,18 @@ double-asterisk (any path segments), single-asterisk (any non-slash
 characters), question mark, and brace expansion such as {ts,tsx,js,jsx}.
 Returns absolute paths.
 
+**Package boundary.** The walk does not descend past a nested package.json:
+any directory other than dir itself that declares one is treated as an
+independent unit, and its files belong to a separate discovery pass. This
+keeps the unanchored `**/__test__/**` pattern from reaching into sibling
+packages when the walk starts at a package that structurally contains other
+packages (a monorepo root, or a fixture package under a test directory),
+which would otherwise double-count the same test files across two projects'
+include globs. The check runs once per directory, independent of which
+pattern is being matched, so an anchored pattern such as
+`src/**/*.test.ts` is subject to it too even though the pattern itself
+never reaches past `src/`.
+
 ### Tag and Tag.make
 
 packages/plugin/src/utils/tag.ts. Tag.make(name, options?) constructs a
@@ -234,7 +246,7 @@ The unified algorithm in discoverProjects:
    and D46). Throws with a descriptive error if no root is found —
    there is no silent fallback.
 
-2. **Consult process-level cache with a directory signature.** A module-level Map keyed by workspace root is checked first, but only when neither strategy nor additionalEntries was supplied (the no-arg path); any explicit strategy or added entry bypasses the cache because strategy instances cannot be fingerprinted. Each cache entry now stores `{ result, signature }` where the signature is a cheap fingerprint of every package's `src/` and `__test__/` directories (recursive relative-path + `mtimeMs` pairs, sorted — no file contents read, via `computeDirSignature` / `computeWorkspaceSignature`). On the cacheable path the signature is recomputed and compared before the cached result is returned; a mismatch means a test file was added, removed, moved or renamed since the entry was written, so discovery falls through to a full rescan and refreshes the entry. This fixes issue #100, where the long-lived MCP server returned stale project include-globs after test files moved on disk (symptom: a silent drop of ~1290 tests when `*.test.ts` moved from `src/` to `__test__/`).
+2. **Consult process-level cache with a directory signature.** A module-level Map keyed by workspace root is checked first, but only when neither strategy nor additionalEntries was supplied (the no-arg path); any explicit strategy or added entry bypasses the cache because strategy instances cannot be fingerprinted. Each cache entry now stores `{ result, signature }` where the signature is a cheap fingerprint of every package's `src/` directory plus every nested `__test__/` directory found beneath the package (recursive relative-path + `mtimeMs` pairs, sorted — no file contents read, via `findNestedTestDirs` / `computeDirSignature` / `computeWorkspaceSignature`). Nested test directories are included at any depth, so an edit under `lib/scripts/__test__/` invalidates the cache the same way a package-root `__test__/` edit does (issue #184). Both walks prune `node_modules`, `.git` and `dist` before recursing rather than filtering afterwards — Node's recursive `readdir` follows symlinked directories and a pnpm `node_modules` tree is all symlinks into the content-addressed store, so an unguarded walk would traverse the store or hit a cycle. Neither walk *stops* at the nested-`package.json` boundary that `findTestFiles` honors: over-including a fixture package's `__test__/` in the signature only costs an extra rescan, and failing safe toward rescanning beats serving a stale project list. The nested walk does *record* every such boundary, though — `findNestedTestDirs` returns `{ testDirs, boundaries }` and each nested `package.json` contributes a `relPath:mtimeMs` marker to a third signature segment (`::boundaries=…`), the package's own root manifest excluded. Adding or removing a nested manifest changes where `findTestFiles` stops descending, and therefore which test files discovery can see, without touching a single test file; without the markers the cache would happily serve a project list that no longer matches the disk. On the cacheable path the signature is recomputed and compared before the cached result is returned; a mismatch means a test file was added, removed, moved or renamed since the entry was written, so discovery falls through to a full rescan and refreshes the entry. This fixes issue #100, where the long-lived MCP server returned stale project include-globs after test files moved on disk (symptom: a silent drop of ~1290 tests when `*.test.ts` moved from `src/` to `__test__/`).
 
 3. **Resolve the strategy.** Defaults to a fresh DefaultDiscoverStrategy
    when none was supplied.
