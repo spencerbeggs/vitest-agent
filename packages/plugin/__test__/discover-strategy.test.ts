@@ -247,9 +247,9 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		expect(include.every((p) => !p.includes("src/"))).toBe(true);
 		const exclude = result?.test?.exclude as string[] | undefined;
 		expect(exclude).toBeDefined();
-		expect(exclude?.some((p) => p.includes("__test__/utils"))).toBe(true);
-		expect(exclude?.some((p) => p.includes("__test__/fixtures"))).toBe(true);
-		expect(exclude?.some((p) => p.includes("__test__/snapshots"))).toBe(true);
+		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "**", "utils", "**"))).toBe(true);
+		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "**", "fixtures", "**"))).toBe(true);
+		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "**", "snapshots", "**"))).toBe(true);
 		// A custom `test.exclude` REPLACES Vitest's defaults rather than merging,
 		// so it must re-state `**/node_modules/**` and `**/.git/**` — otherwise
 		// the broad `__test__/**` include glob re-walks into nested
@@ -297,8 +297,9 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		}
 	});
 
-	it("discovers tests in nested non-src __test__ directories (issue #184)", async () => {
-		// Given: a fixture package with tests under lib/scripts/__test__/ (not src/, not root __test__/)
+	it("does not discover tests in nested non-src __test__ directories (issue #227)", async () => {
+		// Given: a fixture package whose only tests live under lib/scripts/__test__/
+		// — not src/, not the package-root __test__/. That is an invalid location.
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: calling buildProject against the fixture path
@@ -307,9 +308,27 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 			path: join(FIXTURES, "nested-test-dir-project"),
 		} as DiscoverInput);
 
-		// Then: the nested __test__ dir is discovered via a widened glob
-		expect(project).not.toBeNull();
-		const include = project?.test?.include ?? [];
-		expect(include.some((g) => g.includes("**/__test__/**"))).toBe(true);
+		// Then: nothing is discoverable, so the package is skipped entirely
+		expect(project).toBeNull();
+	});
+
+	it("emits only anchored include globs (issue #227)", async () => {
+		// Given: a package with both a src/ test and a root __test__/ test
+		await mkdir(join(tmpDir, "src"), { recursive: true });
+		await writeFile(join(tmpDir, "src", "foo.test.ts"), "");
+		await mkdir(join(tmpDir, "__test__"), { recursive: true });
+		await writeFile(join(tmpDir, "__test__", "bar.test.ts"), "");
+		const strategy = new DefaultDiscoverStrategy();
+
+		// When: calling buildProject
+		const project = await strategy.buildProject(makeDiscoverInput());
+
+		// Then: no include glob is unanchored — an unanchored glob escapes the
+		// package and, for the root workspace, globs the entire repo
+		const include = (project?.test?.include ?? []) as string[];
+		expect(include.length).toBeGreaterThan(0);
+		expect(include.every((g) => !g.includes("**/__test__"))).toBe(true);
+		expect(include.some((g) => g === join(tmpDir, "src", "**", "*.{test,spec}.{ts,tsx,js,jsx}"))).toBe(true);
+		expect(include.some((g) => g === join(tmpDir, "__test__", "**", "*.{test,spec}.{ts,tsx,js,jsx}"))).toBe(true);
 	});
 });

@@ -148,9 +148,9 @@ describe("discoverProjects()", () => {
 			const { projects } = await discoverProjects({ cwd: tmpDir });
 			const exclude = projects?.[0].test?.exclude as string[] | undefined;
 			expect(exclude).toBeDefined();
-			expect(exclude?.some((p) => p.includes("__test__/utils"))).toBe(true);
-			expect(exclude?.some((p) => p.includes("__test__/fixtures"))).toBe(true);
-			expect(exclude?.some((p) => p.includes("__test__/snapshots"))).toBe(true);
+			expect(exclude?.some((p) => p.includes("__test__") && p.includes("utils"))).toBe(true);
+			expect(exclude?.some((p) => p.includes("__test__") && p.includes("fixtures"))).toBe(true);
+			expect(exclude?.some((p) => p.includes("__test__") && p.includes("snapshots"))).toBe(true);
 		});
 	});
 

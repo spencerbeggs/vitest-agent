@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 import type { TestTagDefinition } from "@vitest/runner";
+import { SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX, TEST_HELPER_DIRS } from "@vitest-agent/sdk";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 import { configDefaults } from "vitest/config";
 import { findTestFiles } from "./find-test-files.js";
@@ -104,7 +105,6 @@ export interface DiscoverStrategyExtendOptions {
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 const SETUP_EXTS = ["ts", "tsx", "js", "jsx"] as const;
-const TEST_DIR_HELPER_DIRS = ["utils", "fixtures", "snapshots"] as const;
 
 async function isFile(p: string): Promise<boolean> {
 	try {
@@ -245,46 +245,36 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 	}
 
 	async buildProject(input: DiscoverInput): Promise<TestProjectInlineConfiguration | null> {
-		// Single filesystem walk that matches against both patterns at once.
-		// Two separate findTestFiles calls would traverse the whole package tree
-		// twice; bucketing the combined result by "under src/ or not" yields the
-		// same include-glob shape with one walk. The `__test__` bucket is no
-		// longer root-only — `**/__test__/**` also matches nested directories
-		// like `lib/scripts/__test__/` (issue #184).
-		const srcPrefix = join(input.path, "src");
+		const srcPrefix = join(input.path, SRC_DIR);
 		const allFiles = await findTestFiles(input.path, [
-			"src/**/*.{test,spec}.{ts,tsx,js,jsx}",
-			"**/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}",
+			`${SRC_DIR}/**/${TEST_FILE_GLOB_SUFFIX}`,
+			`${TEST_DIR}/**/${TEST_FILE_GLOB_SUFFIX}`,
 		]);
 		if (allFiles.length === 0) return null;
 		const hasSrcTests = allFiles.some((f) => f.startsWith(`${srcPrefix}${sep}`) || f === srcPrefix);
 		const hasTestDirTests = allFiles.some((f) => !(f.startsWith(`${srcPrefix}${sep}`) || f === srcPrefix));
 
-		// Build include globs as absolute paths so they resolve correctly regardless
-		// of where the root vitest.config.ts lives (monorepo root vs package root).
+		// Include globs are absolute and ANCHORED at the package root. An
+		// unanchored `**/__test__/**` escapes the package: Vitest globs the
+		// pattern literally with no nested-package.json concept, and for the root
+		// workspace — which @effected/workspaces reports at the repo root — that
+		// means globbing the whole repo, collecting every sub-package's suite
+		// against the wrong toolchain (issue #227).
 		const include: string[] = [];
 		if (hasSrcTests) {
-			include.push(join(input.path, "src/**/*.{test,spec}.{ts,tsx,js,jsx}"));
+			include.push(join(input.path, SRC_DIR, "**", TEST_FILE_GLOB_SUFFIX));
 		}
 		if (hasTestDirTests) {
-			include.push(join(input.path, "**/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}"));
+			include.push(join(input.path, TEST_DIR, "**", TEST_FILE_GLOB_SUFFIX));
 		}
 
-		// Exclude helper subdirs inside any __test__/ (root or nested) when __test__
-		// tests are present (absolute paths). A custom `test.exclude` REPLACES
-		// Vitest's defaults rather than merging, so we must re-state
-		// `configDefaults.exclude` (`**/node_modules/**`, `**/.git/**`) alongside the
-		// helper dirs. Without it, the broad `**/__test__/**` include glob re-walks
-		// into nested `__test__/.../node_modules/**` and Vitest runs dependencies'
-		// own test files (e.g. zod's tests under fixture node_modules). `**/dist/**`
-		// is added explicitly too — `configDefaults.exclude` doesn't cover `dist`,
-		// and the broadened glob can now reach into a package's build output.
+		// A custom `test.exclude` REPLACES Vitest's defaults rather than merging,
+		// so `configDefaults.exclude` must be re-stated or we lose
+		// `**/node_modules/**` and `**/.git/**`. The helper-dir globs are bounded
+		// under `__test__/`, where the `**` cannot escape the project, and cover
+		// both the flat layout and the kind-nested one (`__test__/integration/`).
 		const exclude: string[] | undefined = hasTestDirTests
-			? [
-					...configDefaults.exclude,
-					join(input.path, "**/dist/**"),
-					...TEST_DIR_HELPER_DIRS.map((d) => join(input.path, `**/__test__/${d}/**`)),
-				]
+			? [...configDefaults.exclude, ...TEST_HELPER_DIRS.map((d) => join(input.path, TEST_DIR, "**", d, "**"))]
 			: undefined;
 
 		// Detect setup file
