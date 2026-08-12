@@ -36,7 +36,7 @@
 		"types:check": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/silk": "^3.5.1",
+		"@savvy-web/silk": "^3.5.2",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/plugin": "workspace:*"
@@ -53,7 +53,7 @@
 		"runtime": [
 			{
 				"name": "node",
-				"version": "26.6.0",
+				"version": "26.7.0",
 				"onFail": "ignore"
 			}
 		]
