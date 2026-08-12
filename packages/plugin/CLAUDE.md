@@ -46,9 +46,10 @@ src/
                                    decides per-package skips, .addProject entries
                                    are merged in with conflict detection. Process
                                    cache is signature-invalidated (issue #100) over
-                                   src/ plus every nested __test__/ dir (issue #184)
-                                   and records a last-real-scan timestamp into a
-                                   Symbol.for() process-global for the mcp handshake
+                                   each package's src/ and __test__/ directories
+                                   only, and records a last-real-scan timestamp
+                                   into a Symbol.for() process-global for the mcp
+                                   handshake
     classify-helpers.ts        -- classifyByFilename, classifyByDirectory,
                                    combineClassifiers (pure ClassifyFn builders)
     find-test-files.ts         -- async glob walker (node:fs/promises) with an
@@ -82,11 +83,11 @@ src/
 | `utils/process-failure.ts` | Per-error signature pipeline. Called from `onTestRunEnd` for each error before `DataStore.writeErrors`. Returns `frames: StackFrameInput[]` and `signatureHash` |
 | `utils/build-reporter-kit.ts` | Constructs `ReporterKit` from resolved config + detected environment + `noColor` flag. `stdOsc8` is enabled when `!noColor && (env === "terminal" \|\| env === "agent-shell")` |
 | `utils/route-rendered-output.ts` | Dispatches a single `RenderedOutput` to its target: `stdout`, `github-summary` (append), or `file` (no-op) |
-| `utils/discover-strategy.ts` | `DiscoverStrategy` abstract class plus the `DefaultDiscoverStrategy` concrete subclass. Base factory is `DiscoverStrategy.create({ tags, buildProject, classify })`; `.extend({ additionalTags?, buildProject?, classify? })` chains immutable layers. The default strategy ships unit / int / e2e tags and a filename-suffix classifier, and its `buildProject` returns null when neither `src/` nor any `__test__/` dir has tests. The `__test__` include/exclude globs are `**/__test__/**`-shaped (nested dirs at any depth, issue #184) and the exclude list re-states `configDefaults.exclude` plus `**/dist/**` |
-| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries? })` runs the unified scan: every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path, and is invalidated by a cheap per-package signature over `src/` plus every nested `__test__/` dir (per-directory readdir + mtimeMs, no content reads) so the long-lived MCP server never serves stale include-globs (issues #100 / #184). The walks prune `node_modules` / `.git` / `dist` BEFORE recursing — Node's recursive readdir follows symlinks and a fixture `node_modules` would otherwise drag in the pnpm store. Every real scan records an ISO last-scan timestamp into a `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global; `getLastDiscoveryScanTimestamp()` reads it (mcp reads the same slot directly — it cannot import the plugin) |
+| `utils/discover-strategy.ts` | `DiscoverStrategy` abstract class plus the `DefaultDiscoverStrategy` concrete subclass. Base factory is `DiscoverStrategy.create({ tags, buildProject, classify })`; `.extend({ additionalTags?, buildProject?, classify? })` chains immutable layers. The default strategy ships unit / int / e2e tags and a filename-suffix classifier, and its `buildProject` returns null when neither `src/` nor `__test__/` has tests. Include globs are anchored at the package root (`<path>/src/**/*.{test,spec}.{ts,tsx,js,jsx}` and `<path>/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}`, built from `SRC_DIR` / `TEST_DIR` / `TEST_FILE_GLOB_SUFFIX` imported from `@vitest-agent/sdk`); the exclude list re-states `configDefaults.exclude` plus `<path>/__test__/**/{fixtures,snapshots,utils}/**` (`TEST_HELPER_DIRS`). The exclude is emitted unconditionally and bounds each `NON_DISCOVERABLE_DIRS` entry (`node_modules`, `.git`, `dist`) under BOTH include roots — `<path>/{src,__test__}/**/<dir>/**`. An anchored include already can't reach a package's own top-level `dist/`; the bounded globs additionally cover build output nested deeper (`src/foo/dist/x.test.ts`), which `configDefaults.exclude` does not, so the emitted config prunes exactly what `findTestFiles` prunes |
+| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries? })` runs the unified scan: every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path, and is invalidated by a cheap per-package signature over exactly `src/` and `__test__/` (`SRC_DIR` / `TEST_DIR` from `@vitest-agent/sdk`; per-directory readdir + mtimeMs, no content reads, no nested-dir walk) so the long-lived MCP server never serves stale include-globs (issue #100). The walks prune `node_modules` / `.git` / `dist` BEFORE recursing — Node's recursive readdir follows symlinks and a fixture `node_modules` would otherwise drag in the pnpm store. Every real scan records an ISO last-scan timestamp into a `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global; `getLastDiscoveryScanTimestamp()` reads it (mcp reads the same slot directly — it cannot import the plugin) |
 | `utils/is-benign-vite-source-map-warning.ts` | Pure `isBenignViteSourceMapWarning(message)` predicate matching only the benign Vite "Failed to load source map" + ENOENT `.js.map` shape (issue #110). Consumed by `plugin.ts`'s `configResolved` logger filter |
 | `utils/classify-helpers.ts` | Pure ClassifyFn builders: `classifyByFilename` (record of suffixes or `[RegExp, tags]` tuples), `classifyByDirectory` (slash-bounded segment match), `combineClassifiers` (concat plus dedupe by tag name). Plug into `DiscoverStrategy.create({ classify })` or `.extend({ classify })` |
-| `utils/find-test-files.ts` | Async glob walker built on `node:fs/promises` with an inline glob-to-regex compiler. Skips `node_modules`, `.git`, `dist`, and stops at a nested `package.json` boundary (any directory but the walk root that declares one is another unit — keeps `**/`-shaped patterns from double-counting sibling packages). The boundary applies to every pattern, anchored or not. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
+| `utils/find-test-files.ts` | Async glob walker built on `node:fs/promises` with an inline glob-to-regex compiler. Skips `NON_DISCOVERABLE_DIRS` from `@vitest-agent/sdk` (`node_modules`, `.git`, `dist` — the same constant `classifyTestPath` and the cache-signature walk use), and stops at a nested `package.json` boundary (any directory but the walk root that declares one is another unit — keeps `**/`-shaped patterns from double-counting sibling packages). The boundary applies to every pattern, anchored or not. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
 | `utils/tag.ts` | `Tag` class with `Tag.make(name, options?)`. Validates the name and exposes a `TestTagDefinition` via `.definition` for Vitest's `test.tags` array |
 | `utils/inject-tags.ts` | Prepends a guarded two-line prelude to each classified test file: a namespace `vitest` import plus a try/catch that calls `TestRunner?.getCurrentSuite?.()`, resolves `collector?.suite ?? collector?.file`, and unions the resolved tags into the task's `tags`. Vitest's runner unions parent tags into every suite/test at registration, so every declaration form inherits — native `test`/`it`, wrapper testers like `@effect/vitest`'s `it.effect`, `test.extend` aliases, numeric-timeout third-arg calls, dynamic registration (issue #133). No acorn parsing; the `magic-string` prepend preserves source maps, and the try/catch degrades to untagged tests, never a crash. The plugin enables this transform whenever a `DiscoverStrategy` is active (the default) and bypasses it entirely when the user passes `discoverStrategy: false`. Subprocess e2e coverage lives in `__test__/inject-tags-prelude.e2e.test.ts` with the `__test__/fixtures/tag-prelude-project/` fixture |
 | `layers/ReporterLive.ts` | Composition layer for `AgentReporter`. Used per-run via `Effect.runPromise` (not ManagedRuntime — the reporter is short-lived per run) |
@@ -204,14 +205,19 @@ user wiring.
 - Changing project discovery: edit `utils/discover-strategy.ts` for
   the abstract contract and the default implementation, or
   `utils/discover-projects.ts` for the scanner. The default strategy
-  recognises both `src/` (legacy) and `__test__/` (canonical) test
-  directories — the latter at any depth, e.g. `lib/scripts/__test__/` —
-  and emits one project per workspace package (no kind suffix
-  splitting — that moved to `DiscoverStrategy.classify`).
-  Helper subdirs (`utils/`, `fixtures/`, `snapshots/`) inside any
-  `__test__/` are excluded automatically. A null return from
-  `buildProject` for a workspace package is a silent skip; a null
-  return for an `.addProject` entry throws.
+  recognises only `<package>/src/` (co-located) and `<package>/__test__/`
+  (canonical), both anchored at the package root — no nested `__test__/`
+  elsewhere in the tree is discovered — and emits one project per
+  workspace package (no kind suffix splitting — that moved to
+  `DiscoverStrategy.classify`). The two locations are the single source
+  of truth in `@vitest-agent/sdk`'s `utils/test-location.ts`
+  (`SRC_DIR`, `TEST_DIR`, `TEST_HELPER_DIRS`, `TEST_FILE_GLOB_SUFFIX`,
+  `NON_DISCOVERABLE_DIRS`, plus the `isTestFileName` predicate and
+  `classifyTestPath` / `findOwningWorkspace`);
+  don't re-derive the rule here. Helper subdirs (`utils/`, `fixtures/`,
+  `snapshots/`) inside `__test__/` are excluded automatically. A null
+  return from `buildProject` for a workspace package is a silent skip;
+  a null return for an `.addProject` entry throws.
 - Changing tag classification: edit
   `utils/discover-strategy.ts` for the `DiscoverStrategy` contract,
   `utils/classify-helpers.ts` for the standalone classifier

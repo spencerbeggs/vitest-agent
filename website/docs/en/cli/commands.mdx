@@ -330,10 +330,59 @@ vitest-agent agent sidecar-path
 No flags. Exit code `0` on success; non-zero when the platform binary is
 absent.
 
+### agent check-test-path
+
+Classify one file **path** against the test-layout rule: a test file is
+discoverable only under a workspace package's own `src/` or `__test__/`
+directory, both anchored at the package root. On success, prints a single line
+of JSON to stdout.
+
+This classifies the location, not the file. It does not read the file, and it
+does not check whether the basename matches a test-file pattern — so
+`check-test-path src/index.ts` reports `valid`, meaning "a test file would be
+collected here", not "this file is a test". Callers that care about the
+filename filter on it themselves; the `test-location` PreToolUse hook applies
+exactly that prefilter before it ever invokes this command.
+
+```bash
+vitest-agent agent check-test-path packages/sdk/__test__/resolve-data-path.test.ts
+# {"verdict":"valid","workspace":"@vitest-agent/sdk","suggestedPath":null}
+
+vitest-agent agent check-test-path lib/scripts/__test__/generate-schema.test.ts
+# {"verdict":"invalid","workspace":"my-workspace","suggestedPath":"/repo/__test__/generate-schema.test.ts"}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `verdict` | `valid` \| `excluded` \| `invalid` | See the table below |
+| `workspace` | string | Name of the deepest workspace package containing the path. Never null on a successful exit — a path no workspace contains exits `1` instead |
+| `suggestedPath` | string \| null | For `invalid` only: the location a test file here should move to |
+
+| Verdict | Meaning |
+|---------|---------|
+| `valid` | A discoverable location — a test file placed here is collected |
+| `excluded` | A location that is deliberately not collected and correct as it is — a helper directory under `__test__/` (`fixtures/`, `snapshots/`, `utils/`) |
+| `invalid` | Not a legal test location; a test file here is never collected. `suggestedPath` names the corresponding valid location |
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `path` | string | The file to classify. A relative path resolves against `VITEST_AGENT_PROJECT_DIR`, or the current working directory when that variable is unset |
+
+**Exit `1` means "no verdict", not "error".** The exit-code taxonomy below does
+not apply to this subcommand. It exits `1` — writing nothing to stdout —
+whenever the rule has nothing to say about the path: no workspace contains it,
+it sits under a directory discovery never walks (`node_modules/`, `.git/`,
+`dist/`), or a directory between the package root and the file declares its own
+`package.json`, marking an independent unit whose tests belong to a different
+discovery pass. Callers must treat a non-zero exit as "no opinion" and fail
+open. The Claude Code plugin's `test-location` PreToolUse hook does exactly
+that.
+
 ## Exit codes
 
 The `agent` sidecar subcommands (`register-agent`, `end-agent`, `inject-env`,
-`sidecar-path`) share a common exit code taxonomy:
+`sidecar-path`) share a common exit code taxonomy. `check-test-path` is not
+part of this family — see its own section above for what its exit codes mean:
 
 | Code | Meaning |
 |------|---------|

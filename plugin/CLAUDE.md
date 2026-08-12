@@ -34,12 +34,13 @@ plugin/
 │   ├── __test__/             # BATS tests for hook scripts
 │   │                         #   hook-output-project-dir.bats, sidecar-prefilter.bats,
 │   │                         #   sidecar-layer2.bats, sidecar-env-warn.bats,
-│   │                         #   subagent-state-file.bats, cli-rename-cascade.bats
+│   │                         #   subagent-state-file.bats, cli-rename-cascade.bats,
+│   │                         #   test-location.bats
 │   ├── session/              # SessionStart; SessionEnd shim (end-record.sh)
 │   │                         #   + detached worker (end-record-worker.sh)
 │   ├── user-prompt-submit/   # UserPromptSubmit
 │   ├── pre-tool-use/         # PreToolUse (bash, bash-tdd, mcp, mcp-run-tests,
-│   │                         #   record, tdd-restricted)
+│   │                         #   record, tdd-restricted, test-location)
 │   ├── post-tool-use/        # PostToolUse (git-commit, record, tdd-artifact,
 │   │                         #   test-quality, test-run)
 │   ├── subagent/             # SubagentStart, SubagentStop
@@ -78,7 +79,7 @@ The MCP server communicates with CC over stdin/stdout. When CC closes its sessio
 
 ## Hooks
 
-Hook scripts in `hooks/` are POSIX shell, grouped by hook event into subdirectories. All source shared helpers from `hooks/lib/` via `$(dirname "$0")/../lib/<helper>`. Key scripts:
+Hook scripts in `hooks/` are Bash (`#!/bin/bash`, almost all under `set -euo pipefail`), grouped by hook event into subdirectories, and every registration in `hooks.json` invokes them with `bash`. Only `bin/start-mcp.sh` is POSIX `sh`, because it is the MCP loader rather than a hook. All source shared helpers from `hooks/lib/` via `$(dirname "$0")/../lib/<helper>`. Key scripts:
 
 | Script | Trigger | Behavior |
 | --- | --- | --- |
@@ -86,6 +87,7 @@ Hook scripts in `hooks/` are POSIX shell, grouped by hook event into subdirector
 | `pre-tool-use/mcp.sh` | `PreToolUse` (MCP tools) | Auto-allows non-destructive MCP tools without per-call prompts (consult `safe-mcp-vitest-agent-ops.txt`) |
 | `pre-tool-use/tdd-restricted.sh` | `PreToolUse` (tdd-task subagent) | Reads `tool_input.action` on the consolidated `tdd_goal` / `tdd_behavior` tools and denies `delete` (also blocks `tdd_artifact_record`) inside the orchestrator subagent |
 | `pre-tool-use/bash-tdd.sh` | `PreToolUse` (Bash, tdd-task subagent) | Blocks `--update`, `--reporter=silent`, `--bail`, `--testNamePattern`; injects reminder to use `run_tests` MCP |
+| `pre-tool-use/test-location.sh` | `PreToolUse` (Read/Write/Edit/MultiEdit) | Purely lexical prefilter on the target basename (`*.test.*` / `*.spec.*`); on match, delegates to `vitest-agent agent check-test-path` for the verdict. Denies only the creation of a new test file (`Write`, file does not yet exist) at an `invalid` location, with the suggested valid path in the denial message. Otherwise emits advisory `additionalContext` when the verdict is `invalid` for an existing file; no-ops on `valid`/`excluded`. Fails open (`emit_noop`) on any CLI error. |
 | `pre-tool-use/bash.sh` | `PreToolUse` (Bash, all agents) | Three-layer `inject-env` pipeline. Layer 0: bash regex prefilter skips the sidecar when the command cannot invoke Vitest. Layer 1: skips the sidecar when the active agent is the main agent. Layer 2: reads `$VITEST_AGENT_SIDECAR_BIN` (set once per session by `session/start.sh`); execs the binary directly when non-empty and executable, falls back to the `vitest-agent` JS CLI otherwise. On a rewrite, returns `updatedInput.command` with the `VITEST_AGENT_CONVERSATION_ID` / `_AGENT_ID` env prefix. Payload parsing is one `jq` call; `dirname` is computed once |
 | `post-tool-use/test-run.sh` | `PostToolUse` (Bash) | Detects vitest invocations in the Bash command; on non-zero exit code (read from `.tool_response.exit_code`) injects `<test_failure_guidance>` pointing the agent at MCP tools |
 | `post-tool-use/git-commit.sh` | `PostToolUse` (Bash) | Detects `git commit` invocations; records commit metadata into `commits` table |

@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-07
-last-synced: 2026-07-07
+updated: 2026-08-12
+last-synced: 2026-08-12
 completeness: 100
 related:
   - ./decisions.md
@@ -170,3 +170,42 @@ SQLite columns. CLI commands (`history`, `status`, `trends`, `coverage`,
 **Why retired:** the resource subsystem was removed on the `bug/mcp-start` branch. MCP tools are the best-supported client surface for this project's needs; a static documentation corpus served as MCP resources gained little over shipping the same content as a Claude Code skill or serving it from an external HTTP server, while imposing a real build-time cost — the corpus had to ship inside the package's own build output to exist at all. That cost stopped paying for itself once the bundled corpus (`public/vendor/vitest-docs/` + `public/patterns/`) caused a boot failure under `@savvy-web/bundler` >= 1.0.0. Rather than chase the bundler-version coupling again, the whole resource surface — both URI schemes, the vendored Vitest-docs snapshot, the curated patterns library, and the Effect-based snapshot-maintenance pipeline that refreshed it (`packages/mcp/lib/scripts/`, driven by the repo-internal `.claude/skills/update-vitest-snapshot/` skill) — was deleted along with its 8 tests under `src/resources/`. Two of the curated patterns (agent-operability guidance: operating the tool as an agent, running tests via MCP, silencing leaking output, known issues) survive as the renamed plugin skill `operating-vitest-agent` (formerly `vitest-context`).
 
 **What it was:** the MCP server exposed resources under two URI schemes. `vitest://docs/` exposed a vendored upstream Vitest documentation snapshot at `packages/mcp/public/vendor/vitest-docs/` — a pinned-tag, MIT-licensed capture of `vitest-dev/vitest`'s `docs/` tree, chosen over on-demand fetching because the MCP server is called from agent loops that may have no network egress. `vitest-agent://patterns/` exposed a curated patterns library at `packages/mcp/public/patterns/`, spanning testing patterns (testing Effect services, schemas, authoring a custom reporter) and agent-operability guidance. Each scheme registered an index resource and a per-page template URI (`{+path}` or `{slug}`), backed by a `list` callback that decoded the tree's manifest (`manifest.json` for the docs snapshot, `_meta.json` for patterns) validated against Effect Schema types, and emitted per-page `{ name, uri, title, description, mimeType, annotations? }` — the optional `annotations` field carried MCP 2025-11-25 `audience` and `priority` so a client could rank or filter before pulling content into context. `paths.ts`'s `resolveResourcePath` guarded against path traversal (no null bytes, no absolute paths, resolved path must stay within the resource root) since URI template variables came from clients. Both content trees lived under a package-root `public/` directory because `@savvy-web/bundler` only mirrors a package-root `public/` tree into the build output, not arbitrary `src/` subdirectories — an earlier `src/vendor/` + `src/patterns/` layout had shipped neither tree after a prior bundler migration (issue #96). The snapshot pipeline split fetch (`fetch-upstream-docs.ts`, sparse-clone via `execFileSync` with array args to avoid shell injection), build (`build-snapshot.ts`, denylist + strip frontmatter + scaffold placeholder descriptions), an annotations heuristic (`annotations-heuristic.ts`, single source for path-prefix → priority bands), and validation (`validate-snapshot.ts`, a commit-time quality gate) across separate scripts so the `update-vitest-snapshot` skill could pause between scaffolding and validation for an agent to author each page's "load when" description by hand.
+
+---
+
+## Decision 43 (Issue #184 Extension): Nested `__test__` Directory Support (Retired)
+
+**Superseded by:** the current [Decision 43 — Discovery Cache Signature Invalidation + Cross-Package Last-Scan Handshake](./decisions.md#decision-43-discovery-cache-signature-invalidation--cross-package-last-scan-handshake), whose signature now fingerprints only `src/` and `__test__/` per package. The test-layout rule now has one implementation — `classifyTestPath` and its constants (`SRC_DIR`, `TEST_DIR`, `TEST_HELPER_DIRS`, `TEST_FILE_GLOB_SUFFIX`, `NON_DISCOVERABLE_DIRS`, `isTestFileName`) in `@vitest-agent/sdk`'s `utils/test-location.ts` — that the discovery include globs, the cache signature, the test-file walker, the plugin's tag-injection gate, the `vitest-agent agent check-test-path` CLI subcommand, and a new PreToolUse hook (`plugin/hooks/pre-tool-use/test-location.sh`) all generate from or delegate to.
+
+Two deliberate exceptions, both narrower than the layout rule itself. The nested-`package.json` boundary needs a filesystem probe, so it cannot live in the pure classifier; the CLI subcommand applies it and exits 1 (fail open) when it fires, matching where `findTestFiles` stops walking. And `test-location.sh` keeps the extension list as a bash `case` — a purely lexical prefilter that decides whether to spawn the CLI at all, not where a file belongs. Adding a new test-file extension therefore means touching two places: `TEST_FILE_GLOB_SUFFIX`/`isTestFileName` and that `case` list.
+
+**Why retired:** issue #184 was an invalid report. Its file,
+`lib/scripts/__test__/generate-schema.test.ts`, was never a valid test
+location — a test file is discoverable only under a workspace `src/` or
+`__test__/` directory. Widening the discovery include glob to an unanchored
+`**/__test__/**` so it could reach that path taught the tool to accept a
+layout it should have rejected. `@effected/workspaces` reports the
+repository root itself as a workspace, so for that project the unanchored
+pattern globbed the entire repository — collecting foreign test suites
+against the wrong toolchain (279 transform failures in the reporting repo)
+and becoming issue #227. The correct fix for #184 was to reject the
+misplaced test, not to widen discovery to accept it: #184 was reclassified
+as invalid and the include globs were re-anchored at the package root.
+
+**What it was:** the cache signature fingerprinted every `__test__`
+directory nested anywhere under a package, at any depth, via
+`findNestedTestDirs` — not just a package-root `__test__/` — so an edit
+under a path like `lib/scripts/__test__/` invalidated the cache the same
+way a package-root `__test__/` edit did. The directory-finder walk and the
+per-directory `mtimeMs` walk both pruned `node_modules`, `.git` and `dist`
+before recursing, but deliberately did not stop at the nested-`package.json`
+boundary that `findTestFiles` honors — over-including a fixture package's
+own `__test__/` in the signature cost at most an extra rescan. The walk
+recorded each such boundary as a `relPath:mtimeMs` marker in a third
+signature segment (`::boundaries=…`), because adding or removing a nested
+manifest changed where `findTestFiles` stopped descending without any test
+file itself changing. The matching discovery-glob widening (`**/__test__/**`
+in place of the anchored two-pattern form, plus a `**/dist/**` exclude and
+helper-directory excludes rewritten to match at any depth) shipped
+alongside this extension in `@vitest-agent/plugin@2.1.0` and was documented
+as supported behavior in the `test-discovery` plugin skill.

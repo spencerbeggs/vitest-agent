@@ -101,7 +101,10 @@ describe("findTestFiles", () => {
 		expect(results[0]).toBe(join(tmpDir, "src", "real.test.ts"));
 	});
 
-	// ── issue #184: nested __test__ discovery must not cross package boundaries ──
+	// ── issue #227: the walk must not cross a nested package boundary ──
+	// `findTestFiles` is public and accepts unanchored patterns, so the boundary
+	// guarantee is a contract in its own right even though discovery's own
+	// include globs are anchored at the package root.
 
 	it("should not descend into a nested directory with its own package.json", async () => {
 		// Given: a root with its own test file, plus a nested dir that has both

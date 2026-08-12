@@ -17,7 +17,7 @@ Projects using this layout place tests in a `__test__/` directory that sits adja
 └── __test__/       tests and test support files
 ```
 
-Discovery also recognises `__test__/` directories nested anywhere else in the package tree, not just at the project root adjacent to `src/` — for example `lib/scripts/__test__/`. The walker stops at a nested `package.json` boundary, so it won't double-count a sibling package's tests inside a monorepo root scan.
+Discovery recognises these two locations and no others. A `__test__/` directory anywhere else in the package tree — `lib/scripts/__test__/`, for example — is not a valid test location: Vitest will not collect it, and the tests inside it will never run. The walker also stops at a nested `package.json` boundary, so a sibling package's tests are never double-counted in a monorepo scan.
 
 ## `__test__/` Directory Structure
 
@@ -25,7 +25,7 @@ Test files sit flat at the top level of `__test__/`; helper files go in reserved
 
 ```text
 __test__/
-├── *.test.ts | *.test.unit                   unit test files
+├── *.test.ts | *.unit.test.ts  unit test files
 ├── fixtures/                   static files needed by unit tests
 ├── snapshots/                  Vitest snapshot files for unit tests
 ├── utils/                      shared helpers for unit tests
