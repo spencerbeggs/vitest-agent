@@ -98,7 +98,7 @@ const { projects, tags } = await AgentPlugin.discover()
   .addProject({ name: "integration", path: "./test-only" });
 ```
 
-The builder scans every workspace package for `src/` and `__test__/` directories. Packages with neither are silently skipped. One Vitest project is emitted per workspace package; test-kind classification (`unit`, `int`, `e2e`) happens through the `DiscoverStrategy.classify` mechanism rather than project splitting. Classification tags are applied at collection time and inherited by every test declaration form, including wrapper testers like `@effect/vitest`'s `it.effect`.
+The builder scans every workspace package for `src/` and `__test__/` directories — `__test__/` at any depth, so `lib/scripts/__test__/` counts as well as one sitting next to `src/`. Packages with neither are silently skipped. One Vitest project is emitted per workspace package; test-kind classification (`unit`, `int`, `e2e`) happens through the `DiscoverStrategy.classify` mechanism rather than project splitting. Classification tags are applied at collection time and inherited by every test declaration form, including wrapper testers like `@effect/vitest`'s `it.effect`.
 
 For fine-grained control over which packages become projects and how test
 files map to tags, supply a custom `DiscoverStrategy` — extend the default with

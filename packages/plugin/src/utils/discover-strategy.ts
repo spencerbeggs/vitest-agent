@@ -106,14 +106,6 @@ export interface DiscoverStrategyExtendOptions {
 const SETUP_EXTS = ["ts", "tsx", "js", "jsx"] as const;
 const TEST_DIR_HELPER_DIRS = ["utils", "fixtures", "snapshots"] as const;
 
-async function isDir(p: string): Promise<boolean> {
-	try {
-		return (await stat(p)).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
 async function isFile(p: string): Promise<boolean> {
 	try {
 		return (await stat(p)).isFile();
@@ -253,22 +245,20 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 	}
 
 	async buildProject(input: DiscoverInput): Promise<TestProjectInlineConfiguration | null> {
-		const testDir = join(input.path, "__test__");
-		const hasTestDir = await isDir(testDir);
-
 		// Single filesystem walk that matches against both patterns at once.
 		// Two separate findTestFiles calls would traverse the whole package tree
-		// twice; bucketing the combined result by path prefix yields the same
-		// include-glob shape with one walk.
+		// twice; bucketing the combined result by "under src/ or not" yields the
+		// same include-glob shape with one walk. The `__test__` bucket is no
+		// longer root-only — `**/__test__/**` also matches nested directories
+		// like `lib/scripts/__test__/` (issue #184).
 		const srcPrefix = join(input.path, "src");
-		const testPrefix = join(input.path, "__test__");
 		const allFiles = await findTestFiles(input.path, [
 			"src/**/*.{test,spec}.{ts,tsx,js,jsx}",
-			"__test__/**/*.{test,spec}.{ts,tsx,js,jsx}",
+			"**/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}",
 		]);
 		if (allFiles.length === 0) return null;
 		const hasSrcTests = allFiles.some((f) => f.startsWith(`${srcPrefix}${sep}`) || f === srcPrefix);
-		const hasTestDirTests = allFiles.some((f) => f.startsWith(`${testPrefix}${sep}`) || f === testPrefix);
+		const hasTestDirTests = allFiles.some((f) => !(f.startsWith(`${srcPrefix}${sep}`) || f === srcPrefix));
 
 		// Build include globs as absolute paths so they resolve correctly regardless
 		// of where the root vitest.config.ts lives (monorepo root vs package root).
@@ -277,17 +267,24 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 			include.push(join(input.path, "src/**/*.{test,spec}.{ts,tsx,js,jsx}"));
 		}
 		if (hasTestDirTests) {
-			include.push(join(input.path, "__test__/**/*.{test,spec}.{ts,tsx,js,jsx}"));
+			include.push(join(input.path, "**/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}"));
 		}
 
-		// Exclude helper subdirs inside __test__/ when __test__ is present (absolute paths).
-		// A custom `test.exclude` REPLACES Vitest's defaults rather than merging, so we
-		// must re-state `configDefaults.exclude` (`**/node_modules/**`, `**/.git/**`)
-		// alongside the helper dirs. Without it, the broad `__test__/**` include glob
-		// re-walks into nested `__test__/.../node_modules/**` and Vitest runs
-		// dependencies' own test files (e.g. zod's tests under fixture node_modules).
-		const exclude: string[] | undefined = hasTestDir
-			? [...configDefaults.exclude, ...TEST_DIR_HELPER_DIRS.map((d) => join(input.path, `__test__/${d}/**`))]
+		// Exclude helper subdirs inside any __test__/ (root or nested) when __test__
+		// tests are present (absolute paths). A custom `test.exclude` REPLACES
+		// Vitest's defaults rather than merging, so we must re-state
+		// `configDefaults.exclude` (`**/node_modules/**`, `**/.git/**`) alongside the
+		// helper dirs. Without it, the broad `**/__test__/**` include glob re-walks
+		// into nested `__test__/.../node_modules/**` and Vitest runs dependencies'
+		// own test files (e.g. zod's tests under fixture node_modules). `**/dist/**`
+		// is added explicitly too — `configDefaults.exclude` doesn't cover `dist`,
+		// and the broadened glob can now reach into a package's build output.
+		const exclude: string[] | undefined = hasTestDirTests
+			? [
+					...configDefaults.exclude,
+					join(input.path, "**/dist/**"),
+					...TEST_DIR_HELPER_DIRS.map((d) => join(input.path, `**/__test__/${d}/**`)),
+				]
 			: undefined;
 
 		// Detect setup file

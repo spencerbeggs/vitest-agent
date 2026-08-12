@@ -50,13 +50,20 @@ things:
 **Project building.** It emits one Vitest project per pnpm workspace package.
 For each package it looks for test files in two locations:
 
-- `packages/*/__test__/*.test.ts` — canonical flat layout
-- `packages/*/src/**/*.test.ts` — co-located layout (accepted for backward
-  compatibility)
+- `**/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}` — canonical layout, matched
+  at any depth in the package tree (`__test__/` next to `src/` is the common
+  case, but `lib/scripts/__test__/` is found too, and nested subdirectories
+  inside a `__test__/` — `integration/`, `e2e/` — are included)
+- `src/**/*.{test,spec}.{ts,tsx,js,jsx}` — co-located layout (accepted for
+  backward compatibility)
 
-Helper subdirectories inside `__test__/` — `utils/`, `fixtures/`,
-`snapshots/` — are excluded automatically. The pre-2.0 `pkg:unit`, `pkg:int`,
-`pkg:e2e` project-name suffixes are gone; there is one project per package.
+Helper subdirectories inside any `__test__/` — `utils/`, `fixtures/`,
+`snapshots/` — are excluded automatically, as are `node_modules/`, `.git/`,
+and `dist/`. The scan also stops at a nested `package.json`: a directory that
+declares its own manifest belongs to whichever project is built for it, so a
+package that structurally contains other packages does not absorb their tests.
+The pre-2.0 `pkg:unit`, `pkg:int`, `pkg:e2e` project-name suffixes are gone;
+there is one project per package.
 
 **Tag injection.** The strategy also provides a Vite transform that
 classifies each test file by path and prepends a short prelude setting the

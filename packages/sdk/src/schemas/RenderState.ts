@@ -144,6 +144,16 @@ export const RenderState = Schema.Struct({
 	),
 	failures: Schema.Array(FailureRecord),
 	suggestedActions: Schema.Array(SuggestedActionRecord),
+	/**
+	 * Count of every collected module, passing modules included. Folded
+	 * from `RunFinished.collectedModules`. Renderers prefer this over
+	 * `moduleOrder.length` for "N modules all-passed" copy — a report
+	 * replay only queues failing modules, so `moduleOrder` alone
+	 * undercounts a green run to zero (issue #204). Optional — a run
+	 * that never carried the field (older replay data, hand-built
+	 * fixtures) falls back to `moduleOrder.length`.
+	 */
+	collectedModules: Schema.optional(Schema.Number),
 }).annotate({ identifier: "RenderState" });
 /** @public */
 export type RenderState = typeof RenderState.Type;

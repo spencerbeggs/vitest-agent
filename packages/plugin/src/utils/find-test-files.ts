@@ -80,8 +80,16 @@ function toRegexFragment(glob: string): string {
  * Async file walker that returns matched absolute paths.
  *
  * Walks `dir` recursively via `node:fs/promises`. Skips `node_modules`, `.git`,
- * and `dist` directories. Matches files against the supplied glob patterns
- * relative to `dir` (e.g. `"src/**\/*.test.ts"`).
+ * and `dist` directories, and does not descend past a nested `package.json`
+ * boundary (any directory other than `dir` itself that has its own
+ * `package.json` is treated as an independent unit — its files belong to a
+ * separate discovery pass, not this one). The package-boundary rule applies
+ * to every supplied pattern, not just an unanchored `**\/` one — an anchored
+ * pattern like `"src/**\/*.test.ts"` will not match a test file under a
+ * nested package.json even though the pattern itself never reaches past
+ * `src/`, because the boundary check runs once per directory, independent of
+ * which pattern is being matched. Matches files against the supplied glob
+ * patterns relative to `dir` (e.g. `"src/**\/*.test.ts"`).
  *
  * Returns an empty array if `dir` does not exist or no files match.
  * @param dir - Absolute path to the directory to walk
@@ -108,6 +116,18 @@ async function walkDir(root: string, dir: string, matchers: RegExp[], results: s
 	try {
 		entries = (await readdir(dir, { withFileTypes: true })) as Dirent[];
 	} catch {
+		return;
+	}
+
+	// Package boundary: a directory other than the walk's own root that has
+	// its own package.json is an independent unit (another workspace
+	// package, or a fixture package deliberately shaped like one) — its test
+	// files belong to a separate discovery pass, not this one. Without this,
+	// an unanchored `**/` pattern walking from a package that structurally
+	// contains other packages (most notably a monorepo root) would reach
+	// into sibling packages' test dirs and double-count their test files
+	// across two projects' include globs.
+	if (dir !== root && entries.some((ent) => ent.isFile() && ent.name === "package.json")) {
 		return;
 	}
 

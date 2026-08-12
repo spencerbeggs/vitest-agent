@@ -5,7 +5,7 @@ description: Invoke run_tests via MCP and surface stable / new-failure / flaky /
 
 # Run and classify
 
-1. Call `run_tests({ project?, file? })` — by default this runs the full suite via Vitest's programmatic API.
+1. Call `run_tests({ project?, files? })` — by default this runs the full suite via Vitest's programmatic API. There is no `file` (singular) or `filter` field; an unknown key is silently dropped and the whole suite runs instead of the intended subset.
 2. The reporter writes `test_runs` and `test_history` rows.
 3. Call `test_status({ project? })` to read the per-test classifications.
 

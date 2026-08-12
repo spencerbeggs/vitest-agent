@@ -296,6 +296,51 @@ describe("DataStoreLive", () => {
 				}),
 			);
 		});
+
+		it("survives a non-Error object failure value bound as message (issue #195)", async () => {
+			const rows = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sql = yield* SqlClient;
+					yield* store.writeSettings("hash-195", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hash-195" });
+					yield* store.writeErrors(runId, [
+						// Simulates Effect.flip putting a plain object in the error channel:
+						// TypeScript says message is string, runtime disagrees.
+						{ scope: "test", message: { a: 1 } as unknown as string, ordinal: 0 },
+					]);
+					return yield* sql<{
+						message: string;
+						name: string | null;
+					}>`SELECT message, name FROM test_errors WHERE run_id = ${runId}`;
+				}),
+			);
+			expect(rows).toHaveLength(1);
+			expect(rows[0].message).toBe('{"a":1}');
+		});
+
+		it("coerces non-string name/diff/actual/expected/stack binds instead of throwing", async () => {
+			const rows = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sql = yield* SqlClient;
+					yield* store.writeSettings("hash-195b", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hash-195b" });
+					yield* store.writeErrors(runId, [
+						{
+							scope: "test",
+							message: "msg",
+							name: { weird: true } as unknown as string,
+							diff: 42 as unknown as string,
+							stack: { s: 1 } as unknown as string,
+							ordinal: 0,
+						},
+					]);
+					return yield* sql<{ name: string | null }>`SELECT name FROM test_errors WHERE run_id = ${runId}`;
+				}),
+			);
+			expect(rows[0].name).toBe('{"weird":true}');
+		});
 	});
 
 	describe("writeErrors with frames", () => {

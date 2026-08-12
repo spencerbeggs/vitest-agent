@@ -84,6 +84,15 @@ __test__/
 - **Adding or editing a dispatcher cell**: cells live under `dispatcher/cells/` named `<shape>-<outcome>.ts`. Each exports both an agent-string renderer and an Ink-half renderer; both consume the shared helpers in `dispatcher/helpers.ts` / `ink-helpers.tsx`. The cell receives `DispatchInputs` plus `CellOptions` — do not reach for the kit or env directly.
 - **Adding an Ink component**: write a `.tsx` file in `render-ink/`, re-export from `render-ink/index.ts`, and add a snapshot test in `__test__/render-ink/`. Use `renderInk(tree, width)` from the test utils to pin the output width.
 - **`StreamApp` is the human-tuned `stream` renderer**: it mirrors the agent view's structure but is a parallel renderer, not the dispatcher. Its layout is a `Projects (N):` / `Modules (N):` / file-path header, count-column rows, a `FailuresSection`, then Coverage / Trend / Total. Aggregate rows use fixed-width cells so columns align across rows: `CountColumns` renders the four `✓ ✗ ↷ ⧖` glyph counts right-aligned in 4-digit cells (zeros dimmed), the duration cell pads to `DURATION_CELL_WIDTH`, and `TagColumns` renders one `tag:` cell per tag in the view-level union (`tagUnion(rows)`, computed once per frame; a union of ≤1 tag collapses to empty, suppressing tag columns view-wide). In the workspace shape `TotalsLine` takes a `labelWidth` so `Total:` counts align under the project rows. (The dispatcher's agent-string path keeps its own `formatTagCountSuffix` in `dispatcher/helpers.ts` — unrelated.) Leaf rows show one `StatusIcon`; `StatusIcon` carries a `"timed-out"` kind. The spinner frame index and `nowMs` arrive as props — never `RenderState`. See `2026-05-19-stream-mode-states-design.md`.
+- **Report honest counts (D48)**: the reducer folds
+  `RunFinished.collectedModules` into `RenderState.collectedModules`, and
+  both synthesizers populate it. The "N modules all-passed" paths
+  (`render-agent.ts`, the `single-project-pass` cell) prefer it over
+  `moduleOrder.length` — a report replay only queues failing modules, so
+  a green run undercounts to zero. When neither count is known, omit the
+  module sentence rather than printing `0 modules`; when zero tests ran,
+  print the explicit zero-collected warning, never a green summary.
+  `formatTotals` appends `across N files` when the count is known.
 - **Timed-out tests are a render-layer outcome**: the reducer routes a `timedOut` `TestFinished` into `RenderState`'s `timeoutCount` (not `failCount`) and sets the `TestRecord` status to `"timed-out"`. The `TrendComputed` `RunEvent` folds `direction` / `runCount` into `RenderState.trend`, which `TrendLine` renders. There is no SQLite change — the persistence `TestState` enum is unchanged.
 - **Changing the dispatcher contract**: the contract types (`RunShape`, `RunOutcome`, `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`) live in `packages/sdk/src/contracts/dispatcher.ts`. Coordinate changes there before editing cells.
 - **Changing the reporter contract**: every reporter factory extends the same `VitestAgentReporterFactory` contract from `packages/sdk/src/contracts/reporter.ts`. Coordinate changes there.

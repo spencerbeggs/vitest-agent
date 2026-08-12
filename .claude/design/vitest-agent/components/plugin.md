@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-08-11
+last-synced: 2026-08-11
 completeness: 93
 related:
   - ../architecture.md
@@ -211,36 +211,104 @@ a live-painting reporter sees trend without reading the database.
 
 `onTestRunEnd` also emits `RunFinished` at the top of its handler so a
 subscribed reporter sees end-of-run before the heavy persistence work
-runs. A `wantsRunEvents()` gate (true when `onRunEvent` is set, when
+runs. That live emit carries `collectedModules: testModules.length` — the
+count of every collected module, passing ones included — matching what both
+`@vitest-agent/ui` synthesizers put on their own `RunFinished`. Without it
+the live path was the one route where the reducer could not tell "no
+modules" from "no failing modules" (see [./ui.md](./ui.md)). A `wantsRunEvents()` gate (true when `onRunEvent` is set, when
 `consoleMode === "stream"`, or when a custom reporter is in use) skips
 event construction when nothing will consume the stream. The `emit` helper
 catches throwing user callbacks and logs to stderr — persistence and the
 reporter never break because a tap has a bug.
 
-**`onTestRunEnd` flow:**
+**`onTestRunEnd` flow (Full mode).** The handler is split into two
+programs — a **persist** program that needs SQLite and a **render** program
+that does not — so a persistence failure can never swallow the run's
+output. See *Render survives persistence failure* below and Decision 47 in
+[../decisions.md](../decisions.md).
 
-1. `await ensureMigrated(dbPath)` to serialize migration across reporter
+1. Resolve `dbPath` via `ensureDbPath()` (defensive — `onInit` normally
+   did it already), then filter `testModules` by `projectFilter` and group
+   by project name. A rejection here — an unreadable cache dir, an
+   unresolvable workspace identity — leaves `dbPath` undefined and records
+   a `persistDisabled` reason instead of returning: the render program is
+   DB-free, so the run still reports its results. The defensive
+   `mkdirSync(dirname(dbPath))` a few lines later is guarded the same way.
+   `onInit`'s own `ensureDbPath()` is likewise best-effort (Vitest awaits
+   `onInit`, so a rejection there would abort the run before any test ran).
+2. **Build fallback reports up front**, outside any Effect: the same
+   per-project grouping the persist program uses, run through
+   `buildAgentReport` with no DB read and no classifier. The whole build is
+   wrapped in a `try` — `buildAgentReport` walks duck-typed Vitest getters
+   (`state()`, `errors()`) bare, so a throwing getter degrades to a
+   `formatFatalError` line on stderr and an early return rather than an
+   unhandled rejection with no output at all.
+3. `await ensureMigrated(dbPath)` to serialize migration across reporter
    instances sharing a `dbPath`. See [./sdk.md](./sdk.md) for why this
-   coordination is required.
-2. Persist Vitest settings + env vars via `DataStore.writeSettings()`.
-3. Filter `testModules` by `projectFilter`, group by project name. First
-   project (alphabetically) processes global coverage; others skip.
-4. Per project: build the `AgentReport`, classify outcomes via
-   `HistoryTracker`, run each error through `processFailure` (source-mapping
-   the top non-framework frame, finding the function boundary, computing the
-   stable failure signature), upsert `failure_signatures`, then persist runs,
-   modules, suites, test cases, errors, coverage, history, and source-map
-   entries.
-5. Compute updated baselines, write trends on full (non-scoped) runs, and
-   read trend summaries back for the `ReporterRenderInput`.
-6. **Render delegation.** Build a second, health-aware `ReporterKit` via
-   `buildReporterKit` (this one carries post-run `detail` and the same
-   `runEvents` channel), reuse the reporters resolved at run start by
-   `initReporters` — resolving the factory here only when `onInit` did
-   not run — call each reporter's `render(input, kit)`, concatenate the
-   `RenderedOutput[]`, then route each entry via `routeRenderedOutput`.
-   The factory is invoked at most once; `render` receives the run-end
-   kit while the factory received the run-start kit.
+   coordination is required. A rejection here no longer returns early — it
+   records a `persistDisabled` reason and skips straight to the render
+   program.
+4. **Persist program** (`DataStore | DataReader | CoverageAnalyzer |
+   HistoryTracker`, provided by `ReporterLive(dbPath)`): persist Vitest
+   settings + env vars via `DataStore.writeSettings()`; per project build
+   the `AgentReport`, classify outcomes via `HistoryTracker`, run each
+   error through `processFailure` (source-mapping the top non-framework
+   frame, finding the function boundary, computing the stable failure
+   signature), upsert `failure_signatures`, then persist runs, modules,
+   suites, test cases, errors, coverage, history, and source-map entries.
+   First project (alphabetically) processes global coverage; others skip.
+   Compute updated baselines, write trends on full (non-scoped) runs, read
+   trend summaries back, and aggregate the flat `classifications` index.
+   The program returns `{ reports, classifications, trendSummary? }` — the
+   `PersistResult` the render program consumes.
+5. **Render program** (`OutputPipelineLive` + `NodeServices.layer`, no
+   SQLite — the same DB-free wiring the UI-only branch uses). It resolves
+   env / executor / format / detail, builds a second, health-aware
+   `ReporterKit` via `buildReporterKit` (carrying post-run `detail` and the
+   same `runEvents` channel), reuses the reporters resolved at run start by
+   `initReporters` — resolving the factory here only when `onInit` did not
+   run — calls each reporter's `render(input, kit)`, concatenates the
+   `RenderedOutput[]`, then routes each entry via `routeRenderedOutput`.
+   The factory is invoked at most once; `render` receives the run-end kit
+   while the factory received the run-start kit.
+
+**Render survives persistence failure.** The render program always runs.
+Its input is the persist program's `PersistResult` when persistence
+succeeded, and otherwise a `PersistResult` synthesized from the fallback
+reports with an empty `classifications` map and no `trendSummary` — the
+results still render, just without history-derived classification or trend.
+After rendering, a failed or disabled persist phase writes one line to
+stderr:
+
+```text
+vitest-agent: persistence failed — results above were rendered but NOT recorded: <reason>
+```
+
+Both failure sources funnel into that line: `persistDisabled` (`dbPath`
+resolution, the defensive `mkdirSync`, or the migration rejected) and
+`persistFailure` (the persist program itself rejected). The pre-split
+behavior — return early, print nothing but the migration error, render
+nothing — was the worst possible outcome for an agent, which then had no
+run result at all.
+
+**The remaining no-render exits** are three, and none of them is a
+persistence failure: the `this.rendered` idempotence guard (a second
+`onTestRunEnd` for the same run), the empty-`filteredModules` guard under
+a `projectFilter` (this reporter instance owns no modules in this run),
+and a throw from the guarded fallback build itself — at which point there
+is no renderable data left to protect.
+
+**Per-project run outcome.** The `reason` Vitest hands `onTestRunEnd` is
+the whole-process outcome. Writing it verbatim to every project's
+`test_runs` row marked all thirteen projects `failed` when one failed
+(issue #147). `writeRun` now derives a per-project reason from that
+project's own report: `interrupted` passes through globally (a killed run
+is killed for everyone), otherwise `failed` when the project's
+`summary.failed > 0 || failedFiles.length > 0` and `passed` otherwise.
+This diverges deliberately from `baseReport.reason`, which
+`buildAgentReport` self-corrects to `failed` on unhandled errors alone —
+the persisted per-project reason only ever looks at that project's own
+failed tests and files.
 
 The health-aware kit's `hasFailures` keys off
 `report.failedFiles.length > 0 || report.unhandledErrors.length > 0`, NOT
@@ -250,8 +318,28 @@ plugin-side half of the false-green fix; `summary` stays a pure test-case
 count and the suite-level failure is folded in at the render/health seam.
 See Decision 45 in [../decisions.md](../decisions.md).
 
+**Error-text coercion at the persistence boundary.** Every value the
+reporter pulls off a Vitest error before handing it to `DataStore` goes
+through the SDK's `coerceErrorField` — the three `TestErrorInput` push
+sites (test-scope, module-scope, unhandled-scope) and the `errorMap`
+lookup that feeds classification. `coerceErrorField(e, "message")` rather
+than `coerceErrorText(e.message)` because the property access itself is
+the hazard: a live getter (Effect's `ConfigError.message`) throws before
+the value ever reaches a coercion helper. For the same reason the raw
+error is no longer spread into `processFailure` — `{ ...e }` invokes every
+enumerable getter — so the reporter builds an explicit object of
+already-coerced `message` / `name` / `stack` plus a `stacks` array read
+through the local `readErrorStacks` guard (frames are dropped, never
+thrown). The coerced `message` (with `"<missing message>"` as the not-null
+sentinel) and `stack` are what `processFailure` sees, so signature
+computation never runs against a non-string. Rationale and the failure
+shapes this defends against live in [./sdk.md](./sdk.md).
+
 Each lifecycle hook builds a scoped Effect and runs it with
-`Effect.runPromise` against `ReporterLive(dbPath)`.
+`Effect.runPromise`. The persist program is provided
+`ReporterLive(dbPath)`; the render program is provided
+`OutputPipelineLive` merged with `NodeServices.layer`, and touches no
+SQLite service.
 
 ## CoverageAnalyzer
 
@@ -293,12 +381,25 @@ extension `buildProject` implementations receive the prior layer's
 result as a second argument so they can augment or replace it.
 
 `DefaultDiscoverStrategy` is the strategy applied when no override is
-passed. Its `buildProject` calls `findTestFiles` for both `src/` and
-`__test__/` patterns and returns null when neither directory contains
-matches — a single predicate covers what would otherwise be several
-special cases (root package skip, missing `src/` skip, no-test-files
-placeholder). Its `classify` is the filename-suffix match (`.e2e.test.ts`
-to e2e, `.int.test.ts` to int, otherwise unit).
+passed. Its `buildProject` makes a single `findTestFiles` walk against both
+patterns — `src/**/*.{test,spec}.*` and `**/__test__/**/*.{test,spec}.*` —
+and returns null when neither bucket has matches; a single predicate covers
+what would otherwise be several special cases (root package skip, missing
+`src/` skip, no-test-files placeholder). Its `classify` is the
+filename-suffix match (`.e2e.test.ts` to e2e, `.int.test.ts` to int,
+otherwise unit).
+
+The `__test__` pattern is `**/__test__/**`, not root-only `__test__/**`, so
+a nested test directory such as `lib/scripts/__test__/` is discovered
+(issue #184). Bucketing is now "under `src/` or not" rather than a
+`__test__`-prefix test, since the nested form has no fixed prefix. Two
+consequences follow from the broader glob: the emitted `exclude` list adds
+`**/dist/**` (Vitest's `configDefaults.exclude` does not cover build
+output, and the broadened include can now reach into it), and the helper-
+subdirectory excludes (`utils`, `fixtures`, `snapshots`) are themselves
+rewritten to `**/__test__/<dir>/**` so they apply at every depth. The
+exclude list is emitted whenever the `__test__` bucket produced matches
+(previously: whenever a root `__test__/` directory merely existed).
 
 The three classifier helpers (`classifyByFilename`, `classifyByDirectory`,
 `combineClassifiers`) and the standalone `findTestFiles` walker live
@@ -334,7 +435,7 @@ predicate to decide whether a package contributes a project. The scanner:
    explicit user intent and a silent skip would surprise the caller.
 4. Materializes `tags` as a copy of `strategy.tagDefinitions`.
 
-**Signature-invalidated process cache.** Results are keyed by workspace root in a module-local `Map`. The cache fires only when neither `strategy` nor `additionalEntries` was supplied so a `DiscoverStrategy` instance never has to be fingerprinted. Any explicit strategy or any `.addProject` chain bypasses the cache. Each entry stores `{ result, signature }`: the signature is a cheap fingerprint of every package's `src/` and `__test__/` directories (recursive relative-path + `mtimeMs` pairs, no file contents). On the cacheable path the signature is recomputed and compared before a cached result is returned, so a test file added/removed/moved/renamed on disk triggers a rescan rather than returning stale include-globs (issue #100 — the long-lived MCP server otherwise silently dropped tests after a test-file move). Every real scan also records an ISO timestamp under `Symbol.for("vitest-agent:discovery:last-scan-at")`, readable via the exported `getLastDiscoveryScanTimestamp()`, which `@vitest-agent/mcp` reads back to surface `discoveryLastScannedAt` on `run_tests` results without a circular import. See [./discover.md](./discover.md) and [../decisions.md](../decisions.md) Decision 43.
+**Signature-invalidated process cache.** Results are keyed by workspace root in a module-local `Map`. The cache fires only when neither `strategy` nor `additionalEntries` was supplied so a `DiscoverStrategy` instance never has to be fingerprinted. Any explicit strategy or any `.addProject` chain bypasses the cache. Each entry stores `{ result, signature }`: the signature is a cheap fingerprint of every package's `src/` directory plus *every* nested `__test__/` directory found under the package (recursive relative-path + `mtimeMs` pairs, no file contents). `findNestedTestDirs` locates those directories at any depth, so a `lib/scripts/__test__/` edit invalidates the cache the same way a package-root `__test__/` edit does (issue #184). Both walks — the directory finder and the per-directory `mtimeMs` walk — prune `node_modules`, `.git` and `dist` *before* recursing (`SIGNATURE_SKIP_DIRS`) rather than filtering results afterwards: Node's recursive `readdir` follows symlinked directories, and a pnpm `node_modules` tree is nothing but symlinks into the content-addressed store, so an unguarded walk from a package root — or from a found `__test__` dir that contains a fixture `node_modules` — walks the whole store or hits a symlink cycle. The two walks deliberately do **not** honor the nested-`package.json` boundary that `findTestFiles` stops at; over-including a fixture package's own `__test__/` in the signature only ever costs an extra rescan, and failing safe toward rescanning beats serving a stale project list. They do, however, **record** those boundaries: `findNestedTestDirs` returns `{ testDirs, boundaries }`, where each boundary is the `relPath:mtimeMs` of a nested `package.json` (the package's own root manifest excluded — it is not a boundary for its own walk, and version bumps would churn the signature for nothing). Boundary markers join the signature as a third segment (`::boundaries=…`) because adding or removing a nested manifest changes `findTestFiles`' traversal shape — it starts or stops descending into that subtree — without any test file changing, and a cache that missed that would serve a project list discovery can no longer produce. On the cacheable path the signature is recomputed and compared before a cached result is returned, so a test file added/removed/moved/renamed on disk triggers a rescan rather than returning stale include-globs (issue #100 — the long-lived MCP server otherwise silently dropped tests after a test-file move). Every real scan also records an ISO timestamp under `Symbol.for("vitest-agent:discovery:last-scan-at")`, readable via the exported `getLastDiscoveryScanTimestamp()`, which `@vitest-agent/mcp` reads back to surface `discoveryLastScannedAt` on `run_tests` results without a circular import. See [./discover.md](./discover.md) and [../decisions.md](../decisions.md) Decision 43.
 
 Users that want to mutate projects post-discovery either extend the strategy
 (preferred) or destructure the result and mutate the array before
@@ -470,7 +571,17 @@ instead.
   want to compose classification without writing a custom strategy.
 - `find-test-files.ts` — async glob walker built on
   `node:fs/promises` with an inline glob-to-regex compiler. Skips
-  `node_modules`, `.git`, and `dist` by default. Used by
+  `node_modules`, `.git`, and `dist` by default, and stops at a **nested
+  `package.json` boundary**: any directory other than the walk's own root
+  that declares a `package.json` is an independent unit (another workspace
+  package, or a fixture package deliberately shaped like one) whose test
+  files belong to a separate discovery pass. Without that stop, the
+  unanchored `**/__test__/**` pattern walking from a package that
+  structurally contains other packages — a monorepo root most of all —
+  reaches into sibling packages and double-counts their test files across
+  two projects' include globs. The boundary check runs once per directory,
+  independent of which pattern is being matched, so it also applies to
+  anchored patterns like `src/**/*.test.ts`. Used by
   `DefaultDiscoverStrategy.buildProject` and exported as part of the
   public surface so user strategies can reuse it.
 - `discover-projects.ts` — `discoverProjects` workspace scanner (see
@@ -480,6 +591,11 @@ instead.
   forbidden characters open-paren, close-paren, ampersand, pipe,
   exclamation mark, asterisk plus whitespace).
 - `inject-tags.ts` — `injectTags(source, tags)` prepends the guarded file-level tag prelude via magic-string (source maps preserved) and returns null only for an empty tag list. No parsing — the acorn AST rewrite was removed (issue #133). Used by the plugin's Vite transform hook; see "Tag injection transform" above.
+- `stringify-failure-value.ts` — converts a Vitest error's `expected` /
+  `actual` into a single-line string for the stream renderer. Like the SDK
+  formatters it is exception-safe end to end: `JSON.stringify` falls back to
+  `String(value)`, which falls back to `"<unserializable value>"` when the
+  value's own `toString` throws.
 - `strip-console-reporters.ts` — removes console reporters from Vitest's
   reporter chain.
 - `is-benign-vite-source-map-warning.ts` — pure predicate `isBenignViteSourceMapWarning(message)` matching only the benign Vite `Failed to load source map` / ENOENT `.js.map` noise. Consumed by the `configResolved` logger filter (issue #110).

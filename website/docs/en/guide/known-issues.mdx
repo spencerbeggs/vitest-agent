@@ -18,11 +18,38 @@ layer's check-then-insert and surface a `DataStoreError` carrying
 
 ## `coverage/.tmp … ENOENT coverage-0.json`
 
-**Status: inherent Vitest, not a vitest-agent bug.** Two Vitest processes
-running at once (for example a CLI run alongside the `vitest-vscode` extension)
-share Vitest's default `coverage.reportsDirectory`, and one can delete the temp
-dir the other is using. vitest-agent never sets `reportsDirectory`. Give each
-concurrent process its own `coverage.reportsDirectory`, or serialize them.
+**Status: fixed for MCP `run_tests` invocations, live everywhere else.** Two
+Vitest processes running at once (for example a CLI run alongside the
+`vitest-vscode` extension) share Vitest's default `coverage.reportsDirectory`,
+and one can delete the temp dir the other is using. Each `run_tests`
+invocation now gets its own throwaway reports directory, so concurrent MCP
+runs no longer collide — one consequence is that html/lcov artifacts from an
+MCP run land in that throwaway directory rather than `./coverage`, which
+costs nothing because MCP consumers read coverage from SQLite. Two concurrent
+direct `vitest run` processes still collide: give each its own
+`coverage.reportsDirectory`, or serialize them. Update `@vitest-agent/mcp` if
+you still see this on MCP runs.
+
+## `persistence failed — results above were rendered but NOT recorded`
+
+**Status: expected.** The reporter renders results and persists them as two
+separate phases. When the write phase fails — a locked database, an
+unwritable data directory, a migration that cannot run — the results still
+render and this line goes to stderr with the underlying error appended.
+Trust what you see on screen; do not trust history for that run. Nothing
+reached SQLite, so classifications are absent from the render and
+`test_status`, `test_history`, and coverage trends stay at their previous
+values until a run persists successfully. Fix the cause named in the message
+and rerun.
+
+## `0 tests collected` on a run you expected to be green
+
+**Status: expected.** A run that collects nothing is reported as a warning
+rather than a pass, because zero tests almost always means a wrong working
+directory, a filter that matched nothing, or a load-time error — not an
+empty suite. The agent-facing totals line also carries
+`across N files` whenever the collected module count is known, so a lower N
+than you expect is the signal that files failed to load.
 
 ## `MaxPerformanceEntryBufferExceededWarning`
 

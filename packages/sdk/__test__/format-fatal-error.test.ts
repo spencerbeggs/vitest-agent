@@ -5,6 +5,18 @@ import { formatFatalError } from "../src/utils/format-fatal-error.js";
 
 const ISSUE_URL = "https://github.com/spencerbeggs/vitest-agent/issues";
 
+const makeThrowingGetterError = (): Record<string, unknown> => {
+	const nullProtoCause = Object.create(null);
+	const err: Record<string, unknown> = { cause: nullProtoCause };
+	Object.defineProperty(err, "message", {
+		get() {
+			return (this as { cause: { toString(): string } }).cause.toString();
+		},
+		enumerable: true,
+	});
+	return err;
+};
+
 describe("formatFatalError", () => {
 	it("formats a plain Error with message and stack", () => {
 		const err = new Error("something broke");
@@ -74,5 +86,64 @@ describe("formatFatalError", () => {
 		const result = formatFatalError({ code: 42, msg: "oops" });
 		expect(result).toContain("oops");
 		expect(result).toContain(ISSUE_URL);
+	});
+
+	it("formatFatalError survives a message getter that throws (issue #193)", () => {
+		const out = formatFatalError(makeThrowingGetterError());
+		expect(out).toContain("Please report at");
+	});
+
+	it("formatFatalError survives an Error whose constructor getter ALSO throws in the recovery path", () => {
+		const err = new Error("original message");
+		Object.defineProperty(err, "stack", {
+			get(): string {
+				throw new TypeError("no stack");
+			},
+		});
+		Object.defineProperty(err, "message", {
+			get(): string {
+				throw new TypeError("no message");
+			},
+		});
+		Object.defineProperty(err, "constructor", {
+			get(): never {
+				throw new TypeError("no constructor");
+			},
+		});
+		const out = formatFatalError(err);
+		expect(out).toContain("<unserializable Error>");
+		expect(out).toContain("Please report at");
+	});
+
+	it("formatFatalError survives an Error instance with throwing message/stack getters (issue #193)", () => {
+		const err = new Error("original message");
+		Object.defineProperty(err, "message", {
+			get(): string {
+				throw new TypeError("no message");
+			},
+			configurable: true,
+		});
+		Object.defineProperty(err, "stack", {
+			get(): string {
+				throw new TypeError("no stack");
+			},
+			configurable: true,
+		});
+		const out = formatFatalError(err);
+		expect(out).toContain("<unserializable Error>");
+		expect(out).toContain("Please report at");
+	});
+
+	it("formatFatalError survives an object where JSON.stringify and String both throw (issue #193)", () => {
+		const err = makeThrowingGetterError();
+		// Make String(err) throw too: toString getter that throws.
+		Object.defineProperty(err, "toString", {
+			get(): never {
+				throw new TypeError("no toString for you");
+			},
+		});
+		const out = formatFatalError(err);
+		expect(out).toContain("<unserializable error>");
+		expect(out).toContain("Please report at");
 	});
 });

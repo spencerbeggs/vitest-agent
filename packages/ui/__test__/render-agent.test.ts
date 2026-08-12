@@ -10,12 +10,14 @@ const baseState = (overrides: Partial<RenderState> = {}): RenderState => ({
 });
 
 describe("renderAgent — header", () => {
-	it("renders only the header when there is nothing else to show", () => {
+	it("warns instead of rendering a bare header when nothing was collected", () => {
 		const state = baseState({
 			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 0 },
 		});
 		expect(renderAgent(state)).toMatchInlineSnapshot(`
 			"Tests: 0/0 passed (0ms)
+
+			0 tests collected. A zero-test run usually means a wrong working directory, a filter that matched nothing, or a load-time error — verify before trusting it.
 			"
 		`);
 	});
@@ -123,6 +125,37 @@ describe("renderAgent — modules", () => {
 		expect(output).toContain("Modules:");
 		expect(output).toContain("- a.test.ts: 2 passed");
 		expect(output).toContain("- b.test.ts: 1 passed, 1 failed");
+	});
+
+	it("renders the true module count on a green run (issue #204)", () => {
+		const state = baseState({
+			totals: { passCount: 59, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 500 },
+			collectedModules: 3,
+		});
+		const out = renderAgent(state);
+		expect(out).toContain("3 modules all-passed.");
+		expect(out).not.toContain("0 modules");
+	});
+
+	it("warns instead of celebrating a zero-collected run (issue #192)", () => {
+		const state = baseState({
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 0 },
+			collectedModules: 0,
+		});
+		const out = renderAgent(state);
+		expect(out).toContain("0 tests collected");
+		expect(out).not.toContain("all-passed");
+	});
+
+	it("does not print the zero-collected warning for a timeout-only run", () => {
+		// Parity with the single-project-pass cell: a timed-out test is a
+		// real collected test even though pass=fail=skip=0.
+		const state = baseState({
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 1, durationMs: 50 },
+			collectedModules: 1,
+		});
+		const out = renderAgent(state);
+		expect(out).not.toContain("0 tests collected");
 	});
 });
 
@@ -293,6 +326,7 @@ describe("renderAgent — actions block", () => {
 
 	it("renders all three severities with optional tool hint", () => {
 		const state = baseState({
+			totals: { passCount: 2, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 5 },
 			suggestedActions: [
 				{ severity: "info", title: "a", detail: "alpha detail" },
 				{ severity: "warn", title: "b", detail: "beta detail", targetTool: "run_tests" },
@@ -300,7 +334,7 @@ describe("renderAgent — actions block", () => {
 			],
 		});
 		expect(renderAgent(state)).toMatchInlineSnapshot(`
-			"Tests: 0/0 passed (0ms)
+			"Tests: 2/2 passed (5ms)
 
 			Actions:
 			- info: a

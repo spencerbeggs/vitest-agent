@@ -1,5 +1,6 @@
 import type { AgentReport, ModuleReport, TestReport } from "../schemas/AgentReport.js";
 import type { ReportError } from "../schemas/Common.js";
+import { coerceErrorField } from "./coerce-error-text.js";
 
 // --- Duck-typed Vitest interfaces ---
 
@@ -117,6 +118,12 @@ export interface VitestTestSuite {
 		tags?: string[];
 	};
 	location?: { line: number; column: number };
+	/**
+	 * Errors attached to the suite entity itself — a `beforeAll`/`afterAll`
+	 * hook throw lands here, not on any individual `TestCase`. Optional
+	 * because older duck-typed callers may not supply it.
+	 */
+	errors?(): Array<VitestModuleError>;
 }
 
 /**
@@ -168,10 +175,26 @@ function mapErrors(
 ): ReportError[] | undefined {
 	if (!errors || errors.length === 0) return undefined;
 	return errors.map((e) => {
+		// Field reads go through coerceErrorField, not coerceErrorText(e.x):
+		// a live getter (ConfigError.message) throws at the property access,
+		// before the value ever reaches the coercion helper.
+		const diffText = coerceErrorField(e, "diff");
+		let stacks: Array<string | VitestParsedStack> | undefined;
+		try {
+			stacks = (e as { stacks?: Array<string | VitestParsedStack> }).stacks;
+		} catch {
+			stacks = undefined;
+		}
+		let stackText: string | undefined;
+		try {
+			stackText = stacks && stacks.length > 0 ? stacks.map(formatStackFrame).join("\n") : undefined;
+		} catch {
+			stackText = undefined;
+		}
 		return {
-			message: e.message,
-			...("diff" in e && e.diff != null ? { diff: e.diff } : {}),
-			...(e.stacks && e.stacks.length > 0 ? { stack: e.stacks.map(formatStackFrame).join("\n") } : {}),
+			message: coerceErrorField(e, "message") ?? "<missing message>",
+			...(diffText !== undefined ? { diff: diffText } : {}),
+			...(stackText !== undefined ? { stack: stackText } : {}),
 		};
 	});
 }
@@ -233,6 +256,18 @@ export function buildAgentReport(
 		const moduleState = normalizeState(testModule.state());
 		const moduleErrors = mapErrors(testModule.errors());
 
+		// Suite-level failures: a beforeAll/afterAll throw is attached to the suite
+		// entity, not the module, and Vitest may leave module.state() green while
+		// failing the file. Read every suite's state and errors so hook throws can
+		// never hide behind passing `it` counts (issue #213).
+		const suiteErrors: ReportError[] = [];
+		let anySuiteFailed = false;
+		for (const suite of testModule.children.allSuites()) {
+			if (normalizeState(suite.state()) === "failed") anySuiteFailed = true;
+			const mapped = mapErrors(suite.errors?.());
+			if (mapped) suiteErrors.push(...mapped);
+		}
+
 		// Collect all tests and tally counts
 		const allTests = [...testModule.children.allTests()];
 		const testReports: TestReport[] = [];
@@ -269,23 +304,28 @@ export function buildAgentReport(
 			}
 		}
 
-		// A module is "failed" in the report when either:
+		// A module is "failed" in the report when any of:
 		//   - at least one of its test cases failed, OR
-		//   - the module itself failed before its tests could run (a
-		//     collection-time error: import failure, syntax error, or
-		//     beforeAll throw). In that second case `allTests` is empty
-		//     and `moduleHasFailure` stays false, so we additionally
-		//     check the module's own state + errors so the agent sees
-		//     the file in `failed[]` instead of a misleading "0 passed".
-		const isCollectionFailure = !moduleHasFailure && moduleState === "failed" && moduleErrors !== undefined;
-		if (moduleHasFailure || isCollectionFailure) {
+		//   - the module itself is in state "failed" (a collection-time
+		//     error: import failure, syntax error, or beforeAll throw) —
+		//     regardless of whether Vitest also populated `errors()`, OR
+		//   - any of its suites is in state "failed" or carries errors (an
+		//     afterAll/beforeAll hook throw attached to the suite entity,
+		//     which can leave `module.state()` green — issue #213).
+		// In the collection/suite-failure cases `allTests` may be empty and
+		// `moduleHasFailure` stays false, so we additionally check the
+		// module's own state and the suite scan so the agent sees the file
+		// in `failed[]` instead of a misleading "0 passed".
+		const combinedErrors = [...(moduleErrors ?? []), ...suiteErrors];
+		const moduleLevelFailure = moduleState === "failed" || anySuiteFailed || combinedErrors.length > 0;
+		if (moduleHasFailure || moduleLevelFailure) {
 			failedFiles.push(testModule.relativeModuleId);
 			const moduleReport: ModuleReport = {
 				file: testModule.relativeModuleId,
-				state: moduleState,
+				state: moduleLevelFailure ? "failed" : moduleState,
 				duration: moduleDuration,
 				tests: testReports,
-				...(moduleErrors ? { errors: moduleErrors } : {}),
+				...(combinedErrors.length > 0 ? { errors: combinedErrors } : {}),
 			};
 			failedModules.push(moduleReport);
 		}
@@ -293,16 +333,20 @@ export function buildAgentReport(
 
 	const mappedUnhandled = mapErrors(unhandledErrors) ?? [];
 
+	const effectiveReason =
+		reason === "passed" && (failedFiles.length > 0 || mappedUnhandled.length > 0) ? "failed" : reason;
+
 	return {
 		timestamp: new Date().toISOString(),
 		...(projectName != null ? { project: projectName } : {}),
-		reason,
+		reason: effectiveReason,
 		summary: {
 			total: totalCount,
 			passed: passedCount,
 			failed: failedCount,
 			skipped: skippedCount,
 			duration: totalDuration,
+			modules: testModules.length,
 		},
 		failed: failedModules,
 		unhandledErrors: mappedUnhandled,

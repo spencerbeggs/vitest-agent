@@ -3,11 +3,35 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/sdk";
 import { Effect, Layer, ManagedRuntime } from "effect";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import type { McpContext } from "../src/context.js";
 import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
 import { appRouter } from "../src/router.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
+
+// Fault-injection hook for the "mkdtempSync throws" coverage-dir test below.
+// A named-export node:fs namespace is not configurable, so vi.spyOn can't
+// mutate it directly — vi.mock intercepts module resolution instead. Every
+// other node:fs export passes through to the real implementation; only
+// mkdtempSync consults this box, and only when a test has set it.
+let throwMkdtempSyncFor: string | undefined;
+// When set alongside throwMkdtempSyncFor, mkdtempSync throws THIS value
+// instead of the default Error — used to pin hostile-thrown-value handling.
+let throwMkdtempSyncValue: unknown;
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	return {
+		...actual,
+		mkdtempSync: (...args: Parameters<typeof actual.mkdtempSync>) => {
+			const [prefix] = args;
+			if (throwMkdtempSyncFor !== undefined && typeof prefix === "string" && prefix.includes(throwMkdtempSyncFor)) {
+				if (throwMkdtempSyncValue !== undefined) throw throwMkdtempSyncValue;
+				throw new Error("ENOSPC: no space left on device, mkdtemp");
+			}
+			return actual.mkdtempSync(...args);
+		},
+	};
+});
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
@@ -300,6 +324,56 @@ describe("MCP Router", () => {
 			expect(["ok", "timeout", "error"]).toContain(result.kind);
 		} finally {
 			rmSync(isolated, { recursive: true, force: true });
+		}
+	});
+
+	it("run_tests surfaces a throwing mkdtempSync as the tool's error envelope, not a raw throw", async () => {
+		// Pin the fix from the review: makeCoverageDirOverride() is called
+		// inside run-tests.ts's try block, so a full/read-only tmpdir failing
+		// mkdtempSync must be caught by the surrounding catch and returned as
+		// { kind: "error" }, not propagate raw out of the tRPC resolver.
+		throwMkdtempSyncFor = "vitest-agent-cov-";
+		try {
+			const caller = createTestCaller();
+			const result = await caller.run_tests({ files: ["nonexistent.test.ts"], timeout: 5 });
+			expect(result.kind).toBe("error");
+			if (result.kind === "error") {
+				expect(result.message).toContain("ENOSPC");
+			}
+		} finally {
+			throwMkdtempSyncFor = undefined;
+		}
+	});
+
+	it("run_tests returns the error envelope even for a hostile thrown value (throwing getters)", async () => {
+		// The final catch's `err instanceof Error ? err.message : String(err)`
+		// can itself throw on a hostile value (throwing message getter AND
+		// throwing toString). The envelope must still come back with a string
+		// message — never a raw tRPC rejection.
+		const hostile: Record<string, unknown> = {};
+		Object.defineProperty(hostile, "message", {
+			get(): string {
+				throw new TypeError("no message for you");
+			},
+			enumerable: true,
+		});
+		Object.defineProperty(hostile, "toString", {
+			get(): never {
+				throw new TypeError("no toString for you");
+			},
+		});
+		throwMkdtempSyncFor = "vitest-agent-cov-";
+		throwMkdtempSyncValue = hostile;
+		try {
+			const caller = createTestCaller();
+			const result = await caller.run_tests({ files: ["nonexistent.test.ts"], timeout: 5 });
+			expect(result.kind).toBe("error");
+			if (result.kind === "error") {
+				expect(typeof result.message).toBe("string");
+			}
+		} finally {
+			throwMkdtempSyncFor = undefined;
+			throwMkdtempSyncValue = undefined;
 		}
 	});
 

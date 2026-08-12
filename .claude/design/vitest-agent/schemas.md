@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-22
-last-synced: 2026-07-22
+updated: 2026-08-11
+last-synced: 2026-08-11
 completeness: 93
 related:
   - ./architecture.md
@@ -87,7 +87,11 @@ carries an optional `timedOut: boolean`; `ModuleFinished` and
 carries an optional `tagCounts` (per-tag test count). `TrendComputed`
 carries trend direction and run count, emitted from `onTestRunEnd` after
 trend computation just as `CoverageReady` is emitted after the coverage
-analyzer. A timed-out test still persists as
+analyzer. `RunFinished` also carries an optional `collectedModules` — the
+count of every collected module, passing ones included — populated by the
+plugin's live emit and by both `@vitest-agent/ui` synthesizers, so the
+reducer can fold the true module count even when `moduleOrder` tracks only
+failing modules (report replay; issue #204). A timed-out test still persists as
 `failed` — Vitest has no distinct timed-out test state — so the `⧖`
 distinction is a render-layer concept the reducer derives, not a
 persisted enum.
@@ -105,7 +109,11 @@ time from. The `stream` rework added: a required `timeoutCount` on
 `TestRecord.status` (the render projection only — `TestState`, the
 persistence enum, is unchanged so the `test_cases.state` CHECK
 constraint stays intact); an optional `timedOut` on `FailureRecord`; and
-a nullable `trend` field the `TrendComputed` reducer case folds in. See
+a nullable `trend` field the `TrendComputed` reducer case folds in.
+`RenderState` also carries an optional `collectedModules`, folded from
+`RunFinished`; renderers prefer it over `moduleOrder.length` for the
+"N modules all-passed" copy and fall back to `moduleOrder.length` when it
+is absent. See
 [./components/ui.md](./components/ui.md) for the reducer and the
 run-shape grouping.
 
@@ -174,7 +182,12 @@ Effect Schema definitions in `packages/sdk/src/schemas/`:
 - **`AgentReport`** — the per-project report shape produced after a run.
   Carries summary stats, the `failed[]` modules with their tests, unhandled
   errors, a `failedFiles[]` quick index, an optional `coverage` block, and
-  an optional `tagCounts` record (`Record<string, TagCountEntry>` where
+  an optional `tagCounts` record. `ReportSummary` gained an optional
+  `modules` field — the count of every collected module, passing ones
+  included. `summary.failed` counts only *failing* modules' test cases, so
+  without it a fully-green replayed report had no way to say how many files
+  ran and rendered as "0 modules all-passed" (issue #204). Optional so
+  existing fixtures and stored reports stay valid (`Record<string, TagCountEntry>` where
   `TagCountEntry` is `{ passed?, failed?, skipped? }`). The plugin
   reporter aggregates per-tag pass/fail/skip counts from
   `TestReport.tags` for terminal-formatter rendering.
@@ -736,8 +749,22 @@ records rather than failing.
 reason` message format. The CLI reports the issue and continues with
 available data.
 
-Migration failures: if the migration promise rejects, `AgentReporter` prints
-`formatFatalError(err)` to stderr and returns early without writing data.
+Migration failures: if the migration promise rejects, `AgentReporter`
+disables the persist phase but still renders. It runs the DB-free render
+program against reports built up front by `buildAgentReport` (no
+classification, no trend), then writes one
+`persistence failed — results above were rendered but NOT recorded: <reason>`
+line to stderr. A persist program that rejects after a successful migration
+takes the same path. See Decision 47 in [./decisions.md](./decisions.md).
+
+Untrusted error text: every value bound to a `TEXT` column on the failure
+path goes through `coerceErrorText` first, every field READ off a raw
+Vitest error object goes through `coerceErrorField` (which guards the
+property access itself), and the formatters that read
+error objects (`extractSqlReason`, `formatFatalError`,
+`normalizeAssertionShape`, `stringifyFailureValue`) are exception-safe
+against throwing getters. See
+[./components/sdk.md](./components/sdk.md).
 
 Missing `GITHUB_STEP_SUMMARY`: skipped silently — running outside GitHub
 Actions is a normal mode, not an error.
