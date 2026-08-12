@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { TEST_DIR } from "@vitest-agent/sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { discoverProjects } from "../src/utils/discover-projects.js";
 import { DiscoverStrategy } from "../src/utils/discover-strategy.js";
@@ -148,9 +149,10 @@ describe("discoverProjects()", () => {
 			const { projects } = await discoverProjects({ cwd: tmpDir });
 			const exclude = projects?.[0].test?.exclude as string[] | undefined;
 			expect(exclude).toBeDefined();
-			expect(exclude?.some((p) => p.includes("__test__") && p.includes("utils"))).toBe(true);
-			expect(exclude?.some((p) => p.includes("__test__") && p.includes("fixtures"))).toBe(true);
-			expect(exclude?.some((p) => p.includes("__test__") && p.includes("snapshots"))).toBe(true);
+			const pkgDir = join(tmpDir, "packages", "td-excl");
+			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "**", "utils", "**"))).toBe(true);
+			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "**", "fixtures", "**"))).toBe(true);
+			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "**", "snapshots", "**"))).toBe(true);
 		});
 	});
 
