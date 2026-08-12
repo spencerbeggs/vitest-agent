@@ -81,6 +81,39 @@ _run_hook() {
 	[[ "$output" != *'"permissionDecision": "deny"'* ]]
 }
 
+@test "advises on Read of a misplaced test" {
+	# Read is matched deliberately: an agent reading a misplaced test is about to
+	# reason about why it is not running, and the advisory is the answer. Read can
+	# never be denied — it does not create anything.
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	existing="$STUB_DIR/existing.test.ts"
+	touch "$existing"
+	run _run_hook "{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"$existing\"}}"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"additionalContext"* ]]
+	[[ "$output" != *'"permissionDecision": "deny"'* ]]
+}
+
+@test "advises on Read of a misplaced test that does not exist on disk" {
+	# The Write-absent-file deny branch must not leak into Read: a Read of a path
+	# that is not on disk still only advises.
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	run _run_hook '{"tool_name":"Read","tool_input":{"file_path":"/repo/lib/scripts/__test__/a.test.ts"}}'
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"additionalContext"* ]]
+	[[ "$output" != *'"permissionDecision": "deny"'* ]]
+}
+
+@test "advises on MultiEdit of a misplaced test" {
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	existing="$STUB_DIR/existing.test.ts"
+	touch "$existing"
+	run _run_hook "{\"tool_name\":\"MultiEdit\",\"tool_input\":{\"file_path\":\"$existing\"}}"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"additionalContext"* ]]
+	[[ "$output" != *'"permissionDecision": "deny"'* ]]
+}
+
 @test "advises rather than denies when Write targets an existing file" {
 	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
 	existing="$STUB_DIR/existing.test.ts"
@@ -106,7 +139,7 @@ _run_hook() {
 	[[ "$output" != *"deny"* ]]
 }
 
-# The ten cases above all stub VITEST_AGENT_CLI_CMD directly, which never
+# Every case above stubs VITEST_AGENT_CLI_CMD directly, which never
 # exercises the production cli_cmd-resolution branch (no override set, PM
 # detected from cwd via detect-pm.sh). That branch has crashed twice with an
 # unbound-variable error under set -u — once on $pm_exec, once on hook_debug's
