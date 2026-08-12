@@ -1,5 +1,22 @@
 # @vitest-agent/cli
 
+## 2.1.1
+
+### Dependencies
+
+| Dependency            | Type       | Action  | From   | To     |
+| --------------------- | ---------- | ------- | ------ | ------ |
+| @vitest-agent/sdk     | dependency | updated | 2.2.0  | 2.2.1  |
+| @vitest-agent/sidecar | dependency | updated | 2.0.10 | 2.0.11 |
+
+* | Dependency           | Type       | Action  | From    | To      |                                                                            |
+  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+  | @effected/workspaces | dependency | updated | ^0.11.1 | ^0.11.2 | [#234][#234] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#234]: https://github.com/spencerbeggs/vitest-agent/pull/234
+
 ## 2.1.0
 
 ### Features
