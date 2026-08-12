@@ -46,15 +46,27 @@ export const extractSqlReason = (e: unknown): string => {
 	while (node && typeof node === "object" && !seen.has(node)) {
 		seen.add(node);
 		const n = node as { message?: unknown; cause?: unknown };
-		if (typeof n.message === "string" && n.message.length > 0) {
-			best = n.message;
+		let msg: unknown;
+		let cause: unknown;
+		try {
+			msg = n.message;
+		} catch {
+			msg = undefined;
+		}
+		try {
+			cause = n.cause;
+		} catch {
+			cause = undefined;
+		}
+		if (typeof msg === "string" && msg.length > 0) {
+			best = msg;
 		}
 		// A string cause is itself the reason and terminates the chain.
-		if (typeof n.cause === "string") {
-			if (n.cause.length > 0) best = n.cause;
+		if (typeof cause === "string") {
+			if (cause.length > 0) best = cause;
 			break;
 		}
-		node = n.cause;
+		node = cause;
 	}
 	if (best !== undefined) return best;
 	if (e && typeof e === "object") {
@@ -66,5 +78,9 @@ export const extractSqlReason = (e: unknown): string => {
 			// Circular reference or non-serializable value; fall through.
 		}
 	}
-	return String(e);
+	try {
+		return String(e);
+	} catch {
+		return "<unserializable error>";
+	}
 };

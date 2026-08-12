@@ -27,12 +27,20 @@ export function formatFatalError(err: unknown): string {
 			detail = String(err);
 		}
 	} else if (err instanceof Error) {
-		detail = err.stack ?? err.message;
+		try {
+			detail = err.stack ?? err.message;
+		} catch {
+			detail = `<unserializable ${err.constructor?.name ?? "Error"}>`;
+		}
 	} else if (err !== null && typeof err === "object") {
 		try {
 			detail = JSON.stringify(err, null, 2);
 		} catch {
-			detail = String(err);
+			try {
+				detail = String(err);
+			} catch {
+				detail = "<unserializable error>";
+			}
 		}
 	} else {
 		detail = String(err);

@@ -28,6 +28,10 @@ export const stringifyFailureValue = (value: unknown): string | undefined => {
 	try {
 		return JSON.stringify(value);
 	} catch {
-		return String(value);
+		try {
+			return String(value);
+		} catch {
+			return "<unserializable value>";
+		}
 	}
 };

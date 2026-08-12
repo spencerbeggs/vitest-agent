@@ -1,4 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Writable } from "node:stream";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
@@ -128,6 +131,25 @@ export function readDiscoveryLastScannedAt(): string | undefined {
 	const value = (globalThis as Record<symbol, unknown>)[DISCOVERY_LAST_SCAN_SYMBOL];
 	return typeof value === "string" ? value : undefined;
 }
+
+/**
+ * Per-invocation coverage temp directory. Vitest's v8 provider `rm -rf`s the
+ * shared `coverage/` reports directory at run start (`clean: true` default),
+ * so two concurrent runs in one checkout destroy each other's `.tmp` files
+ * (ENOENT coverage-N.json — issues #159/#191/#194). Each MCP run gets its own
+ * directory; coverage persistence is unaffected because the analyzer consumes
+ * the in-memory CoverageMap, never the disk artifacts. Consequence: final
+ * coverage artifacts (html/lcov) from MCP-driven runs land in the throwaway
+ * dir instead of `./coverage` — acceptable because MCP consumers read
+ * coverage from SQLite (`CoverageAnalyzer` consumes the in-memory map via
+ * `onCoverage`), not from disk artifacts.
+ *
+ * @internal exported for tests
+ */
+export const makeCoverageDirOverride = (): { dir: string; coverage: { reportsDirectory: string } } => {
+	const dir = mkdtempSync(join(tmpdir(), "vitest-agent-cov-"));
+	return { dir, coverage: { reportsDirectory: dir } };
+};
 
 // AsyncLocalStorage-scoped redirection. The prior implementation mutated
 // `process.stdout.write` / `process.stderr.write` globally for the full
@@ -510,18 +532,28 @@ export const runTests = publicProcedure
 				const { createVitest } = await import("vitest/node");
 
 				let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
+				let covOverride: ReturnType<typeof makeCoverageDirOverride> | undefined;
 
 				try {
+					// Assigned inside the try (not before it) so a throwing
+					// mkdtempSync — e.g. a full or read-only tmpdir — is caught
+					// by the surrounding catch and returns the tool's normal
+					// `{ kind: "error", message }` shape instead of propagating
+					// raw out of the tRPC resolver.
+					covOverride = makeCoverageDirOverride();
 					vitest = await createVitest(
 						"test",
 						{
 							root: ctx.cwd,
 							run: true,
-							// Inherit coverage from the user's vitest.config. Forcing
-							// `enabled: false` here was overriding intentional
-							// "coverage on by default" configurations and forced the
-							// orchestrator to make a parallel Bash --coverage call
-							// just to populate file_coverage rows.
+							// Inherit coverage from the user's vitest.config (enabled,
+							// provider, thresholds all still apply — this spreads
+							// `coverage.reportsDirectory` as a field-level merge, not a
+							// replacement). Forcing `enabled: false` here was overriding
+							// intentional "coverage on by default" configurations and
+							// forced the orchestrator to make a parallel Bash --coverage
+							// call just to populate file_coverage rows.
+							coverage: covOverride.coverage,
 							...(project ? { project } : {}),
 							// Vitest's `tagsFilter: string[]` accepts one or more
 							// tag-expression strings (AND-ed together). We compose
@@ -577,10 +609,13 @@ export const runTests = publicProcedure
 						};
 					}
 
-					const reason =
+					const preliminaryReason =
 						unhandledErrors.length > 0 || result.testModules.some((m) => m.state() === "failed") ? "failed" : "passed";
 
-					const baseReport = buildAgentReport(testModules, unhandledErrors, reason, { omitPassingTests: true });
+					const baseReport = buildAgentReport(testModules, unhandledErrors, preliminaryReason, {
+						omitPassingTests: true,
+					});
+					// buildAgentReport self-corrects reason for suite/collection failures.
 					const leaks = buildConsoleLeaks(
 						collectConsoleLeakEntries(localVitest.state.getFiles() as unknown as ConsoleLeakTask[]),
 					);
@@ -641,6 +676,13 @@ export const runTests = publicProcedure
 				} finally {
 					await vitest?.close();
 					nullStream.destroy();
+					if (covOverride !== undefined) {
+						try {
+							rmSync(covOverride.dir, { recursive: true, force: true });
+						} catch {
+							// best-effort cleanup; tmpdir reaping will get it eventually
+						}
+					}
 				}
 			}),
 	);

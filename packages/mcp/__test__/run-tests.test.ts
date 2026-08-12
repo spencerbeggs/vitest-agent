@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import { Writable } from "node:stream";
 import { Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -10,9 +11,21 @@ import {
 	formatReportJson,
 	formatReportMarkdown,
 	formatRunTestsMarkdown,
+	makeCoverageDirOverride,
 	sanitizeTestArgs,
 	withStdioCaptured,
 } from "../src/tools/run-tests.js";
+
+describe("makeCoverageDirOverride", () => {
+	it("returns a fresh tmpdir-namespaced reportsDirectory per invocation (issues #159/#191)", () => {
+		const a = makeCoverageDirOverride();
+		const b = makeCoverageDirOverride();
+		expect(a.coverage.reportsDirectory).toBe(a.dir);
+		expect(a.dir).toContain(tmpdir());
+		expect(a.dir).toContain("vitest-agent-cov-");
+		expect(a.dir).not.toBe(b.dir);
+	});
+});
 
 describe("sanitizeTestArgs", () => {
 	it("allows file paths", () => {

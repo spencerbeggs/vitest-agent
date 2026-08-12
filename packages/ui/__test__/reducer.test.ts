@@ -300,6 +300,23 @@ describe("reduceRenderState — individual events", () => {
 		expect(next.finishedAt).toBe("y");
 		expect(next.totals).toEqual({ passCount: 7, failCount: 2, skipCount: 1, timeoutCount: 0, durationMs: 100 });
 	});
+
+	it("folds RunFinished.collectedModules into state", () => {
+		const next = apply([
+			{ _tag: "RunStarted", runId: "r", startedAt: "x", configHash: "h" },
+			{
+				_tag: "RunFinished",
+				runId: "r",
+				finishedAt: "y",
+				passCount: 7,
+				failCount: 2,
+				skipCount: 1,
+				durationMs: 100,
+				collectedModules: 7,
+			},
+		]);
+		expect(next.collectedModules).toBe(7);
+	});
 });
 
 describe("reduceRenderStateAll — canonical fixtures", () => {

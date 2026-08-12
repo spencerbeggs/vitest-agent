@@ -84,6 +84,18 @@ describe("DataStoreError", () => {
 	});
 });
 
+const makeThrowingGetterError = (): Record<string, unknown> => {
+	const nullProtoCause = Object.create(null);
+	const err: Record<string, unknown> = { cause: nullProtoCause };
+	Object.defineProperty(err, "message", {
+		get() {
+			return (this as { cause: { toString(): string } }).cause.toString();
+		},
+		enumerable: true,
+	});
+	return err;
+};
+
 describe("extractSqlReason", () => {
 	it("returns cause.message for an Effect SqlError-shaped error", () => {
 		const err = { message: "Failed to execute statement", cause: { message: "SQLITE_BUSY: database is locked" } };
@@ -127,6 +139,22 @@ describe("extractSqlReason", () => {
 		const err: { message: string; self?: unknown } = { message: "" };
 		err.self = err;
 		expect(extractSqlReason(err)).toBe("[object Object]");
+	});
+
+	it("extractSqlReason survives a message getter that throws (issue #193)", () => {
+		expect(() => extractSqlReason(makeThrowingGetterError())).not.toThrow();
+		expect(typeof extractSqlReason(makeThrowingGetterError())).toBe("string");
+	});
+
+	it("falls back to the unserializable-error placeholder when JSON.stringify and String both throw (issue #193)", () => {
+		const err = makeThrowingGetterError();
+		// Make String(err) throw too: toString getter that throws.
+		Object.defineProperty(err, "toString", {
+			get(): never {
+				throw new TypeError("no toString for you");
+			},
+		});
+		expect(extractSqlReason(err)).toBe("<unserializable error>");
 	});
 });
 

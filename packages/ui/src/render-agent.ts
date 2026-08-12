@@ -74,13 +74,29 @@ const formatModulesSection = (state: RenderState): string | null => {
 		.map((path) => state.modules[path])
 		.filter((m): m is ModuleRecord => m !== undefined);
 
-	if (modules.length === 0) return null;
+	const { passCount, failCount, skipCount } = state.totals;
+	const total = passCount + failCount + skipCount;
+	if (total === 0) {
+		return "0 tests collected. A zero-test run usually means a wrong working directory, a filter that matched nothing, or a load-time error — verify before trusting it.";
+	}
+
+	// The collected count wins over `moduleOrder.length` when present — a
+	// report replay only queues failing modules, so `moduleOrder` alone
+	// undercounts (or, on a green run, zeroes out) the true module count
+	// (issue #204).
+	const collected = state.collectedModules ?? modules.length;
+
+	if (modules.length === 0) {
+		if (collected === 0) return null;
+		const noun = collected === 1 ? "module" : "modules";
+		return `${collected} ${noun} all-passed.`;
+	}
 
 	const interestingModules = modules.filter((m) => m.failCount > 0 || m.skipCount > 0);
 
 	if (interestingModules.length === 0) {
-		const noun = modules.length === 1 ? "module" : "modules";
-		return `${modules.length} ${noun} all-passed.`;
+		const noun = collected === 1 ? "module" : "modules";
+		return `${collected} ${noun} all-passed.`;
 	}
 
 	const lines = ["Modules:"];

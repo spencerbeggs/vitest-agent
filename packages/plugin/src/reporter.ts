@@ -31,6 +31,7 @@ import {
 	OutputPipelineLive,
 	PathResolutionLive,
 	buildAgentReport,
+	coerceErrorText,
 	computeTrend,
 	ensureMigrated,
 	formatFatalError,
@@ -125,6 +126,26 @@ function computeUpdatedBaselines(
 			statements: ratchet("statements"),
 		},
 		patterns: existing?.patterns ?? [],
+	};
+}
+
+/**
+ * The output of the persist phase of `onTestRunEnd`, consumed by the
+ * always-runs render phase. On a persist failure (including a migration
+ * failure that disables persistence entirely), the render phase falls
+ * back to a `PersistResult` built from `fallbackReports` with empty
+ * classifications and no trend summary — see the render-despite-
+ * persistence-failure contract (issues #195 / #143).
+ *
+ * @internal
+ */
+interface PersistResult {
+	reports: AgentReport[];
+	classifications: Map<string, TestClassification>;
+	trendSummary?: {
+		direction: "improving" | "regressing" | "stable";
+		runCount: number;
+		firstMetric?: { name: string; from: number; to: number; target?: number };
 	};
 }
 
@@ -1135,6 +1156,10 @@ export class AgentReporter {
 				skipCount: skip,
 				timeoutCount: timeout,
 				durationMs: totalDuration,
+				// Parity with `synthesizeRunEvents` / `synthesizeFromAgentReport` in
+				// @vitest-agent/ui, which both populate `collectedModules` on their
+				// RunFinished — the live emit here was the one path missing it.
+				collectedModules: testModules.length,
 			});
 		}
 
@@ -1281,20 +1306,68 @@ export class AgentReporter {
 		// production, but tests sometimes invoke onTestRunEnd directly).
 		mkdirSync(dirname(dbPath), { recursive: true });
 
+		// Pure fallback reports, built up front before any Effect runs. If
+		// persistence is disabled or fails below, the render phase falls back
+		// to these instead of the (absent) classification-enriched reports —
+		// results still render, just without history-derived classification.
+		// Grouping mirrors the persist program's own grouping (below) exactly.
+		//
+		// This runs outside any Effect — `buildAgentReport` walks duck-typed
+		// Vitest module/suite getters (`state()`, `errors()`) bare, with no
+		// try/catch of its own. A malformed reporter-shape module (a throwing
+		// getter) must not reject `onTestRunEnd` outright with no render, no
+		// persist, and no formatted stderr — that would be worse than the
+		// pre-fallback floor. Guard the whole build and degrade to the
+		// formatted-stderr floor on any throw.
+		let fallbackReports: AgentReport[];
+		try {
+			const fallbackProjectGroups = new Map<string, VitestTestModule[]>();
+			for (const mod of filteredModules) {
+				const key = mod.project.name || "default";
+				const existing = fallbackProjectGroups.get(key);
+				if (existing) {
+					existing.push(mod);
+				} else {
+					fallbackProjectGroups.set(key, [mod]);
+				}
+			}
+			const isMultiProjectFallback = fallbackProjectGroups.size > 1 || !!opts.projectFilter;
+			fallbackReports = [];
+			for (const [projectName, projectModules] of fallbackProjectGroups) {
+				fallbackReports.push(
+					buildAgentReport(
+						projectModules,
+						errors,
+						reason,
+						{ omitPassingTests: opts.omitPassingTests },
+						isMultiProjectFallback ? projectName : undefined,
+					),
+				);
+			}
+		} catch (err) {
+			process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
+			return;
+		}
+
 		// Serialize migrations across reporter instances in the same process.
 		// Multi-project Vitest runs create one reporter per project, all sharing
 		// the same dbPath. Concurrent migration attempts on a fresh database hit
 		// SQLITE_BUSY (database is locked) because deferred-transaction write
 		// upgrades don't invoke SQLite's busy_handler. After this resolves,
 		// concurrent reads/writes from separate connections work under WAL mode.
+		//
+		// A migration failure no longer aborts the run: it disables the
+		// persist phase (recorded as `persistDisabled`) but rendering still
+		// runs below against `fallbackReports` — see the render-despite-
+		// persistence-failure contract (issues #195 / #143).
+		let persistDisabled: string | undefined;
 		try {
 			await ensureMigrated(dbPath, logLevel, logFile);
 		} catch (err) {
-			process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
-			return;
+			persistDisabled = formatFatalError(err);
 		}
 
-		const program = Effect.gen(function* () {
+		const persistProgram = Effect.gen(function* () {
 			const store = yield* DataStore;
 			const reader = yield* DataReader;
 			const analyzer = yield* CoverageAnalyzer;
@@ -1427,6 +1500,24 @@ export class AgentReporter {
 				// RunContext service integration.
 				const hostProbe = probeHostMetadataFromEnv(process.env);
 
+				// Per-project outcome: the Vitest-supplied `reason` is the whole-process
+				// outcome; writing it to every project's row marked all 13 projects
+				// "failed" when one failed (issue #147). Derive from this project's own
+				// report instead. "interrupted" stays global — a killed run is killed
+				// for everyone.
+				// Note: `baseReport.reason` (self-corrected by `buildAgentReport` to
+				// "failed" whenever unhandled errors are present, even with zero
+				// failedFiles) can therefore read "failed" while the `projectReason`
+				// written to this row reads "passed" for unhandled-only projects —
+				// this divergence is intentional; `projectReason` only ever looks at
+				// this project's own failed tests / failed files, not unhandled errors.
+				const projectReason: "passed" | "failed" | "interrupted" =
+					reason === "interrupted"
+						? "interrupted"
+						: baseReport.summary.failed > 0 || baseReport.failedFiles.length > 0
+							? "failed"
+							: "passed";
+
 				// Write test run to DB
 				const runId = yield* store.writeRun({
 					invocationId,
@@ -1435,7 +1526,7 @@ export class AgentReporter {
 					timestamp: baseReport.timestamp,
 					commitSha: process.env.GITHUB_SHA ?? null,
 					branch: process.env.GITHUB_REF_NAME ?? null,
-					reason,
+					reason: projectReason,
 					duration: totalDuration,
 					total: baseReport.summary.total,
 					passed: baseReport.summary.passed,
@@ -1554,7 +1645,15 @@ export class AgentReporter {
 									stack?: string;
 									stacks?: ReadonlyArray<{ file?: string; line?: number; column?: number; method?: string }>;
 								};
-								const { frames, signatureHash } = processFailure(e);
+								const messageText = coerceErrorText(e.message) ?? "<missing message>";
+								const nameText = coerceErrorText(e.name);
+								const diffText = coerceErrorText(e.diff);
+								const stackText = coerceErrorText(e.stack);
+								const { frames, signatureHash } = processFailure({
+									...e,
+									message: messageText,
+									...(stackText !== undefined && { stack: stackText }),
+								});
 								if (signatureHash !== null) {
 									yield* store.writeFailureSignature({
 										signatureHash,
@@ -1565,10 +1664,10 @@ export class AgentReporter {
 								inputs.push({
 									testCaseId,
 									scope: "test" as const,
-									message: e.message,
-									...(e.name !== undefined && { name: e.name }),
-									...(e.diff !== undefined && { diff: e.diff }),
-									...(e.stack !== undefined && { stack: e.stack }),
+									message: messageText,
+									...(nameText !== undefined && { name: nameText }),
+									...(diffText !== undefined && { diff: diffText }),
+									...(stackText !== undefined && { stack: stackText }),
 									...(signatureHash !== null && { signatureHash }),
 									...(frames.length > 0 && { frames }),
 									ordinal,
@@ -1590,7 +1689,14 @@ export class AgentReporter {
 								stack?: string;
 								stacks?: ReadonlyArray<{ file?: string; line?: number; column?: number; method?: string }>;
 							};
-							const { frames, signatureHash } = processFailure(e);
+							const messageText = coerceErrorText(e.message) ?? "<missing message>";
+							const nameText = coerceErrorText(e.name);
+							const stackText = coerceErrorText(e.stack);
+							const { frames, signatureHash } = processFailure({
+								...e,
+								message: messageText,
+								...(stackText !== undefined && { stack: stackText }),
+							});
 							if (signatureHash !== null) {
 								yield* store.writeFailureSignature({
 									signatureHash,
@@ -1601,9 +1707,9 @@ export class AgentReporter {
 							inputs.push({
 								moduleId,
 								scope: "module" as const,
-								message: e.message,
-								...(e.name !== undefined && { name: e.name }),
-								...(e.stack !== undefined && { stack: e.stack }),
+								message: messageText,
+								...(nameText !== undefined && { name: nameText }),
+								...(stackText !== undefined && { stack: stackText }),
 								...(signatureHash !== null && { signatureHash }),
 								...(frames.length > 0 && { frames }),
 								ordinal,
@@ -1623,7 +1729,14 @@ export class AgentReporter {
 							stack?: string;
 							stacks?: ReadonlyArray<{ file?: string; line?: number; column?: number; method?: string }>;
 						};
-						const { frames, signatureHash } = processFailure(e);
+						const messageText = coerceErrorText(e.message) ?? "<missing message>";
+						const nameText = coerceErrorText(e.name);
+						const stackText = coerceErrorText(e.stack);
+						const { frames, signatureHash } = processFailure({
+							...e,
+							message: messageText,
+							...(stackText !== undefined && { stack: stackText }),
+						});
 						if (signatureHash !== null) {
 							yield* store.writeFailureSignature({
 								signatureHash,
@@ -1633,9 +1746,9 @@ export class AgentReporter {
 						}
 						inputs.push({
 							scope: "unhandled" as const,
-							message: e.message,
-							...(e.name !== undefined && { name: e.name }),
-							...(e.stack !== undefined && { stack: e.stack }),
+							message: messageText,
+							...(nameText !== undefined && { name: nameText }),
+							...(stackText !== undefined && { stack: stackText }),
 							...(signatureHash !== null && { signatureHash }),
 							...(frames.length > 0 && { frames }),
 							ordinal,
@@ -1674,7 +1787,7 @@ export class AgentReporter {
 						const tcResult = tc.result();
 						if (tcResult?.state === "failed") {
 							const errors = tcResult.errors;
-							errorMap.set(key, errors?.[0]?.message ?? null);
+							errorMap.set(key, coerceErrorText(errors?.[0]?.message) ?? null);
 						}
 					}
 				}
@@ -1841,9 +1954,55 @@ export class AgentReporter {
 				});
 			}
 
+			// Aggregate classifications into a flat lookup for the user reporter.
+			// Reports already carry classification on each test object; this
+			// Map gives reporters a global view without traversing reports.
+			// Keyed by plain fullName -- this flat Map is a convenience index for
+			// downstream reporter/ui consumers (e.g. @vitest-agent/ui's synthesize)
+			// that only have a bare test name available, not modulePath. The
+			// authoritative per-test classification (already disambiguated by
+			// (modulePath, fullName) above) lives on each TestReport itself.
+			const classifications = new Map<string, TestClassification>();
+			for (const report of reports) {
+				for (const mod of report.failed) {
+					for (const test of mod.tests) {
+						if (test.classification) classifications.set(test.fullName, test.classification);
+					}
+				}
+			}
+
 			yield* Effect.logInfo("reports built").pipe(
 				Effect.annotateLogs({ count: reports.length, projects: Array.from(projectGroups.keys()).join(", ") }),
 			);
+
+			return { reports, classifications, ...(trendSummary !== undefined && { trendSummary }) };
+		});
+
+		let persistFailure: string | undefined;
+		let persistResult: PersistResult | undefined;
+		if (persistDisabled === undefined) {
+			persistResult = await Effect.runPromise(
+				persistProgram.pipe(
+					Effect.annotateLogs("service", "reporter"),
+					Effect.provide(ReporterLive(dbPath, logLevel, logFile)),
+				),
+			).catch((err) => {
+				persistFailure = formatFatalError(err);
+				return undefined;
+			});
+		}
+
+		const renderInputData: PersistResult = persistResult ?? {
+			reports: fallbackReports,
+			classifications: new Map<string, TestClassification>(),
+		};
+
+		// Render ALWAYS runs, whether or not persistence succeeded. Services
+		// resolved here (EnvironmentDetector/ExecutorResolver/FormatSelector/
+		// DetailResolver) need no SQLite -- same DB-free wiring as the UI-only
+		// branch above (`OutputPipelineLive` + `NodeServices.layer`).
+		const renderProgram = Effect.gen(function* () {
+			const { reports, classifications, trendSummary } = renderInputData;
 
 			// Resolve env / executor / format / detail via the pipeline services
 			// (not the renderer — rendering is delegated to the user's reporter).
@@ -1866,23 +2025,6 @@ export class AgentReporter {
 			const detail = yield* detailResolver.resolve(executor, health, opts.detail);
 
 			yield* Effect.logDebug("pipeline resolved").pipe(Effect.annotateLogs({ env, executor, format, detail }));
-
-			// Aggregate classifications into a flat lookup for the user reporter.
-			// Reports already carry classification on each test object; this
-			// Map gives reporters a global view without traversing reports.
-			// Keyed by plain fullName -- this flat Map is a convenience index for
-			// downstream reporter/ui consumers (e.g. @vitest-agent/ui's synthesize)
-			// that only have a bare test name available, not modulePath. The
-			// authoritative per-test classification (already disambiguated by
-			// (modulePath, fullName) above) lives on each TestReport itself.
-			const classifications = new Map<string, TestClassification>();
-			for (const report of reports) {
-				for (const mod of report.failed) {
-					for (const test of mod.tests) {
-						if (test.classification) classifications.set(test.fullName, test.classification);
-					}
-				}
-			}
 
 			// Build the render kit and resolve the user's reporter(s).
 			const githubSummaryFile = process.env.GITHUB_STEP_SUMMARY;
@@ -1928,9 +2070,20 @@ export class AgentReporter {
 		});
 
 		await Effect.runPromise(
-			program.pipe(Effect.annotateLogs("service", "reporter"), Effect.provide(ReporterLive(dbPath, logLevel, logFile))),
+			renderProgram.pipe(
+				Effect.annotateLogs("service", "reporter"),
+				Effect.provide(OutputPipelineLive),
+				Effect.provide(NodeServices.layer),
+			),
 		).catch((err) => {
 			process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 		});
+
+		const persistError = persistDisabled ?? persistFailure;
+		if (persistError !== undefined) {
+			process.stderr.write(
+				`vitest-agent: persistence failed — results above were rendered but NOT recorded: ${persistError}\n`,
+			);
+		}
 	}
 }

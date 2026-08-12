@@ -17,6 +17,8 @@ Projects using this layout place tests in a `__test__/` directory that sits adja
 └── __test__/       tests and test support files
 ```
 
+Discovery also recognises `__test__/` directories nested anywhere else in the package tree, not just at the project root adjacent to `src/` — for example `lib/scripts/__test__/`. The walker stops at a nested `package.json` boundary, so it won't double-count a sibling package's tests inside a monorepo root scan.
+
 ## `__test__/` Directory Structure
 
 Test files sit flat at the top level of `__test__/`; helper files go in reserved subdirectories organised by test kind.

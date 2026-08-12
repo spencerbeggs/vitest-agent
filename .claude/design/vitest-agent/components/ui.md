@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-12
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-08-11
+last-synced: 2026-08-11
 completeness: 90
 related:
   - ../architecture.md
@@ -82,6 +82,8 @@ Most variants fold meaningfully (run / module / test lifecycle, coverage, classi
 
 The module-lifecycle reducer cases also thread the optional `projectName` from `ModuleQueued` / `ModuleStarted` / `ModuleFinished` onto `ModuleRecord`, which is what lets `StreamApp` group modules by Vitest project.
 
+`RunFinished` also folds an optional `collectedModules` — the count of every collected module, passing ones included — onto `RenderState`. `moduleOrder` cannot stand in for it: a report replay only queues *failing* modules, so a fully-green run leaves `moduleOrder` empty and every "N modules all-passed" line read "0 modules" (issue #204). The field is optional, so state that never carried it (older replay data, hand-built fixtures) still falls back to `moduleOrder.length`.
+
 Two reducer behaviors are load-bearing for `StreamApp`'s state needs. **Timeout routing** — a `TestFinished` carrying `timedOut: true` folds into a separate `timeoutCount` rather than `failCount`, and its `TestRecord.status` becomes the render-only `"timed-out"` value; Vitest reports a timed-out test as `failed`, so the split is a reducer-layer concern (see [../schemas.md](../schemas.md)). **`TrendComputed`** — a `RunEvent` variant the plugin emits after end-of-run trend computation; the reducer folds it into a nullable `trend` field on `RenderState` so `StreamApp` can show a Trend line that the event-sourced run lifecycle does not otherwise carry.
 
 ---
@@ -135,6 +137,16 @@ dispatcherTable                                                    // for test i
 
 `dominantClassification(state)` resolves the dominant failure classification with priority `new-failure → persistent → flaky → recovered → stable`.
 
+### Honest counts in pass cells
+
+Three rules keep an all-pass render from overstating (or understating) what ran. They apply to both `render-agent.ts`'s `formatModulesSection` and the `single-project-pass` cell, which mirror each other deliberately.
+
+1. **Zero tests is a warning, not a green.** When `passCount + failCount + skipCount + timeoutCount` is 0, the renderer prints `0 tests collected.` plus the reason-to-doubt sentence (wrong working directory, a filter that matched nothing, or a load-time error) instead of a satisfied summary. `timeoutCount` is in the sum on purpose: a run whose only test timed out has zero pass/fail/skip but a real collected test, and must not be described as collecting nothing.
+2. **The module count comes from `collectedModules` when present**, falling back to `moduleOrder.length` / the tracked module records. This is the #204 fix — see the reducer section above.
+3. **No knowable module count means no module sentence.** A nonzero test total with a zero module count (no `collectedModules`, no tracked modules) drops the "N modules all-passed" line entirely rather than printing "0 modules all-passed". `formatModulesSection` returns `null` for the same state.
+
+`formatTotals` appends an `across N files` suffix to the totals line whenever `collectedModules` is present and nonzero, so the file count rides the line every cell already prints.
+
 ### Cell helpers
 
 `packages/ui/src/dispatcher/helpers.ts` holds the shared formatters every cell uses: totals header, failure block, coverage judgment line, trend line, the projects table with name padding and tag-count suffix, the workspace total footer and the below-target table. `packages/ui/src/dispatcher/ink-helpers.tsx` exports `renderAgentStringAsInk`, which wraps an agent string in colored Ink `<Text>` rows so cells can share their agent-half output as a default Ink render.
@@ -183,6 +195,8 @@ Two converters in `packages/ui/src/synthesize.ts`:
 
 - `synthesizeRunEvents(modules, options?)` — accepts duck-typed `VitestTestModule[]`. Walks modules plus children, builds a `RunStarted → per-module → per-test → RunFinished` sequence. Bridge for any batch context that has the live module shape.
 - `synthesizeFromAgentReport(report, options?)` — accepts the persisted `AgentReport`. Only failed modules carry per-test detail; passed-only modules summarize via `summary.passed`. Used by `DefaultVitestAgentReporter.render` (in `@vitest-agent/reporter`) and the CLI helpers.
+
+Both synthesizers populate `RunFinished.collectedModules` — `synthesizeRunEvents` from the walked module count, `synthesizeFromAgentReport` from `report.summary.modules` when the report carries it. The plugin's live `RunFinished` emit does the same, so all three paths into the reducer agree on the collected count.
 
 **Suite-load failures synthesize a failing cell.** A module that failed to *collect / import* produces zero test cases, so `summary` alone would render it green. For such a module `synthesizeFromAgentReport` emits a `ModuleFinished` with `failCount: 1` plus a synthetic `TestStarted` / `TestFinished` pair labeled `SUITE_LOAD_FAILURE_LABEL` (`"test suite failed to load"`, exported from `synthesize.ts`) carrying the module's import error, and `RunFinished.failCount` includes suite failures. Because the reducer treats `RunFinished.failCount` as the authoritative run total, this routes the run to the some-fail render cell instead of the all-pass cell. This is the synthesizer-side half of the false-green fix; see Decision 45 in [../decisions.md](../decisions.md).
 

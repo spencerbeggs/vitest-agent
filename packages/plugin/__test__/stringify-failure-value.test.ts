@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { stringifyFailureValue } from "../src/utils/stringify-failure-value.js";
 
+const makeThrowingGetterError = (): Record<string, unknown> => {
+	const nullProtoCause = Object.create(null);
+	const err: Record<string, unknown> = { cause: nullProtoCause };
+	Object.defineProperty(err, "message", {
+		get() {
+			return (this as { cause: { toString(): string } }).cause.toString();
+		},
+		enumerable: true,
+	});
+	return err;
+};
+
 describe("stringifyFailureValue", () => {
 	it("returns undefined for undefined input", () => {
 		expect(stringifyFailureValue(undefined)).toBeUndefined();
@@ -48,5 +60,16 @@ describe("stringifyFailureValue", () => {
 		const result = stringifyFailureValue(obj);
 		// JSON.stringify throws on circular refs; String({}) → '[object Object]'
 		expect(result).toBe("[object Object]");
+	});
+
+	it("returns a placeholder when both JSON.stringify and String throw (issue #193)", () => {
+		const err = makeThrowingGetterError();
+		// Make String(err) throw too: toString getter that throws.
+		Object.defineProperty(err, "toString", {
+			get(): never {
+				throw new TypeError("no toString for you");
+			},
+		});
+		expect(() => stringifyFailureValue(err)).not.toThrow();
 	});
 });

@@ -24,6 +24,7 @@ const typeTagOf = (literal: string): string => {
 };
 /** @public */
 export const normalizeAssertionShape = (message: string): string | null => {
+	if (typeof message !== "string") return "";
 	const match = message.match(ASSERTION_REGEX);
 	if (match === null) return null;
 	const matcher = match[1];

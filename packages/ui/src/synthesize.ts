@@ -293,6 +293,7 @@ export const synthesizeRunEvents = (
 		skipCount: totalSkip,
 		durationMs: totalDuration,
 		...(totalTimeout > 0 && { timeoutCount: totalTimeout }),
+		collectedModules: modules.length,
 	});
 
 	return events;
@@ -562,6 +563,7 @@ export const synthesizeFromAgentReport = (
 		skipCount: report.summary.skipped,
 		durationMs: report.summary.duration,
 		...(totalTimeoutCount > 0 && { timeoutCount: totalTimeoutCount }),
+		...(report.summary.modules !== undefined && { collectedModules: report.summary.modules }),
 	});
 
 	return events;

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-22
-last-synced: 2026-07-22
+updated: 2026-08-11
+last-synced: 2026-08-11
 completeness: 96
 related:
   - ../architecture.md
@@ -211,7 +211,11 @@ Test layers exist for `DataStore`, `EnvironmentDetector`,
   **double-wraps** the driver error — the real message sits at
   `cause.cause.message`, not on the top-level `SqlError` — so
   `extractSqlReason` walks the full `cause` chain (with cycle guards) to the
-  deepest useful message rather than reading a single `.cause`.
+  deepest useful message rather than reading a single `.cause`. Every
+  property read in that walk (`.message`, `.cause`) and the terminal
+  `String(e)` are individually wrapped in `try`/`catch`: an error object
+  whose `message` is a throwing getter (Effect's `ConfigError` is the
+  canonical case) must not turn a SQL failure into an unhandled throw.
   `DataStoreLive` and `DataReaderLive` route every `Effect.mapError` site
   through this so the underlying SQLite text reaches the user.
 - `DiscoveryError` — same derived-message pattern, scoped to
@@ -230,6 +234,71 @@ Test layers exist for `DataStore`, `EnvironmentDetector`,
   `_tdd-error-envelope.ts` and surfaces success-shape `{ ok: false, error:
   { _tag, ..., remediation } }` responses; tRPC `TRPCError` envelopes are
   reserved for transport-level failures.
+
+## Untrusted failure values (`coerceErrorText`)
+
+`packages/sdk/src/utils/coerce-error-text.ts` exports the public
+`coerceErrorText(value: unknown): string | undefined`. Vitest types the
+error fields it hands a reporter (`message`, `name`, `diff`, `actual`,
+`expected`, `stack`) as strings, but their runtime content is whatever the
+test threw. Two shapes routinely violate the type: `Effect.flip` on an
+unexpectedly-succeeding effect puts an arbitrary success value (often a
+plain object) into the error channel, and Effect's `ConfigError.message` is
+a getter that throws when its cause lacks `toString`. Either one crashed
+the run — a non-string bound to a SQLite `TEXT` column raises
+`TypeError: Invalid argument type`, and a throwing getter escaped the
+reporter entirely.
+
+The coercion ladder: `undefined`/`null` → `undefined` (the caller decides
+between `NULL` and a sentinel), string → unchanged, other primitives →
+`String(value)`, objects → `JSON.stringify` falling back to `String(value)`
+falling back to `"<unserializable>"`. Every step is exception-safe.
+
+Applied at the boundaries where an untrusted value first meets a typed
+sink: `DataStoreLive.writeErrors` coerces every text column bind (with
+`"<missing message>"` as the not-null sentinel for `message`), the plugin
+reporter coerces at its three `TestErrorInput` push sites and at the
+`errorMap` lookup, and `mapErrors` inside `buildAgentReport` coerces before
+a `ReportError` is constructed.
+
+Three neighbouring helpers were made exception-safe in the same pass, on
+the same premise — a formatter on the failure path must never itself
+throw: `extractSqlReason` (above), `formatFatalError`
+(`utils/format-fatal-error.ts`, which now guards the `err.stack` /
+`err.message` read and the `String(err)` fallback), and
+`normalizeAssertionShape` (`utils/failure-signature.ts`, which returns
+`""` for a non-string input instead of calling `.match` on it). The
+plugin's own `stringifyFailureValue` got the same treatment — see
+[./plugin.md](./plugin.md).
+
+## Report building (`buildAgentReport`)
+
+`packages/sdk/src/utils/build-report.ts`. The pure duck-typed walk that
+turns Vitest's `TestModule[]` into an `AgentReport`. Both the plugin's
+`onTestRunEnd` (Full and UI-only paths) and the MCP `run_tests` tool call
+it, which is why it lives in the SDK rather than in the plugin.
+
+Two properties of its failure gate are load-bearing, both anti-false-green
+(see [../decisions.md](../decisions.md) D45 and D48):
+
+- **A module lands in `failed[]` when any of three things is true** — a
+  test case failed, the module's own `state()` is `"failed"` (regardless of
+  whether Vitest also populated `errors()`), or the suite scan found a
+  failed suite or suite-attached errors. The suite scan reads
+  `children.allSuites()` and folds each suite's `state()` and optional
+  `errors()` into the module's error list, because a `beforeAll` /
+  `afterAll` throw attaches to the suite entity and can leave
+  `module.state()` green. `VitestTestSuite` gained an optional `errors()`
+  member for that read; it is optional so older duck-typed callers still
+  satisfy the interface.
+- **`reason` self-corrects.** A caller that computed `"passed"` from a
+  narrower signal gets `"failed"` back when the walk produced any
+  `failedFiles` or any unhandled errors. The MCP tool relies on this: it
+  passes a preliminary reason and lets the walk correct it.
+
+`summary` stays a pure test-case count (D45), with one addition:
+`summary.modules` carries the count of every collected module, passing
+ones included, so a green run can still report how many files ran.
 
 ## Schemas
 
@@ -254,7 +323,7 @@ encode/decode.
 | `Transport.ts` | Single-member discriminated union `Schema.Union(Schema.Struct({ kind: Schema.Literal("local") }))`. Modeled as a union from day one so the 3.0 cloud-backend swap (D1, Turso, etc.) lands as a pure addition of union members rather than a schema-shape change. See [../decisions.md](../decisions.md) D40 |
 | `validate-coverage-targets-shape.ts` (in `utils/`) | Pure helper `validateCoverageTargetsShape(input): { errors, warnings, info }`. Walks raw input and emits structured diagnostics with pinpointed paths: `INVALID_TARGET_VALUE` (zero or negative numbers, at the top level or inside glob-pattern entries) and `PERFILE_ON_TARGETS` (the `perFile` key set inside `coverageTargets` rather than on `coverage.thresholds.perFile`). Consumed by the plugin's `ConfigValidation` rule registry |
 | `RunEvent.ts` | Discriminated union over the `RunEvent` variants — one per Vitest 4.x reporter hook that fits the event-sourced model, covering run / module / suite / hook / test lifecycle, console, coverage, trend, classification and watch mode. Fed by the plugin's streaming callbacks and consumed by `@vitest-agent/ui`'s reducer. See [../schemas.md](../schemas.md) for the variant inventory |
-| `RenderState.ts` | The projected shape the `@vitest-agent/ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`). Both the agent string renderer and the Ink tree read this shape |
+| `RenderState.ts` | The projected shape the `@vitest-agent/ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`, and the optional `collectedModules`). Both the agent string renderer and the Ink tree read this shape |
 | `History.ts` | `TestRun`, `TestHistory`, `HistoryRecord` |
 | `Config.ts` | `VitestAgentConfig` for the optional `vitest-agent.config.toml`. Both fields (`cacheDir?`, `projectKey?`) are optional; absence falls back to deriving the path from the workspace's `package.json` `name` |
 | `Tdd.ts` | Application-level (camelCase) shapes for the three-tier hierarchy: `GoalStatus`/`BehaviorStatus`, `GoalRow`, `BehaviorRow`, `GoalDetail`, `BehaviorDetail`. SQL row shapes (snake_case) live in `sql/rows.ts`; these are the API shapes |

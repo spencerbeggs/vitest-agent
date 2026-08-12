@@ -281,5 +281,32 @@ describe("discoverProjects()", () => {
 			expect(secondInclude?.some((p) => p.includes("__test__/"))).toBe(true);
 			expect(second).not.toBe(first);
 		});
+
+		// Behavior 2 (issue #184): the signature walk must see __test__ dirs nested
+		// below the package root too, not just a package-root __test__/ — otherwise
+		// the long-lived MCP server keeps serving a stale include glob after a
+		// nested __test__ dir appears on disk.
+		it("should reflect a newly-added test file under a NESTED __test__ dir after a cached call", async () => {
+			// Given: a package with a single src/ unit test, discovered once (populates the process cache)
+			await createPkg("stale-nested-cache", { hasUnit: true });
+			const first = await discoverProjects({ cwd: tmpDir });
+			const firstInclude = first.projects?.[0].test?.include as string[] | undefined;
+			expect(firstInclude?.some((p) => p.includes("**/__test__/**"))).toBe(false);
+
+			// When: a new test file is added under a NESTED __test__/ (not package-root) after the first (cached) call
+			await mkdir(join(tmpDir, "packages", "stale-nested-cache", "lib", "scripts", "__test__"), {
+				recursive: true,
+			});
+			await writeFile(
+				join(tmpDir, "packages", "stale-nested-cache", "lib", "scripts", "__test__", "extra.test.ts"),
+				"",
+			);
+			const second = await discoverProjects({ cwd: tmpDir });
+
+			// Then: the second call reflects the new nested file instead of the stale first result
+			const secondInclude = second.projects?.[0].test?.include as string[] | undefined;
+			expect(secondInclude?.some((p) => p.includes("**/__test__/**"))).toBe(true);
+			expect(second).not.toBe(first);
+		});
 	});
 });

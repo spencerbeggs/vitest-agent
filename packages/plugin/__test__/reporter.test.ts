@@ -102,6 +102,42 @@ describe("AgentReporter", () => {
 		vi.restoreAllMocks();
 	});
 
+	/**
+	 * Drives `onInit` + `onTestRunEnd` for one module list against a fresh
+	 * `AgentReporter` that owns stdout (`consoleMode: "agent"` renders the
+	 * dispatched agent-string), capturing both stdout and stderr writes so
+	 * render-despite-persistence-failure tests can assert on both streams.
+	 */
+	async function runReporterEnd(
+		modules: VitestTestModule[],
+		options: { reason?: "passed" | "failed" | "interrupted" } = {},
+	): Promise<{ stdout: string[]; stderr: string[] }> {
+		const reporter = new AgentReporter({
+			cacheDir: tmpDir,
+			consoleMode: "agent",
+		});
+		const stdout: string[] = [];
+		const stderr: string[] = [];
+		const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+		const originalStderrWrite = process.stderr.write.bind(process.stderr);
+		process.stdout.write = ((chunk: string | Uint8Array) => {
+			stdout.push(String(chunk));
+			return true;
+		}) as typeof process.stdout.write;
+		process.stderr.write = ((chunk: string | Uint8Array) => {
+			stderr.push(String(chunk));
+			return true;
+		}) as typeof process.stderr.write;
+		try {
+			await reporter.onInit(undefined);
+			await reporter.onTestRunEnd(modules, [], options.reason ?? "failed");
+		} finally {
+			process.stdout.write = originalStdoutWrite;
+			process.stderr.write = originalStderrWrite;
+		}
+		return { stdout, stderr };
+	}
+
 	describe("constructor", () => {
 		it("applies default options", async () => {
 			const reporter = new AgentReporter({
@@ -580,6 +616,112 @@ describe("AgentReporter", () => {
 
 			// Both projects should have run data in the DB
 			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
+		});
+
+		it("coerces a non-Error failure value instead of crashing the run summary (issue #195)", async () => {
+			// message is typed string but is a plain object at runtime (Effect.flip
+			// shape). A second, all-passing project keeps the run at >1 project so
+			// the dispatcher picks the "workspace" cell, whose "Total:" line
+			// reports the aggregate fail count instead of the header-less
+			// "single-test" cell's bare failure block.
+			const passingModule = makeTestModule({
+				relativeModuleId: "src/api.test.ts",
+				projectName: "api",
+				tests: [makeTestCase({ name: "passes", state: "passed" })],
+			});
+			const failingModule = makeTestModule({
+				relativeModuleId: "src/core.test.ts",
+				projectName: "core",
+				tests: [
+					makeTestCase({
+						name: "flips",
+						state: "failed",
+						errors: [{ message: { a: 1 } as unknown as string }],
+					}),
+				],
+				state: "failed",
+			});
+			const { stdout, stderr } = await runReporterEnd([passingModule, failingModule]);
+			expect(stderr.join("")).not.toContain("DataStoreError");
+			expect(stdout.join("")).toContain("1 failed"); // summary rendered
+			// And the DB row landed with a stringified message:
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath);
+			const row = db.prepare("SELECT message FROM test_errors ORDER BY id DESC LIMIT 1").get() as { message: string };
+			expect(row.message).toBe('{"a":1}');
+		});
+
+		it("still renders the summary when the DB is unusable (issue #143)", async () => {
+			// Corrupt the db file so ensureMigrated/persistence fails.
+			const dbPath = path.join(tmpDir, "data.db");
+			fs.writeFileSync(dbPath, "this is not a sqlite database");
+			const passingModule = makeTestModule({
+				relativeModuleId: "src/api.test.ts",
+				projectName: "api",
+				tests: [makeTestCase({ name: "passes", state: "passed" })],
+			});
+			const failingModule = makeTestModule({
+				relativeModuleId: "src/core.test.ts",
+				projectName: "core",
+				tests: [makeTestCase({ name: "boom", state: "failed", errors: [{ message: "assertion failed" }] })],
+				state: "failed",
+			});
+			const { stdout, stderr } = await runReporterEnd([passingModule, failingModule]);
+			expect(stdout.join("")).toContain("1 failed"); // the summary is the point
+			expect(stderr.join("")).toContain("NOT recorded"); // loud, but secondary
+		});
+
+		it("writes per-project reasons — a clean project is not failed by a sibling (issue #147)", async () => {
+			const failingMod = makeTestModule({
+				relativeModuleId: "pkg-a/x.test.ts",
+				projectName: "pkg-a",
+				state: "failed",
+				tests: [makeTestCase({ name: "bad", state: "failed", errors: [{ message: "nope" }] })],
+			});
+			const cleanMod = makeTestModule({
+				relativeModuleId: "pkg-b/y.test.ts",
+				projectName: "pkg-b",
+				state: "passed",
+				tests: [makeTestCase({ name: "good", state: "passed" })],
+			});
+			await runReporterEnd([failingMod, cleanMod], { reason: "failed" });
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath);
+			const rows = db.prepare("SELECT project, reason FROM test_runs ORDER BY project").all() as Array<{
+				project: string;
+				reason: string;
+			}>;
+			expect(rows).toEqual([
+				{ project: "pkg-a", reason: "failed" },
+				{ project: "pkg-b", reason: "passed" },
+			]);
+		});
+
+		it("does not reject onTestRunEnd when a duck-typed module throws building the fallback report", async () => {
+			// state() throwing simulates a malformed reporter-shape module. The
+			// fallback report build runs bare, before ensureMigrated, so an
+			// unguarded throw here would reject onTestRunEnd itself with no
+			// render, no persist, and no formatted stderr.
+			const throwingModule: VitestTestModule = {
+				type: "module",
+				moduleId: "/abs/src/boom.test.ts",
+				relativeModuleId: "src/boom.test.ts",
+				project: { name: "" },
+				state: () => {
+					throw new Error("state() blew up");
+				},
+				children: {
+					*allTests() {},
+					*allSuites() {},
+				},
+				diagnostic: () => ({ duration: 0 }),
+				errors: () => [],
+			};
+
+			const { stdout, stderr } = await runReporterEnd([throwingModule]);
+
+			expect(stderr.join("")).toContain("state() blew up");
+			expect(stdout.join("")).toBe("");
 		});
 	});
 

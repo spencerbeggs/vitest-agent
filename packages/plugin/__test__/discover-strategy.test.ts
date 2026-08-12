@@ -1,10 +1,14 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ClassifyContext, DiscoverInput, ModuleInfo } from "../src/utils/discover-strategy.js";
 import { DefaultDiscoverStrategy, DiscoverStrategy } from "../src/utils/discover-strategy.js";
 import { Tag } from "../src/utils/tag.js";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const FIXTURES = join(HERE, "fixtures");
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -291,5 +295,21 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 				expect(setupFiles?.some((f) => f.endsWith(`vitest.setup.${ext}`))).toBe(true);
 			});
 		}
+	});
+
+	it("discovers tests in nested non-src __test__ directories (issue #184)", async () => {
+		// Given: a fixture package with tests under lib/scripts/__test__/ (not src/, not root __test__/)
+		const strategy = new DefaultDiscoverStrategy();
+
+		// When: calling buildProject against the fixture path
+		const project = await strategy.buildProject({
+			name: "nested-test-dir-project",
+			path: join(FIXTURES, "nested-test-dir-project"),
+		} as DiscoverInput);
+
+		// Then: the nested __test__ dir is discovered via a widened glob
+		expect(project).not.toBeNull();
+		const include = project?.test?.include ?? [];
+		expect(include.some((g) => g.includes("**/__test__/**"))).toBe(true);
 	});
 });

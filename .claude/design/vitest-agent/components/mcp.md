@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-22
-last-synced: 2026-07-22
+updated: 2026-08-11
+last-synced: 2026-08-11
 completeness: 92
 related:
   - ../architecture.md
@@ -116,13 +116,17 @@ file per tool — and broadly group into:
 - **Triage / wrapup.** `triage_brief` and `wrapup_prompt` delegate
   verbatim to the shared `format-triage` / `format-wrapup` generators
   in `packages/sdk/src/lib/`. CLI and MCP outputs are byte-identical.
-- **Mutations.** `run_tests` executes `vitest run` via `spawnSync`.
-  Mutates `process.env` from the `SessionContextRef` before
-  `createVitest` so the in-process reporter sees current attribution.
-  Accepts a structured `tags` filter and a per-call `passWithNoTests`
-  override; emits a fourth `no-match` discriminator variant when the
-  resolved filter set matches zero tests. See *Tag filtering and tag
-  introspection* below.
+- **Mutations.** `run_tests` runs Vitest in-process via `createVitest`
+  from `vitest/node`. Mutates `process.env` from the `SessionContextRef`
+  before `createVitest` so the in-process reporter sees current
+  attribution. Accepts a structured `tags` filter and a per-call
+  `passWithNoTests` override; emits a fourth `no-match` discriminator
+  variant when the resolved filter set matches zero tests. The `reason`
+  it computes from module states is preliminary — `buildAgentReport`
+  self-corrects it to `"failed"` when the walk finds failed files or
+  unhandled errors, so a hook-only or collection-only failure cannot
+  report green. See *Tag filtering and tag introspection* below, and
+  *Per-invocation coverage directory* for the temp-dir isolation.
 
 Both `set_current_session_id` and `get_current_session_id` are
 **removed**. The MCP server's `SessionContextRef` populates from
@@ -378,6 +382,36 @@ alphabetical order.
 `TestRowSchema` rows grouped by project (one group per project carrying
 the tag, or a single group when `project` is supplied). Delegates to
 `DataReader.listTestsForTag`.
+
+## Per-invocation coverage directory
+
+`makeCoverageDirOverride()` in `packages/mcp/src/tools/run-tests.ts` gives
+every `run_tests` invocation its own `mkdtemp` coverage
+`reportsDirectory`, spread onto the `createVitest` overrides as a
+field-level merge (`coverage: { reportsDirectory }`) so the user's
+`coverage.enabled`, provider and thresholds all still apply.
+
+**Why.** Vitest's v8 provider `rm -rf`s the shared `coverage/` reports
+directory at run start (`clean: true` is the default). Two runs
+concurrently in one checkout — an MCP `run_tests` alongside a Bash
+`vitest run`, or two MCP calls — therefore delete each other's `.tmp`
+files mid-flight and one of them dies with `ENOENT ... coverage-N.json`
+(issues #159 / #191 / #194). A per-invocation directory removes the shared
+resource entirely.
+
+**Lifecycle.** The override is created *inside* the tool's `try`, not
+before it, so a throwing `mkdtempSync` (full or read-only tmpdir) is caught
+by the surrounding handler and returns the tool's normal
+`{ kind: "error", message }` envelope instead of propagating raw out of the
+tRPC resolver. Cleanup is a best-effort `rmSync(..., { recursive: true,
+force: true })` in `finally`; a failure there is swallowed and left to
+tmpdir reaping.
+
+**Trade-off.** Final coverage artifacts (html, lcov) from MCP-driven runs
+land in the throwaway directory rather than `./coverage`. That is
+acceptable because the MCP path never reads coverage from disk:
+`CoverageAnalyzer` consumes the in-memory `CoverageMap` via `onCoverage`
+and persists to SQLite, which is what every MCP coverage tool reads.
 
 ## MCP boot context recovery
 

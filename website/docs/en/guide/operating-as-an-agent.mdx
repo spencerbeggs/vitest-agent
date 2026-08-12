@@ -36,7 +36,15 @@ cost trial-and-error.
    changes, so a warm MCP no longer reports phantom counts — no restart needed.
    The `run_tests` result carries `discoveryLastScannedAt` (an ISO timestamp of
    the last real disk scan) if you want to confirm a count is fresh.
-7. **Some "leaks" are guardrail tests** that assert on their own output — do not
+7. **Judge a run by its collected count, not by `0 failed`.** The totals line
+   carries `across N files` whenever the collected module count is known, and a
+   run that collects nothing renders `0 tests collected` as a warning rather
+   than a pass. A lower file count than you expected means files failed to load.
+8. **A rendered result is not always a recorded one.** If stderr carries
+   `vitest-agent: persistence failed — results above were rendered but NOT
+   recorded`, the output on screen is real but nothing reached SQLite, so
+   `test_status`, `test_history`, and trends will not reflect that run.
+9. **Some "leaks" are guardrail tests** that assert on their own output — do not
    silence them.
 
 ## Environment variables

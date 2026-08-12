@@ -13,6 +13,14 @@ export const ReportSummary = Schema.Struct({
 	failed: Schema.Number,
 	skipped: Schema.Number,
 	duration: Schema.Number,
+	/**
+	 * Count of every collected module, passing modules included.
+	 * `AgentReport.failed` only carries failing modules, so a green run
+	 * has no other way to know how many files actually ran — without
+	 * this a fully-passing replay reads as "0 modules all-passed"
+	 * (issue #204). Optional to keep existing fixtures/reports valid.
+	 */
+	modules: Schema.optional(Schema.Number),
 }).annotate({ identifier: "ReportSummary" });
 /** @public */
 export type ReportSummary = typeof ReportSummary.Type;

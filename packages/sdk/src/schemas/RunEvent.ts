@@ -206,6 +206,14 @@ export const RunEvent = Schema.Union([
 		skipCount: Schema.Number,
 		durationMs: Schema.Number,
 		timeoutCount: Schema.optional(Schema.Number),
+		/**
+		 * Count of every collected module, passing modules included.
+		 * Carries `AgentReport.summary.modules` (or the live module
+		 * count) into the event stream so the reducer can fold the
+		 * true count into `RenderState` even when `moduleOrder` only
+		 * tracks failing modules (report replay). See issue #204.
+		 */
+		collectedModules: Schema.optional(Schema.Number),
 	}),
 ]).annotate({ identifier: "RunEvent" });
 /** @public */
