@@ -1,11 +1,8 @@
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { NON_DISCOVERABLE_DIRS } from "@vitest-agent/sdk";
 import { toPosixPath } from "./to-posix-path.js";
-
-// ── Directories to skip during traversal ─────────────────────────────────────
-
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist"]);
 
 // ── Minimal glob-to-RegExp compiler ──────────────────────────────────────────
 // Handles the subset used in this codebase:
@@ -132,8 +129,11 @@ async function walkDir(root: string, dir: string, matchers: RegExp[], results: s
 	}
 
 	for (const ent of entries) {
-		// Skip designated directories
-		if (SKIP_DIRS.has(ent.name)) continue;
+		// Skip designated directories. Shared with the classifier and the
+		// cache-signature walk via NON_DISCOVERABLE_DIRS — pruning here, before
+		// the recursive call below, is what keeps a symlinked node_modules from
+		// dragging in the pnpm store.
+		if (NON_DISCOVERABLE_DIRS.has(ent.name)) continue;
 
 		const fullPath = join(dir, ent.name);
 		if (ent.isDirectory()) {

@@ -1,6 +1,11 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { classifyTestPath } from "../src/utils/test-location.js";
+import {
+	NON_DISCOVERABLE_DIRS,
+	classifyTestPath,
+	findOwningWorkspace,
+	isTestFileName,
+} from "../src/utils/test-location.js";
 
 const ROOT = "/repo";
 const WORKSPACES = [
@@ -67,5 +72,68 @@ describe("classifyTestPath", () => {
 
 	it("returns null when no workspace contains the path", () => {
 		expect(classifyTestPath(WORKSPACES, "/elsewhere/foo.test.ts")).toBeNull();
+	});
+
+	// ── boundaries discovery honors and the classifier must not contradict ──
+	// A path under one of these directories is never walked by discovery, so the
+	// rule has nothing to say about it. Rendering `invalid` there advised moving
+	// an installed dependency's or a vendored checkout's file into this repo's
+	// own __test__/ directory (issue #227 review).
+
+	it("returns null, not a verdict, for a path with a node_modules segment", () => {
+		const path = join(ROOT, "node_modules", ".pnpm", "style-to-js@1.1.21", "src", "index.test.ts");
+		expect(classifyTestPath(WORKSPACES, path)).toBeNull();
+	});
+
+	it("returns null, not a verdict, for a path with a dist segment", () => {
+		const path = join(ROOT, "packages", "plugin", "src", "dist", "foo.test.ts");
+		expect(classifyTestPath(WORKSPACES, path)).toBeNull();
+	});
+
+	it("returns null, not a verdict, for a path with a .git segment", () => {
+		expect(classifyTestPath(WORKSPACES, join(ROOT, ".git", "hooks", "foo.test.ts"))).toBeNull();
+	});
+
+	it("declines a verdict even when the non-discoverable dir sits under a valid root", () => {
+		const path = join(ROOT, "packages", "plugin", "__test__", "node_modules", "dep", "foo.test.ts");
+		expect(classifyTestPath(WORKSPACES, path)).toBeNull();
+	});
+
+	it("does not treat a name merely containing a skipped segment as skipped", () => {
+		const path = join(ROOT, "packages", "plugin", "src", "node_modules_helper", "foo.test.ts");
+		expect(classifyTestPath(WORKSPACES, path)?.verdict).toBe("valid");
+	});
+});
+
+describe("NON_DISCOVERABLE_DIRS", () => {
+	it("is the set both plugin walkers prune before recursing", () => {
+		expect([...NON_DISCOVERABLE_DIRS].sort()).toEqual([".git", "dist", "node_modules"]);
+	});
+});
+
+describe("findOwningWorkspace", () => {
+	it("returns the deepest containing workspace", () => {
+		const path = join(ROOT, "packages", "plugin", "__test__", "foo.test.ts");
+		expect(findOwningWorkspace(WORKSPACES, path)?.path).toBe(join(ROOT, "packages", "plugin"));
+	});
+
+	it("returns null when no workspace contains the path", () => {
+		expect(findOwningWorkspace(WORKSPACES, "/elsewhere/foo.test.ts")).toBeNull();
+	});
+});
+
+describe("isTestFileName", () => {
+	it.each([
+		"foo.test.ts",
+		"foo.test.tsx",
+		"foo.spec.js",
+		"foo.spec.jsx",
+		"a/b/foo.unit.test.ts",
+	])("recognises %s", (name) => {
+		expect(isTestFileName(name)).toBe(true);
+	});
+
+	it.each(["foo.ts", "foo.test.mts", "foo.bats", "test.ts", "foo.test.ts.snap"])("rejects %s", (name) => {
+		expect(isTestFileName(name)).toBe(false);
 	});
 });

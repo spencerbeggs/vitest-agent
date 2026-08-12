@@ -18,7 +18,10 @@ import {
 	EnvironmentDetector,
 	EnvironmentDetectorLive,
 	HumanConsoleMode,
+	SRC_DIR,
+	TEST_DIR,
 	formatFatalError,
+	isTestFileName,
 	resolveLogLevel,
 } from "@vitest-agent/sdk";
 import type { Layer } from "effect";
@@ -189,9 +192,14 @@ const aggregatedReporterByVitest = new WeakSet<object>();
  */
 export const CURRENT_PLUGIN_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";
 
-const TEST_FILE_SUFFIX_RE = /\.(?:test|spec)\.(?:ts|tsx|js|jsx)$/;
-const TEST_FILE_DIR_RE = /\/(?:src|__test__)\//;
-const isTestFile = (id: string): boolean => TEST_FILE_SUFFIX_RE.test(id) && TEST_FILE_DIR_RE.test(id);
+// Both halves of the layout rule come from @vitest-agent/sdk's test-location
+// module rather than being re-spelled here: `isTestFileName` for the extension
+// set, SRC_DIR / TEST_DIR for the two recognized directories. This gate only
+// decides whether to inject the tag prelude into a module Vitest already
+// collected, so it is deliberately loose about anchoring — but it must not be a
+// second, drifting copy of the rule.
+const TEST_FILE_DIR_RE = new RegExp(`/(?:${SRC_DIR}|${TEST_DIR})/`);
+const isTestFile = (id: string): boolean => isTestFileName(id) && TEST_FILE_DIR_RE.test(id);
 
 /**
  * Map a detected {@link Environment} to its {@link Executor}. Inline copy

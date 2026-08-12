@@ -3,10 +3,15 @@ import { Effect, FileSystem, Layer } from "effect";
 import { DiscoveryError } from "../errors/DiscoveryError.js";
 import type { TestFileEntry } from "../services/ProjectDiscovery.js";
 import { ProjectDiscovery } from "../services/ProjectDiscovery.js";
+import { NON_DISCOVERABLE_DIRS } from "../utils/test-location.js";
 
 const TEST_FILE_PATTERN = /\.(test|spec)\.(ts|tsx)$/;
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "coverage", ".turbo", ".vite"]);
+// The shared non-discoverable set plus the tool-output directories this
+// source-file walk also has no interest in. Extends NON_DISCOVERABLE_DIRS
+// rather than restating it, so the three names it shares with discovery's
+// walkers cannot drift.
+const SKIP_DIRS = new Set([...NON_DISCOVERABLE_DIRS, "coverage", ".turbo", ".vite"]);
 
 function isTestFile(filePath: string): boolean {
 	return TEST_FILE_PATTERN.test(filePath);

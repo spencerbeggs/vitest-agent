@@ -4,7 +4,7 @@ import { isAbsolute, join, normalize, relative } from "node:path";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
 import type { TestTagDefinition } from "@vitest/runner";
-import { SRC_DIR, TEST_DIR } from "@vitest-agent/sdk";
+import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR } from "@vitest-agent/sdk";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 import type { DiscoverStrategy } from "./discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./discover-strategy.js";
@@ -69,16 +69,16 @@ interface CacheEntry {
 }
 const _cache = new Map<string, CacheEntry>();
 
-// Directories the per-directory mtime signature walk in this module prunes
-// before recursing into them. Node's recursive `readdir` follows symlinked
-// directories, and pnpm workspace packages' `node_modules` trees are full of
-// them (each dependency is a symlink into the content-addressed store) — an
-// unguarded walk from a package's `src/` or `__test__/` root, or from a
-// fixture `node_modules` nested inside one (e.g. a subprocess-e2e fixture
-// that installs its own deps), would recurse through the entire store or hit
-// a symlink cycle. Pruning before recursing, not filtering results after, is
-// what makes this safe.
-const SIGNATURE_SKIP_DIRS = new Set(["node_modules", ".git", "dist"]);
+// The per-directory mtime signature walk in this module prunes
+// NON_DISCOVERABLE_DIRS (from @vitest-agent/sdk, shared with the test-file
+// walker and the classifier) before recursing into them. Node's recursive
+// `readdir` follows symlinked directories, and pnpm workspace packages'
+// `node_modules` trees are full of them (each dependency is a symlink into the
+// content-addressed store) — an unguarded walk from a package's `src/` or
+// `__test__/` root, or from a fixture `node_modules` nested inside one (e.g. a
+// subprocess-e2e fixture that installs its own deps), would recurse through
+// the entire store or hit a symlink cycle. Pruning before recursing, not
+// filtering results after, is what makes this safe.
 
 /**
  * Computes a cheap signature (relative path + mtimeMs pairs, sorted) for every
@@ -88,7 +88,7 @@ const SIGNATURE_SKIP_DIRS = new Set(["node_modules", ".git", "dist"]);
  * a stable, comparable signature contribution.
  *
  * Manual per-directory walk (not a single `readdir({ recursive: true })`
- * call) pruning `SIGNATURE_SKIP_DIRS` *before* recursing: a `src/` or
+ * call) pruning `NON_DISCOVERABLE_DIRS` *before* recursing: a `src/` or
  * `__test__/` dir can itself contain a fixture `node_modules` (e.g. a
  * subprocess-e2e fixture that installs deps), and Node's recursive `readdir`
  * follows symlinked directories, so an unguarded call would walk into it.
@@ -110,7 +110,7 @@ async function walkDirSignature(root: string, dir: string, parts: string[]): Pro
 	for (const ent of entries) {
 		const fullPath = join(dir, ent.name);
 		if (ent.isDirectory()) {
-			if (SIGNATURE_SKIP_DIRS.has(ent.name)) continue;
+			if (NON_DISCOVERABLE_DIRS.has(ent.name)) continue;
 			await walkDirSignature(root, fullPath, parts);
 		} else if (ent.isFile()) {
 			let mtimeMs: number;
