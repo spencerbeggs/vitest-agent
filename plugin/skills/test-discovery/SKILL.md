@@ -25,7 +25,7 @@ Test files sit flat at the top level of `__test__/`; helper files go in reserved
 
 ```text
 __test__/
-├── *.test.ts | *.test.unit                   unit test files
+├── *.test.ts | *.unit.test.ts  unit test files
 ├── fixtures/                   static files needed by unit tests
 ├── snapshots/                  Vitest snapshot files for unit tests
 ├── utils/                      shared helpers for unit tests
