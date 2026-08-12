@@ -1,5 +1,24 @@
 # @vitest-agent/mcp
 
+## 2.1.2
+
+### Bug Fixes
+
+* `run_tests` now gives each MCP-driven invocation its own coverage `reportsDirectory` (via `mkdtemp`), fixing collisions where two concurrent runs deleted each other's in-flight coverage report files
+* Scope: this fix covers runs launched through the MCP server's `run_tests` tool. Concurrent direct `vitest` process invocations outside the MCP tool still share the default coverage directory and can still collide [#223][#223]
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From   | To    |
+| ----------------- | ---------- | ------- | ------ | ----- |
+| @vitest-agent/sdk | dependency | updated | 2.0.16 | 2.1.0 |
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#223]: https://github.com/spencerbeggs/vitest-agent/pull/223
+
 ## 2.1.1
 
 ### Dependencies
