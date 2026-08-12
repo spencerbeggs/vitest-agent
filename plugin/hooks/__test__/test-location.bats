@@ -106,6 +106,53 @@ _run_hook() {
 	[[ "$output" != *"deny"* ]]
 }
 
+# The ten cases above all stub VITEST_AGENT_CLI_CMD directly, which never
+# exercises the production cli_cmd-resolution branch (no override set, PM
+# detected from cwd via detect-pm.sh). That branch has crashed twice with an
+# unbound-variable error under set -u — once on $pm_exec, once on hook_debug's
+# missing second argument — with neither caught by the suite above. These two
+# tests drive that branch for real: no VITEST_AGENT_CLI_CMD, a stub `npx` on
+# PATH standing in for the resolved package-manager exec, and a cwd with no
+# package.json/lockfile so detect_pm_exec deterministically falls back to
+# "npx --no-install".
+_stub_pm_failure() {
+	bin_dir="$STUB_DIR/bin"
+	mkdir -p "$bin_dir"
+	cat >"$bin_dir/npx" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+	chmod +x "$bin_dir/npx"
+}
+
+@test "fails open when resolving the CLI via the package manager and the resolved command fails" {
+	unset VITEST_AGENT_CLI_CMD
+	_stub_pm_failure
+	old_path="$PATH"
+	export PATH="$STUB_DIR/bin:$PATH"
+	run _run_hook "{\"tool_name\":\"Write\",\"cwd\":\"$STUB_DIR\",\"tool_input\":{\"file_path\":\"$STUB_DIR/a.test.ts\"}}"
+	export PATH="$old_path"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'"suppressOutput": true'* ]]
+	[[ "$output" != *"deny"* ]]
+}
+
+@test "fails open when hook debug mode is on and CLI resolution fails" {
+	unset VITEST_AGENT_CLI_CMD
+	_stub_pm_failure
+	old_path="$PATH"
+	export PATH="$STUB_DIR/bin:$PATH"
+	export VITEST_AGENT_HOOK_DEBUG=1
+	export VITEST_AGENT_HOOK_DEBUG_LOG="$STUB_DIR/debug.log"
+	run _run_hook "{\"tool_name\":\"Write\",\"cwd\":\"$STUB_DIR\",\"tool_input\":{\"file_path\":\"$STUB_DIR/a.test.ts\"}}"
+	export PATH="$old_path"
+	unset VITEST_AGENT_HOOK_DEBUG
+	unset VITEST_AGENT_HOOK_DEBUG_LOG
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'"suppressOutput": true'* ]]
+	[[ "$output" != *"deny"* ]]
+}
+
 @test "is silent when file_path is missing" {
 	run _run_hook '{"tool_name":"Write","tool_input":{}}'
 	[ "$status" -eq 0 ]

@@ -18,6 +18,8 @@
 
 set -euo pipefail
 
+_HOOK="pre-tool-use-test-location"
+
 # shellcheck source=../lib/hook-output.sh
 . "$(dirname "$0")/../lib/hook-output.sh"
 # shellcheck source=../lib/hook-debug.sh
@@ -64,7 +66,7 @@ fi
 # post-tool-use/git-commit.sh.
 # shellcheck disable=SC2086
 if ! verdict_json=$($cli_cmd agent check-test-path "$file_path" 2>/dev/null); then
-	hook_debug "check-test-path failed for $file_path"
+	hook_debug "$_HOOK" "check-test-path failed for $file_path"
 	emit_noop
 	exit 0
 fi
