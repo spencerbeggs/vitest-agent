@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-22
-last-synced: 2026-07-22
+updated: 2026-08-12
+last-synced: 2026-08-12
 completeness: 90
 related:
   - ../architecture.md
@@ -141,6 +141,18 @@ categories:
   `--bail`, `--testNamePattern`), reject test-weakening edits, and record
   evidence artifacts. This is the runtime enforcement layer for the iron-law
   TDD discipline; the agent's `tools[]` array is documentation.
+- **Layout enforcement.** `pre-tool-use/test-location.sh` fires on
+  `Read`/`Write`/`Edit`/`MultiEdit` calls whose `file_path` basename is
+  shaped like a test file, then delegates the actual judgement to
+  `vitest-agent agent check-test-path` — never re-deriving the rule in
+  bash — which shares `classifyTestPath` (`@vitest-agent/sdk`,
+  `utils/test-location.ts`) with the discovery globs. A `Write` of a test
+  file that does not yet exist at an `invalid` location is denied with the
+  suggested valid path; every other match (an existing file being read or
+  edited) gets advisory `additionalContext` instead, since the file's
+  location can't be un-broken by refusing the edit. Any CLI failure fails
+  open (`emit_noop`). This is what closed issue #227 and reclassified
+  issue #184 — see [../decisions-retired.md](../decisions-retired.md).
 
 The match-tdd-agent helper at `hooks/lib/match-tdd-agent.sh` is the load-bearing
 piece for orchestrator scoping. Claude Code emits the subagent identity in the

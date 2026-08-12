@@ -302,9 +302,11 @@ release workflow. Every package versions independently — there is no lockstep 
   is still available via `--project`; test-kind filtering moved to
   Vitest-native tag expressions (e.g. `--tags-filter "int"`).
 - **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
-  (flat directory). The default discovery strategy also finds nested
-  `__test__/` dirs at any depth, and recognises tests co-located under
-  `src/` for backward compatibility.
+  (flat directory). A test file is discoverable only under a workspace
+  package's `src/` (co-located) or `__test__/` directory, anchored at
+  the package root — nothing nested elsewhere in the tree is
+  discovered. The rule lives in `classifyTestPath` and its constants in
+  `@vitest-agent/sdk`'s `utils/test-location.ts`.
   Test-kind differentiation comes from `DiscoverStrategy.classify`
   (default classifies `.e2e.`, `.int.`, and otherwise `unit` by
   filename), not from project splits — there is one Vitest project

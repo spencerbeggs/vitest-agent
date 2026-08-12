@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-08-11
-last-synced: 2026-08-11
+updated: 2026-08-12
+last-synced: 2026-08-12
 completeness: 100
 related:
   - ./architecture.md
@@ -1132,7 +1132,7 @@ to one each. The benchmark harness is `scripts/bench-sidecar.sh`.
 
 **Decision.** Cache entries now carry `{ result, signature }`. The signature is a cheap per-package directory fingerprint — a recursive `readdir` + `stat` `mtimeMs` walk over each package's `src/` and `__test__/`, sorted, no file contents read (`computeDirSignature` / `computeWorkspaceSignature`). On the cacheable no-arg path the signature is recomputed and compared before a cached result is returned; a mismatch means a test file was added, removed, moved or renamed, so discovery rescans and refreshes the entry. The explicit-strategy and `additionalEntries` paths still bypass the cache entirely, unchanged.
 
-**Extension (issue #184): nested `__test__` dirs and guarded walks.** The signature originally fingerprinted only a package-root `__test__/`, so a test file under `lib/scripts/__test__/` never invalidated the cache. `findNestedTestDirs` now locates every `__test__` directory under a package at any depth and each one contributes its own signature. Both walks — the directory finder and the per-directory `mtimeMs` walk, the latter rewritten from a single recursive `readdir` into a manual per-directory descent — prune `node_modules`, `.git` and `dist` **before** recursing rather than filtering results afterwards. That ordering is load-bearing: Node's recursive `readdir` follows symlinked directories and a pnpm package's `node_modules` is entirely symlinks into the content-addressed store, so an unguarded walk from a package root (or from a `__test__` dir holding a fixture package's own `node_modules`) traverses the store or hits a cycle. The walks deliberately do **not** stop at the nested-`package.json` boundary that `findTestFiles` respects — over-including a fixture package's tests in the signature costs at most an extra rescan, and failing safe toward rescanning is always preferable to serving a stale project list.
+**Extension (issue #184): retired.** This decision briefly extended the signature to fingerprint nested `__test__` directories at any depth, matching a discovery-glob change made to reach a test file reported in issue #184. That extension was reversed — #184 was an invalid report, and honoring it caused issue #227. See [decisions-retired.md](./decisions-retired.md#decision-43-issue-184-extension-nested-test-directory-support-retired) for the retired text and the reasoning.
 
 **Cross-package observability handshake.** Every real disk scan (not a cache hit) records an ISO timestamp into a process-global slot keyed by `Symbol.for("vitest-agent:discovery:last-scan-at")`, exposed by the plugin's exported `getLastDiscoveryScanTimestamp()`. `@vitest-agent/mcp` reads the same slot (via a local `readDiscoveryLastScannedAt()`) to surface `discoveryLastScannedAt` on `RunTestsOk`, letting an agent tell a fresh scan from a stale-looking count. The Symbol slot — rather than a direct import — is load-bearing: `@vitest-agent/plugin` depends on `@vitest-agent/cli` / `@vitest-agent/mcp`, so an mcp → plugin import would be circular. `Symbol.for()` resolves to the identical symbol across module instances in one process, and `createVitest` loads `vitest.config.ts` in-process so both sides observe the same slot. This mirrors the `ensureMigrated` globalThis-keyed promise cache (Decision 28).
 

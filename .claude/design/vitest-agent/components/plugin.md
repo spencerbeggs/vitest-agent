@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-11
-last-synced: 2026-08-11
+updated: 2026-08-12
+last-synced: 2026-08-12
 completeness: 93
 related:
   - ../architecture.md
@@ -382,24 +382,34 @@ result as a second argument so they can augment or replace it.
 
 `DefaultDiscoverStrategy` is the strategy applied when no override is
 passed. Its `buildProject` makes a single `findTestFiles` walk against both
-patterns — `src/**/*.{test,spec}.*` and `**/__test__/**/*.{test,spec}.*` —
+patterns — `src/**/*.{test,spec}.*` and `__test__/**/*.{test,spec}.*` —
 and returns null when neither bucket has matches; a single predicate covers
 what would otherwise be several special cases (root package skip, missing
 `src/` skip, no-test-files placeholder). Its `classify` is the
 filename-suffix match (`.e2e.test.ts` to e2e, `.int.test.ts` to int,
 otherwise unit).
 
-The `__test__` pattern is `**/__test__/**`, not root-only `__test__/**`, so
-a nested test directory such as `lib/scripts/__test__/` is discovered
-(issue #184). Bucketing is now "under `src/` or not" rather than a
-`__test__`-prefix test, since the nested form has no fixed prefix. Two
-consequences follow from the broader glob: the emitted `exclude` list adds
-`**/dist/**` (Vitest's `configDefaults.exclude` does not cover build
-output, and the broadened include can now reach into it), and the helper-
-subdirectory excludes (`utils`, `fixtures`, `snapshots`) are themselves
-rewritten to `**/__test__/<dir>/**` so they apply at every depth. The
-exclude list is emitted whenever the `__test__` bucket produced matches
-(previously: whenever a root `__test__/` directory merely existed).
+Bucketing is "under `src/` or not": a test file is discoverable only at
+`<workspace>/src/**` or `<workspace>/__test__/**`, anchored at the package
+root, and nowhere else. A `__test__/` directory nested anywhere else in the
+tree — `lib/scripts/__test__/`, for example — is never included; the emitted
+include globs are absolute and package-anchored (`<path>/src/**/...` and/or
+`<path>/__test__/**/...`), not the unanchored `**/__test__/**` that shipped
+in 2.1.0. That unanchored form is what caused issue #227: Vitest globs a
+pattern literally with no nested-`package.json` concept, so for the root
+workspace — which `@effected/workspaces` reports at the repo root — the
+pattern globbed the entire repository and collected foreign test suites
+against the wrong toolchain. It had been widened to reach the path reported
+in issue #184, which turned out to be an invalid report (see
+[../decisions-retired.md](../decisions-retired.md)). The rule now lives in
+one place, `classifyTestPath` in `@vitest-agent/sdk`'s
+`utils/test-location.ts`, and these globs are generated from the same
+constants that back it. Because an anchored include cannot reach build
+output, the former `**/dist/**` exclude is gone. The helper-subdirectory
+excludes (`utils`, `fixtures`, `snapshots`) are anchored under
+`<path>/__test__/**/{fixtures,snapshots,utils}/**` — helper-directory
+exclusion applies under `__test__/` only, never under `src/`. The exclude
+list is emitted whenever the `__test__` bucket produced matches.
 
 The three classifier helpers (`classifyByFilename`, `classifyByDirectory`,
 `combineClassifiers`) and the standalone `findTestFiles` walker live
@@ -435,7 +445,7 @@ predicate to decide whether a package contributes a project. The scanner:
    explicit user intent and a silent skip would surprise the caller.
 4. Materializes `tags` as a copy of `strategy.tagDefinitions`.
 
-**Signature-invalidated process cache.** Results are keyed by workspace root in a module-local `Map`. The cache fires only when neither `strategy` nor `additionalEntries` was supplied so a `DiscoverStrategy` instance never has to be fingerprinted. Any explicit strategy or any `.addProject` chain bypasses the cache. Each entry stores `{ result, signature }`: the signature is a cheap fingerprint of every package's `src/` directory plus *every* nested `__test__/` directory found under the package (recursive relative-path + `mtimeMs` pairs, no file contents). `findNestedTestDirs` locates those directories at any depth, so a `lib/scripts/__test__/` edit invalidates the cache the same way a package-root `__test__/` edit does (issue #184). Both walks — the directory finder and the per-directory `mtimeMs` walk — prune `node_modules`, `.git` and `dist` *before* recursing (`SIGNATURE_SKIP_DIRS`) rather than filtering results afterwards: Node's recursive `readdir` follows symlinked directories, and a pnpm `node_modules` tree is nothing but symlinks into the content-addressed store, so an unguarded walk from a package root — or from a found `__test__` dir that contains a fixture `node_modules` — walks the whole store or hits a symlink cycle. The two walks deliberately do **not** honor the nested-`package.json` boundary that `findTestFiles` stops at; over-including a fixture package's own `__test__/` in the signature only ever costs an extra rescan, and failing safe toward rescanning beats serving a stale project list. They do, however, **record** those boundaries: `findNestedTestDirs` returns `{ testDirs, boundaries }`, where each boundary is the `relPath:mtimeMs` of a nested `package.json` (the package's own root manifest excluded — it is not a boundary for its own walk, and version bumps would churn the signature for nothing). Boundary markers join the signature as a third segment (`::boundaries=…`) because adding or removing a nested manifest changes `findTestFiles`' traversal shape — it starts or stops descending into that subtree — without any test file changing, and a cache that missed that would serve a project list discovery can no longer produce. On the cacheable path the signature is recomputed and compared before a cached result is returned, so a test file added/removed/moved/renamed on disk triggers a rescan rather than returning stale include-globs (issue #100 — the long-lived MCP server otherwise silently dropped tests after a test-file move). Every real scan also records an ISO timestamp under `Symbol.for("vitest-agent:discovery:last-scan-at")`, readable via the exported `getLastDiscoveryScanTimestamp()`, which `@vitest-agent/mcp` reads back to surface `discoveryLastScannedAt` on `run_tests` results without a circular import. See [./discover.md](./discover.md) and [../decisions.md](../decisions.md) Decision 43.
+**Signature-invalidated process cache.** Results are keyed by workspace root in a module-local `Map`. The cache fires only when neither `strategy` nor `additionalEntries` was supplied so a `DiscoverStrategy` instance never has to be fingerprinted. Any explicit strategy or any `.addProject` chain bypasses the cache. Each entry stores `{ result, signature }`: the signature is a cheap fingerprint of exactly two directories per package — `src/` and `__test__/` — via `computeDirSignature` / `computeWorkspaceSignature` (recursive relative-path + `mtimeMs` pairs, sorted, no file contents). Discovery cannot see a test file anywhere else, so nothing else can change the emitted project list (issue #227), and the signature only needs to cover the same two locations discovery walks. `computeDirSignature` prunes `node_modules`, `.git` and `dist` *before* recursing (`SIGNATURE_SKIP_DIRS`) rather than filtering results afterwards: Node's recursive `readdir` follows symlinked directories, and a pnpm `node_modules` tree is nothing but symlinks into the content-addressed store, so an unguarded walk from a package's `src/` or `__test__/` root — or from a fixture `node_modules` nested inside one — walks the whole store or hits a symlink cycle. On the cacheable path the signature is recomputed and compared before a cached result is returned, so a test file added/removed/moved/renamed on disk triggers a rescan rather than returning stale include-globs (issue #100 — the long-lived MCP server otherwise silently dropped tests after a test-file move). Every real scan also records an ISO timestamp under `Symbol.for("vitest-agent:discovery:last-scan-at")`, readable via the exported `getLastDiscoveryScanTimestamp()`, which `@vitest-agent/mcp` reads back to surface `discoveryLastScannedAt` on `run_tests` results without a circular import. See [./discover.md](./discover.md) and [../decisions-retired.md](../decisions-retired.md) (Decision 43's #184 extension, reversed).
 
 Users that want to mutate projects post-discovery either extend the strategy
 (preferred) or destructure the result and mutate the array before

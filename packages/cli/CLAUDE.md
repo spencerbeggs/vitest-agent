@@ -20,7 +20,7 @@ src/
     db.ts              -- `db` parent: path / prune / reset / query
     agent.ts           -- `agent` namespace parent: triage, wrapup,
                           record, register-agent, end-agent, inject-env,
-                          sidecar-path
+                          sidecar-path, check-test-path
     record.ts triage.ts wrapup.ts
                        -- subcommand bodies composed under `agent`
   lib/                -- pure formatting + sidecar logic (where tests live)
@@ -47,7 +47,7 @@ src/
 | `bin.ts` | Bin entry. Pipeline: `resolveDataPath(cwd)` -> provide `PathResolutionLive(projectDir) + NodeServices.layer` -> provide `CliLive(dbPath, ...)` -> run the `Command.run(rootCommand, { version })` Effect (v4 `Command.run` drops the `name` arg — the name comes from `Command.make` — and reads argv from the Stdio service rather than an explicit `process.argv`). `withSubcommands` is `[dbCommand, doctorCommand, agentCommand]` |
 | `commands/db.ts` | `db` parent with four subcommands. `db path` prints the deterministic XDG path (no probing); `db prune --keep-recent N` drops old sessions' turn history (default N=30); `db reset` wipes the DB (human-only, agent-blocked); `db query <sql>` runs read-only SQL |
 | `commands/doctor.ts` | 5-point health diagnostic (manifest assembly, latest-run integrity, staleness check). Keeps `--format markdown\|json` |
-| `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand` plus the sidecar subcommands `register-agent`, `end-agent`, `inject-env` |
+| `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand` plus the sidecar subcommands `register-agent`, `end-agent`, `inject-env`, `sidecar-path`, and `check-test-path` |
 | `lib/format-db-query.ts` | Pure tabular formatter for `db query` output: column headers, whitespace-padded rows, `(0 rows)` on empty; `--format json` emits a JSON array of row objects |
 | `lib/format-doctor.ts`, `lib/format-triage.ts`, `lib/format-wrapup.ts` | Pure formatting functions tested as plain functions; `format-triage` / `format-wrapup` are shared with the MCP package |
 | `lib/sidecar-paths.ts` | Path-resolution helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). Re-exported from `src/index.ts`. The dispatch core (`dispatch`, `injectEnv`, `exitCodeForTag`) moved to `@vitest-agent/sdk/dispatch`; `agent.ts` imports `exitCodeForTag` / `injectEnv` from there |
@@ -132,12 +132,13 @@ src/
 
 ## The `agent` namespace
 
-`commands/agent.ts` is a discoverable parent — its `--help` opens with the warning header "Commands intended for agents and hook scripts — humans typically don't invoke these directly." It composes the hook-driven utilities `triage`, `wrapup`, and `record` plus four sidecar subcommands:
+`commands/agent.ts` is a discoverable parent — its `--help` opens with the warning header "Commands intended for agents and hook scripts — humans typically don't invoke these directly." It composes the hook-driven utilities `triage`, `wrapup`, and `record` plus five sidecar subcommands:
 
 - `agent register-agent` — composes projectKey resolution, RunContext git capture, PerClientSessionMapWriter, and DataStore.registerAgent end-to-end. Emits JSON to stdout with `agentId`, `conversationId`, `mainAgentId`, `idempotencyKey`, `idempotencyHit`. Hook scripts parse via `jq -r '.agentId'`.
 - `agent end-agent` — sets `agents.ended_at` and optionally `session_map.ended_at` when `--host-session-id` is passed. SubagentStop omits the latter.
 - `agent inject-env` — pure pattern matcher. Reads `VITEST_AGENT_*` from env and `package.json#scripts` from cwd; rewrites the command with the env prefix on Vitest match, returns the original on no-match.
 - `agent sidecar-path` — calls `resolveSidecarBinaryPath()` from `@vitest-agent/sidecar` and prints the absolute path of the installed platform binary to stdout (exit 0), or exits non-zero when no platform binary is resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`.
+- `agent check-test-path <path>` — classifies a path via `classifyTestPath` from `@vitest-agent/sdk`. Resolves the workspace root with `findWorkspaceRootSync` from the path (or `VITEST_AGENT_PROJECT_DIR`/cwd), exits non-zero when no workspace contains the path so hook callers fail open, and on success prints `{ verdict, workspace, suggestedPath }` JSON to stdout. Powers the PreToolUse hook `plugin/hooks/pre-tool-use/test-location.sh`.
 
 The sidecar subcommand bodies live in `lib/internal-*.ts`.
 
