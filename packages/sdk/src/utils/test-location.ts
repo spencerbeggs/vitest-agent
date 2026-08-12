@@ -29,7 +29,8 @@ export interface TestPathClassification {
 	readonly suggestedPath: string | null;
 }
 
-interface WorkspaceLike {
+/** Minimal workspace shape {@link classifyTestPath} needs to attribute a path. @public */
+export interface WorkspaceLike {
 	readonly name: string;
 	readonly path: string;
 }
@@ -50,7 +51,7 @@ function contains(parent: string, child: string): boolean {
  * @public
  */
 export function classifyTestPath(
-	workspaces: ReadonlyArray<{ readonly name: string; readonly path: string }>,
+	workspaces: ReadonlyArray<WorkspaceLike>,
 	filePath: string,
 ): TestPathClassification | null {
 	let owner: WorkspaceLike | null = null;
