@@ -48,19 +48,27 @@ The default `DiscoverStrategy` (exported as `DefaultDiscoverStrategy`) does two
 things:
 
 **Project building.** It emits one Vitest project per pnpm workspace package.
-For each package it looks for test files in two locations:
+For each package it looks for test files in exactly two locations, both
+anchored at the package root:
 
-- `**/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}` — canonical layout, matched
-  at any depth in the package tree (`__test__/` next to `src/` is the common
-  case, but `lib/scripts/__test__/` is found too, and nested subdirectories
-  inside a `__test__/` — `integration/`, `e2e/` — are included)
-- `src/**/*.{test,spec}.{ts,tsx,js,jsx}` — co-located layout (accepted for
-  backward compatibility)
+- `__test__/**/*.{test,spec}.{ts,tsx,js,jsx}` — canonical layout, matched only
+  directly under the package's own `__test__/` directory. A nested
+  `__test__/` anywhere else in the tree — `lib/scripts/__test__/`, for
+  example — is not discovered; Vitest never collects it, and the tests
+  inside it never run. Subdirectories inside `__test__/` — `integration/`,
+  `e2e/` — are still included, since they sit under the one recognized
+  `__test__/` root.
+- `src/**/*.{test,spec}.{ts,tsx,js,jsx}` — co-located layout, directly under
+  the package's own `src/` directory
 
-Helper subdirectories inside any `__test__/` — `utils/`, `fixtures/`,
-`snapshots/` — are excluded automatically, as are `node_modules/`, `.git/`,
-and `dist/`. The scan also stops at a nested `package.json`: a directory that
-declares its own manifest belongs to whichever project is built for it, so a
+Helper subdirectories inside the package's `__test__/` — `utils/`,
+`fixtures/`, `snapshots/` — are excluded automatically (this exclusion
+applies under `__test__/` only, never under `src/`), as is
+`node_modules/` and `.git/`. There is no separate `dist/` exclude: both
+include globs are anchored at the package root, so they cannot reach build
+output in the first place. The scan also stops at a nested `package.json`: a
+directory that declares its own manifest belongs to whichever project is
+built for it, so a
 package that structurally contains other packages does not absorb their tests.
 The pre-2.0 `pkg:unit`, `pkg:int`, `pkg:e2e` project-name suffixes are gone;
 there is one project per package.
