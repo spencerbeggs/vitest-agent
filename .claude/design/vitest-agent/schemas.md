@@ -758,7 +758,9 @@ line to stderr. A persist program that rejects after a successful migration
 takes the same path. See Decision 47 in [./decisions.md](./decisions.md).
 
 Untrusted error text: every value bound to a `TEXT` column on the failure
-path goes through `coerceErrorText` first, and the formatters that read
+path goes through `coerceErrorText` first, every field READ off a raw
+Vitest error object goes through `coerceErrorField` (which guards the
+property access itself), and the formatters that read
 error objects (`extractSqlReason`, `formatFatalError`,
 `normalizeAssertionShape`, `stringifyFailureValue`) are exception-safe
 against throwing getters. See

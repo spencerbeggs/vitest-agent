@@ -227,7 +227,15 @@ that does not — so a persistence failure can never swallow the run's
 output. See *Render survives persistence failure* below and Decision 47 in
 [../decisions.md](../decisions.md).
 
-1. Filter `testModules` by `projectFilter`, group by project name.
+1. Resolve `dbPath` via `ensureDbPath()` (defensive — `onInit` normally
+   did it already), then filter `testModules` by `projectFilter` and group
+   by project name. A rejection here — an unreadable cache dir, an
+   unresolvable workspace identity — leaves `dbPath` undefined and records
+   a `persistDisabled` reason instead of returning: the render program is
+   DB-free, so the run still reports its results. The defensive
+   `mkdirSync(dirname(dbPath))` a few lines later is guarded the same way.
+   `onInit`'s own `ensureDbPath()` is likewise best-effort (Vitest awaits
+   `onInit`, so a rejection there would abort the run before any test ran).
 2. **Build fallback reports up front**, outside any Effect: the same
    per-project grouping the persist program uses, run through
    `buildAgentReport` with no DB read and no classifier. The whole build is
@@ -276,11 +284,19 @@ stderr:
 vitest-agent: persistence failed — results above were rendered but NOT recorded: <reason>
 ```
 
-Both failure sources funnel into that line: `persistDisabled` (the
-migration rejected) and `persistFailure` (the persist program itself
-rejected). The pre-split behavior — return early, print nothing but the
-migration error, render nothing — was the worst possible outcome for an
-agent, which then had no run result at all.
+Both failure sources funnel into that line: `persistDisabled` (`dbPath`
+resolution, the defensive `mkdirSync`, or the migration rejected) and
+`persistFailure` (the persist program itself rejected). The pre-split
+behavior — return early, print nothing but the migration error, render
+nothing — was the worst possible outcome for an agent, which then had no
+run result at all.
+
+**The remaining no-render exits** are three, and none of them is a
+persistence failure: the `this.rendered` idempotence guard (a second
+`onTestRunEnd` for the same run), the empty-`filteredModules` guard under
+a `projectFilter` (this reporter instance owns no modules in this run),
+and a throw from the guarded fallback build itself — at which point there
+is no renderable data left to protect.
 
 **Per-project run outcome.** The `reason` Vitest hands `onTestRunEnd` is
 the whole-process outcome. Writing it verbatim to every project's
@@ -304,12 +320,20 @@ See Decision 45 in [../decisions.md](../decisions.md).
 
 **Error-text coercion at the persistence boundary.** Every value the
 reporter pulls off a Vitest error before handing it to `DataStore` goes
-through the SDK's `coerceErrorText` — the three `TestErrorInput` push sites
-(test-scope, module-scope, unhandled-scope) and the `errorMap` lookup that
-feeds classification. The coerced `message` (with `"<missing message>"` as
-the not-null sentinel) and `stack` are also what `processFailure` sees, so
-signature computation never runs against a non-string. Rationale and the
-failure shapes this defends against live in [./sdk.md](./sdk.md).
+through the SDK's `coerceErrorField` — the three `TestErrorInput` push
+sites (test-scope, module-scope, unhandled-scope) and the `errorMap`
+lookup that feeds classification. `coerceErrorField(e, "message")` rather
+than `coerceErrorText(e.message)` because the property access itself is
+the hazard: a live getter (Effect's `ConfigError.message`) throws before
+the value ever reaches a coercion helper. For the same reason the raw
+error is no longer spread into `processFailure` — `{ ...e }` invokes every
+enumerable getter — so the reporter builds an explicit object of
+already-coerced `message` / `name` / `stack` plus a `stacks` array read
+through the local `readErrorStacks` guard (frames are dropped, never
+thrown). The coerced `message` (with `"<missing message>"` as the not-null
+sentinel) and `stack` are what `processFailure` sees, so signature
+computation never runs against a non-string. Rationale and the failure
+shapes this defends against live in [./sdk.md](./sdk.md).
 
 Each lifecycle hook builds a scoped Effect and runs it with
 `Effect.runPromise`. The persist program is provided
@@ -411,7 +435,7 @@ predicate to decide whether a package contributes a project. The scanner:
    explicit user intent and a silent skip would surprise the caller.
 4. Materializes `tags` as a copy of `strategy.tagDefinitions`.
 
-**Signature-invalidated process cache.** Results are keyed by workspace root in a module-local `Map`. The cache fires only when neither `strategy` nor `additionalEntries` was supplied so a `DiscoverStrategy` instance never has to be fingerprinted. Any explicit strategy or any `.addProject` chain bypasses the cache. Each entry stores `{ result, signature }`: the signature is a cheap fingerprint of every package's `src/` directory plus *every* nested `__test__/` directory found under the package (recursive relative-path + `mtimeMs` pairs, no file contents). `findNestedTestDirs` locates those directories at any depth, so a `lib/scripts/__test__/` edit invalidates the cache the same way a package-root `__test__/` edit does (issue #184). Both walks — the directory finder and the per-directory `mtimeMs` walk — prune `node_modules`, `.git` and `dist` *before* recursing (`SIGNATURE_SKIP_DIRS`) rather than filtering results afterwards: Node's recursive `readdir` follows symlinked directories, and a pnpm `node_modules` tree is nothing but symlinks into the content-addressed store, so an unguarded walk from a package root — or from a found `__test__` dir that contains a fixture `node_modules` — walks the whole store or hits a symlink cycle. The two walks deliberately do **not** honor the nested-`package.json` boundary that `findTestFiles` stops at; over-including a fixture package's own `__test__/` in the signature only ever costs an extra rescan, and failing safe toward rescanning beats serving a stale project list. On the cacheable path the signature is recomputed and compared before a cached result is returned, so a test file added/removed/moved/renamed on disk triggers a rescan rather than returning stale include-globs (issue #100 — the long-lived MCP server otherwise silently dropped tests after a test-file move). Every real scan also records an ISO timestamp under `Symbol.for("vitest-agent:discovery:last-scan-at")`, readable via the exported `getLastDiscoveryScanTimestamp()`, which `@vitest-agent/mcp` reads back to surface `discoveryLastScannedAt` on `run_tests` results without a circular import. See [./discover.md](./discover.md) and [../decisions.md](../decisions.md) Decision 43.
+**Signature-invalidated process cache.** Results are keyed by workspace root in a module-local `Map`. The cache fires only when neither `strategy` nor `additionalEntries` was supplied so a `DiscoverStrategy` instance never has to be fingerprinted. Any explicit strategy or any `.addProject` chain bypasses the cache. Each entry stores `{ result, signature }`: the signature is a cheap fingerprint of every package's `src/` directory plus *every* nested `__test__/` directory found under the package (recursive relative-path + `mtimeMs` pairs, no file contents). `findNestedTestDirs` locates those directories at any depth, so a `lib/scripts/__test__/` edit invalidates the cache the same way a package-root `__test__/` edit does (issue #184). Both walks — the directory finder and the per-directory `mtimeMs` walk — prune `node_modules`, `.git` and `dist` *before* recursing (`SIGNATURE_SKIP_DIRS`) rather than filtering results afterwards: Node's recursive `readdir` follows symlinked directories, and a pnpm `node_modules` tree is nothing but symlinks into the content-addressed store, so an unguarded walk from a package root — or from a found `__test__` dir that contains a fixture `node_modules` — walks the whole store or hits a symlink cycle. The two walks deliberately do **not** honor the nested-`package.json` boundary that `findTestFiles` stops at; over-including a fixture package's own `__test__/` in the signature only ever costs an extra rescan, and failing safe toward rescanning beats serving a stale project list. They do, however, **record** those boundaries: `findNestedTestDirs` returns `{ testDirs, boundaries }`, where each boundary is the `relPath:mtimeMs` of a nested `package.json` (the package's own root manifest excluded — it is not a boundary for its own walk, and version bumps would churn the signature for nothing). Boundary markers join the signature as a third segment (`::boundaries=…`) because adding or removing a nested manifest changes `findTestFiles`' traversal shape — it starts or stops descending into that subtree — without any test file changing, and a cache that missed that would serve a project list discovery can no longer produce. On the cacheable path the signature is recomputed and compared before a cached result is returned, so a test file added/removed/moved/renamed on disk triggers a rescan rather than returning stale include-globs (issue #100 — the long-lived MCP server otherwise silently dropped tests after a test-file move). Every real scan also records an ISO timestamp under `Symbol.for("vitest-agent:discovery:last-scan-at")`, readable via the exported `getLastDiscoveryScanTimestamp()`, which `@vitest-agent/mcp` reads back to surface `discoveryLastScannedAt` on `run_tests` results without a circular import. See [./discover.md](./discover.md) and [../decisions.md](../decisions.md) Decision 43.
 
 Users that want to mutate projects post-discovery either extend the strategy
 (preferred) or destructure the result and mutate the array before

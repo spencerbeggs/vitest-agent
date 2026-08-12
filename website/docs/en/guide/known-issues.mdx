@@ -46,8 +46,8 @@ and rerun.
 
 **Status: expected.** A run that collects nothing is reported as a warning
 rather than a pass, because zero tests almost always means a wrong working
-directory, a filter that matched nothing, or a load-time error — not a suite
-that is genuinely empty. The agent-facing totals line also carries
+directory, a filter that matched nothing, or a load-time error — not an
+empty suite. The agent-facing totals line also carries
 `across N files` whenever the collected module count is known, so a lower N
 than you expect is the signal that files failed to load.
 

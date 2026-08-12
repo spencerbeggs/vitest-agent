@@ -42,7 +42,8 @@ constructor
 
 async onInit(vitest)
   +-- store vitest as this._vitest
-  +-- await ensureDbPath()
+  +-- await ensureDbPath()   (best-effort — a rejection is swallowed so
+  |     onInit never rejects; onTestRunEnd re-attempts resolution)
   |     +-- if memoized: return
   |     +-- options.cacheDir set:
   |     |     mkdirSync recursive; this.dbPath = `${cacheDir}/data.db`
@@ -86,7 +87,9 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     knows the true module count on the live path too
   |
   +-- dbPath = await ensureDbPath()  (defensive — tests can bypass onInit)
-  |     on rejection: stderr.write(formatFatalError(err)) and return
+  |     on rejection: leave dbPath undefined, record persistDisabled and
+  |     keep going — the render program is DB-free, so results still
+  |     render (the same contract as a migration failure)
   |
   +-- Filter testModules by projectFilter if set
   |
@@ -100,14 +103,18 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     empty; trendSummary is undefined. The streaming hooks and the
   |     RunFinished event above still fire.
   |
-  +-- mkdirSync(dirname(dbPath), recursive: true)  (defensive no-op)
+  +-- mkdirSync(dirname(dbPath), recursive: true)  (defensive no-op;
+  |     skipped when dbPath is undefined, and a throw records
+  |     persistDisabled rather than aborting the render)
   |
   +-- Build fallbackReports up front, outside any Effect:
   |     same per-project grouping as the persist program, through
   |     buildAgentReport, no DB and no classifier. Whole build wrapped
   |     in try/catch — a throwing duck-typed Vitest getter degrades to
-  |     stderr.write(formatFatalError(err)) and return, which is the
-  |     only path that still produces no render at all.
+  |     stderr.write(formatFatalError(err)) and return. That is the only
+  |     FAILURE path that still produces no render; the other two
+  |     no-render exits are ordinary guards (the `rendered` idempotence
+  |     check and an empty filteredModules under a projectFilter).
   |
   +-- await ensureMigrated(dbPath)
   |     migration cached on a globalThis Symbol so concurrent reporter

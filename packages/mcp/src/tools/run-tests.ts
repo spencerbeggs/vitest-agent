@@ -10,6 +10,7 @@ import {
 	DataStore,
 	buildAgentReport,
 	buildConsoleLeaks,
+	coerceErrorField,
 	collectConsoleLeakEntries,
 } from "@vitest-agent/sdk";
 import { Effect, Schema, SchemaGetter } from "effect";
@@ -668,19 +669,32 @@ export const runTests = publicProcedure
 						discoveryLastScannedAt: readDiscoveryLastScannedAt() ?? null,
 					};
 				} catch (err) {
-					if (err instanceof Error && err.message === "VITEST_TIMEOUT") {
-						return { kind: "timeout" as const, timeoutSeconds: input.timeout ?? 120 };
+					// Exception-safe error extraction: a hostile thrown value (a
+					// throwing `message` getter or `toString`) must still produce
+					// the `{ kind: "error" }` envelope, never a raw tRPC rejection.
+					let message: string;
+					try {
+						if (err instanceof Error && err.message === "VITEST_TIMEOUT") {
+							return { kind: "timeout" as const, timeoutSeconds: input.timeout ?? 120 };
+						}
+						message = err instanceof Error ? err.message : String(err);
+					} catch {
+						message = coerceErrorField(err, "message") ?? "<unserializable error>";
 					}
-					const message = err instanceof Error ? err.message : String(err);
 					return { kind: "error" as const, message };
 				} finally {
-					await vitest?.close();
-					nullStream.destroy();
-					if (covOverride !== undefined) {
-						try {
-							rmSync(covOverride.dir, { recursive: true, force: true });
-						} catch {
-							// best-effort cleanup; tmpdir reaping will get it eventually
+					// Nested finally: a rejecting `vitest.close()` must not skip the
+					// stream teardown or the coverage tmpdir removal.
+					try {
+						await vitest?.close();
+					} finally {
+						nullStream.destroy();
+						if (covOverride !== undefined) {
+							try {
+								rmSync(covOverride.dir, { recursive: true, force: true });
+							} catch {
+								// best-effort cleanup; tmpdir reaping will get it eventually
+							}
 						}
 					}
 				}

@@ -83,29 +83,48 @@ const SIGNATURE_SKIP_DIRS = new Set(["node_modules", ".git", "dist"]);
 // Deliberate asymmetry with `find-test-files.ts`: `findTestFiles` stops at a
 // nested `package.json` boundary (a directory other than its own root that
 // declares one is treated as an independent unit and not walked into), but
-// neither `findNestedTestDirs` nor `walkDirSignature` here does — they only
+// neither `findNestedTestDirs` nor `walkDirSignature` here stops — they only
 // prune `SIGNATURE_SKIP_DIRS`. That means a fixture package's own
 // `__test__/` dir (e.g. a subprocess-e2e fixture with its own package.json)
 // is over-included in the signature even though `findTestFiles` would never
 // walk into it for actual test-file discovery. This is intentional: the
 // signature only decides whether the cache re-scans, so over-including
 // fails safe toward re-scanning too often, never toward serving a stale
-// project list.
+// project list. The walk does, however, RECORD every nested `package.json`
+// (path + mtime) as a boundary marker in the signature — adding or removing
+// one changes `findTestFiles`' traversal shape without touching any test
+// file, and the cache must re-scan for that too.
+
+/**
+ * The result of one nested scan: every directory named `__test__` under the
+ * root, plus every nested `package.json` boundary marker (`relPath:mtimeMs`).
+ * Boundaries matter because `findTestFiles` stops its walk at a nested
+ * `package.json` — adding or removing one changes which test files discovery
+ * can see, so the cache signature must change with it.
+ */
+interface NestedScan {
+	readonly testDirs: string[];
+	readonly boundaries: string[];
+}
 
 /**
  * Recursively finds every directory named `__test__` under `root` (issue
  * #184: nested `__test__` dirs like `lib/scripts/__test__/` must invalidate
- * the cache too, not just a package-root `__test__/`). Skips
+ * the cache too, not just a package-root `__test__/`) and records every
+ * nested `package.json` (path + mtime) as a traversal-boundary marker. Skips
  * `node_modules`, `.git`, and `dist` — see `SIGNATURE_SKIP_DIRS`. Stat-only:
- * only directory entries are read, never file content.
+ * entries and mtimes are read, never file content. The root's own
+ * `package.json` is excluded — it is not a boundary for its own walk, and
+ * version bumps would otherwise churn the signature.
  */
-async function findNestedTestDirs(root: string): Promise<string[]> {
-	const found: string[] = [];
-	await walkForTestDirs(root, found);
-	return found.sort();
+async function findNestedTestDirs(root: string): Promise<NestedScan> {
+	const testDirs: string[] = [];
+	const boundaries: string[] = [];
+	await walkForTestDirs(root, root, testDirs, boundaries);
+	return { testDirs: testDirs.sort(), boundaries: boundaries.sort() };
 }
 
-async function walkForTestDirs(dir: string, found: string[]): Promise<void> {
+async function walkForTestDirs(root: string, dir: string, testDirs: string[], boundaries: string[]): Promise<void> {
 	let entries: Dirent[];
 	try {
 		entries = (await readdir(dir, { withFileTypes: true })) as Dirent[];
@@ -113,11 +132,19 @@ async function walkForTestDirs(dir: string, found: string[]): Promise<void> {
 		return;
 	}
 	for (const ent of entries) {
-		if (!ent.isDirectory()) continue;
-		if (SIGNATURE_SKIP_DIRS.has(ent.name)) continue;
 		const fullPath = join(dir, ent.name);
-		if (ent.name === "__test__") found.push(fullPath);
-		await walkForTestDirs(fullPath, found);
+		if (ent.isDirectory()) {
+			if (SIGNATURE_SKIP_DIRS.has(ent.name)) continue;
+			if (ent.name === "__test__") testDirs.push(fullPath);
+			await walkForTestDirs(root, fullPath, testDirs, boundaries);
+		} else if (ent.isFile() && ent.name === "package.json" && dir !== root) {
+			try {
+				const mtimeMs = (await stat(fullPath)).mtimeMs;
+				boundaries.push(`${toPosixPath(relative(root, fullPath))}:${mtimeMs}`);
+			} catch {
+				// File disappeared mid-walk — its absence is the signal.
+			}
+		}
 	}
 }
 
@@ -182,13 +209,16 @@ async function computeWorkspaceSignature(packages: ReadonlyArray<{ readonly path
 	const parts: string[] = [];
 	for (const pkg of packages) {
 		const srcSig = await computeDirSignature(join(pkg.path, "src"));
-		const testDirs = await findNestedTestDirs(pkg.path);
+		const { testDirs, boundaries } = await findNestedTestDirs(pkg.path);
 		const testDirParts: string[] = [];
 		for (const dir of testDirs) {
 			const sig = await computeDirSignature(dir);
 			testDirParts.push(`${toPosixPath(relative(pkg.path, dir))}=${sig}`);
 		}
-		parts.push(`${pkg.path}::src=${srcSig}::__test__=${testDirParts.join(";")}`);
+		// Boundary markers: nested package.json files change findTestFiles'
+		// traversal shape, so their appearance/removal/mtime is part of the
+		// signature even when no test file changed.
+		parts.push(`${pkg.path}::src=${srcSig}::__test__=${testDirParts.join(";")}::boundaries=${boundaries.join(";")}`);
 	}
 	return parts.join("\n");
 }

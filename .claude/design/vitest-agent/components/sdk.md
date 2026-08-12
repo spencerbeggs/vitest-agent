@@ -235,10 +235,12 @@ Test layers exist for `DataStore`, `EnvironmentDetector`,
   { _tag, ..., remediation } }` responses; tRPC `TRPCError` envelopes are
   reserved for transport-level failures.
 
-## Untrusted failure values (`coerceErrorText`)
+## Untrusted failure values (`coerceErrorText` / `coerceErrorField`)
 
-`packages/sdk/src/utils/coerce-error-text.ts` exports the public
-`coerceErrorText(value: unknown): string | undefined`. Vitest types the
+`packages/sdk/src/utils/coerce-error-text.ts` exports two public helpers,
+`coerceErrorText(value: unknown): string | undefined` and
+`coerceErrorField(source: unknown, key: string): string | undefined`.
+Vitest types the
 error fields it hands a reporter (`message`, `name`, `diff`, `actual`,
 `expected`, `stack`) as strings, but their runtime content is whatever the
 test threw. Two shapes routinely violate the type: `Effect.flip` on an
@@ -254,12 +256,31 @@ between `NULL` and a sentinel), string → unchanged, other primitives →
 `String(value)`, objects → `JSON.stringify` falling back to `String(value)`
 falling back to `"<unserializable>"`. Every step is exception-safe.
 
+**`coerceErrorField` guards the property read itself.** `coerceErrorText`
+can only defend a value it already holds — `coerceErrorText(e.message)`
+evaluates the getter *at the call site*, before the helper is entered, so
+the `ConfigError.message` shape still throws straight past it.
+`coerceErrorField(e, "message")` wraps the access in its own `try`:
+a non-object (or `null`) source yields `undefined`, a getter that throws
+yields the `"<unreadable field>"` sentinel, and anything else falls
+through to `coerceErrorText`. The same premise motivates the two
+hand-rolled sibling readers for non-string fields — the reporter's
+`readErrorStacks` and the `stacks` read inside `mapErrors` — which guard
+the access and drop frames rather than crash.
+
+The convention that follows: **read fields off a raw Vitest error object
+with `coerceErrorField`; coerce a value already in hand with
+`coerceErrorText`.** Spreading a raw error (`{ ...e }`) is equally unsafe,
+since the spread invokes every enumerable getter — the reporter builds an
+explicit object of already-coerced fields for `processFailure` instead.
+
 Applied at the boundaries where an untrusted value first meets a typed
-sink: `DataStoreLive.writeErrors` coerces every text column bind (with
-`"<missing message>"` as the not-null sentinel for `message`), the plugin
-reporter coerces at its three `TestErrorInput` push sites and at the
-`errorMap` lookup, and `mapErrors` inside `buildAgentReport` coerces before
-a `ReportError` is constructed.
+sink: `DataStoreLive.writeErrors` coerces every text column bind with
+`coerceErrorText` (values it is handed, with `"<missing message>"` as the
+not-null sentinel for `message`), while the raw-object read sites use
+`coerceErrorField` — the plugin reporter's three `TestErrorInput` push
+sites and its `errorMap` lookup, and `mapErrors` inside
+`buildAgentReport`.
 
 Three neighbouring helpers were made exception-safe in the same pass, on
 the same premise — a formatter on the failure path must never itself
@@ -270,6 +291,15 @@ throw: `extractSqlReason` (above), `formatFatalError`
 `""` for a non-string input instead of calling `.match` on it). The
 plugin's own `stringifyFailureValue` got the same treatment — see
 [./plugin.md](./plugin.md).
+
+Two follow-up hardenings closed the remaining holes in those two
+formatters: `formatFatalError`'s recovery branch guards its own
+`err.constructor?.name` read (a throwing `constructor` getter would
+otherwise throw while handling a throw, which escapes), and
+`extractSqlReason` treats a `JSON.stringify` that *returns* `undefined`
+— a `toJSON` returning `undefined`, which never throws — as a miss and
+falls through to the `String(e)` branch instead of returning
+`undefined` from a `string`-typed function.
 
 ## Report building (`buildAgentReport`)
 

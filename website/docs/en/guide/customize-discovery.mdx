@@ -50,11 +50,12 @@ things:
 **Project building.** It emits one Vitest project per pnpm workspace package.
 For each package it looks for test files in two locations:
 
-- `packages/*/**/__test__/*.test.ts` — canonical flat layout, matched at any
-  depth in the package tree (`__test__/` next to `src/` is the common case,
-  but `lib/scripts/__test__/` is found too)
-- `packages/*/src/**/*.test.ts` — co-located layout (accepted for backward
-  compatibility)
+- `**/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}` — canonical layout, matched
+  at any depth in the package tree (`__test__/` next to `src/` is the common
+  case, but `lib/scripts/__test__/` is found too, and nested subdirectories
+  inside a `__test__/` — `integration/`, `e2e/` — are included)
+- `src/**/*.{test,spec}.{ts,tsx,js,jsx}` — co-located layout (accepted for
+  backward compatibility)
 
 Helper subdirectories inside any `__test__/` — `utils/`, `fixtures/`,
 `snapshots/` — are excluded automatically, as are `node_modules/`, `.git/`,

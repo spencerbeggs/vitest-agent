@@ -15,6 +15,9 @@ import { DataStoreTestLayer } from "./utils/layers.js";
 // other node:fs export passes through to the real implementation; only
 // mkdtempSync consults this box, and only when a test has set it.
 let throwMkdtempSyncFor: string | undefined;
+// When set alongside throwMkdtempSyncFor, mkdtempSync throws THIS value
+// instead of the default Error — used to pin hostile-thrown-value handling.
+let throwMkdtempSyncValue: unknown;
 vi.mock("node:fs", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("node:fs")>();
 	return {
@@ -22,6 +25,7 @@ vi.mock("node:fs", async (importOriginal) => {
 		mkdtempSync: (...args: Parameters<typeof actual.mkdtempSync>) => {
 			const [prefix] = args;
 			if (throwMkdtempSyncFor !== undefined && typeof prefix === "string" && prefix.includes(throwMkdtempSyncFor)) {
+				if (throwMkdtempSyncValue !== undefined) throw throwMkdtempSyncValue;
 				throw new Error("ENOSPC: no space left on device, mkdtemp");
 			}
 			return actual.mkdtempSync(...args);
@@ -338,6 +342,38 @@ describe("MCP Router", () => {
 			}
 		} finally {
 			throwMkdtempSyncFor = undefined;
+		}
+	});
+
+	it("run_tests returns the error envelope even for a hostile thrown value (throwing getters)", async () => {
+		// The final catch's `err instanceof Error ? err.message : String(err)`
+		// can itself throw on a hostile value (throwing message getter AND
+		// throwing toString). The envelope must still come back with a string
+		// message — never a raw tRPC rejection.
+		const hostile: Record<string, unknown> = {};
+		Object.defineProperty(hostile, "message", {
+			get(): string {
+				throw new TypeError("no message for you");
+			},
+			enumerable: true,
+		});
+		Object.defineProperty(hostile, "toString", {
+			get(): never {
+				throw new TypeError("no toString for you");
+			},
+		});
+		throwMkdtempSyncFor = "vitest-agent-cov-";
+		throwMkdtempSyncValue = hostile;
+		try {
+			const caller = createTestCaller();
+			const result = await caller.run_tests({ files: ["nonexistent.test.ts"], timeout: 5 });
+			expect(result.kind).toBe("error");
+			if (result.kind === "error") {
+				expect(typeof result.message).toBe("string");
+			}
+		} finally {
+			throwMkdtempSyncFor = undefined;
+			throwMkdtempSyncValue = undefined;
 		}
 	});
 

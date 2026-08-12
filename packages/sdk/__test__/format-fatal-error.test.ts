@@ -93,6 +93,28 @@ describe("formatFatalError", () => {
 		expect(out).toContain("Please report at");
 	});
 
+	it("formatFatalError survives an Error whose constructor getter ALSO throws in the recovery path", () => {
+		const err = new Error("original message");
+		Object.defineProperty(err, "stack", {
+			get(): string {
+				throw new TypeError("no stack");
+			},
+		});
+		Object.defineProperty(err, "message", {
+			get(): string {
+				throw new TypeError("no message");
+			},
+		});
+		Object.defineProperty(err, "constructor", {
+			get(): never {
+				throw new TypeError("no constructor");
+			},
+		});
+		const out = formatFatalError(err);
+		expect(out).toContain("<unserializable Error>");
+		expect(out).toContain("Please report at");
+	});
+
 	it("formatFatalError survives an Error instance with throwing message/stack getters (issue #193)", () => {
 		const err = new Error("original message");
 		Object.defineProperty(err, "message", {

@@ -146,6 +146,12 @@ describe("extractSqlReason", () => {
 		expect(typeof extractSqlReason(makeThrowingGetterError())).toBe("string");
 	});
 
+	it("extractSqlReason returns a string when JSON.stringify yields undefined (toJSON returning undefined)", () => {
+		const evasive = { toJSON: () => undefined };
+		const reason = extractSqlReason(evasive);
+		expect(typeof reason).toBe("string");
+	});
+
 	it("falls back to the unserializable-error placeholder when JSON.stringify and String both throw (issue #193)", () => {
 		const err = makeThrowingGetterError();
 		// Make String(err) throw too: toString getter that throws.

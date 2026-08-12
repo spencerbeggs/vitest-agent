@@ -73,7 +73,10 @@ export const extractSqlReason = (e: unknown): string => {
 		// Object with no useful message/cause — JSON.stringify gives more
 		// information than `String(e)` would (which produces "[object Object]").
 		try {
-			return JSON.stringify(e);
+			// JSON.stringify can also return undefined without throwing (a
+			// toJSON that returns undefined) — fall through to String then.
+			const json = JSON.stringify(e);
+			if (json !== undefined) return json;
 		} catch {
 			// Circular reference or non-serializable value; fall through.
 		}

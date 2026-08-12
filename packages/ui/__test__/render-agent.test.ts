@@ -146,6 +146,17 @@ describe("renderAgent — modules", () => {
 		expect(out).toContain("0 tests collected");
 		expect(out).not.toContain("all-passed");
 	});
+
+	it("does not print the zero-collected warning for a timeout-only run", () => {
+		// Parity with the single-project-pass cell: a timed-out test is a
+		// real collected test even though pass=fail=skip=0.
+		const state = baseState({
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 1, durationMs: 50 },
+			collectedModules: 1,
+		});
+		const out = renderAgent(state);
+		expect(out).not.toContain("0 tests collected");
+	});
 });
 
 describe("renderAgent — failures block", () => {

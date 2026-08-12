@@ -1,3 +1,4 @@
+import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { Writable } from "node:stream";
 import { Schema } from "effect";
@@ -20,10 +21,16 @@ describe("makeCoverageDirOverride", () => {
 	it("returns a fresh tmpdir-namespaced reportsDirectory per invocation (issues #159/#191)", () => {
 		const a = makeCoverageDirOverride();
 		const b = makeCoverageDirOverride();
-		expect(a.coverage.reportsDirectory).toBe(a.dir);
-		expect(a.dir).toContain(tmpdir());
-		expect(a.dir).toContain("vitest-agent-cov-");
-		expect(a.dir).not.toBe(b.dir);
+		try {
+			expect(a.coverage.reportsDirectory).toBe(a.dir);
+			expect(a.dir).toContain(tmpdir());
+			expect(a.dir).toContain("vitest-agent-cov-");
+			expect(a.dir).not.toBe(b.dir);
+		} finally {
+			// The helper creates real directories; don't leak them per run.
+			rmSync(a.dir, { recursive: true, force: true });
+			rmSync(b.dir, { recursive: true, force: true });
+		}
 	});
 });
 

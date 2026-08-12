@@ -1278,7 +1278,13 @@ to see was the one that printed nothing (issues #195 / #193 / #143).
   per-project grouping the persist program uses. They are pure
   `buildAgentReport` output: no DB read, no classifier.
 - **Migration failure is no longer fatal.** It records a `persistDisabled`
-  reason and skips the persist program instead of returning early.
+  reason and skips the persist program instead of returning early. The
+  two earlier DB-path steps take the same route: a rejecting
+  `ensureDbPath()` (unreadable cache dir, unresolvable workspace
+  identity) leaves `dbPath` undefined and a throwing defensive
+  `mkdirSync` records the same reason — both used to `return`. `onInit`'s
+  `ensureDbPath()` is best-effort for the same reason: Vitest awaits
+  `onInit`, so rejecting there would kill the run before a single test.
 - **The persist program** keeps every DB-dependent concern and returns a
   `PersistResult` (`{ reports, classifications, trendSummary? }`). The flat
   classifications index moved into it, since it is derived from persisted
@@ -1294,18 +1300,30 @@ to see was the one that printed nothing (issues #195 / #193 / #143).
   Degrading silently would be worse than crashing — an agent would bank on
   history that was never written.
 
-**The one remaining no-render path** is a throw from the fallback build
-itself. `buildAgentReport` walks duck-typed Vitest getters bare, so a
+**The one remaining no-render failure path** is a throw from the fallback
+build itself. `buildAgentReport` walks duck-typed Vitest getters bare, so a
 malformed module shape (a throwing `state()` / `errors()`) is caught there
 and degrades to the old floor: `formatFatalError` on stderr, return. At
-that point there is no renderable data to protect.
+that point there is no renderable data to protect. The only other
+no-render exits are the two ordinary guards that precede the pipeline —
+the `rendered` idempotence check and an empty `filteredModules` under a
+`projectFilter` — neither of which is a failure.
 
 **Companion: coerce untrusted error text at every boundary.** The crashes
 that motivated the split came from values typed as `string` that were not.
 `coerceErrorText` (`@vitest-agent/sdk`) is applied wherever such a value
 meets a typed sink — `DataStoreLive.writeErrors`' text binds, the reporter's
 three `TestErrorInput` push sites and its `errorMap`, and `mapErrors` inside
-`buildAgentReport`. The formatters on the failure path
+`buildAgentReport`. A follow-up added the companion `coerceErrorField(source,
+key)`, which guards the property READ as well: `coerceErrorText(e.message)`
+evaluates a live getter at the call site and never reaches the helper's own
+exception handling, so every read off a raw Vitest error object (the
+reporter's push sites and `errorMap`, `mapErrors`) now goes through
+`coerceErrorField` — a throwing getter yields `"<unreadable field>"` —
+while `coerceErrorText` stays the helper for values already in hand.
+Spreading a raw error into `processFailure` was dropped for the same
+reason: `{ ...e }` invokes every enumerable getter. The formatters on the
+failure path
 (`extractSqlReason`, `formatFatalError`, `normalizeAssertionShape`,
 `stringifyFailureValue`) were made exception-safe in the same pass, because
 a throwing `message` getter — Effect's `ConfigError` is the canonical case —

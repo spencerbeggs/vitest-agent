@@ -1,6 +1,6 @@
 import type { AgentReport, ModuleReport, TestReport } from "../schemas/AgentReport.js";
 import type { ReportError } from "../schemas/Common.js";
-import { coerceErrorText } from "./coerce-error-text.js";
+import { coerceErrorField } from "./coerce-error-text.js";
 
 // --- Duck-typed Vitest interfaces ---
 
@@ -175,11 +175,26 @@ function mapErrors(
 ): ReportError[] | undefined {
 	if (!errors || errors.length === 0) return undefined;
 	return errors.map((e) => {
-		const diffText = "diff" in e && e.diff != null ? coerceErrorText(e.diff) : undefined;
+		// Field reads go through coerceErrorField, not coerceErrorText(e.x):
+		// a live getter (ConfigError.message) throws at the property access,
+		// before the value ever reaches the coercion helper.
+		const diffText = coerceErrorField(e, "diff");
+		let stacks: Array<string | VitestParsedStack> | undefined;
+		try {
+			stacks = (e as { stacks?: Array<string | VitestParsedStack> }).stacks;
+		} catch {
+			stacks = undefined;
+		}
+		let stackText: string | undefined;
+		try {
+			stackText = stacks && stacks.length > 0 ? stacks.map(formatStackFrame).join("\n") : undefined;
+		} catch {
+			stackText = undefined;
+		}
 		return {
-			message: coerceErrorText(e.message) ?? "<missing message>",
+			message: coerceErrorField(e, "message") ?? "<missing message>",
 			...(diffText !== undefined ? { diff: diffText } : {}),
-			...(e.stacks && e.stacks.length > 0 ? { stack: e.stacks.map(formatStackFrame).join("\n") } : {}),
+			...(stackText !== undefined ? { stack: stackText } : {}),
 		};
 	});
 }

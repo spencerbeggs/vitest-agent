@@ -308,5 +308,36 @@ describe("discoverProjects()", () => {
 			expect(secondInclude?.some((p) => p.includes("**/__test__/**"))).toBe(true);
 			expect(second).not.toBe(first);
 		});
+
+		it("should invalidate the cache when a nested package.json boundary appears or disappears", async () => {
+			// Given: a package with a nested __test__ dir, discovered once. The
+			// nested test file is visible (no boundary between it and the root).
+			await createPkg("boundary-cache", { hasUnit: true });
+			const nestedDir = join(tmpDir, "packages", "boundary-cache", "lib", "vendored", "__test__");
+			await mkdir(nestedDir, { recursive: true });
+			await writeFile(join(nestedDir, "inner.test.ts"), "");
+			const first = await discoverProjects({ cwd: tmpDir });
+			const firstInclude = first.projects?.[0].test?.include as string[] | undefined;
+			expect(firstInclude?.some((p) => p.includes("**/__test__/**"))).toBe(true);
+
+			// When: a package.json boundary appears ABOVE the nested __test__ dir —
+			// no test file changed, but findTestFiles now stops at the boundary.
+			await writeFile(
+				join(tmpDir, "packages", "boundary-cache", "lib", "vendored", "package.json"),
+				JSON.stringify({ name: "vendored-fixture", private: true }),
+			);
+			const second = await discoverProjects({ cwd: tmpDir });
+
+			// Then: the cache re-scanned — the nested dir is behind a boundary
+			// now, so the broad __test__ include glob is gone again.
+			const secondInclude = second.projects?.[0].test?.include as string[] | undefined;
+			expect(secondInclude?.some((p) => p.includes("**/__test__/**"))).toBe(false);
+
+			// And removing the boundary re-scans again (the include returns).
+			await rm(join(tmpDir, "packages", "boundary-cache", "lib", "vendored", "package.json"));
+			const third = await discoverProjects({ cwd: tmpDir });
+			const thirdInclude = third.projects?.[0].test?.include as string[] | undefined;
+			expect(thirdInclude?.some((p) => p.includes("**/__test__/**"))).toBe(true);
+		});
 	});
 });

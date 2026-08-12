@@ -403,9 +403,17 @@ resource entirely.
 before it, so a throwing `mkdtempSync` (full or read-only tmpdir) is caught
 by the surrounding handler and returns the tool's normal
 `{ kind: "error", message }` envelope instead of propagating raw out of the
-tRPC resolver. Cleanup is a best-effort `rmSync(..., { recursive: true,
-force: true })` in `finally`; a failure there is swallowed and left to
-tmpdir reaping.
+tRPC resolver. That handler is itself exception-safe — the `err instanceof
+Error && err.message` timeout probe runs inside its own `try`, falling back
+to `coerceErrorField(err, "message")` and a `"<unserializable error>"`
+sentinel, so a hostile thrown value (a throwing `message` getter) still
+produces the `{ kind: "error" }` envelope rather than a raw tRPC rejection.
+Cleanup is a best-effort `rmSync(..., { recursive: true, force: true })` in
+`finally`; a failure there is swallowed and left to tmpdir reaping. The
+`finally` nests — `await vitest?.close()` sits in an inner `try` whose own
+`finally` destroys the null stream and removes the coverage tmpdir — so a
+rejecting `close()` can no longer skip either cleanup and leak the
+directory.
 
 **Trade-off.** Final coverage artifacts (html, lcov) from MCP-driven runs
 land in the throwaway directory rather than `./coverage`. That is

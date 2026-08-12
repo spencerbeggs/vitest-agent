@@ -110,10 +110,10 @@ describe("AgentReporter", () => {
 	 */
 	async function runReporterEnd(
 		modules: VitestTestModule[],
-		options: { reason?: "passed" | "failed" | "interrupted" } = {},
+		options: { reason?: "passed" | "failed" | "interrupted"; cacheDir?: string } = {},
 	): Promise<{ stdout: string[]; stderr: string[] }> {
 		const reporter = new AgentReporter({
-			cacheDir: tmpDir,
+			cacheDir: options.cacheDir ?? tmpDir,
 			consoleMode: "agent",
 		});
 		const stdout: string[] = [];
@@ -669,6 +669,27 @@ describe("AgentReporter", () => {
 			const { stdout, stderr } = await runReporterEnd([passingModule, failingModule]);
 			expect(stdout.join("")).toContain("1 failed"); // the summary is the point
 			expect(stderr.join("")).toContain("NOT recorded"); // loud, but secondary
+		});
+
+		it("still renders the summary when the cache directory is unusable (dbPath resolution fails)", async () => {
+			// A regular file where a directory is needed: mkdirSync inside
+			// ensureDbPath throws ENOTDIR, so dbPath never resolves. The run
+			// must still render, with persistence disabled and flagged.
+			const blocker = path.join(tmpDir, "blocker");
+			fs.writeFileSync(blocker, "a file, not a directory");
+			const failingModule = makeTestModule({
+				relativeModuleId: "src/core.test.ts",
+				projectName: "core",
+				tests: [makeTestCase({ name: "boom", state: "failed", errors: [{ message: "assertion failed" }] })],
+				state: "failed",
+			});
+			const { stdout, stderr } = await runReporterEnd([failingModule], {
+				cacheDir: path.join(blocker, "nested"),
+			});
+			// Single-module runs render through the single-test cell (failure
+			// name, no aggregate count line) — assert the failure rendered.
+			expect(stdout.join("")).toContain("boom");
+			expect(stderr.join("")).toContain("NOT recorded");
 		});
 
 		it("writes per-project reasons — a clean project is not failed by a sibling (issue #147)", async () => {

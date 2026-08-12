@@ -67,7 +67,7 @@ src/
 | `layers/PathResolutionLive.ts` | Composite: `XdgLive` + `ConfigLive` + `WorkspacesLive` |
 | `migrations/0001_initial.ts` | Canonical pre-2.0 schema. Pre-2.0 policy is "edit this file directly when the shape changes and delete `data.db`"; the former `0002_comprehensive` was folded in. Post-2.0 ships ALTER-only migrations (Decision D9) |
 | `utils/function-boundary.ts` | `findFunctionBoundary(source, line)` parses via `acorn` (extended with `acorn-typescript`) and returns the smallest enclosing function's start line + name |
-| `utils/coerce-error-text.ts` | `coerceErrorText(value)` turns an unknown error field (`message`, `name`, `diff`, `stack`, ...) into a string safe to bind to a SQLite TEXT column or render. Exception-safe: getters that throw, non-serializable objects, and `String()` failures all degrade to a sentinel instead of throwing |
+| `utils/coerce-error-text.ts` | `coerceErrorText(value)` coerces an unknown error-field value: `undefined`/`null` stay `undefined` (caller picks null vs sentinel), strings pass through, other primitives go through `String`, objects through `JSON.stringify` with a `String(value)` fallback and a `"<unserializable>"` sentinel only when both throw. `coerceErrorField(source, key)` guards the property READ as well — a live getter that throws (the ConfigError shape) yields `"<unreadable field>"` instead of throwing at the access site. Use `coerceErrorField` for raw Vitest error objects; `coerceErrorText` for values already in hand |
 | `utils/build-report.ts` | `buildAgentReport(...)` builds the `AgentReport`. Fails a module when its own state is `failed`, when any suite is `failed`, or when suite/hook errors are present (not just when `errors()` is populated); self-corrects a `"passed"` `reason` to `"failed"` when failed files or unhandled errors exist; sets `summary.modules` to the collected-module count so a green run is not reported as zero modules |
 | `utils/failure-signature.ts` | `computeFailureSignature` produces a 16-char sha256 from `error_name`, normalized assertion shape, top-frame function name, and function-boundary line. See Decision D10 |
 | `utils/validate-phase-transition.ts` | Pure validator for TDD phase transitions; returns acceptance or a typed `DenialReason` + remediation. See Decision D11 |
@@ -102,8 +102,10 @@ src/
   the `reason` field on every SQL `mapError`.
 - **Never trust an error field's declared type.** Vitest failure values
   are typed as strings but carry whatever the test threw (objects from
-  `Effect.flip`, getters that throw). Pass every error text through
-  `coerceErrorText` before persisting or rendering it; `extractSqlReason`
+  `Effect.flip`, getters that throw). Read fields off raw error objects
+  through `coerceErrorField` (the property access itself can throw — a
+  bare `coerceErrorText(e.message)` is not safe) and coerce values
+  already in hand through `coerceErrorText`; `extractSqlReason`
   and `String()` calls on unknown values must stay exception-safe.
 - **Test layers live next to live layers** (`*Live.ts` / `*Test.ts`)
   so consumers can import either side via the same package entry.

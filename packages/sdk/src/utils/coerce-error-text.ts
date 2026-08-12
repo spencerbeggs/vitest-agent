@@ -30,3 +30,28 @@ export const coerceErrorText = (value: unknown): string | undefined => {
 		}
 	}
 };
+
+/**
+ * Read a named field off an unknown error-like value and coerce it with
+ * {@link coerceErrorText}, guarding the property access itself. A live getter
+ * that throws (Effect's `ConfigError.message` when its cause lacks
+ * `toString`) throws at the read site — `coerceErrorText(e.message)` never
+ * reaches the helper's own exception handling. Route every read of an
+ * untrusted error object's field through this helper instead.
+ *
+ * - `null` / non-object sources → `undefined`
+ * - a getter that throws → `"<unreadable field>"`
+ * - otherwise → `coerceErrorText(value)`
+ *
+ * @public
+ */
+export const coerceErrorField = (source: unknown, key: string): string | undefined => {
+	if (source === null || (typeof source !== "object" && typeof source !== "function")) return undefined;
+	let value: unknown;
+	try {
+		value = (source as Record<string, unknown>)[key];
+	} catch {
+		return "<unreadable field>";
+	}
+	return coerceErrorText(value);
+};

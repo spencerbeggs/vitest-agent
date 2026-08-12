@@ -70,6 +70,6 @@ describe("stringifyFailureValue", () => {
 				throw new TypeError("no toString for you");
 			},
 		});
-		expect(() => stringifyFailureValue(err)).not.toThrow();
+		expect(stringifyFailureValue(err)).toBe("<unserializable value>");
 	});
 });

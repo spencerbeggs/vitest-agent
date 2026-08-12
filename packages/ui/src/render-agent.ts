@@ -74,8 +74,11 @@ const formatModulesSection = (state: RenderState): string | null => {
 		.map((path) => state.modules[path])
 		.filter((m): m is ModuleRecord => m !== undefined);
 
-	const { passCount, failCount, skipCount } = state.totals;
-	const total = passCount + failCount + skipCount;
+	// timeoutCount is part of the sum, matching the single-project-pass cell:
+	// a run whose only test timed out has pass=fail=skip=0 but a real
+	// collected test, and must not print "0 tests collected" for it.
+	const { passCount, failCount, skipCount, timeoutCount } = state.totals;
+	const total = passCount + failCount + skipCount + timeoutCount;
 	if (total === 0) {
 		return "0 tests collected. A zero-test run usually means a wrong working directory, a filter that matched nothing, or a load-time error — verify before trusting it.";
 	}

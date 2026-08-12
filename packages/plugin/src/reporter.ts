@@ -31,7 +31,7 @@ import {
 	OutputPipelineLive,
 	PathResolutionLive,
 	buildAgentReport,
-	coerceErrorText,
+	coerceErrorField,
 	computeTrend,
 	ensureMigrated,
 	formatFatalError,
@@ -74,6 +74,26 @@ import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
  * @internal
  */
 const dbPathCache = new Map<string, Promise<string>>();
+
+/**
+ * Safely read a raw Vitest error object's `stacks` array. The property
+ * access itself can throw on hostile shapes (live getters — the same
+ * ConfigError class of failure `coerceErrorField` guards); frames are
+ * dropped rather than crashing the persistence loop.
+ */
+function readErrorStacks(
+	source: unknown,
+): ReadonlyArray<{ file?: string; line?: number; column?: number; method?: string }> | undefined {
+	if (source === null || typeof source !== "object") return undefined;
+	try {
+		const value = (source as { stacks?: unknown }).stacks;
+		return Array.isArray(value)
+			? (value as ReadonlyArray<{ file?: string; line?: number; column?: number; method?: string }>)
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
 
 function resolveDataPathCached(projectDir: string): Promise<string> {
 	const cached = dbPathCache.get(projectDir);
@@ -481,7 +501,14 @@ export class AgentReporter {
 	 */
 	async onInit(vitest: unknown): Promise<void> {
 		this._vitest = vitest;
-		await this.ensureDbPath();
+		try {
+			await this.ensureDbPath();
+		} catch {
+			// Best-effort: an unusable cache dir must not reject onInit (Vitest
+			// awaits it). `onTestRunEnd` re-attempts resolution and, when it
+			// fails again, disables persistence while still rendering the
+			// summary (issues #195 / #143).
+		}
 		await this.initReporters();
 	}
 
@@ -1188,12 +1215,18 @@ export class AgentReporter {
 
 		// Resolve dbPath if onInit didn't run (e.g. unit tests calling
 		// onTestRunEnd directly). Memoized after first resolution.
-		let dbPath: string;
+		//
+		// A resolution failure (unreadable cache dir, unresolvable workspace
+		// identity) disables the persist phase but must NOT skip rendering —
+		// the render program is DB-free and the kit's `dbPath` is optional,
+		// so the run still reports its results with the persistence warning
+		// (issues #195 / #143; same contract as the migration-failure path).
+		let dbPath: string | undefined;
+		let persistDisabled: string | undefined;
 		try {
 			dbPath = await this.ensureDbPath();
 		} catch (err) {
-			process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
-			return;
+			persistDisabled = formatFatalError(err);
 		}
 
 		// Filter modules to this reporter's project if projectFilter is set
@@ -1303,8 +1336,15 @@ export class AgentReporter {
 
 		// resolveDataPath in onInit already created the parent directory; this
 		// mkdirSync is a defensive no-op for users who skip onInit (none in
-		// production, but tests sometimes invoke onTestRunEnd directly).
-		mkdirSync(dirname(dbPath), { recursive: true });
+		// production, but tests sometimes invoke onTestRunEnd directly). An
+		// inaccessible cache dir disables persistence, never rendering.
+		if (dbPath !== undefined && persistDisabled === undefined) {
+			try {
+				mkdirSync(dirname(dbPath), { recursive: true });
+			} catch (err) {
+				persistDisabled = formatFatalError(err);
+			}
+		}
 
 		// Pure fallback reports, built up front before any Effect runs. If
 		// persistence is disabled or fails below, the render phase falls back
@@ -1357,14 +1397,16 @@ export class AgentReporter {
 		// concurrent reads/writes from separate connections work under WAL mode.
 		//
 		// A migration failure no longer aborts the run: it disables the
-		// persist phase (recorded as `persistDisabled`) but rendering still
-		// runs below against `fallbackReports` — see the render-despite-
-		// persistence-failure contract (issues #195 / #143).
-		let persistDisabled: string | undefined;
-		try {
-			await ensureMigrated(dbPath, logLevel, logFile);
-		} catch (err) {
-			persistDisabled = formatFatalError(err);
+		// persist phase (recorded as `persistDisabled`, declared with the
+		// dbPath resolution above) but rendering still runs below against
+		// `fallbackReports` — see the render-despite-persistence-failure
+		// contract (issues #195 / #143).
+		if (dbPath !== undefined && persistDisabled === undefined) {
+			try {
+				await ensureMigrated(dbPath, logLevel, logFile);
+			} catch (err) {
+				persistDisabled = formatFatalError(err);
+			}
 		}
 
 		const persistProgram = Effect.gen(function* () {
@@ -1638,21 +1680,21 @@ export class AgentReporter {
 							const testCaseId = testCaseIds[testIdx];
 							const inputs: TestErrorInput[] = [];
 							for (let ordinal = 0; ordinal < result.errors.length; ordinal++) {
-								const e = result.errors[ordinal] as {
-									name?: string;
-									message: string;
-									diff?: string;
-									stack?: string;
-									stacks?: ReadonlyArray<{ file?: string; line?: number; column?: number; method?: string }>;
-								};
-								const messageText = coerceErrorText(e.message) ?? "<missing message>";
-								const nameText = coerceErrorText(e.name);
-								const diffText = coerceErrorText(e.diff);
-								const stackText = coerceErrorText(e.stack);
+								// Field reads AND the processFailure input go through safe
+								// accessors — coerceErrorText(e.message) evaluates a live
+								// getter at the read site, and `{ ...e }` invokes every
+								// enumerable getter. Both crash on the ConfigError shape.
+								const e: unknown = result.errors[ordinal];
+								const messageText = coerceErrorField(e, "message") ?? "<missing message>";
+								const nameText = coerceErrorField(e, "name");
+								const diffText = coerceErrorField(e, "diff");
+								const stackText = coerceErrorField(e, "stack");
+								const stacksValue = readErrorStacks(e);
 								const { frames, signatureHash } = processFailure({
-									...e,
 									message: messageText,
+									...(nameText !== undefined && { name: nameText }),
 									...(stackText !== undefined && { stack: stackText }),
+									...(stacksValue !== undefined && { stacks: stacksValue }),
 								});
 								if (signatureHash !== null) {
 									yield* store.writeFailureSignature({
@@ -1683,19 +1725,17 @@ export class AgentReporter {
 					if (modErrors.length > 0) {
 						const inputs: TestErrorInput[] = [];
 						for (let ordinal = 0; ordinal < modErrors.length; ordinal++) {
-							const e = modErrors[ordinal] as {
-								name?: string;
-								message: string;
-								stack?: string;
-								stacks?: ReadonlyArray<{ file?: string; line?: number; column?: number; method?: string }>;
-							};
-							const messageText = coerceErrorText(e.message) ?? "<missing message>";
-							const nameText = coerceErrorText(e.name);
-							const stackText = coerceErrorText(e.stack);
+							// Safe field reads — see the test-scope site above.
+							const e: unknown = modErrors[ordinal];
+							const messageText = coerceErrorField(e, "message") ?? "<missing message>";
+							const nameText = coerceErrorField(e, "name");
+							const stackText = coerceErrorField(e, "stack");
+							const stacksValue = readErrorStacks(e);
 							const { frames, signatureHash } = processFailure({
-								...e,
 								message: messageText,
+								...(nameText !== undefined && { name: nameText }),
 								...(stackText !== undefined && { stack: stackText }),
+								...(stacksValue !== undefined && { stacks: stacksValue }),
 							});
 							if (signatureHash !== null) {
 								yield* store.writeFailureSignature({
@@ -1723,19 +1763,17 @@ export class AgentReporter {
 				if (errors.length > 0) {
 					const inputs: TestErrorInput[] = [];
 					for (let ordinal = 0; ordinal < errors.length; ordinal++) {
-						const e = errors[ordinal] as {
-							name?: string;
-							message: string;
-							stack?: string;
-							stacks?: ReadonlyArray<{ file?: string; line?: number; column?: number; method?: string }>;
-						};
-						const messageText = coerceErrorText(e.message) ?? "<missing message>";
-						const nameText = coerceErrorText(e.name);
-						const stackText = coerceErrorText(e.stack);
+						// Safe field reads — see the test-scope site above.
+						const e: unknown = errors[ordinal];
+						const messageText = coerceErrorField(e, "message") ?? "<missing message>";
+						const nameText = coerceErrorField(e, "name");
+						const stackText = coerceErrorField(e, "stack");
+						const stacksValue = readErrorStacks(e);
 						const { frames, signatureHash } = processFailure({
-							...e,
 							message: messageText,
+							...(nameText !== undefined && { name: nameText }),
 							...(stackText !== undefined && { stack: stackText }),
+							...(stacksValue !== undefined && { stacks: stacksValue }),
 						});
 						if (signatureHash !== null) {
 							yield* store.writeFailureSignature({
@@ -1787,7 +1825,7 @@ export class AgentReporter {
 						const tcResult = tc.result();
 						if (tcResult?.state === "failed") {
 							const errors = tcResult.errors;
-							errorMap.set(key, coerceErrorText(errors?.[0]?.message) ?? null);
+							errorMap.set(key, coerceErrorField(errors?.[0], "message") ?? null);
 						}
 					}
 				}
@@ -1980,7 +2018,7 @@ export class AgentReporter {
 
 		let persistFailure: string | undefined;
 		let persistResult: PersistResult | undefined;
-		if (persistDisabled === undefined) {
+		if (persistDisabled === undefined && dbPath !== undefined) {
 			persistResult = await Effect.runPromise(
 				persistProgram.pipe(
 					Effect.annotateLogs("service", "reporter"),

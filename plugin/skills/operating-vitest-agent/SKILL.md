@@ -38,8 +38,9 @@ coverage-in-subset, the `consoleLeaks` signal), see
    [references/running-tests.md](references/running-tests.md).
 5. **Session attribution is recovered for you.** The SessionStart hook writes
    the `VITEST_AGENT_*` identity into the environment and the SDK recovers it —
-   you never set those vars by hand. The only behavioral knobs are
-   `VITEST_REPORTER_LOG_LEVEL`, `VITEST_REPORTER_LOG_FILE`, and `NO_COLOR`.
+   you never set those vars by hand. Beyond identity, the behavioral knobs are
+   `VITEST_REPORTER_LOG_LEVEL`, `VITEST_REPORTER_LOG_FILE`, `NO_COLOR`, and
+   the `VITEST_AGENT_CONSOLE` output override documented below.
 6. **Stale counts mean tests were not re-run**, not a warm cache. Discovery
    re-walks per Vitest run; the MCP serves counts from the database.
 7. **Some "leaks" are guardrail tests** that assert on their own output. Do not

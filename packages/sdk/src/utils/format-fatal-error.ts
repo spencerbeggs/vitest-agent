@@ -30,7 +30,15 @@ export function formatFatalError(err: unknown): string {
 		try {
 			detail = err.stack ?? err.message;
 		} catch {
-			detail = `<unserializable ${err.constructor?.name ?? "Error"}>`;
+			// Even the recovery reads are guarded: an own `constructor` getter
+			// can throw too, and a throw while handling a throw escapes.
+			let ctorName = "Error";
+			try {
+				ctorName = err.constructor?.name ?? "Error";
+			} catch {
+				// keep the fixed marker
+			}
+			detail = `<unserializable ${ctorName}>`;
 		}
 	} else if (err !== null && typeof err === "object") {
 		try {

@@ -643,4 +643,26 @@ describe("buildAgentReport", () => {
 		expect(report.reason).toBe("failed");
 		expect(report.failedFiles).toEqual(["broken.test.ts"]);
 	});
+
+	it("survives an error whose message getter throws at the property access (issue #193 shape)", () => {
+		// coerceErrorText(e.message) evaluates the getter BEFORE the helper's
+		// try/catch — the read itself must be guarded (coerceErrorField).
+		const hostile: Record<string, unknown> = { stacks: [] };
+		Object.defineProperty(hostile, "message", {
+			get(): string {
+				throw new TypeError("this.cause.toString is not a function");
+			},
+			enumerable: true,
+		});
+		const mod = makeTestModule({
+			relativeModuleId: "hostile.test.ts",
+			state: "failed",
+			tests: [],
+			errors: [hostile as unknown as { message: string }],
+		});
+		expect(() => buildAgentReport([mod], [], "passed", {})).not.toThrow();
+		const report = buildAgentReport([mod], [], "passed", {});
+		expect(report.failedFiles).toContain("hostile.test.ts");
+		expect(report.failed[0].errors?.[0].message).toBe("<unreadable field>");
+	});
 });
