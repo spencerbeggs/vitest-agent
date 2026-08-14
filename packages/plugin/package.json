@@ -39,7 +39,7 @@
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
 		"effect": "catalog:effect",
-		"magic-string": "^1.1.0"
+		"magic-string": "^1.2.0"
 	},
 	"devDependencies": {
 		"@savvy-web/bundler": "^2.1.9",
