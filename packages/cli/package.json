@@ -42,7 +42,7 @@
 		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.9",
+		"@savvy-web/bundler": "^2.1.10",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build",
 		"vitest": "catalog:test"
