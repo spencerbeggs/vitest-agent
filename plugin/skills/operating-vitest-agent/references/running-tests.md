@@ -16,7 +16,7 @@ You want to execute the Vitest suite (or a subset) from an agent. Always prefer 
 | `passWithNoTests` | `boolean` | config value | Per-call override of `test.passWithNoTests` |
 | `timeout` | `number` (seconds) | `120` | Per-call run timeout |
 
-There is **no** `filter` field. Passing one (`run_tests({ filter: "@my/pkg" })`) is silently dropped — the call then runs with no filters, so the **entire** suite executes. To scope to one package, pass its Vitest project name as `project`; to scope to one file, pass it in `files`.
+There is **no** `filter` field. Passing one (`run_tests({ filter: "@my/pkg" })`) is rejected with an error naming the unrecognized key and the accepted params — the run does not start. To scope to one package, pass its Vitest project name as `project`; to scope to one file, pass it in `files`. The `ok` result echoes the resolved `scope` (`project`, `files`, `tags`) so you can confirm what actually ran.
 
 `project` matches the project **name** defined in `vitest.config.ts`, not the npm package name. They often differ — check your config for the actual project name.
 

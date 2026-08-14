@@ -36,6 +36,20 @@ describe("renderAgent — header", () => {
 		});
 		expect(renderAgent(state).split("\n")[0]).toBe("Tests: 5/5 passed (42ms)");
 	});
+
+	it("folds timeoutCount into the total and adds a 'timed out' part for a timeout-only run (issue #224)", () => {
+		const state = baseState({
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 1, durationMs: 5000 },
+		});
+		expect(renderAgent(state).split("\n")[0]).toBe("Tests: 0/1 passed, 1 timed out (5s)");
+	});
+
+	it("shows both failed and timed out counts, folded into the same total, when both are present", () => {
+		const state = baseState({
+			totals: { passCount: 2, failCount: 1, skipCount: 0, timeoutCount: 1, durationMs: 100 },
+		});
+		expect(renderAgent(state).split("\n")[0]).toBe("Tests: 2/4 passed, 1 failed, 1 timed out (100ms)");
+	});
 });
 
 describe("renderAgent — modules", () => {

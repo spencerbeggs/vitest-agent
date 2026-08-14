@@ -105,6 +105,28 @@ describe("classifyOutcome", () => {
 		expect(classifyOutcome(state)).toBe("some-fail");
 	});
 
+	it("returns some-fail for a timeout-only run (issue #224) instead of all-pass", () => {
+		// pass=fail=skip=0, timeoutCount=1: the run collected and ran one
+		// test that never returned. It must not classify as all-pass.
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 1, durationMs: 5000 },
+		};
+		expect(classifyOutcome(state)).toBe("some-fail");
+	});
+
+	it("some-fail wins over timeout-only when both real failures and timeouts are present", () => {
+		// Failures still take precedence, but the timeout must not be masked
+		// — it stays visible in totals.timeoutCount for the fail cell to render.
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 2, failCount: 1, skipCount: 0, timeoutCount: 1, durationMs: 5000 },
+		};
+		expect(classifyOutcome(state)).toBe("some-fail");
+	});
+
 	it("returns all-pass when coverage block is present but has no violations", () => {
 		const state: RenderState = {
 			...initialRenderState,

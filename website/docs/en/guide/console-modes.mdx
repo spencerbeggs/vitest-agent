@@ -111,12 +111,24 @@ VITEST_AGENT_CONSOLE=passthrough pnpm test
 ```
 
 This overrides the plugin's resolved console mode to `passthrough` for the
-active executor without touching the permanent config. An invalid value for the
-current executor slot warns to stderr and is ignored.
+active executor without touching the permanent config.
 
-`passthrough` is the only value valid for every executor slot. Other mode
-values (`stream`, `agent`, `silent`, `ci-annotations`) are slot-specific and
-behave the same as their config counterparts but applied per-run.
+The override is checked against the slot for the executor detected on that run — not against the full set of modes. Each value behaves the same as its config counterpart, applied for one run only:
+
+| Detected executor | Accepted `VITEST_AGENT_CONSOLE` values |
+| --- | --- |
+| `human` | `passthrough`, `silent`, `stream`, `agent` |
+| `agent` | `passthrough`, `silent`, `agent` |
+| `ci` | `passthrough`, `silent`, `ci-annotations` |
+
+`passthrough` and `silent` are valid everywhere; `stream` is human-only and `ci-annotations` is CI-only. A value outside the detected slot's row is ignored, and the stderr warning names the slot and lists what it accepts:
+
+```bash
+VITEST_AGENT_CONSOLE=stream pnpm test
+# [vitest-agent:plugin] ignoring invalid VITEST_AGENT_CONSOLE="stream" for agent executor; accepted for agent: passthrough | silent | agent
+```
+
+The run continues with the mode the matrix resolved, so an ignored override never fails a run — it just does nothing.
 
 ### Where stray console output shows up
 

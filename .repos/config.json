@@ -21,8 +21,7 @@
 					"vitest-reference": "packages/vitest/src"
 				},
 				"startHere": "packages/effect/src settles what v4 actually exports (evidence-ladder rung 2); migration/*.md settles v3→v4 renames (rung 1). Before trusting an answer, check the pin matches the installed effect version — node_modules wins on disagreement.\n\nServices/tags live in Context.ts — there is no ServiceMap.ts (re-verified at beta.107; agents coming from other Effect lines reliably look for the wrong filename). Key consumer-side fact settled there: Context.Key<Id, Shape> extends Effect<Shape, never, Id> (Context.ts:64) — v4 tags/Service classes are still first-class Effects, flatMap-able without .asEffect()."
-			},
-			"notes": []
+			}
 		}
 	}
 }

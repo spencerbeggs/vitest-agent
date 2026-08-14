@@ -37,6 +37,27 @@ import { TriageBriefResult } from "./tools/triage-brief.js";
 import { TurnSearchAsMarkdown, TurnSearchResult } from "./tools/turn-search.js";
 import { WrapupPromptResult } from "./tools/wrapup-prompt.js";
 import { effectToZodSchema } from "./utils/effect-to-zod.js";
+import { buildUnexpectedToolErrorEnvelope } from "./utils/tool-error-envelope.js";
+
+/**
+ * Build a strict (unknown-keys-rejected) zod object from a raw shape, with
+ * an `unrecognized_keys` error message that names the accepted params —
+ * plain `z.strictObject(shape)` only reports the offending key(s), leaving
+ * an agent to re-read the tool description to self-correct. Every
+ * `registerTool` input in this file goes through this helper so the whole
+ * served surface rejects unknown keys consistently (issue #200).
+ *
+ * @internal
+ */
+function strict<S extends z.ZodRawShape>(shape: S): z.ZodObject<S> {
+	const acceptedKeys = Object.keys(shape);
+	return z.strictObject(shape, {
+		error: (issue) =>
+			issue.code === "unrecognized_keys"
+				? `Unrecognized parameter(s): ${issue.keys.join(", ")}. Accepted params: ${acceptedKeys.join(", ")}`
+				: undefined,
+	}) as z.ZodObject<S>;
+}
 
 /**
  * For behavior-scoped events, resolve goalId/sessionId server-side from
@@ -159,6 +180,63 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 	const factory = createCallerFactory(appRouter);
 	const caller = factory(ctx);
 
+	// Shadow the instance's own `registerTool` with a wrapped version so
+	// every `server.registerTool(...)` call below — unmodified, still
+	// fully type-checked against the SDK's real generic signature — gets
+	// the safety net without re-declaring that signature ourselves (the
+	// SDK's `ZodRawShapeCompat | AnySchema` union isn't part of its
+	// public export surface, so reproducing it here would be guesswork).
+	// A property assigned directly on the instance shadows the
+	// prototype method for every subsequent call on this `server`, but
+	// TypeScript still type-checks each call site against `McpServer`'s
+	// declared (unshadowed) type — so this changes runtime behavior
+	// only, with zero loss of per-tool `inputSchema`/`outputSchema`
+	// inference at any call site.
+	//
+	// A resolver that throws or rejects unexpectedly here has already
+	// escaped whatever domain-specific error handling the tool itself
+	// does (e.g. the tagged-error `catchTags` in
+	// `_tdd-error-envelope.ts`); this wrapper returns the structured
+	// `UnexpectedToolError` envelope (issue #191) instead of falling
+	// through to the MCP SDK's own generic, untyped `createToolError`
+	// text-only result.
+	//
+	// This is defense-in-depth, not the primary fix for issue #191: the
+	// SDK's `CallToolRequestSchema` handler already wraps every tool
+	// call's resolution in its own try/catch, so nothing caught here was
+	// ever going to crash the process — that failure mode (a rejection
+	// with no handler anywhere in its chain, reaching the process
+	// outside any tool-call boundary) is covered by the
+	// `unhandledRejection` / `uncaughtException` guards in `bin.ts`. This
+	// wrapper exists so an *in-boundary* unexpected throw is reported to
+	// the agent in the same structured shape as the rest of the tool
+	// surface, rather than a bare error string it has to pattern-match.
+	//
+	// Setting `isError: true` on the fallback result is also what lets
+	// the envelope skip the SDK's `validateToolOutput` check — it
+	// returns early whenever `result.isError` is true — so this shape
+	// never has to match each tool's own `outputSchema`.
+	const originalRegisterTool = server.registerTool.bind(server);
+	(server as unknown as { registerTool: (...args: unknown[]) => unknown }).registerTool = (
+		...registerArgs: unknown[]
+	) => {
+		const [name, config, cb] = registerArgs as [string, unknown, (...a: unknown[]) => unknown];
+		const wrapped = async (...handlerArgs: unknown[]) => {
+			try {
+				return await cb(...handlerArgs);
+			} catch (err) {
+				const envelope = buildUnexpectedToolErrorEnvelope(name, err);
+				console.error(`[vitest-agent-mcp] tool "${name}" resolver threw: ${envelope.error.message}`);
+				return {
+					content: [{ type: "text" as const, text: JSON.stringify(envelope, null, 2) }],
+					isError: true,
+					structuredContent: envelope as unknown as Record<string, unknown>,
+				};
+			}
+		};
+		return originalRegisterTool(name, config as never, wrapped as never);
+	};
+
 	// ── Help tool ──────────────────────────────────────────────────────
 
 	server.registerTool(
@@ -181,9 +259,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you need each project's current pass/fail state from the most recent run. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant).",
-			inputSchema: {
+			inputSchema: strict({
 				project: z.optional(z.string()).describe("Filter to a specific project"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TestStatusResult) as never,
 		},
 		async (args) => {
@@ -198,9 +276,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you want a summary of the test landscape with per-project run metrics. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, projectFilter?, runs[] } or absent variant).",
-			inputSchema: {
+			inputSchema: strict({
 				project: z.optional(z.string()).describe("Filter to a specific project"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TestOverviewResult) as never,
 		},
 		async (args) => {
@@ -215,9 +293,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when coverage drops and you need per-metric gap analysis against thresholds and targets. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, coverage } or absent variant).",
-			inputSchema: {
+			inputSchema: strict({
 				project: z.optional(z.string()).describe("Project name"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TestCoverageResult) as never,
 		},
 		async (args) => {
@@ -231,14 +309,22 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"test_history",
 		{
 			description:
-				"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns markdown in content[] and a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[]).",
-			inputSchema: {
+				"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns markdown in content[] and a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[]). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
+			inputSchema: strict({
 				project: z.string().describe("Project name (required)"),
-			},
+				testName: z.optional(z.string()).describe("Exact full_name match — narrows to a single test's history"),
+				modulePath: z.optional(z.string()).describe("Exact module_path match — narrows to tests in one file"),
+				limit: z.optional(z.coerce.number()).describe("Max runs kept per test, most-recent-first (default 20)"),
+			}),
 			outputSchema: effectToZodSchema(TestHistoryResult) as never,
 		},
 		async (args) => {
-			const data = await caller.test_history({ project: args.project });
+			const data = await caller.test_history({
+				project: args.project,
+				testName: args.testName,
+				modulePath: args.modulePath,
+				limit: args.limit,
+			});
 			const text = Schema.decodeSync(TestHistoryAsMarkdown)(data);
 			return structuredResult(text, data);
 		},
@@ -249,10 +335,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you want to see whether a project's coverage is trending up or down over time. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, trends? }).",
-			inputSchema: {
+			inputSchema: strict({
 				project: z.string().describe("Project name (required)"),
 				limit: z.optional(z.coerce.number()).describe("Max number of trend entries to return"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TestTrendsResult) as never,
 		},
 		async (args) => {
@@ -267,10 +353,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when a test fails and you need error detail, diffs, and the cite-able test_errors.id / stack_frames.id values needed by hypothesis (action: record). Returns both a markdown rendering (in content[].text) and a typed JSON object (in structuredContent) — agents should prefer structuredContent.errors[].",
-			inputSchema: {
+			inputSchema: strict({
 				project: z.string().describe("Project name (required)"),
 				errorName: z.optional(z.string()).describe("Filter to a specific error name"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TestErrorsResult) as never,
 		},
 		async (args) => {
@@ -292,7 +378,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?) returns details + errors + run history; action='for_file' (filePath) returns test modules covering a source file. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
-			inputSchema: {
+			inputSchema: strict({
 				action: z.enum(["list", "get", "for_file"]).describe("Inspection discriminator"),
 				project: z.optional(z.string()),
 				state: z.optional(z.string()).describe("list: filter by state"),
@@ -300,7 +386,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				limit: z.optional(z.coerce.number()).describe("list: max rows to return"),
 				fullName: z.optional(z.string()).describe("get: full test name"),
 				filePath: z.optional(z.string()).describe("for_file: source file path"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TestResult) as never,
 		},
 		async (args) => {
@@ -332,10 +418,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you need coverage for one source file: per-metric values, uncovered lines, and related tests. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, matched?, filePath, report?, totals?, relatedTestFiles[] }).",
-			inputSchema: {
+			inputSchema: strict({
 				filePath: z.string().describe("Source file path to check coverage for"),
 				project: z.optional(z.string()).describe("Project name"),
-			},
+			}),
 			outputSchema: effectToZodSchema(FileCoverageResult) as never,
 		},
 		async (args) => {
@@ -350,9 +436,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you need the captured Vitest settings for a test run. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, source, settings?, requestedHash? }).",
-			inputSchema: {
+			inputSchema: strict({
 				settingsHash: z.optional(z.string()).describe("Settings hash from a manifest entry or test run"),
-			},
+			}),
 			outputSchema: effectToZodSchema(ConfigureResult) as never,
 		},
 		async (args) => {
@@ -383,14 +469,14 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use to discover what exists in the workspace, with a kind discriminator: project / module / suite / session. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list) so callers can branch on the response shape without parsing markdown.",
-			inputSchema: {
+			inputSchema: strict({
 				kind: z.enum(["project", "module", "suite", "session"]).describe("Inventory entity"),
 				id: z.optional(z.coerce.number()).describe("session: single-row lookup by id"),
 				project: z.optional(z.string()),
 				module: z.optional(z.string()).describe("suite: filter by module path"),
 				agentKind: z.optional(z.enum(["main", "subagent"])).describe("session: filter by agent kind"),
 				limit: z.optional(z.coerce.number()).describe("session: max rows"),
-			},
+			}),
 			outputSchema: effectToZodSchema(InventoryResult) as never,
 		},
 		async (args) => {
@@ -443,7 +529,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when an LLM-agent invocation starts and must be recorded in the per-project store. Idempotent on (chatId, agentType, parentAgentId, clientNonce). Returns ok:true with agentId on insert, or ok:false with error.code='AGENT_ALREADY_REGISTERED'/'PARENT_AGENT_NOT_FOUND'/'SESSION_NOT_FOUND'/'INVALID_AGENT_TYPE_PREFIX' on the four documented failure modes. agentType must begin with the host-kind prefix (e.g., 'claude-code-main').",
-			inputSchema: {
+			inputSchema: strict({
 				chatId: z.string().describe("Host's chat UUID (session_id from CC hook payload, etc.)"),
 				conversationId: z
 					.optional(z.string())
@@ -459,7 +545,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				startGitBranch: z.optional(z.string()),
 				startGitCommitSha: z.optional(z.string()),
 				startWorktreeDir: z.optional(z.string()),
-			},
+			}),
 			outputSchema: effectToZodSchema(RegisterAgentResult) as never,
 		},
 		async (args) => {
@@ -486,10 +572,20 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"run_tests",
 		{
 			description:
-				"Use to run Vitest tests, with optional file and project filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error). The legacy format=json arg is dropped — structuredContent supersedes it.",
-			inputSchema: {
+				"Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout. The legacy format=json arg is dropped — structuredContent supersedes it.",
+			inputSchema: strict({
 				files: z.optional(z.array(z.string())).describe("Test file paths to run"),
 				project: z.optional(z.string()).describe("Project name to filter"),
+				tags: z
+					.optional(
+						z.object({
+							all: z.optional(z.array(z.string())).describe("Require every listed tag"),
+							any: z.optional(z.array(z.string())).describe("Require at least one listed tag"),
+							none: z.optional(z.array(z.string())).describe("Exclude any listed tag"),
+						}),
+					)
+					.describe("Structured tag filter; all/any/none AND together with each other and with project/files"),
+				passWithNoTests: z.optional(z.boolean()).describe("Per-call override of Vitest's native test.passWithNoTests"),
 				timeout: z.optional(z.coerce.number()).describe("Timeout in seconds (default: 120)"),
 				// Injected by the `pre-tool-use-mcp-run-tests.sh` hook.
 				// Agents do not pass this directly; if absent, the tool
@@ -503,13 +599,15 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 						}),
 					)
 					.describe("Hook-injected session attribution UUIDs; do not pass manually."),
-			},
+			}),
 			outputSchema: effectToZodSchema(RunTestsResult) as never,
 		},
 		async (args) => {
 			const data = await caller.run_tests({
 				files: args.files,
 				project: args.project,
+				tags: args.tags,
+				passWithNoTests: args.passWithNoTests,
 				timeout: args.timeout,
 				...(args._sessionContext !== undefined && { _sessionContext: args._sessionContext }),
 			});
@@ -527,7 +625,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use to manage notes, with a CRUD action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`); list/search additionally render markdown in the text channel.",
-			inputSchema: {
+			inputSchema: strict({
 				action: z.enum(["create", "list", "get", "update", "delete", "search"]).describe("CRUD discriminator"),
 				// Shared
 				id: z.optional(z.coerce.number()).describe("get/update/delete: note id"),
@@ -546,7 +644,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				pinned: z.optional(z.boolean()),
 				// search
 				query: z.optional(z.string()).describe("search: FTS5 query"),
-			},
+			}),
 			outputSchema: effectToZodSchema(NoteResult) as never,
 		},
 		async (args) => {
@@ -606,14 +704,14 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you need to find past turns across sessions by type, time, or session. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, turns[] }).",
-			inputSchema: {
+			inputSchema: strict({
 				sessionId: z.optional(z.coerce.number()).describe("Filter to a specific session id"),
 				since: z.optional(z.string()).describe("ISO 8601 cutoff — return turns after this timestamp"),
 				type: z
 					.optional(z.enum(["user_prompt", "tool_call", "tool_result", "file_edit", "hook_fire", "note", "hypothesis"]))
 					.describe("Filter by turn type"),
 				limit: z.optional(z.coerce.number()).describe("Max turns to return (default 100)"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TurnSearchResult) as never,
 		},
 		async (args) => {
@@ -635,9 +733,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you have a failure-signature hash and need its first-seen date and occurrence history. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, signatureHash?, firstSeenAt?, occurrenceCount?, recentErrors?[] } or absent variant).",
-			inputSchema: {
+			inputSchema: strict({
 				hash: z.string().describe("16-char failure signature hash"),
-			},
+			}),
 			outputSchema: effectToZodSchema(FailureSignatureGetResult) as never,
 		},
 		async (args) => {
@@ -656,7 +754,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use to manage a TDD task lifecycle, with an action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns markdown details; action='resume' (tddTaskId) returns a compact digest.",
-			inputSchema: {
+			inputSchema: strict({
 				action: z.enum(["start", "end", "get", "resume"]).describe("Lifecycle discriminator"),
 				tddTaskId: z.optional(z.coerce.number()).describe("end/get/resume: tdd task id"),
 				goal: z.optional(z.string()).describe("start: goal text"),
@@ -667,7 +765,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				runId: z.optional(z.string()),
 				outcome: z.optional(z.enum(["succeeded", "blocked", "abandoned"])).describe("end: final outcome"),
 				summaryNoteId: z.optional(z.coerce.number()),
-			},
+			}),
 			outputSchema: effectToZodSchema(TddTaskResult) as never,
 		},
 		async (args) => {
@@ -704,7 +802,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when advancing a TDD cycle and you need a phase transition validated and recorded. Validates goal status, behavior↔goal membership, and D2 artifact-evidence binding rules; returns accept/deny. On accept, auto-promotes a behavior 'pending' → 'in_progress' when behaviorId is supplied. citedArtifactId is OPTIONAL — when omitted, the most recent matching artifact is auto-resolved (kind comes from citedArtifactKind if supplied, otherwise from the transition's required-evidence rule). Transitions like spike→red that require no artifact need neither field. The accepted response echoes citedArtifactId + citedArtifactSource so the caller can see which row was picked.",
-			inputSchema: {
+			inputSchema: strict({
 				tddTaskId: z.coerce.number().describe("tdd_tasks.id"),
 				goalId: z.coerce.number().describe("tdd_session_goals.id (required; goal must be in_progress)"),
 				requestedPhase: z
@@ -733,7 +831,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					.optional(z.coerce.number())
 					.describe("tdd_session_behaviors.id when transitioning a specific behavior (must belong to goalId)"),
 				reason: z.optional(z.string()).describe("Free-text reason for the transition"),
-			},
+			}),
 			outputSchema: effectToZodSchema(PhaseTransitionResult) as never,
 		},
 		async (args) =>
@@ -757,13 +855,13 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use to manage TDD goals, with a CRUD action discriminator: action='create' (tddTaskId, goal) is idempotent on (tddTaskId, goal); action='update' (id, goal?, status?) edits text and/or lifecycle status; action='delete' (id) hard-deletes (prefer status:'abandoned'); action='get' (id) reads with nested behaviors; action='list' (tddTaskId) returns all goals for a TDD task.",
-			inputSchema: {
+			inputSchema: strict({
 				action: z.enum(["create", "update", "delete", "get", "list"]).describe("CRUD discriminator"),
 				id: z.optional(z.coerce.number()).describe("update/delete/get: goal id"),
 				tddTaskId: z.optional(z.coerce.number()).describe("create/list: tdd task id"),
 				goal: z.optional(z.string()),
 				status: z.optional(z.enum(["pending", "in_progress", "done", "abandoned"])),
-			},
+			}),
 			outputSchema: effectToZodSchema(TddGoalResult) as never,
 		},
 		async (args) => {
@@ -803,7 +901,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use to manage TDD behaviors, with a CRUD action discriminator: action='create' (goalId, behavior, suggestedTestName?, dependsOnBehaviorIds?) is idempotent on (goalId, behavior); action='update' (id, ...patch) edits; action='delete' (id) hard-deletes; action='get' (id) reads; action='list_by_goal' (goalId) lists one goal's behaviors; action='list_by_tdd_task' (tddTaskId) lists across all goals.",
-			inputSchema: {
+			inputSchema: strict({
 				action: z
 					.enum(["create", "update", "delete", "get", "list_by_goal", "list_by_tdd_task"])
 					.describe("CRUD discriminator"),
@@ -814,7 +912,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				suggestedTestName: z.optional(z.string().nullable()),
 				status: z.optional(z.enum(["pending", "in_progress", "done", "abandoned"])),
 				dependsOnBehaviorIds: z.optional(z.array(z.coerce.number())),
-			},
+			}),
 			outputSchema: effectToZodSchema(TddBehaviorResult) as never,
 		},
 		async (args) => {
@@ -872,7 +970,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you need the artifact id to cite in tdd_phase_transition_request without querying SQLite directly. Lists TDD artifacts (test_written, test_failed_run, code_written, test_passed_run, refactor, test_weakened) for a tdd_task, newest first. Filters: artifactKind, phaseId, behaviorId, limit (default 50).",
-			inputSchema: {
+			inputSchema: strict({
 				tddTaskId: z.coerce.number().describe("tdd_tasks.id"),
 				artifactKind: z
 					.optional(
@@ -884,7 +982,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					.optional(z.coerce.number())
 					.describe("Restrict to artifacts recorded in phases bound to one behavior"),
 				limit: z.optional(z.coerce.number()).describe("Max rows (default 50)"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TddArtifactListResult) as never,
 		},
 		async (args) => {
@@ -907,7 +1005,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (content, tddTaskId?, optional citation ids) writes a hypothesis — the binding session is resolved server-side from the recovered host context (active TDD subagent, else main session); pass tddTaskId (returned by tdd_task action='start') to bind deterministically to that task's session, and do not pass sessionId when recording; action='validate' (id, outcome, validatedAt) records a validation outcome; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
-			inputSchema: {
+			inputSchema: strict({
 				action: z.enum(["record", "validate", "list"]).describe("CRUD discriminator"),
 				// Shared
 				sessionId: z
@@ -934,7 +1032,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				validatedAt: z.optional(z.string()).describe("ISO 8601 timestamp (action=validate)"),
 				// list
 				limit: z.optional(z.coerce.number()),
-			},
+			}),
 			outputSchema: effectToZodSchema(HypothesisResult) as never,
 		},
 		async (args) => {
@@ -980,11 +1078,11 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when a TDD orchestrator needs to report progress to the main agent over a Claude Code channel. The MCP server validates the payload against the ChannelEvent union and resolves goalId/sessionId server-side from behaviorId for behavior-scoped events (so a stale orchestrator context cannot push the wrong tree coordinates). Best-effort — returns { ok: true } regardless of whether channels are active.",
-			inputSchema: {
+			inputSchema: strict({
 				payload: z
 					.string()
 					.describe("Pre-stringified ChannelEvent JSON (see schemas/ChannelEvent in @vitest-agent/sdk)"),
-			},
+			}),
 		},
 		async (args) => {
 			let resolvedPayload = args.payload;
@@ -1015,7 +1113,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you need the four spec Annex A acceptance metrics computed from the current database. Returns markdown in content[] and a typed JSON object in structuredContent (per-metric { total, ratio, ... }).",
-			inputSchema: {},
+			inputSchema: strict({}),
 			outputSchema: effectToZodSchema(AcceptanceMetricsResult) as never,
 		},
 		async () => {
@@ -1032,10 +1130,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you need to orient on the current test landscape: failing tests, flaky tests, open TDD sessions, and suggested next actions. Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, markdown }).",
-			inputSchema: {
+			inputSchema: strict({
 				project: z.optional(z.string()).describe("Filter to a specific project"),
 				maxLines: z.optional(z.coerce.number()).describe("Soft cap on rendered output lines"),
-			},
+			}),
 			outputSchema: effectToZodSchema(TriageBriefResult) as never,
 		},
 		async (args) => {
@@ -1051,14 +1149,14 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when a session is ending and you need a tailored wrap-up prompt (Stop / SessionEnd / PreCompact / TDD handoff / UserPromptSubmit nudge variants). Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, kind, markdown }).",
-			inputSchema: {
+			inputSchema: strict({
 				sessionId: z.optional(z.coerce.number()).describe("sessions.id (integer); omit to use chatId"),
 				chatId: z.optional(z.string()).describe("Host chat UUID (alternative to sessionId)"),
 				kind: z
 					.optional(z.enum(["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"]))
 					.describe("Wrap-up flavor (default: session_end)"),
 				userPromptHint: z.optional(z.string()).describe("For user_prompt_nudge: the prompt text to inspect"),
-			},
+			}),
 			outputSchema: effectToZodSchema(WrapupPromptResult) as never,
 		},
 		async (args) => {
@@ -1077,9 +1175,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		{
 			description:
 				"Use when you need commit metadata and changed files captured by the post-commit hook. Returns up to 20 most-recent when sha is omitted. Returns markdown in content[] and a typed JSON object in structuredContent ({ filterSha?, count, commits[] }).",
-			inputSchema: {
+			inputSchema: strict({
 				sha: z.optional(z.string()).describe("Specific commit sha to fetch; omit for recent commits"),
-			},
+			}),
 			outputSchema: effectToZodSchema(CommitChangesResult) as never,
 		},
 		async (args) => {

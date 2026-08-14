@@ -96,3 +96,13 @@ see it.
 `AgentPlugin.runScript(...)` (for example `pnpm turbo run build:dev`), which may
 transiently rebuild `dist/` during the run. That is the host project's
 configuration, not a broken workspace.
+
+Two runs started in the same checkout at once no longer rebuild concurrently: `runScript` serializes on a file-based advisory lock, and the second caller skips its build when the first finished moments earlier. See [Build steps in `globalSetup`](/plugin/advanced-config) for the lock's staleness and wait behavior.
+
+## A run with only timeouts reported as passing
+
+**Status: resolved.** Timed-out tests were split into their own `timeoutCount` for display and then left out of the totals, so a run whose only non-passing tests timed out rendered as an all-pass frame with a smaller total. Timeouts now count toward the total, print as a `N timed out` segment in the totals line and in per-file headers, and route the run to the failing cell. They still persist to SQLite as `failed`. Update `@vitest-agent/ui` — or `@vitest-agent/plugin`, which pulls it transitively — if you still see a clean pass for a run that timed out.
+
+## Tests in a package that never run
+
+**Status: resolved.** A workspace package whose test files sit outside the two discoverable roots — or whose files miss the `.test.`/`.spec.` naming convention — produced no Vitest project, silently. Discovery now writes one stderr warning per such package when the package still looks test-shaped, naming the package and the `vitest-agent agent check-test-path` command that explains the rejection. See [When a package is skipped](/guide/customize-discovery).

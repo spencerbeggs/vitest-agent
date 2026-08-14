@@ -146,6 +146,15 @@ export interface TurnSummary {
 	readonly occurredAt: string;
 }
 /** @public */
+export interface HistoryQueryOptions {
+	/** Exact `full_name` match — narrows to a single test's history. */
+	readonly testName?: string;
+	/** Exact `module_path` match — narrows to tests in one file. */
+	readonly modulePath?: string;
+	/** Max runs kept per (module_path, full_name) pair, most-recent-first. Default 20. */
+	readonly limit?: number;
+}
+/** @public */
 export interface TurnSearchOptions {
 	readonly sessionId?: number;
 	readonly type?: string;
@@ -288,7 +297,10 @@ export class DataReader extends Context.Service<
 	{
 		readonly getLatestRun: (project: string) => Effect.Effect<Option.Option<AgentReport>, DataStoreError>;
 		readonly getRunsByProject: () => Effect.Effect<ReadonlyArray<ProjectRunSummary>, DataStoreError>;
-		readonly getHistory: (project: string) => Effect.Effect<HistoryRecord, DataStoreError>;
+		readonly getHistory: (
+			project: string,
+			options?: HistoryQueryOptions,
+		) => Effect.Effect<HistoryRecord, DataStoreError>;
 		readonly getBaselines: (project: string) => Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError>;
 		readonly getTrends: (project: string, limit?: number) => Effect.Effect<Option.Option<TrendRecord>, DataStoreError>;
 		readonly getFlaky: (project: string) => Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError>;

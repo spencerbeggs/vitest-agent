@@ -43,7 +43,7 @@ Most variants fold into state meaningfully. Several variants pass through withou
 
 Two reducer behaviors are load-bearing:
 
-- **Timeout routing.** Vitest reports a timed-out test as `failed` with a timeout-flavored error. The plugin's `isTimeoutError` detector sets an optional `timedOut: true` flag on the emitted `TestFinished`. The reducer routes those tests into a separate `timeoutCount` rather than `failCount`, and marks the `TestRecord.status` as the render-only `"timed-out"` value. The distinction is display-only — timed-out tests still persist to SQLite as `failed`.
+- **Timeout routing.** Vitest reports a timed-out test as `failed` with a timeout-flavored error. The plugin's `isTimeoutError` detector sets an optional `timedOut: true` flag on the emitted `TestFinished`. The reducer routes those tests into a separate `timeoutCount` rather than `failCount`, and marks the `TestRecord.status` as the render-only `"timed-out"` value. The split is about labeling, not verdict: `timeoutCount` folds into the total on the header and cell totals lines (printing its own `N timed out` segment), and `classifyOutcome` treats a non-zero `timeoutCount` as `some-fail`, so a run that only timed out can never render through a passing cell. Timed-out tests still persist to SQLite as `failed`.
 - **`TrendComputed` fold.** The plugin emits a `TrendComputed` event after end-of-run trend computation. The reducer folds it into the nullable `trend` field on `RenderState` so renderers can show a Trend line without reading the database.
 
 ## The RunEvent variants

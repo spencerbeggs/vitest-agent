@@ -426,6 +426,90 @@ describe("MCP Router", () => {
 		if (result.action === "get") expect(result.found).toBe(false);
 	});
 
+	it("test get scopes run history to the matched test's own module, not a same-named test in another module", async () => {
+		// Regression for #241: the `get` handler must push fullName (and
+		// modulePath, once the matching test row is known) down into
+		// getHistory's options rather than fetching the whole project's
+		// history and grabbing the first fullName match. Two modules here
+		// share a test name; the decoy module sorts alphabetically before
+		// the real one, so a naive `.find()` over an unscoped history
+		// fetch picks the decoy's runs instead of the matched test's own.
+		const store = await testRuntime.runPromise(Effect.map(DataStore, (s) => s));
+		const project = "get-history-conflict-proj";
+
+		await testRuntime.runPromise(
+			Effect.gen(function* () {
+				yield* store.writeSettings("get-history-conflict-hash", { vitestVersion: "3.2.0" }, {});
+				const runId = yield* store.writeRun({
+					invocationId: "inv-get-history-conflict",
+					project,
+					settingsHash: "get-history-conflict-hash",
+					timestamp: "2026-03-27T00:00:00.000Z",
+					commitSha: null,
+					branch: null,
+					reason: "passed",
+					duration: 100,
+					total: 1,
+					passed: 1,
+					failed: 0,
+					skipped: 0,
+					scoped: false,
+				});
+
+				// The real, discoverable test case lives in a module that sorts
+				// AFTER the decoy module alphabetically.
+				const realFileId = yield* store.ensureFile("src/zzz-real.test.ts");
+				const [realModuleId] = yield* store.writeModules(runId, [
+					{ fileId: realFileId, relativeModuleId: "src/zzz-real.test.ts", state: "passed", duration: 50 },
+				]);
+				yield* store.writeSuites(realModuleId, [{ name: "Suite", fullName: "Suite", state: "passed" }]);
+				yield* store.writeTestCases(realModuleId, [
+					{ name: "shared", fullName: "Suite > shared", state: "passed", duration: 10 },
+				]);
+
+				// Decoy history-only entry: same fullName, different module,
+				// sorts alphabetically FIRST.
+				yield* store.writeHistory(
+					project,
+					"Suite > shared",
+					"src/aaa-decoy.test.ts",
+					runId,
+					"2026-03-27T00:00:00.000Z",
+					"failed",
+					10,
+					false,
+					0,
+					"decoy boom",
+				);
+
+				// Real history entry belonging to the matched test's own module.
+				yield* store.writeHistory(
+					project,
+					"Suite > shared",
+					"src/zzz-real.test.ts",
+					runId,
+					"2026-03-27T00:00:00.000Z",
+					"passed",
+					10,
+					false,
+					0,
+					null,
+				);
+			}),
+		);
+
+		const caller = createTestCaller();
+		const result = await caller.test({ action: "get", fullName: "Suite > shared", project });
+		expect(result.action).toBe("get");
+		if (result.action === "get" && result.found) {
+			expect(result.test.module).toBe("src/zzz-real.test.ts");
+			expect(result.runs).toHaveLength(1);
+			expect(result.runs[0]?.state).toBe("passed");
+		} else {
+			expect.fail("expected the seeded test to be found");
+		}
+	});
+
 	it("file_coverage returns dataAvailable=true for the tracked project", async () => {
 		const caller = createTestCaller();
 		const result = await caller.file_coverage({ filePath: "src/utils.ts", project: "default" });
@@ -893,6 +977,62 @@ describe("MCP Router", () => {
 			// recentRuns is oldest-first; each module recovered failed -> passed.
 			expect(recoveredA?.recentRuns).toEqual(["failed", "passed"]);
 			expect(recoveredB?.recentRuns).toEqual(["failed", "passed"]);
+		});
+
+		it("filters to a single test by testName, pushed down instead of computed client-side", async () => {
+			const store = await testRuntime.runPromise(Effect.map(DataStore, (s) => s));
+
+			await testRuntime.runPromise(
+				Effect.gen(function* () {
+					yield* store.writeSettings("history-testname-hash", { vitestVersion: "3.2.0" }, {});
+					const runId = yield* store.writeRun({
+						invocationId: "inv-history-testname",
+						project: "history-testname-proj",
+						settingsHash: "history-testname-hash",
+						timestamp: "2026-03-26T00:00:00.000Z",
+						commitSha: null,
+						branch: null,
+						reason: "passed",
+						duration: 100,
+						total: 2,
+						passed: 2,
+						failed: 0,
+						skipped: 0,
+						scoped: false,
+					});
+
+					yield* store.writeHistory(
+						"history-testname-proj",
+						"Suite > test one",
+						"src/a.test.ts",
+						runId,
+						"2026-03-26T00:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"history-testname-proj",
+						"Suite > test two",
+						"src/b.test.ts",
+						runId,
+						"2026-03-26T00:00:00.000Z",
+						"passed",
+						10,
+						false,
+						0,
+						null,
+					);
+				}),
+			);
+
+			const caller = createTestCaller();
+			const result = await caller.test_history({ project: "history-testname-proj", testName: "Suite > test one" });
+
+			expect(result.history.tests).toHaveLength(1);
+			expect(result.history.tests[0]?.fullName).toBe("Suite > test one");
 		});
 	});
 

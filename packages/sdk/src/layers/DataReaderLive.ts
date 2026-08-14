@@ -15,6 +15,7 @@ import type {
 	CurrentTddPhase,
 	FailureSignatureDetail,
 	FlakyTest,
+	HistoryQueryOptions,
 	HypothesisDetail,
 	ModuleListEntry,
 	NoteRow,
@@ -354,17 +355,38 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getHistory = (project: string): Effect.Effect<HistoryRecord, DataStoreError> =>
+		const getHistory = (project: string, options?: HistoryQueryOptions): Effect.Effect<HistoryRecord, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getHistory").pipe(Effect.annotateLogs({ project }));
+				yield* Effect.logDebug("getHistory").pipe(Effect.annotateLogs({ project, ...options }));
+				const testName = options?.testName ?? null;
+				const modulePath = options?.modulePath ?? null;
+				// Per-test run cap, not a row-count LIMIT — a project can have many
+				// tests, and a flat LIMIT would starve later tests in the
+				// (module_path, full_name) ORDER BY instead of trimming each
+				// test's own run history. Default 20 keeps a single-test /
+				// single-module query bounded (issue #212 — an unfiltered
+				// query previously returned the whole project's history, up to
+				// 334KB for one real repro).
+				const limit = options?.limit ?? 20;
 				const rows = yield* sql<{
 					module_path: string;
 					full_name: string;
 					timestamp: string;
 					state: string;
-				}>`SELECT module_path, full_name, timestamp, state
-					FROM test_history
-					WHERE project = ${project}
+				}>`WITH ranked AS (
+						SELECT module_path, full_name, timestamp, state,
+							ROW_NUMBER() OVER (
+								PARTITION BY module_path, full_name
+								ORDER BY timestamp DESC
+							) AS rn
+						FROM test_history
+						WHERE project = ${project}
+							AND (${testName} IS NULL OR full_name = ${testName})
+							AND (${modulePath} IS NULL OR module_path = ${modulePath})
+					)
+					SELECT module_path, full_name, timestamp, state
+					FROM ranked
+					WHERE rn <= ${limit}
 					ORDER BY module_path, full_name, timestamp DESC`;
 
 				// Group by the composite (module_path, full_name) key so identically

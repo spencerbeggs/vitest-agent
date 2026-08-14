@@ -86,3 +86,5 @@ The `test_history` tool is the primary surface for understanding recurring
 failures. It sorts flaky tests by fail rate and persistent failures by
 consecutive failure count, and renders a compact P/F timeline for each test
 so an agent can see the pattern at a glance.
+
+Narrow it when you already know what you are looking at: `testName` limits the result to one test's history, `modulePath` to the tests in one file, and `limit` caps how many runs are kept per test (20 by default). The filters apply in SQL, so a narrowed call is cheap on a project with a long history.

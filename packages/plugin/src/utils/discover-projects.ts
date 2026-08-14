@@ -8,6 +8,7 @@ import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR } from "@vitest-agent/sdk";
 import type { TestProjectInlineConfiguration } from "vitest/config";
 import type { DiscoverStrategy } from "./discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./discover-strategy.js";
+import { isTestShapedPackage } from "./is-test-shaped-package.js";
 import { toPosixPath } from "./to-posix-path.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -42,6 +43,33 @@ export interface DiscoverProjectsOptions {
 // in-process via `createVitest`, which calls into this module, so both sides
 // observe the same global.
 const DISCOVERY_LAST_SCAN_SYMBOL = Symbol.for("vitest-agent:discovery:last-scan-at");
+
+// ── Declined-package warning (issue #229) ──────────────────────────────────────
+// `strategy.buildProject` returning null for a workspace package is silent by
+// contract — most packages legitimately have no tests, and warning on every one
+// would be pure noise. But when the package LOOKS test-shaped (a `__test__/`
+// directory exists, or `src/` holds files matching the discoverable test-file
+// naming convention) and still got declined, that is the "forgot the .test.
+// suffix" / "empty __test__/ dir" mistake a consumer without the Claude Code
+// plugin's PreToolUse hooks would otherwise never learn about — their tests
+// silently never run or persist. Module-level (not per-call) so a package is
+// warned about at most once per process, regardless of how many times
+// `discoverProjects` re-resolves it (Vite can invoke `configureVitest` — and
+// therefore a fresh `AgentPlugin.discover()` — once per project in a
+// multi-project config).
+const warnedDeclinedPackagePaths = new Set<string>();
+
+async function warnIfDeclinedPackageIsTestShaped(pkg: { readonly name: string; readonly path: string }): Promise<void> {
+	const normPath = normalize(pkg.path);
+	if (warnedDeclinedPackagePaths.has(normPath)) return;
+	if (!(await isTestShapedPackage(pkg.path))) return;
+	warnedDeclinedPackagePaths.add(normPath);
+	process.stderr.write(
+		`[vitest-agent] warning: package "${pkg.name}" has a ${TEST_DIR}/ directory or ${SRC_DIR}/ test files, ` +
+			`but its tests were not wired into a Vitest project. ` +
+			`Run \`npx vitest-agent agent check-test-path <path>\` to diagnose why.\n`,
+	);
+}
 
 function recordDiscoveryScanTimestamp(): void {
 	(globalThis as Record<symbol, unknown>)[DISCOVERY_LAST_SCAN_SYMBOL] = new Date().toISOString();
@@ -207,6 +235,8 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 
 		if (config !== null) {
 			configs.push(config);
+		} else {
+			await warnIfDeclinedPackageIsTestShaped(pkg);
 		}
 
 		workspaceNames.add(pkg.name);

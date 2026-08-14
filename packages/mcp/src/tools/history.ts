@@ -142,14 +142,34 @@ export const TestHistoryAsMarkdown = TestHistoryResult.pipe(
 );
 
 export const testHistory = publicProcedure
-	.input(Schema.toStandardSchemaV1(Schema.Struct({ project: Schema.String })))
+	.input(
+		Schema.toStandardSchemaV1(
+			Schema.Struct({
+				project: Schema.String,
+				testName: Schema.optional(Schema.String).annotate({
+					description: "Exact full_name match — narrows to a single test's history.",
+				}),
+				modulePath: Schema.optional(Schema.String).annotate({
+					description: "Exact module_path match — narrows to tests in one file.",
+				}),
+				limit: Schema.optional(Schema.Number).annotate({
+					description: "Max runs kept per test, most-recent-first. Default 20.",
+				}),
+			}),
+		),
+	)
 	.query(
 		async ({ ctx, input }): Promise<TestHistoryResultType> =>
 			ctx.runtime.runPromise(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
+					const historyOptions = {
+						...(input.testName !== undefined && { testName: input.testName }),
+						...(input.modulePath !== undefined && { modulePath: input.modulePath }),
+						...(input.limit !== undefined && { limit: input.limit }),
+					};
 					const [history, flaky, persistent] = yield* Effect.all([
-						reader.getHistory(input.project),
+						reader.getHistory(input.project, historyOptions),
 						reader.getFlaky(input.project),
 						reader.getPersistentFailures(input.project),
 					]);

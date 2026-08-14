@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 90
 related:
   - ./architecture.md
@@ -276,6 +276,16 @@ The filesystem-safe `projectKey` form replaces `/` with `__`
 | Per-project data store | `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` | Node's built-in `node:sqlite` via `@effect/sql-sqlite-node` (v4) |
 | Per-client session map | `${CLAUDE_PLUGIN_DATA}/sessions.db` (Claude Code) | Same |
 | Global discovery registry | `$XDG_DATA_HOME/vitest-agent/registry.db` | Same |
+
+One non-SQLite sibling shares the same root: `AgentPlugin.runScript`'s
+advisory lock and done-marker files live in
+`$XDG_DATA_HOME/vitest-agent/runscript-locks/<hash>.{lock,done}`, where
+`<hash>` is a truncated SHA-256 of `(cwd, command)`. It follows the same
+`~/.local/share` fallback as the data store (its own
+`resolveRunScriptLockDir`, not `resolveDataPath` — the lock is
+process-coordination state keyed by command, not per-project data). The
+files are ephemeral and safe to delete; see
+[./components/plugin.md](./components/plugin.md).
 
 The CLI's `agent` sidecar subcommands resolve all three SQLite
 paths from env at invocation time:

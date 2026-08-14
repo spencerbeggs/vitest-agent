@@ -3,9 +3,9 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-11
-last-synced: 2026-08-11
-completeness: 92
+updated: 2026-08-14
+last-synced: 2026-08-14
+completeness: 93
 related:
   - ../architecture.md
   - ../components.md
@@ -45,7 +45,8 @@ and writes to, see [./sdk.md](./sdk.md).
 
 For decisions: [../decisions.md](../decisions.md) D11/D12/D13 (TDD
 hierarchy and capability-vs-scoping), D35 (framing-only prompts surface),
-D7 (artifact write authority).
+D7 (artifact write authority), 50 (strict tool inputs), 51 (post-connect
+crash survival).
 
 ---
 
@@ -67,7 +68,111 @@ var. See [./plugin-claude.md](./plugin-claude.md) for the loader side.
 
 `server.ts` splits the bootstrap in two: `buildMcpServer(ctx)` constructs the fully-registered `McpServer` — all tRPC-backed tools registered with the MCP SDK using zod input schemas, then `registerAllPrompts(server)` — without connecting a transport; `startMcpServer(ctx)` builds via `buildMcpServer` and connects `StdioServerTransport`. Both are exported from `index.ts` (alongside `parseSessionEnvExports` / `recoverSessionContextFromSessionEnv`, see *MCP boot context recovery* below).
 
-The split is a testability seam with a hard-won rationale: **every tool input is registered twice** — the tRPC input schema in `tools/<name>.ts` and the MCP-SDK `inputSchema` in `server.ts`, hand-synced. A missed sync is invisible to router-level caller tests: a field the SDK registration never declares or forwards is simply unreachable from a real MCP client even though the tRPC procedure handles it (this is exactly how the `hypothesis` `tddTaskId` binding shipped dead on arrival). `buildMcpServer` lets tests connect the identical server to an `InMemoryTransport` client and assert the *served* tool schemas and descriptions — see `packages/mcp/__test__/server-hypothesis-schema.test.ts` and the served-schema pattern in [../testing-strategy.md](../testing-strategy.md).
+The split is a testability seam with a hard-won rationale: **every tool input is registered twice** — the tRPC input schema in `tools/<name>.ts` and the MCP-SDK `inputSchema` in `server.ts`, hand-synced. A missed sync is invisible to router-level caller tests: a field the SDK registration never declares or forwards is simply unreachable from a real MCP client even though the tRPC procedure handles it (this is exactly how the `hypothesis` `tddTaskId` binding shipped dead on arrival, and how `run_tests`'s `tags` / `passWithNoTests` inputs stayed unreachable until issue #200). `buildMcpServer` lets tests connect the identical server to an `InMemoryTransport` client and assert the *served* tool schemas and descriptions — see `packages/mcp/__test__/server-hypothesis-schema.test.ts` and the served-schema pattern in [../testing-strategy.md](../testing-strategy.md).
+
+## Strict tool input schemas
+
+Every `registerTool` `inputSchema` in `server.ts` is built by the local
+`strict(shape)` helper rather than passed as a bare zod raw shape. The
+helper wraps the shape in `z.strictObject` with a custom
+`unrecognized_keys` error message that names both the offending key(s)
+and the full accepted-param list.
+
+**Why (issue #200).** A bare raw shape is non-strict: the MCP SDK
+silently strips any key the schema does not declare. An agent that
+misspells a parameter, or passes one the served schema forgot to
+declare, therefore gets a *successful* result computed from a
+different, wider filter set than it asked for — `run_tests` would run
+the whole workspace and report green while the agent believed it had
+scoped the run. Failing loudly is strictly better than a silently
+widened query, and naming the accepted params in the error lets the
+agent self-correct without re-reading the tool description.
+
+The rule is all-or-nothing on purpose: a partially strict surface
+teaches agents that unknown-key rejection is per-tool luck. All 26
+parameterized tools go through the helper, including `acceptance_metrics`
+whose shape is empty (`strict({})`); the four that declare no
+`inputSchema` at all (`help`, `cache_health`, `settings_list`, `ping`)
+have nothing to strip and stay as they are.
+
+Validation happens inside the MCP SDK's `validateToolInput` step, which
+throws before the tool handler runs — a rejected call never reaches a
+`DataReader` / `DataStore` call. Coverage lives in
+`packages/mcp/__test__/server-strict-schemas.test.ts`: a table of
+`(tool, minimal-valid-args)` pairs driven through a real
+`InMemoryTransport` client, asserting twice per tool — that a bogus extra
+key is rejected with an error naming that key, and that the same call
+*without* the bogus key is not rejected on schema shape. The second
+assertion is the guard against over-correcting: a strictness pass that
+starts rejecting documented params is a worse bug than the one it fixed.
+`run_tests` has its own served-schema e2e suite and is covered there. See
+[../decisions.md](../decisions.md) Decision 50.
+
+## Crash resilience
+
+Issue #191, sub-item A; [../decisions.md](../decisions.md) Decision 51.
+Two independent layers, addressing two different failure modes — do not
+conflate them.
+
+**Process-level guards (`bin.ts`).** The bin was a bare
+`main().catch(...)`. Under Node >= 15 an unhandled promise rejection
+anywhere outside a tool call's own await chain — a fire-and-forgotten
+Effect fiber, a background timer — kills the process, closing the stdio
+transport and silently deregistering every tool from the client's
+perspective mid-session, with no recovery path. `bin.ts` now registers
+`unhandledRejection` (log to stderr, stay alive) and
+`uncaughtException` handlers at **module scope**, before any async work
+in `main()`, so they also cover the `dbPath` resolution /
+`ManagedRuntime` construction phase.
+
+The `uncaughtException` policy is a deliberate departure from Node's
+"do not resume normal operation" guidance, isolated in the pure
+`shouldExitOnUncaughtException(transportConnected)` predicate
+(`packages/mcp/src/utils/crash-guards.ts`) so the judgment call is
+testable and documented in one place: exit before the transport
+connects (no client session exists to preserve, and spinning in a
+half-initialized state is worse than failing loudly), survive after.
+Surviving is acceptable because this process holds no long-lived
+mutable state outside SQLite's own transactions — every
+`DataStore` / `DataReader` call is self-contained through the shared
+`ManagedRuntime` — so a throw that escapes even the SDK's per-call
+try/catch cannot leave the *next* call's bookkeeping half-mutated. The
+alternative, silent process death mid-TDD-session, is the exact bug
+being fixed.
+
+`bin.ts` also carries an env-gated, fires-once test hook
+(`VITEST_AGENT_MCP_TEST_INJECT_CRASH`, accepting `unhandledRejection`
+or `uncaughtException`) scheduled on the event-loop turn after the
+transport connects. A crash in the test's own process is not something
+a unit test can safely simulate, so the guards are proved against a
+real spawned bin over a real stdio transport — see
+`packages/mcp/__test__/bin-crash-resilience.e2e.test.ts`.
+
+**Structured envelope for resolver throws (`server.ts`).** Defense in
+depth, not the primary fix: the MCP SDK's own `CallToolRequestSchema`
+handler already try/catches every tool resolution, so an in-boundary
+throw was never going to crash the process — it just degraded to the
+SDK's bare, untyped `createToolError` text. `buildMcpServer` shadows
+the `McpServer` **instance's** `registerTool` with a wrapper that
+catches resolver throws and returns
+`buildUnexpectedToolErrorEnvelope(name, err)` from
+`packages/mcp/src/utils/tool-error-envelope.ts` — the same
+`{ ok: false, error: { _tag: "UnexpectedToolError", tool, message,
+remediation } }` success-shape used by the TDD error envelope below —
+with `isError: true` set, which is also what lets the envelope skip the
+SDK's `validateToolOutput` check so it never has to match each tool's
+own `outputSchema`.
+
+Shadowing the instance property (rather than declaring a typed wrapper
+function) is intentional: the SDK's `ZodRawShapeCompat | AnySchema`
+registration union is not part of its public export surface, so
+reproducing that signature would be guesswork. A property assigned on
+the instance changes runtime behavior for every subsequent call while
+TypeScript still checks each call site against the unshadowed
+`McpServer` type — zero loss of per-tool `inputSchema` / `outputSchema`
+inference. The envelope builder coerces the thrown value defensively
+(a getter-backed `.message` can itself throw), mirroring the SDK's
+`coerceErrorField`.
 
 ## tRPC router and tools
 
@@ -121,7 +226,8 @@ file per tool — and broadly group into:
   before `createVitest` so the in-process reporter sees current
   attribution. Accepts a structured `tags` filter and a per-call
   `passWithNoTests` override; emits a fourth `no-match` discriminator
-  variant when the resolved filter set matches zero tests. The `reason`
+  variant when the resolved filter set matches zero tests, and echoes
+  the filter set it actually ran under on `RunTestsOk.scope`. The `reason`
   it computes from module states is preliminary — `buildAgentReport`
   self-corrects it to `"failed"` when the walk finds failed files or
   unhandled errors, so a hook-only or collection-only failure cannot
@@ -315,6 +421,29 @@ configs use names like `unit` and `integration` — there is no literal
 `"default"` project to fall back to. The `test` tool's `list` and
 `for_tag` modes follow the same pattern.
 
+## History query narrowing
+
+`test_history` used to take `project` alone and return the entire
+project's history — 334KB of JSON for one real repro, most of it
+irrelevant to the question being asked (issue #212). The served schema
+and the tRPC input now both accept optional `testName`, `modulePath`,
+and `limit`, pushed down to `DataReader.getHistory`'s
+`HistoryQueryOptions` as SQL predicates rather than filtered
+client-side. `limit` caps runs kept **per test** (default 20), not total
+rows — see [./sdk.md](./sdk.md) for why a flat row LIMIT would starve
+later tests instead of trimming each test's own series. The served tool
+description states the default and tells the caller to omit all three
+only when the whole project's history is genuinely wanted.
+
+`test({ action: "get" })` consumes the same narrowing, and its fix is a
+correctness bug rather than a payload-size one (issue #241): it used to
+fetch the whole project's history and then `find` the matching entry
+client-side by `fullName` alone. Since `fullName` is not file-qualified
+(Decision D20), two same-named tests in different modules made that
+`find` return whichever entry sorted first — potentially another file's
+test. It now passes `{ testName, modulePath }` so the composite identity
+is enforced in SQL.
+
 ## Tag filtering and tag introspection
 
 Vitest 4.1 native tags are the way agents target test subsets
@@ -337,6 +466,24 @@ Vitest's `tagsFilter` expression: `"int and slow"` for `all`,
 for `none`, three joined by ` and `. Returns `null` when every
 sub-filter is empty. `sanitizeTestArgs` covers tag values with the
 same `FORBIDDEN_CHARS` regex it applies to `files` and `project`.
+
+Both `tags` and `passWithNoTests` were, until issue #200, declared on
+the tRPC input only — the served MCP `inputSchema` never advertised or
+forwarded them, so a real client's tag filter was silently stripped and
+the run went wide. Both are now declared in `server.ts` and forwarded to
+the caller; the served-schema tests
+(`packages/mcp/__test__/server-run-tests-schema.e2e.test.ts`) assert the
+declaration, and the strict-schema layer above turns the *next*
+misspelling into a rejection instead of a silent widening.
+
+**`run_tests` `scope` echo.** `RunTestsOk` carries a required
+`scope: { project: string | null, files: string[], tags: TagFilter | null }`
+— the resolved filter set, verbatim. It is the cheap, positive
+counterpart to `no-match`: an agent can tell "ran exactly what I asked"
+apart from "a dropped or misspelled param ran everything" by reading one
+field, instead of inferring it from summary counts. `no-match`'s
+`filter` field remains the richer failure-side echo (it also carries the
+composed `resolvedExpression`).
 
 **`run_tests` `passWithNoTests` per-call override.** The tool input
 accepts an optional `passWithNoTests` boolean that wins for that

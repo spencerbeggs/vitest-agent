@@ -22,7 +22,9 @@ coverage-in-subset, the `consoleLeaks` signal), see
    hooks. Shelling out to `vitest` bypasses all of that.
 2. **`run_tests` has no `filter` parameter.** Scope with `project` (the Vitest
    project name), `files` (globs), or `tags`. An unknown key like `filter` is
-   silently dropped, so the whole suite runs.
+   rejected with an error naming the offending key and the accepted params —
+   fix the call and re-run. The `ok` result echoes the resolved `scope`
+   (`project`, `files`, `tags`) so you can confirm what actually ran.
 3. **Subset runs "fail" coverage thresholds by design.** A single-file run
    exiting with `ERROR: Coverage … does not meet global threshold` is expected
    — global thresholds applied to partial coverage. There is no per-run

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-11
-last-synced: 2026-08-11
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 92
 related:
   - ./architecture.md
@@ -317,10 +317,25 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
   `PathResolutionLive(projectDir) + NodeServices.layer`.
 - Create `ManagedRuntime.make(McpLive(dbPath, logLevel?, logFile?))`,
   call `startMcpServer({ runtime, cwd: projectDir })`.
+- Before any of that, `bin.ts` installs process-level `unhandledRejection`
+  and `uncaughtException` handlers at module scope. A rejection outside any
+  tool-call boundary logs to stderr and the process stays alive; an
+  uncaught exception exits only when the transport has not connected yet
+  (`shouldExitOnUncaughtException`). Issue #191 — a crash used to close the
+  stdio transport and silently deregister every tool mid-session. See
+  [./components/mcp.md](./components/mcp.md) "Crash resilience".
 - `StdioServerTransport` connects; tool invocations route through tRPC via
   `createCallerFactory(appRouter)`. Each procedure calls
   `ctx.runtime.runPromise(effect)` against `DataReader`, `DataStore`,
   `ProjectDiscovery`, or `OutputRenderer`.
+- Input validation happens twice on the way in: the MCP SDK validates the
+  request against the served `inputSchema`, which is strict — unknown keys
+  are rejected with an error naming the offending key and the accepted
+  params rather than silently stripped (issue #200) — and the tRPC
+  procedure then decodes its own Effect Schema input. A resolver throw that
+  escapes the tool's own error handling is caught by the `registerTool`
+  wrapper and returned as an `UnexpectedToolError` envelope with
+  `isError: true`, not a bare SDK error string.
 - `server.ts` calls `registerAllPrompts(server)` before constructing
   `StdioServerTransport`, so tool / prompt surfaces are registered as one
   unit.
@@ -473,7 +488,13 @@ in [./decisions.md](./decisions.md).
 The MCP server (Flow 4) catches tagged TDD errors at the boundary via the
 `_tdd-error-envelope.ts` helper and surfaces them as success-shape
 `{ ok: false, error: { _tag, ..., remediation } }` responses so the
-orchestrator can recover without seeing a tRPC-level failure.
+orchestrator can recover without seeing a tRPC-level failure. An
+*unexpected* resolver throw — one no tool-level handler anticipated — gets
+the same success-shape treatment from the `registerTool` wrapper
+(`UnexpectedToolError`), and a throw or rejection that escapes the tool-call
+boundary entirely lands on the process-level guards rather than killing the
+server. Both are issue #191; see [./components/mcp.md](./components/mcp.md)
+"Crash resilience" for the layering.
 
 The idempotency middleware (Flow 7) deliberately swallows errors on the
 cache write (not the procedure body) because re-running an idempotent

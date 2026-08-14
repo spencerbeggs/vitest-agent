@@ -2,7 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer, Option } from "effect";
-import type { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { DataReaderLive } from "../src/layers/DataReaderLive.js";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
@@ -202,6 +202,147 @@ describe("DataReaderLive", () => {
 			expect(testA?.runs).toHaveLength(2);
 			const testB = result.tests.find((t) => t.fullName === "suite > test B");
 			expect(testB?.runs).toHaveLength(1);
+		});
+
+		it("filters to a single test by exact testName match", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("hist-testname-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-testname-hash" });
+
+					yield* store.writeHistory(
+						"hist-testname-proj",
+						"suite > test A",
+						"src/history.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						50,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"hist-testname-proj",
+						"suite > test B",
+						"src/history.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						30,
+						false,
+						0,
+						null,
+					);
+
+					return yield* reader.getHistory("hist-testname-proj", { testName: "suite > test A" });
+				}),
+			);
+			expect(result.tests).toHaveLength(1);
+			expect(result.tests[0]?.fullName).toBe("suite > test A");
+		});
+
+		it("filters to tests in a single module by modulePath", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("hist-modpath-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-modpath-hash" });
+
+					yield* store.writeHistory(
+						"hist-modpath-proj",
+						"suite > test A",
+						"src/a.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						50,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"hist-modpath-proj",
+						"suite > test B",
+						"src/b.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						30,
+						false,
+						0,
+						null,
+					);
+
+					return yield* reader.getHistory("hist-modpath-proj", { modulePath: "src/b.test.ts" });
+				}),
+			);
+			expect(result.tests).toHaveLength(1);
+			expect(result.tests[0]?.fullName).toBe("suite > test B");
+		});
+
+		it("caps runs per test to the default limit of 20", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+					const sql = yield* SqlClient;
+
+					yield* store.writeSettings("hist-cap-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-cap-hash" });
+
+					// Insert directly via SqlClient (bypassing DataStore.writeHistory's
+					// own 10-entry write-time retention window) so this test can seed
+					// a dataset large enough to exercise the read-side cap in
+					// DataReaderLive.getHistory in isolation.
+					for (let i = 0; i < 25; i++) {
+						const timestamp = `2026-03-22T${String(i).padStart(2, "0")}:00:00.000Z`;
+						yield* sql`INSERT INTO test_history (run_id, project, module_path, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, 'hist-cap-proj', 'src/history.test.ts', 'suite > capped test', ${timestamp}, 'passed', 10, 0, 0, NULL)`;
+					}
+
+					return yield* reader.getHistory("hist-cap-proj");
+				}),
+			);
+			expect(result.tests).toHaveLength(1);
+			expect(result.tests[0]?.runs).toHaveLength(20);
+			// Most-recent-first: the last-written run (hour 24) must survive the cap.
+			expect(result.tests[0]?.runs[0]?.timestamp).toBe("2026-03-22T24:00:00.000Z");
+		});
+
+		it("respects an explicit limit override", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("hist-limit-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-limit-hash" });
+
+					for (let i = 0; i < 5; i++) {
+						yield* store.writeHistory(
+							"hist-limit-proj",
+							"suite > limited test",
+							"src/history.test.ts",
+							runId,
+							`2026-03-22T0${i}:00:00.000Z`,
+							"passed",
+							10,
+							false,
+							0,
+							null,
+						);
+					}
+
+					return yield* reader.getHistory("hist-limit-proj", { limit: 2 });
+				}),
+			);
+			expect(result.tests).toHaveLength(1);
+			expect(result.tests[0]?.runs).toHaveLength(2);
 		});
 	});
 

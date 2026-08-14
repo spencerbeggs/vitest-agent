@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-12
-last-synced: 2026-08-12
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 93
 related:
   - ../architecture.md
@@ -95,6 +95,22 @@ and resolves a single `ConsoleMode` value. Per-slot defaults: `human →
 passthrough`, `agent → agent`, `ci → passthrough`. The pre-2.0 `mode` and
 `strategy` design is superseded — see [../decisions-retired.md](../decisions-retired.md)
 for the retired single-flag form.
+
+**`VITEST_AGENT_CONSOLE` override and its rejection warning.** A
+non-empty `VITEST_AGENT_CONSOLE` wins over the configured slot, but only
+when the value is legal *for the detected executor* — the three slots
+accept three different literal unions (`HumanConsoleMode`,
+`AgentConsoleMode`, `CiConsoleMode`), so a value that is valid for one
+executor is genuinely invalid for another. An illegal value is ignored
+with a stderr warning that now appends the accepted values for that
+executor, introspected from the SDK schema's `.literals` rather than
+hand-listed (issue #233). Hand-listing was the whole problem: the prior
+warning named only the rejected value, leaving the user to guess which
+of three per-executor unions applied and what was in it, and any
+hard-coded list would drift from the schema on the next mode addition.
+The three `Schema.is` guards stay separate rather than collapsing into a
+ternary-produced union — that form confuses tsgo on annotations-method
+contravariance.
 
 **Console-reporter stripping.** Whenever the resolved `consoleMode` owns
 stdout (any value other than `passthrough`), the plugin strips Vitest's
@@ -444,8 +460,8 @@ predicate to decide whether a package contributes a project. The scanner:
    `getWorkspacePackagesSync(root, nodeSyncOps)`. This is the raw sync-ops
    form, not the arg-less `WorkspacesSync` namespace the kit docs describe.
 2. Iterates every workspace package, calling `strategy.buildProject`
-   with the package metadata. A null return appends nothing; otherwise
-   the config is added to the result list.
+   with the package metadata. A null return appends nothing (but may
+   warn — see below); otherwise the config is added to the result list.
 3. Iterates `additionalEntries` (the entries collected by `.addProject`
    calls on the builder). Each entry is conflict-checked against the
    workspace package names and normalized paths. A null return from
@@ -454,6 +470,31 @@ predicate to decide whether a package contributes a project. The scanner:
 4. Materializes `tags` as a copy of `strategy.tagDefinitions`.
 
 **Signature-invalidated process cache.** Results are keyed by workspace root in a module-local `Map`. The cache fires only when neither `strategy` nor `additionalEntries` was supplied so a `DiscoverStrategy` instance never has to be fingerprinted. Any explicit strategy or any `.addProject` chain bypasses the cache. Each entry stores `{ result, signature }`: the signature is a cheap fingerprint of exactly two directories per package — `src/` and `__test__/` — via `computeDirSignature` / `computeWorkspaceSignature` (recursive relative-path + `mtimeMs` pairs, sorted, no file contents). Discovery cannot see a test file anywhere else, so nothing else can change the emitted project list (issue #227), and the signature only needs to cover the same two locations discovery walks. `computeDirSignature` prunes `node_modules`, `.git` and `dist` *before* recursing (`SIGNATURE_SKIP_DIRS`) rather than filtering results afterwards: Node's recursive `readdir` follows symlinked directories, and a pnpm `node_modules` tree is nothing but symlinks into the content-addressed store, so an unguarded walk from a package's `src/` or `__test__/` root — or from a fixture `node_modules` nested inside one — walks the whole store or hits a symlink cycle. On the cacheable path the signature is recomputed and compared before a cached result is returned, so a test file added/removed/moved/renamed on disk triggers a rescan rather than returning stale include-globs (issue #100 — the long-lived MCP server otherwise silently dropped tests after a test-file move). Every real scan also records an ISO timestamp under `Symbol.for("vitest-agent:discovery:last-scan-at")`, readable via the exported `getLastDiscoveryScanTimestamp()`, which `@vitest-agent/mcp` reads back to surface `discoveryLastScannedAt` on `run_tests` results without a circular import. See [./discover.md](./discover.md) and [../decisions-retired.md](../decisions-retired.md) (Decision 43's #184 extension, reversed).
+
+**Declined test-shaped packages warn once (issue #229).** A null
+`buildProject` return is silent by contract — most workspace packages
+legitimately hold no tests, and warning on each would be pure noise. But
+when a *declined* package still looks test-shaped, the silence hides the
+"forgot the `.test.` suffix" / "wrong extension" / "`__test__/` nested
+somewhere undiscoverable" mistake, and the user's tests simply never run
+or persist with no signal at all. `warnIfDeclinedPackageIsTestShaped`
+therefore writes one stderr line naming the package and pointing at
+`vitest-agent agent check-test-path <path>` for the diagnosis.
+
+The `isTestShapedPackage` predicate
+(`packages/plugin/src/utils/is-test-shaped-package.ts`) is true when a
+`__test__/` directory exists at the package root **regardless of its
+contents**, or when `src/` holds at least one file matching
+`TEST_FILE_GLOB_SUFFIX`. The directory counts on existence alone on
+purpose: the failure mode being caught *is* a `__test__/` directory
+whose files do not match the naming convention, so requiring a match
+would make the predicate blind to exactly its motivating case. It reuses
+`SRC_DIR` / `TEST_DIR` / `TEST_FILE_GLOB_SUFFIX` from the SDK's
+`utils/test-location.ts` and the existing `findTestFiles` walker rather
+than re-deriving the layout rule. The warned-set is **module-level**,
+not per-call, so a package is named at most once per process no matter
+how many times Vite re-invokes `configureVitest` (and therefore
+discovery) across a multi-project config.
 
 Users that want to mutate projects post-discovery either extend the strategy
 (preferred) or destructure the result and mutate the array before
@@ -573,6 +614,61 @@ defineConfig({
 });
 ```
 
+## AgentPlugin.runScript and its advisory lock
+
+`AgentPlugin.runScript(command)` is the `globalSetup` helper that runs a
+shell command with `stdio: "pipe"`, staying silent unless the command
+fails (on failure it writes the captured stderr/stdout to their real
+streams before rethrowing, so humans and CI still see it).
+
+**The concurrency problem (issue #191, sub-item B).** Two `vitest`
+invocations in one checkout — an MCP `run_tests` alongside a Bash
+`vitest run`, or two MCP calls — each run the `globalSetup` build, and
+the two builds race over the same `dist/` output. This is the same class
+of shared-resource collision as the coverage-directory race described in
+[./mcp.md](./mcp.md), but it cannot be fixed the same way: per-invocation
+isolation is meaningless for a build whose whole point is a shared
+output directory. Serialization is the only option. See
+[../decisions.md](../decisions.md) Decision 52 (and 49 for the
+coverage-directory sibling).
+
+`packages/plugin/src/utils/run-script-lock.ts` implements a file-based
+advisory lock over three moving parts:
+
+- **Exclusive create.** `openSync(lockPath, "wx")` is the atomic
+  acquire; `EEXIST` means someone else holds it. The lock lives under
+  `resolveRunScriptLockDir()` — `$XDG_DATA_HOME/vitest-agent/runscript-locks`,
+  falling back to `~/.local/share`, matching the `data.db` resolution
+  convention — keyed by a truncated SHA-256 of `(cwd, command)` so
+  different `globalSetup` commands in one checkout don't share a lock
+  while repeat invocations of the same command do.
+- **Done marker + freshness window.** The winner writes a `.done` marker
+  on success. A waiter that sees a marker younger than
+  `builtRecentlyMs` (30s) returns `recentlyBuilt: true` and
+  `runScript` **skips its own run entirely** rather than rebuilding what
+  a concurrent process just built. The marker check runs at the top of
+  every poll iteration, not only on the `EEXIST` branch: the winner
+  removes its lock file *after* writing the marker, so a waiter landing
+  in that gap would otherwise see a free lock, acquire it, and re-run
+  the command — defeating the marker.
+- **Two escape valves, both deliberate.** A lock older than `staleMs`
+  (5m) is taken over, because a process killed mid-build would otherwise
+  hang every future `vitest` invocation forever. A waiter that blocks
+  past `waitTimeoutMs` (10m) on a still-live lock gives up and runs its
+  own build, which reproduces the original race for that one pair of
+  processes — accepted as strictly better than hanging a test run
+  indefinitely.
+
+The wait is a synchronous thread block (`Atomics.wait` on a throwaway
+`SharedArrayBuffer`), not an async sleep, because `runScript` is a
+synchronous helper called from `globalSetup`. All four timings are
+injectable as options and readable from `VITEST_AGENT_RUNSCRIPT_*` env
+vars so the concurrency e2e suite can use millisecond-scale values
+instead of the production-sized defaults. `markRunScriptDone` and
+`releaseRunScriptLock` are both best-effort: a failed marker write only
+costs the next process its short-circuit, and a failed release means a
+stale takeover cleans up instead.
+
 ## Reporter-side utilities
 
 `packages/plugin/src/utils/`. Pure utilities only the plugin's lifecycle
@@ -604,6 +700,14 @@ instead.
   public surface so user strategies can reuse it.
 - `discover-projects.ts` — `discoverProjects` workspace scanner (see
   above).
+- `is-test-shaped-package.ts` — async predicate backing the
+  declined-package warning (issue #229). True when a `__test__/`
+  directory exists at the package root or `src/` holds a file matching
+  `TEST_FILE_GLOB_SUFFIX`. See "discoverProjects" above for why the
+  directory counts on existence alone.
+- `run-script-lock.ts` — file-based advisory lock backing
+  `AgentPlugin.runScript` (issue #191). See "AgentPlugin.runScript and
+  its advisory lock" above.
 - `tag.ts` — `Tag` class with `Tag.make` factory and name validation
   (rejects empty names, the reserved words and, or, not, and the
   forbidden characters open-paren, close-paren, ampersand, pipe,

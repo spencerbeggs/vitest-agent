@@ -61,10 +61,11 @@ const severityLabel: Record<ActionSeverity, string> = {
 };
 
 const formatHeader = (state: RenderState): string => {
-	const { passCount, failCount, skipCount, durationMs } = state.totals;
-	const total = passCount + failCount + skipCount;
+	const { passCount, failCount, skipCount, timeoutCount, durationMs } = state.totals;
+	const total = passCount + failCount + skipCount + timeoutCount;
 	const parts = [`${passCount}/${total} passed`];
 	if (failCount > 0) parts.push(`${failCount} failed`);
+	if (timeoutCount > 0) parts.push(`${timeoutCount} timed out`);
 	if (skipCount > 0) parts.push(`${skipCount} skipped`);
 	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
 };

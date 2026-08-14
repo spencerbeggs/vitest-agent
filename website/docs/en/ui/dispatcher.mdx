@@ -36,11 +36,11 @@ type RunOutcome = "all-pass" | "some-fail" | "threshold-violation";
 
 | Value | Condition |
 |-------|-----------|
-| `all-pass` | `totals.failed === 0` and no coverage threshold violations |
-| `some-fail` | `totals.failed > 0` |
-| `threshold-violation` | `totals.failed === 0` and at least one coverage violation present |
+| `all-pass` | `totals.failCount === 0`, `totals.timeoutCount === 0`, and no coverage threshold violations |
+| `some-fail` | `totals.failCount > 0` or `totals.timeoutCount > 0` |
+| `threshold-violation` | no failures, no timeouts, and at least one coverage violation present |
 
-`classifyOutcome(state)` derives the value with `some-fail` taking precedence over `threshold-violation` — a run that has both failures and violations is classified as `some-fail`. The `all-pass` case implies neither failures nor violations.
+`classifyOutcome(state)` derives the value with failures first, then timeouts, then threshold violations — a run that has both failures and violations is classified as `some-fail`. A run whose only non-passing signal is a timeout classifies as `some-fail` too: a test that ran out of time is not a pass, so it must not route to a passing cell. The `all-pass` case implies no failures, no timeouts, and no violations.
 
 ## The 4 × 3 matrix
 

@@ -281,7 +281,10 @@ export const test = publicProcedure
 								const matchingErrors = errors
 									.filter((e) => e.testFullName === variant.fullName)
 									.map((e) => ({ name: e.name, message: e.message, diff: e.diff, stack: e.stack }));
-								const history = yield* reader.getHistory(project);
+								const history = yield* reader.getHistory(project, {
+									testName: variant.fullName,
+									modulePath: testOpt.value.module,
+								});
 								const testHistory = history.tests.find((entry) => entry.fullName === variant.fullName);
 								return {
 									action: "get" as const,

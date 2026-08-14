@@ -41,6 +41,7 @@ export type {
 	CurrentTddPhase,
 	FailureSignatureDetail,
 	FlakyTest,
+	HistoryQueryOptions,
 	HypothesisDetail,
 	ModuleListEntry,
 	NoteRow,

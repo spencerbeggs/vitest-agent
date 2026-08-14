@@ -42,13 +42,17 @@ export const truncate = (line: string, max: number): string => {
 };
 
 /**
- * Format the `Tests:` header line — `<pass>/<total> passed[, <fail> failed][, <skip> skipped] (Xms)`.
+ * Format the `Tests:` header line —
+ * `<pass>/<total> passed[, <fail> failed][, <timeout> timed out][, <skip> skipped] (Xms)`.
+ * `total` folds in `timeoutCount` — a timed-out test is a real collected
+ * test, not a pass (issue #224).
  */
 export const formatTotals = (state: RenderState): string => {
-	const { passCount, failCount, skipCount, durationMs } = state.totals;
-	const total = passCount + failCount + skipCount;
+	const { passCount, failCount, skipCount, timeoutCount, durationMs } = state.totals;
+	const total = passCount + failCount + skipCount + timeoutCount;
 	const parts = [`${passCount}/${total} passed`];
 	if (failCount > 0) parts.push(`${failCount} failed`);
+	if (timeoutCount > 0) parts.push(`${timeoutCount} timed out`);
 	if (skipCount > 0) parts.push(`${skipCount} skipped`);
 	const suffix =
 		state.collectedModules !== undefined && state.collectedModules > 0 ? ` across ${state.collectedModules} files` : "";

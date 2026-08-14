@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-11
-last-synced: 2026-08-11
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 93
 related:
   - ./architecture.md
@@ -542,6 +542,15 @@ post-`vitest.start` `testModules.length === 0` AND
 not result-driven; `passWithNoTests` policy never reshapes the
 discriminator. Definition: `packages/mcp/src/tools/run-tests.ts`.
 
+**`RunTestsScope`** (output on `run_tests`) — required `scope` field on
+`RunTestsOk`, carrying `{ project: string | null, files: string[], tags:
+TagFilter | null }`: the filter set the run actually used, verbatim. It
+is the success-path counterpart to `RunTestsNoMatch.filter` — an agent
+reads one field to tell "ran exactly what I asked" apart from "a dropped
+or misspelled param widened the run", instead of inferring it from
+summary counts (issue #200). Definition:
+`packages/mcp/src/tools/run-tests.ts`.
+
 **`RunTestsOk.discoveryLastScannedAt`** (output on `run_tests`) — optional `string | null` on the `ok` variant of `RunTestsResult`. The ISO timestamp of the most recent real disk scan `discoverProjects()` performed in this process, or `null`/absent when discovery has not scanned disk in this process. Lets an agent distinguish a stale-looking test count from a fresh scan (issue #100). Populated via the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global handshake with `@vitest-agent/plugin`, not a direct import. Definition: `packages/mcp/src/tools/run-tests.ts`. See [decisions.md](decisions.md) Decision 43.
 
 **`TagVariant`** (input on `inventory`) — `{ kind: "tag", project?:
@@ -628,7 +637,7 @@ read the already-updated row and accumulate stale tokens.
 | `import_durations` | Module import timing |
 | `task_metadata` | Key-value metadata |
 | `console_logs` | Per-test stdout/stderr capture |
-| `test_history` | Per-test sliding-window history; identity is `UNIQUE(project, module_path, full_name, timestamp)` and the lookup index is `(project, module_path, full_name)` |
+| `test_history` | Per-test sliding-window history; identity is `UNIQUE(project, module_path, full_name, timestamp)` and the lookup index is `(project, module_path, full_name)`. Reads narrow through `DataReader.getHistory`'s optional `HistoryQueryOptions` (`testName` / `modulePath` predicates plus a per-test `ROW_NUMBER` run cap) — no schema change; the existing index serves it |
 | `coverage_baselines` | Auto-ratcheting high-water marks |
 | `coverage_trends` | Per-project trend entries |
 | `file_coverage` | Per-file coverage per run |

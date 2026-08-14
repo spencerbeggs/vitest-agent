@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-11
-last-synced: 2026-08-11
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 96
 related:
   - ../architecture.md
@@ -525,6 +525,7 @@ The non-obvious pieces:
 - **`getSessionByTddTaskId` resolves a task's binding session.** Returns the `sessions` row whose `id` equals `tdd_tasks.session_id` for the supplied task id, `Option.none` when the task (or its session) does not exist. This is the deterministic head of the `hypothesis (action: record)` resolution precedence: the orchestrator holds an unambiguous `tddTaskId` from `tdd_task (action: start)`, so binding through it sidesteps the fragile recovered host context entirely (see [./mcp.md](./mcp.md) "Hypothesis session binding").
 - **Flaky classification requires a fail-after-pass.** The `listFlakyTests` reader query (backing `HistoryTracker.classify`) changed to require that at least one failure occurred at or after the earliest pass — `MAX(timestamp WHERE failed) >= MIN(timestamp WHERE passed)`. A monotonic red-to-green cycle (all failures precede all passes) classifies as `recovered`, not `flaky`. Timestamps are ISO-8601 strings and compare lexicographically.
 - **History reads are file-qualified.** `getHistory`, `getFlaky` and `getPersistentFailures` group and partition by the composite `(project, module_path, full_name)` and return `modulePath` on each `TestHistory` / `FlakyTest` / `PersistentFailure`. This mirrors the file-qualified write identity (Decision D20) and fixes read-side conflation where a persistent failure could hide behind a same-named passing test in another file. `HistoryTrackerLive.classify` keys its `testMap` and returned classifications by the `historyKey(modulePath, fullName)` helper.
+- **`getHistory` takes optional `HistoryQueryOptions`.** The second arg is `{ testName?, modulePath?, limit? }` (exported as a type from the package root and the `testing/` subpath). `testName` and `modulePath` are exact-match predicates on `full_name` / `module_path`; both are pushed into SQL as `(${value} IS NULL OR col = ${value})` guards so one query shape serves the scoped and unscoped calls. `limit` (default 20) is a **per-test** run cap implemented with a `ROW_NUMBER() OVER (PARTITION BY module_path, full_name ORDER BY timestamp DESC)` window, not a flat row `LIMIT`: a project has many tests, and a flat limit would return the first few tests' full series and starve every later test in the `(module_path, full_name)` ordering instead of trimming each test's own history. No SQLite schema change — the existing `(project, module_path, full_name)` index already serves the added predicates. Callers: `test_history` (issue #212, an unfiltered read returned up to 334KB) and `test({ action: "get" })` (issue #241, which previously fetched the whole project and matched client-side on the non-file-qualified `fullName`). See [./mcp.md](./mcp.md) "History query narrowing".
 
 ## Formatters
 

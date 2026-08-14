@@ -14,6 +14,8 @@ This package is a regular dependency of `@vitest-agent/plugin` and installs with
 - **29 action-keyed tools** — per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`, and more
 - **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, and `wrapup`
 - **Idempotency middleware** — `tdd_task`, `tdd_goal`, `tdd_behavior`, and `hypothesis` create-actions are idempotent on derived keys
+- **Strict tool inputs** — an unknown key is rejected with an error naming it and listing the accepted params, so a mistyped scope param fails loudly instead of running wider than intended
+- **Session-surviving error handling** — a resolver that throws returns a structured `UnexpectedToolError` envelope, and a stray unhandled rejection after the transport connects is logged to stderr rather than killing the server
 
 ## Install
 
@@ -45,7 +47,7 @@ Tools are organized into families. Each family is a single MCP tool that dispatc
 | `test_overview` | Per-file breakdown of the latest run |
 | `test_coverage` | Coverage percentages and threshold status |
 | `test_errors` | Failure details with stack frames |
-| `test_history` | Recent run history for a project |
+| `test_history` | Recent run history for a project, narrowable to one test or one file |
 | `test_trends` | Direction and run count for the trend line |
 
 ### Action tools
@@ -80,6 +82,17 @@ The `run_tests` tool spawns a Vitest run synchronously and returns the structure
 ```
 
 The three sub-filters (`all`, `any`, `none`) AND together. `run_tests` returns `{ kind: "no-match" }` instead of an empty result when no files match a supplied filter, so agents can distinguish a filter mismatch from a genuine zero-test project.
+
+A successful run echoes the filter set it used on `scope`:
+
+```json
+{
+  "kind": "ok",
+  "scope": { "project": "my-package", "files": [], "tags": { "all": ["unit"], "none": ["slow"] } }
+}
+```
+
+Unknown keys are rejected rather than dropped, so a misspelled param cannot widen a run without the caller noticing.
 
 ## Framing prompts
 
