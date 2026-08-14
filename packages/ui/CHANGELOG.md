@@ -1,5 +1,23 @@
 # @vitest-agent/ui
 
+## 2.1.3
+
+### Bug Fixes
+
+* A run whose only non-passing signal was one or more timed-out tests was previously classified as all-pass. `classifyOutcome` now routes any `timeoutCount > 0` to `some-fail` (real failures still take precedence), and headers/totals fold "N timed out" into the printed counts wherever they're shown (#224). [#243][#243]
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From  | To    |
+| ----------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/sdk | dependency | updated | 2.2.1 | 2.3.0 |
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#243]: https://github.com/spencerbeggs/vitest-agent/pull/243
+
 ## 2.1.2
 
 ### Dependencies
