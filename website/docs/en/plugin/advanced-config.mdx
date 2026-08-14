@@ -109,6 +109,32 @@ Two flags are auto-derived from the resolved mode rather than taken as options:
 
 Both values are threaded onto `ResolvedReporterConfig` so custom reporters still see them.
 
+## Build steps in `globalSetup`
+
+`AgentPlugin.runScript(command)` runs a shell command with its output suppressed unless the command fails, for Vitest `globalSetup` files that need a build before tests run:
+
+```ts
+import { AgentPlugin } from "@vitest-agent/plugin";
+
+export default function setup(): void {
+  AgentPlugin.runScript("pnpm turbo run build:dev");
+  // silent on success; on failure the captured stderr and stdout are written through before the error rethrows
+}
+```
+
+Two Vitest runs started in one checkout at once — an MCP `run_tests` call alongside a terminal `vitest run`, say — used to run that build twice, concurrently, against the same output directory. Calls now serialize through a file-based advisory lock keyed on the `(cwd, command)` pair: the first caller runs the command and stamps a done-marker, and a concurrent caller blocks until the lock frees, then skips its own run when the winner's marker is still fresh. Lock files live under `$XDG_DATA_HOME/vitest-agent/runscript-locks/`, falling back to `~/.local/share/vitest-agent/runscript-locks/` — the same convention `data.db` follows.
+
+Two escape hatches keep the lock from becoming its own failure mode. A lock older than the staleness window is presumed abandoned (a crashed or killed process) and taken over. A waiter that has blocked past the wait timeout gives up and runs its own build, which reproduces the original race for that one pair of processes rather than hanging indefinitely.
+
+Each timing has an env override, present so tests can use short windows. Leave the defaults alone in a real project:
+
+| Variable | Default | Controls |
+| --- | --- | --- |
+| `VITEST_AGENT_RUNSCRIPT_LOCK_STALE_MS` | 5 minutes | Age at which another process's lock is treated as abandoned and taken over |
+| `VITEST_AGENT_RUNSCRIPT_LOCK_WAIT_TIMEOUT_MS` | 10 minutes | How long a blocked caller waits before running its own build anyway |
+| `VITEST_AGENT_RUNSCRIPT_LOCK_POLL_MS` | 200 ms | Interval between lock checks while waiting |
+| `VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS` | 30 seconds | Window in which another caller's finished build is trusted instead of repeated |
+
 ## Learn more
 
 - [Coverage configuration](/guide/coverage)

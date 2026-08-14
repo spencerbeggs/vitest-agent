@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-08-12
-last-synced: 2026-08-12
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 100
 related:
   - ./architecture.md
@@ -1357,6 +1357,23 @@ test total with no knowable module count drops the module sentence entirely
 instead of printing "0 modules". `formatTotals` appends `across N files`
 when the count is known.
 
+**Timeouts are non-passing everywhere the counts are read (issue #224).**
+The reducer deliberately splits timed-out tests out of `failCount` into
+`timeoutCount` so the renderer can say "timed out" rather than "failed"
+(Vitest reports both as `failed`). The cost of that split is that every
+consumer of the totals has to re-fold it, and `classifyOutcome` did not:
+a run whose only non-passing signal was a timeout fell through to
+`all-pass` and rendered in a green cell. `classifyOutcome` now routes
+`timeoutCount > 0` to `some-fail`, below real failures in precedence so a
+mixed run still reads as a failure run, and the three totals formatters
+(`formatHeader`, `formatTotals`, the `single-file-fail` cell) fold
+`timeoutCount` into the denominator and emit an `N timed out` part. The
+split-then-re-fold shape is accepted rather than reverted — it is what
+makes the honest label possible — but it means any new totals consumer
+must fold explicitly. `ProjectSummary` still carries no per-project
+`timeoutCount`, so the workspace projects table cannot attribute a
+timeout to its project (issue #242).
+
 **`reason` self-corrects inside `buildAgentReport`.** A caller-supplied
 `"passed"` becomes `"failed"` when the walk produced any failed files or
 unhandled errors, so no caller can report green over a red walk. The MCP
@@ -1397,6 +1414,153 @@ tolerable precisely because the MCP path never reads coverage from disk:
 persists to SQLite, which is what every MCP coverage tool queries. A user who
 wants the on-disk report runs Vitest directly. See
 [./components/mcp.md](./components/mcp.md).
+
+### Decision 50: Strict MCP Tool Inputs — Reject Unknown Keys, Never Silently Widen
+
+**Context.** MCP tool inputs registered as bare zod raw shapes are
+non-strict: the SDK strips any key the schema does not declare. Two
+failure modes share that root cause. A caller that misspells a parameter
+gets a successful result computed from a wider filter set than it asked
+for — `run_tests` runs the entire workspace and reports green while the
+agent believes it scoped the run. And a served schema that simply forgot
+to declare a parameter the tRPC procedure handles is indistinguishable
+from one that ignored it: `tags` and `passWithNoTests` were tRPC-only for
+their whole life before issue #200, so every real client's tag filter was
+dropped in silence. An agent cannot detect either case from the response.
+
+**Decision.** Every `registerTool` input in `server.ts` goes through a
+local `strict(shape)` helper wrapping `z.strictObject`, with a custom
+`unrecognized_keys` message naming both the offending key(s) and the
+accepted-param list. All 26 parameterized tools, including the
+empty-shape one (`strict({})`); the four tools that declare no
+`inputSchema` have nothing to strip. Partial adoption was rejected
+explicitly: a surface where unknown-key rejection is per-tool luck
+teaches agents nothing they can rely on. A table-driven test asserts both
+directions per tool — unknown key rejected, documented params still
+accepted — so the pass cannot quietly overshoot into rejecting valid
+calls.
+
+**Extension (issue #243): the rule is per object *level*, not per
+tool.** The first pass wrapped only each tool's outermost shape, which
+left the identical hole one level down — a plain nested `z.object`
+strips unknown keys exactly like a bare raw shape. `run_tests` declared
+`tags` and `_sessionContext` that way, so `{ tags: { anyy: [...] } }`
+decoded to `{ tags: {} }`: the filter disappeared, the run went wide
+across the whole workspace, and the strict top level reported nothing.
+Nested shapes go through the same helper. The regression guard is
+structural rather than table-driven — a sweep walks every *served* JSON
+Schema (recursing through `properties`, the `anyOf` / `oneOf` / `allOf`
+/ `prefixItems` wrappers zod emits around optionals and unions, `items`,
+and `$defs`) and asserts `additionalProperties: false` on every object
+node. A sweep is the right shape here for two reasons a longer case
+table cannot match: it covers tools a unit suite cannot safely *call*
+(`run_tests` runs tests), and it keeps holding for nested shapes added
+later without anyone remembering to extend a list.
+
+**Companion: positive confirmation of scope.** Rejection covers the
+misspelled-key case; it cannot cover a caller that passes nothing and
+assumes narrowing happened. `RunTestsOk` therefore echoes the resolved
+filter set on a required `scope: { project, files, tags }` field — the
+success-path counterpart to the `no-match` variant's `filter`. One field
+distinguishes "ran exactly what I asked" from "ran everything", with no
+inference from summary counts. See
+[./components/mcp.md](./components/mcp.md).
+
+### Decision 51: The MCP Server Survives Post-Connect Crashes
+
+**Context.** `vitest-agent-mcp` was a bare `main().catch(...)` with no
+process-level guards. Under Node >= 15 an unhandled rejection anywhere
+outside a tool call's own await chain terminates the process, which
+closes the stdio transport and silently deregisters every tool from the
+client's perspective — mid TDD session, with no recovery path and no
+error the agent can act on (issue #191).
+
+**Decision.** Register `unhandledRejection` and `uncaughtException`
+handlers at module scope in `bin.ts`, before any async work, so they also
+cover `dbPath` resolution and `ManagedRuntime` construction.
+`unhandledRejection` logs and continues. `uncaughtException` logs, then
+exits only when the transport has not connected yet — the policy is
+isolated in the pure `shouldExitOnUncaughtException(transportConnected)`
+predicate so it is testable and stated in exactly one place.
+
+**Trade-off accepted.** Surviving an `uncaughtException` contradicts
+Node's "do not resume normal operation" guidance, which exists because
+arbitrary in-process state may be corrupt. This process is an unusually
+good candidate for the exception: it holds no long-lived mutable state
+outside SQLite's own transactions, so a throw cannot leave the next tool
+call's bookkeeping half-mutated. Weighed against that residual risk,
+silent process death mid-session is the strictly worse outcome — it is
+the bug being fixed. Before transport connect the calculus inverts: no
+client session exists to preserve, so failing fast and loud beats
+spinning in a half-initialized state.
+
+**Scope boundary.** These guards are not the same layer as the
+`registerTool` wrapper that returns an `UnexpectedToolError` envelope. A
+throw *inside* a tool call was already caught by the MCP SDK and never
+threatened the process; that wrapper only upgrades the SDK's untyped
+error string to the structured shape the rest of the tool surface uses.
+Do not conflate the two. See [./components/mcp.md](./components/mcp.md).
+
+### Decision 52: Serialize `runScript` Builds with a File-Based Advisory Lock
+
+**Context.** Two `vitest` invocations in one checkout each run the
+`globalSetup` build via `AgentPlugin.runScript`, and the two builds race
+over the same output directory (issue #191, sub-item B). This is the same
+shared-resource collision as Decision 49, but the fix there does not
+transfer: per-invocation isolation is meaningless for a build whose
+entire purpose is a shared output directory. Serialization is the only
+available answer.
+
+**Decision.** A file-based advisory lock keyed by a hash of
+`(cwd, command)` under the XDG data dir. `openSync(..., "wx")` is the
+atomic acquire; the winner writes a `.done` marker on success, and a
+waiter that sees a marker fresher than 30s skips its own build rather
+than repeating work that just completed. The freshness check runs at the
+top of every poll iteration, not only on the `EEXIST` branch, because the
+winner removes its lock file after writing the marker and a waiter
+landing in that window would otherwise re-acquire and re-run.
+
+**Refinement: liveness decides takeover, not age (issue #243).** The
+original rule took over any lock older than `staleMs`. That is wrong in
+both directions: a lock file's mtime is never refreshed during a build,
+so a long-but-healthy build is indistinguishable by age from a dead one
+and gets its lock stolen and its command double-run. Takeover is now
+two-tier. The lock file records the owner's pid; past `staleMs` that pid
+is probed with `process.kill(pid, 0)`, and a live owner keeps its lock
+however old it is — `EPERM` counts as alive, since the process exists
+and merely belongs to another user. Only a dead owner (`ESRCH`) or a
+lock file with no readable owner record (mid-write, truncated,
+hand-edited — where age is the only signal left) falls back to the age
+rule. Release is gated the same way: a random per-acquisition nonce is
+stamped into the lock file, and a releaser deletes it only while that
+nonce is still on disk. Without the gate, an owner that had already lost
+its lock to a takeover would delete the *takeover* owner's lock in its
+`finally` and admit a third process mid-build — the release path
+re-creating the race the lock exists to prevent.
+
+**Consequence: the stale default drops 5 minutes → 60 seconds.** With
+the pid probe in front of it, age is no longer load-bearing for
+correctness — it only decides the unreadable-record case — so the window
+can be tuned for recovery latency instead of for the worst imaginable
+build. The `globalSetup` build steps this lock is built for are expected
+to finish well under a minute, and a crashed owner's lock now clears in
+60s rather than five minutes.
+
+**Trade-offs accepted, both deliberate.** The stale takeover exists at
+all because a process killed mid-build would otherwise hang every future
+`vitest` invocation in that checkout forever. A waiter blocked past 10
+minutes on a still-live lock gives up and builds **unserialized**, which
+reproduces the original race for that one pair of processes — accepted
+because an indefinitely hung test run is worse than a rare duplicated
+build, and documented as an escape valve rather than left to look like
+an oversight. The wait is a synchronous thread block (`Atomics.wait`),
+not an async sleep, because `runScript` is a synchronous `globalSetup`
+helper and there is no async story available to it. The
+`VITEST_AGENT_RUNSCRIPT_*` timing overrides are parsed strictly
+(whole-string integers, bounded below) rather than with `parseInt`,
+because a test-only typo like `"200ms"` or `"-1"` must degrade to the
+production default, not to an instantly-stale lock or a spin loop. See
+[./components/plugin.md](./components/plugin.md).
 
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-12
-updated: 2026-08-11
-last-synced: 2026-08-11
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 90
 related:
   - ../architecture.md
@@ -112,7 +112,11 @@ The single-test × threshold-violation cell is a documented no-op: a one-line "a
 - `single-project` — one project, more than one module.
 - `workspace` — more than one project.
 
-`classifyOutcome(state)` derives the `RunOutcome`. Precedence: `some-fail` (any failures) wins over `threshold-violation`; `all-pass` otherwise. See the classifier tests at `packages/ui/__test__/classify.test.ts` for the corner cases.
+`classifyOutcome(state)` derives the `RunOutcome`. Precedence: `some-fail` (any failures) wins over `some-fail` (any timeouts), which wins over `threshold-violation`; `all-pass` otherwise. The first two collapse to the same cell — the ordering is about which signal *decides*, and real failures decide first so a run with both reads as a failure run.
+
+**Timeouts are not passes (issue #224).** A run whose only non-passing signal is `totals.timeoutCount > 0` (with `failCount === 0`) previously fell through every branch and classified `all-pass`, routing a timed-out run into a green cell. The reducer deliberately splits timeouts out of `failCount` (see the reducer section above — Vitest reports a timed-out test as `failed`, and the split is what lets the renderer say "timed out" rather than "failed"), so the classifier has to re-fold them explicitly. Three render paths do the same fold on the counts: `render-agent.ts`'s `formatHeader`, the shared `formatTotals` helper, and the `single-file-fail` cell all add `timeoutCount` into the denominator and emit an `N timed out` part between the failed and skipped parts.
+
+**Known gap.** `ProjectSummary` carries no per-project `timeoutCount`, so the workspace-level projects table cannot attribute timeouts to a project even though the totals line and outcome class are now correct. Tracked as issue #242.
 
 ### Dispatch entry points
 
@@ -222,6 +226,7 @@ See `../decisions.md` for the recorded design choices:
 - D37 — per-executor console matrix.
 - D40 — `AgentPluginOptions` is exactly five fields; `reporter` is a single override hook and `onRunEvent` is a stream-tee with no gating.
 - D41 — shape-tailored dispatcher matrix and the trade-off against the per-formatter pipeline.
+- D48 — honest run reporting: collected counts, self-correcting reasons, and why timeouts must be re-folded as non-passing by every consumer of the totals.
 
 ---
 

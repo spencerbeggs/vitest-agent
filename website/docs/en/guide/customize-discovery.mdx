@@ -98,6 +98,30 @@ than failing the run. The default classifier rules are:
 The same strategy instance drives both halves, so the projects Vitest runs
 and the tags the transform injects are always in sync.
 
+## When a package is skipped
+
+A strategy that returns no project for a workspace package is a silent skip by design — most packages have no tests, and warning about each one would be noise. The exception is a package that looks like it should have been picked up: it has a `__test__/` directory at its root, or files under `src/` that match the test-file naming convention, and still produced no project. That is the shape of a real mistake — a missing `.test.` suffix, an empty test directory left behind by a move — and its cost is tests that quietly never run.
+
+Discovery writes one warning per such package to stderr, at most once per process:
+
+```bash
+pnpm vitest run
+# [vitest-agent] warning: package "@acme/widgets" has a __test__/ directory or src/ test files, but its tests were not wired into a Vitest project. Run `npx vitest-agent agent check-test-path <path>` to diagnose why.
+```
+
+Run the command it names against one of the files you expected to run — it reports whether the path is discoverable and, when it is not, which rule rejected it:
+
+```bash
+npx vitest-agent agent check-test-path packages/widgets/lib/__test__/widget.test.ts
+# {"verdict":"invalid","workspace":"@acme/widgets","suggestedPath":"/repo/packages/widgets/__test__/widget.test.ts"}
+```
+
+See [`agent check-test-path`](/cli/commands) for the full verdict table.
+
+In this example the package warned because its root `__test__/` exists but produced no project — the actual tests were nested under `lib/`, which the layout rule rejects, and the verdict names the correct location.
+
+An empty `__test__/` directory still warns — the directory existing at all is the signal, because "the tests are there but nothing matches the naming convention" is the case worth catching. The warning's trigger is the package-root shape only: a package whose tests sit *only* in a nested directory (no root `__test__/`, no `src/` test files) does not look test-shaped and is skipped silently — when a package's tests aren't running and no warning appeared, run `check-test-path` against one of its files by hand.
+
 ## Filtering by tag
 
 Once tags are wired, use Vitest's built-in flag to filter by kind:

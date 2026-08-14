@@ -16,11 +16,33 @@ import {
 import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
+const TagFilter = Schema.Struct({
+	all: Schema.optional(Schema.Array(Schema.String)),
+	any: Schema.optional(Schema.Array(Schema.String)),
+	none: Schema.optional(Schema.Array(Schema.String)),
+}).annotate({
+	identifier: "TagFilter",
+	description:
+		"All three sub-filters AND together with `project` and `files`. `all` requires every listed tag on the test. `any` requires at least one. `none` excludes any test carrying a listed tag.",
+});
+export type TagFilterType = Schema.Schema.Type<typeof TagFilter>;
+
+const RunTestsScope = Schema.Struct({
+	project: Schema.NullOr(Schema.String),
+	files: Schema.Array(Schema.String),
+	tags: Schema.NullOr(TagFilter),
+}).annotate({
+	identifier: "RunTestsScope",
+	description:
+		"The filter set actually used for this run, verbatim. Lets an agent tell 'ran exactly what I asked' apart from 'a dropped/misspelled param silently ran everything' without cross-checking summary counts.",
+});
+
 const RunTestsOk = Schema.Struct({
 	kind: Schema.Literal("ok").annotate({
 		description: "Discriminant — `true` test run completed (with or without failures).",
 	}),
 	project: Schema.optional(Schema.String),
+	scope: RunTestsScope,
 	report: AgentReportSchema.annotate({
 		description: "Full AgentReport including pass/fail counts and per-module errors.",
 	}),
@@ -44,17 +66,6 @@ const RunTestsError = Schema.Struct({
 	kind: Schema.Literal("error"),
 	message: Schema.String,
 }).annotate({ identifier: "RunTestsError" });
-
-const TagFilter = Schema.Struct({
-	all: Schema.optional(Schema.Array(Schema.String)),
-	any: Schema.optional(Schema.Array(Schema.String)),
-	none: Schema.optional(Schema.Array(Schema.String)),
-}).annotate({
-	identifier: "TagFilter",
-	description:
-		"All three sub-filters AND together with `project` and `files`. `all` requires every listed tag on the test. `any` requires at least one. `none` excludes any test carrying a listed tag.",
-});
-export type TagFilterType = Schema.Schema.Type<typeof TagFilter>;
 
 const RunTestsNoMatch = Schema.Struct({
 	kind: Schema.Literal("no-match").annotate({
@@ -664,6 +675,11 @@ export const runTests = publicProcedure
 					return {
 						kind: "ok" as const,
 						...(project !== undefined && { project }),
+						scope: {
+							project: project ?? null,
+							files,
+							tags: tagsInput ?? null,
+						},
 						report,
 						classifications: classifications ? Object.fromEntries(classifications) : {},
 						discoveryLastScannedAt: readDiscoveryLastScannedAt() ?? null,

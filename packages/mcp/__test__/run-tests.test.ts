@@ -145,6 +145,7 @@ describe("RunTestsResult schema with no-match", () => {
 	it("accepts the existing ok / timeout / error variants", () => {
 		const okEnc = Schema.decodeUnknownSync(RunTestsResult)({
 			kind: "ok",
+			scope: { project: null, files: [], tags: null },
 			report: {
 				timestamp: "2026-05-15T00:00:00.000Z",
 				reason: "passed",
@@ -177,6 +178,7 @@ describe("RunTestsResult discoveryLastScannedAt (issue #100)", () => {
 	it("should round-trip a string discoveryLastScannedAt on the ok variant", () => {
 		const payload: RunTestsResultType = {
 			kind: "ok",
+			scope: { project: null, files: [], tags: null },
 			report: minimalReport,
 			classifications: {},
 			discoveryLastScannedAt: "2026-07-01T04:00:00.000Z",
@@ -191,6 +193,7 @@ describe("RunTestsResult discoveryLastScannedAt (issue #100)", () => {
 	it("should accept null discoveryLastScannedAt when discovery has not scanned yet", () => {
 		const decoded = Schema.decodeUnknownSync(RunTestsResult)({
 			kind: "ok",
+			scope: { project: null, files: [], tags: null },
 			report: minimalReport,
 			classifications: {},
 			discoveryLastScannedAt: null,

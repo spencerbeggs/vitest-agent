@@ -6,7 +6,9 @@ The Model Context Protocol server (`vitest-agent-mcp` bin) exposing the action-k
 
 ```text
 src/
-  bin.ts              -- bin entry: resolves projectDir, dbPath, builds
+  bin.ts              -- bin entry: registers the module-scope
+                         unhandledRejection / uncaughtException guards,
+                         resolves projectDir, dbPath, builds
                          ManagedRuntime.make(McpLive(dbPath, ...)), wires
                          the session refs (with the lazy recover thunk
                          from session-env.ts), calls startMcpServer(ctx)
@@ -22,10 +24,13 @@ src/
                          server's projectDir
   router.ts           -- tRPC router aggregating all tool procedures
   server.ts           -- buildMcpServer(): constructs the server and
-                         registers all tools, then registerAllPrompts,
-                         transport-free (served-schema tests);
-                         startMcpServer(): buildMcpServer + connects a
-                         StdioServerTransport
+                         registers all tools (every inputSchema wrapped
+                         by the local strict() helper), then
+                         registerAllPrompts, transport-free
+                         (served-schema tests); also shadows the
+                         instance's registerTool to catch resolver
+                         throws; startMcpServer(): buildMcpServer +
+                         connects a StdioServerTransport
   tools/              -- tool implementations (see design docs for the
                          full inventory); plus the private
                          _tdd-error-envelope.ts helper. Per-CRUD families
@@ -50,6 +55,12 @@ src/
                          _legacy_hypothesis_validate compat shim).
                          Key derivation considers the `action`
                          discriminator first
+  utils/
+    crash-guards.ts   -- pure shouldExitOnUncaughtException(connected):
+                         exit before the transport connects, survive after
+    tool-error-envelope.ts -- buildUnexpectedToolErrorEnvelope(tool, err):
+                         success-shape { ok: false, error: {
+                         _tag: "UnexpectedToolError", ... } } + isError
   layers/
     McpLive.ts        -- (dbPath, logLevel?, logFile?) composition:
                          DataReader + DataStore + ProjectDiscovery +
@@ -61,10 +72,15 @@ src/
 
 | File | Purpose |
 | ---- | ------- |
-| `bin.ts` | `resolveProjectDir()` precedence: `VITEST_AGENT_REPORTER_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> `process.cwd()`. Resolves `dbPath` via `resolveDataPath(projectDir)` then constructs the `ManagedRuntime` |
+| `bin.ts` | `resolveProjectDir()` precedence: `VITEST_AGENT_REPORTER_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> `process.cwd()`. Resolves `dbPath` via `resolveDataPath(projectDir)` then constructs the `ManagedRuntime`. Registers `unhandledRejection` / `uncaughtException` handlers at module scope (before any async work) so a stray rejection cannot silently kill a live session; the exit-vs-survive judgment lives in `utils/crash-guards.ts`. Also carries the env-gated fires-once crash injector `VITEST_AGENT_MCP_TEST_INJECT_CRASH` (`unhandledRejection` \| `uncaughtException`) that the spawned-bin e2e suite uses |
 | `context.ts` | tRPC `McpContext` carrying the `ManagedRuntime` so procedures call `ctx.runtime.runPromise(effect)` |
 | `router.ts` | Aggregates all tool procedures; testable via `createCallerFactory(appRouter)` without starting the MCP server |
-| `tools/run-tests.ts` | In-process `createVitest` (`vitest/node`) + `localVitest.start()` with configurable timeout (default 120s); overrides `coverage.reportsDirectory` with a per-invocation `mkdtemp` dir (removed in `finally`) so concurrent runs don't `rm -rf` each other's coverage `.tmp` files — everything else about coverage still comes from the user's config, and MCP consumers read coverage from SQLite, not disk artifacts; builds the `AgentReport` from `result.testModules` and folds `consoleLeaks` from the post-run `state.getFiles()` task-tree walk. `RunTestsOk` carries `discoveryLastScannedAt: string \| null`, read via the internal `readDiscoveryLastScannedAt()` helper from the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global the plugin's `discoverProjects()` writes (issue #100 — mcp cannot import the plugin, so the shared symbol slot is the handshake) |
+| `tools/run-tests.ts` | In-process `createVitest` (`vitest/node`) + `localVitest.start()` with configurable timeout (default 120s); overrides `coverage.reportsDirectory` with a per-invocation `mkdtemp` dir (removed in `finally`) so concurrent runs don't `rm -rf` each other's coverage `.tmp` files — everything else about coverage still comes from the user's config, and MCP consumers read coverage from SQLite, not disk artifacts; builds the `AgentReport` from `result.testModules` and folds `consoleLeaks` from the post-run `state.getFiles()` task-tree walk. `RunTestsOk` carries `scope: { project, files, tags }` — the resolved filter set echoed verbatim, so an agent can tell "ran exactly what I asked" from "a dropped param ran everything" — plus `discoveryLastScannedAt: string \| null`, read via the internal `readDiscoveryLastScannedAt()` helper from the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global the plugin's `discoverProjects()` writes (issue #100 — mcp cannot import the plugin, so the shared symbol slot is the handshake) |
+| `tools/history.ts` | `test_history` — accepts optional `testName` / `modulePath` / `limit` alongside `project`. `testName` / `modulePath` scope **every** section: they go to `DataReader.getHistory`'s `HistoryQueryOptions` AND to `getFlaky` / `getPersistentFailures`'s `ClassificationQueryOptions`, and `hasData` is derived from the scoped result sets (issue #243 — a scoped call used to return the whole project's classifications). `limit` caps runs kept **per test** (default 20), not total rows, and must be a positive integer on both the tRPC and served schemas |
+| `tools/test.ts` | Consolidated `test` tool. `action: "get"` takes an optional `modulePath`: a `fullName` is not file-qualified (D20), so when it matches more than one module and no `modulePath` is given the tool returns the absent shape with `ambiguous: true` and `candidateModules[]` rather than guessing a variant (issue #243) |
+| `utils/safe-format-fatal-error.ts` | `safeFormatFatalError(err)` — never-throwing wrapper around the sdk's `formatFatalError`, used by `bin.ts`'s crash guards. The formatter introspects its input (`Symbol.for(...) in err`, `instanceof`, `JSON.stringify`) and a hostile `Proxy` can make any of those throw; a throw inside an `uncaughtException` handler kills the process the guard exists to protect |
+| `utils/crash-guards.ts` | Pure `shouldExitOnUncaughtException(transportConnected)`: exit while no client session exists, survive after connect. The one place the departure from Node's "do not resume" guidance is stated and tested |
+| `utils/tool-error-envelope.ts` | `buildUnexpectedToolErrorEnvelope(tool, err)` — the `{ ok: false, error: { _tag: "UnexpectedToolError", tool, message, remediation } }` success-shape returned with `isError: true` when a resolver throws. Coerces the thrown value defensively (a getter-backed `.message` can itself throw) |
 | `tools/note.ts` | Single action-keyed tool covering all six note operations (`create`/`list`/`get`/`update`/`delete`/`search`) via the `action` discriminator |
 | `tools/tdd-task.ts` | Action-keyed `tdd_task` tool with `start`/`end`/`get`/`resume` (replaces the 1.x `tdd_session_*` family; the underlying SQLite columns retain the `tdd_tasks` naming). `start` and `end` are idempotent via the middleware registry |
 | `tools/tdd-goal.ts`, `tools/tdd-behavior.ts` | Action-keyed CRUD for the Objective→Goal→Behavior hierarchy. `create` actions are idempotent on `(sessionId, goal)` / `(goalId, behavior)`. The `delete` action is denied to the orchestrator at the plugin's `pre-tool-use/tdd-restricted.sh` hook (the `tool_input.action` matcher); the consolidated tools are listed in `safe-mcp-vitest-agent-ops.txt` so non-delete actions auto-allow |
@@ -80,6 +96,27 @@ src/
   server is long-lived; per-call layer construction would re-open
   SQLite on every tool invocation. tRPC procedures call
   `ctx.runtime.runPromise(effect)` against the shared runtime.
+- **Every served `inputSchema` is strict.** Register tool inputs in
+  `server.ts` through the local `strict(shape)` helper — never a bare
+  zod raw shape. The helper wraps the shape in `z.strictObject` with an
+  `unrecognized_keys` message naming the offending key AND the full
+  accepted-param list, so a misspelled param fails loudly instead of
+  being silently stripped and running a wider query than the agent
+  asked for. The rule is all-or-nothing: `strict({})` for empty shapes
+  (`acceptance_metrics`); only the four tools with no `inputSchema` at
+  all (`help`, `cache_health`, `settings_list`, `ping`) stay bare.
+  The rule applies at **every object level**, not just the top one — a
+  nested plain `z.object` strips unknown keys, so `run_tests`'s
+  `{ tags: { anyy: [...] } }` decoded to `{ tags: {} }` and the run went
+  wide across the whole workspace (issue #243). Nested shapes
+  (`run_tests`'s `tags` / `_sessionContext`) go through `strict(...)`
+  too; `server-strict-schemas.test.ts` walks every served JSON Schema
+  and fails on any object node missing `additionalProperties: false`.
+- **The MCP process must survive a stray throw.** Never remove the
+  module-scope crash guards in `bin.ts` or replace them with a bare
+  `main().catch()`; a killed process deregisters every tool mid-session
+  with no recovery path. Resolver throws return the
+  `UnexpectedToolError` envelope rather than propagating.
 - **Three external runtime deps unique here:**
   `@modelcontextprotocol/sdk`, `@trpc/server`, `zod`. zod is for
   tRPC tool input schemas only -- domain data structures still use
@@ -124,7 +161,9 @@ src/
   reliably propagate `CLAUDE_PROJECT_DIR` to MCP subprocesses. Don't
   drop the env var fallback.
 - Adding a tool: define a tRPC procedure in `tools/<name>.ts`, add
-  to `router.ts`, register the SDK handler in `server.ts`, update
+  to `router.ts`, register the SDK handler in `server.ts` with its
+  `inputSchema` wrapped in `strict(...)` AND every declared field
+  forwarded to the caller, update
   `tools/help.ts`'s tool list, and add the suffix to the plugin's
   `safe-mcp-vitest-agent-ops.txt` allowlist (omit destructive tools
   intentionally so they prompt; consider whether the new tool also
@@ -139,7 +178,14 @@ src/
   to an `InMemoryTransport` pair instead — see
   `server-hypothesis-schema.test.ts`. The `server.ts` registrations
   are hand-synced with the tRPC inputs, and a missed sync (a field
-  never declared or forwarded) is invisible to router-level tests.
+  never declared or forwarded) is invisible to router-level tests —
+  that is exactly how `run_tests`'s `tags` / `passWithNoTests` shipped
+  unreachable (issue #200). `server-strict-schemas.test.ts` asserts
+  twice per tool: a bogus key is rejected, and the same call without
+  it is not — the second assertion guards against over-correcting into
+  rejecting documented params. Crash-guard behavior needs a real
+  spawned bin over stdio (`bin-crash-resilience.e2e.test.ts`); a unit
+  test cannot safely crash its own process.
 - Tool input validation uses zod (tRPC requirement). Keep zod
   schemas minimal -- they're just for argument shape, not domain
   validation. Domain validation happens in the underlying
@@ -148,6 +194,14 @@ src/
   and `test` tool (`action: list|get|for_file`) enumerate every project
   from `getRunsByProject()` when `project` is unspecified. Don't default
   to a literal `"default"` (post-2.0 bug fix).
+- Narrowing history: push `testName` / `modulePath` / `limit` into
+  `DataReader.getHistory` — and the same `testName` / `modulePath` into
+  `getFlaky` / `getPersistentFailures` — instead of fetching a project
+  and filtering in the tool. `fullName` is not file-qualified (Decision
+  D20), so a client-side `find` can match another module's same-named
+  test — the `test({ action: "get" })` bug in issue #241, whose
+  duplicate-`fullName` half was fixed in #243 via `modulePath` +
+  ambiguity refusal.
 - The MCP server's runtime is constructed once at startup. If
   `dbPath` resolution fails at boot, the server should not start --
   surface the error via stderr and exit non-zero so the loader can
@@ -221,6 +275,9 @@ derivation considers the `action` discriminator first.
 
 The `run_tests` tool's input carries a structured `tags` filter
 (`{ all?, any?, none? }`) and a per-call `passWithNoTests` override.
+Both must stay declared in `server.ts` and forwarded to the caller —
+they were tRPC-only until issue #200, so a real client's tag filter was
+stripped and the run went wide.
 The three sub-filters AND together with each other and with `project` /
 `files`; `none` covers all negation. The pure `composeTagExpression`
 helper flattens a `TagFilter` to Vitest's native tag expression
@@ -240,6 +297,9 @@ string) verbatim so the agent can decide whether to broaden the
 filter or treat the empty set as a finding. `sanitizeTestArgs`
 covers tag values with the same `FORBIDDEN_CHARS` regex it applies
 to `files` and `project`.
+
+`RunTestsOk.scope` is the positive counterpart to `no-match`: the
+resolved `{ project, files, tags }` echoed back on success.
 
 No new `AgentPluginOptions` field for `passWithNoTests`. The plugin
 reads Vitest's native `test.passWithNoTests` from the resolved

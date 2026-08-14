@@ -9,10 +9,11 @@ const DEFAULT_WIDTH = 80;
 const renderAgent = (inputs: DispatchInputs): string => {
 	const modulePath = soleModulePath(inputs.state);
 	if (modulePath === undefined) return "";
-	const { passCount, failCount, skipCount, durationMs } = inputs.state.totals;
-	const total = passCount + failCount + skipCount;
+	const { passCount, failCount, skipCount, timeoutCount, durationMs } = inputs.state.totals;
+	const total = passCount + failCount + skipCount + timeoutCount;
 	const parts = [`${passCount}/${total} passed`];
 	if (failCount > 0) parts.push(`${failCount} failed`);
+	if (timeoutCount > 0) parts.push(`${timeoutCount} timed out`);
 	if (skipCount > 0) parts.push(`${skipCount} skipped`);
 	const header = `${modulePath}: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
 	const sections: string[] = [header];

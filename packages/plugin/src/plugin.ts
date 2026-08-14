@@ -40,6 +40,17 @@ import type { InjectTagsResult } from "./utils/inject-tags.js";
 import { injectTags } from "./utils/inject-tags.js";
 import { isBenignViteSourceMapWarning } from "./utils/is-benign-vite-source-map-warning.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
+import {
+	DEFAULT_BUILT_RECENTLY_MS,
+	DEFAULT_LOCK_POLL_MS,
+	DEFAULT_LOCK_STALE_MS,
+	DEFAULT_LOCK_WAIT_TIMEOUT_MS,
+	MIN_LOCK_POLL_MS,
+	acquireRunScriptLock,
+	markRunScriptDone,
+	parseLockTimingOverride,
+	releaseRunScriptLock,
+} from "./utils/run-script-lock.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
 
 /**
@@ -115,8 +126,14 @@ export function resolveConsoleMode(
 		if (executor === "human" && Schema.is(HumanConsoleMode)(override)) return override;
 		if (executor === "agent" && Schema.is(AgentConsoleMode)(override)) return override;
 		if (executor !== "human" && executor !== "agent" && Schema.is(CiConsoleMode)(override)) return override;
+		const accepted =
+			executor === "human"
+				? HumanConsoleMode.literals
+				: executor === "agent"
+					? AgentConsoleMode.literals
+					: CiConsoleMode.literals;
 		process.stderr.write(
-			`[vitest-agent:plugin] ignoring invalid VITEST_AGENT_CONSOLE="${override}" for ${executor} executor\n`,
+			`[vitest-agent:plugin] ignoring invalid VITEST_AGENT_CONSOLE="${override}" for ${executor} executor; accepted for ${executor}: ${accepted.join(" | ")}\n`,
 		);
 	}
 	const console = options.console;
@@ -702,9 +719,34 @@ export namespace AgentPlugin {
 	}
 
 	/**
+	 * Parses a `VITEST_AGENT_RUNSCRIPT_*` override env var, falling back to
+	 * `fallback` for anything that is not a whole positive integer at or above
+	 * `minimum`. Test-support: lets the concurrency e2e suite use short timeouts
+	 * instead of the production-sized defaults — but a typo there (`"200ms"`,
+	 * `"-1"`, `"0"`) must degrade to the default rather than to an
+	 * instantly-stale lock or a busy-spinning waiter.
+	 */
+	function readRunScriptLockEnvOverride(name: string, fallback: number, minimum = 1): number {
+		return parseLockTimingOverride(process.env[name], fallback, minimum);
+	}
+
+	/**
 	 * Run a shell command, suppressing all output unless the command fails.
 	 * Designed for use in Vitest `globalSetup` files to run build steps or
 	 * other preparatory scripts without polluting agent stdout.
+	 *
+	 * Concurrent invocations of the same command from the same workspace
+	 * (e.g. two `vitest` runs started in one checkout at once) serialize
+	 * through a file-based advisory lock (issue #191): the first caller
+	 * runs the command; a concurrent caller blocks until the lock frees,
+	 * then skips its own run when the winner's build is still fresh
+	 * (`DEFAULT_BUILT_RECENTLY_MS`) rather than repeating it.
+	 *
+	 * Serialization is best-effort by design: a waiter that is still
+	 * blocked after `DEFAULT_LOCK_WAIT_TIMEOUT_MS` gives up and runs the
+	 * command anyway, unserialized, rather than hanging the caller's test
+	 * run forever. See `utils/run-script-lock.ts` for that escape valve
+	 * and for the two-tier (pid probe, then age) stale-takeover rule.
 	 *
 	 * On failure the captured stderr and stdout are written to their respective
 	 * streams before rethrowing, so the error is still visible to humans and
@@ -719,13 +761,40 @@ export namespace AgentPlugin {
 	 * ```
 	 */
 	export function runScript(command: string): void {
+		const lock = acquireRunScriptLock({
+			cwd: process.cwd(),
+			command,
+			staleMs: readRunScriptLockEnvOverride("VITEST_AGENT_RUNSCRIPT_LOCK_STALE_MS", DEFAULT_LOCK_STALE_MS),
+			waitTimeoutMs: readRunScriptLockEnvOverride(
+				"VITEST_AGENT_RUNSCRIPT_LOCK_WAIT_TIMEOUT_MS",
+				DEFAULT_LOCK_WAIT_TIMEOUT_MS,
+			),
+			pollMs: readRunScriptLockEnvOverride(
+				"VITEST_AGENT_RUNSCRIPT_LOCK_POLL_MS",
+				DEFAULT_LOCK_POLL_MS,
+				MIN_LOCK_POLL_MS,
+			),
+			builtRecentlyMs: readRunScriptLockEnvOverride(
+				"VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS",
+				DEFAULT_BUILT_RECENTLY_MS,
+			),
+		});
+		if (lock.recentlyBuilt) {
+			// A concurrent caller already ran this exact command in this
+			// workspace within the freshness window — trust it instead of
+			// repeating the build.
+			return;
+		}
 		try {
 			execSync(command, { stdio: "pipe" });
+			markRunScriptDone(lock);
 		} catch (error) {
 			const execError = error as { stderr?: Buffer; stdout?: Buffer };
 			if (execError.stderr?.length) process.stderr.write(execError.stderr);
 			if (execError.stdout?.length) process.stdout.write(execError.stdout);
 			throw error;
+		} finally {
+			releaseRunScriptLock(lock);
 		}
 	}
 }

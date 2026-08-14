@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-08-12
-last-synced: 2026-08-12
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 95
 related:
   - ../components.md
@@ -122,7 +122,9 @@ DiscoverStrategy carries:
   ({ name, path, relativePath, workspaceRoot, packageJson? }) and
   returns either a TestProjectInlineConfiguration or null. Null means
   "this package has no tests, skip it." This single predicate covers
-  every skip case.
+  every skip case. The skip is silent for a package that has no test
+  shape at all, and warned-about once when the package looks test-shaped
+  but was still declined (step 5 of the algorithm below).
 - classify({ module }) — synchronous function that takes a ModuleInfo
   and returns the tag list for that file. Called by the plugin's Vite
   transform hook.
@@ -258,7 +260,12 @@ The unified algorithm in discoverProjects:
    with { name, path, relativePath, workspaceRoot }. A null return means
    the package contributes no project. Any non-null config is appended
    to the result list. Workspace package names and normalized paths are
-   accumulated into lookup sets for the next step.
+   accumulated into lookup sets for the next step. A null return is
+   silent unless the declined package still looks test-shaped — a
+   `__test__/` directory at the package root, or a test-named file under
+   `src/` — in which case one stderr warning per package points at
+   `vitest-agent agent check-test-path` (issue #229). See the
+   "discoverProjects" section of [./plugin.md](./plugin.md).
 
 6. **Iterate additionalEntries.** For each entry from .addProject
    calls: resolve the path against the workspace root if relative,

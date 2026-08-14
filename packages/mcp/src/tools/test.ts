@@ -55,6 +55,15 @@ const TestGetMissing = Schema.Struct({
 	found: Schema.Literal(false),
 	project: Schema.String,
 	fullName: Schema.String,
+	/**
+	 * `true` when the lookup failed *because* the name matched more than
+	 * one module in the project's latest run and no `modulePath` was
+	 * supplied to disambiguate (issue #243) — as opposed to the name
+	 * simply not existing.
+	 */
+	ambiguous: Schema.optional(Schema.Boolean),
+	/** The module paths a `fullName` matched when `ambiguous` is `true`. */
+	candidateModules: Schema.optional(Schema.Array(Schema.String)),
 }).annotate({ identifier: "TestGetMissing" });
 
 const TestForFileResult = Schema.Struct({
@@ -109,6 +118,16 @@ export const formatTestMarkdown = (data: TestResultType): string => {
 	}
 	if (data.action === "get") {
 		if (!data.found) {
+			if (data.ambiguous === true) {
+				const modules = data.candidateModules ?? [];
+				return [
+					`Ambiguous test name: \`${data.fullName}\` matches ${modules.length} modules in project \`${data.project}\`.`,
+					"",
+					...modules.map((m) => `- \`${m}\``),
+					"",
+					`Re-run with a modulePath, e.g. test({ action: "get", fullName: "${data.fullName}", modulePath: "${modules[0] ?? ""}" }).`,
+				].join("\n");
+			}
 			return `Test not found: \`${data.fullName}\`\n\nUse test({ action: "list" }) to discover available tests (format: "Suite > test name").`;
 		}
 		const t = data.test;
@@ -226,6 +245,9 @@ const GetVariant = Schema.Struct({
 	action: Schema.Literal("get"),
 	fullName: Schema.String,
 	project: Schema.optional(Schema.String),
+	modulePath: Schema.optional(Schema.String).annotate({
+		description: "Exact module_path match — disambiguates a fullName that exists in more than one test file.",
+	}),
 });
 
 const ForFileVariant = Schema.Struct({
@@ -275,13 +297,35 @@ export const test = publicProcedure
 								? [variant.project]
 								: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => r.project)));
 							for (const project of candidates) {
-								const testOpt = yield* reader.getTestByFullName(project, variant.fullName);
+								// `full_name` is not file-qualified (Decision D20), so the
+								// same name can live in several modules of one run. Refuse
+								// to guess: without a `modulePath` an ambiguous name gets
+								// the absent shape naming the candidates instead of an
+								// arbitrary variant (issue #243, follow-up to #241).
+								const modules = yield* reader.getTestModulesByFullName(project, variant.fullName);
+								if (modules.length === 0) continue;
+								if (variant.modulePath === undefined && modules.length > 1) {
+									return {
+										action: "get" as const,
+										found: false as const,
+										project,
+										fullName: variant.fullName,
+										ambiguous: true,
+										candidateModules: modules,
+									};
+								}
+								const testOpt = yield* reader.getTestByFullName(project, variant.fullName, {
+									...(variant.modulePath !== undefined && { modulePath: variant.modulePath }),
+								});
 								if (Option.isNone(testOpt)) continue;
 								const errors = yield* reader.getErrors(project);
 								const matchingErrors = errors
-									.filter((e) => e.testFullName === variant.fullName)
+									.filter((e) => e.testFullName === variant.fullName && e.moduleFile === testOpt.value.module)
 									.map((e) => ({ name: e.name, message: e.message, diff: e.diff, stack: e.stack }));
-								const history = yield* reader.getHistory(project);
+								const history = yield* reader.getHistory(project, {
+									testName: variant.fullName,
+									modulePath: testOpt.value.module,
+								});
 								const testHistory = history.tests.find((entry) => entry.fullName === variant.fullName);
 								return {
 									action: "get" as const,

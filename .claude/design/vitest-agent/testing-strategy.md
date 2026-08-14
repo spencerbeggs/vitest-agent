@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: testing
 created: 2026-04-29
-updated: 2026-07-22
-last-synced: 2026-07-22
+updated: 2026-08-14
+last-synced: 2026-08-14
 completeness: 95
 related:
   - ./architecture.md
@@ -112,7 +112,17 @@ const result = await caller.test_status({ project: "my-app" });
 This avoids stdio transport, MCP SDK initialization, and process
 boundaries -- procedures are tested as plain async functions.
 
-**Served-schema tests complement the caller factory.** Router-level caller tests cannot catch a missed hand-sync between a tool's tRPC input schema (`tools/<name>.ts`) and its MCP-SDK `inputSchema` registration in `server.ts` — a field the SDK registration never declares or forwards is unreachable from a real client even though the tRPC procedure handles it. For that bug class, connect `buildMcpServer(ctx)` (the transport-less half of the `buildMcpServer` / `startMcpServer` split) to an `InMemoryTransport` client and assert the schemas and descriptions a real MCP client is actually served. See `packages/mcp/__test__/server-hypothesis-schema.test.ts` and the *Server bootstrap* section of [./components/mcp.md](./components/mcp.md).
+**Served-schema tests complement the caller factory.** Router-level caller tests cannot catch a missed hand-sync between a tool's tRPC input schema (`tools/<name>.ts`) and its MCP-SDK `inputSchema` registration in `server.ts` — a field the SDK registration never declares or forwards is unreachable from a real client even though the tRPC procedure handles it. For that bug class, connect `buildMcpServer(ctx)` (the transport-less half of the `buildMcpServer` / `startMcpServer` split) to an `InMemoryTransport` client and assert the schemas and descriptions a real MCP client is actually served. See `packages/mcp/__test__/server-hypothesis-schema.test.ts`, `server-run-tests-schema.e2e.test.ts`, `server-test-history-schema.test.ts`, and the *Server bootstrap* section of [./components/mcp.md](./components/mcp.md).
+
+**Cross-tool invariants get a table, and assert both directions.** Where a rule is meant to hold for *every* tool, drive it from one `it.each` table of `(tool, minimal-valid-args)` pairs against a single shared `InMemoryTransport` client rather than writing a bespoke test per tool. `packages/mcp/__test__/server-strict-schemas.test.ts` is the model: each tool is asserted to reject a bogus extra key (with an error naming that key) *and* to accept the same call without it. The second half is what keeps the fix from overshooting — a strictness pass that starts rejecting documented params is a worse bug than the silent-strip it replaced. Because the SDK's `validateToolInput` throws before the handler runs, the rejection cases never touch the database despite using plausible-looking ids.
+
+### Pattern 2b: Spawned-Bin Crash Injection
+
+Process-level `unhandledRejection` / `uncaughtException` guards cannot be exercised in-process — a real uncaught throw inside the Vitest worker is not something a test can safely simulate, and stubbing `process.on` proves only that a handler was registered, not that the process survives.
+
+The pattern is to spawn the **built** bin as a real child, drive it over a real `StdioClientTransport`, and make it crash itself on command via an env-gated, fires-once injection hook (`VITEST_AGENT_MCP_TEST_INJECT_CRASH`, accepting `unhandledRejection` or `uncaughtException`, scheduled on the event-loop turn after the transport connects so ordering is deterministic). The assertion is then the thing that actually matters: after the injected crash, a subsequent tool call over the same transport still succeeds. See `packages/mcp/__test__/bin-crash-resilience.e2e.test.ts` and the *Crash resilience* section of [./components/mcp.md](./components/mcp.md).
+
+Two constraints ride along. The hook must be env-gated so it can never fire in a normal install, and the file must be named `*.e2e.test.ts` — a plain `.test.ts` classifies as `unit` and gets a 5s timeout, which a real spawn plus handshake will exceed. The same naming rule applies to `packages/plugin/__test__/run-script-concurrency.e2e.test.ts`, which spawns competing processes to prove the `runScript` advisory lock serializes them; that suite drives the lock's `VITEST_AGENT_RUNSCRIPT_*` timing overrides so it can assert production behavior on millisecond-scale windows.
 
 ### Pattern 3: Duck-Typed Vitest Fixtures
 

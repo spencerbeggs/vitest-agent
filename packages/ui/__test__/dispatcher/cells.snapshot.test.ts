@@ -107,6 +107,38 @@ describe("dispatcher cells — agent-half snapshots", () => {
 		);
 	});
 
+	it("single-file × some-fail folds timeoutCount into its manually-built header (issue #224)", () => {
+		// Two tests in one module: one passed, one timed out. single-file-fail
+		// builds its own header line instead of using the shared formatTotals
+		// helper, so it needs its own timeoutCount fix.
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			moduleOrder: ["src/thing.test.ts"],
+			modules: {
+				"src/thing.test.ts": {
+					modulePath: "src/thing.test.ts",
+					status: "finished",
+					passCount: 1,
+					failCount: 0,
+					skipCount: 0,
+					timeoutCount: 1,
+					durationMs: 5000,
+					tests: [
+						{ testName: "a", suitePath: [], status: "passed", durationMs: 10 },
+						{ testName: "b", suitePath: [], status: "timed-out", durationMs: 4990 },
+					],
+				},
+			},
+			totals: { passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 1, durationMs: 5000 },
+		};
+		const inputs = buildInputs(state);
+		expect(inputs.shape).toBe("single-file");
+		expect(inputs.outcome).toBe("some-fail");
+		const out = dispatch(inputs, noColorOpts);
+		expect(out.split("\n")[0]).toBe("src/thing.test.ts: 1/2 passed, 1 timed out (5s)");
+	});
+
 	it("single-file × threshold-violation", async () => {
 		const state = reduceRenderStateAll(singleFileThresholdEvents);
 		const inputs = buildInputs(state);
@@ -175,10 +207,10 @@ describe("dispatcher cells — agent-half snapshots", () => {
 		expect(out).toContain("Tests: 12/12 passed (250ms)");
 	});
 
-	it("single-project × all-pass counts a lone timed-out test instead of reporting 0 tests collected", () => {
-		// pass=fail=skip=0 but one test timed out — the zero-collected
-		// guard must fold timeoutCount into the total or this reads as
-		// "0 tests collected" for a run that actually ran one test.
+	it("single-project × some-fail routes a lone timed-out test to the fail cell, not the pass cell (issue #224)", () => {
+		// pass=fail=skip=0 but one test timed out — a timeout is not a
+		// pass, so classifyOutcome must not route this to all-pass /
+		// the pass cell's "N module(s) all-passed." copy.
 		const state: RenderState = {
 			...initialRenderState,
 			phase: "finished",
@@ -187,10 +219,10 @@ describe("dispatcher cells — agent-half snapshots", () => {
 		};
 		const inputs = buildInputs(state);
 		expect(inputs.shape).toBe("single-project");
-		expect(inputs.outcome).toBe("all-pass");
+		expect(inputs.outcome).toBe("some-fail");
 		const out = dispatch(inputs, noColorOpts);
-		expect(out).not.toContain("0 tests collected");
-		expect(out).toContain("1 module all-passed.");
+		expect(out).not.toContain("all-passed");
+		expect(out).toContain("Tests: 0/1 passed, 1 timed out (100ms)");
 	});
 
 	it("single-project × some-fail", async () => {

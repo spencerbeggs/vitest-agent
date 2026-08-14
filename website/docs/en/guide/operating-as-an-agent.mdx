@@ -14,38 +14,39 @@ cost trial-and-error.
 1. **Run tests with the `run_tests` MCP tool, not Bash `vitest`.** It persists
    results, classifications, coverage, and history and fires the post-tool-use
    hooks. Shelling out bypasses all of that.
-2. **`run_tests` has no `filter` parameter.** Scope a run with `project` (the
-   Vitest project name), `files` (globs), or `tags`. An unknown key is silently
-   dropped, so the whole suite runs.
-3. **Subset runs "fail" coverage thresholds by design.** A single-file run that
+2. **`run_tests` has no `filter` parameter, and a wrong key is now an error.** Scope a run with `project` (the Vitest project name), `files` (globs), or `tags`. Every served tool input rejects unknown keys with a message naming the offending key and the accepted params, so a typo fails the call instead of quietly running the whole workspace. On success the `ok` result echoes `scope: { project, files, tags }` — the filter set the run actually used — so you can confirm the run was as narrow as you asked without inferring it from the counts.
+3. **Narrow `test_history` when you can.** Alongside `project` it takes `testName` (exact full name), `modulePath` (one file), and `limit` (runs kept per test, default 20). An unnarrowed call on a large project returns the whole history and burns context for no reason.
+4. **Subset runs "fail" coverage thresholds by design.** A single-file run that
    exits with `ERROR: Coverage … does not meet global threshold` is expected.
    There is no per-run coverage toggle in `run_tests`; it inherits your
    `vitest.config`. For isolated inspection use
    `vitest run <file> --coverage.enabled=false`.
-4. **Stray `console.*` is surfaced by `run_tests` as a signal, not raw logs.**
+5. **Stray `console.*` is surfaced by `run_tests` as a signal, not raw logs.**
    The `ok` result carries `report.consoleLeaks` — writes by file with counts,
    optional per-test attribution, and a truncated sample. `run_tests` still
    null-routes Vitest's stdout; the signal captures what was printed without
    forwarding raw log lines. To see raw output for a flagged file, run Vitest
    on the CLI: `VITEST_AGENT_CONSOLE=passthrough pnpm test`.
-5. **Session attribution is recovered for you** from the environment the
+6. **Session attribution is recovered for you** from the environment the
    Claude Code plugin's SessionStart hook writes; you never set `VITEST_AGENT_*`
    vars by hand.
-6. **Test counts stay fresh after you move files.** Discovery caches its scan
+7. **Test counts stay fresh after you move files.** Discovery caches its scan
    per process but re-scans automatically when the set of test files on disk
    changes, so a warm MCP no longer reports phantom counts — no restart needed.
    The `run_tests` result carries `discoveryLastScannedAt` (an ISO timestamp of
    the last real disk scan) if you want to confirm a count is fresh.
-7. **Judge a run by its collected count, not by `0 failed`.** The totals line
+8. **Judge a run by its collected count, not by `0 failed`.** The totals line
    carries `across N files` whenever the collected module count is known, and a
    run that collects nothing renders `0 tests collected` as a warning rather
    than a pass. A lower file count than you expected means files failed to load.
-8. **A rendered result is not always a recorded one.** If stderr carries
-   `vitest-agent: persistence failed — results above were rendered but NOT
-   recorded`, the output on screen is real but nothing reached SQLite, so
-   `test_status`, `test_history`, and trends will not reflect that run.
-9. **Some "leaks" are guardrail tests** that assert on their own output — do not
-   silence them.
+9. **A timed-out test is a failing test.** Timeouts get their own `N timed out` segment in the totals line and count toward the denominator, and a run whose only non-passing tests timed out routes to the failing cell — it never renders as a clean pass.
+10. **A rendered result is not always a recorded one.** If stderr carries
+    `vitest-agent: persistence failed — results above were rendered but NOT
+    recorded`, the output on screen is real but nothing reached SQLite, so
+    `test_status`, `test_history`, and trends will not reflect that run.
+11. **Some "leaks" are guardrail tests** that assert on their own output — do not
+    silence them.
+12. **An unexpected tool failure is not the end of the session.** A resolver that throws where the tool has no domain-specific handling returns `{ ok: false, error: { _tag: "UnexpectedToolError", tool, message, remediation } }`, and the server logs the detail to stderr and keeps the stdio transport open. Retry the call; the rest of the tool surface stays available.
 
 ## Environment variables
 
@@ -58,7 +59,7 @@ hook and recovered automatically. The only variables you might set yourself:
 | `VITEST_REPORTER_LOG_LEVEL` | Level of the diagnostic logger (separate from the console reporter) |
 | `VITEST_REPORTER_LOG_FILE` | File the diagnostic logger writes to |
 | `NO_COLOR` | Disables ANSI color in rendered output |
-| `VITEST_AGENT_CONSOLE` | Override the resolved console mode for the active executor on a CLI run (`passthrough` is the universally valid value across all executor slots). Useful when investigating a file flagged by `report.consoleLeaks`. An invalid value for the current slot warns to stderr and is ignored. |
+| `VITEST_AGENT_CONSOLE` | Override the resolved console mode for the active executor on a CLI run (`passthrough` is the universally valid value across all executor slots). Useful when investigating a file flagged by `report.consoleLeaks`. A value the detected slot does not accept is ignored, with a stderr warning listing that slot's accepted values. |
 
 There is no environment variable that toggles coverage — that is configuration.
 

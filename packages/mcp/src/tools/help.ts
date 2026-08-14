@@ -42,7 +42,7 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 
 \`test\` actions:
 - \`{ action: "list", project?, state?, module?, limit? }\`
-- \`{ action: "get", fullName, project? }\`
+- \`{ action: "get", fullName, project?, modulePath? }\` — a \`fullName\` present in more than one module returns \`found: false\` with \`ambiguous: true\` and \`candidateModules[]\`; pass \`modulePath\` to pick one
 - \`{ action: "for_file", filePath }\`
 - \`{ action: "for_tag", tag, project? }\` — list every test carrying a tag, grouped by project (or one group when project is supplied)
 

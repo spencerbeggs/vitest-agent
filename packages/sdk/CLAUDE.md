@@ -61,7 +61,7 @@ src/
 | `contracts/reporter.ts` | Public reporter contract types: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory` |
 | `contracts/dispatcher.ts` | Public T6 dispatcher contract types: `RunShape` (4 cases), `RunOutcome` (3 cases), `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`. Consumed by `@vitest-agent/ui`'s dispatcher matrix and `DefaultVitestAgentReporter` |
 | `services/DataStore.ts` + `layers/DataStoreLive.ts` | All SQLite writes. Defines all write-input types plus `backfillTestCaseTurns(chatId)` and the 2.0 goal/behavior CRUD methods |
-| `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, `getSessionByTddTaskId` (resolves the session a TDD task was opened under; powers the MCP `hypothesis` tool's deterministic `tddTaskId` binding), and the 2.0 goal/behavior read methods |
+| `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, `getSessionByTddTaskId` (resolves the session a TDD task was opened under; powers the MCP `hypothesis` tool's deterministic `tddTaskId` binding), and the 2.0 goal/behavior read methods. `getHistory(project, options?)` takes `HistoryQueryOptions` (`{ testName?, modulePath?, limit? }`): exact-match SQL predicates plus a **per-test** run cap (default 20) implemented with `ROW_NUMBER() OVER (PARTITION BY module_path, full_name)` — a flat row `LIMIT` would starve later tests instead of trimming each test's own series. `getFlaky` / `getPersistentFailures` take the same `testName` / `modulePath` predicates via `ClassificationQueryOptions`, so a scoped caller no longer receives the whole project's classifications (issue #243). `getTestByFullName(project, fullName, options?)` takes `TestLookupOptions` (`{ modulePath? }`) plus a deterministic `ORDER BY f.path ASC` so the unfiltered case is stable, and `getTestModulesByFullName` lists every module carrying a name so callers can detect ambiguity instead of guessing. No schema change |
 | `utils/resolve-data-path.ts` | Deterministic XDG-derived `dbPath` orchestrator (Decision 31) |
 | `utils/ensure-migrated.ts` | Process-level migration coordinator using a `globalThis`-keyed promise cache (Decision 28). Registers `0001_initial` only on the main `data.db`; the registry and session-map DBs use their own single-file migrations |
 | `layers/PathResolutionLive.ts` | Composite: `XdgLive` + `ConfigLive` + `WorkspacesLive` |
@@ -153,6 +153,12 @@ src/
   tag and the live layer, add `Effect.logDebug`, use
   `extractSqlReason(e)` in `mapError`, and consider whether MCP/CLI
   consumers will want it.
+- Adding read-narrowing options (the `HistoryQueryOptions` pattern):
+  push predicates into SQL as `(${value} IS NULL OR col = ${value})`
+  guards so one query shape serves the scoped and unscoped calls, and
+  cap per-test series with a window function rather than a flat row
+  `LIMIT`. Export the options interface from both `index.ts` and
+  `testing/index.ts` — MCP tools consume the type.
 - Touching `resolveDataPath`/`PathResolutionLive`: callers still need
   `NodeServices.layer` (the v4 layer subsuming the former
   `NodeContext` + `NodeFileSystem`); don't bake it into

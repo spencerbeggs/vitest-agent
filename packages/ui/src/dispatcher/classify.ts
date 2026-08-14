@@ -47,10 +47,14 @@ export const classifyRunShape = (state: RenderState, projects: ReadonlyArray<Pro
 /**
  * Compute the outcome class from the reduced state.
  *
- * Precedence: failures win over threshold violations. A run with one
- * failing test and a coverage gap classifies as `some-fail`; the
- * threshold-violation cell is reserved for runs where the test suite
- * itself is clean but coverage policy is not.
+ * Precedence: failures win over timeouts, and both win over threshold
+ * violations. A run with one failing test and a coverage gap classifies
+ * as `some-fail`; the threshold-violation cell is reserved for runs
+ * where the test suite itself is clean but coverage policy is not. A
+ * run whose only non-passing signal is one or more timed-out tests
+ * (`totals.timeoutCount > 0`, `totals.failCount === 0`) also
+ * classifies as `some-fail` — timeouts are not passes, and must not
+ * route to a passing cell (issue #224).
  *
  * @param state - the fully-reduced render state
  * @returns the outcome classification
@@ -58,6 +62,9 @@ export const classifyRunShape = (state: RenderState, projects: ReadonlyArray<Pro
  */
 export const classifyOutcome = (state: RenderState): RunOutcome => {
 	if (state.totals.failCount > 0) {
+		return "some-fail";
+	}
+	if (state.totals.timeoutCount > 0) {
 		return "some-fail";
 	}
 	if (state.coverage !== null && state.coverage.violations.length > 0) {

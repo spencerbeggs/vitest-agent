@@ -50,6 +50,10 @@ src/
                                    only, and records a last-real-scan timestamp
                                    into a Symbol.for() process-global for the mcp
                                    handshake
+    is-test-shaped-package.ts  -- predicate behind the declined-package
+                                   warning (issue #229)
+    run-script-lock.ts         -- file-based advisory lock + done marker
+                                   for AgentPlugin.runScript (issue #191)
     classify-helpers.ts        -- classifyByFilename, classifyByDirectory,
                                    combineClassifiers (pure ClassifyFn builders)
     find-test-files.ts         -- async glob walker (node:fs/promises) with an
@@ -84,7 +88,9 @@ src/
 | `utils/build-reporter-kit.ts` | Constructs `ReporterKit` from resolved config + detected environment + `noColor` flag. `stdOsc8` is enabled when `!noColor && (env === "terminal" \|\| env === "agent-shell")` |
 | `utils/route-rendered-output.ts` | Dispatches a single `RenderedOutput` to its target: `stdout`, `github-summary` (append), or `file` (no-op) |
 | `utils/discover-strategy.ts` | `DiscoverStrategy` abstract class plus the `DefaultDiscoverStrategy` concrete subclass. Base factory is `DiscoverStrategy.create({ tags, buildProject, classify })`; `.extend({ additionalTags?, buildProject?, classify? })` chains immutable layers. The default strategy ships unit / int / e2e tags and a filename-suffix classifier, and its `buildProject` returns null when neither `src/` nor `__test__/` has tests. Include globs are anchored at the package root (`<path>/src/**/*.{test,spec}.{ts,tsx,js,jsx}` and `<path>/__test__/**/*.{test,spec}.{ts,tsx,js,jsx}`, built from `SRC_DIR` / `TEST_DIR` / `TEST_FILE_GLOB_SUFFIX` imported from `@vitest-agent/sdk`); the exclude list re-states `configDefaults.exclude` plus `<path>/__test__/**/{fixtures,snapshots,utils}/**` (`TEST_HELPER_DIRS`). The exclude is emitted unconditionally and bounds each `NON_DISCOVERABLE_DIRS` entry (`node_modules`, `.git`, `dist`) under BOTH include roots — `<path>/{src,__test__}/**/<dir>/**`. An anchored include already can't reach a package's own top-level `dist/`; the bounded globs additionally cover build output nested deeper (`src/foo/dist/x.test.ts`), which `configDefaults.exclude` does not, so the emitted config prunes exactly what `findTestFiles` prunes |
-| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries? })` runs the unified scan: every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path, and is invalidated by a cheap per-package signature over exactly `src/` and `__test__/` (`SRC_DIR` / `TEST_DIR` from `@vitest-agent/sdk`; per-directory readdir + mtimeMs, no content reads, no nested-dir walk) so the long-lived MCP server never serves stale include-globs (issue #100). The walks prune `node_modules` / `.git` / `dist` BEFORE recursing — Node's recursive readdir follows symlinks and a fixture `node_modules` would otherwise drag in the pnpm store. Every real scan records an ISO last-scan timestamp into a `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global; `getLastDiscoveryScanTimestamp()` reads it (mcp reads the same slot directly — it cannot import the plugin) |
+| `utils/discover-projects.ts` | `discoverProjects({ strategy?, cwd?, additionalEntries? })` runs the unified scan: every workspace package goes through `strategy.buildProject` (null skips), then `.addProject` entries are merged in with name and normalized-path conflict detection. Returns `{ projects: TestProjectInlineConfiguration[] \| undefined; tags }`. Process cache fires only on the strategy-less, additional-entry-less call path, and is invalidated by a cheap per-package signature over exactly `src/` and `__test__/` (`SRC_DIR` / `TEST_DIR` from `@vitest-agent/sdk`; per-directory readdir + mtimeMs, no content reads, no nested-dir walk) so the long-lived MCP server never serves stale include-globs (issue #100). The walks prune `node_modules` / `.git` / `dist` BEFORE recursing — Node's recursive readdir follows symlinks and a fixture `node_modules` would otherwise drag in the pnpm store. Every real scan records an ISO last-scan timestamp into a `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global; `getLastDiscoveryScanTimestamp()` reads it (mcp reads the same slot directly — it cannot import the plugin). A declined package that still looks test-shaped (`isTestShapedPackage`) gets one stderr warning pointing at `vitest-agent agent check-test-path`, deduped module-level so a package warns at most once per process (issue #229) |
+| `utils/is-test-shaped-package.ts` | `isTestShapedPackage(pkgPath)` — true when a `__test__/` directory exists at the package root (existence alone, not matching content) or `src/` holds a file matching `TEST_FILE_GLOB_SUFFIX`. Reuses the `@vitest-agent/sdk` constants and the `findTestFiles` walker; drives the one-warning-per-declined-package stderr notice in `discover-projects.ts` |
+| `utils/run-script-lock.ts` | File-based advisory lock for `AgentPlugin.runScript`: `resolveRunScriptLockDir()` (`$XDG_DATA_HOME/vitest-agent/runscript-locks/`, same `~/.local/share` fallback as `data.db`, keyed by a truncated SHA-256 of `(cwd, command)`), `acquireRunScriptLock` / `releaseRunScriptLock` / `markRunScriptDone`, plus the four `DEFAULT_*` timings (stale takeover, poll, wait timeout, built-recently window) and `MIN_LOCK_POLL_MS`. Each timing has a `VITEST_AGENT_RUNSCRIPT_*` env override the concurrency e2e suite uses, parsed through the exported `parseLockTimingOverride` (whole-string digits, bounds-checked; garbage/negative/zero falls back to the default). Takeover is two-tier: a lock past `staleMs` is stolen only when the pid recorded in it is dead (`process.kill(pid, 0)` → `ESRCH`) or the owner record is unreadable — a live owner keeps its lock at any age. Release is ownership-gated on a per-acquisition nonce (`RunScriptLock.ownerNonce`), so an owner that was taken over cannot delete the new owner's lock |
 | `utils/is-benign-vite-source-map-warning.ts` | Pure `isBenignViteSourceMapWarning(message)` predicate matching only the benign Vite "Failed to load source map" + ENOENT `.js.map` shape (issue #110). Consumed by `plugin.ts`'s `configResolved` logger filter |
 | `utils/classify-helpers.ts` | Pure ClassifyFn builders: `classifyByFilename` (record of suffixes or `[RegExp, tags]` tuples), `classifyByDirectory` (slash-bounded segment match), `combineClassifiers` (concat plus dedupe by tag name). Plug into `DiscoverStrategy.create({ classify })` or `.extend({ classify })` |
 | `utils/find-test-files.ts` | Async glob walker built on `node:fs/promises` with an inline glob-to-regex compiler. Skips `NON_DISCOVERABLE_DIRS` from `@vitest-agent/sdk` (`node_modules`, `.git`, `dist` — the same constant `classifyTestPath` and the cache-signature walk use), and stops at a nested `package.json` boundary (any directory but the walk root that declares one is another unit — keeps `**/`-shaped patterns from double-counting sibling packages). The boundary applies to every pattern, anchored or not. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
@@ -152,6 +158,23 @@ directly into Vitest's native `coverage.thresholds.autoUpdate`. The
 public `CoverageLevelPreset` type names the dual-output shape for
 user wiring.
 
+## AgentPlugin.runScript
+
+`AgentPlugin.runScript(command)` runs a shell command with output
+suppressed unless it fails — built for `globalSetup` build steps.
+Concurrent invocations of the same `(cwd, command)` pair serialize
+through the file-based advisory lock in `utils/run-script-lock.ts`
+(issue #191): the first caller runs the command, a concurrent caller
+blocks until the lock frees and then SKIPS its own run when the
+winner's done-marker is still inside the freshness window. Keep the
+`releaseRunScriptLock` call in the `finally` — a leaked lock file only
+recovers via the stale-takeover path (dead-pid probe, then age). Tune
+the four timings in tests through the `VITEST_AGENT_RUNSCRIPT_*` env
+overrides, never by lowering the production defaults. Serialization is
+best-effort by contract: a waiter still blocked after
+`waitTimeoutMs` runs the command anyway, unserialized, instead of
+hanging the caller's test run.
+
 ## Conventions
 
 - **No standalone `AgentReporter` export.** The class is an internal
@@ -216,8 +239,10 @@ user wiring.
   `classifyTestPath` / `findOwningWorkspace`);
   don't re-derive the rule here. Helper subdirs (`utils/`, `fixtures/`,
   `snapshots/`) inside `__test__/` are excluded automatically. A null
-  return from `buildProject` for a workspace package is a silent skip;
-  a null return for an `.addProject` entry throws.
+  return from `buildProject` for a workspace package is a silent skip —
+  unless the package still looks test-shaped, which earns one stderr
+  warning per package per process (issue #229); a null return for an
+  `.addProject` entry throws.
 - Changing tag classification: edit
   `utils/discover-strategy.ts` for the `DiscoverStrategy` contract,
   `utils/classify-helpers.ts` for the standalone classifier
@@ -275,7 +300,11 @@ the XDG path stack and `vitest-agent.config.toml`. `logLevel` /
 
 The plugin auto-detects the executor (`human`/`agent`/`ci`) via
 `EnvironmentDetector`, looks up the matching slot, and resolves a
-single `ConsoleMode` value. Per-slot defaults:
+single `ConsoleMode` value. A `VITEST_AGENT_CONSOLE` override that is
+not valid for the detected executor is ignored with a stderr warning
+that lists that executor's accepted literals (read off the schema's
+`.literals`, so the message cannot drift from the schema).
+Per-slot defaults:
 
 - `human` → `passthrough` (Vitest's own reporters do visible work)
 - `agent` → `agent` (markdown-flavored final-frame string)

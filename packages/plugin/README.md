@@ -9,7 +9,7 @@ Vitest plugin that turns your test suite into a live data source for LLM coding 
 ## Features
 
 - **`AgentPlugin`** — drop into `vitest.config.ts`; auto-detects human, agent and CI executors and adapts console output accordingly
-- **Project discovery** — `AgentPlugin.discover()` scans workspace packages, returns `{ projects, tags }` ready for `test.projects` and `test.tags`; classification tags apply at collection time, so every test declaration form inherits them, including wrapper testers like `@effect/vitest`'s `it.effect`
+- **Project discovery** — `AgentPlugin.discover()` scans workspace packages, returns `{ projects, tags }` ready for `test.projects` and `test.tags`; classification tags apply at collection time, so every test declaration form inherits them, including wrapper testers like `@effect/vitest`'s `it.effect`; a package that looks test-shaped but ends up with no project warns on stderr instead of silently running nothing
 - **Coverage presets** — `COVERAGE_LEVELS` and `COVERAGE_LEVELS_PER_FILE` return dual-output `{ thresholds, coverageTargets }` objects; `COVERAGE_AUTOUPDATE` tolerance functions plug into Vitest's native `autoUpdate`
 - **Failure classification** — persists per-test errors, computes failure signatures, classifies tests as stable, new-failure, persistent, flaky or recovered across runs
 - **Custom reporters** — pass any `VitestAgentReporterFactory` as the `reporter` option; the default wires `DefaultVitestAgentReporter` from `@vitest-agent/reporter`

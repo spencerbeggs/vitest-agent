@@ -142,16 +142,51 @@ export const TestHistoryAsMarkdown = TestHistoryResult.pipe(
 );
 
 export const testHistory = publicProcedure
-	.input(Schema.toStandardSchemaV1(Schema.Struct({ project: Schema.String })))
+	.input(
+		Schema.toStandardSchemaV1(
+			Schema.Struct({
+				project: Schema.String,
+				testName: Schema.optional(Schema.String).annotate({
+					description: "Exact full_name match — narrows to a single test's history.",
+				}),
+				modulePath: Schema.optional(Schema.String).annotate({
+					description: "Exact module_path match — narrows to tests in one file.",
+				}),
+				// A non-positive or fractional limit used to flow straight
+				// into the `rn <= limit` window predicate and silently
+				// return an empty history — indistinguishable from "this
+				// test has never run". Reject it at the input boundary
+				// instead (issue #243).
+				limit: Schema.optional(
+					Schema.Int.check(Schema.isGreaterThan(0)).annotate({
+						description: "Max runs kept per test, most-recent-first. Must be a positive integer. Default 20.",
+					}),
+				),
+			}),
+		),
+	)
 	.query(
 		async ({ ctx, input }): Promise<TestHistoryResultType> =>
 			ctx.runtime.runPromise(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
+					// `testName` / `modulePath` scope every section, not just
+					// `history` — a scoped call that still returned the whole
+					// project's flaky/persistent classifications (and a
+					// `hasData: true` derived from them) told the agent the
+					// requested test had history when it had none (issue #243).
+					const scopeOptions = {
+						...(input.testName !== undefined && { testName: input.testName }),
+						...(input.modulePath !== undefined && { modulePath: input.modulePath }),
+					};
+					const historyOptions = {
+						...scopeOptions,
+						...(input.limit !== undefined && { limit: input.limit }),
+					};
 					const [history, flaky, persistent] = yield* Effect.all([
-						reader.getHistory(input.project),
-						reader.getFlaky(input.project),
-						reader.getPersistentFailures(input.project),
+						reader.getHistory(input.project, historyOptions),
+						reader.getFlaky(input.project, scopeOptions),
+						reader.getPersistentFailures(input.project, scopeOptions),
 					]);
 
 					// t.runs is ordered most-recent-first (see classifyTest's documented

@@ -2,7 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer, Option } from "effect";
-import type { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { DataReaderLive } from "../src/layers/DataReaderLive.js";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
@@ -202,6 +202,147 @@ describe("DataReaderLive", () => {
 			expect(testA?.runs).toHaveLength(2);
 			const testB = result.tests.find((t) => t.fullName === "suite > test B");
 			expect(testB?.runs).toHaveLength(1);
+		});
+
+		it("filters to a single test by exact testName match", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("hist-testname-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-testname-hash" });
+
+					yield* store.writeHistory(
+						"hist-testname-proj",
+						"suite > test A",
+						"src/history.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						50,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"hist-testname-proj",
+						"suite > test B",
+						"src/history.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						30,
+						false,
+						0,
+						null,
+					);
+
+					return yield* reader.getHistory("hist-testname-proj", { testName: "suite > test A" });
+				}),
+			);
+			expect(result.tests).toHaveLength(1);
+			expect(result.tests[0]?.fullName).toBe("suite > test A");
+		});
+
+		it("filters to tests in a single module by modulePath", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("hist-modpath-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-modpath-hash" });
+
+					yield* store.writeHistory(
+						"hist-modpath-proj",
+						"suite > test A",
+						"src/a.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						50,
+						false,
+						0,
+						null,
+					);
+					yield* store.writeHistory(
+						"hist-modpath-proj",
+						"suite > test B",
+						"src/b.test.ts",
+						runId,
+						"2026-03-22T01:00:00.000Z",
+						"passed",
+						30,
+						false,
+						0,
+						null,
+					);
+
+					return yield* reader.getHistory("hist-modpath-proj", { modulePath: "src/b.test.ts" });
+				}),
+			);
+			expect(result.tests).toHaveLength(1);
+			expect(result.tests[0]?.fullName).toBe("suite > test B");
+		});
+
+		it("caps runs per test to the default limit of 20", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+					const sql = yield* SqlClient;
+
+					yield* store.writeSettings("hist-cap-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-cap-hash" });
+
+					// Insert directly via SqlClient (bypassing DataStore.writeHistory's
+					// own 10-entry write-time retention window) so this test can seed
+					// a dataset large enough to exercise the read-side cap in
+					// DataReaderLive.getHistory in isolation.
+					for (let i = 0; i < 25; i++) {
+						const timestamp = `2026-03-22T${String(i).padStart(2, "0")}:00:00.000Z`;
+						yield* sql`INSERT INTO test_history (run_id, project, module_path, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, 'hist-cap-proj', 'src/history.test.ts', 'suite > capped test', ${timestamp}, 'passed', 10, 0, 0, NULL)`;
+					}
+
+					return yield* reader.getHistory("hist-cap-proj");
+				}),
+			);
+			expect(result.tests).toHaveLength(1);
+			expect(result.tests[0]?.runs).toHaveLength(20);
+			// Most-recent-first: the last-written run (hour 24) must survive the cap.
+			expect(result.tests[0]?.runs[0]?.timestamp).toBe("2026-03-22T24:00:00.000Z");
+		});
+
+		it("respects an explicit limit override", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("hist-limit-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-limit-hash" });
+
+					for (let i = 0; i < 5; i++) {
+						yield* store.writeHistory(
+							"hist-limit-proj",
+							"suite > limited test",
+							"src/history.test.ts",
+							runId,
+							`2026-03-22T0${i}:00:00.000Z`,
+							"passed",
+							10,
+							false,
+							0,
+							null,
+						);
+					}
+
+					return yield* reader.getHistory("hist-limit-proj", { limit: 2 });
+				}),
+			);
+			expect(result.tests).toHaveLength(1);
+			expect(result.tests[0]?.runs).toHaveLength(2);
 		});
 	});
 
@@ -760,6 +901,169 @@ describe("DataReaderLive", () => {
 			expect(result[0].fullName).toBe("dup");
 			expect(result[0].modulePath).toBe("src/failing.test.ts");
 			expect(result[0].consecutiveFailures).toBe(2);
+		});
+	});
+
+	describe("classification scoping (issue #243)", () => {
+		// One project, two tests in two modules. The decoy is both flaky
+		// (pass -> fail after that pass) and persistently failing (two
+		// trailing failures); the target is neither. Before the fix,
+		// `getFlaky` / `getPersistentFailures` took no narrowing options at
+		// all, so a caller scoped to `target` still received the decoy's
+		// classifications.
+		const seedScopedProject = Effect.gen(function* () {
+			const store = yield* DataStore;
+			yield* store.writeSettings("scope-hash", settingsInput, {});
+			const runId = yield* store.writeRun({ ...runInput, settingsHash: "scope-hash" });
+
+			const write = (fullName: string, modulePath: string, timestamp: string, state: "passed" | "failed") =>
+				store.writeHistory(
+					"scope-proj",
+					fullName,
+					modulePath,
+					runId,
+					timestamp,
+					state,
+					10,
+					false,
+					0,
+					state === "failed" ? "boom" : null,
+				);
+
+			yield* write("Suite > decoy", "src/decoy.test.ts", "2026-03-22T01:00:00.000Z", "passed");
+			yield* write("Suite > decoy", "src/decoy.test.ts", "2026-03-22T02:00:00.000Z", "failed");
+			yield* write("Suite > decoy", "src/decoy.test.ts", "2026-03-22T03:00:00.000Z", "failed");
+			yield* write("Suite > target", "src/target.test.ts", "2026-03-22T01:00:00.000Z", "passed");
+			yield* write("Suite > target", "src/target.test.ts", "2026-03-22T02:00:00.000Z", "passed");
+		});
+
+		it("getFlaky honors testName / modulePath instead of returning the whole project", async () => {
+			const [unscoped, scopedToTarget, scopedToDecoyModule] = await run(
+				Effect.gen(function* () {
+					yield* seedScopedProject;
+					const reader = yield* DataReader;
+					return [
+						yield* reader.getFlaky("scope-proj"),
+						yield* reader.getFlaky("scope-proj", { testName: "Suite > target" }),
+						yield* reader.getFlaky("scope-proj", { modulePath: "src/decoy.test.ts" }),
+					] as const;
+				}),
+			);
+
+			expect(unscoped.map((r) => r.fullName)).toEqual(["Suite > decoy"]);
+			// The scoped call must not leak the decoy's flakiness.
+			expect(scopedToTarget).toHaveLength(0);
+			// ...and must not become over-scoped either.
+			expect(scopedToDecoyModule.map((r) => r.fullName)).toEqual(["Suite > decoy"]);
+		});
+
+		it("getPersistentFailures honors testName / modulePath instead of returning the whole project", async () => {
+			const [unscoped, scopedToTarget, scopedToDecoy] = await run(
+				Effect.gen(function* () {
+					yield* seedScopedProject;
+					const reader = yield* DataReader;
+					return [
+						yield* reader.getPersistentFailures("scope-proj"),
+						yield* reader.getPersistentFailures("scope-proj", { testName: "Suite > target" }),
+						yield* reader.getPersistentFailures("scope-proj", {
+							testName: "Suite > decoy",
+							modulePath: "src/decoy.test.ts",
+						}),
+					] as const;
+				}),
+			);
+
+			expect(unscoped.map((r) => r.fullName)).toEqual(["Suite > decoy"]);
+			expect(scopedToTarget).toHaveLength(0);
+			expect(scopedToDecoy.map((r) => r.fullName)).toEqual(["Suite > decoy"]);
+			expect(scopedToDecoy[0]?.consecutiveFailures).toBe(2);
+		});
+	});
+
+	describe("getTestByFullName ambiguity (issue #243)", () => {
+		// `full_name` is not file-qualified, so one run can carry the same
+		// name in several modules. The lookup used to be `LIMIT 1` with no
+		// ORDER BY and no module predicate — an arbitrary variant won.
+		const seedDuplicateNames = Effect.gen(function* () {
+			const store = yield* DataStore;
+			yield* store.writeSettings("dupe-hash", settingsInput, {});
+			const runId = yield* store.writeRun({ ...runInput, project: "dupe-proj", settingsHash: "dupe-hash" });
+
+			for (const [modulePath, state] of [
+				["src/aaa.test.ts", "passed"],
+				["src/zzz.test.ts", "failed"],
+			] as const) {
+				const fileId = yield* store.ensureFile(modulePath);
+				const [moduleId] = yield* store.writeModules(runId, [
+					{ fileId, relativeModuleId: modulePath, state, duration: 10 },
+				]);
+				yield* store.writeSuites(moduleId, [{ name: "Suite", fullName: "Suite", state }]);
+				yield* store.writeTestCases(moduleId, [{ name: "shared", fullName: "Suite > shared", state, duration: 5 }]);
+			}
+		});
+
+		it("returns the requested module's variant when modulePath is supplied", async () => {
+			const [aaa, zzz] = await run(
+				Effect.gen(function* () {
+					yield* seedDuplicateNames;
+					const reader = yield* DataReader;
+					return [
+						yield* reader.getTestByFullName("dupe-proj", "Suite > shared", { modulePath: "src/aaa.test.ts" }),
+						yield* reader.getTestByFullName("dupe-proj", "Suite > shared", { modulePath: "src/zzz.test.ts" }),
+					] as const;
+				}),
+			);
+
+			expect(Option.isSome(aaa)).toBe(true);
+			expect(Option.isSome(zzz)).toBe(true);
+			if (Option.isSome(aaa)) expect(aaa.value.module).toBe("src/aaa.test.ts");
+			if (Option.isSome(zzz)) {
+				expect(zzz.value.module).toBe("src/zzz.test.ts");
+				expect(zzz.value.state).toBe("failed");
+			}
+		});
+
+		it("returns Option.none() when modulePath names a module the test is not in", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					yield* seedDuplicateNames;
+					const reader = yield* DataReader;
+					return yield* reader.getTestByFullName("dupe-proj", "Suite > shared", {
+						modulePath: "src/absent.test.ts",
+					});
+				}),
+			);
+			expect(Option.isNone(result)).toBe(true);
+		});
+
+		it("is deterministic (lowest module_path) when no modulePath is supplied", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					yield* seedDuplicateNames;
+					const reader = yield* DataReader;
+					return yield* reader.getTestByFullName("dupe-proj", "Suite > shared");
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			if (Option.isSome(result)) expect(result.value.module).toBe("src/aaa.test.ts");
+		});
+
+		it("getTestModulesByFullName lists every module carrying the name, ascending", async () => {
+			const [dupes, missing, emptyProject] = await run(
+				Effect.gen(function* () {
+					yield* seedDuplicateNames;
+					const reader = yield* DataReader;
+					return [
+						yield* reader.getTestModulesByFullName("dupe-proj", "Suite > shared"),
+						yield* reader.getTestModulesByFullName("dupe-proj", "Suite > absent"),
+						yield* reader.getTestModulesByFullName("no-such-proj", "Suite > shared"),
+					] as const;
+				}),
+			);
+
+			expect(dupes).toEqual(["src/aaa.test.ts", "src/zzz.test.ts"]);
+			expect(missing).toEqual([]);
+			expect(emptyProject).toEqual([]);
 		});
 	});
 

@@ -2,9 +2,27 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TEST_DIR } from "@vitest-agent/sdk";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { discoverProjects } from "../src/utils/discover-projects.js";
-import { DiscoverStrategy } from "../src/utils/discover-strategy.js";
+import { DefaultDiscoverStrategy, DiscoverStrategy } from "../src/utils/discover-strategy.js";
+
+// Widens the async window inside the declined-package warning so the
+// check-then-act race on the warn-once Set is deterministic rather than
+// dependent on how two real scans happen to interleave. `probeDelayMs` is 0
+// for every other test, which delegates straight to the real predicate.
+const probeControl = vi.hoisted(() => ({ probeDelayMs: 0 }));
+vi.mock("../src/utils/is-test-shaped-package.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../src/utils/is-test-shaped-package.js")>();
+	return {
+		...actual,
+		isTestShapedPackage: async (pkgPath: string): Promise<boolean> => {
+			if (probeControl.probeDelayMs > 0) {
+				await new Promise((resolveDelay) => setTimeout(resolveDelay, probeControl.probeDelayMs));
+			}
+			return actual.isTestShapedPackage(pkgPath);
+		},
+	};
+});
 
 let tmpDir: string;
 
@@ -283,5 +301,107 @@ describe("discoverProjects()", () => {
 			expect(secondInclude?.some((p) => p.includes("__test__/"))).toBe(true);
 			expect(second).not.toBe(first);
 		});
+	});
+});
+
+// Re-authored inside the active red phase window (D2 evidence binding).
+describe("declined-package warning (issue #229)", () => {
+	let stderrSpy: ReturnType<typeof vi.spyOn>;
+
+	beforeEach(() => {
+		stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+	});
+
+	afterEach(() => {
+		stderrSpy.mockRestore();
+	});
+
+	function stderrMessages(): string[] {
+		return stderrSpy.mock.calls.map((call: unknown[]) => String(call[0]));
+	}
+
+	it("warns once naming the package and the check-test-path probe when a test-shaped package is declined", async () => {
+		// Given: a package whose __test__/ dir exists but holds no matching test
+		// files — buildProject declines it (returns null) even though the
+		// directory signals test intent.
+		const pkgDir = join(tmpDir, "packages", "warn-me");
+		await mkdir(join(pkgDir, "__test__"), { recursive: true });
+		await writeFile(join(pkgDir, "package.json"), JSON.stringify({ name: "@test/warn-me", version: "0.0.0" }));
+		await writeFile(join(pkgDir, "__test__", "helper.ts"), "");
+
+		// When: discoverProjects is called
+		const { projects } = await discoverProjects({ cwd: tmpDir });
+
+		// Then: the package is still declined (no project), and a stderr warning
+		// names the package and points at the diagnostic probe.
+		expect(projects === undefined || projects.every((p) => p.test?.name !== "@test/warn-me")).toBe(true);
+		const calls = stderrMessages();
+		const warning = calls.find((c) => c.includes("@test/warn-me"));
+		expect(warning).toBeDefined();
+		expect(warning).toContain("check-test-path");
+	});
+
+	it("does not warn for a package that legitimately has no tests", async () => {
+		// Given: a package with src/ but no test-named file, and no __test__/ dir —
+		// a perfectly ordinary non-test-shaped package.
+		const pkgDir = join(tmpDir, "packages", "no-tests-legit");
+		await mkdir(join(pkgDir, "src"), { recursive: true });
+		await writeFile(join(pkgDir, "package.json"), JSON.stringify({ name: "@test/no-tests-legit", version: "0.0.0" }));
+		await writeFile(join(pkgDir, "src", "index.ts"), "export const x = 1;");
+
+		// When: discoverProjects is called
+		await discoverProjects({ cwd: tmpDir });
+
+		// Then: no warning mentions this package
+		const calls = stderrMessages();
+		expect(calls.some((c) => c.includes("@test/no-tests-legit"))).toBe(false);
+	});
+
+	it("warns at most once per package across repeated discoverProjects() calls", async () => {
+		// Given: the same declined, test-shaped package as above, with a custom
+		// strategy passed explicitly so the process-level result cache never
+		// short-circuits repeated calls into the packages loop.
+		const pkgDir = join(tmpDir, "packages", "warn-once");
+		await mkdir(join(pkgDir, "__test__"), { recursive: true });
+		await writeFile(join(pkgDir, "package.json"), JSON.stringify({ name: "@test/warn-once", version: "0.0.0" }));
+		await writeFile(join(pkgDir, "__test__", "helper.ts"), "");
+		const strategy = new DefaultDiscoverStrategy();
+
+		// When: discoverProjects is called twice in a row
+		await discoverProjects({ strategy, cwd: tmpDir });
+		await discoverProjects({ strategy, cwd: tmpDir });
+
+		// Then: exactly one warning mentions this package, not two
+		const calls = stderrMessages();
+		const matches = calls.filter((c) => c.includes("@test/warn-once"));
+		expect(matches).toHaveLength(1);
+	});
+
+	it("warns at most once per package when two discoverProjects() calls run concurrently", async () => {
+		// Given: a declined, test-shaped package. The dedup Set is consulted and
+		// written on opposite sides of the async isTestShapedPackage() probe, so
+		// two overlapping scans can both pass the `has()` guard before either
+		// records the path — the classic check-then-act race.
+		const pkgDir = join(tmpDir, "packages", "warn-concurrent");
+		await mkdir(join(pkgDir, "__test__"), { recursive: true });
+		await writeFile(join(pkgDir, "package.json"), JSON.stringify({ name: "@test/warn-concurrent", version: "0.0.0" }));
+		await writeFile(join(pkgDir, "__test__", "helper.ts"), "");
+		const strategy = new DefaultDiscoverStrategy();
+
+		// When: two scans run concurrently (the MCP server re-resolves discovery
+		// while a Vitest config load is already in flight). The probe is slowed
+		// so the second scan is guaranteed to reach the dedup guard while the
+		// first is still suspended inside it.
+		probeControl.probeDelayMs = 100;
+		try {
+			await Promise.all([discoverProjects({ strategy, cwd: tmpDir }), discoverProjects({ strategy, cwd: tmpDir })]);
+		} finally {
+			probeControl.probeDelayMs = 0;
+		}
+
+		// Then: exactly one warning mentions this package, not two
+		const calls = stderrMessages();
+		const matches = calls.filter((c) => c.includes("@test/warn-concurrent"));
+		expect(matches).toHaveLength(1);
 	});
 });
