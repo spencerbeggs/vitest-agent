@@ -1,5 +1,13 @@
 # @vitest-agent/sidecar-win32-x64
 
+## 2.0.12
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From  | To    |
+| ----------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/sdk | dependency | updated | 2.2.1 | 2.2.2 |
+
 ## 2.0.11
 
 ### Dependencies
