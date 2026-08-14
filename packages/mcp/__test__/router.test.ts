@@ -552,7 +552,16 @@ describe("MCP Router", () => {
 						{ fileId, relativeModuleId: modulePath, state, duration: 20 },
 					]);
 					yield* store.writeSuites(moduleId, [{ name: "Suite", fullName: "Suite", state }]);
-					yield* store.writeTestCases(moduleId, [{ name: "shared", fullName: "Suite > shared", state, duration: 5 }]);
+					const [testCaseId] = yield* store.writeTestCases(moduleId, [
+						{ name: "shared", fullName: "Suite > shared", state, duration: 5 },
+					]);
+					if (state === "failed" && testCaseId !== undefined) {
+						// An error on the zzz variant only: the aaa-scoped get must
+						// not fold it into its errors section (same-fullName bleed).
+						yield* store.writeErrors(runId, [
+							{ testCaseId, scope: "test", name: "AssertionError", message: "zzz-second only" },
+						]);
+					}
 				}
 			}),
 		);
@@ -586,6 +595,8 @@ describe("MCP Router", () => {
 		if (second.action === "get" && second.found) {
 			expect(second.test.module).toBe("src/zzz-second.test.ts");
 			expect(second.test.state).toBe("failed");
+			expect(second.errors).toHaveLength(1);
+			expect(second.errors[0]?.message).toBe("zzz-second only");
 		} else {
 			expect.fail("expected the zzz variant to be found");
 		}
@@ -601,6 +612,9 @@ describe("MCP Router", () => {
 		if (first.action === "get" && first.found) {
 			expect(first.test.module).toBe("src/aaa-first.test.ts");
 			expect(first.test.state).toBe("passed");
+			// The zzz variant's error must not bleed into the aaa-scoped get:
+			// the errors filter is module-scoped, not fullName-only.
+			expect(first.errors).toHaveLength(0);
 		} else {
 			expect.fail("expected the aaa variant to be found");
 		}

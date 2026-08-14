@@ -878,7 +878,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							f.path as module_file
 						FROM test_errors te
 						LEFT JOIN test_cases tc ON tc.id = te.test_case_id
-						LEFT JOIN test_modules tm ON tm.id = te.module_id
+						LEFT JOIN test_modules tm ON tm.id = COALESCE(te.module_id, tc.module_id)
 						LEFT JOIN files f ON f.id = tm.file_id
 						LEFT JOIN stack_frames sf ON sf.error_id = te.id AND sf.ordinal = 0
 						WHERE te.run_id = ${runId} AND te.name = ${errorName}`
@@ -900,7 +900,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 							f.path as module_file
 						FROM test_errors te
 						LEFT JOIN test_cases tc ON tc.id = te.test_case_id
-						LEFT JOIN test_modules tm ON tm.id = te.module_id
+						LEFT JOIN test_modules tm ON tm.id = COALESCE(te.module_id, tc.module_id)
 						LEFT JOIN files f ON f.id = tm.file_id
 						LEFT JOIN stack_frames sf ON sf.error_id = te.id AND sf.ordinal = 0
 						WHERE te.run_id = ${runId}`;

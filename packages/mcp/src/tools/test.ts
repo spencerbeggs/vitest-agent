@@ -320,7 +320,7 @@ export const test = publicProcedure
 								if (Option.isNone(testOpt)) continue;
 								const errors = yield* reader.getErrors(project);
 								const matchingErrors = errors
-									.filter((e) => e.testFullName === variant.fullName)
+									.filter((e) => e.testFullName === variant.fullName && e.moduleFile === testOpt.value.module)
 									.map((e) => ({ name: e.name, message: e.message, diff: e.diff, stack: e.stack }));
 								const history = yield* reader.getHistory(project, {
 									testName: variant.fullName,
