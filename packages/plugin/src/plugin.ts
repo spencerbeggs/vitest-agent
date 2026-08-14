@@ -45,8 +45,10 @@ import {
 	DEFAULT_LOCK_POLL_MS,
 	DEFAULT_LOCK_STALE_MS,
 	DEFAULT_LOCK_WAIT_TIMEOUT_MS,
+	MIN_LOCK_POLL_MS,
 	acquireRunScriptLock,
 	markRunScriptDone,
+	parseLockTimingOverride,
 	releaseRunScriptLock,
 } from "./utils/run-script-lock.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
@@ -716,12 +718,16 @@ export namespace AgentPlugin {
 		});
 	}
 
-	/** Parses a `VITEST_AGENT_RUNSCRIPT_*` override env var, falling back to `fallback` when unset or non-numeric. Test-support: lets the concurrency e2e suite use short timeouts instead of the production-sized defaults. */
-	function readRunScriptLockEnvOverride(name: string, fallback: number): number {
-		const raw = process.env[name];
-		if (raw === undefined) return fallback;
-		const parsed = Number.parseInt(raw, 10);
-		return Number.isFinite(parsed) ? parsed : fallback;
+	/**
+	 * Parses a `VITEST_AGENT_RUNSCRIPT_*` override env var, falling back to
+	 * `fallback` for anything that is not a whole positive integer at or above
+	 * `minimum`. Test-support: lets the concurrency e2e suite use short timeouts
+	 * instead of the production-sized defaults — but a typo there (`"200ms"`,
+	 * `"-1"`, `"0"`) must degrade to the default rather than to an
+	 * instantly-stale lock or a busy-spinning waiter.
+	 */
+	function readRunScriptLockEnvOverride(name: string, fallback: number, minimum = 1): number {
+		return parseLockTimingOverride(process.env[name], fallback, minimum);
 	}
 
 	/**
@@ -734,9 +740,13 @@ export namespace AgentPlugin {
 	 * through a file-based advisory lock (issue #191): the first caller
 	 * runs the command; a concurrent caller blocks until the lock frees,
 	 * then skips its own run when the winner's build is still fresh
-	 * (`DEFAULT_BUILT_RECENTLY_MS`) rather than repeating it. See
-	 * `utils/run-script-lock.ts` for the stale-takeover and
-	 * wait-timeout tradeoffs.
+	 * (`DEFAULT_BUILT_RECENTLY_MS`) rather than repeating it.
+	 *
+	 * Serialization is best-effort by design: a waiter that is still
+	 * blocked after `DEFAULT_LOCK_WAIT_TIMEOUT_MS` gives up and runs the
+	 * command anyway, unserialized, rather than hanging the caller's test
+	 * run forever. See `utils/run-script-lock.ts` for that escape valve
+	 * and for the two-tier (pid probe, then age) stale-takeover rule.
 	 *
 	 * On failure the captured stderr and stdout are written to their respective
 	 * streams before rethrowing, so the error is still visible to humans and
@@ -759,7 +769,11 @@ export namespace AgentPlugin {
 				"VITEST_AGENT_RUNSCRIPT_LOCK_WAIT_TIMEOUT_MS",
 				DEFAULT_LOCK_WAIT_TIMEOUT_MS,
 			),
-			pollMs: readRunScriptLockEnvOverride("VITEST_AGENT_RUNSCRIPT_LOCK_POLL_MS", DEFAULT_LOCK_POLL_MS),
+			pollMs: readRunScriptLockEnvOverride(
+				"VITEST_AGENT_RUNSCRIPT_LOCK_POLL_MS",
+				DEFAULT_LOCK_POLL_MS,
+				MIN_LOCK_POLL_MS,
+			),
 			builtRecentlyMs: readRunScriptLockEnvOverride(
 				"VITEST_AGENT_RUNSCRIPT_BUILT_RECENTLY_MS",
 				DEFAULT_BUILT_RECENTLY_MS,

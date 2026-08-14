@@ -76,7 +76,9 @@ src/
 | `context.ts` | tRPC `McpContext` carrying the `ManagedRuntime` so procedures call `ctx.runtime.runPromise(effect)` |
 | `router.ts` | Aggregates all tool procedures; testable via `createCallerFactory(appRouter)` without starting the MCP server |
 | `tools/run-tests.ts` | In-process `createVitest` (`vitest/node`) + `localVitest.start()` with configurable timeout (default 120s); overrides `coverage.reportsDirectory` with a per-invocation `mkdtemp` dir (removed in `finally`) so concurrent runs don't `rm -rf` each other's coverage `.tmp` files — everything else about coverage still comes from the user's config, and MCP consumers read coverage from SQLite, not disk artifacts; builds the `AgentReport` from `result.testModules` and folds `consoleLeaks` from the post-run `state.getFiles()` task-tree walk. `RunTestsOk` carries `scope: { project, files, tags }` — the resolved filter set echoed verbatim, so an agent can tell "ran exactly what I asked" from "a dropped param ran everything" — plus `discoveryLastScannedAt: string \| null`, read via the internal `readDiscoveryLastScannedAt()` helper from the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global the plugin's `discoverProjects()` writes (issue #100 — mcp cannot import the plugin, so the shared symbol slot is the handshake) |
-| `tools/history.ts` | `test_history` — accepts optional `testName` / `modulePath` / `limit` alongside `project` and forwards them to `DataReader.getHistory`'s `HistoryQueryOptions`. `limit` caps runs kept **per test** (default 20), not total rows |
+| `tools/history.ts` | `test_history` — accepts optional `testName` / `modulePath` / `limit` alongside `project`. `testName` / `modulePath` scope **every** section: they go to `DataReader.getHistory`'s `HistoryQueryOptions` AND to `getFlaky` / `getPersistentFailures`'s `ClassificationQueryOptions`, and `hasData` is derived from the scoped result sets (issue #243 — a scoped call used to return the whole project's classifications). `limit` caps runs kept **per test** (default 20), not total rows, and must be a positive integer on both the tRPC and served schemas |
+| `tools/test.ts` | Consolidated `test` tool. `action: "get"` takes an optional `modulePath`: a `fullName` is not file-qualified (D20), so when it matches more than one module and no `modulePath` is given the tool returns the absent shape with `ambiguous: true` and `candidateModules[]` rather than guessing a variant (issue #243) |
+| `utils/safe-format-fatal-error.ts` | `safeFormatFatalError(err)` — never-throwing wrapper around the sdk's `formatFatalError`, used by `bin.ts`'s crash guards. The formatter introspects its input (`Symbol.for(...) in err`, `instanceof`, `JSON.stringify`) and a hostile `Proxy` can make any of those throw; a throw inside an `uncaughtException` handler kills the process the guard exists to protect |
 | `utils/crash-guards.ts` | Pure `shouldExitOnUncaughtException(transportConnected)`: exit while no client session exists, survive after connect. The one place the departure from Node's "do not resume" guidance is stated and tested |
 | `utils/tool-error-envelope.ts` | `buildUnexpectedToolErrorEnvelope(tool, err)` — the `{ ok: false, error: { _tag: "UnexpectedToolError", tool, message, remediation } }` success-shape returned with `isError: true` when a resolver throws. Coerces the thrown value defensively (a getter-backed `.message` can itself throw) |
 | `tools/note.ts` | Single action-keyed tool covering all six note operations (`create`/`list`/`get`/`update`/`delete`/`search`) via the `action` discriminator |
@@ -103,6 +105,13 @@ src/
   asked for. The rule is all-or-nothing: `strict({})` for empty shapes
   (`acceptance_metrics`); only the four tools with no `inputSchema` at
   all (`help`, `cache_health`, `settings_list`, `ping`) stay bare.
+  The rule applies at **every object level**, not just the top one — a
+  nested plain `z.object` strips unknown keys, so `run_tests`'s
+  `{ tags: { anyy: [...] } }` decoded to `{ tags: {} }` and the run went
+  wide across the whole workspace (issue #243). Nested shapes
+  (`run_tests`'s `tags` / `_sessionContext`) go through `strict(...)`
+  too; `server-strict-schemas.test.ts` walks every served JSON Schema
+  and fails on any object node missing `additionalProperties: false`.
 - **The MCP process must survive a stray throw.** Never remove the
   module-scope crash guards in `bin.ts` or replace them with a bare
   `main().catch()`; a killed process deregisters every tool mid-session
@@ -186,10 +195,13 @@ src/
   from `getRunsByProject()` when `project` is unspecified. Don't default
   to a literal `"default"` (post-2.0 bug fix).
 - Narrowing history: push `testName` / `modulePath` / `limit` into
-  `DataReader.getHistory` instead of fetching a project and filtering
-  in the tool. `fullName` is not file-qualified (Decision D20), so a
-  client-side `find` can match another module's same-named test — the
-  `test({ action: "get" })` bug in issue #241.
+  `DataReader.getHistory` — and the same `testName` / `modulePath` into
+  `getFlaky` / `getPersistentFailures` — instead of fetching a project
+  and filtering in the tool. `fullName` is not file-qualified (Decision
+  D20), so a client-side `find` can match another module's same-named
+  test — the `test({ action: "get" })` bug in issue #241, whose
+  duplicate-`fullName` half was fixed in #243 via `modulePath` +
+  ambiguity refusal.
 - The MCP server's runtime is constructed once at startup. If
   `dbPath` resolution fails at boot, the server should not start --
   surface the error via stderr and exit non-zero so the loader can

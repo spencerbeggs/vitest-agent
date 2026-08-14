@@ -496,6 +496,17 @@ not per-call, so a package is named at most once per process no matter
 how many times Vite re-invokes `configureVitest` (and therefore
 discovery) across a multi-project config.
 
+The dedup is **reservation-based**, not check-then-set: the path is
+added to the warned-set *before* the async `isTestShapedPackage` probe,
+not after the warning is written. Two overlapping `discoverProjects()`
+calls — the long-lived MCP server re-resolving discovery while a Vitest
+config load is in flight — would otherwise both clear the `has()` guard
+while the first was still awaiting the probe, and both would warn. The
+reservation is released again when the package turns out **not** to be
+test-shaped (and on a probe throw, before rethrowing), so a package that
+later grows a `__test__/` directory can still be warned about in a
+subsequent run.
+
 Users that want to mutate projects post-discovery either extend the strategy
 (preferred) or destructure the result and mutate the array before
 spreading it into `defineConfig`. `discoverProjects` itself is exported
@@ -651,23 +662,67 @@ advisory lock over three moving parts:
   removes its lock file *after* writing the marker, so a waiter landing
   in that gap would otherwise see a free lock, acquire it, and re-run
   the command — defeating the marker.
-- **Two escape valves, both deliberate.** A lock older than `staleMs`
-  (5m) is taken over, because a process killed mid-build would otherwise
-  hang every future `vitest` invocation forever. A waiter that blocks
-  past `waitTimeoutMs` (10m) on a still-live lock gives up and runs its
-  own build, which reproduces the original race for that one pair of
-  processes — accepted as strictly better than hanging a test run
-  indefinitely.
+- **Two-tier stale takeover — liveness first, age second.** A lock left
+  behind by a process killed mid-build would otherwise hang every future
+  `vitest` invocation forever, so takeover has to exist; but age alone is
+  not evidence of abandonment, because the lock file's mtime is never
+  refreshed during a build and a long-but-healthy build therefore looks
+  identical to a dead one. The lock file records the owner's pid, and
+  once the lock is older than `staleMs` that pid is probed with
+  `process.kill(pid, 0)`. A live owner keeps its lock however old it is;
+  `EPERM` counts as **alive** (the process exists, it just belongs to
+  another user) and is emphatically not ours to take. Only a dead owner
+  (`ESRCH`), or a lock file whose owner record is missing or corrupt —
+  observed mid-write, truncated, hand-edited, in which case age is all
+  there is to go on — is taken over.
+- **Release is ownership-gated by a nonce.** `acquireRunScriptLock`
+  stamps a random per-acquisition token (`ownerNonce`, 12 random bytes
+  hex) into the lock file, returned on the `RunScriptLock` and `null`
+  when this call did not acquire. `releaseRunScriptLock` re-reads the
+  file and deletes it only while the nonce on disk still matches. Without
+  that gate, an owner that had already lost its lock to a takeover would
+  delete the *takeover* owner's lock in its `finally`, admitting a third
+  process while the second was still building — the release path
+  re-creating the very race the lock exists to prevent.
+- **Init-failure cleanup.** The `wx` create and the owner-record write
+  are separate steps, so a throw between them leaves a lock file nobody
+  holds; every later caller would then stall until stale recovery or its
+  own wait timeout. The write is wrapped so a failure removes the file it
+  just created before rethrowing, and the descriptor is closed in a
+  `finally` on both paths.
+- **The wait timeout is an escape valve, not serialization giving up
+  quietly.** A waiter blocked past `waitTimeoutMs` (10m) on a still-live
+  lock returns `{ acquired: false, recentlyBuilt: false }` and
+  `AgentPlugin.runScript` runs its command **unserialized**. That
+  reproduces the original race for that one pair of processes and is
+  documented as deliberate: a slow-yet-successful duplicate build is a
+  far better failure mode than hanging a caller's test run forever.
+
+`DEFAULT_LOCK_STALE_MS` is **60s**, down from the original 5 minutes. The
+shortening is safe precisely because it is no longer load-bearing for
+correctness: with the pid probe in front of it, age only decides the
+unreadable-record case, and one minute comfortably covers the
+`globalSetup` build steps this lock is built for. Liveness carries the
+correctness; age is the fallback.
 
 The wait is a synchronous thread block (`Atomics.wait` on a throwaway
 `SharedArrayBuffer`), not an async sleep, because `runScript` is a
 synchronous helper called from `globalSetup`. All four timings are
 injectable as options and readable from `VITEST_AGENT_RUNSCRIPT_*` env
 vars so the concurrency e2e suite can use millisecond-scale values
-instead of the production-sized defaults. `markRunScriptDone` and
-`releaseRunScriptLock` are both best-effort: a failed marker write only
-costs the next process its short-circuit, and a failed release means a
-stale takeover cleans up instead.
+instead of the production-sized defaults — but those overrides are
+parsed **strictly**, by the exported `parseLockTimingOverride`, not by a
+bare `Number.parseInt`. `parseInt` happily accepts `"200ms"` (→ 200),
+`"-1"` (→ a negative stale window, making every lock instantly stale)
+and `"0"` for a poll interval (a tight spin loop). The parser requires a
+whole-string run of digits, a safe integer, and a value at or above a
+per-setting `minimum` — `MIN_LOCK_POLL_MS` (10) for the poll interval,
+1 elsewhere — and falls back to the default for anything else. A typo in
+a test's env var must degrade to the production default, never to a
+broken lock. `markRunScriptDone` and `releaseRunScriptLock` are both
+best-effort: a failed marker write only costs the next process its
+short-circuit, and a failed release means a stale takeover cleans up
+instead.
 
 ## Reporter-side utilities
 

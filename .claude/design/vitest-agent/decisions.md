@@ -1440,6 +1440,23 @@ directions per tool — unknown key rejected, documented params still
 accepted — so the pass cannot quietly overshoot into rejecting valid
 calls.
 
+**Extension (issue #243): the rule is per object *level*, not per
+tool.** The first pass wrapped only each tool's outermost shape, which
+left the identical hole one level down — a plain nested `z.object`
+strips unknown keys exactly like a bare raw shape. `run_tests` declared
+`tags` and `_sessionContext` that way, so `{ tags: { anyy: [...] } }`
+decoded to `{ tags: {} }`: the filter disappeared, the run went wide
+across the whole workspace, and the strict top level reported nothing.
+Nested shapes go through the same helper. The regression guard is
+structural rather than table-driven — a sweep walks every *served* JSON
+Schema (recursing through `properties`, the `anyOf` / `oneOf` / `allOf`
+/ `prefixItems` wrappers zod emits around optionals and unions, `items`,
+and `$defs`) and asserts `additionalProperties: false` on every object
+node. A sweep is the right shape here for two reasons a longer case
+table cannot match: it covers tools a unit suite cannot safely *call*
+(`run_tests` runs tests), and it keeps holding for nested shapes added
+later without anyone remembering to extend a list.
+
 **Companion: positive confirmation of scope.** Rejection covers the
 misspelled-key case; it cannot cover a caller that passes nothing and
 assumes narrowing happened. `RunTestsOk` therefore echoes the resolved
@@ -1503,15 +1520,46 @@ top of every poll iteration, not only on the `EEXIST` branch, because the
 winner removes its lock file after writing the marker and a waiter
 landing in that window would otherwise re-acquire and re-run.
 
-**Trade-offs accepted, both deliberate.** A lock older than 5 minutes is
-taken over, because a process killed mid-build would otherwise hang every
-future `vitest` invocation in that checkout forever. A waiter blocked past
-10 minutes on a still-live lock gives up and builds independently, which
+**Refinement: liveness decides takeover, not age (issue #243).** The
+original rule took over any lock older than `staleMs`. That is wrong in
+both directions: a lock file's mtime is never refreshed during a build,
+so a long-but-healthy build is indistinguishable by age from a dead one
+and gets its lock stolen and its command double-run. Takeover is now
+two-tier. The lock file records the owner's pid; past `staleMs` that pid
+is probed with `process.kill(pid, 0)`, and a live owner keeps its lock
+however old it is — `EPERM` counts as alive, since the process exists
+and merely belongs to another user. Only a dead owner (`ESRCH`) or a
+lock file with no readable owner record (mid-write, truncated,
+hand-edited — where age is the only signal left) falls back to the age
+rule. Release is gated the same way: a random per-acquisition nonce is
+stamped into the lock file, and a releaser deletes it only while that
+nonce is still on disk. Without the gate, an owner that had already lost
+its lock to a takeover would delete the *takeover* owner's lock in its
+`finally` and admit a third process mid-build — the release path
+re-creating the race the lock exists to prevent.
+
+**Consequence: the stale default drops 5 minutes → 60 seconds.** With
+the pid probe in front of it, age is no longer load-bearing for
+correctness — it only decides the unreadable-record case — so the window
+can be tuned for recovery latency instead of for the worst imaginable
+build. The `globalSetup` build steps this lock is built for are expected
+to finish well under a minute, and a crashed owner's lock now clears in
+60s rather than five minutes.
+
+**Trade-offs accepted, both deliberate.** The stale takeover exists at
+all because a process killed mid-build would otherwise hang every future
+`vitest` invocation in that checkout forever. A waiter blocked past 10
+minutes on a still-live lock gives up and builds **unserialized**, which
 reproduces the original race for that one pair of processes — accepted
 because an indefinitely hung test run is worse than a rare duplicated
-build. The wait is a synchronous thread block (`Atomics.wait`), not an
-async sleep, because `runScript` is a synchronous `globalSetup` helper
-and there is no async story available to it. See
+build, and documented as an escape valve rather than left to look like
+an oversight. The wait is a synchronous thread block (`Atomics.wait`),
+not an async sleep, because `runScript` is a synchronous `globalSetup`
+helper and there is no async story available to it. The
+`VITEST_AGENT_RUNSCRIPT_*` timing overrides are parsed strictly
+(whole-string integers, bounded below) rather than with `parseInt`,
+because a test-only typo like `"200ms"` or `"-1"` must degrade to the
+production default, not to an instantly-stale lock or a spin loop. See
 [./components/plugin.md](./components/plugin.md).
 
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After

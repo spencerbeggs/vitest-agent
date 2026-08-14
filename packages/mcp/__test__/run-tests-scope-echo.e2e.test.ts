@@ -20,7 +20,12 @@ import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef
 import { appRouter } from "../src/router.js";
 import { test } from "./integration/utils/fixtures.js";
 
-const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "console-leak-project");
+const fixturesRoot = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+const fixtureDir = join(fixturesRoot, "console-leak-project");
+// Named project + two declared tags, so a project- or tag-scoped run can
+// actually succeed (the console-leak fixture declares neither, so both
+// filters could only ever produce the `no-match` variant).
+const scopedFixtureDir = join(fixturesRoot, "scope-echo-project");
 let xdgDir: string;
 
 beforeAll(() => {
@@ -33,10 +38,10 @@ afterAll(() => {
 	rmSync(xdgDir, { recursive: true, force: true });
 });
 
-const makeCaller = (runtime: unknown) =>
+const makeCaller = (runtime: unknown, cwd: string = fixtureDir) =>
 	createCallerFactory(appRouter)({
 		runtime: runtime as McpContext["runtime"],
-		cwd: fixtureDir,
+		cwd,
 		currentSessionId: createCurrentSessionIdRef(null),
 		sessionContext: createSessionContextRef(),
 	});
@@ -58,5 +63,40 @@ describe("run_tests echoes the resolved scope on success (e2e)", () => {
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
 		expect(result.scope).toEqual({ project: null, files: ["leaky.test.ts"], tags: null });
+	});
+
+	test("a project-scoped run echoes the resolved project back", { timeout: 120_000 }, async ({ runtime }) => {
+		const caller = makeCaller(runtime, scopedFixtureDir);
+		const result = await caller.run_tests({ project: "scope-echo" });
+
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
+		expect(result.scope).toEqual({ project: "scope-echo", files: [], tags: null });
+	});
+
+	test("a tag-scoped run echoes the structured tag filter back verbatim", { timeout: 120_000 }, async ({ runtime }) => {
+		const caller = makeCaller(runtime, scopedFixtureDir);
+		const result = await caller.run_tests({ tags: { any: ["unit"] } });
+
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
+		expect(result.scope.project).toBeNull();
+		expect(result.scope.files).toEqual([]);
+		// Echoed verbatim (not flattened to the composed Vitest expression),
+		// so the agent can diff what it asked for against what ran.
+		expect(result.scope.tags).toEqual({ any: ["unit"] });
+		// ...and the echo is not cosmetic: exactly one of the fixture's two
+		// tests actually executed, so the int-tagged one was filtered out
+		// (Vitest still collects it, hence total stays 2).
+		expect(result.report.summary.passed).toBe(1);
+	});
+
+	test("project and tag filters AND together in the echoed scope", { timeout: 120_000 }, async ({ runtime }) => {
+		const caller = makeCaller(runtime, scopedFixtureDir);
+		const result = await caller.run_tests({ project: "scope-echo", tags: { none: ["int"] } });
+
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
+		expect(result.scope).toEqual({ project: "scope-echo", files: [], tags: { none: ["int"] } });
 	});
 });

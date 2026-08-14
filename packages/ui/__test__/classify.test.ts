@@ -127,6 +127,24 @@ describe("classifyOutcome", () => {
 		expect(classifyOutcome(state)).toBe("some-fail");
 	});
 
+	it("timeout-only wins over threshold-violation when both apply", () => {
+		// A timed-out run with a coverage violation must route to the fail
+		// cell, not the threshold cell — checking coverage before
+		// timeoutCount would misroute it.
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 1, durationMs: 5000 },
+			coverage: {
+				metrics: { lines: 50, branches: 50, functions: 50, statements: 50 },
+				thresholds: { lines: 80, branches: 80, functions: 80, statements: 80 },
+				gaps: [],
+				violations: [{ metric: "lines", expected: 80, actual: 50 }],
+			},
+		};
+		expect(classifyOutcome(state)).toBe("some-fail");
+	});
+
 	it("returns all-pass when coverage block is present but has no violations", () => {
 		const state: RenderState = {
 			...initialRenderState,

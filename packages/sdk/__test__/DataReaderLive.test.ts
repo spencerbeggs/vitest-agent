@@ -904,6 +904,169 @@ describe("DataReaderLive", () => {
 		});
 	});
 
+	describe("classification scoping (issue #243)", () => {
+		// One project, two tests in two modules. The decoy is both flaky
+		// (pass -> fail after that pass) and persistently failing (two
+		// trailing failures); the target is neither. Before the fix,
+		// `getFlaky` / `getPersistentFailures` took no narrowing options at
+		// all, so a caller scoped to `target` still received the decoy's
+		// classifications.
+		const seedScopedProject = Effect.gen(function* () {
+			const store = yield* DataStore;
+			yield* store.writeSettings("scope-hash", settingsInput, {});
+			const runId = yield* store.writeRun({ ...runInput, settingsHash: "scope-hash" });
+
+			const write = (fullName: string, modulePath: string, timestamp: string, state: "passed" | "failed") =>
+				store.writeHistory(
+					"scope-proj",
+					fullName,
+					modulePath,
+					runId,
+					timestamp,
+					state,
+					10,
+					false,
+					0,
+					state === "failed" ? "boom" : null,
+				);
+
+			yield* write("Suite > decoy", "src/decoy.test.ts", "2026-03-22T01:00:00.000Z", "passed");
+			yield* write("Suite > decoy", "src/decoy.test.ts", "2026-03-22T02:00:00.000Z", "failed");
+			yield* write("Suite > decoy", "src/decoy.test.ts", "2026-03-22T03:00:00.000Z", "failed");
+			yield* write("Suite > target", "src/target.test.ts", "2026-03-22T01:00:00.000Z", "passed");
+			yield* write("Suite > target", "src/target.test.ts", "2026-03-22T02:00:00.000Z", "passed");
+		});
+
+		it("getFlaky honors testName / modulePath instead of returning the whole project", async () => {
+			const [unscoped, scopedToTarget, scopedToDecoyModule] = await run(
+				Effect.gen(function* () {
+					yield* seedScopedProject;
+					const reader = yield* DataReader;
+					return [
+						yield* reader.getFlaky("scope-proj"),
+						yield* reader.getFlaky("scope-proj", { testName: "Suite > target" }),
+						yield* reader.getFlaky("scope-proj", { modulePath: "src/decoy.test.ts" }),
+					] as const;
+				}),
+			);
+
+			expect(unscoped.map((r) => r.fullName)).toEqual(["Suite > decoy"]);
+			// The scoped call must not leak the decoy's flakiness.
+			expect(scopedToTarget).toHaveLength(0);
+			// ...and must not become over-scoped either.
+			expect(scopedToDecoyModule.map((r) => r.fullName)).toEqual(["Suite > decoy"]);
+		});
+
+		it("getPersistentFailures honors testName / modulePath instead of returning the whole project", async () => {
+			const [unscoped, scopedToTarget, scopedToDecoy] = await run(
+				Effect.gen(function* () {
+					yield* seedScopedProject;
+					const reader = yield* DataReader;
+					return [
+						yield* reader.getPersistentFailures("scope-proj"),
+						yield* reader.getPersistentFailures("scope-proj", { testName: "Suite > target" }),
+						yield* reader.getPersistentFailures("scope-proj", {
+							testName: "Suite > decoy",
+							modulePath: "src/decoy.test.ts",
+						}),
+					] as const;
+				}),
+			);
+
+			expect(unscoped.map((r) => r.fullName)).toEqual(["Suite > decoy"]);
+			expect(scopedToTarget).toHaveLength(0);
+			expect(scopedToDecoy.map((r) => r.fullName)).toEqual(["Suite > decoy"]);
+			expect(scopedToDecoy[0]?.consecutiveFailures).toBe(2);
+		});
+	});
+
+	describe("getTestByFullName ambiguity (issue #243)", () => {
+		// `full_name` is not file-qualified, so one run can carry the same
+		// name in several modules. The lookup used to be `LIMIT 1` with no
+		// ORDER BY and no module predicate — an arbitrary variant won.
+		const seedDuplicateNames = Effect.gen(function* () {
+			const store = yield* DataStore;
+			yield* store.writeSettings("dupe-hash", settingsInput, {});
+			const runId = yield* store.writeRun({ ...runInput, project: "dupe-proj", settingsHash: "dupe-hash" });
+
+			for (const [modulePath, state] of [
+				["src/aaa.test.ts", "passed"],
+				["src/zzz.test.ts", "failed"],
+			] as const) {
+				const fileId = yield* store.ensureFile(modulePath);
+				const [moduleId] = yield* store.writeModules(runId, [
+					{ fileId, relativeModuleId: modulePath, state, duration: 10 },
+				]);
+				yield* store.writeSuites(moduleId, [{ name: "Suite", fullName: "Suite", state }]);
+				yield* store.writeTestCases(moduleId, [{ name: "shared", fullName: "Suite > shared", state, duration: 5 }]);
+			}
+		});
+
+		it("returns the requested module's variant when modulePath is supplied", async () => {
+			const [aaa, zzz] = await run(
+				Effect.gen(function* () {
+					yield* seedDuplicateNames;
+					const reader = yield* DataReader;
+					return [
+						yield* reader.getTestByFullName("dupe-proj", "Suite > shared", { modulePath: "src/aaa.test.ts" }),
+						yield* reader.getTestByFullName("dupe-proj", "Suite > shared", { modulePath: "src/zzz.test.ts" }),
+					] as const;
+				}),
+			);
+
+			expect(Option.isSome(aaa)).toBe(true);
+			expect(Option.isSome(zzz)).toBe(true);
+			if (Option.isSome(aaa)) expect(aaa.value.module).toBe("src/aaa.test.ts");
+			if (Option.isSome(zzz)) {
+				expect(zzz.value.module).toBe("src/zzz.test.ts");
+				expect(zzz.value.state).toBe("failed");
+			}
+		});
+
+		it("returns Option.none() when modulePath names a module the test is not in", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					yield* seedDuplicateNames;
+					const reader = yield* DataReader;
+					return yield* reader.getTestByFullName("dupe-proj", "Suite > shared", {
+						modulePath: "src/absent.test.ts",
+					});
+				}),
+			);
+			expect(Option.isNone(result)).toBe(true);
+		});
+
+		it("is deterministic (lowest module_path) when no modulePath is supplied", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					yield* seedDuplicateNames;
+					const reader = yield* DataReader;
+					return yield* reader.getTestByFullName("dupe-proj", "Suite > shared");
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			if (Option.isSome(result)) expect(result.value.module).toBe("src/aaa.test.ts");
+		});
+
+		it("getTestModulesByFullName lists every module carrying the name, ascending", async () => {
+			const [dupes, missing, emptyProject] = await run(
+				Effect.gen(function* () {
+					yield* seedDuplicateNames;
+					const reader = yield* DataReader;
+					return [
+						yield* reader.getTestModulesByFullName("dupe-proj", "Suite > shared"),
+						yield* reader.getTestModulesByFullName("dupe-proj", "Suite > absent"),
+						yield* reader.getTestModulesByFullName("no-such-proj", "Suite > shared"),
+					] as const;
+				}),
+			);
+
+			expect(dupes).toEqual(["src/aaa.test.ts", "src/zzz.test.ts"]);
+			expect(missing).toEqual([]);
+			expect(emptyProject).toEqual([]);
+		});
+	});
+
 	describe("getLatestRun", () => {
 		it("returns Option.none() for nonexistent project", async () => {
 			const result = await run(

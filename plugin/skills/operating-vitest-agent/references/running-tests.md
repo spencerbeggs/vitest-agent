@@ -28,7 +28,7 @@ There is **no** `filter` field. Passing one (`run_tests({ filter: "@my/pkg" })`)
 
 | `kind` | Fields | Meaning |
 | --- | --- | --- |
-| `"ok"` | `report`, `classifications` (map of test full-name → `stable`/`new-failure`/`persistent`/`flaky`/`recovered`), optional `project` | The run completed |
+| `"ok"` | `report`, `classifications` (map of test full-name → `stable`/`new-failure`/`persistent`/`flaky`/`recovered`), `scope` (the resolved `project`/`files`/`tags` that actually ran), optional `project` | The run completed |
 | `"no-match"` | `filter` (the resolved `project`/`files`/`tags`/`resolvedExpression`) | A filter was supplied but matched zero tests |
 | `"timeout"` | `timeoutSeconds` | Exceeded the timeout |
 | `"error"` | `message` | The run errored |

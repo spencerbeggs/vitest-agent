@@ -97,7 +97,7 @@ see it.
 transiently rebuild `dist/` during the run. That is the host project's
 configuration, not a broken workspace.
 
-Two runs started in the same checkout at once no longer rebuild concurrently: `runScript` serializes on a file-based advisory lock, and the second caller skips its build when the first finished moments earlier. See [Build steps in `globalSetup`](/plugin/advanced-config) for the lock's staleness and wait behavior.
+Two runs started in the same checkout at once no longer rebuild concurrently in the common case: `runScript` serializes on a file-based advisory lock, and the second caller skips its build when the first finished moments earlier. The guarantee is bounded, not absolute — a waiter that exhausts the lock's wait timeout proceeds with its own build rather than stalling forever. See [Build steps in `globalSetup`](/plugin/advanced-config) for the lock's staleness and wait behavior.
 
 ## A run with only timeouts reported as passing
 

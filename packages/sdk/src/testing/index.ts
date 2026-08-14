@@ -37,6 +37,7 @@ export { TrendEntry, TrendRecord } from "../schemas/Trends.js";
 export type {
 	AcceptanceMetrics,
 	CitedArtifactRow,
+	ClassificationQueryOptions,
 	CommitChangesEntry,
 	CurrentTddPhase,
 	FailureSignatureDetail,
@@ -59,6 +60,7 @@ export type {
 	TddTaskSummary,
 	TestError,
 	TestListEntry,
+	TestLookupOptions,
 	TurnSearchOptions,
 	TurnSummary,
 } from "../services/DataReader.js";

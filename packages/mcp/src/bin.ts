@@ -1,12 +1,6 @@
 #!/usr/bin/env node
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import {
-	PathResolutionLive,
-	formatFatalError,
-	resolveDataPath,
-	resolveLogFile,
-	resolveLogLevel,
-} from "@vitest-agent/sdk";
+import { PathResolutionLive, resolveDataPath, resolveLogFile, resolveLogLevel } from "@vitest-agent/sdk";
 import { Effect, ManagedRuntime } from "effect";
 import type { McpContext } from "./context.js";
 import { createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./context.js";
@@ -14,6 +8,7 @@ import { McpLive } from "./layers/McpLive.js";
 import { startMcpServer } from "./server.js";
 import { recoverSessionContextFromSessionEnv } from "./session-env.js";
 import { shouldExitOnUncaughtException } from "./utils/crash-guards.js";
+import { safeFormatFatalError } from "./utils/safe-format-fatal-error.js";
 
 /**
  * Whether `server.connect(transport)` has resolved for this process.
@@ -46,7 +41,7 @@ let transportConnected = false;
  * call over it.
  */
 process.on("unhandledRejection", (reason) => {
-	process.stderr.write(`vitest-agent-mcp: unhandledRejection: ${formatFatalError(reason)}\n`);
+	process.stderr.write(`vitest-agent-mcp: unhandledRejection: ${safeFormatFatalError(reason)}\n`);
 });
 
 /**
@@ -60,7 +55,7 @@ process.on("unhandledRejection", (reason) => {
  * alive, so this exits loudly instead.
  */
 process.on("uncaughtException", (err, origin) => {
-	process.stderr.write(`vitest-agent-mcp: uncaughtException (${origin}): ${formatFatalError(err)}\n`);
+	process.stderr.write(`vitest-agent-mcp: uncaughtException (${origin}): ${safeFormatFatalError(err)}\n`);
 	if (shouldExitOnUncaughtException(transportConnected)) {
 		process.exitCode = 1;
 		process.exit(1);
@@ -192,6 +187,6 @@ async function main() {
 }
 
 main().catch((err) => {
-	process.stderr.write(`vitest-agent-mcp: ${formatFatalError(err)}\n`);
+	process.stderr.write(`vitest-agent-mcp: ${safeFormatFatalError(err)}\n`);
 	process.exit(1);
 });

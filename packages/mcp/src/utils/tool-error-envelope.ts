@@ -45,24 +45,40 @@ export interface UnexpectedToolErrorEnvelope {
 }
 
 /**
+ * Fixed fallback used when even *introspecting* the thrown value throws.
+ * Deliberately a constant — anything derived from `err` could throw again
+ * on the recovery path.
+ */
+const UNREADABLE_THROWN_VALUE = "<unreadable thrown value>";
+
+/**
  * Coerces an unknown thrown value into a display-safe message without
  * risking a second throw (a getter-backed `.message` can itself throw —
  * see `@vitest-agent/sdk`'s `coerceErrorField` for the same concern on
  * raw Vitest error objects).
+ *
+ * The outer guard matters as much as the inner one: `err instanceof
+ * Error` walks the prototype chain, which a `Proxy` `getPrototypeOf`
+ * trap can hijack and throw from, and `String(err)` invokes
+ * `Symbol.toPrimitive` / `toString`, which a trap can hijack too. A
+ * throw here escapes the envelope builder entirely and the agent gets
+ * nothing structured back — the exact degradation this module exists to
+ * prevent (issue #243).
  */
 function coerceThrownMessage(err: unknown): string {
-	if (err instanceof Error) {
-		try {
-			return err.message;
-		} catch {
-			return "<unreadable Error.message>";
-		}
-	}
-	if (typeof err === "string") return err;
 	try {
+		if (typeof err === "string") return err;
+		if (err instanceof Error) {
+			try {
+				const message: unknown = err.message;
+				return typeof message === "string" ? message : String(message);
+			} catch {
+				return "<unreadable Error.message>";
+			}
+		}
 		return String(err);
 	} catch {
-		return "<unserializable thrown value>";
+		return UNREADABLE_THROWN_VALUE;
 	}
 }
 

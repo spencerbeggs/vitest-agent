@@ -100,3 +100,74 @@ describe("every registerTool input shape rejects unknown keys", () => {
 		expect(text, `${tool} rejected its own valid params`).not.toContain("Input validation error");
 	});
 });
+
+/**
+ * Issue #243: strictness has to hold at EVERY object level, not just the
+ * top one. `run_tests` declared `tags` and `_sessionContext` as plain
+ * `z.object`s nested inside a strict top level, so `{ tags: { anyy:
+ * [...] } }` decoded to `{ tags: {} }` — the filter vanished and the run
+ * went wide across the whole workspace with no error.
+ *
+ * This walks the *served* JSON Schema of every tool rather than calling
+ * them, so it covers tools (like `run_tests`) that a rejection test
+ * cannot safely exercise from a unit suite, and it keeps covering nested
+ * shapes added later without anyone remembering to extend a case list.
+ */
+describe("served input schemas are strict at every nesting level", () => {
+	const collectNonStrictObjectPaths = (node: unknown, path: string, out: string[]): void => {
+		if (node === null || typeof node !== "object") return;
+		const schema = node as Record<string, unknown>;
+
+		if (schema.type === "object" && schema.additionalProperties !== false) {
+			out.push(path);
+		}
+
+		const properties = schema.properties;
+		if (properties !== null && typeof properties === "object") {
+			for (const [key, value] of Object.entries(properties as Record<string, unknown>)) {
+				collectNonStrictObjectPaths(value, `${path}.${key}`, out);
+			}
+		}
+		// Optional/union/array wrappers: zod emits anyOf / items / $defs
+		// around the object node rather than inlining it.
+		for (const key of ["anyOf", "oneOf", "allOf", "prefixItems"]) {
+			const branch = schema[key];
+			if (Array.isArray(branch)) {
+				for (const [i, b] of branch.entries()) collectNonStrictObjectPaths(b, `${path}[${key}:${i}]`, out);
+			}
+		}
+		if (schema.items !== undefined) collectNonStrictObjectPaths(schema.items, `${path}[]`, out);
+		if (schema.$defs !== null && typeof schema.$defs === "object") {
+			for (const [key, value] of Object.entries(schema.$defs as Record<string, unknown>)) {
+				collectNonStrictObjectPaths(value, `${path}#${key}`, out);
+			}
+		}
+	};
+
+	// The four tools that declare no `inputSchema` at all (the documented
+	// all-or-nothing carve-out from issue #200). The SDK synthesizes a bare
+	// `{ type: "object" }` for them, which has no params to strip.
+	const NO_INPUT_SCHEMA_TOOLS = new Set(["help", "cache_health", "settings_list", "ping"]);
+
+	it("no served inputSchema contains an object that accepts unknown keys", async () => {
+		const { tools } = await client.listTools();
+		const offenders: string[] = [];
+		for (const tool of tools) {
+			if (tool.inputSchema === undefined || NO_INPUT_SCHEMA_TOOLS.has(tool.name)) continue;
+			collectNonStrictObjectPaths(tool.inputSchema, tool.name, offenders);
+		}
+		expect(offenders, "these served input shapes silently strip unknown keys").toEqual([]);
+	});
+
+	it("run_tests declares strict nested shapes for tags and _sessionContext", async () => {
+		const { tools } = await client.listTools();
+		const runTests = tools.find((t) => t.name === "run_tests");
+		const properties = ((runTests?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {}) as Record<
+			string,
+			{ additionalProperties?: unknown }
+		>;
+
+		expect(properties.tags?.additionalProperties).toBe(false);
+		expect(properties._sessionContext?.additionalProperties).toBe(false);
+	});
+});

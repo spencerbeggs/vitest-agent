@@ -6,6 +6,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { discoverProjects } from "../src/utils/discover-projects.js";
 import { DefaultDiscoverStrategy, DiscoverStrategy } from "../src/utils/discover-strategy.js";
 
+// Widens the async window inside the declined-package warning so the
+// check-then-act race on the warn-once Set is deterministic rather than
+// dependent on how two real scans happen to interleave. `probeDelayMs` is 0
+// for every other test, which delegates straight to the real predicate.
+const probeControl = vi.hoisted(() => ({ probeDelayMs: 0 }));
+vi.mock("../src/utils/is-test-shaped-package.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../src/utils/is-test-shaped-package.js")>();
+	return {
+		...actual,
+		isTestShapedPackage: async (pkgPath: string): Promise<boolean> => {
+			if (probeControl.probeDelayMs > 0) {
+				await new Promise((resolveDelay) => setTimeout(resolveDelay, probeControl.probeDelayMs));
+			}
+			return actual.isTestShapedPackage(pkgPath);
+		},
+	};
+});
+
 let tmpDir: string;
 
 beforeEach(async () => {
@@ -356,6 +374,34 @@ describe("declined-package warning (issue #229)", () => {
 		// Then: exactly one warning mentions this package, not two
 		const calls = stderrMessages();
 		const matches = calls.filter((c) => c.includes("@test/warn-once"));
+		expect(matches).toHaveLength(1);
+	});
+
+	it("warns at most once per package when two discoverProjects() calls run concurrently", async () => {
+		// Given: a declined, test-shaped package. The dedup Set is consulted and
+		// written on opposite sides of the async isTestShapedPackage() probe, so
+		// two overlapping scans can both pass the `has()` guard before either
+		// records the path — the classic check-then-act race.
+		const pkgDir = join(tmpDir, "packages", "warn-concurrent");
+		await mkdir(join(pkgDir, "__test__"), { recursive: true });
+		await writeFile(join(pkgDir, "package.json"), JSON.stringify({ name: "@test/warn-concurrent", version: "0.0.0" }));
+		await writeFile(join(pkgDir, "__test__", "helper.ts"), "");
+		const strategy = new DefaultDiscoverStrategy();
+
+		// When: two scans run concurrently (the MCP server re-resolves discovery
+		// while a Vitest config load is already in flight). The probe is slowed
+		// so the second scan is guaranteed to reach the dedup guard while the
+		// first is still suspended inside it.
+		probeControl.probeDelayMs = 100;
+		try {
+			await Promise.all([discoverProjects({ strategy, cwd: tmpDir }), discoverProjects({ strategy, cwd: tmpDir })]);
+		} finally {
+			probeControl.probeDelayMs = 0;
+		}
+
+		// Then: exactly one warning mentions this package, not two
+		const calls = stderrMessages();
+		const matches = calls.filter((c) => c.includes("@test/warn-concurrent"));
 		expect(matches).toHaveLength(1);
 	});
 });

@@ -32,4 +32,76 @@ describe("buildUnexpectedToolErrorEnvelope", () => {
 
 		expect(envelope.error.message).toBe("a bare string throw");
 	});
+
+	// Issue #243: the builder's own introspection was unguarded. `err
+	// instanceof Error` walks the prototype chain and `String(err)` invokes
+	// Symbol.toPrimitive/toString — a Proxy can make either throw, and a
+	// throw here escapes the wrapper that exists to keep the agent's
+	// response structured.
+	it("survives a value whose getPrototypeOf trap throws (instanceof is not safe)", () => {
+		const hostile = new Proxy(
+			{},
+			{
+				getPrototypeOf() {
+					throw new Error("getPrototypeOf trap detonated");
+				},
+			},
+		);
+
+		expect(() => hostile instanceof Error).toThrow();
+
+		const envelope = buildUnexpectedToolErrorEnvelope("run_tests", hostile);
+		expect(envelope.ok).toBe(false);
+		expect(envelope.error._tag).toBe("UnexpectedToolError");
+		expect(envelope.error.tool).toBe("run_tests");
+		expect(typeof envelope.error.message).toBe("string");
+	});
+
+	it("survives a value whose every trap throws (String() is not safe either)", () => {
+		const hostile = new Proxy(
+			{},
+			{
+				get() {
+					throw new Error("get trap detonated");
+				},
+				has() {
+					throw new Error("has trap detonated");
+				},
+				getPrototypeOf() {
+					throw new Error("getPrototypeOf trap detonated");
+				},
+			},
+		);
+
+		const envelope = buildUnexpectedToolErrorEnvelope("test_history", hostile);
+		expect(envelope.error.message).toBe("<unreadable thrown value>");
+		// The envelope still has to be JSON-serializable — server.ts writes
+		// it into both the text channel and structuredContent.
+		expect(() => JSON.stringify(envelope)).not.toThrow();
+	});
+
+	it("survives an Error whose .message getter throws", () => {
+		const hostile = new Proxy(new Error("never read"), {
+			get(_target, prop) {
+				if (prop === "message") throw new Error("message getter detonated");
+				return undefined;
+			},
+		});
+
+		const envelope = buildUnexpectedToolErrorEnvelope("note", hostile);
+		expect(envelope.error.message).toBe("<unreadable Error.message>");
+	});
+
+	it("stringifies an Error whose .message is not a string", () => {
+		const hostile = new Proxy(new Error("never read"), {
+			get(target, prop, receiver) {
+				if (prop === "message") return { not: "a string" };
+				return Reflect.get(target, prop, receiver);
+			},
+		});
+
+		const envelope = buildUnexpectedToolErrorEnvelope("note", hostile);
+		expect(typeof envelope.error.message).toBe("string");
+		expect(envelope.error.message).toContain("object");
+	});
 });

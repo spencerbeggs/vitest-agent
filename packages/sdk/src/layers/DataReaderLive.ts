@@ -11,6 +11,7 @@ import type { TrendRecord } from "../schemas/Trends.js";
 import type {
 	AcceptanceMetrics,
 	CitedArtifactRow,
+	ClassificationQueryOptions,
 	CommitChangesEntry,
 	CurrentTddPhase,
 	FailureSignatureDetail,
@@ -31,6 +32,7 @@ import type {
 	TddTaskSummary,
 	TestError,
 	TestListEntry,
+	TestLookupOptions,
 	TurnSearchOptions,
 	TurnSummary,
 } from "../services/DataReader.js";
@@ -541,9 +543,18 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getFlaky = (project: string): Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError> =>
+		const getFlaky = (
+			project: string,
+			options?: ClassificationQueryOptions,
+		): Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getFlaky").pipe(Effect.annotateLogs({ project }));
+				yield* Effect.logDebug("getFlaky").pipe(Effect.annotateLogs({ project, ...options }));
+				// Same optional-predicate shape as getHistory: one query serves the
+				// scoped and unscoped calls. Without these, a caller that narrowed
+				// `getHistory` to one test still got the whole project's flaky set
+				// back alongside it (issue #243).
+				const testName = options?.testName ?? null;
+				const modulePath = options?.modulePath ?? null;
 				const rows = yield* sql<{
 					full_name: string;
 					module_path: string;
@@ -566,6 +577,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						MAX(th1.timestamp) as last_timestamp
 					FROM test_history th1
 					WHERE th1.project = ${project}
+						AND (${testName} IS NULL OR th1.full_name = ${testName})
+						AND (${modulePath} IS NULL OR th1.module_path = ${modulePath})
 					GROUP BY th1.full_name, th1.module_path, th1.project
 					-- Flaky means oscillation, not a clean recovery. A test with both
 						-- passes and fails is only flaky when at least one failure occurs at
@@ -594,9 +607,14 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getPersistentFailures = (project: string): Effect.Effect<ReadonlyArray<PersistentFailure>, DataStoreError> =>
+		const getPersistentFailures = (
+			project: string,
+			options?: ClassificationQueryOptions,
+		): Effect.Effect<ReadonlyArray<PersistentFailure>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getPersistentFailures").pipe(Effect.annotateLogs({ project }));
+				yield* Effect.logDebug("getPersistentFailures").pipe(Effect.annotateLogs({ project, ...options }));
+				const testName = options?.testName ?? null;
+				const modulePath = options?.modulePath ?? null;
 				// Single query with window functions to find tests with 2+ consecutive
 				// trailing failures (replaces previous N+1 pattern)
 				const rows = yield* sql<{
@@ -615,6 +633,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						) as rn
 					FROM test_history
 					WHERE project = ${project}
+						AND (${testName} IS NULL OR full_name = ${testName})
+						AND (${modulePath} IS NULL OR module_path = ${modulePath})
 				),
 				streak AS (
 					SELECT full_name, module_path, project, state, timestamp, error_message, rn,
@@ -1132,9 +1152,10 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 		const getTestByFullName = (
 			project: string,
 			fullName: string,
+			options?: TestLookupOptions,
 		): Effect.Effect<Option.Option<TestListEntry>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getTestByFullName").pipe(Effect.annotateLogs({ project, fullName }));
+				yield* Effect.logDebug("getTestByFullName").pipe(Effect.annotateLogs({ project, fullName, ...options }));
 
 				const runs = yield* sql<{ id: number }>`SELECT id FROM test_runs
 					WHERE project = ${project}
@@ -1143,6 +1164,14 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				if (runs.length === 0) return Option.none();
 				const runId = runs[0].id;
 
+				// `full_name` is not file-qualified (Decision D20), so the same
+				// name can exist in several modules of one run. The optional
+				// module predicate picks a variant deterministically; the
+				// ORDER BY makes the unfiltered case stable rather than
+				// returning whichever row SQLite happened to visit first
+				// (issue #243). Callers that must not guess should check
+				// `getTestModulesByFullName` for ambiguity first.
+				const modulePath = options?.modulePath ?? null;
 				const rows = yield* sql<{
 					id: number;
 					full_name: string;
@@ -1155,6 +1184,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					JOIN test_modules tm ON tm.id = tc.module_id
 					JOIN files f ON f.id = tm.file_id
 					WHERE tm.run_id = ${runId} AND tc.full_name = ${fullName}
+						AND (${modulePath} IS NULL OR f.path = ${modulePath})
+					ORDER BY f.path ASC, tc.id ASC
 					LIMIT 1`;
 
 				if (rows.length === 0) return Option.none();
@@ -1167,6 +1198,35 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					module: r.relative_module_id,
 					classification: r.classification,
 				});
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "test_cases", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const getTestModulesByFullName = (
+			project: string,
+			fullName: string,
+		): Effect.Effect<ReadonlyArray<string>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("getTestModulesByFullName").pipe(Effect.annotateLogs({ project, fullName }));
+
+				const runs = yield* sql<{ id: number }>`SELECT id FROM test_runs
+					WHERE project = ${project}
+					ORDER BY timestamp DESC LIMIT 1`;
+
+				if (runs.length === 0) return [];
+				const runId = runs[0].id;
+
+				const rows = yield* sql<{ relative_module_id: string }>`SELECT DISTINCT f.path as relative_module_id
+					FROM test_cases tc
+					JOIN test_modules tm ON tm.id = tc.module_id
+					JOIN files f ON f.id = tm.file_id
+					WHERE tm.run_id = ${runId} AND tc.full_name = ${fullName}
+					ORDER BY f.path ASC`;
+
+				return rows.map((r) => r.relative_module_id);
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
@@ -2542,6 +2602,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getSettings,
 			getLatestSettings,
 			getTestByFullName,
+			getTestModulesByFullName,
 			listTests,
 			listModules,
 			listSuites,

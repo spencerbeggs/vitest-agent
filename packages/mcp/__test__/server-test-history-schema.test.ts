@@ -109,4 +109,26 @@ describe("served test_history tool schema", () => {
 		expect(structured.history?.tests).toHaveLength(1);
 		expect(structured.history?.tests?.[0]?.fullName).toBe("Suite > one");
 	});
+
+	// Issue #243: the served `limit` was `z.coerce.number()`, so 0 / -1 /
+	// "abc"(→NaN) validated fine and flowed into the SQL `rn <= limit`
+	// predicate, returning an empty history that reads exactly like "this
+	// test has never run".
+	it.each([0, -1, 2.5, "abc"])("rejects limit=%s instead of returning an empty history", async (limit) => {
+		const result = await client.callTool({
+			name: "test_history",
+			arguments: { project: "served-history-proj", limit },
+		});
+		expect(result.isError).toBe(true);
+		const text = (result.content as Array<{ type: string; text?: string }>).map((c) => c.text ?? "").join("\n");
+		expect(text).toMatch(/limit/i);
+	});
+
+	it("still accepts a positive integer limit", async () => {
+		const result = await client.callTool({
+			name: "test_history",
+			arguments: { project: "served-history-proj", limit: 3 },
+		});
+		expect(result.isError ?? false).toBe(false);
+	});
 });

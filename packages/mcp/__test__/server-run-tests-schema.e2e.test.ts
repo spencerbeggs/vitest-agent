@@ -109,4 +109,71 @@ describe("served run_tests tool schema", () => {
 		const text = (result.content as Array<{ type: string; text?: string }>).map((c) => c.text ?? "").join("\n");
 		expect(text).toContain("Unsafe argument rejected");
 	});
+
+	// Issue #243: `tags` and `_sessionContext` were plain `z.object`s
+	// nested inside the strict top level, and a plain object STRIPS unknown
+	// keys. `{ tags: { anyy: ["unit"] } }` therefore decoded to
+	// `{ tags: {} }`, the tag filter evaporated, and the run silently
+	// covered everything the agent believed it had filtered out.
+	it("rejects an unknown key nested inside tags instead of emptying the filter", {
+		timeout: 120_000,
+	}, async () => {
+		const result = await client.callTool({
+			name: "run_tests",
+			arguments: { tags: { anyy: ["unit"] } },
+		});
+		expect(result.isError).toBe(true);
+		const text = (result.content as Array<{ type: string; text?: string }>).map((c) => c.text ?? "").join("\n");
+		expect(text).toContain("anyy");
+		expect(text).toContain("Accepted params");
+		// The accepted-param list must be the *nested* shape's, not the
+		// top-level tool's, or it steers the agent to the wrong fix.
+		expect(text).toContain("any");
+	});
+
+	it("rejects an unknown key nested inside _sessionContext", { timeout: 120_000 }, async () => {
+		const result = await client.callTool({
+			name: "run_tests",
+			arguments: {
+				_sessionContext: {
+					chatId: "c",
+					conversationId: "v",
+					mainAgentId: "m",
+					chat_id: "typo",
+				},
+			},
+		});
+		expect(result.isError).toBe(true);
+		const text = (result.content as Array<{ type: string; text?: string }>).map((c) => c.text ?? "").join("\n");
+		expect(text).toContain("chat_id");
+	});
+
+	it("still accepts a well-formed nested tags object", { timeout: 120_000 }, async () => {
+		// Guards against over-correcting: strictness must reject typos, not
+		// the documented sub-filters.
+		const result = await client.callTool({
+			name: "run_tests",
+			arguments: { tags: { any: ["never-used-tag"] } },
+		});
+		const text = (result.content as Array<{ type: string; text?: string }>).map((c) => c.text ?? "").join("\n");
+		expect(text).not.toContain("Unrecognized parameter");
+		expect(text).not.toContain("Input validation error");
+	});
+
+	it("returns a structured result whose scope echoes the resolved filters on success", {
+		timeout: 120_000,
+	}, async () => {
+		const result = await client.callTool({
+			name: "run_tests",
+			arguments: { files: ["leaky.test.ts"] },
+		});
+
+		expect(result.isError).toBeFalsy();
+		const structured = result.structuredContent as {
+			kind?: string;
+			scope?: { project: string | null; files: ReadonlyArray<string>; tags: unknown };
+		};
+		expect(structured.kind).toBe("ok");
+		expect(structured.scope).toEqual({ project: null, files: ["leaky.test.ts"], tags: null });
+	});
 });

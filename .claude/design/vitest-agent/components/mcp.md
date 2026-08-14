@@ -95,6 +95,33 @@ whose shape is empty (`strict({})`); the four that declare no
 `inputSchema` at all (`help`, `cache_health`, `settings_list`, `ping`)
 have nothing to strip and stay as they are.
 
+**Strictness applies at every nesting level, not just the top one
+(issue #243).** The first pass wrapped only the outermost shape, which
+left the same hole one level down: `run_tests` declared its `tags` and
+`_sessionContext` sub-shapes as plain `z.object`s, and a plain
+`z.object` strips unknown keys exactly like a bare raw shape. A
+misspelled nested key — `{ tags: { anyy: ["unit"] } }` — decoded to
+`{ tags: {} }`, the filter vanished, and the run went wide across the
+whole workspace while the top-level strict wrapper reported nothing
+wrong. That is the identical failure mode issue #200 fixed, one level
+deeper, and it is worse for being invisible to a top-level rejection
+test. Nested shapes now go through the same `strict` helper.
+
+The regression guard for that is structural rather than table-driven:
+`server-strict-schemas.test.ts` lists the tools over a real
+`InMemoryTransport` client and walks each *served* JSON Schema —
+recursing through `properties`, `anyOf` / `oneOf` / `allOf` /
+`prefixItems`, `items`, and `$defs`, since zod wraps optionals and
+arrays rather than inlining the object node — asserting
+`additionalProperties: false` on every object node it finds. It reports
+the offending paths rather than a bare boolean. Two reasons for the
+sweep over more table rows: it covers tools a unit suite cannot safely
+*call* (`run_tests` actually runs tests), and it keeps covering nested
+shapes added later without anyone remembering to extend a case list.
+The four no-`inputSchema` tools are the documented carve-out — the SDK
+synthesizes a bare `{ type: "object" }` for them, which has no declared
+params to strip.
+
 Validation happens inside the MCP SDK's `validateToolInput` step, which
 throws before the tool handler runs — a rejected call never reaches a
 `DataReader` / `DataStore` call. Coverage lives in
@@ -140,6 +167,21 @@ try/catch cannot leave the *next* call's bookkeeping half-mutated. The
 alternative, silent process death mid-TDD-session, is the exact bug
 being fixed.
 
+**The crash handler must not be crashable (issue #243).** The handlers
+originally called the SDK's `formatFatalError` directly, which reopened
+the hole they exist to close: that formatter *introspects* the value it
+is handed — `Symbol.for(...) in reason`, `err instanceof Error`,
+`JSON.stringify(err)` — and every one of those is hijackable by a
+`Proxy` whose `has` / `getPrototypeOf` / `get` trap throws. A throw
+inside an `uncaughtException` handler is fatal with no second chance to
+report it, so a hostile (or merely exotic) thrown value would kill the
+session the guard was protecting. All three call sites in `bin.ts` now
+go through `safeFormatFatalError`
+(`packages/mcp/src/utils/safe-format-fatal-error.ts`), which try/catches
+the formatter and falls back to the exported `UNFORMATTABLE_ERROR_TEXT`
+constant. The fallback is a constant on purpose: anything derived from
+the offending value could throw again on the recovery path.
+
 `bin.ts` also carries an env-gated, fires-once test hook
 (`VITEST_AGENT_MCP_TEST_INJECT_CRASH`, accepting `unhandledRejection`
 or `uncaughtException`) scheduled on the event-loop turn after the
@@ -173,6 +215,16 @@ TypeScript still checks each call site against the unshadowed
 inference. The envelope builder coerces the thrown value defensively
 (a getter-backed `.message` can itself throw), mirroring the SDK's
 `coerceErrorField`.
+
+That coercion is hardened the same way as the crash handlers: the
+*outer* guard matters as much as the inner one, because `err instanceof
+Error` walks the prototype chain (hijackable by a `getPrototypeOf`
+trap) and `String(err)` invokes `Symbol.toPrimitive` / `toString`
+(hijackable too) — a throw from either escapes the envelope builder
+entirely and the agent gets nothing structured back, the exact
+degradation this module exists to prevent. The whole coercion body now
+sits inside one try/catch, a non-string `.message` is stringified
+rather than returned as-is, and the last-resort return is a constant.
 
 ## tRPC router and tools
 
@@ -435,6 +487,24 @@ later tests instead of trimming each test's own series. The served tool
 description states the default and tells the caller to omit all three
 only when the whole project's history is genuinely wanted.
 
+**The narrowing scopes the whole response, not just `history`**
+(issue #243). `testName` / `modulePath` originally reached only
+`getHistory`, while the tool's sibling `getFlaky` /
+`getPersistentFailures` calls stayed project-wide — so a call scoped to
+one test came back carrying every other test's flaky and persistent
+classifications, and `hasData` (derived from all three reads) answered
+`true` for a test that had never run. Both reads now take the same
+values through the SDK's `ClassificationQueryOptions`, and `hasData` is
+therefore a statement about the requested scope.
+
+`limit` is validated as a positive integer on both registrations rather
+than accepted as a bare number: `Schema.Int` checked greater-than-zero
+on the tRPC input, `z.coerce.number().int().positive()` on the served
+schema. `0`, `-1`, and `1.5` used to flow straight into the window
+query's `rn <= limit` predicate and return an empty history —
+indistinguishable, to the agent, from "this test has never run". A
+rejected input is the only honest answer.
+
 `test({ action: "get" })` consumes the same narrowing, and its fix is a
 correctness bug rather than a payload-size one (issue #241): it used to
 fetch the whole project's history and then `find` the matching entry
@@ -443,6 +513,20 @@ client-side by `fullName` alone. Since `fullName` is not file-qualified
 `find` return whichever entry sorted first — potentially another file's
 test. It now passes `{ testName, modulePath }` so the composite identity
 is enforced in SQL.
+
+The follow-up (issue #243) is that narrowing alone still let the tool
+*guess*. `action: "get"` now accepts an optional `modulePath` and
+resolves in two steps: `DataReader.getTestModulesByFullName` first, then
+the lookup. When the name matches more than one module and no
+`modulePath` was supplied, the tool returns its absent shape —
+`found: false` with `ambiguous: true` and `candidateModules[]` — instead
+of a plausible-looking record from an arbitrary file. The markdown
+rendering spells out the re-run call with a `modulePath`, so the agent
+recovers in one turn. `getTestByFullName` also gained a deterministic
+`ORDER BY` for the case where a caller does pin a module; picking
+consistently matters even when the answer is unique per module. The
+`ambiguous` / `candidateModules` fields are optional on `TestGetMissing`
+so a plain not-found result is unchanged.
 
 ## Tag filtering and tag introspection
 

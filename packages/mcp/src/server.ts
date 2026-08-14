@@ -47,6 +47,11 @@ import { buildUnexpectedToolErrorEnvelope } from "./utils/tool-error-envelope.js
  * `registerTool` input in this file goes through this helper so the whole
  * served surface rejects unknown keys consistently (issue #200).
  *
+ * The rule applies at EVERY object level, not just the top one: a nested
+ * plain `z.object` strips unknown keys, so a misspelled nested param
+ * decoded to an empty sub-object and the tool ran unfiltered (issue
+ * #243). Nested shapes go through this helper too.
+ *
  * @internal
  */
 function strict<S extends z.ZodRawShape>(shape: S): z.ZodObject<S> {
@@ -314,7 +319,12 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				project: z.string().describe("Project name (required)"),
 				testName: z.optional(z.string()).describe("Exact full_name match — narrows to a single test's history"),
 				modulePath: z.optional(z.string()).describe("Exact module_path match — narrows to tests in one file"),
-				limit: z.optional(z.coerce.number()).describe("Max runs kept per test, most-recent-first (default 20)"),
+				// Positive integer only: 0 / -1 / NaN used to reach the SQL
+				// `rn <= limit` predicate and silently return an empty
+				// history instead of failing (issue #243).
+				limit: z
+					.optional(z.coerce.number().int().positive())
+					.describe("Max runs kept per test, most-recent-first; positive integer (default 20)"),
 			}),
 			outputSchema: effectToZodSchema(TestHistoryResult) as never,
 		},
@@ -377,7 +387,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"test",
 		{
 			description:
-				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?) returns details + errors + run history; action='for_file' (filePath) returns test modules covering a source file. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
+				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
 			inputSchema: strict({
 				action: z.enum(["list", "get", "for_file"]).describe("Inspection discriminator"),
 				project: z.optional(z.string()),
@@ -385,6 +395,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				module: z.optional(z.string()).describe("list: filter by module path"),
 				limit: z.optional(z.coerce.number()).describe("list: max rows to return"),
 				fullName: z.optional(z.string()).describe("get: full test name"),
+				modulePath: z
+					.optional(z.string())
+					.describe("get: exact module path, disambiguating a fullName present in several files"),
 				filePath: z.optional(z.string()).describe("for_file: source file path"),
 			}),
 			outputSchema: effectToZodSchema(TestResult) as never,
@@ -404,6 +417,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					action: "get",
 					fullName: args.fullName as string,
 					...(args.project !== undefined && { project: args.project }),
+					...(args.modulePath !== undefined && { modulePath: args.modulePath }),
 				});
 			} else {
 				data = await caller.test({ action: "for_file", filePath: args.filePath as string });
@@ -578,7 +592,11 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				project: z.optional(z.string()).describe("Project name to filter"),
 				tags: z
 					.optional(
-						z.object({
+						// Nested objects must be strict too: a plain `z.object`
+						// STRIPS unknown keys, so `{ tags: { anyy: ["unit"] } }`
+						// decoded to `{ tags: {} }` and the run silently went wide
+						// across the whole workspace (issue #243).
+						strict({
 							all: z.optional(z.array(z.string())).describe("Require every listed tag"),
 							any: z.optional(z.array(z.string())).describe("Require at least one listed tag"),
 							none: z.optional(z.array(z.string())).describe("Exclude any listed tag"),
@@ -592,7 +610,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				// falls back to its boot-time SessionContext.
 				_sessionContext: z
 					.optional(
-						z.object({
+						strict({
 							chatId: z.string(),
 							conversationId: z.string(),
 							mainAgentId: z.string(),

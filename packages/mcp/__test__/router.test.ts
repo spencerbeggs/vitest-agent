@@ -510,6 +510,102 @@ describe("MCP Router", () => {
 		}
 	});
 
+	// Issue #243, follow-up to #241: #241's decoy was history-only, so
+	// `getTestByFullName`'s `LIMIT 1`-with-no-ORDER-BY only ever saw one
+	// candidate row. Two CURRENT test cases sharing a fullName is the shape
+	// that actually made `get` return an arbitrary variant.
+	const AMBIGUOUS_PROJECT = "get-ambiguous-fullname-proj";
+	// Memoized: the runtime's SQLite DB is shared across this file's tests,
+	// so the seed must run exactly once no matter how many cases need it.
+	let ambiguousSeed: Promise<void> | null = null;
+	const seedAmbiguousFullName = () => {
+		ambiguousSeed ??= seedAmbiguousFullNameOnce();
+		return ambiguousSeed;
+	};
+	const seedAmbiguousFullNameOnce = async () => {
+		const store = await testRuntime.runPromise(Effect.map(DataStore, (s) => s));
+		await testRuntime.runPromise(
+			Effect.gen(function* () {
+				yield* store.writeSettings("get-ambiguous-hash", { vitestVersion: "3.2.0" }, {});
+				const runId = yield* store.writeRun({
+					invocationId: "inv-get-ambiguous",
+					project: AMBIGUOUS_PROJECT,
+					settingsHash: "get-ambiguous-hash",
+					timestamp: "2026-03-28T00:00:00.000Z",
+					commitSha: null,
+					branch: null,
+					reason: "failed",
+					duration: 100,
+					total: 2,
+					passed: 1,
+					failed: 1,
+					scoped: false,
+					skipped: 0,
+				});
+
+				for (const [modulePath, state] of [
+					["src/aaa-first.test.ts", "passed"],
+					["src/zzz-second.test.ts", "failed"],
+				] as const) {
+					const fileId = yield* store.ensureFile(modulePath);
+					const [moduleId] = yield* store.writeModules(runId, [
+						{ fileId, relativeModuleId: modulePath, state, duration: 20 },
+					]);
+					yield* store.writeSuites(moduleId, [{ name: "Suite", fullName: "Suite", state }]);
+					yield* store.writeTestCases(moduleId, [{ name: "shared", fullName: "Suite > shared", state, duration: 5 }]);
+				}
+			}),
+		);
+	};
+
+	it("test get refuses to guess when a fullName exists in more than one module", async () => {
+		await seedAmbiguousFullName();
+		const caller = createTestCaller();
+		const result = await caller.test({ action: "get", fullName: "Suite > shared", project: AMBIGUOUS_PROJECT });
+
+		expect(result.action).toBe("get");
+		if (result.action !== "get" || result.found) {
+			expect.fail("an ambiguous fullName must not resolve to an arbitrary variant");
+			return;
+		}
+		expect(result.ambiguous).toBe(true);
+		expect(result.candidateModules).toEqual(["src/aaa-first.test.ts", "src/zzz-second.test.ts"]);
+	});
+
+	it("test get returns the requested variant when modulePath disambiguates", async () => {
+		await seedAmbiguousFullName();
+		const caller = createTestCaller();
+
+		const second = await caller.test({
+			action: "get",
+			fullName: "Suite > shared",
+			project: AMBIGUOUS_PROJECT,
+			modulePath: "src/zzz-second.test.ts",
+		});
+		expect(second.action).toBe("get");
+		if (second.action === "get" && second.found) {
+			expect(second.test.module).toBe("src/zzz-second.test.ts");
+			expect(second.test.state).toBe("failed");
+		} else {
+			expect.fail("expected the zzz variant to be found");
+		}
+
+		// The other direction too, so this cannot pass by picking whichever
+		// row the unfiltered ORDER BY happens to surface first.
+		const first = await caller.test({
+			action: "get",
+			fullName: "Suite > shared",
+			project: AMBIGUOUS_PROJECT,
+			modulePath: "src/aaa-first.test.ts",
+		});
+		if (first.action === "get" && first.found) {
+			expect(first.test.module).toBe("src/aaa-first.test.ts");
+			expect(first.test.state).toBe("passed");
+		} else {
+			expect.fail("expected the aaa variant to be found");
+		}
+	});
+
 	it("file_coverage returns dataAvailable=true for the tracked project", async () => {
 		const caller = createTestCaller();
 		const result = await caller.file_coverage({ filePath: "src/utils.ts", project: "default" });
@@ -1033,6 +1129,90 @@ describe("MCP Router", () => {
 
 			expect(result.history.tests).toHaveLength(1);
 			expect(result.history.tests[0]?.fullName).toBe("Suite > test one");
+		});
+
+		it("scopes flaky, persistent, and hasData to the requested test (issue #243)", async () => {
+			// A decoy test in the same project is both flaky and
+			// persistently failing; the requested test has no history at
+			// all. Before the fix, testName/modulePath scoped only
+			// `getHistory` — the flaky/persistent sections still carried the
+			// decoy, and `hasData` was derived from them, so the tool
+			// reported history for a test that had none.
+			const store = await testRuntime.runPromise(Effect.map(DataStore, (s) => s));
+			const project = "history-scope-proj";
+
+			await testRuntime.runPromise(
+				Effect.gen(function* () {
+					yield* store.writeSettings("history-scope-hash", { vitestVersion: "3.2.0" }, {});
+					const runId = yield* store.writeRun({
+						invocationId: "inv-history-scope",
+						project,
+						settingsHash: "history-scope-hash",
+						timestamp: "2026-03-28T00:00:00.000Z",
+						commitSha: null,
+						branch: null,
+						reason: "failed",
+						duration: 100,
+						total: 1,
+						passed: 0,
+						failed: 1,
+						skipped: 0,
+						scoped: false,
+					});
+
+					const write = (timestamp: string, state: "passed" | "failed") =>
+						store.writeHistory(
+							project,
+							"Suite > decoy",
+							"src/decoy.test.ts",
+							runId,
+							timestamp,
+							state,
+							10,
+							false,
+							0,
+							state === "failed" ? "decoy boom" : null,
+						);
+					yield* write("2026-03-28T01:00:00.000Z", "passed");
+					yield* write("2026-03-28T02:00:00.000Z", "failed");
+					yield* write("2026-03-28T03:00:00.000Z", "failed");
+				}),
+			);
+
+			const caller = createTestCaller();
+
+			const unscoped = await caller.test_history({ project });
+			expect(unscoped.hasData).toBe(true);
+			expect(unscoped.flaky.length).toBeGreaterThan(0);
+			expect(unscoped.persistent.length).toBeGreaterThan(0);
+
+			const scoped = await caller.test_history({ project, testName: "Suite > never ran" });
+			expect(scoped.history.tests).toHaveLength(0);
+			expect(scoped.flaky).toHaveLength(0);
+			expect(scoped.persistent).toHaveLength(0);
+			expect(scoped.hasData).toBe(false);
+
+			// Not over-scoped: asking for the decoy still yields its rows.
+			const scopedToDecoy = await caller.test_history({ project, modulePath: "src/decoy.test.ts" });
+			expect(scopedToDecoy.hasData).toBe(true);
+			expect(scopedToDecoy.flaky.map((f) => f.fullName)).toEqual(["Suite > decoy"]);
+			expect(scopedToDecoy.persistent.map((p) => p.fullName)).toEqual(["Suite > decoy"]);
+		});
+
+		it("rejects a non-positive or fractional limit instead of silently returning empty history", async () => {
+			const caller = createTestCaller();
+			for (const limit of [0, -1, 2.5, Number.NaN]) {
+				await expect(
+					caller.test_history({ project: "history-testname-proj", limit }),
+					`limit=${limit} should be rejected`,
+				).rejects.toThrow();
+			}
+		});
+
+		it("still accepts a valid positive integer limit", async () => {
+			const caller = createTestCaller();
+			const result = await caller.test_history({ project: "history-testname-proj", limit: 5 });
+			expect(result.project).toBe("history-testname-proj");
 		});
 	});
 

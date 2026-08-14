@@ -154,6 +154,33 @@ export interface HistoryQueryOptions {
 	/** Max runs kept per (module_path, full_name) pair, most-recent-first. Default 20. */
 	readonly limit?: number;
 }
+/**
+ * Narrowing options shared by the classification reads
+ * ({@link DataReader.getFlaky} / `getPersistentFailures`). Mirrors the
+ * `testName` / `modulePath` half of {@link HistoryQueryOptions} so a
+ * caller that scoped `getHistory` to one test can scope the derived
+ * classifications to the same test instead of receiving the whole
+ * project's rows.
+ *
+ * @public
+ */
+export interface ClassificationQueryOptions {
+	/** Exact `full_name` match — narrows to a single test's classification. */
+	readonly testName?: string;
+	/** Exact `module_path` match — narrows to tests in one file. */
+	readonly modulePath?: string;
+}
+/**
+ * Narrowing options for {@link DataReader.getTestByFullName}. A
+ * `full_name` is not file-qualified (Decision D20), so the same name can
+ * exist in more than one module; `modulePath` disambiguates.
+ *
+ * @public
+ */
+export interface TestLookupOptions {
+	/** Exact `module_path` match — picks one variant of an ambiguous `full_name`. */
+	readonly modulePath?: string;
+}
 /** @public */
 export interface TurnSearchOptions {
 	readonly sessionId?: number;
@@ -303,9 +330,13 @@ export class DataReader extends Context.Service<
 		) => Effect.Effect<HistoryRecord, DataStoreError>;
 		readonly getBaselines: (project: string) => Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError>;
 		readonly getTrends: (project: string, limit?: number) => Effect.Effect<Option.Option<TrendRecord>, DataStoreError>;
-		readonly getFlaky: (project: string) => Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError>;
+		readonly getFlaky: (
+			project: string,
+			options?: ClassificationQueryOptions,
+		) => Effect.Effect<ReadonlyArray<FlakyTest>, DataStoreError>;
 		readonly getPersistentFailures: (
 			project: string,
+			options?: ClassificationQueryOptions,
 		) => Effect.Effect<ReadonlyArray<PersistentFailure>, DataStoreError>;
 		readonly getFileCoverage: (runId: number) => Effect.Effect<ReadonlyArray<FileCoverageReport>, DataStoreError>;
 		readonly getCoverage: (project: string) => Effect.Effect<Option.Option<CoverageReport>, DataStoreError>;
@@ -327,7 +358,18 @@ export class DataReader extends Context.Service<
 		readonly getTestByFullName: (
 			project: string,
 			fullName: string,
+			options?: TestLookupOptions,
 		) => Effect.Effect<Option.Option<TestListEntry>, DataStoreError>;
+		/**
+		 * Every module path in the project's latest run that carries a test
+		 * case with this exact `full_name`, ordered ascending. Length > 1
+		 * means the name is ambiguous and callers must disambiguate with
+		 * {@link TestLookupOptions.modulePath} rather than guess.
+		 */
+		readonly getTestModulesByFullName: (
+			project: string,
+			fullName: string,
+		) => Effect.Effect<ReadonlyArray<string>, DataStoreError>;
 		readonly listTests: (
 			project: string,
 			options?: { state?: string; module?: string; limit?: number },

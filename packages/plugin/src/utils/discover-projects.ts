@@ -62,8 +62,24 @@ const warnedDeclinedPackagePaths = new Set<string>();
 async function warnIfDeclinedPackageIsTestShaped(pkg: { readonly name: string; readonly path: string }): Promise<void> {
 	const normPath = normalize(pkg.path);
 	if (warnedDeclinedPackagePaths.has(normPath)) return;
-	if (!(await isTestShapedPackage(pkg.path))) return;
+	// Reserve the path BEFORE the async probe, not after: two overlapping
+	// `discoverProjects()` calls (the MCP server re-resolving discovery while a
+	// Vitest config load is in flight) would otherwise both clear the `has()`
+	// guard while the first is still awaiting `isTestShapedPackage`, and both
+	// would warn. The reservation is released again when the package turns out
+	// not to be test-shaped, so a later run can still warn if it becomes one.
 	warnedDeclinedPackagePaths.add(normPath);
+	let testShaped: boolean;
+	try {
+		testShaped = await isTestShapedPackage(pkg.path);
+	} catch (error) {
+		warnedDeclinedPackagePaths.delete(normPath);
+		throw error;
+	}
+	if (!testShaped) {
+		warnedDeclinedPackagePaths.delete(normPath);
+		return;
+	}
 	process.stderr.write(
 		`[vitest-agent] warning: package "${pkg.name}" has a ${TEST_DIR}/ directory or ${SRC_DIR}/ test files, ` +
 			`but its tests were not wired into a Vitest project. ` +
