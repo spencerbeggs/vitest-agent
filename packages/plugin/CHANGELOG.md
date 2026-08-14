@@ -1,5 +1,43 @@
 # @vitest-agent/plugin
 
+## 2.2.2
+
+### Bug Fixes
+
+* An invalid `VITEST_AGENT_CONSOLE` override now lists the console modes actually accepted for the detected executor (`human` / `agent` / `ci`) in its stderr warning, instead of a generic message.
+* Discovery warns once per package (stderr) when a package that looks test-shaped — a `__test__/` directory, or `src/` files matching the test-file naming convention — is declined by the discover strategy, and points at the `check-test-path` probe. Previously this was a silent skip (#229).
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From   | To     |
+| ---------------------- | ---------- | ------- | ------ | ------ |
+| @vitest-agent/cli      | dependency | updated | 2.1.1  | 2.1.2  |
+| @vitest-agent/mcp      | dependency | updated | 2.1.4  | 2.2.0  |
+| @vitest-agent/reporter | dependency | updated | 2.0.19 | 2.0.20 |
+| @vitest-agent/sdk      | dependency | updated | 2.2.1  | 2.3.0  |
+
+* | Dependency   | Type       | Action  | From   | To     |                                                                            |
+  | ------------ | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+  | magic-string | dependency | updated | ^1.1.0 | ^1.2.0 | [#238][#238] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+- | Dependency           | Type       | Action  | From    | To      |                                                                            |
+  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+  | @effected/workspaces | dependency | updated | ^0.11.2 | ^0.12.0 | [#249][#249] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Other
+
+* `AgentPlugin.runScript` now takes a file-based advisory lock (under `$XDG_DATA_HOME/vitest-agent/runscript-locks/`, with stale-lock takeover and a recently-built short-circuit) so concurrent `vitest` invocations in the same checkout run a `globalSetup` build exactly once instead of racing (#191). Lock timings are tunable via `VITEST_AGENT_RUNSCRIPT_LOCK_*` env vars. [#243][#243]
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#238]: https://github.com/spencerbeggs/vitest-agent/pull/238
+
+[#243]: https://github.com/spencerbeggs/vitest-agent/pull/243
+
+[#249]: https://github.com/spencerbeggs/vitest-agent/pull/249
+
 ## 2.2.1
 
 ### Dependencies

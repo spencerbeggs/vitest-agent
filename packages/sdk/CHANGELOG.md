@@ -1,5 +1,41 @@
 # @vitest-agent/sdk
 
+## 2.3.0
+
+### Features
+
+* `DataReader.getHistory` accepts an optional third argument, `HistoryQueryOptions`, to narrow a project's history to one test or module and cap how many runs come back per test:
+
+  ```ts
+  import type { HistoryQueryOptions } from "@vitest-agent/sdk";
+
+  const options: HistoryQueryOptions = { modulePath: "src/foo.test.ts", limit: 10 };
+  const history = await reader.getHistory("my-project", options);
+  ```
+
+  `testName` and `modulePath` narrow via exact-match SQL predicates; `limit` caps runs kept per `(module_path, full_name)` pair, most-recent-first, defaulting to 20. `HistoryQueryOptions` is exported from both the main entry point and `@vitest-agent/sdk/testing`. No SQLite schema change. [#243][#243]
+
+### Dependencies
+
+* | Dependency           | Type       | Action  | From    | To      |                                                                            |
+  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+  | @effected/workspaces | dependency | updated | ^0.11.2 | ^0.12.0 | [#249][#249] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+- | Dependency            | Type       | Action  | From   | To     |                                                                            |
+  | --------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+  | @effected/config-file | dependency | updated | ^0.3.1 | ^0.4.1 |                                                                            |
+  | @effected/xdg         | dependency | updated | ^0.2.0 | ^0.2.1 | [#238][#238] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#238]: https://github.com/spencerbeggs/vitest-agent/pull/238
+
+[#243]: https://github.com/spencerbeggs/vitest-agent/pull/243
+
+[#249]: https://github.com/spencerbeggs/vitest-agent/pull/249
+
 ## 2.2.1
 
 ### Dependencies
