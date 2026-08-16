@@ -1,5 +1,13 @@
 # @vitest-agent/mcp
 
+## 2.2.1
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From  | To    |
+| ----------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/sdk | dependency | updated | 2.3.0 | 2.3.1 |
+
 ## 2.2.0
 
 ### Features
