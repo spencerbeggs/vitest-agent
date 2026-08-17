@@ -1,26 +1,23 @@
-/**
- * Migration for the per-client session map SQLite at
- * `${CLAUDE_PLUGIN_DATA}/sessions.db` (Claude Code) or the
- * client-specific equivalent.
- *
- * The session map is a host-specific side-channel that translates
- * client-native identifiers (transcript path, hook-payload session id)
- * into the canonical UUIDs the per-project `data.db` expects. It lets
- * `claude --resume` reuse the same `conversation_id` UUID across
- * restarts.
- *
- * Two STRICT tables:
- *   - `conversation_map` keyed on the transcript filename UUID
- *     (already a UUID per Claude Code's convention)
- *   - `session_map` keyed on the host's native session id (the chat
- *     UUID — `session_id` from the Claude Code hook payload, exposed
- *     to agents as `chatId` post the 2026-05 rename)
- *
- * Concurrent writers from multiple Claude Code windows converge via
- * idempotent UPSERTs on the native-id keys; WAL mode plus 5s
- * busy_timeout absorb contention.
- * @public
- */
+// Migration for the per-client session map SQLite at
+// `${CLAUDE_PLUGIN_DATA}/sessions.db` (Claude Code) or the
+// client-specific equivalent.
+//
+// The session map is a host-specific side-channel that translates
+// client-native identifiers (transcript path, hook-payload session id)
+// into the canonical UUIDs the per-project `data.db` expects. It lets
+// `claude --resume` reuse the same `conversation_id` UUID across
+// restarts.
+//
+// Two STRICT tables:
+//   - `conversation_map` keyed on the transcript filename UUID
+//     (already a UUID per Claude Code's convention)
+//   - `session_map` keyed on the host's native session id (the chat
+//     UUID — `session_id` from the Claude Code hook payload, exposed
+//     to agents as `chatId` post the 2026-05 rename)
+//
+// Concurrent writers from multiple Claude Code windows converge via
+// idempotent UPSERTs on the native-id keys; WAL mode plus 5s
+// busy_timeout absorb contention.
 
 import { Effect } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";

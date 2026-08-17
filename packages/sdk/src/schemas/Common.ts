@@ -1,9 +1,7 @@
-/**
- * Common schemas shared across multiple modules.
- *
- * Defines enums/literals and the ReportError struct used by
- * both AgentReport and CacheManifest schemas.
- */
+// Common schemas shared across multiple modules.
+//
+// Defines enums/literals and the ReportError struct used by
+// both AgentReport and CacheManifest schemas.
 import { Schema } from "effect";
 
 // --- Shared Enums ---

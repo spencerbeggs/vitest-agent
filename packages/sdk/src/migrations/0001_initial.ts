@@ -1,33 +1,30 @@
-/**
- * Consolidated fresh-install schema for the per-project `data.db`.
- *
- * Pre-2.0 policy (per repo CLAUDE.md): a single canonical migration
- * defines the entire schema. The agent-agnostic-taxonomy plan folded
- * the prior `0002_comprehensive` drop-and-recreate into this file
- * directly and bolted on the new agent taxonomy.
- *
- * What this migration creates beyond the prior 0001+0002 baseline:
- *   - `agents` table — first-class agent invocations with a
- *     `parent_agent_id` tree, idempotency key, and inherited git
- *     context
- *   - `sessions.conversation_id`, `sessions.host_kind` — cross-window
- *     rollup key + host vendor identifier
- *   - `actor_type`, `agent_id`, `conversation_id` on action tables
- *     (`test_runs`, `hypotheses`, `notes`, `tdd_phases`) with CHECK
- *     constraints
- *   - Per-run git context on `test_runs`: branch, sha, dirty, upstream,
- *     worktree dir, host source/value/metadata
- *   - Six `AFTER UPDATE` immutability triggers locking
- *     `conversation_id` on every table that carries it
- *
- * Agent-facing ID convention (post `chatId` / `sessionId` / `tddTaskId`
- * rename): the `sessions` row PK is `sessions.id`, the host chat UUID
- * column is `sessions.chat_id`, and a TDD task PK is `tdd_tasks.id`.
- * The `tdd_session_goals` / `tdd_session_behaviors` table names retain
- * their legacy "_session_" segment but their `session_id` columns
- * actually point at `tdd_tasks(id)` (a TDD task, not a session row).
- * @public
- */
+// Consolidated fresh-install schema for the per-project `data.db`.
+//
+// Pre-2.0 policy (per repo CLAUDE.md): a single canonical migration
+// defines the entire schema. The agent-agnostic-taxonomy plan folded
+// the prior `0002_comprehensive` drop-and-recreate into this file
+// directly and bolted on the new agent taxonomy.
+//
+// What this migration creates beyond the prior 0001+0002 baseline:
+//   - `agents` table — first-class agent invocations with a
+//     `parent_agent_id` tree, idempotency key, and inherited git
+//     context
+//   - `sessions.conversation_id`, `sessions.host_kind` — cross-window
+//     rollup key + host vendor identifier
+//   - `actor_type`, `agent_id`, `conversation_id` on action tables
+//     (`test_runs`, `hypotheses`, `notes`, `tdd_phases`) with CHECK
+//     constraints
+//   - Per-run git context on `test_runs`: branch, sha, dirty, upstream,
+//     worktree dir, host source/value/metadata
+//   - Six `AFTER UPDATE` immutability triggers locking
+//     `conversation_id` on every table that carries it
+//
+// Agent-facing ID convention (post `chatId` / `sessionId` / `tddTaskId`
+// rename): the `sessions` row PK is `sessions.id`, the host chat UUID
+// column is `sessions.chat_id`, and a TDD task PK is `tdd_tasks.id`.
+// The `tdd_session_goals` / `tdd_session_behaviors` table names retain
+// their legacy "_session_" segment but their `session_id` columns
+// actually point at `tdd_tasks(id)` (a TDD task, not a session row).
 
 import { Effect } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";

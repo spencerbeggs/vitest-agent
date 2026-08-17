@@ -1,13 +1,11 @@
-/**
- * Channel event schemas for the orchestrator → main-agent progress push.
- *
- * All payloads share a `type` discriminator and pass through
- * `tdd_progress_push`. Behavior-level events declare goalId/sessionId
- * fields, but the MCP server resolves those server-side from
- * behaviorId via `DataReader.resolveGoalIdForBehavior` before emitting
- * the notification — caller-supplied values for goalId/sessionId on
- * behavior events are advisory and may be overwritten.
- */
+// Channel event schemas for the orchestrator → main-agent progress push.
+//
+// All payloads share a `type` discriminator and pass through
+// `tdd_progress_push`. Behavior-level events declare goalId/sessionId
+// fields, but the MCP server resolves those server-side from
+// behaviorId via `DataReader.resolveGoalIdForBehavior` before emitting
+// the notification — caller-supplied values for goalId/sessionId on
+// behavior events are advisory and may be overwritten.
 import { Schema } from "effect";
 
 /** @public */

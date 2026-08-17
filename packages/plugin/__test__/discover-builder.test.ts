@@ -150,12 +150,18 @@ describe("AgentPlugin.discover() DiscoverBuilder", () => {
 		try {
 			// When: resolving a builder with an added entry that produces null
 			await expect(
-				AgentPlugin.discover(emptyStrategy).addProject({ name: "no-tests", path: emptyDir }),
+				AgentPlugin.discover({ strategy: emptyStrategy, cwd: emptyWorkspace }).addProject({
+					name: "no-tests",
+					path: emptyDir,
+				}),
 			).rejects.toThrow(/no-tests|emptyDir/i);
 
 			// And: the error message names the strategy
 			await expect(
-				AgentPlugin.discover(emptyStrategy).addProject({ name: "no-tests", path: emptyDir }),
+				AgentPlugin.discover({ strategy: emptyStrategy, cwd: emptyWorkspace }).addProject({
+					name: "no-tests",
+					path: emptyDir,
+				}),
 			).rejects.toThrow(/ConcreteDiscoverStrategy|DiscoverStrategy|no test files/i);
 		} finally {
 			await rm(emptyDir, { recursive: true, force: true });
@@ -233,7 +239,7 @@ describe("AgentPlugin.discover() DiscoverBuilder", () => {
 			classify: () => [],
 			buildProject: async () => null,
 		});
-		const result = await AgentPlugin.discover(emptyStrategy);
+		const result = await AgentPlugin.discover({ strategy: emptyStrategy, cwd: emptyWorkspace });
 
 		// Then: projects is undefined
 		expect(result.projects).toBeUndefined();
@@ -257,15 +263,15 @@ describe("AgentPlugin.discover() DiscoverBuilder", () => {
 		const testDir = await createTestDir({ hasUnit: true });
 		try {
 			// When: empty workspace + one addProject
-			const result = await AgentPlugin.discover(customStrategy).addProject({
+			const result = await AgentPlugin.discover({ strategy: customStrategy, cwd: emptyWorkspace }).addProject({
 				name: "test-only",
 				path: testDir,
 			});
 
 			// Then: projects contains exactly the one config
 			expect(result.projects).toBeDefined();
-			// The workspace packages all return null from the custom strategy,
-			// so only the addProject entry makes it through.
+			// The empty workspace contributes no packages, so only the addProject
+			// entry makes it through.
 			const names = result.projects?.map((p) => p.test?.name);
 			expect(names).toContain("test-only");
 		} finally {

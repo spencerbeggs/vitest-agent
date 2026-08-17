@@ -33,7 +33,7 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
-		"@effected/workspaces": "^0.13.0",
+		"@effected/workspaces": "^0.14.0",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",

@@ -5,8 +5,8 @@
 	"type": "module",
 	"devDependencies": {
 		"@savvy-web/bundler": "^2.1.12",
-		"@types/node": "catalog:silk",
-		"typescript": "catalog:silk",
-		"vitest": "catalog:silk"
+		"@types/node": "catalog:build",
+		"typescript": "catalog:build",
+		"vitest": "catalog:test"
 	}
 }

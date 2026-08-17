@@ -156,7 +156,7 @@ export interface HistoryQueryOptions {
 }
 /**
  * Narrowing options shared by the classification reads
- * ({@link DataReader.getFlaky} / `getPersistentFailures`). Mirrors the
+ * (`DataReader.getFlaky` / `getPersistentFailures`). Mirrors the
  * `testName` / `modulePath` half of {@link HistoryQueryOptions} so a
  * caller that scoped `getHistory` to one test can scope the derived
  * classifications to the same test instead of receiving the whole
@@ -171,7 +171,7 @@ export interface ClassificationQueryOptions {
 	readonly modulePath?: string;
 }
 /**
- * Narrowing options for {@link DataReader.getTestByFullName}. A
+ * Narrowing options for `DataReader.getTestByFullName`. A
  * `full_name` is not file-qualified (Decision D20), so the same name can
  * exist in more than one module; `modulePath` disambiguates.
  *

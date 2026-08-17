@@ -247,12 +247,19 @@ describe("discoverProjects()", () => {
 			});
 			await createPkg("some-pkg", { hasUnit: true });
 
-			// When: discoverProjects is called with the custom strategy
-			const result = await discoverProjects({ strategy: myStrategy, cwd: tmpDir });
+			// Declining a test-shaped package fires the issue-#229 stderr warning
+			// by design; capture it so it doesn't leak into the run output.
+			const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+			try {
+				// When: discoverProjects is called with the custom strategy
+				const result = await discoverProjects({ strategy: myStrategy, cwd: tmpDir });
 
-			// Then: projects is undefined, tags is empty
-			expect(result.projects).toBeUndefined();
-			expect(result.tags).toEqual([]);
+				// Then: projects is undefined, tags is empty
+				expect(result.projects).toBeUndefined();
+				expect(result.tags).toEqual([]);
+			} finally {
+				stderrSpy.mockRestore();
+			}
 		});
 
 		it("should return the same object reference on second no-arg call (process cache)", async () => {
@@ -274,11 +281,18 @@ describe("discoverProjects()", () => {
 			});
 			await createPkg("some-pkg2", { hasUnit: true });
 
-			const result1 = await discoverProjects({ strategy: myStrategy, cwd: tmpDir });
-			const result2 = await discoverProjects({ strategy: myStrategy, cwd: tmpDir });
+			// Declining a test-shaped package fires the issue-#229 stderr warning
+			// by design; capture it so it doesn't leak into the run output.
+			const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+			try {
+				const result1 = await discoverProjects({ strategy: myStrategy, cwd: tmpDir });
+				const result2 = await discoverProjects({ strategy: myStrategy, cwd: tmpDir });
 
-			// Then: different references (not cached)
-			expect(result1).not.toBe(result2);
+				// Then: different references (not cached)
+				expect(result1).not.toBe(result2);
+			} finally {
+				stderrSpy.mockRestore();
+			}
 		});
 	});
 
