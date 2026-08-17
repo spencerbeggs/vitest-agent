@@ -1,5 +1,21 @@
 # @vitest-agent/sidecar-linux-arm64
 
+## 2.1.0
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From  | To    |
+| ----------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/sdk | dependency | updated | 2.3.1 | 2.4.0 |
+
+### Maintenance
+
+* Bumps all packages to use `effect@rc.109`
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 2.0.13
 
 ### Dependencies
