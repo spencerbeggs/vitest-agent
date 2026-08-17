@@ -1,5 +1,24 @@
 # @vitest-agent/plugin
 
+## 2.3.0
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From   | To    |
+| ---------------------- | ---------- | ------- | ------ | ----- |
+| @vitest-agent/cli      | dependency | updated | 2.1.3  | 2.2.0 |
+| @vitest-agent/mcp      | dependency | updated | 2.2.1  | 2.3.0 |
+| @vitest-agent/reporter | dependency | updated | 2.0.21 | 2.1.0 |
+| @vitest-agent/sdk      | dependency | updated | 2.3.1  | 2.4.0 |
+
+### Maintenance
+
+* Bumps all packages to use `effect@rc.109`
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 2.2.3
 
 ### Dependencies

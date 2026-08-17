@@ -1,5 +1,15 @@
 # @vitest-agent/sdk
 
+## 2.4.0
+
+### Maintenance
+
+* Bumps all packages to use `effect@rc.109`
+
+### Minor Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 2.3.1
 
 ### Dependencies
