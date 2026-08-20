@@ -1,5 +1,26 @@
 # @vitest-agent/plugin
 
+## 2.3.1
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From  | To    |
+| ---------------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/cli      | dependency | updated | 2.2.0 | 2.2.1 |
+| @vitest-agent/mcp      | dependency | updated | 2.3.0 | 2.3.1 |
+| @vitest-agent/reporter | dependency | updated | 2.1.0 | 2.1.1 |
+| @vitest-agent/sdk      | dependency | updated | 2.4.0 | 2.4.1 |
+
+* | Dependency                | Type           | Action  | From    | To      |                                                                            |
+  | ------------------------- | -------------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+  | @effected/workspaces      | dependency     | updated | ^0.14.0 | ^0.14.2 |                                                                            |
+  | @vitest/coverage-istanbul | peerDependency | updated | 4.1.10  | 4.1.11  |                                                                            |
+  | @vitest/coverage-v8       | peerDependency | updated | 4.1.10  | 4.1.11  | [#260][#260] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#260]: https://github.com/spencerbeggs/vitest-agent/pull/260
+
 ## 2.3.0
 
 ### Dependencies
