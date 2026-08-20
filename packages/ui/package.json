@@ -35,7 +35,7 @@
 		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.14",
+		"@savvy-web/bundler": "^2.1.16",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
 		"ink": "^7.1.1",
