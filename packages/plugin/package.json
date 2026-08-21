@@ -33,16 +33,16 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
-		"@effected/workspaces": "^0.14.2",
+		"@effected/workspaces": "^0.15.1",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
 		"effect": "catalog:effect",
-		"magic-string": "^1.2.0"
+		"magic-string": "^1.2.1"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.16",
+		"@savvy-web/bundler": "^2.1.17",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",
