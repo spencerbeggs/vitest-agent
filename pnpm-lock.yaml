@@ -222,7 +222,7 @@ importers:
         specifier: catalog:effect
         version: 4.0.0-rc.109
       magic-string:
-        specifier: ^1.2.1
+        specifier: ^1.2.2
         version: 1.2.2
     devDependencies:
       '@effected/memfs':
@@ -247,7 +247,7 @@ importers:
         specifier: catalog:build
         version: 7.0.2
       vite:
-        specifier: ^8.2.1
+        specifier: ^8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.12)(yaml@2.9.0)
       vitest:
         specifier: catalog:test
@@ -297,7 +297,7 @@ importers:
         specifier: catalog:build
         version: 7.0.2
       vite:
-        specifier: ^8.2.1
+        specifier: ^8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.12)(yaml@2.9.0)
       vitest:
         specifier: catalog:test
