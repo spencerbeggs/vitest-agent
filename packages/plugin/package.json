@@ -43,7 +43,7 @@
 	},
 	"devDependencies": {
 		"@effected/memfs": "^0.5.0",
-		"@savvy-web/bundler": "^2.1.19",
+		"@savvy-web/bundler": "^2.1.20",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",
