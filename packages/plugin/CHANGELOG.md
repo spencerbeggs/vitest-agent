@@ -1,5 +1,17 @@
 # @vitest-agent/plugin
 
+## 2.4.1
+
+### Dependencies
+
+* | Dependency   | Type       | Action  | From   | To     |                                                                            |
+  | ------------ | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+  | magic-string | dependency | updated | ^1.2.1 | ^1.2.2 | [#269][#269] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#269]: https://github.com/spencerbeggs/vitest-agent/pull/269
+
 ## 2.4.0
 
 ### Features
