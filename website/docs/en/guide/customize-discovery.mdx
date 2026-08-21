@@ -61,9 +61,7 @@ anchored at the package root:
 - `src/**/*.{test,spec}.{ts,tsx,js,jsx}` — co-located layout, directly under
   the package's own `src/` directory
 
-Helper subdirectories inside the package's `__test__/` — `utils/`,
-`fixtures/`, `snapshots/` — are excluded automatically (this exclusion
-applies under `__test__/` only, never under `src/`).
+Three helper subdirectories are excluded automatically: `__test__/utils/`, `__test__/fixtures/` and `__test__/snapshots/`. The exclusion is anchored at the test root, so it catches those three names only where they sit directly under the package's own `__test__/`. A deeper path that happens to reuse one of the names — `__test__/unit/utils/parse.test.ts`, the natural mirror of `src/utils/parse.ts` — is an ordinary suite and is collected. Nothing under `src/` is excluded by name.
 
 `node_modules/`, `.git/` and `dist/` are excluded under both include roots.
 A package's own top-level `dist/` is already out of reach, since both globs

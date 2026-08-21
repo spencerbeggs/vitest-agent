@@ -107,7 +107,8 @@ describe("served test tool: get + modulePath", () => {
 	it("declares modulePath on the served inputSchema", async () => {
 		const { tools } = await client.listTools();
 		const testTool = tools.find((t) => t.name === "test");
-		const properties = (testTool?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+		const properties =
+			(testTool?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
 		expect(Object.keys(properties)).toContain("modulePath");
 	});
 

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-08-21
+last-synced: 2026-08-21
 completeness: 93
 related:
   - ../architecture.md
@@ -283,7 +283,10 @@ file per tool — and broadly group into:
   it computes from module states is preliminary — `buildAgentReport`
   self-corrects it to `"failed"` when the walk finds failed files or
   unhandled errors, so a hook-only or collection-only failure cannot
-  report green. See *Tag filtering and tag introspection* below, and
+  report green. Also accepts an optional, validated `projectRoot` that
+  overrides the boot-time `ctx.cwd` for one call, and always echoes the
+  root it actually ran under. See *Tag filtering and tag introspection*
+  below, *Caller-declared project root* for the worktree case, and
   *Per-invocation coverage directory* for the temp-dir isolation.
 
 Both `set_current_session_id` and `get_current_session_id` are
@@ -400,6 +403,19 @@ returns `runId: undefined` when the caller did not supply one.
 3. **Caller-supplied `sessionId`**, honored only when no host context was recovered (dev / test paths).
 
 The served tool description in `server.ts` is part of this contract — it is the text the model actually reads, and the earlier description steered callers toward `sessionId`. It now steers toward `tddTaskId` and explicitly warns against passing a `tddTaskId` value under the `sessionId` key. The dual-registration hand-sync failure that made the `tddTaskId` branch unreachable is the motivating case for the `buildMcpServer` served-schema tests (see *Server bootstrap*).
+
+**`action: "validate"` timestamps itself.** `validatedAt` is
+`Schema.optional` on the tRPC variant and `z.optional` on the served
+schema, and the handler defaults an omitted value to
+`new Date().toISOString()`; an explicitly supplied value is honored
+verbatim. The two registrations had drifted the other way — the Effect
+schema required the field while the served zod schema advertised it as
+optional, so a caller that believed the served schema got its call rejected
+after the bridge coerced the missing value with `as string` (issue #246).
+This is the same dual-registration hazard as the `tddTaskId` case, caught
+one layer lower. The `format-wrapup` nudge in `@vitest-agent/sdk` and the
+`help` tool text were updated to stop telling callers to synthesize a
+timestamp.
 
 `tdd_progress_push` is registered directly with the MCP SDK because it
 forwards to a Claude Code notification channel rather than returning data
@@ -613,6 +629,57 @@ alphabetical order.
 `TestRowSchema` rows grouped by project (one group per project carrying
 the tag, or a single group when `project` is supplied). Delegates to
 `DataReader.listTestsForTag`.
+
+## Caller-declared project root (`run_tests`)
+
+The MCP server resolves its Vitest root **once, at boot** — `ctx.cwd`, from
+`packages/mcp/src/bin.ts`'s `projectDir` precedence — and one long-lived
+server process serves every caller. In a git worktree that produced a false
+green: an agent working in `../repo-feature` called `run_tests`, the server
+ran the *other* tree, and the passing report came back with nothing in it
+naming which tree it came from (issue #252).
+
+**Optional, validated `projectRoot` input.** `run_tests` accepts an optional
+`projectRoot` that overrides `ctx.cwd` for that call only. It is validated,
+not trusted, by `validateProjectRoot()` in
+`packages/mcp/src/tools/run-tests.ts`: the path must resolve to an existing
+directory, and it must share a git common directory with `ctx.cwd`. A
+relative `projectRoot` resolves against `ctx.cwd`, not the MCP server
+process's `cwd` — the server's cwd is a base the caller never chose and
+cannot see, so resolving against it would answer a question nobody asked.
+`resolveGitCommonDir()` shells `git rev-parse --git-common-dir`, which is
+identical across a repository and every worktree attached to it — unlike
+`--show-toplevel`, which differs per worktree and would reject exactly the
+sibling-worktree case the param exists for. Both candidates are then routed
+through `fs.promises.realpath`, because git prints a *relative* `.git` from a
+main worktree but an *absolute, symlink-resolved* path from a linked one; on
+macOS, where a tmpdir sits behind `/var` → `/private/var`, a genuine sibling
+worktree compared unequal without it. A path in a different repository, a
+non-existent path, or a non-directory returns the tool's `{ kind: "error" }`
+envelope naming **both** paths; `createVitest` is never reached. Omitting the
+param resolves to `ctx.cwd` unchanged — the historical behavior, never
+inferred and never silently redirected.
+
+**The root is always echoed.** `RunTestsOk` and `RunTestsNoMatch` both carry
+a **required** `projectRoot`, populated whether or not the caller supplied
+one, and `formatRunTestsMarkdown` renders a `Project root:` line on both
+variants. This is the half that needs no new plumbing and no cooperating
+client: even an agent that never passes `projectRoot` can see which tree
+answered.
+
+**Detect-and-refuse is deliberately not implemented.** The server cannot
+observe the caller's cwd — it is one process, and nothing in the MCP call
+carries it — so it has nothing to compare against and cannot tell a
+worktree mismatch from a correct call. Supplying that signal is tracked in
+issue #275: `_callerCwd` injected through the same
+`hookSpecificOutput.updatedInput` channel
+`plugin/hooks/pre-tool-use/mcp-run-tests.sh` already uses for
+`_sessionContext`. Two caveats are recorded there. It is unverified whether
+a subagent's hook payload reports the subagent's cwd or the parent's. And
+absence of the signal must mean *cannot tell* — not "proceed", not "refuse"
+— because the MCP server is consumable without the Claude Code plugin, so a
+missing `_callerCwd` is the normal case for a plugin-less client. See
+[../decisions.md](../decisions.md) Decision 54.
 
 ## Per-invocation coverage directory
 

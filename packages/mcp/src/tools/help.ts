@@ -103,7 +103,7 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 
 \`hypothesis\` actions:
 - \`{ action: "record", sessionId, content, createdTurnId?, citedTestErrorId?, citedStackFrameId? }\`
-- \`{ action: "validate", id, outcome, validatedAt, validatedTurnId? }\`
+- \`{ action: "validate", id, outcome, validatedAt?, validatedTurnId? }\` — \`validatedAt\` defaults server-side to now when omitted; an explicit value is honored verbatim
 - \`{ action: "list", sessionId?, outcome?, limit? }\`
 
 ## TDD lifecycle

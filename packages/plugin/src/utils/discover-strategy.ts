@@ -289,7 +289,7 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 			...[SRC_DIR, TEST_DIR].flatMap((root) =>
 				[...NON_DISCOVERABLE_DIRS].map((d) => join(input.path, root, "**", d, "**")),
 			),
-			...(hasTestDirTests ? TEST_HELPER_DIRS.map((d) => join(input.path, TEST_DIR, "**", d, "**")) : []),
+			...(hasTestDirTests ? TEST_HELPER_DIRS.map((d) => join(input.path, TEST_DIR, d, "**")) : []),
 		];
 
 		// Detect setup file

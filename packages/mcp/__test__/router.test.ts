@@ -164,6 +164,13 @@ describe("MCP Router", () => {
 		expect(result.helpText).toContain('action: "for_tag"');
 	});
 
+	it("help describes hypothesis validate with validatedAt as optional, not a bare required param", async () => {
+		const caller = createTestCaller();
+		const result = await caller.help();
+		expect(result.helpText).not.toContain('{ action: "validate", id, outcome, validatedAt, validatedTurnId? }');
+		expect(result.helpText).toContain("validatedAt?");
+	});
+
 	it("test_status returns dataAvailable=false on empty DB", async () => {
 		const caller = createTestCaller();
 		const result = await caller.test_status({});
@@ -969,6 +976,83 @@ describe("MCP Router", () => {
 					validatedAt: new Date().toISOString(),
 				}),
 			).rejects.toThrow();
+		});
+
+		it("hypothesis validate with no validatedAt succeeds and persists a server-defaulted ISO 8601 timestamp", async () => {
+			const { sessionId, hypothesisId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sessionId = yield* store.writeSession({
+						chatId: "cc-hyp-validate-default-at",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
+					});
+					const hypothesisId = yield* store.writeHypothesis({
+						sessionId,
+						content: "Default validatedAt should come from the server, not the caller.",
+					});
+					return { sessionId, hypothesisId };
+				}),
+			);
+
+			const caller = createTestCaller();
+			const before = new Date();
+			const result = await caller.hypothesis({
+				action: "validate",
+				id: hypothesisId,
+				outcome: "confirmed",
+			});
+			const after = new Date();
+
+			expect(result).toEqual({ action: "validate" });
+
+			const listed = await caller.hypothesis({ action: "list", sessionId });
+			if (listed.action !== "list") throw new Error("expected list result");
+			const row = listed.hypotheses.find((h) => h.id === hypothesisId);
+			expect(row).toBeDefined();
+			expect(row?.validatedAt).not.toBeNull();
+			const persisted = new Date(row?.validatedAt as string);
+			expect(persisted.toISOString()).toBe(row?.validatedAt);
+			expect(persisted.getTime()).toBeGreaterThanOrEqual(before.getTime());
+			expect(persisted.getTime()).toBeLessThanOrEqual(after.getTime());
+		});
+
+		it("hypothesis validate with an explicit validatedAt persists that exact string unchanged", async () => {
+			const { sessionId, hypothesisId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const sessionId = yield* store.writeSession({
+						chatId: "cc-hyp-validate-explicit-at",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						startedAt: new Date().toISOString(),
+					});
+					const hypothesisId = yield* store.writeHypothesis({
+						sessionId,
+						content: "Explicit validatedAt must win over the server default.",
+					});
+					return { sessionId, hypothesisId };
+				}),
+			);
+
+			const caller = createTestCaller();
+			const explicitValidatedAt = "2020-01-01T00:00:00.000Z";
+			const result = await caller.hypothesis({
+				action: "validate",
+				id: hypothesisId,
+				outcome: "refuted",
+				validatedAt: explicitValidatedAt,
+			});
+
+			expect(result).toEqual({ action: "validate" });
+
+			const listed = await caller.hypothesis({ action: "list", sessionId });
+			if (listed.action !== "list") throw new Error("expected list result");
+			const row = listed.hypotheses.find((h) => h.id === hypothesisId);
+			expect(row?.validatedAt).toBe(explicitValidatedAt);
 		});
 	});
 

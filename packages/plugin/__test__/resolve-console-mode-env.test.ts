@@ -43,16 +43,15 @@ describe("resolveConsoleMode VITEST_AGENT_CONSOLE override", () => {
 		{ executor: "human", env: "terminal", literals: HumanConsoleMode.literals } as const,
 		{ executor: "agent", env: "agent-shell", literals: AgentConsoleMode.literals } as const,
 		{ executor: "ci", env: "ci-generic", literals: CiConsoleMode.literals } as const,
-	])("appends the accepted values for the $executor slot when the env override is invalid", ({
-		executor,
-		env,
-		literals,
-	}) => {
-		const warn = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-		process.env[ENV] = "not-a-real-mode";
-		resolveConsoleMode({}, executor, env);
-		expect(warn).toHaveBeenCalledOnce();
-		const message = String(warn.mock.calls[0][0]);
-		expect(message).toContain(`accepted for ${executor}: ${literals.join(" | ")}`);
-	});
+	])(
+		"appends the accepted values for the $executor slot when the env override is invalid",
+		({ executor, env, literals }) => {
+			const warn = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			process.env[ENV] = "not-a-real-mode";
+			resolveConsoleMode({}, executor, env);
+			expect(warn).toHaveBeenCalledOnce();
+			const message = String(warn.mock.calls[0][0]);
+			expect(message).toContain(`accepted for ${executor}: ${literals.join(" | ")}`);
+		},
+	);
 });

@@ -48,7 +48,8 @@ describe("served hypothesis tool schema", () => {
 		const tools = await client.listTools();
 		const hypothesis = tools.tools.find((t) => t.name === "hypothesis");
 		expect(hypothesis).toBeDefined();
-		const properties = (hypothesis?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+		const properties =
+			(hypothesis?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
 		expect(Object.keys(properties)).toContain("tddTaskId");
 	});
 
@@ -59,6 +60,15 @@ describe("served hypothesis tool schema", () => {
 		// server-side resolution / tddTaskId, never "record (sessionId, ...)".
 		expect(hypothesis?.description).not.toContain("action='record' (sessionId");
 		expect(hypothesis?.description).toContain("tddTaskId");
+	});
+
+	it("describes validate with validatedAt marked optional, not a required positional", async () => {
+		const tools = await client.listTools();
+		const hypothesis = tools.tools.find((t) => t.name === "hypothesis");
+		// validatedAt is now optional and server-defaulted — the description
+		// must not list it as a bare required param alongside id/outcome.
+		expect(hypothesis?.description).not.toContain("action='validate' (id, outcome, validatedAt)");
+		expect(hypothesis?.description).toContain("validatedAt");
 	});
 
 	it("forwards a numeric-string tddTaskId end-to-end and binds to the task's session", async () => {
@@ -102,5 +112,53 @@ describe("served hypothesis tool schema", () => {
 		});
 		const listStructured = listed.structuredContent as { count?: number };
 		expect(listStructured.count).toBe(1);
+	});
+
+	it("declares validatedAt as optional on the served inputSchema", async () => {
+		const tools = await client.listTools();
+		const hypothesis = tools.tools.find((t) => t.name === "hypothesis");
+		expect(hypothesis).toBeDefined();
+		const schema = hypothesis?.inputSchema as { properties?: Record<string, unknown>; required?: string[] };
+		expect(Object.keys(schema.properties ?? {})).toContain("validatedAt");
+		expect(schema.required ?? []).not.toContain("validatedAt");
+	});
+
+	it("validates a hypothesis end to end without a validatedAt argument", async () => {
+		const { sessionId, hypothesisId } = await testRuntime.runPromise(
+			Effect.gen(function* () {
+				const store = yield* DataStore;
+				const sessionId = yield* store.writeSession({
+					chatId: "cc-served-schema-validate-no-at",
+					project: "default",
+					cwd: process.cwd(),
+					agentKind: "subagent",
+					agentType: "tdd-task",
+					startedAt: "2026-07-22T00:00:00Z",
+				});
+				const hypothesisId = yield* store.writeHypothesis({
+					sessionId,
+					content: "served-schema: validate must work without validatedAt over a real client call.",
+				});
+				return { sessionId, hypothesisId };
+			}),
+		);
+
+		const validated = await client.callTool({
+			name: "hypothesis",
+			arguments: { action: "validate", id: hypothesisId, outcome: "confirmed" },
+		});
+		expect(validated.isError ?? false).toBe(false);
+		const structured = validated.structuredContent as { action?: string };
+		expect(structured.action).toBe("validate");
+
+		const listed = await client.callTool({
+			name: "hypothesis",
+			arguments: { action: "list", sessionId },
+		});
+		const listStructured = listed.structuredContent as {
+			hypotheses?: { id: number; validatedAt: string | null }[];
+		};
+		const row = listStructured.hypotheses?.find((h) => h.id === hypothesisId);
+		expect(row?.validatedAt).not.toBeNull();
 	});
 });

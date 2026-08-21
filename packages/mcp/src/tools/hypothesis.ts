@@ -104,7 +104,11 @@ const ValidateVariant = Schema.Struct({
 	id: Schema.Number,
 	outcome: Schema.Literals(["confirmed", "refuted", "abandoned"]),
 	validatedTurnId: Schema.optional(Schema.Number),
-	validatedAt: Schema.String,
+	// Optional: when omitted, the validate handler defaults to the server's
+	// current time (see the `validate` branch below) rather than requiring
+	// the caller to synthesize a timestamp. An explicitly supplied value is
+	// always honored verbatim.
+	validatedAt: Schema.optional(Schema.String),
 });
 
 const ListVariant = Schema.Struct({
@@ -192,7 +196,7 @@ export const hypothesis = idempotentProcedure
 							yield* store.validateHypothesis({
 								id: variant.id,
 								outcome: variant.outcome,
-								validatedAt: variant.validatedAt,
+								validatedAt: variant.validatedAt ?? new Date().toISOString(),
 								...(variant.validatedTurnId !== undefined && { validatedTurnId: variant.validatedTurnId }),
 							});
 							return { action: "validate" as const };

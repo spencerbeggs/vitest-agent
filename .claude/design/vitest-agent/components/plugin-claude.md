@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-12
-last-synced: 2026-08-12
+updated: 2026-08-21
+last-synced: 2026-08-21
 completeness: 90
 related:
   - ../architecture.md
@@ -141,6 +141,15 @@ categories:
   `--bail`, `--testNamePattern`), reject test-weakening edits, and record
   evidence artifacts. This is the runtime enforcement layer for the iron-law
   TDD discipline; the agent's `tools[]` array is documentation.
+  `pre-tool-use/bash-tdd.sh` matches its forbidden-pattern list against the
+  whole command string, so each pattern has to carry its own boundary: the
+  snapshot guard is `\.snap([^A-Za-z0-9]|$)` — the extension, not a bare
+  substring. As a plain `\.snap` it denied any command that merely *named* a
+  file like `cells.snapshot.test.ts`, including ordinary greps and commits
+  (issue #247). `plugin/hooks/__test__/bash-tdd.bats` pins both directions:
+  a command carrying a real `.snap` operand (quoted, or followed by more
+  command text) is still denied, an incidental mention of a `.snapshot.`
+  filename is allowed.
 - **Layout enforcement.** `pre-tool-use/test-location.sh` fires on
   `Read`/`Write`/`Edit`/`MultiEdit` calls whose `file_path` basename is
   shaped like a test file, then delegates the actual judgement to
@@ -153,6 +162,12 @@ categories:
   location can't be un-broken by refusing the edit. Any CLI failure fails
   open (`emit_noop`). This is what closed issue #227 and reclassified
   issue #184 — see [../decisions-retired.md](../decisions-retired.md).
+  Because an `excluded` verdict is a *deny* on a new test file, the
+  helper-directory rule inside `classifyTestPath` has to be exactly as
+  narrow as the discovery glob: it now inspects only the segment directly
+  under `__test__/`, so `__test__/unit/utils/foo.test.ts` is `valid`. The
+  earlier any-depth check made the hook refuse to create ordinary suites
+  and made discovery drop them silently (issue #251).
 
 The match-tdd-agent helper at `hooks/lib/match-tdd-agent.sh` is the load-bearing
 piece for orchestrator scoping. Claude Code emits the subagent identity in the

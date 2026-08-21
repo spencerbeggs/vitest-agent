@@ -429,9 +429,17 @@ reach a package's own top-level `dist/`, but it can reach one nested deeper
 so the emitted config now prunes exactly what `findTestFiles` prunes,
 closing the last divergence between the walker and the glob. The
 helper-subdirectory excludes (`utils`, `fixtures`, `snapshots`) are
-anchored under `<path>/__test__/**/{fixtures,snapshots,utils}/**` —
-helper-directory exclusion applies under `__test__/` only, never under
-`src/`. The exclude list is now emitted unconditionally; only the
+anchored at the test root as `<path>/__test__/{fixtures,snapshots,utils}/**`
+— helper-directory exclusion applies under `__test__/` only, never under
+`src/`, and only to a helper directory *directly under* `__test__/`. The
+earlier `<path>/__test__/**/{fixtures,snapshots,utils}/**` form matched a
+helper-named segment at any depth, so a legitimate suite at
+`__test__/unit/utils/foo.test.ts` — the natural mirror of `src/utils/` —
+was dropped from discovery with no warning (issue #251; a real consumer
+lost 5 suites / 60 cases). `classifyTestPath` carried the same any-depth
+bug and was anchored in the same pass, which matters more than the glob:
+an `excluded` verdict makes the `test-location` PreToolUse hook *deny*
+creating the file. The exclude list is now emitted unconditionally; only the
 helper-subdirectory entries are conditional on the `__test__` bucket
 producing matches.
 

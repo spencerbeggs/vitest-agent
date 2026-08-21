@@ -361,7 +361,7 @@ vitest-agent agent check-test-path lib/scripts/__test__/generate-schema.test.ts
 | Verdict | Meaning |
 |---------|---------|
 | `valid` | A discoverable location — a test file placed here is collected |
-| `excluded` | A location that is deliberately not collected and correct as it is — a helper directory under `__test__/` (`fixtures/`, `snapshots/`, `utils/`) |
+| `excluded` | A location that is deliberately not collected and correct as it is — a helper directory sitting directly under `__test__/` (`fixtures/`, `snapshots/`, `utils/`). A deeper path reusing one of those names, such as `__test__/unit/utils/`, is `valid` |
 | `invalid` | Not a legal test location; a test file here is never collected. `suggestedPath` names the corresponding valid location |
 
 | Argument | Type | Description |

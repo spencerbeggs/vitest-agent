@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-08-21
+last-synced: 2026-08-21
 completeness: 90
 related:
   - ./architecture.md
@@ -102,7 +102,10 @@ The `discoverProjects` scanner in `@vitest-agent/plugin` also picks up any
 `packages/<name>/src/**/*.test.ts` co-located files when present. Helper
 files are separated into `__test__/utils/`, `__test__/fixtures/`, and
 `__test__/snapshots/` subdirectories which the scanner excludes
-automatically. See [./testing-strategy.md](./testing-strategy.md) for
+automatically. That exclusion is anchored at the test root: only a
+helper-named directory *directly under* `__test__/` is excluded, so a
+suite at `__test__/unit/utils/foo.test.ts` is an ordinary test file and is
+discovered normally (issue #251). See [./testing-strategy.md](./testing-strategy.md) for
 testing patterns and per-project counts.
 
 ## Data path

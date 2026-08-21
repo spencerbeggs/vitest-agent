@@ -133,8 +133,14 @@ export function classifyTestPath(
 	}
 
 	if (head === TEST_DIR) {
-		const intermediates = segments.slice(1, -1);
-		const isHelper = intermediates.some((s) => (TEST_HELPER_DIRS as ReadonlyArray<string>).includes(s));
+		// Only a helper dir AT THE TEST ROOT (the segment directly under
+		// `__test__/`) marks exclusion. A same-named directory nested deeper
+		// (e.g. `__test__/unit/utils/`, the natural mirror of `src/utils/`) is
+		// an ordinary suite — checking every intermediate segment swept it out
+		// of discovery silently (issue #251).
+		const rootIntermediate = segments.length > 2 ? segments[1] : undefined;
+		const isHelper =
+			rootIntermediate !== undefined && (TEST_HELPER_DIRS as ReadonlyArray<string>).includes(rootIntermediate);
 		return {
 			verdict: isHelper ? "excluded" : "valid",
 			workspace: owner.name,

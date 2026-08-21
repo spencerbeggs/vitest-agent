@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-08-21
+last-synced: 2026-08-21
 completeness: 93
 related:
   - ./architecture.md
@@ -552,6 +552,19 @@ summary counts (issue #200). Definition:
 `packages/mcp/src/tools/run-tests.ts`.
 
 **`RunTestsOk.discoveryLastScannedAt`** (output on `run_tests`) — optional `string | null` on the `ok` variant of `RunTestsResult`. The ISO timestamp of the most recent real disk scan `discoverProjects()` performed in this process, or `null`/absent when discovery has not scanned disk in this process. Lets an agent distinguish a stale-looking test count from a fresh scan (issue #100). Populated via the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global handshake with `@vitest-agent/plugin`, not a direct import. Definition: `packages/mcp/src/tools/run-tests.ts`. See [decisions.md](decisions.md) Decision 43.
+
+**`projectRoot`** (input and output on `run_tests`) — optional `string`
+input, **required** `string` on both the `ok` and `no-match` output
+variants. As an input it overrides the server's boot-time `ctx.cwd` for
+one call, after validation by `validateProjectRoot()`: an existing
+directory sharing a git common directory with `ctx.cwd` (same
+repository, including a sibling worktree), else the `{ kind: "error" }`
+envelope naming both paths — never a silent fallback. As an output it is
+always populated, whether or not the caller supplied one, so a `run_tests`
+result always names the tree it came from (issue #252). Rendered as a
+`Project root:` line by `formatRunTestsMarkdown`. Definition:
+`packages/mcp/src/tools/run-tests.ts`. See [decisions.md](decisions.md)
+Decision 54.
 
 **`TagVariant`** (input on `inventory`) — `{ kind: "tag", project?:
 string }`. New member of the `InventoryInput` union. Definition:

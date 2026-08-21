@@ -248,6 +248,27 @@ describe("formatWrapupEffect", () => {
 			expect(result).toContain('hypothesis({ action: "validate"');
 			expect(result).toContain("2");
 		});
+
+		it("does not tell callers to pass validatedAt — the server defaults it", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-open-hyp-no-validated-at",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						startedAt: "2026-04-30T00:00:00Z",
+					});
+					yield* ds.writeHypothesis({
+						sessionId,
+						content: "the foo handler is dropping the bar argument",
+					});
+					return yield* formatWrapupEffect({ sessionId, kind: "stop" });
+				}),
+			);
+			expect(result).not.toContain("validatedAt");
+		});
 	});
 
 	describe("main-agent suppression", () => {

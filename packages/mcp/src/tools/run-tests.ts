@@ -1,8 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { execFile } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
+import { realpath, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { Writable } from "node:stream";
+import { promisify } from "node:util";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
 	AgentReport as AgentReportSchema,
@@ -42,6 +45,13 @@ const RunTestsOk = Schema.Struct({
 		description: "Discriminant — `true` test run completed (with or without failures).",
 	}),
 	project: Schema.optional(Schema.String),
+	projectRoot: Schema.String.annotate({
+		description:
+			"The absolute Vitest root actually used for this run (issue #252). Echoed whether or not the caller supplied " +
+			"a `projectRoot` param -- when absent, this is the server's boot-time ctx.cwd; when supplied and validated, " +
+			"this is the resolved, validated path. Lets an agent confirm discovery resolved where it expected, or that " +
+			"an explicit projectRoot was actually honored.",
+	}),
 	scope: RunTestsScope,
 	report: AgentReportSchema.annotate({
 		description: "Full AgentReport including pass/fail counts and per-module errors.",
@@ -71,6 +81,11 @@ const RunTestsNoMatch = Schema.Struct({
 	kind: Schema.Literal("no-match").annotate({
 		description:
 			"Discriminant — the resolved filter set matched zero test cases. Tests did not run; this is independent of passWithNoTests policy.",
+	}),
+	projectRoot: Schema.String.annotate({
+		description:
+			"The absolute Vitest root actually resolved for this call (issue #252) — echoed the same as on RunTestsOk, " +
+			"even though no test ran.",
 	}),
 	filter: Schema.Struct({
 		project: Schema.NullOr(Schema.String),
@@ -239,6 +254,95 @@ export function sanitizeTestArgs(args: readonly string[]): string[] {
 	return result;
 }
 
+const execFileAsync = promisify(execFile);
+
+/**
+ * Resolve the git common directory for `dir` (`git rev-parse
+ * --git-common-dir`) — identical across a repository and every worktree
+ * attached to it, which is what makes it the right "same repository"
+ * comparison (a plain `--show-toplevel` differs per worktree). Returns
+ * `null` when `dir` is not inside a git repository or the command fails
+ * for any other reason; callers treat `null` as "cannot confirm same
+ * repository", never as a silent pass.
+ *
+ * @internal exported for tests
+ */
+export async function resolveGitCommonDir(dir: string): Promise<string | null> {
+	try {
+		const { stdout } = await execFileAsync("git", ["rev-parse", "--git-common-dir"], { cwd: dir });
+		const trimmed = stdout.trim();
+		if (trimmed.length === 0) return null;
+		// `--git-common-dir` may print a path relative to `dir` (e.g. `.git`
+		// for a plain repo) or an absolute, symlink-resolved path (e.g. from
+		// inside a linked worktree, where git prints the realpath). Run both
+		// shapes through `realpath` so a repo whose tmpdir sits behind a
+		// symlink (macOS `/var/folders` -> `/private/var/folders`) compares
+		// equal regardless of which form git chose to print.
+		const candidate = resolve(dir, trimmed);
+		return await realpath(candidate);
+	} catch {
+		return null;
+	}
+}
+
+export type ProjectRootValidation = { ok: true; root: string } | { ok: false; message: string };
+
+/**
+ * Validate an optional caller-supplied `projectRoot` against `ctxCwd`
+ * (the MCP server's boot-time root). `undefined` always resolves to
+ * `ctxCwd` unchanged (issue #252's option 1: explicit opt-in only —
+ * never inferred, never defaulted to anything but the historical
+ * behavior when the caller says nothing).
+ *
+ * A supplied `projectRoot` is VALIDATED, not trusted: it must resolve to
+ * an existing directory that shares a git common directory with
+ * `ctxCwd` (same repository, including across worktrees). Any failure
+ * returns `{ ok: false, message }` naming both paths — never a silent
+ * fallback to `ctxCwd`, never a raw throw.
+ *
+ * @internal exported for tests
+ */
+export async function validateProjectRoot(
+	projectRoot: string | undefined,
+	ctxCwd: string,
+): Promise<ProjectRootValidation> {
+	if (projectRoot === undefined) {
+		return { ok: true, root: ctxCwd };
+	}
+	// Resolve a relative `projectRoot` against `ctxCwd`, not the MCP
+	// server's `process.cwd()`. Single-argument `resolve` would use the
+	// server process's cwd — a base the caller cannot see and did not
+	// choose. Absolute paths (the intended input) are unaffected.
+	const resolvedRoot = resolve(ctxCwd, projectRoot);
+	let isDirectory: boolean;
+	try {
+		const stats = await stat(resolvedRoot);
+		isDirectory = stats.isDirectory();
+	} catch {
+		return {
+			ok: false,
+			message: `projectRoot "${resolvedRoot}" does not exist (ctx.cwd is "${ctxCwd}").`,
+		};
+	}
+	if (!isDirectory) {
+		return {
+			ok: false,
+			message: `projectRoot "${resolvedRoot}" is not a directory (ctx.cwd is "${ctxCwd}").`,
+		};
+	}
+	const [rootCommonDir, cwdCommonDir] = await Promise.all([
+		resolveGitCommonDir(resolvedRoot),
+		resolveGitCommonDir(ctxCwd),
+	]);
+	if (rootCommonDir === null || cwdCommonDir === null || rootCommonDir !== cwdCommonDir) {
+		return {
+			ok: false,
+			message: `projectRoot "${resolvedRoot}" does not belong to the same git repository as ctx.cwd "${ctxCwd}".`,
+		};
+	}
+	return { ok: true, root: resolvedRoot };
+}
+
 // Serializes concurrent run_tests invocations. The body assigns the
 // active attribution UUIDs into `process.env.VITEST_AGENT_*` and then
 // awaits `createVitest`/`vitest.start`, which spawns the worker pool
@@ -296,9 +400,14 @@ export function formatReportJson(report: AgentReport, classifications?: Readonly
 export function formatRunTestsMarkdown(data: RunTestsResultType): string {
 	if (data.kind === "timeout") return `Test run timed out after ${data.timeoutSeconds} seconds.`;
 	if (data.kind === "error") return `Test run failed: ${data.message}`;
-	if (data.kind === "no-match") return formatNoMatchMarkdown(data.filter);
+	// Both remaining variants always carry a resolved projectRoot (issue
+	// #252) -- render it so the agent can see which root actually ran
+	// (or was resolved for a no-match) without cross-checking
+	// structuredContent.
+	const rootLine = `\nProject root: \`${data.projectRoot}\``;
+	if (data.kind === "no-match") return `${formatNoMatchMarkdown(data.filter)}${rootLine}`;
 	const classMap = new Map<string, string>(Object.entries(data.classifications));
-	return formatReportMarkdown(data.report, classMap);
+	return `${formatReportMarkdown(data.report, classMap)}${rootLine}`;
 }
 
 /**
@@ -475,6 +584,18 @@ export const runTests = publicProcedure
 				tags: Schema.optional(TagFilter),
 				passWithNoTests: Schema.optional(Schema.Boolean),
 				timeout: Schema.optional(Schema.Number),
+				// Issue #252: the MCP server freezes its Vitest `root` at boot
+				// (`ctx.cwd`) and cannot observe a caller's cwd. When supplied,
+				// this overrides that root -- but only after validation (see
+				// `validateProjectRoot`): it must be an existing directory
+				// belonging to the same git repository as `ctx.cwd` (checked via
+				// `git rev-parse --git-common-dir`, identical across a repo and
+				// all its worktrees). A path in a different repo, or a
+				// non-existent path, returns `{ kind: "error" }` naming both
+				// paths -- never a silent fallback to `ctx.cwd`. The resolved
+				// root actually used is always echoed back on `RunTestsOk` /
+				// `RunTestsNoMatch`, whether or not this was supplied.
+				projectRoot: Schema.optional(Schema.String),
 				// Injected by the `pre-tool-use-mcp-run-tests.sh` hook —
 				// agents do not pass this directly. Carries the recovered
 				// VITEST_AGENT_* attribution UUIDs because Claude Code does
@@ -505,6 +626,17 @@ export const runTests = publicProcedure
 				}
 				const resolvedExpression = composeTagExpression(tagsInput ?? null);
 				const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
+
+				// Issue #252: validate (never trust) an explicit projectRoot
+				// before it can influence anything below. A rejection returns
+				// the tool's normal error envelope and never reaches
+				// createVitest — this must happen before any Vitest/coverage
+				// setup so a mismatched root can't leak into a real run.
+				const projectRootValidation = await validateProjectRoot(input.projectRoot, ctx.cwd);
+				if (!projectRootValidation.ok) {
+					return { kind: "error" as const, message: projectRootValidation.message };
+				}
+				const resolvedRoot = projectRootValidation.root;
 
 				const timeoutMs = (input.timeout ?? 120) * 1000;
 
@@ -556,7 +688,7 @@ export const runTests = publicProcedure
 					vitest = await createVitest(
 						"test",
 						{
-							root: ctx.cwd,
+							root: resolvedRoot,
 							run: true,
 							// Inherit coverage from the user's vitest.config (enabled,
 							// provider, thresholds all still apply — this spreads
@@ -612,6 +744,7 @@ export const runTests = publicProcedure
 					if (hasFilter && result.testModules.length === 0 && unhandledErrors.length === 0) {
 						return {
 							kind: "no-match" as const,
+							projectRoot: resolvedRoot,
 							filter: {
 								project: project ?? null,
 								files,
@@ -675,6 +808,7 @@ export const runTests = publicProcedure
 					return {
 						kind: "ok" as const,
 						...(project !== undefined && { project }),
+						projectRoot: resolvedRoot,
 						scope: {
 							project: project ?? null,
 							files,

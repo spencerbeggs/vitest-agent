@@ -162,10 +162,8 @@ describe("served input schemas are strict at every nesting level", () => {
 	it("run_tests declares strict nested shapes for tags and _sessionContext", async () => {
 		const { tools } = await client.listTools();
 		const runTests = tools.find((t) => t.name === "run_tests");
-		const properties = ((runTests?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {}) as Record<
-			string,
-			{ additionalProperties?: unknown }
-		>;
+		const properties = ((runTests?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ??
+			{}) as Record<string, { additionalProperties?: unknown }>;
 
 		expect(properties.tags?.additionalProperties).toBe(false);
 		expect(properties._sessionContext?.additionalProperties).toBe(false);

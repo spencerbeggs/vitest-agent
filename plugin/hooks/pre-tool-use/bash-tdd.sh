@@ -45,7 +45,10 @@ if [ "$tool_name" = "Bash" ]; then
 		'--bail(=| )'
 		' -t( |$)'
 		'--testNamePattern'
-		'\.snap'
+		# `.snap` as a whole extension, not a substring: `cells.snapshot.test.ts`
+		# is an ordinary source file and naming it in a grep or a commit message
+		# must not be denied (issue #247).
+		'\.snap([^A-Za-z0-9]|$)'
 	)
 	for pattern in "${forbidden_patterns[@]}"; do
 		if [[ "$command" =~ $pattern ]]; then
