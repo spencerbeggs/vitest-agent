@@ -1,5 +1,54 @@
 # @vitest-agent/plugin
 
+## 2.4.0
+
+### Features
+
+* ### Injectable filesystem port for discovery
+
+  The four discovery walkers (`findTestFiles`, `isTestShapedPackage`, `discoverProjects`, and `DiscoverStrategy.buildProject`) now read through a small filesystem port instead of calling `node:fs` directly. Every call site still defaults to the real filesystem, so production behavior is unchanged — this only opens the door to testing discovery against a virtual volume instead of a real temporary directory.
+
+  ```ts
+  import type { WalkerFileSystem } from "@vitest-agent/plugin";
+  import { findTestFiles } from "@vitest-agent/plugin";
+
+  const fs: WalkerFileSystem = {
+    readDirectory: async (dir) => [],
+    statEntry: async (path) => null,
+  };
+
+  await findTestFiles("/repo/packages/foo", ["**/*.test.ts"], fs);
+  ```
+
+  New exports from the package index: the `WalkerFileSystem`, `WalkerEntry`, and `WalkerEntryStat` types, plus the `nodeWalkerFs` binding (the default used everywhere).
+
+  Three existing shapes gained optional opt-in points, each defaulting to previous behavior:
+
+  * `findTestFiles(dir, patterns, fs?)` — new trailing `fs` parameter
+  * `DiscoverProjectsOptions` — new `fs?` and `syncOps?` fields
+  * `DiscoverInput` (passed to `DiscoverStrategy.buildProject`) — new `fs?` field
+
+  Anyone implementing a custom `DiscoverStrategy`, or testing project discovery, can now hand in a virtual filesystem instead of building and tearing down a real temp directory. [#267][#267]
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From  | To    |
+| ---------------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/cli      | dependency | updated | 2.2.2 | 2.2.3 |
+| @vitest-agent/mcp      | dependency | updated | 2.3.2 | 2.3.3 |
+| @vitest-agent/reporter | dependency | updated | 2.1.2 | 2.1.3 |
+| @vitest-agent/sdk      | dependency | updated | 2.4.2 | 2.4.3 |
+
+* | Dependency           | Type       | Action  | From    | To      |                                                                       |
+  | -------------------- | ---------- | ------- | ------- | ------- | --------------------------------------------------------------------- |
+  | @effected/workspaces | dependency | updated | ^0.15.1 | ^0.16.0 | [#267][#267] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#267]: https://github.com/spencerbeggs/vitest-agent/pull/267
+
 ## 2.3.2
 
 ### Dependencies
