@@ -168,9 +168,12 @@ describe("discoverProjects()", () => {
 			const exclude = projects?.[0].test?.exclude as string[] | undefined;
 			expect(exclude).toBeDefined();
 			const pkgDir = join(tmpDir, "packages", "td-excl");
-			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "**", "utils", "**"))).toBe(true);
-			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "**", "fixtures", "**"))).toBe(true);
-			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "**", "snapshots", "**"))).toBe(true);
+			// Anchored directly under __test__/ (the test root), not "**" away from
+			// it — a same-named suite directory nested deeper (e.g.
+			// __test__/unit/utils/) is not excluded (issue #251).
+			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "utils", "**"))).toBe(true);
+			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "fixtures", "**"))).toBe(true);
+			expect(exclude?.some((p) => p === join(pkgDir, TEST_DIR, "snapshots", "**"))).toBe(true);
 		});
 	});
 

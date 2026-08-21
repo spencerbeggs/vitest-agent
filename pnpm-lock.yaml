@@ -92,10 +92,6 @@ catalogs:
     vitest:
       specifier: ^4.1.11
       version: 4.1.11
-  test:peers:
-    vitest:
-      specifier: ^4.1.0
-      version: 4.1.11
 
 overrides:
   '@microsoft/api-extractor>typescript': ^6.0.3

@@ -88,11 +88,14 @@ A successful run echoes the filter set it used on `scope`:
 ```json
 {
   "kind": "ok",
-  "scope": { "project": "my-package", "files": [], "tags": { "all": ["unit"], "none": ["slow"] } }
+  "scope": { "project": "my-package", "files": [], "tags": { "all": ["unit"], "none": ["slow"] } },
+  "projectRoot": "/Users/me/code/my-repo"
 }
 ```
 
 Unknown keys are rejected rather than dropped, so a misspelled param cannot widen a run without the caller noticing.
+
+The root a run uses is the server's working directory, fixed when the server booted — which is the wrong tree once you are working in a git worktree. Pass `projectRoot` to run against a different checkout of the same repository; it is validated, and the resolved value comes back on every `ok` and `no-match` result. See the [MCP tool reference](/mcp/tools) for the validation rules.
 
 ## Framing prompts
 

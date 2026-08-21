@@ -306,8 +306,11 @@ release workflow. Every package versions independently — there is no lockstep 
   (flat directory). A test file is discoverable only under a workspace
   package's `src/` (co-located) or `__test__/` directory, anchored at
   the package root — nothing nested elsewhere in the tree is
-  discovered. The rule lives in `classifyTestPath` and its constants in
-  `@vitest-agent/sdk`'s `utils/test-location.ts`.
+  discovered. Subdirectories under `__test__/` ARE discovered; only
+  `fixtures/`, `snapshots/`, and `utils/` sitting directly under
+  `__test__/` are excluded (a deeper `__test__/unit/utils/` is an
+  ordinary suite — issue #251). The rule lives in `classifyTestPath`
+  and its constants in `@vitest-agent/sdk`'s `utils/test-location.ts`.
   Test-kind differentiation comes from `DiscoverStrategy.classify`
   (default classifies `.e2e.`, `.int.`, and otherwise `unit` by
   filename), not from project splits — there is one Vitest project

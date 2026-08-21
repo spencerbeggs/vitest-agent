@@ -46,6 +46,28 @@ describe("classifyTestPath", () => {
 		expect(classifyTestPath(WORKSPACES, path)?.verdict).toBe("excluded");
 	});
 
+	it("classifies a helper-named dir one level under __test__/, not at the test root, as valid", () => {
+		// __test__/unit/utils/ is the natural mirror of src/utils/ — only a helper
+		// dir AT THE TEST ROOT (segments[1]) marks exclusion, not any depth.
+		const path = join(ROOT, "packages", "plugin", "__test__", "unit", "utils", "probe.test.ts");
+		expect(classifyTestPath(WORKSPACES, path)?.verdict).toBe("valid");
+	});
+
+	it("classifies nested __test__/unit/fixtures/ and __test__/unit/snapshots/ files as valid", () => {
+		const fixturesPath = join(ROOT, "packages", "plugin", "__test__", "unit", "fixtures", "sample.test.ts");
+		const snapshotsPath = join(ROOT, "packages", "plugin", "__test__", "unit", "snapshots", "sample.test.ts");
+		expect(classifyTestPath(WORKSPACES, fixturesPath)?.verdict).toBe("valid");
+		expect(classifyTestPath(WORKSPACES, snapshotsPath)?.verdict).toBe("valid");
+	});
+
+	it.each(["fixtures", "snapshots", "utils"])(
+		"classifies a file directly under __test__/%s/ at the test root as excluded",
+		(dir) => {
+			const path = join(ROOT, "packages", "plugin", "__test__", dir, "helper.ts");
+			expect(classifyTestPath(WORKSPACES, path)?.verdict).toBe("excluded");
+		},
+	);
+
 	it("does not apply the helper-dir rule under src/", () => {
 		const path = join(ROOT, "packages", "plugin", "src", "fixtures", "foo.test.ts");
 		expect(classifyTestPath(WORKSPACES, path)?.verdict).toBe("valid");
@@ -123,15 +145,12 @@ describe("findOwningWorkspace", () => {
 });
 
 describe("isTestFileName", () => {
-	it.each([
-		"foo.test.ts",
-		"foo.test.tsx",
-		"foo.spec.js",
-		"foo.spec.jsx",
-		"a/b/foo.unit.test.ts",
-	])("recognises %s", (name) => {
-		expect(isTestFileName(name)).toBe(true);
-	});
+	it.each(["foo.test.ts", "foo.test.tsx", "foo.spec.js", "foo.spec.jsx", "a/b/foo.unit.test.ts"])(
+		"recognises %s",
+		(name) => {
+			expect(isTestFileName(name)).toBe(true);
+		},
+	);
 
 	it.each(["foo.ts", "foo.test.mts", "foo.bats", "test.ts", "foo.test.ts.snap"])("rejects %s", (name) => {
 		expect(isTestFileName(name)).toBe(false);

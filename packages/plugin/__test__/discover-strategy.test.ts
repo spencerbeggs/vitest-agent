@@ -276,15 +276,38 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		expect(include.every((p) => !p.includes("src/"))).toBe(true);
 		const exclude = result?.test?.exclude as string[] | undefined;
 		expect(exclude).toBeDefined();
-		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "**", "utils", "**"))).toBe(true);
-		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "**", "fixtures", "**"))).toBe(true);
-		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "**", "snapshots", "**"))).toBe(true);
+		// The helper-dir excludes are anchored directly under __test__/ — the
+		// helper dir must be the segment right at the test root, not "**" away
+		// from it — so a same-named suite directory nested deeper (e.g.
+		// __test__/unit/utils/, the mirror of src/utils/) is not excluded
+		// (issue #251).
+		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "utils", "**"))).toBe(true);
+		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "fixtures", "**"))).toBe(true);
+		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "snapshots", "**"))).toBe(true);
 		// A custom `test.exclude` REPLACES Vitest's defaults rather than merging,
 		// so it must re-state `**/node_modules/**` and `**/.git/**` — otherwise
 		// the broad `__test__/**` include glob re-walks into nested
 		// `__test__/.../node_modules/**` and runs dependencies' own test files.
 		expect(exclude?.some((p) => p.includes("node_modules"))).toBe(true);
 		expect(exclude?.some((p) => p.includes(".git"))).toBe(true);
+	});
+
+	it("does not emit the any-depth helper-dir exclude glob for any TEST_HELPER_DIRS entry (regression guard, issue #251)", async () => {
+		// Given: a package with only __test__/foo.test.ts
+		await mkdir(join(tmpDir, "__test__"), { recursive: true });
+		await writeFile(join(tmpDir, "__test__", "foo.test.ts"), "");
+		const strategy = new DefaultDiscoverStrategy();
+
+		// When: calling buildProject
+		const result = await strategy.buildProject(makeDiscoverInput());
+
+		// Then: none of the helper-dir excludes use the old any-depth "**" form
+		// that matched the helper dir name at ANY depth under __test__/, sweeping
+		// a legitimate __test__/unit/utils/ suite out of discovery silently.
+		const exclude = (result?.test?.exclude ?? []) as string[];
+		for (const dir of ["fixtures", "snapshots", "utils"]) {
+			expect(exclude).not.toContain(join(tmpDir, "__test__", "**", dir, "**"));
+		}
 	});
 
 	it("should return config covering both src and __test__ globs for hybrid package", async () => {

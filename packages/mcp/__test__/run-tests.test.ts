@@ -125,6 +125,7 @@ describe("RunTestsResult schema with no-match", () => {
 	it("round-trips a no-match variant", async () => {
 		const payload: RunTestsResultType = {
 			kind: "no-match",
+			projectRoot: "/repo",
 			filter: {
 				project: "core",
 				files: ["packages/core/__test__/empty.test.ts"],
@@ -145,6 +146,7 @@ describe("RunTestsResult schema with no-match", () => {
 	it("accepts the existing ok / timeout / error variants", () => {
 		const okEnc = Schema.decodeUnknownSync(RunTestsResult)({
 			kind: "ok",
+			projectRoot: "/repo",
 			scope: { project: null, files: [], tags: null },
 			report: {
 				timestamp: "2026-05-15T00:00:00.000Z",
@@ -178,6 +180,7 @@ describe("RunTestsResult discoveryLastScannedAt (issue #100)", () => {
 	it("should round-trip a string discoveryLastScannedAt on the ok variant", () => {
 		const payload: RunTestsResultType = {
 			kind: "ok",
+			projectRoot: "/repo",
 			scope: { project: null, files: [], tags: null },
 			report: minimalReport,
 			classifications: {},
@@ -193,6 +196,7 @@ describe("RunTestsResult discoveryLastScannedAt (issue #100)", () => {
 	it("should accept null discoveryLastScannedAt when discovery has not scanned yet", () => {
 		const decoded = Schema.decodeUnknownSync(RunTestsResult)({
 			kind: "ok",
+			projectRoot: "/repo",
 			scope: { project: null, files: [], tags: null },
 			report: minimalReport,
 			classifications: {},
@@ -247,6 +251,7 @@ describe("formatNoMatchMarkdown", () => {
 	it("is reachable through formatRunTestsMarkdown's no-match branch", () => {
 		const md = formatRunTestsMarkdown({
 			kind: "no-match",
+			projectRoot: "/repo",
 			filter: {
 				project: null,
 				files: [],
@@ -256,6 +261,43 @@ describe("formatNoMatchMarkdown", () => {
 		});
 		expect(md).toContain("No tests matched the filter");
 		expect(md).toContain("tags.none:");
+	});
+});
+
+// Behavior 3 (issue #252): formatRunTestsMarkdown renders projectRoot.
+describe("formatRunTestsMarkdown renders the resolved projectRoot (issue #252)", () => {
+	const minimalReport = {
+		timestamp: "2026-05-15T00:00:00.000Z",
+		reason: "passed" as const,
+		summary: { total: 0, passed: 0, failed: 0, skipped: 0, duration: 0 },
+		failed: [],
+		unhandledErrors: [],
+		failedFiles: [],
+	};
+
+	it("renders projectRoot for the ok variant", () => {
+		const md = formatRunTestsMarkdown({
+			kind: "ok",
+			projectRoot: "/repo/worktrees/feature-x",
+			scope: { project: null, files: [], tags: null },
+			report: minimalReport,
+			classifications: {},
+		});
+		expect(md).toContain("/repo/worktrees/feature-x");
+	});
+
+	it("renders projectRoot for the no-match variant", () => {
+		const md = formatRunTestsMarkdown({
+			kind: "no-match",
+			projectRoot: "/repo/worktrees/feature-x",
+			filter: {
+				project: null,
+				files: ["missing.test.ts"],
+				tags: null,
+				resolvedExpression: null,
+			},
+		});
+		expect(md).toContain("/repo/worktrees/feature-x");
 	});
 });
 

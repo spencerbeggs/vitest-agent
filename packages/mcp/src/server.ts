@@ -586,10 +586,15 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"run_tests",
 		{
 			description:
-				"Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout. The legacy format=json arg is dropped — structuredContent supersedes it.",
+				'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. The server\'s Vitest root is normally frozen at boot (ctx.cwd) — projectRoot overrides it for this call, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --git-common-dir`, which is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. The legacy format=json arg is dropped — structuredContent supersedes it.',
 			inputSchema: strict({
 				files: z.optional(z.array(z.string())).describe("Test file paths to run"),
 				project: z.optional(z.string()).describe("Project name to filter"),
+				projectRoot: z
+					.optional(z.string())
+					.describe(
+						"Explicit Vitest root to use instead of the server's boot-time ctx.cwd. Validated: must be an existing directory in the same git repository as ctx.cwd (same git-common-dir, e.g. a sibling worktree). Rejected with { kind: 'error' } naming both paths otherwise.",
+					),
 				tags: z
 					.optional(
 						// Nested objects must be strict too: a plain `z.object`
@@ -627,6 +632,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				tags: args.tags,
 				passWithNoTests: args.passWithNoTests,
 				timeout: args.timeout,
+				...(args.projectRoot !== undefined && { projectRoot: args.projectRoot }),
 				...(args._sessionContext !== undefined && { _sessionContext: args._sessionContext }),
 			});
 			const text = Schema.decodeSync(RunTestsAsMarkdown)(data);
@@ -1022,7 +1028,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"hypothesis",
 		{
 			description:
-				"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (content, tddTaskId?, optional citation ids) writes a hypothesis — the binding session is resolved server-side from the recovered host context (active TDD subagent, else main session); pass tddTaskId (returned by tdd_task action='start') to bind deterministically to that task's session, and do not pass sessionId when recording; action='validate' (id, outcome, validatedAt) records a validation outcome; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
+				"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (content, tddTaskId?, optional citation ids) writes a hypothesis — the binding session is resolved server-side from the recovered host context (active TDD subagent, else main session); pass tddTaskId (returned by tdd_task action='start') to bind deterministically to that task's session, and do not pass sessionId when recording; action='validate' (id, outcome, validatedAt?) records a validation outcome — validatedAt is optional and defaults server-side to now when omitted, or is honored verbatim when supplied; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
 			inputSchema: strict({
 				action: z.enum(["record", "validate", "list"]).describe("CRUD discriminator"),
 				// Shared
@@ -1074,7 +1080,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					action: "validate",
 					id: args.id as number,
 					outcome: args.outcome as "confirmed" | "refuted" | "abandoned",
-					validatedAt: args.validatedAt as string,
+					...(args.validatedAt !== undefined && { validatedAt: args.validatedAt }),
 					...(args.validatedTurnId !== undefined && { validatedTurnId: args.validatedTurnId }),
 				});
 				return structuredJsonResult(result);

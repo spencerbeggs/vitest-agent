@@ -51,6 +51,15 @@ __test__/
 
 Fixtures and snapshots are fully excluded; place arbitrary static content there without concern for linting or types. Utils files must be valid TypeScript and pass the linter — treat them as first-class support code, just not counted toward coverage.
 
+These three columns describe coverage, linting, and typechecking — not Vitest
+discovery, which is a separate mechanism. Discovery only ever collects
+`*.test.ts` files, so a helper in any of these directories is never collected
+wherever it sits. What discovery does exclude is a *test* file under a helper
+directory named directly beneath `__test__/` — `__test__/utils/a.test.ts` is
+not collected, while `__test__/integration/utils/a.test.ts` is an ordinary
+suite. That boundary is anchored at the test root deliberately: matching the
+helper name at any depth silently swallowed real suites (issue #251).
+
 ## Escape Hatch — `__fixtures__` and `__snapshots__` Anywhere
 
 Directories named `__fixtures__` or `__snapshots__` (double-underscore wrapping) are recognised and excluded from coverage, linting, and typechecking wherever they appear inside a project — not just under `__test__/`. This can be useful when a fixture needs to live close to the source file it supports.

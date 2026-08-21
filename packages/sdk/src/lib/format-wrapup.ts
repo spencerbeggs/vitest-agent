@@ -93,7 +93,7 @@ export const formatWrapupEffect = (options: FormatWrapupOptions): Effect.Effect<
 
 			if (openHypotheses.length > 0) {
 				lines.push(
-					`- ${openHypotheses.length} open hypothesis(es). Use \`hypothesis({ action: "validate", id, outcome: "confirmed"|"refuted"|"abandoned", validatedAt })\` to mark them.`,
+					`- ${openHypotheses.length} open hypothesis(es). Use \`hypothesis({ action: "validate", id, outcome: "confirmed"|"refuted"|"abandoned" })\` to mark them.`,
 				);
 			}
 		}

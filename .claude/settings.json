@@ -1,12 +1,15 @@
 {
-	"permissions": {
-		"allow": ["Edit(./**)", "Edit(.claude/design/**)", "Edit(.claude/plans/**)"]
-	},
+	"$schema": "https://www.schemastore.org/claude-code-settings.json",
 	"enableAllProjectMcpServers": true,
 	"enabledPlugins": {
 		"design-docs@spencerbeggs": true,
 		"effected@spencerbeggs": true,
-		"silk@savvy-web-systems": true
+		"silk@savvy-web-systems": true,
+		"superpowers@claude-plugins-official": true,
+		"vitest-agent@spencerbeggs": true
+	},
+	"permissions": {
+		"allow": ["Edit(./**)", "Edit(.claude/design/**)", "Edit(.claude/plans/**)"]
 	},
 	"plansDirectory": ".claude/plans"
 }
