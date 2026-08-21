@@ -1,5 +1,26 @@
 # @vitest-agent/plugin
 
+## 2.4.3
+
+### Bug Fixes
+
+* Discovery's helper-directory exclusion (`__test__/utils/`, etc.) no longer matches at any depth under `__test__/`. It now anchors directly beneath the test root, matching how the include glob is anchored, so a nested suite such as `__test__/unit/utils/parse.test.ts` is no longer silently dropped from discovery — only a helper directory named directly under `__test__/` (e.g. `__test__/utils/`) is excluded. [#276][#276]
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From  | To    |
+| ---------------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/cli      | dependency | updated | 2.2.4 | 2.2.5 |
+| @vitest-agent/mcp      | dependency | updated | 2.3.4 | 2.4.0 |
+| @vitest-agent/reporter | dependency | updated | 2.1.4 | 2.1.5 |
+| @vitest-agent/sdk      | dependency | updated | 2.4.4 | 2.4.5 |
+
+### Patch Changes
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#276]: https://github.com/spencerbeggs/vitest-agent/pull/276
+
 ## 2.4.2
 
 ### Dependencies
