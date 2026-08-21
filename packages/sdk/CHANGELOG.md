@@ -1,5 +1,17 @@
 # @vitest-agent/sdk
 
+## 2.4.2
+
+### Dependencies
+
+* | Dependency           | Type       | Action  | From    | To      |                                                                            |
+  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+  | @effected/workspaces | dependency | updated | ^0.14.2 | ^0.15.1 | [#264][#264] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#264]: https://github.com/spencerbeggs/vitest-agent/pull/264
+
 ## 2.4.1
 
 ### Dependencies
