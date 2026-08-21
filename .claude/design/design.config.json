@@ -1,30 +1,69 @@
 {
 	"$schema": "../../.claude/skills/design-config/json-schemas/current.json",
-	"version": "1.0.0",
-	"project": {
-		"name": "spencerbeggs/vitest-agent",
-		"type": "package",
-		"repository": "https://github.com/spencerbeggs/vitest-agent",
-		"maintainer": "C. Spencer Beggs"
-	},
-	"paths": {
-		"designDocs": ".claude/design",
-		"plans": ".claude/plans",
-		"skills": ".claude/skills",
-		"context": "CLAUDE.md",
-		"localContext": "CLAUDE.local.md"
+	"integration": {
+		"ci": {
+			"enabled": false,
+			"syncOnMerge": false,
+			"validateOnPR": false
+		},
+		"git": {
+			"requireReviewForChanges": false,
+			"trackDesignDocs": true
+		},
+		"plans": {
+			"autoSyncProgress": false,
+			"bidirectionalLinking": true,
+			"cacheMetadata": true,
+			"cacheTTL": 300,
+			"enabled": true,
+			"validateOnCommit": true
+		}
 	},
 	"modules": {
 		"vitest-agent": {
-			"path": ".",
-			"designDocsPath": ".claude/design/vitest-agent",
 			"categories": ["architecture", "performance", "integration", "testing", "documentation"],
+			"designDocsPath": ".claude/design/vitest-agent",
 			"maintainer": "C. Spencer Beggs",
+			"path": ".",
 			"userDocs": {
 				"readme": "README.md",
 				"repoDocs": null,
 				"siteDocs": "website/docs/en"
 			}
+		}
+	},
+	"paths": {
+		"context": "CLAUDE.md",
+		"designDocs": ".claude/design",
+		"localContext": "CLAUDE.local.md",
+		"plans": ".claude/plans",
+		"skills": ".claude/skills"
+	},
+	"project": {
+		"maintainer": "C. Spencer Beggs",
+		"name": "spencerbeggs/vitest-agent",
+		"repository": "https://github.com/spencerbeggs/vitest-agent",
+		"type": "package"
+	},
+	"quality": {
+		"context": {
+			"childMaxLines": 300,
+			"requireDesignDocPointers": true,
+			"rootMaxLines": 500
+		},
+		"designDocs": {
+			"maxLineLength": 120,
+			"requireFrontmatter": true,
+			"requireTOC": false
+		},
+		"plans": {
+			"archiveAfterDays": 30,
+			"maxLineLength": 120,
+			"progressRange": [0, 100],
+			"requiredFields": ["name", "title", "created", "status", "progress"],
+			"requireFrontmatter": true,
+			"stalenessThresholdDays": 30,
+			"validStatuses": ["ready", "in-progress", "blocked", "completed", "abandoned"]
 		}
 	},
 	"skills": {
@@ -50,44 +89,5 @@
 			"plan-list"
 		]
 	},
-	"quality": {
-		"designDocs": {
-			"maxLineLength": 120,
-			"requireFrontmatter": true,
-			"requireTOC": false
-		},
-		"context": {
-			"rootMaxLines": 500,
-			"childMaxLines": 300,
-			"requireDesignDocPointers": true
-		},
-		"plans": {
-			"maxLineLength": 120,
-			"requireFrontmatter": true,
-			"requiredFields": ["name", "title", "created", "status", "progress"],
-			"validStatuses": ["ready", "in-progress", "blocked", "completed", "abandoned"],
-			"progressRange": [0, 100],
-			"stalenessThresholdDays": 30,
-			"archiveAfterDays": 30
-		}
-	},
-	"integration": {
-		"ci": {
-			"enabled": false,
-			"validateOnPR": false,
-			"syncOnMerge": false
-		},
-		"git": {
-			"trackDesignDocs": true,
-			"requireReviewForChanges": false
-		},
-		"plans": {
-			"enabled": true,
-			"bidirectionalLinking": true,
-			"autoSyncProgress": false,
-			"validateOnCommit": true,
-			"cacheMetadata": true,
-			"cacheTTL": 300
-		}
-	}
+	"version": "1.0.0"
 }

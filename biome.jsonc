@@ -1,7 +1,6 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.5.9/schema.json",
 	"extends": ["@savvy-web/silk/biome"],
-	"root": true,
 	"overrides": [
 		{
 			// `!` non-null assertions are idiomatic in test fixtures the
@@ -16,5 +15,6 @@
 				}
 			}
 		}
-	]
+	],
+	"root": true
 }
