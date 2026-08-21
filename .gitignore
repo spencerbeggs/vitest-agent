@@ -71,3 +71,4 @@ website/api-docs-snapshot.db
 # API Extractor issues report here instead of website/api-docs-snapshot.db.
 website/.api-docs/
 .claude/handoffs/
+.claude/dogfood/

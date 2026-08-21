@@ -36,13 +36,13 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
-		"@effected/workspaces": "^0.15.1",
+		"@effected/workspaces": "^0.16.0",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/sidecar": "workspace:*",
 		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.18",
+		"@savvy-web/bundler": "^2.1.19",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build",
 		"vitest": "catalog:test"

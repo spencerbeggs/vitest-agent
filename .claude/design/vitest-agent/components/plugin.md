@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-08-21
+last-synced: 2026-08-21
 completeness: 93
 related:
   - ../architecture.md
@@ -444,21 +444,12 @@ the full API surface.
 ## discoverProjects
 
 `packages/plugin/src/utils/discover-projects.ts`. Async workspace
-scanner. The signature is a single options bag:
-`discoverProjects({ strategy?, cwd?, additionalEntries? })`. Returns
-`{ projects: TestProjectInlineConfiguration[] | undefined; tags:
-TestTagDefinition[] }`. `projects` is `undefined` rather than an empty
-array when no projects were produced so Vitest treats the config as
-having no projects.
+scanner. The signature is a single options bag: `discoverProjects({ strategy?, cwd?, additionalEntries?, fs?, syncOps? })`. The last two are injection points that both default to their `node:fs` bindings — `fs` is the `WalkerFileSystem` port the walks read through and `syncOps` is what `@effected/workspaces` resolves the root and package list through, so a whole discovery run is drivable against a virtual volume. Returns `{ projects: TestProjectInlineConfiguration[] | undefined; tags: TestTagDefinition[] }`. `projects` is `undefined` rather than an empty array when no projects were produced so Vitest treats the config as having no projects.
 
 The unified algorithm uses a single `strategy.buildProject(input)`
 predicate to decide whether a package contributes a project. The scanner:
 
-1. Locates the workspace root via the bare `findWorkspaceRootSync(options)`
-   const from `@effected/workspaces` (with `nodeSyncOps` from
-   `@effected/workspaces/node-sync`), then enumerates packages via
-   `getWorkspacePackagesSync(root, nodeSyncOps)`. This is the raw sync-ops
-   form, not the arg-less `WorkspacesSync` namespace the kit docs describe.
+1. Locates the workspace root via the bare `findWorkspaceRootSync(cwd, syncOps)` const from `@effected/workspaces` (`syncOps` defaults to `nodeSyncOps` from `@effected/workspaces/node-sync`), then enumerates packages via `getWorkspacePackagesSync(root, syncOps)`. This is the raw sync-ops form, not the arg-less `WorkspacesSync` namespace the kit docs describe.
 2. Iterates every workspace package, calling `strategy.buildProject`
    with the package metadata. A null return appends nothing (but may
    warn — see below); otherwise the config is added to the result list.
@@ -738,8 +729,7 @@ instead.
 - `classify-helpers.ts` — `classifyByFilename`, `classifyByDirectory`,
   and `combineClassifiers`. Pure ClassifyFn builders for users that
   want to compose classification without writing a custom strategy.
-- `find-test-files.ts` — async glob walker built on
-  `node:fs/promises` with an inline glob-to-regex compiler. Skips
+- `find-test-files.ts` — async glob walker with an inline glob-to-regex compiler, reading through the injected `WalkerFileSystem` port (`node:fs/promises` by default). Skips
   `node_modules`, `.git`, and `dist` by default, and stops at a **nested
   `package.json` boundary**: any directory other than the walk's own root
   that declares a `package.json` is an independent unit (another workspace
@@ -753,10 +743,10 @@ instead.
   anchored patterns like `src/**/*.test.ts`. Used by
   `DefaultDiscoverStrategy.buildProject` and exported as part of the
   public surface so user strategies can reuse it.
+- `walker-fs.ts` — the `WalkerFileSystem` port (`readDirectory` / `statEntry`), its `WalkerEntry` / `WalkerEntryStat` shapes, and the `nodeWalkerFs` `node:fs/promises` binding every walker defaults to. Public API: user strategies that reuse `findTestFiles` can supply their own filesystem. It exists so the discovery walks are testable against a virtual volume rather than a real temp tree — see [../decisions.md](../decisions.md) Decision 53.
 - `discover-projects.ts` — `discoverProjects` workspace scanner (see
   above).
-- `is-test-shaped-package.ts` — async predicate backing the
-  declined-package warning (issue #229). True when a `__test__/`
+- `is-test-shaped-package.ts` — async predicate backing the declined-package warning (issue #229), reading through the same `WalkerFileSystem` port. True when a `__test__/`
   directory exists at the package root or `src/` holds a file matching
   `TEST_FILE_GLOB_SUFFIX`. See "discoverProjects" above for why the
   directory counts on existence alone.

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-08-21
+last-synced: 2026-08-21
 completeness: 100
 related:
   - ./architecture.md
@@ -1229,7 +1229,9 @@ did not take it.
   `MergeStrategy.firstMatch()`, `TomlCodec`), `workspaces-effect` →
   `@effected/workspaces`. The plugin's SYNC discovery path uses the bare
   `findWorkspaceRootSync(options)` / `getWorkspacePackagesSync(root, options)`
-  consts with `nodeSyncOps` from `@effected/workspaces/node-sync`.
+  consts with `nodeSyncOps` from `@effected/workspaces/node-sync`, which is
+  now the default rather than a hardcode — `DiscoverProjectsOptions.syncOps`
+  injects an alternative (Decision 53).
 - Core renames throughout: `Effect.catchAll` → `Effect.catch`, `Effect.either`
   → `Effect.result`, `Effect.fork` → `Effect.forkChild`, `Context.Tag` →
   `Context.Service`, `Schema.decodeUnknown` → `Schema.decodeUnknownEffect`,
@@ -1561,6 +1563,16 @@ helper and there is no async story available to it. The
 because a test-only typo like `"200ms"` or `"-1"` must degrade to the
 production default, not to an instantly-stale lock or a spin loop. See
 [./components/plugin.md](./components/plugin.md).
+
+### Decision 53: A Narrow Filesystem Port for the Discovery Walkers
+
+**Context.** The four discovery walkers — `findTestFiles`, `isTestShapedPackage`, `detectSetupFile` and the cache-signature walk — imported `node:fs/promises` directly. A direct `node:fs` call cannot be intercepted by a virtual filesystem, so every test that exercised discovery had to build, populate and tear down a real temporary directory: slow, platform-sensitive, and awkward for the cases that matter most (mtime fingerprints, symlinks, unreadable directories).
+
+**Decision.** `packages/plugin/src/utils/walker-fs.ts` defines `WalkerFileSystem` with exactly two operations, `readDirectory(dir)` and `statEntry(path)`, plus the `nodeWalkerFs` binding that every production call site takes as its default. The port is threaded through the walkers and surfaced as optional `fs` fields on `DiscoverProjectsOptions` and `DiscoverInput`; `DiscoverProjectsOptions` also gained a `syncOps` field so what `@effected/workspaces` resolves the root and package list through is injectable too. Production behavior is unchanged by construction — the defaults are the calls that used to be inline.
+
+**Shape, deliberately.** Not `fs.promises`-shaped: the walkers need two operations, and a wider surface would invite call sites to reach past the port. Not shaped like `@effected/workspaces`'s `SyncFileSystem` either, which this package consumes separately: that port answers entry *names*, while the walkers need the entry *type* that `readdir({ withFileTypes: true })` returns in the same syscall. Reading names and then stat-ing each one is precisely the syscall-doubling the port exists to avoid, so `WalkerEntry` is a structural subset of Node's `Dirent` and a real `Dirent` satisfies it verbatim.
+
+**The view/port symlink boundary.** `@effected/memfs` exposes two accessors with deliberately opposite symlink semantics, and both are correct for their consumer. The `Volume` inspection view is literal — a link answers `false` to *both* branches, `isDirectory` and `isFile`, exactly as a `Dirent` does, and `readLink` is the accessor that tells a link apart from a regular file — while `syncFileSystem` resolves links, because a symlinked package is still a package for workspace *enumeration*. That literalness is easy to under-read: deriving the file branch as `!isDirectory` in a test adapter silently promotes every link to a regular file and drifts the adapter from `nodeWalkerFs` along the symlink axis alone. The discovery walkers must not follow links: in a pnpm workspace `node_modules` is a farm of links into the content-addressed store, so following them walks the store or hits a cycle. The walkers therefore sit on the literal `Volume` view and only `getWorkspacePackagesSync` uses the resolving port. Same shape, opposite correct answer, one accessor apart — pinned by two tests in `packages/plugin/__test__/find-test-files-memfs.test.ts`, one per branch: the directory branch (never recurse into a link) and the file branch (never collect a link whose own name matches a test-file glob). The file-branch case is invisible to the directory-branch guard, since a link to a file is never recursed into, which is why it needs its own test; both carry comments recording their mutation-established scope. See [./components/discover.md](./components/discover.md) and [./testing-strategy.md](./testing-strategy.md).
 
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 

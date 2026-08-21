@@ -1,7 +1,6 @@
-import type { Dirent } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
 import { isAbsolute, join, normalize, relative } from "node:path";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
+import type { WorkspacesSyncOptions } from "@effected/workspaces/node-sync";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
 import type { TestTagDefinition } from "@vitest/runner";
 import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR } from "@vitest-agent/sdk";
@@ -10,6 +9,8 @@ import type { DiscoverStrategy } from "./discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./discover-strategy.js";
 import { isTestShapedPackage } from "./is-test-shaped-package.js";
 import { toPosixPath } from "./to-posix-path.js";
+import type { WalkerEntry, WalkerFileSystem } from "./walker-fs.js";
+import { nodeWalkerFs } from "./walker-fs.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,16 @@ export interface DiscoverProjectsOptions {
 	readonly strategy?: DiscoverStrategy;
 	readonly cwd?: string;
 	readonly additionalEntries?: ReadonlyArray<{ readonly name: string; readonly path: string }>;
+	/**
+	 * Filesystem port the test-file and signature walks read through. Defaults
+	 * to `node:fs`; tests inject a virtual volume instead of a real tmp tree.
+	 */
+	readonly fs?: WalkerFileSystem;
+	/**
+	 * Sync operations `@effected/workspaces` resolves the workspace root and
+	 * package list through. Defaults to its `nodeSyncOps` binding.
+	 */
+	readonly syncOps?: WorkspacesSyncOptions;
 }
 
 // ── Cross-package "last scan" handshake (issue #100) ───────────────────────────
@@ -59,7 +70,10 @@ const DISCOVERY_LAST_SCAN_SYMBOL = Symbol.for("vitest-agent:discovery:last-scan-
 // multi-project config).
 const warnedDeclinedPackagePaths = new Set<string>();
 
-async function warnIfDeclinedPackageIsTestShaped(pkg: { readonly name: string; readonly path: string }): Promise<void> {
+async function warnIfDeclinedPackageIsTestShaped(
+	pkg: { readonly name: string; readonly path: string },
+	fs: WalkerFileSystem,
+): Promise<void> {
 	const normPath = normalize(pkg.path);
 	if (warnedDeclinedPackagePaths.has(normPath)) return;
 	// Reserve the path BEFORE the async probe, not after: two overlapping
@@ -71,7 +85,7 @@ async function warnIfDeclinedPackageIsTestShaped(pkg: { readonly name: string; r
 	warnedDeclinedPackagePaths.add(normPath);
 	let testShaped: boolean;
 	try {
-		testShaped = await isTestShapedPackage(pkg.path);
+		testShaped = await isTestShapedPackage(pkg.path, fs);
 	} catch (error) {
 		warnedDeclinedPackagePaths.delete(normPath);
 		throw error;
@@ -137,17 +151,17 @@ const _cache = new Map<string, CacheEntry>();
  * subprocess-e2e fixture that installs deps), and Node's recursive `readdir`
  * follows symlinked directories, so an unguarded call would walk into it.
  */
-async function computeDirSignature(dirPath: string): Promise<string> {
+async function computeDirSignature(dirPath: string, fs: WalkerFileSystem): Promise<string> {
 	const parts: string[] = [];
-	await walkDirSignature(dirPath, dirPath, parts);
+	await walkDirSignature(dirPath, dirPath, parts, fs);
 	parts.sort();
 	return parts.join("|");
 }
 
-async function walkDirSignature(root: string, dir: string, parts: string[]): Promise<void> {
-	let entries: Dirent[];
+async function walkDirSignature(root: string, dir: string, parts: string[], fs: WalkerFileSystem): Promise<void> {
+	let entries: ReadonlyArray<WalkerEntry>;
 	try {
-		entries = (await readdir(dir, { withFileTypes: true })) as Dirent[];
+		entries = await fs.readDirectory(dir);
 	} catch {
 		return;
 	}
@@ -155,16 +169,13 @@ async function walkDirSignature(root: string, dir: string, parts: string[]): Pro
 		const fullPath = join(dir, ent.name);
 		if (ent.isDirectory()) {
 			if (NON_DISCOVERABLE_DIRS.has(ent.name)) continue;
-			await walkDirSignature(root, fullPath, parts);
+			await walkDirSignature(root, fullPath, parts, fs);
 		} else if (ent.isFile()) {
-			let mtimeMs: number;
-			try {
-				mtimeMs = (await stat(fullPath)).mtimeMs;
-			} catch {
-				// File disappeared mid-walk (race with another process) — skip it;
-				// its absence is already reflected by not appearing in `parts`.
-				continue;
-			}
+			// File disappeared mid-walk (race with another process) — skip it;
+			// its absence is already reflected by not appearing in `parts`.
+			const info = await fs.statEntry(fullPath);
+			if (info === null) continue;
+			const mtimeMs = info.mtimeMs;
 			const relPath = toPosixPath(relative(root, fullPath));
 			parts.push(`${relPath}:${mtimeMs}`);
 		}
@@ -182,11 +193,14 @@ async function walkDirSignature(root: string, dir: string, parts: string[]): Pro
  * test file anywhere else, so nothing else can change the emitted project list
  * (issue #227).
  */
-async function computeWorkspaceSignature(packages: ReadonlyArray<{ readonly path: string }>): Promise<string> {
+async function computeWorkspaceSignature(
+	packages: ReadonlyArray<{ readonly path: string }>,
+	fs: WalkerFileSystem,
+): Promise<string> {
 	const parts: string[] = [];
 	for (const pkg of packages) {
-		const srcSig = await computeDirSignature(join(pkg.path, SRC_DIR));
-		const testSig = await computeDirSignature(join(pkg.path, TEST_DIR));
+		const srcSig = await computeDirSignature(join(pkg.path, SRC_DIR), fs);
+		const testSig = await computeDirSignature(join(pkg.path, TEST_DIR), fs);
 		parts.push(`${pkg.path}::src=${srcSig}::__test__=${testSig}`);
 	}
 	return parts.join("\n");
@@ -202,7 +216,9 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	const strategy = options?.strategy;
 	const cwd = options?.cwd;
 	const additionalEntries = options?.additionalEntries ?? [];
-	const root = findWorkspaceRootSync(cwd ?? process.cwd(), nodeSyncOps);
+	const fs = options?.fs ?? nodeWalkerFs;
+	const syncOps = options?.syncOps ?? nodeSyncOps;
+	const root = findWorkspaceRootSync(cwd ?? process.cwd(), syncOps);
 	if (!root) {
 		throw new Error(
 			`[vitest-agent] Could not find workspace root from ${cwd ?? process.cwd()}. ` +
@@ -215,7 +231,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	// the cache because we can't fingerprint DiscoverStrategy instances.
 	const useCache = strategy === undefined && additionalEntries.length === 0;
 	const resolvedStrategy = strategy ?? new DefaultDiscoverStrategy();
-	const packages = getWorkspacePackagesSync(root, nodeSyncOps);
+	const packages = getWorkspacePackagesSync(root, syncOps);
 
 	// Issue #100: a cached result is only valid while the on-disk test-file set
 	// it was computed from is unchanged. Compute the cheap directory signature
@@ -225,7 +241,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	// populated, so we fall through and rescan instead of returning stale data.
 	let signature: string | undefined;
 	if (useCache) {
-		signature = await computeWorkspaceSignature(packages);
+		signature = await computeWorkspaceSignature(packages, fs);
 		const cached = _cache.get(root);
 		if (cached && cached.signature === signature) return cached.result;
 	}
@@ -247,12 +263,13 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 			path: pkg.path,
 			relativePath: toPosixPath(pkg.relativePath),
 			workspaceRoot: root,
+			fs,
 		});
 
 		if (config !== null) {
 			configs.push(config);
 		} else {
-			await warnIfDeclinedPackageIsTestShaped(pkg);
+			await warnIfDeclinedPackageIsTestShaped(pkg, fs);
 		}
 
 		workspaceNames.add(pkg.name);
@@ -290,6 +307,7 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 			path: normPath,
 			relativePath,
 			workspaceRoot: root,
+			fs,
 		});
 
 		// §3.6 step 4: null from buildProject for an added entry → throw.

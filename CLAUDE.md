@@ -105,7 +105,7 @@ definitions. Schemas are re-exported from `@vitest-agent/sdk` for consumer use.
 - `@./.claude/design/vitest-agent/architecture.md`
   Load when you need a system overview, package diagram, or to find which
   sub-doc covers a topic. This is the hub.
-- `@./.claude/design/vitest-agent/components/<package>.md`
+- `.claude/design/vitest-agent/components/<package>.md` (a family, not one file)
   Per-package deep dives (`sdk.md`, `plugin.md`, `reporter.md`, `cli.md`,
   `mcp.md`, `ui.md`, `plugin-claude.md`). Load only the file for the
   package you are touching.
@@ -277,7 +277,6 @@ preset.
 ### Dependencies
 
 - Effect v4 collapsed the standalone `@effect/*` packages into `effect/unstable/*` namespaces (e.g. `@effect/cli` → `effect/unstable/cli`, `@effect/sql` → `effect/unstable/sql`), so the old peer-closure padding (`@effect/experimental`, `@effect/workflow`, `@effect/printer`, `@effect/printer-ansi`, `@effect/typeclass`) is gone. The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node` — both directly imported in source. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. Rationale in the architecture design doc.
-- **TEMPORARY `packageExtensions` entry in `pnpm-workspace.yaml`.** `@effected/lockfiles@0.4.0` added `@effected/semver` to its non-optional peers, but `@effected/workspaces@0.11.0` — which depends on lockfiles — did not add semver to its own dependencies, so the peer bubbles up unmet to us and `pnpm peers check` fails. The `packageExtensions` block supplies it. **Delete that block once `@effected/workspaces` republishes with `@effected/semver` in its dependencies.** The removal condition lives here because `savvy lint fmt pnpm-workspace` strips every YAML comment from that file — do not try to document it inline, it will not survive a commit.
 
 ### Commits
 
@@ -313,6 +312,7 @@ release workflow. Every package versions independently — there is no lockstep 
   (default classifies `.e2e.`, `.int.`, and otherwise `unit` by
   filename), not from project splits — there is one Vitest project
   per workspace package.
+- **Filesystem in tests**: mount an `@effected/memfs` virtual volume instead of building a real temp tree; new filesystem-walking code takes an injected port (`WalkerFileSystem` from `@vitest-agent/plugin`) rather than importing `node:fs` directly.
 - **CI**: `pnpm run ci:test` sets `CI=true` and enables coverage.
 
 **For detailed testing and discovery guidance:**
@@ -321,5 +321,5 @@ release workflow. Every package versions independently — there is no lockstep 
   Load when writing tests, reviewing patterns, or understanding coverage targets.
 - `@./.claude/design/vitest-agent/components/discover.md`
   Load when working on `AgentPlugin.discover()`, the `DiscoverBuilder`
-  thenable, `discoverProjects()`, the `DiscoverStrategy` contract, or
-  the classifier helpers.
+  thenable, `discoverProjects()`, the `DiscoverStrategy` contract, the
+  `WalkerFileSystem` port, or the classifier helpers.

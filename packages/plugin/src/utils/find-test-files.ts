@@ -1,8 +1,8 @@
-import type { Dirent } from "node:fs";
-import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { NON_DISCOVERABLE_DIRS } from "@vitest-agent/sdk";
 import { toPosixPath } from "./to-posix-path.js";
+import type { WalkerEntry, WalkerFileSystem } from "./walker-fs.js";
+import { nodeWalkerFs } from "./walker-fs.js";
 
 // ── Minimal glob-to-RegExp compiler ──────────────────────────────────────────
 // Handles the subset used in this codebase:
@@ -94,24 +94,34 @@ function toRegexFragment(glob: string): string {
  * @returns Absolute paths of matched test files
  * @public
  */
-export async function findTestFiles(dir: string, patterns: ReadonlyArray<string>): Promise<ReadonlyArray<string>> {
+export async function findTestFiles(
+	dir: string,
+	patterns: ReadonlyArray<string>,
+	fs: WalkerFileSystem = nodeWalkerFs,
+): Promise<ReadonlyArray<string>> {
 	if (patterns.length === 0) return [];
 
 	const matchers = patterns.map(globToRegex);
 	const results: string[] = [];
 
-	await walkDir(dir, dir, matchers, results);
+	await walkDir(dir, dir, matchers, results, fs);
 
 	return results;
 }
 
-async function walkDir(root: string, dir: string, matchers: RegExp[], results: string[]): Promise<void> {
-	// readdir with withFileTypes returns Dirent entries that already know
-	// whether each child is a file or directory — half the syscalls of
-	// readdir-then-stat-per-entry.
-	let entries: Dirent[];
+async function walkDir(
+	root: string,
+	dir: string,
+	matchers: RegExp[],
+	results: string[],
+	fs: WalkerFileSystem,
+): Promise<void> {
+	// readDirectory carries each child's type alongside its name — half the
+	// syscalls of readdir-then-stat-per-entry, which is why the port answers
+	// WalkerEntry rather than bare names.
+	let entries: ReadonlyArray<WalkerEntry>;
 	try {
-		entries = (await readdir(dir, { withFileTypes: true })) as Dirent[];
+		entries = await fs.readDirectory(dir);
 	} catch {
 		return;
 	}
@@ -137,7 +147,7 @@ async function walkDir(root: string, dir: string, matchers: RegExp[], results: s
 
 		const fullPath = join(dir, ent.name);
 		if (ent.isDirectory()) {
-			await walkDir(root, fullPath, matchers, results);
+			await walkDir(root, fullPath, matchers, results, fs);
 		} else if (ent.isFile()) {
 			// Compute path relative to root for glob matching. toPosixPath
 			// normalizes the comparison string on Windows so globToRegex's

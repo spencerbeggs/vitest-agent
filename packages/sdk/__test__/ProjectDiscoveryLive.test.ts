@@ -1,7 +1,4 @@
-import * as fs from "node:fs";
-import * as os from "node:os";
-import * as path from "node:path";
-import { NodeFileSystem } from "@effect/platform-node";
+import { MemoryFileSystem } from "@effected/memfs";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { ProjectDiscoveryLive } from "../src/layers/ProjectDiscoveryLive.js";
@@ -53,100 +50,82 @@ describe("ProjectDiscoveryTest", () => {
 });
 
 describe("ProjectDiscoveryLive", () => {
-	function makeTempDir(): string {
-		return fs.mkdtempSync(path.join(os.tmpdir(), "pd-test-"));
-	}
+	const ROOT = "/project";
 
-	const liveLayer = ProjectDiscoveryLive.pipe(Layer.provide(NodeFileSystem.layer));
+	/**
+	 * Runs `f` against a virtual volume seeded with `seed`.
+	 *
+	 * `ProjectDiscoveryLive` reaches the filesystem exclusively through
+	 * `FileSystem.FileSystem` (`fs.readDirectory` / `fs.exists`, see
+	 * `src/layers/ProjectDiscoveryLive.ts`), so a memory volume serves it
+	 * completely and the `mkdtemp` + `rmSync` scaffolding this suite used to
+	 * carry is gone. Honest absence matters here: the orphan case below asserts
+	 * that an unseeded source path reads as missing, which a stubbed filesystem
+	 * answering "empty file" would have silently passed.
+	 */
+	const withVolume = <A, E>(seed: Record<string, string>, effect: Effect.Effect<A, E, ProjectDiscovery>) =>
+		Effect.runPromise(
+			Effect.provide(effect, ProjectDiscoveryLive.pipe(Layer.provide(MemoryFileSystem.layerWith(seed)))),
+		);
 
 	it("discovers test files in directory tree", async () => {
-		const tmpDir = makeTempDir();
-		const srcDir = path.join(tmpDir, "src");
-		const subDir = path.join(srcDir, "sub");
-		fs.mkdirSync(subDir, { recursive: true });
-
-		// Create source files
-		fs.writeFileSync(path.join(srcDir, "utils.ts"), "export const x = 1;");
-		fs.writeFileSync(path.join(srcDir, "coverage.ts"), "export const y = 2;");
-		fs.writeFileSync(path.join(subDir, "helper.ts"), "export const z = 3;");
-
-		// Create test files
-		fs.writeFileSync(path.join(srcDir, "utils.test.ts"), "test('x', () => {});");
-		fs.writeFileSync(path.join(srcDir, "coverage.spec.ts"), "test('y', () => {});");
-		fs.writeFileSync(path.join(subDir, "helper.test.ts"), "test('z', () => {});");
-
-		// Non-test file should be ignored
-		fs.writeFileSync(path.join(srcDir, "index.ts"), "export {};");
-
-		const result = await Effect.runPromise(
-			Effect.provide(
-				Effect.flatMap(ProjectDiscovery, (pd) => pd.discoverTestFiles(tmpDir)),
-				liveLayer,
-			),
+		const result = await withVolume(
+			{
+				[`${ROOT}/src/utils.ts`]: "export const x = 1;",
+				[`${ROOT}/src/coverage.ts`]: "export const y = 2;",
+				[`${ROOT}/src/sub/helper.ts`]: "export const z = 3;",
+				[`${ROOT}/src/utils.test.ts`]: "test('x', () => {});",
+				[`${ROOT}/src/coverage.spec.ts`]: "test('y', () => {});",
+				[`${ROOT}/src/sub/helper.test.ts`]: "test('z', () => {});",
+				// Non-test file should be ignored
+				[`${ROOT}/src/index.ts`]: "export {};",
+			},
+			Effect.flatMap(ProjectDiscovery, (pd) => pd.discoverTestFiles(ROOT)),
 		);
 
 		expect(result).toHaveLength(3);
 
-		const testFiles = result.map((e) => e.testFile).sort();
-		expect(testFiles).toContain(`${srcDir}/utils.test.ts`);
-		expect(testFiles).toContain(`${srcDir}/coverage.spec.ts`);
-		expect(testFiles).toContain(`${subDir}/helper.test.ts`);
+		const testFiles = result.map((e) => e.testFile);
+		expect(testFiles).toContain(`${ROOT}/src/utils.test.ts`);
+		expect(testFiles).toContain(`${ROOT}/src/coverage.spec.ts`);
+		expect(testFiles).toContain(`${ROOT}/src/sub/helper.test.ts`);
 
 		// All should have corresponding source files
 		for (const entry of result) {
 			expect(entry.sourceFiles).toHaveLength(1);
 		}
-
-		fs.rmSync(tmpDir, { recursive: true });
 	});
 
 	it(".test.ts maps to .ts source file", async () => {
-		const tmpDir = makeTempDir();
-		fs.writeFileSync(path.join(tmpDir, "foo.ts"), "export const foo = 1;");
-		fs.writeFileSync(path.join(tmpDir, "foo.test.ts"), "test('foo', () => {});");
-
-		const result = await Effect.runPromise(
-			Effect.provide(
-				Effect.flatMap(ProjectDiscovery, (pd) => pd.mapTestToSource(`${tmpDir}/foo.test.ts`)),
-				liveLayer,
-			),
+		const result = await withVolume(
+			{
+				[`${ROOT}/foo.ts`]: "export const foo = 1;",
+				[`${ROOT}/foo.test.ts`]: "test('foo', () => {});",
+			},
+			Effect.flatMap(ProjectDiscovery, (pd) => pd.mapTestToSource(`${ROOT}/foo.test.ts`)),
 		);
 
-		expect(result).toEqual([`${tmpDir}/foo.ts`]);
-
-		fs.rmSync(tmpDir, { recursive: true });
+		expect(result).toEqual([`${ROOT}/foo.ts`]);
 	});
 
 	it(".spec.ts maps to .ts source file", async () => {
-		const tmpDir = makeTempDir();
-		fs.writeFileSync(path.join(tmpDir, "bar.ts"), "export const bar = 1;");
-		fs.writeFileSync(path.join(tmpDir, "bar.spec.ts"), "test('bar', () => {});");
-
-		const result = await Effect.runPromise(
-			Effect.provide(
-				Effect.flatMap(ProjectDiscovery, (pd) => pd.mapTestToSource(`${tmpDir}/bar.spec.ts`)),
-				liveLayer,
-			),
+		const result = await withVolume(
+			{
+				[`${ROOT}/bar.ts`]: "export const bar = 1;",
+				[`${ROOT}/bar.spec.ts`]: "test('bar', () => {});",
+			},
+			Effect.flatMap(ProjectDiscovery, (pd) => pd.mapTestToSource(`${ROOT}/bar.spec.ts`)),
 		);
 
-		expect(result).toEqual([`${tmpDir}/bar.ts`]);
-
-		fs.rmSync(tmpDir, { recursive: true });
+		expect(result).toEqual([`${ROOT}/bar.ts`]);
 	});
 
 	it("returns empty array when no corresponding source file exists", async () => {
-		const tmpDir = makeTempDir();
-		fs.writeFileSync(path.join(tmpDir, "orphan.test.ts"), "test('orphan', () => {});");
-
-		const result = await Effect.runPromise(
-			Effect.provide(
-				Effect.flatMap(ProjectDiscovery, (pd) => pd.mapTestToSource(`${tmpDir}/orphan.test.ts`)),
-				liveLayer,
-			),
+		const result = await withVolume(
+			{ [`${ROOT}/orphan.test.ts`]: "test('orphan', () => {});" },
+			Effect.flatMap(ProjectDiscovery, (pd) => pd.mapTestToSource(`${ROOT}/orphan.test.ts`)),
 		);
 
 		expect(result).toEqual([]);
-
-		fs.rmSync(tmpDir, { recursive: true });
 	});
 });

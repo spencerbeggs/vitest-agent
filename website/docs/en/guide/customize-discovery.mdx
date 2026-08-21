@@ -211,6 +211,62 @@ If the strategy passed to `discover()` and the one on `discoverStrategy`
 diverge, the projects discovered and the tags injected by the transform will
 be out of sync.
 
+## Filesystem port
+
+The walks discovery performs — finding test files, probing for a `vitest.setup.*` file, fingerprinting a directory for the discovery cache — read through a two-operation port instead of calling `node:fs` outright:
+
+```typescript
+interface WalkerFileSystem {
+  readonly readDirectory: (dir: string) => Promise<ReadonlyArray<WalkerEntry>>;
+  readonly statEntry: (path: string) => Promise<WalkerEntryStat | null>;
+}
+```
+
+`readDirectory` answers each entry's name and type together, which is what `readdir({ withFileTypes: true })` already returns — a real `Dirent` satisfies `WalkerEntry` verbatim. It may reject, and a rejection reads as "this directory contributes nothing". `statEntry` never rejects: a path that does not exist or cannot be read answers `null`, and everything else answers `{ isFile, isDirectory, mtimeMs }`.
+
+Every entry point takes the port optionally and defaults to `nodeWalkerFs`, the `node:fs/promises` binding, so existing calls are unaffected:
+
+- `findTestFiles(dir, patterns, fs?)` — third argument
+- `discoverProjects({ fs })` — an option alongside `strategy` and `cwd`
+- `input.fs` on the `DiscoverInput` handed to a strategy's `buildProject`
+
+The seam exists for testability. A virtual filesystem cannot intercept a direct `node:fs` call, so a walker that imports `node:fs` can only be exercised against a real temporary directory — build the tree, populate it, tear it down, and hope the assertions survive whatever the disk actually does. Supply a port backed by an in-memory volume and the same walk runs with no disk involved:
+
+```typescript
+import { findTestFiles, type WalkerFileSystem } from "@vitest-agent/plugin";
+
+// Back readDirectory/statEntry with your in-memory volume of choice: reject
+// from readDirectory for a path that is not a directory, answer null from
+// statEntry for a path that does not exist.
+const fs: WalkerFileSystem = makeVirtualFs({
+  "/pkg/src/utils.ts": "export const x = 1;",
+  "/pkg/src/utils.test.ts": "test('x', () => {});",
+});
+
+console.log(await findTestFiles("/pkg", ["src/**/*.test.ts"], fs));
+// [ '/pkg/src/utils.test.ts' ]
+```
+
+A custom `buildProject` should thread `input.fs` into its own walks rather than importing `node:fs`, so a caller that supplies a port gets it applied end to end:
+
+```typescript
+import { DiscoverStrategy, findTestFiles, Tag } from "@vitest-agent/plugin";
+
+const strategy = DiscoverStrategy.create({
+  tags: [Tag.make("unit")],
+  classify: () => ["unit"],
+  buildProject: async (input) => {
+    const files = await findTestFiles(input.path, ["spec/**/*.spec.ts"], input.fs);
+    if (files.length === 0) return null;
+    return { extends: true, test: { name: input.name, root: input.path, include: ["spec/**/*.spec.ts"] } };
+  },
+});
+```
+
+Passing `input.fs` straight through is safe when it is `undefined` — `findTestFiles` falls back to `nodeWalkerFs` itself.
+
+The port is deliberately narrow. It is not `fs.promises`-shaped, because widening it would invite call sites to reach past it, and it is not shaped like the `SyncFileSystem` that `@effected/workspaces` uses to resolve the workspace root (injectable separately as `discoverProjects({ syncOps })`), because that port answers entry names only and the walkers need the entry type from the same call.
+
 ## Disabling the Vite transform
 
 To keep project discovery but opt out of tag injection, set
