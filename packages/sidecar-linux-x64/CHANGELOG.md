@@ -1,5 +1,13 @@
 # @vitest-agent/sidecar-linux-x64
 
+## 2.1.3
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From  | To    |
+| ----------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/sdk | dependency | updated | 2.4.2 | 2.4.3 |
+
 ## 2.1.2
 
 ### Dependencies
