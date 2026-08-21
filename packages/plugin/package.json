@@ -42,7 +42,7 @@
 		"magic-string": "^1.2.1"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.17",
+		"@savvy-web/bundler": "^2.1.18",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",

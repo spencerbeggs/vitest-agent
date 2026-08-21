@@ -49,7 +49,7 @@
 		"std-env": "^4.2.0"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.17",
+		"@savvy-web/bundler": "^2.1.18",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
