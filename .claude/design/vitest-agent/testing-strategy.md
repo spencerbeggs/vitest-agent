@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: testing
 created: 2026-04-29
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-08-21
+last-synced: 2026-08-21
 completeness: 95
 related:
   - ./architecture.md
@@ -162,6 +162,16 @@ around `effect/unstable/cli` `Command` definitions. The testable formatting
 logic lives in `packages/cli/src/lib/format-*.ts` and is exercised
 as plain pure functions taking domain inputs (e.g. `AgentReport`,
 `CoverageReport`) and returning rendered strings.
+
+### Pattern 6: Virtual Filesystem Instead of a Real Temp Tree
+
+Filesystem-touching tests seed an `@effected/memfs` volume rather than `mkdtemp`-ing a real directory. It applies two ways, and the difference matters.
+
+In `@vitest-agent/sdk`, services already read the filesystem through Effect's `FileSystem` service, so the swap is a layer swap: provide `MemoryFileSystem.layerWith(seed)` (plus `Path.layer`) where the test used to provide `NodeServices.layer` / `NodeFileSystem.layer` and drop the `writeFileSync` / `rmSync` scaffolding. `ConfigLive.test.ts` and `ProjectDiscoveryLive.test.ts` are the models.
+
+In `@vitest-agent/plugin`, the discovery walkers are not Effect services — they take the `WalkerFileSystem` port described in [./components/discover.md](./components/discover.md). Tests pass an adapter over a memfs volume (`packages/plugin/__test__/utils/memfs-walker.ts`, with the `withMemfsWalker` helper) instead of a layer. The adapter is built on the volume's *inspection view*, not its `syncFileSystem` port, because the view is literal about symlinks and the walkers must not follow them; Decision 53 in [./decisions.md](./decisions.md) has the full boundary. The adapter also answers `mtimeMs` from the volume's own `mtime`, which is what makes the discovery cache's signature-invalidation path testable without touching disk (`find-test-files-memfs.test.ts`, `discover-projects-signature-memfs.test.ts`).
+
+Seeding a volume also makes the awkward cases cheap and deterministic: symlink loops, unreadable directories, and an exact modification time no `utimes` call has to produce.
 
 ---
 

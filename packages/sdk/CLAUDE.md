@@ -113,7 +113,9 @@ src/
 - **Test helpers are in `testing/`, exported via `@vitest-agent/sdk/testing`.**
   Use `makeTestLayer(":memory:")` (or the `DataStoreTestLayer` shorthand)
   in unit tests; use the preset factories when you need a pre-seeded DB state.
-  Tests live in `packages/sdk/__test__/` (flat directory).
+  Tests live in `packages/sdk/__test__/` (flat directory). Tests that need a
+  filesystem mount an `@effected/memfs` virtual volume rather than building a
+  real temp tree (`ConfigLive.test.ts`, `ProjectDiscoveryLive.test.ts`).
 - **`CoverageLevel` schema** (`schemas/CoverageLevel.ts`) defines the five
   named presets (`none`, `basic`, `standard`, `strict`, `full`), the
   `.withPerFile()` builder, `.extend({})` override, and `resolveCoverageInput`

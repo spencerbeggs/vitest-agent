@@ -1,4 +1,3 @@
-import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 import type { TestTagDefinition } from "@vitest/runner";
 import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX, TEST_HELPER_DIRS } from "@vitest-agent/sdk";
@@ -6,6 +5,8 @@ import type { TestProjectInlineConfiguration } from "vitest/config";
 import { configDefaults } from "vitest/config";
 import { findTestFiles } from "./find-test-files.js";
 import { Tag } from "./tag.js";
+import type { WalkerFileSystem } from "./walker-fs.js";
+import { nodeWalkerFs } from "./walker-fs.js";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -52,6 +53,12 @@ export interface DiscoverInput {
 	readonly workspaceRoot: string;
 	/** Parsed `package.json` contents, when available. */
 	readonly packageJson?: PackageJson;
+	/**
+	 * Filesystem port the walkers read through. Defaults to `node:fs` when
+	 * omitted, which is what every production call site does; tests inject a
+	 * virtual volume instead of building a real temporary directory.
+	 */
+	readonly fs?: WalkerFileSystem;
 }
 
 /**
@@ -106,18 +113,10 @@ export interface DiscoverStrategyExtendOptions {
 
 const SETUP_EXTS = ["ts", "tsx", "js", "jsx"] as const;
 
-async function isFile(p: string): Promise<boolean> {
-	try {
-		return (await stat(p)).isFile();
-	} catch {
-		return false;
-	}
-}
-
-async function detectSetupFile(pkgPath: string): Promise<string | null> {
+async function detectSetupFile(pkgPath: string, fs: WalkerFileSystem): Promise<string | null> {
 	for (const ext of SETUP_EXTS) {
 		const candidate = join(pkgPath, `vitest.setup.${ext}`);
-		if (await isFile(candidate)) return `vitest.setup.${ext}`;
+		if ((await fs.statEntry(candidate))?.isFile === true) return `vitest.setup.${ext}`;
 	}
 	return null;
 }
@@ -245,11 +244,13 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 	}
 
 	async buildProject(input: DiscoverInput): Promise<TestProjectInlineConfiguration | null> {
+		const fs = input.fs ?? nodeWalkerFs;
 		const srcPrefix = join(input.path, SRC_DIR);
-		const allFiles = await findTestFiles(input.path, [
-			`${SRC_DIR}/**/${TEST_FILE_GLOB_SUFFIX}`,
-			`${TEST_DIR}/**/${TEST_FILE_GLOB_SUFFIX}`,
-		]);
+		const allFiles = await findTestFiles(
+			input.path,
+			[`${SRC_DIR}/**/${TEST_FILE_GLOB_SUFFIX}`, `${TEST_DIR}/**/${TEST_FILE_GLOB_SUFFIX}`],
+			fs,
+		);
 		if (allFiles.length === 0) return null;
 		const hasSrcTests = allFiles.some((f) => f.startsWith(`${srcPrefix}${sep}`) || f === srcPrefix);
 		const hasTestDirTests = allFiles.some((f) => !(f.startsWith(`${srcPrefix}${sep}`) || f === srcPrefix));
@@ -292,7 +293,7 @@ export class DefaultDiscoverStrategy extends DiscoverStrategy {
 		];
 
 		// Detect setup file
-		const setupFile = await detectSetupFile(input.path);
+		const setupFile = await detectSetupFile(input.path, fs);
 
 		return {
 			extends: true,

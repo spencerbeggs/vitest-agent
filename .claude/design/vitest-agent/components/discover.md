@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-08-21
+last-synced: 2026-08-21
 completeness: 95
 related:
   - ../components.md
@@ -98,8 +98,12 @@ interface DiscoverProjectsOptions {
   strategy?: DiscoverStrategy;
   cwd?: string;
   additionalEntries?: ReadonlyArray<{ name: string; path: string }>;
+  fs?: WalkerFileSystem;
+  syncOps?: WorkspacesSyncOptions;
 }
 ```
+
+`fs` is the filesystem port the test-file and cache-signature walks read through; it defaults to `nodeWalkerFs` and every production call site takes that default. `syncOps` is what `@effected/workspaces` resolves the workspace root and package list through, defaulting to its `nodeSyncOps` binding — the two together make a whole discovery run drivable against a virtual volume. See [the filesystem port](#filesystem-port-walkerfilesystem) below.
 
 Users that need to mutate projects post-discovery either extend the
 strategy (preferred) or destructure the result and mutate the array
@@ -118,13 +122,7 @@ DiscoverStrategy carries:
 - tags — the readonly Tag list (the typed Tag instances).
 - tagDefinitions — a getter returning the matching TestTagDefinition list
   that flows into test.tags.
-- buildProject(input) — async function that takes a DiscoverInput
-  ({ name, path, relativePath, workspaceRoot, packageJson? }) and
-  returns either a TestProjectInlineConfiguration or null. Null means
-  "this package has no tests, skip it." This single predicate covers
-  every skip case. The skip is silent for a package that has no test
-  shape at all, and warned-about once when the package looks test-shaped
-  but was still declined (step 5 of the algorithm below).
+- buildProject(input) — async function that takes a DiscoverInput ({ name, path, relativePath, workspaceRoot, packageJson?, fs? }) and returns either a TestProjectInlineConfiguration or null. Null means "this package has no tests, skip it." This single predicate covers every skip case. The skip is silent for a package that has no test shape at all, and warned-about once when the package looks test-shaped but was still declined (step 5 of the algorithm below).
 - classify({ module }) — synchronous function that takes a ModuleInfo
   and returns the tag list for that file. Called by the plugin's Vite
   transform hook.
@@ -200,15 +198,11 @@ have to reinvent it.
 function findTestFiles(
   dir: string,
   patterns: ReadonlyArray<string>,
+  fs?: WalkerFileSystem,
 ): Promise<ReadonlyArray<string>>;
 ```
 
-Walks dir recursively via node:fs/promises. Skips node_modules, .git,
-and dist by default. Each pattern is compiled to a regex via an inline
-glob-to-regex compiler supporting the subset used by this codebase —
-double-asterisk (any path segments), single-asterisk (any non-slash
-characters), question mark, and brace expansion such as {ts,tsx,js,jsx}.
-Returns absolute paths.
+Walks dir recursively through the injected filesystem port, which defaults to the `node:fs/promises` binding. Skips node_modules, .git and dist by default. Each pattern is compiled to a regex via an inline glob-to-regex compiler supporting the subset used by this codebase — double-asterisk (any path segments), single-asterisk (any non-slash characters), question mark, and brace expansion such as {ts,tsx,js,jsx}. Returns absolute paths.
 
 **Package boundary.** The walk does not descend past a nested package.json:
 any directory other than dir itself that declares one is treated as an
@@ -221,6 +215,14 @@ include globs. The check runs once per directory, independent of which
 pattern is being matched, so an anchored pattern such as
 `src/**/*.test.ts` is subject to it too even though the pattern itself
 never reaches past `src/`.
+
+### Filesystem port (WalkerFileSystem)
+
+packages/plugin/src/utils/walker-fs.ts. The filesystem the four discovery walkers — `findTestFiles`, `isTestShapedPackage`, `detectSetupFile` and the cache-signature walk — read through, supplied by the caller and defaulting to `nodeWalkerFs` (the `node:fs/promises` binding) at every call site, so production behavior is byte-identical to the direct `node:fs` calls it replaced. `WalkerEntry`, `WalkerEntryStat`, `WalkerFileSystem` and `nodeWalkerFs` are all exported from the package root.
+
+The port answers two operations: `readDirectory(dir)` returning entries that carry name and type together, and `statEntry(path)` returning the entry type plus `mtimeMs` (or null when the path is unreadable). It is deliberately narrow and deliberately dirent-shaped rather than name-shaped; see [../decisions.md](../decisions.md) Decision 53 for the rationale and for the symlink boundary between this port and `@effected/workspaces`'s `SyncFileSystem`.
+
+Every walker absorbs a rejection from either operation as "this path contributes nothing" rather than propagating it, matching what the inline `node:fs` calls did.
 
 ### Tag and Tag.make
 
@@ -238,23 +240,14 @@ that flows into test.tags).
 
 The unified algorithm in discoverProjects:
 
-1. **Locate workspace root.** Calls the bare
-   findWorkspaceRootSync({ ...nodeSyncOps, cwd: cwd ?? process.cwd() })
-   const from @effected/workspaces (nodeSyncOps imported from
-   @effected/workspaces/node-sync). Searches upward for
-   pnpm-workspace.yaml or a package.json with a workspaces field.
-   Note the v4 kit dropped `.git` as a root marker, so a bare-`.git`
-   single-package repo no longer resolves here (see file-structure.md
-   and D46). Throws with a descriptive error if no root is found —
-   there is no silent fallback.
+1. **Locate workspace root.** Calls the bare findWorkspaceRootSync(cwd ?? process.cwd(), syncOps) const from @effected/workspaces, where syncOps defaults to nodeSyncOps from @effected/workspaces/node-sync and is overridable via DiscoverProjectsOptions.syncOps. Searches upward for pnpm-workspace.yaml or a package.json with a workspaces field. Note the v4 kit dropped `.git` as a root marker, so a bare-`.git` single-package repo no longer resolves here (see file-structure.md and D46). Throws with a descriptive error if no root is found — there is no silent fallback.
 
 2. **Consult process-level cache with a directory signature.** A module-level Map keyed by workspace root is checked first, but only when neither strategy nor additionalEntries was supplied (the no-arg path); any explicit strategy or added entry bypasses the cache because strategy instances cannot be fingerprinted. Each cache entry stores `{ result, signature }` where the signature is a cheap fingerprint of exactly two directories per package — `src/` and `__test__/` — via `computeDirSignature` / `computeWorkspaceSignature` (recursive relative-path + `mtimeMs` pairs, sorted, no file contents read). Discovery cannot see a test file anywhere else, so nothing else can change the emitted project list (issue #227); the signature only needs to cover the same two locations discovery walks. `computeDirSignature` prunes `node_modules`, `.git` and `dist` before recursing rather than filtering afterwards — Node's recursive `readdir` follows symlinked directories and a pnpm `node_modules` tree is all symlinks into the content-addressed store, so an unguarded walk would traverse the store or hit a cycle. On the cacheable path the signature is recomputed and compared before the cached result is returned; a mismatch means a test file was added, removed, moved or renamed since the entry was written, so discovery falls through to a full rescan and refreshes the entry. This fixes issue #100, where the long-lived MCP server returned stale project include-globs after test files moved on disk (symptom: a silent drop of ~1290 tests when `*.test.ts` moved from `src/` to `__test__/`).
 
 3. **Resolve the strategy.** Defaults to a fresh DefaultDiscoverStrategy
    when none was supplied.
 
-4. **List workspace packages** via getWorkspacePackagesSync(root,
-   nodeSyncOps) from @effected/workspaces.
+4. **List workspace packages** via getWorkspacePackagesSync(root, syncOps) from @effected/workspaces.
 
 5. **Iterate packages.** For each package, call strategy.buildProject
    with { name, path, relativePath, workspaceRoot }. A null return means
@@ -377,5 +370,6 @@ re-entry issues that appear with threads.
 | packages/plugin/src/utils/discover-strategy.ts | DiscoverStrategy abstract class, DefaultDiscoverStrategy, ModuleInfo, DiscoverInput, ClassifyFn, ClassifyContext, the immutable layered concrete implementation |
 | packages/plugin/src/utils/classify-helpers.ts | classifyByFilename, classifyByDirectory, combineClassifiers — pure ClassifyFn builders |
 | packages/plugin/src/utils/find-test-files.ts | Async glob walker with inline glob-to-regex compiler; default skip set of node_modules, .git, dist |
+| packages/plugin/src/utils/walker-fs.ts | WalkerEntry / WalkerEntryStat / WalkerFileSystem port plus the nodeWalkerFs binding every walker defaults to |
 | packages/plugin/src/utils/tag.ts | Tag class with Tag.make factory and name validation |
 | packages/plugin/src/utils/inject-tags.ts | Prepends a guarded per-file prelude that unions the classified tags into the file task via TestRunner.getCurrentSuite(); no parsing |
