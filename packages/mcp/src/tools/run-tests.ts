@@ -309,7 +309,11 @@ export async function validateProjectRoot(
 	if (projectRoot === undefined) {
 		return { ok: true, root: ctxCwd };
 	}
-	const resolvedRoot = resolve(projectRoot);
+	// Resolve a relative `projectRoot` against `ctxCwd`, not the MCP
+	// server's `process.cwd()`. Single-argument `resolve` would use the
+	// server process's cwd — a base the caller cannot see and did not
+	// choose. Absolute paths (the intended input) are unaffected.
+	const resolvedRoot = resolve(ctxCwd, projectRoot);
 	let isDirectory: boolean;
 	try {
 		const stats = await stat(resolvedRoot);

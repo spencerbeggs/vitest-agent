@@ -593,7 +593,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				projectRoot: z
 					.optional(z.string())
 					.describe(
-						"Explicit Vitest root to use instead of the server's boot-time ctx.cwd. Validated: must be an existing directory in the same git repository as ctx.cwd (same git-common-dir, e.g. a sibling worktree). Rejected with { kind: 'error' } naming both paths otherwise.",
+						"Explicit Vitest root to use instead of the server's boot-time ctx.cwd. Prefer an absolute path; a relative path is resolved against ctx.cwd, not the server process's cwd. Validated: must be an existing directory in the same git repository as ctx.cwd (same git-common-dir, e.g. a sibling worktree). Rejected with { kind: 'error' } naming both paths otherwise.",
 					),
 				tags: z
 					.optional(

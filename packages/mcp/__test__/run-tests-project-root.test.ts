@@ -143,6 +143,30 @@ describe("run_tests projectRoot validation", () => {
 		expect(options.root).toBe(worktree);
 	});
 
+	it("resolves a relative projectRoot against ctx.cwd, not the server process's cwd", async () => {
+		const main = join(tmpRoot, "main");
+		execFileSync("mkdir", [main]);
+		initGitRepo(main);
+		const nested = join(main, "pkg");
+		execFileSync("mkdir", [nested]);
+
+		const vitest = fakeVitest();
+		createVitestMock.mockResolvedValue(vitest);
+
+		// A bare `resolve("pkg")` would use the MCP server process's cwd —
+		// this repository's own checkout under test — as the base, which is
+		// a base the caller never chose and cannot see. It must resolve
+		// against ctx.cwd instead.
+		const caller = makeCaller(main);
+		const result = await caller.run_tests({ projectRoot: "pkg" });
+
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
+		expect(result.projectRoot).toBe(nested);
+		const [, options] = createVitestMock.mock.calls[0] as [string, { root: string }];
+		expect(options.root).toBe(nested);
+	});
+
 	it("echoes ctx.cwd as the resolved projectRoot when none was supplied", async () => {
 		const main = join(tmpRoot, "main");
 		execFileSync("mkdir", [main]);

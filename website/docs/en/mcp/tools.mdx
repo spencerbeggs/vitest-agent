@@ -202,7 +202,7 @@ Execute Vitest for specific files or patterns. Returns a `RunTestsResult` discri
 | `timeout` | `number` | No | Timeout in seconds (default 120) |
 | `tags` | `object` | No | Structured tag filter: `{ all?, any?, none? }` — sub-filters AND together |
 | `passWithNoTests` | `boolean` | No | Per-call override for Vitest's `passWithNoTests` policy |
-| `projectRoot` | `string` | No | Directory to run against, overriding the root frozen at server boot. Must be an existing directory in the same git repository |
+| `projectRoot` | `string` | No | Directory to run against, overriding the root frozen at server boot. Must be an existing directory in the same git repository. Prefer an absolute path; a relative one resolves against the server's boot-time root |
 
 The server's Vitest root is normally `ctx.cwd`, frozen when the MCP server booted. From a git worktree that is the wrong tree: the run happens in whichever checkout the server started in, and its results come back looking like yours — a false green. Pass `projectRoot` to name the tree you mean.
 

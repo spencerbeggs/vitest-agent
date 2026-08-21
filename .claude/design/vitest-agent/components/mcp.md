@@ -643,7 +643,10 @@ naming which tree it came from (issue #252).
 `projectRoot` that overrides `ctx.cwd` for that call only. It is validated,
 not trusted, by `validateProjectRoot()` in
 `packages/mcp/src/tools/run-tests.ts`: the path must resolve to an existing
-directory, and it must share a git common directory with `ctx.cwd`.
+directory, and it must share a git common directory with `ctx.cwd`. A
+relative `projectRoot` resolves against `ctx.cwd`, not the MCP server
+process's `cwd` — the server's cwd is a base the caller never chose and
+cannot see, so resolving against it would answer a question nobody asked.
 `resolveGitCommonDir()` shells `git rev-parse --git-common-dir`, which is
 identical across a repository and every worktree attached to it — unlike
 `--show-toplevel`, which differs per worktree and would reject exactly the
