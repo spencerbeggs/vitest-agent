@@ -1,5 +1,17 @@
 # @vitest-agent/reporter
 
+## 2.1.6
+
+### Dependencies
+
+* | Dependency | Type           | Action  | From   | To     |                                                                            |
+  | ---------- | -------------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+  | vitest     | peerDependency | updated | 4.1.11 | ^4.1.0 | [#278][#278] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#278]: https://github.com/spencerbeggs/vitest-agent/pull/278
+
 ## 2.1.5
 
 ### Dependencies

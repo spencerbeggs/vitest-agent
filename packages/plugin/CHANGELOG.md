@@ -1,5 +1,22 @@
 # @vitest-agent/plugin
 
+## 2.4.4
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From  | To    |
+| ---------------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/mcp      | dependency | updated | 2.4.0 | 2.4.1 |
+| @vitest-agent/reporter | dependency | updated | 2.1.5 | 2.1.6 |
+
+* | Dependency | Type           | Action  | From   | To     |                                                                            |
+  | ---------- | -------------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+  | vitest     | peerDependency | updated | 4.1.11 | ^4.1.0 | [#278][#278] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#278]: https://github.com/spencerbeggs/vitest-agent/pull/278
+
 ## 2.4.3
 
 ### Bug Fixes
