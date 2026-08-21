@@ -47,7 +47,8 @@ describe("served test_history tool schema", () => {
 		const tools = await client.listTools();
 		const testHistory = tools.tools.find((t) => t.name === "test_history");
 		expect(testHistory).toBeDefined();
-		const properties = (testHistory?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+		const properties =
+			(testHistory?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
 		expect(Object.keys(properties)).toContain("testName");
 		expect(Object.keys(properties)).toContain("modulePath");
 		expect(Object.keys(properties)).toContain("limit");

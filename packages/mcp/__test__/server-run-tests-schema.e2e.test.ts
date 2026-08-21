@@ -92,7 +92,8 @@ describe("served run_tests tool schema", () => {
 	}, async () => {
 		const tools = await client.listTools();
 		const runTests = tools.tools.find((t) => t.name === "run_tests");
-		const properties = (runTests?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+		const properties =
+			(runTests?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
 		expect(Object.keys(properties)).toContain("tags");
 		expect(Object.keys(properties)).toContain("passWithNoTests");
 
