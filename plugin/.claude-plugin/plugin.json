@@ -1,19 +1,19 @@
 {
 	"$schema": "https://www.schemastore.org/claude-code-plugin-manifest.json",
-	"name": "vitest-agent",
-	"description": "Vitest test data, coverage analysis, and notes for LLM coding agents via MCP tools",
-	"version": "2.4.3",
 	"author": {
 		"name": "C. Spencer Beggs",
 		"url": "https://spencerbeg.gs"
 	},
+	"description": "Vitest test data, coverage analysis, and notes for LLM coding agents via MCP tools",
 	"homepage": "https://github.com/spencerbeggs/vitest-agent",
-	"repository": "https://github.com/spencerbeggs/vitest-agent.git",
 	"license": "MIT",
 	"mcpServers": {
 		"mcp": {
-			"command": "bash",
-			"args": ["${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh", "--noop=1"]
+			"args": ["${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh", "--noop=1"],
+			"command": "bash"
 		}
-	}
+	},
+	"name": "vitest-agent",
+	"repository": "https://github.com/spencerbeggs/vitest-agent.git",
+	"version": "2.4.3"
 }

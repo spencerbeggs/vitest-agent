@@ -1,9 +1,10 @@
 {
 	"$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
+	"access": "public",
+	"baseBranch": "main",
 	"changelog": [
 		"@savvy-web/changelog",
 		{
-			"repo": "spencerbeggs/vitest-agent",
 			"packages": {
 				"@vitest-agent/plugin": {
 					"versionFiles": [
@@ -13,16 +14,15 @@
 						}
 					]
 				}
-			}
+			},
+			"repo": "spencerbeggs/vitest-agent"
 		}
 	],
 	"commit": false,
-	"access": "public",
-	"baseBranch": "main",
-	"updateInternalDependencies": "patch",
 	"ignore": ["playground", "docs"],
 	"privatePackages": {
 		"tag": true,
 		"version": true
-	}
+	},
+	"updateInternalDependencies": "patch"
 }
