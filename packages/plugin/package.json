@@ -33,7 +33,7 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
-		"@effected/workspaces": "^0.17.0",
+		"@effected/workspaces": "^0.17.1",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",
@@ -43,7 +43,7 @@
 	},
 	"devDependencies": {
 		"@effected/memfs": "^0.5.0",
-		"@savvy-web/bundler": "^2.1.20",
+		"@savvy-web/bundler": "^2.1.21",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",
