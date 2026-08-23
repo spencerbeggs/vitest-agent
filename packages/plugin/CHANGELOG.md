@@ -1,5 +1,24 @@
 # @vitest-agent/plugin
 
+## 2.4.7
+
+### Dependencies
+
+| Dependency             | Type       | Action  | From  | To    |
+| ---------------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/cli      | dependency | updated | 2.2.7 | 2.2.8 |
+| @vitest-agent/mcp      | dependency | updated | 2.4.3 | 2.4.4 |
+| @vitest-agent/reporter | dependency | updated | 2.1.8 | 2.1.9 |
+| @vitest-agent/sdk      | dependency | updated | 2.4.7 | 2.4.8 |
+
+* | Dependency           | Type       | Action  | From    | To      |                                                                            |
+  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+  | @effected/workspaces | dependency | updated | ^0.17.2 | ^0.18.0 | [#284][#284] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+
+### Patch Changes
+
+[#284]: https://github.com/spencerbeggs/vitest-agent/pull/284
+
 ## 2.4.6
 
 ### Dependencies
