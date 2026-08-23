@@ -46,7 +46,7 @@
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",
 		"typescript": "catalog:build",
-		"vite": "^8.2.2",
+		"vite": "catalog:docs",
 		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
