@@ -1,5 +1,14 @@
 # @vitest-agent/reporter
 
+## 2.1.7
+
+### Dependencies
+
+| Dependency        | Type       | Action  | From  | To    |
+| ----------------- | ---------- | ------- | ----- | ----- |
+| @vitest-agent/sdk | dependency | updated | 2.4.5 | 2.4.6 |
+| @vitest-agent/ui  | dependency | updated | 2.2.5 | 2.2.6 |
+
 ## 2.1.6
 
 ### Dependencies
