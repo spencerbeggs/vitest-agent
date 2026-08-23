@@ -72,6 +72,9 @@ catalogs:
     rspress-plugin-mermaid:
       specifier: ^1.0.1
       version: 1.0.1
+    vite:
+      specifier: ^8.2.2
+      version: 8.2.2
   effect:
     '@effect/platform-node':
       specifier: 4.0.0-rc.109
@@ -82,6 +85,31 @@ catalogs:
     effect:
       specifier: 4.0.0-rc.109
       version: 4.0.0-rc.109
+  effected:
+    '@effected/config-file':
+      specifier: ^0.5.0
+      version: 0.5.0
+    '@effected/jsonc':
+      specifier: ^0.7.0
+      version: 0.7.0
+    '@effected/memfs':
+      specifier: ^0.5.0
+      version: 0.5.0
+    '@effected/toml':
+      specifier: ^0.5.0
+      version: 0.5.0
+    '@effected/walker':
+      specifier: ^0.5.0
+      version: 0.5.0
+    '@effected/workspaces':
+      specifier: ^0.17.1
+      version: 0.17.1
+    '@effected/xdg':
+      specifier: ^0.3.0
+      version: 0.3.0
+    '@effected/yaml':
+      specifier: ^0.10.0
+      version: 0.10.0
   test:
     '@vitest/coverage-istanbul':
       specifier: ^4.1.11
@@ -128,7 +156,7 @@ importers:
         specifier: catalog:effect
         version: 4.0.0-rc.109(effect@4.0.0-rc.109)
       '@effected/workspaces':
-        specifier: ^0.17.1
+        specifier: catalog:effected
         version: 0.17.1(@effected/jsonc@0.7.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@vitest-agent/sdk':
         specifier: workspace:*
@@ -204,7 +232,7 @@ importers:
         specifier: catalog:effect
         version: 4.0.0-rc.109(effect@4.0.0-rc.109)
       '@effected/workspaces':
-        specifier: ^0.17.1
+        specifier: catalog:effected
         version: 0.17.1(@effected/jsonc@0.7.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@vitest-agent/cli':
         specifier: workspace:*
@@ -226,7 +254,7 @@ importers:
         version: 1.2.2
     devDependencies:
       '@effected/memfs':
-        specifier: ^0.5.0
+        specifier: catalog:effected
         version: 0.5.0(effect@4.0.0-rc.109)
       '@savvy-web/bundler':
         specifier: ^2.1.21
@@ -297,7 +325,7 @@ importers:
         specifier: catalog:build
         version: 7.0.2
       vite:
-        specifier: ^8.2.2
+        specifier: catalog:docs
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.12)(yaml@2.9.0)
       vitest:
         specifier: catalog:test
@@ -313,25 +341,25 @@ importers:
         specifier: catalog:effect
         version: 4.0.0-rc.109(effect@4.0.0-rc.109)
       '@effected/config-file':
-        specifier: ^0.5.0
+        specifier: catalog:effected
         version: 0.5.0(@effected/jsonc@0.7.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.10.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@effected/jsonc':
-        specifier: ^0.7.0
+        specifier: catalog:effected
         version: 0.7.0(effect@4.0.0-rc.109)
       '@effected/toml':
-        specifier: ^0.5.0
+        specifier: catalog:effected
         version: 0.5.0(effect@4.0.0-rc.109)
       '@effected/walker':
-        specifier: ^0.5.0
+        specifier: catalog:effected
         version: 0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@effected/workspaces':
-        specifier: ^0.17.1
+        specifier: catalog:effected
         version: 0.17.1(@effected/jsonc@0.7.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@effected/xdg':
-        specifier: ^0.3.0
+        specifier: catalog:effected
         version: 0.3.0(@effected/config-file@0.5.0(@effected/jsonc@0.7.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.10.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@effected/yaml':
-        specifier: ^0.10.0
+        specifier: catalog:effected
         version: 0.10.0(effect@4.0.0-rc.109)
       acorn:
         specifier: ^8.18.0
@@ -350,7 +378,7 @@ importers:
         version: 4.2.0
     devDependencies:
       '@effected/memfs':
-        specifier: ^0.5.0
+        specifier: catalog:effected
         version: 0.5.0(effect@4.0.0-rc.109)
       '@savvy-web/bundler':
         specifier: ^2.1.21
