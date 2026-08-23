@@ -16,10 +16,13 @@ import { normalizeWorkspaceKey } from "./normalize-workspace-key.js";
  * `@effected/workspaces`'s schema, so a successful root lookup always yields a
  * usable name.
  *
- * Note (v4): `@effected/workspaces` anchors discovery at the `WorkspaceDiscovery`
- * layer's `cwd`, not at a per-call path — `discovery.listPackages()` takes no
- * argument. `projectDir` is retained for the not-found diagnostic; callers that
- * need to anchor at a specific directory build `WorkspaceDiscovery.layer({ cwd })`.
+ * Discovery is anchored at `projectDir` per call via `listPackagesIn`, not at
+ * the `WorkspaceDiscovery` layer's `cwd`: patterns, member manifests and names
+ * are read from beneath `projectDir`'s own root, so one long-lived layer
+ * answers correctly for a git worktree, a nested repository, or an unrelated
+ * project. Fails with the library's `WorkspaceRootNotFoundError` when
+ * `projectDir` sits in no workspace at all; results are memoized per resolved
+ * root, so many directories in one workspace share a single discovery.
  *
  * @param projectDir - Absolute path inside the workspace. Typically the
  *   reporter's resolved `projectDir` (CLAUDE_PROJECT_DIR or process.cwd()).
@@ -30,7 +33,7 @@ export const resolveWorkspaceKey = (
 ): Effect.Effect<string, WorkspaceRootNotFoundError | WorkspaceDiscoveryFailure, WorkspaceDiscovery> =>
 	Effect.gen(function* () {
 		const discovery = yield* WorkspaceDiscovery;
-		const packages = yield* discovery.listPackages();
+		const packages = yield* discovery.listPackagesIn(projectDir);
 		const root = packages.find((pkg) => pkg.isRootWorkspace);
 		if (!root) {
 			return yield* Effect.fail(

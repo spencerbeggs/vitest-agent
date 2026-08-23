@@ -22,9 +22,12 @@ const AppDirsLive = AppDirs.layer({ namespace: APP_NAMESPACE }).pipe(Layer.provi
  * Callers still need to provide `FileSystem` and `Path` from
  * `@effect/platform-node`'s `NodeServices.layer` (or the equivalent on Bun).
  *
- * `WorkspaceDiscovery` is anchored at `projectDir`: on v4,
- * `@effected/workspaces` resolves the workspace root from the layer's `cwd`
- * rather than a per-call path, so the `cwd` is pinned here.
+ * `WorkspaceDiscovery` is pinned to `projectDir` as its `cwd`, which sets the
+ * root for the layer-bound methods (`listPackages`, `info`, `refresh`). The
+ * per-root methods (`listPackagesIn`, `infoIn`, `refreshIn`) take a directory
+ * per call and ignore that pin — `resolveWorkspaceKey` and
+ * `ProjectIdentityLive` use them, so a long-lived host built against one root
+ * still answers correctly for a git worktree or an unrelated project.
  *
  * @param projectDir - Absolute path inside the user's workspace, used to
  *   anchor the config file resolvers and workspace discovery.

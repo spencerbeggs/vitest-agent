@@ -77,7 +77,13 @@ const collectCandidates = (
 		const gitRemote = yield* readGitRemote(workspaceRoot);
 
 		const discovery = yield* WorkspaceDiscovery;
-		const packages = yield* discovery.listPackages().pipe(Effect.catch(() => Effect.succeed([] as never[])));
+		// Anchored at the per-call `workspaceRoot`, not the layer's `cwd`: one
+		// long-lived host (the MCP server) resolves identity for whichever
+		// project a call names, including a git worktree or a nested repo whose
+		// membership differs from the root the layer was built against.
+		const packages = yield* discovery
+			.listPackagesIn(workspaceRoot)
+			.pipe(Effect.catch(() => Effect.succeed([] as never[])));
 		const root = packages.find((pkg) => pkg.isRootWorkspace);
 
 		const packageJsonRepoUrl = root ? yield* readPackageRepoUrl(root.packageJsonPath) : Option.none<string>();
