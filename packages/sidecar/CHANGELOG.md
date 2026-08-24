@@ -1,58 +1,64 @@
 # @vitest-agent/sidecar
 
+## 2.1.9
+
+### Maintenance
+
+- Version-only release to keep workspace versions consistent; no changes to this package.
+
 ## 2.1.8
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.1.7
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.1.6
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.1.5
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.1.4
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.1.3
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.1.2
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.1.1
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.1.0
 
 ### Maintenance
 
-* Bumps all packages to use `effect@rc.109`
+- Bumps all packages to use `effect@rc.109`
 
 ### Minor Changes
 
@@ -62,86 +68,85 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.12
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.11
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.10
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.9
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.8
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.7
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.6
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.5
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.4
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.3
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.2
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.1
 
 ### Maintenance
 
-* Version-only release to keep workspace versions consistent; no changes to this package.
+- Version-only release to keep workspace versions consistent; no changes to this package.
 
 ## 2.0.0
 
 ### Breaking Changes
 
-* ### Effect v4 family alignment
-
+- ### Effect v4 family alignment
   The `@vitest-agent/sidecar` umbrella package and its four per-platform binary packages (`sidecar-darwin-arm64`, `sidecar-linux-arm64`, `sidecar-linux-x64`, `sidecar-win32-x64`) bump to `2.0.0` alongside the rest of the family's Effect v4 migration, keeping every `@vitest-agent/*` package on a single `2.0` version line.
 
   The prebuilt Single Executable Application binaries are rebuilt for the `2.0` line and bundle the `2.0` `@vitest-agent/sdk` `./dispatch` entry. The dispatch core itself — per-Bash-call environment injection and exit-code mapping — is unchanged, so the binaries' runtime behavior is identical to `1.x`; the major bump is a version-alignment guarantee for consumers pinning the family, not a behavioral break. [#161][#161]
@@ -156,9 +161,9 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) | Dependency | Type | Action | From | To |
-  \| ------------------ | ------------- | ------- | ------- | ------ |
-  \| @savvy-web/bundler | devDependency | updated | ^0.11.1 | ^1.0.1 |
+- [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) \| Dependency \| Type \| Action \| From \| To \|
+  \| ------------------ \| ------------- \| ------- \| ------- \| ------ \|
+  \| @savvy-web/bundler \| devDependency \| updated \| ^0.11.1 \| ^1.0.1 \|
 
 ## 1.0.1
 
@@ -166,4 +171,4 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Features
 
-* [`e509228`](https://github.com/spencerbeggs/vitest-agent/commit/e5092289c0f64446dddc8ad0abc25856d8d08e97) Initial stable release. Node Single Executable Application binary for the per-Bash-call `inject-env` hot path. Prebuilt per-platform binaries ship as optional dependencies.
+- [`e509228`](https://github.com/spencerbeggs/vitest-agent/commit/e5092289c0f64446dddc8ad0abc25856d8d08e97) Initial stable release. Node Single Executable Application binary for the per-Bash-call `inject-env` hot path. Prebuilt per-platform binaries ship as optional dependencies.

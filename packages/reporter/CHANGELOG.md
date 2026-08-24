@@ -1,39 +1,48 @@
 # @vitest-agent/reporter
 
+## 2.1.10
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.4.8 | 2.4.9 |
+| @vitest-agent/ui | dependency | updated | 2.2.8 | 2.2.9 |
+
 ## 2.1.9
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.4.7 | 2.4.8 |
-| @vitest-agent/ui  | dependency | updated | 2.2.7 | 2.2.8 |
+| @vitest-agent/ui | dependency | updated | 2.2.7 | 2.2.8 |
 
 ## 2.1.8
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.4.6 | 2.4.7 |
-| @vitest-agent/ui  | dependency | updated | 2.2.6 | 2.2.7 |
+| @vitest-agent/ui | dependency | updated | 2.2.6 | 2.2.7 |
 
 ## 2.1.7
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.4.5 | 2.4.6 |
-| @vitest-agent/ui  | dependency | updated | 2.2.5 | 2.2.6 |
+| @vitest-agent/ui | dependency | updated | 2.2.5 | 2.2.6 |
 
 ## 2.1.6
 
 ### Dependencies
 
-* | Dependency | Type           | Action  | From   | To     |                                                                            |
-  | ---------- | -------------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | vitest     | peerDependency | updated | 4.1.11 | ^4.1.0 | [#278][#278] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | vitest | peerDependency | updated | 4.1.11 | ^4.1.0 | [#278][#278] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -43,51 +52,51 @@
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.4.4 | 2.4.5 |
-| @vitest-agent/ui  | dependency | updated | 2.2.4 | 2.2.5 |
+| @vitest-agent/ui | dependency | updated | 2.2.4 | 2.2.5 |
 
 ## 2.1.4
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.4.3 | 2.4.4 |
-| @vitest-agent/ui  | dependency | updated | 2.2.3 | 2.2.4 |
+| @vitest-agent/ui | dependency | updated | 2.2.3 | 2.2.4 |
 
 ## 2.1.3
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.4.2 | 2.4.3 |
-| @vitest-agent/ui  | dependency | updated | 2.2.2 | 2.2.3 |
+| @vitest-agent/ui | dependency | updated | 2.2.2 | 2.2.3 |
 
 ## 2.1.2
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.4.1 | 2.4.2 |
-| @vitest-agent/ui  | dependency | updated | 2.2.1 | 2.2.2 |
+| @vitest-agent/ui | dependency | updated | 2.2.1 | 2.2.2 |
 
 ## 2.1.1
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.4.0 | 2.4.1 |
-| @vitest-agent/ui  | dependency | updated | 2.2.0 | 2.2.1 |
+| @vitest-agent/ui | dependency | updated | 2.2.0 | 2.2.1 |
 
-* | Dependency                | Type           | Action  | From   | To     |                                                                            |
-  | ------------------------- | -------------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | @vitest/coverage-istanbul | peerDependency | updated | 4.1.10 | 4.1.11 |                                                                            |
-  | @vitest/coverage-v8       | peerDependency | updated | 4.1.10 | 4.1.11 | [#260][#260] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @vitest/coverage-istanbul | peerDependency | updated | 4.1.10 | 4.1.11 |  |
+  | @vitest/coverage-v8 | peerDependency | updated | 4.1.10 | 4.1.11 | [#260][#260] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -97,14 +106,14 @@
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.3.1 | 2.4.0 |
-| @vitest-agent/ui  | dependency | updated | 2.1.4 | 2.2.0 |
+| @vitest-agent/ui | dependency | updated | 2.1.4 | 2.2.0 |
 
 ### Maintenance
 
-* Bumps all packages to use `effect@rc.109`
+- Bumps all packages to use `effect@rc.109`
 
 ### Patch Changes
 
@@ -114,70 +123,70 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.3.0 | 2.3.1 |
-| @vitest-agent/ui  | dependency | updated | 2.1.3 | 2.1.4 |
+| @vitest-agent/ui | dependency | updated | 2.1.3 | 2.1.4 |
 
 ## 2.0.20
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.2.1 | 2.3.0 |
-| @vitest-agent/ui  | dependency | updated | 2.1.2 | 2.1.3 |
+| @vitest-agent/ui | dependency | updated | 2.1.2 | 2.1.3 |
 
 ## 2.0.19
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.2.0 | 2.2.1 |
-| @vitest-agent/ui  | dependency | updated | 2.1.1 | 2.1.2 |
+| @vitest-agent/ui | dependency | updated | 2.1.1 | 2.1.2 |
 
 ## 2.0.18
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.1.0 | 2.2.0 |
-| @vitest-agent/ui  | dependency | updated | 2.1.0 | 2.1.1 |
+| @vitest-agent/ui | dependency | updated | 2.1.0 | 2.1.1 |
 
 ## 2.0.17
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From   | To    |
-| ----------------- | ---------- | ------- | ------ | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.16 | 2.1.0 |
-| @vitest-agent/ui  | dependency | updated | 2.0.16 | 2.1.0 |
+| @vitest-agent/ui | dependency | updated | 2.0.16 | 2.1.0 |
 
 ## 2.0.16
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From   | To     |
-| ----------------- | ---------- | ------- | ------ | ------ |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.15 | 2.0.16 |
-| @vitest-agent/ui  | dependency | updated | 2.0.15 | 2.0.16 |
+| @vitest-agent/ui | dependency | updated | 2.0.15 | 2.0.16 |
 
 ## 2.0.15
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From   | To     |
-| ----------------- | ---------- | ------- | ------ | ------ |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.14 | 2.0.15 |
-| @vitest-agent/ui  | dependency | updated | 2.0.14 | 2.0.15 |
+| @vitest-agent/ui | dependency | updated | 2.0.14 | 2.0.15 |
 
-* | Dependency              | Type       | Action  | From           | To             |                                                                            |
-  | ----------------------- | ---------- | ------- | -------------- | -------------- | -------------------------------------------------------------------------- |
-  | @effect/platform-node   | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |                                                                            |
-  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |                                                                            |
-  | effect                  | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 | [#219][#219] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effect/platform-node | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |  |
+  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |  |
+  | effect | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 | [#219][#219] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -187,32 +196,32 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From   | To     |
-| ----------------- | ---------- | ------- | ------ | ------ |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.13 | 2.0.14 |
-| @vitest-agent/ui  | dependency | updated | 2.0.13 | 2.0.14 |
+| @vitest-agent/ui | dependency | updated | 2.0.13 | 2.0.14 |
 
 ## 2.0.13
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From   | To     |
-| ----------------- | ---------- | ------- | ------ | ------ |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.12 | 2.0.13 |
-| @vitest-agent/ui  | dependency | updated | 2.0.12 | 2.0.13 |
+| @vitest-agent/ui | dependency | updated | 2.0.12 | 2.0.13 |
 
 ## 2.0.12
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From   | To     |
-| ----------------- | ---------- | ------- | ------ | ------ |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.11 | 2.0.12 |
-| @vitest-agent/ui  | dependency | updated | 2.0.11 | 2.0.12 |
+| @vitest-agent/ui | dependency | updated | 2.0.11 | 2.0.12 |
 
-* | Dependency | Type           | Action  | From   | To     |                                                                            |
-  | ---------- | -------------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | vitest     | peerDependency | updated | 4.1.10 | ^4.1.0 | [#208][#208] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | vitest | peerDependency | updated | 4.1.10 | ^4.1.0 | [#208][#208] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -222,23 +231,23 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From   | To     |
-| ----------------- | ---------- | ------- | ------ | ------ |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.10 | 2.0.11 |
-| @vitest-agent/ui  | dependency | updated | 2.0.10 | 2.0.11 |
+| @vitest-agent/ui | dependency | updated | 2.0.10 | 2.0.11 |
 
 ## 2.0.10
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To     |
-| ----------------- | ---------- | ------- | ----- | ------ |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.9 | 2.0.10 |
-| @vitest-agent/ui  | dependency | updated | 2.0.9 | 2.0.10 |
+| @vitest-agent/ui | dependency | updated | 2.0.9 | 2.0.10 |
 
-* | Dependency | Type       | Action  | From    | To      |                                                                            |
-  | ---------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
-  | react      | dependency | updated | ^19.2.7 | ^19.2.8 | [#198][#198] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | react | dependency | updated | ^19.2.7 | ^19.2.8 | [#198][#198] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -248,34 +257,34 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.8 | 2.0.9 |
-| @vitest-agent/ui  | dependency | updated | 2.0.8 | 2.0.9 |
+| @vitest-agent/ui | dependency | updated | 2.0.8 | 2.0.9 |
 
 ## 2.0.8
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.7 | 2.0.8 |
-| @vitest-agent/ui  | dependency | updated | 2.0.7 | 2.0.8 |
+| @vitest-agent/ui | dependency | updated | 2.0.7 | 2.0.8 |
 
 ## 2.0.7
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.6 | 2.0.7 |
-| @vitest-agent/ui  | dependency | updated | 2.0.6 | 2.0.7 |
+| @vitest-agent/ui | dependency | updated | 2.0.6 | 2.0.7 |
 
-* | Dependency              | Type       | Action  | From          | To             |                                                                            |
-  | ----------------------- | ---------- | ------- | ------------- | -------------- | -------------------------------------------------------------------------- |
-  | @effect/platform-node   | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |                                                                            |
-  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |                                                                            |
-  | effect                  | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 | [#185][#185] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effect/platform-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
+  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
+  | effect | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 | [#185][#185] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -285,93 +294,92 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.5 | 2.0.6 |
-| @vitest-agent/ui  | dependency | updated | 2.0.5 | 2.0.6 |
+| @vitest-agent/ui | dependency | updated | 2.0.5 | 2.0.6 |
 
 ## 2.0.5
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.4 | 2.0.5 |
-| @vitest-agent/ui  | dependency | updated | 2.0.4 | 2.0.5 |
+| @vitest-agent/ui | dependency | updated | 2.0.4 | 2.0.5 |
 
 ## 2.0.4
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.3 | 2.0.4 |
-| @vitest-agent/ui  | dependency | updated | 2.0.3 | 2.0.4 |
+| @vitest-agent/ui | dependency | updated | 2.0.3 | 2.0.4 |
 
 ## 2.0.3
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.2 | 2.0.3 |
-| @vitest-agent/ui  | dependency | updated | 2.0.2 | 2.0.3 |
+| @vitest-agent/ui | dependency | updated | 2.0.2 | 2.0.3 |
 
 ## 2.0.2
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.1 | 2.0.2 |
-| @vitest-agent/ui  | dependency | updated | 2.0.1 | 2.0.2 |
+| @vitest-agent/ui | dependency | updated | 2.0.1 | 2.0.2 |
 
-* | Dependency              | Type       | Action  | From          | To            |                                                          |
-  | ----------------------- | ---------- | ------- | ------------- | ------------- | -------------------------------------------------------- |
-  | @effect/platform-node   | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |                                                          |
-  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |                                                          |
-  | effect                  | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 | Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effect/platform-node | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |  |
+  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |  |
+  | effect | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 | Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
 ## 2.0.1
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 2.0.0 | 2.0.1 |
-| @vitest-agent/ui  | dependency | updated | 2.0.0 | 2.0.1 |
+| @vitest-agent/ui | dependency | updated | 2.0.0 | 2.0.1 |
 
 ## 2.0.0
 
 ### Breaking Changes
 
-* ### Effect v4
-
+- ### Effect v4
   `@vitest-agent/reporter` now runs on Effect v4 (`effect@4.0.0-beta.98`). `better-sqlite3` is no longer a dependency — the data layer runs on Node's built-in `node:sqlite`.
 
 ### Bug Fixes
 
-* Project summary `failCount` now includes suite-level (collection/load) failures via the new `countSuiteFailures` helper from `@vitest-agent/sdk`, so a file that fails to import turns its project row red instead of showing a misleading all-green pass.
+- Project summary `failCount` now includes suite-level (collection/load) failures via the new `countSuiteFailures` helper from `@vitest-agent/sdk`, so a file that fails to import turns its project row red instead of showing a misleading all-green pass.
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 1.3.4 | 2.0.0 |
-| @vitest-agent/ui  | dependency | updated | 1.1.2 | 2.0.0 |
+| @vitest-agent/ui | dependency | updated | 1.1.2 | 2.0.0 |
 
-* | Dependency              | Type       | Action  | From    | To            |                                                                       |
-  | :---------------------- | :--------- | :------ | :------ | :------------ | --------------------------------------------------------------------- |
-  | @effect/cluster         | dependency | removed | 0.59.0  | —             |                                                                       |
-  | @effect/experimental    | dependency | removed | 0.60.0  | —             |                                                                       |
-  | @effect/platform        | dependency | removed | 0.96.3  | —             |                                                                       |
-  | @effect/platform-node   | dependency | updated | 0.107.0 | 4.0.0-beta.98 |                                                                       |
-  | @effect/rpc             | dependency | removed | 0.75.1  | —             |                                                                       |
-  | @effect/sql             | dependency | removed | 0.51.1  | —             |                                                                       |
-  | @effect/sql-sqlite-node | dependency | updated | 0.52.0  | 4.0.0-beta.98 |                                                                       |
-  | @effect/workflow        | dependency | removed | 0.18.2  | —             |                                                                       |
-  | effect                  | dependency | updated | 3.22.0  | 4.0.0-beta.98 |                                                                       |
-  | ink                     | dependency | updated | 7.1.0   | 7.1.1         | [#161][#161] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | :-- | :-- | :-- | :-- | :-- | --- |
+  | @effect/cluster | dependency | removed | 0.59.0 | — |  |
+  | @effect/experimental | dependency | removed | 0.60.0 | — |  |
+  | @effect/platform | dependency | removed | 0.96.3 | — |  |
+  | @effect/platform-node | dependency | updated | 0.107.0 | 4.0.0-beta.98 |  |
+  | @effect/rpc | dependency | removed | 0.75.1 | — |  |
+  | @effect/sql | dependency | removed | 0.51.1 | — |  |
+  | @effect/sql-sqlite-node | dependency | updated | 0.52.0 | 4.0.0-beta.98 |  |
+  | @effect/workflow | dependency | removed | 0.18.2 | — |  |
+  | effect | dependency | updated | 3.22.0 | 4.0.0-beta.98 |  |
+  | ink | dependency | updated | 7.1.0 | 7.1.1 | [#161][#161] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -381,40 +389,40 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 1.3.3 | 1.3.4 |
-| @vitest-agent/ui  | dependency | updated | 1.1.1 | 1.1.2 |
+| @vitest-agent/ui | dependency | updated | 1.1.1 | 1.1.2 |
 
 ## 1.0.7
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 1.3.2 | 1.3.3 |
-| @vitest-agent/ui  | dependency | updated | 1.1.0 | 1.1.1 |
+| @vitest-agent/ui | dependency | updated | 1.1.0 | 1.1.1 |
 
 ## 1.0.6
 
 ### Bug Fixes
 
-* Completed the transitive Effect peer closure so no `@effect` peer resolution escapes to the consuming workspace's importer. Previously a consumer workspace that also contained an effect v4 beta project could have its package manager auto-install the v4 beta into the v3 stack, crashing at runtime with module-not-found errors.
+- Completed the transitive Effect peer closure so no `@effect` peer resolution escapes to the consuming workspace's importer. Previously a consumer workspace that also contained an effect v4 beta project could have its package manager auto-install the v4 beta into the v3 stack, crashing at runtime with module-not-found errors.
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 1.3.1 | 1.3.2 |
-| @vitest-agent/ui  | dependency | updated | 1.0.5 | 1.1.0 |
+| @vitest-agent/ui | dependency | updated | 1.0.5 | 1.1.0 |
 
-* | Dependency           | Type       | Action | From | To      |                                                                       |
-  | -------------------- | ---------- | ------ | ---- | ------- | --------------------------------------------------------------------- |
-  | @effect/experimental | dependency | added  | —    | ^0.60.0 |                                                                       |
-  | @effect/workflow     | dependency | added  | —    | ^0.18.2 |                                                                       |
-  | @effect/printer      | dependency | added  | —    | ^0.49.0 |                                                                       |
-  | @effect/printer-ansi | dependency | added  | —    | ^0.49.0 |                                                                       |
-  | @effect/typeclass    | dependency | added  | —    | ^0.40.0 | [#128][#128] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effect/experimental | dependency | added | — | ^0.60.0 |  |
+  | @effect/workflow | dependency | added | — | ^0.18.2 |  |
+  | @effect/printer | dependency | added | — | ^0.49.0 |  |
+  | @effect/printer-ansi | dependency | added | — | ^0.49.0 |  |
+  | @effect/typeclass | dependency | added | — | ^0.40.0 | [#128][#128] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -424,60 +432,62 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 1.3.0 | 1.3.1 |
-| @vitest-agent/ui  | dependency | updated | 1.0.4 | 1.0.5 |
+| @vitest-agent/ui | dependency | updated | 1.0.4 | 1.0.5 |
 
 ## 1.0.4
 
 ### Patch Changes
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 1.2.0 | 1.3.0 |
-| @vitest-agent/ui  | dependency | updated | 1.0.3 | 1.0.4 |
+| @vitest-agent/ui | dependency | updated | 1.0.3 | 1.0.4 |
 
 ## 1.0.3
 
 ### Patch Changes
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 1.1.0 | 1.2.0 |
-| @vitest-agent/ui  | dependency | updated | 1.0.2 | 1.0.3 |
+| @vitest-agent/ui | dependency | updated | 1.0.2 | 1.0.3 |
 
 ## 1.0.2
 
 ### Dependencies
 
-* [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) | Dependency | Type | Action | From | To |
-  \| ------------------ | ------------- | ------- | ------- | ------ |
-  \| @savvy-web/bundler | devDependency | updated | ^0.11.1 | ^1.0.1 |
-  | Dependency        | Type       | Action  | From  | To    |
-  | ----------------- | ---------- | ------- | ----- | ----- |
-  | @vitest-agent/sdk | dependency | updated | 1.0.1 | 1.1.0 |
-  | @vitest-agent/ui  | dependency | updated | 1.0.1 | 1.0.2 |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 1.0.1 | 1.1.0 |
+| @vitest-agent/ui | dependency | updated | 1.0.1 | 1.0.2 |
+
+- [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) \| Dependency \| Type \| Action \| From \| To \|
+  \| ------------------ \| ------------- \| ------- \| ------- \| ------ \|
+  \| @savvy-web/bundler \| devDependency \| updated \| ^0.11.1 \| ^1.0.1 \|
 
 ## 1.0.1
 
 ### Bug Fixes
 
-* [`3cfd166`](https://github.com/spencerbeggs/vitest-agent/commit/3cfd166de45227d28aa77d16f7b4237053509e27) Fixes `MaxPerformanceEntryBufferExceededWarning` on long test runs. React 19's development reconciler emits a `performance.measure()` per component render and nothing drained the global user-timing buffer; the live renderer now clears it after each render cycle.
-  | Dependency        | Type       | Action  | From  | To    |
-  | ----------------- | ---------- | ------- | ----- | ----- |
+- [`3cfd166`](https://github.com/spencerbeggs/vitest-agent/commit/3cfd166de45227d28aa77d16f7b4237053509e27) Fixes `MaxPerformanceEntryBufferExceededWarning` on long test runs. React 19's development reconciler emits a `performance.measure()` per component render and nothing drained the global user-timing buffer; the live renderer now clears it after each render cycle.
+
+  | Dependency | Type | Action | From | To |
+  | --- | --- | --- | --- | --- |
   | @vitest-agent/sdk | dependency | updated | 1.0.0 | 1.0.1 |
-  | @vitest-agent/ui  | dependency | updated | 1.0.0 | 1.0.1 |
+  | @vitest-agent/ui | dependency | updated | 1.0.0 | 1.0.1 |
 
 ## 1.0.0
 
 ### Features
 
-* [`e509228`](https://github.com/spencerbeggs/vitest-agent/commit/e5092289c0f64446dddc8ad0abc25856d8d08e97) Initial stable release. Ships `DefaultVitestAgentReporter` and owns the Ink live-mount lifecycle end to end. Doubles as the reference package for custom-reporter authors, re-exporting the `VitestAgentReporterFactory` contract and the dispatch helpers.
+- [`e509228`](https://github.com/spencerbeggs/vitest-agent/commit/e5092289c0f64446dddc8ad0abc25856d8d08e97) Initial stable release. Ships `DefaultVitestAgentReporter` and owns the Ink live-mount lifecycle end to end. Doubles as the reference package for custom-reporter authors, re-exporting the `VitestAgentReporterFactory` contract and the dispatch helpers.
 
 ### Patch Changes
 
-| Dependency        | Type       | Action  | From  | To    |
-| ----------------- | ---------- | ------- | ----- | ----- |
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
 | @vitest-agent/sdk | dependency | updated | 0.0.0 | 1.0.0 |
-| @vitest-agent/ui  | dependency | updated | 0.0.0 | 1.0.0 |
+| @vitest-agent/ui | dependency | updated | 0.0.0 | 1.0.0 |
