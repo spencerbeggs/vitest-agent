@@ -1,11 +1,27 @@
 # @vitest-agent/sdk
 
+## 2.4.9
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.18.0 | ^0.18.1 |
+
+[#289][#289]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#289]: https://github.com/spencerbeggs/vitest-agent/pull/289
+
 ## 2.4.8
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                            |
-  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.17.2 | ^0.18.0 | [#284][#284] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -16,11 +32,11 @@
 
 ### Dependencies
 
-* | Dependency            | Type       | Action  | From    | To      |                                                                            |
-  | --------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.5.0  | ^0.5.1  |                                                                            |
-  | @effected/workspaces  | dependency | updated | ^0.17.1 | ^0.17.2 |                                                                            |
-  | @effected/yaml        | dependency | updated | ^0.10.0 | ^0.11.0 | [#282][#282] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.5.0 | ^0.5.1 |  |
+  | @effected/workspaces | dependency | updated | ^0.17.1 | ^0.17.2 |  |
+  | @effected/yaml | dependency | updated | ^0.10.0 | ^0.11.0 | [#282][#282] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -30,8 +46,8 @@
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                            |
-  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.17.0 | ^0.17.1 | [#280][#280] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -42,7 +58,7 @@
 
 ### Bug Fixes
 
-* `classifyTestPath` no longer matches a helper directory name (e.g. `utils`) at any depth under `__test__/` — only a helper directory named directly beneath the test root counts as excluded. This is what the `test-location` PreToolUse hook acts on: because an "excluded" verdict makes the hook deny creating the file, the any-depth match wrongly blocked authoring a legitimate test at a nested helper-named path such as `__test__/unit/utils/parse.test.ts`.
+- `classifyTestPath` no longer matches a helper directory name (e.g. `utils`) at any depth under `__test__/` — only a helper directory named directly beneath the test root counts as excluded. This is what the `test-location` PreToolUse hook acts on: because an "excluded" verdict makes the hook deny creating the file, the any-depth match wrongly blocked authoring a legitimate test at a nested helper-named path such as `__test__/unit/utils/parse.test.ts`.
 
   The wrap-up guidance string for open hypotheses no longer instructs callers to pass `validatedAt`, matching `hypothesis({ action: "validate" })` now defaulting it server-side when omitted. [#276][#276]
 
@@ -56,8 +72,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                            |
-  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.16.0 | ^0.17.0 | [#272][#272] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -68,8 +84,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                       |
-  | -------------------- | ---------- | ------- | ------- | ------- | --------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.15.1 | ^0.16.0 | [#267][#267] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
 ### Patch Changes
@@ -80,8 +96,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                            |
-  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.14.2 | ^0.15.1 | [#264][#264] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -92,8 +108,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                            |
-  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.14.0 | ^0.14.2 | [#260][#260] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -104,7 +120,7 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Maintenance
 
-* Bumps all packages to use `effect@rc.109`
+- Bumps all packages to use `effect@rc.109`
 
 ### Minor Changes
 
@@ -114,8 +130,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                            |
-  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.12.0 | ^0.13.0 | [#253][#253] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -126,27 +142,25 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Features
 
-* `DataReader.getHistory` accepts an optional third argument, `HistoryQueryOptions`, to narrow a project's history to one test or module and cap how many runs come back per test:
-
+- `DataReader.getHistory` accepts an optional third argument, `HistoryQueryOptions`, to narrow a project's history to one test or module and cap how many runs come back per test:
   ```ts
   import type { HistoryQueryOptions } from "@vitest-agent/sdk";
 
   const options: HistoryQueryOptions = { modulePath: "src/foo.test.ts", limit: 10 };
   const history = await reader.getHistory("my-project", options);
   ```
-
   `testName` and `modulePath` narrow via exact-match SQL predicates; `limit` caps runs kept per `(module_path, full_name)` pair, most-recent-first, defaulting to 20. `HistoryQueryOptions` is exported from both the main entry point and `@vitest-agent/sdk/testing`. No SQLite schema change. [#243][#243]
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                            |
-  | -------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.11.2 | ^0.12.0 | [#249][#249] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
-- | Dependency            | Type       | Action  | From   | To     |                                                                            |
-  | --------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.3.1 | ^0.4.1 |                                                                            |
-  | @effected/xdg         | dependency | updated | ^0.2.0 | ^0.2.1 | [#238][#238] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+* | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.3.1 | ^0.4.1 |  |
+  | @effected/xdg | dependency | updated | ^0.2.0 | ^0.2.1 | [#238][#238] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -162,11 +176,11 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency            | Type       | Action  | From    | To      |                                                                            |
-  | --------------------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.3.0  | ^0.3.1  |                                                                            |
-  | @effected/workspaces  | dependency | updated | ^0.11.1 | ^0.11.2 |                                                                            |
-  | @effected/yaml        | dependency | updated | ^0.7.0  | ^0.8.0  | [#234][#234] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.3.0 | ^0.3.1 |  |
+  | @effected/workspaces | dependency | updated | ^0.11.1 | ^0.11.2 |  |
+  | @effected/yaml | dependency | updated | ^0.7.0 | ^0.8.0 | [#234][#234] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -176,12 +190,11 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Features
 
-* New `test-location` module exports the canonical test-layout rule as a pure function:
-
-  * `classifyTestPath(workspaces, filePath)` — classifies a file path as `valid` (discoverable under a workspace's `src/` or `__test__/` directory), `excluded` (a `__test__/` helper directory — `fixtures/`, `snapshots/`, or `utils/`), or `invalid` (anywhere else), returning a `suggestedPath` for the invalid case. Returns `null` when no supplied workspace contains the path and when the path crosses a directory discovery never walks into, so callers can fail open instead of treating "no verdict" as invalid.
-  * `findOwningWorkspace(workspaces, filePath)` — the deepest-containing-workspace attribution `classifyTestPath` uses, exported so callers that need to reason about a path relative to its owning package agree with the classifier about which package owns it.
-  * `isTestFileName(filePathOrName)` — the extension half of the rule as a predicate.
-  * `SRC_DIR`, `TEST_DIR`, `TEST_HELPER_DIRS`, `TEST_FILE_GLOB_SUFFIX`, `NON_DISCOVERABLE_DIRS` — the constants the rule is built from, also consumed by `@vitest-agent/plugin`'s discovery globs, tag-injection gate, test-file walker, and cache signature, so the layout rule has one implementation rather than one per surface.
+- New `test-location` module exports the canonical test-layout rule as a pure function:
+  - `classifyTestPath(workspaces, filePath)` — classifies a file path as `valid` (discoverable under a workspace's `src/` or `__test__/` directory), `excluded` (a `__test__/` helper directory — `fixtures/`, `snapshots/`, or `utils/`), or `invalid` (anywhere else), returning a `suggestedPath` for the invalid case. Returns `null` when no supplied workspace contains the path and when the path crosses a directory discovery never walks into, so callers can fail open instead of treating "no verdict" as invalid.
+  - `findOwningWorkspace(workspaces, filePath)` — the deepest-containing-workspace attribution `classifyTestPath` uses, exported so callers that need to reason about a path relative to its owning package agree with the classifier about which package owns it.
+  - `isTestFileName(filePathOrName)` — the extension half of the rule as a predicate.
+  - `SRC_DIR`, `TEST_DIR`, `TEST_HELPER_DIRS`, `TEST_FILE_GLOB_SUFFIX`, `NON_DISCOVERABLE_DIRS` — the constants the rule is built from, also consumed by `@vitest-agent/plugin`'s discovery globs, tag-injection gate, test-file walker, and cache signature, so the layout rule has one implementation rather than one per surface.
 
   The layout rule is single-sourced here; two things around it are deliberately not. A nested `package.json` marks an independent unit whose tests belong to a different discovery pass, and detecting one needs a filesystem probe, so it stays outside the pure classifier — `@vitest-agent/cli`'s `agent check-test-path` applies it in the caller. And the Claude Code plugin's PreToolUse hook keeps a lexical copy of the extension list in bash as a zero-cost prefilter before it spawns anything; it delegates every judgement about location to the CLI.
 
@@ -197,13 +210,13 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Features
 
-* Exported `coerceErrorText` — coerces any unknown error-field value (message, name, diff, stack, …) into a string that is safe to persist or render. Vitest and Effect can put non-string values (arbitrary success values from `Effect.flip`, a throwing `ConfigError.message` getter) into what is typed as a string error field; this handles every case exception-safely.
-* `AgentReport.summary.modules`, `RenderState.collectedModules`, and `RunEvent`'s `RunFinished.collectedModules` — new optional fields that carry the true collected-module count through the report and event pipeline, so a fully-passing run no longer reads as "0 modules"
+- Exported `coerceErrorText` — coerces any unknown error-field value (message, name, diff, stack, …) into a string that is safe to persist or render. Vitest and Effect can put non-string values (arbitrary success values from `Effect.flip`, a throwing `ConfigError.message` getter) into what is typed as a string error field; this handles every case exception-safely.
+- `AgentReport.summary.modules`, `RenderState.collectedModules`, and `RunEvent`'s `RunFinished.collectedModules` — new optional fields that carry the true collected-module count through the report and event pipeline, so a fully-passing run no longer reads as "0 modules"
 
 ### Bug Fixes
 
-* `extractSqlReason`, `formatFatalError`, and `normalizeAssertionShape` no longer throw when handed a malformed error shape (a throwing `message`/`cause` getter, a non-string message) — they degrade to a placeholder string instead of crashing report generation
-* `buildAgentReport` now also marks a module as failed when one of its suites — not just its tests — is in a failed state or carries its own errors. A `beforeAll`/`afterAll` hook throw is attached to the suite entity, not any individual test, and could previously leave a module reporting as fully passed even though the suite itself failed [#223][#223]
+- `extractSqlReason`, `formatFatalError`, and `normalizeAssertionShape` no longer throw when handed a malformed error shape (a throwing `message`/`cause` getter, a non-string message) — they degrade to a placeholder string instead of crashing report generation
+- `buildAgentReport` now also marks a module as failed when one of its suites — not just its tests — is in a failed state or carries its own errors. A `beforeAll`/`afterAll` hook throw is attached to the suite entity, not any individual test, and could previously leave a module reporting as fully passed even though the suite itself failed [#223][#223]
 
 ### Minor Changes
 
@@ -215,8 +228,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From    | To      |                                                                       |
-  | -------------------- | ---------- | ------- | ------- | ------- | --------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.11.0 | ^0.11.1 | [#221][#221] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
 ### Patch Changes
@@ -227,18 +240,18 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency              | Type       | Action  | From           | To             |                                                                            |
-  | ----------------------- | ---------- | ------- | -------------- | -------------- | -------------------------------------------------------------------------- |
-  | @effect/platform-node   | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |                                                                            |
-  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |                                                                            |
-  | @effected/config-file   | dependency | updated | ^0.2.1         | ^0.3.0         |                                                                            |
-  | @effected/jsonc         | dependency | updated | ^0.5.2         | ^0.6.0         |                                                                            |
-  | @effected/toml          | dependency | updated | ^0.3.2         | ^0.4.0         |                                                                            |
-  | @effected/walker        | dependency | updated | ^0.3.4         | ^0.4.0         |                                                                            |
-  | @effected/workspaces    | dependency | updated | ^0.10.2        | ^0.11.0        |                                                                            |
-  | @effected/xdg           | dependency | updated | ^0.1.10        | ^0.2.0         |                                                                            |
-  | @effected/yaml          | dependency | updated | ^0.6.1         | ^0.7.0         |                                                                            |
-  | effect                  | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 | [#219][#219] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effect/platform-node | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |  |
+  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 |  |
+  | @effected/config-file | dependency | updated | ^0.2.1 | ^0.3.0 |  |
+  | @effected/jsonc | dependency | updated | ^0.5.2 | ^0.6.0 |  |
+  | @effected/toml | dependency | updated | ^0.3.2 | ^0.4.0 |  |
+  | @effected/walker | dependency | updated | ^0.3.4 | ^0.4.0 |  |
+  | @effected/workspaces | dependency | updated | ^0.10.2 | ^0.11.0 |  |
+  | @effected/xdg | dependency | updated | ^0.1.10 | ^0.2.0 |  |
+  | @effected/yaml | dependency | updated | ^0.6.1 | ^0.7.0 |  |
+  | effect | dependency | updated | 4.0.0-beta.101 | 4.0.0-beta.107 | [#219][#219] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -248,8 +261,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From   | To      |                                                                            |
-  | -------------------- | ---------- | ------- | ------ | ------- | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.9.4 | ^0.10.2 | [#215][#215] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -260,15 +273,15 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency            | Type       | Action  | From   | To      |                                                                            |
-  | --------------------- | ---------- | ------- | ------ | ------- | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.2.0 | ^0.2.1  |                                                                            |
-  | @effected/jsonc       | dependency | updated | ^0.5.1 | ^0.5.2  |                                                                            |
-  | @effected/toml        | dependency | updated | ^0.3.1 | ^0.3.2  |                                                                            |
-  | @effected/walker      | dependency | updated | ^0.3.3 | ^0.3.4  |                                                                            |
-  | @effected/workspaces  | dependency | updated | ^0.9.3 | ^0.9.4  |                                                                            |
-  | @effected/xdg         | dependency | updated | ^0.1.9 | ^0.1.10 |                                                                            |
-  | @effected/yaml        | dependency | updated | ^0.6.0 | ^0.6.1  | [#210][#210] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.2.0 | ^0.2.1 |  |
+  | @effected/jsonc | dependency | updated | ^0.5.1 | ^0.5.2 |  |
+  | @effected/toml | dependency | updated | ^0.3.1 | ^0.3.2 |  |
+  | @effected/walker | dependency | updated | ^0.3.3 | ^0.3.4 |  |
+  | @effected/workspaces | dependency | updated | ^0.9.3 | ^0.9.4 |  |
+  | @effected/xdg | dependency | updated | ^0.1.9 | ^0.1.10 |  |
+  | @effected/yaml | dependency | updated | ^0.6.0 | ^0.6.1 | [#210][#210] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -278,8 +291,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From   | To     |                                                                            |
-  | -------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.9.1 | ^0.9.3 | [#208][#208] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -290,9 +303,9 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency | Type       | Action  | From    | To      |                                                                            |
-  | ---------- | ---------- | ------- | ------- | ------- | -------------------------------------------------------------------------- |
-  | acorn      | dependency | updated | ^8.17.0 | ^8.18.0 | [#205][#205] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | acorn | dependency | updated | ^8.17.0 | ^8.18.0 | [#205][#205] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -302,12 +315,12 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency            | Type       | Action  | From   | To     |                                                                            |
-  | --------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.1.9 | ^0.2.0 |                                                                            |
-  | @effected/walker      | dependency | updated | ^0.3.2 | ^0.3.3 |                                                                            |
-  | @effected/workspaces  | dependency | updated | ^0.8.0 | ^0.9.1 |                                                                            |
-  | @effected/xdg         | dependency | updated | ^0.1.8 | ^0.1.9 | [#198][#198] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.1.9 | ^0.2.0 |  |
+  | @effected/walker | dependency | updated | ^0.3.2 | ^0.3.3 |  |
+  | @effected/workspaces | dependency | updated | ^0.8.0 | ^0.9.1 |  |
+  | @effected/xdg | dependency | updated | ^0.1.8 | ^0.1.9 | [#198][#198] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -317,7 +330,7 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Other
 
-* Bump sdk to force rebuild sidecar packages.
+- Bump sdk to force rebuild sidecar packages.
 
 ### Patch Changes
 
@@ -327,11 +340,11 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency            | Type       | Action  | From   | To     |                                                                            |
-  | --------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.1.8 | ^0.1.9 |                                                                            |
-  | @effected/workspaces  | dependency | updated | ^0.6.2 | ^0.8.0 |                                                                            |
-  | @effected/yaml        | dependency | updated | ^0.5.1 | ^0.6.0 | [#188][#188] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.1.8 | ^0.1.9 |  |
+  | @effected/workspaces | dependency | updated | ^0.6.2 | ^0.8.0 |  |
+  | @effected/yaml | dependency | updated | ^0.5.1 | ^0.6.0 | [#188][#188] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -341,18 +354,18 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency              | Type       | Action  | From          | To             |                                                                            |
-  | ----------------------- | ---------- | ------- | ------------- | -------------- | -------------------------------------------------------------------------- |
-  | @effect/platform-node   | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |                                                                            |
-  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |                                                                            |
-  | @effected/config-file   | dependency | updated | ^0.1.7        | ^0.1.8         |                                                                            |
-  | @effected/jsonc         | dependency | updated | ^0.5.0        | ^0.5.1         |                                                                            |
-  | @effected/toml          | dependency | updated | ^0.3.0        | ^0.3.1         |                                                                            |
-  | @effected/walker        | dependency | updated | ^0.3.1        | ^0.3.2         |                                                                            |
-  | @effected/workspaces    | dependency | updated | ^0.6.1        | ^0.6.2         |                                                                            |
-  | @effected/xdg           | dependency | updated | ^0.1.7        | ^0.1.8         |                                                                            |
-  | @effected/yaml          | dependency | updated | ^0.5.0        | ^0.5.1         |                                                                            |
-  | effect                  | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 | [#185][#185] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effect/platform-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
+  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 |  |
+  | @effected/config-file | dependency | updated | ^0.1.7 | ^0.1.8 |  |
+  | @effected/jsonc | dependency | updated | ^0.5.0 | ^0.5.1 |  |
+  | @effected/toml | dependency | updated | ^0.3.0 | ^0.3.1 |  |
+  | @effected/walker | dependency | updated | ^0.3.1 | ^0.3.2 |  |
+  | @effected/workspaces | dependency | updated | ^0.6.1 | ^0.6.2 |  |
+  | @effected/xdg | dependency | updated | ^0.1.7 | ^0.1.8 |  |
+  | @effected/yaml | dependency | updated | ^0.5.0 | ^0.5.1 |  |
+  | effect | dependency | updated | 4.0.0-beta.99 | 4.0.0-beta.101 | [#185][#185] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -362,8 +375,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From   | To     |                                                                            |
-  | -------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.6.0 | ^0.6.1 | [#181][#181] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -374,7 +387,7 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Bug Fixes
 
-* Added `DataReader.getSessionByTddTaskId`, resolving the session a TDD task was opened under. Powers the MCP `hypothesis` tool's deterministic session binding by `tddTaskId`. [#177][#177]
+- Added `DataReader.getSessionByTddTaskId`, resolving the session a TDD task was opened under. Powers the MCP `hypothesis` tool's deterministic session binding by `tddTaskId`. [#177][#177]
 
 ### Patch Changes
 
@@ -386,8 +399,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency           | Type       | Action  | From   | To     |                                                                            |
-  | -------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | @effected/workspaces | dependency | updated | ^0.5.2 | ^0.6.0 | [#173][#173] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -398,15 +411,15 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency            | Type       | Action  | From   | To     |                                                                            |
-  | --------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.1.4 | ^0.1.7 |                                                                            |
-  | @effected/jsonc       | dependency | updated | ^0.4.0 | ^0.5.0 |                                                                            |
-  | @effected/toml        | dependency | updated | ^0.2.0 | ^0.3.0 |                                                                            |
-  | @effected/walker      | dependency | updated | ^0.2.2 | ^0.3.1 |                                                                            |
-  | @effected/workspaces  | dependency | updated | ^0.4.1 | ^0.5.2 |                                                                            |
-  | @effected/xdg         | dependency | updated | ^0.1.4 | ^0.1.7 |                                                                            |
-  | @effected/yaml        | dependency | updated | ^0.4.0 | ^0.5.0 | [#170][#170] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.1.4 | ^0.1.7 |  |
+  | @effected/jsonc | dependency | updated | ^0.4.0 | ^0.5.0 |  |
+  | @effected/toml | dependency | updated | ^0.2.0 | ^0.3.0 |  |
+  | @effected/walker | dependency | updated | ^0.2.2 | ^0.3.1 |  |
+  | @effected/workspaces | dependency | updated | ^0.4.1 | ^0.5.2 |  |
+  | @effected/xdg | dependency | updated | ^0.1.4 | ^0.1.7 |  |
+  | @effected/yaml | dependency | updated | ^0.4.0 | ^0.5.0 | [#170][#170] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -416,21 +429,21 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency              | Type       | Action  | From          | To            |                                                          |
-  | ----------------------- | ---------- | ------- | ------------- | ------------- | -------------------------------------------------------- |
-  | @effect/platform-node   | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |                                                          |
-  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |                                                          |
-  | effect                  | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 | Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effect/platform-node | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |  |
+  | @effect/sql-sqlite-node | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 |  |
+  | effect | dependency | updated | 4.0.0-beta.98 | 4.0.0-beta.99 | Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
-- | Dependency            | Type       | Action  | From   | To     |                                                                            |
-  | --------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.1.3 | ^0.1.4 |                                                                            |
-  | @effected/jsonc       | dependency | updated | ^0.3.0 | ^0.4.0 |                                                                            |
-  | @effected/toml        | dependency | updated | ^0.1.0 | ^0.2.0 |                                                                            |
-  | @effected/walker      | dependency | updated | ^0.2.1 | ^0.2.2 |                                                                            |
-  | @effected/workspaces  | dependency | updated | ^0.4.0 | ^0.4.1 |                                                                            |
-  | @effected/xdg         | dependency | updated | ^0.1.3 | ^0.1.4 |                                                                            |
-  | @effected/yaml        | dependency | updated | ^0.3.1 | ^0.4.0 | [#168][#168] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+* | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.1.3 | ^0.1.4 |  |
+  | @effected/jsonc | dependency | updated | ^0.3.0 | ^0.4.0 |  |
+  | @effected/toml | dependency | updated | ^0.1.0 | ^0.2.0 |  |
+  | @effected/walker | dependency | updated | ^0.2.1 | ^0.2.2 |  |
+  | @effected/workspaces | dependency | updated | ^0.4.0 | ^0.4.1 |  |
+  | @effected/xdg | dependency | updated | ^0.1.3 | ^0.1.4 |  |
+  | @effected/yaml | dependency | updated | ^0.3.1 | ^0.4.0 | [#168][#168] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -440,13 +453,13 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency            | Type       | Action  | From   | To     |                                                                            |
-  | --------------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
-  | @effected/config-file | dependency | updated | ^0.1.2 | ^0.1.3 |                                                                            |
-  | @effected/jsonc       | dependency | updated | ^0.2.0 | ^0.3.0 |                                                                            |
-  | @effected/workspaces  | dependency | updated | ^0.3.1 | ^0.4.0 |                                                                            |
-  | @effected/xdg         | dependency | updated | ^0.1.2 | ^0.1.3 |                                                                            |
-  | @effected/yaml        | dependency | updated | ^0.3.0 | ^0.3.1 | [#164][#164] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effected/config-file | dependency | updated | ^0.1.2 | ^0.1.3 |  |
+  | @effected/jsonc | dependency | updated | ^0.2.0 | ^0.3.0 |  |
+  | @effected/workspaces | dependency | updated | ^0.3.1 | ^0.4.0 |  |
+  | @effected/xdg | dependency | updated | ^0.1.2 | ^0.1.3 |  |
+  | @effected/yaml | dependency | updated | ^0.3.0 | ^0.3.1 | [#164][#164] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -456,52 +469,45 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Breaking Changes
 
-* ### Effect v4 runtime
-
+- ### Effect v4 runtime
   `@vitest-agent/sdk` now runs on Effect v4 (`effect@4.0.0-beta.98`). Consumers embedding the SDK's schemas, services, or layers directly must upgrade to Effect v4 — the v3 API surface (`Effect.catchAll`, `Schema.annotations`, etc.) is no longer compatible.
-
   ### SQLite driver moved to node:sqlite
-
   The data layer moved from `better-sqlite3` to Node's built-in `node:sqlite`, via `effect/unstable/sql` and `@effect/sql-sqlite-node`. `better-sqlite3` is no longer a dependency anywhere in the family. This raises the effective Node requirement to `>=24.11.0`.
-
   ### XDG, config-file, and workspace resolution now use `@effected/*`
-
   `xdg-effect`, `config-file-effect`, and `workspaces-effect` are replaced by the `@effected` kit (`@effected/xdg`, `@effected/config-file`, `@effected/workspaces`, plus their `@effected/jsonc`, `@effected/toml`, `@effected/yaml`, and `@effected/walker` building blocks). `WorkspaceRootNotFoundError`'s shape changed: the free-form `reason: string` field is replaced by `markers: ReadonlyArray<string>`.
 
   **Workspace-root discovery no longer treats a bare `.git` directory as a workspace boundary.** A single-package repo with no `pnpm-workspace.yaml` and no `package.json#workspaces` field now fails `WorkspaceRootNotFoundError` where it previously resolved via `.git`. Whether to add a `.git` fallback is still under discussion — treat this as a known caveat rather than a settled design decision.
-
   ### SQL error unwrapping walks the full cause chain
-
   `extractSqlReason` now walks the entire `cause` chain instead of unwrapping a single level. The `node:sqlite` driver commonly nests two wrapper errors, and the previous one-level unwrap surfaced the generic "Failed to execute statement" message instead of the real SQLite reason (e.g. "UNIQUE constraint failed: ...").
 
 ### Features
 
-* New `countSuiteFailures(report)` utility — counts suite-level (collection/load) failures that `report.summary.failed` does not capture, so downstream reporters can fold them into failure totals.
+- New `countSuiteFailures(report)` utility — counts suite-level (collection/load) failures that `report.summary.failed` does not capture, so downstream reporters can fold them into failure totals.
 
 ### Dependencies
 
-* | Dependency              | Type       | Action  | From    | To            |                                                                       |
-  | :---------------------- | :--------- | :------ | :------ | :------------ | --------------------------------------------------------------------- |
-  | @effect/cluster         | dependency | removed | 0.59.0  | —             |                                                                       |
-  | @effect/experimental    | dependency | removed | 0.60.0  | —             |                                                                       |
-  | @effect/platform        | dependency | removed | 0.96.3  | —             |                                                                       |
-  | @effect/platform-node   | dependency | updated | 0.107.0 | 4.0.0-beta.98 |                                                                       |
-  | @effect/rpc             | dependency | removed | 0.75.1  | —             |                                                                       |
-  | @effect/sql             | dependency | removed | 0.51.1  | —             |                                                                       |
-  | @effect/sql-sqlite-node | dependency | updated | 0.52.0  | 4.0.0-beta.98 |                                                                       |
-  | @effect/workflow        | dependency | removed | 0.18.2  | —             |                                                                       |
-  | @effected/config-file   | dependency | added   | —       | 0.1.2         |                                                                       |
-  | @effected/jsonc         | dependency | added   | —       | 0.2.0         |                                                                       |
-  | @effected/toml          | dependency | added   | —       | 0.1.0         |                                                                       |
-  | @effected/walker        | dependency | added   | —       | 0.2.1         |                                                                       |
-  | @effected/workspaces    | dependency | added   | —       | 0.3.1         |                                                                       |
-  | @effected/xdg           | dependency | added   | —       | 0.1.2         |                                                                       |
-  | @effected/yaml          | dependency | added   | —       | 0.3.0         |                                                                       |
-  | @types/acorn            | dependency | removed | 6.0.4   | —             |                                                                       |
-  | config-file-effect      | dependency | removed | 0.3.0   | —             |                                                                       |
-  | effect                  | dependency | updated | 3.22.0  | 4.0.0-beta.98 |                                                                       |
-  | workspaces-effect       | dependency | removed | 2.1.0   | —             |                                                                       |
-  | xdg-effect              | dependency | removed | 2.1.1   | —             | [#161][#161] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | :-- | :-- | :-- | :-- | :-- | --- |
+  | @effect/cluster | dependency | removed | 0.59.0 | — |  |
+  | @effect/experimental | dependency | removed | 0.60.0 | — |  |
+  | @effect/platform | dependency | removed | 0.96.3 | — |  |
+  | @effect/platform-node | dependency | updated | 0.107.0 | 4.0.0-beta.98 |  |
+  | @effect/rpc | dependency | removed | 0.75.1 | — |  |
+  | @effect/sql | dependency | removed | 0.51.1 | — |  |
+  | @effect/sql-sqlite-node | dependency | updated | 0.52.0 | 4.0.0-beta.98 |  |
+  | @effect/workflow | dependency | removed | 0.18.2 | — |  |
+  | @effected/config-file | dependency | added | — | 0.1.2 |  |
+  | @effected/jsonc | dependency | added | — | 0.2.0 |  |
+  | @effected/toml | dependency | added | — | 0.1.0 |  |
+  | @effected/walker | dependency | added | — | 0.2.1 |  |
+  | @effected/workspaces | dependency | added | — | 0.3.1 |  |
+  | @effected/xdg | dependency | added | — | 0.1.2 |  |
+  | @effected/yaml | dependency | added | — | 0.3.0 |  |
+  | @types/acorn | dependency | removed | 6.0.4 | — |  |
+  | config-file-effect | dependency | removed | 0.3.0 | — |  |
+  | effect | dependency | updated | 3.22.0 | 4.0.0-beta.98 |  |
+  | workspaces-effect | dependency | removed | 2.1.0 | — |  |
+  | xdg-effect | dependency | removed | 2.1.1 | — | [#161][#161] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
 ### Major Changes
 
@@ -511,8 +517,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency        | Type       | Action  | From   | To     |                                                                            |
-  | ----------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | workspaces-effect | dependency | updated | ^2.0.3 | ^2.1.0 | [#153][#153] Thanks [@spencerbeggs](https://github.com/apps/spencerbeggs)! |
 
 ### Patch Changes
@@ -523,7 +529,7 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Bug Fixes
 
-* `writeBaselines` now skips non-finite metric values (e.g. `NaN` produced by ratchet math over an empty coverage run) instead of binding them as SQL `NULL`, which tripped the `NOT NULL` constraint on `coverage_baselines.value` (#130) [#141][#141]
+- `writeBaselines` now skips non-finite metric values (e.g. `NaN` produced by ratchet math over an empty coverage run) instead of binding them as SQL `NULL`, which tripped the `NOT NULL` constraint on `coverage_baselines.value` (#130) [#141][#141]
 
 ### Patch Changes
 
@@ -535,17 +541,17 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Bug Fixes
 
-* Completed the transitive Effect peer closure so no `@effect` peer resolution escapes to the consuming workspace's importer. Previously a consumer workspace that also contained an effect v4 beta project could have its package manager auto-install the v4 beta into the v3 stack, crashing at runtime with module-not-found errors.
+- Completed the transitive Effect peer closure so no `@effect` peer resolution escapes to the consuming workspace's importer. Previously a consumer workspace that also contained an effect v4 beta project could have its package manager auto-install the v4 beta into the v3 stack, crashing at runtime with module-not-found errors.
 
 ### Dependencies
 
-* | Dependency           | Type       | Action | From | To      |                                                                       |
-  | -------------------- | ---------- | ------ | ---- | ------- | --------------------------------------------------------------------- |
-  | @effect/experimental | dependency | added  | —    | ^0.60.0 |                                                                       |
-  | @effect/workflow     | dependency | added  | —    | ^0.18.2 |                                                                       |
-  | @effect/printer      | dependency | added  | —    | ^0.49.0 |                                                                       |
-  | @effect/printer-ansi | dependency | added  | —    | ^0.49.0 |                                                                       |
-  | @effect/typeclass    | dependency | added  | —    | ^0.40.0 | [#128][#128] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
+  | @effect/experimental | dependency | added | — | ^0.60.0 |  |
+  | @effect/workflow | dependency | added | — | ^0.18.2 |  |
+  | @effect/printer | dependency | added | — | ^0.49.0 |  |
+  | @effect/printer-ansi | dependency | added | — | ^0.49.0 |  |
+  | @effect/typeclass | dependency | added | — | ^0.40.0 | [#128][#128] Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
 ### Patch Changes
 
@@ -555,17 +561,17 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Dependencies
 
-* | Dependency        | Type       | Action  | From   | To     |                                                          |
-  | ----------------- | ---------- | ------- | ------ | ------ | -------------------------------------------------------- |
+- | Dependency | Type | Action | From | To |  |
+  | --- | --- | --- | --- | --- | --- |
   | workspaces-effect | dependency | updated | ^1.3.0 | ^2.0.2 | Thanks [@spencerbeggs](https://github.com/spencerbeggs)! |
 
 ## 1.3.0
 
 ### Features
 
-* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) `TestHistory` schema and the `FlakyTest` / `PersistentFailure` interfaces gain a `modulePath` field
-* Exported `historyKey` from `HistoryTracker` — builds the composite `(modulePath, fullName)` key so consumers can key their own lookup maps consistently
-* `DataStore.writeHistory` gains a required `modulePath` parameter. Custom reporters or scripts that call `writeHistory` directly need to pass the test module's path:
+- [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) `TestHistory` schema and the `FlakyTest` / `PersistentFailure` interfaces gain a `modulePath` field
+- Exported `historyKey` from `HistoryTracker` — builds the composite `(modulePath, fullName)` key so consumers can key their own lookup maps consistently
+- `DataStore.writeHistory` gains a required `modulePath` parameter. Custom reporters or scripts that call `writeHistory` directly need to pass the test module's path:
 
 ```ts
 // before
@@ -580,27 +586,27 @@ Pre-2.0 note: this changes the `test_history` table shape. Delete your local `da
 
 ### Bug Fixes
 
-* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) Test history is now keyed by file, not just by test name. Previously `test_history` rows were identified by `(project, fullName, timestamp)`, so two test files that happened to share a `describe > it` name collided on write (`UNIQUE constraint failed: test_history`) and were conflated on read — flaky/persistent/recovered detection could merge two unrelated tests into one series, potentially hiding a real persistent failure behind a same-named passing test in another file.
+- [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) Test history is now keyed by file, not just by test name. Previously `test_history` rows were identified by `(project, fullName, timestamp)`, so two test files that happened to share a `describe > it` name collided on write (`UNIQUE constraint failed: test_history`) and were conflated on read — flaky/persistent/recovered detection could merge two unrelated tests into one series, potentially hiding a real persistent failure behind a same-named passing test in another file.
 
-- Added a `modulePath` column; history identity is now `(project, modulePath, fullName, timestamp)` end to end
+* Added a `modulePath` column; history identity is now `(project, modulePath, fullName, timestamp)` end to end
 
 ### Dependencies
 
-* [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) | Dependency | Type | Action | From | To |
-  \| ------------------ | ---------- | ------- | ------ | ------ |
-  \| config-file-effect | dependency | updated | ^0.2.3 | ^0.3.0 |
-  \| workspaces-effect | dependency | updated | ^1.2.0 | ^1.3.0 |
-  \| xdg-effect | dependency | updated | ^2.0.1 | ^2.1.0 |
+- [`45529da`](https://github.com/spencerbeggs/vitest-agent/commit/45529da0b14ea7f828dce0fec941b166cac1bdb5) \| Dependency \| Type \| Action \| From \| To \|
+  \| ------------------ \| ---------- \| ------- \| ------ \| ------ \|
+  \| config-file-effect \| dependency \| updated \| ^0.2.3 \| ^0.3.0 \|
+  \| workspaces-effect \| dependency \| updated \| ^1.2.0 \| ^1.3.0 \|
+  \| xdg-effect \| dependency \| updated \| ^2.0.1 \| ^2.1.0 \|
 
 ## 1.2.0
 
 ### Features
 
-* [`813cf45`](https://github.com/spencerbeggs/vitest-agent/commit/813cf45cb9a8809c1766640d5e20669f1b77a251) Adds phase-transition support for triangulation batches, where a single implementation satisfies several behaviors and only the first produces its own failing run (#115).
+- [`813cf45`](https://github.com/spencerbeggs/vitest-agent/commit/813cf45cb9a8809c1766640d5e20669f1b77a251) Adds phase-transition support for triangulation batches, where a single implementation satisfies several behaviors and only the first produces its own failing run (#115).
 
-- `requiredArtifactForTransition` now requires a `test_failed_run` for `red.triangulate→green` (previously accepted with no evidence at all) — a triangulation batch must still point at a real failing run, just not necessarily the requested behavior's own.
-- `validatePhaseTransition` relaxes the phase-window and behavior-match binding rules specifically for `red.triangulate→green`, so a batch's shared failing run can serve as evidence for a later behavior in the same batch.
-- New export `transitionEnforcesBehaviorMatch(from, to)` reports whether D2 binding rule 2 (behavior-match) applies to a transition. It is `true` only for `red→green` and `green→refactor`, and `false` for `red.triangulate→green` and `refactor→red` — letting `refactor→red` cross a behavior boundary in one step without a rebind dance.
+* `requiredArtifactForTransition` now requires a `test_failed_run` for `red.triangulate→green` (previously accepted with no evidence at all) — a triangulation batch must still point at a real failing run, just not necessarily the requested behavior's own.
+* `validatePhaseTransition` relaxes the phase-window and behavior-match binding rules specifically for `red.triangulate→green`, so a batch's shared failing run can serve as evidence for a later behavior in the same batch.
+* New export `transitionEnforcesBehaviorMatch(from, to)` reports whether D2 binding rule 2 (behavior-match) applies to a transition. It is `true` only for `red→green` and `green→refactor`, and `false` for `red.triangulate→green` and `refactor→red` — letting `refactor→red` cross a behavior boundary in one step without a rebind dance.
 
 ```ts
 import { transitionEnforcesBehaviorMatch } from "@vitest-agent/sdk";
@@ -613,7 +619,7 @@ transitionEnforcesBehaviorMatch("red.triangulate", "green"); // false
 
 ### Features
 
-* [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) ### Console Leak Detection API
+- [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) ### Console Leak Detection API
 
 New public types and utilities for collecting and aggregating stray console output from a Vitest run into a structured signal.
 
@@ -633,13 +639,13 @@ import { ConsoleLeaks, ConsoleLeakFile } from "@vitest-agent/sdk";
 
 ### Bug Fixes
 
-* [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) `@vitest-agent/sdk/testing` now exports the 79 constituent types that appear in `DataStore` and `DataReader` method signatures — errors, schemas, and identity types that API Extractor flagged as forgotten exports from the testing entry point. Both the value and type sides of each Effect Schema const+type pair are covered. The entry point is now complete with zero new suppressions.
+- [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) `@vitest-agent/sdk/testing` now exports the 79 constituent types that appear in `DataStore` and `DataReader` method signatures — errors, schemas, and identity types that API Extractor flagged as forgotten exports from the testing entry point. Both the value and type sides of each Effect Schema const+type pair are covered. The entry point is now complete with zero new suppressions.
 
 ### Dependencies
 
-* [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) | Dependency | Type | Action | From | To |
-  \| ------------------ | ------------- | ------- | ------- | ------ |
-  \| @savvy-web/bundler | devDependency | updated | ^0.11.1 | ^1.0.1 |
+- [`3e0cfe3`](https://github.com/spencerbeggs/vitest-agent/commit/3e0cfe38157ef21bfe1d817f557914ce79a43885) \| Dependency \| Type \| Action \| From \| To \|
+  \| ------------------ \| ------------- \| ------- \| ------- \| ------ \|
+  \| @savvy-web/bundler \| devDependency \| updated \| ^0.11.1 \| ^1.0.1 \|
 
 ## 1.0.1
 
@@ -647,4 +653,4 @@ import { ConsoleLeaks, ConsoleLeakFile } from "@vitest-agent/sdk";
 
 ### Features
 
-* [`e509228`](https://github.com/spencerbeggs/vitest-agent/commit/e5092289c0f64446dddc8ad0abc25856d8d08e97) Initial stable release. Shared foundation for the family: Effect Schema data definitions, the SQLite data layer and Effect services, formatters, utilities, and the public reporter and dispatcher contracts. Schemas are re-exported for consumer use. No internal dependencies.
+- [`e509228`](https://github.com/spencerbeggs/vitest-agent/commit/e5092289c0f64446dddc8ad0abc25856d8d08e97) Initial stable release. Shared foundation for the family: Effect Schema data definitions, the SQLite data layer and Effect services, formatters, utilities, and the public reporter and dispatcher contracts. Schemas are re-exported for consumer use. No internal dependencies.
