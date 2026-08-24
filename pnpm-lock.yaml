@@ -6,23 +6,23 @@ importers:
   .:
     configDependencies:
       '@effected/pnpm-plugin-effect':
-        specifier: 0.6.5
-        version: 0.6.5
+        specifier: 0.6.6
+        version: 0.6.6
       '@savvy-web/pnpm-plugin-silk':
         specifier: 0.29.1
         version: 0.29.1
 
 packages:
 
-  '@effected/pnpm-plugin-effect@0.6.5':
-    resolution: {integrity: sha512-5r0zeDSKuRWh79UZLNBesQnxpE3ZeMSVv/PZuj7i2ltpSRQ3znvV4EmLhXSh+CKTAaP++4my5FquHCpDtCqbYA==}
+  '@effected/pnpm-plugin-effect@0.6.6':
+    resolution: {integrity: sha512-e7XbSDoDSewFKUKU+pLeKXpgB6Ui5kawOsYt+IfbAiL6L3TxIcfGtyXEmc9TVcNUYgFvuRV0tnFf9AZbCKYjpg==}
 
   '@savvy-web/pnpm-plugin-silk@0.29.1':
     resolution: {integrity: sha512-1VrIzvk6ZalpHpvNBehyNwJdTwDblNWdeSNgDecc0RiTlxQpEvuCY8mOxI03MseOR7fNcAXqran5siwyJVYNag==}
 
 snapshots:
 
-  '@effected/pnpm-plugin-effect@0.6.5': {}
+  '@effected/pnpm-plugin-effect@0.6.6': {}
 
   '@savvy-web/pnpm-plugin-silk@0.29.1': {}
 
@@ -102,7 +102,7 @@ catalogs:
       specifier: ^0.5.0
       version: 0.5.0
     '@effected/workspaces':
-      specifier: ^0.18.0
+      specifier: ^0.18.1
       version: 0.18.1
     '@effected/xdg':
       specifier: ^0.3.0
@@ -128,7 +128,7 @@ catalogs:
 overrides:
   '@microsoft/api-extractor>typescript': ^6.0.3
 
-pnpmfileChecksum: sha256-cbJM/6ULNZfWmis1pUu5kG8uvrqIkP/1aPNi3uuwXJM=
+pnpmfileChecksum: sha256-0wjACk8YNjLi+GRB8t72aj+Q0O10xf2wy63I2xO9Ts0=
 
 importers:
 
