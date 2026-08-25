@@ -4,7 +4,12 @@ packages:
   - website
 autoInstallPeers: true
 configDependencies:
-  "@effected/pnpm-plugin-effect": 0.6.6+sha512-e7XbSDoDSewFKUKU+pLeKXpgB6Ui5kawOsYt+IfbAiL6L3TxIcfGtyXEmc9TVcNUYgFvuRV0tnFf9AZbCKYjpg==
+  "@effected/pnpm-plugin-effect": 0.6.8+sha512-Pru4OYUOCNH/b//ZEDrIfUklBfw3oyY805jFqk7za+1jJ0683Maa66y7pTZfRsqBOui9MNmWucukK8feqGvo8Q==
   "@savvy-web/pnpm-plugin-silk": 0.29.1+sha512-1VrIzvk6ZalpHpvNBehyNwJdTwDblNWdeSNgDecc0RiTlxQpEvuCY8mOxI03MseOR7fNcAXqran5siwyJVYNag==
 linkWorkspacePackages: deep
+minimumReleaseAgeExclude:
+  - "@tsdoctor/bundle@0.2.0"
+  - "@tsdoctor/model@0.2.1"
+  - "@tsdoctor/registry@0.2.0"
+  - "@tsdoctor/snapshot@0.1.1"
 verifyDepsBeforeRun: false
