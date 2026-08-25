@@ -565,8 +565,8 @@ importers:
         specifier: catalog:docs
         version: 19.2.8(react@19.2.8)
       rspress-plugin-api-extractor:
-        specifier: ^0.10.0
-        version: 0.10.0(@effected/config-file@0.5.2(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@rspress/core@2.0.19(@rspack/core@2.1.10(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.2.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0)
+        specifier: ^0.11.0
+        version: 0.11.0(@effected/config-file@0.5.2(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@rspress/core@2.0.19(@rspack/core@2.1.10(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.2.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0)
       rspress-plugin-mermaid:
         specifier: catalog:docs
         version: 1.0.1(@rspress/core@2.0.19(@rspack/core@2.1.10(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(supports-color@9.4.0)
@@ -1793,8 +1793,8 @@ packages:
       '@effected/xdg': ^0.3.0
       effect: 4.0.0-rc.109
 
-  '@tsdoctor/model@0.2.2':
-    resolution: {integrity: sha512-tvTBigyFV9ngRpLRluI3dsBwE2BMGeeQyaCRV55Fol6GgD3rw9sLCmY6Cx7lXnxndRShPiat+RH9SUxR8QVxLQ==}
+  '@tsdoctor/model@0.3.0':
+    resolution: {integrity: sha512-M44kA+3DOwHDvdUiO3F4/ctKmSBdNMx9qP3f58HHS2Wti0ecQ9WIaOX5+Rw/YicK5Ec07s51jECbnF0900l02Q==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@effected/markdown': ^0.7.0
@@ -2349,8 +2349,8 @@ packages:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
 
-  baseline-browser-mapping@2.11.18:
-    resolution: {integrity: sha512-1iEmLEYSiE1SeBoAfPo/Mnx3PzfzHUkDK61ASkCpuk3YXugYLH5DYK1SzqV55F8FMI6s0F+/tCP7Polz1QRjxw==}
+  baseline-browser-mapping@2.11.19:
+    resolution: {integrity: sha512-Grytf1xOxOEMTGRwx6rLGKkTabd4vMg3VrKdj/7joCmV0qgh4QwMMO6xh34YEXQqirAuUdgQGa5orJQQ+69RBw==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -2806,8 +2806,8 @@ packages:
   effect@4.0.0-rc.109:
     resolution: {integrity: sha512-6ubcOCtfdbmFO5+vgcT2HsTw5s+n3aMUj4eAIbVpUxP7+VYCwXxxcBHgiWgizOrGO1eGmuOBFek3mM0dFcwaWA==}
 
-  electron-to-chromium@1.5.412:
-    resolution: {integrity: sha512-z4rMe3esBzlzovKHj4gxJnsCGZRK5l4baUvm+gCGJBPE+gsyUMKsuU9tnEUtI1dOebXz1ytAPGjvXhmQ7rIPwA==}
+  electron-to-chromium@1.5.413:
+    resolution: {integrity: sha512-F1XPKvt7HVfly5WND90ec16nFsdr4g5x/cVUP3EqjeyXynupabGDqpMa84wwvuYGDnldXLBz6DLXyZXWO9TPvw==}
 
   elkjs@0.9.3:
     resolution: {integrity: sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ==}
@@ -3098,8 +3098,8 @@ packages:
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
 
-  hono@4.13.3:
-    resolution: {integrity: sha512-r8AO2mYHoLxSHkgafNeC/BXyb2vWRxD3jem4Ts+ptav8oTG5FIRifAjuJEmZI4bSvvc2ns0GxmIYiZnHqN3mMw==}
+  hono@4.13.4:
+    resolution: {integrity: sha512-AGEwKIyRMHRv1t8Wjwa3LHxQ61X5CqrdFT+4BRNTpqS5aJNnpl5WLjADb7vFlJzI/8uK7T5QLVApCMQKNa3LgQ==}
     engines: {node: '>=16.9.0'}
 
   hookable@6.1.1:
@@ -3962,8 +3962,8 @@ packages:
     resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
 
-  picomatch@4.0.5:
-    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
+  picomatch@4.0.7:
+    resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
   pkce-challenge@5.0.1:
@@ -4210,8 +4210,8 @@ packages:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
 
-  rspress-plugin-api-extractor@0.10.0:
-    resolution: {integrity: sha512-aXIuigML5yusyPFuqGZTm3eOtVyUu+BHRXJgQLZ/L4+pXYgnI/jUt2+gOMd6uB8XgEbzWln11wR85I48+JvbBQ==}
+  rspress-plugin-api-extractor@0.11.0:
+    resolution: {integrity: sha512-ZCD91qk7naHnTd3zgYAyc5TeSqAXmmVxHysQdoPh6y5fKpYlQ03Bg2jppvYMJeg4Fv2SzvZqI+cZkw0PgfxY3A==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@rspress/core': ^2.0.0
@@ -4997,7 +4997,7 @@ snapshots:
       '@changesets/should-skip-package': 1.0.0
       '@changesets/types': 7.0.0
       '@manypkg/get-packages': 3.1.0
-      picomatch: 4.0.5
+      picomatch: 4.0.7
 
   '@changesets/errors@1.0.0': {}
 
@@ -5029,7 +5029,7 @@ snapshots:
       '@changesets/errors': 1.0.0
       '@changesets/types': 7.0.0
       '@manypkg/get-packages': 3.1.0
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       tinyexec: 1.3.0
 
   '@changesets/parse@1.0.0':
@@ -5445,9 +5445,9 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@hono/node-server@2.1.1(hono@4.13.3)':
+  '@hono/node-server@2.1.1(hono@4.13.4)':
     dependencies:
-      hono: 4.13.3
+      hono: 4.13.4
 
   '@ioredis/commands@1.10.0': {}
 
@@ -5560,7 +5560,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.30.0(supports-color@9.4.0)(zod@4.4.3)':
     dependencies:
-      '@hono/node-server': 2.1.1(hono@4.13.3)
+      '@hono/node-server': 2.1.1(hono@4.13.4)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -5570,7 +5570,7 @@ snapshots:
       eventsource-parser: 3.1.1
       express: 5.2.1(supports-color@9.4.0)
       express-rate-limit: 8.6.2(express@5.2.1(supports-color@9.4.0))(supports-color@9.4.0)
-      hono: 4.13.3
+      hono: 4.13.4
       jose: 6.2.10
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -6228,7 +6228,7 @@ snapshots:
       '@effected/xdg': 0.3.0(@effected/config-file@0.5.2(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       effect: 4.0.0-rc.109
 
-  '@tsdoctor/model@0.2.2(@effected/markdown@0.7.0(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/package-json@0.12.0(effect@4.0.0-rc.109))(@types/node@26.2.0)(effect@4.0.0-rc.109)':
+  '@tsdoctor/model@0.3.0(@effected/markdown@0.7.0(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/package-json@0.12.0(effect@4.0.0-rc.109))(@types/node@26.2.0)(effect@4.0.0-rc.109)':
     dependencies:
       '@effected/markdown': 0.7.0(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@microsoft/api-extractor-model': 7.33.11(@types/node@26.2.0)
@@ -6654,7 +6654,7 @@ snapshots:
 
   balanced-match@4.0.4: {}
 
-  baseline-browser-mapping@2.11.18: {}
+  baseline-browser-mapping@2.11.19: {}
 
   before-after-hook@4.0.0: {}
 
@@ -6686,9 +6686,9 @@ snapshots:
 
   browserslist@4.28.8:
     dependencies:
-      baseline-browser-mapping: 2.11.18
+      baseline-browser-mapping: 2.11.19
       caniuse-lite: 1.0.30001809
-      electron-to-chromium: 1.5.412
+      electron-to-chromium: 1.5.413
       node-releases: 2.0.53
       update-browserslist-db: 1.3.1(browserslist@4.28.8)
 
@@ -7085,7 +7085,7 @@ snapshots:
       fast-check: 4.9.0
       msgpackr: 2.0.5
 
-  electron-to-chromium@1.5.412: {}
+  electron-to-chromium@1.5.413: {}
 
   elkjs@0.9.3: {}
 
@@ -7286,9 +7286,9 @@ snapshots:
     dependencies:
       reusify: 1.1.0
 
-  fdir@6.5.0(picomatch@4.0.5):
+  fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
-      picomatch: 4.0.5
+      picomatch: 4.0.7
 
   fill-range@7.1.1:
     dependencies:
@@ -7501,7 +7501,7 @@ snapshots:
       property-information: 7.2.0
       space-separated-tokens: 2.0.2
 
-  hono@4.13.3: {}
+  hono@4.13.4: {}
 
   hookable@6.1.1: {}
 
@@ -7790,7 +7790,7 @@ snapshots:
 
   lint-staged@17.3.0:
     dependencies:
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       string-argv: 0.3.2
       tinyexec: 1.3.0
     optionalDependencies:
@@ -8710,7 +8710,7 @@ snapshots:
 
   picomatch@2.3.2: {}
 
-  picomatch@4.0.5: {}
+  picomatch@4.0.7: {}
 
   pkce-challenge@5.0.1: {}
 
@@ -9057,7 +9057,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  rspress-plugin-api-extractor@0.10.0(@effected/config-file@0.5.2(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@rspress/core@2.0.19(@rspack/core@2.1.10(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.2.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0):
+  rspress-plugin-api-extractor@0.11.0(@effected/config-file@0.5.2(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@rspress/core@2.0.19(@rspack/core@2.1.10(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.2.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0):
     dependencies:
       '@effect/platform-node': 4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1)
       '@effected/github': 0.8.0(effect@4.0.0-rc.109)
@@ -9076,7 +9076,7 @@ snapshots:
       '@rspress/core': 2.0.19(@rspack/core@2.1.10(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0)
       '@shikijs/twoslash': 4.4.3(supports-color@9.4.0)(typescript@6.0.3)
       '@tsdoctor/bundle': 0.2.0(281c9191ecf88be0127c58a1a158cf32)
-      '@tsdoctor/model': 0.2.2(@effected/markdown@0.7.0(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/package-json@0.12.0(effect@4.0.0-rc.109))(@types/node@26.2.0)(effect@4.0.0-rc.109)
+      '@tsdoctor/model': 0.3.0(@effected/markdown@0.7.0(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/package-json@0.12.0(effect@4.0.0-rc.109))(@types/node@26.2.0)(effect@4.0.0-rc.109)
       '@tsdoctor/registry': 0.2.1(@effect/platform-node@4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1))(@effected/semver@0.5.0(effect@4.0.0-rc.109))(@effected/store@0.5.0(effect@4.0.0-rc.109))(@effected/tsconfig-json@0.6.1(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/xdg@0.3.0(@effected/config-file@0.5.2(@effected/jsonc@0.8.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.109)(typescript@6.0.3)
       '@tsdoctor/snapshot': 0.1.1(@effected/store@0.5.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@typescript/vfs': 1.6.4(supports-color@9.4.0)(typescript@6.0.3)
@@ -9085,7 +9085,6 @@ snapshots:
       hast-util-to-jsx-runtime: 2.3.6(supports-color@9.4.0)
       image-size: 2.0.2
       ioredis: 5.11.1(supports-color@9.4.0)
-      mdast-util-from-markdown: 2.0.3(supports-color@9.4.0)
       mdast-util-to-hast: 13.2.1
       open: 11.0.1
       prettier: 3.9.6
@@ -9344,8 +9343,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.5)
-      picomatch: 4.0.5
+      fdir: 6.5.0(picomatch@4.0.7)
+      picomatch: 4.0.7
 
   tinyrainbow@3.1.1: {}
 
@@ -9379,7 +9378,7 @@ snapshots:
       hookable: 6.1.1
       import-without-cache: 0.4.0
       obug: 2.1.4
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       rolldown: 1.2.5
       rolldown-plugin-dts: 0.27.14(rolldown@1.2.5)(typescript@6.0.3)
       tinyexec: 1.3.0
@@ -9406,7 +9405,7 @@ snapshots:
       hookable: 6.1.1
       import-without-cache: 0.4.0
       obug: 2.1.4
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       rolldown: 1.2.5
       rolldown-plugin-dts: 0.27.14(rolldown@1.2.5)(typescript@7.0.2)
       tinyexec: 1.3.0
@@ -9627,7 +9626,7 @@ snapshots:
   vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.12)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.33.0
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       postcss: 8.5.26
       rolldown: 1.2.5
       tinyglobby: 0.2.17
@@ -9653,7 +9652,7 @@ snapshots:
       magic-string: 0.30.21
       obug: 2.1.4
       pathe: 2.0.3
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       std-env: 4.2.0
       tinybench: 2.9.0
       tinyexec: 1.3.0
