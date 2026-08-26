@@ -237,6 +237,16 @@ describe("DefaultVitestAgentReporter", () => {
 			const content = renderSummary(makeInput({ classifications: new Map([["t1", "flaky"]]) }));
 			expect(content).not.toContain("### Trend");
 		});
+
+		it("separates multiple sections with a blank line", () => {
+			const content = renderSummary(
+				makeInput({
+					classifications: new Map([["t1", "flaky"]]),
+					trendSummary: { direction: "stable", runCount: 3 },
+				}),
+			);
+			expect(content).toContain("\n\n### Trend");
+		});
 	});
 
 	it("workspace shape kicks in with more than one project report", () => {

@@ -279,7 +279,7 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
 		renderTrendSection(input.trendSummary),
 	].filter((section): section is string => section !== null);
 	if (sections.length === 0) return [];
-	const body = ["## vitest-agent", "", ...sections].join("\n");
+	const body = ["## vitest-agent", ...sections].join("\n\n");
 	return [{ target: "github-summary", content: body, contentType: "text/markdown" }];
 };
 
