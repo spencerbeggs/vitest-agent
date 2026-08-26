@@ -1,11 +1,11 @@
 {
 	"session_id": "SESSION_ID",
 	"agent_type": "vitest-agent:tdd-task",
-	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"cwd": "__REPO_ROOT__",
 	"tool_name": "Write",
 	"tool_use_id": "toolu_fixture_write_test_001",
 	"tool_input": {
-		"file_path": "/Users/spencer/workspaces/spencerbeggs/vitest-agent/playground/src/lifecycle.test.ts",
+		"file_path": "__REPO_ROOT__/playground/src/lifecycle.test.ts",
 		"content": "import { describe, expect, it } from \"vitest\";\nimport { sum } from \"./lifecycle.js\";\ndescribe(\"lifecycle\", () => {\n  it(\"sum(1, 1) returns 2\", () => {\n    expect(sum(1, 1)).toBe(2);\n  });\n});\n"
 	},
 	"tool_response": {

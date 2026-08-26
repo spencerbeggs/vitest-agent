@@ -477,12 +477,25 @@ describe("AgentReporter", () => {
 				consoleMode: "silent",
 				githubActions: true,
 			});
+			const stdoutSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
-			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+			// A first-ever failure classifies as "new-failure", which is the
+			// signal renderGithubSummary's Classifications section is built to
+			// surface — a clean/stable run intentionally emits no summary.
+			await reporter.onTestRunEnd(
+				[makeTestModule({ tests: [makeTestCase({ state: "failed", errors: [{ message: "boom" }] })] })],
+				[],
+				"failed",
+			);
 
 			expect(fs.existsSync(summaryFile)).toBe(true);
 			const content = fs.readFileSync(summaryFile, "utf-8");
-			expect(content).toContain("Vitest Results");
+			expect(content).toContain("## vitest-agent");
+			expect(content).toContain("### Classifications");
+			expect(content).toContain("new-failure");
+			const stdoutWrites = stdoutSpy.mock.calls.map((call) => call[0]).join("");
+			expect(stdoutWrites).toContain("::group::vitest-agent");
+			stdoutSpy.mockRestore();
 		});
 
 		it("skips GFM when githubActions is false", async () => {

@@ -18,6 +18,7 @@
 
 HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
 FIXTURES_DIR="${HOOKS_DIR}/fixtures"
+TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 
 # Matches fixtures/session-start.json's session_id — the env file lands under
 # ~/.claude/session-env/<session_id>/.
@@ -79,7 +80,7 @@ teardown() {
 # per-session env file (and never appends to a real host env file under test).
 run_start() {
     run env -u CLAUDE_ENV_FILE -u CLAUDE_PROJECT_DIR \
-        bash -c "cat '${FIXTURES_DIR}/session-start.json' | bash '${HOOKS_DIR}/session/start.sh'"
+        bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/session-start.json' | bash '${HOOKS_DIR}/session/start.sh'"
 }
 
 @test "session/start.sh writes the env block despite pnpm's stderr WARN" {

@@ -16,6 +16,8 @@
 # extract and write it into the state file.
 
 HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+# Repository root, resolved at runtime — never hardcode a developer checkout path.
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
 FIXTURES_DIR="${HOOKS_DIR}/fixtures"
 
 # Shared chat_id used across tests. Must be a valid session-id shape
@@ -90,7 +92,7 @@ teardown() {
 # ---------------------------------------------------------------------------
 subagent_start_fixture() {
     local session_id="${1:-${BATS_CHAT_ID}}"
-    local cwd="${2:-/Users/spencer/workspaces/spencerbeggs/vitest-agent}"
+    local cwd="${2:-${REPO_ROOT}}"
     jq -n \
         --arg sid "$session_id" \
         --arg cwd "$cwd" \
@@ -108,7 +110,7 @@ subagent_start_fixture() {
 # ---------------------------------------------------------------------------
 subagent_stop_fixture() {
     local session_id="${1:-${BATS_CHAT_ID}}"
-    local cwd="${2:-/Users/spencer/workspaces/spencerbeggs/vitest-agent}"
+    local cwd="${2:-${REPO_ROOT}}"
     jq -n \
         --arg sid "$session_id" \
         --arg cwd "$cwd" \
@@ -126,7 +128,7 @@ subagent_stop_fixture() {
 # ---------------------------------------------------------------------------
 session_end_fixture() {
     local session_id="${1:-${BATS_CHAT_ID}}"
-    local cwd="${2:-/Users/spencer/workspaces/spencerbeggs/vitest-agent}"
+    local cwd="${2:-${REPO_ROOT}}"
     local reason="${3:-user_ended}"
     jq -n \
         --arg sid "$session_id" \

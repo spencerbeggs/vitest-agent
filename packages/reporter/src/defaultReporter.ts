@@ -31,6 +31,7 @@ import type {
 	RunEvent,
 	RunOutcome,
 	RunShape,
+	TestClassification,
 	TrendSummary,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
@@ -45,6 +46,7 @@ import {
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
 import { Effect, PubSub } from "effect";
+import { renderGithubLog, toDisplayPath } from "./githubLog.js";
 import { createLiveInk } from "./LiveInkRenderer.js";
 
 const summarizeProject = (report: AgentReport): ProjectSummary => {
@@ -203,20 +205,87 @@ export const renderHumanStringForReport = async (
 	return renderToString(cell.ink(inputs, opts), { columns: options.width ?? 80 });
 };
 
-const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<RenderedOutput> => {
-	// GitHub step summary: one GFM payload per project report. Each entry
-	// is appended to the GITHUB_STEP_SUMMARY file by the plugin's
-	// route-rendered-output dispatcher. The body uses the existing
-	// markdown formatter from the SDK so the layout matches the pre-2.0
-	// step-summary output.
-	const out: RenderedOutput[] = [];
-	for (const report of input.reports) {
-		const heading = `## ${report.project ?? "Vitest Results"}`;
-		const stats = `${report.summary.passed}/${report.summary.total} passed, ${report.summary.failed} failed, ${report.summary.skipped} skipped`;
-		const body = `${heading}\n\n${stats}\n`;
-		out.push({ target: "github-summary", content: body, contentType: "text/markdown" });
+const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
+	"new-failure",
+	"persistent",
+	"flaky",
+	"recovered",
+];
+
+const MAX_SUMMARY_COVERAGE_ROWS = 10;
+
+const renderClassificationsSection = (classifications: ReporterRenderInput["classifications"]): string | null => {
+	const counts = new Map<TestClassification, number>();
+	for (const classification of classifications.values()) {
+		counts.set(classification, (counts.get(classification) ?? 0) + 1);
 	}
-	return out;
+	const rows = NON_STABLE_SUMMARY_CLASSIFICATIONS.filter((kind) => (counts.get(kind) ?? 0) > 0).map(
+		(kind) => `| ${kind} | ${counts.get(kind)} |`,
+	);
+	if (rows.length === 0) return null;
+	return ["### Classifications", "", "| Classification | Count |", "| --- | --- |", ...rows].join("\n");
+};
+
+const formatCoveragePercent = (totals: FileCoverageReport["summary"]): string =>
+	`stmts ${totals.statements}%, branches ${totals.branches}%, funcs ${totals.functions}%, lines ${totals.lines}%`;
+
+const renderCoverageSection = (reports: ReporterRenderInput["reports"]): string | null => {
+	const belowTarget = reports.flatMap((r) => r.coverage?.belowTarget ?? []);
+	if (belowTarget.length === 0) return null;
+	const shown = belowTarget.slice(0, MAX_SUMMARY_COVERAGE_ROWS);
+	const rows = shown.map((f) => `| ${toDisplayPath(f.file)} | ${formatCoveragePercent(f.summary)} |`);
+	const lines = [
+		"### Coverage",
+		"",
+		`${belowTarget.length} file(s) below target.`,
+		"",
+		"| File | Coverage |",
+		"| --- | --- |",
+		...rows,
+	];
+	if (belowTarget.length > MAX_SUMMARY_COVERAGE_ROWS) {
+		lines.push("", `(+${belowTarget.length - MAX_SUMMARY_COVERAGE_ROWS} more not shown)`);
+	}
+	return lines.join("\n");
+};
+
+const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): string | null => {
+	if (trendSummary === undefined) return null;
+	const lines = ["### Trend", "", `Direction: ${trendSummary.direction}`, `Run count: ${trendSummary.runCount}`];
+	const firstMetric = trendSummary.firstMetric;
+	if (firstMetric !== undefined) {
+		const targetSuffix = firstMetric.target !== undefined ? ` (target: ${firstMetric.target})` : "";
+		lines.push(`${firstMetric.name}: ${firstMetric.from} → ${firstMetric.to}${targetSuffix}`);
+	}
+	return lines.join("\n");
+};
+
+/**
+ * Builds the vitest-agent GitHub step-summary payload — ONE `RenderedOutput`
+ * for the whole run, carrying only data Vitest's own built-in
+ * `github-actions` reporter cannot know: test classifications (new-failure /
+ * persistent / flaky / recovered), coverage-target shortfalls, and the
+ * coverage trend. Vitest's reporter already writes pass/fail/skip counts
+ * and a flaky-tests section to the same `$GITHUB_STEP_SUMMARY` file, so
+ * duplicating that per-project breakdown here would be redundant noise
+ * multiplied across every project in a workspace. Returns an empty array
+ * when all three sections would be empty — a clean run should not leave a
+ * bare heading in the job summary.
+ */
+const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<RenderedOutput> => {
+	const sections = [
+		renderClassificationsSection(input.classifications),
+		renderCoverageSection(input.reports),
+		renderTrendSection(input.trendSummary),
+	].filter((section): section is string => section !== null);
+	if (sections.length === 0) return [];
+	const body = ["## vitest-agent", ...sections].join("\n\n");
+	// Bracketed in newlines: `routeRenderedOutput` APPENDS to
+	// GITHUB_STEP_SUMMARY, and Vitest's own `github-actions` reporter has
+	// usually already written its `## Vitest Test Report` block there. The
+	// leading newline keeps our heading off the tail of its last list item;
+	// the trailing one keeps whatever appends next off ours.
+	return [{ target: "github-summary", content: `\n${body}\n`, contentType: "text/markdown" }];
 };
 
 /**
@@ -290,6 +359,7 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 			}
 			if (renderKit.config.githubActions === true) {
 				out.push(...renderGithubSummary(input));
+				out.push(renderGithubLog(input, renderKit));
 			}
 			return out;
 		},

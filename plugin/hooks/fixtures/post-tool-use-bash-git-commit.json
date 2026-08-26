@@ -1,6 +1,6 @@
 {
 	"session_id": "test-session-id-bats-001",
-	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"cwd": "__REPO_ROOT__",
 	"tool_name": "Bash",
 	"tool_use_id": "toolu_bats_git_commit_001",
 	"tool_input": {

@@ -31,6 +31,8 @@
 # which path ran.
 
 HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+# Repository root, resolved at runtime — never hardcode a developer checkout path.
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
 FIXTURES_DIR="${HOOKS_DIR}/fixtures"
 
 BATS_SESSION_ID="test-session-id-bats-layer2-001"
@@ -156,9 +158,10 @@ bash_payload() {
     jq -n \
         --arg cmd "$cmd" \
         --arg sid "$sid" \
+        --arg root "$REPO_ROOT" \
         '{
             session_id: $sid,
-            cwd: "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+            cwd: $root,
             tool_name: "Bash",
             tool_use_id: "toolu_bats_layer2_001",
             tool_input: {
