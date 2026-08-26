@@ -376,7 +376,11 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// CI GitHub Actions. Vitest only auto-appends it when the resolved
 				// `reporters` array is empty, which is fragile now that the plugin
 				// always configures at least one entry — make the guarantee explicit.
-				if (env === "ci-github") {
+				// Skip the injection entirely when `console.ci` resolves to
+				// `"silent"` — that is the documented lever for opting out of all
+				// GitHub Actions output, including the `::error::` annotations the
+				// injected reporter would otherwise emit.
+				if (env === "ci-github" && consoleMode !== "silent") {
 					log("ensuring github-actions reporter is present");
 					const withGithubActions = ensureGithubActionsReporter(vitest.config.reporters as unknown[]);
 					(vitest.config as { reporters: unknown[] }).reporters = withGithubActions;

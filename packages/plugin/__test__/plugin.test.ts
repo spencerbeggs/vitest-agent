@@ -377,6 +377,14 @@ describe("AgentPlugin", () => {
 			expect(vitest.config.reporters).not.toContainEqual(["github-actions", {}]);
 			expect(vitest.config.reporters).not.toContain("github-actions");
 		});
+
+		it("does not append the github-actions reporter under ci-github when console.ci is silent (regression)", async () => {
+			const plugin = AgentPlugin({ console: { ci: "silent" } }, EnvironmentDetectorTest.layer("ci-github"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			expect(vitest.config.reporters).not.toContainEqual(["github-actions", {}]);
+			expect(vitest.config.reporters).not.toContain("github-actions");
+		});
 	});
 
 	describe("transport threading", () => {
