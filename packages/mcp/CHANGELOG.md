@@ -1,5 +1,21 @@
 # @vitest-agent/mcp
 
+## 2.4.7
+
+### Bug Fixes
+
+- Fixed `run_tests` collecting zero tests when the MCP server boots inside a monorepo package subtree. Vitest finds the config file by walking up from `root`, but resolves that config's relative `globalSetup` / `setupFiles` entries back down from `root` -- so a package-subtree boot dir loaded the repo-root config while resolving its relative `globalSetup` against the subtree, producing a nonexistent path and failing to load. `run_tests` now auto-anchors an unsupplied `projectRoot` at the directory of the vitest (or vite, as a fallback) config Vitest would load anyway, bounded at the git root, so `root` and the config's directory can no longer disagree. An explicitly supplied, validated `projectRoot` is unaffected and still used verbatim.
+
+- The served `run_tests` tool description and its `projectRoot` parameter description are updated to match -- they previously said the server's Vitest root was "frozen at boot"; they now describe the config-anchored default and confirm a supplied `projectRoot` is used verbatim. [#305][#305]
+
+* Fixed `run_tests` resolving `vitest/node` from `@vitest-agent/mcp`'s own install location instead of the project under test's root. Because `vitest` is a peerDependency, pnpm can materialize more than one physical instance of the same vitest version, and driving the wrong copy corrupted the module-level `SnapshotClient` singleton -- every `toMatchSnapshot()` assertion failed with "The snapshot state for '\<file\>' is not found" while every non-snapshot assertion passed. `vitest/node` is now resolved anchored at the run's validated project root via `createRequire`, falling back to the bare `"vitest/node"` specifier when no local vitest is resolvable from that root. [#305][#305]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#305]: https://github.com/spencerbeggs/vitest-agent/pull/305
+
 ## 2.4.6
 
 ### Dependencies
