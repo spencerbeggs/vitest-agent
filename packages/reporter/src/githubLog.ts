@@ -52,7 +52,7 @@ export function renderGithubLog(input: ReporterRenderInput, kit: ReporterKit): R
 	}
 
 	if (kit.config.dbPath !== undefined) {
-		lines.push(`persisted to: ${kit.config.dbPath}`);
+		lines.push(`db: ${kit.config.dbPath}`);
 	}
 
 	lines.push("::endgroup::");

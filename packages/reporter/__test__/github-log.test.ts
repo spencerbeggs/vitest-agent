@@ -56,7 +56,7 @@ describe("renderGithubLog", () => {
 		expect(lines.at(-1)).toBe("::endgroup::");
 	});
 
-	it("emits per-project, coverage, classification, and dbPath lines for a mixed pass/fail/flaky run", () => {
+	it("emits per-project, coverage, classification, and db lines for a mixed pass/fail/flaky run", () => {
 		const reports = [
 			makeReport({
 				project: "api",
@@ -89,7 +89,7 @@ describe("renderGithubLog", () => {
 		expect(output.content).toContain("flaky: 2");
 		expect(output.content).toContain("new-failure: 1");
 		expect(output.content).not.toContain("stable:");
-		expect(output.content).toContain("persisted to: /tmp/data.db");
+		expect(output.content).toContain("db: /tmp/data.db");
 	});
 
 	it("omits classification and coverage lines for a clean run instead of printing zeros", () => {
@@ -99,6 +99,6 @@ describe("renderGithubLog", () => {
 		const output = renderGithubLog(makeInput({ classifications }), makeKit());
 		expect(output.content).not.toContain("coverage:");
 		expect(output.content).not.toContain("classifications:");
-		expect(output.content).not.toContain("persisted to:");
+		expect(output.content).not.toContain("db:");
 	});
 });
