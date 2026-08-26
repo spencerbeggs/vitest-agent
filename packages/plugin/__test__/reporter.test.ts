@@ -468,7 +468,7 @@ describe("AgentReporter", () => {
 			stdoutSpy.mockRestore();
 		});
 
-		it("writes GFM when githubActions option is enabled (new-failure heading)", async () => {
+		it("writes GFM when githubActions option is enabled", async () => {
 			const summaryFile = path.join(tmpDir, "summary.md");
 			vi.stubEnv("GITHUB_STEP_SUMMARY", summaryFile);
 
