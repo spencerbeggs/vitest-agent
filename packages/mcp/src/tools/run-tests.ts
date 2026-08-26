@@ -1,10 +1,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
@@ -287,15 +289,75 @@ export async function resolveGitCommonDir(dir: string): Promise<string | null> {
 
 export type ProjectRootValidation = { ok: true; root: string } | { ok: false; message: string };
 
+// Issue #259: Vitest finds the CONFIG FILE by walking UP from `root`, but
+// resolves that config's relative `globalSetup` / `setupFiles` entries
+// DOWNWARD from `resolved.root` (vitest@4.1.11:
+// `resolved.globalSetup = toArray(...).map((file) => resolvePath(file, resolved.root))`).
+// When the MCP server's boot dir (`ctx.cwd`, passed straight through as
+// Vitest's `root`) is a package subtree of a monorepo, Vitest still walks
+// up and loads `<repo>/vitest.config.ts`, but resolves that config's
+// relative `globalSetup: ["vitest.setup.ts"]` against the subtree —
+// producing `<repo>/packages/<pkg>/vitest.setup.ts`, which does not exist,
+// and the run collects zero tests.
+//
+// `resolveConfigAnchoredRoot` closes that gap by walking UP from `startDir`
+// looking for the SAME config Vitest would load, and returning the
+// directory that holds it — so `root` and the config's directory can never
+// disagree again. Candidate filenames are checked per-directory in the
+// order Vitest itself prefers: `vitest.config.*` before `vite.config.*`
+// (Vitest falls back to a Vite config only when no Vitest config exists),
+// across ts/mts/cts/js/mjs/cjs. The walk is bounded at the git root (a
+// worktree's `.git` is a FILE, not a directory — `existsSync` accepts
+// either) so an unrelated `vite.config.ts` sitting above the repo can't
+// silently capture the root. Never throws and never walks past a config
+// miss into an ambiguous default — an unreadable/exotic path degrades to
+// today's behavior: return `startDir` unchanged.
+const VITEST_CONFIG_EXTENSIONS = ["ts", "mts", "cts", "js", "mjs", "cjs"] as const;
+
+function dirHasVitestOrViteConfig(dir: string): boolean {
+	for (const prefix of ["vitest.config.", "vite.config."]) {
+		for (const ext of VITEST_CONFIG_EXTENSIONS) {
+			if (existsSync(join(dir, `${prefix}${ext}`))) return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Walk UP from `startDir` looking for the vitest/vite config Vitest would
+ * load anyway, returning the directory that holds it. Bounded at the git
+ * root (inclusive — the directory containing `.git` is still examined
+ * before the walk stops). Returns `startDir` unchanged when no config is
+ * found in range, or when anything about the walk throws. See the
+ * issue #259 comment above `validateProjectRoot` for the full rationale.
+ *
+ * @internal exported for tests
+ */
+export function resolveConfigAnchoredRoot(startDir: string): string {
+	try {
+		let dir = resolve(startDir);
+		for (;;) {
+			if (dirHasVitestOrViteConfig(dir)) return dir;
+			if (existsSync(join(dir, ".git"))) return startDir;
+			const parent = dirname(dir);
+			if (parent === dir) return startDir;
+			dir = parent;
+		}
+	} catch {
+		return startDir;
+	}
+}
+
 /**
  * Validate an optional caller-supplied `projectRoot` against `ctxCwd`
- * (the MCP server's boot-time root). `undefined` always resolves to
- * `ctxCwd` unchanged (issue #252's option 1: explicit opt-in only —
- * never inferred, never defaulted to anything but the historical
- * behavior when the caller says nothing).
+ * (the MCP server's boot-time root). `undefined` anchors at the directory
+ * of the vitest/vite config Vitest would load anyway (issue #259, via
+ * `resolveConfigAnchoredRoot`) — never inferred beyond that, never
+ * defaulted to anything else when no config is found in range.
  *
- * A supplied `projectRoot` is VALIDATED, not trusted: it must resolve to
- * an existing directory that shares a git common directory with
+ * A supplied `projectRoot` is VALIDATED, not trusted, and used VERBATIM
+ * once validated — explicit is explicit, no anchoring applied. It must
+ * resolve to an existing directory that shares a git common directory with
  * `ctxCwd` (same repository, including across worktrees). Any failure
  * returns `{ ok: false, message }` naming both paths — never a silent
  * fallback to `ctxCwd`, never a raw throw.
@@ -307,7 +369,7 @@ export async function validateProjectRoot(
 	ctxCwd: string,
 ): Promise<ProjectRootValidation> {
 	if (projectRoot === undefined) {
-		return { ok: true, root: ctxCwd };
+		return { ok: true, root: resolveConfigAnchoredRoot(ctxCwd) };
 	}
 	// Resolve a relative `projectRoot` against `ctxCwd`, not the MCP
 	// server's `process.cwd()`. Single-argument `resolve` would use the
@@ -342,6 +404,61 @@ export async function validateProjectRoot(
 	}
 	return { ok: true, root: resolvedRoot };
 }
+
+/**
+ * Issue #303: resolve `vitest/node` anchored at the run's project root
+ * instead of the bare `"vitest/node"` specifier, which resolves relative to
+ * `@vitest-agent/mcp`'s OWN install location. `vitest` is a peerDependency
+ * of this package, and pnpm routinely materializes MORE THAN ONE physical
+ * instance of the same vitest version when peer-resolution hashes differ
+ * (e.g. `vitest@4.1.11_@types+node@26.2.0_...` alongside
+ * `vitest@4.1.11_@types+node@26.3.0_...` under `node_modules/.pnpm`). When
+ * the bare specifier resolves to a DIFFERENT physical copy than the one the
+ * project's test files import, `SnapshotClient.setup()` runs against one
+ * copy's module-level `_client` singleton while `expect(...).toMatchSnapshot()`
+ * inside the test file goes through the other copy's singleton, which has
+ * no state — every snapshot assertion then fails with "The snapshot state
+ * for '<file>' is not found. Did you call 'SnapshotClient.setup()'?" while
+ * every non-snapshot assertion still passes.
+ *
+ * `createRequire` needs a file path (not a bare directory) to anchor
+ * resolution, hence the synthetic, never-created `__vitest-agent-resolver__.js`
+ * filename joined onto `root`. vitest's package.json `exports` map for
+ * `./node` carries a `default` condition (`./dist/node.js`) and vitest ships
+ * `"type": "module"`, so `require.resolve("vitest/node")` resolves correctly
+ * even though vitest itself is ESM — the result is then converted to a
+ * `file://` URL, which is what dynamic `import()` needs.
+ *
+ * Falls back to the bare `"vitest/node"` specifier when root-anchored
+ * resolution throws (e.g. a project root with no local vitest install) so
+ * that case keeps working exactly as it did before this fix.
+ *
+ * @internal exported for tests
+ */
+export function resolveVitestNodeEntry(root: string): string {
+	try {
+		const req = createRequire(join(root, "__vitest-agent-resolver__.js"));
+		return pathToFileURL(req.resolve("vitest/node")).href;
+	} catch {
+		return "vitest/node";
+	}
+}
+
+/**
+ * Indirection seam around `import(<vitest/node entry>)`. vitest's own
+ * vite-node externalizes "vitest"/"vitest/node" for every importer, and
+ * `vi.mock("vitest/node", ...)` only special-cases AST-literal
+ * `import("vitest/node")` call sites for interception — a computed
+ * specifier (unavoidable here; see `resolveVitestNodeEntry`) silently
+ * bypasses that interception and loads the real module. Tests substitute
+ * `.load` directly (mutating this shared object's property — no `vi.mock`
+ * required) instead of trying to mock the module.
+ *
+ * @internal exported for tests
+ */
+export const vitestLoader = {
+	load: (entry: string): Promise<{ createVitest: typeof import("vitest/node")["createVitest"] }> => import(entry),
+};
 
 // Serializes concurrent run_tests invocations. The body assigns the
 // active attribution UUIDs into `process.env.VITEST_AGENT_*` and then
@@ -672,8 +789,25 @@ export const runTests = publicProcedure
 				});
 
 				// Dynamic import: vitest/node is only needed when this tool is
-				// invoked. Keeps the MCP server startup fast.
-				const { createVitest } = await import("vitest/node");
+				// invoked. Keeps the MCP server startup fast. Issue #303: resolve
+				// the specifier anchored at `resolvedRoot` (see
+				// `resolveVitestNodeEntry`) rather than importing the bare
+				// "vitest/node" specifier, which would resolve relative to this
+				// package's own install location and can silently drive a
+				// DIFFERENT physical vitest copy than the one the project under
+				// test imports — corrupting the module-level SnapshotClient
+				// singleton and failing every snapshot assertion. Routed through
+				// `vitestLoader.load` (rather than a bare `await import(...)`
+				// here) because vitest's own vite-node externalizes the
+				// "vitest"/"vitest/node" package for every importer, but only
+				// special-cases AST-literal `import("vitest/node")` call sites
+				// for `vi.mock` interception — a computed specifier (required
+				// here, since the whole point is to resolve a DIFFERENT physical
+				// path per call) silently bypasses mocking and loads the real
+				// module. `vitestLoader` is a plain mutable object so tests can
+				// substitute `.load` directly (property mutation on a shared
+				// object reference, no `vi.mock` needed).
+				const { createVitest } = await vitestLoader.load(resolveVitestNodeEntry(resolvedRoot));
 
 				let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
 				let covOverride: ReturnType<typeof makeCoverageDirOverride> | undefined;

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: testing
 created: 2026-04-29
-updated: 2026-08-21
-last-synced: 2026-08-21
+updated: 2026-08-25
+last-synced: 2026-08-25
 completeness: 95
 related:
   - ./architecture.md
@@ -172,6 +172,12 @@ In `@vitest-agent/sdk`, services already read the filesystem through Effect's `F
 In `@vitest-agent/plugin`, the discovery walkers are not Effect services — they take the `WalkerFileSystem` port described in [./components/discover.md](./components/discover.md). Tests pass an adapter over a memfs volume (`packages/plugin/__test__/utils/memfs-walker.ts`, with the `withMemfsWalker` helper) instead of a layer. The adapter is built on the volume's *inspection view*, not its `syncFileSystem` port, because the view is literal about symlinks and the walkers must not follow them; Decision 53 in [./decisions.md](./decisions.md) has the full boundary. The adapter also answers `mtimeMs` from the volume's own `mtime`, which is what makes the discovery cache's signature-invalidation path testable without touching disk (`find-test-files-memfs.test.ts`, `discover-projects-signature-memfs.test.ts`).
 
 Seeding a volume also makes the awkward cases cheap and deterministic: symlink loops, unreadable directories, and an exact modification time no `utimes` call has to produce.
+
+### Pattern 7: A Mutable Loader Object When `vi.mock` Cannot Reach the Import
+
+`run_tests` imports `vitest/node` through a *computed* specifier so it can drive the physical vitest copy installed at the project under test (Decision 55 in [./decisions.md](./decisions.md)). That import is unmockable by construction: vitest's own vite-node externalizes the vitest package for every importer and only special-cases AST-literal `import("vitest/node")` call sites for `vi.mock` interception, so a `vi.mock("vitest/node", ...)` silently no-ops and the real module loads — a test that "passes" while exercising nothing.
+
+The seam is a plain exported object, `vitestLoader`, whose `load` property holds the dynamic import. Tests assign over `vitestLoader.load` and restore it afterwards, asserting on the specifier the tool computed. When a module boundary is outside the mocking framework's reach, an exported mutable holder is the seam — not a deeper mock. See `packages/mcp/__test__/resolve-vitest-node-entry.test.ts` and `packages/mcp/__test__/run-tests-project-root.test.ts`.
 
 ---
 

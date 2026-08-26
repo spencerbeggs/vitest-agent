@@ -106,3 +106,11 @@ Two runs started in the same checkout at once no longer rebuild concurrently in 
 ## Tests in a package that never run
 
 **Status: resolved.** A workspace package whose test files sit outside the two discoverable roots — or whose files miss the `.test.`/`.spec.` naming convention — produced no Vitest project, silently. Discovery now writes one stderr warning per such package when the package still looks test-shaped, naming the package and the `vitest-agent agent check-test-path` command that explains the rejection. See [When a package is skipped](/guide/customize-discovery).
+
+## `The snapshot state for '<file>' is not found` on every `toMatchSnapshot()`
+
+**Status: resolved.** `run_tests` imported `vitest/node` by its bare specifier, which resolves relative to `@vitest-agent/mcp`'s own install location rather than the project under test. Because `vitest` is a peer dependency, pnpm can materialize more than one physical copy of the same vitest version, and driving the wrong copy split vitest's module-level snapshot-client singleton — snapshot assertions failed while every other assertion in the same file passed. `run_tests` now resolves `vitest/node` anchored at the run's project root, falling back to the bare specifier when no local vitest is resolvable from there. Update `@vitest-agent/mcp` if you still see it.
+
+## `0 tests collected` when the MCP server booted inside a package subtree
+
+**Status: resolved.** Vitest finds its config by walking up from the root it is given but resolves that config's relative `globalSetup` and `setupFiles` entries back down from the same root, so an MCP server booted in a monorepo package subtree loaded the repo-root config while resolving its relative `globalSetup` against the subtree — a path that does not exist, and a run that collected nothing. A `run_tests` call with no `projectRoot` now anchors at the directory holding the config Vitest would load anyway, bounded at the git root, so the two can no longer disagree. An explicitly supplied `projectRoot` is unaffected and still used verbatim. Update `@vitest-agent/mcp` if you still see it.

@@ -30,6 +30,7 @@
 		"prepare": "husky",
 		"preview": "turbo run preview --filter=docs",
 		"test": "vitest run",
+		"test:bats": "env $(env | grep -oE \"^VITEST_AGENT_[A-Z_]+\" | sed \"s/^/-u /\" | tr \"\\n\" \" \") bats plugin/hooks/__test__/",
 		"test:coverage": "vitest run",
 		"test:watch": "vitest --watch",
 		"typecheck": "turbo run types:check",

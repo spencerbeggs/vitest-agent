@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-21
-last-synced: 2026-08-21
+updated: 2026-08-25
+last-synced: 2026-08-25
 completeness: 93
 related:
   - ../architecture.md
@@ -639,26 +639,7 @@ green: an agent working in `../repo-feature` called `run_tests`, the server
 ran the *other* tree, and the passing report came back with nothing in it
 naming which tree it came from (issue #252).
 
-**Optional, validated `projectRoot` input.** `run_tests` accepts an optional
-`projectRoot` that overrides `ctx.cwd` for that call only. It is validated,
-not trusted, by `validateProjectRoot()` in
-`packages/mcp/src/tools/run-tests.ts`: the path must resolve to an existing
-directory, and it must share a git common directory with `ctx.cwd`. A
-relative `projectRoot` resolves against `ctx.cwd`, not the MCP server
-process's `cwd` — the server's cwd is a base the caller never chose and
-cannot see, so resolving against it would answer a question nobody asked.
-`resolveGitCommonDir()` shells `git rev-parse --git-common-dir`, which is
-identical across a repository and every worktree attached to it — unlike
-`--show-toplevel`, which differs per worktree and would reject exactly the
-sibling-worktree case the param exists for. Both candidates are then routed
-through `fs.promises.realpath`, because git prints a *relative* `.git` from a
-main worktree but an *absolute, symlink-resolved* path from a linked one; on
-macOS, where a tmpdir sits behind `/var` → `/private/var`, a genuine sibling
-worktree compared unequal without it. A path in a different repository, a
-non-existent path, or a non-directory returns the tool's `{ kind: "error" }`
-envelope naming **both** paths; `createVitest` is never reached. Omitting the
-param resolves to `ctx.cwd` unchanged — the historical behavior, never
-inferred and never silently redirected.
+**Optional, validated `projectRoot` input.** `run_tests` accepts an optional `projectRoot` that overrides `ctx.cwd` for that call only. It is validated, not trusted, by `validateProjectRoot()` in `packages/mcp/src/tools/run-tests.ts`: the path must resolve to an existing directory, and it must share a git common directory with `ctx.cwd`. A relative `projectRoot` resolves against `ctx.cwd`, not the MCP server process's `cwd` — the server's cwd is a base the caller never chose and cannot see, so resolving against it would answer a question nobody asked. `resolveGitCommonDir()` shells `git rev-parse --git-common-dir`, which is identical across a repository and every worktree attached to it — unlike `--show-toplevel`, which differs per worktree and would reject exactly the sibling-worktree case the param exists for. Both candidates are then routed through `fs.promises.realpath`, because git prints a *relative* `.git` from a main worktree but an *absolute, symlink-resolved* path from a linked one; on macOS, where a tmpdir sits behind `/var` → `/private/var`, a genuine sibling worktree compared unequal without it. A path in a different repository, a non-existent path, or a non-directory returns the tool's `{ kind: "error" }` envelope naming **both** paths; `createVitest` is never reached. Omitting the param no longer resolves to `ctx.cwd` unchanged: it anchors at the directory of the vitest/vite config Vitest would load anyway (see *Config-anchored default root* below). A supplied, validated `projectRoot` is used **verbatim** — explicit stays explicit, no anchoring applied.
 
 **The root is always echoed.** `RunTestsOk` and `RunTestsNoMatch` both carry
 a **required** `projectRoot`, populated whether or not the caller supplied
@@ -680,6 +661,22 @@ absence of the signal must mean *cannot tell* — not "proceed", not "refuse"
 — because the MCP server is consumable without the Claude Code plugin, so a
 missing `_callerCwd` is the normal case for a plugin-less client. See
 [../decisions.md](../decisions.md) Decision 54.
+
+## Config-anchored default root (`run_tests`)
+
+Vitest finds the config *file* by walking UP from `root`, but resolves that config's relative `globalSetup` / `setupFiles` entries DOWNWARD from `resolved.root`. Those are independent inputs and `run_tests` let them diverge: `ctx.cwd` was passed straight through as Vitest's `root`, so a server booted inside a monorepo package subtree loaded the repo-root `vitest.config.ts` while resolving that config's relative `globalSetup` against the subtree — a path that does not exist, and a run that collects zero tests (issue #259).
+
+`resolveConfigAnchoredRoot(startDir)` in `packages/mcp/src/tools/run-tests.ts` closes the gap by walking up for the same config Vitest would load and returning the directory holding it: `vitest.config.*` before `vite.config.*` within each directory (Vitest's own preference order, across ts/mts/cts/js/mjs/cjs), first hit wins, bounded at the git root — `.git` is matched as a file *or* a directory so linked worktrees stop there too. Any miss, and anything that throws, returns `startDir` unchanged, so the degraded case is exactly the pre-fix behavior. It is wired into the `projectRoot === undefined` branch of `validateProjectRoot()` only.
+
+`ctx.cwd` itself (from `packages/mcp/src/bin.ts`) was deliberately left alone: that value also keys the `data.db` path and other resolution, so anchoring it at the source would move far more than the Vitest root.
+
+**Known limitation.** The nearest config wins. A package carrying a `vite.config.ts` purely for its library build would therefore capture the root even when the vitest config lives at the repo root. No package-level vite/vitest config like that exists in the repos this serves today, and an explicit `projectRoot` remains the escape hatch. See [../decisions.md](../decisions.md) Decision 56.
+
+## Root-anchored `vitest/node` resolution
+
+`run_tests` used to `await import("vitest/node")` with a bare specifier, which resolves relative to `@vitest-agent/mcp`'s OWN install location rather than the project under test. `vitest` is a peer dependency, and pnpm routinely materializes more than one *physical* instance of the same vitest version when peer-resolution hashes differ. Driving the wrong copy splits vitest's module-level `SnapshotClient` singleton: the runner calls `setup()` on copy A while `expect(...).toMatchSnapshot()` inside the test file reads copy B, so every snapshot assertion fails with `The snapshot state for '<file>' is not found` while every non-snapshot assertion passes (issue #303).
+
+`resolveVitestNodeEntry(root)` resolves `vitest/node` through a `createRequire` anchored at the run's validated project root and returns a `file://` URL, falling back to the bare specifier when that throws (e.g. a project root with no local vitest install). The import goes through the `vitestLoader` indirection object rather than a bare `await import(...)`: vitest's vite-node only intercepts AST-literal `import("vitest/node")` call sites for `vi.mock`, so the computed specifier this fix requires bypasses mocking entirely and tests substitute `vitestLoader.load` by property assignment instead. See [../decisions.md](../decisions.md) Decision 55.
 
 ## Per-invocation coverage directory
 

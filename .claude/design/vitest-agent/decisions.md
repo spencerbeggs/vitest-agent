@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-08-21
-last-synced: 2026-08-21
+updated: 2026-08-25
+last-synced: 2026-08-25
 completeness: 100
 related:
   - ./architecture.md
@@ -1583,6 +1583,26 @@ production default, not to an instantly-stale lock or a spin loop. See
 **Why not detect-and-refuse.** It needs a signal that does not exist today. Supplying it is tracked in issue #275: a `_callerCwd` injected through the `hookSpecificOutput.updatedInput` channel the `mcp-run-tests` PreToolUse hook already uses for `_sessionContext`. Two things make it a separate decision rather than a straightforward extension. It is unverified whether a subagent's hook payload reports the subagent's cwd or the parent's, and getting that wrong would refuse correct calls. And the absence of the signal must mean *cannot tell* — never "proceed", never "refuse" — because the MCP server is consumable without the Claude Code plugin, so no `_callerCwd` is the normal case for a plugin-less client, and either of the other two readings breaks a supported configuration.
 
 **The general rule.** A missing trust signal is a third state, not a default to either side. When the system cannot tell which tree a caller meant, it says which tree it used and lets the caller correct it, rather than picking the convenient interpretation and reporting it as fact. See [./components/mcp.md](./components/mcp.md).
+
+**Amended by Decision 56.** This decision originally also said an unsupplied `projectRoot` resolves to `ctx.cwd` unchanged — explicit opt-in only, never inferred. That half no longer holds: an unsupplied `projectRoot` now anchors at the directory of the config Vitest would load anyway. The validated-not-trusted rule for a *supplied* `projectRoot`, and the always-echoed root, are unaffected.
+
+### Decision 55: Resolve `vitest/node` Anchored at the Run's Project Root
+
+**Context.** `run_tests` imported the bare `"vitest/node"` specifier, which Node resolves relative to `@vitest-agent/mcp`'s own install location, not the project under test. `vitest` is a peer dependency, and pnpm routinely materializes more than one *physical* copy of the same vitest version when peer-resolution hashes differ. Same version, same code, two module registries — and vitest's `SnapshotClient` is a module-level singleton. The MCP runner called `setup()` on one copy's singleton while `expect(...).toMatchSnapshot()` inside the test file went through the other's, which had no state. Every snapshot assertion failed with `The snapshot state for '<file>' is not found` while every non-snapshot assertion passed, so the failure read as a snapshot bug rather than a resolution bug (issue #303).
+
+**Decision.** `resolveVitestNodeEntry(root)` resolves `vitest/node` through a `createRequire` anchored at the run's already-validated project root and converts the result to a `file://` URL for dynamic `import()`. Root-anchored resolution that throws — a project root with no local vitest install — falls back to the bare specifier, so that case behaves exactly as before. The call site imports through the `vitestLoader` indirection object rather than a bare `await import(...)`, because vitest's vite-node externalizes the vitest package for every importer and only special-cases AST-literal `import("vitest/node")` call sites for `vi.mock` interception; the computed specifier this fix requires is unmockable by construction, so tests substitute `vitestLoader.load` by property assignment on the shared object.
+
+**The general rule.** Physical module identity, not version identity, is what a singleton is keyed on. Any package this family loads on behalf of a project under test must be resolved from that project's root, not from ours. See [./components/mcp.md](./components/mcp.md).
+
+### Decision 56: Anchor an Unsupplied Vitest Root at the Resolved Config Directory
+
+**Context.** Vitest takes two independent inputs that callers assume are one. It finds the config *file* by walking UP from `root`, but resolves that config's relative `globalSetup` / `setupFiles` entries DOWNWARD from `resolved.root`. `run_tests` passed the MCP server's boot dir (`ctx.cwd`) straight through as `root`, so a server booted inside a monorepo package subtree loaded the repo-root `vitest.config.ts` and then resolved its relative `globalSetup` against the subtree — a path that does not exist. The run collected zero tests and reported it as a clean result (issue #259).
+
+**Decision.** When no `projectRoot` is supplied, `validateProjectRoot` anchors the root at the directory of the config Vitest would load anyway, via `resolveConfigAnchoredRoot`: walk up checking `vitest.config.*` before `vite.config.*` per directory (Vitest's own fallback order), first hit wins, bounded at the git root, and return `startDir` unchanged on any miss or throw. `root` and the config's own directory can then no longer disagree. This narrows Decision 54's "never inferred" stance to *a supplied* `projectRoot`: an explicit, validated value is still used verbatim, with no anchoring applied. `ctx.cwd` at the source (`packages/mcp/src/bin.ts`) is deliberately untouched, because it also keys the `data.db` path and other resolution.
+
+**Accepted limitation.** Nearest config wins, so a package carrying a `vite.config.ts` only for its library build would capture the root even when the vitest config sits at the repo root. No such package exists in the repos this serves today, the failure mode is visible (the echoed `Project root:` line names the tree), and an explicit `projectRoot` overrides it.
+
+**The general rule.** When a tool derives two coupled values from one input, deriving them by different rules is a bug waiting for the first caller whose cwd is not the repo root. Prefer inferring the value the downstream tool would compute for itself over passing through whatever the process happened to boot in. See [./components/mcp.md](./components/mcp.md).
 
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
