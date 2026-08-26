@@ -45,6 +45,7 @@ import {
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
 import { Effect, PubSub } from "effect";
+import { renderGithubLog } from "./githubLog.js";
 import { createLiveInk } from "./LiveInkRenderer.js";
 
 const summarizeProject = (report: AgentReport): ProjectSummary => {
@@ -290,6 +291,7 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 			}
 			if (renderKit.config.githubActions === true) {
 				out.push(...renderGithubSummary(input));
+				out.push(renderGithubLog(input, renderKit));
 			}
 			return out;
 		},

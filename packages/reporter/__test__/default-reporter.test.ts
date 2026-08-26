@@ -97,6 +97,19 @@ describe("DefaultVitestAgentReporter", () => {
 		expect(reporter.render(makeInput(), kit)).toEqual([]);
 	});
 
+	it("pushes the github log block alongside the github summary when githubActions is true", () => {
+		const kit: ReporterKit = {
+			...makeKit("passthrough"),
+			config: { ...makeKit("passthrough").config, githubActions: true },
+		};
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		const output = reporter.render(makeInput(), kit);
+		const summaryOutputs = output.filter((o) => o.target === "github-summary");
+		const logOutputs = output.filter((o) => o.target === "stdout" && o.content.startsWith("::group::"));
+		expect(summaryOutputs).toHaveLength(1);
+		expect(logOutputs).toHaveLength(1);
+	});
+
 	it("workspace shape kicks in with more than one project report", () => {
 		const kit = makeKit("agent");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
