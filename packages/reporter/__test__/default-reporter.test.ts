@@ -8,7 +8,14 @@
  * contract is exercised in isolation.
  */
 
-import type { AgentReport, ReporterKit, ReporterRenderInput, VitestAgentReporter } from "@vitest-agent/sdk";
+import type {
+	AgentReport,
+	CoverageReport,
+	FileCoverageReport,
+	ReporterKit,
+	ReporterRenderInput,
+	VitestAgentReporter,
+} from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { DefaultVitestAgentReporter, buildDispatchInputs, resolveCellOptions } from "../src/defaultReporter.js";
@@ -120,6 +127,116 @@ describe("DefaultVitestAgentReporter", () => {
 		const output = reporter.render(makeInput(), kit);
 		const summaryOutputs = output.filter((o) => o.target === "github-summary");
 		expect(summaryOutputs).toHaveLength(0);
+	});
+
+	describe("github-summary sections", () => {
+		const githubKit: ReporterKit = {
+			...makeKit("passthrough"),
+			config: { ...makeKit("passthrough").config, githubActions: true },
+		};
+
+		const renderSummary = (input: ReporterRenderInput): string | undefined => {
+			const reporter = asSingle(DefaultVitestAgentReporter(githubKit));
+			const output = reporter.render(input, githubKit);
+			return output.find((o) => o.target === "github-summary")?.content;
+		};
+
+		it("emits a single '## vitest-agent' heading", () => {
+			const content = renderSummary(makeInput({ classifications: new Map([["a test", "flaky"]]) }));
+			expect(content).toBeDefined();
+			expect(content?.startsWith("## vitest-agent")).toBe(true);
+		});
+
+		it("includes a Classifications section counting each non-stable classification", () => {
+			const content = renderSummary(
+				makeInput({
+					classifications: new Map([
+						["t1", "flaky"],
+						["t2", "flaky"],
+						["t3", "new-failure"],
+						["t4", "stable"],
+					]),
+				}),
+			);
+			expect(content).toContain("### Classifications");
+			expect(content).toContain("flaky");
+			expect(content).toContain("2");
+			expect(content).toContain("new-failure");
+		});
+
+		it("omits the Classifications section when every classification is stable", () => {
+			const content = renderSummary(makeInput({ classifications: new Map([["t1", "stable"]]) }));
+			expect(content).toBeUndefined();
+		});
+
+		const makeCoverageReport = (belowTarget: ReadonlyArray<FileCoverageReport>): CoverageReport => ({
+			totals: { statements: 90, branches: 80, functions: 85, lines: 88 },
+			thresholds: { global: {}, patterns: [] },
+			scoped: false,
+			lowCoverage: belowTarget,
+			lowCoverageFiles: belowTarget.map((f) => f.file),
+			belowTarget,
+			belowTargetFiles: belowTarget.map((f) => f.file),
+		});
+
+		const makeFileCoverage = (file: string): FileCoverageReport => ({
+			file,
+			summary: { statements: 50, branches: 40, functions: 45, lines: 48 },
+			uncoveredLines: "1-10",
+		});
+
+		it("includes a Coverage section with a relativized file table when belowTarget entries exist", () => {
+			const absoluteFile = `${process.cwd()}/packages/reporter/src/defaultReporter.ts`;
+			const content = renderSummary(
+				makeInput({
+					reports: [makeReport({ coverage: makeCoverageReport([makeFileCoverage(absoluteFile)]) })],
+				}),
+			);
+			expect(content).toContain("### Coverage");
+			expect(content).toContain("1 file(s) below target");
+			expect(content).toContain("packages/reporter/src/defaultReporter.ts");
+			expect(content).not.toContain(absoluteFile);
+		});
+
+		it("notes truncation when more than 10 files are below target", () => {
+			const files = Array.from({ length: 12 }, (_, i) => makeFileCoverage(`src/file-${i}.ts`));
+			const content = renderSummary(makeInput({ reports: [makeReport({ coverage: makeCoverageReport(files) })] }));
+			expect(content).toContain("12 file(s) below target");
+			expect(content).toContain("+2 more not shown");
+		});
+
+		it("omits the Coverage section when no report has belowTarget entries", () => {
+			const content = renderSummary(
+				makeInput({
+					reports: [makeReport({ coverage: makeCoverageReport([]) })],
+					classifications: new Map([["t1", "flaky"]]),
+				}),
+			);
+			expect(content).not.toContain("### Coverage");
+		});
+
+		it("includes a Trend section with direction, runCount, and firstMetric when present", () => {
+			const content = renderSummary(
+				makeInput({
+					classifications: new Map([["t1", "flaky"]]),
+					trendSummary: {
+						direction: "improving",
+						runCount: 5,
+						firstMetric: { name: "lines", from: 80, to: 90, target: 95 },
+					},
+				}),
+			);
+			expect(content).toContain("### Trend");
+			expect(content).toContain("improving");
+			expect(content).toContain("5");
+			expect(content).toContain("lines");
+			expect(content).toContain("95");
+		});
+
+		it("omits the Trend section when trendSummary is absent", () => {
+			const content = renderSummary(makeInput({ classifications: new Map([["t1", "flaky"]]) }));
+			expect(content).not.toContain("### Trend");
+		});
 	});
 
 	it("workspace shape kicks in with more than one project report", () => {
