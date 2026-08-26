@@ -1,5 +1,5 @@
 {
 	"session_id": "SESSION_ID",
-	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"cwd": "__REPO_ROOT__",
 	"prompt": "The test for sum is failing, can you fix it?"
 }

@@ -24,6 +24,8 @@
 # values override the ambient vars after source_session_env runs.
 
 HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+# Repository root, resolved at runtime — never hardcode a developer checkout path.
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
 FIXTURES_DIR="${HOOKS_DIR}/fixtures"
 
 # Session id used for all Layer 1 tests. Must be a valid session-id shape
@@ -89,9 +91,10 @@ bash_payload() {
     jq -n \
         --arg cmd "$cmd" \
         --arg sid "$sid" \
+        --arg root "$REPO_ROOT" \
         '{
             session_id: $sid,
-            cwd: "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+            cwd: $root,
             tool_name: "Bash",
             tool_use_id: "toolu_bats_prefilter_001",
             tool_input: {

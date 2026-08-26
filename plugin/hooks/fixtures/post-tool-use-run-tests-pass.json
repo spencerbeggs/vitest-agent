@@ -1,7 +1,7 @@
 {
 	"session_id": "SESSION_ID",
 	"agent_type": "vitest-agent:tdd-task",
-	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"cwd": "__REPO_ROOT__",
 	"tool_name": "mcp__plugin_vitest-agent_mcp__run_tests",
 	"tool_use_id": "toolu_fixture_run_tests_pass_001",
 	"tool_input": {

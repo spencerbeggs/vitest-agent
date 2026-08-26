@@ -1,10 +1,10 @@
 {
 	"session_id": "SESSION_ID",
-	"cwd": "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+	"cwd": "__REPO_ROOT__",
 	"tool_name": "Write",
 	"tool_use_id": "toolu_fixture_record_write_001",
 	"tool_input": {
-		"file_path": "/Users/spencer/workspaces/spencerbeggs/vitest-agent/playground/src/lifecycle.test.ts",
+		"file_path": "__REPO_ROOT__/playground/src/lifecycle.test.ts",
 		"content": "import { describe, expect, it } from \"vitest\";\n"
 	},
 	"tool_response": {

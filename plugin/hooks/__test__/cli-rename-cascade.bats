@@ -20,7 +20,10 @@
 #   - our fake vitest-agent writes $* to BATS_ARGV_CAPTURE
 
 HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+# Repository root, resolved at runtime — never hardcode a developer checkout path.
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
 FIXTURES_DIR="${HOOKS_DIR}/fixtures"
+TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 
 setup() {
     # Create a temp directory for the stubs and capture file.
@@ -86,7 +89,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "pre-tool-use/record.sh calls 'agent record turn'" {
-    run bash -c "cat '${FIXTURES_DIR}/pre-tool-use-record.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/pre-tool-use-record.json' | \
         bash '${HOOKS_DIR}/pre-tool-use/record.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -103,7 +106,7 @@ call_count() {
     # Layer 1 (main-agent identity skip, added in T9.2) does not fire and
     # suppress the sidecar call before it happens.
     run env -u VITEST_AGENT_AGENT_ID -u VITEST_AGENT_MAIN_AGENT_ID \
-        bash -c "cat '${FIXTURES_DIR}/pre-tool-use-bash.json' | \
+        bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/pre-tool-use-bash.json' | \
         bash '${HOOKS_DIR}/pre-tool-use/bash.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -118,7 +121,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "pre-compact/record.sh calls 'agent record turn' then 'agent wrapup'" {
-    run bash -c "cat '${FIXTURES_DIR}/pre-compact.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/pre-compact.json' | \
         bash '${HOOKS_DIR}/pre-compact/record.sh'"
     [ "$status" -eq 0 ]
     local first second
@@ -129,7 +132,7 @@ call_count() {
 }
 
 @test "pre-compact/record.sh does not call bare 'record turn' or bare 'wrapup'" {
-    run bash -c "cat '${FIXTURES_DIR}/pre-compact.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/pre-compact.json' | \
         bash '${HOOKS_DIR}/pre-compact/record.sh'"
     [ "$status" -eq 0 ]
     # No line should start with just "record" or "wrapup" (without "agent" prefix).
@@ -144,7 +147,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "user-prompt-submit/record.sh calls 'agent record turn'" {
-    run bash -c "cat '${FIXTURES_DIR}/user-prompt-submit.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/user-prompt-submit.json' | \
         bash '${HOOKS_DIR}/user-prompt-submit/record.sh'"
     [ "$status" -eq 0 ]
     local first
@@ -153,7 +156,7 @@ call_count() {
 }
 
 @test "user-prompt-submit/record.sh calls 'agent wrapup'" {
-    run bash -c "cat '${FIXTURES_DIR}/user-prompt-submit.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/user-prompt-submit.json' | \
         bash '${HOOKS_DIR}/user-prompt-submit/record.sh'"
     [ "$status" -eq 0 ]
     local second
@@ -166,7 +169,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "stop/record.sh calls 'agent record turn' then 'agent wrapup'" {
-    run bash -c "cat '${FIXTURES_DIR}/stop.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/stop.json' | \
         bash '${HOOKS_DIR}/stop/record.sh'"
     [ "$status" -eq 0 ]
     local first second
@@ -184,10 +187,10 @@ call_count() {
 @test "post-tool-use/test-quality.sh calls 'agent record tdd-artifact' on weakened test" {
     # Build a fixture with a weakened test pattern.
     local fixture
-    fixture=$(jq -n '{
+    fixture=$(jq -n --arg root "$REPO_ROOT" '{
         session_id: "test-session-id-bats-001",
         agent_type: "vitest-agent:tdd-task",
-        cwd: "/Users/spencer/workspaces/spencerbeggs/vitest-agent",
+        cwd: $root,
         tool_name: "Write",
         tool_use_id: "toolu_bats_weakened_001",
         tool_input: {
@@ -208,7 +211,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "post-tool-use/record.sh calls 'agent record turn' for tool_result" {
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-record-write.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-record-write.json' | \
         bash '${HOOKS_DIR}/post-tool-use/record.sh'"
     [ "$status" -eq 0 ]
     # First call is tool_result turn; second is file_edit turn.
@@ -218,7 +221,7 @@ call_count() {
 }
 
 @test "post-tool-use/record.sh calls 'agent record turn' for file_edit" {
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-record-write.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-record-write.json' | \
         bash '${HOOKS_DIR}/post-tool-use/record.sh'"
     [ "$status" -eq 0 ]
     local cnt
@@ -235,7 +238,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "post-tool-use/tdd-artifact.sh calls 'agent record test-case-turns' on vitest run" {
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-run-tests-pass.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-run-tests-pass.json' | \
         bash '${HOOKS_DIR}/post-tool-use/tdd-artifact.sh'"
     [ "$status" -eq 0 ]
     # Should call record test-case-turns then record tdd-artifact.
@@ -245,7 +248,7 @@ call_count() {
 }
 
 @test "post-tool-use/tdd-artifact.sh calls 'agent record tdd-artifact' on vitest run" {
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-run-tests-pass.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-run-tests-pass.json' | \
         bash '${HOOKS_DIR}/post-tool-use/tdd-artifact.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -254,7 +257,7 @@ call_count() {
 }
 
 @test "post-tool-use/tdd-artifact.sh calls 'agent record tdd-artifact' on Write to test file" {
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-write-test.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-write-test.json' | \
         bash '${HOOKS_DIR}/post-tool-use/tdd-artifact.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -263,7 +266,7 @@ call_count() {
 }
 
 @test "post-tool-use/tdd-artifact.sh calls 'agent record tdd-artifact' on Edit to prod file" {
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-edit-prod.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-edit-prod.json' | \
         bash '${HOOKS_DIR}/post-tool-use/tdd-artifact.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -276,7 +279,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "post-tool-use/test-run.sh calls 'agent record run-trigger'" {
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-bash-vitest.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-bash-vitest.json' | \
         bash '${HOOKS_DIR}/post-tool-use/test-run.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -285,7 +288,7 @@ call_count() {
 }
 
 @test "post-tool-use/test-run.sh calls 'agent record test-case-turns'" {
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-bash-vitest.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-bash-vitest.json' | \
         bash '${HOOKS_DIR}/post-tool-use/test-run.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -299,7 +302,7 @@ call_count() {
 
 @test "post-tool-use/git-commit.sh calls 'agent record run-workspace-changes' after git commit" {
     # The fixture must have a real git repo in cwd; use the repo root.
-    run bash -c "cat '${FIXTURES_DIR}/post-tool-use-bash-git-commit.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-bash-git-commit.json' | \
         bash '${HOOKS_DIR}/post-tool-use/git-commit.sh'"
     [ "$status" -eq 0 ]
     # If git has commits, vitest-agent should be called. If not (empty repo),
@@ -321,7 +324,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "subagent/start-tdd.sh calls 'agent record session-start'" {
-    run bash -c "cat '${FIXTURES_DIR}/subagent-start-tdd.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/subagent-start-tdd.json' | \
         bash '${HOOKS_DIR}/subagent/start-tdd.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -338,7 +341,7 @@ call_count() {
     local hook_env="${env_dir}/vitest-agent-hook.sh"
     echo "export VITEST_AGENT_MAIN_AGENT_ID=fake-main-agent-uuid-001" > "$hook_env"
 
-    run bash -c "cat '${FIXTURES_DIR}/subagent-start-tdd.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/subagent-start-tdd.json' | \
         bash '${HOOKS_DIR}/subagent/start-tdd.sh'"
     [ "$status" -eq 0 ]
 
@@ -356,7 +359,7 @@ call_count() {
     local hook_env="${env_dir}/vitest-agent-hook.sh"
     echo "export VITEST_AGENT_MAIN_AGENT_ID=fake-main-agent-uuid-001" > "$hook_env"
 
-    run bash -c "cat '${FIXTURES_DIR}/subagent-start-tdd.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/subagent-start-tdd.json' | \
         bash '${HOOKS_DIR}/subagent/start-tdd.sh'"
     [ "$status" -eq 0 ]
 
@@ -374,7 +377,7 @@ call_count() {
 # ---------------------------------------------------------------------------
 
 @test "subagent/stop-tdd.sh calls 'agent wrapup'" {
-    run bash -c "cat '${FIXTURES_DIR}/subagent-stop-tdd.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/subagent-stop-tdd.json' | \
         bash '${HOOKS_DIR}/subagent/stop-tdd.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -400,7 +403,7 @@ exit 0
 STUB
     chmod +x "${BATS_TMPDIR}/vitest-agent"
 
-    run bash -c "cat '${FIXTURES_DIR}/subagent-stop-tdd.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/subagent-stop-tdd.json' | \
         bash '${HOOKS_DIR}/subagent/stop-tdd.sh'"
     [ "$status" -eq 0 ]
     local turn_call
@@ -413,7 +416,7 @@ STUB
 # ---------------------------------------------------------------------------
 
 @test "session/start.sh calls 'agent triage'" {
-    run bash -c "cat '${FIXTURES_DIR}/session-start.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/session-start.json' | \
         bash '${HOOKS_DIR}/session/start.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -422,7 +425,7 @@ STUB
 }
 
 @test "session/start.sh calls 'agent record session-start'" {
-    run bash -c "cat '${FIXTURES_DIR}/session-start.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/session-start.json' | \
         bash '${HOOKS_DIR}/session/start.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -431,7 +434,7 @@ STUB
 }
 
 @test "session/start.sh calls 'agent register-agent'" {
-    run bash -c "cat '${FIXTURES_DIR}/session-start.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/session-start.json' | \
         bash '${HOOKS_DIR}/session/start.sh'"
     [ "$status" -eq 0 ]
     local argv
@@ -440,7 +443,7 @@ STUB
 }
 
 @test "session/start.sh does not call 'triage' without 'agent' prefix" {
-    run bash -c "cat '${FIXTURES_DIR}/session-start.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/session-start.json' | \
         bash '${HOOKS_DIR}/session/start.sh'"
     [ "$status" -eq 0 ]
     if [ -f "${BATS_ARGV_CAPTURE}" ]; then
@@ -450,7 +453,7 @@ STUB
 }
 
 @test "session/start.sh does not call '_internal register-agent'" {
-    run bash -c "cat '${FIXTURES_DIR}/session-start.json' | \
+    run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/session-start.json' | \
         bash '${HOOKS_DIR}/session/start.sh'"
     [ "$status" -eq 0 ]
     if [ -f "${BATS_ARGV_CAPTURE}" ]; then
@@ -472,7 +475,7 @@ STUB
 # ---------------------------------------------------------------------------
 
 WORKER_CC="test-session-id-bats-001"
-WORKER_CWD="/Users/spencer/workspaces/spencerbeggs/vitest-agent"
+WORKER_CWD="${REPO_ROOT}"
 
 @test "end-record-worker.sh calls 'agent record turn'" {
     run bash "${HOOKS_DIR}/session/end-record-worker.sh" "$WORKER_CC" "$WORKER_CWD" other quiet

@@ -4,25 +4,37 @@ Synthetic payloads for manual hook invocation and debugging.
 
 ## Usage
 
-Pipe a fixture directly to a hook script:
+These fixtures are **templates**: the repository root is stored as the
+literal token `__REPO_ROOT__` rather than a machine-specific absolute path,
+so the bats suite is not pinned to one developer's checkout. Render a fixture
+through `render-fixture.sh` — which substitutes the real root — instead of
+`cat`-ing it:
 
 ```bash
 # From the repo root:
-cat plugin/hooks/fixtures/post-tool-use-write-test.json \
+bash plugin/hooks/__test__/render-fixture.sh \
+  plugin/hooks/fixtures/post-tool-use-write-test.json \
   | bash plugin/hooks/post-tool-use/tdd-artifact.sh
 
-cat plugin/hooks/fixtures/post-tool-use-record-write.json \
+bash plugin/hooks/__test__/render-fixture.sh \
+  plugin/hooks/fixtures/post-tool-use-record-write.json \
   | bash plugin/hooks/post-tool-use/record.sh
 
-cat plugin/hooks/fixtures/user-prompt-submit.json \
+bash plugin/hooks/__test__/render-fixture.sh \
+  plugin/hooks/fixtures/user-prompt-submit.json \
   | bash plugin/hooks/user-prompt-submit/record.sh
 ```
+
+Hook scripts `cd "$cwd"` before shelling out to the CLI, so a `cat` of the raw
+template leaves `__REPO_ROOT__` in place, the `cd` fails, and the hook silently
+no-ops.
 
 To see errors and CLI output:
 
 ```bash
 VITEST_AGENT_HOOK_DEBUG=1 \
-  cat plugin/hooks/fixtures/post-tool-use-write-test.json \
+  bash plugin/hooks/__test__/render-fixture.sh \
+    plugin/hooks/fixtures/post-tool-use-write-test.json \
   | bash plugin/hooks/post-tool-use/tdd-artifact.sh
 
 # Then inspect:
@@ -32,7 +44,8 @@ cat /tmp/vitest-agent-hook-errors.log
 
 ## Substitutions required
 
-The fixtures use a placeholder `SESSION_ID` for `session_id`. Before running,
+The fixtures use `__REPO_ROOT__` for the repository root (resolved by
+`render-fixture.sh`) and a placeholder `SESSION_ID` for `session_id`. Before running,
 substitute a real open CC session ID from the database:
 
 ```bash
