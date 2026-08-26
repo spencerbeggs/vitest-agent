@@ -144,7 +144,13 @@ describe("DefaultVitestAgentReporter", () => {
 		it("emits a single '## vitest-agent' heading", () => {
 			const content = renderSummary(makeInput({ classifications: new Map([["a test", "flaky"]]) }));
 			expect(content).toBeDefined();
-			expect(content?.startsWith("## vitest-agent")).toBe(true);
+			expect(content?.trimStart().startsWith("## vitest-agent")).toBe(true);
+		});
+
+		it("brackets the payload in newlines so appending to GITHUB_STEP_SUMMARY cannot fuse blocks", () => {
+			const content = renderSummary(makeInput({ classifications: new Map([["a test", "flaky"]]) }));
+			expect(content?.startsWith("\n")).toBe(true);
+			expect(content?.endsWith("\n")).toBe(true);
 		});
 
 		it("includes a Classifications section counting each non-stable classification", () => {

@@ -280,7 +280,12 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
 	].filter((section): section is string => section !== null);
 	if (sections.length === 0) return [];
 	const body = ["## vitest-agent", ...sections].join("\n\n");
-	return [{ target: "github-summary", content: body, contentType: "text/markdown" }];
+	// Bracketed in newlines: `routeRenderedOutput` APPENDS to
+	// GITHUB_STEP_SUMMARY, and Vitest's own `github-actions` reporter has
+	// usually already written its `## Vitest Test Report` block there. The
+	// leading newline keeps our heading off the tail of its last list item;
+	// the trailing one keeps whatever appends next off ours.
+	return [{ target: "github-summary", content: `\n${body}\n`, contentType: "text/markdown" }];
 };
 
 /**
