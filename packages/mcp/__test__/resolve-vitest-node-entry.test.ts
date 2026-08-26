@@ -73,12 +73,24 @@ describe("resolveVitestNodeEntry", () => {
 	});
 
 	it('falls back to the bare "vitest/node" specifier when root-anchored resolution throws', () => {
-		const emptyRoot = mkdtempSync(join(tmpdir(), "va-resolve-vitest-node-entry-empty-"));
-		try {
-			const entry = resolveVitestNodeEntry(emptyRoot);
-			expect(entry).toBe("vitest/node");
-		} finally {
-			rmSync(emptyRoot, { recursive: true, force: true });
-		}
+		// An EMPTY tmpdir is not a reliable "nothing resolvable from here" fixture.
+		// `createRequire` resolution walks UP through every ancestor's node_modules,
+		// so on a runner whose temp dir sits inside the repo checkout it finds the
+		// repo's own vitest and resolves instead of throwing — which is exactly how
+		// this test failed in CI while passing locally, where `tmpdir()` is `/private/tmp`
+		// and has no vitest above it.
+		//
+		// Plant a vitest package whose `exports` map has no "./node" subpath instead.
+		// Node stops at the FIRST matching package name and throws
+		// ERR_PACKAGE_PATH_NOT_EXPORTED rather than continuing the walk, so the throw
+		// is deterministic no matter what sits above the fixture.
+		const vitestDir = join(tmpRoot, "node_modules", "vitest");
+		mkdirSync(vitestDir, { recursive: true });
+		writeFileSync(
+			join(vitestDir, "package.json"),
+			JSON.stringify({ name: "vitest", type: "module", exports: { ".": "./index.js" } }),
+		);
+
+		expect(resolveVitestNodeEntry(tmpRoot)).toBe("vitest/node");
 	});
 });
