@@ -4,6 +4,7 @@
  * is true.
  */
 
+import { join } from "node:path";
 import type { AgentReport, ReporterKit, ReporterRenderInput } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { renderGithubLog } from "../src/githubLog.js";
@@ -100,5 +101,62 @@ describe("renderGithubLog", () => {
 		expect(output.content).not.toContain("coverage:");
 		expect(output.content).not.toContain("classifications:");
 		expect(output.content).not.toContain("db:");
+	});
+
+	it("renders below-target file names relative to process.cwd() instead of absolute runner paths", () => {
+		const absoluteA = join(process.cwd(), "packages/mcp/src/tools/history.ts");
+		const absoluteB = join(process.cwd(), "packages/ui/__test__/utils/render-ink.tsx");
+		const reports = [
+			makeReport({
+				coverage: {
+					totals: { statements: 80, branches: 70, functions: 90, lines: 80 },
+					thresholds: { global: {}, patterns: [] },
+					scoped: false,
+					lowCoverage: [],
+					lowCoverageFiles: [],
+					belowTarget: [
+						{
+							file: absoluteA,
+							summary: { statements: 50, branches: 40, functions: 60, lines: 50 },
+							uncoveredLines: "1",
+						},
+						{
+							file: absoluteB,
+							summary: { statements: 50, branches: 40, functions: 60, lines: 50 },
+							uncoveredLines: "2",
+						},
+					],
+				},
+			}),
+		];
+		const output = renderGithubLog(makeInput({ reports }), makeKit());
+		expect(output.content).toContain("packages/mcp/src/tools/history.ts");
+		expect(output.content).toContain("packages/ui/__test__/utils/render-ink.tsx");
+		expect(output.content).not.toContain(process.cwd());
+	});
+
+	it("falls back to the original file string when the relative path escapes process.cwd()", () => {
+		const outsideFile = "/tmp/definitely-outside-the-repo-root/foo.ts";
+		const reports = [
+			makeReport({
+				coverage: {
+					totals: { statements: 80, branches: 70, functions: 90, lines: 80 },
+					thresholds: { global: {}, patterns: [] },
+					scoped: false,
+					lowCoverage: [],
+					lowCoverageFiles: [],
+					belowTarget: [
+						{
+							file: outsideFile,
+							summary: { statements: 50, branches: 40, functions: 60, lines: 50 },
+							uncoveredLines: "1",
+						},
+					],
+				},
+			}),
+		];
+		const output = renderGithubLog(makeInput({ reports }), makeKit());
+		expect(output.content).toContain(outsideFile);
+		expect(output.content).not.toContain("..");
 	});
 });
