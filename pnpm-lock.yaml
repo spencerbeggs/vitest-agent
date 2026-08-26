@@ -813,11 +813,11 @@ packages:
     resolution: {integrity: sha512-aalGyl7dbB5PArRebDIX43ZvBlXrYm9uWzGJ26t+4SzJVPsOuvfILGGbw5X4yX7i50YEmJ8zvbiWnqH/AAnZqg==}
     engines: {node: '>=22'}
 
-  '@effect/platform-node-shared@4.0.0-rc.111':
-    resolution: {integrity: sha512-iES0Q9vmjhaUKqeW9ceonuD45MUg/Ouk08LzRSptZ+B5qB0w9WlRjDmUz5TJmY2betNop5FRI5k4AD4mtQt3Bw==}
+  '@effect/platform-node-shared@4.0.0-rc.112':
+    resolution: {integrity: sha512-ttjz0xKamFN7vL8pNDYVwddJLjZvqKePc05djlz2VcdaKbLsnYbtMnL1rbOfHgEnIUSHGh7FkjaN4DM1Ov81sQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: ^4.0.0-rc.111
+      effect: ^4.0.0-rc.112
 
   '@effect/platform-node@4.0.0-rc.109':
     resolution: {integrity: sha512-LE/GTh6MCZ0uzbEFH9WmxQkC9snjWuFyh8vW04AAgbKKxSHXsepHSK9RcE/2oYKr6RhrOTD0C2wC0i+J9qoe2g==}
@@ -5192,7 +5192,7 @@ snapshots:
 
   '@conventional-changelog/template@1.4.0': {}
 
-  '@effect/platform-node-shared@4.0.0-rc.111(effect@4.0.0-rc.109)':
+  '@effect/platform-node-shared@4.0.0-rc.112(effect@4.0.0-rc.109)':
     dependencies:
       '@types/ws': 8.18.1
       effect: 4.0.0-rc.109
@@ -5203,7 +5203,7 @@ snapshots:
 
   '@effect/platform-node@4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1)':
     dependencies:
-      '@effect/platform-node-shared': 4.0.0-rc.111(effect@4.0.0-rc.109)
+      '@effect/platform-node-shared': 4.0.0-rc.112(effect@4.0.0-rc.109)
       effect: 4.0.0-rc.109
       mime: 4.1.0
       redis: 6.2.1

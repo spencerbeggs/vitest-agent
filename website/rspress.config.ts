@@ -43,9 +43,9 @@ export default defineConfig({
 	globalStyles: join(import.meta.dirname, "theme/vitest-agent-theme.css"),
 	logo: { light: "/images/logo-horizontal.svg", dark: "/images/logo-horizontal-dark.svg" },
 	icon: "/images/favicon-32x32.png",
+	siteUrl: "https://vitest-agent.dev",
 	plugins: [
 		ApiExtractorPlugin({
-			siteUrl: "https://vitest-agent.dev",
 			ogImage: {
 				url: "https://vitest-agent.dev/og-image.png",
 			},
