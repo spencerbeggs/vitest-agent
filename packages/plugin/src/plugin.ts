@@ -36,6 +36,7 @@ import type { DiscoverProjectsOptions } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
 import type { DiscoverStrategy } from "./utils/discover-strategy.js";
 import { DefaultDiscoverStrategy } from "./utils/discover-strategy.js";
+import { ensureGithubActionsReporter } from "./utils/ensure-github-reporter.js";
 import type { InjectTagsResult } from "./utils/inject-tags.js";
 import { injectTags } from "./utils/inject-tags.js";
 import { isBenignViteSourceMapWarning } from "./utils/is-benign-vite-source-map-warning.js";
@@ -369,6 +370,16 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 						log("suppressing native coverage text reporter");
 						coverageCfg.reporter = [];
 					}
+				}
+
+				// Guarantee the built-in `github-actions` reporter is present under
+				// CI GitHub Actions. Vitest only auto-appends it when the resolved
+				// `reporters` array is empty, which is fragile now that the plugin
+				// always configures at least one entry — make the guarantee explicit.
+				if (env === "ci-github") {
+					log("ensuring github-actions reporter is present");
+					const withGithubActions = ensureGithubActionsReporter(vitest.config.reporters as unknown[]);
+					(vitest.config as { reporters: unknown[] }).reporters = withGithubActions;
 				}
 
 				// GitHub Actions step summary auto-derives from the detected

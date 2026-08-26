@@ -352,6 +352,33 @@ describe("AgentPlugin", () => {
 		});
 	});
 
+	describe("github-actions reporter guarantee", () => {
+		it("appends the github-actions reporter under ci-github", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			expect(vitest.config.reporters).toContainEqual(["github-actions", {}]);
+		});
+
+		it("does not append a second github-actions entry when one is already configured", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
+			const vitest = mockVitest(["default", "github-actions"]);
+			await callConfigureVitest(plugin, vitest);
+			const count = vitest.config.reporters.filter(
+				(r) => r === "github-actions" || (Array.isArray(r) && r[0] === "github-actions"),
+			).length;
+			expect(count).toBe(1);
+		});
+
+		it("does not append the github-actions reporter outside ci-github", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest(["default"]);
+			await callConfigureVitest(plugin, vitest);
+			expect(vitest.config.reporters).not.toContainEqual(["github-actions", {}]);
+			expect(vitest.config.reporters).not.toContain("github-actions");
+		});
+	});
+
 	describe("transport threading", () => {
 		it("defaults transport to { kind: 'local' } when unset", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
