@@ -7,16 +7,31 @@
  * `git rev-parse --git-common-dir`) before it is used as the Vitest `root` —
  * never trusted blindly, never silently falling back to `ctx.cwd`.
  *
- * Seam: `vitest/node`'s `createVitest` is intercepted via `vi.mock` so these
- * tests never actually spin up a nested Vitest run — they assert on what
- * root argument `createVitest` was called with (or that it was not called
- * at all for the rejection cases). Real temp git repos (via `git init` /
+ * Seam: `vitest/node`'s `createVitest` is intercepted by substituting
+ * `vitestLoader.load` (packages/mcp/src/tools/run-tests.ts) so these tests
+ * never actually spin up a nested Vitest run — they assert on what root
+ * argument `createVitest` was called with (or that it was not called at all
+ * for the rejection cases). `vi.mock("vitest/node", ...)` does NOT work here
+ * (issue #303): the production code now resolves the import specifier via
+ * `resolveVitestNodeEntry`, a computed value, and vitest's own vite-node
+ * only special-cases AST-literal `import("vitest/node")` call sites for mock
+ * interception — a computed specifier silently bypasses that and loads the
+ * real module. `vitestLoader` is a plain mutable object; tests reassign its
+ * `.load` property directly instead. Real temp git repos (via `git init` /
  * `git worktree add`) back the same-repo / different-repo distinction so a
  * mutant that fakes the git-common-dir comparison cannot pass.
+ *
+ * Issue #259: an unsupplied `projectRoot` no longer echoes `ctx.cwd`
+ * verbatim — it anchors at `resolveConfigAnchoredRoot(ctx.cwd)` (see the
+ * dedicated `resolve-config-anchored-root.test.ts` for the helper's own
+ * unit coverage). The two `issue #259:`-prefixed cases below cover the
+ * integration seam this file owns: an explicit, validated `projectRoot`
+ * is returned VERBATIM (no anchoring — explicit is explicit), while
+ * `undefined` is anchored.
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/sdk";
@@ -25,15 +40,10 @@ import { Layer, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { McpContext } from "../src/context.js";
 import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
+import { vitestLoader } from "../src/tools/run-tests.js";
 
 const createVitestMock = vi.fn();
 
-vi.mock("vitest/node", () => ({
-	createVitest: (...args: unknown[]) => createVitestMock(...args),
-}));
-
-// Imported after the mock is declared — vi.mock is hoisted by Vitest, but
-// keeping the import below the mock makes the ordering explicit for readers.
 const { appRouter } = await import("../src/router.js");
 
 const GIT_IDENTITY_ENV = {
@@ -65,15 +75,23 @@ describe("run_tests projectRoot validation", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<never, never>;
 	let tmpRoot: string;
 
+	const originalVitestLoad = vitestLoader.load;
+
 	beforeEach(() => {
 		runtime = ManagedRuntime.make(TestLayer) as unknown as ManagedRuntime.ManagedRuntime<never, never>;
 		tmpRoot = mkdtempSync(join(tmpdir(), "va-run-tests-project-root-"));
 		createVitestMock.mockReset();
+		// Issue #303: substitute the loader directly rather than `vi.mock`ing
+		// "vitest/node" — see the file-level comment above.
+		vitestLoader.load = (async () => ({
+			createVitest: (...innerArgs: unknown[]) => createVitestMock(...innerArgs),
+		})) as unknown as typeof vitestLoader.load;
 	});
 
 	afterEach(async () => {
 		await runtime.dispose();
 		rmSync(tmpRoot, { recursive: true, force: true });
+		vitestLoader.load = originalVitestLoad;
 	});
 
 	const makeCaller = (cwd: string) =>
@@ -198,6 +216,53 @@ describe("run_tests projectRoot validation", () => {
 		// against the worktree must fail this assertion.
 		expect(result.projectRoot).toBe(worktree);
 		expect(result.projectRoot).not.toBe(main);
+	});
+
+	it("issue #259: anchors an unsupplied projectRoot at the ancestor dir holding the vitest config, not ctx.cwd verbatim", async () => {
+		const main = join(tmpRoot, "main");
+		execFileSync("mkdir", [main]);
+		initGitRepo(main);
+		writeFileSync(join(main, "vitest.config.ts"), "export default {};\n");
+		const pkgDir = join(main, "packages", "foo");
+		mkdirSync(pkgDir, { recursive: true });
+
+		createVitestMock.mockResolvedValue(fakeVitest());
+
+		// ctx.cwd (the server's frozen boot dir) is the package subtree —
+		// the discriminating shape from issue #259. Undefined projectRoot
+		// must anchor UP to `main` (where vitest.config.ts lives), not stay
+		// pinned at the subtree the old pass-through behavior returned.
+		const caller = makeCaller(pkgDir);
+		const result = await caller.run_tests({});
+
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
+		expect(result.projectRoot).toBe(main);
+		const [, options] = createVitestMock.mock.calls[0] as [string, { root: string }];
+		expect(options.root).toBe(main);
+	});
+
+	it("issue #259: an explicit, valid projectRoot pointing at a subtree is returned verbatim -- NOT anchored", async () => {
+		const main = join(tmpRoot, "main");
+		execFileSync("mkdir", [main]);
+		initGitRepo(main);
+		writeFileSync(join(main, "vitest.config.ts"), "export default {};\n");
+		const pkgDir = join(main, "packages", "foo");
+		mkdirSync(pkgDir, { recursive: true });
+
+		createVitestMock.mockResolvedValue(fakeVitest());
+
+		// ctx.cwd is `main` (so the anchor helper would find `main`'s own
+		// config immediately if it ran) but the caller explicitly asks for
+		// the subtree -- explicit is explicit, anchoring must NOT override it.
+		const caller = makeCaller(main);
+		const result = await caller.run_tests({ projectRoot: pkgDir });
+
+		expect(result.kind).toBe("ok");
+		if (result.kind !== "ok") return;
+		expect(result.projectRoot).toBe(pkgDir);
+		const [, options] = createVitestMock.mock.calls[0] as [string, { root: string }];
+		expect(options.root).toBe(pkgDir);
 	});
 
 	it("echoes the resolved projectRoot on a no-match result", async () => {

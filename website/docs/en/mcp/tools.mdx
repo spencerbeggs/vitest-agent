@@ -202,9 +202,9 @@ Execute Vitest for specific files or patterns. Returns a `RunTestsResult` discri
 | `timeout` | `number` | No | Timeout in seconds (default 120) |
 | `tags` | `object` | No | Structured tag filter: `{ all?, any?, none? }` — sub-filters AND together |
 | `passWithNoTests` | `boolean` | No | Per-call override for Vitest's `passWithNoTests` policy |
-| `projectRoot` | `string` | No | Directory to run against, overriding the root frozen at server boot. Must be an existing directory in the same git repository. Prefer an absolute path; a relative one resolves against the server's boot-time root |
+| `projectRoot` | `string` | No | Directory to run against, overriding the auto-anchored default root. Must be an existing directory in the same git repository. Prefer an absolute path; a relative one resolves against the server's boot-time root |
 
-The server's Vitest root is normally `ctx.cwd`, frozen when the MCP server booted. From a git worktree that is the wrong tree: the run happens in whichever checkout the server started in, and its results come back looking like yours — a false green. Pass `projectRoot` to name the tree you mean.
+With `projectRoot` omitted, the run anchors at the directory holding the vitest config (or a vite config, as a fallback) that Vitest would load anyway, found by walking up from the server's boot directory and bounded at the git root. Anchoring keeps the Vitest root and the config's own directory from disagreeing, which is what a server booted inside a package subtree of a monorepo needs. The walk still starts where the server booted, so from a git worktree it lands in the wrong tree: the run happens in whichever checkout the server started in, and its results come back looking like yours — a false green. Pass `projectRoot` to name the tree you mean. A supplied path is used verbatim once validated, with no anchoring applied.
 
 The supplied path is validated, never trusted. It must exist, be a directory, and belong to the same repository as `ctx.cwd`, compared through `git rev-parse --git-common-dir` (identical across a repo and every worktree cut from it). A path in a different repository or a path that does not exist returns `{ kind: "error" }` whose message names both paths, rather than falling back to `ctx.cwd`. The markdown output carries a `Project root:` line on both the `ok` and `no-match` results.
 

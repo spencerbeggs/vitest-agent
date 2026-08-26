@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-08-25
+last-synced: 2026-08-25
 completeness: 92
 related:
   - ./architecture.md
@@ -339,11 +339,8 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
 - `server.ts` calls `registerAllPrompts(server)` before constructing
   `StdioServerTransport`, so tool / prompt surfaces are registered as one
   unit.
-- `run_tests` runs Vitest in-process via `createVitest` (from `vitest/node`)
-  with a per-call timeout — it awaits `localVitest.start(...)` and reads
-  results (including `state.getFiles()`) before returning. The in-process run
-  blocks the long-lived stdio server for its duration, which is acceptable
-  because agents wait for results before proceeding.
+- `run_tests` runs Vitest in-process via `createVitest` (from `vitest/node`) with a per-call timeout — it awaits `localVitest.start(...)` and reads results (including `state.getFiles()`) before returning. The in-process run blocks the long-lived stdio server for its duration, which is acceptable because agents wait for results before proceeding.
+- The Vitest root for the call is resolved first: a supplied `projectRoot` is validated then used verbatim, and an unsupplied one anchors at the directory of the config Vitest would load (issue #259). `vitest/node` is then resolved *from that root* rather than from the bare specifier, so the run drives the same physical vitest copy the project's test files import (issue #303). See [./components/mcp.md](./components/mcp.md) and [./decisions.md](./decisions.md) Decisions 55 and 56.
 - Loading `vitest.config.ts` re-runs `AgentPlugin.discover()` → `discoverProjects()`. In the long-lived MCP process that reused a stale cache before issue #100; the cache is now invalidated by a per-package `src/` + `__test__/` directory signature, so a test-file add/remove/move triggers a rescan. Each real scan writes an ISO timestamp to the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global slot, which the tool reads back into the `RunTestsOk.discoveryLastScannedAt` field (a cross-package handshake avoiding a circular plugin import — see [./decisions.md](./decisions.md) Decision 43).
 
 ## Flow 5: Plugin → MCP server spawn
