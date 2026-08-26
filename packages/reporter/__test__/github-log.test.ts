@@ -64,6 +64,7 @@ describe("renderGithubLog", () => {
 				coverage: {
 					totals: { statements: 80, branches: 70, functions: 90, lines: 80 },
 					thresholds: { global: {}, patterns: [] },
+					scoped: false,
 					lowCoverage: [],
 					lowCoverageFiles: [],
 					belowTarget: [
