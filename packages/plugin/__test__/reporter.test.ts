@@ -468,7 +468,7 @@ describe("AgentReporter", () => {
 			stdoutSpy.mockRestore();
 		});
 
-		it("writes GFM when githubActions option is enabled", async () => {
+		it("writes GFM when githubActions option is enabled (spies on stdout)", async () => {
 			const summaryFile = path.join(tmpDir, "summary.md");
 			vi.stubEnv("GITHUB_STEP_SUMMARY", summaryFile);
 
@@ -477,12 +477,16 @@ describe("AgentReporter", () => {
 				consoleMode: "silent",
 				githubActions: true,
 			});
+			const stdoutSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
 			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
 
 			expect(fs.existsSync(summaryFile)).toBe(true);
 			const content = fs.readFileSync(summaryFile, "utf-8");
 			expect(content).toContain("Vitest Results");
+			const stdoutWrites = stdoutSpy.mock.calls.map((call) => call[0]).join("");
+			expect(stdoutWrites).toContain("::group::vitest-agent");
+			stdoutSpy.mockRestore();
 		});
 
 		it("skips GFM when githubActions is false", async () => {
