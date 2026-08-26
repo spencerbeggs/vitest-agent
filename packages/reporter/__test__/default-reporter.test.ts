@@ -103,11 +103,23 @@ describe("DefaultVitestAgentReporter", () => {
 			config: { ...makeKit("passthrough").config, githubActions: true },
 		};
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		const output = reporter.render(makeInput(), kit);
+		const input = makeInput({ classifications: new Map([["some test", "flaky"]]) });
+		const output = reporter.render(input, kit);
 		const summaryOutputs = output.filter((o) => o.target === "github-summary");
 		const logOutputs = output.filter((o) => o.target === "stdout" && o.content.startsWith("::group::"));
 		expect(summaryOutputs).toHaveLength(1);
 		expect(logOutputs).toHaveLength(1);
+	});
+
+	it("emits no github-summary output on a clean run with no classifications, coverage gaps, or trend", () => {
+		const kit: ReporterKit = {
+			...makeKit("passthrough"),
+			config: { ...makeKit("passthrough").config, githubActions: true },
+		};
+		const reporter = asSingle(DefaultVitestAgentReporter(kit));
+		const output = reporter.render(makeInput(), kit);
+		const summaryOutputs = output.filter((o) => o.target === "github-summary");
+		expect(summaryOutputs).toHaveLength(0);
 	});
 
 	it("workspace shape kicks in with more than one project report", () => {

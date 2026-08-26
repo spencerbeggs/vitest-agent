@@ -23,7 +23,7 @@ const MAX_NAMED_FILES = 3;
  * path is empty or escapes the root (starts with `..`) rather than
  * printing a `../../..` chain.
  */
-function toDisplayPath(file: string): string {
+export function toDisplayPath(file: string): string {
 	const rel = relative(process.cwd(), file);
 	if (rel === "" || rel.startsWith("..")) {
 		return file;
