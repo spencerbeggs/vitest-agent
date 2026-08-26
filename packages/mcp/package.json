@@ -43,7 +43,7 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.1.27",
+		"@savvy-web/bundler": "^2.1.28",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-v8": "catalog:test",
 		"typescript": "catalog:build"
