@@ -1,0 +1,17 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.10/schema.json",
+	"extends": "//",
+	"overrides": [
+		{
+			"includes": ["**/*.css", "**/runtime/**/*.tsx", "**/components/**/*.tsx"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"useImportExtensions": "off"
+					}
+				}
+			}
+		}
+	],
+	"root": false
+}
