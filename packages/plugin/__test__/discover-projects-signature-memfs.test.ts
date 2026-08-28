@@ -31,13 +31,33 @@ const seedFor = (testMtime: number): MemoryFileSystemSeed => ({
 	"/repo/packages/a/src/thing.test.ts": MemoryFileSystem.file("test('x', () => {});", { mtime: testMtime }),
 });
 
+const seedDeepWorkspace = (workspaceRoot: string): MemoryFileSystemSeed => {
+	const deepSegments = Array.from({ length: 34 }, (_, i) => `level-${i}`).join("/");
+	const deepPkgDir = `${workspaceRoot}/packages/${deepSegments}/deep`;
+	return {
+		[`${workspaceRoot}/package.json`]: '{ "name": "root", "version": "0.0.0", "private": true }',
+		[`${workspaceRoot}/pnpm-workspace.yaml`]: "packages:\n  - packages/**\n",
+		[`${workspaceRoot}/packages/shallow/package.json`]: '{ "name": "@x/shallow", "version": "1.0.0" }',
+		[`${workspaceRoot}/packages/shallow/src/shallow.test.ts`]: "test('shallow', () => {});",
+		[`${deepPkgDir}/package.json`]: '{ "name": "@x/deep", "version": "1.0.0" }',
+		[`${deepPkgDir}/src/deep.test.ts`]: "test('deep', () => {});",
+	};
+};
+
 /** Runs `discoverProjects` against a volume seeded with `seed`. */
-const discoverIn = (seed: MemoryFileSystemSeed) =>
+const discoverIn = (seed: MemoryFileSystemSeed, options?: { readonly cwd?: string; readonly maxDepth?: number }) =>
 	Effect.runPromise(
 		Effect.gen(function* () {
 			const { volume } = yield* MemoryFileSystem.makeInspectableWith(seed);
 			const syncOps = { fileSystem: MemoryFileSystem.syncFileSystem(volume), path };
-			return yield* Effect.promise(() => discoverProjects({ cwd: WORKSPACE, fs: memfsWalkerFs(volume), syncOps }));
+			return yield* Effect.promise(() =>
+				discoverProjects({
+					cwd: options?.cwd ?? WORKSPACE,
+					fs: memfsWalkerFs(volume),
+					syncOps,
+					...(options?.maxDepth !== undefined ? { maxDepth: options.maxDepth } : {}),
+				}),
+			);
 		}),
 	);
 
@@ -66,5 +86,26 @@ describe("discovery cache signature over a virtual volume", () => {
 		// if the signature reads modification times.
 		expect(afterTouch).not.toBe(first);
 		expect(afterTouch.projects?.map((p) => p.test?.name)).toEqual(first.projects?.map((p) => p.test?.name));
+	});
+
+	it("excludes a package deeper than workspaces' default maxDepth (32)", async () => {
+		const workspaceRoot = "/repo-depth-default";
+		const result = await discoverIn(seedDeepWorkspace(workspaceRoot), { cwd: workspaceRoot });
+
+		const names = result.projects?.map((p) => p.test?.name) ?? [];
+		expect(names).toContain("@x/shallow");
+		expect(names).not.toContain("@x/deep");
+	});
+
+	it("includes a deep package when maxDepth is explicitly increased", async () => {
+		const workspaceRoot = "/repo-depth-override";
+		const result = await discoverIn(seedDeepWorkspace(workspaceRoot), {
+			cwd: workspaceRoot,
+			maxDepth: 64,
+		});
+
+		const names = result.projects?.map((p) => p.test?.name) ?? [];
+		expect(names).toContain("@x/shallow");
+		expect(names).toContain("@x/deep");
 	});
 });
