@@ -710,26 +710,29 @@ export namespace AgentPlugin {
 	 * };
 	 * ```
 	 *
-	 * @param strategy - Optional strategy or options object `{ strategy?, cwd? }`.
+	 * @param strategy - Optional strategy or options object
+	 *   `{ strategy?, cwd?, maxDepth? }`.
 	 *   Pass a {@link DiscoverStrategy} directly, or an options object to also
-	 *   specify a custom workspace root via `cwd`.
+	 *   specify a custom workspace root via `cwd` and deeper package traversal via
+	 *   `maxDepth`.
 	 */
 	export function discover(
-		strategy?: DiscoverStrategy | { strategy?: DiscoverStrategy; cwd?: string },
+		strategy?: DiscoverStrategy | { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number },
 	): DiscoverBuilder {
 		if (strategy === undefined) {
 			return makeDiscoverBuilder({});
 		}
 		// Duck-type: a DiscoverStrategy has buildProject + tags + classify methods.
-		// An options object has at most strategy/cwd keys (no buildProject directly).
+		// An options object has at most strategy/cwd/maxDepth keys (no buildProject directly).
 		if (typeof (strategy as DiscoverStrategy).buildProject === "function") {
 			return makeDiscoverBuilder({ strategy: strategy as DiscoverStrategy });
 		}
-		// Options object form: { strategy?, cwd? }
-		const opts = strategy as { strategy?: DiscoverStrategy; cwd?: string };
+		// Options object form: { strategy?, cwd?, maxDepth? }
+		const opts = strategy as { strategy?: DiscoverStrategy; cwd?: string; maxDepth?: number };
 		return makeDiscoverBuilder({
 			...(opts.strategy !== undefined ? { strategy: opts.strategy } : {}),
 			...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+			...(opts.maxDepth !== undefined ? { maxDepth: opts.maxDepth } : {}),
 		});
 	}
 

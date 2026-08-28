@@ -1,4 +1,5 @@
 import { isAbsolute, join, normalize, relative } from "node:path";
+import type { GetWorkspacePackagesSyncOptions } from "@effected/workspaces";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
 import type { WorkspacesSyncOptions } from "@effected/workspaces/node-sync";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
@@ -41,6 +42,11 @@ export interface DiscoverProjectsOptions {
 	 * package list through. Defaults to its `nodeSyncOps` binding.
 	 */
 	readonly syncOps?: WorkspacesSyncOptions;
+	/**
+	 * Optional traversal depth override for workspace package enumeration.
+	 * Forwarded to `@effected/workspaces`' `getWorkspacePackagesSync`.
+	 */
+	readonly maxDepth?: number;
 }
 
 // ── Cross-package "last scan" handshake (issue #100) ───────────────────────────
@@ -218,6 +224,10 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	const additionalEntries = options?.additionalEntries ?? [];
 	const fs = options?.fs ?? nodeWalkerFs;
 	const syncOps = options?.syncOps ?? nodeSyncOps;
+	const packageEnumerationOptions: GetWorkspacePackagesSyncOptions = {
+		...syncOps,
+		...(options?.maxDepth !== undefined ? { maxDepth: options.maxDepth } : {}),
+	};
 	const root = findWorkspaceRootSync(cwd ?? process.cwd(), syncOps);
 	if (!root) {
 		throw new Error(
@@ -231,7 +241,9 @@ export async function discoverProjects(options?: DiscoverProjectsOptions): Promi
 	// the cache because we can't fingerprint DiscoverStrategy instances.
 	const useCache = strategy === undefined && additionalEntries.length === 0;
 	const resolvedStrategy = strategy ?? new DefaultDiscoverStrategy();
-	const packages = getWorkspacePackagesSync(root, syncOps);
+	// @effected/workspaces defaults `maxDepth` to 32; this explicit option is
+	// what enables consumers to traverse deeper workspace layouts when needed.
+	const packages = getWorkspacePackagesSync(root, packageEnumerationOptions);
 
 	// Issue #100: a cached result is only valid while the on-disk test-file set
 	// it was computed from is unchanged. Compute the cheap directory signature
