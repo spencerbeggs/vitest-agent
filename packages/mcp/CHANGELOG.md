@@ -1,5 +1,25 @@
 # @vitest-agent/mcp
 
+## 2.4.10
+
+### Refactoring
+
+- Replace the `run_tests` in-process Promise-chain lock with an Effect semaphore to keep concurrent test invocations serialized with native v4 synchronization primitives. [#334][#334]
+
+* Make `test_overview` and `test_history` DataReader bundles pass an explicit `Effect.all(..., { concurrency: "unbounded" })` option so those independent reads keep intentional concurrent-start scheduling.
+
+### Tests
+
+- Add `packages/mcp/__test__/effect-concurrency.test.ts` to pin concurrent start behavior for the `test_overview` and `test_history` query bundles. [#332][#332]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#332]: https://github.com/spencerbeggs/vitest-agent/pull/332
+
+[#334]: https://github.com/spencerbeggs/vitest-agent/pull/334
+
 ## 2.4.9
 
 ### Dependencies
