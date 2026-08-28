@@ -1,5 +1,13 @@
 # @vitest-agent/ui
 
+## 2.2.13
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.4.12 | 2.4.13 |
+
 ## 2.2.12
 
 ### Dependencies

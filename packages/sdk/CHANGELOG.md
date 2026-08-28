@@ -1,5 +1,17 @@
 # @vitest-agent/sdk
 
+## 2.4.13
+
+### Refactoring
+
+- Route `resolveDataPath` directory creation through Effect `FileSystem.makeDirectory(..., { recursive: true })` so path resolution no longer uses direct `node:fs` calls inside the Effect flow. [#341][#341]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#341]: https://github.com/spencerbeggs/vitest-agent/pull/341
+
 ## 2.4.12
 
 ### Dependencies

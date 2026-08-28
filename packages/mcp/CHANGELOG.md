@@ -1,5 +1,23 @@
 # @vitest-agent/mcp
 
+## 2.4.11
+
+### Refactoring
+
+- Extract shared per-project target resolution and non-empty group accumulation into a private helper used by `inventory` and `test`, reducing duplicated query/aggregation paths while preserving each tool's response shape and counts. [#340][#340]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.4.12 | 2.4.13 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#340]: https://github.com/spencerbeggs/vitest-agent/pull/340
+
 ## 2.4.10
 
 ### Refactoring
