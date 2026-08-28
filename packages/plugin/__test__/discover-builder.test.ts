@@ -40,6 +40,17 @@ async function createPkg(root: string, name: string, opts: { hasUnit?: boolean }
 }
 
 /**
+ * Helper: create a deeply nested workspace package under `packages/**`.
+ */
+async function createDeepPkg(root: string, depth: number, packageName: string): Promise<void> {
+	const segments = Array.from({ length: depth }, (_, i) => `level-${i}`);
+	const pkgDir = join(root, "packages", ...segments, "deep");
+	await mkdir(join(pkgDir, "src"), { recursive: true });
+	await writeFile(join(pkgDir, "package.json"), JSON.stringify({ name: packageName, version: "0.0.0" }));
+	await writeFile(join(pkgDir, "src", "deep.test.ts"), "");
+}
+
+/**
  * Helper: create a stand-alone directory with optional test files (no package.json).
  * Used for .addProject() tests where the directory is not a workspace package.
  */
@@ -64,6 +75,25 @@ describe("AgentPlugin.discover() DiscoverBuilder", () => {
 		expect(Array.isArray(result.tags)).toBe(true);
 		// projects may be undefined (if no packages have tests) or an array
 		expect(result.projects === undefined || Array.isArray(result.projects)).toBe(true);
+	});
+
+	it("should forward maxDepth from options-object discover() calls", async () => {
+		// Given: a workspace pattern that can match nested package paths.
+		await writeFile(join(emptyWorkspace, "pnpm-workspace.yaml"), "packages:\n  - 'packages/**'\n");
+		await createPkg(emptyWorkspace, "shallow", { hasUnit: true });
+		await createDeepPkg(emptyWorkspace, 34, "@builder-test/deep");
+
+		// Default path: deep package is beyond workspaces' default maxDepth (32).
+		const defaultResult = await AgentPlugin.discover({ cwd: emptyWorkspace });
+		const defaultNames = defaultResult.projects?.map((p) => p.test?.name) ?? [];
+		expect(defaultNames).toContain("@builder-test/shallow");
+		expect(defaultNames).not.toContain("@builder-test/deep");
+
+		// With explicit maxDepth override, the deep package is discovered.
+		const deepResult = await AgentPlugin.discover({ cwd: emptyWorkspace, maxDepth: 64 });
+		const deepNames = deepResult.projects?.map((p) => p.test?.name) ?? [];
+		expect(deepNames).toContain("@builder-test/shallow");
+		expect(deepNames).toContain("@builder-test/deep");
 	});
 
 	// ── Test 2: immutability ───────────────────────────────────────────────────

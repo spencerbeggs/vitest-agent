@@ -6,7 +6,8 @@
 
 `discoverProjects` now accepts `maxDepth` and forwards it to workspace package
 enumeration so deeply nested workspace packages can be discovered when callers
-opt in.
+opt in. `AgentPlugin.discover({ maxDepth })` now forwards the same override
+through its options-object form.
 
 - Default behavior is unchanged when `maxDepth` is omitted (the
   `@effected/workspaces` default depth still applies).
