@@ -1,5 +1,38 @@
 # @vitest-agent/plugin
 
+## 2.5.1
+
+### Bug Fixes
+
+- `discoverProjects` now accepts `maxDepth` and forwards it to workspace package
+  enumeration so deeply nested workspace packages can be discovered when callers
+  opt in. `AgentPlugin.discover({ maxDepth })` now forwards the same override
+  through its options-object form.
+
+- Default behavior is unchanged when `maxDepth` is omitted (the&#10;`@effected/workspaces` default depth still applies).
+
+- Existing output shape and caller compatibility remain unchanged. [#326][#326]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 2.2.11 | 2.2.12 |
+| @vitest-agent/mcp | dependency | updated | 2.4.8 | 2.4.9 |
+| @vitest-agent/reporter | dependency | updated | 2.2.0 | 2.2.1 |
+| @vitest-agent/sdk | dependency | updated | 2.4.11 | 2.4.12 |
+| magic-string | dependency | updated | ^1.2.2 | ^1.2.3 |
+
+[#328][#328]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#326]: https://github.com/spencerbeggs/vitest-agent/pull/326
+
+[#328]: https://github.com/spencerbeggs/vitest-agent/pull/328
+
 ## 2.5.0
 
 ### Features
