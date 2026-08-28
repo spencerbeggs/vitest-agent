@@ -18,7 +18,7 @@ import {
 	coerceErrorField,
 	collectConsoleLeakEntries,
 } from "@vitest-agent/sdk";
-import { Effect, Schema, SchemaGetter } from "effect";
+import { Effect, Schema, SchemaGetter, Semaphore } from "effect";
 import { publicProcedure } from "../context.js";
 
 const TagFilter = Schema.Struct({
@@ -465,14 +465,17 @@ export const vitestLoader = {
 // awaits `createVitest`/`vitest.start`, which spawns the worker pool
 // that snapshots env at spawn time. Two interleaved tRPC calls would
 // race: caller B's env assignment can land between A's assignment and
-// A's worker spawn, attributing A's results to B's agent. The mutex
-// keeps the env-write + worker-spawn pair atomic from the perspective
-// of any other run_tests call in this process.
-let _runTestsChain: Promise<unknown> = Promise.resolve();
+// A's worker spawn, attributing A's results to B's agent. A single-
+// permit semaphore keeps that env-write + worker-spawn pair atomic from
+// the perspective of any other run_tests call in this process.
+const runTestsSemaphore = Effect.runSync(Semaphore.make(1));
 function serializeRunTests<T>(fn: () => Promise<T>): Promise<T> {
-	const next = _runTestsChain.then(fn, fn);
-	_runTestsChain = next.catch(() => undefined);
-	return next;
+	return Effect.runPromise(
+		Semaphore.withPermit(
+			runTestsSemaphore,
+			Effect.promise(() => fn()),
+		),
+	);
 }
 
 /**
@@ -761,9 +764,10 @@ export const runTests = publicProcedure
 				// in-process Vitest reporter (which reads VITEST_AGENT_*
 				// directly from the environment at startup) attributes this run
 				// to the active agent. The surrounding `serializeRunTests`
-				// mutex keeps this write atomic with the worker-pool spawn —
-				// concurrent calls cannot interleave their env assignments
-				// between another call's write and its `createVitest` start.
+				// semaphore permit keeps this write atomic with the worker-pool
+				// spawn — concurrent calls cannot interleave their env
+				// assignments between another call's write and its `createVitest`
+				// start.
 				//
 				// Source priority (most authoritative first):
 				//   1. `input._sessionContext` — injected by the
