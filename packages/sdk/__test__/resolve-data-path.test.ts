@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { AppDirs, ResolvedAppDirs } from "@effected/xdg";
 import { Effect, Layer, Option } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -72,6 +73,7 @@ const run = (projectDir: string, options: { cacheDir?: string }, config: VitestA
 		resolveDataPath(projectDir, options).pipe(
 			Effect.provide(fakeAppDirs(dataRoot)),
 			Effect.provide(fakeConfigFile(config)),
+			Effect.provide(NodeServices.layer),
 		) as Effect.Effect<string, unknown, never>,
 	);
 

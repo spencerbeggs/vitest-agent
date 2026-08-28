@@ -1,7 +1,6 @@
-import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { AppDirs } from "@effected/xdg";
-import { Effect } from "effect";
+import { Effect, FileSystem } from "effect";
 import { VitestAgentConfig } from "../schemas/Config.js";
 import { VitestAgentConfigFile } from "../services/Config.js";
 import { normalizeWorkspaceKey } from "./normalize-workspace-key.js";
@@ -60,9 +59,11 @@ export interface ResolveDataPathOptions {
  */
 export const resolveDataPath = (projectDir: string, options: ResolveDataPathOptions = {}) =>
 	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+
 		// 1. Programmatic override wins.
 		if (options.cacheDir) {
-			ensureDirSync(options.cacheDir);
+			yield* fs.makeDirectory(options.cacheDir, { recursive: true });
 			return join(options.cacheDir, DATABASE_FILENAME);
 		}
 
@@ -71,7 +72,7 @@ export const resolveDataPath = (projectDir: string, options: ResolveDataPathOpti
 
 		// 2. Config file cacheDir.
 		if (loaded.cacheDir) {
-			ensureDirSync(loaded.cacheDir);
+			yield* fs.makeDirectory(loaded.cacheDir, { recursive: true });
 			return join(loaded.cacheDir, DATABASE_FILENAME);
 		}
 
@@ -82,10 +83,6 @@ export const resolveDataPath = (projectDir: string, options: ResolveDataPathOpti
 		const key = loaded.projectKey ? normalizeWorkspaceKey(loaded.projectKey) : resolveProjectKeyFromCwd(projectDir);
 
 		const dir = join(dataRoot, key);
-		ensureDirSync(dir);
+		yield* fs.makeDirectory(dir, { recursive: true });
 		return join(dir, DATABASE_FILENAME);
 	});
-
-const ensureDirSync = (path: string): void => {
-	mkdirSync(path, { recursive: true });
-};
