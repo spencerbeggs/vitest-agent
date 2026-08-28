@@ -14,6 +14,7 @@
 import { DataReader } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
+import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
 
 const ProjectRunSummary = Schema.Struct({
 	project: Schema.String,
@@ -290,39 +291,26 @@ export const inventory = publicProcedure
 					module: (variant) =>
 						Effect.gen(function* () {
 							const reader = yield* DataReader;
-							const targets = variant.project
-								? [{ project: variant.project }]
-								: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project }))));
-							const groups: Array<{ project: string; modules: ReadonlyArray<Schema.Schema.Type<typeof ModuleRow>> }> =
-								[];
-							let total = 0;
-							for (const t of targets) {
-								const modules = yield* reader.listModules(t.project);
-								if (modules.length > 0) {
-									groups.push({ project: t.project, modules });
-									total += modules.length;
-								}
-							}
-							return { inventoryKind: "module" as const, count: total, groups };
+							const targets = yield* resolveProjectTargets(variant.project, () => reader.getRunsByProject());
+							const grouped = yield* collectProjectRows(targets, (project) => reader.listModules(project));
+							return {
+								inventoryKind: "module" as const,
+								count: grouped.total,
+								groups: grouped.groups.map((group) => ({ project: group.project, modules: group.rows })),
+							};
 						}),
 					suite: (variant) =>
 						Effect.gen(function* () {
 							const reader = yield* DataReader;
 							const opts: { module?: string } = {};
 							if (variant.module !== undefined) opts.module = variant.module;
-							const targets = variant.project
-								? [{ project: variant.project }]
-								: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project }))));
-							const groups: Array<{ project: string; suites: ReadonlyArray<Schema.Schema.Type<typeof SuiteRow>> }> = [];
-							let total = 0;
-							for (const t of targets) {
-								const suites = yield* reader.listSuites(t.project, opts);
-								if (suites.length > 0) {
-									groups.push({ project: t.project, suites });
-									total += suites.length;
-								}
-							}
-							return { inventoryKind: "suite" as const, count: total, groups };
+							const targets = yield* resolveProjectTargets(variant.project, () => reader.getRunsByProject());
+							const grouped = yield* collectProjectRows(targets, (project) => reader.listSuites(project, opts));
+							return {
+								inventoryKind: "suite" as const,
+								count: grouped.total,
+								groups: grouped.groups.map((group) => ({ project: group.project, suites: group.rows })),
+							};
 						}),
 					session: (variant) =>
 						Effect.gen(function* () {
