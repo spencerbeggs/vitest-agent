@@ -1,5 +1,21 @@
 # @vitest-agent/sdk
 
+## 2.4.12
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/jsonc | dependency | updated | ^0.8.0 | ^0.8.1 |
+
+[#328][#328]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#328]: https://github.com/spencerbeggs/vitest-agent/pull/328
+
 ## 2.4.11
 
 ### Dependencies
