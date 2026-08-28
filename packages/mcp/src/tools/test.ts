@@ -12,6 +12,7 @@
 import { DataReader } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
+import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
 
 const TestRowSchema = Schema.Struct({
 	id: Schema.Number,
@@ -276,19 +277,13 @@ export const test = publicProcedure
 							if (variant.state !== undefined) opts.state = variant.state;
 							if (variant.module !== undefined) opts.module = variant.module;
 							if (variant.limit !== undefined) opts.limit = variant.limit;
-							const targets: ReadonlyArray<{ project: string }> = variant.project
-								? [{ project: variant.project }]
-								: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project }))));
-							const groups: Array<Schema.Schema.Type<typeof TestListGroup>> = [];
-							let total = 0;
-							for (const t of targets) {
-								const tests = yield* reader.listTests(t.project, opts);
-								if (tests.length > 0) {
-									groups.push({ project: t.project, tests });
-									total += tests.length;
-								}
-							}
-							return { action: "list" as const, count: total, groups };
+							const targets = yield* resolveProjectTargets(variant.project, () => reader.getRunsByProject());
+							const grouped = yield* collectProjectRows(targets, (project) => reader.listTests(project, opts));
+							const groups: Array<Schema.Schema.Type<typeof TestListGroup>> = grouped.groups.map((group) => ({
+								project: group.project,
+								tests: group.rows,
+							}));
+							return { action: "list" as const, count: grouped.total, groups };
 						}),
 					get: (variant) =>
 						Effect.gen(function* () {
@@ -361,19 +356,15 @@ export const test = publicProcedure
 							// every known project's latest run and emit a per-project group
 							// for each non-empty result; when supplied, return at most one
 							// group.
-							const targets: ReadonlyArray<{ project: string }> = variant.project
-								? [{ project: variant.project }]
-								: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => ({ project: r.project }))));
-							const groups: Array<Schema.Schema.Type<typeof TestListGroup>> = [];
-							let total = 0;
-							for (const t of targets) {
-								const tests = yield* reader.listTestsForTag(variant.tag, { project: t.project });
-								if (tests.length > 0) {
-									groups.push({ project: t.project, tests });
-									total += tests.length;
-								}
-							}
-							return { action: "for_tag" as const, tag: variant.tag, count: total, groups };
+							const targets = yield* resolveProjectTargets(variant.project, () => reader.getRunsByProject());
+							const grouped = yield* collectProjectRows(targets, (project) =>
+								reader.listTestsForTag(variant.tag, { project }),
+							);
+							const groups: Array<Schema.Schema.Type<typeof TestListGroup>> = grouped.groups.map((group) => ({
+								project: group.project,
+								tests: group.rows,
+							}));
+							return { action: "for_tag" as const, tag: variant.tag, count: grouped.total, groups };
 						}),
 				}),
 			),
