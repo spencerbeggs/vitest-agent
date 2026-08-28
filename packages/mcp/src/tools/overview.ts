@@ -94,7 +94,11 @@ export const testOverview = publicProcedure
 			ctx.runtime.runPromise(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					const [manifestOpt, runs] = yield* Effect.all([reader.getManifest(), reader.getRunsByProject()]);
+					// Effect.all defaults to sequential execution. Keep concurrency
+					// explicit here so independent reads are scheduled together.
+					const [manifestOpt, runs] = yield* Effect.all([reader.getManifest(), reader.getRunsByProject()], {
+						concurrency: "unbounded",
+					});
 					if (Option.isNone(manifestOpt) || runs.length === 0) {
 						return {
 							dataAvailable: false as const,

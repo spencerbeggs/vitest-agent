@@ -183,11 +183,16 @@ export const testHistory = publicProcedure
 						...scopeOptions,
 						...(input.limit !== undefined && { limit: input.limit }),
 					};
-					const [history, flaky, persistent] = yield* Effect.all([
-						reader.getHistory(input.project, historyOptions),
-						reader.getFlaky(input.project, scopeOptions),
-						reader.getPersistentFailures(input.project, scopeOptions),
-					]);
+					// Effect.all defaults to sequential execution. Keep concurrency
+					// explicit so the three independent reads schedule together.
+					const [history, flaky, persistent] = yield* Effect.all(
+						[
+							reader.getHistory(input.project, historyOptions),
+							reader.getFlaky(input.project, scopeOptions),
+							reader.getPersistentFailures(input.project, scopeOptions),
+						],
+						{ concurrency: "unbounded" },
+					);
 
 					// t.runs is ordered most-recent-first (see classifyTest's documented
 					// "priorRuns" convention), so the current/most recent run is
