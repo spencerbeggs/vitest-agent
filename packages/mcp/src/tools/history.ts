@@ -183,8 +183,8 @@ export const testHistory = publicProcedure
 						...scopeOptions,
 						...(input.limit !== undefined && { limit: input.limit }),
 					};
-					// Effect.all defaults to sequential execution; each query is a
-					// read-only classification lookup and can safely run in parallel.
+					// Effect.all defaults to sequential execution. Keep concurrency
+					// explicit so the three independent reads schedule together.
 					const [history, flaky, persistent] = yield* Effect.all(
 						[
 							reader.getHistory(input.project, historyOptions),

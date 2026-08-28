@@ -94,8 +94,8 @@ export const testOverview = publicProcedure
 			ctx.runtime.runPromise(
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
-					// Effect.all defaults to sequential execution; these reads are
-					// independent and should overlap.
+					// Effect.all defaults to sequential execution. Keep concurrency
+					// explicit here so independent reads are scheduled together.
 					const [manifestOpt, runs] = yield* Effect.all([reader.getManifest(), reader.getRunsByProject()], {
 						concurrency: "unbounded",
 					});

@@ -2,9 +2,9 @@
 "@vitest-agent/mcp": patch
 ---
 
-## Performance
+## Refactoring
 
-- Run `test_overview` and `test_history` DataReader lookups with explicit `Effect.all(..., { concurrency: "unbounded" })` so independent reads can overlap instead of defaulting to sequential execution.
+- Make `test_overview` and `test_history` DataReader bundles pass an explicit `Effect.all(..., { concurrency: "unbounded" })` option so those independent reads keep intentional concurrent-start scheduling.
 
 ## Tests
 
