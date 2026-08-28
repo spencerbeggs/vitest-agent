@@ -135,8 +135,8 @@ importers:
   .:
     devDependencies:
       '@savvy-web/silk':
-        specifier: ^3.11.0
-        version: 3.11.0(@changesets/cli@3.0.1)(@commitlint/cli@21.2.2(@types/node@26.4.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.2)(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@types/bun@1.4.0)(@types/node@26.4.0)(@vitest/coverage-istanbul@4.1.11)(@vitest/coverage-v8@4.1.11)(husky@9.1.7)(lint-staged@17.3.0)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2(supports-color@9.4.0)))(markdownlint-cli2@0.23.2(supports-color@9.4.0))(redis@6.2.1)(supports-color@9.4.0)(tsx@4.23.12)(turbo@2.10.12)(typescript@7.0.2)(vitest@4.1.11)
+        specifier: ^3.11.1
+        version: 3.11.1(@changesets/cli@3.0.1)(@commitlint/cli@21.2.2(@types/node@26.4.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.2)(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@types/bun@1.4.0)(@types/node@26.4.0)(@vitest/coverage-istanbul@4.1.11)(@vitest/coverage-v8@4.1.11)(husky@9.1.7)(lint-staged@17.3.0)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2(supports-color@9.4.0)))(markdownlint-cli2@0.23.2(supports-color@9.4.0))(redis@6.2.1)(supports-color@9.4.0)(tsx@4.23.12)(turbo@2.10.12)(typescript@7.0.2)(vitest@4.1.11)
       '@vitest-agent/cli':
         specifier: workspace:*
         version: link:packages/cli/dist/dev/pkg
@@ -565,8 +565,8 @@ importers:
         specifier: catalog:docs
         version: 19.2.8(react@19.2.8)
       rspress-plugin-api-extractor:
-        specifier: ^0.13.2
-        version: 0.13.2(@effected/config-file@0.5.2(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/schema-org@0.1.0(effect@4.0.0-rc.109))(@effected/spdx@0.5.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@rspress/core@2.0.20(@rspack/core@2.2.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.4.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0)
+        specifier: ^0.13.3
+        version: 0.13.3(@effected/config-file@0.5.2(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/schema-org@0.1.0(effect@4.0.0-rc.109))(@effected/spdx@0.5.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@rspress/core@2.0.20(@rspack/core@2.2.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.4.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0)
       rspress-plugin-mermaid:
         specifier: catalog:docs
         version: 1.0.1(@rspress/core@2.0.20(@rspack/core@2.2.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(supports-color@9.4.0)
@@ -1674,24 +1674,24 @@ packages:
   '@savvy-web/changelog@0.1.1':
     resolution: {integrity: sha512-UR0PEbLzFlLpz78jIDxTAfSc73TVQoZNZfGGzeBFP/s6wG8y3m5KUJwzY6CsisBxJrI44wOMBYdWztTM21PgJw==}
 
-  '@savvy-web/cli@2.8.0':
-    resolution: {integrity: sha512-fmOr3unW+YvhGvIIpUz5QZO22AmN0i58fFnm/ZDiDS1qAY0xceTVnxCqKsZj9KXwmVBAMtGnuYoZsF/JylGwog==}
+  '@savvy-web/cli@2.8.1':
+    resolution: {integrity: sha512-Ocy7uymBRo5lUJyp0U+H/yxtu273SYw/r7PQzQMEaHI19dEn4XoDoN00BDpNBgY1Ej/deYIFiZr5iFfkYV8jiQ==}
     hasBin: true
 
-  '@savvy-web/mcp@2.6.4':
-    resolution: {integrity: sha512-EMV8U3/Fv+UWDzXt80xBSzL16FgPDmpQDFqn6BYLJdL6er9hGdJUf60w/tfwnLNl6huckysGpaw/Svi5zBp9Gw==}
+  '@savvy-web/mcp@2.6.5':
+    resolution: {integrity: sha512-EcjzDirgwS1w3KHgk7+DsRig7S0mTUT4xEeRBloZV82wfpqJm5RNyciJLWET7vkwqOg9rTNYNDJ9igzhrO9Rrw==}
     hasBin: true
 
-  '@savvy-web/silk-effects@7.1.3':
-    resolution: {integrity: sha512-Prkr0KH7SjXph2TokNMwdx7WrcB1pJbJaS2lNk64W641l9nqxlglLUXnJF+z5D3ov/y+p87KaAU0x6S+FH7RHA==}
+  '@savvy-web/silk-effects@7.1.4':
+    resolution: {integrity: sha512-2veYwXNGUD1RpYyF8Ss561nGxzkpXSe4VcMZv3WgKO0oVWl1C9zeMN50+TLUjWPrEotx1IdkgSO2j+McTHTIVQ==}
     peerDependencies:
       '@effected/commands': ^0.5.0
       '@effected/git': ^0.10.0
       '@effected/workspaces': ^0.18.0
       effect: 4.0.0-rc.109
 
-  '@savvy-web/silk@3.11.0':
-    resolution: {integrity: sha512-uaZBw93p+4TAZf/Y0IhzMsi6rM7dwn/OcylB/Lo9JVo20iChlDiUeIIQAsrMKyXl4M8983qm90wiqegpC/YkVQ==}
+  '@savvy-web/silk@3.11.1':
+    resolution: {integrity: sha512-Yk8l9QaRw14tA41+kyUEacOA/jU821nj7Q5nNLyBAnO89RRJvm/SYloriCV2Fihb9N8mDTJakZ1ZuajyuR3gPQ==}
     peerDependencies:
       '@biomejs/biome': 2.5.10
       '@changesets/cli': ^3.0.1
@@ -1784,13 +1784,13 @@ packages:
   '@ts-morph/common@0.28.1':
     resolution: {integrity: sha512-W74iWf7ILp1ZKNYXY5qbddNaml7e9Sedv5lvU1V8lftlitkc9Pq1A+jlH23ltDgWYeZFFEqGCD1Ies9hqu3O+g==}
 
-  '@tsdoctor/bundle@0.2.1':
-    resolution: {integrity: sha512-oAtxfiUGKMWLnXgItoejjro8itsNnxqcCAycGVW/2tMdRJicpNgH9tOJzTgmNo5PbOaAZYa+GyX3LAeVwp3qsw==}
+  '@tsdoctor/bundle@0.2.2':
+    resolution: {integrity: sha512-Ipd7lrtIZeYmgPfBBrrwSkeLJ5L/bd3ItczXC7WM77Unt3W8DhTFe3TfWcj1ud9M9062xD9GkDz+3rm5TLH8RA==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@effected/github': ^0.8.0
       '@effected/glob': ^0.4.0
-      '@effected/jsonc': ^0.8.0
+      '@effected/jsonc': ^0.8.1
       '@effected/npm': ^0.12.1
       '@effected/package-json': ^0.13.0
       '@effected/store': ^0.5.0
@@ -4225,8 +4225,8 @@ packages:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
 
-  rspress-plugin-api-extractor@0.13.2:
-    resolution: {integrity: sha512-rifj78OTZp96db2+jPfCW1kNgzFDAhhosdzPVJ1xaWvI7x2QOUiGrxGkWVh7GIfhsoa4S8OBE5LQDfcLVJ6guA==}
+  rspress-plugin-api-extractor@0.13.3:
+    resolution: {integrity: sha512-rxZbHu3pdLunHj6BGcTox5lOXC/eafC74nWcJKavqbHko5M2Ow1jNT/DSebvXRkKDf+gnmTbM3H9O7+cUmjLdw==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@rspress/core': ^2.0.0
@@ -6009,7 +6009,7 @@ snapshots:
       jju: 1.4.0
       semver: 7.8.5
 
-  '@savvy-web/cli@2.8.0(@effected/toml@0.5.0(effect@4.0.0-rc.109))(redis@6.2.1)(supports-color@9.4.0)':
+  '@savvy-web/cli@2.8.1(@effected/toml@0.5.0(effect@4.0.0-rc.109))(redis@6.2.1)(supports-color@9.4.0)':
     dependencies:
       '@effect/platform-node': 4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1)
       '@effected/commands': 0.5.0(effect@4.0.0-rc.109)
@@ -6018,7 +6018,7 @@ snapshots:
       '@effected/templates': 0.4.0(effect@4.0.0-rc.109)
       '@effected/workspaces': 0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@effected/yaml': 0.12.0(effect@4.0.0-rc.109)
-      '@savvy-web/silk-effects': 7.1.3(@effected/commands@0.5.0(effect@4.0.0-rc.109))(@effected/git@0.10.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/workspaces@0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)(supports-color@9.4.0)
+      '@savvy-web/silk-effects': 7.1.4(@effected/commands@0.5.0(effect@4.0.0-rc.109))(@effected/git@0.10.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/workspaces@0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)(supports-color@9.4.0)
       effect: 4.0.0-rc.109
     transitivePeerDependencies:
       - '@effected/toml'
@@ -6027,14 +6027,14 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@savvy-web/mcp@2.6.4(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(redis@6.2.1)(supports-color@9.4.0)':
+  '@savvy-web/mcp@2.6.5(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(redis@6.2.1)(supports-color@9.4.0)':
     dependencies:
       '@effect/platform-node': 4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1)
       '@effected/commands': 0.5.0(effect@4.0.0-rc.109)
       '@effected/git': 0.10.0(effect@4.0.0-rc.109)
       '@effected/workspaces': 0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@modelcontextprotocol/sdk': 1.30.0(supports-color@9.4.0)(zod@4.4.3)
-      '@savvy-web/silk-effects': 7.1.3(@effected/commands@0.5.0(effect@4.0.0-rc.109))(@effected/git@0.10.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/workspaces@0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)(supports-color@9.4.0)
+      '@savvy-web/silk-effects': 7.1.4(@effected/commands@0.5.0(effect@4.0.0-rc.109))(@effected/git@0.10.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/workspaces@0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)(supports-color@9.4.0)
       effect: 4.0.0-rc.109
       zod: 4.4.3
     transitivePeerDependencies:
@@ -6046,7 +6046,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@savvy-web/silk-effects@7.1.3(@effected/commands@0.5.0(effect@4.0.0-rc.109))(@effected/git@0.10.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/workspaces@0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)(supports-color@9.4.0)':
+  '@savvy-web/silk-effects@7.1.4(@effected/commands@0.5.0(effect@4.0.0-rc.109))(@effected/git@0.10.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/workspaces@0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)(supports-color@9.4.0)':
     dependencies:
       '@changesets/apply-release-plan': 8.0.0
       '@changesets/changelog-git': 1.0.0
@@ -6079,7 +6079,7 @@ snapshots:
       - '@effected/toml'
       - supports-color
 
-  '@savvy-web/silk@3.11.0(@changesets/cli@3.0.1)(@commitlint/cli@21.2.2(@types/node@26.4.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.2)(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@types/bun@1.4.0)(@types/node@26.4.0)(@vitest/coverage-istanbul@4.1.11)(@vitest/coverage-v8@4.1.11)(husky@9.1.7)(lint-staged@17.3.0)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2(supports-color@9.4.0)))(markdownlint-cli2@0.23.2(supports-color@9.4.0))(redis@6.2.1)(supports-color@9.4.0)(tsx@4.23.12)(turbo@2.10.12)(typescript@7.0.2)(vitest@4.1.11)':
+  '@savvy-web/silk@3.11.1(@changesets/cli@3.0.1)(@commitlint/cli@21.2.2(@types/node@26.4.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.2)(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@types/bun@1.4.0)(@types/node@26.4.0)(@vitest/coverage-istanbul@4.1.11)(@vitest/coverage-v8@4.1.11)(husky@9.1.7)(lint-staged@17.3.0)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2(supports-color@9.4.0)))(markdownlint-cli2@0.23.2(supports-color@9.4.0))(redis@6.2.1)(supports-color@9.4.0)(tsx@4.23.12)(turbo@2.10.12)(typescript@7.0.2)(vitest@4.1.11)':
     dependencies:
       '@changesets/cli': 3.0.1
       '@commitlint/cli': 21.2.2(@types/node@26.4.0)(conventional-commits-parser@7.1.2)(typescript@7.0.2)
@@ -6089,9 +6089,9 @@ snapshots:
       '@effected/templates': 0.4.0(effect@4.0.0-rc.109)
       '@effected/workspaces': 0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
       '@savvy-web/changelog': 0.1.1
-      '@savvy-web/cli': 2.8.0(@effected/toml@0.5.0(effect@4.0.0-rc.109))(redis@6.2.1)(supports-color@9.4.0)
-      '@savvy-web/mcp': 2.6.4(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(redis@6.2.1)(supports-color@9.4.0)
-      '@savvy-web/silk-effects': 7.1.3(@effected/commands@0.5.0(effect@4.0.0-rc.109))(@effected/git@0.10.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/workspaces@0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)(supports-color@9.4.0)
+      '@savvy-web/cli': 2.8.1(@effected/toml@0.5.0(effect@4.0.0-rc.109))(redis@6.2.1)(supports-color@9.4.0)
+      '@savvy-web/mcp': 2.6.5(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(redis@6.2.1)(supports-color@9.4.0)
+      '@savvy-web/silk-effects': 7.1.4(@effected/commands@0.5.0(effect@4.0.0-rc.109))(@effected/git@0.10.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/workspaces@0.18.3(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)(supports-color@9.4.0)
       '@types/bun': 1.4.0
       '@types/node': 26.4.0
       '@vitest/coverage-istanbul': 4.1.11(supports-color@9.4.0)(vitest@4.1.11)
@@ -6234,7 +6234,7 @@ snapshots:
       path-browserify: 1.0.1
       tinyglobby: 0.2.17
 
-  '@tsdoctor/bundle@0.2.1(5db6bbd09136eac78c5b0e2318f5ff1d)':
+  '@tsdoctor/bundle@0.2.2(5db6bbd09136eac78c5b0e2318f5ff1d)':
     dependencies:
       '@effected/github': 0.8.0(effect@4.0.0-rc.109)
       '@effected/glob': 0.4.0(effect@4.0.0-rc.109)
@@ -9083,7 +9083,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  rspress-plugin-api-extractor@0.13.2(@effected/config-file@0.5.2(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/schema-org@0.1.0(effect@4.0.0-rc.109))(@effected/spdx@0.5.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@rspress/core@2.0.20(@rspack/core@2.2.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.4.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0):
+  rspress-plugin-api-extractor@0.13.3(@effected/config-file@0.5.2(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/schema-org@0.1.0(effect@4.0.0-rc.109))(@effected/spdx@0.5.0(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@rspress/core@2.0.20(@rspack/core@2.2.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.4.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0):
     dependencies:
       '@effect/platform-node': 4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1)
       '@effected/github': 0.8.0(effect@4.0.0-rc.109)
@@ -9101,7 +9101,7 @@ snapshots:
       '@microsoft/api-extractor-model': 7.33.11(@types/node@26.4.0)
       '@rspress/core': 2.0.20(@rspack/core@2.2.0(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0)
       '@shikijs/twoslash': 4.4.3(supports-color@9.4.0)(typescript@6.0.3)
-      '@tsdoctor/bundle': 0.2.1(5db6bbd09136eac78c5b0e2318f5ff1d)
+      '@tsdoctor/bundle': 0.2.2(5db6bbd09136eac78c5b0e2318f5ff1d)
       '@tsdoctor/model': 0.4.1(@effected/markdown@0.7.0(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/package-json@0.13.0(effect@4.0.0-rc.109))(@types/node@26.4.0)(effect@4.0.0-rc.109)
       '@tsdoctor/registry': 0.2.2(@effect/platform-node@4.0.0-rc.109(effect@4.0.0-rc.109)(redis@6.2.1))(@effected/semver@0.5.0(effect@4.0.0-rc.109))(@effected/store@0.5.0(effect@4.0.0-rc.109))(@effected/tsconfig-json@0.6.1(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/xdg@0.3.0(@effected/config-file@0.5.2(@effected/jsonc@0.8.1(effect@4.0.0-rc.109))(@effected/toml@0.5.0(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/yaml@0.12.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@effected/walker@0.5.0(@effected/glob@0.4.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(effect@4.0.0-rc.109))(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.109)(typescript@6.0.3)
       '@tsdoctor/seo': 0.1.1(@effected/package-json@0.13.0(effect@4.0.0-rc.109))(@effected/schema-org@0.1.0(effect@4.0.0-rc.109))(@effected/spdx@0.5.0(effect@4.0.0-rc.109))(effect@4.0.0-rc.109)
