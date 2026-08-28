@@ -1,3 +1,7 @@
+---
+applyTo: "**"
+---
+
 # Finalizing a branch
 
 This is the complete flow for taking finished work on a branch and landing it as a
