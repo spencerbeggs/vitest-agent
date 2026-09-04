@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-21
-last-synced: 2026-08-21
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 90
 related:
   - ../architecture.md
@@ -224,7 +224,14 @@ an agent could cite any failing test from history to claim "I'm in red,"
 defeating the iron law. The constraint is enforced at validation time
 (`packages/sdk/src/utils/validate-phase-transition.ts`), but it relies on the
 hook layer correctly stamping `test_case_authored_in_session = true` only when
-the test was actually authored in the current session's window.
+the test was actually authored in the current session's window. The
+validator's other half of rule 1 — the phase-window check — does not depend
+on the hook layer at all: it compares the cited artifact's own
+`tdd_artifacts.phase_id` against the currently open `tdd_phases` row, not
+the test case's creation turn against the phase start, so a test authored
+in `spike` and re-run inside `red` is accepted as long as the cited
+`test_failed_run` artifact was recorded in `red` (issue #245; see
+[../decisions.md](../decisions.md) D11).
 
 The file-filter approach — matching test runs by command shape rather than
 process inspection — is a deliberate choice. PostToolUse fires after the Bash

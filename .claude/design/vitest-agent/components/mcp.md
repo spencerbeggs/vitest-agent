@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-25
-last-synced: 2026-08-25
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 93
 related:
   - ../architecture.md
@@ -283,7 +283,21 @@ file per tool — and broadly group into:
   it computes from module states is preliminary — `buildAgentReport`
   self-corrects it to `"failed"` when the walk finds failed files or
   unhandled errors, so a hook-only or collection-only failure cannot
-  report green. Also accepts an optional, validated `projectRoot` that
+  report green. After the run it walks `localVitest.state.getFiles()`
+  through the SDK's `collectConsoleLeakEntries` / `buildConsoleLeaks` and
+  attaches the result as `report.consoleLeaks` when any user `console.*`
+  output was captured. The block is partitioned by test outcome (issue
+  #263): `total` / `byFile` count only output from tests that did not
+  fail, and output from failing tests is summarized separately in
+  `fromFailingTests: { total, files }`. `formatReportMarkdown` prints the
+  `⚠ N stray console writes across M files (see consoleLeaks)` warning
+  only when `total > 0`, and a separate non-warning `N console writes
+  from failing tests (not counted as leaks)` line when the failing bucket
+  is present — so a red run whose failures merely log through `console.*`
+  no longer renders a false-positive leak warning. See
+  [../decisions.md](../decisions.md) Decision 57 and
+  [../schemas.md](../schemas.md) *Reports and coverage*. Also accepts an
+  optional, validated `projectRoot` that
   overrides the boot-time `ctx.cwd` for one call, and always echoes the
   root it actually ran under. See *Tag filtering and tag introspection*
   below, *Caller-declared project root* for the worktree case, and
@@ -444,7 +458,12 @@ pre-checks performed before the validator runs:
 2. Behavior membership check (rejects if a `behaviorId` doesn't belong to
    the requested goal).
 3. The existing D2 evidence-binding rules — applied via the pure
-   validator.
+   validator. The tool threads the open phase row's id from
+   `getCurrentTddPhase` into the context as `current_phase_id` (`null`
+   when no phase row exists yet) so rule 1's window check can compare it
+   against the cited artifact's own `phase_id` (issue #245); the
+   synthetic artifact built for the auto-resolve fallback carries
+   `phase_id: -1` and never reaches that check.
 
 On accept with a `behaviorId`, the server **auto-promotes** the behavior
 `pending → in_progress` in the same SQL transaction as `writeTddPhase` so

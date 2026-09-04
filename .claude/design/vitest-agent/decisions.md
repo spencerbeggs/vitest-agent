@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-08-25
-last-synced: 2026-08-25
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 100
 related:
   - ./architecture.md
@@ -1381,6 +1381,27 @@ timeout to its project (issue #242).
 unhandled errors, so no caller can report green over a red walk. The MCP
 `run_tests` tool leans on this and passes a deliberately preliminary reason.
 
+**Unhandled errors are non-passing everywhere too (issue #240).** The
+persistence side already treated `AgentReport.unhandledErrors` as red
+(`buildAgentReport` self-corrects `reason`, the health kit's
+`hasFailures` folds it in), but the event-sourced render path did not
+carry the list at all: `RunFinished` had no field for it, so
+`RenderState` never saw it, `classifyOutcome` routed an
+unhandled-error-only run to `all-pass`, and neither `renderAgent` nor
+`StreamApp` printed the error. `RunFinished` gained an optional
+`unhandledErrors: ReportError[]`, `RenderState` a required one
+(default `[]`), the reducer folds it, all producers populate it (the
+plugin's live `onTestRunEnd` emit from Vitest's own argument,
+`synthesizeFromAgentReport` from `report.unhandledErrors`), and
+`classifyOutcome` treats a non-empty list as `some-fail` — below real
+failures, above timeouts in precedence. Both renderers add an
+`Unhandled errors:` section and `formatHeader` an `N unhandled errors`
+part. Unlike the aggregate Failures section, which the leaf shapes omit
+because they expand each failure inline under its test row, the
+Unhandled errors section is shape-independent: a process-level error
+has no owning test to expand under, so `single-file` and `single-test`
+render it too.
+
 **Per-project run rows derive their own reason.** `writeRun` no longer
 writes Vitest's process-wide `reason` to every project's row; it computes
 `failed` from that project's own `summary.failed` / `failedFiles`, with
@@ -1604,6 +1625,46 @@ production default, not to an instantly-stale lock or a spin loop. See
 
 **The general rule.** When a tool derives two coupled values from one input, deriving them by different rules is a bug waiting for the first caller whose cwd is not the repo root. Prefer inferring the value the downstream tool would compute for itself over passing through whatever the process happened to boot in. See [./components/mcp.md](./components/mcp.md).
 
+### Decision 57: Partition the `consoleLeaks` Signal by Test Outcome
+
+**Context.** `run_tests` attaches an optional `consoleLeaks` block to each
+`AgentReport` — stray `console.*` output captured per task from
+`vitest.state.getFiles()`, bucketed by file — and the tool's text summary
+prints a `⚠ N stray console writes across M files` warning whenever the
+block is present. The signal was meant to surface debugging output left
+behind in *passing* tests. In practice every red run tripped it: assertion
+libraries and app code that route failure output through a logger write to
+`console.*` inside the failing test, so a run with three failing tests
+reported three "leaks" that were nothing but the failures themselves. The
+noise camouflaged genuine leaks — an agent that learned to ignore the
+warning on red runs also ignored it on the runs where it mattered
+(issue #263).
+
+**Decision.** Attribute each captured write to the pass/fail state of the
+task that owns it, and partition the aggregate by that outcome.
+`collectConsoleLeakEntries` reads the owning test's `result.state` (or, for
+output with no owning test, the file's own state — a collection error) and
+marks the entry `failed: true`. `buildConsoleLeaks` counts only non-failing
+output in `total` / `byFile` — the actionable signal — and reports the
+failing bucket in a new optional `fromFailingTests: { total, files }`
+summary. The block is still omitted only when there is no output at all,
+so a run whose only console output came from failing tests yields
+`{ total: 0, byFile: [], fromFailingTests }` rather than nothing. The
+`run_tests` text summary warns only when `total > 0` and prints a
+separate, non-warning `N console writes from failing tests (not counted
+as leaks)` line for the other bucket.
+
+**Why partition rather than suppress.** Dropping failing-test output
+entirely would hide a real signal in the other direction: a failing test
+that logs is often *why* it is failing, and the agent fixing it wants to
+know the output exists. Keeping the count visible but out of the leak
+total preserves both facts — "this run has leaks" and "this run's failures
+logged" — without letting one masquerade as the other. The rule
+generalizes: a warning that fires on every red run is not a warning, and a
+signal that is meant to describe passing code must be scoped to passing
+code. See [./schemas.md](./schemas.md) *Reports and coverage* and
+[./components/mcp.md](./components/mcp.md).
+
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
 **Pre-2.0 policy (current).** Before 2.0 ships to npm, the canonical
@@ -1710,13 +1771,36 @@ reason and a remediation hint.
 **The three D2 binding rules:**
 
 1. **Evidence in phase window AND session.** The cited test must carry
-   a specific `test_case_id`, have been authored in the current phase
-   window (`test_case_created_turn_at >= phase_started_at`) AND in the
-   current session (`test_case_authored_in_session === true`). Prevents
-   citing a test written before the phase started or in another
-   session. The phase-window portion is skipped for
-   `red.triangulate → green` (see below); the specific-test and session
-   portions always apply.
+   a specific `test_case_id`, the cited artifact must have been
+   recorded in the currently open phase
+   (`cited_artifact.phase_id === current_phase_id`, skipped when
+   `current_phase_id` is `null` because no `tdd_phases` row exists yet)
+   AND the test must have been authored in the current session
+   (`test_case_authored_in_session === true`). Prevents replaying an
+   artifact from an earlier, already-closed phase of the same task, or
+   citing a test authored in another session. The phase-window portion
+   is skipped for `red.triangulate → green` (see below); the
+   specific-test and session portions always apply. Denial reason:
+   `evidence_not_in_phase_window`.
+
+   *Phase binding, not authoring turn (issue #245).* The window check
+   originally compared the test case's first-ever creation turn
+   (`test_case_created_turn_at`) against `phase_started_at`. That
+   anchor was wrong: a `test_cases` row is created once and reused
+   across every later run, so a test authored during `spike` and then
+   re-run inside `red` was denied even though the cited
+   `test_failed_run` artifact was genuinely produced in the current
+   phase — and the remediation ("write a new failing test") could not
+   be satisfied without duplicating the test. The honest anchor is the
+   artifact's own `tdd_phases` binding: `CitedArtifact` carries
+   `phase_id` and `PhaseTransitionContext` carries `current_phase_id`
+   (the open phase row's id, threaded by `tdd_phase_transition_request`
+   from `getCurrentTddPhase`). What is stale is an artifact recorded in
+   a *different* phase being replayed against the current one — which
+   is exactly what the rule now checks. `test_case_created_turn_at` is
+   still carried on `CitedArtifact` but no longer participates in rule
+   1; `phase_started_at` remains on the context for `now`-relative
+   bookkeeping only.
 2. **Behavior match.** Scoped to the transitions whose cited evidence
    must belong to the behavior being transitioned — `red → green` (this
    behavior's failing test) and `green → refactor` (its passing test).

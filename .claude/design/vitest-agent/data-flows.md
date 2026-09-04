@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-25
-last-synced: 2026-08-25
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 92
 related:
   - ./architecture.md
@@ -85,6 +85,9 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |   and any onRunEvent tap see end-of-run before the heavy work runs
   |     carries collectedModules = testModules.length so the reducer
   |     knows the true module count on the live path too
+  |     carries unhandledErrors (the Vitest argument, normalized to
+  |     ReportError[]) when non-empty, so the live Ink path sees the
+  |     same process-level errors the persisted report does (#240)
   |
   +-- dbPath = await ensureDbPath()  (defensive — tests can bypass onInit)
   |     on rejection: leave dbPath undefined, record persistDisabled and
@@ -192,6 +195,13 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     reducer (a collection-failed module synthesizes a failing
   |       SUITE_LOAD_FAILURE_LABEL test + ModuleFinished.failCount:1, and
   |       RunFinished.failCount includes suite failures — D45),
+  |     synthesizeFromAgentReport also copies report.unhandledErrors
+  |       onto RunFinished.unhandledErrors; the reducer folds it into
+  |       RenderState.unhandledErrors and classifyOutcome treats a
+  |       non-empty list as some-fail, so an unhandled-error-only run
+  |       never routes to a pass cell and both renderAgent and
+  |       StreamApp print an "Unhandled errors:" section in every run
+  |       shape (#240),
   |     classifies (RunShape, RunOutcome), assembles
   |     DispatchInputs, and calls dispatch(inputs, opts) for the
   |     agent-mode stdout entry. Adds a github-summary RenderedOutput
@@ -340,6 +350,7 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
   `StdioServerTransport`, so tool / prompt surfaces are registered as one
   unit.
 - `run_tests` runs Vitest in-process via `createVitest` (from `vitest/node`) with a per-call timeout — it awaits `localVitest.start(...)` and reads results (including `state.getFiles()`) before returning. The in-process run blocks the long-lived stdio server for its duration, which is acceptable because agents wait for results before proceeding.
+- After the run, `state.getFiles()` is walked by `collectConsoleLeakEntries` → `buildConsoleLeaks` and the result attached as `report.consoleLeaks` when any `console.*` output was captured. Each entry is attributed to its owning task's `result.state`; only non-failing-test output counts toward `total` / `byFile`, and failing-test output lands in `fromFailingTests`. The text summary warns only on `total > 0` (issue #263; see [./decisions.md](./decisions.md) Decision 57).
 - The Vitest root for the call is resolved first: a supplied `projectRoot` is validated then used verbatim, and an unsupplied one anchors at the directory of the config Vitest would load (issue #259). `vitest/node` is then resolved *from that root* rather than from the bare specifier, so the run drives the same physical vitest copy the project's test files import (issue #303). See [./components/mcp.md](./components/mcp.md) and [./decisions.md](./decisions.md) Decisions 55 and 56.
 - Loading `vitest.config.ts` re-runs `AgentPlugin.discover()` → `discoverProjects()`. In the long-lived MCP process that reused a stale cache before issue #100; the cache is now invalidated by a per-package `src/` + `__test__/` directory signature, so a test-file add/remove/move triggers a rescan. Each real scan writes an ISO timestamp to the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global slot, which the tool reads back into the `RunTestsOk.discoveryLastScannedAt` field (a cross-package handshake avoiding a circular plugin import — see [./decisions.md](./decisions.md) Decision 43).
 
