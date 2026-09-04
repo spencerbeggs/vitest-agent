@@ -6,7 +6,7 @@ import { DataReaderLive, DataStoreLive, DataStore as DataStoreTag, migration0001
 import { Effect, Layer } from "effect";
 import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
-import { recordTddArtifactEffect } from "../src/lib/record-tdd-artifact.js";
+import { recordTddArtifactByTaskIdEffect, recordTddArtifactEffect } from "../src/lib/record-tdd-artifact.js";
 
 const PlatformLayer = NodeServices.layer;
 
@@ -258,5 +258,85 @@ describe("recordTddArtifactEffect", () => {
 		);
 		expect(result.id).toBeGreaterThan(0);
 		expect(result.phaseId).toBeGreaterThan(0);
+	});
+});
+
+describe("recordTddArtifactByTaskIdEffect (issue #144 escape hatch)", () => {
+	it("writes an artifact under the given task's current open phase, bypassing session resolution entirely", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const ds = yield* DataStoreTag;
+				const sessionId = yield* ds.writeSession({
+					chatId: "cc-task-id-hatch",
+					project: "demo",
+					cwd: "/tmp/demo",
+					agentKind: "subagent",
+					startedAt: "2026-04-29T00:00:00Z",
+				});
+				const tddId = yield* ds.writeTddTask({
+					sessionId,
+					goal: "g",
+					startedAt: "2026-04-29T00:00:01Z",
+				});
+				yield* ds.writeTddPhase({
+					tddTaskId: tddId,
+					phase: "red",
+					startedAt: "2026-04-29T00:00:02Z",
+				});
+
+				return yield* recordTddArtifactByTaskIdEffect({
+					tddTaskId: tddId,
+					artifactKind: "test_written",
+					recordedAt: "2026-04-29T00:00:03Z",
+				});
+			}),
+		);
+		expect(result.id).toBeGreaterThan(0);
+		expect(result.phaseId).toBeGreaterThan(0);
+	});
+
+	it("fails clearly when the task does not exist", async () => {
+		const exit = await Effect.runPromiseExit(
+			Effect.provide(
+				recordTddArtifactByTaskIdEffect({
+					tddTaskId: 999999,
+					artifactKind: "code_written",
+					recordedAt: "2026-04-29T00:00:01Z",
+				}),
+				buildLive(),
+			),
+		);
+		expect(exit._tag).toBe("Failure");
+	});
+
+	it("fails clearly when the task is already ended", async () => {
+		const exit = await Effect.runPromiseExit(
+			Effect.provide(
+				Effect.gen(function* () {
+					const ds = yield* DataStoreTag;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-task-id-ended",
+						project: "demo",
+						cwd: "/tmp/demo",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const tddId = yield* ds.writeTddTask({
+						sessionId,
+						goal: "g",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+					yield* ds.endTddTask({ id: tddId, outcome: "succeeded", endedAt: "2026-04-29T00:00:02Z" });
+
+					return yield* recordTddArtifactByTaskIdEffect({
+						tddTaskId: tddId,
+						artifactKind: "code_written",
+						recordedAt: "2026-04-29T00:00:03Z",
+					});
+				}),
+				buildLive(),
+			),
+		);
+		expect(exit._tag).toBe("Failure");
 	});
 });

@@ -41,12 +41,54 @@ export interface RecordTddArtifactResult {
 	readonly phaseId: number;
 }
 
+/**
+ * Resolve (auto-opening a `spike` phase if needed) the current open
+ * phase for `tddTaskId`, then write the artifact under it. Shared by
+ * both `recordTddArtifactEffect` (chat-id → session → task resolution)
+ * and `recordTddArtifactByTaskIdEffect` (explicit task-id escape hatch).
+ */
+const writeArtifactUnderOpenPhase = (
+	tddTaskId: number,
+	input: Pick<
+		RecordTddArtifactInput,
+		"artifactKind" | "fileId" | "testCaseId" | "testRunId" | "testFirstFailureRunId" | "diffExcerpt" | "recordedAt"
+	>,
+): Effect.Effect<RecordTddArtifactResult, DataStoreError, DataReader | DataStore> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const store = yield* DataStore;
+
+		const phaseOpt = yield* reader.getCurrentTddPhase(tddTaskId);
+		const phaseId = Option.isSome(phaseOpt)
+			? phaseOpt.value.id
+			: (yield* store.writeTddPhase({
+					tddTaskId,
+					phase: "spike",
+					startedAt: input.recordedAt,
+					transitionReason: "auto-opened by record tdd-artifact (no prior phase)",
+				})).id;
+
+		const id = yield* store.writeTddArtifact({
+			phaseId,
+			artifactKind: input.artifactKind,
+			...(input.fileId !== undefined && { fileId: input.fileId }),
+			...(input.testCaseId !== undefined && { testCaseId: input.testCaseId }),
+			...(input.testRunId !== undefined && { testRunId: input.testRunId }),
+			...(input.testFirstFailureRunId !== undefined && {
+				testFirstFailureRunId: input.testFirstFailureRunId,
+			}),
+			...(input.diffExcerpt !== undefined && { diffExcerpt: input.diffExcerpt }),
+			recordedAt: input.recordedAt,
+		});
+
+		return { id, phaseId };
+	});
+
 export const recordTddArtifactEffect = (
 	input: RecordTddArtifactInput,
 ): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore> =>
 	Effect.gen(function* () {
 		const reader = yield* DataReader;
-		const store = yield* DataStore;
 
 		const session = yield* resolveSessionForRecording({
 			chatId: input.chatId,
@@ -86,28 +128,45 @@ export const recordTddArtifactEffect = (
 		// accepted by the validator unconditionally, so this matches
 		// what the orchestrator would have done as its first formal
 		// transition once the cycle is running.
-		const phaseOpt = yield* reader.getCurrentTddPhase(openTdd.id);
-		const phaseId = Option.isSome(phaseOpt)
-			? phaseOpt.value.id
-			: (yield* store.writeTddPhase({
-					tddTaskId: openTdd.id,
-					phase: "spike",
-					startedAt: input.recordedAt,
-					transitionReason: "auto-opened by record tdd-artifact (no prior phase)",
-				})).id;
+		return yield* writeArtifactUnderOpenPhase(openTdd.id, input);
+	});
 
-		const id = yield* store.writeTddArtifact({
-			phaseId,
-			artifactKind: input.artifactKind,
-			...(input.fileId !== undefined && { fileId: input.fileId }),
-			...(input.testCaseId !== undefined && { testCaseId: input.testCaseId }),
-			...(input.testRunId !== undefined && { testRunId: input.testRunId }),
-			...(input.testFirstFailureRunId !== undefined && {
-				testFirstFailureRunId: input.testFirstFailureRunId,
-			}),
-			...(input.diffExcerpt !== undefined && { diffExcerpt: input.diffExcerpt }),
-			recordedAt: input.recordedAt,
-		});
+export interface RecordTddArtifactByTaskIdInput {
+	readonly tddTaskId: number;
+	readonly artifactKind: ArtifactKind;
+	readonly fileId?: number;
+	readonly testCaseId?: number;
+	readonly testRunId?: number;
+	readonly testFirstFailureRunId?: number;
+	readonly diffExcerpt?: string;
+	readonly recordedAt: string;
+}
 
-		return { id, phaseId };
+/**
+ * Explicit task-id escape hatch (issue #144). Bypasses `chat_id` →
+ * session → task resolution entirely — the caller already knows which
+ * TDD task the artifact belongs to (e.g. a hook seeded with
+ * `VITEST_AGENT_TDD_TASK_ID` in a detached-session environment where
+ * neither the parent walk nor the conversation-id fallback resolves
+ * the right task). Fails loudly when the task does not exist or has
+ * already ended — writing to a closed task's phase would silently
+ * corrupt the evidence trail.
+ */
+export const recordTddArtifactByTaskIdEffect = (
+	input: RecordTddArtifactByTaskIdInput,
+): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+
+		const taskOpt = yield* reader.getTddTaskById(input.tddTaskId);
+		if (Option.isNone(taskOpt)) {
+			return yield* Effect.fail(new Error(`No TDD task found for id ${input.tddTaskId}.`));
+		}
+		if (taskOpt.value.endedAt !== null) {
+			return yield* Effect.fail(
+				new Error(`TDD task ${input.tddTaskId} has already ended (endedAt=${taskOpt.value.endedAt}).`),
+			);
+		}
+
+		return yield* writeArtifactUnderOpenPhase(input.tddTaskId, input);
 	});
