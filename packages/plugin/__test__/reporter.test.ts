@@ -1032,4 +1032,24 @@ describe("AgentReporter", () => {
 			expect(errRows[0].signature_hash).toBe(sigRows[0].signature_hash);
 		});
 	});
+
+	describe("scoped/partial run coverage (issue #160)", () => {
+		it("persists scoped=true on the test_runs row when vitest.filenamePattern indicates a partial run", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			// A partial run: an explicit file filter set vitest.filenamePattern.
+			reporter._vitest = { config: {}, version: "test", filenamePattern: ["src/foo.test.ts"] };
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(1);
+		});
+	});
 });
