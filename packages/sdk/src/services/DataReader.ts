@@ -135,6 +135,8 @@ export interface SessionDetail {
 	readonly startedAt: string;
 	readonly endedAt: string | null;
 	readonly endReason: string | null;
+	/** Canonical conversation UUID this session belongs to (issue #144), null when unset. */
+	readonly conversationId: string | null;
 }
 /** @public */
 export interface TurnSummary {

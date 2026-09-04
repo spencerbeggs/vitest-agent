@@ -1869,6 +1869,51 @@ describe("DataReaderLive", () => {
 		});
 	});
 
+	describe("writeSession conversationId round-trip (issue #144)", () => {
+		it("persists an optional conversationId at INSERT time so getSessionById round-trips it", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-conv-roundtrip",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId: "11111111-1111-1111-1111-111111111111",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					return yield* dr.getSessionById(sessionId);
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			if (Option.isSome(result)) {
+				expect(result.value.conversationId).toBe("11111111-1111-1111-1111-111111111111");
+			}
+		});
+
+		it("leaves conversationId null when omitted", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-conv-omitted",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					return yield* dr.getSessionById(sessionId);
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			if (Option.isSome(result)) {
+				expect(result.value.conversationId).toBeNull();
+			}
+		});
+	});
+
 	describe("findActiveSubagentSession", () => {
 		it("returns the most recent un-ended subagent child of the parent", async () => {
 			const result = await run(

@@ -1503,6 +1503,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			started_at: string;
 			ended_at: string | null;
 			end_reason: string | null;
+			conversation_id: string | null;
 		}
 
 		const sessionRowToDetail = (r: SessionRow): SessionDetail => ({
@@ -1517,13 +1518,14 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			startedAt: r.started_at,
 			endedAt: r.ended_at,
 			endReason: r.end_reason,
+			conversationId: r.conversation_id,
 		});
 
 		const getSessionById = (id: number): Effect.Effect<Option.Option<SessionDetail>, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getSessionById").pipe(Effect.annotateLogs({ id }));
 				const rows =
-					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE id = ${id} LIMIT 1`;
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason, conversation_id FROM sessions WHERE id = ${id} LIMIT 1`;
 				if (rows.length === 0) return Option.none<SessionDetail>();
 				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
 			}).pipe(
@@ -1537,7 +1539,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getSessionByChatId").pipe(Effect.annotateLogs({ chatId }));
 				const rows =
-					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE chat_id = ${chatId} LIMIT 1`;
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason, conversation_id FROM sessions WHERE chat_id = ${chatId} LIMIT 1`;
 				if (rows.length === 0) return Option.none<SessionDetail>();
 				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
 			}).pipe(
@@ -1552,7 +1554,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				yield* Effect.logDebug("findSessionsByChatPrefix").pipe(Effect.annotateLogs({ prefix }));
 				const pattern = `${prefix}%`;
 				const rows =
-					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE chat_id LIKE ${pattern} ESCAPE '\\' ORDER BY started_at DESC`;
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason, conversation_id FROM sessions WHERE chat_id LIKE ${pattern} ESCAPE '\\' ORDER BY started_at DESC`;
 				return rows.map(sessionRowToDetail);
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
@@ -1567,7 +1569,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			Effect.gen(function* () {
 				yield* Effect.logDebug("findActiveSubagentSession").pipe(Effect.annotateLogs({ parentSessionId }));
 				const rows =
-					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE parent_session_id = ${parentSessionId} AND agent_kind = 'subagent' AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1`;
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason, conversation_id FROM sessions WHERE parent_session_id = ${parentSessionId} AND agent_kind = 'subagent' AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1`;
 				if (rows.length === 0) return Option.none<SessionDetail>();
 				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
 			}).pipe(
@@ -1581,7 +1583,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			Effect.gen(function* () {
 				yield* Effect.logDebug("getSessionByTddTaskId").pipe(Effect.annotateLogs({ tddTaskId }));
 				const rows =
-					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason FROM sessions WHERE id = (SELECT session_id FROM tdd_tasks WHERE id = ${tddTaskId}) LIMIT 1`;
+					yield* sql<SessionRow>`SELECT id, chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason, conversation_id FROM sessions WHERE id = (SELECT session_id FROM tdd_tasks WHERE id = ${tddTaskId}) LIMIT 1`;
 				if (rows.length === 0) return Option.none<SessionDetail>();
 				return Option.some<SessionDetail>(sessionRowToDetail(rows[0]));
 			}).pipe(
@@ -1763,7 +1765,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				const agentKind = options.agentKind ?? null;
 				const rows = yield* sql<SessionRow>`
 					SELECT id, chat_id, project, cwd, agent_kind, agent_type,
-						parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason
+						parent_session_id, triage_was_non_empty, started_at, ended_at, end_reason, conversation_id
 					FROM sessions
 					WHERE (${project} IS NULL OR project = ${project})
 						AND (${agentKind} IS NULL OR agent_kind = ${agentKind})

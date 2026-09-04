@@ -241,6 +241,13 @@ export interface SessionInput {
 	readonly parentSessionId?: number;
 	readonly triageWasNonEmpty?: boolean;
 	readonly startedAt: string;
+	/**
+	 * Canonical conversation UUID this session belongs to (issue #144).
+	 * Set once at INSERT time — `sessions.conversation_id` is immutable
+	 * thereafter (see the `trg_sessions_conv_id_immutable` trigger), so
+	 * omit it here rather than trying to backfill via an update.
+	 */
+	readonly conversationId?: string;
 }
 /** @public */
 export interface TurnInput {

@@ -521,7 +521,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		const writeSession = (input: SessionInput): Effect.Effect<number, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeSession").pipe(Effect.annotateLogs({ chatId: input.chatId }));
-				yield* sql`INSERT INTO sessions (chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at) VALUES (${input.chatId}, ${input.project}, ${input.cwd}, ${input.agentKind}, ${input.agentType ?? null}, ${input.parentSessionId ?? null}, ${boolToInt(input.triageWasNonEmpty) ?? 0}, ${input.startedAt})`;
+				yield* sql`INSERT INTO sessions (chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, conversation_id) VALUES (${input.chatId}, ${input.project}, ${input.cwd}, ${input.agentKind}, ${input.agentType ?? null}, ${input.parentSessionId ?? null}, ${boolToInt(input.triageWasNonEmpty) ?? 0}, ${input.startedAt}, ${input.conversationId ?? null})`;
 				const rows = yield* sql<{ id: number }>`SELECT id FROM sessions WHERE chat_id = ${input.chatId}`;
 				return rows[0].id;
 			}).pipe(
@@ -534,7 +534,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		const upsertSession = (input: SessionInput): Effect.Effect<number, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("upsertSession").pipe(Effect.annotateLogs({ chatId: input.chatId }));
-				yield* sql`INSERT INTO sessions (chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at) VALUES (${input.chatId}, ${input.project}, ${input.cwd}, ${input.agentKind}, ${input.agentType ?? null}, ${input.parentSessionId ?? null}, ${boolToInt(input.triageWasNonEmpty) ?? 0}, ${input.startedAt}) ON CONFLICT(chat_id) DO NOTHING`;
+				yield* sql`INSERT INTO sessions (chat_id, project, cwd, agent_kind, agent_type, parent_session_id, triage_was_non_empty, started_at, conversation_id) VALUES (${input.chatId}, ${input.project}, ${input.cwd}, ${input.agentKind}, ${input.agentType ?? null}, ${input.parentSessionId ?? null}, ${boolToInt(input.triageWasNonEmpty) ?? 0}, ${input.startedAt}, ${input.conversationId ?? null}) ON CONFLICT(chat_id) DO NOTHING`;
 				const rows = yield* sql<{ id: number }>`SELECT id FROM sessions WHERE chat_id = ${input.chatId}`;
 				return rows[0].id;
 			}).pipe(
