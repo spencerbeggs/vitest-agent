@@ -25,6 +25,17 @@ _HOOK="pre-tool-use-test-location"
 # shellcheck source=../lib/hook-debug.sh
 . "$(dirname "$0")/../lib/hook-debug.sh"
 
+# Opt-out. Checked before anything else — including reading stdin — so a
+# consumer who hits a wrong deny (custom DiscoverStrategy the CLI's lexical
+# detector missed, or any other false positive) can disable the hook entirely
+# without touching hooks.json.
+case "${VITEST_AGENT_TEST_LOCATION_HOOK:-}" in
+	off | 0 | false)
+		emit_noop
+		exit 0
+		;;
+esac
+
 hook_json=$(cat)
 
 tool_name=$(echo "$hook_json" | jq -r '.tool_name // ""' 2>/dev/null || echo "")

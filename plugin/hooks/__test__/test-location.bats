@@ -15,6 +15,7 @@ setup() {
 teardown() {
 	rm -rf "$STUB_DIR"
 	unset VITEST_AGENT_CLI_CMD
+	unset VITEST_AGENT_TEST_LOCATION_HOOK
 }
 
 # Point the hook at a fake CLI emitting $1 on stdout and exiting $2.
@@ -190,4 +191,41 @@ EOF
 	run _run_hook '{"tool_name":"Write","tool_input":{}}'
 	[ "$status" -eq 0 ]
 	[[ "$output" == *'"suppressOutput": true'* ]]
+}
+
+@test "opts out via VITEST_AGENT_TEST_LOCATION_HOOK=off without invoking the CLI" {
+	# The stub would deny if invoked at all — a passing result here proves the
+	# opt-out short-circuits before the CLI is ever called.
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	export VITEST_AGENT_TEST_LOCATION_HOOK=off
+	run _run_hook '{"tool_name":"Write","tool_input":{"file_path":"/repo/lib/scripts/__test__/a.test.ts"}}'
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'"suppressOutput": true'* ]]
+	[[ "$output" != *"deny"* ]]
+}
+
+@test "opts out via VITEST_AGENT_TEST_LOCATION_HOOK=0" {
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	export VITEST_AGENT_TEST_LOCATION_HOOK=0
+	run _run_hook '{"tool_name":"Write","tool_input":{"file_path":"/repo/lib/scripts/__test__/a.test.ts"}}'
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'"suppressOutput": true'* ]]
+	[[ "$output" != *"deny"* ]]
+}
+
+@test "opts out via VITEST_AGENT_TEST_LOCATION_HOOK=false" {
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	export VITEST_AGENT_TEST_LOCATION_HOOK=false
+	run _run_hook '{"tool_name":"Write","tool_input":{"file_path":"/repo/lib/scripts/__test__/a.test.ts"}}'
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'"suppressOutput": true'* ]]
+	[[ "$output" != *"deny"* ]]
+}
+
+@test "does not opt out for an unrecognized VITEST_AGENT_TEST_LOCATION_HOOK value" {
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	export VITEST_AGENT_TEST_LOCATION_HOOK=nope
+	run _run_hook '{"tool_name":"Write","tool_input":{"file_path":"/repo/lib/scripts/__test__/a.test.ts"}}'
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'"permissionDecision": "deny"'* ]]
 }
