@@ -114,6 +114,48 @@ describe("StreamApp — workspace shape", () => {
 		expect(frame).toContain("AssertionError: expected x to be y");
 		cleanup();
 	});
+
+	it("renders an Unhandled errors block adjacent to the Failures section", () => {
+		const state = run([
+			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
+			{ _tag: "ModuleStarted", modulePath: "cli/a.test.ts", startedAt: STARTED, projectName: "cli" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "cli/a.test.ts",
+				passCount: 3,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 10,
+				projectName: "cli",
+			},
+			{ _tag: "ModuleStarted", modulePath: "sdk/b.test.ts", startedAt: STARTED, projectName: "sdk" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "sdk/b.test.ts",
+				passCount: 961,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 6200,
+				projectName: "sdk",
+			},
+			{
+				_tag: "RunFinished",
+				runId: "r",
+				finishedAt: STARTED,
+				passCount: 964,
+				failCount: 0,
+				skipCount: 0,
+				durationMs: 6210,
+				unhandledErrors: [{ message: "unhandled rejection: boom" }],
+			},
+		]);
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		expect(frame).toContain("Unhandled errors:");
+		expect(frame).toContain("unhandled rejection: boom");
+		cleanup();
+	});
 });
 
 describe("StreamApp — single-file shape", () => {

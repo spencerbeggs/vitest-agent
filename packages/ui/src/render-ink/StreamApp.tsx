@@ -26,7 +26,14 @@
  * shapes (`workspace`, `single-project`) render rows without inline errors.
  */
 
-import type { FailureRecord, ModuleRecord, ProjectSummary, RenderState, TestRecord } from "@vitest-agent/sdk";
+import type {
+	FailureRecord,
+	ModuleRecord,
+	ProjectSummary,
+	RenderState,
+	ReportError,
+	TestRecord,
+} from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC, ReactNode } from "react";
 import { classifyRunShape } from "../dispatcher/classify.js";
@@ -237,6 +244,20 @@ const InlineError: FC<{ failure: FailureRecord }> = ({ failure }) => {
 
 const failureKey = (f: FailureRecord): string => `failure:${f.modulePath}::${f.suitePath.join("/")}::${f.testName}`;
 
+/** A process-level unhandled error, rendered in the aggregate Unhandled errors block. */
+const UnhandledErrorItem: FC<{ error: ReportError }> = ({ error }) => (
+	<Box flexDirection="column">
+		<Text>
+			{"  "}
+			<Text color="red">✗</Text> unhandled error
+		</Text>
+		<Text dimColor>
+			{"      "}
+			{error.message.split("\n", 1)[0] ?? ""}
+		</Text>
+	</Box>
+);
+
 const testKey = (modulePath: string, t: TestRecord): string =>
 	`test:${modulePath}::${t.suitePath.join("/")}::${t.testName}`;
 
@@ -350,6 +371,20 @@ const liveRegion = (
 			</Box>
 		) : null;
 
+	// Unhandled errors section — shared across all non-single-test shapes,
+	// rendered adjacent to (immediately after) failuresSection. A
+	// process-level error has no owning module/test, so it cannot expand
+	// inline the way a leaf-shape failure does (issue #240).
+	const unhandledErrorsSection =
+		state.unhandledErrors.length > 0 ? (
+			<Box flexDirection="column">
+				<Text bold>Unhandled errors:</Text>
+				{state.unhandledErrors.map((err, i) => (
+					<UnhandledErrorItem key={`unhandled:${i}:${err.message}`} error={err} />
+				))}
+			</Box>
+		) : null;
+
 	// Summary artifacts — coverage, trend, total. Rendered when the run
 	// is terminal or when coverage/trend are already available.
 	const coverageItem = <CoverageItem state={state} />;
@@ -436,6 +471,7 @@ const liveRegion = (
 				{rows}
 				{runningOverflow > 0 ? <Text dimColor> … and {runningOverflow} more running</Text> : null}
 				{failuresSection}
+				{unhandledErrorsSection}
 				{coverageItem}
 				{trendItem}
 				{totalsItem(nameWidth + 4)}
@@ -491,6 +527,7 @@ const liveRegion = (
 				{rows}
 				{runningOverflow > 0 ? <Text dimColor> … and {runningOverflow} more running</Text> : null}
 				{failuresSection}
+				{unhandledErrorsSection}
 				{coverageItem}
 				{trendItem}
 				{totalsItem()}
