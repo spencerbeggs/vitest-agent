@@ -392,7 +392,17 @@ const renderCoverageSection = (
 	const thresholdSpec = agg.thresholdsGlobal ? formatTargetSpec(agg.thresholdsGlobal) : "";
 	const targetSpec = agg.targetsGlobal ? formatTargetSpec(agg.targetsGlobal) : "";
 
-	if (!agg.thresholdsMet) {
+	// Scoped/partial-run note (issue #160): Vitest enforces coverage
+	// thresholds against the whole-project denominator, so a run that only
+	// exercised a subset of test files has its threshold check suppressed
+	// upstream (reporter.ts). On a scoped run the pass/fail verdict below is
+	// exactly what should not be trusted (finding 2, PR #358), so skip all
+	// three verdict branches entirely and print only the scoped note in
+	// their place — never an unqualified "thresholds met"/"below
+	// thresholds" line against a denominator that doesn't apply.
+	if (agg.scoped) {
+		lines.push(formatScopedCoverageNote(agg.scopedFileCount, agg.totalFiles));
+	} else if (!agg.thresholdsMet) {
 		const cross = ansi("✗", "red", ao);
 		const fileWord = agg.belowThresholdCount === 1 ? "file" : "files";
 		lines.push(
@@ -419,15 +429,6 @@ const renderCoverageSection = (
 		} else {
 			lines.push(`Coverage: ${tick} minimum thresholds met${thresholdSpec ? ` (${thresholdSpec})` : ""}`);
 		}
-	}
-
-	// Scoped/partial-run note (issue #160): Vitest enforces coverage
-	// thresholds against the whole-project denominator, so a run that only
-	// exercised a subset of test files has its threshold check suppressed
-	// upstream (reporter.ts) — surface why here rather than silently
-	// showing an unqualified "thresholds met" line.
-	if (agg.scoped) {
-		lines.push(formatScopedCoverageNote(agg.scopedFileCount, agg.totalFiles));
 	}
 
 	// Trend line (separate from summary so it groups with coverage)
