@@ -68,4 +68,80 @@ describe("collectConsoleLeakEntries", () => {
 		];
 		expect(collectConsoleLeakEntries(files)[0]?.test).toBe("bare");
 	});
+
+	describe("failed attribution", () => {
+		it("marks an entry logged inside a failed test as failed: true", () => {
+			const files: ConsoleLeakTask[] = [
+				{
+					type: "suite",
+					name: "a.test.ts",
+					tasks: [
+						{
+							type: "test",
+							name: "boom",
+							result: { state: "fail" },
+							logs: [{ type: "stderr", content: "assertion failed" }],
+						},
+					],
+				},
+			];
+			expect(collectConsoleLeakEntries(files)[0]?.failed).toBe(true);
+		});
+
+		it("does not mark an entry logged inside a passing test as failed", () => {
+			const files: ConsoleLeakTask[] = [
+				{
+					type: "suite",
+					name: "a.test.ts",
+					tasks: [
+						{
+							type: "test",
+							name: "ok",
+							result: { state: "pass" },
+							logs: [{ type: "stdout", content: "debug" }],
+						},
+					],
+				},
+			];
+			expect(collectConsoleLeakEntries(files)[0]?.failed).toBeUndefined();
+		});
+
+		it("propagates a failed test's state to logs on nested descendant tasks", () => {
+			const files: ConsoleLeakTask[] = [
+				{
+					type: "suite",
+					name: "a.test.ts",
+					tasks: [
+						{
+							type: "test",
+							name: "boom",
+							result: { state: "fail" },
+							tasks: [{ logs: [{ type: "stdout", content: "nested" }] }],
+						},
+					],
+				},
+			];
+			expect(collectConsoleLeakEntries(files)[0]?.failed).toBe(true);
+		});
+
+		it("does not mark a file-level log (no owning test) as failed when the file itself did not fail to load", () => {
+			const files: ConsoleLeakTask[] = [
+				{ type: "suite", name: "a.test.ts", logs: [{ type: "stdout", content: "setup log" }], tasks: [] },
+			];
+			expect(collectConsoleLeakEntries(files)[0]?.failed).toBeUndefined();
+		});
+
+		it("marks a file-level log as failed when the module itself failed to load", () => {
+			const files: ConsoleLeakTask[] = [
+				{
+					type: "suite",
+					name: "a.test.ts",
+					result: { state: "fail" },
+					logs: [{ type: "stdout", content: "collection error" }],
+					tasks: [],
+				},
+			];
+			expect(collectConsoleLeakEntries(files)[0]?.failed).toBe(true);
+		});
+	});
 });

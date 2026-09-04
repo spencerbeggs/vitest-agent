@@ -14,6 +14,13 @@ export interface ConsoleLeakEntry {
 	readonly test?: string;
 	readonly type: "stdout" | "stderr";
 	readonly content: string;
+	/**
+	 * True when this write happened inside a test (or a suite/module) that did
+	 * not end in a passing state. Assertion-failure logging that routes through
+	 * `console.*` (common with logger-backed assertion libraries) sets this so
+	 * buildConsoleLeaks can keep it out of the actionable leak signal.
+	 */
+	readonly failed?: boolean;
 }
 
 interface FileAcc {
@@ -93,30 +100,50 @@ export interface ConsoleLeakTask {
 	readonly fullTestName?: string;
 	readonly logs?: ReadonlyArray<{ readonly type: "stdout" | "stderr"; readonly content: string }>;
 	readonly tasks?: ReadonlyArray<ConsoleLeakTask>;
+	/**
+	 * Vitest's own `TaskResult`, structurally narrowed to the one field this
+	 * util reads. `state` is `"pass" | "fail"` once the task has finished
+	 * running (still a `RunMode` value like `"run"`/`"skip"` beforehand).
+	 */
+	readonly result?: { readonly state?: string };
 }
 
 /**
  * Walk a Vitest `File[]` task tree (from `vitest.state.getFiles()`) into flat
  * {@link ConsoleLeakEntry} values. Each task `log` becomes one entry attributed
  * to its enclosing file and, when the log sits on a test task, that test's name.
+ * An entry is marked `failed: true` when it was logged inside a test whose own
+ * `result.state` is `"fail"`, or — for output with no owning test — when the
+ * enclosing file itself failed (e.g. a collection/load error).
  * @public
  */
 export function collectConsoleLeakEntries(files: ReadonlyArray<ConsoleLeakTask>): ConsoleLeakEntry[] {
 	const entries: ConsoleLeakEntry[] = [];
-	const visit = (task: ConsoleLeakTask, file: string, test: string | undefined): void => {
-		const currentTest = task.type === "test" ? (task.fullTestName ?? task.name ?? test) : test;
+	const visit = (
+		task: ConsoleLeakTask,
+		file: string,
+		test: string | undefined,
+		testFailed: boolean,
+		fileFailed: boolean,
+	): void => {
+		const isTest = task.type === "test";
+		const currentTest = isTest ? (task.fullTestName ?? task.name ?? test) : test;
+		const currentTestFailed = isTest ? task.result?.state === "fail" : testFailed;
 		for (const log of task.logs ?? []) {
+			const failed = currentTest !== undefined ? currentTestFailed : fileFailed;
 			entries.push({
 				file,
 				...(currentTest !== undefined ? { test: currentTest } : {}),
 				type: log.type,
 				content: log.content,
+				...(failed ? { failed: true } : {}),
 			});
 		}
-		for (const child of task.tasks ?? []) visit(child, file, currentTest);
+		for (const child of task.tasks ?? []) visit(child, file, currentTest, currentTestFailed, fileFailed);
 	};
 	for (const file of files) {
-		visit(file, file.name ?? "(unknown)", undefined);
+		const fileFailed = file.result?.state === "fail";
+		visit(file, file.name ?? "(unknown)", undefined, false, fileFailed);
 	}
 	return entries;
 }
