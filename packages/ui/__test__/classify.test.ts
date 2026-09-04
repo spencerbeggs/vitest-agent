@@ -145,6 +145,19 @@ describe("classifyOutcome", () => {
 		expect(classifyOutcome(state)).toBe("some-fail");
 	});
 
+	it("returns some-fail for an unhandled-errors-only run instead of all-pass", () => {
+		// All counts are zero but a process-level unhandled error was
+		// captured (issue #240). A green-looking count must not classify
+		// as all-pass when an unhandled error hid behind it.
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 0, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 5000 },
+			unhandledErrors: [{ message: "unhandled rejection: boom" }],
+		};
+		expect(classifyOutcome(state)).toBe("some-fail");
+	});
+
 	it("returns all-pass when coverage block is present but has no violations", () => {
 		const state: RenderState = {
 			...initialRenderState,
