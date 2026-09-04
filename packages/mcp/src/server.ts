@@ -489,9 +489,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"inventory",
 		{
 			description:
-				"Use to discover what exists in the workspace, with a kind discriminator: project / module / suite / session. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list) so callers can branch on the response shape without parsing markdown.",
+				"Use to discover what exists in the workspace, with a kind discriminator: project / module / suite / session / tag. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list, tag_scoped, tag_unscoped) so callers can branch on the response shape without parsing markdown.",
 			inputSchema: strict({
-				kind: z.enum(["project", "module", "suite", "session"]).describe("Inventory entity"),
+				kind: z.enum(["project", "module", "suite", "session", "tag"]).describe("Inventory entity"),
 				id: z.optional(z.coerce.number()).describe("session: single-row lookup by id"),
 				project: z.optional(z.string()),
 				module: z.optional(z.string()).describe("suite: filter by module path"),
@@ -515,13 +515,18 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					...(args.project !== undefined && { project: args.project }),
 					...(args.module !== undefined && { module: args.module }),
 				});
-			} else {
+			} else if (args.kind === "session") {
 				data = await caller.inventory({
 					kind: "session",
 					...(args.id !== undefined && { id: args.id }),
 					...(args.project !== undefined && { project: args.project }),
 					...(args.agentKind !== undefined && { agentKind: args.agentKind }),
 					...(args.limit !== undefined && { limit: args.limit }),
+				});
+			} else {
+				data = await caller.inventory({
+					kind: "tag",
+					...(args.project !== undefined && { project: args.project }),
 				});
 			}
 			const text = Schema.decodeSync(InventoryAsMarkdown)(data);
