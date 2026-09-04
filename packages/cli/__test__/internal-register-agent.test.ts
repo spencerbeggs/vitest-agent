@@ -10,7 +10,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
-import type { PerClientSessionMapWriter, RunContextService } from "@vitest-agent/sdk";
 import {
 	AgentContext,
 	DataReader,
@@ -24,7 +23,6 @@ import {
 	sessionMapMigration0001,
 } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
-import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { registerAgentEffect } from "../src/lib/internal-register-agent.js";
 
@@ -68,9 +66,7 @@ const buildLive = () => {
 	);
 };
 
-type TestServices = DataReader | DataStore | SqlClient | PerClientSessionMapWriter | RunContextService;
-
-const run = <A, E>(effect: Effect.Effect<A, E, TestServices>, layer: Layer.Layer<TestServices, never, never>) =>
+const run = <A, E, R, LE>(effect: Effect.Effect<A, E, R>, layer: Layer.Layer<R, LE, never>) =>
 	Effect.runPromise(Effect.provide(effect, layer));
 
 describe("registerAgentEffect populates sessions.conversation_id (issue #144)", () => {
