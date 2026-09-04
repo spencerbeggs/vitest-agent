@@ -40,15 +40,28 @@ function truncateSample(content: string): string {
  * Aggregate raw console-leak entries into a ConsoleLeaks signal:
  * bucket by file, split stdout/stderr, collect attributable test names,
  * capture one truncated sample per file, sort by total writes descending,
- * and cap the file list. Returns `undefined` when there are no entries so a
- * clean run attaches nothing.
+ * and cap the file list. Entries logged inside a failing test (`failed:
+ * true`) are excluded from `total`/`byFile` — the actionable leak signal —
+ * and summarized instead in `fromFailingTests` (issue #263: a logger-backed
+ * assertion failure otherwise makes every red run look like a leak). Returns
+ * `undefined` only when there is no output at all, non-failing or failing.
  * @public
  */
 export function buildConsoleLeaks(entries: ReadonlyArray<ConsoleLeakEntry>): ConsoleLeaks | undefined {
 	if (entries.length === 0) return undefined;
 
+	const nonFailing = entries.filter((e) => e.failed !== true);
+	const failing = entries.filter((e) => e.failed === true);
+
+	const fromFailingTests =
+		failing.length > 0 ? { total: failing.length, files: new Set(failing.map((e) => e.file)).size } : undefined;
+
+	if (nonFailing.length === 0) {
+		return { total: 0, byFile: [], ...(fromFailingTests !== undefined ? { fromFailingTests } : {}) };
+	}
+
 	const byFile = new Map<string, FileAcc>();
-	for (const e of entries) {
+	for (const e of nonFailing) {
 		let acc = byFile.get(e.file);
 		if (acc === undefined) {
 			acc = { stdout: 0, stderr: 0, tests: new Set() };
@@ -80,9 +93,10 @@ export function buildConsoleLeaks(entries: ReadonlyArray<ConsoleLeakEntry>): Con
 
 	const truncated = files.length > MAX_FILES;
 	return {
-		total: entries.length,
+		total: nonFailing.length,
 		byFile: truncated ? files.slice(0, MAX_FILES) : files,
 		...(truncated ? { truncated: true } : {}),
+		...(fromFailingTests !== undefined ? { fromFailingTests } : {}),
 	};
 }
 

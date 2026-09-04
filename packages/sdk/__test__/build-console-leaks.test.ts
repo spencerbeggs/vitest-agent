@@ -75,4 +75,37 @@ describe("buildConsoleLeaks", () => {
 		const leaks = buildConsoleLeaks([entry({ file: "a.test.ts", content: "   " })]);
 		expect(leaks?.byFile[0].sample).toBeUndefined();
 	});
+
+	describe("partitioning by test outcome (issue #263)", () => {
+		it("excludes failing-test entries from total and byFile", () => {
+			const leaks = buildConsoleLeaks([
+				entry({ file: "a.test.ts", test: "passing", type: "stdout" }),
+				entry({ file: "a.test.ts", test: "failing", type: "stdout", failed: true }),
+			]);
+			expect(leaks?.total).toBe(1);
+			expect(leaks?.byFile).toHaveLength(1);
+			expect(leaks?.byFile[0]).toMatchObject({ file: "a.test.ts", stdout: 1, tests: ["passing"] });
+		});
+
+		it("summarizes failing-test entries in a separate fromFailingTests bucket", () => {
+			const leaks = buildConsoleLeaks([
+				entry({ file: "a.test.ts", test: "passing", type: "stdout" }),
+				entry({ file: "a.test.ts", test: "failing", type: "stdout", failed: true }),
+				entry({ file: "b.test.ts", test: "also failing", type: "stderr", failed: true }),
+			]);
+			expect(leaks?.fromFailingTests).toEqual({ total: 2, files: 2 });
+		});
+
+		it("returns undefined when there are only-failing entries mixed with zero non-failing AND zero failing (empty input)", () => {
+			expect(buildConsoleLeaks([])).toBeUndefined();
+		});
+
+		it("returns total:0, empty byFile, and a populated fromFailingTests when only failing-test output exists", () => {
+			const leaks = buildConsoleLeaks([entry({ file: "a.test.ts", test: "failing", type: "stdout", failed: true })]);
+			expect(leaks).toBeDefined();
+			expect(leaks?.total).toBe(0);
+			expect(leaks?.byFile).toEqual([]);
+			expect(leaks?.fromFailingTests).toEqual({ total: 1, files: 1 });
+		});
+	});
 });
