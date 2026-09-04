@@ -50,6 +50,12 @@ export const CoverageReport = Schema.Struct({
 	),
 	scoped: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
 	scopedFiles: Schema.optional(Schema.Array(Schema.String)),
+	// Issue #160 gap 1: total test-file count for the project, known only
+	// when the caller supplies it (the reporter has it via a fresh
+	// `globTestSpecifications()` count; nothing else in this report can
+	// derive it). Lets the scoped-coverage note render "N of M" instead of
+	// just "N" test files.
+	totalFiles: Schema.optional(Schema.Number),
 	lowCoverage: Schema.Array(FileCoverageReport),
 	lowCoverageFiles: Schema.Array(Schema.String),
 	belowTarget: Schema.optional(Schema.Array(FileCoverageReport)),

@@ -232,7 +232,7 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 		// suppressed upstream (reporter.ts) — surface why here rather than
 		// silently omitting any coverage verdict.
 		if (cov.scoped) {
-			lines.push(formatScopedCoverageNote(cov.scopedFiles?.length ?? 0));
+			lines.push(formatScopedCoverageNote(cov.scopedFiles?.length ?? 0, cov.totalFiles));
 			lines.push("");
 		}
 		const filesToShow = cov.lowCoverage.slice(0, coverageConsoleLimit);

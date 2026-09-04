@@ -1572,6 +1572,9 @@ export class AgentReporter {
 				includeBareZero: opts.includeBareZero,
 				...(opts.coverageTargets ? { targets: opts.coverageTargets } : {}),
 				...(baselines ? { baselines } : {}),
+				// Issue #160 gap 1: thread the real spec-count total onto a
+				// scoped run's CoverageReport so the note can render "N of M".
+				...(isPartial ? { totalFiles: totalSpecCount } : {}),
 			} as const;
 			const coverageResult =
 				stashedCoverage && isFirstProject

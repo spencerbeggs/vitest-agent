@@ -310,12 +310,14 @@ const aggregateCoverage = (
 	targetsGlobal?: MetricThresholds;
 	scoped: boolean;
 	scopedFileCount: number;
+	totalFiles?: number;
 } => {
 	let hasCoverage = false;
 	let thresholdsGlobal: MetricThresholds | undefined;
 	let targetsGlobal: MetricThresholds | undefined;
 	let scoped = false;
 	let scopedFileCount = 0;
+	let totalFiles: number | undefined;
 	// Coverage data is global, not per-project: the istanbul CoverageMap
 	// is processed once and the resulting CoverageReport is attached to
 	// every project's report. Naively concatenating across reports
@@ -333,6 +335,7 @@ const aggregateCoverage = (
 		if (cov.scoped) {
 			scoped = true;
 			scopedFileCount = Math.max(scopedFileCount, cov.scopedFiles?.length ?? 0);
+			if (cov.totalFiles !== undefined) totalFiles = cov.totalFiles;
 		}
 		if (cov.lowCoverage) {
 			for (const f of cov.lowCoverage) {
@@ -356,6 +359,7 @@ const aggregateCoverage = (
 		scopedFileCount,
 		...(thresholdsGlobal !== undefined ? { thresholdsGlobal } : {}),
 		...(targetsGlobal !== undefined ? { targetsGlobal } : {}),
+		...(totalFiles !== undefined ? { totalFiles } : {}),
 	};
 };
 
@@ -423,7 +427,7 @@ const renderCoverageSection = (
 	// upstream (reporter.ts) — surface why here rather than silently
 	// showing an unqualified "thresholds met" line.
 	if (agg.scoped) {
-		lines.push(formatScopedCoverageNote(agg.scopedFileCount));
+		lines.push(formatScopedCoverageNote(agg.scopedFileCount, agg.totalFiles));
 	}
 
 	// Trend line (separate from summary so it groups with coverage)
