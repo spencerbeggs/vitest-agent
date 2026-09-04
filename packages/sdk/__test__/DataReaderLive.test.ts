@@ -1959,6 +1959,81 @@ describe("DataReaderLive", () => {
 			expect(result.viaParentWalk).toHaveLength(0);
 			expect(result.viaConversationWalk.map((t) => t.id)).toContain(result.openTddTaskId);
 		});
+
+		it("does not resolve a task from a session with a different conversation_id", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+
+					const mainSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-other-main",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId: "33333333-3333-3333-3333-333333333333",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.writeTddTask({
+						sessionId: mainSessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+
+					const otherConversationSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-other-detached",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						conversationId: "44444444-4444-4444-4444-444444444444",
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					return yield* dr.listTddTasksForSession(otherConversationSessionId, {
+						walkParents: true,
+						walkConversation: true,
+					});
+				}),
+			);
+			expect(result).toHaveLength(0);
+		});
+
+		it("never falls back when the session's conversation_id is null", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+
+					const mainSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-null-main",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId: "55555555-5555-5555-5555-555555555555",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.writeTddTask({
+						sessionId: mainSessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+
+					const noConversationSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-null-detached",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					return yield* dr.listTddTasksForSession(noConversationSessionId, {
+						walkParents: true,
+						walkConversation: true,
+					});
+				}),
+			);
+			expect(result).toHaveLength(0);
+		});
 	});
 
 	describe("findActiveSubagentSession", () => {
