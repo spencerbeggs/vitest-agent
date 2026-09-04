@@ -13,7 +13,7 @@ import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { recordSessionEnd, recordSessionStart } from "../lib/record-session.js";
-import { recordTddArtifactEffect } from "../lib/record-tdd-artifact.js";
+import { dispatchRecordTddArtifactEffect } from "../lib/record-tdd-artifact.js";
 import { recordTurnEffect } from "../lib/record-turn.js";
 import { recordRunWorkspaceChangesEffect } from "../lib/record-workspace-changes.js";
 
@@ -129,11 +129,20 @@ const testRunIdOpt = Flag.optional(Flag.integer("test-run-id"));
 const testFirstFailureRunIdOpt = Flag.optional(Flag.integer("test-first-failure-run-id"));
 const diffExcerptOpt = Flag.optional(Flag.string("diff-excerpt"));
 const recordedAtOpt = Flag.string("recorded-at").pipe(Flag.withDefault(new Date().toISOString()));
+const chatIdOptional = Flag.optional(Flag.string("chat-id")).pipe(
+	Flag.withDescription("Host chat id; omit when --tdd-task-id is supplied instead"),
+);
+const tddTaskIdOpt = Flag.optional(Flag.integer("tdd-task-id")).pipe(
+	Flag.withDescription(
+		"Explicit TDD task id escape hatch (issue #144): bypasses chat-id -> session -> task resolution entirely",
+	),
+);
 
 const tddArtifactSubcommand = Command.make(
 	"tdd-artifact",
 	{
-		chatId,
+		chatId: chatIdOptional,
+		tddTaskId: tddTaskIdOpt,
 		project: projectOptional,
 		cwd: cwdOptional,
 		artifactKind: artifactKindOpt,
@@ -152,8 +161,9 @@ const tddArtifactSubcommand = Command.make(
 				const ds = yield* DataStore;
 				fileId = yield* ds.ensureFile(opts.filePath.value);
 			}
-			return yield* recordTddArtifactEffect({
-				chatId: opts.chatId,
+			return yield* dispatchRecordTddArtifactEffect({
+				...(opts.chatId._tag === "Some" && { chatId: opts.chatId.value }),
+				...(opts.tddTaskId._tag === "Some" && { tddTaskId: opts.tddTaskId.value }),
 				...(opts.project._tag === "Some" && { project: opts.project.value }),
 				...(opts.cwd._tag === "Some" && { cwd: opts.cwd.value }),
 				artifactKind: opts.artifactKind as ArtifactKind,

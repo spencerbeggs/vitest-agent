@@ -6,7 +6,11 @@ import { DataReaderLive, DataStoreLive, DataStore as DataStoreTag, migration0001
 import { Effect, Layer } from "effect";
 import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
-import { recordTddArtifactByTaskIdEffect, recordTddArtifactEffect } from "../src/lib/record-tdd-artifact.js";
+import {
+	dispatchRecordTddArtifactEffect,
+	recordTddArtifactByTaskIdEffect,
+	recordTddArtifactEffect,
+} from "../src/lib/record-tdd-artifact.js";
 
 const PlatformLayer = NodeServices.layer;
 
@@ -333,6 +337,77 @@ describe("recordTddArtifactByTaskIdEffect (issue #144 escape hatch)", () => {
 						artifactKind: "code_written",
 						recordedAt: "2026-04-29T00:00:03Z",
 					});
+				}),
+				buildLive(),
+			),
+		);
+		expect(exit._tag).toBe("Failure");
+	});
+});
+
+describe("dispatchRecordTddArtifactEffect (issue #144 CLI wiring)", () => {
+	it("routes to recordTddArtifactByTaskIdEffect when tddTaskId is provided, ignoring chatId", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const ds = yield* DataStoreTag;
+				const sessionId = yield* ds.writeSession({
+					chatId: "cc-dispatch-task-id",
+					project: "demo",
+					cwd: "/tmp/demo",
+					agentKind: "subagent",
+					startedAt: "2026-04-29T00:00:00Z",
+				});
+				const tddId = yield* ds.writeTddTask({
+					sessionId,
+					goal: "g",
+					startedAt: "2026-04-29T00:00:01Z",
+				});
+				yield* ds.writeTddPhase({ tddTaskId: tddId, phase: "red", startedAt: "2026-04-29T00:00:02Z" });
+
+				return yield* dispatchRecordTddArtifactEffect({
+					tddTaskId: tddId,
+					artifactKind: "test_written",
+					recordedAt: "2026-04-29T00:00:03Z",
+				});
+			}),
+		);
+		expect(result.id).toBeGreaterThan(0);
+	});
+
+	it("routes to recordTddArtifactEffect when only chatId is provided", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const ds = yield* DataStoreTag;
+				const sessionId = yield* ds.writeSession({
+					chatId: "cc-dispatch-chat-id",
+					project: "demo",
+					cwd: "/tmp/demo",
+					agentKind: "subagent",
+					startedAt: "2026-04-29T00:00:00Z",
+				});
+				const tddId = yield* ds.writeTddTask({
+					sessionId,
+					goal: "g",
+					startedAt: "2026-04-29T00:00:01Z",
+				});
+				yield* ds.writeTddPhase({ tddTaskId: tddId, phase: "red", startedAt: "2026-04-29T00:00:02Z" });
+
+				return yield* dispatchRecordTddArtifactEffect({
+					chatId: "cc-dispatch-chat-id",
+					artifactKind: "test_written",
+					recordedAt: "2026-04-29T00:00:03Z",
+				});
+			}),
+		);
+		expect(result.id).toBeGreaterThan(0);
+	});
+
+	it("fails clearly when neither chatId nor tddTaskId is provided", async () => {
+		const exit = await Effect.runPromiseExit(
+			Effect.provide(
+				dispatchRecordTddArtifactEffect({
+					artifactKind: "code_written",
+					recordedAt: "2026-04-29T00:00:01Z",
 				}),
 				buildLive(),
 			),

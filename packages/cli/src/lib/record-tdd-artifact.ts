@@ -170,3 +170,60 @@ export const recordTddArtifactByTaskIdEffect = (
 
 		return yield* writeArtifactUnderOpenPhase(input.tddTaskId, input);
 	});
+
+export interface DispatchRecordTddArtifactInput {
+	readonly chatId?: string;
+	readonly tddTaskId?: number;
+	readonly artifactKind: ArtifactKind;
+	readonly fileId?: number;
+	readonly testCaseId?: number;
+	readonly testRunId?: number;
+	readonly testFirstFailureRunId?: number;
+	readonly diffExcerpt?: string;
+	readonly recordedAt: string;
+	readonly cwd?: string;
+	readonly project?: string;
+}
+
+/**
+ * CLI-command-facing dispatcher (issue #144). Keeps `commands/record.ts`
+ * a thin flag-parsing wrapper per this package's convention. `tddTaskId`
+ * takes priority when both are supplied — it is the explicit escape
+ * hatch and should never silently fall back to (weaker) session
+ * resolution.
+ */
+export const dispatchRecordTddArtifactEffect = (
+	input: DispatchRecordTddArtifactInput,
+): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore> => {
+	if (input.tddTaskId !== undefined) {
+		return recordTddArtifactByTaskIdEffect({
+			tddTaskId: input.tddTaskId,
+			artifactKind: input.artifactKind,
+			...(input.fileId !== undefined && { fileId: input.fileId }),
+			...(input.testCaseId !== undefined && { testCaseId: input.testCaseId }),
+			...(input.testRunId !== undefined && { testRunId: input.testRunId }),
+			...(input.testFirstFailureRunId !== undefined && {
+				testFirstFailureRunId: input.testFirstFailureRunId,
+			}),
+			...(input.diffExcerpt !== undefined && { diffExcerpt: input.diffExcerpt }),
+			recordedAt: input.recordedAt,
+		});
+	}
+	if (input.chatId !== undefined) {
+		return recordTddArtifactEffect({
+			chatId: input.chatId,
+			artifactKind: input.artifactKind,
+			...(input.fileId !== undefined && { fileId: input.fileId }),
+			...(input.testCaseId !== undefined && { testCaseId: input.testCaseId }),
+			...(input.testRunId !== undefined && { testRunId: input.testRunId }),
+			...(input.testFirstFailureRunId !== undefined && {
+				testFirstFailureRunId: input.testFirstFailureRunId,
+			}),
+			...(input.diffExcerpt !== undefined && { diffExcerpt: input.diffExcerpt }),
+			recordedAt: input.recordedAt,
+			...(input.cwd !== undefined && { cwd: input.cwd }),
+			...(input.project !== undefined && { project: input.project }),
+		});
+	}
+	return Effect.fail(new Error("record tdd-artifact requires either --chat-id or --tdd-task-id."));
+};
