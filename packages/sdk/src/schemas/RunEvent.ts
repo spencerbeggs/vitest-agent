@@ -181,6 +181,14 @@ export const RunEvent = Schema.Union([
 		metrics: CoverageTotals,
 		thresholds: MetricThresholds,
 		gaps: Schema.Array(CoverageGap),
+		// Issue #160: set when this run's coverage was scoped to a subset of
+		// the project's test files. `scopedFiles` / `totalFiles` are the
+		// tested-vs-project file counts a scoped-coverage note renders as
+		// "(N of M test files)"; `totalFiles` is omitted when the emitter
+		// doesn't know the project total.
+		scoped: Schema.optional(Schema.Boolean),
+		scopedFiles: Schema.optional(Schema.Number),
+		totalFiles: Schema.optional(Schema.Number),
 	}),
 	Schema.TaggedStruct("ThresholdViolation", {
 		metric: CoverageMetric,

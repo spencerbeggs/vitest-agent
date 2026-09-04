@@ -160,6 +160,26 @@ describe("synthesizeFromAgentReport — coverage", () => {
 		);
 		expect(events.some((e) => e._tag === "ThresholdViolation")).toBe(false);
 	});
+
+	it("carries scoped/scopedFiles/totalFiles onto CoverageReady and emits no ThresholdViolation for a scoped run (issue #160 gap 1)", () => {
+		const events = synthesizeFromAgentReport(
+			baseReport({
+				coverage: {
+					// Below threshold, but scoped — must NOT synthesize violations.
+					totals: { lines: 40, branches: 40, functions: 40, statements: 40 },
+					thresholds: { global: { lines: 80, branches: 80 }, patterns: [] },
+					scoped: true,
+					scopedFiles: ["src/a.ts", "src/b.ts"],
+					totalFiles: 47,
+					lowCoverage: [],
+					lowCoverageFiles: [],
+				},
+			}),
+		);
+		expect(events.some((e) => e._tag === "ThresholdViolation")).toBe(false);
+		const coverageReady = events.find((e) => e._tag === "CoverageReady");
+		expect(coverageReady).toMatchObject({ scoped: true, scopedFiles: 2, totalFiles: 47 });
+	});
 });
 
 describe("synthesizeFromAgentReport — classifications", () => {

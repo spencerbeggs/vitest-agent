@@ -223,6 +223,27 @@ describe("reduceRenderState — individual events", () => {
 		});
 	});
 
+	it("CoverageReady folds scoped/scopedFiles/totalFiles into the coverage block (issue #160 gap 1)", () => {
+		const next = reduceRenderState(initialRenderState, {
+			_tag: "CoverageReady",
+			metrics: { lines: 90, branches: 90, functions: 90, statements: 90 },
+			thresholds: { lines: 80 },
+			gaps: [],
+			scoped: true,
+			scopedFiles: 2,
+			totalFiles: 47,
+		});
+		expect(next.coverage).toEqual({
+			metrics: { lines: 90, branches: 90, functions: 90, statements: 90 },
+			thresholds: { lines: 80 },
+			gaps: [],
+			violations: [],
+			scoped: true,
+			scopedFiles: 2,
+			totalFiles: 47,
+		});
+	});
+
 	it("ThresholdViolation appends to coverage.violations when coverage exists", () => {
 		const next = apply([
 			{

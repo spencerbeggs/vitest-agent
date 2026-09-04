@@ -83,6 +83,11 @@ export const CoverageRenderState = Schema.Struct({
 			actual: Schema.Number,
 		}),
 	),
+	// Issue #160: folded from `CoverageReady.scoped`/`scopedFiles`/`totalFiles`.
+	// See `RunEvent.ts`'s `CoverageReady` variant for the semantics.
+	scoped: Schema.optional(Schema.Boolean),
+	scopedFiles: Schema.optional(Schema.Number),
+	totalFiles: Schema.optional(Schema.Number),
 }).annotate({ identifier: "CoverageRenderState" });
 /** @public */
 export type CoverageRenderState = typeof CoverageRenderState.Type;

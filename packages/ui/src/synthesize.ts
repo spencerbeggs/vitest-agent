@@ -76,6 +76,12 @@ export interface SynthesizedCoverage {
 		readonly expected: number;
 		readonly actual: number;
 	}>;
+	/** Set when this run's coverage was scoped to a subset of test files (issue #160). */
+	readonly scoped?: boolean;
+	/** Number of test files actually run, when `scoped` is true. */
+	readonly scopedFiles?: number;
+	/** Total test-file count for the project, when known. */
+	readonly totalFiles?: number;
 }
 
 const ISO_ZERO = "1970-01-01T00:00:00.000Z";
@@ -252,6 +258,9 @@ export const synthesizeRunEvents = (
 			metrics: cov.metrics,
 			thresholds: cov.thresholds,
 			gaps: cov.gaps,
+			...(cov.scoped !== undefined ? { scoped: cov.scoped } : {}),
+			...(cov.scopedFiles !== undefined ? { scopedFiles: cov.scopedFiles } : {}),
+			...(cov.totalFiles !== undefined ? { totalFiles: cov.totalFiles } : {}),
 		});
 		if (cov.violations !== undefined) {
 			for (const v of cov.violations) {
@@ -322,12 +331,18 @@ const coverageReportToBlock = (report: AgentReport): SynthesizedCoverage | undef
 	if (cov === undefined) return undefined;
 
 	const violations: Array<{ metric: CoverageMetric; expected: number; actual: number }> = [];
-	const metricKeys: Array<CoverageMetric> = ["lines", "branches", "functions", "statements"];
-	for (const metric of metricKeys) {
-		const expected = cov.thresholds.global[metric];
-		const actual = cov.totals[metric];
-		if (expected !== undefined && actual < expected) {
-			violations.push({ metric, expected, actual });
+	// Issue #160: a scoped run's totals reflect the whole project, not just
+	// what ran, so recomputing violations from thresholds vs totals here
+	// would misrepresent a value nothing in this run actually re-validated
+	// — matches the live reporter's own suppression of `ThresholdViolation`.
+	if (!cov.scoped) {
+		const metricKeys: Array<CoverageMetric> = ["lines", "branches", "functions", "statements"];
+		for (const metric of metricKeys) {
+			const expected = cov.thresholds.global[metric];
+			const actual = cov.totals[metric];
+			if (expected !== undefined && actual < expected) {
+				violations.push({ metric, expected, actual });
+			}
 		}
 	}
 
@@ -342,6 +357,9 @@ const coverageReportToBlock = (report: AgentReport): SynthesizedCoverage | undef
 		thresholds: cov.thresholds.global,
 		gaps,
 		violations,
+		...(cov.scoped ? { scoped: cov.scoped } : {}),
+		...(cov.scopedFiles !== undefined ? { scopedFiles: cov.scopedFiles.length } : {}),
+		...(cov.totalFiles !== undefined ? { totalFiles: cov.totalFiles } : {}),
 	};
 };
 
@@ -512,6 +530,9 @@ export const synthesizeFromAgentReport = (
 			metrics: coverage.metrics,
 			thresholds: coverage.thresholds,
 			gaps: coverage.gaps,
+			...(coverage.scoped !== undefined ? { scoped: coverage.scoped } : {}),
+			...(coverage.scopedFiles !== undefined ? { scopedFiles: coverage.scopedFiles } : {}),
+			...(coverage.totalFiles !== undefined ? { totalFiles: coverage.totalFiles } : {}),
 		});
 		if (coverage.violations !== undefined) {
 			for (const v of coverage.violations) {
