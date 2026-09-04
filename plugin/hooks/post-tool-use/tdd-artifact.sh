@@ -45,6 +45,16 @@ hook_debug "$_HOOK" "pm_exec=$pm_exec"
 
 recorded_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+# Issue #144 escape hatch: when the subagent's environment carries an
+# explicit TDD task id (set for a detached session where neither the
+# parent-session walk nor the conversation_id fallback resolves the
+# right task), pass it through so `record tdd-artifact` bypasses
+# chat-id -> session -> task resolution entirely.
+tdd_task_id_arg=""
+if [ -n "${VITEST_AGENT_TDD_TASK_ID:-}" ]; then
+	tdd_task_id_arg="--tdd-task-id $VITEST_AGENT_TDD_TASK_ID"
+fi
+
 case "$tool_name" in
 	Bash)
 		command=$(echo "$hook_json" | jq -r '.tool_input.command // ""')
@@ -81,7 +91,7 @@ case "$tool_name" in
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
-				$test_case_id_arg 2>"$_artifact_err") || {
+				$test_case_id_arg $tdd_task_id_arg 2>"$_artifact_err") || {
 				_rc=$?
 				hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$_rc cc=$chat_id: $(cat "$_artifact_err")"
 			}
@@ -159,7 +169,7 @@ case "$tool_name" in
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
-				$test_case_id_arg 2>"$_artifact_err") || {
+				$test_case_id_arg $tdd_task_id_arg 2>"$_artifact_err") || {
 				_rc=$?
 				hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$_rc cc=$chat_id: $(cat "$_artifact_err")"
 			}
@@ -182,11 +192,13 @@ case "$tool_name" in
 				;;
 		esac
 		_artifact_err=$(mktemp)
+		# shellcheck disable=SC2086
 		_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
 			--chat-id "$chat_id" \
 			--artifact-kind "$kind" \
 			--file-path "$file_path" \
-			--recorded-at "$recorded_at" 2>"$_artifact_err") || {
+			--recorded-at "$recorded_at" \
+			$tdd_task_id_arg 2>"$_artifact_err") || {
 			_rc=$?
 			hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$_rc cc=$chat_id file=$file_path: $(cat "$_artifact_err")"
 		}
