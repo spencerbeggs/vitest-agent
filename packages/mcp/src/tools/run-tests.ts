@@ -17,6 +17,7 @@ import {
 	buildConsoleLeaks,
 	coerceErrorField,
 	collectConsoleLeakEntries,
+	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
 import { Effect, Schema, SchemaGetter, Semaphore } from "effect";
 import { publicProcedure } from "../context.js";
@@ -66,6 +67,13 @@ const RunTestsOk = Schema.Struct({
 			"ISO timestamp of the most recent real disk scan performed by discoverProjects() in this process (issue #100). " +
 			"`null`/absent means discovery has not scanned disk in this process yet (e.g. a config that doesn't call " +
 			"AgentPlugin.discover()). A stale-looking test count is self-explaining when compared against this value.",
+	}),
+	scopedNote: Schema.optional(Schema.NullOr(Schema.String)).annotate({
+		description:
+			"Set (issue #160) when this call was scoped to a subset of the project's test files (files/project/tags " +
+			"filter supplied). Vitest enforces coverage.thresholds against the whole-project denominator regardless of " +
+			"how many files ran, so a scoped run's threshold check is unreliable; this note explains why no coverage " +
+			"verdict should be trusted for this call. `null`/absent means the run was unscoped.",
 	}),
 }).annotate({ identifier: "RunTestsOk" });
 
@@ -527,7 +535,7 @@ export function formatRunTestsMarkdown(data: RunTestsResultType): string {
 	const rootLine = `\nProject root: \`${data.projectRoot}\``;
 	if (data.kind === "no-match") return `${formatNoMatchMarkdown(data.filter)}${rootLine}`;
 	const classMap = new Map<string, string>(Object.entries(data.classifications));
-	return `${formatReportMarkdown(data.report, classMap)}${rootLine}`;
+	return `${formatReportMarkdown(data.report, classMap, data.scopedNote ?? undefined)}${rootLine}`;
 }
 
 /**
@@ -591,7 +599,11 @@ export const RunTestsAsMarkdown = RunTestsResult.pipe(
  *
  * @internal
  */
-export function formatReportMarkdown(report: AgentReport, classifications?: ReadonlyMap<string, string>): string {
+export function formatReportMarkdown(
+	report: AgentReport,
+	classifications?: ReadonlyMap<string, string>,
+	scopedNote?: string,
+): string {
 	const lines: string[] = [];
 	const { summary } = report;
 
@@ -620,6 +632,14 @@ export function formatReportMarkdown(report: AgentReport, classifications?: Read
 
 	if (report.project) {
 		lines.push(`\nProject: ${report.project}`);
+	}
+
+	// Scoped/partial-run note (issue #160): the caller pre-computes this
+	// from its own filter/spec-count knowledge — this function stays a
+	// pure formatter of the AgentReport plus optional context, mirroring
+	// `formatNoMatchMarkdown`'s `filter` param.
+	if (scopedNote !== undefined) {
+		lines.push(`\n${scopedNote}`);
 	}
 
 	if (report.consoleLeaks !== undefined) {
@@ -955,6 +975,26 @@ export const runTests = publicProcedure
 							.catch(() => undefined);
 					}
 
+					// Issue #160: a filtered call (files/project/tags) only exercises
+					// a subset of the project's test files. Vitest enforces
+					// coverage.thresholds against the whole-project denominator
+					// regardless of how many files ran, so surface why a coverage
+					// verdict from this call should not be trusted. Best-effort:
+					// `globTestSpecifications()` failing (e.g. an unusual project
+					// config) degrades to a note with no total-file count rather
+					// than failing the whole call.
+					let scopedNote: string | null = null;
+					if (hasFilter) {
+						const testedFileCount = testModules.length;
+						let totalFileCount: number | undefined;
+						try {
+							totalFileCount = (await localVitest.globTestSpecifications()).length;
+						} catch {
+							// Best-effort — the note degrades to omit the total count.
+						}
+						scopedNote = formatScopedCoverageNote(testedFileCount, totalFileCount);
+					}
+
 					return {
 						kind: "ok" as const,
 						...(project !== undefined && { project }),
@@ -967,6 +1007,7 @@ export const runTests = publicProcedure
 						report,
 						classifications: classifications ? Object.fromEntries(classifications) : {},
 						discoveryLastScannedAt: readDiscoveryLastScannedAt() ?? null,
+						scopedNote,
 					};
 				} catch (err) {
 					// Exception-safe error extraction: a hostile thrown value (a
