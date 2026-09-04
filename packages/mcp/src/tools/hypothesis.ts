@@ -120,6 +120,22 @@ const ListVariant = Schema.Struct({
 
 const HypothesisInput = Schema.Union([RecordVariant, ValidateVariant, ListVariant]);
 
+/**
+ * Single source of truth for the `hypothesis` tool's `action`
+ * discriminant, consumed by `server.ts`'s served `z.enum(...)` so the
+ * MCP-SDK-side registration cannot drift from this tRPC input union
+ * (issue #335).
+ */
+export const HYPOTHESIS_ACTIONS = ["record", "validate", "list"] as const;
+type HypothesisAction = Schema.Schema.Type<typeof HypothesisInput>["action"];
+type _AssertHypothesisActions = HypothesisAction extends (typeof HYPOTHESIS_ACTIONS)[number]
+	? (typeof HYPOTHESIS_ACTIONS)[number] extends HypothesisAction
+		? true
+		: never
+	: never;
+const _assertHypothesisActions: _AssertHypothesisActions = true;
+void _assertHypothesisActions;
+
 export const hypothesis = idempotentProcedure
 	.input(Schema.toStandardSchemaV1(HypothesisInput))
 	.mutation(async ({ ctx, input }): Promise<HypothesisResultType> => {

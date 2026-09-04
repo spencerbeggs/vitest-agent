@@ -111,6 +111,22 @@ const ListVariant = Schema.Struct({
 
 const TddGoalInput = Schema.Union([CreateVariant, UpdateVariant, DeleteVariant, GetVariant, ListVariant]);
 
+/**
+ * Single source of truth for the `tdd_goal` tool's `action`
+ * discriminant, consumed by `server.ts`'s served `z.enum(...)` so the
+ * MCP-SDK-side registration cannot drift from this tRPC input union
+ * (issue #335).
+ */
+export const TDD_GOAL_ACTIONS = ["create", "update", "delete", "get", "list"] as const;
+type TddGoalAction = Schema.Schema.Type<typeof TddGoalInput>["action"];
+type _AssertTddGoalActions = TddGoalAction extends (typeof TDD_GOAL_ACTIONS)[number]
+	? (typeof TDD_GOAL_ACTIONS)[number] extends TddGoalAction
+		? true
+		: never
+	: never;
+const _assertTddGoalActions: _AssertTddGoalActions = true;
+void _assertTddGoalActions;
+
 export const tddGoal = idempotentProcedure
 	.input(Schema.toStandardSchemaV1(TddGoalInput))
 	.mutation(async ({ ctx, input }) => {

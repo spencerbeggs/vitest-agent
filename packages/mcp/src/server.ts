@@ -17,9 +17,9 @@ import { FailureSignatureGetAsMarkdown, FailureSignatureGetResult } from "./tool
 import { FileCoverageAsMarkdown, FileCoverageResult } from "./tools/file-coverage.js";
 import { HelpResult } from "./tools/help.js";
 import { TestHistoryAsMarkdown, TestHistoryResult } from "./tools/history.js";
-import { HypothesisResult, formatHypothesisListMarkdown } from "./tools/hypothesis.js";
-import { InventoryAsMarkdown, InventoryResult } from "./tools/inventory.js";
-import { NoteResult, formatNoteListMarkdown } from "./tools/note.js";
+import { HYPOTHESIS_ACTIONS, HypothesisResult, formatHypothesisListMarkdown } from "./tools/hypothesis.js";
+import { INVENTORY_KINDS, InventoryAsMarkdown, InventoryResult } from "./tools/inventory.js";
+import { NOTE_ACTIONS, NoteResult, formatNoteListMarkdown } from "./tools/note.js";
 import { TestOverviewAsMarkdown, TestOverviewResult } from "./tools/overview.js";
 import { PingResult } from "./tools/ping.js";
 import { RegisterAgentResult } from "./tools/register-agent.js";
@@ -27,11 +27,11 @@ import { RunTestsAsMarkdown, RunTestsResult } from "./tools/run-tests.js";
 import { SettingsListAsMarkdown, SettingsListResult } from "./tools/settings-list.js";
 import { TestStatusAsMarkdown, TestStatusResult } from "./tools/status.js";
 import { TddArtifactListAsMarkdown, TddArtifactListResult } from "./tools/tdd-artifact.js";
-import { TddBehaviorResult } from "./tools/tdd-behavior.js";
-import { TddGoalResult } from "./tools/tdd-goal.js";
+import { TDD_BEHAVIOR_ACTIONS, TddBehaviorResult } from "./tools/tdd-behavior.js";
+import { TDD_GOAL_ACTIONS, TddGoalResult } from "./tools/tdd-goal.js";
 import { PhaseTransitionResult } from "./tools/tdd-phase-transition-request.js";
-import { TddTaskAsMarkdown, TddTaskResult } from "./tools/tdd-task.js";
-import { TestAsMarkdown, TestResult } from "./tools/test.js";
+import { TDD_TASK_ACTIONS, TddTaskAsMarkdown, TddTaskResult } from "./tools/tdd-task.js";
+import { TEST_ACTIONS, TestAsMarkdown, TestResult } from "./tools/test.js";
 import { TestTrendsAsMarkdown, TestTrendsResult } from "./tools/trends.js";
 import { TriageBriefResult } from "./tools/triage-brief.js";
 import { TurnSearchAsMarkdown, TurnSearchResult } from "./tools/turn-search.js";
@@ -389,7 +389,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			description:
 				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file; action='for_tag' (tag, project?) returns tests carrying a tag, grouped by project. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
 			inputSchema: strict({
-				action: z.enum(["list", "get", "for_file", "for_tag"]).describe("Inspection discriminator"),
+				action: z.enum(TEST_ACTIONS).describe("Inspection discriminator"),
 				project: z.optional(z.string()),
 				state: z.optional(z.string()).describe("list: filter by state"),
 				module: z.optional(z.string()).describe("list: filter by module path"),
@@ -491,7 +491,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			description:
 				"Use to discover what exists in the workspace, with a kind discriminator: project / module / suite / session / tag. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list, tag_scoped, tag_unscoped) so callers can branch on the response shape without parsing markdown.",
 			inputSchema: strict({
-				kind: z.enum(["project", "module", "suite", "session", "tag"]).describe("Inventory entity"),
+				kind: z.enum(INVENTORY_KINDS).describe("Inventory entity"),
 				id: z.optional(z.coerce.number()).describe("session: single-row lookup by id"),
 				project: z.optional(z.string()),
 				module: z.optional(z.string()).describe("suite: filter by module path"),
@@ -662,7 +662,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			description:
 				"Use to manage notes, with a CRUD action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`); list/search additionally render markdown in the text channel.",
 			inputSchema: strict({
-				action: z.enum(["create", "list", "get", "update", "delete", "search"]).describe("CRUD discriminator"),
+				action: z.enum(NOTE_ACTIONS).describe("CRUD discriminator"),
 				// Shared
 				id: z.optional(z.coerce.number()).describe("get/update/delete: note id"),
 				project: z.optional(z.string()),
@@ -791,7 +791,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			description:
 				"Use to manage a TDD task lifecycle, with an action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns markdown details; action='resume' (tddTaskId) returns a compact digest.",
 			inputSchema: strict({
-				action: z.enum(["start", "end", "get", "resume"]).describe("Lifecycle discriminator"),
+				action: z.enum(TDD_TASK_ACTIONS).describe("Lifecycle discriminator"),
 				tddTaskId: z.optional(z.coerce.number()).describe("end/get/resume: tdd task id"),
 				goal: z.optional(z.string()).describe("start: goal text"),
 				sessionId: z.optional(z.coerce.number()).describe("start: sessions.id (alternative to chatId)"),
@@ -892,7 +892,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			description:
 				"Use to manage TDD goals, with a CRUD action discriminator: action='create' (tddTaskId, goal) is idempotent on (tddTaskId, goal); action='update' (id, goal?, status?) edits text and/or lifecycle status; action='delete' (id) hard-deletes (prefer status:'abandoned'); action='get' (id) reads with nested behaviors; action='list' (tddTaskId) returns all goals for a TDD task.",
 			inputSchema: strict({
-				action: z.enum(["create", "update", "delete", "get", "list"]).describe("CRUD discriminator"),
+				action: z.enum(TDD_GOAL_ACTIONS).describe("CRUD discriminator"),
 				id: z.optional(z.coerce.number()).describe("update/delete/get: goal id"),
 				tddTaskId: z.optional(z.coerce.number()).describe("create/list: tdd task id"),
 				goal: z.optional(z.string()),
@@ -938,9 +938,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			description:
 				"Use to manage TDD behaviors, with a CRUD action discriminator: action='create' (goalId, behavior, suggestedTestName?, dependsOnBehaviorIds?) is idempotent on (goalId, behavior); action='update' (id, ...patch) edits; action='delete' (id) hard-deletes; action='get' (id) reads; action='list_by_goal' (goalId) lists one goal's behaviors; action='list_by_tdd_task' (tddTaskId) lists across all goals.",
 			inputSchema: strict({
-				action: z
-					.enum(["create", "update", "delete", "get", "list_by_goal", "list_by_tdd_task"])
-					.describe("CRUD discriminator"),
+				action: z.enum(TDD_BEHAVIOR_ACTIONS).describe("CRUD discriminator"),
 				id: z.optional(z.coerce.number()),
 				goalId: z.optional(z.coerce.number()),
 				tddTaskId: z.optional(z.coerce.number()),
@@ -1042,7 +1040,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			description:
 				"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (content, tddTaskId?, optional citation ids) writes a hypothesis — the binding session is resolved server-side from the recovered host context (active TDD subagent, else main session); pass tddTaskId (returned by tdd_task action='start') to bind deterministically to that task's session, and do not pass sessionId when recording; action='validate' (id, outcome, validatedAt?) records a validation outcome — validatedAt is optional and defaults server-side to now when omitted, or is honored verbatim when supplied; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
 			inputSchema: strict({
-				action: z.enum(["record", "validate", "list"]).describe("CRUD discriminator"),
+				action: z.enum(HYPOTHESIS_ACTIONS).describe("CRUD discriminator"),
 				// Shared
 				sessionId: z
 					.optional(z.coerce.number())

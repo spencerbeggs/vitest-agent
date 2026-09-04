@@ -134,6 +134,22 @@ const TddBehaviorInput = Schema.Union([
 	ListByTddTaskVariant,
 ]);
 
+/**
+ * Single source of truth for the `tdd_behavior` tool's `action`
+ * discriminant, consumed by `server.ts`'s served `z.enum(...)` so the
+ * MCP-SDK-side registration cannot drift from this tRPC input union
+ * (issue #335).
+ */
+export const TDD_BEHAVIOR_ACTIONS = ["create", "update", "delete", "get", "list_by_goal", "list_by_tdd_task"] as const;
+type TddBehaviorAction = Schema.Schema.Type<typeof TddBehaviorInput>["action"];
+type _AssertTddBehaviorActions = TddBehaviorAction extends (typeof TDD_BEHAVIOR_ACTIONS)[number]
+	? (typeof TDD_BEHAVIOR_ACTIONS)[number] extends TddBehaviorAction
+		? true
+		: never
+	: never;
+const _assertTddBehaviorActions: _AssertTddBehaviorActions = true;
+void _assertTddBehaviorActions;
+
 export const tddBehavior = idempotentProcedure
 	.input(Schema.toStandardSchemaV1(TddBehaviorInput))
 	.mutation(async ({ ctx, input }) => {

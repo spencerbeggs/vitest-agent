@@ -264,6 +264,24 @@ const ForTagVariant = Schema.Struct({
 
 const TestInput = Schema.Union([ListVariant, GetVariant, ForFileVariant, ForTagVariant]);
 
+/**
+ * Single source of truth for the `test` tool's `action` discriminant,
+ * consumed by `server.ts`'s served `z.enum(...)` so the MCP-SDK-side
+ * registration cannot drift from this tRPC input union (issue #335).
+ */
+export const TEST_ACTIONS = ["list", "get", "for_file", "for_tag"] as const;
+type TestAction = Schema.Schema.Type<typeof TestInput>["action"];
+// Compile-time equality check, both directions: fails to typecheck if
+// TEST_ACTIONS is missing a variant present in TestInput, or contains a
+// literal TestInput does not declare.
+type _AssertTestActions = TestAction extends (typeof TEST_ACTIONS)[number]
+	? (typeof TEST_ACTIONS)[number] extends TestAction
+		? true
+		: never
+	: never;
+const _assertTestActions: _AssertTestActions = true;
+void _assertTestActions;
+
 export const test = publicProcedure
 	.input(Schema.toStandardSchemaV1(TestInput))
 	.query(async ({ ctx, input }): Promise<TestResultType> => {
