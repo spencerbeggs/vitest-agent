@@ -91,9 +91,9 @@ fi
 suggested=$(echo "$verdict_json" | jq -r '.suggestedPath // ""' 2>/dev/null || echo "")
 
 if [ "$tool_name" = "Write" ] && [ ! -e "$file_path" ]; then
-	emit_deny "$(printf '%s is not a valid test location — Vitest will never collect it.\n\nTests are discoverable only under a workspace src/ or __test__/ directory. Write it to %s instead.' "$file_path" "$suggested")"
+	emit_deny "$(printf '%s is not a valid test location — Vitest will never collect it.\n\nUnder the default discovery layout, tests are collected only under a workspace src/ or __test__/ directory. Write it to %s instead.\n\nIf your project uses a custom DiscoverStrategy this check does not understand, set VITEST_AGENT_TEST_LOCATION_HOOK=off to disable this check.' "$file_path" "$suggested")"
 	exit 0
 fi
 
-emit_additional_context "PreToolUse" "$(printf 'Note: %s sits outside the discoverable test layout, so Vitest does not collect it and it never runs.\n\nTests are discoverable only under a workspace src/ or __test__/ directory. The corresponding valid location is %s.' "$file_path" "$suggested")"
+emit_additional_context "PreToolUse" "$(printf 'Note: %s sits outside the discoverable test layout, so Vitest does not collect it and it never runs.\n\nUnder the default discovery layout, tests are collected only under a workspace src/ or __test__/ directory. The corresponding valid location is %s.' "$file_path" "$suggested")"
 exit 0

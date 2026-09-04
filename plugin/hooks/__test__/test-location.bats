@@ -72,6 +72,23 @@ _run_hook() {
 	[[ "$output" == *"/repo/__test__/a.test.ts"* ]]
 }
 
+@test "deny message says 'default discovery layout' and mentions the opt-out env var" {
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	run _run_hook '{"tool_name":"Write","tool_input":{"file_path":"/repo/lib/scripts/__test__/a.test.ts"}}'
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"Under the default discovery layout"* ]]
+	[[ "$output" == *"VITEST_AGENT_TEST_LOCATION_HOOK"* ]]
+}
+
+@test "advisory additionalContext says 'default discovery layout'" {
+	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
+	existing="$STUB_DIR/existing.test.ts"
+	touch "$existing"
+	run _run_hook "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$existing\"}}"
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"Under the default discovery layout"* ]]
+}
+
 @test "advises rather than denies when editing an existing misplaced test" {
 	_stub_cli '{"verdict":"invalid","workspace":"w","suggestedPath":"/repo/__test__/a.test.ts"}'
 	existing="$STUB_DIR/existing.test.ts"
