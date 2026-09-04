@@ -14,6 +14,7 @@ import type {
 	FailureRecord,
 	ModuleRecord,
 	RenderState,
+	ReportError,
 	SuggestedActionRecord,
 } from "@vitest-agent/sdk";
 import { formatDisplayDuration } from "./format-duration.js";
@@ -67,6 +68,10 @@ const formatHeader = (state: RenderState): string => {
 	if (failCount > 0) parts.push(`${failCount} failed`);
 	if (timeoutCount > 0) parts.push(`${timeoutCount} timed out`);
 	if (skipCount > 0) parts.push(`${skipCount} skipped`);
+	if (state.unhandledErrors.length > 0) {
+		const noun = state.unhandledErrors.length === 1 ? "unhandled error" : "unhandled errors";
+		parts.push(`${state.unhandledErrors.length} ${noun}`);
+	}
 	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
 };
 
@@ -153,6 +158,26 @@ const formatFailuresSection = (state: RenderState, width: number, includeStack: 
 	return lines.join("\n");
 };
 
+const formatUnhandledError = (err: ReportError, width: number, includeStack: boolean): string => {
+	const firstLine = err.message.split("\n", 1)[0] ?? "";
+	const lines = [`- ${truncate(firstLine, Math.max(20, width - 2))}`];
+	if (includeStack && err.stack !== undefined) {
+		for (const stackLine of err.stack.split("\n")) {
+			lines.push(`  ${truncate(stackLine, Math.max(20, width - 2))}`);
+		}
+	}
+	return lines.join("\n");
+};
+
+const formatUnhandledErrorsSection = (state: RenderState, width: number, includeStack: boolean): string | null => {
+	if (state.unhandledErrors.length === 0) return null;
+	const lines = ["Unhandled errors:"];
+	for (const err of state.unhandledErrors) {
+		lines.push(formatUnhandledError(err, width, includeStack));
+	}
+	return lines.join("\n");
+};
+
 const formatPercent = (n: number): string => {
 	const rounded = Math.round(n * 10) / 10;
 	return Number.isInteger(rounded) ? `${rounded}%` : `${rounded}%`;
@@ -230,6 +255,8 @@ export const renderAgent = (state: RenderState, options: RenderAgentOptions = {}
 	const sections: string[] = [formatHeader(state)];
 	const failures = formatFailuresSection(state, width, includeStack);
 	if (failures !== null) sections.push(failures);
+	const unhandledErrors = formatUnhandledErrorsSection(state, width, includeStack);
+	if (unhandledErrors !== null) sections.push(unhandledErrors);
 	const modules = formatModulesSection(state);
 	if (modules !== null) sections.push(modules);
 	const coverage = formatCoverageSection(state, maxGaps);

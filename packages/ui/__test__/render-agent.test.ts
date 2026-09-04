@@ -242,6 +242,46 @@ describe("renderAgent — failures block", () => {
 	});
 });
 
+describe("renderAgent — unhandled errors block", () => {
+	it("omits the unhandled errors block when there are none", () => {
+		const state = baseState({
+			totals: { passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 5 },
+		});
+		expect(renderAgent(state)).not.toContain("Unhandled errors:");
+	});
+
+	it("adds an 'unhandled error' note to the header and lists the message", () => {
+		const state = baseState({
+			totals: { passCount: 3, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 5 },
+			unhandledErrors: [{ message: "unhandled rejection: boom" }],
+		});
+		const output = renderAgent(state);
+		expect(output.split("\n")[0]).toBe("Tests: 3/3 passed, 1 unhandled error (5ms)");
+		expect(output).toContain("Unhandled errors:");
+		expect(output).toContain("- unhandled rejection: boom");
+	});
+
+	it("pluralizes the header note for more than one unhandled error", () => {
+		const state = baseState({
+			totals: { passCount: 3, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 5 },
+			unhandledErrors: [{ message: "boom one" }, { message: "boom two" }],
+		});
+		const output = renderAgent(state);
+		expect(output.split("\n")[0]).toBe("Tests: 3/3 passed, 2 unhandled errors (5ms)");
+		expect(output).toContain("- boom one");
+		expect(output).toContain("- boom two");
+	});
+
+	it("includes the stack trace when includeStack is true", () => {
+		const state = baseState({
+			totals: { passCount: 1, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 5 },
+			unhandledErrors: [{ message: "boom", stack: "Error\n    at fn (src/a.ts:1:1)" }],
+		});
+		const output = renderAgent(state, { includeStack: true });
+		expect(output).toContain("at fn (src/a.ts:1:1)");
+	});
+});
+
 describe("renderAgent — coverage block", () => {
 	it("omits the coverage block when state.coverage is null", () => {
 		expect(renderAgent(baseState())).not.toContain("Coverage:");
