@@ -236,6 +236,7 @@ export const reduceRenderState = (state: RenderState, event: RunEvent): RenderSt
 					durationMs: e.durationMs,
 				},
 				...(e.collectedModules !== undefined && { collectedModules: e.collectedModules }),
+				...(e.unhandledErrors !== undefined && { unhandledErrors: e.unhandledErrors }),
 			}),
 			// `RunTimedOut` is terminal — `onProcessTimeout` ended the run.
 			// Move to a terminal phase so the renderer paints a final frame

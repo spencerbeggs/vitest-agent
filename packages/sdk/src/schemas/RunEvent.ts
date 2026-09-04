@@ -214,6 +214,13 @@ export const RunEvent = Schema.Union([
 		 * tracks failing modules (report replay). See issue #204.
 		 */
 		collectedModules: Schema.optional(Schema.Number),
+		/**
+		 * Process-level errors with no owning module (an unhandled
+		 * rejection, a worker crash) — Vitest's `unhandledErrors`
+		 * argument to `onTestRunEnd`. Optional so hand-built fixtures
+		 * and older replay data keep decoding. See issue #240.
+		 */
+		unhandledErrors: Schema.optional(Schema.Array(ReportError)),
 	}),
 ]).annotate({ identifier: "RunEvent" });
 /** @public */

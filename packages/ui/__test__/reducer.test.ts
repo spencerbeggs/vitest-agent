@@ -301,6 +301,23 @@ describe("reduceRenderState — individual events", () => {
 		expect(next.totals).toEqual({ passCount: 7, failCount: 2, skipCount: 1, timeoutCount: 0, durationMs: 100 });
 	});
 
+	it("folds RunFinished.unhandledErrors into state.unhandledErrors", () => {
+		const next = apply([
+			{ _tag: "RunStarted", runId: "r", startedAt: "x", configHash: "h" },
+			{
+				_tag: "RunFinished",
+				runId: "r",
+				finishedAt: "y",
+				passCount: 7,
+				failCount: 0,
+				skipCount: 0,
+				durationMs: 100,
+				unhandledErrors: [{ message: "unhandled rejection: boom" }],
+			},
+		]);
+		expect(next.unhandledErrors).toEqual([{ message: "unhandled rejection: boom" }]);
+	});
+
 	it("folds RunFinished.collectedModules into state", () => {
 		const next = apply([
 			{ _tag: "RunStarted", runId: "r", startedAt: "x", configHash: "h" },
