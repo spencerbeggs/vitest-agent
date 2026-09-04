@@ -109,6 +109,7 @@ export * from "./utils/coerce-error-text.js";
 export * from "./utils/compress-lines.js";
 export * from "./utils/compute-trend.js";
 export * from "./utils/console-leaks.js";
+export * from "./utils/detect-non-default-discover-strategy.js";
 export * from "./utils/detect-pm.js";
 export { isTimeoutError } from "./utils/detect-timeout.js";
 export * from "./utils/ensure-migrated.js";
