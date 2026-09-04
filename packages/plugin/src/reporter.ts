@@ -402,6 +402,21 @@ export class AgentReporter {
 	 * @internal
 	 */
 	private startedSpecCount: number | undefined;
+	/**
+	 * Original values of coverage-threshold keys deleted from
+	 * `vitest.coverageProvider.options.thresholds` while neutralizing a
+	 * partial run (issue #160). In `run` mode Vitest re-initializes the
+	 * provider on every `vitest.start`, so the snapshot is moot — but in
+	 * watch mode the provider is created once and scoped reruns go through
+	 * `rerunFiles` without re-initializing it, so a deleted key would stay
+	 * gone for the rest of the watch session. `onTestRunStart` restores
+	 * these keys (only if still absent — a legitimately re-initialized
+	 * provider is left alone) and clears the map. Empty when the last run
+	 * was not partial.
+	 *
+	 * @internal
+	 */
+	private neutralizedThresholdSnapshot: Map<string, unknown> = new Map();
 
 	constructor(options: AgentReporterConstructorOptions = {}) {
 		// logLevel and logFile read from VITEST_REPORTER_LOG_LEVEL /
@@ -650,6 +665,32 @@ export class AgentReporter {
 		// this count regardless of whether anything is subscribed to the
 		// run-event channel.
 		this.startedSpecCount = _specifications.length;
+		// Restore any coverage-threshold keys neutralized by a partial run
+		// (issue #160 / #237 watch-mode follow-up). Runs unconditionally,
+		// before the wantsRunEvents early return, and is a no-op when the
+		// snapshot is empty (the common case — last run was not partial, or
+		// this is the very first run).
+		if (this.neutralizedThresholdSnapshot.size > 0) {
+			try {
+				const provider = (
+					this._vitest as {
+						coverageProvider?: { options?: { thresholds?: Record<string, unknown> } };
+					} | null
+				)?.coverageProvider;
+				const thresholds = provider?.options?.thresholds;
+				if (thresholds !== undefined && typeof thresholds === "object") {
+					for (const [key, value] of this.neutralizedThresholdSnapshot) {
+						// Only re-add if still absent — a legitimately
+						// re-initialized provider (e.g. `run` mode) already has
+						// its own fresh values and must be left alone.
+						if (!(key in thresholds)) thresholds[key] = value;
+					}
+				}
+			} catch {
+				// Best-effort — threshold restoration must never crash the run.
+			}
+			this.neutralizedThresholdSnapshot = new Map();
+		}
 		if (!this.wantsRunEvents()) return;
 		this.currentRunId = randomUUID();
 		this.moduleStartedAt.clear();
@@ -1282,14 +1323,21 @@ export class AgentReporter {
 			// `reportCoverage`, which runs AFTER every reporter's
 			// `onTestRunEnd` — see `Vitest.runFiles`) cannot fail this run
 			// against the whole-project denominator. This mutates the SAME
-			// options object the provider reads from at report time; each
-			// `vitest.start` re-initializes the provider, so nothing needs
-			// restoring afterward. There is no supported public API for
-			// this — `resolveOptions()` only returns the object, it does not
-			// accept an override — so this reaches into the provider's
-			// internal `options.thresholds` directly, guarded end to end: a
-			// missing provider, options, or thresholds shape is a no-op,
-			// never a throw.
+			// options object the provider reads from at report time. In `run`
+			// mode each `vitest.start` re-initializes the provider, so
+			// nothing would need restoring there — but in watch mode the
+			// provider is created once and scoped reruns go through
+			// `rerunFiles` without re-initializing it, so a deleted key would
+			// otherwise stay gone for the rest of the watch session. To
+			// cover that case, every deleted key's original value is
+			// snapshotted into `neutralizedThresholdSnapshot` and restored by
+			// the next `onTestRunStart`. There is no supported public API for
+			// any of this — `resolveOptions()` only returns the object, it
+			// does not accept an override — so this reaches into the
+			// provider's internal `options.thresholds` directly, guarded end
+			// to end: a missing provider, options, or thresholds shape is a
+			// no-op, never a throw.
+			this.neutralizedThresholdSnapshot = new Map();
 			try {
 				const provider = (
 					stashedVitest as {
@@ -1306,6 +1354,7 @@ export class AgentReporter {
 						// entry, both of which `checkThresholds` reads
 						// directly off this same object.
 						if (key === "perFile" || key === "autoUpdate" || key === "100") continue;
+						this.neutralizedThresholdSnapshot.set(key, thresholds[key]);
 						delete thresholds[key];
 					}
 				}

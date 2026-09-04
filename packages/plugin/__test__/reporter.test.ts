@@ -1163,6 +1163,82 @@ describe("AgentReporter", () => {
 			expect(thresholds.autoUpdate).toBe(false);
 		});
 
+		it("restores neutralized thresholds on the next onTestRunStart (watch-mode rerun)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const thresholds: Record<string, unknown> = {
+				lines: 90,
+				functions: 90,
+				branches: 90,
+				statements: 90,
+				perFile: true,
+				autoUpdate: false,
+				"src/special/**": { lines: 100 },
+			};
+			const mockVitest = {
+				config: {},
+				version: "test",
+				filenamePattern: ["src/foo.test.ts"],
+				coverageProvider: { options: { thresholds } },
+			};
+			reporter._vitest = mockVitest;
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			// Sanity: the partial run neutralized the keys, as covered above.
+			expect(thresholds.lines).toBeUndefined();
+
+			// Watch mode: same reporter instance, same provider object, a new
+			// run begins via onTestRunStart.
+			reporter.onTestRunStart([]);
+
+			expect(thresholds.lines).toBe(90);
+			expect(thresholds.functions).toBe(90);
+			expect(thresholds.branches).toBe(90);
+			expect(thresholds.statements).toBe(90);
+			expect(thresholds["src/special/**"]).toEqual({ lines: 100 });
+			// Unrelated shape-only keys were never touched.
+			expect(thresholds.perFile).toBe(true);
+			expect(thresholds.autoUpdate).toBe(false);
+		});
+
+		it("leaves thresholds untouched and records an empty snapshot on a full (non-partial) run", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const thresholds: Record<string, unknown> = {
+				lines: 90,
+				functions: 90,
+				branches: 90,
+				statements: 90,
+				perFile: true,
+				autoUpdate: false,
+			};
+			const mockVitest = {
+				config: {},
+				version: "test",
+				// No filenamePattern, no projectFilter — a full run.
+				coverageProvider: { options: { thresholds } },
+			};
+			reporter._vitest = mockVitest;
+			reporter.onTestRunStart(new Array(1));
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			expect(thresholds.lines).toBe(90);
+			expect(thresholds.functions).toBe(90);
+			expect(thresholds.branches).toBe(90);
+			expect(thresholds.statements).toBe(90);
+
+			// A subsequent onTestRunStart must not re-add anything (snapshot
+			// was empty) and must not throw.
+			expect(() => reporter.onTestRunStart([])).not.toThrow();
+			expect(thresholds.lines).toBe(90);
+		});
+
 		it("skips writing coverage thresholds/targets rows on a partial run (issue #237 follow-up)", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
