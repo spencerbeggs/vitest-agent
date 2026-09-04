@@ -934,6 +934,44 @@ describe("DataStoreLive", () => {
 				}),
 			);
 		});
+
+		it("removes a stale metric row when the metric is dropped from a later call, leaving a same-metric baseline untouched", async () => {
+			// Regression: a metric present in run 1 but absent from run 2 must
+			// not linger in coverage_baselines — otherwise getCoverage reports
+			// an enforced threshold the config no longer sets.
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+
+					// A pre-existing baseline row for 'functions' must survive the
+					// second writeThresholds call — baselines are cumulative and
+					// must never be touched by threshold/target writes.
+					yield* store.writeBaselines({
+						updatedAt: "2026-03-22T00:00:00.000Z",
+						global: { functions: 60 },
+						patterns: [],
+					});
+
+					yield* store.writeThresholds({ global: { lines: 80, functions: 70 }, perFile: false, patterns: [] });
+					yield* store.writeThresholds({ global: { lines: 80 }, perFile: false, patterns: [] });
+
+					const sql = yield* SqlClient;
+					const thresholdRows = yield* sql<{
+						metric: string;
+						value: number;
+					}>`SELECT metric, value FROM coverage_baselines WHERE project = '__global__' AND kind = 'threshold' ORDER BY metric`;
+					expect(thresholdRows).toHaveLength(1);
+					expect(thresholdRows[0]).toMatchObject({ metric: "lines", value: 80 });
+
+					const baselineRows = yield* sql<{
+						metric: string;
+						value: number;
+					}>`SELECT metric, value FROM coverage_baselines WHERE project = '__global__' AND kind = 'baseline' AND metric = 'functions'`;
+					expect(baselineRows).toHaveLength(1);
+					expect(baselineRows[0].value).toBe(60);
+				}),
+			);
+		});
 	});
 
 	describe("writeTargets", () => {
@@ -950,6 +988,36 @@ describe("DataStoreLive", () => {
 					}>`SELECT metric, value FROM coverage_baselines WHERE project = '__global__' AND kind = 'target'`;
 					expect(rows).toHaveLength(1);
 					expect(rows[0]).toMatchObject({ metric: "lines", value: 90 });
+				}),
+			);
+		});
+
+		it("removes stale pattern rows when a glob entry is dropped from a later call", async () => {
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeTargets({
+						global: {},
+						perFile: false,
+						patterns: [
+							["src/**/*.ts", { lines: 90 }],
+							["src/legacy/**/*.ts", { lines: 50 }],
+						],
+					});
+					yield* store.writeTargets({
+						global: {},
+						perFile: false,
+						patterns: [["src/**/*.ts", { lines: 90 }]],
+					});
+
+					const sql = yield* SqlClient;
+					const rows = yield* sql<{
+						pattern: string;
+						metric: string;
+						value: number;
+					}>`SELECT pattern, metric, value FROM coverage_baselines WHERE project = '__global__' AND kind = 'target' AND pattern != '' ORDER BY pattern`;
+					expect(rows).toHaveLength(1);
+					expect(rows[0]).toMatchObject({ pattern: "src/**/*.ts", metric: "lines", value: 90 });
 				}),
 			);
 		});

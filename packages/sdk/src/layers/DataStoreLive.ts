@@ -355,31 +355,46 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			kind: "threshold" | "target",
 			policy: ResolvedThresholds,
 		): Effect.Effect<void, DataStoreError> =>
-			Effect.gen(function* () {
-				yield* Effect.logDebug("writeCoveragePolicy").pipe(Effect.annotateLogs({ kind }));
-				const updatedAt = new Date().toISOString();
-				const { global: g, patterns = [] } = policy;
-				const metrics = ["lines", "functions", "branches", "statements"] as const;
-				for (const metric of metrics) {
-					const value = g[metric];
-					if (value !== undefined && Number.isFinite(value)) {
-						yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, '', ${updatedAt}) ON CONFLICT (project, kind, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
-					}
-				}
-				for (const [pattern, thresholds] of patterns) {
-					for (const metric of metrics) {
-						const value = thresholds[metric];
-						if (value !== undefined && Number.isFinite(value)) {
-							yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, ${pattern}, ${updatedAt}) ON CONFLICT (project, kind, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
+			sql
+				.withTransaction(
+					Effect.gen(function* () {
+						yield* Effect.logDebug("writeCoveragePolicy").pipe(Effect.annotateLogs({ kind }));
+						const updatedAt = new Date().toISOString();
+						const { global: g, patterns = [] } = policy;
+						const metrics = ["lines", "functions", "branches", "statements"] as const;
+
+						// threshold/target rows represent the CURRENT configured bar
+						// (unlike kind='baseline', which is cumulative and must never
+						// be touched here) -- make each write authoritative for the
+						// incoming policy by clearing every existing row of this kind
+						// before re-inserting, all inside one transaction so a metric
+						// or pattern dropped from the config can't linger as a stale
+						// enforced row, and a crash mid-write can't leave the kind
+						// partially populated (issue #237 follow-up).
+						yield* sql`DELETE FROM coverage_baselines WHERE project = '__global__' AND kind = ${kind}`;
+
+						for (const metric of metrics) {
+							const value = g[metric];
+							if (value !== undefined && Number.isFinite(value)) {
+								yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, '', ${updatedAt})`;
+							}
 						}
-					}
-				}
-			}).pipe(
-				Effect.annotateLogs("service", "DataStore"),
-				Effect.mapError(
-					(e) => new DataStoreError({ operation: "write", table: "coverage_baselines", reason: extractSqlReason(e) }),
-				),
-			);
+						for (const [pattern, thresholds] of patterns) {
+							for (const metric of metrics) {
+								const value = thresholds[metric];
+								if (value !== undefined && Number.isFinite(value)) {
+									yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, ${pattern}, ${updatedAt})`;
+								}
+							}
+						}
+					}),
+				)
+				.pipe(
+					Effect.annotateLogs("service", "DataStore"),
+					Effect.mapError(
+						(e) => new DataStoreError({ operation: "write", table: "coverage_baselines", reason: extractSqlReason(e) }),
+					),
+				);
 
 		const writeThresholds = (thresholds: ResolvedThresholds): Effect.Effect<void, DataStoreError> =>
 			writeCoveragePolicy("threshold", thresholds);
