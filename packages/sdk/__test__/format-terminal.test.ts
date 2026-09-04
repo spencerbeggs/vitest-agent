@@ -587,4 +587,20 @@ describe("formatTerminal — per-tag counts", () => {
 		expect(out).toMatch(/unit\s+744p\s+2f/);
 		expect(out).toMatch(/int\s+4p\s+2f/);
 	});
+
+	it("includes the scoped-coverage note when the report's coverage is scoped (issue #160)", () => {
+		const out = formatTerminal(
+			[
+				baseReport({
+					summary: { total: 2, passed: 2, failed: 0, skipped: 0, duration: 10 },
+					coverage: coverage({
+						scoped: true,
+						scopedFiles: ["src/a.ts", "src/b.ts"],
+					}),
+				}),
+			],
+			baseOptions,
+		);
+		expect(out).toContain("Coverage thresholds skipped: partial run (2 test files)");
+	});
 });

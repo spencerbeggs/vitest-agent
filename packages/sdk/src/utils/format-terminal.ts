@@ -5,6 +5,7 @@ import type { AnsiOptions } from "./ansi.js";
 import { ansi } from "./ansi.js";
 import { compressLines } from "./compress-lines.js";
 import { relativePath } from "./format-console.js";
+import { formatScopedCoverageNote } from "./format-scoped-coverage-note.js";
 
 /**
  * Compress a comma-separated line list into ranges where consecutive
@@ -307,10 +308,14 @@ const aggregateCoverage = (
 	belowTargetFiles: ReadonlyArray<FileCoverageReport>;
 	thresholdsGlobal?: MetricThresholds;
 	targetsGlobal?: MetricThresholds;
+	scoped: boolean;
+	scopedFileCount: number;
 } => {
 	let hasCoverage = false;
 	let thresholdsGlobal: MetricThresholds | undefined;
 	let targetsGlobal: MetricThresholds | undefined;
+	let scoped = false;
+	let scopedFileCount = 0;
 	// Coverage data is global, not per-project: the istanbul CoverageMap
 	// is processed once and the resulting CoverageReport is attached to
 	// every project's report. Naively concatenating across reports
@@ -325,6 +330,10 @@ const aggregateCoverage = (
 		hasCoverage = true;
 		thresholdsGlobal ??= cov.thresholds.global;
 		targetsGlobal ??= cov.targets?.global;
+		if (cov.scoped) {
+			scoped = true;
+			scopedFileCount = Math.max(scopedFileCount, cov.scopedFiles?.length ?? 0);
+		}
 		if (cov.lowCoverage) {
 			for (const f of cov.lowCoverage) {
 				if (!belowThresholdByFile.has(f.file)) belowThresholdByFile.set(f.file, f);
@@ -343,6 +352,8 @@ const aggregateCoverage = (
 		thresholdsMet: belowThresholdCount === 0,
 		belowThresholdCount,
 		belowTargetFiles,
+		scoped,
+		scopedFileCount,
 		...(thresholdsGlobal !== undefined ? { thresholdsGlobal } : {}),
 		...(targetsGlobal !== undefined ? { targetsGlobal } : {}),
 	};
@@ -404,6 +415,15 @@ const renderCoverageSection = (
 		} else {
 			lines.push(`Coverage: ${tick} minimum thresholds met${thresholdSpec ? ` (${thresholdSpec})` : ""}`);
 		}
+	}
+
+	// Scoped/partial-run note (issue #160): Vitest enforces coverage
+	// thresholds against the whole-project denominator, so a run that only
+	// exercised a subset of test files has its threshold check suppressed
+	// upstream (reporter.ts) — surface why here rather than silently
+	// showing an unqualified "thresholds met" line.
+	if (agg.scoped) {
+		lines.push(formatScopedCoverageNote(agg.scopedFileCount));
 	}
 
 	// Trend line (separate from summary so it groups with coverage)

@@ -9,10 +9,14 @@
  * was rendered for coverage.
  *
  * @param testedFileCount - number of test files that actually ran
- * @param totalFileCount - total number of test files in the project
+ * @param totalFileCount - total number of test files in the project, when
+ *   known. Some callers (formatters working from a persisted
+ *   `CoverageReport`, which tracks only the tested-file list) cannot supply
+ *   this; the note degrades to `"(N test files)"` when omitted.
  * @returns the note text, e.g. `"Coverage thresholds skipped: partial run (2 of 47 test files)"`
  * @public
  */
-export function formatScopedCoverageNote(testedFileCount: number, totalFileCount: number): string {
-	return `Coverage thresholds skipped: partial run (${testedFileCount} of ${totalFileCount} test files)`;
+export function formatScopedCoverageNote(testedFileCount: number, totalFileCount?: number): string {
+	const suffix = totalFileCount !== undefined ? `${testedFileCount} of ${totalFileCount}` : `${testedFileCount}`;
+	return `Coverage thresholds skipped: partial run (${suffix} test files)`;
 }
