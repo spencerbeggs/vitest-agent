@@ -1953,6 +1953,20 @@ export class AgentReporter {
 				yield* store.writeBaselines(newBaselines);
 			}
 
+			// Persist the resolved (enforced) thresholds and aspirational
+			// targets distinctly from the ratcheted baseline, independent of
+			// `autoUpdate` -- an agent asking "what bar am I held to" must
+			// never be answered with the baseline (issue #237). A run with
+			// neither configured writes nothing.
+			if (coverageReport) {
+				if (opts.coverageThresholds !== undefined) {
+					yield* store.writeThresholds(opts.coverageThresholds);
+				}
+				if (opts.coverageTargets !== undefined) {
+					yield* store.writeTargets(opts.coverageTargets);
+				}
+			}
+
 			// Build trend summary for output context (read back after writing)
 			let trendSummary:
 				| {

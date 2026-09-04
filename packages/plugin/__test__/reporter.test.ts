@@ -360,6 +360,89 @@ describe("AgentReporter", () => {
 			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
 		});
 
+		it("persists resolved thresholds and targets distinctly from the ratcheted baseline (issue #237)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				coverageThresholds: { global: { lines: 70, functions: 70 } } as Record<string, unknown>,
+				coverageTargets: { global: { lines: 90, functions: 90 } } as Record<string, unknown>,
+			});
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => ["src/covered.ts"],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+
+			reporter.onCoverage(mockCoverage);
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const rows = db
+				.prepare(
+					"SELECT kind, metric, value FROM coverage_baselines WHERE project = '__global__' ORDER BY kind, metric",
+				)
+				.all() as Array<{ kind: string; metric: string; value: number }>;
+			db.close();
+
+			const thresholdRows = rows.filter((r) => r.kind === "threshold");
+			const targetRows = rows.filter((r) => r.kind === "target");
+			expect(thresholdRows.find((r) => r.metric === "lines")?.value).toBe(70);
+			expect(thresholdRows.find((r) => r.metric === "functions")?.value).toBe(70);
+			expect(targetRows.find((r) => r.metric === "lines")?.value).toBe(90);
+			expect(targetRows.find((r) => r.metric === "functions")?.value).toBe(90);
+		});
+
+		it("writes no threshold rows when coverageThresholds is not configured", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => ["src/covered.ts"],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+
+			reporter.onCoverage(mockCoverage);
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const rows = db
+				.prepare("SELECT COUNT(*) AS cnt FROM coverage_baselines WHERE kind IN ('threshold', 'target')")
+				.get() as { cnt: number };
+			db.close();
+
+			expect(rows.cnt).toBe(0);
+		});
+
 		it("caps baselines at target values", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
