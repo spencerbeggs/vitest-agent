@@ -11,7 +11,15 @@ export interface IsPartialRunInput {
 	readonly startedSpecCount: number;
 	/** Total number of test specifications discoverable for the same project set. */
 	readonly totalSpecCount: number;
-	/** Explicit Vitest `--project` filter, when supplied. */
+	/**
+	 * `AgentReporter`'s construction-time `projectFilter` option, when set —
+	 * NOT the CLI `--project` flag. `plugin.ts` never passes this when
+	 * constructing `AgentReporter`, so in the production plugin path it is
+	 * always `undefined`; a user's `--project` run is instead caught by the
+	 * spec-count signal below (fewer specs started than exist in total).
+	 * This field is only ever set by a caller constructing `AgentReporter`
+	 * directly (e.g. a test, or a non-plugin embedding).
+	 */
 	readonly projectFilter: string | undefined;
 }
 
