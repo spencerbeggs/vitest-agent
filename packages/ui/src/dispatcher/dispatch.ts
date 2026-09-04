@@ -14,7 +14,10 @@
  */
 
 import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "@vitest-agent/sdk";
+import { formatScopedCoverageNote } from "@vitest-agent/sdk";
+import { Box, Text } from "ink";
 import type { ReactElement } from "react";
+import { createElement } from "react";
 import type { Cell } from "./cell-types.js";
 import { renderSingleFileFail } from "./cells/single-file-fail.js";
 import { renderSingleFilePass } from "./cells/single-file-pass.js";
@@ -70,7 +73,25 @@ export const dispatcherTable: Readonly<Record<RunShape, Readonly<Record<RunOutco
  */
 export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
 	const cell = dispatcherTable[inputs.shape][inputs.outcome];
-	return cell.agent(inputs, opts);
+	const body = cell.agent(inputs, opts);
+	const note = scopedCoverageNoteFor(inputs);
+	return note !== null ? `${body}\n${note}` : body;
+};
+
+/**
+ * Build the scoped-coverage note for this run, or `null` on a full
+ * (non-scoped) run. Shared by {@link dispatch} and {@link dispatchInk} so
+ * both render paths surface the same information (issue #160 gap 1) —
+ * Vitest's coverage thresholds are meaningless against a subset of the
+ * project's test files, so every cell's own threshold-flavored coverage
+ * text is followed by an explanation of why to disregard it.
+ *
+ * @internal
+ */
+const scopedCoverageNoteFor = (inputs: DispatchInputs): string | null => {
+	const cov = inputs.state.coverage;
+	if (cov === null || cov.scoped !== true) return null;
+	return formatScopedCoverageNote(cov.scopedFiles ?? 0, cov.totalFiles);
 };
 
 /**
@@ -86,5 +107,12 @@ export const dispatch = (inputs: DispatchInputs, opts: CellOptions): string => {
  */
 export const dispatchInk = (inputs: DispatchInputs, opts: CellOptions): ReactElement | null => {
 	const cell = dispatcherTable[inputs.shape][inputs.outcome];
-	return cell.ink !== undefined ? cell.ink(inputs, opts) : null;
+	if (cell.ink === undefined) return null;
+	const element = cell.ink(inputs, opts);
+	const note = scopedCoverageNoteFor(inputs);
+	if (note === null) return element;
+	// No JSX here — this module has a `.ts` extension (shared by both the
+	// agent-string and Ink dispatch entry points), so the Ink tree is built
+	// via `createElement` rather than a `.tsx` JSX literal.
+	return createElement(Box, { flexDirection: "column" }, element, createElement(Text, null, note));
 };

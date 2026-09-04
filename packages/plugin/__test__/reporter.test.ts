@@ -1034,6 +1034,48 @@ describe("AgentReporter", () => {
 	});
 
 	describe("scoped/partial run coverage (issue #160)", () => {
+		it("emits scoped/scopedFiles/totalFiles on the live CoverageReady event for a partial run (gap 1)", async () => {
+			const events: RunEvent[] = [];
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				onRunEvent: (e) => events.push(e),
+			});
+			reporter._vitest = {
+				config: {},
+				version: "test",
+				filenamePattern: ["src/foo.test.ts"],
+				globTestSpecifications: async () => new Array(47).fill({}),
+			};
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => ["src/foo.ts"],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+			reporter.onTestRunStart([{}]);
+			reporter.onCoverage(mockCoverage);
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const coverageReady = events.find((e) => e._tag === "CoverageReady");
+			expect(coverageReady).toMatchObject({ scoped: true, scopedFiles: 1, totalFiles: 47 });
+		});
+	});
+
+	describe("scoped/partial run coverage (issue #160) — persistence and events", () => {
 		it("persists scoped=true on the test_runs row when vitest.filenamePattern indicates a partial run", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,

@@ -1605,6 +1605,9 @@ export class AgentReporter {
 						missing: fc.summary,
 						uncoveredLines: fc.uncoveredLines,
 					})),
+					...(coverageReport.scoped ? { scoped: coverageReport.scoped } : {}),
+					...(coverageReport.scopedFiles !== undefined ? { scopedFiles: coverageReport.scopedFiles.length } : {}),
+					...(coverageReport.totalFiles !== undefined ? { totalFiles: coverageReport.totalFiles } : {}),
 				});
 				if (!coverageReport.scoped) {
 					for (const metric of ["lines", "branches", "functions", "statements"] as const) {
