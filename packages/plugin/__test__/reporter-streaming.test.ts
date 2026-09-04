@@ -193,6 +193,30 @@ describe("AgentReporter streaming callbacks", () => {
 		});
 	});
 
+	it("populates RunFinished.unhandledErrors from the onTestRunEnd parameter", async () => {
+		const events: RunEvent[] = [];
+		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
+		reporter.onTestRunStart([]);
+		const module = makeTestModule("a.test.ts", [{ name: "p1", state: "passed", duration: 2 }], 5);
+		const originalWrite = process.stderr.write.bind(process.stderr);
+		process.stderr.write = (() => true) as typeof process.stderr.write;
+		try {
+			await reporter.onTestRunEnd(
+				[module] as unknown as ReadonlyArray<unknown>,
+				[{ message: "unhandled rejection: boom", stack: "Error\n    at x (a.ts:1:1)" }],
+				"passed",
+			);
+		} catch {
+			// noop — see comment on the RunFinished totals test above.
+		} finally {
+			process.stderr.write = originalWrite;
+		}
+		const finished = events.find((e) => e._tag === "RunFinished");
+		expect(finished).toMatchObject({
+			unhandledErrors: [{ message: "unhandled rejection: boom", stack: "Error\n    at x (a.ts:1:1)" }],
+		});
+	});
+
 	it("captures suite path from the test parent chain", () => {
 		const events: RunEvent[] = [];
 		const reporter = new AgentReporter({ onRunEvent: (e) => events.push(e) });
