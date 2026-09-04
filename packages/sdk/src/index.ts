@@ -116,6 +116,7 @@ export * from "./utils/failure-signature.js";
 export * from "./utils/format-console.js";
 export * from "./utils/format-fatal-error.js";
 export * from "./utils/format-gfm.js";
+export * from "./utils/format-scoped-coverage-note.js";
 export * from "./utils/function-boundary.js";
 export * from "./utils/hyperlink.js";
 export * from "./utils/match-vitest-command.js";
