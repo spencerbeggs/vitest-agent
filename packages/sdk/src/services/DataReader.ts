@@ -450,6 +450,17 @@ export class DataReader extends Context.Service<
 				 * preserves the prior single-session contract.
 				 */
 				readonly walkParents?: boolean;
+				/**
+				 * When true AND `sessionId`'s session has a non-null
+				 * `conversation_id`, also return tdd_tasks belonging to
+				 * any OTHER session sharing that `conversation_id` — the
+				 * detached-session fallback (issue #144). A session with
+				 * a null `conversation_id` never triggers this fallback.
+				 * Rows are ordered so a task owned by an `agent_kind =
+				 * 'main'` session sorts first, then by `started_at DESC`.
+				 * Default `false` preserves the prior contract.
+				 */
+				readonly walkConversation?: boolean;
 			},
 		) => Effect.Effect<ReadonlyArray<TddTaskSummary>, DataStoreError>;
 		/**

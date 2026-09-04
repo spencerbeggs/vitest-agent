@@ -1914,6 +1914,53 @@ describe("DataReaderLive", () => {
 		});
 	});
 
+	describe("listTddTasksForSession walkConversation (issue #144)", () => {
+		it("resolves a detached session's open task via a main session sharing conversation_id", async () => {
+			const conversationId = "22222222-2222-2222-2222-222222222222";
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+
+					const mainSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-main",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId,
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const openTddTaskId = yield* ds.writeTddTask({
+						sessionId: mainSessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+
+					// A detached session with no parent_session_id but the
+					// same conversation_id — the shape a named-teammate
+					// dispatch produces.
+					const detachedSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-detached",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						conversationId,
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					const viaParentWalk = yield* dr.listTddTasksForSession(detachedSessionId, { walkParents: true });
+					const viaConversationWalk = yield* dr.listTddTasksForSession(detachedSessionId, {
+						walkParents: true,
+						walkConversation: true,
+					});
+					return { openTddTaskId, viaParentWalk, viaConversationWalk };
+				}),
+			);
+			expect(result.viaParentWalk).toHaveLength(0);
+			expect(result.viaConversationWalk.map((t) => t.id)).toContain(result.openTddTaskId);
+		});
+	});
+
 	describe("findActiveSubagentSession", () => {
 		it("returns the most recent un-ended subagent child of the parent", async () => {
 			const result = await run(

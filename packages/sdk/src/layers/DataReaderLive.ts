@@ -2252,11 +2252,15 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 
 		const listTddTasksForSession = (
 			sessionId: number,
-			options?: { readonly walkParents?: boolean },
+			options?: { readonly walkParents?: boolean; readonly walkConversation?: boolean },
 		): Effect.Effect<ReadonlyArray<TddTaskSummary>, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("listTddTasksForSession").pipe(
-					Effect.annotateLogs({ sessionId, walkParents: options?.walkParents ?? false }),
+					Effect.annotateLogs({
+						sessionId,
+						walkParents: options?.walkParents ?? false,
+						walkConversation: options?.walkConversation ?? false,
+					}),
 				);
 				// When `walkParents`, collect the ancestor chain via
 				// parent_session_id. Bound the loop by table size to
@@ -2276,6 +2280,28 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						currentId = next;
 					}
 				}
+				// Detached-session fallback (issue #144): when `sessionId`'s
+				// own session carries a non-null conversation_id, also pull
+				// in every OTHER session sharing that conversation_id — a
+				// named-teammate or otherwise parent-link-less session
+				// still resolves to the conversation's open task. Never
+				// triggers when conversation_id is null.
+				if (options?.walkConversation === true) {
+					const convRows: ReadonlyArray<{ conversation_id: string | null }> = yield* sql<{
+						conversation_id: string | null;
+					}>`
+							SELECT conversation_id FROM sessions WHERE id = ${sessionId} LIMIT 1
+						`;
+					const conversationId = convRows[0]?.conversation_id ?? null;
+					if (conversationId !== null) {
+						const conversationSessionRows: ReadonlyArray<{ id: number }> = yield* sql<{ id: number }>`
+								SELECT id FROM sessions WHERE conversation_id = ${conversationId}
+							`;
+						for (const row of conversationSessionRows) {
+							if (!sessionIds.includes(row.id)) sessionIds.push(row.id);
+						}
+					}
+				}
 				const rows = yield* sql<{
 					id: number;
 					session_id: number;
@@ -2283,9 +2309,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					started_at: string;
 					ended_at: string | null;
 					outcome: string | null;
+					agent_kind: string;
 				}>`
-					SELECT id, session_id, goal, started_at, ended_at, outcome FROM tdd_tasks
-					WHERE session_id IN ${sql.in(sessionIds)} ORDER BY started_at DESC
+					SELECT t.id, t.session_id, t.goal, t.started_at, t.ended_at, t.outcome, s.agent_kind
+					FROM tdd_tasks t
+					JOIN sessions s ON s.id = t.session_id
+					WHERE t.session_id IN ${sql.in(sessionIds)}
+					ORDER BY (CASE WHEN s.agent_kind = 'main' THEN 0 ELSE 1 END), t.started_at DESC
 				`;
 				return rows.map((r) => ({
 					id: r.id,
