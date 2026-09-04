@@ -67,11 +67,28 @@ Shape:
   - `tests` (optional) — test names where writes were attributed
   - `sample` (optional) — truncated excerpt of the first write in this file
 - `truncated` (optional) — `true` when `byFile` was capped
+- `fromFailingTests` (optional) — `{ total, files }` summarizing console
+  writes logged inside FAILING tests
+
+`total` and `byFile` count only writes from tests that did **not** fail —
+that is the actionable leak signal. Writes logged inside a failing test are
+excluded from `total`/`byFile` and instead summarized in
+`fromFailingTests`. This matters because some assertion libraries (loggers
+included) route failure output through `console.*`; without the split,
+every red run would report a "leak" for each failure regardless of whether
+anything actually leaked. `consoleLeaks` is still omitted entirely when the
+run produced no console output at all — but when a run has ONLY
+failing-test output, it now comes back as `{ total: 0, byFile: [],
+fromFailingTests }` rather than `undefined`, so the output stays visible
+without being misread as a leak.
 
 Use `byFile[].file` to locate which files to investigate and `sample` to
 find the call site, without dumping full log content into agent context.
-The markdown summary line also surfaces the leak count inline (e.g.
-`⚠ 3 stray console writes across 2 files (see consoleLeaks)`).
+The markdown summary line surfaces the two buckets separately: the ⚠
+warning only renders when `total > 0` (e.g.
+`⚠ 3 stray console writes across 2 files (see consoleLeaks)`), and a
+distinct non-warning note renders whenever `fromFailingTests` is populated
+(e.g. `2 console writes from failing tests (not counted as leaks)`).
 
 ### Console-output visibility by surface
 
