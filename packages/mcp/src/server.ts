@@ -387,9 +387,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"test",
 		{
 			description:
-				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
+				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file; action='for_tag' (tag, project?) returns tests carrying a tag, grouped by project. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
 			inputSchema: strict({
-				action: z.enum(["list", "get", "for_file"]).describe("Inspection discriminator"),
+				action: z.enum(["list", "get", "for_file", "for_tag"]).describe("Inspection discriminator"),
 				project: z.optional(z.string()),
 				state: z.optional(z.string()).describe("list: filter by state"),
 				module: z.optional(z.string()).describe("list: filter by module path"),
@@ -399,6 +399,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					.optional(z.string())
 					.describe("get: exact module path, disambiguating a fullName present in several files"),
 				filePath: z.optional(z.string()).describe("for_file: source file path"),
+				tag: z.optional(z.string()).describe("for_tag: tag name"),
 			}),
 			outputSchema: effectToZodSchema(TestResult) as never,
 		},
@@ -419,8 +420,14 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					...(args.project !== undefined && { project: args.project }),
 					...(args.modulePath !== undefined && { modulePath: args.modulePath }),
 				});
-			} else {
+			} else if (args.action === "for_file") {
 				data = await caller.test({ action: "for_file", filePath: args.filePath as string });
+			} else {
+				data = await caller.test({
+					action: "for_tag",
+					tag: args.tag as string,
+					...(args.project !== undefined && { project: args.project }),
+				});
 			}
 			const text = Schema.decodeSync(TestAsMarkdown)(data);
 			return structuredResult(text, data);
