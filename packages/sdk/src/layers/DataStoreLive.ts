@@ -544,6 +544,23 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
+		const setSessionConversationIdIfNull = (input: {
+			readonly sessionId: number;
+			readonly conversationId: string;
+		}): Effect.Effect<void, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("setSessionConversationIdIfNull").pipe(Effect.annotateLogs(input));
+				yield* sql`
+					UPDATE sessions SET conversation_id = ${input.conversationId}
+					WHERE id = ${input.sessionId} AND conversation_id IS NULL
+				`;
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "sessions", reason: extractSqlReason(e) }),
+				),
+			);
+
 		const writeTurn = (input: TurnInput): Effect.Effect<number, DataStoreError> =>
 			sql
 				.withTransaction(
@@ -1831,6 +1848,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			deleteNote,
 			writeSession,
 			upsertSession,
+			setSessionConversationIdIfNull,
 			writeTurn,
 			writeFailureSignature,
 			endSession,

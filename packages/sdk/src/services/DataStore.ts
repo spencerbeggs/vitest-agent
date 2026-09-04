@@ -466,6 +466,20 @@ export class DataStore extends Context.Service<
 		 * `INSERT ... ON CONFLICT DO NOTHING`.
 		 */
 		readonly upsertSession: (input: SessionInput) => Effect.Effect<number, DataStoreError>;
+		/**
+		 * Backfill `sessions.conversation_id` for a row that was inserted
+		 * before the canonical conversation id was known (issue #144) —
+		 * `record session-start` always precedes `register-agent`, so the
+		 * session row exists first. Race-safe and idempotent: the UPDATE's
+		 * `WHERE conversation_id IS NULL` guard means a session that
+		 * already carries a value is left untouched (zero rows affected),
+		 * matching the trigger's null→value-only relaxation rather than
+		 * risking an immutability-violation error on a redundant call.
+		 */
+		readonly setSessionConversationIdIfNull: (input: {
+			readonly sessionId: number;
+			readonly conversationId: string;
+		}) => Effect.Effect<void, DataStoreError>;
 		readonly writeTurn: (input: TurnInput) => Effect.Effect<number, DataStoreError>;
 		readonly writeFailureSignature: (input: FailureSignatureWriteInput) => Effect.Effect<void, DataStoreError>;
 		readonly endSession: (

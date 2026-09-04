@@ -1665,6 +1665,59 @@ describe("DataStoreLive", () => {
 		});
 	});
 
+	describe("setSessionConversationIdIfNull (issue #144)", () => {
+		it("sets conversation_id when the session's current value is null", async () => {
+			const conversationId = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sql = yield* SqlClient;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-conv-backstop-null",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.setSessionConversationIdIfNull({
+						sessionId,
+						conversationId: "dddddddd-dddd-dddd-dddd-dddddddddddd",
+					});
+					const rows = yield* sql<{ conversation_id: string | null }>`
+						SELECT conversation_id FROM sessions WHERE id = ${sessionId}
+					`;
+					return rows[0]?.conversation_id ?? null;
+				}),
+			);
+			expect(conversationId).toBe("dddddddd-dddd-dddd-dddd-dddddddddddd");
+		});
+
+		it("is a no-op when the session already has a conversation_id", async () => {
+			const conversationId = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sql = yield* SqlClient;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-conv-backstop-set",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.setSessionConversationIdIfNull({
+						sessionId,
+						conversationId: "ffffffff-ffff-ffff-ffff-ffffffffffff",
+					});
+					const rows = yield* sql<{ conversation_id: string | null }>`
+						SELECT conversation_id FROM sessions WHERE id = ${sessionId}
+					`;
+					return rows[0]?.conversation_id ?? null;
+				}),
+			);
+			expect(conversationId).toBe("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+		});
+	});
+
 	describe("pruneSessions", () => {
 		it("keeps the N most-recent sessions' turns and drops older ones", async () => {
 			const result = await run(
