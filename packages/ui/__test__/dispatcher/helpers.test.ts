@@ -1,7 +1,7 @@
-import type { RenderState } from "@vitest-agent/sdk";
+import type { FileCoverageReport, RenderState } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
-import { formatTotals } from "../../src/dispatcher/helpers.js";
+import { formatBelowTargetTable, formatTotals } from "../../src/dispatcher/helpers.js";
 
 const baseState = (overrides: Partial<RenderState> = {}): RenderState => ({
 	...initialRenderState,
@@ -29,5 +29,20 @@ describe("formatTotals", () => {
 			totals: { passCount: 2, failCount: 1, skipCount: 3, timeoutCount: 1, durationMs: 100 },
 		});
 		expect(formatTotals(state)).toBe("Tests: 2/7 passed, 1 failed, 1 timed out, 3 skipped (100ms)");
+	});
+});
+
+describe("formatBelowTargetTable", () => {
+	const fileReport = (file: string): FileCoverageReport => ({
+		file,
+		summary: { statements: 50, branches: 50, functions: 50, lines: 50 },
+		uncoveredLines: "1-10",
+	});
+
+	it("does not truncate a file path longer than the 60-char default column width (issue #237 follow-up)", () => {
+		const longPath = "packages/some-really-long-workspace-name/src/deeply/nested/directory/structure/module.ts";
+		const rows = formatBelowTargetTable([fileReport(longPath)], 10);
+		expect(rows.join("\n")).toContain(longPath);
+		expect(rows.join("\n")).not.toContain("…");
 	});
 });
