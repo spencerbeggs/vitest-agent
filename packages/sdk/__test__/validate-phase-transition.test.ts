@@ -5,11 +5,13 @@ import { transitionEnforcesBehaviorMatch, validatePhaseTransition } from "../src
 const baseCtx = (overrides: Partial<PhaseTransitionContext> = {}): PhaseTransitionContext => ({
 	tdd_task_id: 1,
 	current_phase: "red",
+	current_phase_id: 900,
 	phase_started_at: "2026-04-29T00:00:00Z",
 	now: "2026-04-29T00:01:00Z",
 	requested_phase: "green",
 	cited_artifact: {
 		id: 100,
+		phase_id: 900,
 		artifact_kind: "test_failed_run",
 		test_case_id: 50,
 		test_case_created_turn_at: "2026-04-29T00:00:30Z",
@@ -113,15 +115,38 @@ describe("validatePhaseTransition", () => {
 		if (!result.accepted) expect(result.denialReason).toBe("missing_artifact_evidence");
 	});
 
-	it("rejects D2 binding rule 1: cited test created before phase start", () => {
-		// Precondition: test_case_id is set (50, from baseCtx), so rule 1 applies.
-		// The phase-window check then trips because created_turn_at predates
-		// phase_started_at.
+	it("accepts red→green when the test_case was first created in an earlier phase (e.g. spike) but the cited test_failed_run artifact is bound to the current phase (issue #245 scenario 1)", () => {
+		// Given: the test_case's first-ever creation turn predates this phase's start
+		// (it was authored during spike, then the phase transitioned to red and the
+		// test was re-run there). The cited test_failed_run artifact, however, is
+		// bound to the CURRENT phase (its phase_id matches current_phase_id) and was
+		// authored in this session. D2 rule 1 must key off the artifact's own phase
+		// binding, not the test_case's first creation turn — this must be ACCEPTED.
 		const result = validatePhaseTransition(
 			baseCtx({
 				cited_artifact: {
 					...baseCtx().cited_artifact,
-					test_case_created_turn_at: "2026-04-28T00:00:00Z",
+					test_case_created_turn_at: "2026-04-28T00:00:00Z", // created before phase_started_at
+					phase_id: 900, // but the artifact itself is bound to the current phase (900)
+				},
+			}),
+		);
+		expect(result.accepted).toBe(true);
+	});
+
+	it("rejects D2 binding rule 1: cited artifact was recorded in an earlier, already-closed phase of the same task (stale cross-phase evidence, issue #245 scenario 3)", () => {
+		// Given: the cited test_failed_run artifact's own phase_id does not match the
+		// current phase's id — the evidence was recorded in an earlier phase window
+		// (e.g. a prior red phase for the same task) and is being replayed against a
+		// later phase. Unlike scenario 1, the artifact's own phase binding is stale,
+		// not merely the test_case's original creation turn — this must stay DENIED.
+		const result = validatePhaseTransition(
+			baseCtx({
+				current_phase_id: 900,
+				cited_artifact: {
+					...baseCtx().cited_artifact,
+					test_case_created_turn_at: "2026-04-29T00:00:30Z", // created within the current phase window
+					phase_id: 42, // but the artifact itself was recorded in a different (earlier) phase
 				},
 			}),
 		);
@@ -129,7 +154,7 @@ describe("validatePhaseTransition", () => {
 		if (!result.accepted) expect(result.denialReason).toBe("evidence_not_in_phase_window");
 	});
 
-	it("rejects D2 binding rule 1: test not authored in this session", () => {
+	it("rejects D2 binding rule 1: test not authored in this session (issue #245 scenario 2 — pre-existing test on main must still be denied)", () => {
 		// Precondition: test_case_id is set (50, from baseCtx), so rule 1 applies.
 		// The session check then trips because authored_in_session is false. The
 		// null-test_case_id case is handled by the "accepts run-level evidence"
@@ -180,6 +205,7 @@ describe("validatePhaseTransition", () => {
 				phase_started_at: "2026-04-29T00:01:00Z",
 				cited_artifact: {
 					id: 100,
+					phase_id: 900,
 					artifact_kind: "test_passed_run",
 					test_case_id: 50,
 					// authored during the red phase — before the green phase started
@@ -301,6 +327,7 @@ describe("validatePhaseTransition", () => {
 				requested_phase: "refactor",
 				cited_artifact: {
 					id: 100,
+					phase_id: 900,
 					artifact_kind: "test_passed_run",
 					test_case_id: null,
 					test_case_created_turn_at: null,
@@ -355,6 +382,7 @@ describe("validatePhaseTransition", () => {
 				requested_phase: "red",
 				cited_artifact: {
 					id: 100,
+					phase_id: 900,
 					artifact_kind: "test_passed_run",
 					test_case_id: 50,
 					test_case_created_turn_at: "2026-04-29T00:00:30Z",
@@ -410,6 +438,7 @@ describe("validatePhaseTransition", () => {
 				requested_behavior_id: 2,
 				cited_artifact: {
 					id: 100,
+					phase_id: 900,
 					artifact_kind: "test_failed_run",
 					test_case_id: 50,
 					// authored during behavior 1's red phase — before behavior 2's phase started
@@ -496,6 +525,7 @@ describe("validatePhaseTransition", () => {
 				requested_behavior_id: 2,
 				cited_artifact: {
 					id: 100,
+					phase_id: 900,
 					artifact_kind: "test_passed_run",
 					test_case_id: 50,
 					test_case_created_turn_at: "2026-04-29T00:00:30Z",
@@ -542,6 +572,7 @@ describe("validatePhaseTransition", () => {
 				requested_behavior_id: 1,
 				cited_artifact: {
 					id: 100,
+					phase_id: 900,
 					artifact_kind: "test_passed_run",
 					test_case_id: 50,
 					test_case_created_turn_at: "2026-04-29T00:00:30Z",
