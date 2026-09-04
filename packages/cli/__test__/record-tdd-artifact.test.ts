@@ -134,6 +134,51 @@ describe("recordTddArtifactEffect", () => {
 		expect(result.phaseId).toBeGreaterThan(0);
 	});
 
+	it("resolves the open task via conversation_id when the parent walk finds none (issue #144)", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const ds = yield* DataStoreTag;
+				const conversationId = "66666666-6666-6666-6666-666666666666";
+				const mainSessionId = yield* ds.writeSession({
+					chatId: "cc-conv-main-artifact",
+					project: "demo",
+					cwd: "/tmp/demo",
+					agentKind: "main",
+					conversationId,
+					startedAt: "2026-04-29T00:00:00Z",
+				});
+				const tddId = yield* ds.writeTddTask({
+					sessionId: mainSessionId,
+					goal: "g",
+					startedAt: "2026-04-29T00:00:01Z",
+				});
+				yield* ds.writeTddPhase({
+					tddTaskId: tddId,
+					phase: "red",
+					startedAt: "2026-04-29T00:00:02Z",
+				});
+
+				// Detached session: no parent_session_id, same conversation_id.
+				yield* ds.writeSession({
+					chatId: "cc-conv-detached-artifact",
+					project: "demo",
+					cwd: "/tmp/demo",
+					agentKind: "subagent",
+					conversationId,
+					startedAt: "2026-04-29T00:00:03Z",
+				});
+
+				return yield* recordTddArtifactEffect({
+					chatId: "cc-conv-detached-artifact",
+					artifactKind: "test_written",
+					recordedAt: "2026-04-29T00:00:04Z",
+				});
+			}),
+		);
+		expect(result.id).toBeGreaterThan(0);
+		expect(result.phaseId).toBeGreaterThan(0);
+	});
+
 	it("forwards all optional FK fields when provided", async () => {
 		const result = await run(
 			Effect.gen(function* () {

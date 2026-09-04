@@ -60,7 +60,16 @@ export const recordTddArtifactEffect = (
 		// open the tdd task under the parent main row but PostToolUse
 		// hooks fire under the subagent's own row — without the parent
 		// walk, the lookup misses the tdd task entirely.
-		const tddTasks = yield* reader.listTddTasksForSession(session.id, { walkParents: true });
+		//
+		// `walkConversation` covers the residual detached-session case
+		// (issue #144): a named-teammate or otherwise parent-link-less
+		// session whose row shares `conversation_id` with the session
+		// that opened the task. No-ops when the session's
+		// `conversation_id` is null.
+		const tddTasks = yield* reader.listTddTasksForSession(session.id, {
+			walkParents: true,
+			walkConversation: true,
+		});
 		const openTdd = tddTasks.find((t) => t.endedAt === null);
 		if (openTdd === undefined) {
 			return yield* Effect.fail(
