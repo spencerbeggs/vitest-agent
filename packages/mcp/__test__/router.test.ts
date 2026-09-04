@@ -1867,6 +1867,111 @@ describe("MCP Router", () => {
 			expect(after.behavior.status).toBe("in_progress");
 		});
 
+		it("accepts red→green when the test_case was first authored during spike but the cited test_failed_run artifact was recorded in red (issue #245)", async () => {
+			// Given: a test_case whose FIRST-EVER creation turn occurred during the
+			// spike phase (before red even started). The agent then transitions to
+			// red, re-runs the same test, and the resulting test_failed_run artifact
+			// is bound to the red phase. The evidence itself (the artifact) is fresh;
+			// only the test_case's original authoring turn is stale. This must be
+			// ACCEPTED — before the fix, D2 rule 1 compared test_case_created_turn_at
+			// (spike) against phase_started_at (red) and wrongly denied it.
+			const { tddId, goalId, sessionId } = await seedTddSessionForTransition("cc-tdd-trans-245-spike-then-red", "g");
+			const caller = createTestCaller();
+
+			const beh = (await caller.tdd_behavior({ action: "create", goalId, behavior: "245-b1" })) as {
+				ok: true;
+				behavior: { id: number; status: string };
+			};
+			expect(beh.behavior.status).toBe("pending");
+
+			const { artifactId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+
+					// Open the spike phase and author the test_case's turn there.
+					yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "spike",
+						startedAt: "2026-05-01T00:00:00Z",
+					});
+					const spikeTurnId = yield* store.writeTurn({
+						sessionId,
+						type: "file_edit",
+						payload: JSON.stringify({
+							type: "file_edit",
+							file_path: "src/example.test.ts",
+							edit_kind: "write",
+						}),
+						occurredAt: "2026-05-01T00:00:01Z",
+					});
+
+					yield* store.writeSettings("hash-245-test", { vitestVersion: "4.1.0" }, {});
+					const runId = yield* store.writeRun({
+						invocationId: "inv-245-001",
+						project: "default",
+						settingsHash: "hash-245-test",
+						timestamp: "2026-05-01T00:05:00Z",
+						commitSha: null,
+						branch: null,
+						reason: "failed",
+						duration: 500,
+						total: 1,
+						passed: 0,
+						failed: 1,
+						skipped: 0,
+						scoped: false,
+					});
+					const fileId = yield* store.ensureFile("src/example.test.ts");
+					const [moduleId] = yield* store.writeModules(runId, [
+						{ fileId, relativeModuleId: "src/example.test.ts", state: "failed", duration: 200 },
+					]);
+					// The test_case's created_turn_id anchors it to the SPIKE turn —
+					// its first-ever creation predates the red phase entirely.
+					const [testCaseId] = yield* store.writeTestCases(moduleId, [
+						{
+							name: "should do something",
+							fullName: "example > should do something",
+							state: "failed",
+							duration: 10,
+							createdTurnId: spikeTurnId,
+						},
+					]);
+
+					// Now open the red phase, started AFTER the test_case was created.
+					const redPhase = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						behaviorId: beh.behavior.id,
+						phase: "red",
+						startedAt: "2026-05-01T00:05:00Z",
+					});
+
+					// The test_failed_run artifact is recorded INSIDE red — its own
+					// phase binding (phase_id) is the red phase, even though the
+					// test_case it points at was first created during spike.
+					const artifactId = yield* store.writeTddArtifact({
+						phaseId: redPhase.id,
+						artifactKind: "test_failed_run",
+						testCaseId,
+						testRunId: runId,
+						testFirstFailureRunId: runId,
+						recordedAt: "2026-05-01T00:05:01Z",
+					});
+
+					return { artifactId };
+				}),
+			);
+
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				behaviorId: beh.behavior.id,
+				requestedPhase: "green",
+				citedArtifactId: artifactId,
+			})) as { accepted: boolean; denialReason?: string };
+
+			expect(r.accepted).toBe(true);
+		});
+
 		it("auto-resolves citedArtifactId for spike→red when neither citedArtifactId nor citedArtifactKind is supplied (no artifact required)", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-spike-red-noart", "g");
 			const caller = createTestCaller();
