@@ -2332,6 +2332,43 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
+		const countRecentArtifactsInOtherSessionsOfConversation = (input: {
+			readonly tddTaskId: number;
+			readonly sinceIso: string;
+		}): Effect.Effect<number, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("countRecentArtifactsInOtherSessionsOfConversation").pipe(Effect.annotateLogs(input));
+				const ownerRows: ReadonlyArray<{ session_id: number; conversation_id: string | null }> = yield* sql<{
+					session_id: number;
+					conversation_id: string | null;
+				}>`
+						SELECT t.session_id, s.conversation_id
+						FROM tdd_tasks t
+						JOIN sessions s ON s.id = t.session_id
+						WHERE t.id = ${input.tddTaskId}
+						LIMIT 1
+					`;
+				const owner = ownerRows[0];
+				if (owner === undefined || owner.conversation_id === null) return 0;
+
+				const countRows: ReadonlyArray<{ n: number }> = yield* sql<{ n: number }>`
+						SELECT COUNT(*) AS n
+						FROM tdd_artifacts a
+						JOIN tdd_phases p ON p.id = a.phase_id
+						JOIN tdd_tasks t ON t.id = p.tdd_task_id
+						JOIN sessions s ON s.id = t.session_id
+						WHERE s.conversation_id = ${owner.conversation_id}
+							AND s.id != ${owner.session_id}
+							AND a.recorded_at >= ${input.sinceIso}
+					`;
+				return countRows[0]?.n ?? 0;
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "tdd_artifacts", reason: extractSqlReason(e) }),
+				),
+			);
+
 		const listTddArtifactsForTask = (input: {
 			readonly tddTaskId: number;
 			readonly artifactKind?: ArtifactKind;
@@ -2699,6 +2736,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getTddArtifactWithContext,
 			getCommitChanges,
 			listTddTasksForSession,
+			countRecentArtifactsInOtherSessionsOfConversation,
 			listTddArtifactsForTask,
 			listHypotheses,
 			findIdempotentResponse,

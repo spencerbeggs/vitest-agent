@@ -464,6 +464,20 @@ export class DataReader extends Context.Service<
 			},
 		) => Effect.Effect<ReadonlyArray<TddTaskSummary>, DataStoreError>;
 		/**
+		 * Diagnostic for the `missing_artifact_evidence` phase-transition
+		 * denial (issue #144): counts `tdd_artifacts` rows recorded at or
+		 * after `sinceIso` under sessions OTHER than the one that opened
+		 * `tddTaskId`, but sharing that session's `conversation_id`. Used
+		 * to tell an agent "your hooks may be attributing to a detached
+		 * session" rather than a bare "no artifact found". Returns 0 when
+		 * `tddTaskId` is unknown or its session's `conversation_id` is
+		 * null — the diagnostic never fabricates a signal it cannot back.
+		 */
+		readonly countRecentArtifactsInOtherSessionsOfConversation: (input: {
+			readonly tddTaskId: number;
+			readonly sinceIso: string;
+		}) => Effect.Effect<number, DataStoreError>;
+		/**
 		 * List artifacts recorded for a TDD task, optionally filtered
 		 * by `artifactKind`, `phaseId`, or `behaviorId`. Returns rows in
 		 * recorded_at DESC order so the most recently captured artifact
