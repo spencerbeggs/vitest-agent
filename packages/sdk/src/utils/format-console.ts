@@ -2,6 +2,7 @@ import type { AgentReport } from "../schemas/AgentReport.js";
 import type { FileCoverageReport } from "../schemas/Coverage.js";
 import type { AnsiOptions } from "./ansi.js";
 import { ansi } from "./ansi.js";
+import { formatScopedCoverageNote } from "./format-scoped-coverage-note.js";
 
 // --- Options ---
 
@@ -224,6 +225,16 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 	if (report.coverage) {
 		const cov = report.coverage;
 		const globalThresholds = cov.thresholds.global;
+
+		// Scoped/partial-run note (issue #160): Vitest enforces coverage
+		// thresholds against the whole-project denominator, so a run that
+		// only exercised a subset of test files has its threshold check
+		// suppressed upstream (reporter.ts) — surface why here rather than
+		// silently omitting any coverage verdict.
+		if (cov.scoped) {
+			lines.push(formatScopedCoverageNote(cov.scopedFiles?.length ?? 0));
+			lines.push("");
+		}
 		const filesToShow = cov.lowCoverage.slice(0, coverageConsoleLimit);
 		if (filesToShow.length > 0) {
 			lines.push(`### Coverage gaps`);
