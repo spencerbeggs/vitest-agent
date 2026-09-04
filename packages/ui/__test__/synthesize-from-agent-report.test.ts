@@ -81,6 +81,20 @@ describe("synthesizeFromAgentReport — structural shape", () => {
 	});
 });
 
+describe("synthesizeFromAgentReport — unhandled errors", () => {
+	it("carries report.unhandledErrors onto the emitted RunFinished event", () => {
+		const events = synthesizeFromAgentReport(
+			baseReport({
+				unhandledErrors: [{ message: "unhandled rejection: boom" }],
+			}),
+		);
+		const runFinished = events.find((e) => e._tag === "RunFinished");
+		expect(runFinished).toMatchObject({
+			unhandledErrors: [{ message: "unhandled rejection: boom" }],
+		});
+	});
+});
+
 describe("synthesizeFromAgentReport — totals authority", () => {
 	it("RunFinished totals come from summary even when failed[] is partial", () => {
 		const events = synthesizeFromAgentReport(
