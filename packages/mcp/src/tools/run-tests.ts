@@ -624,12 +624,24 @@ export function formatReportMarkdown(report: AgentReport, classifications?: Read
 
 	if (report.consoleLeaks !== undefined) {
 		const cl = report.consoleLeaks;
-		const writes = `${cl.total} stray console write${cl.total === 1 ? "" : "s"}`;
-		// byFile is capped (see buildConsoleLeaks); when truncated the file count
-		// is a floor, so render "N+ files" rather than understating it.
-		const plural = cl.byFile.length !== 1 || cl.truncated === true;
-		const files = `${cl.byFile.length}${cl.truncated === true ? "+" : ""} file${plural ? "s" : ""}`;
-		lines.push(`\n⚠ ${writes} across ${files} (see consoleLeaks)`);
+		// total/byFile count only non-failing-test output (issue #263) — only
+		// warn when that actionable signal is non-empty, so a red run whose
+		// failures merely route assertion output through console.* doesn't
+		// render a false-positive leak warning.
+		if (cl.total > 0) {
+			const writes = `${cl.total} stray console write${cl.total === 1 ? "" : "s"}`;
+			// byFile is capped (see buildConsoleLeaks); when truncated the file count
+			// is a floor, so render "N+ files" rather than understating it.
+			const plural = cl.byFile.length !== 1 || cl.truncated === true;
+			const files = `${cl.byFile.length}${cl.truncated === true ? "+" : ""} file${plural ? "s" : ""}`;
+			lines.push(`\n⚠ ${writes} across ${files} (see consoleLeaks)`);
+		}
+		if (cl.fromFailingTests !== undefined) {
+			const { total: failingTotal } = cl.fromFailingTests;
+			lines.push(
+				`\n${failingTotal} console write${failingTotal === 1 ? "" : "s"} from failing tests (not counted as leaks)`,
+			);
+		}
 	}
 
 	for (const mod of report.failed) {
