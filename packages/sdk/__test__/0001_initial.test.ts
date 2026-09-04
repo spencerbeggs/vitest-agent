@@ -218,6 +218,21 @@ describe("0001_initial migration (consolidated)", () => {
 		expect(causeMessage(error)).toMatch(/conversation_id is immutable/i);
 	});
 
+	it("UPDATE that sets sessions.conversation_id from NULL to a value is allowed by the trigger (issue #144)", async () => {
+		const conversationId = await run(
+			Effect.gen(function* () {
+				const sql = yield* SqlClient;
+				yield* sql`INSERT INTO sessions (chat_id, project, cwd, agent_kind, started_at) VALUES ('s2', 'p', '/cwd', 'main', '2026-01-01')`;
+				yield* sql`UPDATE sessions SET conversation_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc' WHERE chat_id = 's2'`;
+				const rows = yield* sql<{ conversation_id: string | null }>`
+					SELECT conversation_id FROM sessions WHERE chat_id = 's2'
+				`;
+				return rows[0]?.conversation_id ?? null;
+			}),
+		);
+		expect(conversationId).toBe("cccccccc-cccc-cccc-cccc-cccccccccccc");
+	});
+
 	it("agents.idempotency_key is UNIQUE per session_id", async () => {
 		const error = await run(
 			Effect.gen(function* () {
