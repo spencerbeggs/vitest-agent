@@ -8,7 +8,10 @@
  * safe direction.
  */
 function stripComments(source: string): string {
-	return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+	// Unrolled block-comment matcher: linear in the input length, unlike the
+	// lazy `[\s\S]*?` form, which restarts its scan from every `/*` on an
+	// unterminated comment and goes quadratic (CodeQL js/polynomial-redos).
+	return source.replace(/\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\//g, "").replace(/\/\/.*$/gm, "");
 }
 
 const DISCOVER_STRATEGY_OPTION_RE = /\bdiscoverStrategy\s*:/;
