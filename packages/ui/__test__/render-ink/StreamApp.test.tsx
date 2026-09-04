@@ -211,6 +211,58 @@ describe("StreamApp — single-file shape", () => {
 		expect(frame.split("AssertionError: expected 3 to be 4").length - 1).toBe(1);
 		cleanup();
 	});
+
+	it("renders an Unhandled errors block after the test rows and before Total", () => {
+		const state = run([
+			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
+			{ _tag: "ModuleStarted", modulePath: "reducer.test.ts", startedAt: STARTED },
+			{
+				_tag: "TestFinished",
+				modulePath: "reducer.test.ts",
+				testName: "one",
+				suitePath: [],
+				status: "passed",
+				durationMs: 2,
+			},
+			{
+				_tag: "TestFinished",
+				modulePath: "reducer.test.ts",
+				testName: "two",
+				suitePath: [],
+				status: "passed",
+				durationMs: 2,
+			},
+			{
+				_tag: "ModuleFinished",
+				modulePath: "reducer.test.ts",
+				passCount: 2,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 4,
+			},
+			{
+				_tag: "RunFinished",
+				runId: "r",
+				finishedAt: STARTED,
+				passCount: 2,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 0,
+				durationMs: 4,
+				unhandledErrors: [{ message: "unhandled rejection: boom" }],
+			},
+		]);
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		expect(frame).toContain("Unhandled errors:");
+		expect(frame).toContain("unhandled rejection: boom");
+		const testRowIndex = frame.indexOf("one");
+		const unhandledIndex = frame.indexOf("Unhandled errors:");
+		const totalIndex = frame.indexOf("Total:");
+		expect(testRowIndex).toBeLessThan(unhandledIndex);
+		expect(unhandledIndex).toBeLessThan(totalIndex);
+		cleanup();
+	});
 });
 
 describe("StreamApp — single-test shape", () => {

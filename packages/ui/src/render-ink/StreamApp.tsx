@@ -328,6 +328,21 @@ const liveRegion = (
 	const finished = state.phase === "finished" || state.phase === "timed-out";
 	const ordered = state.moduleOrder.map((p) => state.modules[p]).filter((m): m is ModuleRecord => m !== undefined);
 
+	// Unhandled errors section — shape-independent (unlike the aggregate
+	// Failures section, which leaf shapes omit in favor of inline errors).
+	// A process-level error has no owning module/test to expand inline
+	// under, so every shape — including single-file and single-test —
+	// renders it the same way renderAgent does (issue #240).
+	const unhandledErrorsSection =
+		state.unhandledErrors.length > 0 ? (
+			<Box flexDirection="column">
+				<Text bold>Unhandled errors:</Text>
+				{state.unhandledErrors.map((err, i) => (
+					<UnhandledErrorItem key={`unhandled:${i}:${err.message}`} error={err} />
+				))}
+			</Box>
+		) : null;
+
 	// `single-test` is Live-only by spec §11.7 — render the row regardless
 	// of phase so the spinner resolves in place on finish. The error
 	// block, when the lone test fails, is rendered inline beneath the
@@ -352,6 +367,7 @@ const liveRegion = (
 			<>
 				<TestRow test={only} indent={0} />
 				{failure !== undefined ? <InlineError failure={failure} /> : null}
+				{unhandledErrorsSection}
 			</>
 		);
 	}
@@ -367,20 +383,6 @@ const liveRegion = (
 			<Box flexDirection="column">
 				{state.failures.map((f) => (
 					<FailureItem key={failureKey(f)} failure={f} />
-				))}
-			</Box>
-		) : null;
-
-	// Unhandled errors section — shared across all non-single-test shapes,
-	// rendered adjacent to (immediately after) failuresSection. A
-	// process-level error has no owning module/test, so it cannot expand
-	// inline the way a leaf-shape failure does (issue #240).
-	const unhandledErrorsSection =
-		state.unhandledErrors.length > 0 ? (
-			<Box flexDirection="column">
-				<Text bold>Unhandled errors:</Text>
-				{state.unhandledErrors.map((err, i) => (
-					<UnhandledErrorItem key={`unhandled:${i}:${err.message}`} error={err} />
 				))}
 			</Box>
 		) : null;
@@ -563,7 +565,11 @@ const liveRegion = (
 			})}
 			{/* No aggregate Failures section: leaf shapes expand each failure
 			    inline under its row above (matching single-test), so rendering
-			    failuresSection here would print every failure twice. */}
+			    failuresSection here would print every failure twice.
+			    Unhandled errors have no owning test to expand under, so
+			    unhandledErrorsSection — unlike failuresSection — is shape-
+			    independent and renders here too (issue #240). */}
+			{unhandledErrorsSection}
 			{coverageItem}
 			{trendItem}
 			{totalsItem()}
