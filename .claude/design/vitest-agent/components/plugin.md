@@ -798,7 +798,9 @@ instead.
   `AgentPlugin.COVERAGE_AUTOUPDATE.{standard,strict,lenient}` into
   `coverage.thresholds.autoUpdate`.
 - `is-partial-run.ts` — pure `isPartialRun({ filenamePattern,
-  startedSpecCount, totalSpecCount, projectFilter }): boolean`. True when
+  startedSpecCount, totalSpecCount, projectFilter }): boolean`
+  (`projectFilter` is the reporter's construction-time option, never the
+  CLI `--project` flag — see the section below). True when
   `filenamePattern` is a non-empty array, when fewer specs started than
   exist in total, or when a `projectFilter` was supplied. The decision
   function behind the scoped-coverage routing in `onTestRunEnd` — see
@@ -947,9 +949,15 @@ startedSpecCount`, so that channel degrades to "not partial" and never
 throws. Both counts, Vitest's `filenamePattern`, and the reporter's own
 `projectFilter` feed the pure `isPartialRun` (`utils/is-partial-run.ts`).
 Three signals are needed because each filter surface hides from the
-others: a CLI path filter sets `filenamePattern`; `--project` sets
-`projectFilter`; a tags-only `run_tests` filter sets **neither** and is
-caught only by the spec-count comparison.
+others: a CLI path filter sets `filenamePattern`; a tags-only `run_tests`
+filter sets neither `filenamePattern` nor `projectFilter` and is caught
+only by the spec-count comparison. `projectFilter` is `AgentReporter`'s
+**construction-time option**, not the CLI `--project` flag — `plugin.ts`
+never passes it when constructing the reporter, so in the production
+plugin path it is always `undefined`, and a user's `--project` run is
+likewise caught by the spec-count signal (fewer specs started than exist
+in total). Only a caller constructing `AgentReporter` directly (a test,
+or a non-plugin embedding) ever sets it.
 
 **Routing.** When partial, the tested source files are derived by the same
 `*.test.ts → *.ts` / `*.spec.ts → *.ts` convention `writeSourceMap` uses,
@@ -970,9 +978,25 @@ and Vitest's internal `100` shorthand. There is no public API for this —
 `resolveOptions()` returns the object but accepts no override — so the
 reach into provider internals is guarded end to end: a missing provider,
 options or thresholds shape is a no-op, and the whole block is
-try/caught so it can never crash the run. Nothing needs restoring
-afterward because every `vitest.start` re-initialises the provider. The
-rationale and the accepted risk are recorded as Decision 59 in
+try/caught so it can never crash the run.
+
+**Restoring the neutralised keys.** In `run` mode every `vitest.start`
+re-initialises the provider, so the deletion would die with the run —
+but in **watch mode** the provider is created once and scoped reruns go
+through `rerunFiles` without re-initialising it, so a deleted key stayed
+gone for the rest of the watch session and one scoped rerun disabled
+thresholds for every later full rerun (PR #358 review finding). The
+reporter therefore snapshots each deleted key's original value into the
+private `neutralizedThresholdSnapshot` map as it deletes, and the next
+`onTestRunStart` — unconditionally, before the `wantsRunEvents()` early
+return, alongside the `startedSpecCount` store — re-adds every
+snapshotted key onto the **same** `coverageProvider.options.thresholds`
+object and clears the map. It only re-adds keys that are **still
+absent**: a legitimately re-initialised provider already has its own
+fresh values and is left alone. The restore is guarded and try/caught
+exactly like the deletion; an empty snapshot (the common case — last run
+was full, or this is the first run) is a no-op. The rationale and the
+accepted risk are recorded as Decision 59 in
 [../decisions.md](../decisions.md).
 
 ## ConfigValidation service

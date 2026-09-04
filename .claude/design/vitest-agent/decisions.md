@@ -1741,15 +1741,25 @@ unconditionally; `onTestRunEnd` globs the total best-effort and degrades
 to "not partial" on that channel when the method is absent or throws.
 Three signals are needed because each filter surface is invisible to the
 others — a tags-only `run_tests` filter sets neither `filenamePattern`
-nor `projectFilter` and is caught only by the spec-count comparison. A
+nor `projectFilter` and is caught only by the spec-count comparison.
+`projectFilter` here is `AgentReporter`'s construction-time option, **not**
+the CLI `--project` flag: `plugin.ts` never passes it when constructing
+the reporter, so in the production plugin path it is always `undefined`
+and a user's `--project` run is caught by the spec-count signal (fewer
+specs started than exist in total). Only a caller constructing
+`AgentReporter` directly (a test, a non-plugin embedding) ever sets it. A
 partial run routes coverage through `processScoped` (with `totalFiles`
 so the note can say "N of M"), persists `scoped` honestly, emits no
 `ThresholdViolation`, skips the baseline / trend / threshold / target
 writes, and every renderer — sdk formatters, the MCP `run_tests` summary,
 and both `@vitest-agent/ui` dispatch entry points as a single choke-point
 append — prints `Coverage thresholds skipped: partial run (N of M test
-files)` via the one `formatScopedCoverageNote` helper so the reader knows
-why no coverage verdict was rendered.
+files)` via the one `formatScopedCoverageNote` helper. The sdk terminal
+formatter's `renderCoverageSection` branches on `scoped` **first** and
+prints only that note, suppressing all three pass/fail verdict branches
+— a "thresholds met" / "below thresholds" line against a denominator
+that does not apply is exactly what must not be trusted (PR #358
+finding 2). Full-run output is byte-identical.
 
 **Decision — neutralisation.** On a partial run the reporter deletes the
 metric keys (`lines` / `functions` / `branches` / `statements`) and every
@@ -1757,6 +1767,21 @@ glob-pattern entry from `vitest.coverageProvider.options.thresholds` **in
 place**, keeping `perFile`, `autoUpdate` and Vitest's internal `100`
 shorthand. `checkThresholds` reads that same object at report time, so
 with no metric keys left it has nothing to enforce.
+
+**Decision — restoration.** The deletion is not fire-and-forget. In `run`
+mode every `vitest.start` re-initialises the provider, so the mutation
+would die with the run — but in **watch mode** the provider is created
+once and scoped reruns go through `rerunFiles` without re-initialising
+it, so a deleted key stayed gone for the rest of the session: one scoped
+rerun silently disabled thresholds for every subsequent full rerun
+(PR #358 review finding). The reporter therefore snapshots every deleted
+key's original value into `neutralizedThresholdSnapshot` as it deletes,
+and the next `onTestRunStart` (unconditionally, before the
+`wantsRunEvents()` early return) re-adds each snapshotted key onto the
+**same** provider options object, then clears the map. Restoration only
+re-adds keys that are **still absent**: a legitimately re-initialised
+provider (`run` mode) already carries its own fresh values and is left
+alone. The restore is guarded and try/caught exactly like the deletion.
 
 **Why reach into provider internals.** There is no supported API:
 `resolveOptions()` returns the options object but accepts no override,
@@ -1772,11 +1797,12 @@ provider exposing `options.thresholds` and `checkThresholds` reading it
 by reference at report time. Both hold in Vitest 4.1.x; a future
 refactor could silently make the neutralisation a no-op, in which case
 the symptom is the original bug (a spurious threshold failure on a scoped
-run), never a crash — the whole block is guarded end to end (missing
-provider / options / thresholds shape is a no-op) and try/caught. Nothing
-needs restoring because every `vitest.start` re-initialises the provider.
-The mutation is scoped to the in-process Vitest instance and never
-touches the user's config file. See
+run), never a crash — both the deletion and the restoration are guarded
+end to end (missing provider / options / thresholds shape is a no-op) and
+try/caught. The snapshot-and-restore pair keeps the mutation bounded to a
+single run even when the provider outlives it (watch mode). The mutation
+is scoped to the in-process Vitest instance and never touches the user's
+config file. See
 [./components/plugin.md](./components/plugin.md) *Partial-run detection
 and threshold suppression*, [./components/ui.md](./components/ui.md)
 *Dispatch entry points*, and [./schemas.md](./schemas.md) *RunEvent

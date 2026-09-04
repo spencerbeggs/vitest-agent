@@ -63,7 +63,13 @@ run-event PubSub channel and tee to the user onRunEvent tap)
   surface is complete. Notable mappings:
   onTestRunStart        -> RunStarted     -> emit(event)
                            (also stores specifications.length as
-                            startedSpecCount, outside the gate — #160)
+                            startedSpecCount, outside the gate — #160,
+                            and restores any threshold keys the previous
+                            partial run deleted from
+                            vitest.coverageProvider.options.thresholds —
+                            only keys still absent, then clears the
+                            snapshot; watch mode reuses one provider
+                            across rerunFiles, #237 follow-up)
   onTestModuleQueued    -> ModuleQueued   -> emit(event)  (carries projectName)
   onTestModuleStart     -> ModuleStarted  -> emit(event)  (carries projectName)
   onTestCaseReady       -> TestStarted    -> emit(event)  (standalone)
@@ -103,11 +109,15 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |       (best-effort; absent/throwing -> equals startedSpecCount)
   |     isPartial = isPartialRun({ filenamePattern, startedSpecCount,
   |                                totalSpecCount, projectFilter })
+  |       (projectFilter = AgentReporter construction-time option, always
+  |        undefined via plugin.ts; CLI --project is caught by spec count)
   |     if isPartial:
   |       testedFiles = modules' *.test.ts/*.spec.ts -> source paths
   |       delete metric + glob keys from
   |         vitest.coverageProvider.options.thresholds in place
-  |         (keeps perFile / autoUpdate / "100"; guarded, never throws)
+  |         (keeps perFile / autoUpdate / "100"; guarded, never throws),
+  |         snapshotting each deleted value into
+  |         neutralizedThresholdSnapshot for the next onTestRunStart
   |         so Vitest's own checkThresholds — which runs AFTER every
   |         reporter's onTestRunEnd — cannot fail the run
   |

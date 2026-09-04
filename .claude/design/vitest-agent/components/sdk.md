@@ -581,6 +581,12 @@ that sentence for every surface: the terminal formatter's coverage section
 (`aggregateCoverage` folds `scoped` / `scopedFiles` / `totalFiles` across
 per-project reports), the console/markdown formatter, the MCP `run_tests`
 summary (`scopedNote`), and both `@vitest-agent/ui` dispatch entry points.
+In the terminal formatter, `renderCoverageSection` branches on
+`agg.scoped` **first**: a scoped run prints only the scoped note and
+suppresses all three pass/fail verdict branches ("thresholds met",
+"below thresholds", target lines) entirely, since a verdict against the
+whole-project denominator is exactly what must not be trusted on a
+partial run (PR #358 finding 2). Full-run output is byte-identical.
 See [./plugin.md](./plugin.md) *Partial-run detection* and Decision 59 in
 [../decisions.md](../decisions.md) (issue #160).
 
