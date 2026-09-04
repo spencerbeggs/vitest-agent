@@ -173,6 +173,18 @@ Five services in `packages/sdk/src/services/` back the agent-attribution model:
   `ProjectIdentity.resolve` plus `normalizeWorkspaceKey` for callers
   that want only the path-safe `projectKey` string and don't need
   the full `{ projectKey, projectDir, source }` record.
+- **`detect-non-default-discover-strategy.ts`** — pure
+  `detectNonDefaultDiscoverStrategy(source): boolean`. Strips `//` and
+  `/* */` comments best-effort, then reports whether a Vitest/Vite
+  config source text carries a `discoverStrategy:` option, an
+  `.addProject(` call, `extends DefaultDiscoverStrategy`, or
+  `implements DiscoverStrategy`. Consumed by the CLI's
+  `agent check-test-path` to fail open — no verdict — for a workspace
+  whose discovery layout the default `classifyTestPath` rule cannot
+  describe (issue #230). Deliberately lexical, never a config load: it
+  runs on the PreToolUse hot path, and a false positive only costs one
+  skipped advisory, so the comment strip is not a full lexer. See
+  [../decisions.md](../decisions.md) Decision 61.
 
 ## Effect layers
 
@@ -470,6 +482,28 @@ The non-obvious pieces:
   under the correct canonical `sessions.id` even when Claude Code
   rotates `chat_id` mid-window. See the CLI's
   `resolveSessionForRecording` helper for the consumer side.
+- **`sessions.conversation_id` write path (issue #144).** `SessionInput`
+  carries an optional `conversationId`, which `writeSession` /
+  `upsertSession` persist at INSERT time. Because the SessionStart hook
+  inserts the row before the canonical conversation id exists,
+  `DataStore.setSessionConversationIdIfNull({ sessionId, conversationId })`
+  backfills it later with an `UPDATE … WHERE conversation_id IS NULL` —
+  idempotent and race-safe, and the only update the relaxed
+  `trg_sessions_conv_id_immutable` trigger permits (null → value once;
+  value → different value still aborts). `SessionDetail` now exposes
+  `conversationId`, and every session-row `SELECT` in `DataReaderLive`
+  projects the column. The CLI's `registerAgentEffect` is the sole
+  caller of both the insert-time field and the backstop.
+- **`listTddTasksForSession({ walkConversation })` — detached-session
+  fallback (issue #144).** After the `walkParents` ancestor chain is
+  collected, `walkConversation: true` reads the session's own
+  `conversation_id` and, when non-null, adds every other session sharing
+  it to the lookup set. The result is ordered `agent_kind = 'main'`
+  first, then `started_at DESC`, so the dispatcher's task wins when more
+  than one open task exists across the conversation. A null
+  `conversation_id` never triggers the fallback — two unrelated sessions
+  cannot be joined by accident. `record tdd-artifact` passes both flags;
+  see [../decisions.md](../decisions.md) D21.
 - **Per-run git + host context on `test_runs`.** The reporter calls
   `RunContext.capture` and `probeHostMetadata` immediately before
   `writeRun`, and `DataStore.writeRun` accepts the seven `git_*` and
@@ -547,6 +581,15 @@ The non-obvious pieces:
   `chat_id` rotated mid-cycle. Returns the most recent matching
   artifact first so phase-transition auto-resolve can pick the head
   without sorting.
+- **`countRecentArtifactsInOtherSessionsOfConversation({ tddTaskId, sinceIso })`.**
+  Diagnostic reader behind the `missing_artifact_evidence` denial
+  (issue #144). Resolves the task's owning session and its
+  `conversation_id`, then counts `tdd_artifacts` rows (via
+  `tdd_phases` → `tdd_tasks` → `sessions`) recorded at or after
+  `sinceIso` under sessions of that conversation *other than* the
+  owner. Returns `0` when the task is unknown or its session's
+  `conversation_id` is null, so the gate never reports a cross-session
+  signal it cannot back. The MCP tool uses a 10-minute window.
 - **`findActiveSubagentSession` resolves per-call subagent identity.** Returns the most-recently-started subagent session whose `parent_session_id` matches the supplied parent id and whose `ended_at IS NULL`. The MCP server's boot context names only the main agent; this reader call is how the `hypothesis (action: record)` handler attributes writes to the active `tdd-task` subagent instead of the main session — the context-based fallback when the caller supplies no `tddTaskId`.
 - **`getSessionByTddTaskId` resolves a task's binding session.** Returns the `sessions` row whose `id` equals `tdd_tasks.session_id` for the supplied task id, `Option.none` when the task (or its session) does not exist. This is the deterministic head of the `hypothesis (action: record)` resolution precedence: the orchestrator holds an unambiguous `tddTaskId` from `tdd_task (action: start)`, so binding through it sidesteps the fragile recovered host context entirely (see [./mcp.md](./mcp.md) "Hypothesis session binding").
 - **Flaky classification requires a fail-after-pass.** The `listFlakyTests` reader query (backing `HistoryTracker.classify`) changed to require that at least one failure occurred at or after the earliest pass — `MAX(timestamp WHERE failed) >= MIN(timestamp WHERE passed)`. A monotonic red-to-green cycle (all failures precede all passes) classifies as `recovered`, not `flaky`. Timestamps are ISO-8601 strings and compare lexicographically.
