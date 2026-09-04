@@ -883,6 +883,78 @@ describe("DataStoreLive", () => {
 		});
 	});
 
+	describe("writeThresholds", () => {
+		it("upserts global threshold metrics under kind='threshold', distinct from baselines", async () => {
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					// Seed a baseline with DIFFERENT values so we can prove the two
+					// kinds don't collide in the same row (issue #237).
+					yield* store.writeBaselines({
+						updatedAt: "2026-03-22T00:00:00.000Z",
+						global: { lines: 90, functions: 90 },
+						patterns: [],
+					});
+					yield* store.writeThresholds({
+						global: { lines: 70, functions: 70 },
+						perFile: false,
+						patterns: [],
+					});
+
+					const sql = yield* SqlClient;
+					const thresholdRows = yield* sql<{
+						metric: string;
+						value: number;
+					}>`SELECT metric, value FROM coverage_baselines WHERE project = '__global__' AND kind = 'threshold' ORDER BY metric`;
+					expect(thresholdRows).toHaveLength(2);
+					expect(thresholdRows.find((r) => r.metric === "functions")?.value).toBe(70);
+
+					const baselineRows = yield* sql<{
+						metric: string;
+						value: number;
+					}>`SELECT metric, value FROM coverage_baselines WHERE project = '__global__' AND kind = 'baseline' ORDER BY metric`;
+					expect(baselineRows.find((r) => r.metric === "functions")?.value).toBe(90);
+				}),
+			);
+		});
+
+		it("does not create duplicate rows when called twice for the same metric", async () => {
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeThresholds({ global: { lines: 70 }, perFile: false, patterns: [] });
+					yield* store.writeThresholds({ global: { lines: 75 }, perFile: false, patterns: [] });
+
+					const sql = yield* SqlClient;
+					const rows = yield* sql<{
+						value: number;
+					}>`SELECT value FROM coverage_baselines WHERE project = '__global__' AND kind = 'threshold' AND metric = 'lines'`;
+					expect(rows).toHaveLength(1);
+					expect(rows[0].value).toBe(75);
+				}),
+			);
+		});
+	});
+
+	describe("writeTargets", () => {
+		it("upserts global target metrics under kind='target'", async () => {
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeTargets({ global: { lines: 90 }, perFile: false, patterns: [] });
+
+					const sql = yield* SqlClient;
+					const rows = yield* sql<{
+						metric: string;
+						value: number;
+					}>`SELECT metric, value FROM coverage_baselines WHERE project = '__global__' AND kind = 'target'`;
+					expect(rows).toHaveLength(1);
+					expect(rows[0]).toMatchObject({ metric: "lines", value: 90 });
+				}),
+			);
+		});
+	});
+
 	describe("writeTrends", () => {
 		it("inserts a trend entry", async () => {
 			await run(

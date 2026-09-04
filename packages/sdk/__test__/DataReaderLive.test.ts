@@ -1198,10 +1198,22 @@ describe("DataReaderLive", () => {
 						direction: "stable",
 					});
 
-					// Seed baselines (global)
+					// Seed the ratcheted baseline (aspirational-actual high-water
+					// mark) with values DIFFERENT from the enforced thresholds
+					// below, so the assertions can prove the two facets never
+					// collide (issue #237 — the tool used to report the
+					// baseline under the `thresholds` key).
 					yield* store.writeBaselines({
 						updatedAt: "2026-03-22T00:00:00.000Z",
+						global: { lines: 90, branches: 90, functions: 90 },
+						patterns: [],
+					});
+
+					// Seed the enforced Vitest thresholds — the actual bar a run
+					// is judged against.
+					yield* store.writeThresholds({
 						global: { lines: 70, branches: 55, functions: 80 },
+						perFile: false,
 						patterns: [],
 					});
 
@@ -1220,11 +1232,103 @@ describe("DataReaderLive", () => {
 			expect(coverage.lowCoverageFiles).toContain("src/utils.ts");
 			expect(coverage.lowCoverageFiles).toContain("src/helpers.ts");
 			expect(coverage.lowCoverage[0].uncoveredLines).toBe("42-50,99");
-			// Thresholds from baselines
+			// Thresholds are the enforced Vitest thresholds, NOT the baseline
 			expect(coverage.thresholds.global.lines).toBe(70);
 			expect(coverage.thresholds.global.branches).toBe(55);
 			expect(coverage.thresholds.global.functions).toBe(80);
 			expect(coverage.thresholds.patterns).toHaveLength(0);
+			// Baselines are reported distinctly from thresholds
+			expect(coverage.baselines?.global.lines).toBe(90);
+			expect(coverage.baselines?.global.branches).toBe(90);
+			expect(coverage.baselines?.global.functions).toBe(90);
+		});
+
+		it("reports thresholds.global as {} when no thresholds were ever persisted, instead of falling back to the baseline", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("cov-no-thresh-hash", settingsInput, {});
+					const runId = yield* store.writeRun({
+						...runInput,
+						settingsHash: "cov-no-thresh-hash",
+						project: "cov-no-thresh-proj",
+					});
+					yield* store.writeTrends("cov-no-thresh-proj", runId, {
+						timestamp: "2026-03-22T00:00:00.000Z",
+						coverage: { lines: 50, branches: 50, functions: 50, statements: 50 },
+						delta: { lines: 0, branches: 0, functions: 0, statements: 0 },
+						direction: "stable",
+					});
+					// Only a baseline is persisted, never a threshold.
+					yield* store.writeBaselines({
+						updatedAt: "2026-03-22T00:00:00.000Z",
+						global: { lines: 42 },
+						patterns: [],
+					});
+
+					return yield* reader.getCoverage("cov-no-thresh-proj");
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			const coverage = Option.getOrThrow(result);
+			expect(coverage.thresholds.global).toEqual({});
+			expect(coverage.baselines?.global.lines).toBe(42);
+		});
+
+		it("populates targets and belowTarget distinctly from thresholds/lowCoverage", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const reader = yield* DataReader;
+
+					yield* store.writeSettings("cov-target-hash", settingsInput, {});
+					const runId = yield* store.writeRun({
+						...runInput,
+						settingsHash: "cov-target-hash",
+						project: "cov-target-proj",
+					});
+					const belowThresholdFile = yield* store.ensureFile("src/bad.ts");
+					const belowTargetFile = yield* store.ensureFile("src/almost.ts");
+
+					yield* store.writeCoverage(runId, [
+						{
+							fileId: belowThresholdFile,
+							statements: 40,
+							branches: 40,
+							functions: 40,
+							lines: 40,
+							uncoveredLines: "1-10",
+							tier: "below_threshold",
+						},
+						{
+							fileId: belowTargetFile,
+							statements: 75,
+							branches: 75,
+							functions: 75,
+							lines: 75,
+							uncoveredLines: "20-25",
+							tier: "below_target",
+						},
+					]);
+					yield* store.writeTrends("cov-target-proj", runId, {
+						timestamp: "2026-03-22T00:00:00.000Z",
+						coverage: { lines: 60, branches: 60, functions: 60, statements: 60 },
+						delta: { lines: 0, branches: 0, functions: 0, statements: 0 },
+						direction: "stable",
+					});
+					yield* store.writeThresholds({ global: { lines: 70 }, perFile: false, patterns: [] });
+					yield* store.writeTargets({ global: { lines: 90 }, perFile: false, patterns: [] });
+
+					return yield* reader.getCoverage("cov-target-proj");
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			const coverage = Option.getOrThrow(result);
+			expect(coverage.lowCoverageFiles).toEqual(["src/bad.ts"]);
+			expect(coverage.belowTargetFiles).toEqual(["src/almost.ts"]);
+			expect(coverage.targets?.global.lines).toBe(90);
 		});
 
 		it("falls back to averaging file coverage when no trends exist", async () => {
