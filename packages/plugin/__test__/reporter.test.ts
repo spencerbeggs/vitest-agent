@@ -360,6 +360,89 @@ describe("AgentReporter", () => {
 			expect(fs.existsSync(path.join(tmpDir, "data.db"))).toBe(true);
 		});
 
+		it("persists resolved thresholds and targets distinctly from the ratcheted baseline (issue #237)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				coverageThresholds: { global: { lines: 70, functions: 70 } } as Record<string, unknown>,
+				coverageTargets: { global: { lines: 90, functions: 90 } } as Record<string, unknown>,
+			});
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => ["src/covered.ts"],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+
+			reporter.onCoverage(mockCoverage);
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const rows = db
+				.prepare(
+					"SELECT kind, metric, value FROM coverage_baselines WHERE project = '__global__' ORDER BY kind, metric",
+				)
+				.all() as Array<{ kind: string; metric: string; value: number }>;
+			db.close();
+
+			const thresholdRows = rows.filter((r) => r.kind === "threshold");
+			const targetRows = rows.filter((r) => r.kind === "target");
+			expect(thresholdRows.find((r) => r.metric === "lines")?.value).toBe(70);
+			expect(thresholdRows.find((r) => r.metric === "functions")?.value).toBe(70);
+			expect(targetRows.find((r) => r.metric === "lines")?.value).toBe(90);
+			expect(targetRows.find((r) => r.metric === "functions")?.value).toBe(90);
+		});
+
+		it("writes no threshold rows when coverageThresholds is not configured", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => ["src/covered.ts"],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+
+			reporter.onCoverage(mockCoverage);
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const rows = db
+				.prepare("SELECT COUNT(*) AS cnt FROM coverage_baselines WHERE kind IN ('threshold', 'target')")
+				.get() as { cnt: number };
+			db.close();
+
+			expect(rows.cnt).toBe(0);
+		});
+
 		it("caps baselines at target values", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
@@ -947,6 +1030,305 @@ describe("AgentReporter", () => {
 			expect(sigRows[0].signature_hash).toMatch(/^[a-f0-9]{16}$/);
 			expect(errRows).toHaveLength(1);
 			expect(errRows[0].signature_hash).toBe(sigRows[0].signature_hash);
+		});
+	});
+
+	describe("scoped/partial run coverage (issue #160)", () => {
+		it("emits scoped/scopedFiles/totalFiles on the live CoverageReady event for a partial run (gap 1)", async () => {
+			const events: RunEvent[] = [];
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				onRunEvent: (e) => events.push(e),
+			});
+			reporter._vitest = {
+				config: {},
+				version: "test",
+				filenamePattern: ["src/foo.test.ts"],
+				globTestSpecifications: async () => new Array(47).fill({}),
+			};
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => ["src/foo.ts"],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+			reporter.onTestRunStart([{}]);
+			reporter.onCoverage(mockCoverage);
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const coverageReady = events.find((e) => e._tag === "CoverageReady");
+			expect(coverageReady).toMatchObject({ scoped: true, scopedFiles: 1, totalFiles: 47 });
+		});
+	});
+
+	describe("scoped/partial run coverage (issue #160) — persistence and events", () => {
+		it("persists scoped=true on the test_runs row when vitest.filenamePattern indicates a partial run", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			// A partial run: an explicit file filter set vitest.filenamePattern.
+			reporter._vitest = { config: {}, version: "test", filenamePattern: ["src/foo.test.ts"] };
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(1);
+		});
+
+		it("does not emit ThresholdViolation events on a partial run even when a metric is below threshold", async () => {
+			const events: RunEvent[] = [];
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				coverageThresholds: { global: { lines: 95 } } as Record<string, unknown>,
+				onRunEvent: (e) => events.push(e),
+			});
+			reporter._vitest = { config: {}, version: "test", filenamePattern: ["src/foo.test.ts"] };
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 40 },
+					branches: { pct: 40 },
+					functions: { pct: 40 },
+					lines: { pct: 40 },
+				}),
+				files: () => ["src/foo.ts"],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 40 },
+						branches: { pct: 40 },
+						functions: { pct: 40 },
+						lines: { pct: 40 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+			reporter.onTestRunStart([]);
+			reporter.onCoverage(mockCoverage);
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			expect(events.some((e) => e._tag === "ThresholdViolation")).toBe(false);
+			expect(events.some((e) => e._tag === "CoverageReady")).toBe(true);
+		});
+
+		it("neutralizes vitest.coverageProvider.options.thresholds on a partial run", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const thresholds: Record<string, unknown> = {
+				lines: 90,
+				functions: 90,
+				branches: 90,
+				statements: 90,
+				perFile: true,
+				autoUpdate: false,
+				"src/special/**": { lines: 100 },
+			};
+			const mockVitest = {
+				config: {},
+				version: "test",
+				filenamePattern: ["src/foo.test.ts"],
+				coverageProvider: { options: { thresholds } },
+			};
+			reporter._vitest = mockVitest;
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			expect(thresholds.lines).toBeUndefined();
+			expect(thresholds.functions).toBeUndefined();
+			expect(thresholds.branches).toBeUndefined();
+			expect(thresholds.statements).toBeUndefined();
+			expect(thresholds["src/special/**"]).toBeUndefined();
+			expect(thresholds.perFile).toBe(true);
+			expect(thresholds.autoUpdate).toBe(false);
+		});
+
+		it("restores neutralized thresholds on the next onTestRunStart (watch-mode rerun)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const thresholds: Record<string, unknown> = {
+				lines: 90,
+				functions: 90,
+				branches: 90,
+				statements: 90,
+				perFile: true,
+				autoUpdate: false,
+				"src/special/**": { lines: 100 },
+			};
+			const mockVitest = {
+				config: {},
+				version: "test",
+				filenamePattern: ["src/foo.test.ts"],
+				coverageProvider: { options: { thresholds } },
+			};
+			reporter._vitest = mockVitest;
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			// Sanity: the partial run neutralized the keys, as covered above.
+			expect(thresholds.lines).toBeUndefined();
+
+			// Watch mode: same reporter instance, same provider object, a new
+			// run begins via onTestRunStart.
+			reporter.onTestRunStart([]);
+
+			expect(thresholds.lines).toBe(90);
+			expect(thresholds.functions).toBe(90);
+			expect(thresholds.branches).toBe(90);
+			expect(thresholds.statements).toBe(90);
+			expect(thresholds["src/special/**"]).toEqual({ lines: 100 });
+			// Unrelated shape-only keys were never touched.
+			expect(thresholds.perFile).toBe(true);
+			expect(thresholds.autoUpdate).toBe(false);
+		});
+
+		it("leaves thresholds untouched and records an empty snapshot on a full (non-partial) run", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const thresholds: Record<string, unknown> = {
+				lines: 90,
+				functions: 90,
+				branches: 90,
+				statements: 90,
+				perFile: true,
+				autoUpdate: false,
+			};
+			const mockVitest = {
+				config: {},
+				version: "test",
+				// No filenamePattern, no projectFilter — a full run.
+				coverageProvider: { options: { thresholds } },
+			};
+			reporter._vitest = mockVitest;
+			reporter.onTestRunStart(new Array(1));
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			expect(thresholds.lines).toBe(90);
+			expect(thresholds.functions).toBe(90);
+			expect(thresholds.branches).toBe(90);
+			expect(thresholds.statements).toBe(90);
+
+			// A subsequent onTestRunStart must not re-add anything (snapshot
+			// was empty) and must not throw.
+			expect(() => reporter.onTestRunStart([])).not.toThrow();
+			expect(thresholds.lines).toBe(90);
+		});
+
+		it("skips writing coverage thresholds/targets rows on a partial run (issue #237 follow-up)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				coverageThresholds: { global: { lines: 70 } } as Record<string, unknown>,
+				coverageTargets: { global: { lines: 90 } } as Record<string, unknown>,
+			});
+			reporter._vitest = { config: {}, version: "test", filenamePattern: ["src/foo.test.ts"] };
+			const mockCoverage = {
+				getCoverageSummary: () => ({
+					statements: { pct: 90 },
+					branches: { pct: 85 },
+					functions: { pct: 88 },
+					lines: { pct: 92 },
+				}),
+				files: () => ["src/covered.ts"],
+				fileCoverageFor: () => ({
+					toSummary: () => ({
+						statements: { pct: 90 },
+						branches: { pct: 85 },
+						functions: { pct: 88 },
+						lines: { pct: 92 },
+					}),
+					getUncoveredLines: () => [],
+				}),
+			};
+			reporter.onCoverage(mockCoverage);
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const rows = db
+				.prepare("SELECT COUNT(*) AS cnt FROM coverage_baselines WHERE kind IN ('threshold', 'target')")
+				.get() as { cnt: number };
+			db.close();
+
+			expect(rows.cnt).toBe(0);
+		});
+
+		it("persists scoped=true from the spec-count signal alone — no filenamePattern or projectFilter (tags-only run, issue #160 gap 2)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const mockVitest = {
+				config: {},
+				version: "test",
+				// No filenamePattern, no projectFilter — a tags-only `run_tests`
+				// call narrows the run without either signal. Only the
+				// spec-count comparison can catch it.
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			reporter._vitest = mockVitest;
+			// 2 specifications started, out of 10 total.
+			reporter.onTestRunStart([{}, {}]);
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(1);
+		});
+
+		it("degrades to not-partial (via the spec-count channel) when globTestSpecifications throws", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const mockVitest = {
+				config: {},
+				version: "test",
+				globTestSpecifications: async () => {
+					throw new Error("boom");
+				},
+			};
+			reporter._vitest = mockVitest;
+			reporter.onTestRunStart([{}, {}]);
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(0);
 		});
 	});
 });

@@ -25,11 +25,19 @@ coverage-in-subset, the `consoleLeaks` signal), see
    rejected with an error naming the offending key and the accepted params —
    fix the call and re-run. The `ok` result echoes the resolved `scope`
    (`project`, `files`, `tags`) so you can confirm what actually ran.
-3. **Subset runs "fail" coverage thresholds by design.** A single-file run
-   exiting with `ERROR: Coverage … does not meet global threshold` is expected
-   — global thresholds applied to partial coverage. There is no per-run
-   coverage toggle in `run_tests`; it inherits your `vitest.config`. For
-   isolated inspection use the CLI: `vitest run <file> --coverage.enabled=false`.
+3. **Subset runs no longer "fail" coverage thresholds (issue #160).** A
+   scoped call (`files`, `project`, or `tags` supplied) is detected as
+   partial and the plugin's reporter neutralizes Vitest's native
+   `coverage.thresholds` check for that run before it can flip the exit
+   code — thresholds compared against the whole-project denominator are
+   meaningless against a subset of files. The `ok` result carries
+   `scopedNote` (also folded into the text summary) explaining that
+   thresholds were skipped and how many of the project's test files
+   actually ran; the persisted `test_runs.scoped` flag and
+   `report.coverage.scoped` reflect the same signal. Full (unfiltered)
+   runs are unaffected — thresholds still enforce and baselines still
+   ratchet. The `--coverage.enabled=false` workaround is no longer
+   needed for this purpose.
 4. **Stray `console.*` is surfaced by `run_tests` as a signal, not raw logs.**
    The `ok` result's `report.consoleLeaks` field lists writes by file with
    counts, optional per-test attribution, and a truncated sample. `total` /

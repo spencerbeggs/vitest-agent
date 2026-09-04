@@ -86,6 +86,8 @@ The module-lifecycle reducer cases also thread the optional `projectName` from `
 
 `RunFinished` likewise carries an optional `unhandledErrors: ReportError[]` — process-level errors with no owning module (an unhandled rejection, a worker crash). The reducer folds it onto `RenderState.unhandledErrors`, which is required and seeded as `[]` by `initialRenderState`, so a `RunFinished` that never carried the field leaves the list empty rather than undefined. Before this the event-sourced render path had no way to see these errors at all — only the persisted `AgentReport` did — so an unhandled-error-only run rendered green (issue #240; see the classification and `StreamApp` sections below and Decision 48 in [../decisions.md](../decisions.md)).
 
+`CoverageReady` folds its optional `scoped` / `scopedFiles` / `totalFiles` onto `RenderState.coverage` (issue #160) — each only when the event carries it, so a `CoverageReady` from an older emitter leaves the fields absent and the dispatcher treats the run as full. `ThresholdViolation` never arrives for a scoped run (the plugin suppresses it), so `coverage.violations` stays empty and the outcome classifies by test results alone.
+
 Two reducer behaviors are load-bearing for `StreamApp`'s state needs. **Timeout routing** — a `TestFinished` carrying `timedOut: true` folds into a separate `timeoutCount` rather than `failCount`, and its `TestRecord.status` becomes the render-only `"timed-out"` value; Vitest reports a timed-out test as `failed`, so the split is a reducer-layer concern (see [../schemas.md](../schemas.md)). **`TrendComputed`** — a `RunEvent` variant the plugin emits after end-of-run trend computation; the reducer folds it into a nullable `trend` field on `RenderState` so `StreamApp` can show a Trend line that the event-sourced run lifecycle does not otherwise carry.
 
 ---
@@ -130,6 +132,8 @@ dispatchInk(inputs: DispatchInputs, opts: CellOptions): React.ReactElement | nul
 dispatcherTable                                                    // for test introspection
 ```
 
+**Scoped-coverage note — one choke point (issue #160).** Both entry points append the note *after* the selected cell's output rather than teaching each of the 12 cells about partial runs. A private `scopedCoverageNoteFor(inputs)` returns `formatScopedCoverageNote(coverage.scopedFiles ?? 0, coverage.totalFiles)` when `state.coverage?.scoped === true` and `null` otherwise. `dispatch` joins it to the agent string with a newline; `dispatchInk` wraps the cell's element and a `<Text>` row in a column `<Box>` via `createElement` (the module is `.ts`, shared by both halves, so no JSX). The cells' own threshold-flavored coverage lines still print — the note is what tells the reader to disregard them.
+
 `DispatchInputs` is plain TypeScript (no Effect Schema, no persistence) and lives in `packages/sdk/src/contracts/dispatcher.ts`. It carries `state`, `shape`, `outcome`, the per-project aggregates the workspace cells need (`ProjectSummary[]`), the optional trend summary and below-target file list, plus the resolved `runCommand`. The `buildDispatchInputs` and `resolveCellOptions` helpers that assemble these from a `ReporterRenderInput` and a `ReporterKit` no longer live in this package — they moved to `@vitest-agent/reporter` with the default reporter. See [./reporter.md](./reporter.md).
 
 ### L1 MCP tool-pointer footer
@@ -158,6 +162,8 @@ Three rules keep an all-pass render from overstating (or understating) what ran.
 ### Cell helpers
 
 `packages/ui/src/dispatcher/helpers.ts` holds the shared formatters every cell uses: totals header, failure block, coverage judgment line, trend line, the projects table with name padding and tag-count suffix, the workspace total footer and the below-target table. `packages/ui/src/dispatcher/ink-helpers.tsx` exports `renderAgentStringAsInk`, which wraps an agent string in colored Ink `<Text>` rows so cells can share their agent-half output as a default Ink render.
+
+`formatBelowTargetTable` sizes its file column to the longest path among the printed rows (`TABLE_COL_FILE_MIN = 60` as the floor) instead of truncating at a fixed 60 columns, so a printed path is never cut off (issue #237 follow-up). Only the first `limit` rows enter the width calculation; the omitted rows are summarized by the `… N more` footer and never affect layout.
 
 ### Shared duration formatter
 
@@ -204,6 +210,8 @@ Two converters in `packages/ui/src/synthesize.ts`:
 - `synthesizeRunEvents(modules, options?)` — accepts duck-typed `VitestTestModule[]`. Walks modules plus children, builds a `RunStarted → per-module → per-test → RunFinished` sequence. Bridge for any batch context that has the live module shape.
 - `synthesizeFromAgentReport(report, options?)` — accepts the persisted `AgentReport`. Only failed modules carry per-test detail; passed-only modules summarize via `summary.passed`. Used by `DefaultVitestAgentReporter.render` (in `@vitest-agent/reporter`) and the CLI helpers.
 
+Both synthesizers thread the partial-run triple onto `CoverageReady`: `synthesizeRunEvents` from the supplied `SynthesizedCoverage` (which gained optional `scoped` / `scopedFiles` / `totalFiles`), `synthesizeFromAgentReport` from `CoverageReport.scoped` / `scopedFiles.length` / `totalFiles`. `synthesizeFromAgentReport` also gates its recomputed `ThresholdViolation` entries on `!cov.scoped` — a scoped run's totals reflect the whole project, so recomputing violations from thresholds vs totals during replay reintroduced exactly the false verdict the live reporter suppresses (a latent replay bug fixed with issue #160).
+
 Both synthesizers populate `RunFinished.collectedModules` — `synthesizeRunEvents` from the walked module count, `synthesizeFromAgentReport` from `report.summary.modules` when the report carries it. The plugin's live `RunFinished` emit does the same, so all three paths into the reducer agree on the collected count. `synthesizeFromAgentReport` also copies `report.unhandledErrors` onto `RunFinished.unhandledErrors` when non-empty, matching the plugin's live emit (which forwards Vitest's `onTestRunEnd` argument), so the end-of-run `agent` render and the live `stream` render see the same process-level errors (issue #240).
 
 **Suite-load failures synthesize a failing cell.** A module that failed to *collect / import* produces zero test cases, so `summary` alone would render it green. For such a module `synthesizeFromAgentReport` emits a `ModuleFinished` with `failCount: 1` plus a synthetic `TestStarted` / `TestFinished` pair labeled `SUITE_LOAD_FAILURE_LABEL` (`"test suite failed to load"`, exported from `synthesize.ts`) carrying the module's import error, and `RunFinished.failCount` includes suite failures. Because the reducer treats `RunFinished.failCount` as the authoritative run total, this routes the run to the some-fail render cell instead of the all-pass cell. This is the synthesizer-side half of the false-green fix; see Decision 45 in [../decisions.md](../decisions.md).
@@ -231,6 +239,7 @@ See `../decisions.md` for the recorded design choices:
 - D40 — `AgentPluginOptions` is exactly five fields; `reporter` is a single override hook and `onRunEvent` is a stream-tee with no gating.
 - D41 — shape-tailored dispatcher matrix and the trade-off against the per-formatter pipeline.
 - D48 — honest run reporting: collected counts, self-correcting reasons, and why timeouts must be re-folded as non-passing by every consumer of the totals.
+- D59 — partial-run detection and the scoped-coverage note appended by both dispatch entry points.
 
 ---
 

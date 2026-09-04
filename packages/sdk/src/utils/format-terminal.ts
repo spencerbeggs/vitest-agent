@@ -5,6 +5,7 @@ import type { AnsiOptions } from "./ansi.js";
 import { ansi } from "./ansi.js";
 import { compressLines } from "./compress-lines.js";
 import { relativePath } from "./format-console.js";
+import { formatScopedCoverageNote } from "./format-scoped-coverage-note.js";
 
 /**
  * Compress a comma-separated line list into ranges where consecutive
@@ -307,10 +308,16 @@ const aggregateCoverage = (
 	belowTargetFiles: ReadonlyArray<FileCoverageReport>;
 	thresholdsGlobal?: MetricThresholds;
 	targetsGlobal?: MetricThresholds;
+	scoped: boolean;
+	scopedFileCount: number;
+	totalFiles?: number;
 } => {
 	let hasCoverage = false;
 	let thresholdsGlobal: MetricThresholds | undefined;
 	let targetsGlobal: MetricThresholds | undefined;
+	let scoped = false;
+	let scopedFileCount = 0;
+	let totalFiles: number | undefined;
 	// Coverage data is global, not per-project: the istanbul CoverageMap
 	// is processed once and the resulting CoverageReport is attached to
 	// every project's report. Naively concatenating across reports
@@ -325,6 +332,11 @@ const aggregateCoverage = (
 		hasCoverage = true;
 		thresholdsGlobal ??= cov.thresholds.global;
 		targetsGlobal ??= cov.targets?.global;
+		if (cov.scoped) {
+			scoped = true;
+			scopedFileCount = Math.max(scopedFileCount, cov.scopedFiles?.length ?? 0);
+			if (cov.totalFiles !== undefined) totalFiles = cov.totalFiles;
+		}
 		if (cov.lowCoverage) {
 			for (const f of cov.lowCoverage) {
 				if (!belowThresholdByFile.has(f.file)) belowThresholdByFile.set(f.file, f);
@@ -343,8 +355,11 @@ const aggregateCoverage = (
 		thresholdsMet: belowThresholdCount === 0,
 		belowThresholdCount,
 		belowTargetFiles,
+		scoped,
+		scopedFileCount,
 		...(thresholdsGlobal !== undefined ? { thresholdsGlobal } : {}),
 		...(targetsGlobal !== undefined ? { targetsGlobal } : {}),
+		...(totalFiles !== undefined ? { totalFiles } : {}),
 	};
 };
 
@@ -377,7 +392,17 @@ const renderCoverageSection = (
 	const thresholdSpec = agg.thresholdsGlobal ? formatTargetSpec(agg.thresholdsGlobal) : "";
 	const targetSpec = agg.targetsGlobal ? formatTargetSpec(agg.targetsGlobal) : "";
 
-	if (!agg.thresholdsMet) {
+	// Scoped/partial-run note (issue #160): Vitest enforces coverage
+	// thresholds against the whole-project denominator, so a run that only
+	// exercised a subset of test files has its threshold check suppressed
+	// upstream (reporter.ts). On a scoped run the pass/fail verdict below is
+	// exactly what should not be trusted (finding 2, PR #358), so skip all
+	// three verdict branches entirely and print only the scoped note in
+	// their place — never an unqualified "thresholds met"/"below
+	// thresholds" line against a denominator that doesn't apply.
+	if (agg.scoped) {
+		lines.push(formatScopedCoverageNote(agg.scopedFileCount, agg.totalFiles));
+	} else if (!agg.thresholdsMet) {
 		const cross = ansi("✗", "red", ao);
 		const fileWord = agg.belowThresholdCount === 1 ? "file" : "files";
 		lines.push(

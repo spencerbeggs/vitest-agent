@@ -35,21 +35,38 @@ There is **no** `filter` field. Passing one (`run_tests({ filter: "@my/pkg" })`)
 
 A `no-match` is filter-driven: it fires when you supplied a filter and zero tests matched. Treat it as a finding (typo in `project`/`files`?) rather than a pass.
 
-## Coverage on subset runs reads as a failure — by design
+## Coverage on subset runs — thresholds are skipped, not failed (issue #160)
 
-A single-file or single-project run will commonly exit non-zero with:
+A single-file or single-project `run_tests` call used to exit non-zero with:
 
 ```text
 ERROR: Coverage for lines (59.91%) does not meet global threshold (70%)
 ```
 
-This is expected: your global coverage thresholds are applied to a partial run, so partial coverage "fails" them. It is not a real test failure.
+even though every test passed — the global thresholds were compared against
+the whole-project denominator, and partial coverage always "failed" that
+comparison. This is fixed: the plugin's reporter detects a scoped/partial run
+(a `files`, `project`, or `tags` filter was supplied, or fewer specs started
+than exist in the project) and neutralizes Vitest's native
+`coverage.thresholds` check for that run before it can flip the exit code.
+No test failure, no false-positive threshold error.
 
-`run_tests` has **no per-run coverage toggle** — it deliberately inherits your `vitest.config` `coverage.enabled` (forcing it off here used to override intentional "coverage on by default" setups). For clean isolated inspection, drop to the CLI:
+The `ok` result's `scopedNote` field explains why (e.g. `"Coverage
+thresholds skipped: partial run (1 of 47 test files)"`) and the same text
+is folded into the markdown summary. The structured signal is
+`report.coverage.scoped` (and the persisted `test_runs.scoped` column) —
+`true` on a scoped run, `false` on a full run. Baselines and trends do not
+ratchet on a scoped run either, since a subset's totals are not
+representative of the whole project.
 
-```bash
-vitest run path/to/one.test.ts --coverage.enabled=false
-```
+Full (unfiltered) runs are unaffected: thresholds still enforce, an actual
+regression still fails the run, and baselines still ratchet normally.
+
+`run_tests` still has **no per-run coverage toggle** — it deliberately
+inherits your `vitest.config` `coverage.enabled`. The
+`--coverage.enabled=false` CLI workaround is no longer needed to avoid a
+false-positive threshold failure on a subset run; reach for it only if you
+want to skip coverage collection entirely for speed.
 
 ## Stray console output — `report.consoleLeaks`
 

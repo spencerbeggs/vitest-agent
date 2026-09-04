@@ -264,7 +264,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					metric: string;
 					value: number;
 				}>`SELECT metric, value FROM coverage_baselines
-					WHERE project = '__global__' AND pattern = ''`;
+					WHERE project = '__global__' AND kind = 'baseline' AND pattern = ''`;
 				const thresholds: { lines?: number; functions?: number; branches?: number; statements?: number } = {};
 				for (const b of baselineRows) {
 					if (b.metric === "lines") thresholds.lines = b.value;
@@ -439,10 +439,19 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				),
 			);
 
-		const getBaselines = (project: string): Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError> =>
+		/**
+		 * Shared read for the `coverage_baselines` table's per-`kind` rows
+		 * (`baseline` / `threshold` / `target`). Returns `Option.none()` when
+		 * no rows of that kind were ever persisted, so a caller can tell
+		 * "never configured" apart from "configured with zero metrics"
+		 * (issue #237).
+		 */
+		const getCoveragePolicy = (
+			kind: "baseline" | "threshold" | "target",
+			project: string,
+		): Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError> =>
 			Effect.gen(function* () {
-				yield* Effect.logDebug("getBaselines").pipe(Effect.annotateLogs({ project }));
-				// Baselines are stored with project='__global__' currently per DataStoreLive
+				yield* Effect.logDebug("getCoveragePolicy").pipe(Effect.annotateLogs({ kind, project }));
 				const rows = yield* sql<{
 					metric: string;
 					value: number;
@@ -450,7 +459,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					updated_at: string;
 				}>`SELECT metric, value, pattern, updated_at
 					FROM coverage_baselines
-					WHERE project = ${project}
+					WHERE project = ${project} AND kind = ${kind}
 					ORDER BY pattern, metric`;
 
 				if (rows.length === 0) return Option.none();
@@ -488,6 +497,9 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					(e) => new DataStoreError({ operation: "read", table: "coverage_baselines", reason: extractSqlReason(e) }),
 				),
 			);
+
+		const getBaselines = (project: string): Effect.Effect<Option.Option<CoverageBaselines>, DataStoreError> =>
+			getCoveragePolicy("baseline", project);
 
 		const getTrends = (project: string, limit?: number): Effect.Effect<Option.Option<TrendRecord>, DataStoreError> =>
 			Effect.gen(function* () {
@@ -722,10 +734,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				if (runs.length === 0) return Option.none();
 				const runId = runs[0].id;
 
-				// 2. Query file_coverage joined with files for that run_id.
-				// The reporter only writes per-file rows for files below threshold
-				// (see reporter.ts onTestRunEnd), so this list is the lowCoverage
-				// set, not the full file inventory.
+				// 2. Query file_coverage joined with files for that run_id. The
+				// reporter writes one row per file that falls below EITHER bar,
+				// tagged with `tier`: 'below_threshold' (fails the enforced
+				// Vitest thresholds) or 'below_target' (passes thresholds but
+				// misses the aspirational coverageTargets). Read both tiers back
+				// distinctly rather than folding everything into one list under
+				// the "lowCoverage" label (issue #237).
 				const fileCoverageRows = yield* sql<{
 					file_path: string;
 					statements: number;
@@ -733,7 +748,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					functions: number;
 					lines: number;
 					uncovered_lines: string | null;
-				}>`SELECT f.path as file_path, fc.statements, fc.branches, fc.functions, fc.lines, fc.uncovered_lines
+					tier: "below_threshold" | "below_target";
+				}>`SELECT f.path as file_path, fc.statements, fc.branches, fc.functions, fc.lines, fc.uncovered_lines, fc.tier
 					FROM file_coverage fc JOIN files f ON f.id = fc.file_id
 					WHERE fc.run_id = ${runId}`;
 
@@ -776,19 +792,27 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					};
 				}
 
-				// 4. Get baselines via existing getBaselines(). Baselines are stored
-				// with project='__global__' per DataStoreLive.writeBaselines()
-				const baselinesOpt = yield* getBaselines("__global__");
+				// 4. Read the three distinct coverage-policy facets. Each is
+				// Option.none() when that kind was never persisted for this
+				// project — a run with no `coverage.thresholds` configured
+				// leaves `thresholds.global` genuinely empty rather than
+				// falling back to the ratcheted baseline (issue #237).
+				const thresholdsOpt = yield* getCoveragePolicy("threshold", "__global__");
+				const targetsOpt = yield* getCoveragePolicy("target", "__global__");
+				const baselinesOpt = yield* getCoveragePolicy("baseline", "__global__");
+
+				const thresholds = Option.getOrElse(thresholdsOpt, () => ({
+					updatedAt: "",
+					global: {} as Record<string, number>,
+					patterns: [] as Array<[string, Record<string, number>]>,
+				}));
 				const baselines = Option.getOrElse(baselinesOpt, () => ({
 					updatedAt: "",
 					global: {} as Record<string, number>,
 					patterns: [] as Array<[string, Record<string, number>]>,
 				}));
 
-				// 5. Build lowCoverage from file_coverage rows. The reporter only
-				// writes files below threshold to file_coverage, so all rows here
-				// are already lowCoverage entries.
-				const lowCoverage: FileCoverageReport[] = fileCoverageRows.map((r) => ({
+				const toFileCoverageReport = (r: (typeof fileCoverageRows)[number]): FileCoverageReport => ({
 					file: r.file_path,
 					summary: {
 						statements: r.statements,
@@ -797,20 +821,35 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						lines: r.lines,
 					},
 					uncoveredLines: r.uncovered_lines ?? "",
-				}));
+				});
 
-				// TODO: populate targets, belowTarget, belowTargetFiles when
-				// target queries are wired up (currently omitted — previous
-				// implementation was broken, acceptable as stepping stone)
+				// 5. Split file_coverage rows by tier. `lowCoverage` = files
+				// failing the enforced threshold; `belowTarget` = files passing
+				// thresholds but missing the aspirational target.
+				const lowCoverage: FileCoverageReport[] = fileCoverageRows
+					.filter((r) => r.tier === "below_threshold")
+					.map(toFileCoverageReport);
+				const belowTarget: FileCoverageReport[] = fileCoverageRows
+					.filter((r) => r.tier === "below_target")
+					.map(toFileCoverageReport);
+
 				const report: CoverageReport = {
 					totals,
 					thresholds: {
+						global: thresholds.global,
+						patterns: thresholds.patterns,
+					},
+					...(Option.isSome(targetsOpt)
+						? { targets: { global: targetsOpt.value.global, patterns: targetsOpt.value.patterns } }
+						: {}),
+					baselines: {
 						global: baselines.global,
 						patterns: baselines.patterns,
 					},
 					scoped: false,
 					lowCoverage,
 					lowCoverageFiles: lowCoverage.map((f) => f.file),
+					...(belowTarget.length > 0 ? { belowTarget, belowTargetFiles: belowTarget.map((f) => f.file) } : {}),
 				};
 
 				return Option.some(report);

@@ -395,13 +395,16 @@ const migration = Effect.gen(function* () {
 		CREATE TABLE coverage_baselines (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			project TEXT NOT NULL,
+			kind TEXT NOT NULL DEFAULT 'baseline' CHECK (kind IN (
+				'baseline', 'threshold', 'target'
+			)),
 			metric TEXT NOT NULL CHECK (metric IN (
 				'lines', 'functions', 'branches', 'statements'
 			)),
 			value REAL NOT NULL,
 			pattern TEXT NOT NULL DEFAULT '',
 			updated_at TEXT NOT NULL,
-			UNIQUE(project, metric, pattern)
+			UNIQUE(project, kind, metric, pattern)
 		)
 	`;
 

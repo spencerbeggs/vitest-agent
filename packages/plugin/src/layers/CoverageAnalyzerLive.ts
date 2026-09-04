@@ -201,6 +201,7 @@ function processCoverageInternal(
 			: {}),
 		scoped,
 		...(scoped && testedFiles ? { scopedFiles: [...testedFiles] } : {}),
+		...(scoped && options.totalFiles !== undefined ? { totalFiles: options.totalFiles } : {}),
 		lowCoverage,
 		lowCoverageFiles: lowCoverage.map((f) => f.file),
 		...(options.targets

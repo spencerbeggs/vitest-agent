@@ -352,6 +352,20 @@ describe("formatReportMarkdown", () => {
 		expect(md).not.toContain("failed");
 	});
 
+	it("includes the scoped-coverage note when a scopedNote is supplied (issue #160)", () => {
+		const report = {
+			timestamp: "2026-01-01T00:00:00.000Z",
+			reason: "passed" as const,
+			summary: { total: 3, passed: 3, failed: 0, skipped: 0, duration: 150 },
+			failed: [],
+			unhandledErrors: [],
+			failedFiles: [],
+		};
+
+		const md = formatReportMarkdown(report, undefined, "Coverage thresholds skipped: partial run (1 of 47 test files)");
+		expect(md).toContain("Coverage thresholds skipped: partial run (1 of 47 test files)");
+	});
+
 	it("formats a failing report with errors", () => {
 		const report = {
 			timestamp: "2026-01-01T00:00:00.000Z",

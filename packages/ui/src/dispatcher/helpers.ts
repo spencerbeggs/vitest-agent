@@ -208,12 +208,18 @@ export const formatWorkspaceTotal = (projects: ReadonlyArray<ProjectSummary>): s
 	return `Total: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
 };
 
-const TABLE_COL_FILE = 60;
+const TABLE_COL_FILE_MIN = 60;
 
 /**
  * Format the `Files below aspirational target:` block — a pipe-delimited
  * table truncated to the first `limit` files with a "+N more" suffix.
  * Returns an empty array when `belowTarget` is empty.
+ *
+ * The file column is sized to the longest path among the printed rows
+ * (never narrower than {@link TABLE_COL_FILE_MIN}), so a printed path is
+ * never truncated (issue #237 follow-up) — only the omitted rows (past
+ * `limit`) are unaffected, since their width never entered the
+ * calculation.
  */
 export const formatBelowTargetTable = (
 	belowTarget: ReadonlyArray<FileCoverageReport>,
@@ -222,8 +228,14 @@ export const formatBelowTargetTable = (
 	if (belowTarget.length === 0) return [];
 	const top = belowTarget.slice(0, limit);
 	const omitted = belowTarget.length - top.length;
-	const header = ["Files below aspirational target:", buildTableSeparator(), buildTableHeader(), buildTableSeparator()];
-	const rows = top.map((file) => buildTableRow(file));
+	const fileColWidth = Math.max(TABLE_COL_FILE_MIN, ...top.map((f) => f.file.length + 2));
+	const header = [
+		"Files below aspirational target:",
+		buildTableSeparator(fileColWidth),
+		buildTableHeader(fileColWidth),
+		buildTableSeparator(fileColWidth),
+	];
+	const rows = top.map((file) => buildTableRow(file, fileColWidth));
 	const footer: string[] = [];
 	if (omitted > 0) {
 		footer.push(`… ${omitted} more (use the test_coverage MCP tool for the full list)`);
@@ -231,17 +243,16 @@ export const formatBelowTargetTable = (
 	return [...header, ...rows, ...footer];
 };
 
-const buildTableSeparator = (): string => {
-	return `${"-".repeat(TABLE_COL_FILE)}|---------|---------|---------|---------|-------------------`;
+const buildTableSeparator = (fileColWidth: number): string => {
+	return `${"-".repeat(fileColWidth)}|---------|---------|---------|---------|-------------------`;
 };
 
-const buildTableHeader = (): string => {
-	return ` ${"File".padEnd(TABLE_COL_FILE - 1)}| % Stmts | % Branch| % Funcs | % Lines | Uncovered Line #s`;
+const buildTableHeader = (fileColWidth: number): string => {
+	return ` ${"File".padEnd(fileColWidth - 1)}| % Stmts | % Branch| % Funcs | % Lines | Uncovered Line #s`;
 };
 
-const buildTableRow = (file: FileCoverageReport): string => {
-	const namePart = truncate(file.file, TABLE_COL_FILE - 2);
-	const padded = ` ${namePart.padEnd(TABLE_COL_FILE - 1)}`;
+const buildTableRow = (file: FileCoverageReport, fileColWidth: number): string => {
+	const padded = ` ${file.file.padEnd(fileColWidth - 1)}`;
 	const stmts = pctCell(file.summary.statements);
 	const branch = pctCell(file.summary.branches);
 	const funcs = pctCell(file.summary.functions);

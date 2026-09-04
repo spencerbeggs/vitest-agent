@@ -1665,6 +1665,149 @@ signal that is meant to describe passing code must be scoped to passing
 code. See [./schemas.md](./schemas.md) *Reports and coverage* and
 [./components/mcp.md](./components/mcp.md).
 
+### Decision 58: Persist Thresholds, Targets and Baselines as Three Distinct Facets
+
+**Context.** The system has three different coverage numbers per metric:
+the **enforced threshold** (Vitest's `coverage.thresholds` — the
+build-blocking gate), the **aspirational target** (the plugin's
+`coverageTargets` — what the team is aiming for), and the **baseline**
+(the auto-ratcheting high-water mark). Only the baseline was persisted.
+`DataReaderLive.getCoverage` filled `CoverageReport.thresholds` from the
+baseline rows because they were the only rows in `coverage_baselines`,
+never populated `targets`, and folded every `file_coverage` row into
+`lowCoverage` regardless of its `tier`. The MCP `test_coverage` tool then
+printed one `Threshold` column and one `Files below coverage threshold`
+list. An agent read the aspirational target — surfaced under the
+"threshold" label — as the CI gate and spent a cycle "fixing" coverage
+that was never going to fail the build (issue #237).
+
+**Decision.** Persist all three facets distinctly and never let one stand
+in for another. `coverage_baselines` gains a `kind` column
+(`'baseline'` | `'threshold'` | `'target'`, default `'baseline'`) and the
+uniqueness key becomes `(project, kind, metric, pattern)`. `DataStore`
+gains `writeThresholds` / `writeTargets` (a shared `writeCoveragePolicy`
+upsert) alongside the existing `writeBaselines`; the reporter writes the
+resolved thresholds and targets at the end of every full run whenever
+each is configured, **independent of the `autoUpdate` gate** — the
+question "what bar am I held to" must be answerable whether or not the
+ratchet is on. A private `getCoveragePolicy(kind, project)` reader returns
+`Option.none()` when a kind was never persisted, and `getCoverage`
+assembles `thresholds` (`global: {}` when absent — **no baseline
+fallback**), optional `targets`, and `baselines` from three separate
+reads. `lowCoverage` and `belowTarget` are split on the persisted
+`file_coverage.tier`. `test_coverage` renders separate **Enforced
+threshold** and **Target** columns and separate **Coverage Gaps** /
+**Coverage Improvements Needed** sections. Per Decision D9 the schema
+change is an in-place edit to `0001_initial.ts`.
+
+**Why one table with a discriminator.** The three facets share an
+identical row shape (`project`, `metric`, `pattern`, `value`,
+`updated_at`) and identical upsert semantics; three tables would triple
+the reader/writer surface for no modelling gain. The `kind` CHECK plus
+the widened UNIQUE key make a collision impossible at the database, which
+is the actual invariant — a row can only ever be one facet.
+
+**Why no fallback.** An empty `thresholds.global` is a true statement
+("this project enforces nothing") that an agent can act on correctly.
+Substituting the baseline turns it into a confident falsehood. The same
+rule drives the split file lists: a file under the target but over the
+threshold is an improvement opportunity, not a gap, and labelling it a
+gap is what sent the agent chasing the wrong bar. See
+[./schemas.md](./schemas.md) *Reports and coverage*,
+[./components/sdk.md](./components/sdk.md) *DataStore* / *DataReader*, and
+[./components/mcp.md](./components/mcp.md) *Coverage facets in
+`test_coverage`*.
+
+### Decision 59: Detect Partial Runs and Neutralise Vitest's Native Threshold Check
+
+**Context.** Vitest enforces `coverage.thresholds` against the
+whole-project denominator no matter how many test files ran: its coverage
+provider's `allTestsRun` flag gates only `autoUpdate`, and
+`checkThresholds` runs unconditionally from `reportCoverage`, which
+Vitest 4.1.11 calls **after every reporter's `onTestRunEnd`**. A
+`vitest run foo.test.ts` therefore failed on coverage nothing in the run
+touched. The plugin compounded it: it detected scoping only via a
+`projectFilter`, persisted every run with `test_runs.scoped = false`,
+emitted its own `ThresholdViolation` events against the same meaningless
+denominator, and `synthesizeFromAgentReport` recomputed those violations
+on replay even when the report said `scoped` (issue #160).
+
+**Decision — detection.** A pure `isPartialRun({ filenamePattern,
+startedSpecCount, totalSpecCount, projectFilter })` returns true on any of
+three signals: a non-empty Vitest `filenamePattern`, fewer specs started
+than `globTestSpecifications()` reports in total, or an explicit
+`projectFilter`. `onTestRunStart` stores the started count
+unconditionally; `onTestRunEnd` globs the total best-effort and degrades
+to "not partial" on that channel when the method is absent or throws.
+Three signals are needed because each filter surface is invisible to the
+others — a tags-only `run_tests` filter sets neither `filenamePattern`
+nor `projectFilter` and is caught only by the spec-count comparison.
+`projectFilter` here is `AgentReporter`'s construction-time option, **not**
+the CLI `--project` flag: `plugin.ts` never passes it when constructing
+the reporter, so in the production plugin path it is always `undefined`
+and a user's `--project` run is caught by the spec-count signal (fewer
+specs started than exist in total). Only a caller constructing
+`AgentReporter` directly (a test, a non-plugin embedding) ever sets it. A
+partial run routes coverage through `processScoped` (with `totalFiles`
+so the note can say "N of M"), persists `scoped` honestly, emits no
+`ThresholdViolation`, skips the baseline / trend / threshold / target
+writes, and every renderer — sdk formatters, the MCP `run_tests` summary,
+and both `@vitest-agent/ui` dispatch entry points as a single choke-point
+append — prints `Coverage thresholds skipped: partial run (N of M test
+files)` via the one `formatScopedCoverageNote` helper. The sdk terminal
+formatter's `renderCoverageSection` branches on `scoped` **first** and
+prints only that note, suppressing all three pass/fail verdict branches
+— a "thresholds met" / "below thresholds" line against a denominator
+that does not apply is exactly what must not be trusted (PR #358
+finding 2). Full-run output is byte-identical.
+
+**Decision — neutralisation.** On a partial run the reporter deletes the
+metric keys (`lines` / `functions` / `branches` / `statements`) and every
+glob-pattern entry from `vitest.coverageProvider.options.thresholds` **in
+place**, keeping `perFile`, `autoUpdate` and Vitest's internal `100`
+shorthand. `checkThresholds` reads that same object at report time, so
+with no metric keys left it has nothing to enforce.
+
+**Decision — restoration.** The deletion is not fire-and-forget. In `run`
+mode every `vitest.start` re-initialises the provider, so the mutation
+would die with the run — but in **watch mode** the provider is created
+once and scoped reruns go through `rerunFiles` without re-initialising
+it, so a deleted key stayed gone for the rest of the session: one scoped
+rerun silently disabled thresholds for every subsequent full rerun
+(PR #358 review finding). The reporter therefore snapshots every deleted
+key's original value into `neutralizedThresholdSnapshot` as it deletes,
+and the next `onTestRunStart` (unconditionally, before the
+`wantsRunEvents()` early return) re-adds each snapshotted key onto the
+**same** provider options object, then clears the map. Restoration only
+re-adds keys that are **still absent**: a legitimately re-initialised
+provider (`run` mode) already carries its own fresh values and is left
+alone. The restore is guarded and try/caught exactly like the deletion.
+
+**Why reach into provider internals.** There is no supported API:
+`resolveOptions()` returns the options object but accepts no override,
+the reporter hook order is fixed, and `checkThresholds` has no
+per-run opt-out. The alternatives — asking users to pass
+`--coverage.thresholds` overrides on every scoped invocation, or wrapping
+the provider — either push the problem onto the caller or couple to far
+more surface. Mutating one object the plugin already has a handle on is
+the smallest intervention that fixes the observed failure.
+
+**Risk and mitigations.** This depends on two Vitest internals: the
+provider exposing `options.thresholds` and `checkThresholds` reading it
+by reference at report time. Both hold in Vitest 4.1.x; a future
+refactor could silently make the neutralisation a no-op, in which case
+the symptom is the original bug (a spurious threshold failure on a scoped
+run), never a crash — both the deletion and the restoration are guarded
+end to end (missing provider / options / thresholds shape is a no-op) and
+try/caught. The snapshot-and-restore pair keeps the mutation bounded to a
+single run even when the provider outlives it (watch mode). The mutation
+is scoped to the in-process Vitest instance and never touches the user's
+config file. See
+[./components/plugin.md](./components/plugin.md) *Partial-run detection
+and threshold suppression*, [./components/ui.md](./components/ui.md)
+*Dispatch entry points*, and [./schemas.md](./schemas.md) *RunEvent
+surface and RenderState*.
+
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
 **Pre-2.0 policy (current).** Before 2.0 ships to npm, the canonical

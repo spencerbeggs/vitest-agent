@@ -587,4 +587,55 @@ describe("formatTerminal — per-tag counts", () => {
 		expect(out).toMatch(/unit\s+744p\s+2f/);
 		expect(out).toMatch(/int\s+4p\s+2f/);
 	});
+
+	it("includes the scoped-coverage note when the report's coverage is scoped (issue #160)", () => {
+		const out = formatTerminal(
+			[
+				baseReport({
+					summary: { total: 2, passed: 2, failed: 0, skipped: 0, duration: 10 },
+					coverage: coverage({
+						scoped: true,
+						scopedFiles: ["src/a.ts", "src/b.ts"],
+					}),
+				}),
+			],
+			baseOptions,
+		);
+		expect(out).toContain("Coverage thresholds skipped: partial run (2 test files)");
+	});
+
+	it("does not print the coverage verdict line on a scoped run (finding 2)", () => {
+		const out = formatTerminal(
+			[
+				baseReport({
+					summary: { total: 2, passed: 2, failed: 0, skipped: 0, duration: 10 },
+					coverage: coverage({
+						scoped: true,
+						scopedFiles: ["src/a.ts", "src/b.ts"],
+					}),
+				}),
+			],
+			baseOptions,
+		);
+		expect(out).not.toContain("minimum thresholds");
+		expect(out).not.toContain("below minimum thresholds");
+		expect(out).not.toContain("below aspirational targets");
+	});
+
+	it("includes the 'of M' form when the report's coverage carries totalFiles (issue #160 gap 1)", () => {
+		const out = formatTerminal(
+			[
+				baseReport({
+					summary: { total: 2, passed: 2, failed: 0, skipped: 0, duration: 10 },
+					coverage: coverage({
+						scoped: true,
+						scopedFiles: ["src/a.ts", "src/b.ts"],
+						totalFiles: 47,
+					}),
+				}),
+			],
+			baseOptions,
+		);
+		expect(out).toContain("Coverage thresholds skipped: partial run (2 of 47 test files)");
+	});
 });

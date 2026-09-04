@@ -102,6 +102,17 @@ decoding. A timed-out test still persists as
 distinction is a render-layer concept the reducer derives, not a
 persisted enum.
 
+`CoverageReady` carries three optional partial-run fields (issue #160):
+`scoped: boolean`, `scopedFiles: number` (the count of test files that
+actually ran) and `totalFiles: number` (the project's test-file total,
+omitted when the emitter cannot know it). The plugin's live emit populates
+them from `CoverageReport.scoped` / `scopedFiles.length` / `totalFiles`,
+and `synthesizeFromAgentReport` copies the same three from the persisted
+report. `ThresholdViolation` is **never** emitted for a scoped run — the
+whole-project denominator is meaningless against a subset of files — and
+the synthesizer applies the same `!scoped` gate when it recomputes
+violations from a replayed report.
+
 `RenderState` (`packages/sdk/src/schemas/RenderState.ts`) is the
 projection the `@vitest-agent/ui` reducer folds events into. `phase` is
 the run-lifecycle terminal marker; `RunTimedOut` folds into a dedicated
@@ -123,7 +134,10 @@ is absent. `RenderState.unhandledErrors: ReportError[]` is required and
 defaults to `[]` in `initialRenderState`; the reducer overwrites it from
 `RunFinished.unhandledErrors` when the event carries the field. A
 non-empty list classifies the run as `some-fail` and both renderers print
-an `Unhandled errors:` section (issue #240). See
+an `Unhandled errors:` section (issue #240). `RenderState.coverage`
+(`CoverageRenderState`) carries the optional `scoped` / `scopedFiles` /
+`totalFiles` triple folded from `CoverageReady`; the dispatcher reads it to
+append the scoped-coverage note after the cell output (issue #160). See
 [./components/ui.md](./components/ui.md) for the reducer and the
 run-shape grouping.
 
@@ -217,11 +231,22 @@ Effect Schema definitions in `packages/sdk/src/schemas/`:
   marking each entry `failed` from the owning task's `result.state`) and
   `buildConsoleLeaks`. See [./decisions.md](./decisions.md) Decision 57
   (issue #263).
-- **`CoverageReport`** — totals plus thresholds, optional aspirational
-  `targets`, optional auto-ratcheting `baselines`, and a `lowCoverage[]` list
-  with `uncoveredLines` rendered as a compressed string (e.g.
-  `"42-50,99,120-135"`). `scoped` and `scopedFiles` mark scoped runs that
-  intentionally skip baseline ratcheting.
+- **`CoverageReport`** — totals plus three **distinct coverage-policy
+  facets** (issue #237): `thresholds` (the enforced Vitest
+  `coverage.thresholds` — build-blocking; `global` is `{}` when the project
+  never persisted any, with no fallback to the baseline), optional
+  aspirational `targets` (the plugin's `coverageTargets`), and optional
+  auto-ratcheting `baselines` (the high-water mark). The per-file lists are
+  split on the same axis: `lowCoverage[]` / `lowCoverageFiles[]` are files
+  below the enforced threshold, `belowTarget[]` / `belowTargetFiles[]` are
+  files that pass the threshold but miss the target. Each file entry
+  renders `uncoveredLines` as a compressed string (e.g.
+  `"42-50,99,120-135"`). `scoped` and `scopedFiles` mark partial runs that
+  intentionally skip baseline ratcheting and threshold enforcement;
+  `totalFiles` (optional, issue #160) is the project's test-file total on a
+  scoped run so the scoped-coverage note can read "N of M test files" — only
+  the reporter can supply it (from a fresh `globTestSpecifications()`
+  count), so a report read back from SQLite omits it.
 - **`ResolvedThresholds`** / **`CoverageBaselines`** / **`TrendRecord`** —
   the threshold/baseline/trend triple used by Vitest-native
   `coverageThresholds`, the auto-ratcheting baselines, and the per-project
@@ -676,7 +701,7 @@ read the already-updated row and accumulate stale tokens.
 | `files` | Deduplicated path FK target |
 | `settings` | Vitest config snapshots, keyed by hash |
 | `settings_env_vars` | Env vars per settings snapshot |
-| `test_runs` | Per-project run records with summary stats |
+| `test_runs` | Per-project run records with summary stats; `scoped` (0/1) records whether the run exercised only a subset of the project's test files, as decided by the plugin's `isPartialRun` (issue #160 — previously hardcoded to 0) |
 | `scoped_files` | Files included in scoped runs |
 | `test_modules` | Test modules per run |
 | `test_suites` | Suites (describe blocks) per module |
@@ -691,9 +716,9 @@ read the already-updated row and accumulate stale tokens.
 | `task_metadata` | Key-value metadata |
 | `console_logs` | Per-test stdout/stderr capture |
 | `test_history` | Per-test sliding-window history; identity is `UNIQUE(project, module_path, full_name, timestamp)` and the lookup index is `(project, module_path, full_name)`. Reads narrow through `DataReader.getHistory`'s optional `HistoryQueryOptions` (`testName` / `modulePath` predicates plus a per-test `ROW_NUMBER` run cap) — no schema change; the existing index serves it |
-| `coverage_baselines` | Auto-ratcheting high-water marks |
+| `coverage_baselines` | Three coverage-policy facets in one table, discriminated by `kind` (`'baseline'` — the auto-ratcheting high-water mark; `'threshold'` — the enforced Vitest `coverage.thresholds`; `'target'` — the aspirational `coverageTargets`). `UNIQUE(project, kind, metric, pattern)`; `pattern = ''` is the global row. Written by `writeBaselines` / `writeThresholds` / `writeTargets`, read back per-kind by `DataReaderLive.getCoveragePolicy` (issue #237) |
 | `coverage_trends` | Per-project trend entries |
-| `file_coverage` | Per-file coverage per run |
+| `file_coverage` | Per-file coverage per run, only for files below a bar; `tier` (`'below_threshold'` \| `'below_target'`) says which bar, and `getCoverage` splits `lowCoverage` from `belowTarget` on it |
 | `source_test_map` | Source file → test module mapping |
 | `notes` | Scoped notes with threading and expiration |
 | `sessions` | Claude Code conversations; `chat_id` unique, `agent_kind`, `parent_session_id` self-FK |

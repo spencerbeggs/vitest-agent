@@ -62,6 +62,14 @@ run-event PubSub channel and tee to the user onRunEvent tap)
   Every Vitest 4.x reporter hook is wired to a RunEvent variant — the
   surface is complete. Notable mappings:
   onTestRunStart        -> RunStarted     -> emit(event)
+                           (also stores specifications.length as
+                            startedSpecCount, outside the gate — #160,
+                            and restores any threshold keys the previous
+                            partial run deleted from
+                            vitest.coverageProvider.options.thresholds —
+                            only keys still absent, then clears the
+                            snapshot; watch mode reuses one provider
+                            across rerunFiles, #237 follow-up)
   onTestModuleQueued    -> ModuleQueued   -> emit(event)  (carries projectName)
   onTestModuleStart     -> ModuleStarted  -> emit(event)  (carries projectName)
   onTestCaseReady       -> TestStarted    -> emit(event)  (standalone)
@@ -95,6 +103,23 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     render (the same contract as a migration failure)
   |
   +-- Filter testModules by projectFilter if set
+  |
+  +-- Partial-run detection (#160):
+  |     totalSpecCount = await vitest.globTestSpecifications().length
+  |       (best-effort; absent/throwing -> equals startedSpecCount)
+  |     isPartial = isPartialRun({ filenamePattern, startedSpecCount,
+  |                                totalSpecCount, projectFilter })
+  |       (projectFilter = AgentReporter construction-time option, always
+  |        undefined via plugin.ts; CLI --project is caught by spec count)
+  |     if isPartial:
+  |       testedFiles = modules' *.test.ts/*.spec.ts -> source paths
+  |       delete metric + glob keys from
+  |         vitest.coverageProvider.options.thresholds in place
+  |         (keeps perFile / autoUpdate / "100"; guarded, never throws),
+  |         snapshotting each deleted value into
+  |         neutralizedThresholdSnapshot for the next onTestRunStart
+  |         so Vitest's own checkThresholds — which runs AFTER every
+  |         reporter's onTestRunEnd — cannot fail the run
   |
   +-- UI-only short-circuit (opts.coverageMode === "ui-only"):
   |     skip ensureMigrated, DataStore, DataReader, CoverageAnalyzer,
@@ -133,7 +158,13 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     +-- DataStore.writeSettings (idempotent INSERT OR IGNORE)
   |
   +-- Group testModules by project.name
-  +-- CoverageAnalyzer.process / processScoped -> Option<CoverageReport>
+  +-- isPartial ? CoverageAnalyzer.processScoped(map, opts + totalFiles,
+  |                 testedFiles)
+  |              : CoverageAnalyzer.process(map, opts)
+  |     -> Option<CoverageReport>  (scoped / scopedFiles / totalFiles set
+  |        on the partial branch)
+  +-- Emit CoverageReady (carries scoped / scopedFiles / totalFiles);
+  |     emit ThresholdViolation per violated metric ONLY when !scoped
   +-- DataReader.getBaselines(project) -> Option<CoverageBaselines>
   |
   +-- For each project group:
@@ -151,7 +182,7 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |       (interrupted passes through globally; otherwise failed when
   |       summary.failed > 0 || failedFiles.length > 0) — the Vitest
   |       `reason` is process-wide and marked every project failed [#147]
-  |     DataStore.writeRun (reason: projectReason) -> runId
+  |     DataStore.writeRun (reason: projectReason, scoped: isPartial) -> runId
   |     DataStore.writeModules / writeSuites / writeTestCases
   |     For each error:
   |       processFailure(error, options) -> { frames, signatureHash }
@@ -163,7 +194,13 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |       computeTrend() -> DataStore.writeTrends
   |
   +-- Compute updated baselines (ratchet up, capped at targets)
-  +-- DataStore.writeBaselines
+  +-- DataStore.writeBaselines                       (kind='baseline')
+  +-- If full (non-scoped) run (#237):
+  |     DataStore.writeThresholds(coverageThresholds) (kind='threshold')
+  |       when coverage.thresholds is configured
+  |     DataStore.writeTargets(coverageTargets)       (kind='target')
+  |       when coverageTargets is configured
+  |     — independent of autoUpdate; a run with neither writes nothing
   |
   +-- DataReader.getTrends -> trendSummary
   +-- Aggregate per-project classifications into a flat
@@ -202,9 +239,14 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |       never routes to a pass cell and both renderAgent and
   |       StreamApp print an "Unhandled errors:" section in every run
   |       shape (#240),
+  |     synthesizeFromAgentReport copies coverage.scoped / scopedFiles /
+  |       totalFiles onto CoverageReady and skips recomputing
+  |       ThresholdViolation when scoped (#160),
   |     classifies (RunShape, RunOutcome), assembles
   |     DispatchInputs, and calls dispatch(inputs, opts) for the
-  |     agent-mode stdout entry. Adds a github-summary RenderedOutput
+  |     agent-mode stdout entry — dispatch()/dispatchInk() append
+  |     "Coverage thresholds skipped: partial run (N of M test files)"
+  |     after the cell output when state.coverage.scoped is true. Adds a github-summary RenderedOutput
   |     when kit.config.githubActions is true. (For consoleMode "stream"
   |     it painted live during the run off the run-event channel.)
   +-- Concatenate all RenderedOutput[] in order

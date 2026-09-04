@@ -16,6 +16,13 @@ export interface CoverageOptions {
 	readonly baselines?: CoverageBaselines;
 	/** When true, include files with zero coverage rather than omitting them. */
 	readonly includeBareZero: boolean;
+	/**
+	 * Total test-file count for the project, when known (issue #160 gap 1).
+	 * Only meaningful on a scoped run — threaded onto the returned
+	 * `CoverageReport.totalFiles` so the scoped-coverage note can render
+	 * "N of M test files" instead of just "N".
+	 */
+	readonly totalFiles?: number;
 }
 
 /**

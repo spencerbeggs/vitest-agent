@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-14
-last-synced: 2026-08-14
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 96
 related:
   - ../architecture.md
@@ -342,7 +342,7 @@ encode/decode.
 | ---- | -------- |
 | `Common.ts` | Shared literals (`TestState`, `Environment`, `Executor`, `OutputFormat`, `DetailLevel`, `HumanConsoleMode`, `AgentConsoleMode`, `CiConsoleMode`, and the union `ConsoleMode`) |
 | `AgentReport.ts` | The test-run report shape and its constituents |
-| `Coverage.ts` | Coverage report shapes |
+| `Coverage.ts` | Coverage report shapes. `CoverageReport` carries three distinct policy facets (`thresholds` / `targets` / `baselines`, issue #237) plus the optional `totalFiles` a scoped run's note renders as "N of M" (issue #160) |
 | `Thresholds.ts` | Coverage threshold and resolved-threshold shapes |
 | `Baselines.ts` | Coverage baseline shapes |
 | `Trends.ts` | Coverage trend shapes |
@@ -353,7 +353,7 @@ encode/decode.
 | `Transport.ts` | Single-member discriminated union `Schema.Union(Schema.Struct({ kind: Schema.Literal("local") }))`. Modeled as a union from day one so the 3.0 cloud-backend swap (D1, Turso, etc.) lands as a pure addition of union members rather than a schema-shape change. See [../decisions.md](../decisions.md) D40 |
 | `validate-coverage-targets-shape.ts` (in `utils/`) | Pure helper `validateCoverageTargetsShape(input): { errors, warnings, info }`. Walks raw input and emits structured diagnostics with pinpointed paths: `INVALID_TARGET_VALUE` (zero or negative numbers, at the top level or inside glob-pattern entries) and `PERFILE_ON_TARGETS` (the `perFile` key set inside `coverageTargets` rather than on `coverage.thresholds.perFile`). Consumed by the plugin's `ConfigValidation` rule registry |
 | `RunEvent.ts` | Discriminated union over the `RunEvent` variants — one per Vitest 4.x reporter hook that fits the event-sourced model, covering run / module / suite / hook / test lifecycle, console, coverage, trend, classification and watch mode. Fed by the plugin's streaming callbacks and consumed by `@vitest-agent/ui`'s reducer. See [../schemas.md](../schemas.md) for the variant inventory |
-| `RenderState.ts` | The projected shape the `@vitest-agent/ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`, and the optional `collectedModules`). Both the agent string renderer and the Ink tree read this shape |
+| `RenderState.ts` | The projected shape the `@vitest-agent/ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`, and the optional `collectedModules`). `CoverageRenderState` carries the optional `scoped` / `scopedFiles` / `totalFiles` triple folded from `CoverageReady` (issue #160). Both the agent string renderer and the Ink tree read this shape |
 | `History.ts` | `TestRun`, `TestHistory`, `HistoryRecord` |
 | `Config.ts` | `VitestAgentConfig` for the optional `vitest-agent.config.toml`. Both fields (`cacheDir?`, `projectKey?`) are optional; absence falls back to deriving the path from the workspace's `package.json` `name` |
 | `Tdd.ts` | Application-level (camelCase) shapes for the three-tier hierarchy: `GoalStatus`/`BehaviorStatus`, `GoalRow`, `BehaviorRow`, `GoalDetail`, `BehaviorDetail`. SQL row shapes (snake_case) live in `sql/rows.ts`; these are the API shapes |
@@ -396,6 +396,17 @@ test-case-to-turn backfill.
 
 The non-obvious pieces:
 
+- **Three coverage-policy writers, one table.** `writeBaselines`,
+  `writeThresholds` and `writeTargets` all upsert into `coverage_baselines`,
+  distinguished by the `kind` column (`'baseline'` / `'threshold'` /
+  `'target'`) and keyed `ON CONFLICT (project, kind, metric, pattern)`.
+  `writeThresholds` / `writeTargets` share a private `writeCoveragePolicy`
+  helper and take a `ResolvedThresholds` (global metrics plus
+  `[pattern, metrics][]`), skipping non-finite values the same way
+  `writeBaselines` does (issue #130). The split exists so the ratcheted
+  high-water mark can never be mistaken for the enforced bar or the
+  aspirational one — see Decision 58 in [../decisions.md](../decisions.md)
+  (issue #237).
 - **Turn fanout.** `writeTurn` writes to `turns` and, for `file_edit` and
   `tool_result` payload types, also fans out to per-turn detail tables
   (`file_edits`, `tool_invocations`) inside the same SQL transaction via
@@ -484,9 +495,24 @@ The non-obvious pieces:
   In-memory databases report empty.
 - **Coverage fall-back.** `getCoverage` and `getFileCoverage` only return
   `Option.none()` when **both** `file_coverage` and `coverage_trends` are
-  empty. The reporter only writes per-file rows for files below threshold,
-  so a passing project with full coverage produces zero per-file rows; in
-  that case the query falls back to `coverage_trends` totals.
+  empty. The reporter only writes per-file rows for files below a bar, so a
+  passing project with full coverage produces zero per-file rows; in that
+  case the query falls back to `coverage_trends` totals.
+- **`getCoverage` reads three distinct policy facets.** A private
+  `getCoveragePolicy(kind, project)` helper queries `coverage_baselines`
+  for one `kind` and returns `Option.none()` when that kind was never
+  persisted — so "never configured" is distinguishable from "configured
+  with zero metrics". `getBaselines` is `getCoveragePolicy("baseline", …)`.
+  `getCoverage` calls it three times (`threshold`, `target`, `baseline`)
+  and assembles `CoverageReport.thresholds` (`global: {}` when absent —
+  **no** fallback to the baseline), `targets` (omitted when absent) and
+  `baselines`. The per-file rows are split by the persisted
+  `file_coverage.tier`: `below_threshold` rows become `lowCoverage`,
+  `below_target` rows become `belowTarget` / `belowTargetFiles` (omitted
+  when empty). Before this the reader returned the baseline under the
+  `thresholds` label and folded every per-file row into `lowCoverage`,
+  which is how an agent came to treat the aspirational target as the CI
+  gate (issue #237; Decision 58).
 - **`getTestsForFile` deduplicates.** Uses `SELECT DISTINCT ... ORDER BY
   f.path` because `source_test_map` accumulates a row per run.
 - **`getTddTaskById` materializes the full tree in one round-trip.** It
@@ -546,6 +572,23 @@ The markdown formatter wires the `osc8` utility into failing-test header
 lines via a regex post-processor — gated on `target === "stdout"` AND
 `!ctx.noColor` so MCP responses never receive OSC-8 codes. Terminal
 hyperlinks are CLI-and-stdout-only.
+
+**Scoped-coverage note.** `packages/sdk/src/utils/format-scoped-coverage-note.ts`
+exports the pure `formatScopedCoverageNote(testedFileCount, totalFileCount?)`
+→ `"Coverage thresholds skipped: partial run (N of M test files)"` (or
+`"(N test files)"` when the total is unknown). It is the single source of
+that sentence for every surface: the terminal formatter's coverage section
+(`aggregateCoverage` folds `scoped` / `scopedFiles` / `totalFiles` across
+per-project reports), the console/markdown formatter, the MCP `run_tests`
+summary (`scopedNote`), and both `@vitest-agent/ui` dispatch entry points.
+In the terminal formatter, `renderCoverageSection` branches on
+`agg.scoped` **first**: a scoped run prints only the scoped note and
+suppresses all three pass/fail verdict branches ("thresholds met",
+"below thresholds", target lines) entirely, since a verdict against the
+whole-project denominator is exactly what must not be trusted on a
+partial run (PR #358 finding 2). Full-run output is byte-identical.
+See [./plugin.md](./plugin.md) *Partial-run detection* and Decision 59 in
+[../decisions.md](../decisions.md) (issue #160).
 
 ## XDG path resolution
 

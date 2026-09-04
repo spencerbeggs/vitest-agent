@@ -12,6 +12,7 @@ import type {
 import type { Agent, IdempotencyHit } from "../schemas/Agent.js";
 import type { CoverageBaselines } from "../schemas/Baselines.js";
 import type { BehaviorRow, BehaviorStatus, GoalRow, GoalStatus } from "../schemas/Tdd.js";
+import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { TrendEntry } from "../schemas/Trends.js";
 import type { ArtifactKind, Phase } from "../utils/validate-phase-transition.js";
 
@@ -424,6 +425,18 @@ export class DataStore extends Context.Service<
 			errorMessage: string | null,
 		) => Effect.Effect<void, DataStoreError>;
 		readonly writeBaselines: (baselines: CoverageBaselines) => Effect.Effect<void, DataStoreError>;
+		/**
+		 * Persist the resolved (enforced) Vitest `coverage.thresholds` for the
+		 * current run, distinct from the ratcheted `coverage_baselines` rows.
+		 * Stored under `kind='threshold'`. See issue #237.
+		 */
+		readonly writeThresholds: (thresholds: ResolvedThresholds) => Effect.Effect<void, DataStoreError>;
+		/**
+		 * Persist the resolved aspirational `coverageTargets` for the current
+		 * run, distinct from the ratcheted `coverage_baselines` rows. Stored
+		 * under `kind='target'`. See issue #237.
+		 */
+		readonly writeTargets: (targets: ResolvedThresholds) => Effect.Effect<void, DataStoreError>;
 		readonly writeTrends: (project: string, runId: number, entry: TrendEntry) => Effect.Effect<void, DataStoreError>;
 		readonly writeSourceMap: (
 			sourceFilePath: string,

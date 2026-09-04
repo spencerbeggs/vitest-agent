@@ -13,6 +13,7 @@ import {
 import { Agent, IdempotencyHit } from "../schemas/Agent.js";
 import type { CoverageBaselines } from "../schemas/Baselines.js";
 import type { BehaviorRow, BehaviorStatus, GoalRow, GoalStatus } from "../schemas/Tdd.js";
+import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { TrendEntry } from "../schemas/Trends.js";
 import type {
 	CreateBehaviorInput,
@@ -314,11 +315,16 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				// Non-finite values (NaN from ratchet math over an empty coverage
 				// run) would bind as SQL NULL and trip the NOT NULL constraint on
 				// coverage_baselines.value — skip them (issue #130).
+				//
+				// kind='baseline' distinguishes these ratcheted rows from the
+				// resolved threshold/target rows written by writeThresholds /
+				// writeTargets below — the three facets must never collide in
+				// the same row (issue #237).
 				const metrics = ["lines", "functions", "branches", "statements"] as const;
 				for (const metric of metrics) {
 					const value = g[metric];
 					if (value !== undefined && Number.isFinite(value)) {
-						yield* sql`INSERT INTO coverage_baselines (project, metric, value, pattern, updated_at) VALUES ('__global__', ${metric}, ${value}, '', ${updatedAt}) ON CONFLICT (project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
+						yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', 'baseline', ${metric}, ${value}, '', ${updatedAt}) ON CONFLICT (project, kind, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
 					}
 				}
 
@@ -327,7 +333,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					for (const metric of metrics) {
 						const value = thresholds[metric];
 						if (value !== undefined && Number.isFinite(value)) {
-							yield* sql`INSERT INTO coverage_baselines (project, metric, value, pattern, updated_at) VALUES ('__global__', ${metric}, ${value}, ${pattern}, ${updatedAt}) ON CONFLICT (project, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
+							yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', 'baseline', ${metric}, ${value}, ${pattern}, ${updatedAt}) ON CONFLICT (project, kind, metric, pattern) DO UPDATE SET value = ${value}, updated_at = ${updatedAt}`;
 						}
 					}
 				}
@@ -337,6 +343,64 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					(e) => new DataStoreError({ operation: "write", table: "coverage_baselines", reason: extractSqlReason(e) }),
 				),
 			);
+
+		/**
+		 * Shared upsert for the `coverage_baselines` table's non-baseline
+		 * `kind` rows (`threshold` / `target`). Distinct from `writeBaselines`
+		 * so the ratcheted high-water mark never collides with the resolved,
+		 * enforced Vitest thresholds or the aspirational coverageTargets
+		 * (issue #237).
+		 */
+		const writeCoveragePolicy = (
+			kind: "threshold" | "target",
+			policy: ResolvedThresholds,
+		): Effect.Effect<void, DataStoreError> =>
+			sql
+				.withTransaction(
+					Effect.gen(function* () {
+						yield* Effect.logDebug("writeCoveragePolicy").pipe(Effect.annotateLogs({ kind }));
+						const updatedAt = new Date().toISOString();
+						const { global: g, patterns = [] } = policy;
+						const metrics = ["lines", "functions", "branches", "statements"] as const;
+
+						// threshold/target rows represent the CURRENT configured bar
+						// (unlike kind='baseline', which is cumulative and must never
+						// be touched here) -- make each write authoritative for the
+						// incoming policy by clearing every existing row of this kind
+						// before re-inserting, all inside one transaction so a metric
+						// or pattern dropped from the config can't linger as a stale
+						// enforced row, and a crash mid-write can't leave the kind
+						// partially populated (issue #237 follow-up).
+						yield* sql`DELETE FROM coverage_baselines WHERE project = '__global__' AND kind = ${kind}`;
+
+						for (const metric of metrics) {
+							const value = g[metric];
+							if (value !== undefined && Number.isFinite(value)) {
+								yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, '', ${updatedAt})`;
+							}
+						}
+						for (const [pattern, thresholds] of patterns) {
+							for (const metric of metrics) {
+								const value = thresholds[metric];
+								if (value !== undefined && Number.isFinite(value)) {
+									yield* sql`INSERT INTO coverage_baselines (project, kind, metric, value, pattern, updated_at) VALUES ('__global__', ${kind}, ${metric}, ${value}, ${pattern}, ${updatedAt})`;
+								}
+							}
+						}
+					}),
+				)
+				.pipe(
+					Effect.annotateLogs("service", "DataStore"),
+					Effect.mapError(
+						(e) => new DataStoreError({ operation: "write", table: "coverage_baselines", reason: extractSqlReason(e) }),
+					),
+				);
+
+		const writeThresholds = (thresholds: ResolvedThresholds): Effect.Effect<void, DataStoreError> =>
+			writeCoveragePolicy("threshold", thresholds);
+
+		const writeTargets = (targets: ResolvedThresholds): Effect.Effect<void, DataStoreError> =>
+			writeCoveragePolicy("target", targets);
 
 		const writeTrends = (project: string, runId: number, entry: TrendEntry): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
@@ -1758,6 +1822,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			writeCoverage,
 			writeHistory,
 			writeBaselines,
+			writeThresholds,
+			writeTargets,
 			writeTrends,
 			writeSourceMap,
 			writeNote,

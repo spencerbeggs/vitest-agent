@@ -49,6 +49,7 @@ import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit.js";
 import { captureEnvVars } from "./utils/capture-env.js";
 import { captureSettings, hashSettings } from "./utils/capture-settings.js";
+import { isPartialRun } from "./utils/is-partial-run.js";
 import { processFailure } from "./utils/process-failure.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { routeRenderedOutput } from "./utils/route-rendered-output.js";
@@ -387,6 +388,35 @@ export class AgentReporter {
 	 * @internal
 	 */
 	private hookStartedAt: Map<string, number> = new Map();
+	/**
+	 * Count of test specifications Vitest started for the current run,
+	 * captured from `onTestRunStart`'s `specifications` argument. Used
+	 * alongside a fresh `globTestSpecifications()` total in `onTestRunEnd`
+	 * as one of `isPartialRun`'s signals (issue #160 gap 2) — a tags-only
+	 * `run_tests` filter narrows the run without setting `filenamePattern`
+	 * or `projectFilter`, so the spec-count comparison is the only signal
+	 * that catches it. `undefined` when `onTestRunStart` never fired
+	 * (tests invoking `onTestRunEnd` directly); `onTestRunEnd` falls back
+	 * to the executed module count in that case.
+	 *
+	 * @internal
+	 */
+	private startedSpecCount: number | undefined;
+	/**
+	 * Original values of coverage-threshold keys deleted from
+	 * `vitest.coverageProvider.options.thresholds` while neutralizing a
+	 * partial run (issue #160). In `run` mode Vitest re-initializes the
+	 * provider on every `vitest.start`, so the snapshot is moot — but in
+	 * watch mode the provider is created once and scoped reruns go through
+	 * `rerunFiles` without re-initializing it, so a deleted key would stay
+	 * gone for the rest of the watch session. `onTestRunStart` restores
+	 * these keys (only if still absent — a legitimately re-initialized
+	 * provider is left alone) and clears the map. Empty when the last run
+	 * was not partial.
+	 *
+	 * @internal
+	 */
+	private neutralizedThresholdSnapshot: Map<string, unknown> = new Map();
 
 	constructor(options: AgentReporterConstructorOptions = {}) {
 		// logLevel and logFile read from VITEST_REPORTER_LOG_LEVEL /
@@ -631,6 +661,36 @@ export class AgentReporter {
 	 * `RunStarted` event for live subscribers.
 	 */
 	onTestRunStart(_specifications: ReadonlyArray<unknown>): void {
+		// Captured unconditionally (issue #160 gap 2) — `onTestRunEnd` needs
+		// this count regardless of whether anything is subscribed to the
+		// run-event channel.
+		this.startedSpecCount = _specifications.length;
+		// Restore any coverage-threshold keys neutralized by a partial run
+		// (issue #160 / #237 watch-mode follow-up). Runs unconditionally,
+		// before the wantsRunEvents early return, and is a no-op when the
+		// snapshot is empty (the common case — last run was not partial, or
+		// this is the very first run).
+		if (this.neutralizedThresholdSnapshot.size > 0) {
+			try {
+				const provider = (
+					this._vitest as {
+						coverageProvider?: { options?: { thresholds?: Record<string, unknown> } };
+					} | null
+				)?.coverageProvider;
+				const thresholds = provider?.options?.thresholds;
+				if (thresholds !== undefined && typeof thresholds === "object") {
+					for (const [key, value] of this.neutralizedThresholdSnapshot) {
+						// Only re-add if still absent — a legitimately
+						// re-initialized provider (e.g. `run` mode) already has
+						// its own fresh values and must be left alone.
+						if (!(key in thresholds)) thresholds[key] = value;
+					}
+				}
+			} catch {
+				// Best-effort — threshold restoration must never crash the run.
+			}
+			this.neutralizedThresholdSnapshot = new Map();
+		}
 		if (!this.wantsRunEvents()) return;
 		this.currentRunId = randomUUID();
 		this.moduleStartedAt.clear();
@@ -1210,6 +1270,98 @@ export class AgentReporter {
 		// the factory is resolved here from the render kit instead.
 		const runEvents = this.runEvents;
 		const preBuiltReporters = this.reporters;
+
+		// Issue #160: Vitest enforces `coverage.thresholds` against the
+		// whole-project denominator regardless of how many test files
+		// actually ran — its coverage provider's `allTestsRun` flag only
+		// gates `autoUpdate`, not `checkThresholds`. Detect a scoped/partial
+		// run here so coverage routes through `processScoped`, our own
+		// `ThresholdViolation` events are suppressed, and Vitest's native
+		// threshold check is neutralized before it runs (see below).
+		const vitestForPartialCheck = stashedVitest as {
+			filenamePattern?: ReadonlyArray<string>;
+			globTestSpecifications?: () => Promise<ReadonlyArray<unknown>>;
+		} | null;
+		// Best-effort spec-count signal (issue #160 gap 2): a tags-only
+		// `run_tests` filter sets neither `filenamePattern` nor
+		// `projectFilter`, so the spec-count comparison is the only signal
+		// that catches it. `globTestSpecifications()` failing, or being
+		// absent (tests invoking `onTestRunEnd` directly), degrades to
+		// "not partial" via this channel — never a throw — by leaving
+		// `totalSpecCount` equal to `startedSpecCount`.
+		const startedSpecCount = this.startedSpecCount ?? modules.length;
+		let totalSpecCount = startedSpecCount;
+		try {
+			const specs = await vitestForPartialCheck?.globTestSpecifications?.();
+			if (specs !== undefined) totalSpecCount = specs.length;
+		} catch {
+			// Best-effort — keep totalSpecCount === startedSpecCount.
+		}
+		const isPartial = isPartialRun({
+			filenamePattern: vitestForPartialCheck?.filenamePattern,
+			startedSpecCount,
+			totalSpecCount,
+			projectFilter: opts.projectFilter,
+		});
+		// Convention-derived source files exercised by the executed test
+		// modules — mirrors the test->source mapping already used for
+		// `writeSourceMap` below. Used to scope threshold-worthy files on a
+		// partial run (issue #160).
+		const testedFiles = isPartial
+			? Array.from(
+					new Set(
+						modules.map((m) =>
+							m.relativeModuleId.replace(/\.test\.([^.]+)$/, ".$1").replace(/\.spec\.([^.]+)$/, ".$1"),
+						),
+					),
+				)
+			: undefined;
+
+		if (isPartial) {
+			// Neutralize Vitest's native coverage-provider thresholds so its
+			// own `checkThresholds` (called unconditionally from
+			// `reportCoverage`, which runs AFTER every reporter's
+			// `onTestRunEnd` — see `Vitest.runFiles`) cannot fail this run
+			// against the whole-project denominator. This mutates the SAME
+			// options object the provider reads from at report time. In `run`
+			// mode each `vitest.start` re-initializes the provider, so
+			// nothing would need restoring there — but in watch mode the
+			// provider is created once and scoped reruns go through
+			// `rerunFiles` without re-initializing it, so a deleted key would
+			// otherwise stay gone for the rest of the watch session. To
+			// cover that case, every deleted key's original value is
+			// snapshotted into `neutralizedThresholdSnapshot` and restored by
+			// the next `onTestRunStart`. There is no supported public API for
+			// any of this — `resolveOptions()` only returns the object, it
+			// does not accept an override — so this reaches into the
+			// provider's internal `options.thresholds` directly, guarded end
+			// to end: a missing provider, options, or thresholds shape is a
+			// no-op, never a throw.
+			this.neutralizedThresholdSnapshot = new Map();
+			try {
+				const provider = (
+					stashedVitest as {
+						coverageProvider?: { options?: { thresholds?: Record<string, unknown> } };
+					} | null
+				)?.coverageProvider;
+				const thresholds = provider?.options?.thresholds;
+				if (thresholds !== undefined && typeof thresholds === "object") {
+					for (const key of Object.keys(thresholds)) {
+						// Keep `perFile` / `autoUpdate` (shape-only, not a
+						// threshold value) and Vitest's internal `100` key;
+						// clear every metric key (`lines`, `functions`,
+						// `branches`, `statements`) and every glob-pattern
+						// entry, both of which `checkThresholds` reads
+						// directly off this same object.
+						if (key === "perFile" || key === "autoUpdate" || key === "100") continue;
+						this.neutralizedThresholdSnapshot.set(key, thresholds[key]);
+						delete thresholds[key];
+					}
+				}
+			} catch {
+				// Best-effort — threshold neutralization must never crash the run.
+			}
+		}
 		// Bound emit closure so the Effect.gen program below (a plain
 		// generator function with no `this`) can publish coverage events
 		// once the CoverageAnalyzer result is in hand.
@@ -1469,9 +1621,16 @@ export class AgentReporter {
 				includeBareZero: opts.includeBareZero,
 				...(opts.coverageTargets ? { targets: opts.coverageTargets } : {}),
 				...(baselines ? { baselines } : {}),
+				// Issue #160 gap 1: thread the real spec-count total onto a
+				// scoped run's CoverageReport so the note can render "N of M".
+				...(isPartial ? { totalFiles: totalSpecCount } : {}),
 			} as const;
 			const coverageResult =
-				stashedCoverage && isFirstProject ? yield* analyzer.process(stashedCoverage, coverageOpts) : Option.none();
+				stashedCoverage && isFirstProject
+					? isPartial
+						? yield* analyzer.processScoped(stashedCoverage, coverageOpts, testedFiles ?? [])
+						: yield* analyzer.process(stashedCoverage, coverageOpts)
+					: Option.none();
 			const coverageReport = Option.getOrUndefined(coverageResult);
 
 			// Emit the coverage events. `onCoverage` only stashes the raw
@@ -1479,7 +1638,11 @@ export class AgentReporter {
 			// point at which the typed `CoverageReady` / `ThresholdViolation`
 			// payloads can be populated, and it is ready here. A live
 			// subscriber gets a coverage frame; without this the events are
-			// defined and reduced but never published.
+			// defined and reduced but never published. `ThresholdViolation`
+			// is never emitted for a scoped run (issue #160) — the
+			// whole-project denominator is meaningless against a subset of
+			// files, and Vitest's own native threshold check is neutralized
+			// above for the same reason.
 			if (wantsRunEvents && coverageReport !== undefined) {
 				const globalThresholds = coverageReport.thresholds.global;
 				emitEvent({
@@ -1491,12 +1654,17 @@ export class AgentReporter {
 						missing: fc.summary,
 						uncoveredLines: fc.uncoveredLines,
 					})),
+					...(coverageReport.scoped ? { scoped: coverageReport.scoped } : {}),
+					...(coverageReport.scopedFiles !== undefined ? { scopedFiles: coverageReport.scopedFiles.length } : {}),
+					...(coverageReport.totalFiles !== undefined ? { totalFiles: coverageReport.totalFiles } : {}),
 				});
-				for (const metric of ["lines", "branches", "functions", "statements"] as const) {
-					const expected = globalThresholds[metric];
-					const actual = coverageReport.totals[metric];
-					if (expected !== undefined && actual < expected) {
-						emitEvent({ _tag: "ThresholdViolation", metric, expected, actual });
+				if (!coverageReport.scoped) {
+					for (const metric of ["lines", "branches", "functions", "statements"] as const) {
+						const expected = globalThresholds[metric];
+						const actual = coverageReport.totals[metric];
+						if (expected !== undefined && actual < expected) {
+							emitEvent({ _tag: "ThresholdViolation", metric, expected, actual });
+						}
 					}
 				}
 			}
@@ -1579,7 +1747,7 @@ export class AgentReporter {
 					passed: baseReport.summary.passed,
 					failed: baseReport.summary.failed,
 					skipped: baseReport.summary.skipped,
-					scoped: false,
+					scoped: isPartial,
 					actorType: attribution.actorType,
 					agentId: attribution.agentId,
 					conversationId: attribution.conversationId,
@@ -1951,6 +2119,24 @@ export class AgentReporter {
 			if (opts.autoUpdate && coverageReport) {
 				const newBaselines = computeUpdatedBaselines(baselines, coverageReport.totals, opts.coverageTargets);
 				yield* store.writeBaselines(newBaselines);
+			}
+
+			// Persist the resolved (enforced) thresholds and aspirational
+			// targets distinctly from the ratcheted baseline, independent of
+			// `autoUpdate` -- an agent asking "what bar am I held to" must
+			// never be answered with the baseline (issue #237). A run with
+			// neither configured writes nothing. Gated on `!scoped` like the
+			// baseline/trend writes above (issue #160) — a partial run's
+			// coverage totals reflect the whole project, not just what ran,
+			// so writing them as "the enforced bar" would misrepresent a
+			// value nothing in this run actually re-validated.
+			if (coverageReport && !coverageReport.scoped) {
+				if (opts.coverageThresholds !== undefined) {
+					yield* store.writeThresholds(opts.coverageThresholds);
+				}
+				if (opts.coverageTargets !== undefined) {
+					yield* store.writeTargets(opts.coverageTargets);
+				}
 			}
 
 			// Build trend summary for output context (read back after writing)

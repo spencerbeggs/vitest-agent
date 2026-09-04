@@ -194,6 +194,9 @@ export const reduceRenderState = (state: RenderState, event: RunEvent): RenderSt
 					thresholds: e.thresholds,
 					gaps: e.gaps,
 					violations: state.coverage?.violations ?? [],
+					...(e.scoped !== undefined ? { scoped: e.scoped } : {}),
+					...(e.scopedFiles !== undefined ? { scopedFiles: e.scopedFiles } : {}),
+					...(e.totalFiles !== undefined ? { totalFiles: e.totalFiles } : {}),
 				},
 			}),
 			ThresholdViolation: (e) => {

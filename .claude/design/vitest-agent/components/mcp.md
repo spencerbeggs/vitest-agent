@@ -630,6 +630,21 @@ tag-introspection / `for_file` / `project` remediation pointers.
 
 **`run_tests` `discoveryLastScannedAt` observability.** `RunTestsOk` carries an optional `discoveryLastScannedAt: string | null` — the ISO timestamp of the most recent real disk scan `discoverProjects()` performed in this process, or `null` when discovery has not scanned disk in this process (e.g. a config that never calls `AgentPlugin.discover()`). It lets an agent tell a stale-looking test count apart from a fresh scan (issue #100). The value is read via `readDiscoveryLastScannedAt()` in `packages/mcp/src/tools/run-tests.ts` from the process-global `Symbol.for("vitest-agent:discovery:last-scan-at")` slot that `@vitest-agent/plugin` writes on every real scan. The Symbol handshake exists because `@vitest-agent/mcp` cannot import `@vitest-agent/plugin` (the plugin depends on mcp, so a reverse import is circular); `createVitest` loads `vitest.config.ts` in-process, which calls `discoverProjects()`, so both sides observe the same slot by the time the result is built. Mirrors the `ensureMigrated` globalThis-keyed pattern (Decision 28). See [../decisions.md](../decisions.md) Decision 43.
 
+**`run_tests` `scopedNote`.** `RunTestsOk` carries an optional
+`scopedNote: string | null` (issue #160). When the call carried any filter
+(`files`, `project`, or `tags`) the tool sets it to
+`formatScopedCoverageNote(testModules.length, total)`, where `total` is a
+best-effort `localVitest.globTestSpecifications().length` — a glob failure
+degrades to a note with no "of M" rather than failing the call. `null` /
+absent means the run was unscoped. `formatReportMarkdown` takes the note
+as an optional third argument (mirroring `formatNoMatchMarkdown`'s
+`filter`) and prints it after the project line, so the text summary and
+the structured result agree that a filtered call's coverage verdict must
+not be trusted: Vitest enforces `coverage.thresholds` against the
+whole-project denominator no matter how many files ran, and the in-process
+reporter has already suppressed the threshold check for the same reason
+(see [./plugin.md](./plugin.md) *Partial-run detection*).
+
 **`inventory({ kind: "tag" })`.** New input variant with an optional
 `project` scope. The output union gains two distinct
 `inventoryKind` literals to encode the asymmetric scoped vs unscoped
@@ -696,6 +711,27 @@ Vitest finds the config *file* by walking UP from `root`, but resolves that conf
 `run_tests` used to `await import("vitest/node")` with a bare specifier, which resolves relative to `@vitest-agent/mcp`'s OWN install location rather than the project under test. `vitest` is a peer dependency, and pnpm routinely materializes more than one *physical* instance of the same vitest version when peer-resolution hashes differ. Driving the wrong copy splits vitest's module-level `SnapshotClient` singleton: the runner calls `setup()` on copy A while `expect(...).toMatchSnapshot()` inside the test file reads copy B, so every snapshot assertion fails with `The snapshot state for '<file>' is not found` while every non-snapshot assertion passes (issue #303).
 
 `resolveVitestNodeEntry(root)` resolves `vitest/node` through a `createRequire` anchored at the run's validated project root and returns a `file://` URL, falling back to the bare specifier when that throws (e.g. a project root with no local vitest install). The import goes through the `vitestLoader` indirection object rather than a bare `await import(...)`: vitest's vite-node only intercepts AST-literal `import("vitest/node")` call sites for `vi.mock`, so the computed specifier this fix requires bypasses mocking entirely and tests substitute `vitestLoader.load` by property assignment instead. See [../decisions.md](../decisions.md) Decision 55.
+
+## Coverage facets in `test_coverage`
+
+`packages/mcp/src/tools/coverage.ts` reads `DataReader.getCoverage` and
+renders the three coverage-policy facets the reader now returns distinctly
+(issue #237): the Totals table has a `Value` column, an **Enforced
+threshold** column (the persisted Vitest `coverage.thresholds`; `—` when
+the project never persisted any — no baseline is substituted) and, only
+when targets were persisted, a **Target** column (the aspirational
+`coverageTargets`). The pass/fail icon on each row keys off the enforced
+threshold alone. Per-file output is split on the persisted
+`file_coverage.tier`: **Coverage Gaps** lists `lowCoverage` ("files below
+the enforced threshold (build-blocking)"), and a separate **Coverage
+Improvements Needed** section lists `belowTarget` ("files below the
+aspirational target (passing the enforced threshold)"), rendered by one
+shared `renderFileCoverageTable` helper. `✅ All files meet coverage
+thresholds.` is true against the enforced thresholds specifically — a file
+can still appear under Improvements Needed. The previous single
+`Threshold` column mislabeled whichever value the reader happened to
+return, which is how an agent treated the target as the CI gate; see
+Decision 58 in [../decisions.md](../decisions.md).
 
 ## Per-invocation coverage directory
 

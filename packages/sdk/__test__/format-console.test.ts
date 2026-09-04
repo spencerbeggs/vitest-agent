@@ -523,6 +523,22 @@ describe("formatConsoleMarkdown", () => {
 		expect(result).toContain("Coverage gaps");
 		expect(result).not.toContain("Coverage improvements needed");
 	});
+
+	it("includes the scoped-coverage note when the report's coverage is scoped (issue #160)", () => {
+		const report: AgentReport = {
+			...passingReport,
+			coverage: {
+				totals: { statements: 90, branches: 90, functions: 90, lines: 90 },
+				thresholds: { global: { lines: 80 }, patterns: [] },
+				scoped: true,
+				scopedFiles: ["src/a.ts", "src/b.ts"],
+				lowCoverage: [],
+				lowCoverageFiles: [],
+			},
+		};
+		const result = formatConsoleMarkdown(report, baseOptions);
+		expect(result).toContain("Coverage thresholds skipped: partial run (2 test files)");
+	});
 });
 
 // --- Tier determination ---

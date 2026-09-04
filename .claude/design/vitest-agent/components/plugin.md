@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-21
-last-synced: 2026-08-21
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 93
 related:
   - ../architecture.md
@@ -204,7 +204,10 @@ Two emit details are load-bearing:
   per violated metric are emitted from `onTestRunEnd` after the
   `CoverageAnalyzer` finishes, populated from the analyzed result. The
   raw `onCoverage` istanbul map cannot fill those payloads, so the
-  events fire once the analyzed coverage is ready.
+  events fire once the analyzed coverage is ready. On a partial run
+  `CoverageReady` also carries `scoped: true`, `scopedFiles` (count) and
+  `totalFiles`, and **no** `ThresholdViolation` is emitted at all — see
+  *Partial-run detection and threshold suppression* below (issue #160).
 
 The three module-event variants (`ModuleQueued`, `ModuleStarted`,
 `ModuleFinished`) are populated with the optional `projectName` from the
@@ -273,10 +276,19 @@ output. See *Render survives persistence failure* below and Decision 47 in
    signature), upsert `failure_signatures`, then persist runs, modules,
    suites, test cases, errors, coverage, history, and source-map entries.
    First project (alphabetically) processes global coverage; others skip.
-   Compute updated baselines, write trends on full (non-scoped) runs, read
-   trend summaries back, and aggregate the flat `classifications` index.
-   The program returns `{ reports, classifications, trendSummary? }` — the
-   `PersistResult` the render program consumes.
+   Before the program runs, the handler decides `isPartial` (see
+   *Partial-run detection and threshold suppression* below) — a partial run
+   routes coverage through `CoverageAnalyzer.processScoped` with the
+   convention-derived tested source files and `totalFiles`, is persisted
+   with `test_runs.scoped = 1`, and emits no `ThresholdViolation`.
+   Compute updated baselines, write trends on full (non-scoped) runs, and
+   — also full runs only — persist the resolved `coverage.thresholds` via
+   `DataStore.writeThresholds` and the `coverageTargets` via
+   `DataStore.writeTargets` whenever each is configured, independent of
+   `autoUpdate` (issue #237). Read trend summaries back and aggregate the
+   flat `classifications` index. The program returns
+   `{ reports, classifications, trendSummary? }` — the `PersistResult` the
+   render program consumes.
 5. **Render program** (`OutputPipelineLive` + `NodeServices.layer`, no
    SQLite — the same DB-free wiring the UI-only branch uses). It resolves
    env / executor / format / detail, builds a second, health-aware
@@ -373,6 +385,12 @@ The implementation is a pure computation against duck-typed `CoverageMap`
 interfaces — no I/O, no native deps — but it is the only service that knows
 about istanbul's specific shape, so it stays co-located with the lifecycle
 code that feeds it.
+
+`CoverageOptions` carries an optional `totalFiles` (issue #160): only
+meaningful on a `processScoped` call, it is threaded verbatim onto
+`CoverageReport.totalFiles` (alongside `scoped: true` and `scopedFiles`)
+so the scoped-coverage note can render "N of M test files". The analyzer
+cannot derive it — only the reporter has the project-wide spec count.
 
 ## DiscoverStrategy + DefaultDiscoverStrategy
 
@@ -779,6 +797,14 @@ instead.
   the native ratchet and users opt in by passing one of
   `AgentPlugin.COVERAGE_AUTOUPDATE.{standard,strict,lenient}` into
   `coverage.thresholds.autoUpdate`.
+- `is-partial-run.ts` — pure `isPartialRun({ filenamePattern,
+  startedSpecCount, totalSpecCount, projectFilter }): boolean`
+  (`projectFilter` is the reporter's construction-time option, never the
+  CLI `--project` flag — see the section below). True when
+  `filenamePattern` is a non-empty array, when fewer specs started than
+  exist in total, or when a `projectFilter` was supplied. The decision
+  function behind the scoped-coverage routing in `onTestRunEnd` — see
+  *Partial-run detection and threshold suppression* (issue #160).
 - `capture-env.ts` — captures CI/runner environment variables for settings
   storage.
 - `capture-settings.ts` — captures Vitest config (pool, environment,
@@ -885,6 +911,93 @@ set Vitest's native `test.coverage.thresholds` directly. `coverageTargets`
 remains a plugin option, typed by the SDK's `CoverageTargets` schema (now
 in its own file at `packages/sdk/src/schemas/CoverageTargets.ts`). The
 `ConfigValidation` service catches mismatches between the two surfaces.
+
+**Thresholds and targets are persisted distinctly from the baseline
+(issue #237).** At the end of the persist program `onTestRunEnd` writes the
+resolved `coverage.thresholds` via `DataStore.writeThresholds` and the
+`coverageTargets` via `DataStore.writeTargets` — each only when configured,
+so a run with neither writes nothing. The writes are independent of the
+`autoUpdate` gate (an agent asking "what bar am I held to" must be
+answerable whether or not the ratchet is on) but are gated on
+`!coverageReport.scoped` like the baseline and trend writes: a partial
+run's totals reflect the whole project, not what ran, so recording them as
+"the enforced bar" would misrepresent a value nothing in that run
+re-validated. The rows land in `coverage_baselines` under
+`kind = 'threshold'` / `'target'`, never colliding with the `'baseline'`
+rows the ratchet writes. See Decision 58 in
+[../decisions.md](../decisions.md).
+
+## Partial-run detection and threshold suppression
+
+Vitest enforces `coverage.thresholds` against the **whole-project**
+denominator regardless of how many test files ran: its coverage provider's
+`allTestsRun` flag gates only `autoUpdate`, not `checkThresholds`, and
+`checkThresholds` runs unconditionally from `reportCoverage` **after every
+reporter's `onTestRunEnd`** (Vitest 4.1.11, `Vitest.runFiles`). A
+`vitest run foo.test.ts` therefore fails on coverage that nothing in the
+run touched, and previously the plugin compounded it by persisting the run
+with `scoped = false` and emitting its own `ThresholdViolation` events
+(issue #160). The fix has three parts.
+
+**Detection.** `onTestRunStart` unconditionally stores
+`specifications.length` as `startedSpecCount` (outside the
+`wantsRunEvents()` gate — `onTestRunEnd` needs it whether or not anything
+subscribes). `onTestRunEnd` then best-effort globs the project-wide total
+via `vitest.globTestSpecifications()`; a missing method (tests calling
+`onTestRunEnd` directly) or a throw leaves `totalSpecCount ===
+startedSpecCount`, so that channel degrades to "not partial" and never
+throws. Both counts, Vitest's `filenamePattern`, and the reporter's own
+`projectFilter` feed the pure `isPartialRun` (`utils/is-partial-run.ts`).
+Three signals are needed because each filter surface hides from the
+others: a CLI path filter sets `filenamePattern`; a tags-only `run_tests`
+filter sets neither `filenamePattern` nor `projectFilter` and is caught
+only by the spec-count comparison. `projectFilter` is `AgentReporter`'s
+**construction-time option**, not the CLI `--project` flag — `plugin.ts`
+never passes it when constructing the reporter, so in the production
+plugin path it is always `undefined`, and a user's `--project` run is
+likewise caught by the spec-count signal (fewer specs started than exist
+in total). Only a caller constructing `AgentReporter` directly (a test,
+or a non-plugin embedding) ever sets it.
+
+**Routing.** When partial, the tested source files are derived by the same
+`*.test.ts → *.ts` / `*.spec.ts → *.ts` convention `writeSourceMap` uses,
+and coverage goes through `CoverageAnalyzer.processScoped` with
+`totalFiles: totalSpecCount` so the resulting `CoverageReport` carries
+`scoped: true`, `scopedFiles` and `totalFiles`. `test_runs.scoped` is
+written from `isPartial` (it was hardcoded `false`). No
+`ThresholdViolation` is emitted, and `CoverageReady` carries the scoped
+triple so the live `stream` path renders the same note the end-of-run
+render does. Baseline, trend, threshold and target writes are all skipped.
+
+**Neutralising Vitest's native check.** Because `checkThresholds` runs
+after the reporter and reads `coverageProvider.options.thresholds` in
+place, the reporter deletes every metric key (`lines` / `functions` /
+`branches` / `statements`) and every glob-pattern entry from that object
+on a partial run, keeping only the shape-only `perFile` / `autoUpdate` keys
+and Vitest's internal `100` shorthand. There is no public API for this —
+`resolveOptions()` returns the object but accepts no override — so the
+reach into provider internals is guarded end to end: a missing provider,
+options or thresholds shape is a no-op, and the whole block is
+try/caught so it can never crash the run.
+
+**Restoring the neutralised keys.** In `run` mode every `vitest.start`
+re-initialises the provider, so the deletion would die with the run —
+but in **watch mode** the provider is created once and scoped reruns go
+through `rerunFiles` without re-initialising it, so a deleted key stayed
+gone for the rest of the watch session and one scoped rerun disabled
+thresholds for every later full rerun (PR #358 review finding). The
+reporter therefore snapshots each deleted key's original value into the
+private `neutralizedThresholdSnapshot` map as it deletes, and the next
+`onTestRunStart` — unconditionally, before the `wantsRunEvents()` early
+return, alongside the `startedSpecCount` store — re-adds every
+snapshotted key onto the **same** `coverageProvider.options.thresholds`
+object and clears the map. It only re-adds keys that are **still
+absent**: a legitimately re-initialised provider already has its own
+fresh values and is left alone. The restore is guarded and try/caught
+exactly like the deletion; an empty snapshot (the common case — last run
+was full, or this is the first run) is a no-op. The rationale and the
+accepted risk are recorded as Decision 59 in
+[../decisions.md](../decisions.md).
 
 ## ConfigValidation service
 
