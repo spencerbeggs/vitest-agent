@@ -1160,5 +1160,57 @@ describe("AgentReporter", () => {
 
 			expect(rows.cnt).toBe(0);
 		});
+
+		it("persists scoped=true from the spec-count signal alone — no filenamePattern or projectFilter (tags-only run, issue #160 gap 2)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const mockVitest = {
+				config: {},
+				version: "test",
+				// No filenamePattern, no projectFilter — a tags-only `run_tests`
+				// call narrows the run without either signal. Only the
+				// spec-count comparison can catch it.
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			reporter._vitest = mockVitest;
+			// 2 specifications started, out of 10 total.
+			reporter.onTestRunStart([{}, {}]);
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(1);
+		});
+
+		it("degrades to not-partial (via the spec-count channel) when globTestSpecifications throws", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const mockVitest = {
+				config: {},
+				version: "test",
+				globTestSpecifications: async () => {
+					throw new Error("boom");
+				},
+			};
+			reporter._vitest = mockVitest;
+			reporter.onTestRunStart([{}, {}]);
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(0);
+		});
 	});
 });

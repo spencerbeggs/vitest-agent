@@ -388,6 +388,20 @@ export class AgentReporter {
 	 * @internal
 	 */
 	private hookStartedAt: Map<string, number> = new Map();
+	/**
+	 * Count of test specifications Vitest started for the current run,
+	 * captured from `onTestRunStart`'s `specifications` argument. Used
+	 * alongside a fresh `globTestSpecifications()` total in `onTestRunEnd`
+	 * as one of `isPartialRun`'s signals (issue #160 gap 2) — a tags-only
+	 * `run_tests` filter narrows the run without setting `filenamePattern`
+	 * or `projectFilter`, so the spec-count comparison is the only signal
+	 * that catches it. `undefined` when `onTestRunStart` never fired
+	 * (tests invoking `onTestRunEnd` directly); `onTestRunEnd` falls back
+	 * to the executed module count in that case.
+	 *
+	 * @internal
+	 */
+	private startedSpecCount: number | undefined;
 
 	constructor(options: AgentReporterConstructorOptions = {}) {
 		// logLevel and logFile read from VITEST_REPORTER_LOG_LEVEL /
@@ -632,6 +646,10 @@ export class AgentReporter {
 	 * `RunStarted` event for live subscribers.
 	 */
 	onTestRunStart(_specifications: ReadonlyArray<unknown>): void {
+		// Captured unconditionally (issue #160 gap 2) — `onTestRunEnd` needs
+		// this count regardless of whether anything is subscribed to the
+		// run-event channel.
+		this.startedSpecCount = _specifications.length;
 		if (!this.wantsRunEvents()) return;
 		this.currentRunId = randomUUID();
 		this.moduleStartedAt.clear();
@@ -1219,11 +1237,29 @@ export class AgentReporter {
 		// run here so coverage routes through `processScoped`, our own
 		// `ThresholdViolation` events are suppressed, and Vitest's native
 		// threshold check is neutralized before it runs (see below).
-		const vitestForPartialCheck = stashedVitest as { filenamePattern?: ReadonlyArray<string> } | null;
+		const vitestForPartialCheck = stashedVitest as {
+			filenamePattern?: ReadonlyArray<string>;
+			globTestSpecifications?: () => Promise<ReadonlyArray<unknown>>;
+		} | null;
+		// Best-effort spec-count signal (issue #160 gap 2): a tags-only
+		// `run_tests` filter sets neither `filenamePattern` nor
+		// `projectFilter`, so the spec-count comparison is the only signal
+		// that catches it. `globTestSpecifications()` failing, or being
+		// absent (tests invoking `onTestRunEnd` directly), degrades to
+		// "not partial" via this channel — never a throw — by leaving
+		// `totalSpecCount` equal to `startedSpecCount`.
+		const startedSpecCount = this.startedSpecCount ?? modules.length;
+		let totalSpecCount = startedSpecCount;
+		try {
+			const specs = await vitestForPartialCheck?.globTestSpecifications?.();
+			if (specs !== undefined) totalSpecCount = specs.length;
+		} catch {
+			// Best-effort — keep totalSpecCount === startedSpecCount.
+		}
 		const isPartial = isPartialRun({
 			filenamePattern: vitestForPartialCheck?.filenamePattern,
-			startedSpecCount: modules.length,
-			totalSpecCount: modules.length,
+			startedSpecCount,
+			totalSpecCount,
 			projectFilter: opts.projectFilter,
 		});
 		// Convention-derived source files exercised by the executed test
