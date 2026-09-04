@@ -45,4 +45,39 @@ describe("formatReportMarkdown console-leak line", () => {
 	it("emits nothing when consoleLeaks is absent", () => {
 		expect(formatReportMarkdown(baseReport)).not.toContain("stray console");
 	});
+
+	describe("failing-test bucket (issue #263)", () => {
+		it("does not emit the ⚠ warning when total is 0, even with fromFailingTests populated", () => {
+			const consoleLeaks: ConsoleLeaks = {
+				total: 0,
+				byFile: [],
+				fromFailingTests: { total: 2, files: 1 },
+			};
+			const md = formatReportMarkdown({ ...baseReport, consoleLeaks });
+			expect(md).not.toContain("⚠");
+			expect(md).not.toContain("stray console write");
+		});
+
+		it("renders a distinct non-warning note describing failing-test output", () => {
+			const consoleLeaks: ConsoleLeaks = {
+				total: 0,
+				byFile: [],
+				fromFailingTests: { total: 2, files: 1 },
+			};
+			const md = formatReportMarkdown({ ...baseReport, consoleLeaks });
+			expect(md).toContain("2 console writes from failing tests (not counted as leaks)");
+		});
+
+		it("still emits the ⚠ warning for the non-failing total, plus the separate note, when both buckets are populated", () => {
+			const consoleLeaks: ConsoleLeaks = {
+				total: 1,
+				byFile: [{ file: "a.test.ts", stdout: 1, stderr: 0 }],
+				fromFailingTests: { total: 3, files: 2 },
+			};
+			const md = formatReportMarkdown({ ...baseReport, consoleLeaks });
+			expect(md).toContain("⚠");
+			expect(md).toContain("1 stray console write across 1 file");
+			expect(md).toContain("3 console writes from failing tests (not counted as leaks)");
+		});
+	});
 });

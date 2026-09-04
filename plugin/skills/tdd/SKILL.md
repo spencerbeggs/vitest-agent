@@ -132,7 +132,7 @@ tdd_phase_transition_request({
 })
 ```
 
-Phase boundaries without MCP confirmation do not exist in the database. The validator enforces evidence-binding rules (D2): the cited artifact must belong to the current phase window and session. If the validator denies, read the `remediation` field and act on it before retrying. Do not advance the phase unilaterally.
+Phase boundaries without MCP confirmation do not exist in the database. The validator enforces evidence-binding rules (D2): the cited artifact must itself have been recorded in the current phase (not replayed from an earlier, closed phase) and its test must have been authored in this session. A test first written and run before you requested red is fine — the artifact you cite just has to come from a run inside red. If the validator denies, read the `remediation` field and act on it before retrying. Do not advance the phase unilaterally.
 
 Two cross-behavior moves are first-class — request each in one call with `citedArtifactId` omitted (auto-resolution finds the row):
 

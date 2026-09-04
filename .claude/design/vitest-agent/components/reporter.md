@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 90
 related:
   - ../architecture.md
@@ -53,6 +53,8 @@ The dispatcher itself, the cells and the reducer live in `@vitest-agent/ui` and 
 - **At `render(input, kit)`** — called once at run end with a second, health-aware `ReporterKit`. For `consoleMode === "agent"` it folds `input.reports` through the synthesizer and reducer, builds `DispatchInputs`, calls `dispatch(inputs, opts)` and returns one `RenderedOutput` with `target: "stdout"`. For `silent`, `passthrough`, `stream` and `ci-annotations` it emits no stdout output (the `stream` live painting already happened off the stream). When `kit.config.githubActions` is `true` it emits an additional `target: "github-summary"` `RenderedOutput` regardless of console mode.
 
 The two-kit model is part of the contract: `render(input, kit)` takes a second argument because the factory kit is resolved at run start (neutral run health) and the render kit is resolved at run end (post-run `detail`). See `VitestAgentReporter` in `packages/sdk/src/contracts/reporter.ts`.
+
+**Unhandled errors reach both render paths (issue #240).** The `agent` fold at `render(input, kit)` goes through `synthesizeFromAgentReport`, which copies `report.unhandledErrors` onto `RunFinished.unhandledErrors`; the `stream` mount receives the same field on the plugin's live `RunFinished` emit (forwarded from Vitest's `onTestRunEnd` argument). Either way the reducer lands it on `RenderState.unhandledErrors`, `classifyOutcome` routes a non-empty list to `some-fail`, and the renderer — `renderAgent` for the dispatch cells, `StreamApp` for the live mount — prints an `Unhandled errors:` section in every run shape, leaf shapes included. Before this the live and agent paths had no channel for process-level errors and an unhandled-error-only run painted green; see [./ui.md](./ui.md).
 
 **Suite-load failures count in the per-project summary.** `summarizeProject`'s `failCount` is `report.summary.failed + countSuiteFailures(report)` — `summary.failed` is a pure test-case count, so a module that failed to *import* (zero test cases) would otherwise render green. The SDK helper `countSuiteFailures(report)` (in `packages/sdk/src/utils/build-report.ts`) supplies the suite-level count that the render path folds back in. This is the reporter-side half of the false-green fix; see Decision 45 in [../decisions.md](../decisions.md).
 

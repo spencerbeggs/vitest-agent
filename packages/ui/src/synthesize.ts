@@ -564,6 +564,7 @@ export const synthesizeFromAgentReport = (
 		durationMs: report.summary.duration,
 		...(totalTimeoutCount > 0 && { timeoutCount: totalTimeoutCount }),
 		...(report.summary.modules !== undefined && { collectedModules: report.summary.modules }),
+		...(report.unhandledErrors.length > 0 && { unhandledErrors: report.unhandledErrors }),
 	});
 
 	return events;

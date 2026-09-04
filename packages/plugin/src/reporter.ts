@@ -1140,6 +1140,11 @@ export class AgentReporter {
 		if (this.rendered) return;
 		this.rendered = true;
 
+		// Normalized ahead of the live RunFinished emit below (Full/UI-only
+		// persistence also reads this shape further down) so both paths carry
+		// the same unhandledErrors payload — see issue #240.
+		const errors = unhandledErrors as ReadonlyArray<{ message: string; stack?: string }>;
+
 		// Emit RunFinished before the heavy persistence pipeline so a live
 		// subscriber's terminal frame stays correlated with the events it
 		// has already seen. The streaming counts are aggregated from the
@@ -1187,11 +1192,11 @@ export class AgentReporter {
 				// @vitest-agent/ui, which both populate `collectedModules` on their
 				// RunFinished — the live emit here was the one path missing it.
 				collectedModules: testModules.length,
+				...(errors.length > 0 && { unhandledErrors: errors }),
 			});
 		}
 
 		const modules = testModules as ReadonlyArray<VitestTestModule>;
-		const errors = unhandledErrors as ReadonlyArray<{ message: string; stack?: string }>;
 
 		// Capture options for use inside Effect.gen
 		const opts = this.options;

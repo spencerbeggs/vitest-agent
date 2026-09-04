@@ -154,6 +154,13 @@ export const RenderState = Schema.Struct({
 	 * fixtures) falls back to `moduleOrder.length`.
 	 */
 	collectedModules: Schema.optional(Schema.Number),
+	/**
+	 * Process-level errors with no owning module, folded from
+	 * `RunFinished.unhandledErrors`. A run that never carried the field
+	 * (older replay data, hand-built fixtures) defaults to `[]`. See
+	 * issue #240.
+	 */
+	unhandledErrors: Schema.Array(ReportError),
 }).annotate({ identifier: "RenderState" });
 /** @public */
 export type RenderState = typeof RenderState.Type;
@@ -177,4 +184,5 @@ export const initialRenderState: RenderState = {
 	trend: null,
 	failures: [],
 	suggestedActions: [],
+	unhandledErrors: [],
 };

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-21
-last-synced: 2026-08-21
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 93
 related:
   - ./architecture.md
@@ -91,7 +91,13 @@ analyzer. `RunFinished` also carries an optional `collectedModules` — the
 count of every collected module, passing ones included — populated by the
 plugin's live emit and by both `@vitest-agent/ui` synthesizers, so the
 reducer can fold the true module count even when `moduleOrder` tracks only
-failing modules (report replay; issue #204). A timed-out test still persists as
+failing modules (report replay; issue #204). `RunFinished` also carries an
+optional `unhandledErrors: ReportError[]` — Vitest's process-level errors
+with no owning module (an unhandled rejection, a worker crash), the
+`unhandledErrors` argument to `onTestRunEnd` — populated by the plugin's
+live emit and by `synthesizeFromAgentReport` from `report.unhandledErrors`
+(issue #240). Optional so hand-built fixtures and older replay data keep
+decoding. A timed-out test still persists as
 `failed` — Vitest has no distinct timed-out test state — so the `⧖`
 distinction is a render-layer concept the reducer derives, not a
 persisted enum.
@@ -113,7 +119,11 @@ a nullable `trend` field the `TrendComputed` reducer case folds in.
 `RenderState` also carries an optional `collectedModules`, folded from
 `RunFinished`; renderers prefer it over `moduleOrder.length` for the
 "N modules all-passed" copy and fall back to `moduleOrder.length` when it
-is absent. See
+is absent. `RenderState.unhandledErrors: ReportError[]` is required and
+defaults to `[]` in `initialRenderState`; the reducer overwrites it from
+`RunFinished.unhandledErrors` when the event carries the field. A
+non-empty list classifies the run as `some-fail` and both renderers print
+an `Unhandled errors:` section (issue #240). See
 [./components/ui.md](./components/ui.md) for the reducer and the
 run-shape grouping.
 
@@ -181,8 +191,9 @@ Effect Schema definitions in `packages/sdk/src/schemas/`:
 
 - **`AgentReport`** — the per-project report shape produced after a run.
   Carries summary stats, the `failed[]` modules with their tests, unhandled
-  errors, a `failedFiles[]` quick index, an optional `coverage` block, and
-  an optional `tagCounts` record. `ReportSummary` gained an optional
+  errors, a `failedFiles[]` quick index, an optional `coverage` block, an
+  optional `tagCounts` record, and an optional `consoleLeaks` block (see
+  below). `ReportSummary` gained an optional
   `modules` field — the count of every collected module, passing ones
   included. `summary.failed` counts only *failing* modules' test cases, so
   without it a fully-green replayed report had no way to say how many files
@@ -191,6 +202,21 @@ Effect Schema definitions in `packages/sdk/src/schemas/`:
   `TagCountEntry` is `{ passed?, failed?, skipped? }`). The plugin
   reporter aggregates per-tag pass/fail/skip counts from
   `TestReport.tags` for terminal-formatter rendering.
+- **`ConsoleLeaks`** (`packages/sdk/src/schemas/ConsoleLeaks.ts`) — the
+  stray-console-output signal `run_tests` attaches when a run produced any
+  user `console.*` output. `total` and `byFile: ConsoleLeakFile[]`
+  (`{ file, stdout, stderr, tests, sample }`, sorted by write count and
+  capped, with `truncated: true` when the cap hit) count **only output from
+  tests that did not fail** — the actionable leak signal. Output captured
+  inside failing tests (or in a file whose own collection failed) is
+  summarized separately in the optional `fromFailingTests: { total, files }`
+  (`ConsoleLeaksFromFailingTests`) so it stays visible without being
+  mistaken for a leak; a run whose only console output came from failing
+  tests yields `{ total: 0, byFile: [], fromFailingTests }`. Built by the
+  SDK utils `collectConsoleLeakEntries` (walks `vitest.state.getFiles()`,
+  marking each entry `failed` from the owning task's `result.state`) and
+  `buildConsoleLeaks`. See [./decisions.md](./decisions.md) Decision 57
+  (issue #263).
 - **`CoverageReport`** — totals plus thresholds, optional aspirational
   `targets`, optional auto-ratcheting `baselines`, and a `lowCoverage[]` list
   with `uncoveredLines` rendered as a compressed string (e.g.
@@ -362,9 +388,14 @@ TDD evidence-binding contract.
 
 `CitedArtifact` is the de-normalized row the validator consumes — the
 `tdd_artifacts` row joined with `test_cases` and the originating `turns` so
-the D2 binding rules can be checked in a pure function. The
+the D2 binding rules can be checked in a pure function. It carries the
+artifact's own `phase_id` (the `tdd_phases` row it was recorded in), which
+is the anchor for the D2 rule 1 window check. The
 `test_case_authored_in_session` boolean is precomputed by the DataReader from
 `test_cases.created_turn_id` because the validator must not query the DB.
+`PhaseTransitionContext` carries `current_phase_id: number | null` — the
+open phase row's id, `null` before the first `tdd_phases` row exists —
+alongside `current_phase` and `phase_started_at`.
 
 `DenialReason` enumerates every way a transition can be rejected. The 2.0
 hierarchy adds the `goal_*` and `behavior_*` cases that fire **before** the
@@ -384,10 +415,19 @@ The last is the shared predicate that gates D2 binding rule 2 (behavior-match)
 and scopes the MCP tool's artifact auto-resolution to the same transitions —
 see [./decisions.md](./decisions.md) D11.
 
-**Authoring-window scope (D2 rule 1):** the check applies to
-`test_failed_run` artifacts only. It does not apply to `test_passed_run` or
-other kinds, so `green→refactor` transitions citing a `test_passed_run`
-artifact are not incorrectly denied with `evidence_not_in_phase_window`.
+**Phase-window scope (D2 rule 1):** the check compares
+`cited_artifact.phase_id` against `current_phase_id` — the artifact must
+have been recorded in the currently open phase — and is skipped when
+`current_phase_id` is `null`. It no longer compares
+`test_case_created_turn_at` against `phase_started_at`: a test case is
+created once and reused across every later run, so anchoring on its first
+creation turn denied a test authored in `spike` and legitimately re-run in
+`red` (issue #245). The check applies to `test_failed_run` artifacts only.
+It does not apply to `test_passed_run` or other kinds, so `green→refactor`
+transitions citing a `test_passed_run` artifact are not incorrectly denied
+with `evidence_not_in_phase_window`. The `test_case_authored_in_session`
+guard is independent of this check and always applies. See
+[./decisions.md](./decisions.md) D11.
 
 ## Channel events
 

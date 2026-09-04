@@ -130,6 +130,7 @@ export const tddPhaseTransitionRequest = publicProcedure
 				const currentOpt = yield* reader.getCurrentTddPhase(input.tddTaskId);
 				const currentPhase: Phase = Option.isSome(currentOpt) ? currentOpt.value.phase : "spike";
 				const phaseStartedAt = Option.isSome(currentOpt) ? currentOpt.value.startedAt : new Date().toISOString();
+				const currentPhaseId: number | null = Option.isSome(currentOpt) ? currentOpt.value.id : null;
 
 				// 2. Validate goal: exists + belongs to the requested TDD session + status is in_progress.
 				const goalOpt = yield* reader.getGoalById(input.goalId);
@@ -305,7 +306,7 @@ export const tddPhaseTransitionRequest = publicProcedure
 					citedArtifact = {
 						id: -1,
 						phase_id: -1,
-						artifact_kind: "test_written",
+						artifact_kind: "test_written" as const,
 						test_case_id: null,
 						test_case_created_turn_at: null,
 						test_case_authored_in_session: false,
@@ -319,6 +320,7 @@ export const tddPhaseTransitionRequest = publicProcedure
 				const result = validatePhaseTransition({
 					tdd_task_id: input.tddTaskId,
 					current_phase: currentPhase,
+					current_phase_id: currentPhaseId,
 					phase_started_at: phaseStartedAt,
 					now: new Date().toISOString(),
 					requested_phase: input.requestedPhase,

@@ -32,10 +32,14 @@ coverage-in-subset, the `consoleLeaks` signal), see
    isolated inspection use the CLI: `vitest run <file> --coverage.enabled=false`.
 4. **Stray `console.*` is surfaced by `run_tests` as a signal, not raw logs.**
    The `ok` result's `report.consoleLeaks` field lists writes by file with
-   counts, optional per-test attribution, and a truncated sample. `run_tests`
-   still null-routes Vitest's stdout; the signal captures what was printed
-   without forwarding raw log lines into agent context. To see the raw output
-   for a flagged file, run Vitest on the CLI:
+   counts, optional per-test attribution, and a truncated sample. `total` /
+   `byFile` count only writes from tests that did NOT fail — writes logged
+   inside a failing test are excluded from the leak signal and summarized
+   separately in `fromFailingTests`, so a red run whose assertion failures
+   route through a console-backed logger doesn't look like a leaking green
+   run. `run_tests` still null-routes Vitest's stdout; the signal captures
+   what was printed without forwarding raw log lines into agent context. To
+   see the raw output for a flagged file, run Vitest on the CLI:
    `VITEST_AGENT_CONSOLE=passthrough pnpm test`. Details in
    [references/running-tests.md](references/running-tests.md).
 5. **Session attribution is recovered for you.** The SessionStart hook writes

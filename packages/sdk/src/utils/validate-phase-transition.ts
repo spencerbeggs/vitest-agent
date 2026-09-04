@@ -19,6 +19,16 @@ export type ArtifactKind =
 /** @public */
 export interface CitedArtifact {
 	readonly id: number;
+	/**
+	 * `tdd_phases.id` of the phase this artifact was actually recorded in — the
+	 * artifact's own phase binding. This is the honest anchor for D2 binding
+	 * rule 1's window check (issue #245): a test_case's first-ever creation
+	 * turn can predate the current phase (e.g. authored during spike, then
+	 * re-run inside red) without the evidence itself being stale, so the
+	 * window check compares this against `PhaseTransitionContext.current_phase_id`
+	 * rather than `test_case_created_turn_at`.
+	 */
+	readonly phase_id: number;
 	readonly artifact_kind: ArtifactKind;
 	readonly test_case_id: number | null;
 	readonly test_case_created_turn_at: string | null;
@@ -31,6 +41,13 @@ export interface CitedArtifact {
 export interface PhaseTransitionContext {
 	readonly tdd_task_id: number;
 	readonly current_phase: Phase;
+	/**
+	 * `tdd_phases.id` of the currently open phase row, or `null` when no phase
+	 * has been opened yet (the implicit "spike" default before the first
+	 * `tdd_phases` row exists). Compared against `cited_artifact.phase_id` for
+	 * D2 binding rule 1 (issue #245).
+	 */
+	readonly current_phase_id: number | null;
 	readonly phase_started_at: string;
 	readonly now: string;
 	readonly requested_phase: Phase;
@@ -224,12 +241,17 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 	// the test was intentionally written in a prior phase — applying the window
 	// check would incorrectly deny every green→refactor transition where the test
 	// was written in the red phase (which is the normal TDD pattern).
+	//
+	// (issue #245) The window check keys off the cited artifact's OWN phase
+	// binding (cited_artifact.phase_id vs current_phase_id) rather than the
+	// test_case's first-ever creation turn. A test_case can be first created in
+	// an earlier phase (e.g. authored during spike, then re-run inside red) —
+	// that alone doesn't make the evidence stale, as long as the cited
+	// test_failed_run artifact was itself recorded in the current phase. What
+	// IS stale is an artifact recorded in a different (earlier, already-closed)
+	// phase of the same task being replayed against a later phase.
 	if (expected.kind === "test_failed_run") {
-		if (
-			!isTriangulateGreen &&
-			ctx.cited_artifact.test_case_created_turn_at !== null &&
-			ctx.cited_artifact.test_case_created_turn_at < ctx.phase_started_at
-		) {
+		if (!isTriangulateGreen && ctx.current_phase_id !== null && ctx.cited_artifact.phase_id !== ctx.current_phase_id) {
 			return {
 				accepted: false,
 				phase: ctx.current_phase,
@@ -238,7 +260,7 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 					suggestedTool: "run_tests",
 					suggestedArgs: {},
 					humanHint:
-						"The cited test was authored before this phase started. Write a new failing test inside the current phase.",
+						"The cited artifact was recorded in a different phase than the one currently open. Run the failing test again inside the current phase so a fresh test_failed_run artifact is bound to it.",
 				},
 			};
 		}
