@@ -8,7 +8,7 @@ import type { CoverageReport, FileCoverageReport } from "../schemas/Coverage.js"
 import type { HistoryRecord } from "../schemas/History.js";
 import type { BehaviorDetail, BehaviorRow, GoalDetail } from "../schemas/Tdd.js";
 import type { TrendRecord } from "../schemas/Trends.js";
-import type { ArtifactKind, CitedArtifact } from "../utils/validate-phase-transition.js";
+import type { ArtifactKind, ArtifactSuite, CitedArtifact } from "../utils/validate-phase-transition.js";
 import type { ChangeKind, Phase } from "./DataStore.js";
 
 /** @public */
@@ -303,6 +303,7 @@ export interface TddArtifactRow {
 	readonly testRunId: number | null;
 	readonly testFirstFailureRunId: number | null;
 	readonly recordedAt: string;
+	readonly suite: ArtifactSuite;
 }
 /** @public */
 export interface TagInventoryRow {

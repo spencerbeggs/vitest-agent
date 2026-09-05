@@ -2628,6 +2628,52 @@ describe("DataReaderLive", () => {
 			expect(result.all[2].phaseName).toBe("spike");
 		});
 
+		it("returns each artifact's suite ('vitest' default, explicit 'bats')", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const reader = yield* DataReader;
+
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-list-art-suite",
+						project: "demo",
+						cwd: "/tmp/demo",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const tddId = yield* ds.writeTddTask({
+						sessionId,
+						goal: "g",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+					const red = yield* ds.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "red",
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					const vitestId = yield* ds.writeTddArtifact({
+						phaseId: red.id,
+						artifactKind: "test_failed_run",
+						recordedAt: "2026-04-29T00:00:03Z",
+					});
+					const batsId = yield* ds.writeTddArtifact({
+						phaseId: red.id,
+						artifactKind: "test_failed_run",
+						suite: "bats",
+						recordedAt: "2026-04-29T00:00:04Z",
+					});
+
+					const all = yield* reader.listTddArtifactsForTask({ tddTaskId: tddId });
+					return { all, vitestId, batsId };
+				}),
+			);
+			const vitestRow = result.all.find((r) => r.id === result.vitestId);
+			const batsRow = result.all.find((r) => r.id === result.batsId);
+			expect(vitestRow?.suite).toBe("vitest");
+			expect(batsRow?.suite).toBe("bats");
+		});
+
 		it("filters by artifactKind", async () => {
 			const result = await run(
 				Effect.gen(function* () {

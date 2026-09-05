@@ -2393,6 +2393,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					test_run_id: number | null;
 					test_first_failure_run_id: number | null;
 					recorded_at: string;
+					suite: string;
 				}>`
 					SELECT
 						a.id,
@@ -2404,7 +2405,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 						a.test_case_id,
 						a.test_run_id,
 						a.test_first_failure_run_id,
-						a.recorded_at
+						a.recorded_at,
+						a.suite
 					FROM tdd_artifacts a
 					JOIN tdd_phases p ON p.id = a.phase_id
 					WHERE p.tdd_task_id = ${input.tddTaskId}
@@ -2425,6 +2427,7 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					testRunId: r.test_run_id,
 					testFirstFailureRunId: r.test_first_failure_run_id,
 					recordedAt: r.recorded_at,
+					suite: r.suite as ArtifactSuite,
 				}));
 			}).pipe(
 				Effect.annotateLogs("service", "DataReader"),
