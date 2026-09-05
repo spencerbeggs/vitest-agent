@@ -10,7 +10,7 @@
  * too, so no additional wiring is needed.
  */
 
-import type { VitestTestCase, VitestTestModule } from "@vitest-agent/sdk";
+import type { ReporterRenderInput, VitestTestCase, VitestTestModule } from "@vitest-agent/sdk";
 import { describe, expect, it, vi } from "vitest";
 import { AgentReporter } from "../src/reporter.js";
 
@@ -42,7 +42,7 @@ function makeTestModule(): VitestTestModule {
 
 describe("unhandledErrors surface on the rendered report instead of a silent exit-0 (#194)", () => {
 	it("threads a coverage-provider-flavored unhandled error into the UI-only rendered report", async () => {
-		const render = vi.fn(() => []);
+		const render = vi.fn((_input: ReporterRenderInput) => []);
 		const reporter = new AgentReporter({
 			consoleMode: "silent",
 			coverageMode: "ui-only",
@@ -58,7 +58,7 @@ describe("unhandledErrors surface on the rendered report instead of a silent exi
 		await reporter.onTestRunEnd([makeTestModule()], [coverageClobberError], "passed");
 
 		expect(render).toHaveBeenCalledOnce();
-		const [renderInput] = render.mock.calls[0] as [{ reports: Array<{ unhandledErrors: Array<{ message: string }> }> }];
+		const [renderInput] = render.mock.calls[0];
 		const allUnhandled = renderInput.reports.flatMap((r) => r.unhandledErrors);
 		expect(allUnhandled.length).toBeGreaterThanOrEqual(1);
 		expect(allUnhandled.some((e) => e.message.includes("ENOENT"))).toBe(true);
