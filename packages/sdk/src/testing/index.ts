@@ -31,6 +31,9 @@ export { HistoryRecord } from "../schemas/History.js";
 export { AgentId, ChatId } from "../schemas/Identity.js";
 // Tdd schemas — Schema const+type pairs
 export { BehaviorDetail, BehaviorRow, BehaviorStatus, GoalDetail, GoalRow, GoalStatus } from "../schemas/Tdd.js";
+// `DataStore.writeThresholds` / `writeTargets` take this type, so the
+// testing entry point must surface it alongside the service.
+export type { ResolvedThresholds } from "../schemas/Thresholds.js";
 // Trend schemas — Schema const+type pairs
 export { TrendEntry, TrendRecord } from "../schemas/Trends.js";
 // DataReader read/output types (all interfaces — type-only)

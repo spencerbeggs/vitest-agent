@@ -55,8 +55,8 @@ export const classifyRunShape = (state: RenderState, projects: ReadonlyArray<Pro
  * (`totals.timeoutCount > 0`, `totals.failCount === 0`) also
  * classifies as `some-fail` — timeouts are not passes, and must not
  * route to a passing cell (issue #224). A run whose only non-passing
- * signal is a process-level unhandled error (`unhandledErrors.length
- * > 0`, all counts otherwise clean) also classifies as `some-fail` —
+ * signal is a process-level unhandled error (a non-empty
+ * `unhandledErrors`, all counts otherwise clean) also classifies as `some-fail` —
  * a green-looking count must never hide an unhandled error behind an
  * all-pass cell (issue #240).
  *
