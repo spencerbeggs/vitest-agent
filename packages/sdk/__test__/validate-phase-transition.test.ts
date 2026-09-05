@@ -19,6 +19,7 @@ const baseCtx = (overrides: Partial<PhaseTransitionContext> = {}): PhaseTransiti
 		test_run_id: 200,
 		test_first_failure_run_id: 200,
 		behavior_id: null,
+		suite: "vitest",
 	},
 	requested_behavior_id: null,
 	...overrides,
@@ -698,6 +699,104 @@ describe("validatePhaseTransition", () => {
 		if (result.accepted) {
 			expect(result.phase).toBe("refactor");
 		}
+	});
+
+	describe("bats run-level artifacts (issue #363)", () => {
+		it("accepts red→green citing a bats run-level test_failed_run (test_case_id null) recorded in the current phase", () => {
+			// Given: a bats-recorded test_failed_run with no test_case_id (there is no
+			// test_cases row for a bats test) but suite='bats' and phase_id matching the
+			// current open phase. Rule 1's null-test_case_id denial must not fire for a
+			// bats-suite artifact — the phase-window check (#245) still applies instead.
+			const result = validatePhaseTransition(
+				baseCtx({
+					cited_artifact: {
+						id: 100,
+						phase_id: 900,
+						artifact_kind: "test_failed_run",
+						test_case_id: null,
+						test_case_created_turn_at: null,
+						test_case_authored_in_session: false,
+						test_run_id: 200,
+						test_first_failure_run_id: 200,
+						behavior_id: null,
+						suite: "bats",
+					},
+				}),
+			);
+			expect(result.accepted).toBe(true);
+		});
+
+		it("denies red→green citing a bats run-level test_failed_run recorded in an earlier, already-closed phase (evidence_not_in_phase_window)", () => {
+			const result = validatePhaseTransition(
+				baseCtx({
+					current_phase_id: 900,
+					cited_artifact: {
+						id: 100,
+						phase_id: 42, // recorded in a different (earlier) phase
+						artifact_kind: "test_failed_run",
+						test_case_id: null,
+						test_case_created_turn_at: null,
+						test_case_authored_in_session: false,
+						test_run_id: 200,
+						test_first_failure_run_id: 200,
+						behavior_id: null,
+						suite: "bats",
+					},
+				}),
+			);
+			expect(result.accepted).toBe(false);
+			if (!result.accepted) {
+				expect(result.denialReason).toBe("evidence_not_in_phase_window");
+			}
+		});
+
+		it("still denies red→green citing a vitest run-level artifact (test_case_id null, suite='vitest') with missing_artifact_evidence, and the humanHint says only bats-suite run-level artifacts are accepted", () => {
+			const result = validatePhaseTransition(
+				baseCtx({
+					cited_artifact: {
+						id: 100,
+						phase_id: 900,
+						artifact_kind: "test_failed_run",
+						test_case_id: null,
+						test_case_created_turn_at: null,
+						test_case_authored_in_session: false,
+						test_run_id: 200,
+						test_first_failure_run_id: 200,
+						behavior_id: null,
+						suite: "vitest",
+					},
+				}),
+			);
+			expect(result.accepted).toBe(false);
+			if (!result.accepted) {
+				expect(result.denialReason).toBe("missing_artifact_evidence");
+				expect(result.remediation.humanHint).toContain("run-level");
+				expect(result.remediation.humanHint).toContain("bats");
+			}
+		});
+
+		it("accepts green→refactor citing a bats run-level test_passed_run recorded in the current phase", () => {
+			const result = validatePhaseTransition(
+				baseCtx({
+					current_phase: "green",
+					requested_phase: "refactor",
+					current_phase_id: 900,
+					cited_artifact: {
+						id: 100,
+						phase_id: 900,
+						artifact_kind: "test_passed_run",
+						test_case_id: null,
+						test_case_created_turn_at: null,
+						test_case_authored_in_session: false,
+						test_run_id: 200,
+						test_first_failure_run_id: null,
+						behavior_id: null,
+						suite: "bats",
+					},
+				}),
+			);
+			expect(result.accepted).toBe(true);
+		});
 	});
 
 	it("should return the denied phase (current_phase) not the requested phase when denying wrong_artifact_kind", () => {

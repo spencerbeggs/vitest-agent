@@ -262,7 +262,17 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 	// pre-existing failure on main) advance the phase machine. So instead we
 	// deny: the agent must run a specific test via run_tests so the resulting
 	// artifact carries a test_case_id, then cite that artifact.
-	if (ctx.cited_artifact.test_case_id === null) {
+	// Issue #363: a bats run-level artifact (test_case_id null) carries no
+	// test_case to anchor rule 1's window/authoring checks — there is no
+	// test_cases row for a bats test. Rather than deny it outright (which
+	// would leave every bats-only TDD cycle unable to ever pass red→green
+	// or green→refactor), fall through to the artifact's OWN phase-window
+	// check below (issue #245's rule, extended to cover this branch) and
+	// skip the authored-in-session check. A vitest run-level artifact still
+	// carries no anchor at all and is denied exactly as before.
+	const isBatsRunLevel = ctx.cited_artifact.test_case_id === null && ctx.cited_artifact.suite === "bats";
+
+	if (ctx.cited_artifact.test_case_id === null && !isBatsRunLevel) {
 		return {
 			accepted: false,
 			phase: ctx.current_phase,
@@ -271,7 +281,7 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 				suggestedTool: "run_tests",
 				suggestedArgs: {},
 				humanHint:
-					"The cited artifact has no specific test (test_case_id is null), so it cannot be bound to this phase. Run a specific failing test via run_tests so the resulting artifact carries a test_case_id, then cite that artifact.",
+					"The cited artifact is run-level (test_case_id is null) and its suite is 'vitest', so it cannot be bound to this phase — only bats-suite run-level artifacts are accepted without a specific test. Run a specific failing test via run_tests so the resulting artifact carries a test_case_id, then cite that artifact.",
 			},
 		};
 	}
@@ -290,7 +300,11 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 	// test_failed_run artifact was itself recorded in the current phase. What
 	// IS stale is an artifact recorded in a different (earlier, already-closed)
 	// phase of the same task being replayed against a later phase.
-	if (expected.kind === "test_failed_run") {
+	//
+	// A bats run-level artifact (isBatsRunLevel) still gets the phase-window
+	// check (issue #363) — it just skips the authored-in-session check below,
+	// since there is no test_case to check authorship against.
+	if (expected.kind === "test_failed_run" || (isBatsRunLevel && expected.kind === "test_passed_run")) {
 		if (!isTriangulateGreen && ctx.current_phase_id !== null && ctx.cited_artifact.phase_id !== ctx.current_phase_id) {
 			return {
 				accepted: false,
@@ -304,7 +318,11 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 				},
 			};
 		}
-		if (!ctx.cited_artifact.test_case_authored_in_session) {
+		// Skipped for a bats run-level artifact (issue #363): there is no
+		// test_case row for a bats test, so there is nothing to check
+		// authorship against — the phase-window check above is this
+		// branch's whole binding guarantee.
+		if (!isBatsRunLevel && !ctx.cited_artifact.test_case_authored_in_session) {
 			return {
 				accepted: false,
 				phase: ctx.current_phase,
