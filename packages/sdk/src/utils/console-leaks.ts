@@ -40,8 +40,8 @@ function truncateSample(content: string): string {
  * Aggregate raw console-leak entries into a ConsoleLeaks signal:
  * bucket by file, split stdout/stderr, collect attributable test names,
  * capture one truncated sample per file, sort by total writes descending,
- * and cap the file list. Entries logged inside a failing test (`failed:
- * true`) are excluded from `total`/`byFile` — the actionable leak signal —
+ * and cap the file list. Entries logged inside a failing test (with
+ * `failed` set) are excluded from `total`/`byFile` — the actionable leak signal —
  * and summarized instead in `fromFailingTests` (issue #263: a logger-backed
  * assertion failure otherwise makes every red run look like a leak). Returns
  * `undefined` only when there is no output at all, non-failing or failing.
