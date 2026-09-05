@@ -186,10 +186,28 @@ src/
   schemas minimal -- they're just for argument shape, not domain
   validation. Domain validation happens in the underlying
   `DataReader`/`DataStore` calls.
-- The consolidated `inventory` tool (`kind: project|module|suite|session`)
-  and `test` tool (`action: list|get|for_file`) enumerate every project
+- The consolidated `inventory` tool (`kind: project|module|suite|session|tag`)
+  and `test` tool (`action: list|get|for_file|for_tag`) enumerate every project
   from `getRunsByProject()` when `project` is unspecified. Don't default
   to a literal `"default"` (post-2.0 bug fix).
+- **Served enums come from the tool cores.** Every consolidated tool
+  core exports its discriminant tuple (`TEST_ACTIONS`, `INVENTORY_KINDS`,
+  `NOTE_ACTIONS`, `HYPOTHESIS_ACTIONS`, `TDD_TASK_ACTIONS`,
+  `TDD_GOAL_ACTIONS`, `TDD_BEHAVIOR_ACTIONS`) and `server.ts` builds the
+  served `z.enum(...)` from it. Add a variant to the tuple and the `Match`
+  branch together; never hand-type the enum list in `server.ts` — that is
+  how `for_tag` and `inventory tag` went unserved (issue #359).
+- `test_coverage` renders two distinct bars from `getCoverage`: the
+  enforced Vitest `thresholds` (build-blocking) and, when present, the
+  aspirational `coverageTargets`; "all files meet thresholds" is judged
+  against thresholds only.
+- `run_tests` returns `scopedNote` (nullable) alongside the report and
+  appends it to the markdown for a partial run, so an agent never reads
+  scoped coverage as whole-project coverage.
+- `tdd_phase_transition_request`'s `missing_artifact_evidence` hint
+  looks back across recent sessions for artifacts recorded under a
+  detached session (a hook that resolved a different session than the
+  MCP client) and names that as the cause instead of "no artifact".
 - Narrowing history: push `testName` / `modulePath` / `limit` into
   `DataReader.getHistory` — and the same `testName` / `modulePath` into
   `getFlaky` / `getPersistentFailures` — instead of fetching a project
