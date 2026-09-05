@@ -40,6 +40,7 @@ export interface ProjectSummary {
 	readonly failCount: number;
 	readonly skipCount: number;
 	readonly durationMs: number;
+	readonly timeoutCount?: number;
 	readonly tagCounts?: Record<string, number>;
 	readonly belowTarget?: number;
 	readonly violations?: number;
