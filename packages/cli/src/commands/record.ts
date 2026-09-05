@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-import type { ArtifactKind, ChangeKind, RunInvocationMethod } from "@vitest-agent/sdk";
+import type { ArtifactKind, ArtifactSuite, ChangeKind, RunInvocationMethod } from "@vitest-agent/sdk";
 import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
@@ -137,6 +137,12 @@ const tddTaskIdOpt = Flag.optional(Flag.integer("tdd-task-id")).pipe(
 		"Explicit TDD task id escape hatch (issue #144): bypasses chat-id -> session -> task resolution entirely",
 	),
 );
+const suiteOpt = Flag.choice("suite", ["vitest", "bats"]).pipe(
+	Flag.withDefault("vitest"),
+	Flag.withDescription(
+		"Explicit test-runner marker (issue #363): 'vitest' (default) or 'bats'. Distinguishes a bats run-level artifact (no test_case_id) from a vitest one for the D2 phase-transition validator.",
+	),
+);
 
 const tddArtifactSubcommand = Command.make(
 	"tdd-artifact",
@@ -152,6 +158,7 @@ const tddArtifactSubcommand = Command.make(
 		testFirstFailureRunId: testFirstFailureRunIdOpt,
 		diffExcerpt: diffExcerptOpt,
 		recordedAt: recordedAtOpt,
+		suite: suiteOpt,
 	},
 	(opts) =>
 		Effect.gen(function* () {
@@ -175,6 +182,7 @@ const tddArtifactSubcommand = Command.make(
 				}),
 				...(opts.diffExcerpt._tag === "Some" && { diffExcerpt: opts.diffExcerpt.value }),
 				recordedAt: opts.recordedAt,
+				suite: opts.suite as ArtifactSuite,
 			});
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
