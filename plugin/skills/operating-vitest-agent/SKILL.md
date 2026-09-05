@@ -38,7 +38,23 @@ coverage-in-subset, the `consoleLeaks` signal), see
    runs are unaffected — thresholds still enforce and baselines still
    ratchet. The `--coverage.enabled=false` workaround is no longer
    needed for this purpose.
-4. **Stray `console.*` is surfaced by `run_tests` as a signal, not raw logs.**
+4. **Concurrent Vitest runs no longer clobber each other's coverage
+   temp files (issue #194).** Two runs sharing `coverage.reportsDirectory`
+   used to `rm -rf` each other's `coverage/.tmp` mid-run — the v8
+   provider's `clean: true` default — producing an unhandled rejection or
+   a silent exit-0 with no summary. `run_tests` was always isolated (each
+   call gets its own `mkdtemp` directory); `AgentPlugin`'s plain-CLI path
+   (`vitest run` from the terminal or a script) now isolates too, for the
+   `agent` executor only — a human's `./coverage` output and CI's
+   configured directory are never relocated. Two env vars tune it:
+   `VITEST_AGENT_COVERAGE_DIR_ISOLATION=off|0|false` opts out entirely
+   (back to the shared, collision-prone directory); `VITEST_AGENT_COVERAGE_DIR=<path>`
+   pins an explicit directory verbatim (no mkdtemp, no cleanup) so an
+   orchestrator running several agents can point each one at a directory
+   it collects afterward. Persistence (`file_coverage`, coverage
+   thresholds/trends) is unaffected either way — it reads the in-memory
+   istanbul `CoverageMap`, never the on-disk report.
+5. **Stray `console.*` is surfaced by `run_tests` as a signal, not raw logs.**
    The `ok` result's `report.consoleLeaks` field lists writes by file with
    counts, optional per-test attribution, and a truncated sample. `total` /
    `byFile` count only writes from tests that did NOT fail — writes logged
@@ -50,14 +66,14 @@ coverage-in-subset, the `consoleLeaks` signal), see
    see the raw output for a flagged file, run Vitest on the CLI:
    `VITEST_AGENT_CONSOLE=passthrough pnpm test`. Details in
    [references/running-tests.md](references/running-tests.md).
-5. **Session attribution is recovered for you.** The SessionStart hook writes
+6. **Session attribution is recovered for you.** The SessionStart hook writes
    the `VITEST_AGENT_*` identity into the environment and the SDK recovers it —
    you never set those vars by hand. Beyond identity, the behavioral knobs are
    `VITEST_REPORTER_LOG_LEVEL`, `VITEST_REPORTER_LOG_FILE`, `NO_COLOR`, and
    the `VITEST_AGENT_CONSOLE` output override documented below.
-6. **Stale counts mean tests were not re-run**, not a warm cache. Discovery
+7. **Stale counts mean tests were not re-run**, not a warm cache. Discovery
    re-walks per Vitest run; the MCP serves counts from the database.
-7. **Some "leaks" are guardrail tests** that assert on their own output. Do not
+8. **Some "leaks" are guardrail tests** that assert on their own output. Do not
    silence output a test captures and `expect`s on.
 
 ## Results that lie
