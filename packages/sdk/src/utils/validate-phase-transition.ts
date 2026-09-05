@@ -16,6 +16,15 @@ export type ArtifactKind =
 	| "test_passed_run"
 	| "refactor"
 	| "test_weakened";
+/**
+ * Explicit test-runner marker on a `tdd_artifacts` row (issue #363). `vitest`
+ * artifacts always carry a `test_case_id` when they anchor a specific test;
+ * `bats` artifacts never do (there is no `test_cases` row for a bats test),
+ * so the D2 binding-rule validator branches on this to accept a bats
+ * run-level artifact without weakening the vitest guard.
+ * @public
+ */
+export type ArtifactSuite = "vitest" | "bats";
 /** @public */
 export interface CitedArtifact {
 	readonly id: number;
@@ -36,6 +45,8 @@ export interface CitedArtifact {
 	readonly test_run_id: number | null;
 	readonly test_first_failure_run_id: number | null;
 	readonly behavior_id: number | null;
+	/** Issue #363: explicit suite marker distinguishing vitest from bats runs. */
+	readonly suite: ArtifactSuite;
 }
 /** @public */
 export interface PhaseTransitionContext {

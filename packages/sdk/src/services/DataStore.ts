@@ -14,9 +14,9 @@ import type { CoverageBaselines } from "../schemas/Baselines.js";
 import type { BehaviorRow, BehaviorStatus, GoalRow, GoalStatus } from "../schemas/Tdd.js";
 import type { ResolvedThresholds } from "../schemas/Thresholds.js";
 import type { TrendEntry } from "../schemas/Trends.js";
-import type { ArtifactKind, Phase } from "../utils/validate-phase-transition.js";
+import type { ArtifactKind, ArtifactSuite, Phase } from "../utils/validate-phase-transition.js";
 
-export type { ArtifactKind, Phase };
+export type { ArtifactKind, ArtifactSuite, Phase };
 
 /** @public */
 export interface CreateGoalInput {
@@ -325,6 +325,8 @@ export interface WriteTddArtifactInput {
 	readonly testFirstFailureRunId?: number;
 	readonly diffExcerpt?: string;
 	readonly recordedAt: string;
+	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
+	readonly suite?: ArtifactSuite;
 }
 /** @public */
 export interface WriteCommitInput {

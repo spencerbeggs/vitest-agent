@@ -1471,7 +1471,7 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				const rows = yield* sql<{ id: number }>`
 					INSERT INTO tdd_artifacts
 						(phase_id, artifact_kind, file_id, test_case_id, test_run_id,
-						 test_first_failure_run_id, diff_excerpt, recorded_at)
+						 test_first_failure_run_id, diff_excerpt, recorded_at, suite)
 					VALUES
 						(
 							${input.phaseId},
@@ -1481,7 +1481,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 							${input.testRunId ?? null},
 							${input.testFirstFailureRunId ?? null},
 							${truncatedDiff},
-							${input.recordedAt}
+							${input.recordedAt},
+							${input.suite ?? "vitest"}
 						)
 					RETURNING id
 				`;

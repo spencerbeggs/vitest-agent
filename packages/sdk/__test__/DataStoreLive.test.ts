@@ -2942,6 +2942,85 @@ describe("DataStoreLive", () => {
 			);
 			expect(result[0].artifact_kind).toBe("test_written");
 		});
+
+		it("defaults suite to 'vitest' when the caller omits it", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sql = yield* SqlClient;
+
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-art-suite-default",
+						project: "demo",
+						cwd: "/tmp/demo",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const tddId = yield* ds.writeTddTask({
+						sessionId,
+						goal: "g",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+					const phase = yield* ds.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "red",
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					const id = yield* ds.writeTddArtifact({
+						phaseId: phase.id,
+						artifactKind: "test_written",
+						recordedAt: "2026-04-29T00:00:03Z",
+					});
+
+					const rows = yield* sql<{ suite: string }>`
+						SELECT suite FROM tdd_artifacts WHERE id = ${id}
+					`;
+					return rows;
+				}),
+			);
+			expect(result[0].suite).toBe("vitest");
+		});
+
+		it("persists an explicit suite of 'bats'", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const sql = yield* SqlClient;
+
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-art-suite-bats",
+						project: "demo",
+						cwd: "/tmp/demo",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const tddId = yield* ds.writeTddTask({
+						sessionId,
+						goal: "g",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+					const phase = yield* ds.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "red",
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					const id = yield* ds.writeTddArtifact({
+						phaseId: phase.id,
+						artifactKind: "test_failed_run",
+						suite: "bats",
+						recordedAt: "2026-04-29T00:00:03Z",
+					});
+
+					const rows = yield* sql<{ suite: string }>`
+						SELECT suite FROM tdd_artifacts WHERE id = ${id}
+					`;
+					return rows;
+				}),
+			);
+			expect(result[0].suite).toBe("bats");
+		});
 	});
 
 	describe("writeCommit + writeRunChangedFiles", () => {
