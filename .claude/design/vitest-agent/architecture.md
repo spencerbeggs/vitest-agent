@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 90
 related:
   - ./components.md
@@ -44,9 +44,7 @@ call.
 
 ## Package landscape
 
-The project is a pnpm monorepo. Seven publishable workspaces under
-`packages/`, a file-based Claude Code plugin at `plugin/` (not a
-workspace) and the `docs` documentation-site workspace at `website/`.
+The project is a pnpm monorepo. Seven publishable workspaces under `packages/`, the Claude Code plugin workspace at `plugins/claude-code/` and the `docs` documentation-site workspace at `website/`. `pnpm-workspace.yaml` globs `plugins/*`, so the Claude Code plugin is a workspace member like any other — the container is plural because hosting a second agent integration (a Copilot plugin) is a stated future goal, not because one exists today.
 
 | Workspace | Path | Role |
 | --- | --- | --- |
@@ -57,10 +55,12 @@ workspace) and the `docs` documentation-site workspace at `website/`.
 | `@vitest-agent/cli` | `packages/cli/` | The `vitest-agent` bin. Utility-only for 2.0: `doctor`, `db` (path / prune / reset / query), and the `agent` namespace for hook-driven plumbing (triage, wrapup, record, sidecar). Test-landscape queries moved to MCP. |
 | `@vitest-agent/mcp` | `packages/mcp/` | The `vitest-agent-mcp` bin. tRPC tool router, framing-only MCP prompts. |
 | `@vitest-agent/sidecar` | `packages/sidecar/` | Fast-path native binary for the per-Bash `inject-env` hot path. Ships a tsdown-built Node SEA executable distributed per-platform via four `optionalDependencies` sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`). |
-| `plugin/` (file-based) | `plugin/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. |
+| `@vitest-agent/claude-code-plugin` | `plugins/claude-code/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. A private workspace with no build, no scripts and no npm publish — its `package.json` exists only so changesets has something to version. |
 | `docs` | `website/` | RSPress 2.0 documentation site deployed to `vitest-agent.dev` via Cloudflare Pages. Generates per-package API reference from each package's API Extractor model. Private, versions independently, imports nothing from the runtime packages. See [./components/docs-site.md](./components/docs-site.md). |
 
 The seven npm workspaces version independently per package — there is no shared release train. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` (`workspace:*`) alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`, so a cli or mcp release auto-PATCH-bumps the plugin and re-pins their exact version; they publish as exact-pinned regular `dependencies` too — the earlier `savvy.build.ts` transform that promoted cli and mcp into required `peerDependencies` for the published manifest was removed, because `@savvy-web/pnpm-plugin-silk` already publicly hoists both bins and the peer declaration made pnpm's `autoInstallPeers` force wrong Effect versions into consuming repos (see D33 in [./decisions.md](./decisions.md)). The host-supplied Vitest peers (`vitest`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as `peerDependencies`. Declaring `@vitest-agent/plugin` pulls in the whole `@vitest-agent/*` family for a published consumer transitively. `@vitest-agent/sidecar` reaches a consumer through `@vitest-agent/cli`, along with its four per-platform binaries. All six non-SDK packages pin `@vitest-agent/sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `@vitest-agent/sidecar`.
+
+The Claude Code plugin workspace versions on its own track and never reaches npm. `.changeset/config.json` lists `@vitest-agent/claude-code-plugin` under `versionFiles`, globbing `plugins/claude-code/.claude-plugin/plugin.json` at `$.version`, so one bump rewrites the tracking `package.json` and the marketplace manifest together; with `privatePackages: { tag: true, version: true }` CI cuts a `@vitest-agent/claude-code-plugin@<version>` git tag and a GitHub release and stops there. See Decision 64 in [./decisions.md](./decisions.md).
 
 The whole family runs on **Effect v4** (`effect@4.0.0-beta.98`). Every package pins `effect` (and its `@effect/*` companions) to the `catalog:effect` catalog injected by `@effected/pnpm-plugin-effect` — note the catalog naming: `catalog:silk` is the v3 catalog (3.22.0), `catalog:effect` is v4. The v4 port collapsed several standalone `@effect/*` packages into core `effect/unstable/*` namespaces: `@effect/cli` → `effect/unstable/cli`, `@effect/sql` → `effect/unstable/sql`, and the non-node `@effect/platform` `FileSystem` / `Path` / `PlatformError` primitives into the core `effect` barrel; `@effect/platform-node` stays a separate edge package but renamed `NodeContext` → `NodeServices`. The data layer stays direct on `@effect/sql-sqlite-node` (v4, now on Node's built-in `node:sqlite`, so `better-sqlite3` is removed), and the granular `@effected/*` kit (`@effected/xdg`, `@effected/config-file`, `@effected/workspaces`) is adopted directly — NOT via `@effected/app` / `@effected/store`. See Decision 46 in [./decisions.md](./decisions.md).
 
@@ -173,8 +173,8 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
   decisions D9 / D26 / D27 in
   [./decisions-retired.md](./decisions-retired.md).
 - **The Claude Code plugin is the AI integration surface.** The npm
-  packages are headless data infrastructure. The file-based plugin at
-  `plugin/` is what turns that data into agent behavior — hooks for
+  packages are headless data infrastructure. The Claude Code plugin at
+  `plugins/claude-code/` is what turns that data into agent behavior — hooks for
   session/turn capture, the TDD orchestrator subagent, the slash
   commands and the MCP loader. It ships separately through the Claude
   marketplace.

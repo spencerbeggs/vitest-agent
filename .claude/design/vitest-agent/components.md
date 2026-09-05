@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-06-17
-last-synced: 2026-06-17
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 90
 related:
   - ./architecture.md
@@ -25,10 +25,7 @@ dependencies: []
 
 # Components — `vitest-agent`
 
-The system ships as seven publishable pnpm workspaces under `packages/`, a
-file-based Claude Code plugin at `plugin/` and the `docs` documentation-site
-workspace at `website/`. This document is an index — load the sub-file for
-the package you're working on.
+The system ships as seven publishable pnpm workspaces under `packages/`, the private Claude Code plugin workspace at `plugins/claude-code/` and the `docs` documentation-site workspace at `website/`. This document is an index — load the sub-file for the package you're working on.
 
 **Parent document:** [./architecture.md](./architecture.md)
 

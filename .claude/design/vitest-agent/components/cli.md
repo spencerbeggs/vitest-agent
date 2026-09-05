@@ -149,4 +149,4 @@ The `test-case-turns` action is the linkage that makes `tdd-artifact` correctly 
 
 ## CLI flag naming
 
-The `record` subcommand family uses `--chat-id` (the host chat UUID) and `--parent-chat-id` to align with the agent-taxonomy nomenclature. The `wrapup` command's integer FK form is `--row-id`, freeing `--chat-id` for the host UUID. The plugin hook scripts under `plugin/hooks/**/*.sh` call the `vitest-agent agent …` and `vitest-agent db …` paths; see [./plugin-claude.md](./plugin-claude.md) for the hook layer.
+The `record` subcommand family uses `--chat-id` (the host chat UUID) and `--parent-chat-id` to align with the agent-taxonomy nomenclature. The `wrapup` command's integer FK form is `--row-id`, freeing `--chat-id` for the host UUID. The plugin hook scripts under `plugins/claude-code/hooks/**/*.sh` call the `vitest-agent agent …` and `vitest-agent db …` paths; see [./plugin-claude.md](./plugin-claude.md) for the hook layer.

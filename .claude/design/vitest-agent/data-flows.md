@@ -411,11 +411,9 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
 
 ## Flow 5: Plugin → MCP server spawn
 
-Owned by the file-based Claude Code plugin at `plugin/`. See
-[./components/plugin-claude.md](./components/plugin-claude.md) and
-[./decisions.md](./decisions.md) D30.
+Owned by the Claude Code plugin at `plugins/claude-code/`. See [./components/plugin-claude.md](./components/plugin-claude.md) and [./decisions.md](./decisions.md) D30.
 
-- `plugin/bin/start-mcp.sh` (zero-deps POSIX shell) reads
+- `plugins/claude-code/bin/start-mcp.sh` (zero-deps POSIX shell) reads
   `CLAUDE_PROJECT_DIR` (or falls back to `pwd`).
 - Detect PM: `packageManager` field in root `package.json`, else lockfile
   (`pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `yarn.lock`,

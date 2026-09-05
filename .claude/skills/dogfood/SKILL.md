@@ -146,7 +146,7 @@ Immediately after dispatching (the background call returns before the agent comp
 mcp__plugin_vitest-agent_mcp__inventory({ kind: "session", agentKind: "subagent", limit: 1 })
 ```
 
-While the agent runs, channel events arrive as `<channel source="plugin:vitest-agent:mcp">` system reminders. Process each one immediately per the event-handler table in `plugin/skills/tdd/SKILL.md` — this produces live task-panel updates during the run, not a batch flush at the end.
+While the agent runs, channel events arrive as `<channel source="plugin:vitest-agent:mcp">` system reminders. Process each one immediately per the event-handler table in `plugins/claude-code/skills/tdd/SKILL.md` — this produces live task-panel updates during the run, not a batch flush at the end.
 
 The returned `id` is the numeric DB id you pass to `tdd_task({ action: "get", id: <id> })` (or `tdd_task({ action: "resume", id: <id> })` for a status summary) below. The `chat_id` on the same row is what you pass to session-aware tools like `turn_search`.
 
@@ -170,7 +170,7 @@ Append a new entry to `findings.md` covering: what worked, what broke, what was 
 
 | Option | When | Action |
 | --- | --- | --- |
-| **1. Local fix + retask** | Context fresh, change is .sh / skill / agent-md only | Revert `git checkout playground/`. Edit core. If MCP code: `pnpm ci:build`, bump `--noop=N` in `plugin/.claude-plugin/plugin.json`, ask the user to `/reload-plugins`. Append `## System changes` to current handoff. Dispatch a fresh orchestrator on the same task. |
+| **1. Local fix + retask** | Context fresh, change is .sh / skill / agent-md only | Revert `git checkout playground/`. Edit core. If MCP code: `pnpm ci:build`, bump `--noop=N` in `plugins/claude-code/.claude-plugin/plugin.json`, ask the user to `/reload-plugins`. Append `## System changes` to current handoff. Dispatch a fresh orchestrator on the same task. |
 | **2. Reboot + new handoff** | Context heavy, OR the change requires a full CC restart (structural `plugin.json` changes), OR the next experiment needs a clean slate | Make the system change. Write the next handoff at `<chain>/NN-<title>.md` with `prev_handoff` set. Tell the user to restart and run `/dogfood --from <new path>`. |
 | **3. Update tracking** | Findings are partial; we'll come back later | Update `findings.md` with the open question. Leave handoff `status: open`. Tell the user where the chain is and that nothing else is needed right now. |
 | **4. Confirm complete** | The meta-goal is answered; system either works or the bug is documented | Flip latest handoff `status: closed`. Append a final summary to `findings.md`. Tell the user the chain is done and they can delete the folder when ready. |
@@ -195,7 +195,7 @@ When in doubt, reboot. The cost of a wrong-positive reboot is low; the cost of a
 When MCP server or SDK code changes mid-session and a full CC restart would destroy context, use this pattern to reload the MCP server in place:
 
 1. Build: `pnpm ci:build`
-2. Bump `--noop=N` in `plugin/.claude-plugin/plugin.json` (increment by 1 each time):
+2. Bump `--noop=N` in `plugins/claude-code/.claude-plugin/plugin.json` (increment by 1 each time):
 
    ```json
    "mcpServers": {
@@ -211,7 +211,7 @@ When MCP server or SDK code changes mid-session and a full CC restart would dest
 
 The `--noop` arg is forwarded to the MCP binary, which ignores it. Changing `args` is the trigger — `/reload-plugins` restarts the MCP server whenever `command` or `args` differs from the currently-running value.
 
-**Do not commit the bumped `--noop` value.** Revert `plugin/.claude-plugin/plugin.json` before committing or opening a PR.
+**Do not commit the bumped `--noop` value.** Revert `plugins/claude-code/.claude-plugin/plugin.json` before committing or opening a PR.
 
 This hot-patch path works for:
 

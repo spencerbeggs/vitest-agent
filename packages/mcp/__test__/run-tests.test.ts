@@ -446,7 +446,7 @@ describe("formatReportMarkdown", () => {
 	});
 
 	// The headline tokens below are a contract with
-	// plugin/hooks/post-tool-use/tdd-artifact.sh, which classifies
+	// plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh, which classifies
 	// MCP run_tests results into test_passed_run / test_failed_run
 	// tdd_artifacts rows by grepping the first line of the response
 	// for `## ✅ Vitest` or `## ❌ Vitest`. If this format changes,

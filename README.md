@@ -29,7 +29,7 @@ The sidecar's per-platform binaries ship as `optionalDependencies` from four sub
 | `docs` | [website](./website/) | RSPress 2.0 documentation site deployed to [vitest-agent.dev](https://vitest-agent.dev) |
 | `playground` | [playground](./playground/) | Dogfooding sandbox — intentionally imperfect code for agent demos |
 
-The Claude Code plugin lives at [`plugin/`](./plugin/) and is a file-based plugin, not a pnpm workspace — a directory of markdown, JSON, shell and a zero-deps Node loader consumed by the Claude Code plugin system. See [plugin/README.md](./plugin/README.md).
+The Claude Code plugin lives at [`plugins/claude-code/`](./plugins/claude-code/) — a file-based plugin consumed by the Claude Code plugin system: a directory of markdown, JSON, shell and a zero-deps Node loader. It is a pnpm workspace member, but only so changesets can version it; it never publishes to npm and ships through the Claude marketplace instead. See [plugins/claude-code/README.md](./plugins/claude-code/README.md).
 
 ## Entry points
 

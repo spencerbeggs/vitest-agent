@@ -93,7 +93,7 @@ function scheduleTestCrashInjection(): void {
  * Precedence (most explicit wins):
  *
  * 1. `VITEST_AGENT_REPORTER_PROJECT_DIR` — set by the Claude Code plugin
- *    loader (`plugin/bin/mcp-server.mjs`) to the resolved project root.
+ *    loader (`plugins/claude-code/bin/mcp-server.mjs`) to the resolved project root.
  *    The loader controls this end-to-end so the value is reliable when
  *    set.
  * 2. `CLAUDE_PROJECT_DIR` — exported by Claude Code for hook scripts and
@@ -110,7 +110,7 @@ function resolveProjectDir(): string {
  * Optional first positional argument: an initial Claude Code chat UUID
  * (the host's `chatId`) to seed the MCP server's session association.
  *
- * The plugin manifest (`plugin/.claude-plugin/plugin.json`) can pass this
+ * The plugin manifest (`plugins/claude-code/.claude-plugin/plugin.json`) can pass this
  * via Claude Code variable substitution if such a variable exists for
  * sessions (the documented substitutions are `${CLAUDE_PLUGIN_ROOT}` and
  * `${CLAUDE_PLUGIN_DATA}`; testing whether `${CLAUDE_SESSION_ID}` or a

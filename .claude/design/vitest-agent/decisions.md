@@ -246,14 +246,9 @@ programs. Zod is used only for MCP tool input schemas.
 
 ### Decision 20: File-Based Claude Code Plugin
 
-The Claude Code plugin lives in `plugin/` (NOT a pnpm workspace) as a
-collection of static files: `.claude-plugin/plugin.json` manifest,
-`.mcp.json` for MCP server registration, shell-based hooks, markdown
-skill files, and markdown command files. Claude Code's plugin system
-discovers plugins via filesystem conventions, so no compilation or
-runtime is needed. Hooks use shell scripts for broad compatibility. The
-plugin has no dependencies, no build step, and no tests, so a pnpm
-workspace would add unnecessary configuration overhead.
+The Claude Code plugin is a collection of static files: `.claude-plugin/plugin.json` manifest, `.mcp.json` for MCP server registration, shell-based hooks, markdown skill files and markdown command files. Claude Code's plugin system discovers plugins via filesystem conventions, so no compilation or runtime is needed. Hooks use shell scripts for broad compatibility. The plugin has no dependencies and no build step, and it is never published to npm — it ships through the Claude marketplace as `vitest-agent@spencerbeggs`.
+
+**Amended.** This decision originally also placed the tree at `plugin/` and asserted it was NOT a pnpm workspace, on the grounds that a build-free, test-free directory would gain nothing from workspace membership. Both halves of that premise have since changed: the tree lives at `plugins/claude-code/`, it has bats test suites under `hooks/__test__/`, and it IS a pnpm workspace. What survives unchanged is the file-based, compile-free, npm-free nature of the plugin itself. See [Decision 64](#decision-64-claude-code-plugin-as-a-release-only-pnpm-workspace).
 
 ### Decision 21: `spawnSync` for `run_tests`
 
@@ -379,7 +374,7 @@ migrator's transaction boundaries are not ours to rewrite.
 
 ### Decision 30: Plugin MCP Loader as PM-Detect + Exec
 
-`plugin/bin/start-mcp.sh` is a zero-deps POSIX shell PM-detect + exec loader:
+`plugins/claude-code/bin/start-mcp.sh` is a zero-deps POSIX shell PM-detect + exec loader:
 
 1. Resolve `projectDir` from `CLAUDE_PROJECT_DIR` (or `pwd`).
 2. Detect the user's package manager via `packageManager` field in
@@ -608,7 +603,7 @@ plugin owns the run-event channel and hands it to the reporter. See D41 and
 [./components/reporter.md](./components/reporter.md).
 
 The Claude Code plugin manifest at
-`plugin/.claude-plugin/plugin.json` has the marketplace identity
+`plugins/claude-code/.claude-plugin/plugin.json` has the marketplace identity
 `vitest-agent@spencerbeggs` (a separate identity from the npm packages).
 Hook scripts call the CLI bin `vitest-agent`.
 
@@ -2021,6 +2016,18 @@ only best-effort abandoned; the `finally` block's `vitest.close()` does
 the actual teardown, as before. See
 [./components/mcp.md](./components/mcp.md) *`run_tests` timeout*.
 
+### Decision 64: Claude Code Plugin as a Release-Only pnpm Workspace
+
+**Context.** The plugin used to sit at `plugin/` outside the workspace set, with `.changeset/config.json` naming `@vitest-agent/plugin` in its `versionFiles` entry so that bumping the Vitest plugin package also rewrote the marketplace manifest's `$.version`. That coupling meant a change touching only hook scripts or agent prompts forced a version bump, a build and an npm publish of `@vitest-agent/plugin` — a published artifact churned for a change that never reaches npm.
+
+**Decision.** The tree moved to `plugins/claude-code/` and gained a `package.json` naming `@vitest-agent/claude-code-plugin` at `"private": true`, with no `publishConfig` and no scripts. `pnpm-workspace.yaml` globs `plugins/*`, so it is an ordinary workspace member. `.changeset/config.json` moved its `versionFiles` entry onto that package, globbing `plugins/claude-code/.claude-plugin/plugin.json` at `$.version`. With `privatePackages: { tag: true, version: true }`, a changeset against the plugin bumps the tracking `package.json` and the marketplace manifest in one step, then CI cuts a `@vitest-agent/claude-code-plugin@<version>` git tag and GitHub release and stops — no npm publish. The release tooling already understood this GitHub-release-only shape and repins on publish, so no new machinery was needed.
+
+**Why a tracking package rather than keeping the manifest coupled.** Changesets versions packages, not arbitrary files; the only way to give the plugin its own cadence was to give it a package to version. Private + script-free keeps that package purely administrative — it has no build output, declares no dependencies, and its sole job is to be the thing a changeset is written against. The plugin's distribution path is unchanged: the marketplace reads `.claude-plugin/plugin.json`, and nothing about the plugin's contents is affected by workspace membership.
+
+**Why `plugins/` and not `claude-code/`.** The container is plural to leave room for a second agent-host integration (a Copilot plugin is the stated intent). Only `claude-code/` exists today, and nothing in the repo should be written as if a sibling already existed.
+
+**Consequences to know before editing.** The extra directory level deepened every repo-root walk in the bats suites under `plugins/claude-code/hooks/__test__/` from `../../..` to `../../../..`. Any new test helper or hook script that resolves the repo root by relative traversal must count from `plugins/claude-code/`, not the old repo-root-adjacent `plugin/`. See [Decision 20](#decision-20-file-based-claude-code-plugin), amended.
+
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
 **Pre-2.0 policy (current).** Before 2.0 ships to npm, the canonical
@@ -2489,7 +2496,7 @@ Claude Code's env-propagation surface, mapped empirically, has this shape:
   hooks. Other hook types do not have access to this variable."
 
 To bridge the hook gap, vitest-agent ships
-`plugin/hooks/lib/source-session-env.sh`. Every non-SessionStart
+`plugins/claude-code/hooks/lib/source-session-env.sh`. Every non-SessionStart
 hook starts with:
 
 ```bash
@@ -2659,7 +2666,7 @@ denial keeps the D7 posture intact.
 
 **Context.** Issue #360 taught `post-tool-use/tdd-artifact.sh` to record
 `test_failed_run` / `test_passed_run` artifacts for bats invocations, so
-shell-hook behaviors whose only tests are `plugin/hooks/__test__/*.bats`
+shell-hook behaviors whose only tests are `plugins/claude-code/hooks/__test__/*.bats`
 leave run evidence. Those rows are necessarily **run-level** — there is
 no `test_cases` row for a bats test, so no `test_case_id` — and D11's
 rule 1 denied every run-level artifact as anchorless. A bats-only cycle
@@ -2702,6 +2709,20 @@ proves the specific test was authored in-session and, for `red→green`,
 first failed in the cited run), and is accepted knowingly: bats has no
 per-test identity the system can see, and a phase-bound run-level
 artifact is honest evidence where the alternative was no gate at all.
+
+### Decision D23: Fence Hook Stdout at the Library, Not the Call Site
+
+**Context.** Claude Code parses a hook's stdout as exactly one JSON object, so every byte the hook script — or anything it spawns — writes to fd 1 is concatenated into that payload. `post-tool-use/test-run.sh` redirected only stderr (`2>/dev/null`) on its two `vitest-agent agent record` calls, and `record test-case-turns` prints a JSON result object of its own. The host received two concatenated objects and rejected the hook outright: "Hook output looks like a JSON object but is not valid JSON" (issue #373). The bug is structural rather than local — it recurs the next time any call site forgets a redirect, and it is invisible in the transcript because the *whole* hook response is discarded, permission decision included.
+
+**Decision.** `hooks/lib/hook-output.sh` moves the real hook stdout off fd 1 at source time — `exec 3>&1 1>&2`, guarded by `_VITEST_AGENT_HOOK_STDOUT_FENCED` so a re-source cannot redirect twice — and every emitter writes to `>&3`. Stray stdout from the script or any child now lands on stderr: visible for debugging, invisible to the parser. Call-site redirects stay (`>/dev/null 2>&1` on the two `record` calls) to keep the logs quiet, but they are no longer what correctness rests on.
+
+**Why a fence over per-call-site discipline.** The alternative is a convention — "always redirect stdout when spawning a CLI" — enforced by review across every current and future hook. The fence makes the failure class unrepresentable instead: the only path to the host is a helper that names fd 3 explicitly, which is both greppable and testable. It also forces the escape hatch to be explicit; a hook needing a payload shape the helpers do not cover pipes into `emit_raw`, because a bare `jq` on fd 1 now yields an empty payload rather than a wrong one.
+
+**Why the guard is not exported.** A nested script that sources the lib must fence *its own* fd 1. Were the guard exported, the child would skip the `exec`, leave its stdout pointed at the parent's stderr, and have its emitters write to whatever the parent parked on fd 3 — wrong descriptor, wrong stream.
+
+**Consequences for detached work.** A backgrounded process inherits fd 3 and therefore a handle on the host's real stdout pipe. That defeats the SessionEnd detach (the `session/end-record.sh` shim), whose entire point is that the host's stream-close wait resolves the instant the shim exits, so the `nohup … &` closes it with `3>&-`. Any future detach owes the same close.
+
+Command substitution is unaffected in both directions: `$(cmd)` installs its own fd 1 for the child, so capture keeps working and the captured bytes never reach the host. `plugins/claude-code/hooks/__test__/hook-stdout-fence.bats` pins the fence, the double-source guard, the command-substitution carve-out and the `test-run.sh` regression — asserting on stdout alone, because bats folds stderr into `$output` and would otherwise hide the leak under test.
 
 ---
 

@@ -129,7 +129,7 @@ src/
     `create`/`get`/`update`/`delete` actions return JSON.
 - **One router, one allowlist.** New tools register in `server.ts` AND
   `router.ts`. The Claude Code plugin's allowlist
-  (`plugin/hooks/lib/safe-mcp-vitest-agent-ops.txt`) must
+  (`plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`) must
   also be updated for auto-allow to work without a permission prompt.
   Destructive `delete` actions on `tdd_goal` / `tdd_behavior` are
   denied to the orchestrator at the runtime hook layer

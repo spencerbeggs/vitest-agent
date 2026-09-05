@@ -6,10 +6,10 @@
 		"@savvy-web/changelog",
 		{
 			"packages": {
-				"@vitest-agent/plugin": {
+				"@vitest-agent/claude-code-plugin": {
 					"versionFiles": [
 						{
-							"glob": "plugin/.claude-plugin/plugin.json",
+							"glob": "plugins/claude-code/.claude-plugin/plugin.json",
 							"paths": ["$.version"]
 						}
 					]

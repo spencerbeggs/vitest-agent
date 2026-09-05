@@ -4,7 +4,7 @@
  * Commands intended for agents and hook scripts — humans typically do
  * not invoke these directly. The group composes the hook-driven
  * utilities (triage, wrapup, record) with the sidecar invocations
- * called by plugin/hooks/*.sh scripts (register-agent, end-agent,
+ * called by plugins/claude-code/hooks/*.sh scripts (register-agent, end-agent,
  * inject-env).
  *
  * The sidecar subcommands return plain text on stdout that the bash

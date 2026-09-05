@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - playground
+  - plugins/*
   - website
 autoInstallPeers: true
 configDependencies:

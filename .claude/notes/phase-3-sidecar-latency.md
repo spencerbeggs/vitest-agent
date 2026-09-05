@@ -9,7 +9,7 @@ related-notes: [.claude/notes/phase-2-sidecar-latency.md]
 
 Companion to `phase-2-sidecar-latency.md`. Phase 2 measured the raw
 sidecar process (`node <bin> _internal <subcommand>`). Phase 3 measures
-the full PreToolUse Bash hook end-to-end — `plugin/hooks/pre-tool-use/bash.sh`
+the full PreToolUse Bash hook end-to-end — `plugins/claude-code/hooks/pre-tool-use/bash.sh`
 fired against a synthetic Claude Code payload — because that whole-hook
 wall-clock is what a Claude Code agent actually waits on per Bash call.
 
