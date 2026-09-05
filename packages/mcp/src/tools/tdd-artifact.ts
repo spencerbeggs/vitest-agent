@@ -47,6 +47,9 @@ const TddArtifactRow = Schema.Struct({
 	testRunId: Schema.NullOr(Schema.Number),
 	testFirstFailureRunId: Schema.NullOr(Schema.Number),
 	recordedAt: Schema.String,
+	suite: Schema.Literals(["vitest", "bats"]).annotate({
+		description: "Which test runner produced this artifact — a bats run carries no test_case_id.",
+	}),
 }).annotate({ identifier: "TddArtifactListRow" });
 
 const ArtifactFilters = Schema.Struct({
@@ -82,7 +85,7 @@ export const formatTddArtifactListMarkdown = (data: TddArtifactListResultType): 
 	}
 	const lines: string[] = [`# Artifacts for tdd_task ${data.tddTaskId} (newest first, ${data.count} shown)`, ""];
 	for (const r of data.artifacts) {
-		const extras: string[] = [`phase=${r.phaseName} [phaseId=${r.phaseId}]`];
+		const extras: string[] = [`phase=${r.phaseName} [phaseId=${r.phaseId}]`, `suite=${r.suite}`];
 		if (r.behaviorId !== null) extras.push(`behaviorId=${r.behaviorId}`);
 		if (r.testCaseId !== null) extras.push(`testCaseId=${r.testCaseId}`);
 		if (r.testRunId !== null) extras.push(`testRunId=${r.testRunId}`);
