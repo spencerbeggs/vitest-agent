@@ -60,6 +60,8 @@ The two-kit model is part of the contract: `render(input, kit)` takes a second a
 
 **Suite-load failures count in the per-project summary.** `summarizeProject`'s `failCount` is `report.summary.failed + countSuiteFailures(report)` — `summary.failed` is a pure test-case count, so a module that failed to *import* (zero test cases) would otherwise render green. The SDK helper `countSuiteFailures(report)` (in `packages/sdk/src/utils/build-report.ts`) supplies the suite-level count that the render path folds back in. This is the reporter-side half of the false-green fix; see Decision 45 in [../decisions.md](../decisions.md).
 
+**Timeouts are counted once, per project (issue #242).** `summarizeProject` also derives `ProjectSummary.timeoutCount` by walking `report.failed[].tests[]` and testing each failed test's first error with the SDK's `isTimeoutError` (`countTimeouts`). The result is subtracted from `failCount` — so a timed-out test is a timeout, not a failure *and* a timeout — and spread onto the summary only when nonzero (absent = 0), matching the `@vitest-agent/ui` reducer's split and `StreamApp`'s `buildProjectSummary`. The `workspace` cells' project rows and total line then render `N timed out` and mark the project `✗`; see [./ui.md](./ui.md).
+
 ---
 
 ## The `stream` mount and the animation clock

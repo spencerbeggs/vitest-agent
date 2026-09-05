@@ -150,6 +150,11 @@ categories:
   a command carrying a real `.snap` operand (quoted, or followed by more
   command text) is still denied, an incidental mention of a `.snapshot.`
   filename is allowed.
+  `post-tool-use/tdd-artifact.sh`'s test-run matcher recognizes bats
+  invocations as well as vitest/jest ones (issue #360) so shell-hook
+  behaviors whose only tests are `plugin/hooks/__test__/*.bats` still
+  record run evidence; see *Artifact-binding* below for the shape and
+  the #363 limitation.
 - **Layout enforcement.** `pre-tool-use/test-location.sh` fires on
   `Read`/`Write`/`Edit`/`MultiEdit` calls whose `file_path` basename is
   shaped like a test file, then delegates the actual judgement to
@@ -219,8 +224,19 @@ tool.
 orchestrator subagent. It detects:
 
 - **Test runs** by matching the Bash command against
-  `(vitest|jest)|(npm|pnpm|yarn|bun) (run )?(test|vitest)`. Exit code 0 yields
-  a `test_passed_run` artifact; non-zero yields `test_failed_run`.
+  `(vitest|jest)|(npm|pnpm|yarn|bun) (run )?(test|vitest)` plus a bats
+  alternation (issue #360):
+  `(^|[;&|]+)[[:space:]]*(pnpm exec |npx |bunx )?bats[[:space:]]+[^-]`.
+  That matches a bare `bats <path>` at the start of the command or after
+  `&&` / `;` / `|`, and `pnpm exec bats`, `npx bats`, `bunx bats`; the
+  required non-flag argument excludes `bats --version`. `pnpm run
+  test:bats` / `npm run test:bats` / `bun run test:bats` / `yarn test:bats`
+  were already matched by the `(test|vitest)` substring clause. Exit code 0
+  yields a `test_passed_run` artifact; non-zero yields `test_failed_run`.
+  A bats run records a **run-level** artifact — no `--test-case-id` is
+  passed, because there is no `test_cases` row for a bats test.
+  `plugin/hooks/__test__/tdd-artifact-bats.bats` pins the matcher in both
+  directions (build commands and `bats --version` are not matched).
 - **File edits** by tool name. Edits to `*.test.*` paths produce
   `test_written`; edits to anything else produce `code_written`.
 - **Test-weakening edits** in a separate hook (`post-tool-use/test-quality.sh`)
@@ -244,6 +260,15 @@ automatic conversation-tree fallback described under *Artifact-binding
 across `chat_id` rotation*; `plugin/hooks/__test__/tdd-artifact-task-id.bats`
 pins the forwarding. The variable is never set by the plugin itself — the
 agent sets it only after a `tdd_phase_transition_request` denial names it.
+
+**Run-level artifacts cannot yet bind evidence (issue #363).** The
+phase-transition validator's "run-level artifacts carry no anchor" rule
+requires a non-null `test_case_id` on the cited `test_failed_run` for
+`red→green`, so the bats artifacts #360 records are visible in
+`tdd_artifact_list` but are not accepted as gate evidence. Until the
+validator learns to bind run-level artifacts, a bats-only cycle must run
+red/green by hand and note the gap rather than force the gate;
+`agents/tdd-task.md` says so explicitly.
 
 The `test_case_authored_in_session` constraint is the load-bearing invariant.
 The phase-transition validator (Decision D11) requires that a cited test
