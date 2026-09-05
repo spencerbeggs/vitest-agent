@@ -301,4 +301,40 @@ describe("buildDispatchInputs and resolveCellOptions", () => {
 		expect(inputs.shape).toBe("workspace");
 		expect(inputs.projects).toHaveLength(2);
 	});
+
+	it("counts a timed-out test as timeoutCount, not failCount (issue #242)", () => {
+		const report = makeReport({
+			project: "demo",
+			reason: "failed",
+			summary: { total: 2, passed: 0, failed: 2, skipped: 0, duration: 20 },
+			failed: [
+				{
+					file: "src/foo.test.ts",
+					state: "failed",
+					duration: 20,
+					tests: [
+						{
+							name: "assertion failure",
+							fullName: "assertion failure",
+							state: "failed",
+							errors: [{ message: "expected 1 to be 2" }],
+						},
+						{
+							name: "timeout failure",
+							fullName: "timeout failure",
+							state: "failed",
+							errors: [{ message: "Test timed out in 5000ms" }],
+						},
+					],
+				},
+			],
+		});
+		const inputs = buildDispatchInputs(initialRenderState, makeInput({ reports: [report] }));
+		expect(inputs.projects).toHaveLength(1);
+		const firstProject = inputs.projects[0];
+		expect(firstProject).toBeDefined();
+		if (firstProject === undefined) return;
+		expect(firstProject.failCount).toBe(1);
+		expect(firstProject.timeoutCount).toBe(1);
+	});
 });

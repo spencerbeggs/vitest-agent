@@ -36,7 +36,7 @@ import type {
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
-import { countSuiteFailures } from "@vitest-agent/sdk";
+import { countSuiteFailures, isTimeoutError } from "@vitest-agent/sdk";
 import {
 	classifyOutcome,
 	classifyRunShape,
@@ -49,6 +49,19 @@ import { Effect, PubSub } from "effect";
 import { renderGithubLog, toDisplayPath } from "./githubLog.js";
 import { createLiveInk } from "./LiveInkRenderer.js";
 
+const countTimeouts = (report: AgentReport): number => {
+	let timeoutCount = 0;
+	for (const mod of report.failed) {
+		for (const test of mod.tests) {
+			const firstError = test.errors?.[0];
+			if (test.state === "failed" && firstError !== undefined && isTimeoutError({ message: firstError.message })) {
+				timeoutCount++;
+			}
+		}
+	}
+	return timeoutCount;
+};
+
 const summarizeProject = (report: AgentReport): ProjectSummary => {
 	const collapsedTagCounts = report.tagCounts !== undefined ? collapseTagCounts(report.tagCounts) : undefined;
 	const tagCountsHasEntries = collapsedTagCounts !== undefined && Object.keys(collapsedTagCounts).length > 0;
@@ -57,15 +70,21 @@ const summarizeProject = (report: AgentReport): ProjectSummary => {
 		report.coverage !== undefined && report.coverage.lowCoverage.length > 0
 			? report.coverage.lowCoverage.length
 			: undefined;
+	// A timed-out test is identifiable per test in report.failed[].tests[]
+	// via isTimeoutError; count it once, as a timeout, and subtract it
+	// from failCount so it isn't double-counted as a plain failure
+	// (matching the reducer's split in @vitest-agent/ui, issue #242).
+	const timeoutCount = countTimeouts(report);
 	return {
 		name: report.project ?? "default",
 		passCount: report.summary.passed,
 		// summary.failed counts failed test cases only; add suite-level
 		// (collection/load) failures so a file that never loaded turns the
 		// project row red instead of showing a misleading all-green pass.
-		failCount: report.summary.failed + countSuiteFailures(report),
+		failCount: report.summary.failed + countSuiteFailures(report) - timeoutCount,
 		skipCount: report.summary.skipped,
 		durationMs: report.summary.duration,
+		...(timeoutCount > 0 ? { timeoutCount } : {}),
 		...(tagCountsHasEntries && collapsedTagCounts !== undefined ? { tagCounts: collapsedTagCounts } : {}),
 		...(belowTargetCount !== undefined ? { belowTarget: belowTargetCount } : {}),
 		...(violationsCount !== undefined ? { violations: violationsCount } : {}),
