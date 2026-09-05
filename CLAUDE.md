@@ -77,7 +77,7 @@ for LLM coding agents. Six primary capabilities:
    Users set `coverage.thresholds` directly on Vitest's native config; the
    plugin's `ConfigValidation` service catches mismatches against
    `coverageTargets`.
-5. **MCP server** -- 29 MCP tools via tRPC router. Action-keyed surface:
+5. **MCP server** -- 30 MCP tools via tRPC router. Action-keyed surface:
    per-CRUD families collapse into one tool each (`tdd_task`, `tdd_goal`,
    `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) that dispatch
    on an `action` / `kind` discriminator. Also: `register_agent`,

@@ -779,6 +779,7 @@ const migration = Effect.gen(function* () {
 			test_first_failure_run_id INTEGER REFERENCES test_runs(id) ON DELETE SET NULL,
 			diff_excerpt TEXT,
 			recorded_at TEXT NOT NULL,
+			suite TEXT NOT NULL DEFAULT 'vitest' CHECK (suite IN ('vitest', 'bats')),
 			UNIQUE (phase_id, artifact_kind, file_id, test_run_id)
 		)
 	`;

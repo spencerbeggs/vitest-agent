@@ -2,8 +2,14 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { DataReader, DataStore } from "@vitest-agent/sdk";
-import { DataReaderLive, DataStoreLive, DataStore as DataStoreTag, migration0001 } from "@vitest-agent/sdk";
-import { Effect, Layer } from "effect";
+import {
+	DataReaderLive,
+	DataReader as DataReaderTag,
+	DataStoreLive,
+	DataStore as DataStoreTag,
+	migration0001,
+} from "@vitest-agent/sdk";
+import { Effect, Layer, Option } from "effect";
 import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import {
@@ -262,6 +268,51 @@ describe("recordTddArtifactEffect", () => {
 		);
 		expect(result.id).toBeGreaterThan(0);
 		expect(result.phaseId).toBeGreaterThan(0);
+	});
+
+	it("persists suite='bats' when provided, and defaults to 'vitest' when omitted (issue #363)", async () => {
+		const result = await run(
+			Effect.gen(function* () {
+				const ds = yield* DataStoreTag;
+				const reader = yield* DataReaderTag;
+				const sessionId = yield* ds.writeSession({
+					chatId: "cc-art-suite",
+					project: "demo",
+					cwd: "/tmp/demo",
+					agentKind: "subagent",
+					startedAt: "2026-04-29T00:00:00Z",
+				});
+				const tddId = yield* ds.writeTddTask({
+					sessionId,
+					goal: "g",
+					startedAt: "2026-04-29T00:00:01Z",
+				});
+				yield* ds.writeTddPhase({
+					tddTaskId: tddId,
+					phase: "red",
+					startedAt: "2026-04-29T00:00:02Z",
+				});
+
+				const bats = yield* recordTddArtifactEffect({
+					chatId: "cc-art-suite",
+					artifactKind: "test_failed_run",
+					suite: "bats",
+					recordedAt: "2026-04-29T00:00:03Z",
+				});
+				const batsRow = yield* reader.getTddArtifactWithContext(bats.id);
+
+				const vitestDefault = yield* recordTddArtifactEffect({
+					chatId: "cc-art-suite",
+					artifactKind: "test_written",
+					recordedAt: "2026-04-29T00:00:04Z",
+				});
+				const vitestRow = yield* reader.getTddArtifactWithContext(vitestDefault.id);
+
+				return { batsRow, vitestRow };
+			}),
+		);
+		expect(Option.isSome(result.batsRow) && result.batsRow.value.suite).toBe("bats");
+		expect(Option.isSome(result.vitestRow) && result.vitestRow.value.suite).toBe("vitest");
 	});
 });
 

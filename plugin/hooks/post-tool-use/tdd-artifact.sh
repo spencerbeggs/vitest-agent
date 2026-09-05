@@ -58,21 +58,35 @@ fi
 case "$tool_name" in
 	Bash)
 		command=$(echo "$hook_json" | jq -r '.tool_input.command // ""')
-		# Match common test-runner invocations. The final alternation
-		# (issue #360) recognizes bats: a bare `bats <path>` at the start
-		# of the command or after `&&`/`;`/`|`, `pnpm exec bats`,
-		# `npx bats`, and `bunx bats`. It requires a non-flag argument
+		# Match common test-runner invocations. The bats alternation
+		# (issue #360) recognizes a bare `bats <path>` at the start of the
+		# command or after `&&`/`;`/`|`, `pnpm exec bats`, `npx bats`,
+		# `bunx bats`, and a PM script whose name contains `bats` (`pnpm run
+		# test:bats`, `npm run test:bats`, `bun run test:bats`, `yarn
+		# test:bats`). The bare-`bats` half requires a non-flag argument
 		# after `bats` so `bats --version` (not a test run) is excluded.
-		# `pnpm run test:bats` / `npm run test:bats` / `bun run test:bats`
-		# / `yarn test:bats` are already covered by the `(test|vitest)`
-		# clause above (substring match on `test`), so they need no
-		# dedicated pattern here.
-		if echo "$command" | grep -E -q '(vitest|jest)|(npm|pnpm|yarn|bun) (run )?(test|vitest)|(^|[;&|]+)[[:space:]]*(pnpm exec |npx |bunx )?bats[[:space:]]+[^-]'; then
+		# The two alternations (bats vs. vitest/jest/PM-test) are tested
+		# separately (issue #363) so a bats match can be distinguished from
+		# a vitest/jest match and the CLI can be told which suite recorded
+		# the artifact -- a PM-script name containing `bats` would otherwise
+		# also satisfy the vitest_pattern's substring match on `test` and be
+		# misclassified as vitest.
+		bats_pattern='(^|[;&|]+)[[:space:]]*(pnpm exec |npx |bunx )?bats[[:space:]]+[^-]|(npm|pnpm|yarn|bun)[[:space:]]+(run[[:space:]]+)?[^[:space:]]*bats'
+		vitest_pattern='(vitest|jest)|(npm|pnpm|yarn|bun) (run )?(test|vitest)'
+		is_bats_match=0
+		if echo "$command" | grep -E -q "$bats_pattern"; then
+			is_bats_match=1
+		fi
+		if [ "$is_bats_match" -eq 1 ] || echo "$command" | grep -E -q "$vitest_pattern"; then
 			# Exit code surfacing differs by Claude Code version; check both.
 			exit_code=$(echo "$hook_json" | jq -r '.tool_response.exit_code // .tool_response.code // 0')
 			kind="test_passed_run"
 			if [ "$exit_code" != "0" ]; then
 				kind="test_failed_run"
+			fi
+			suite_arg=""
+			if [ "$is_bats_match" -eq 1 ]; then
+				suite_arg="--suite bats"
 			fi
 			# Backfill test_cases.created_turn_id (BUG-2) and get latest test
 			# case id for this session (BUG-1) in one call.
@@ -99,7 +113,7 @@ case "$tool_name" in
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
-				$test_case_id_arg $tdd_task_id_arg 2>"$_artifact_err") || {
+				$test_case_id_arg $tdd_task_id_arg $suite_arg 2>"$_artifact_err") || {
 				_rc=$?
 				hook_error "$_HOOK" "record tdd-artifact kind=$kind rc=$_rc cc=$chat_id: $(cat "$_artifact_err")"
 			}

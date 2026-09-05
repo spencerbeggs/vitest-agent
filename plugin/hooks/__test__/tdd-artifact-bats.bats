@@ -90,3 +90,34 @@ _artifact_argv() {
 	argv=$(_artifact_argv)
 	[ -z "$argv" ]
 }
+
+# Issue #363: bats-matched invocations must pass --suite bats so the D2
+# phase-transition validator can distinguish a bats run-level artifact
+# (no test_case_id) from a vitest one, instead of denying it outright.
+
+@test "bare 'bats <path>' with exit 1 passes --suite bats" {
+	run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-bash-bats-fail.json' | \
+		bash '${HOOKS_DIR}/post-tool-use/tdd-artifact.sh'"
+	[ "$status" -eq 0 ]
+	local argv
+	argv=$(_artifact_argv)
+	[[ "$argv" == *"--suite bats"* ]]
+}
+
+@test "'pnpm run test:bats' with exit 0 passes --suite bats" {
+	run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-bash-test-bats-pass.json' | \
+		bash '${HOOKS_DIR}/post-tool-use/tdd-artifact.sh'"
+	[ "$status" -eq 0 ]
+	local argv
+	argv=$(_artifact_argv)
+	[[ "$argv" == *"--suite bats"* ]]
+}
+
+@test "a vitest Bash invocation records no --suite flag (defaults to vitest)" {
+	run bash -c "bash '${TEST_DIR}/render-fixture.sh' '${FIXTURES_DIR}/post-tool-use-bash-vitest.json' | \
+		bash '${HOOKS_DIR}/post-tool-use/tdd-artifact.sh'"
+	[ "$status" -eq 0 ]
+	local argv
+	argv=$(_artifact_argv)
+	[[ "$argv" != *"--suite"* ]]
+}

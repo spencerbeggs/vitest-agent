@@ -31,6 +31,7 @@ function mockVitest(
 	return {
 		config,
 		vite: { config: { cacheDir: "node_modules/.vite" } },
+		onClose: vi.fn(),
 	};
 }
 

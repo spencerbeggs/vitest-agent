@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 93
 related:
   - ../architecture.md
@@ -266,7 +266,8 @@ file per tool — and broadly group into:
   headline write — see *Phase-transition guards* below),
   `tdd_artifact_list` (used by the orchestrator to find artifact ids
   without shelling out to sqlite3 — see *Phase-transition
-  auto-resolve*).
+  auto-resolve*; every row carries `suite: "vitest" | "bats"`, issue
+  #363).
 - **Agent registration.** `register_agent` is invoked by the MCP
   client (the orchestrator) once at boot when SessionContext recovery
   from env produces a no-op (e.g., MCP running without
@@ -278,7 +279,10 @@ file per tool — and broadly group into:
 - **Mutations.** `run_tests` runs Vitest in-process via `createVitest`
   from `vitest/node`. Mutates `process.env` from the `SessionContextRef`
   before `createVitest` so the in-process reporter sees current
-  attribution. Accepts a structured `tags` filter and a per-call
+  attribution. The per-call timeout is an `Effect.timeout` around the
+  `localVitest.start(...)` promise, recovered with
+  `Effect.catchTag("TimeoutError")` into the `timeout` result variant
+  (see *`run_tests` timeout* below). Accepts a structured `tags` filter and a per-call
   `passWithNoTests` override; emits a fourth `no-match` discriminator
   variant when the resolved filter set matches zero tests, and echoes
   the filter set it actually ran under on `RunTestsOk.scope`. The `reason`
@@ -532,7 +536,15 @@ citation still wins when the agent supplies it.
 The `tdd_artifact_list` tool exposes the same reader directly so the
 orchestrator can list candidate artifacts before committing to a
 phase transition — replacing the prior workflow of shelling out to
-`sqlite3` from a hook script.
+`sqlite3` from a hook script. Its `TddArtifactListRow` output schema
+carries `suite` (`Schema.Literals(["vitest", "bats"])`, issue #363) and
+the markdown formatter prints `suite=…` beside the phase on every row,
+so the orchestrator can see that a run-level artifact (no `testCaseId`)
+is a bats one — and therefore citable — before it requests the
+transition. `tdd_phase_transition_request` threads the same field onto
+the `CitedArtifact` it builds for the validator; its synthetic
+no-artifact placeholder is `suite: "vitest"`, so the absence of evidence
+is never mistaken for a bats carve-out.
 
 ## Project handling in discovery tools
 
@@ -664,6 +676,30 @@ even with `passWithNoTests: true` a filtered empty selection still emits
 on this branch, echoing the resolved filter and printing
 tag-introspection / `for_file` / `project` remediation pointers.
 
+**`run_tests` timeout (issue #320).** The run is bounded in the Effect
+error channel, not by a hand-rolled race. `localVitest.start(...)` is
+wrapped in `Effect.tryPromise({ try, catch: (cause) => cause })`, piped
+through `Effect.timeout(timeoutMs)`, mapped to `{ outcome: "ok", value }`,
+then `Effect.catchTag("TimeoutError", …)` yields
+`{ outcome: "timeout" }` and a final `Effect.catch` yields
+`{ outcome: "failed", cause }`. `Effect.runPromise` therefore always
+resolves with a discriminated outcome: `timeout` returns
+`{ kind: "timeout", timeoutSeconds }`, `failed` rethrows `cause` into the
+tool's ordinary `{ kind: "error" }` envelope, and `ok` continues into
+report building. This replaced a `Promise.race` against a `setTimeout`
+that rejected with `new Error("VITEST_TIMEOUT")` plus an
+`err.message === "VITEST_TIMEOUT"` probe in the catch handler — a string
+sentinel that any ordinary error with that exact message could forge. An
+error whose message is literally `VITEST_TIMEOUT` now yields
+`{ kind: "error" }`. Two Effect v4 facts the implementation depends on:
+`Effect.timeout` fails with `Cause.TimeoutError`, whose `_tag` is
+`"TimeoutError"` (so `catchTag` matches exactly it), and the v4
+catch-all is `Effect.catch` — there is no `Effect.catchAll`. Fiber
+interruption cannot cancel an in-flight Promise, so on timeout the
+Vitest run is still only best-effort abandoned and the `finally` block's
+`vitest.close()` remains the real teardown. See
+[../decisions.md](../decisions.md) Decision 63.
+
 **`run_tests` `discoveryLastScannedAt` observability.** `RunTestsOk` carries an optional `discoveryLastScannedAt: string | null` — the ISO timestamp of the most recent real disk scan `discoverProjects()` performed in this process, or `null` when discovery has not scanned disk in this process (e.g. a config that never calls `AgentPlugin.discover()`). It lets an agent tell a stale-looking test count apart from a fresh scan (issue #100). The value is read via `readDiscoveryLastScannedAt()` in `packages/mcp/src/tools/run-tests.ts` from the process-global `Symbol.for("vitest-agent:discovery:last-scan-at")` slot that `@vitest-agent/plugin` writes on every real scan. The Symbol handshake exists because `@vitest-agent/mcp` cannot import `@vitest-agent/plugin` (the plugin depends on mcp, so a reverse import is circular); `createVitest` loads `vitest.config.ts` in-process, which calls `discoverProjects()`, so both sides observe the same slot by the time the result is built. Mirrors the `ensureMigrated` globalThis-keyed pattern (Decision 28). See [../decisions.md](../decisions.md) Decision 43.
 
 **`run_tests` `scopedNote`.** `RunTestsOk` carries an optional
@@ -788,17 +824,25 @@ concurrently in one checkout — an MCP `run_tests` alongside a Bash
 `vitest run`, or two MCP calls — therefore delete each other's `.tmp`
 files mid-flight and one of them dies with `ENOENT ... coverage-N.json`
 (issues #159 / #191 / #194). A per-invocation directory removes the shared
-resource entirely.
+resource entirely. The plain-CLI half of the same clobber — an agent's
+Bash `vitest run` — is closed on the plugin side by
+`resolveCoverageDirIsolation` in `AgentPlugin.configureVitest`, which
+applies the same per-process `mkdtemp` rewrite for the `agent` executor
+(see [./plugin.md](./plugin.md) *Coverage directory isolation* and
+[../decisions.md](../decisions.md) Decision 62).
 
 **Lifecycle.** The override is created *inside* the tool's `try`, not
 before it, so a throwing `mkdtempSync` (full or read-only tmpdir) is caught
 by the surrounding handler and returns the tool's normal
 `{ kind: "error", message }` envelope instead of propagating raw out of the
-tRPC resolver. That handler is itself exception-safe — the `err instanceof
-Error && err.message` timeout probe runs inside its own `try`, falling back
-to `coerceErrorField(err, "message")` and a `"<unserializable error>"`
-sentinel, so a hostile thrown value (a throwing `message` getter) still
-produces the `{ kind: "error" }` envelope rather than a raw tRPC rejection.
+tRPC resolver. That handler is itself exception-safe — the
+`err instanceof Error ? err.message : String(err)` read runs inside its
+own `try`, falling back to `coerceErrorField(err, "message")` and a
+`"<unserializable error>"` sentinel, so a hostile thrown value (a throwing
+`message` getter) still produces the `{ kind: "error" }` envelope rather
+than a raw tRPC rejection. (The handler no longer probes for a timeout
+sentinel — timeouts are classified upstream in the Effect pipeline; see
+*`run_tests` timeout*.)
 Cleanup is a best-effort `rmSync(..., { recursive: true, force: true })` in
 `finally`; a failure there is swallowed and left to tmpdir reaping. The
 `finally` nests — `await vitest?.close()` sits in an inner `try` whose own

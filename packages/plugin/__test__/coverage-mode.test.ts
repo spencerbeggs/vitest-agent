@@ -37,6 +37,7 @@ function mockVitest(coverageEnabled?: boolean, thresholds?: Record<string, unkno
 			coverage,
 		},
 		vite: { config: { cacheDir: "node_modules/.vite" } },
+		onClose: vi.fn(),
 	};
 }
 

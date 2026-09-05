@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 100
 related:
   - ./architecture.md
@@ -1438,6 +1438,12 @@ persists to SQLite, which is what every MCP coverage tool queries. A user who
 wants the on-disk report runs Vitest directly. See
 [./components/mcp.md](./components/mcp.md).
 
+**Scope.** This decision covers the MCP `run_tests` path only. The
+plain-CLI half of the same clobber — an agent's Bash `vitest run` racing
+another process in the checkout — was left open here and is closed by
+Decision 62, which mirrors the per-process directory inside
+`AgentPlugin.configureVitest` for the `agent` executor.
+
 ### Decision 50: Strict MCP Tool Inputs — Reject Unknown Keys, Never Silently Widen
 
 **Context.** MCP tool inputs registered as bare zod raw shapes are
@@ -1914,6 +1920,107 @@ layout"; the fix makes the check say so and step aside when the
 default layout is not in force, rather than pretending to understand
 layouts it cannot see.
 
+### Decision 62: Per-Process Coverage Directory for Plain-CLI Agent Runs
+
+**Context.** Decision 49 isolated `coverage.reportsDirectory` for MCP
+`run_tests` calls, but the plain-CLI path was still exposed: an agent
+running `vitest run` from Bash shares `./coverage` with any other Vitest
+process in the checkout (a second agent, a watch mode, an MCP call), and
+the v8 provider's `clean: true` default `rm -rf`s that directory at run
+start, so one run deletes the other's `.tmp` files mid-flight and dies
+with `ENOENT ... coverage-N.json` (issue #194, remaining scope).
+
+**Decision.** A pure decision function,
+`resolveCoverageDirIsolation({ executor, coverageEnabled, env, configured })`
+in `packages/plugin/src/utils/resolve-coverage-dir-isolation.ts`, returns
+one of three outcomes and `configureVitest` acts on it once per Vitest
+run (guarded by a `WeakSet` keyed on the Vitest instance, because
+`configureVitest` fires per project while `coverage.reportsDirectory` is
+root-level config):
+
+- `keep` — leave the configured directory alone. Returned whenever
+  coverage is disabled (UI-only mode), whenever the executor is `human`
+  or `ci`, and when `VITEST_AGENT_COVERAGE_DIR_ISOLATION` is one of
+  `off` / `0` / `false`.
+- `explicit` — use `VITEST_AGENT_COVERAGE_DIR=<path>` verbatim; no
+  `mkdtemp`, no cleanup. The escape hatch for an agent that wants the
+  on-disk report somewhere it can read.
+- `isolate` — the default for the `agent` executor with coverage on:
+  rewrite `vitest.config.coverage.reportsDirectory` to a fresh
+  `mkdtempSync(join(tmpdir(), "vitest-agent-cov-"))` and register a
+  best-effort `rmSync` in `vitest.onClose()`.
+
+Only the `agent` executor is ever relocated. A human's `./coverage`
+output and CI's configured directory are exactly what those executors
+expect to find on disk, so they are never touched.
+
+**Why cleanup lives in `onClose`, not `onTestRunEnd`.** Verified against
+the installed vitest 4.1.11: for a non-watch `vitest run`,
+`Vitest.report("onTestRunEnd", …)` fires and *returns* before
+`Vitest.reportCoverage()` writes the lcov/html artifacts into
+`reportsDirectory`. Deleting the directory from inside the reporter's
+`onTestRunEnd` would race that write and reintroduce the exact ENOENT
+the fix exists to prevent. `startVitest`'s non-watch path calls
+`ctx.close()` in a `finally` strictly after `ctx.start()` — and
+therefore after `reportCoverage()` — resolves, so `vitest.onClose(fn)` is
+the earliest hook that is guaranteed to run after the provider is done
+with the directory. Conversely, the *rewrite* is always early enough:
+`configureVitest` runs inside `Vitest.setServer`, well before the lazy
+`initCoverageProvider` call reads the config.
+
+**Why persistence is unaffected.** `file_coverage` rows come from the
+in-memory istanbul `CoverageMap` the reporter receives in `onCoverage`
+(Decision 4), never from files under `reportsDirectory`, so relocating
+the directory changes nothing about what lands in SQLite — the
+persistence test pins this. Coverage-provider failures are likewise
+unchanged: they already surface through `unhandledErrors` and a non-zero
+exit (issue #240) rather than a silent exit-0, and the isolation test
+suite proves that path still fires with the directory rewritten.
+
+**Trade-off accepted.** Same as Decision 49: an agent's on-disk html /
+lcov output lands in a throwaway directory. The agent reads coverage
+from the MCP tools, which query SQLite, so nothing it consumes moves;
+`VITEST_AGENT_COVERAGE_DIR` exists for the rare case where it needs the
+files. See [./components/plugin.md](./components/plugin.md) *Coverage
+directory isolation*.
+
+### Decision 63: `run_tests` Timeout as a Typed Effect Error
+
+**Context.** `run_tests` bounded `localVitest.start(...)` with a
+`Promise.race` against a `setTimeout` that rejected with
+`new Error("VITEST_TIMEOUT")`; the catch handler then probed
+`err instanceof Error && err.message === "VITEST_TIMEOUT"` to emit the
+`{ kind: "timeout" }` result. A string sentinel in `.message` is not a
+type: any ordinary failure whose message happened to be exactly
+`VITEST_TIMEOUT` (a test, a plugin, a user's own throw) was reported as
+a timeout, and the timer/race bookkeeping was hand-rolled (issue #320).
+
+**Decision.** The start call is wrapped in `Effect.tryPromise` and piped
+through `Effect.timeout(timeoutMs)`, `Effect.map` (→ `outcome: "ok"`),
+`Effect.catchTag("TimeoutError", …)` (→ `outcome: "timeout"`) and a
+final `Effect.catch` (→ `outcome: "failed", cause`). The result is a
+success-channel discriminated outcome, so the classification happens
+entirely inside Effect combinators and the tool's `catch` block never
+has to inspect a message: `timeout` returns `{ kind: "timeout",
+timeoutSeconds }`, `failed` rethrows the original cause into the
+existing `{ kind: "error" }` envelope, and an error whose message is
+literally `VITEST_TIMEOUT` now yields `{ kind: "error" }` like any other.
+
+**Effect v4 facts this relies on** (verified while landing the change):
+`Effect.timeout` fails with `Cause.TimeoutError`, whose `_tag` is
+`"TimeoutError"`, so `Effect.catchTag("TimeoutError", …)` recovers from
+exactly that failure and nothing else; and the v4 catch-all is
+`Effect.catch` — there is no `Effect.catchAll`. Folding both branches
+into the success channel (rather than leaving them as promise
+rejections) also sidesteps `Effect.runPromise`'s lack of a guarantee
+that a rejection value is the bare error.
+
+**Limit that did not change.** Effect fiber interruption cannot cancel
+an in-flight Promise, so on timeout the underlying Vitest run is still
+only best-effort abandoned; the `finally` block's `vitest.close()` does
+the actual teardown, as before. See
+[./components/mcp.md](./components/mcp.md) *`run_tests` timeout*.
+
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
 **Pre-2.0 policy (current).** Before 2.0 ships to npm, the canonical
@@ -2050,6 +2157,22 @@ reason and a remediation hint.
    still carried on `CitedArtifact` but no longer participates in rule
    1; `phase_started_at` remains on the context for `now`-relative
    bookkeeping only.
+
+   *bats run-level artifacts (issue #363).* The "must carry a specific
+   `test_case_id`" portion has one carve-out. `CitedArtifact.suite`
+   (`"vitest" | "bats"`, from the `tdd_artifacts.suite` column) tells
+   the validator which runner produced the evidence. A `bats` artifact
+   never has a `test_case_id` — there is no `test_cases` row for a bats
+   test — so denying it outright left every bats-only cycle unable to
+   pass `red→green` or `green→refactor`. When `test_case_id` is null
+   **and** `suite === "bats"`, the validator applies only the
+   phase-window check (`cited_artifact.phase_id === current_phase_id`,
+   the #245 anchor, extended here to cover `test_passed_run` as well)
+   and skips the authored-in-session check, which has nothing to check
+   against. A `vitest` run-level artifact is still denied with
+   `missing_artifact_evidence` exactly as before — the carve-out is
+   keyed on the explicit suite marker, never inferred from a null
+   `test_case_id`. See D22.
 2. **Behavior match.** Scoped to the transitions whose cited evidence
    must belong to the behavior being transitioned — `red → green` (this
    behavior's failing test) and `green → refactor` (its passing test).
@@ -2531,6 +2654,54 @@ refuses closed tasks, so the worst misuse is attributing a genuine
 observation to the wrong *open* task of the same agent. Making it the
 default would normalise that pointer; keeping it behind a diagnosed
 denial keeps the D7 posture intact.
+
+### Decision D22: Explicit `suite` Marker for bats Run-Level Artifacts
+
+**Context.** Issue #360 taught `post-tool-use/tdd-artifact.sh` to record
+`test_failed_run` / `test_passed_run` artifacts for bats invocations, so
+shell-hook behaviors whose only tests are `plugin/hooks/__test__/*.bats`
+leave run evidence. Those rows are necessarily **run-level** — there is
+no `test_cases` row for a bats test, so no `test_case_id` — and D11's
+rule 1 denied every run-level artifact as anchorless. A bats-only cycle
+could therefore never pass `red→green` through the gate (issue #363).
+The obvious fix — accept any null-`test_case_id` artifact — would also
+accept a vitest run-level artifact, which is precisely the "whole
+suite failed for an unrelated reason" evidence rule 1 exists to reject.
+
+**Decision.** `tdd_artifacts` gains an explicit
+`suite TEXT NOT NULL DEFAULT 'vitest' CHECK (suite IN ('vitest','bats'))`
+column (an in-place edit to `0001_initial.ts`, per D9). The marker is
+threaded end to end: `WriteTddArtifactInput.suite` on the write side
+(default `"vitest"` when omitted); `CitedArtifact.suite` /
+`CitedArtifactRow.suite` on the validator's read; `TddArtifactRow.suite`
+on `listTddArtifactsForTask` and therefore on the `tdd_artifact_list`
+MCP output; `agent record tdd-artifact --suite vitest|bats` on the CLI;
+and the hook, whose bats regex is now tested *separately* from the
+vitest/jest/PM-`test` one, passes `--suite bats` on a bats match. The
+validator then carves out exactly `test_case_id === null && suite ===
+"bats"`: it keeps the phase-window check (the artifact's own
+`phase_id` must equal `current_phase_id`, D11 rule 1's #245 anchor) and
+skips the authored-in-session check, which has no test case to consult.
+A vitest run-level artifact is denied as before.
+
+**Why a stored column rather than inference.** Inferring "bats" from a
+null `test_case_id` is the widening rejected above. Inferring it from
+the command text at read time would put the hook's matcher inside the
+validator. A stored, CHECK-constrained marker is set once at the only
+write path (D7: the hook via the CLI) and read as plain data, which is
+what keeps `validatePhaseTransition` pure and lets the vitest guard stay
+exactly as strict as it was. The hook's regex split is the load-bearing
+piece on the write side: a PM script named `test:bats` also satisfies
+the vitest pattern's `test` substring, so testing the bats alternation
+first is what stops that command from being recorded as `vitest`.
+
+**What binding a bats artifact still guarantees.** The phase window is
+the whole guarantee — the run happened inside the phase being
+transitioned out of. That is weaker than the vitest path (which also
+proves the specific test was authored in-session and, for `red→green`,
+first failed in the cited run), and is accepted knowingly: bats has no
+per-test identity the system can see, and a phase-bound run-level
+artifact is honest evidence where the alternative was no gate at all.
 
 ---
 

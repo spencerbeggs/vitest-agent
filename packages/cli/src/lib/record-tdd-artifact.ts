@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-import type { ArtifactKind, DataStoreError } from "@vitest-agent/sdk";
+import type { ArtifactKind, ArtifactSuite, DataStoreError } from "@vitest-agent/sdk";
 import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
@@ -23,6 +23,8 @@ export interface RecordTddArtifactInput {
 	readonly testFirstFailureRunId?: number;
 	readonly diffExcerpt?: string;
 	readonly recordedAt: string;
+	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
+	readonly suite?: ArtifactSuite;
 	/**
 	 * Working directory of the calling process. When omitted, the
 	 * resolver falls back to `process.cwd()`. Used to bootstrap a
@@ -51,7 +53,14 @@ const writeArtifactUnderOpenPhase = (
 	tddTaskId: number,
 	input: Pick<
 		RecordTddArtifactInput,
-		"artifactKind" | "fileId" | "testCaseId" | "testRunId" | "testFirstFailureRunId" | "diffExcerpt" | "recordedAt"
+		| "artifactKind"
+		| "fileId"
+		| "testCaseId"
+		| "testRunId"
+		| "testFirstFailureRunId"
+		| "diffExcerpt"
+		| "recordedAt"
+		| "suite"
 	>,
 ): Effect.Effect<RecordTddArtifactResult, DataStoreError, DataReader | DataStore> =>
 	Effect.gen(function* () {
@@ -78,6 +87,7 @@ const writeArtifactUnderOpenPhase = (
 				testFirstFailureRunId: input.testFirstFailureRunId,
 			}),
 			...(input.diffExcerpt !== undefined && { diffExcerpt: input.diffExcerpt }),
+			...(input.suite !== undefined && { suite: input.suite }),
 			recordedAt: input.recordedAt,
 		});
 
@@ -140,6 +150,8 @@ export interface RecordTddArtifactByTaskIdInput {
 	readonly testFirstFailureRunId?: number;
 	readonly diffExcerpt?: string;
 	readonly recordedAt: string;
+	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
+	readonly suite?: ArtifactSuite;
 }
 
 /**
@@ -183,6 +195,8 @@ export interface DispatchRecordTddArtifactInput {
 	readonly recordedAt: string;
 	readonly cwd?: string;
 	readonly project?: string;
+	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
+	readonly suite?: ArtifactSuite;
 }
 
 /**
@@ -206,6 +220,7 @@ export const dispatchRecordTddArtifactEffect = (
 				testFirstFailureRunId: input.testFirstFailureRunId,
 			}),
 			...(input.diffExcerpt !== undefined && { diffExcerpt: input.diffExcerpt }),
+			...(input.suite !== undefined && { suite: input.suite }),
 			recordedAt: input.recordedAt,
 		});
 	}
@@ -220,6 +235,7 @@ export const dispatchRecordTddArtifactEffect = (
 				testFirstFailureRunId: input.testFirstFailureRunId,
 			}),
 			...(input.diffExcerpt !== undefined && { diffExcerpt: input.diffExcerpt }),
+			...(input.suite !== undefined && { suite: input.suite }),
 			recordedAt: input.recordedAt,
 			...(input.cwd !== undefined && { cwd: input.cwd }),
 			...(input.project !== undefined && { project: input.project }),

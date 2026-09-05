@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 96
 related:
   - ../architecture.md
@@ -449,7 +449,10 @@ The non-obvious pieces:
   and lose the typed-error contract.
 - **`tdd_artifacts` are hook-only.** Per [D7](../decisions.md), the
   artifact write path is the `record tdd-artifact` CLI subcommand. The
-  agent never writes its own evidence.
+  agent never writes its own evidence. `writeTddArtifact` persists
+  `WriteTddArtifactInput.suite` into the `suite` column (issue #363),
+  defaulting to `'vitest'` when the caller omits it; the column's CHECK
+  constraint rejects anything but `'vitest'` / `'bats'`.
 - **Phase-transition transactional invariant.** `writeTddPhase` opens a
   new phase row **and closes the prior open phase in the same transaction**
   so the per-session phase ledger is always consistent.
@@ -565,6 +568,19 @@ The non-obvious pieces:
 - **`getTddArtifactWithContext` reconstructs the D2 evidence-binding
   context.** Joins `tdd_artifacts` with `test_cases`, `turns`, `tdd_phases`,
   and `sessions` so the validator's `CitedArtifact` input is a single read.
+  Projects `a.suite` onto `CitedArtifactRow.suite` (issue #363) so
+  `validatePhaseTransition` can branch on the runner marker without a
+  second read.
+- **`validatePhaseTransition` accepts bats run-level artifacts.**
+  `utils/validate-phase-transition.ts` exports `ArtifactSuite`
+  (`"vitest" | "bats"`) alongside `ArtifactKind` and `Phase`. Rule 1's
+  "must carry a `test_case_id`" check carves out
+  `test_case_id === null && suite === "bats"`: that branch keeps the
+  #245 phase-window check (artifact `phase_id` vs `current_phase_id`,
+  extended to `test_passed_run`) and skips the authored-in-session
+  check, which has no test case to consult. A vitest run-level artifact
+  is still denied with `missing_artifact_evidence`; see
+  [../decisions.md](../decisions.md) D11 and D22.
 - **Acceptance metrics are derived, not stored.** `computeAcceptanceMetrics`
   computes the four spec-Annex-A ratios (phase-evidence integrity,
   compliance-hook responsiveness, orientation usefulness, anti-pattern
@@ -580,7 +596,8 @@ The non-obvious pieces:
   chain so the orchestrator finds artifact ids even when
   `chat_id` rotated mid-cycle. Returns the most recent matching
   artifact first so phase-transition auto-resolve can pick the head
-  without sorting.
+  without sorting. Each `TddArtifactRow` carries `suite` (issue #363),
+  read from `a.suite`.
 - **`countRecentArtifactsInOtherSessionsOfConversation({ tddTaskId, sinceIso })`.**
   Diagnostic reader behind the `missing_artifact_evidence` denial
   (issue #144). Resolves the task's owning session and its

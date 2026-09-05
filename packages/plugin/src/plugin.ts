@@ -1,4 +1,7 @@
 import { execSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { TestTagDefinition } from "@vitest/runner";
 import type {
 	AgentPluginOptions,
@@ -40,6 +43,7 @@ import { ensureGithubActionsReporter } from "./utils/ensure-github-reporter.js";
 import type { InjectTagsResult } from "./utils/inject-tags.js";
 import { injectTags } from "./utils/inject-tags.js";
 import { isBenignViteSourceMapWarning } from "./utils/is-benign-vite-source-map-warning.js";
+import { resolveCoverageDirIsolation } from "./utils/resolve-coverage-dir-isolation.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import {
 	DEFAULT_BUILT_RECENTLY_MS,
@@ -199,6 +203,16 @@ function resolveFormat(mode: ConsoleMode): OutputFormat {
  * @internal
  */
 const aggregatedReporterByVitest = new WeakSet<object>();
+
+/**
+ * Guards the coverage.reportsDirectory isolation decision (issue #194) to
+ * run at most once per Vitest run — `configureVitest` fires once per
+ * project, but `coverage.reportsDirectory` is root-level config shared by
+ * every project in that run.
+ *
+ * @internal
+ */
+const coverageDirDecidedByVitest = new WeakSet<object>();
 
 /**
  * The version of this package, inlined at build time from
@@ -432,7 +446,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 
 				// Resolve coverage thresholds from Vitest's native config.
 				const coverageConfig = vitest.config.coverage as
-					| { thresholds?: Record<string, unknown>; enabled?: boolean }
+					| { thresholds?: Record<string, unknown>; enabled?: boolean; reportsDirectory?: string }
 					| undefined;
 				const coverageThresholds = coverageConfig?.thresholds
 					? resolveThresholds(coverageConfig.thresholds as Record<string, unknown>)
@@ -447,6 +461,63 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// Resolve operating mode from Vitest's native coverage.enabled.
 				// Full when coverage.enabled !== false; UI-only otherwise.
 				const coverageMode: "full" | "ui-only" = coverageConfig?.enabled === false ? "ui-only" : "full";
+
+				// Issue #194 (remaining scope): two concurrent plain-CLI `vitest run`
+				// invocations in one checkout share `coverage.reportsDirectory`; the
+				// v8 provider's `clean: true` default `rm -rf`s it at run start, so
+				// one run can delete the other's `.tmp` files mid-run. The MCP
+				// `run_tests` path already isolates via `makeCoverageDirOverride()`;
+				// this mirrors that for the plain-CLI path, but only for the `agent`
+				// executor — a human's `./coverage` output and CI's configured
+				// directory are never relocated.
+				//
+				// Guarded by `coverageDirDecidedByVitest` because `configureVitest`
+				// fires once per project, but `coverage.reportsDirectory` is
+				// root-level config shared by every project in the run.
+				//
+				// Timing note (verified against the installed vitest@4.1.11 —
+				// `cli-api.CnMVyzaz.js`): `configureVitest` hooks run inside
+				// `Vitest.setServer`, which completes well before
+				// `Vitest.initCoverageProvider` is ever invoked (that call is lazy,
+				// triggered from `createCoverageProvider` / `start` / `collect`).
+				// Mutating `vitest.config.coverage.reportsDirectory` here is
+				// therefore always early enough for the coverage provider to pick
+				// it up. Cleanup cannot happen inside the reporter's
+				// `onTestRunEnd`, though: for a non-watch `vitest run`, Vitest's
+				// `Vitest.report("onTestRunEnd", ...)` (triggered via
+				// `_testRun.end`) fires and RETURNS before
+				// `Vitest.reportCoverage()` writes the lcov/html artifacts to
+				// `reportsDirectory` — deleting the directory from inside
+				// `onTestRunEnd` would race that write and reintroduce the exact
+				// ENOENT clobber this fix exists to prevent. `vitest.onClose(fn)`
+				// is the right hook instead: `startVitest`'s non-watch path calls
+				// `ctx.close()` in a `finally` block strictly after `ctx.start()` —
+				// and therefore after `reportCoverage()` — resolves.
+				if (coverageConfig && !coverageDirDecidedByVitest.has(vitest as object)) {
+					coverageDirDecidedByVitest.add(vitest as object);
+					const dirDecision = resolveCoverageDirIsolation({
+						executor,
+						coverageEnabled: coverageMode === "full",
+						env: process.env,
+						configured: coverageConfig.reportsDirectory,
+					});
+					if (dirDecision.kind === "isolate") {
+						const isolatedDir = mkdtempSync(join(tmpdir(), "vitest-agent-cov-"));
+						log("isolating coverage.reportsDirectory ->", isolatedDir);
+						coverageConfig.reportsDirectory = isolatedDir;
+						vitest.onClose(() => {
+							try {
+								rmSync(isolatedDir, { recursive: true, force: true });
+							} catch {
+								// best-effort cleanup — a failure here must never crash
+								// the run or block the process from closing.
+							}
+						});
+					} else if (dirDecision.kind === "explicit") {
+						log("using explicit VITEST_AGENT_COVERAGE_DIR ->", dirDecision.dir);
+						coverageConfig.reportsDirectory = dirDecision.dir;
+					}
+				}
 
 				// `transport` is forward-declared in 2.x; only `{ kind: "local" }`
 				// is a valid member. The plugin threads it onto the reporter

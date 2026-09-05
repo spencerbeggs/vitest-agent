@@ -19,7 +19,7 @@ import {
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
-import { Effect, Schema, SchemaGetter, Semaphore } from "effect";
+import { Data, Effect, Schema, SchemaGetter, Semaphore } from "effect";
 import { publicProcedure } from "../context.js";
 
 const TagFilter = Schema.Struct({
@@ -201,6 +201,13 @@ export const makeCoverageDirOverride = (): { dir: string; coverage: { reportsDir
 // `withStdioCaptured` async context the write is diverted to the sink;
 // outside of it (i.e. every other tRPC procedure handler running on its
 // own top-level async chain) the write passes through to the original.
+/**
+ * Typed wrapper for a rejected `vitest.start(...)` promise (issue #320).
+ * Keeps the run's Effect error channel a tagged union so the timeout
+ * branch can be recovered by tag instead of by string sentinel.
+ */
+class VitestStartFailure extends Data.TaggedError("VitestStartFailure")<{ readonly cause: unknown }> {}
+
 const stdoutSinkStorage = new AsyncLocalStorage<Writable>();
 const stderrSinkStorage = new AsyncLocalStorage<Writable>();
 
@@ -890,17 +897,48 @@ export const runTests = publicProcedure
 					);
 					const localVitest = vitest;
 
-					let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-					const result = await withStdioCaptured(nullStream, () =>
-						Promise.race([
-							localVitest.start(files.length > 0 ? files : undefined),
-							new Promise<never>((_, reject) => {
-								timeoutHandle = setTimeout(() => reject(new Error("VITEST_TIMEOUT")), timeoutMs);
-							}),
-						]).finally(() => {
-							if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-						}),
+					// Issue #320: the timeout is modeled in the Effect error channel
+					// via `Effect.timeout` rather than a `Promise.race` against a
+					// `setTimeout` that rejected with a string-sentinel Error
+					// ("VITEST_TIMEOUT") — a sentinel collides with an ordinary
+					// thrown error carrying that exact message. `Effect.timeout`
+					// fails with a typed `Cause.TimeoutError` (`_tag: "TimeoutError"`),
+					// which cannot collide with an arbitrary Error's `.message`, and
+					// `Effect.catchTag("TimeoutError", ...)` recovers from exactly
+					// that tag. Both the timeout and the ordinary-failure branches are
+					// folded into a success-channel discriminated outcome (rather than
+					// left as promise rejections, whose value shape `Effect.runPromise`
+					// does not guarantee to be the bare error) so the classification
+					// happens entirely inside Effect combinators. Interrupting the
+					// underlying `localVitest.start(...)` promise on timeout is still
+					// best-effort (as before) — Effect fiber interruption cannot cancel
+					// an in-flight Promise.
+					const startOutcome = await withStdioCaptured(nullStream, () =>
+						Effect.runPromise(
+							Effect.tryPromise({
+								try: () => localVitest.start(files.length > 0 ? files : undefined),
+								// Wrap the rejection in a tagged error so the error channel
+								// stays a discriminated union (`VitestStartFailure |
+								// TimeoutError`); an `unknown` member would collapse
+								// `Effect.catchTag`'s tag parameter to `never`.
+								catch: (cause) => new VitestStartFailure({ cause }),
+							}).pipe(
+								Effect.timeout(timeoutMs),
+								Effect.map((value) => ({ outcome: "ok" as const, value })),
+								Effect.catchTag("TimeoutError", () => Effect.succeed({ outcome: "timeout" as const })),
+								Effect.catchTag("VitestStartFailure", (e) =>
+									Effect.succeed({ outcome: "failed" as const, cause: e.cause }),
+								),
+							),
+						),
 					);
+					if (startOutcome.outcome === "timeout") {
+						return { kind: "timeout" as const, timeoutSeconds: input.timeout ?? 120 };
+					}
+					if (startOutcome.outcome === "failed") {
+						throw startOutcome.cause;
+					}
+					const result = startOutcome.value;
 
 					const testModules = result.testModules as unknown as Parameters<typeof buildAgentReport>[0];
 					const unhandledErrors = coerceErrors(result.unhandledErrors);
@@ -1015,9 +1053,6 @@ export const runTests = publicProcedure
 					// the `{ kind: "error" }` envelope, never a raw tRPC rejection.
 					let message: string;
 					try {
-						if (err instanceof Error && err.message === "VITEST_TIMEOUT") {
-							return { kind: "timeout" as const, timeoutSeconds: input.timeout ?? 120 };
-						}
 						message = err instanceof Error ? err.message : String(err);
 					} catch {
 						message = coerceErrorField(err, "message") ?? "<unserializable error>";
