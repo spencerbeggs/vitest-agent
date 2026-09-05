@@ -1,5 +1,17 @@
 # @vitest-agent/mcp
 
+## 2.4.14
+
+### Refactoring
+
+- `createCurrentSessionIdRef` is now backed by Effect's `MutableRef` instead of a hand-rolled closure cell (issue #331). The `CurrentSessionIdRef` interface and its `get`/`set` semantics are unchanged. [#375][#375]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#375]: https://github.com/spencerbeggs/vitest-agent/pull/375
+
 ## 2.4.13
 
 ### Bug Fixes
