@@ -14,23 +14,13 @@ related:
 dependencies: []
 ---
 
-# Claude Code Plugin (`plugin/`)
+# Claude Code Plugin (`plugins/claude-code/`)
 
-The Claude Code plugin at `plugin/` is the primary AI integration surface for the
-vitest-agent system. The six npm packages collect and store data; this plugin
-turns that data into agent behavior — through hook scripts, a TDD orchestrator
-subagent, sub-skill primitives, slash commands, and an MCP loader.
+The Claude Code plugin at `plugins/claude-code/` is the primary AI integration surface for the vitest-agent system. The six npm packages collect and store data; this plugin turns that data into agent behavior — through hook scripts, a TDD orchestrator subagent, sub-skill primitives, slash commands, and an MCP loader.
 
-The plugin is a **file-based Claude Code plugin**, not a pnpm workspace and not
-published to npm. It ships through the Claude marketplace as
-`vitest-agent@spencerbeggs` and versions independently from the npm packages.
-Child context for working in the tree lives at `plugin/CLAUDE.md`.
+The plugin is a **file-based Claude Code plugin**: static files that Claude Code discovers by filesystem convention, with no build step and no npm publish. It ships through the Claude marketplace as `vitest-agent@spencerbeggs` and versions independently from the npm packages. It IS a pnpm workspace — `pnpm-workspace.yaml` globs `plugins/*`, and `plugins/claude-code/package.json` declares the private, script-free `@vitest-agent/claude-code-plugin` package whose only job is to give changesets something to version (Decision 64). The `plugins/` container is plural to leave room for a future second agent host; `claude-code/` is the only one that exists. Child context for working in the tree lives at `plugins/claude-code/CLAUDE.md`.
 
-For decisions that shaped this design, see
-[../decisions.md](../decisions.md): D20 (file-based plugin),
-D30 (PM-detect spawn loader), D34 (plugin/reporter split),
-D11 (TDD evidence binding), D12 (three-tier hierarchy), D13
-(capability-vs-scoping doctrine).
+For decisions that shaped this design, see [../decisions.md](../decisions.md): D20 (file-based plugin), Decision 64 (release-only workspace under `plugins/`), D30 (PM-detect spawn loader), D34 (plugin/reporter split), D11 (TDD evidence binding), D12 (three-tier hierarchy), D13 (capability-vs-scoping doctrine), D23 (hook stdout fence).
 
 ---
 
@@ -117,7 +107,7 @@ Every hook script is Bash — `#!/bin/bash`, almost all under `set -euo pipefail
 returns JSON to Claude Code via stdout. Hooks fall into four functional
 categories:
 
-- **Recording hooks.** Capture session, prompt, tool-call, file-edit, and hook-fire turns into the SQLite database via `vitest-agent agent record`. These drive session analytics and the wrap-up nudges. They run on every event, unscoped — every turn in every session is captured. Hook errors are logged to `hook_error` rather than silently swallowed. `session/end-record.sh` is a **fast foreground shim over `session/end-record-worker.sh`**: Claude Code runs SessionEnd hooks under an abortable timeout and cancels in-flight hooks unconditionally on interactive exit ("Hook cancelled"), which killed the serial CLI spawns mid-run and left rows half-written. On exit-type end reasons the shim detaches the worker (`nohup`, disowned, all fds redirected to a per-session log under `~/.claude/session-env/<chat_id>/`) and emits a no-op within milliseconds — the host has nothing to abort, and the worker completes the session-end recording (`hook_fire` turn first so `computeAcceptanceMetrics` metric 2 counts the event, then `session-end`, `end-agent`, janitorial cleanup) after Claude Code exits, skipping the wrap-up computation since nobody is listening. On `clear` / `resume` the session continues, so the shim runs the worker synchronously and surfaces the wrap-up `systemMessage`.
+- **Recording hooks.** Capture session, prompt, tool-call, file-edit, and hook-fire turns into the SQLite database via `vitest-agent agent record`. These drive session analytics and the wrap-up nudges. They run on every event, unscoped — every turn in every session is captured. Hook errors are logged to `hook_error` rather than silently swallowed. `session/end-record.sh` is a **fast foreground shim over `session/end-record-worker.sh`**: Claude Code runs SessionEnd hooks under an abortable timeout and cancels in-flight hooks unconditionally on interactive exit ("Hook cancelled"), which killed the serial CLI spawns mid-run and left rows half-written. On exit-type end reasons the shim detaches the worker (`nohup`, disowned, all fds redirected to a per-session log under `~/.claude/session-env/<chat_id>/`, plus `3>&-` to close the fenced stdout descriptor — leaving it open would hand the worker a handle on the host's real stdout pipe and defeat the detach) and emits a no-op within milliseconds — the host has nothing to abort, and the worker completes the session-end recording (`hook_fire` turn first so `computeAcceptanceMetrics` metric 2 counts the event, then `session-end`, `end-agent`, janitorial cleanup) after Claude Code exits, skipping the wrap-up computation since nobody is listening. On `clear` / `resume` the session continues, so the shim runs the worker synchronously and surfaces the wrap-up `systemMessage`.
 - **Context-injection hooks.** Run on `SessionStart`, `UserPromptSubmit`,
   `Stop`, `SessionEnd`, and `PreCompact`, calling the `agent triage` and `agent wrapup`
   CLIs and emitting their output back to Claude Code as session context or
@@ -146,13 +136,13 @@ categories:
   snapshot guard is `\.snap([^A-Za-z0-9]|$)` — the extension, not a bare
   substring. As a plain `\.snap` it denied any command that merely *named* a
   file like `cells.snapshot.test.ts`, including ordinary greps and commits
-  (issue #247). `plugin/hooks/__test__/bash-tdd.bats` pins both directions:
+  (issue #247). `plugins/claude-code/hooks/__test__/bash-tdd.bats` pins both directions:
   a command carrying a real `.snap` operand (quoted, or followed by more
   command text) is still denied, an incidental mention of a `.snapshot.`
   filename is allowed.
   `post-tool-use/tdd-artifact.sh`'s test-run matcher recognizes bats
   invocations as well as vitest/jest ones (issue #360) so shell-hook
-  behaviors whose only tests are `plugin/hooks/__test__/*.bats` still
+  behaviors whose only tests are `plugins/claude-code/hooks/__test__/*.bats` still
   record run evidence, and passes `--suite bats` so the validator can
   bind them (issue #363); see *Artifact-binding* below for the shape.
 - **Layout enforcement.** `pre-tool-use/test-location.sh` fires on
@@ -180,7 +170,7 @@ categories:
   and both the deny and the advisory text open with "Under the default
   discovery layout, …" and name the opt-out, so a consumer the lexical
   detector misses still gets a truthful message and a way out.
-  `plugin/hooks/__test__/test-location.bats` pins the opt-out and the
+  `plugins/claude-code/hooks/__test__/test-location.bats` pins the opt-out and the
   wording; `skills/test-discovery/SKILL.md` documents the limitation for
   the agent.
   Because an `excluded` verdict is a *deny* on a new test file, the
@@ -202,7 +192,9 @@ needs updating.
 
 Hook scripts source two shared helpers from `hooks/lib/`.
 
-`hook-output.sh` centralizes every JSON shape a hook may emit — `emit_noop`, `emit_allow`, `emit_deny`, `emit_additional_context` and `emit_system_message`. All user-provided strings flow through `jq -n --arg` so embedded quotes, newlines and backslashes cannot break the output. The helper also propagates `VITEST_AGENT_PROJECT_DIR` at source time: it applies the assignment `VITEST_AGENT_PROJECT_DIR=${CLAUDE_PROJECT_DIR:-}` only when the var is not already set, then exports it. This anchors every `vitest-agent` CLI invocation spawned by a hook to the same project root the MCP server uses, which is load-bearing for subagent TDD recording: a `post-tool-use/tdd-artifact.sh` hook that runs from a monorepo sub-package `cwd` would otherwise resolve a different per-project `data.db` than the one the MCP server (and the open TDD task) lives in, silently splitting evidence and turn writes across two databases.
+`hook-output.sh` centralizes every JSON shape a hook may emit — `emit_noop`, `emit_allow`, `emit_deny`, `emit_additional_context` and `emit_system_message`, plus `emit_raw` as the escape hatch for a payload none of them cover (in practice PreToolUse `updatedInput`, whose object is tool-specific). All user-provided strings flow through `jq -n --arg` so embedded quotes, newlines and backslashes cannot break the output; `emit_raw` reads an already-encoded object on stdin and still owes its caller that same encoder.
+
+The helper also **fences stdout** (issue #373, Decision D23). Claude Code parses a hook's stdout as ONE JSON object, so any other byte on fd 1 — most easily the stdout of a spawned `vitest-agent` CLI whose call site only redirected stderr — corrupts the payload and the host rejects the whole thing with "Hook output looks like a JSON object but is not valid JSON". At source time the lib runs `exec 3>&1 1>&2` behind a `_VITEST_AGENT_HOOK_STDOUT_FENCED` guard: the real hook stdout moves to fd 3 and fd 1 becomes stderr, so only the `emit_*` helpers, which write explicitly to `>&3`, can reach the host. That invariant is what makes `emit_raw` necessary: a bare `jq -n …` writing to fd 1 is diverted to stderr and the host sees an empty payload, so the two hooks that need a custom shape (`pre-tool-use/bash.sh`, `pre-tool-use/mcp-run-tests.sh`) pipe into `emit_raw` rather than printing. Command substitution is unaffected because `$(cmd)` installs its own fd 1. The guard is deliberately **not** exported, so a nested script that sources the lib fences its own fd 1 rather than inheriting the parent's fd 3. Two consequences for call sites: a hook that spawns a CLI should still redirect (`>/dev/null 2>&1`) to keep the log quiet, and anything that detaches a background worker MUST close the inherited descriptor with `3>&-`. `plugins/claude-code/hooks/__test__/hook-stdout-fence.bats` pins both layers — the lib's diversion, and `post-tool-use/test-run.sh` emitting exactly one object against a CLI stub that deliberately prints to stdout — and asserts on stdout alone, since bats merges stderr into `$output` by default and would hide the very leak under test. The helper also propagates `VITEST_AGENT_PROJECT_DIR` at source time: it applies the assignment `VITEST_AGENT_PROJECT_DIR=${CLAUDE_PROJECT_DIR:-}` only when the var is not already set, then exports it. This anchors every `vitest-agent` CLI invocation spawned by a hook to the same project root the MCP server uses, which is load-bearing for subagent TDD recording: a `post-tool-use/tdd-artifact.sh` hook that runs from a monorepo sub-package `cwd` would otherwise resolve a different per-project `data.db` than the one the MCP server (and the open TDD task) lives in, silently splitting evidence and turn writes across two databases.
 
 `hook-debug.sh` provides two logging functions. `hook_error` always appends to `/tmp/vitest-agent-hook-errors.log` (overrideable via `VITEST_AGENT_HOOK_ERROR_LOG`); CLI failures in recording and artifact hooks write here instead of being silently swallowed. `hook_debug` appends to `/tmp/vitest-agent-hook-debug.log` (overrideable via `VITEST_AGENT_HOOK_DEBUG_LOG`) but only when `VITEST_AGENT_HOOK_DEBUG=1` is set. Recording and artifact hooks use a structured capture-and-log pattern: CLI output is captured, exit status is tested, and failures call `hook_error` before the hook exits — the previous pattern of appending `|| true` to silence errors is gone.
 
@@ -242,7 +234,7 @@ orchestrator subagent. It detects:
   passed, because there is no `test_cases` row for a bats test — and the
   hook appends `--suite bats` so the row's `tdd_artifacts.suite` column
   says so; vitest/jest matches omit the flag and take the `vitest`
-  default. `plugin/hooks/__test__/tdd-artifact-bats.bats` pins the
+  default. `plugins/claude-code/hooks/__test__/tdd-artifact-bats.bats` pins the
   matcher in both directions (build commands and `bats --version` are
   not matched) and the `--suite bats` forwarding.
 - **File edits** by tool name. Edits to `*.test.*` paths produce
@@ -265,7 +257,7 @@ task's open phase — the explicit escape hatch for a *detached session*
 `parent_session_id`) whose artifacts would otherwise land under a session
 the task lookup never reaches. It is a last resort layered behind the
 automatic conversation-tree fallback described under *Artifact-binding
-across `chat_id` rotation*; `plugin/hooks/__test__/tdd-artifact-task-id.bats`
+across `chat_id` rotation*; `plugins/claude-code/hooks/__test__/tdd-artifact-task-id.bats`
 pins the forwarding. The variable is never set by the plugin itself — the
 agent sets it only after a `tdd_phase_transition_request` denial names it.
 
@@ -462,12 +454,9 @@ single most likely place for the dogfood system to drift.
 
 ## Rationale
 
-**Why a file-based plugin and not a published npm package.** Plugins are how
-Claude Code learns about agent-specific MCP servers, hooks, skills, and
-commands. The npm packages can ship without the plugin (a user can install
-`@vitest-agent/plugin` and use it as a vanilla Vitest reporter); the plugin
-adds the AI integration on top. Distributing through the Claude marketplace
-keeps the plugin surface independent of the npm release cadence. See D20.
+**Why a file-based plugin and not a published npm package.** Plugins are how Claude Code learns about agent-specific MCP servers, hooks, skills, and commands. The npm packages can ship without the plugin (a user can install `@vitest-agent/plugin` and use it as a vanilla Vitest reporter); the plugin adds the AI integration on top. Distributing through the Claude marketplace keeps the plugin surface independent of the npm release cadence. See D20.
+
+**Why a private workspace package for something that never publishes.** Changesets versions packages, not files. Before the move, the marketplace manifest's `$.version` was bumped as a `versionFiles` entry on `@vitest-agent/plugin`, so a hook-script-only change forced a build and an npm publish of the Vitest plugin package. `plugins/claude-code/package.json` (`@vitest-agent/claude-code-plugin`, private, no scripts) is a release-only handle: the `versionFiles` entry now hangs off it, `privatePackages: { tag: true, version: true }` produces a git tag and GitHub release, and npm is never involved. See Decision 64.
 
 **Why hooks in shell, not Node.** Hooks fire dozens of times per session and
 must start fast. A Node-based hook pays a 100–200ms startup cost per
@@ -542,14 +531,14 @@ not break downstream sourcing. The two write targets are:
   are grep-guarded so resumes do not duplicate exports.
 - `~/.claude/session-env/${chat_id}/vitest-agent-hook.sh` —
   written with a known filename so other plugin hooks can source
-  it via `plugin/hooks/lib/source-session-env.sh`. The helper
+  it via `plugins/claude-code/hooks/lib/source-session-env.sh`. The helper
   globs `*hook*.sh` so it also picks up host-written entries as
   redundancy.
 
 Non-SessionStart hooks (PreToolUse, SubagentStart, etc.) do NOT
 receive auto-sourcing per Claude Code's documented behavior, so
 they call `source_session_env "$session_id"` after sourcing
-`plugin/hooks/lib/source-session-env.sh` at entry. The helper
+`plugins/claude-code/hooks/lib/source-session-env.sh` at entry. The helper
 validates the session-id shape (rejects path separators, dot-paths,
 empty values, CR/LF/tab), then walks
 `~/.claude/session-env/${session_id}/*hook*.sh`. It mirrors

@@ -18,9 +18,10 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `@vitest-agent/sidecar` | `packages/sidecar/` | Node Single Executable Application binary for the per-Bash-call `inject-env` hot path; prebuilt per-platform binaries ship via `optionalDependencies` |
 | `docs` | `website/` | RSPress 2.0 user-facing documentation site for the whole family, deployed to `https://vitest-agent.dev` via Cloudflare Pages. Private (never published), versions independently |
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
+| `@vitest-agent/claude-code-plugin` | `plugins/claude-code/` | File-based Claude Code plugin (hooks, skills, agents, commands). Private tracking package — versioned by changesets, never published to npm |
 
 The seven publishable packages live under `packages/`. The `docs` site (`website/`) is a private workspace — it renders documentation and is never published. Four
-per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `@vitest-agent/sidecar`. The `plugin/` directory at the repo root is a file-based Claude Code plugin (NOT a pnpm workspace). Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
+per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `@vitest-agent/sidecar`. The Claude Code plugin lives at `plugins/claude-code/` and IS a pnpm workspace member (`pnpm-workspace.yaml` includes `plugins/*`), but it never publishes to npm — its `package.json` (`@vitest-agent/claude-code-plugin`, `"private": true`, no `publishConfig`) exists only to give changesets something to version. The `plugins/` container is plural to leave room for future agent-platform plugins; today `claude-code/` is the only one. Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
 
 Every `@vitest-agent/*` package versions independently — a change to one package bumps only that package, plus a patch ripple to its workspace dependents via changesets' `updateInternalDependencies: "patch"`. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` (`workspace:*`) in source — alongside `@vitest-agent/reporter` and `@vitest-agent/sdk` — so a cli/mcp release auto-PATCH-bumps the plugin (`updateInternalDependencies: patch`) and re-pins their exact version. They publish as exact-pinned regular `dependencies` in the published manifest — the former `savvy.build.ts` `transform()` that promoted them into `peerDependencies` was removed, because the silk pnpm plugin publicly hoists their bins anyway and the peer form triggered pnpm's `autoInstallPeers`, forcing wrong Effect versions into consumer repos. The Vitest-side peers (`vitest`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as `peerDependencies` directly. Declaring `@vitest-agent/plugin` therefore transitively brings `@vitest-agent/cli` and `@vitest-agent/mcp` (and their bins) as regular dependencies. The dependency flow is `plugin → reporter → ui → sdk`: the plugin no longer depends on `@vitest-agent/ui` (or `react` / `ink`) directly — `@vitest-agent/reporter` supplies the default reporter and the Ink live mount, and pulls `ui` / `react` / `ink` transitively. `@vitest-agent/sidecar` reaches a consumer transitively: it is a regular `dependency` of `@vitest-agent/cli`, which is itself a regular dependency of the plugin, so installing the plugin pulls `@vitest-agent/sidecar` and its four per-platform `optionalDependencies` automatically. In the dev workspace, cli/mcp resolve as the plugin's `workspace:*` dependencies; the workspace root `package.json` also declares them as devDependencies and `pnpm-workspace.yaml` keeps a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks; the root no longer lists `@vitest-agent/reporter`, `@vitest-agent/sidecar`, or `@vitest-agent/ui` directly.
 Users typically configure the plugin with just
@@ -84,8 +85,8 @@ for LLM coding agents. Six primary capabilities:
    `tdd_artifact_list`, and six framing-only prompts. Every served tool
    input is strict — an unknown key is rejected with an error naming the
    accepted params, never silently stripped.
-6. **Claude Code plugin** -- file-based plugin at `plugin/` distributed via
-   the Claude marketplace as `vitest-agent@spencerbeggs`. Ships a PM-detect
+6. **Claude Code plugin** -- file-based plugin at `plugins/claude-code/`
+   distributed via the Claude marketplace as `vitest-agent@spencerbeggs`. Ships a PM-detect
    spawn loader, lifecycle hooks, the `tdd-task` subagent (`context:fork`),
    `/tdd` slash command, and 15 skills (one TDD workflow skill, nine
    preloaded TDD primitives, one path-triggered test-layout skill, plus
@@ -133,7 +134,7 @@ definitions. Schemas are re-exported from `@vitest-agent/sdk` for consumer use.
 - `@./.claude/design/vitest-agent/components/plugin-claude.md`
   Load for the design doc covering hooks, the tdd-task agent, skills,
   commands, the MCP loader, and the dogfood workflow.
-- `plugin/CLAUDE.md`
+- `plugins/claude-code/CLAUDE.md`
   Load for the file-based plugin's directory layout and quick-reference
   tables (hooks, skills, commands, hot-reload cost matrix).
 
@@ -163,6 +164,8 @@ No silent fallback to a path hash.
 ## Cross-package versioning
 
 Every `@vitest-agent/*` package versions independently — there is no lockstep `fixed` group. Consumers only ever install `@vitest-agent/plugin`; `cli` and `mcp` arrive as its exact-pinned regular dependencies and the rest arrive transitively, so version skew across the family is invisible to a published consumer. The runtime drift check (the `checkVersionDrift` helper formerly wired into `AgentPlugin()`, the `vitest-agent-mcp` bin, and the `vitest-agent` CLI bin) was removed. Each package still exports a `CURRENT_<PKG>_VERSION` constant (inlined at build time from its own `package.json#version`) as a public API for version introspection by downstream tooling, but nothing imports it internally anymore.
+
+The Claude Code plugin versions on its own track through the private `@vitest-agent/claude-code-plugin` tracking package. `.changeset/config.json` maps that package's `versionFiles` to `plugins/claude-code/.claude-plugin/plugin.json` at `$.version`, so CI bumps the tracking `package.json` and the plugin manifest together. Write changesets naming `@vitest-agent/claude-code-plugin` for plugin-only changes — a changeset for any other package does nothing for the plugin, and bumping `@vitest-agent/plugin` for a plugin edit forces a pointless npm build and publish.
 
 ## Build Pipeline
 
@@ -287,9 +290,9 @@ All commits require:
 
 ### Publishing
 
-All seven packages publish to npm with
+All seven `packages/` workspaces publish to npm with
 provenance via the [@savvy-web/changesets](https://github.com/savvy-web/changesets)
-release workflow. Every package versions independently — there is no lockstep `fixed` group. Each release publishes a git tag per package of the form `@vitest-agent/<pkg>@<version>` (e.g. `@vitest-agent/plugin@1.1.0`) plus one GitHub Release per package, replacing the retired unified single-semver-tag (`1.0.0`) + one-combined-release scheme. The prior `1.0.0`/`1.0.1` unified tags/releases were retroactively split into per-package tags/releases so history matches; the bare `1.0.0`/`1.0.1` tags no longer exist.
+release workflow. Every package versions independently — there is no lockstep `fixed` group. Each release publishes a git tag per package of the form `@vitest-agent/<pkg>@<version>` (e.g. `@vitest-agent/plugin@1.1.0`) plus one GitHub Release per package, replacing the retired unified single-semver-tag (`1.0.0`) + one-combined-release scheme. `@vitest-agent/claude-code-plugin` is the eighth workspace member and releases the same way minus the npm step: `privatePackages: { tag: true, version: true }` cuts a `@vitest-agent/claude-code-plugin@<version>` tag and a GitHub Release with **no npm publish**. The prior `1.0.0`/`1.0.1` unified tags/releases were retroactively split into per-package tags/releases so history matches; the bare `1.0.0`/`1.0.1` tags no longer exist.
 
 ## Testing
 

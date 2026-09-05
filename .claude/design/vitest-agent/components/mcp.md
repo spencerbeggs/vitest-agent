@@ -765,7 +765,7 @@ carries it — so it has nothing to compare against and cannot tell a
 worktree mismatch from a correct call. Supplying that signal is tracked in
 issue #275: `_callerCwd` injected through the same
 `hookSpecificOutput.updatedInput` channel
-`plugin/hooks/pre-tool-use/mcp-run-tests.sh` already uses for
+`plugins/claude-code/hooks/pre-tool-use/mcp-run-tests.sh` already uses for
 `_sessionContext`. Two caveats are recorded there. It is unverified whether
 a subagent's hook payload reports the subagent's cwd or the parent's. And
 absence of the signal must mean *cannot tell* — not "proceed", not "refuse"

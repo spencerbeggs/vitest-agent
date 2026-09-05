@@ -26,7 +26,7 @@ The per-platform SEA binaries ship in four sibling child packages (`@vitest-agen
 ## How the binary path reaches the hook
 
 1. `vitest-agent agent sidecar-path` (a CLI subcommand) calls `resolveSidecarBinaryPath()` and prints the result to stdout.
-2. The SessionStart hook (`plugin/hooks/session/start.sh`) runs this subcommand once per session and exports `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both `CLAUDE_ENV_FILE` and the per-session env file.
+2. The SessionStart hook (`plugins/claude-code/hooks/session/start.sh`) runs this subcommand once per session and exports `VITEST_AGENT_SIDECAR_BIN=<abs-path>` to both `CLAUDE_ENV_FILE` and the per-session env file.
 3. The PreToolUse Bash hook Layer 2 reads `$VITEST_AGENT_SIDECAR_BIN` and execs the binary directly — no PM wrapper, no Node cold-start.
 
 ## Conventions

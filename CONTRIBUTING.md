@@ -30,7 +30,7 @@ pnpm run test
 ## Project Structure
 
 This is a pnpm monorepo with seven publishable packages under `packages/`
-and a Claude Code plugin under `plugin/`.
+and a Claude Code plugin under `plugins/claude-code/`.
 
 ```text
 vitest-agent/
@@ -76,12 +76,14 @@ vitest-agent/
 │   │       └── tools/              # MCP tool implementations
 │   ├── sidecar/                # @vitest-agent/sidecar (Node SEA inject-env binary)
 │   └── sidecar-*/              # Prebuilt per-platform binaries (optionalDependencies)
-├── plugin/                     # Claude Code plugin (NOT a pnpm workspace)
-│   ├── .claude-plugin/plugin.json  # Manifest with inline mcpServers
-│   ├── bin/start-mcp.sh            # PM-detect + exec loader (POSIX shell)
-│   ├── hooks/                      # SessionStart, PreToolUse, PostToolUse, etc.
-│   ├── skills/                     # tdd, debugging, configuration, coverage-improvement
-│   └── commands/                   # setup, configure, tdd
+├── plugins/
+│   └── claude-code/            # Claude Code plugin (never published to npm)
+│       ├── package.json            # @vitest-agent/claude-code-plugin (private, versioning only)
+│       ├── .claude-plugin/plugin.json  # Manifest with inline mcpServers
+│       ├── bin/start-mcp.sh        # PM-detect + exec loader (POSIX shell)
+│       ├── hooks/                  # SessionStart, PreToolUse, PostToolUse, etc.
+│       ├── skills/                 # tdd, debugging, configuration, coverage-improvement
+│       └── commands/               # setup, configure, tdd
 ├── website/                    # RSPress docs site (vitest-agent.dev)
 ├── playground/                 # Dogfooding sandbox (intentional defects)
 ├── docs/                       # Contributor docs (dogfooding) — user docs live on the site
@@ -264,7 +266,7 @@ import type { AgentReport } from "./schemas/AgentReport.js";
 
 ## Working on the Claude Code plugin and MCP server
 
-The Claude Code plugin at `plugin/` bootstraps the MCP server and delivers TDD skills, hooks and commands. Changes to this layer have different reload costs depending on what changed.
+The Claude Code plugin at `plugins/claude-code/` bootstraps the MCP server and delivers TDD skills, hooks and commands. Changes to this layer have different reload costs depending on what changed.
 
 ### How the MCP server process runs
 
@@ -274,7 +276,7 @@ Claude Code sets `cwd` to the project root when it spawns the loader. `CLAUDE_PR
 
 ### Loader strategy
 
-The plugin ships two loader scripts in `plugin/bin/`:
+The plugin ships two loader scripts in `plugins/claude-code/bin/`:
 
 - `start-mcp.sh` — a POSIX shell script that uses `exec` to replace itself with the package manager command. After startup, CC's direct child is the package-manager process with no shell wrapper remaining. Total live processes: 2 (package manager + MCP server).
 - `start-mcp.mjs` — a Node.js wrapper that spawns the package manager via `child_process.spawn` with `stdio: 'inherit'`. The wrapper stays alive to forward exit codes and print install instructions on failure. Total live processes: 3 (node wrapper + package manager + MCP server).

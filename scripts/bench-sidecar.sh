@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bench-sidecar.sh — Phase E benchmark harness for the T9.2 sidecar fix.
 #
-# Fires the real PreToolUse Bash hook (plugin/hooks/pre-tool-use/bash.sh)
+# Fires the real PreToolUse Bash hook (plugins/claude-code/hooks/pre-tool-use/bash.sh)
 # against synthetic Claude Code payloads and measures end-to-end
 # wall-clock latency through each of the four code paths the T9.2
 # layering produces:

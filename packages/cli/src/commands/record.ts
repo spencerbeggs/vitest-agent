@@ -1,7 +1,7 @@
 /**
  * CLI record command -- write session/turn data to the database.
  *
- * Hook scripts in plugin/hooks/ shell out to these subcommands. The
+ * Hook scripts in plugins/claude-code/hooks/ shell out to these subcommands. The
  * record-turn and record-session libs (in ../lib) implement the actual
  * write effects; commands here are thin `effect/unstable/cli` wrappers.
  *

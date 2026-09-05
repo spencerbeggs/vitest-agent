@@ -1,0 +1,15 @@
+{
+	"session_id": "test-session-id-bats-001",
+	"agent_type": "vitest-agent:tdd-task",
+	"cwd": "__REPO_ROOT__",
+	"tool_name": "Bash",
+	"tool_use_id": "toolu_bats_bash_bats_fail_001",
+	"tool_input": {
+		"command": "bats plugins/claude-code/hooks/__test__/foo.bats"
+	},
+	"tool_response": {
+		"exit_code": 1,
+		"stdout": "1 test, 1 failure"
+	},
+	"hook_event_name": "PostToolUse"
+}

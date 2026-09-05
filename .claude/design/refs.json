@@ -224,19 +224,25 @@
 			"recordedAt": "2026-08-21"
 		},
 		{
-			"source": "plugin/CLAUDE.md",
+			"source": "plugins/CLAUDE.md",
+			"target": ".claude/design/vitest-agent/components/plugin-claude.md",
+			"hash": "29e2e5e0d4274abd1b87cac1393b37094bd87ce4b0dde09087679a15a5cbabaf",
+			"recordedAt": "2026-09-05"
+		},
+		{
+			"source": "plugins/claude-code/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/architecture.md",
 			"hash": "91e3bf1ff10fcc3ad49062e28e836e740322af9f02ef58d7e665ad9ee031fca4",
 			"recordedAt": "2026-07-22"
 		},
 		{
-			"source": "plugin/CLAUDE.md",
+			"source": "plugins/claude-code/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/components/plugin-claude.md",
 			"hash": "62078f340817c13f42e578909c0117459ef2257e7d449ae5dc1474300329d2f8",
 			"recordedAt": "2026-08-21"
 		},
 		{
-			"source": "plugin/CLAUDE.md",
+			"source": "plugins/claude-code/CLAUDE.md",
 			"target": ".claude/design/vitest-agent/decisions.md",
 			"hash": "63b611c71eb5e98c214c7fcf6e653af281946607183143c6e38440f82f2d1f59",
 			"recordedAt": "2026-08-25"

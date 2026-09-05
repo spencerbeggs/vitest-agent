@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-21
-last-synced: 2026-08-21
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 90
 related:
   - ./architecture.md
@@ -25,10 +25,7 @@ reporter contract) see [./components/](./components/).
 
 ## Repo layout
 
-Source lives in seven publishable pnpm workspaces under `packages/` (plus
-four per-platform sidecar sub-packages), the `docs` documentation-site
-workspace at `website/`, and the file-based Claude Code plugin at `plugin/`
-(NOT a workspace).
+Source lives in seven publishable pnpm workspaces under `packages/` (plus four per-platform sidecar sub-packages), the `docs` documentation-site workspace at `website/`, and the Claude Code plugin workspace at `plugins/claude-code/`. `pnpm-workspace.yaml` globs `packages/*`, `plugins/*`, `playground` and `website`, so the plugin is a workspace member — private, unbuilt and never published, but versioned by changesets. The `plugins/` container is plural in anticipation of a second agent host; only `claude-code/` exists today.
 
 ```text
 packages/
@@ -57,14 +54,16 @@ website/       docs workspace (package "docs"; RSPress 2.0 site → vitest-agent
 
 docs/          repo-root user docs (SUPERSEDED by website/, slated for retirement)
 
-plugin/        file-based Claude Code plugin (NOT a pnpm workspace)
-  .claude-plugin/plugin.json    inline mcpServers config
-  bin/start-mcp.sh              zero-deps POSIX shell PM-detect + exec loader
-  bin/start-mcp.mjs             Node.js fallback loader (not active by default)
-  hooks/                        shell scripts + hooks.json + fixtures/ + lib/
-  agents/tdd-task.md            tdd-task subagent definition
-  skills/                       plugin-shipped skills
-  commands/                     slash commands
+plugins/       agent-host plugin workspaces (pnpm-workspace.yaml globs plugins/*)
+  claude-code/ @vitest-agent/claude-code-plugin (private; no build, no scripts; marketplace-distributed)
+    package.json                  release-tracking manifest; changesets versions it, npm never sees it
+    .claude-plugin/plugin.json    marketplace manifest + inline mcpServers config; version kept in step by changesets versionFiles
+    bin/start-mcp.sh              zero-deps POSIX shell PM-detect + exec loader
+    bin/start-mcp.mjs             Node.js fallback loader (not active by default)
+    hooks/                        shell scripts + hooks.json + fixtures/ + lib/ + __test__/ (bats)
+    agents/tdd-task.md            tdd-task subagent definition
+    skills/                       plugin-shipped skills
+    commands/                     slash commands
 
 .claude/       project-local Claude Code config (NOT shipped with plugin)
   skills/                       project-local skills
