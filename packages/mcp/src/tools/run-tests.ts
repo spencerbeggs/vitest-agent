@@ -19,7 +19,7 @@ import {
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
-import { Effect, Schema, SchemaGetter, Semaphore } from "effect";
+import { Data, Effect, Schema, SchemaGetter, Semaphore } from "effect";
 import { publicProcedure } from "../context.js";
 
 const TagFilter = Schema.Struct({
@@ -201,6 +201,13 @@ export const makeCoverageDirOverride = (): { dir: string; coverage: { reportsDir
 // `withStdioCaptured` async context the write is diverted to the sink;
 // outside of it (i.e. every other tRPC procedure handler running on its
 // own top-level async chain) the write passes through to the original.
+/**
+ * Typed wrapper for a rejected `vitest.start(...)` promise (issue #320).
+ * Keeps the run's Effect error channel a tagged union so the timeout
+ * branch can be recovered by tag instead of by string sentinel.
+ */
+class VitestStartFailure extends Data.TaggedError("VitestStartFailure")<{ readonly cause: unknown }> {}
+
 const stdoutSinkStorage = new AsyncLocalStorage<Writable>();
 const stderrSinkStorage = new AsyncLocalStorage<Writable>();
 
@@ -910,12 +917,18 @@ export const runTests = publicProcedure
 						Effect.runPromise(
 							Effect.tryPromise({
 								try: () => localVitest.start(files.length > 0 ? files : undefined),
-								catch: (cause) => cause,
+								// Wrap the rejection in a tagged error so the error channel
+								// stays a discriminated union (`VitestStartFailure |
+								// TimeoutError`); an `unknown` member would collapse
+								// `Effect.catchTag`'s tag parameter to `never`.
+								catch: (cause) => new VitestStartFailure({ cause }),
 							}).pipe(
 								Effect.timeout(timeoutMs),
 								Effect.map((value) => ({ outcome: "ok" as const, value })),
 								Effect.catchTag("TimeoutError", () => Effect.succeed({ outcome: "timeout" as const })),
-								Effect.catch((cause) => Effect.succeed({ outcome: "failed" as const, cause })),
+								Effect.catchTag("VitestStartFailure", (e) =>
+									Effect.succeed({ outcome: "failed" as const, cause: e.cause }),
+								),
 							),
 						),
 					);

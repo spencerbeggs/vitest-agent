@@ -45,8 +45,12 @@ export interface CitedArtifact {
 	readonly test_run_id: number | null;
 	readonly test_first_failure_run_id: number | null;
 	readonly behavior_id: number | null;
-	/** Issue #363: explicit suite marker distinguishing vitest from bats runs. */
-	readonly suite: ArtifactSuite;
+	/**
+	 * Issue #363: explicit suite marker distinguishing vitest from bats runs.
+	 * Optional on the pure type so hand-built contexts default to `vitest`;
+	 * the DB row always carries the persisted value.
+	 */
+	readonly suite?: ArtifactSuite;
 }
 /** @public */
 export interface PhaseTransitionContext {
@@ -270,7 +274,7 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 	// check below (issue #245's rule, extended to cover this branch) and
 	// skip the authored-in-session check. A vitest run-level artifact still
 	// carries no anchor at all and is denied exactly as before.
-	const isBatsRunLevel = ctx.cited_artifact.test_case_id === null && ctx.cited_artifact.suite === "bats";
+	const isBatsRunLevel = ctx.cited_artifact.test_case_id === null && (ctx.cited_artifact.suite ?? "vitest") === "bats";
 
 	if (ctx.cited_artifact.test_case_id === null && !isBatsRunLevel) {
 		return {
