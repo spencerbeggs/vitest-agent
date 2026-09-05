@@ -141,7 +141,7 @@ Phase boundaries without MCP confirmation do not exist in the database. The vali
 
 Two cross-behavior moves are first-class — request each in one call with `citedArtifactId` omitted (auto-resolution finds the row):
 
-- **Triangulation.** When one implementation satisfies several behaviors, enter `red.triangulate` (not `red`) for each. Later members' tests pass immediately (no own failing run) — request `red.triangulate→green` with the member's `behaviorId`; the batch's real failing run is accepted (phase-window and behavior-match are waived for this transition). Do not skip green with a `red→refactor` jump.
+- **Triangulation.** When one implementation satisfies several behaviors, enter `red.triangulate` (not `red`) for each. Later members' tests pass immediately (no own failing run) — request `red.triangulate→green` with the member's `behaviorId`; the batch's real failing run is accepted (phase-window and behavior-match are waived for this transition). Do not skip green with a `red→refactor` jump — the validator denies `red→refactor`, `red.triangulate→refactor`, and `spike→refactor` outright with `denialReason: 'refactor_without_passing_run'`, even when a valid `test_passed_run` from another behavior is cited (issue #361). `refactor` is only reachable from `green` or `green.fake-it`.
 - **Next behavior.** Cross a behavior boundary with a single `refactor→red` carrying the **new** `behaviorId`; the prior behavior's `test_passed_run` is accepted because `refactor→red` does not enforce behavior-match. No `refactor→red`-then-`red→red` rebind dance.
 
 ---
