@@ -1,6 +1,7 @@
 import { initTRPC } from "@trpc/server";
 import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/sdk";
 import type { ManagedRuntime } from "effect";
+import { MutableRef } from "effect";
 
 /**
  * Mutable holder for the MCP server's currently-associated host chat
@@ -28,11 +29,11 @@ export interface CurrentSessionIdRef {
  * @public
  */
 export const createCurrentSessionIdRef = (initial: string | null = null): CurrentSessionIdRef => {
-	let value: string | null = initial;
+	const ref = MutableRef.make<string | null>(initial);
 	return {
-		get: () => value,
+		get: () => MutableRef.get(ref),
 		set: (id) => {
-			value = id;
+			MutableRef.set(ref, id);
 		},
 	};
 };
