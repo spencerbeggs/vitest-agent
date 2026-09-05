@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 93
 related:
   - ./architecture.md
@@ -432,13 +432,17 @@ TDD evidence-binding contract.
 `green.fake-it`, `refactor`, `extended-red`, `green-without-red`.
 `ArtifactKind` is the 6-value evidence kind:
 `test_written`, `test_failed_run`, `code_written`, `test_passed_run`,
-`refactor`, `test_weakened`.
+`refactor`, `test_weakened`. `ArtifactSuite` is the 2-value runner marker
+`vitest` | `bats` (issue #363) — which test runner produced a run
+artifact; a bats artifact never carries a `test_case_id`.
 
 `CitedArtifact` is the de-normalized row the validator consumes — the
 `tdd_artifacts` row joined with `test_cases` and the originating `turns` so
 the D2 binding rules can be checked in a pure function. It carries the
 artifact's own `phase_id` (the `tdd_phases` row it was recorded in), which
-is the anchor for the D2 rule 1 window check. The
+is the anchor for the D2 rule 1 window check, and its `suite`
+(`ArtifactSuite`), which is what lets rule 1 accept a bats run-level
+artifact without widening the vitest guard. The
 `test_case_authored_in_session` boolean is precomputed by the DataReader from
 `test_cases.created_turn_id` because the validator must not query the DB.
 `PhaseTransitionContext` carries `current_phase_id: number | null` — the
@@ -474,8 +478,14 @@ creation turn denied a test authored in `spike` and legitimately re-run in
 It does not apply to `test_passed_run` or other kinds, so `green→refactor`
 transitions citing a `test_passed_run` artifact are not incorrectly denied
 with `evidence_not_in_phase_window`. The `test_case_authored_in_session`
-guard is independent of this check and always applies. See
-[./decisions.md](./decisions.md) D11.
+guard is independent of this check and always applies — with one
+carve-out: a run-level artifact (`test_case_id === null`) whose `suite`
+is `"bats"` (issue #363) is accepted on the phase-window check alone
+(applied to both `test_failed_run` and `test_passed_run` in that branch)
+and skips the authored-in-session check, because there is no
+`test_cases` row for a bats test. A `vitest` run-level artifact is still
+denied with `missing_artifact_evidence`. See
+[./decisions.md](./decisions.md) D11 and D22.
 
 **Source-phase guards:** two checks run before any artifact is examined
 and are independent of the cited evidence. `green` may only be entered
@@ -543,9 +553,12 @@ schemas because the DataStore commits one row at a time inside a single
   `CreateGoalInput` / `UpdateGoalInput`, `CreateBehaviorInput` /
   `UpdateBehaviorInput`, `WriteTddPhaseInput` / `WriteTddPhaseOutput`,
   `WriteTddArtifactInput`, `WriteCommitInput`, `WriteRunChangedFilesInput`.
-  Re-exported literal types: `Phase`, `ArtifactKind`, `ChangeKind`,
-  `GoalStatus`, `BehaviorStatus` so callers don't dip into `schemas/`
-  directly.
+  `WriteTddArtifactInput.suite?: ArtifactSuite` (issue #363) is the
+  explicit runner marker; `DataStoreLive` writes `'vitest'` when it is
+  omitted, matching the column default.
+  Re-exported literal types: `Phase`, `ArtifactKind`, `ArtifactSuite`,
+  `ChangeKind`, `GoalStatus`, `BehaviorStatus` so callers don't dip into
+  `schemas/` directly.
 
 **`registerAgent` cross-session parent validation.** `DataStore.registerAgent` validates a supplied `parentAgentId` against the parent's `session_id`. The constraint is intentionally loose: the parent agent must belong to either the registering session itself **or** that session's `parent_session_id`. A subagent has its own per-dispatch session row whose `parent_session_id` points at the main session; the main agent lives in the main session. A strict same-session check would therefore reject the normal `subagent → parent-main-agent` registration link. The `PARENT_AGENT_NOT_FOUND` error code is returned when the parent `agent_id` does not exist; `RegistrationConflictError` is returned when the parent's session is neither the registering session nor its parent.
 
@@ -594,7 +607,12 @@ The notable ones:
   flow.
 - **`CitedArtifactRow`** — the de-normalized row consumed verbatim as
   `CitedArtifact` input to the pure `validatePhaseTransition` function. The
-  reader does the joins so the validator stays pure.
+  reader does the joins so the validator stays pure. Carries `suite`
+  (`ArtifactSuite`) straight from `tdd_artifacts.suite`.
+- **`TddArtifactRow`** — one row of `listTddArtifactsForTask`, the shape
+  behind `tdd_artifact_list`. Also carries `suite` (issue #363), so the
+  orchestrator can tell a bats run-level artifact from a vitest one before
+  citing it.
 - **`CommitChangesEntry`** — backs `commit_changes`. Single sha (when
   provided) or the most-recent commits (when omitted, capped at 20).
 - **`TddTaskSummary`** — TDD sessions whose `session_id` FK points at
@@ -791,7 +809,7 @@ read the already-updated row and accumulate stale tokens.
 | `tdd_session_behaviors` | Tier-3 atomic red-green-refactor units; `goal_id` FK |
 | `tdd_behavior_dependencies` | Junction table for behavior ordering, replacing the old JSON-in-TEXT column |
 | `tdd_phases` | Phase transitions; `behavior_id` FK CASCADE on delete |
-| `tdd_artifacts` | Evidence per phase; `phase_id` FK; `behavior_id` FK enables behavior-scoped queries without joining through phases |
+| `tdd_artifacts` | Evidence per phase; `phase_id` FK; `behavior_id` FK enables behavior-scoped queries without joining through phases; `suite TEXT NOT NULL DEFAULT 'vitest' CHECK (suite IN ('vitest','bats'))` marks the runner (issue #363) |
 | `failure_signatures` | `signature_hash` PK; `last_seen_at` bumped on recurrence |
 | `hook_executions` | Vitest hook lifecycle |
 | `mcp_idempotent_responses` | Cached MCP mutation results, composite PK `(procedure_path, key)` |

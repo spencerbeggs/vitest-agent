@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 90
 related:
   - ../architecture.md
@@ -153,8 +153,8 @@ categories:
   `post-tool-use/tdd-artifact.sh`'s test-run matcher recognizes bats
   invocations as well as vitest/jest ones (issue #360) so shell-hook
   behaviors whose only tests are `plugin/hooks/__test__/*.bats` still
-  record run evidence; see *Artifact-binding* below for the shape and
-  the #363 limitation.
+  record run evidence, and passes `--suite bats` so the validator can
+  bind them (issue #363); see *Artifact-binding* below for the shape.
 - **Layout enforcement.** `pre-tool-use/test-location.sh` fires on
   `Read`/`Write`/`Edit`/`MultiEdit` calls whose `file_path` basename is
   shaped like a test file, then delegates the actual judgement to
@@ -223,20 +223,28 @@ tool.
 `post-tool-use/tdd-artifact.sh` fires on every tool result inside the
 orchestrator subagent. It detects:
 
-- **Test runs** by matching the Bash command against
-  `(vitest|jest)|(npm|pnpm|yarn|bun) (run )?(test|vitest)` plus a bats
-  alternation (issue #360):
-  `(^|[;&|]+)[[:space:]]*(pnpm exec |npx |bunx )?bats[[:space:]]+[^-]`.
+- **Test runs** by matching the Bash command against two patterns
+  tested **separately** (issue #363). The bats pattern (issue #360) is
+  checked first:
+  `(^|[;&|]+)[[:space:]]*(pnpm exec |npx |bunx )?bats[[:space:]]+[^-]|(npm|pnpm|yarn|bun)[[:space:]]+(run[[:space:]]+)?[^[:space:]]*bats`.
   That matches a bare `bats <path>` at the start of the command or after
-  `&&` / `;` / `|`, and `pnpm exec bats`, `npx bats`, `bunx bats`; the
-  required non-flag argument excludes `bats --version`. `pnpm run
-  test:bats` / `npm run test:bats` / `bun run test:bats` / `yarn test:bats`
-  were already matched by the `(test|vitest)` substring clause. Exit code 0
-  yields a `test_passed_run` artifact; non-zero yields `test_failed_run`.
+  `&&` / `;` / `|`, `pnpm exec bats`, `npx bats`, `bunx bats`, and a PM
+  script whose name contains `bats` (`pnpm run test:bats`,
+  `npm run test:bats`, `bun run test:bats`, `yarn test:bats`); the
+  required non-flag argument excludes `bats --version`. The vitest
+  pattern, `(vitest|jest)|(npm|pnpm|yarn|bun) (run )?(test|vitest)`, is
+  consulted only when the bats one did not match. The split matters
+  because `test:bats` also satisfies the vitest pattern's `test`
+  substring — a single combined regex could not say *which* runner
+  matched, and the CLI needs to know. Exit code 0 yields a
+  `test_passed_run` artifact; non-zero yields `test_failed_run`.
   A bats run records a **run-level** artifact — no `--test-case-id` is
-  passed, because there is no `test_cases` row for a bats test.
-  `plugin/hooks/__test__/tdd-artifact-bats.bats` pins the matcher in both
-  directions (build commands and `bats --version` are not matched).
+  passed, because there is no `test_cases` row for a bats test — and the
+  hook appends `--suite bats` so the row's `tdd_artifacts.suite` column
+  says so; vitest/jest matches omit the flag and take the `vitest`
+  default. `plugin/hooks/__test__/tdd-artifact-bats.bats` pins the
+  matcher in both directions (build commands and `bats --version` are
+  not matched) and the `--suite bats` forwarding.
 - **File edits** by tool name. Edits to `*.test.*` paths produce
   `test_written`; edits to anything else produce `code_written`.
 - **Test-weakening edits** in a separate hook (`post-tool-use/test-quality.sh`)
@@ -261,14 +269,18 @@ across `chat_id` rotation*; `plugin/hooks/__test__/tdd-artifact-task-id.bats`
 pins the forwarding. The variable is never set by the plugin itself — the
 agent sets it only after a `tdd_phase_transition_request` denial names it.
 
-**Run-level artifacts cannot yet bind evidence (issue #363).** The
-phase-transition validator's "run-level artifacts carry no anchor" rule
-requires a non-null `test_case_id` on the cited `test_failed_run` for
-`red→green`, so the bats artifacts #360 records are visible in
-`tdd_artifact_list` but are not accepted as gate evidence. Until the
-validator learns to bind run-level artifacts, a bats-only cycle must run
-red/green by hand and note the gap rather than force the gate;
-`agents/tdd-task.md` says so explicitly.
+**bats run-level artifacts bind on the phase window (issue #363).** The
+phase-transition validator still rejects a run-level artifact whose
+`suite` is `vitest` (no anchor at all), but a `suite = 'bats'` run-level
+artifact is accepted for `red→green` / `green→refactor` when its own
+`phase_id` matches the currently open phase; the authored-in-session
+check is skipped because there is no test case to check. So a bats-only
+cycle goes through the gate like any other — the orchestrator runs the
+bats suite, the hook records the artifact with `--suite bats`, and
+`tdd_phase_transition_request` auto-resolves it (`tdd_artifact_list`
+shows `suite=bats` on the row). The guarantee is weaker than the vitest
+path — phase binding only, no per-test identity — which
+[../decisions.md](../decisions.md) D22 accepts knowingly.
 
 The `test_case_authored_in_session` constraint is the load-bearing invariant.
 The phase-transition validator (Decision D11) requires that a cited test

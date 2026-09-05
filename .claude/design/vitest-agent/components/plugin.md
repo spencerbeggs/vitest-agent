@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 93
 related:
   - ../architecture.md
@@ -797,6 +797,11 @@ instead.
   the native ratchet and users opt in by passing one of
   `AgentPlugin.COVERAGE_AUTOUPDATE.{standard,strict,lenient}` into
   `coverage.thresholds.autoUpdate`.
+- `resolve-coverage-dir-isolation.ts` — pure
+  `resolveCoverageDirIsolation({ executor, coverageEnabled, env, configured })`
+  returning `{ kind: "keep" } | { kind: "isolate" } | { kind: "explicit", dir }`.
+  Drives the per-process `coverage.reportsDirectory` rewrite for plain-CLI
+  agent runs (issue #194); see "Coverage directory isolation" below.
 - `is-partial-run.ts` — pure `isPartialRun({ filenamePattern,
   startedSpecCount, totalSpecCount, projectFilter }): boolean`
   (`projectFilter` is the reporter's construction-time option, never the
@@ -1071,6 +1076,57 @@ path is the only writer of `coverageMode` on the resolved kit.
 An `@internal` `resolvedConfig` getter on `AgentReporter` lets tests verify
 mode threading. The construction-time getter uses placeholder
 `executor: "ci"`; the real executor resolves in `onTestRunEnd`.
+
+## Coverage directory isolation (plain-CLI agent runs)
+
+`configureVitest` also decides, once per Vitest run, whether to relocate
+`vitest.config.coverage.reportsDirectory` (issue #194, remaining scope).
+Two concurrent plain-CLI `vitest run` invocations in one checkout share
+that directory, and the v8 provider's `clean: true` default `rm -rf`s it
+at run start, so one run can delete the other's `.tmp` files mid-flight
+(`ENOENT ... coverage-N.json`). The MCP `run_tests` path already
+isolates via `makeCoverageDirOverride()` ([./mcp.md](./mcp.md)); this
+mirrors it for the CLI path.
+
+- **Decision** comes from the pure
+  `resolveCoverageDirIsolation({ executor, coverageEnabled, env, configured })`
+  in `utils/resolve-coverage-dir-isolation.ts`. It returns `keep` when
+  coverage is off (`coverageMode === "ui-only"`), when the executor is
+  `human` or `ci`, or when `VITEST_AGENT_COVERAGE_DIR_ISOLATION` is
+  `off` / `0` / `false`; `explicit` with `dir` when
+  `VITEST_AGENT_COVERAGE_DIR=<path>` is set (used verbatim, no
+  `mkdtemp`, no cleanup); otherwise `isolate`. Human and CI runs are
+  therefore never touched — their on-disk `./coverage` output is what
+  those executors expect.
+- **Application.** On `isolate`, the plugin creates
+  `mkdtempSync(join(tmpdir(), "vitest-agent-cov-"))`, assigns it to
+  `coverageConfig.reportsDirectory`, and registers a best-effort
+  `rmSync(dir, { recursive: true, force: true })` via
+  `vitest.onClose(...)`. On `explicit`, it assigns `dir` and registers
+  nothing. A `coverageDirDecidedByVitest` `WeakSet` (keyed on the Vitest
+  instance, like the aggregating-reporter guard) ensures the decision
+  runs once per run even though `configureVitest` fires per project —
+  `coverage.reportsDirectory` is root-level config.
+- **Why `onClose`, not `onTestRunEnd`.** Verified against vitest 4.1.11:
+  in a non-watch run `Vitest.report("onTestRunEnd", …)` fires and
+  returns *before* `Vitest.reportCoverage()` writes lcov/html into
+  `reportsDirectory`, so removing the directory from the reporter's
+  `onTestRunEnd` would race that write and recreate the ENOENT. `close()`
+  runs in `startVitest`'s `finally` strictly after `start()` — and hence
+  after `reportCoverage()` — resolves. The rewrite itself is always
+  early enough: `configureVitest` runs inside `Vitest.setServer`, before
+  the lazy `initCoverageProvider` reads the config.
+- **What is unaffected.** `file_coverage` persistence reads the istanbul
+  `CoverageMap` handed to `onCoverage`, never files under
+  `reportsDirectory`, so SQLite rows are identical with or without the
+  rewrite. Coverage-provider failures still surface through
+  `unhandledErrors` and a non-zero exit (issue #240) rather than a
+  silent exit-0. Tests: `resolve-coverage-dir-isolation.test.ts`,
+  `configure-vitest-coverage-dir-isolation.test.ts`,
+  `coverage-dir-isolation-persistence.test.ts`,
+  `unhandled-errors-loud.test.ts`.
+
+See [../decisions.md](../decisions.md) Decision 62.
 
 ## UI-only mode short-circuit in `onTestRunEnd`
 

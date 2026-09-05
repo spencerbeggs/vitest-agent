@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 92
 related:
   - ./architecture.md
@@ -299,6 +299,19 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
   Vitest's native `coverage.thresholds.autoUpdate`; users opt in by
   passing one of the `AgentPlugin.COVERAGE_AUTOUPDATE` tolerance
   functions.
+- Decide `coverage.reportsDirectory` isolation once per run (issue
+  #194) via the pure `resolveCoverageDirIsolation({ executor,
+  coverageEnabled, env, configured })`: `keep` for `human` / `ci`,
+  for UI-only mode, or when `VITEST_AGENT_COVERAGE_DIR_ISOLATION` is
+  `off|0|false`; `explicit` when `VITEST_AGENT_COVERAGE_DIR=<path>` is
+  set (assigned verbatim); otherwise `isolate` — rewrite the directory
+  to a fresh `mkdtemp` and register its removal in `vitest.onClose()`,
+  which runs after `Vitest.reportCoverage()` has written its artifacts
+  (removing it in `onTestRunEnd` would race that write). Persisted
+  `file_coverage` is unaffected because Flow 1 reads the in-memory map
+  from `onCoverage`. See [./components/plugin.md](./components/plugin.md)
+  *Coverage directory isolation* and [./decisions.md](./decisions.md)
+  Decision 62.
 - When `consoleMode !== "passthrough"` (the plugin owns stdout): strip
   Vitest's built-in console reporters AND set `coverage.reporter = []`
   to suppress Vitest's text coverage table. Otherwise the chain is left
@@ -391,7 +404,7 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
 - `server.ts` calls `registerAllPrompts(server)` before constructing
   `StdioServerTransport`, so tool / prompt surfaces are registered as one
   unit.
-- `run_tests` runs Vitest in-process via `createVitest` (from `vitest/node`) with a per-call timeout — it awaits `localVitest.start(...)` and reads results (including `state.getFiles()`) before returning. The in-process run blocks the long-lived stdio server for its duration, which is acceptable because agents wait for results before proceeding.
+- `run_tests` runs Vitest in-process via `createVitest` (from `vitest/node`) with a per-call timeout — it awaits `localVitest.start(...)` and reads results (including `state.getFiles()`) before returning. The in-process run blocks the long-lived stdio server for its duration, which is acceptable because agents wait for results before proceeding. The timeout is modelled in the Effect error channel (issue #320): `Effect.tryPromise` → `Effect.timeout(timeoutMs)` → `Effect.catchTag("TimeoutError")` → `Effect.catch`, folded into an `ok | timeout | failed` outcome so `{ kind: "timeout" }` can only come from a real `Cause.TimeoutError`, never from an ordinary error whose message happens to be `VITEST_TIMEOUT`. See [./decisions.md](./decisions.md) Decision 63.
 - After the run, `state.getFiles()` is walked by `collectConsoleLeakEntries` → `buildConsoleLeaks` and the result attached as `report.consoleLeaks` when any `console.*` output was captured. Each entry is attributed to its owning task's `result.state`; only non-failing-test output counts toward `total` / `byFile`, and failing-test output lands in `fromFailingTests`. The text summary warns only on `total > 0` (issue #263; see [./decisions.md](./decisions.md) Decision 57).
 - The Vitest root for the call is resolved first: a supplied `projectRoot` is validated then used verbatim, and an unsupplied one anchors at the directory of the config Vitest would load (issue #259). `vitest/node` is then resolved *from that root* rather than from the bare specifier, so the run drives the same physical vitest copy the project's test files import (issue #303). See [./components/mcp.md](./components/mcp.md) and [./decisions.md](./decisions.md) Decisions 55 and 56.
 - Loading `vitest.config.ts` re-runs `AgentPlugin.discover()` → `discoverProjects()`. In the long-lived MCP process that reused a stale cache before issue #100; the cache is now invalidated by a per-package `src/` + `__test__/` directory signature, so a test-file add/remove/move triggers a rescan. Each real scan writes an ISO timestamp to the `Symbol.for("vitest-agent:discovery:last-scan-at")` process-global slot, which the tool reads back into the `RunTestsOk.discoveryLastScannedAt` field (a cross-package handshake avoiding a circular plugin import — see [./decisions.md](./decisions.md) Decision 43).
@@ -436,7 +449,7 @@ schema decode and the DataStore write.
 | `SessionEnd` | `session/end-record.sh` → `session/end-record-worker.sh` | fast foreground shim over a worker script. On exit-type end reasons the shim detaches the worker (`nohup`, disowned, fds redirected to a per-session log) and emits a no-op immediately — the worker then records the `hook_fire` turn, `record session-end` (`sessions.ended_at` / `end_reason`), `agent end-agent`, and janitorial cleanup after Claude Code exits. On `clear` / `resume` the session continues, so the shim runs the worker synchronously and surfaces `wrapup --kind=session_end` via `systemMessage` |
 | `SubagentStart` (TDD) | `subagent/start-tdd.sh` | scoped via `lib/match-tdd-agent.sh`; writes `sessions` with `agent_kind='subagent'`, `parent_session_id` set |
 | `SubagentStop` (TDD) | `subagent/stop-tdd.sh` | `record session-end` with `end_reason="subagent_stop"`; generates a `wrapup --kind=tdd_handoff` note and records it as a turn on the parent session |
-| `PostToolUse` (TDD-scoped) | `post-tool-use/tdd-artifact.sh` | records `test_failed_run` / `test_passed_run` from Bash test runs (vitest / jest / PM `test` scripts, and — issue #360 — bats invocations: bare `bats <path>`, `pnpm exec bats`, `npx bats`, `bunx bats`, `pnpm run test:bats`; bats artifacts are run-level with no `test_case_id` and cannot yet bind `red→green` evidence, issue #363) and `test_written` / `code_written` from Edit/Write outcomes via `record tdd-artifact`; forwards `VITEST_AGENT_TDD_TASK_ID` as `--tdd-task-id` when set (the detached-session escape hatch, issue #144) |
+| `PostToolUse` (TDD-scoped) | `post-tool-use/tdd-artifact.sh` | records `test_failed_run` / `test_passed_run` from Bash test runs (vitest / jest / PM `test` scripts, and — issue #360 — bats invocations: bare `bats <path>`, `pnpm exec bats`, `npx bats`, `bunx bats`, `pnpm run test:bats`; the bats regex is tested separately from the vitest/jest one and a bats match adds `--suite bats`, so the resulting run-level artifact — no `test_case_id`, `tdd_artifacts.suite = 'bats'` — binds `red→green` / `green→refactor` on the phase-window check alone, issue #363) and `test_written` / `code_written` from Edit/Write outcomes via `record tdd-artifact`; forwards `VITEST_AGENT_TDD_TASK_ID` as `--tdd-task-id` when set (the detached-session escape hatch, issue #144) |
 | `PostToolUse` (TDD-scoped) | `post-tool-use/test-quality.sh` | scans test-file edits for escape-hatch tokens and records `test_weakened` artifacts |
 | `PostToolUse` (repo-scoped, `git commit`/`git push`) | `post-tool-use/git-commit.sh` | parses git metadata and shells to `record run-workspace-changes`, which writes `commits` (idempotent on `sha`) and `run_changed_files` |
 

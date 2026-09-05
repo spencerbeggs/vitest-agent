@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-05
+last-synced: 2026-09-05
 completeness: 92
 related:
   - ../architecture.md
@@ -125,13 +125,15 @@ Why this layering exists:
 | `turn` | Inserts a `turns` row (with optional fanout to `file_edits` or `tool_invocations` based on payload type) |
 | `session-start` | Inserts a `sessions` row |
 | `session-end` | Updates `sessions.ended_at`/`end_reason` |
-| `tdd-artifact` | Resolves the active TDD phase and writes a `tdd_artifacts` row. Takes `--chat-id` (session-resolved) **or** `--tdd-task-id` (explicit escape hatch, wins when both are present) |
+| `tdd-artifact` | Resolves the active TDD phase and writes a `tdd_artifacts` row. Takes `--chat-id` (session-resolved) **or** `--tdd-task-id` (explicit escape hatch, wins when both are present), plus `--suite vitest\|bats` (default `vitest`) to mark which runner produced a run artifact |
 | `run-workspace-changes` | Idempotent `commits` insert + per-file `run_changed_files` rows |
 | `test-case-turns` | Backfills `test_cases.created_turn_id` for the current session and reports the latest linked test-case id |
 
 **`tdd-artifact` task resolution and the `--tdd-task-id` escape hatch (issue #144).** `packages/cli/src/lib/record-tdd-artifact.ts` exposes three effects. `recordTddArtifactEffect` is the normal path: resolve the session from `--chat-id` via `resolveSessionForRecording`, then `DataReader.listTddTasksForSession(session.id, { walkParents: true, walkConversation: true })` and take the first open task. `walkParents` follows `parent_session_id` (the unnamed-subagent and rotated-`chat_id` cases); `walkConversation` is the detached-session fallback — when the parent walk finds nothing and the session's `conversation_id` is non-null, open tasks owned by any other session of the same conversation are considered, main-session tasks first. `recordTddArtifactByTaskIdEffect` bypasses session resolution entirely: given `--tdd-task-id` it verifies the task exists and is still open (both failures are loud — writing under a closed task's phase would corrupt the evidence trail) and writes under its current open phase. `dispatchRecordTddArtifactEffect` is the thin command-facing switch: `tddTaskId` wins when supplied, else `chatId`, else an error naming both flags; `commands/record.ts` stays a flag-parsing wrapper. Both paths share `writeArtifactUnderOpenPhase`, which auto-opens a `spike` phase when the task has none yet. The hook sets the flag from `VITEST_AGENT_TDD_TASK_ID` (see [./plugin-claude.md](./plugin-claude.md)); [../decisions.md](../decisions.md) D21 covers why the hatch is a diagnosed-split override rather than a default.
 
 The `test-case-turns` action is the linkage that makes `tdd-artifact` correctly cite the test case that was just authored: hooks call it before each `record tdd-artifact`, capture the returned `latestTestCaseId`, and pass it as `--test-case-id`. This closes the gap that would otherwise leave `tdd_artifacts.test_case_id` unset for hook-driven artifact rows.
+
+**`--suite vitest|bats` (issue #363).** A `Flag.choice` defaulting to `vitest`. `record.ts` passes it as `suite` through all three `record-tdd-artifact.ts` effects (`RecordTddArtifactInput`, `RecordTddArtifactByTaskIdInput`, `DispatchRecordTddArtifactInput` all carry an optional `suite?: ArtifactSuite`) and `writeArtifactUnderOpenPhase` forwards it onto `WriteTddArtifactInput.suite`, so the stored `tdd_artifacts.suite` column reflects which runner the hook actually matched. The flag exists because a bats run has no `test_cases` row and therefore no `--test-case-id`; without an explicit marker the validator could not tell a legitimately run-level bats artifact from a vitest run-level artifact it must reject. The hook sets `--suite bats` only on a bats match (see [./plugin-claude.md](./plugin-claude.md)); omitting the flag keeps the vitest default.
 
 ## CliLive composition layer
 
