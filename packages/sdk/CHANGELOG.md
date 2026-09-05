@@ -1,5 +1,30 @@
 # @vitest-agent/sdk
 
+## 2.5.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+| @effect/sql-sqlite-node | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+| @effected/config-file | dependency | updated | ^0.5.2 | ^0.6.0 |
+| @effected/jsonc | dependency | updated | ^0.8.1 | ^0.9.0 |
+| @effected/toml | dependency | updated | ^0.5.0 | ^0.6.0 |
+| @effected/walker | dependency | updated | ^0.5.0 | ^0.6.0 |
+| @effected/workspaces | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/xdg | dependency | updated | ^0.3.0 | ^0.4.0 |
+| @effected/yaml | dependency | updated | ^0.12.0 | ^0.13.0 |
+| effect | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+
+[#377][#377]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#377]: https://github.com/spencerbeggs/vitest-agent/pull/377
+
 ## 2.5.0
 
 ### Features
@@ -32,11 +57,7 @@
 
 - The `trg_sessions_conv_id_immutable` trigger in the canonical `0001_initial` migration now permits one null→value transition on `sessions.conversation_id`, instead of rejecting every UPDATE unconditionally. This is a pre-2.0 schema change with no migration path — reset an existing local `data.db` with `vitest-agent db reset` (#144). [#359][#359]
 
-### Bug Fixes
-
-- `validatePhaseTransition` now denies `red→refactor`, `red.triangulate→refactor`, and `spike→refactor` with `refactor_without_passing_run` instead of letting the transition through with no evidence the behavior's implementation ever passed. `refactor` may only be entered from `green` or `green.fake-it` (#361). [#364][#364]
-
-### Bug Fixes
+* `validatePhaseTransition` now denies `red→refactor`, `red.triangulate→refactor`, and `spike→refactor` with `refactor_without_passing_run` instead of letting the transition through with no evidence the behavior's implementation ever passed. `refactor` may only be entered from `green` or `green.fake-it` (#361). [#364][#364]
 
 - `validatePhaseTransition`'s D2 evidence-binding check now keys the phase window off the cited artifact's own `phase_id` instead of the test case's first creation turn. A test first authored during `spike` and re-run inside `red` is no longer denied with `evidence_not_in_phase_window` on `red`→`green` (#245).
 - `buildConsoleLeaks` now counts only console output from non-failing tests toward `total`/`byFile`. Output logged inside a failing test is excluded from the leak signal and summarized separately in the new optional `fromFailingTests` field on `ConsoleLeaks`, so a red run no longer looks like a leaking green run (#263). [#356][#356]

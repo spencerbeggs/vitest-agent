@@ -1,5 +1,28 @@
 # @vitest-agent/plugin
 
+## 2.5.7
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+| @effect/sql-sqlite-node | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+| @effected/workspaces | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @vitest-agent/cli | dependency | updated | 2.2.14 | 2.2.15 |
+| @vitest-agent/mcp | dependency | updated | 2.4.14 | 2.4.15 |
+| @vitest-agent/reporter | dependency | updated | 2.2.3 | 2.2.4 |
+| @vitest-agent/sdk | dependency | updated | 2.5.0 | 2.5.1 |
+| effect | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+
+[#377][#377]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#377]: https://github.com/spencerbeggs/vitest-agent/pull/377
+
 ## 2.5.6
 
 ### Dependencies
