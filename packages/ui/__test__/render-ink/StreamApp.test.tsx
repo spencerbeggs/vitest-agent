@@ -1,7 +1,7 @@
 import type { RunEvent } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { reduceRenderStateAll } from "../../src/reducer.js";
-import { StreamApp } from "../../src/render-ink/StreamApp.js";
+import { StreamApp, buildProjectSummary } from "../../src/render-ink/StreamApp.js";
 import { renderInk } from "../utils/render-ink.js";
 
 const NOW = Date.parse("2026-05-19T00:00:10.000Z");
@@ -62,6 +62,41 @@ describe("StreamApp — workspace shape", () => {
 		// The old `RunSummary` "Tests:" line is gone.
 		expect(frame).not.toContain("Tests:");
 		cleanup();
+	});
+
+	it("shows the per-project timed-out part in the workspace shape when one module timed out (issue #242)", () => {
+		const state = run([
+			{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
+			{ _tag: "ModuleStarted", modulePath: "sdk/a.test.ts", startedAt: STARTED, projectName: "sdk" },
+			{
+				_tag: "ModuleFinished",
+				modulePath: "sdk/a.test.ts",
+				passCount: 3,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 2,
+				durationMs: 6200,
+				projectName: "sdk",
+			},
+			{
+				_tag: "RunFinished",
+				runId: "r",
+				finishedAt: STARTED,
+				passCount: 3,
+				failCount: 0,
+				skipCount: 0,
+				timeoutCount: 2,
+				durationMs: 6200,
+			},
+		]);
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		expect(frame).toContain("2⧖");
+		cleanup();
+	});
+
+	it("buildProjectSummary carries timeoutCount from sumCounts instead of dropping it (issue #242)", () => {
+		const summary = buildProjectSummary("sdk", { passCount: 3, failCount: 0, skipCount: 0, timeoutCount: 2 });
+		expect(summary.timeoutCount).toBe(2);
 	});
 
 	it("renders failure rows in the frame when the run has failures", () => {

@@ -119,6 +119,22 @@ const sumCounts = (modules: ReadonlyArray<ModuleRecord>): Counts => {
 	return { passCount, failCount, skipCount, timeoutCount };
 };
 
+/**
+ * Build a `ProjectSummary` from a project's name and its rolled-up
+ * counts. Includes `timeoutCount` only when nonzero, matching
+ * `summarizeProject`'s convention in `@vitest-agent/reporter` (issue #242).
+ *
+ * @public
+ */
+export const buildProjectSummary = (name: string, counts: Counts): ProjectSummary => ({
+	name,
+	passCount: counts.passCount,
+	failCount: counts.failCount,
+	skipCount: counts.skipCount,
+	durationMs: 0,
+	...(counts.timeoutCount > 0 ? { timeoutCount: counts.timeoutCount } : {}),
+});
+
 const mergeTagCounts = (modules: ReadonlyArray<ModuleRecord>): Record<string, number> => {
 	const out: Record<string, number> = {};
 	for (const m of modules) {
@@ -417,13 +433,7 @@ const liveRegion = (
 				if (runningVisible < MAX_LIVE_RUNNING_ROWS) {
 					runningVisible++;
 					const counts = sumCounts(g.modules);
-					const summary: ProjectSummary = {
-						name: g.name,
-						passCount: counts.passCount,
-						failCount: counts.failCount,
-						skipCount: counts.skipCount,
-						durationMs: 0,
-					};
+					const summary: ProjectSummary = buildProjectSummary(g.name, counts);
 					rows.push(
 						<ProjectRow
 							key={g.name}
@@ -444,13 +454,7 @@ const liveRegion = (
 			} else {
 				// Finished row — always show, regardless of count.
 				const counts = sumCounts(g.modules);
-				const summary: ProjectSummary = {
-					name: g.name,
-					passCount: counts.passCount,
-					failCount: counts.failCount,
-					skipCount: counts.skipCount,
-					durationMs: 0,
-				};
+				const summary: ProjectSummary = buildProjectSummary(g.name, counts);
 				rows.push(
 					<ProjectRow
 						key={g.name}
@@ -589,10 +593,7 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 
 	// Compute per-project rollups for the classifier. Cheap.
 	const groups = groupByProject(state);
-	const projects: ReadonlyArray<ProjectSummary> = groups.map((g) => {
-		const c = sumCounts(g.modules);
-		return { name: g.name, passCount: c.passCount, failCount: c.failCount, skipCount: c.skipCount, durationMs: 0 };
-	});
+	const projects: ReadonlyArray<ProjectSummary> = groups.map((g) => buildProjectSummary(g.name, sumCounts(g.modules)));
 	const shape = classifyRunShape(state, projects);
 
 	const liveContent = liveRegion(state, shape, now, frame);

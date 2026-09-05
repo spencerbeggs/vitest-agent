@@ -58,8 +58,16 @@ fi
 case "$tool_name" in
 	Bash)
 		command=$(echo "$hook_json" | jq -r '.tool_input.command // ""')
-		# Match common test-runner invocations.
-		if echo "$command" | grep -E -q '(vitest|jest)|(npm|pnpm|yarn|bun) (run )?(test|vitest)'; then
+		# Match common test-runner invocations. The final alternation
+		# (issue #360) recognizes bats: a bare `bats <path>` at the start
+		# of the command or after `&&`/`;`/`|`, `pnpm exec bats`,
+		# `npx bats`, and `bunx bats`. It requires a non-flag argument
+		# after `bats` so `bats --version` (not a test run) is excluded.
+		# `pnpm run test:bats` / `npm run test:bats` / `bun run test:bats`
+		# / `yarn test:bats` are already covered by the `(test|vitest)`
+		# clause above (substring match on `test`), so they need no
+		# dedicated pattern here.
+		if echo "$command" | grep -E -q '(vitest|jest)|(npm|pnpm|yarn|bun) (run )?(test|vitest)|(^|[;&|]+)[[:space:]]*(pnpm exec |npx |bunx )?bats[[:space:]]+[^-]'; then
 			# Exit code surfacing differs by Claude Code version; check both.
 			exit_code=$(echo "$hook_json" | jq -r '.tool_response.exit_code // .tool_response.code // 0')
 			kind="test_passed_run"

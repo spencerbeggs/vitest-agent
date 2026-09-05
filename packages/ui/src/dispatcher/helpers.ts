@@ -153,12 +153,13 @@ export const formatTrendLine = (trend: TrendSummary | null): string | null => {
  * project carrying failures or violations.
  */
 export const formatProjectRow = (project: ProjectSummary, nameWidth: number): string => {
-	const total = project.passCount + project.failCount + project.skipCount;
-	const glyph = project.failCount > 0 ? "✗" : "✓";
-	const counts =
-		project.failCount > 0
-			? `${project.passCount}/${total} passed, ${project.failCount} failed`
-			: `${project.passCount} passed`;
+	const timeoutCount = project.timeoutCount ?? 0;
+	const total = project.passCount + project.failCount + project.skipCount + timeoutCount;
+	const glyph = project.failCount > 0 || timeoutCount > 0 ? "✗" : "✓";
+	const countParts = [`${project.passCount}/${total} passed`];
+	if (project.failCount > 0) countParts.push(`${project.failCount} failed`);
+	if (timeoutCount > 0) countParts.push(`${timeoutCount} timed out`);
+	const counts = project.failCount > 0 || timeoutCount > 0 ? countParts.join(", ") : `${project.passCount} passed`;
 	const tagSuffix = formatTagCountSuffix(project.tagCounts);
 	const paddedName = project.name.padEnd(nameWidth);
 	const duration = formatDisplayDuration(project.durationMs);
@@ -194,16 +195,19 @@ export const formatWorkspaceTotal = (projects: ReadonlyArray<ProjectSummary>): s
 	let pass = 0;
 	let fail = 0;
 	let skip = 0;
+	let timeout = 0;
 	let durationMs = 0;
 	for (const p of projects) {
 		pass += p.passCount;
 		fail += p.failCount;
 		skip += p.skipCount;
+		timeout += p.timeoutCount ?? 0;
 		durationMs += p.durationMs;
 	}
-	const total = pass + fail + skip;
+	const total = pass + fail + skip + timeout;
 	const parts = [`${pass}/${total} passed`];
 	if (fail > 0) parts.push(`${fail} failed`);
+	if (timeout > 0) parts.push(`${timeout} timed out`);
 	if (skip > 0) parts.push(`${skip} skipped`);
 	return `Total: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
 };

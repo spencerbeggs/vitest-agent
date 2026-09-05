@@ -1633,6 +1633,33 @@ describe("MCP Router", () => {
 			expect(r.accepted).toBe(true);
 		});
 
+		it("denies red→refactor with refactor_without_passing_run without ever looking up an artifact (issue #361)", async () => {
+			// Given: a task in red with ZERO artifacts recorded anywhere. If the tool
+			// attempted artifact auto-resolution before validating transition legality,
+			// the empty lookup would surface as `missing_artifact_evidence` instead —
+			// proving the wrong check ran first. requestedPhase 'refactor' from 'red'
+			// must be denied for being an illegal transition, not for lacking evidence.
+			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-361-refactor", "g");
+			const caller = createTestCaller();
+
+			const entered = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				requestedPhase: "red",
+			})) as { accepted: boolean };
+			expect(entered.accepted).toBe(true);
+
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				requestedPhase: "refactor",
+			})) as { accepted: boolean; denialReason?: string };
+			expect(r.accepted).toBe(false);
+			if (r.accepted === false) {
+				expect(r.denialReason).toBe("refactor_without_passing_run");
+			}
+		});
+
 		it("rejects with goal_not_found when goalId does not exist", async () => {
 			const { tddId } = await seedTddSessionForTransition("cc-tdd-trans-goalmissing", "g");
 			const caller = createTestCaller();

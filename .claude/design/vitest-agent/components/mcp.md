@@ -467,6 +467,19 @@ pre-checks performed before the validator runs:
    synthetic artifact built for the auto-resolve fallback carries
    `phase_id: -1` and never reaches that check.
 
+The validator's own source-phase guards run ahead of artifact
+resolution, so the MCP tool never resolves evidence for a transition
+that is structurally illegal: `green` is only reachable from `red` /
+`red.triangulate` / `green.fake-it` (`wrong_source_phase`), and
+`refactor` is only reachable from `green` / `green.fake-it`
+(issue #361). A `red→refactor`, `red.triangulate→refactor`, or
+`spike→refactor` request is denied with `refactor_without_passing_run` and a remediation
+of `{ suggestedTool: "tdd_phase_transition_request", suggestedArgs:
+{ requestedPhase: "green" } }` regardless of any cited or auto-resolved
+`test_passed_run`. The tool needed no change for #361 — the denial
+reason and remediation shape were already the ones it surfaces;
+`packages/mcp/__test__/router.test.ts` pins the end-to-end denial.
+
 On accept with a `behaviorId`, the server **auto-promotes** the behavior
 `pending → in_progress` in the same SQL transaction as `writeTddPhase` so
 the phase ledger and behavior status never desync. The orchestrator is

@@ -2085,6 +2085,21 @@ remediation pointing at the missing `→ red` step. Skipping the named
 red phase entirely would leave the `tdd_phases` table without a
 `phase="red"` row, breaking the phase-evidence integrity metric.
 
+**Source-phase guard for `refactor` (issue #361):** symmetrically,
+`refactor` may only be entered from `green` or `green.fake-it`. A
+`red → refactor`, `red.triangulate → refactor`, or `spike → refactor`
+request is denied **before** artifact resolution runs, reusing the
+existing `refactor_without_passing_run` denial reason (no new
+`DenialReason` literal) with a remediation pointing at
+`requestedPhase: "green"`. Without this guard the request reached the
+artifact-kind check, and auto-resolution could cite a stale
+`test_passed_run` left over from an earlier behavior's cycle — the
+transition passed with zero evidence that *this* behavior's
+implementation passes, and the `tdd_phases` table never gained a
+`phase="green"` row. The guard lives in the SDK validator only; the
+MCP tool needed no change because the denial shape is the one it
+already surfaces.
+
 **Triangulation-aware `red.triangulate → green` (issue #115):**
 `requiredArtifactForTransition` now returns `test_failed_run` for
 `red.triangulate → green` — previously it returned `null` (it only
@@ -2118,7 +2133,10 @@ All remaining transitions are evidence-free and accepted
 unconditionally — including `spike → red` (the entry point for every
 TDD cycle), `red.triangulate → red`, and `green.fake-it → refactor`.
 (`refactor → red` is evidence-bearing per the artifact-kind
-precondition above, not evidence-free.)
+precondition above, not evidence-free.) The two source-phase guards
+above are the exceptions that fire regardless of evidence: `green`
+only from `red` / `red.triangulate` / `green.fake-it`, and `refactor`
+only from `green` / `green.fake-it`.
 
 **Why a pure function (vs Effect service):** the function takes a
 context object and returns a result. No I/O, no async. Effect service

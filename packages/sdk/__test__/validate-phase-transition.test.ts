@@ -589,6 +589,117 @@ describe("validatePhaseTransition", () => {
 		}
 	});
 
+	it("denies red→refactor (skipping green) even with a valid test_passed_run cited artifact (issue #361)", () => {
+		// Given: the orchestrator is in red and requests refactor directly, citing a
+		// test_passed_run artifact left over from a PRIOR behavior's green→refactor cycle.
+		// Without this guard, requiredArtifactForTransition(red, refactor) returns null
+		// (no case matches), so the transition falls through to unconditional acceptance —
+		// no green phase row is ever written, and the anti-pattern the tdd skill names goes
+		// unenforced. This must be DENIED regardless of the cited artifact.
+		const result = validatePhaseTransition(
+			baseCtx({
+				current_phase: "red",
+				requested_phase: "refactor",
+				cited_artifact: {
+					id: 100,
+					phase_id: 900,
+					artifact_kind: "test_passed_run",
+					test_case_id: 50,
+					test_case_created_turn_at: "2026-04-29T00:00:30Z",
+					test_case_authored_in_session: true,
+					test_run_id: 200,
+					test_first_failure_run_id: null,
+					behavior_id: null,
+				},
+			}),
+		);
+		expect(result.accepted).toBe(false);
+		if (!result.accepted) {
+			expect(result.denialReason).toBe("refactor_without_passing_run");
+			expect(result.phase).toBe("red");
+			// red can enter green directly, so the one-step remediation is green.
+			expect(result.remediation.suggestedArgs).toEqual({ requestedPhase: "green" });
+			expect(result.remediation.humanHint).toContain("red→green");
+		}
+	});
+
+	it("denies red.triangulate→refactor (skipping green) even with a valid test_passed_run cited artifact (issue #361)", () => {
+		const result = validatePhaseTransition(
+			baseCtx({
+				current_phase: "red.triangulate",
+				requested_phase: "refactor",
+				cited_artifact: {
+					id: 100,
+					phase_id: 900,
+					artifact_kind: "test_passed_run",
+					test_case_id: 50,
+					test_case_created_turn_at: "2026-04-29T00:00:30Z",
+					test_case_authored_in_session: true,
+					test_run_id: 200,
+					test_first_failure_run_id: null,
+					behavior_id: null,
+				},
+			}),
+		);
+		expect(result.accepted).toBe(false);
+		if (!result.accepted) {
+			expect(result.denialReason).toBe("refactor_without_passing_run");
+		}
+	});
+
+	it("denies spike→refactor (skipping green) even with a valid test_passed_run cited artifact (issue #361)", () => {
+		const result = validatePhaseTransition(
+			baseCtx({
+				current_phase: "spike",
+				requested_phase: "refactor",
+				cited_artifact: {
+					id: 100,
+					phase_id: 900,
+					artifact_kind: "test_passed_run",
+					test_case_id: 50,
+					test_case_created_turn_at: "2026-04-29T00:00:30Z",
+					test_case_authored_in_session: true,
+					test_run_id: 200,
+					test_first_failure_run_id: null,
+					behavior_id: null,
+				},
+			}),
+		);
+		expect(result.accepted).toBe(false);
+		if (!result.accepted) {
+			expect(result.denialReason).toBe("refactor_without_passing_run");
+			// spike cannot enter green directly (the green guard denies it), so
+			// the remediation must point at red and spell out the full path.
+			expect(result.remediation.suggestedArgs).toEqual({ requestedPhase: "red" });
+			expect(result.remediation.humanHint).toContain("spike→red");
+			expect(result.remediation.humanHint).not.toContain("spike→green");
+		}
+	});
+
+	it("still accepts green→refactor with a valid test_passed_run artifact (positive control, issue #361)", () => {
+		const result = validatePhaseTransition(
+			baseCtx({
+				current_phase: "green",
+				requested_phase: "refactor",
+				cited_artifact: {
+					id: 100,
+					phase_id: 900,
+					artifact_kind: "test_passed_run",
+					test_case_id: 50,
+					test_case_created_turn_at: "2026-04-29T00:00:30Z",
+					test_case_authored_in_session: true,
+					test_run_id: 200,
+					test_first_failure_run_id: null,
+					behavior_id: null,
+				},
+			}),
+		);
+		expect(result.accepted).toBe(true);
+		if (result.accepted) {
+			expect(result.phase).toBe("refactor");
+		}
+	});
+
 	it("should return the denied phase (current_phase) not the requested phase when denying wrong_artifact_kind", () => {
 		// Given: a red→green request with an artifact of the wrong kind.
 		// When the transition is denied, the returned phase should be the current

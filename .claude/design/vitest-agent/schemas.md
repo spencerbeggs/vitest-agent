@@ -199,6 +199,29 @@ declared target (`stdout` / `github-summary` / `file`), so the reporter never
 opens write streams. A no-op reporter is one line:
 `() => ({ render: () => [] })`.
 
+### Dispatcher contract
+
+`packages/sdk/src/contracts/dispatcher.ts` is the plain-TypeScript (no
+Effect Schema, no persistence) contract between the reporter and the
+`@vitest-agent/ui` dispatcher matrix. `DispatchInputs` carries the
+reduced `RenderState`, the classified `shape` and `outcome`, the optional
+trend summary and below-target file list, the resolved `runCommand`, and
+`projects: ProjectSummary[]` — the per-project aggregates the `workspace`
+cells render as a projects table.
+
+`ProjectSummary` is `{ name, passCount, failCount, skipCount, durationMs }`
+plus optional `timeoutCount`, `tagCounts`, `belowTarget` and `violations`.
+`timeoutCount` (issue #242) follows the same absent-means-zero convention
+as the other optionals: producers include it only when nonzero, and
+consumers read `project.timeoutCount ?? 0`. A timed-out test is counted
+**once** — in `timeoutCount`, not in `failCount` — mirroring the
+`RunEvent` reducer's split (see the `RenderState` totals above), so
+`passCount + failCount + skipCount + timeoutCount` is the project's
+collected total. `@vitest-agent/reporter`'s `summarizeProject` and
+`@vitest-agent/ui`'s `buildProjectSummary` are the two producers; see
+[./components/reporter.md](./components/reporter.md) and
+[./components/ui.md](./components/ui.md).
+
 ## Reports and coverage
 
 Effect Schema definitions in `packages/sdk/src/schemas/`:
@@ -452,6 +475,17 @@ It does not apply to `test_passed_run` or other kinds, so `green→refactor`
 transitions citing a `test_passed_run` artifact are not incorrectly denied
 with `evidence_not_in_phase_window`. The `test_case_authored_in_session`
 guard is independent of this check and always applies. See
+[./decisions.md](./decisions.md) D11.
+
+**Source-phase guards:** two checks run before any artifact is examined
+and are independent of the cited evidence. `green` may only be entered
+from `red`, `red.triangulate`, or `green.fake-it` (denial
+`wrong_source_phase`); `refactor` may only be entered from `green` or
+`green.fake-it` (issue #361). A `red→refactor`, `red.triangulate→refactor`,
+or `spike→refactor` request is denied with the existing
+`refactor_without_passing_run` reason and a remediation whose
+`suggestedArgs` is `{ requestedPhase: "green" }` — even when a valid
+`test_passed_run` from another behavior exists in the task. See
 [./decisions.md](./decisions.md) D11.
 
 ## Channel events
