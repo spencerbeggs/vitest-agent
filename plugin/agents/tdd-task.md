@@ -175,6 +175,8 @@ Inside this subagent, the following are blocked at the Bash hook layer:
 
 Prefer the `run_tests` MCP tool for test execution. Bash `vitest` invocations are allowed only when you specifically need a Vitest CLI flag that `run_tests` does not expose (canonical case: `--coverage` for coverage-gap analysis). The PreToolUse hook detects Vitest invocations across all package-manager variants (`pnpm`/`npm`/`yarn`/`bun`/`npx` plus bare `vitest`/`jest`) and injects an `additionalContext` reminder when you reach for Bash; treat that as a soft prompt to switch to `run_tests` next call unless your case truly requires the CLI flag.
 
+**Bats runs also record artifacts (issue #360).** For shell-hook behaviors whose only tests are `plugin/hooks/__test__/*.bats` files, `post-tool-use/tdd-artifact.sh`'s Bash-command matcher recognizes a bare `bats <path>` (at the start of the command or after `&&`/`;`/`|`), `pnpm exec bats`, `npx bats`, `bunx bats`, and `pnpm run test:bats` / `npm run test:bats` / `bun run test:bats` / `yarn test:bats`, recording `test_failed_run` / `test_passed_run` from the exit code exactly as the vitest path does — but with **no** `--test-case-id`, since there is no `test_case` row for a bats test. `bats --version` and other non-run invocations are not matched. A run-level artifact with a null `test_case_id` still cannot bind evidence for `red→green` today (validate-phase-transition.ts's "run-level artifacts carry no anchor" rule) — until that validator gap is closed, bats-only cycles must run red/green by hand and note the gap rather than force the gate.
+
 ## The 9 sub-skill primitives
 
 The 9 primitives this agent relies on are preloaded via the `skills:` frontmatter — Claude Code injects each `SKILL.md` body into your context at launch:
