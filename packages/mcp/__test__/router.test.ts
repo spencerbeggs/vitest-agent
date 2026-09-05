@@ -1633,6 +1633,36 @@ describe("MCP Router", () => {
 			expect(r.accepted).toBe(true);
 		});
 
+		it("accepts red→green for a bats-recorded run-level test_failed_run artifact, auto-resolved (issue #363)", async () => {
+			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-bats-363", "g-bats");
+
+			await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const phase = yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "red",
+						startedAt: new Date().toISOString(),
+					});
+					yield* store.writeTddArtifact({
+						phaseId: phase.id,
+						artifactKind: "test_failed_run",
+						suite: "bats",
+						recordedAt: new Date().toISOString(),
+					});
+				}),
+			);
+
+			const caller = createTestCaller();
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				requestedPhase: "green",
+			})) as { accepted: boolean; citedArtifactSource?: string };
+			expect(r.accepted).toBe(true);
+			expect(r.citedArtifactSource).toBe("transition-derived");
+		});
+
 		it("denies red→refactor with refactor_without_passing_run without ever looking up an artifact (issue #361)", async () => {
 			// Given: a task in red with ZERO artifacts recorded anywhere. If the tool
 			// attempted artifact auto-resolution before validating transition legality,

@@ -341,6 +341,7 @@ export const tddPhaseTransitionRequest = publicProcedure
 						test_run_id: null,
 						test_first_failure_run_id: null,
 						behavior_id: null,
+						suite: "vitest" as const,
 					};
 				}
 
