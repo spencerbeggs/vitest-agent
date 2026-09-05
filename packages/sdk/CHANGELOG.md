@@ -1,5 +1,58 @@
 # @vitest-agent/sdk
 
+## 2.5.0
+
+### Features
+
+- `DataStore.writeThresholds` / `DataStore.writeTargets` persist the resolved, enforced `coverage.thresholds` and the aspirational `coverageTargets` for a run as distinct facets alongside the ratcheted `coverage_baselines` rows (#237).
+- `CoverageReport` gains `targets` and `baselines` fields (alongside the existing enforced `thresholds`) and a `totalFiles` field for rendering "N of M test files" notes.
+- New `formatScopedCoverageNote(testedFileCount, totalFileCount?)` helper renders the "Coverage thresholds skipped: partial run (N of M test files)" note; the `CoverageReady` `RunEvent` variant and `RenderState.coverage` now carry `scoped` / `scopedFiles` / `totalFiles` (#160).
+
+* `DataReader.listTddTasksForSession` gained a `walkConversation` option: when true and the session's `conversationId` is non-null, it also returns TDD tasks opened under other sessions sharing that `conversationId` — the fallback for a named-teammate or otherwise detached session whose hooks can't reach the task through the parent-session walk alone (#144).
+* New `DataStore.setSessionConversationIdIfNull` backfills `sessions.conversationId` on a row that was inserted before the canonical conversation id was known; it no-ops when the row already carries a value (#144).
+* New `DataReader.countRecentArtifactsInOtherSessionsOfConversation` counts artifacts recently recorded under other sessions of the same conversation — powers a new diagnostic hint in `@vitest-agent/mcp`'s `tdd_phase_transition_request` (#144).
+* `SessionInput` and `SessionDetail` gained a `conversationId` field (#144).
+
+- `ProjectSummary` gains an optional `timeoutCount` field so a project's timed-out tests can be reported separately from its plain failures (#242). [#364][#364]
+
+* The `trg_sessions_conv_id_immutable` trigger in the canonical `0001_initial` migration now permits one null→value transition on `sessions.conversation_id`, instead of rejecting every UPDATE unconditionally. This is a pre-2.0 schema change with no migration path — reset an existing local `data.db` with `vitest-agent db reset` (#144). [#359][#359]
+
+- `validatePhaseTransition`'s D2 evidence-binding check now accepts a run-level artifact with `suite: "bats"` (`test_case_id` is null, since there is no `test_case` row for a bats test) under the artifact's own phase-window check, instead of denying every run-level artifact outright. A run-level `vitest`-suite artifact is still denied — only bats-suite run-level artifacts can bind evidence without a specific test (#363). [#366][#366]
+
+* `validatePhaseTransition` now denies `red→refactor`, `red.triangulate→refactor`, and `spike→refactor` with `refactor_without_passing_run` instead of letting the transition through with no evidence the behavior's implementation ever passed. `refactor` may only be entered from `green` or `green.fake-it` (#361). [#364][#364]
+
+- `validatePhaseTransition`'s D2 evidence-binding check now keys the phase window off the cited artifact's own `phase_id` instead of the test case's first creation turn. A test first authored during `spike` and re-run inside `red` is no longer denied with `evidence_not_in_phase_window` on `red`→`green` (#245).
+- `buildConsoleLeaks` now counts only console output from non-failing tests toward `total`/`byFile`. Output logged inside a failing test is excluded from the leak signal and summarized separately in the new optional `fromFailingTests` field on `ConsoleLeaks`, so a red run no longer looks like a leaking green run (#263). [#356][#356]
+
+* New `detectNonDefaultDiscoverStrategy(source)` utility lexically detects whether a Vitest/Vite config's source text configures a non-default `DiscoverStrategy` — a custom `discoverStrategy` option, an `AgentPlugin.discover().addProject(...)` chain, or a class extending `DefaultDiscoverStrategy` / implementing `DiscoverStrategy` (#230). [#359][#359]
+
+- `tdd_artifacts` rows gained an explicit `suite` marker (`"vitest"` \| `"bats"`, default `"vitest"`) in the canonical `0001_initial` migration, and `WriteTddArtifactInput` / `CitedArtifact` / `TddArtifactRow` gained a matching `suite` field. This is a pre-2.0 schema change with no migration path — reset an existing local `data.db` with `vitest-agent db reset` (#363).
+
+### Bug Fixes
+
+- The `trg_sessions_conv_id_immutable` trigger in the canonical `0001_initial` migration now permits one null→value transition on `sessions.conversation_id`, instead of rejecting every UPDATE unconditionally. This is a pre-2.0 schema change with no migration path — reset an existing local `data.db` with `vitest-agent db reset` (#144). [#359][#359]
+
+### Bug Fixes
+
+- `validatePhaseTransition` now denies `red→refactor`, `red.triangulate→refactor`, and `spike→refactor` with `refactor_without_passing_run` instead of letting the transition through with no evidence the behavior's implementation ever passed. `refactor` may only be entered from `green` or `green.fake-it` (#361). [#364][#364]
+
+### Bug Fixes
+
+- `validatePhaseTransition`'s D2 evidence-binding check now keys the phase window off the cited artifact's own `phase_id` instead of the test case's first creation turn. A test first authored during `spike` and re-run inside `red` is no longer denied with `evidence_not_in_phase_window` on `red`→`green` (#245).
+- `buildConsoleLeaks` now counts only console output from non-failing tests toward `total`/`byFile`. Output logged inside a failing test is excluded from the leak signal and summarized separately in the new optional `fromFailingTests` field on `ConsoleLeaks`, so a red run no longer looks like a leaking green run (#263). [#356][#356]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#356]: https://github.com/spencerbeggs/vitest-agent/pull/356
+
+[#359]: https://github.com/spencerbeggs/vitest-agent/pull/359
+
+[#364]: https://github.com/spencerbeggs/vitest-agent/pull/364
+
+[#366]: https://github.com/spencerbeggs/vitest-agent/pull/366
+
 ## 2.4.13
 
 ### Refactoring

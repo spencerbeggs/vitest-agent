@@ -1,5 +1,37 @@
 # @vitest-agent/ui
 
+## 2.3.0
+
+### Features
+
+- New `buildProjectSummary(name, counts)` helper builds a `ProjectSummary` from a project's rolled-up counts, including `timeoutCount` only when nonzero (#242).
+
+### Bug Fixes
+
+- `formatProjectRow` and `formatWorkspaceTotal` now render "N timed out" per project and in the workspace total, and mark a project carrying timeouts with the ✗ glyph, so a run with timed-out tests no longer reads as a plain pass or an ordinary failure (#242). [#364][#364]
+
+* `dispatch` and `dispatchInk` now append a "Coverage thresholds skipped: partial run (N of M test files)" note on a scoped run, and `synthesizeFromAgentReport` no longer recomputes threshold violations for a scoped run — thresholds compared against a subset of files were never meaningful (#160).
+* `formatBelowTargetTable` no longer truncates file paths; the file column now sizes itself to the longest printed path instead of clipping long paths to a fixed width (#237). [#358][#358]
+
+- A run with unhandled errors is now classified as `some-fail` instead of being reported as passing.
+- `renderAgent` and the Ink `StreamApp` now render an "Unhandled errors" section in every run shape, so a process-level unhandled error is no longer invisible in the default reporter output (#240). [#356][#356]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.4.13 | 2.5.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#356]: https://github.com/spencerbeggs/vitest-agent/pull/356
+
+[#358]: https://github.com/spencerbeggs/vitest-agent/pull/358
+
+[#364]: https://github.com/spencerbeggs/vitest-agent/pull/364
+
 ## 2.2.13
 
 ### Dependencies

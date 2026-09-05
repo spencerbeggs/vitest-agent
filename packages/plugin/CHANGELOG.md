@@ -1,5 +1,53 @@
 # @vitest-agent/plugin
 
+## 2.5.5
+
+### Bug Fixes
+
+- The Claude Code plugin's `tdd-artifact.sh` PostToolUse hook now distinguishes a bats invocation from a vitest/jest one and passes `--suite bats` to `agent record tdd-artifact` on a bats match, so a bats-only behavior can now pass `red→green` and `green→refactor` through the phase-transition gate (#363). [#366][#366]
+
+* The live `RunFinished` event now populates `unhandledErrors`, so a process-level unhandled error captured during a run is no longer dropped before it reaches the reporter (#240). [#356][#356]
+
+- The Claude Code plugin's `test-location.sh` PreToolUse hook gained a `VITEST_AGENT_TEST_LOCATION_HOOK=off` opt-out, checked before anything else, so a project hitting a false-positive deny (a custom `DiscoverStrategy` the CLI's lexical detector doesn't understand) can disable the check entirely without editing `hooks.json` (#230).
+- The hook's deny and additional-context messages now say "Under the default discovery layout" and name the opt-out, instead of stating the discoverable-test-layout rule as an unconditional fact (#230). [#359][#359]
+
+* For the `agent` executor with coverage enabled, `configureVitest` now rewrites `coverage.reportsDirectory` to a per-process temp directory (removed on close), so two concurrent plain-CLI `vitest run` invocations in one checkout no longer clobber each other's `coverage/.tmp` files. `VITEST_AGENT_COVERAGE_DIR_ISOLATION=off` opts out and `VITEST_AGENT_COVERAGE_DIR=<path>` pins an explicit directory instead; human and CI executors are untouched (#194). [#366][#366]
+
+- The Claude Code plugin's `tdd-artifact.sh` PostToolUse hook now forwards `VITEST_AGENT_TDD_TASK_ID` (when set in the subagent's environment) to `agent record tdd-artifact` as `--tdd-task-id`, so a TDD subagent whose hooks attribute to a detached session no longer gets every phase transition denied for missing evidence (#144). [#359][#359]
+
+* The reporter now persists the resolved `coverage.thresholds` and `coverageTargets` on every run that configures them, so `test_coverage` can render the enforced threshold and the aspirational target as distinct facets instead of reporting the target as if it were the enforced threshold (#237).
+* A scoped or partial run (`files` / `project` / `tags` filter, or fewer test files started than exist in the project) is now detected and routed through a separate coverage-processing path that suppresses `ThresholdViolation` events and neutralizes Vitest's native `coverage.thresholds` check for that run, instead of letting Vitest fail thresholds against the whole-project denominator on a subset of files. `test_runs.scoped` is persisted for every run (#160). [#358][#358]
+
+- The Claude Code plugin's `tdd-artifact.sh` PostToolUse hook now recognizes `bats` invocations and records run-level `test_failed_run` / `test_passed_run` artifacts from the exit code, so a bats-driven test run is no longer invisible to TDD phase-transition evidence (#360). [#364][#364]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.18.3 | ^0.19.0 |
+| @vitest-agent/cli | dependency | updated | 2.2.13 | 2.2.14 |
+| @vitest-agent/mcp | dependency | updated | 2.4.12 | 2.4.13 |
+| @vitest-agent/reporter | dependency | updated | 2.2.2 | 2.2.3 |
+| @vitest-agent/sdk | dependency | updated | 2.4.13 | 2.5.0 |
+
+[#367][#367]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#356]: https://github.com/spencerbeggs/vitest-agent/pull/356
+
+[#358]: https://github.com/spencerbeggs/vitest-agent/pull/358
+
+[#359]: https://github.com/spencerbeggs/vitest-agent/pull/359
+
+[#364]: https://github.com/spencerbeggs/vitest-agent/pull/364
+
+[#366]: https://github.com/spencerbeggs/vitest-agent/pull/366
+
+[#367]: https://github.com/spencerbeggs/vitest-agent/pull/367
+
 ## 2.5.4
 
 ### Dependencies
@@ -998,7 +1046,7 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 ### Features
 
-- [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) ### VITEST\_AGENT\_CONSOLE Env Var
+- [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) ### VITEST_AGENT_CONSOLE Env Var
 
 Set `VITEST_AGENT_CONSOLE` to override the console mode that `AgentPlugin` resolves from the `console` option matrix for a single Vitest invocation. Accepted values mirror the per-executor slots:
 
@@ -1044,7 +1092,7 @@ An invalid value for the detected executor is silently ignored and a diagnostic 
 
 ### Features
 
-- [`e509228`](https://github.com/spencerbeggs/vitest-agent/commit/e5092289c0f64446dddc8ad0abc25856d8d08e97) Initial stable release of the Vitest plugin for LLM coding agents. `AgentPlugin` targets Vitest \>= 4.1.0 with four-environment detection, reporter-chain management, Full and UI-only operating modes gated by Vitest's native `coverage.enabled`, a `ConfigValidation` service for coverage-config diagnostics, pluggable rendering via `VitestAgentReporterFactory`, typed `coverageTargets` with `COVERAGE_LEVELS` presets, and per-project trend tracking.
+- [`e509228`](https://github.com/spencerbeggs/vitest-agent/commit/e5092289c0f64446dddc8ad0abc25856d8d08e97) Initial stable release of the Vitest plugin for LLM coding agents. `AgentPlugin` targets Vitest >= 4.1.0 with four-environment detection, reporter-chain management, Full and UI-only operating modes gated by Vitest's native `coverage.enabled`, a `ConfigValidation` service for coverage-config diagnostics, pluggable rendering via `VitestAgentReporterFactory`, typed `coverageTargets` with `COVERAGE_LEVELS` presets, and per-project trend tracking.
 
 Add it to your `vitest.config.ts`:
 

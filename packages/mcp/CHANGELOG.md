@@ -1,5 +1,42 @@
 # @vitest-agent/mcp
 
+## 2.4.13
+
+### Bug Fixes
+
+- `test_coverage` now renders the enforced `coverage.thresholds` and the aspirational `coverageTargets` as separate columns/sections, and splits files below the enforced threshold (build-blocking) from files below the aspirational target (informational) instead of reporting the target as the enforced threshold (#237).
+- `run_tests` no longer fails coverage thresholds on a single-file or otherwise scoped call. The result gains a `scopedNote` field (also folded into the markdown summary) explaining that thresholds were skipped because the run only covered a subset of the project's test files (#160). [#358][#358]
+
+* `run_tests` now models its run timeout as a typed Effect error instead of racing a `Promise` against a `setTimeout` that rejected with the string sentinel `"VITEST_TIMEOUT"`. An ordinary error whose message happened to be exactly `"VITEST_TIMEOUT"` was previously misreported as a timeout; it now correctly surfaces through the `{ kind: "error" }` envelope, while a real timeout still reports `{ kind: "timeout" }` (#320). [#366][#366]
+
+- The served MCP schema for the `test` tool now accepts the `for_tag` action, and for the `inventory` tool now accepts the `tag` kind — both were already handled by the tRPC router but were rejected at the transport boundary before ever reaching it (#335).
+- Each consolidated tool's served enum (the `test` tool's `action`, the `inventory` tool's `kind`, and their siblings) is now built from a discriminant tuple exported by the tool's own module, with a compile-time and runtime drift guard, so the MCP-SDK-side registration can no longer silently diverge from the tRPC input union (#335). [#359][#359]
+
+* The served schema for `tdd_artifact_list` now carries a `suite` field on each returned artifact row, matching the `@vitest-agent/sdk` `TddArtifactRow` shape (#363). [#366][#366]
+
+- `tdd_phase_transition_request` threads `current_phase_id` through to the D2 evidence-binding check, so a test first authored in an earlier phase and re-run inside the current phase is no longer wrongly denied (#245).
+- `run_tests` summary now warns only on the actionable console-leak total and prints a separate informational note for console output captured from failing tests, instead of flagging every red run as a leak (#263). [#356][#356]
+
+* `tdd_phase_transition_request`'s `missing_artifact_evidence` denial now diagnoses the detached-session case: when other sessions of the same conversation recorded artifacts recently, the hint names the count and the `VITEST_AGENT_TDD_TASK_ID` escape hatch instead of just reporting "no artifact found" (#144). [#359][#359]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.4.13 | 2.5.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#356]: https://github.com/spencerbeggs/vitest-agent/pull/356
+
+[#358]: https://github.com/spencerbeggs/vitest-agent/pull/358
+
+[#359]: https://github.com/spencerbeggs/vitest-agent/pull/359
+
+[#366]: https://github.com/spencerbeggs/vitest-agent/pull/366
+
 ## 2.4.12
 
 ### Dependencies
@@ -78,7 +115,7 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 - The served `run_tests` tool description and its `projectRoot` parameter description are updated to match -- they previously said the server's Vitest root was "frozen at boot"; they now describe the config-anchored default and confirm a supplied `projectRoot` is used verbatim. [#305][#305]
 
-* Fixed `run_tests` resolving `vitest/node` from `@vitest-agent/mcp`'s own install location instead of the project under test's root. Because `vitest` is a peerDependency, pnpm can materialize more than one physical instance of the same vitest version, and driving the wrong copy corrupted the module-level `SnapshotClient` singleton -- every `toMatchSnapshot()` assertion failed with "The snapshot state for '\<file\>' is not found" while every non-snapshot assertion passed. `vitest/node` is now resolved anchored at the run's validated project root via `createRequire`, falling back to the bare `"vitest/node"` specifier when no local vitest is resolvable from that root. [#305][#305]
+* Fixed `run_tests` resolving `vitest/node` from `@vitest-agent/mcp`'s own install location instead of the project under test's root. Because `vitest` is a peerDependency, pnpm can materialize more than one physical instance of the same vitest version, and driving the wrong copy corrupted the module-level `SnapshotClient` singleton -- every `toMatchSnapshot()` assertion failed with "The snapshot state for '\<file>' is not found" while every non-snapshot assertion passed. `vitest/node` is now resolved anchored at the run's validated project root via `createRequire`, falling back to the bare `"vitest/node"` specifier when no local vitest is resolvable from that root. [#305][#305]
 
 ### Thanks
 
@@ -605,7 +642,7 @@ All 29 tRPC-backed tools and the six framing prompts are unaffected. Agents that
 
 ### Features
 
-- [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) ### Console Leak Signal in run\_tests
+- [`4b4f91e`](https://github.com/spencerbeggs/vitest-agent/commit/4b4f91ec09e713cec7ffbc3464c70cfac4637e94) ### Console Leak Signal in run_tests
 
 The `run_tests` tool now collects stray console output during the test run and folds it into the `AgentReport` as an optional `consoleLeaks` field. The structured signal includes:
 
@@ -648,7 +685,7 @@ No configuration is required. The signal is omitted entirely on runs with no str
 
 ### Documentation
 
-- [`b51e7f6`](https://github.com/spencerbeggs/vitest-agent/commit/b51e7f6a5177915a0818c6d95c71a888443d6594) Adds four agent-facing patterns to the `vitest-agent://patterns/` corpus: an operating-as-an-agent orientation index, a run\_tests operability reference, a silencing-leaking-output cookbook, and a known-issues-and-caveats troubleshooting page. Closes the dogfooding documentation gaps reported in #101, #102, and #103.
+- [`b51e7f6`](https://github.com/spencerbeggs/vitest-agent/commit/b51e7f6a5177915a0818c6d95c71a888443d6594) Adds four agent-facing patterns to the `vitest-agent://patterns/` corpus: an operating-as-an-agent orientation index, a run_tests operability reference, a silencing-leaking-output cookbook, and a known-issues-and-caveats troubleshooting page. Closes the dogfooding documentation gaps reported in #101, #102, and #103.
 
 ## 1.0.0
 

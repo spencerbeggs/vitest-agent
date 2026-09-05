@@ -1,5 +1,36 @@
 # @vitest-agent/cli
 
+## 2.2.14
+
+### Bug Fixes
+
+- `agent check-test-path` now fails open — exits 1 with no verdict — when the workspace's Vitest or Vite config appears to configure a non-default `DiscoverStrategy`, or when the config file can't be found or read at all, instead of confidently rendering a verdict against a discovery layout it doesn't actually understand (#230). [#359][#359]
+
+* `agent record tdd-artifact` gained a `--suite vitest|bats` flag (default `vitest`) so a caller can mark an artifact as coming from a bats run instead of a vitest run — required for `validatePhaseTransition` to accept a bats run-level artifact as evidence (#363). [#366][#366]
+
+- `agent register-agent` now populates `sessions.conversationId`, a column that was never actually set in production, so the cross-session TDD-task lookups it powers were silently going nowhere (#144).
+- `agent record tdd-artifact` gained a `--tdd-task-id` escape hatch that bypasses `chat_id` → session → task resolution entirely, for a detached-session environment where neither the parent-session walk nor the conversation-id fallback resolves the right task (#144). [#359][#359]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.18.3 | ^0.19.0 |
+| @vitest-agent/sdk | dependency | updated | 2.4.13 | 2.5.0 |
+| @vitest-agent/sidecar | dependency | updated | 2.1.13 | 2.1.14 |
+
+[#367][#367]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#359]: https://github.com/spencerbeggs/vitest-agent/pull/359
+
+[#366]: https://github.com/spencerbeggs/vitest-agent/pull/366
+
+[#367]: https://github.com/spencerbeggs/vitest-agent/pull/367
+
 ## 2.2.13
 
 ### Dependencies

@@ -1,5 +1,24 @@
 # @vitest-agent/reporter
 
+## 2.2.3
+
+### Bug Fixes
+
+- `summarizeProject` now derives `timeoutCount` from per-test timeout errors and subtracts it from `failCount`, so a timed-out test is reported once as a timeout instead of being double-counted as a plain failure (#242). [#364][#364]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.4.13 | 2.5.0 |
+| @vitest-agent/ui | dependency | updated | 2.2.13 | 2.3.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#364]: https://github.com/spencerbeggs/vitest-agent/pull/364
+
 ## 2.2.2
 
 ### Dependencies
