@@ -617,6 +617,9 @@ describe("validatePhaseTransition", () => {
 		if (!result.accepted) {
 			expect(result.denialReason).toBe("refactor_without_passing_run");
 			expect(result.phase).toBe("red");
+			// red can enter green directly, so the one-step remediation is green.
+			expect(result.remediation.suggestedArgs).toEqual({ requestedPhase: "green" });
+			expect(result.remediation.humanHint).toContain("red→green");
 		}
 	});
 
@@ -665,6 +668,11 @@ describe("validatePhaseTransition", () => {
 		expect(result.accepted).toBe(false);
 		if (!result.accepted) {
 			expect(result.denialReason).toBe("refactor_without_passing_run");
+			// spike cannot enter green directly (the green guard denies it), so
+			// the remediation must point at red and spell out the full path.
+			expect(result.remediation.suggestedArgs).toEqual({ requestedPhase: "red" });
+			expect(result.remediation.humanHint).toContain("spike→red");
+			expect(result.remediation.humanHint).not.toContain("spike→green");
 		}
 	});
 

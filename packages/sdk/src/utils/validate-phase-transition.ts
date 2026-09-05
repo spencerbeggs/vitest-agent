@@ -191,14 +191,21 @@ export const validatePhaseTransition = (ctx: PhaseTransitionContext): PhaseTrans
 	// must enter green first via <phase>→green with a test_failed_run artifact, then request
 	// green→refactor with a test_passed_run.
 	if (ctx.requested_phase === "refactor" && ctx.current_phase !== "green" && ctx.current_phase !== "green.fake-it") {
+		// The remediation must be actionable in one step. Only a red-family
+		// source can go straight to green; from spike (or any other source)
+		// the green guard above would deny the suggested hop, so point at
+		// red first and spell out the full path.
+		const canEnterGreen = ctx.current_phase === "red" || ctx.current_phase === "red.triangulate";
 		return {
 			accepted: false,
 			phase: ctx.current_phase,
 			denialReason: "refactor_without_passing_run",
 			remediation: {
 				suggestedTool: "tdd_phase_transition_request",
-				suggestedArgs: { requestedPhase: "green" },
-				humanHint: `Cannot transition from '${ctx.current_phase}' directly to 'refactor'. The green phase must be entered first (${ctx.current_phase}→green with a test_failed_run artifact), then green→refactor requested with a test_passed_run artifact.`,
+				suggestedArgs: { requestedPhase: canEnterGreen ? "green" : "red" },
+				humanHint: canEnterGreen
+					? `Cannot transition from '${ctx.current_phase}' directly to 'refactor'. The green phase must be entered first (${ctx.current_phase}→green with a test_failed_run artifact), then green→refactor requested with a test_passed_run artifact.`
+					: `Cannot transition from '${ctx.current_phase}' directly to 'refactor'. Enter red first (${ctx.current_phase}→red), write and run a failing test, request red→green with a test_failed_run artifact, then green→refactor with a test_passed_run artifact.`,
 			},
 		};
 	}
