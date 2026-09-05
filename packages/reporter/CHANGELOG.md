@@ -1,5 +1,25 @@
 # @vitest-agent/reporter
 
+## 2.2.4
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+| @effect/sql-sqlite-node | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+| @vitest-agent/sdk | dependency | updated | 2.5.0 | 2.5.1 |
+| @vitest-agent/ui | dependency | updated | 2.3.0 | 2.3.1 |
+| effect | dependency | updated | 4.0.0-rc.109 | 4.0.0-rc.112 |
+
+[#377][#377]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#377]: https://github.com/spencerbeggs/vitest-agent/pull/377
+
 ## 2.2.3
 
 ### Bug Fixes
