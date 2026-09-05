@@ -147,6 +147,11 @@ The tool runs three classes of pre-checks before validating evidence:
 
 When the transition is accepted AND a `behaviorId` was supplied AND the behavior is currently `pending`, the tool **auto-promotes the behavior to `in_progress`** in the same call. You do not need to call `tdd_behavior (action: update)` for the start-of-cycle transition; only for the final `done` / `abandoned` transitions.
 
+**Detached-session artifact attribution (issue #144).** Artifacts attach via `phase_id → tdd_phases.tdd_task_id`, and the recording pipeline (`record tdd-artifact`) resolves your open task by walking `sessions.parent_session_id` up from the session your hooks are attributing to. An unnamed background subagent's session carries that parent link back to the dispatching session, so this always works. A **detached session** — a named-teammate dispatch, or any session whose row has no `parent_session_id` — has no parent to walk. Two mitigations apply automatically or on request:
+
+- **Conversation-tree fallback (automatic, no action needed).** When the parent walk finds nothing, the lookup also considers open tasks belonging to sessions sharing the same `conversation_id`. If both this session and the one that opened your task share a conversation, this resolves silently and D2 evidence binding proceeds as normal.
+- **Explicit task-id escape hatch (only if the gate denies with a cross-session hint).** If a `tdd_phase_transition_request` denial's `remediation.humanHint` says artifacts were recorded "under a different session of this conversation", the conversation fallback isn't finding your task — most likely because `sessions.conversation_id` was never populated for one of the two sessions. Set `VITEST_AGENT_TDD_TASK_ID=<tddTaskId>` (your own `tddTaskId`, captured from `tdd_task (action: start)`) in your environment; `plugin/hooks/post-tool-use/tdd-artifact.sh` forwards it as `--tdd-task-id` on every artifact write, bypassing session resolution entirely. Do not set this speculatively — it is a deliberate override for a diagnosed split, not a default to reach for on every run.
+
 If the validator denies the transition, it returns a typed `denialReason` and a `remediation` shape. Read the remediation, do what it says, and retry.
 
 ### Two accepted cross-behavior flows

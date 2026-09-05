@@ -70,6 +70,8 @@ var. See [./plugin-claude.md](./plugin-claude.md) for the loader side.
 
 The split is a testability seam with a hard-won rationale: **every tool input is registered twice** — the tRPC input schema in `tools/<name>.ts` and the MCP-SDK `inputSchema` in `server.ts`, hand-synced. A missed sync is invisible to router-level caller tests: a field the SDK registration never declares or forwards is simply unreachable from a real MCP client even though the tRPC procedure handles it (this is exactly how the `hypothesis` `tddTaskId` binding shipped dead on arrival, and how `run_tests`'s `tags` / `passWithNoTests` inputs stayed unreachable until issue #200). `buildMcpServer` lets tests connect the identical server to an `InMemoryTransport` client and assert the *served* tool schemas and descriptions — see `packages/mcp/__test__/server-hypothesis-schema.test.ts` and the served-schema pattern in [../testing-strategy.md](../testing-strategy.md).
 
+**Discriminants are single-sourced from the tool core (issue #335).** The hand-sync hazard bit a third time, on the discriminant literals themselves: `test`'s served `z.enum` listed `list` / `get` / `for_file` while its tRPC union also carried `for_tag`, and `inventory`'s served `kind` enum omitted `tag`. Both variants — and their per-variant fields (`tag` on `test`, the optional `project` scope on `inventory({ kind: "tag" })`) — were reachable only from router-level tests, never from a real MCP client; under the strict-input rule below the served schema *rejected* them outright. Every consolidated tool core under `packages/mcp/src/tools/` now exports its discriminant tuple next to its `Schema.Union` — `TEST_ACTIONS`, `INVENTORY_KINDS`, `NOTE_ACTIONS`, `HYPOTHESIS_ACTIONS`, `TDD_TASK_ACTIONS`, `TDD_GOAL_ACTIONS`, `TDD_BEHAVIOR_ACTIONS` — followed by a compile-time two-way assignability assertion between the tuple's element type and the union's `action` / `kind` type, so a variant added to the union without extending the tuple (or a literal in the tuple the union does not declare) fails `tsc`. `server.ts` builds every served `z.enum(...)` from those imports and no longer spells out any literal list of its own. The runtime guard is `packages/mcp/__test__/server-enum-drift.test.ts`: it lists the tools over an `InMemoryTransport` client and asserts each served `action` / `kind` enum is exactly the exported tuple, catching drift the type assertion cannot see (a served enum built from a stale copy, say). Per-variant field reachability for the two formerly-dead variants is pinned by `server-test-for-tag-schema.test.ts` and `server-inventory-tag-schema.test.ts`. See [../decisions.md](../decisions.md) Decision 60.
+
 ## Strict tool input schemas
 
 Every `registerTool` `inputSchema` in `server.ts` is built by the local
@@ -475,6 +477,27 @@ The `DenialReason` union covers both pre-check rejections and the
 validator's existing reasons, so denials are uniform from the agent's
 perspective.
 
+**Cross-session diagnostic on `missing_artifact_evidence` (issue #144).**
+When auto-resolve finds no artifact of the required kind for the task,
+the denial's `remediation.humanHint` no longer stops at "no artifact has
+been recorded". Before returning, the tool calls
+`DataReader.countRecentArtifactsInOtherSessionsOfConversation({ tddTaskId,
+sinceIso })` with a 10-minute lookback (`DIAGNOSTIC_WINDOW_MINUTES`). The
+reader counts `tdd_artifacts` rows recorded since `sinceIso` under
+sessions *other than* the one that opened the task but sharing that
+session's non-null `conversation_id`; it returns `0` when the task is
+unknown or its session's `conversation_id` is null, so the diagnostic
+never fabricates a signal it cannot back. A non-zero count appends a
+sentence to the hint — N artifacts were recorded under a different
+session of this conversation in the last 10 minutes; the subagent's
+hooks may be attributing to a detached session — and names the two
+remedies: set `VITEST_AGENT_TDD_TASK_ID=<tddTaskId>` in the subagent's
+environment (the explicit task-id escape hatch on `record tdd-artifact`,
+see [./cli.md](./cli.md)) or re-dispatch as an unnamed background
+subagent. The denial shape is unchanged — `denialReason`, `suggestedTool`
+and `suggestedArgs` are as before — only the human-readable hint grows.
+See [../decisions.md](../decisions.md) D21.
+
 ## Phase-transition auto-resolve
 
 `tdd_phase_transition_request` accepts an optional `citedArtifactId`.
@@ -656,13 +679,18 @@ omitted) carries a `byProject` array inline on every tag row with
 per-project module + test counts. The MCP handler reads the SDK
 reader's flat `(tag, project)` rows from `listTagInventory` and pivots
 them by tag, aggregating module + test counts across projects in
-alphabetical order.
+alphabetical order. The `kind: "tag"` literal is served from the
+`INVENTORY_KINDS` tuple the tool core exports (issue #335 — before
+that the served `z.enum` omitted it and real clients could not reach
+the variant; see *Server bootstrap*).
 
 **`test({ action: "for_tag" })`.** New input variant that mirrors
 `action: "for_file"`. Takes a `tag` plus optional `project`; returns
 `TestRowSchema` rows grouped by project (one group per project carrying
 the tag, or a single group when `project` is supplied). Delegates to
-`DataReader.listTestsForTag`.
+`DataReader.listTestsForTag`. Like `inventory`'s `tag` kind, the
+`for_tag` literal and its `tag` field were tRPC-only until issue #335;
+the served enum now comes from the exported `TEST_ACTIONS` tuple.
 
 ## Caller-declared project root (`run_tests`)
 

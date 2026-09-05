@@ -1869,6 +1869,289 @@ describe("DataReaderLive", () => {
 		});
 	});
 
+	describe("writeSession conversationId round-trip (issue #144)", () => {
+		it("persists an optional conversationId at INSERT time so getSessionById round-trips it", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-conv-roundtrip",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId: "11111111-1111-1111-1111-111111111111",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					return yield* dr.getSessionById(sessionId);
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			if (Option.isSome(result)) {
+				expect(result.value.conversationId).toBe("11111111-1111-1111-1111-111111111111");
+			}
+		});
+
+		it("leaves conversationId null when omitted", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-conv-omitted",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					return yield* dr.getSessionById(sessionId);
+				}),
+			);
+			expect(Option.isSome(result)).toBe(true);
+			if (Option.isSome(result)) {
+				expect(result.value.conversationId).toBeNull();
+			}
+		});
+	});
+
+	describe("listTddTasksForSession walkConversation (issue #144)", () => {
+		it("resolves a detached session's open task via a main session sharing conversation_id", async () => {
+			const conversationId = "22222222-2222-2222-2222-222222222222";
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+
+					const mainSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-main",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId,
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const openTddTaskId = yield* ds.writeTddTask({
+						sessionId: mainSessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+
+					// A detached session with no parent_session_id but the
+					// same conversation_id — the shape a named-teammate
+					// dispatch produces.
+					const detachedSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-detached",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						conversationId,
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					const viaParentWalk = yield* dr.listTddTasksForSession(detachedSessionId, { walkParents: true });
+					const viaConversationWalk = yield* dr.listTddTasksForSession(detachedSessionId, {
+						walkParents: true,
+						walkConversation: true,
+					});
+					return { openTddTaskId, viaParentWalk, viaConversationWalk };
+				}),
+			);
+			expect(result.viaParentWalk).toHaveLength(0);
+			expect(result.viaConversationWalk.map((t) => t.id)).toContain(result.openTddTaskId);
+		});
+
+		it("does not resolve a task from a session with a different conversation_id", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+
+					const mainSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-other-main",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId: "33333333-3333-3333-3333-333333333333",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.writeTddTask({
+						sessionId: mainSessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+
+					const otherConversationSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-other-detached",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						conversationId: "44444444-4444-4444-4444-444444444444",
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					return yield* dr.listTddTasksForSession(otherConversationSessionId, {
+						walkParents: true,
+						walkConversation: true,
+					});
+				}),
+			);
+			expect(result).toHaveLength(0);
+		});
+
+		it("never falls back when the session's conversation_id is null", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+
+					const mainSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-null-main",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId: "55555555-5555-5555-5555-555555555555",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					yield* ds.writeTddTask({
+						sessionId: mainSessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+
+					const noConversationSessionId = yield* ds.writeSession({
+						chatId: "cc-conv-null-detached",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						startedAt: "2026-04-29T00:00:02Z",
+					});
+
+					return yield* dr.listTddTasksForSession(noConversationSessionId, {
+						walkParents: true,
+						walkConversation: true,
+					});
+				}),
+			);
+			expect(result).toHaveLength(0);
+		});
+	});
+
+	describe("countRecentArtifactsInOtherSessionsOfConversation (issue #144)", () => {
+		it("counts artifacts recorded under other sessions sharing conversation_id since a timestamp", async () => {
+			const conversationId = "77777777-7777-7777-7777-777777777777";
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+
+					const mainSessionId = yield* ds.writeSession({
+						chatId: "cc-diag-main",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						conversationId,
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const tddId = yield* ds.writeTddTask({
+						sessionId: mainSessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+					const phaseId = (yield* ds.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "red",
+						startedAt: "2026-04-29T00:00:02Z",
+					})).id;
+
+					const otherSessionId = yield* ds.writeSession({
+						chatId: "cc-diag-other",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "subagent",
+						conversationId,
+						startedAt: "2026-04-29T00:00:03Z",
+					});
+					const otherTddId = yield* ds.writeTddTask({
+						sessionId: otherSessionId,
+						goal: "obj-other",
+						startedAt: "2026-04-29T00:00:04Z",
+					});
+					const otherPhaseId = (yield* ds.writeTddPhase({
+						tddTaskId: otherTddId,
+						phase: "red",
+						startedAt: "2026-04-29T00:00:05Z",
+					})).id;
+
+					// One artifact before the window, one after — only the
+					// latter should count.
+					yield* ds.writeTddArtifact({
+						phaseId: otherPhaseId,
+						artifactKind: "test_written",
+						recordedAt: "2026-04-29T00:00:06Z",
+					});
+					yield* ds.writeTddArtifact({
+						phaseId: otherPhaseId,
+						artifactKind: "code_written",
+						recordedAt: "2026-04-29T00:10:00Z",
+					});
+					// An artifact under the SAME session as tddId must never count.
+					yield* ds.writeTddArtifact({
+						phaseId,
+						artifactKind: "test_written",
+						recordedAt: "2026-04-29T00:10:00Z",
+					});
+
+					return yield* dr.countRecentArtifactsInOtherSessionsOfConversation({
+						tddTaskId: tddId,
+						sinceIso: "2026-04-29T00:09:00Z",
+					});
+				}),
+			);
+			expect(result).toBe(1);
+		});
+
+		it("returns 0 when the task's session has a null conversation_id", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const ds = yield* DataStore;
+					const dr = yield* DataReader;
+
+					const sessionId = yield* ds.writeSession({
+						chatId: "cc-diag-null-conv",
+						project: "p",
+						cwd: "/tmp/p",
+						agentKind: "main",
+						startedAt: "2026-04-29T00:00:00Z",
+					});
+					const tddId = yield* ds.writeTddTask({
+						sessionId,
+						goal: "obj",
+						startedAt: "2026-04-29T00:00:01Z",
+					});
+
+					return yield* dr.countRecentArtifactsInOtherSessionsOfConversation({
+						tddTaskId: tddId,
+						sinceIso: "2026-04-29T00:00:00Z",
+					});
+				}),
+			);
+			expect(result).toBe(0);
+		});
+
+		it("returns 0 for an unknown tddTaskId", async () => {
+			const result = await run(
+				Effect.gen(function* () {
+					const dr = yield* DataReader;
+					return yield* dr.countRecentArtifactsInOtherSessionsOfConversation({
+						tddTaskId: 999999,
+						sinceIso: "2026-04-29T00:00:00Z",
+					});
+				}),
+			);
+			expect(result).toBe(0);
+		});
+	});
+
 	describe("findActiveSubagentSession", () => {
 		it("returns the most recent un-ended subagent child of the parent", async () => {
 			const result = await run(

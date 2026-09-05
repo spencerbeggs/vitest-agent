@@ -10,6 +10,13 @@ import {
 import { Effect, Option, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 
+/**
+ * Lookback window for the missing_artifact_evidence cross-session
+ * diagnostic (issue #144). Wide enough to catch a subagent dispatch
+ * that ran for a few minutes before the agent hit the gate.
+ */
+const DIAGNOSTIC_WINDOW_MINUTES = 10;
+
 const phaseLiteral = Schema.Literals([
 	"spike",
 	"red",
@@ -254,6 +261,32 @@ export const tddPhaseTransitionRequest = publicProcedure
 						limit: 1,
 					});
 					if (recent.length === 0) {
+						// Diagnostic (issue #144): a detached session (a named
+						// teammate, or any session whose hooks otherwise
+						// attribute artifacts away from this task) can leave
+						// this task starved of evidence while artifacts pile
+						// up elsewhere in the same conversation. Surface that
+						// signal instead of a bare "no artifact found" when
+						// it exists.
+						const sinceIso = new Date(Date.now() - DIAGNOSTIC_WINDOW_MINUTES * 60_000).toISOString();
+						const crossSessionCount = yield* reader.countRecentArtifactsInOtherSessionsOfConversation({
+							tddTaskId: input.tddTaskId,
+							sinceIso,
+						});
+						const baseHint =
+							`No '${kindToLookUp}' artifact has been recorded for tdd_task ${input.tddTaskId}. ` +
+							"Artifacts are recorded by hooks observing your tool calls (Decision D7) — " +
+							"run the test (e.g. via run_tests) or make the file edit first; the post-tool-use " +
+							"hook will write the matching tdd_artifacts row and the next call to this tool " +
+							"will pick it up automatically.";
+						const humanHint =
+							crossSessionCount > 0
+								? `${baseHint} ${crossSessionCount} artifact${crossSessionCount === 1 ? " was" : "s were"} recorded ` +
+									`under a different session of this conversation in the last ${DIAGNOSTIC_WINDOW_MINUTES} minutes — ` +
+									"the subagent's hooks may be attributing to a detached session; set " +
+									`VITEST_AGENT_TDD_TASK_ID=${input.tddTaskId} in the subagent's environment or dispatch ` +
+									"it as an unnamed background subagent."
+								: baseHint;
 						return {
 							accepted: false as const,
 							phase: currentPhase,
@@ -261,12 +294,7 @@ export const tddPhaseTransitionRequest = publicProcedure
 							remediation: {
 								suggestedTool: "run_tests",
 								suggestedArgs: {},
-								humanHint:
-									`No '${kindToLookUp}' artifact has been recorded for tdd_task ${input.tddTaskId}. ` +
-									"Artifacts are recorded by hooks observing your tool calls (Decision D7) — " +
-									"run the test (e.g. via run_tests) or make the file edit first; the post-tool-use " +
-									"hook will write the matching tdd_artifacts row and the next call to this tool " +
-									"will pick it up automatically.",
+								humanHint,
 							},
 						};
 					}

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-07-17
-last-synced: 2026-07-17
+updated: 2026-09-04
+last-synced: 2026-09-04
 completeness: 92
 related:
   - ../architecture.md
@@ -85,21 +85,26 @@ Output is formatted by `lib/format-db-query.ts`. `--format table` (default) rend
 
 `packages/cli/src/commands/agent.ts`. The `agent` parent is a discoverable namespace: its `Command.withDescription` carries a warning header — *"Commands intended for agents and hook scripts — humans typically don't invoke these directly."* — that `effect/unstable/cli`'s help formatter renders above the subcommand list.
 
-The group composes seven subcommands:
+The group composes eight subcommands:
 
 | Subcommand | Driven by | Purpose |
 | --- | --- | --- |
 | `triage` | SessionStart hook | Emits the W3 orientation brief; the hook pipes it into Claude Code's `additionalContext`. |
 | `wrapup` | Stop / SessionEnd / PreCompact / UserPromptSubmit hooks | Emits the W5 wrap-up prompt; `--kind` selects the lifecycle variant. |
 | `record` | plugin hooks | Session/turn capture, TDD evidence binding, workspace-history — see below. |
-| `register-agent` | SessionStart / SubagentStart hooks | Maps host session id and transcript path to canonical conversation/agent ids, captures git context, writes session-map rows. Emits JSON for the hook to parse with `jq`. |
+| `register-agent` | SessionStart / SubagentStart hooks | Maps host session id and transcript path to canonical conversation/agent ids, captures git context, writes session-map rows, and is the sole point that populates `sessions.conversation_id` (see below). Emits JSON for the hook to parse with `jq`. |
 | `end-agent` | SessionEnd / SubagentStop hooks | Sets `agents.ended_at`; with `--host-session-id` also sets `session_map.ended_at`. |
 | `inject-env` | PreToolUse Bash hook | Pure command-rewriter — prepends the `VITEST_AGENT_*` env prefix when the command invokes Vitest, echoes it unchanged otherwise. |
 | `sidecar-path` | SessionStart hook (once per session) | Calls `resolveSidecarBinaryPath()` from `@vitest-agent/sidecar` and prints the absolute path to stdout (exit 0), or exits non-zero when the binary is not resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`. |
+| `check-test-path` | PreToolUse test-location hook | Classifies a test-file path against the default discovery layout via `classifyTestPath` and prints a JSON verdict (`valid` / `invalid` / `excluded` plus `suggestedPath`). Exits 1 with **no stdout** — no verdict — whenever it cannot stand behind one; the hook turns that into a silent noop. |
 
 `triage` and `wrapup` keep their `--format markdown|json|silent` axis (the only commands that do — `db query` has its own `--format table|json` axis, everything else emits plain stdout text by convention). `agent inject-env` imports `exitCodeForTag` and `injectEnv` from `@vitest-agent/sdk/dispatch` — the `injectEnv` core lives in the SDK so the SEA binary can import it without reaching through the CLI. `triage` and `wrapup` call `formatTriageEffect` / `formatWrapupEffect` from `@vitest-agent/sdk` (`packages/sdk/src/lib/format-triage.ts`, `format-wrapup.ts`), shared verbatim with the MCP tools `triage_brief` and `wrapup_prompt`, so CLI and MCP outputs are byte-identical.
 
 **Dependency relationship with the sidecar package.** `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (not the reverse): the sidecar package exports `resolveSidecarBinaryPath`, and the CLI's `agent sidecar-path` subcommand calls it to resolve the binary's absolute path. The dispatch core the SEA binary actually runs — `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`, `exitCodeForTag` — lives in `@vitest-agent/sdk` and is reached through the dedicated `@vitest-agent/sdk/dispatch` entry point (see [./sdk.md](./sdk.md)); the per-platform children declare `@vitest-agent/sdk` as their only workspace `devDependency` and import `dispatch` from there. They do not depend on `@vitest-agent/cli` — the closing edge of the workspace graph is `sidecar-<platform> → sdk`, a true leaf. `packages/cli/src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect` and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants); it deliberately does **not** re-export `dispatch` / `injectEnv` / `exitCodeForTag` — those belong to the SDK. `register-agent` stays JS-only — its native SQLite binding cannot be bundled into a SEA.
+
+**`check-test-path` fails open on non-default discovery (issue #230).** `classifyTestPath` encodes the *default* `DiscoverStrategy`'s layout rule and nothing else, so a workspace with a custom `discoverStrategy` (including `discoverStrategy: false`), an `AgentPlugin.discover().addProject(...)` chain, or a class extending `DefaultDiscoverStrategy` / implementing `DiscoverStrategy` can legitimately collect a path the default rule calls `invalid` — and the hook would deny a `Write` there with confident, wrong advice. Before classifying, the command therefore finds the workspace's first Vitest/Vite config (`vitest.config.{ts,mts,js,mjs}`, then `vitest.workspace.*`, then `vite.config.*` — the order Vitest itself prefers), reads its source text, and runs the SDK's pure `detectNonDefaultDiscoverStrategy(source)` over it. A detected marker, a missing config, and an unreadable config all take the same exit-1-no-stdout path: none of the three lets the command rule out a non-default strategy, and no verdict is safer than a wrong one. The scan is lexical (a comment-stripped regex pass), never a config load — the command sits on the hook hot path, and booting the consumer's `vitest.config.ts` through Vite on every test-shaped `Read`/`Write`/`Edit` is out of scope by design. See [../decisions.md](../decisions.md) Decision 61 and the plugin-side opt-out in [./plugin-claude.md](./plugin-claude.md).
+
+**`register-agent` populates `sessions.conversation_id` (issue #144).** The Claude Code SessionStart payload carries no conversation id, so `record session-start` (which runs first) inserts the `sessions` row with a null `conversation_id`; the canonical id is minted later in `registerAgentEffect` step 1 (`mapConversation(transcript_path)`). Step 3 now passes `conversationId` on a fresh `writeSession` insert and, for a pre-existing row, calls `DataStore.setSessionConversationIdIfNull` unconditionally — the `WHERE conversation_id IS NULL` guard makes it idempotent, and the relaxed `trg_sessions_conv_id_immutable` trigger permits exactly that one null → value transition (see [../schemas.md](../schemas.md)). Before this the column was never populated in production, which silently disabled every consumer of it — most visibly the conversation-tree fallback below.
 
 The sidecar subcommands return plain text on stdout for the bash hooks to parse, and structured error info on stderr in the shape `<exit_code> <error_tag>: <message>`. Exit codes follow a fixed contract: `0` success, `1` registration conflict, `2` sidecar timeout, `3` database error, `4` `ProjectIdentityNotResolvableError`, `5` unexpected defect. They resolve all three SQLite store paths from env at invocation time (per-project `data.db`, per-client `sessions.db`, registry `registry.db`) and `mkdirSync` every parent dir before SQLite opens. Path resolution does not depend on workspace-discovery, so the sidecar works in non-pnpm-workspace project shapes.
 
@@ -120,9 +125,11 @@ Why this layering exists:
 | `turn` | Inserts a `turns` row (with optional fanout to `file_edits` or `tool_invocations` based on payload type) |
 | `session-start` | Inserts a `sessions` row |
 | `session-end` | Updates `sessions.ended_at`/`end_reason` |
-| `tdd-artifact` | Resolves the active TDD phase and writes a `tdd_artifacts` row |
+| `tdd-artifact` | Resolves the active TDD phase and writes a `tdd_artifacts` row. Takes `--chat-id` (session-resolved) **or** `--tdd-task-id` (explicit escape hatch, wins when both are present) |
 | `run-workspace-changes` | Idempotent `commits` insert + per-file `run_changed_files` rows |
 | `test-case-turns` | Backfills `test_cases.created_turn_id` for the current session and reports the latest linked test-case id |
+
+**`tdd-artifact` task resolution and the `--tdd-task-id` escape hatch (issue #144).** `packages/cli/src/lib/record-tdd-artifact.ts` exposes three effects. `recordTddArtifactEffect` is the normal path: resolve the session from `--chat-id` via `resolveSessionForRecording`, then `DataReader.listTddTasksForSession(session.id, { walkParents: true, walkConversation: true })` and take the first open task. `walkParents` follows `parent_session_id` (the unnamed-subagent and rotated-`chat_id` cases); `walkConversation` is the detached-session fallback — when the parent walk finds nothing and the session's `conversation_id` is non-null, open tasks owned by any other session of the same conversation are considered, main-session tasks first. `recordTddArtifactByTaskIdEffect` bypasses session resolution entirely: given `--tdd-task-id` it verifies the task exists and is still open (both failures are loud — writing under a closed task's phase would corrupt the evidence trail) and writes under its current open phase. `dispatchRecordTddArtifactEffect` is the thin command-facing switch: `tddTaskId` wins when supplied, else `chatId`, else an error naming both flags; `commands/record.ts` stays a flag-parsing wrapper. Both paths share `writeArtifactUnderOpenPhase`, which auto-opens a `spike` phase when the task has none yet. The hook sets the flag from `VITEST_AGENT_TDD_TASK_ID` (see [./plugin-claude.md](./plugin-claude.md)); [../decisions.md](../decisions.md) D21 covers why the hatch is a diagnosed-split override rather than a default.
 
 The `test-case-turns` action is the linkage that makes `tdd-artifact` correctly cite the test case that was just authored: hooks call it before each `record tdd-artifact`, capture the returned `latestTestCaseId`, and pass it as `--test-case-id`. This closes the gap that would otherwise leave `tdd_artifacts.test_case_id` unset for hook-driven artifact rows.
 
@@ -136,7 +143,7 @@ The `test-case-turns` action is the linkage that makes `tdd-artifact` correctly 
 
 ## Hook-driven recording: `resolveSessionForRecording`
 
-`packages/cli/src/lib/resolve-session-for-recording.ts`. Shared session-resolution helper for hook-driven recording paths. Background: Claude Code can rotate `chat_id` mid-window (compaction, resume, network blip), and the same subagent invocation can produce `tdd_artifact` records spread across two cc-session prefixes. The helper walks parents — given any `chat_id`, it follows the `sessions.parent_session_id` chain until it finds the main row for the agent, so artifact and turn writes always land under the correct canonical `sessions.id`. Used by `record turn`, `record tdd-artifact`, and the `test-case-turns` backfill.
+`packages/cli/src/lib/resolve-session-for-recording.ts`. Shared session-resolution helper for hook-driven recording paths. Background: Claude Code can rotate `chat_id` mid-window (compaction, resume, network blip), and the same subagent invocation can produce `tdd_artifact` records spread across two cc-session prefixes. The helper walks parents — given any `chat_id`, it follows the `sessions.parent_session_id` chain until it finds the main row for the agent, so artifact and turn writes always land under the correct canonical `sessions.id`. Used by `record turn`, `record tdd-artifact`, and the `test-case-turns` backfill. Note the division of labour: this helper resolves the *session*; the *task* lookup that follows in `record tdd-artifact` adds the conversation-tree fallback described above, and `--tdd-task-id` skips both.
 
 ## CLI flag naming
 

@@ -264,6 +264,21 @@ const TagVariant = Schema.Struct({
 
 const InventoryInput = Schema.Union([ProjectVariant, ModuleVariant, SuiteVariant, SessionVariant, TagVariant]);
 
+/**
+ * Single source of truth for the `inventory` tool's `kind` discriminant,
+ * consumed by `server.ts`'s served `z.enum(...)` so the MCP-SDK-side
+ * registration cannot drift from this tRPC input union (issue #335).
+ */
+export const INVENTORY_KINDS = ["project", "module", "suite", "session", "tag"] as const;
+type InventoryKindInput = Schema.Schema.Type<typeof InventoryInput>["kind"];
+type _AssertInventoryKinds = InventoryKindInput extends (typeof INVENTORY_KINDS)[number]
+	? (typeof INVENTORY_KINDS)[number] extends InventoryKindInput
+		? true
+		: never
+	: never;
+const _assertInventoryKinds: _AssertInventoryKinds = true;
+void _assertInventoryKinds;
+
 export const inventory = publicProcedure
 	.input(Schema.toStandardSchemaV1(InventoryInput))
 	.query(async ({ ctx, input }): Promise<InventoryResultType> => {

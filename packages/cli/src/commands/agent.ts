@@ -27,12 +27,17 @@
  * @packageDocumentation
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
-import { classifyTestPath, findOwningWorkspace, resolveProjectKeyFromCwd } from "@vitest-agent/sdk";
+import {
+	classifyTestPath,
+	detectNonDefaultDiscoverStrategy,
+	findOwningWorkspace,
+	resolveProjectKeyFromCwd,
+} from "@vitest-agent/sdk";
 import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 import { Cause, Effect, Option } from "effect";
@@ -260,6 +265,51 @@ function crossesNestedPackageBoundary(ownerPath: string, filePath: string): bool
 	return false;
 }
 
+/**
+ * Candidate Vitest/Vite config filenames at a workspace root, in the order
+ * Vitest itself would prefer them. `vite.config.*` is a fallback for a
+ * workspace that configures the plugin through Vite directly rather than a
+ * dedicated `vitest.config.*`.
+ * @internal
+ */
+const VITEST_CONFIG_CANDIDATES: ReadonlyArray<string> = [
+	"vitest.config.ts",
+	"vitest.config.mts",
+	"vitest.config.js",
+	"vitest.config.mjs",
+	"vitest.workspace.ts",
+	"vitest.workspace.mts",
+	"vitest.workspace.js",
+	"vitest.workspace.mjs",
+	"vite.config.ts",
+	"vite.config.mts",
+	"vite.config.js",
+	"vite.config.mjs",
+];
+
+/**
+ * Reads the first Vitest/Vite config file found at `root`, returning its
+ * source text, or `null` when none of {@link VITEST_CONFIG_CANDIDATES} exists
+ * or the file that does exist cannot be read.
+ *
+ * A `null` result is deliberately indistinguishable between "no config file"
+ * and "unreadable config file" — both mean the caller cannot rule out a
+ * non-default `DiscoverStrategy` and must fail open (issue #230).
+ * @internal
+ */
+function readWorkspaceVitestConfigSource(root: string): string | null {
+	for (const candidate of VITEST_CONFIG_CANDIDATES) {
+		const candidatePath = join(root, candidate);
+		if (!existsSync(candidatePath)) continue;
+		try {
+			return readFileSync(candidatePath, "utf8");
+		} catch {
+			return null;
+		}
+	}
+	return null;
+}
+
 export const checkTestPathSubcommand = Command.make("check-test-path", { path: testPathArg }, (opts) =>
 	Effect.sync(() => {
 		const from = process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd();
@@ -267,6 +317,15 @@ export const checkTestPathSubcommand = Command.make("check-test-path", { path: t
 
 		const root = findWorkspaceRootSync(from, nodeSyncOps);
 		if (root === null) process.exit(1);
+
+		// Loading the consumer's Vitest config to determine the discovery
+		// strategy actually in force is out of scope for this hook-hot-path
+		// command. Instead, scan the config source text lexically for markers of
+		// a non-default DiscoverStrategy and fail open when one is present, or
+		// when the config cannot be read at all — a confidently wrong deny is
+		// worse than no verdict (issue #230).
+		const configSource = readWorkspaceVitestConfigSource(root);
+		if (configSource === null || detectNonDefaultDiscoverStrategy(configSource)) process.exit(1);
 
 		const packages = getWorkspacePackagesSync(root, nodeSyncOps);
 

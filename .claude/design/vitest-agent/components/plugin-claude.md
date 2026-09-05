@@ -162,6 +162,22 @@ categories:
   location can't be un-broken by refusing the edit. Any CLI failure fails
   open (`emit_noop`). This is what closed issue #227 and reclassified
   issue #184 — see [../decisions-retired.md](../decisions-retired.md).
+  The check knows only the **default** discovery layout (issue #230):
+  `check-test-path` exits 1 with no verdict — so the hook no-ops — when
+  the workspace's `vitest.config.*` / `vitest.workspace.*` /
+  `vite.config.*` source carries a `discoverStrategy` option, an
+  `.addProject(` chain, or a class extending / implementing
+  `DiscoverStrategy`, and likewise when no config can be found or read
+  (see [./cli.md](./cli.md) and [../decisions.md](../decisions.md)
+  Decision 61). Two plugin-side complements: the hook honours
+  `VITEST_AGENT_TEST_LOCATION_HOOK=off` (`0` / `false` also work) as a
+  total opt-out, checked before stdin is read so no CLI is ever spawned;
+  and both the deny and the advisory text open with "Under the default
+  discovery layout, …" and name the opt-out, so a consumer the lexical
+  detector misses still gets a truthful message and a way out.
+  `plugin/hooks/__test__/test-location.bats` pins the opt-out and the
+  wording; `skills/test-discovery/SKILL.md` documents the limitation for
+  the agent.
   Because an `excluded` verdict is a *deny* on a new test file, the
   helper-directory rule inside `classifyTestPath` has to be exactly as
   narrow as the discovery glob: it now inspects only the segment directly
@@ -215,6 +231,19 @@ Before writing each artifact, the hook calls `vitest-agent agent record
 test-case-turns` to backfill `test_cases.created_turn_id` and capture the
 latest `test_case_id` for the session. This binds every artifact to a test
 case if one was authored in the same session window.
+
+Every `record tdd-artifact` call the hook makes also appends
+`--tdd-task-id $VITEST_AGENT_TDD_TASK_ID` when that variable is set in the
+subagent's environment (issue #144). The flag makes the CLI skip
+`chat_id` → session → task resolution and write straight under the named
+task's open phase — the explicit escape hatch for a *detached session*
+(a named-teammate dispatch, or any session row without a
+`parent_session_id`) whose artifacts would otherwise land under a session
+the task lookup never reaches. It is a last resort layered behind the
+automatic conversation-tree fallback described under *Artifact-binding
+across `chat_id` rotation*; `plugin/hooks/__test__/tdd-artifact-task-id.bats`
+pins the forwarding. The variable is never set by the plugin itself — the
+agent sets it only after a `tdd_phase_transition_request` denial names it.
 
 The `test_case_authored_in_session` constraint is the load-bearing invariant.
 The phase-transition validator (Decision D11) requires that a cited test
@@ -284,7 +313,7 @@ state.
 
 **Pre-dispatch sequence.** Session-id lookup over MCP is no longer required: the four canonical UUIDs (`VITEST_AGENT_CHAT_ID`, `_CONVERSATION_ID`, `_MAIN_AGENT_ID`, `_AGENT_ID`) are already exported into the main agent's shell by the SessionStart hook, and the MCP server reads them from `process.env` at boot via `SessionContextRef`. The legacy `get_current_session_id` / `set_current_session_id` tools are removed. Before spawning the orchestrator, the main agent generates a fresh `runId` (`Date.now().toString(36)`) for each dispatch and passes it to `tdd_task({ action: "start", runId, ... })`, where `runId` becomes the idempotency key so retry dispatches with new `runId` values are not collapsed to the cached session. The agent then calls `TaskCreate` (when available — see *Task tools are optional* below) to create the parent `TDD Session: <objective>` task and initializes the `goalById` and `behaviorById` state maps before spawning.
 
-**Dispatch contract: plain unnamed background subagent, never a named teammate.** The orchestrator is spawned with `run_in_background: true`, `subagent_type: "vitest-agent:tdd-task"` and **no name/team argument**. An unnamed background subagent fires `SubagentStart`, which registers the run under a parent-prefixed session key (`<chatId>-subagent-<ts>-<pid>`) sharing the dispatching session's `conversation_id` — so the subagent's test-run and edit artifacts funnel back to the session passed as `chatId`, and the `tdd_task (action: start)` opened against that `chatId` finds them (evidence-based phase gates pass). A **named teammate** dispatch instead spawns a detached session with its own `conversation_id` and no parent link: the task opens under the dispatcher's session while artifacts land under the detached one, and every `tdd_phase_transition_request` denies with `missing_artifact_evidence`. This contract is encoded in both `commands/tdd.md` and `skills/tdd/SKILL.md`, and was validated live in a dogfood lifecycle run. After the run, the main agent cleans up whatever it dispatched — a plain background subagent completes on its own, but a named or otherwise persistent agent (or an early-terminated run) is explicitly stopped so dispatched agents do not linger.
+**Dispatch contract: plain unnamed background subagent, never a named teammate.** The orchestrator is spawned with `run_in_background: true`, `subagent_type: "vitest-agent:tdd-task"` and **no name/team argument**. An unnamed background subagent fires `SubagentStart`, which registers the run under a parent-prefixed session key (`<chatId>-subagent-<ts>-<pid>`) sharing the dispatching session's `conversation_id` — so the subagent's test-run and edit artifacts funnel back to the session passed as `chatId`, and the `tdd_task (action: start)` opened against that `chatId` finds them (evidence-based phase gates pass). A **named teammate** dispatch instead spawns a detached session with its own `conversation_id` and no parent link: the task opens under the dispatcher's session while artifacts land under the detached one, and every `tdd_phase_transition_request` denies with `missing_artifact_evidence`. This contract is encoded in both `commands/tdd.md` and `skills/tdd/SKILL.md`, and was validated live in a dogfood lifecycle run. Two mitigations now sit behind the contract rather than replacing it (issue #144; [../decisions.md](../decisions.md) D21): the task lookup in `record tdd-artifact` falls back to the **conversation tree** — open tasks owned by any session sharing the detached session's non-null `conversation_id`, main session preferred — so a named-teammate dispatch whose row still shares the dispatcher's conversation resolves silently; and when that cannot help, the agent sets `VITEST_AGENT_TDD_TASK_ID=<tddTaskId>` (its own id from `tdd_task (action: start)`) so `post-tool-use/tdd-artifact.sh` forwards `--tdd-task-id` and bypasses session resolution entirely. The gate's `missing_artifact_evidence` hint now tells the agent when artifacts landed under another session of the same conversation in the last 10 minutes and names both remedies, so the split is diagnosed at the point of denial instead of failing silently. `skills/tdd/SKILL.md` and `agents/tdd-task.md` both frame the env var as a diagnosed-split override, not a default. After the run, the main agent cleans up whatever it dispatched — a plain background subagent completes on its own, but a named or otherwise persistent agent (or an early-terminated run) is explicitly stopped so dispatched agents do not linger.
 
 **Task tools are optional; narration is primary.** The Task-panel tools (`TaskCreate` / `TaskUpdate` / `TaskGet` / `TaskList`) and `TodoWrite` are host-session-gated: they may simply be absent from a session's tool set, and a subagent can only inherit tools the parent session actually has. The agent frontmatter grants them anyway so sessions that *do* have them get the UI mirror, and both the agent prompt and the `tdd` skill treat them strictly best-effort — plain-text progress narration keyed to channel events is the primary channel, with the task panel an optional parallel mirror. `tdd_progress_push` events are persisted server-side regardless of whether any panel renders, so they remain inspectable via `tdd_task (action: get)`; narration is a live-viewing convenience, not the record of truth. `SendMessage` similarly applies only to named-teammate dispatch, which the contract above forbids for TDD runs — on the common fire-and-forget path the final report returns via the normal agent-completion channel.
 
@@ -526,7 +555,23 @@ Two related concerns shape the artifact-binding path:
    the subagent and always sets `parent_session_id`. Combined with
    the `DataStore.upsertSession` idempotent insert, the subagent's
    artifact rows always land under the canonical `sessions.id`.
+3. **Detached sessions (issue #144).** A named-teammate dispatch, or
+   any session row with no `parent_session_id`, has nothing for the
+   parent walk to follow. `record tdd-artifact` therefore calls
+   `listTddTasksForSession(id, { walkParents: true, walkConversation:
+   true })`: when the parent walk yields no open task and the session's
+   `conversation_id` is non-null, open tasks owned by other sessions of
+   the same conversation are considered (main-session tasks first). The
+   fallback is only as good as `sessions.conversation_id`, which
+   `agent register-agent` now populates — on insert for a fresh row, via
+   `setSessionConversationIdIfNull` for the row `record session-start`
+   already wrote (the SessionStart payload carries no conversation id,
+   so `register-agent` is the only fix point). For the residual case
+   the `VITEST_AGENT_TDD_TASK_ID` → `--tdd-task-id` escape hatch skips
+   session resolution altogether.
 
 The shared `resolveSessionForRecording` helper in the CLI is the
 consumer-side library for this. Every `record turn` /
-`record tdd-artifact` / `test-case-turns` call goes through it.
+`record tdd-artifact` / `test-case-turns` call goes through it, and
+the task lookup layered on top of it in `record tdd-artifact` is where
+item 3's fallback lives.

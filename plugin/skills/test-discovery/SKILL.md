@@ -75,3 +75,37 @@ The scanner classifies files by suffix; first match wins:
 | `*.e2e.test.ts` | e2e | `__test__/e2e/` |
 | `*.int.test.ts` | int | `__test__/integration/` |
 | `*.test.ts` or `*.unit.test.ts` | unit | `__test__/` (top level) |
+
+## Limitation — the PreToolUse Hook Only Knows the Default Layout
+
+The `test-location.sh` PreToolUse hook and its backing `vitest-agent agent
+check-test-path` CLI subcommand classify a test path against the **default**
+layout described above — `classifyTestPath` is purely lexical and never loads
+a project's actual Vitest config. Most workspaces use the default layout
+`AgentPlugin.discover()` produces, so this is right almost always. It is
+**not** aware of a consumer who changes discovery via:
+
+- a custom `discoverStrategy` passed to `AgentPlugin({ discoverStrategy })`
+  (including `discoverStrategy: false` to disable discovery entirely),
+- `AgentPlugin.discover().addProject({ name, path })` registering a
+  non-package folder as an extra project, or
+- a class extending `DefaultDiscoverStrategy` / implementing
+  `DiscoverStrategy` directly.
+
+For such a workspace, the default-layout rule can be wrong about a path the
+consumer's actual config collects fine. Because a denial is the strongest
+action the hook can take, `check-test-path` **fails open** (exits 1 with no
+stdout — the hook then no-ops) whenever it detects one of those markers in
+the workspace's `vitest.config.*` / `vitest.workspace.*` / `vite.config.*`
+source text, or whenever that config file cannot be found or read at all. A
+missing or unreadable config is treated exactly like a detected marker: no
+verdict is safer than a confidently wrong one. The detector
+(`detectNonDefaultDiscoverStrategy` in `@vitest-agent/sdk`) is a lexical scan
+with a best-effort comment strip, so a marker string that only appears inside
+a comment can still register as a false positive — that direction (failing
+open) is the safe one, so it is accepted rather than built out further.
+
+If you hit a wrong deny anyway — or just want the check off — set
+`VITEST_AGENT_TEST_LOCATION_HOOK=off` (`0` and `false` also work) in your
+environment. The hook checks this before doing anything else and emits a
+silent noop without ever invoking the CLI.

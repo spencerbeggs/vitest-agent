@@ -495,6 +495,12 @@ schemas because the DataStore commits one row at a time inside a single
 - **`HypothesisInput`** / **`ValidateHypothesisInput`** — back the
   `hypothesis_record` / `hypothesis_validate` MCP tools. `validateHypothesis`
   raises `DataStoreError` if `id` doesn't exist (no silent no-op).
+- **`SessionInput`** — carries an optional `conversationId` (issue #144)
+  that `writeSession` / `upsertSession` persist at INSERT time. Omit it
+  when the id is not yet known; the later backfill goes through
+  `DataStore.setSessionConversationIdIfNull({ sessionId, conversationId })`,
+  never through a re-insert or a generic update (see *Conversation-id
+  immutability triggers*).
 - **`IdempotentResponseInput`** — backs the tRPC idempotency middleware. See
   Flow 7 in [./data-flows.md](./data-flows.md) and
   [./decisions.md](./decisions.md) for the `(procedure_path, key)` PK and
@@ -560,6 +566,22 @@ The notable ones:
 - **`TddTaskSummary`** — TDD sessions whose `session_id` FK points at
   the given Claude Code session. Used by
   `tdd_task({ action: "resume" })` to find a suitable open TDD session.
+  `listTddTasksForSession(sessionId, { walkParents?, walkConversation? })`
+  widens the lookup: `walkParents` follows the `parent_session_id`
+  chain; `walkConversation` (issue #144) additionally includes tasks
+  owned by any other session sharing the session's non-null
+  `conversation_id`, ordered main-session first then `started_at DESC`.
+- **`SessionDetail.conversationId`** — `string | null`, projected by
+  every session-row read (`getSessionById`, `getSessionByChatId`,
+  `findSessionsByChatPrefix`, `findActiveSubagentSession`,
+  `getSessionByTddTaskId`, `listSessions`).
+- **`countRecentArtifactsInOtherSessionsOfConversation`** —
+  `({ tddTaskId, sinceIso }) => Effect<number, DataStoreError>`. Counts
+  `tdd_artifacts` recorded since `sinceIso` under sessions of the
+  task's conversation other than its owner; `0` when the task is unknown
+  or its session's `conversation_id` is null. Backs the
+  `missing_artifact_evidence` cross-session diagnostic in
+  `tdd_phase_transition_request`.
 - **`findActiveSubagentSession`** — `(parentSessionId: number) => Effect<Option<SessionDetail>, DataStoreError>`. Returns the most-recently-started subagent session whose `parent_session_id` matches and whose `ended_at IS NULL`. Used by the `hypothesis (action: record)` tool's context-based fallback to attribute hypotheses to the running `tdd-task` subagent session rather than the recovered main session — the MCP server's boot context names only the main agent, so per-call subagent identity must be inferred from the active child row.
 - **`getSessionByTddTaskId`** — `(tddTaskId: number) => Effect<Option<SessionDetail>, DataStoreError>`. Resolves the session a TDD task was opened under (`sessions.id = tdd_tasks.session_id`). The deterministic head of the `hypothesis (action: record)` resolution precedence — see [./components/mcp.md](./components/mcp.md) "Hypothesis session binding".
 - **`FindIdempotentResponse`** — `(procedurePath, key) =>
@@ -721,7 +743,7 @@ read the already-updated row and accumulate stale tokens.
 | `file_coverage` | Per-file coverage per run, only for files below a bar; `tier` (`'below_threshold'` \| `'below_target'`) says which bar, and `getCoverage` splits `lowCoverage` from `belowTarget` on it |
 | `source_test_map` | Source file → test module mapping |
 | `notes` | Scoped notes with threading and expiration |
-| `sessions` | Claude Code conversations; `chat_id` unique, `agent_kind`, `parent_session_id` self-FK |
+| `sessions` | Claude Code conversations; `chat_id` unique, `agent_kind`, `parent_session_id` self-FK, `conversation_id` (nullable canonical UUID — written at insert by `register-agent`, or backfilled once from null via `setSessionConversationIdIfNull`; the join key for the detached-session TDD fallback) |
 | `turns` | Per-session turn log; `payload` is JSON-stringified `TurnPayload`; `type` CHECK matches the union discriminators |
 | `tool_invocations` | Flattened projection over `tool_result` payloads (one row per result turn) |
 | `file_edits` | Flattened projection over `file_edit` payloads (1:1 with `file_edit` turns) |
@@ -934,6 +956,20 @@ Six `AFTER UPDATE` triggers — one each on `sessions`, `agents`,
 `test_runs`, `hypotheses`, `notes`, `tdd_phases` — abort any update
 that changes `conversation_id`. Write-once at INSERT semantics; the
 denormalized copies cannot drift.
+
+**`sessions` is the one exception (issue #144).** Its trigger's `WHEN`
+clause is `OLD.conversation_id IS NOT NULL AND OLD.conversation_id IS
+NOT NEW.conversation_id`, which permits exactly one null → value
+transition and still aborts any value → different-value change. The
+relaxation exists because the row is inserted by `record session-start`
+from the SessionStart hook, whose payload carries no conversation id;
+the canonical id is minted afterwards by `agent register-agent`, which
+backfills it through `DataStore.setSessionConversationIdIfNull` (an
+`UPDATE … WHERE conversation_id IS NULL`, so a redundant call is a
+zero-row no-op rather than a trigger abort). Before this the column was
+never populated in production. Per D9 the change is an in-place edit to
+`0001_initial.ts`; `packages/sdk/__test__/0001_initial.test.ts` pins both
+halves of the trigger's contract.
 
 ### Three-tier storage architecture
 

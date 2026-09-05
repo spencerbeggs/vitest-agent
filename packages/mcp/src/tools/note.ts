@@ -178,6 +178,21 @@ const NoteInputUnion = Schema.Union([
 	SearchVariant,
 ]);
 
+/**
+ * Single source of truth for the `note` tool's `action` discriminant,
+ * consumed by `server.ts`'s served `z.enum(...)` so the MCP-SDK-side
+ * registration cannot drift from this tRPC input union (issue #335).
+ */
+export const NOTE_ACTIONS = ["create", "list", "get", "update", "delete", "search"] as const;
+type NoteAction = Schema.Schema.Type<typeof NoteInputUnion>["action"];
+type _AssertNoteActions = NoteAction extends (typeof NOTE_ACTIONS)[number]
+	? (typeof NOTE_ACTIONS)[number] extends NoteAction
+		? true
+		: never
+	: never;
+const _assertNoteActions: _AssertNoteActions = true;
+void _assertNoteActions;
+
 export const note = publicProcedure
 	.input(Schema.toStandardSchemaV1(NoteInputUnion))
 	.mutation(async ({ ctx, input }): Promise<NoteResultType> => {

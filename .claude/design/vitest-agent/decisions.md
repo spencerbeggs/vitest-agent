@@ -1808,6 +1808,112 @@ and threshold suppression*, [./components/ui.md](./components/ui.md)
 *Dispatch entry points*, and [./schemas.md](./schemas.md) *RunEvent
 surface and RenderState*.
 
+### Decision 60: Single-Source Served MCP Discriminants from the Tool Core
+
+**Context.** Every MCP tool input is declared twice — the tRPC
+`Schema.Union` in `tools/<name>.ts` and the served zod `inputSchema` in
+`server.ts` — and the two are hand-synced (see *Server bootstrap* in
+[./components/mcp.md](./components/mcp.md)). Decision 50 made the
+served side strict so a forgotten *field* fails loudly instead of being
+stripped. It did nothing for a forgotten *discriminant literal*: the
+`test` tool's served `z.enum` listed `list` / `get` / `for_file` while
+the tRPC union also handled `for_tag`, and `inventory`'s served `kind`
+omitted `tag`. Router-level tests exercised both variants happily; a
+real MCP client got an `invalid_enum_value` rejection. Strictness had
+turned a silent-widening bug into a loud one, but the loud one still
+shipped (issue #335).
+
+**Decision.** The discriminant tuple lives with the union, not with
+the registration. Each consolidated tool core exports its literal
+tuple (`TEST_ACTIONS`, `INVENTORY_KINDS`, `NOTE_ACTIONS`,
+`HYPOTHESIS_ACTIONS`, `TDD_TASK_ACTIONS`, `TDD_GOAL_ACTIONS`,
+`TDD_BEHAVIOR_ACTIONS`) immediately after its `Schema.Union`, and a
+two-way conditional-type assertion (`Action extends Tuple[number]` and
+`Tuple[number] extends Action`) pins the tuple to the union's
+`action` / `kind` type at compile time. `server.ts` imports the tuple
+and passes it to `z.enum(...)`; it never spells a literal list. Two
+tests guard the runtime side: `server-enum-drift.test.ts` lists every
+tool over an `InMemoryTransport` client and asserts each served enum
+equals its exported tuple, and per-variant served-schema tests
+(`server-test-for-tag-schema.test.ts`,
+`server-inventory-tag-schema.test.ts`) pin that the once-dead variants'
+fields are accepted end to end.
+
+**Why not derive the zod enum from the Effect schema directly.** A
+generic `Schema.Union → z.enum` bridge would need to introspect the
+union's AST for the discriminant field, and the served `inputSchema` is
+deliberately *flatter* than the tRPC union — one optional bag of every
+variant's fields, with dispatch on `action` in the handler — so the
+shapes are not isomorphic and a full bridge would be more code than the
+problem warrants. A tuple plus a type assertion costs six lines per
+tool and fails the build at exactly the moment a variant is added
+without extending it, which is the failure mode that actually occurred.
+
+**Why the tuple is exported from the tool core rather than declared in
+`server.ts`.** The union is the authority on what the procedure
+handles; the served enum is a projection of it. Putting the tuple next
+to the union keeps the assertion in the same file as the thing it
+asserts about, so a reviewer editing `TestInput` sees `TEST_ACTIONS`
+three lines below it. Declaring it in `server.ts` would recreate the
+hand-sync problem one hop away.
+
+### Decision 61: Fail Open on Non-Default Discovery via Lexical Config Detection
+
+**Context.** `pre-tool-use/test-location.sh` delegates to
+`vitest-agent agent check-test-path`, which classifies a test path with
+`classifyTestPath` — the same rule the default `DiscoverStrategy`
+generates its include globs from. That rule is only correct for
+workspaces that *use* the default strategy. A consumer who passes a
+custom `discoverStrategy` (including `discoverStrategy: false`), chains
+`AgentPlugin.discover().addProject(...)`, or subclasses
+`DefaultDiscoverStrategy` can legitimately collect tests from paths the
+default rule calls `invalid`, and the hook would *deny* a `Write` to
+such a path with confident, wrong advice (issue #230). A denial is the
+strongest action the hook can take, so its false positives cost more
+than its false negatives.
+
+**Decision.** `check-test-path` refuses to render a verdict when it
+cannot rule out a non-default strategy. It locates the workspace's
+first `vitest.config.*` / `vitest.workspace.*` / `vite.config.*` file,
+reads its source text, and runs the pure
+`detectNonDefaultDiscoverStrategy(source)` from `@vitest-agent/sdk`
+(`utils/detect-non-default-discover-strategy.ts`) over it: after a
+best-effort comment strip, it looks for a `discoverStrategy:` option, a
+`.addProject(` call, or a class `extends DefaultDiscoverStrategy` /
+`implements DiscoverStrategy`. Any marker — *or* no readable config at
+all — exits 1 with no stdout, and the hook's existing "CLI failed →
+`emit_noop`" path turns that into a silent allow. A missing or
+unreadable config is treated exactly like a detected marker: no verdict
+beats a confidently wrong one. Two complements on the plugin side: the
+hook honours `VITEST_AGENT_TEST_LOCATION_HOOK=off|0|false` as a total
+opt-out (checked before stdin is read, so no CLI is spawned), and the
+deny / advisory wording says "Under the default discovery layout …" and
+names the opt-out, so a consumer the detector misses still gets a
+truthful message and a way out.
+
+**Why lexical detection rather than loading the consumer's config.**
+The hook fires on every `Read` / `Write` / `Edit` of a test-shaped path
+— it is on the agent's hot path, alongside the PreToolUse Bash hook
+Decision 42 spent three layers keeping cheap. Loading
+`vitest.config.ts` means a Vite/esbuild transform, resolving the
+consumer's plugins, and executing arbitrary user code on every
+keystroke-adjacent tool call; `check-test-path` would stop being a
+sub-second classification and start being a config boot. A regex scan
+of one file is bounded and side-effect-free. Its imprecision is
+acceptable *only* because the detector's sole job is to decide whether
+to fail open: a marker that appears inside a string literal, or a
+comment the stripper missed, yields a false positive whose consequence
+is one skipped advisory. The direction the detector cannot afford to
+be wrong in — a real custom strategy it fails to see — is what the
+opt-out variable is for.
+
+**Why not make `classifyTestPath` strategy-aware.** That would require
+the CLI to instantiate the consumer's strategy, which is the same
+config-load problem. The honest scope of the check is "the default
+layout"; the fix makes the check say so and step aside when the
+default layout is not in force, rather than pretending to understand
+layouts it cannot see.
+
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
 **Pre-2.0 policy (current).** Before 2.0 ships to npm, the canonical
@@ -2330,6 +2436,83 @@ Vitest's `fullName` is only the describe-chain plus the test name — it is **no
 The fix threads a project-relative `module_path` through the whole history path and makes the identity `(project, module_path, full_name)`. Concretely: `test_history` gains a `module_path TEXT NOT NULL` column, the uniqueness constraint and the lookup index both grow the `module_path` segment, `TestHistory` / `FlakyTest` / `PersistentFailure` carry `modulePath`, `DataStore.writeHistory` takes a `modulePath` param, and `DataReaderLive` groups/partitions `getHistory` / `getFlaky` / `getPersistentFailures` by the composite key. The classifier keys its in-memory maps via a shared `historyKey(modulePath, fullName)` helper (exported from `services/HistoryTracker.ts`) so identically-named tests classify independently. The reporter derives each test's `modulePath` from the enclosing `TestModule`'s `relativeModuleId` and passes it into both the classification lookup and `writeHistory`.
 
 The single flat `Map<fullName, TestClassification>` the reporter hands downstream stays keyed by bare `fullName` on purpose — it is a convenience index for `@vitest-agent/ui` consumers that only have a bare test name, while the authoritative, module-qualified classification lives on each `TestReport`. Per the pre-2.0 single-migration policy (Decision D9) this landed as an in-place edit to `0001_initial.ts`, not an incremental migration.
+
+### Decision D21: Conversation-Tree Fallback and Task-Id Escape Hatch for Detached-Session Artifacts
+
+**Context.** D7 makes hooks the only writer of `tdd_artifacts`, and D2 /
+D11 bind evidence to the task whose open phase the artifact was recorded
+under. The join between the two is `record tdd-artifact`'s task
+resolution: `chat_id` → `sessions` row → walk `parent_session_id` →
+first open `tdd_tasks` row. That walk assumes the session the hooks
+attribute to has a parent link back to the session that opened the
+task. An unnamed background subagent has one (`SubagentStart` registers
+it under `<chatId>-subagent-<ts>-<pid>` with `parent_session_id` set).
+A **named teammate** does not — it is an independent session with no
+parent link — so its artifacts land under a session the parent walk
+never reaches, every `tdd_phase_transition_request` denies with
+`missing_artifact_evidence`, and the hint said only "no artifact found"
+(issue #144). The dispatch guidance ("never a named teammate") is still
+right, but the failure was silent and unrecoverable.
+
+**Decision, in three layers.**
+
+1. **Conversation-tree fallback (automatic).**
+   `DataReader.listTddTasksForSession` gains `walkConversation`. After
+   the parent walk, when the session's own `conversation_id` is
+   non-null, the lookup also includes every other session sharing that
+   `conversation_id`; rows are ordered so a task owned by an
+   `agent_kind = 'main'` session sorts first, then `started_at DESC`.
+   `record tdd-artifact` passes `{ walkParents: true, walkConversation:
+   true }`. A null `conversation_id` never triggers the fallback, so
+   two unrelated sessions can never be joined by accident. The
+   conversation is the right join key because it is exactly what a
+   named-teammate dispatch and its dispatcher still share when the
+   parent link is absent.
+2. **Explicit task-id escape hatch (manual).** `agent record
+   tdd-artifact --tdd-task-id <id>` (`recordTddArtifactByTaskIdEffect`,
+   selected by `dispatchRecordTddArtifactEffect` whenever the flag is
+   present) bypasses `chat_id` → session → task resolution entirely and
+   writes under that task's current open phase, failing loudly when the
+   task is unknown or already ended. `post-tool-use/tdd-artifact.sh`
+   forwards `VITEST_AGENT_TDD_TASK_ID` as the flag. This exists for the
+   shape layer 1 cannot fix — `conversation_id` unpopulated on one of
+   the two sessions — and the agent-facing docs frame it as a
+   diagnosed-split override, not a default.
+3. **Diagnostic on the denial.** When the gate finds no artifact,
+   `countRecentArtifactsInOtherSessionsOfConversation` counts artifacts
+   recorded in the last 10 minutes under other sessions of the task's
+   conversation; a non-zero count is appended to `humanHint` together
+   with the two remedies above. The bare "no artifact found" was true
+   but useless; the diagnostic turns the silent split into an
+   actionable message without changing the denial shape.
+
+**Prerequisite: `sessions.conversation_id` was never populated.**
+Layer 1 depends on a column that, in production, was always null.
+`record session-start` inserts the `sessions` row from the SessionStart
+hook, whose Claude Code payload carries no conversation id; the
+canonical id is minted later by `register-agent`'s `mapConversation`,
+and the `trg_sessions_conv_id_immutable` trigger forbade any update.
+Three changes close that: the trigger's `WHEN` gains `OLD.conversation_id
+IS NOT NULL AND …`, permitting exactly one null → value transition while
+still aborting any value → different-value change; `DataStore` gains
+`setSessionConversationIdIfNull` (an `UPDATE … WHERE conversation_id IS
+NULL`, idempotent and race-safe); and `registerAgentEffect` passes
+`conversationId` on a fresh `writeSession` insert and runs the backstop
+update unconditionally otherwise. `register-agent` is the only fix
+point because it is the only hook-driven path that knows the
+conversation id. Per D9 the trigger change is an in-place edit to
+`0001_initial.ts`.
+
+**Why not make the escape hatch the default.** A task id in the
+environment is exactly the kind of agent-supplied evidence pointer D7
+exists to keep out of the write path: hooks observe, the agent does not
+choose where its evidence lands. The hatch is tolerated because the
+agent still cannot *write* an artifact — only redirect a hook-observed
+one to a task it already owns — and because `recordTddArtifactByTaskIdEffect`
+refuses closed tasks, so the worst misuse is attributing a genuine
+observation to the wrong *open* task of the same agent. Making it the
+default would normalise that pointer; keeping it behind a diagnosed
+denial keeps the D7 posture intact.
 
 ---
 

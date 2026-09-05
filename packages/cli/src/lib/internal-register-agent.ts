@@ -108,6 +108,14 @@ export const registerAgentEffect = (input: RegisterAgentInput) =>
 
 		// Step 3: ensure the per-project sessions row exists. The
 		// agents.session_id FK still references the integer PK.
+		//
+		// conversationId is already known at this point (step 1), so a
+		// brand-new row gets it at INSERT time directly. A pre-existing
+		// row (issue #144: `record session-start` always runs first and
+		// cannot know the conversation id yet) is backfilled just below,
+		// unconditionally and idempotently — `setSessionConversationIdIfNull`
+		// no-ops when the row already carries a value, which also covers
+		// the branch just below that just set it at insert.
 		const existingSession = yield* reader.getSessionByChatId(input.hostSessionId);
 		const sessionRowId = yield* Option.match(existingSession, {
 			onNone: () =>
@@ -119,9 +127,11 @@ export const registerAgentEffect = (input: RegisterAgentInput) =>
 					agentType: input.agentType,
 					triageWasNonEmpty: false,
 					startedAt: new Date().toISOString(),
+					conversationId,
 				}),
 			onSome: (s) => Effect.succeed(s.id),
 		});
+		yield* store.setSessionConversationIdIfNull({ sessionId: sessionRowId, conversationId });
 
 		// Step 4: capture git context the agent inherited.
 		const agentContext = yield* ctx.captureAgentContext(input.cwd);

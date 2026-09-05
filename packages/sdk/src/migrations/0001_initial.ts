@@ -856,11 +856,17 @@ const migration = Effect.gen(function* () {
 	// Six AFTER UPDATE immutability triggers — conversation_id is set at INSERT
 	// time and never updated. The plain form (no `OF column`) is portable to D1
 	// where `OF` trigger support has historically lagged.
+	//
+	// `sessions` is the sole exception (issue #144): `record session-start`
+	// inserts the row before the canonical conversation id is resolved by
+	// `register-agent`, so a single NULL -> value backfill has to be legal.
+	// `OLD.conversation_id IS NOT NULL AND ...` guards that one transition;
+	// a value can still never change to a DIFFERENT value.
 	yield* sql`
 		CREATE TRIGGER trg_sessions_conv_id_immutable
 		AFTER UPDATE ON sessions
 		FOR EACH ROW
-		WHEN OLD.conversation_id IS NOT NEW.conversation_id
+		WHEN OLD.conversation_id IS NOT NULL AND OLD.conversation_id IS NOT NEW.conversation_id
 		BEGIN
 			SELECT RAISE(ABORT, 'sessions.conversation_id is immutable');
 		END

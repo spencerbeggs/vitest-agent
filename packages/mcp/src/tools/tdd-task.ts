@@ -213,6 +213,22 @@ const ResumeVariant = Schema.Struct({
 
 const TddTaskInput = Schema.Union([StartVariant, EndVariant, GetVariant, ResumeVariant]);
 
+/**
+ * Single source of truth for the `tdd_task` tool's `action`
+ * discriminant, consumed by `server.ts`'s served `z.enum(...)` so the
+ * MCP-SDK-side registration cannot drift from this tRPC input union
+ * (issue #335).
+ */
+export const TDD_TASK_ACTIONS = ["start", "end", "get", "resume"] as const;
+type TddTaskAction = Schema.Schema.Type<typeof TddTaskInput>["action"];
+type _AssertTddTaskActions = TddTaskAction extends (typeof TDD_TASK_ACTIONS)[number]
+	? (typeof TDD_TASK_ACTIONS)[number] extends TddTaskAction
+		? true
+		: never
+	: never;
+const _assertTddTaskActions: _AssertTddTaskActions = true;
+void _assertTddTaskActions;
+
 export const tddTask = idempotentProcedure
 	.input(Schema.toStandardSchemaV1(TddTaskInput))
 	.mutation(async ({ ctx, input }): Promise<TddTaskResultType> => {

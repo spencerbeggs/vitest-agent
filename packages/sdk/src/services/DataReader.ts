@@ -135,6 +135,8 @@ export interface SessionDetail {
 	readonly startedAt: string;
 	readonly endedAt: string | null;
 	readonly endReason: string | null;
+	/** Canonical conversation UUID this session belongs to (issue #144), null when unset. */
+	readonly conversationId: string | null;
 }
 /** @public */
 export interface TurnSummary {
@@ -448,8 +450,33 @@ export class DataReader extends Context.Service<
 				 * preserves the prior single-session contract.
 				 */
 				readonly walkParents?: boolean;
+				/**
+				 * When true AND `sessionId`'s session has a non-null
+				 * `conversation_id`, also return tdd_tasks belonging to
+				 * any OTHER session sharing that `conversation_id` — the
+				 * detached-session fallback (issue #144). A session with
+				 * a null `conversation_id` never triggers this fallback.
+				 * Rows are ordered so a task owned by an `agent_kind =
+				 * 'main'` session sorts first, then by `started_at DESC`.
+				 * Default `false` preserves the prior contract.
+				 */
+				readonly walkConversation?: boolean;
 			},
 		) => Effect.Effect<ReadonlyArray<TddTaskSummary>, DataStoreError>;
+		/**
+		 * Diagnostic for the `missing_artifact_evidence` phase-transition
+		 * denial (issue #144): counts `tdd_artifacts` rows recorded at or
+		 * after `sinceIso` under sessions OTHER than the one that opened
+		 * `tddTaskId`, but sharing that session's `conversation_id`. Used
+		 * to tell an agent "your hooks may be attributing to a detached
+		 * session" rather than a bare "no artifact found". Returns 0 when
+		 * `tddTaskId` is unknown or its session's `conversation_id` is
+		 * null — the diagnostic never fabricates a signal it cannot back.
+		 */
+		readonly countRecentArtifactsInOtherSessionsOfConversation: (input: {
+			readonly tddTaskId: number;
+			readonly sinceIso: string;
+		}) => Effect.Effect<number, DataStoreError>;
 		/**
 		 * List artifacts recorded for a TDD task, optionally filtered
 		 * by `artifactKind`, `phaseId`, or `behaviorId`. Returns rows in

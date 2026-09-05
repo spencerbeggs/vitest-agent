@@ -436,9 +436,38 @@ schema decode and the DataStore write.
 | `SessionEnd` | `session/end-record.sh` → `session/end-record-worker.sh` | fast foreground shim over a worker script. On exit-type end reasons the shim detaches the worker (`nohup`, disowned, fds redirected to a per-session log) and emits a no-op immediately — the worker then records the `hook_fire` turn, `record session-end` (`sessions.ended_at` / `end_reason`), `agent end-agent`, and janitorial cleanup after Claude Code exits. On `clear` / `resume` the session continues, so the shim runs the worker synchronously and surfaces `wrapup --kind=session_end` via `systemMessage` |
 | `SubagentStart` (TDD) | `subagent/start-tdd.sh` | scoped via `lib/match-tdd-agent.sh`; writes `sessions` with `agent_kind='subagent'`, `parent_session_id` set |
 | `SubagentStop` (TDD) | `subagent/stop-tdd.sh` | `record session-end` with `end_reason="subagent_stop"`; generates a `wrapup --kind=tdd_handoff` note and records it as a turn on the parent session |
-| `PostToolUse` (TDD-scoped) | `post-tool-use/tdd-artifact.sh` | records `test_failed_run` / `test_passed_run` from Bash test runs and `test_written` / `code_written` from Edit/Write outcomes via `record tdd-artifact` |
+| `PostToolUse` (TDD-scoped) | `post-tool-use/tdd-artifact.sh` | records `test_failed_run` / `test_passed_run` from Bash test runs and `test_written` / `code_written` from Edit/Write outcomes via `record tdd-artifact`; forwards `VITEST_AGENT_TDD_TASK_ID` as `--tdd-task-id` when set (the detached-session escape hatch, issue #144) |
 | `PostToolUse` (TDD-scoped) | `post-tool-use/test-quality.sh` | scans test-file edits for escape-hatch tokens and records `test_weakened` artifacts |
 | `PostToolUse` (repo-scoped, `git commit`/`git push`) | `post-tool-use/git-commit.sh` | parses git metadata and shells to `record run-workspace-changes`, which writes `commits` (idempotent on `sha`) and `run_changed_files` |
+
+**TDD artifact task resolution (issue #144).** The `record tdd-artifact`
+leg of the flow above resolves *which task* an observed artifact belongs
+to in three tiers, first hit wins:
+
+```text
+post-tool-use/tdd-artifact.sh
+  → vitest-agent agent record tdd-artifact --chat-id $chat_id ... [--tdd-task-id $VITEST_AGENT_TDD_TASK_ID]
+  → dispatchRecordTddArtifactEffect
+       --tdd-task-id present → recordTddArtifactByTaskIdEffect
+            getTddTaskById; fail if missing or ended_at != null
+       else                  → recordTddArtifactEffect
+            1. resolveSessionForRecording(chat_id)   — parent walk to canonical sessions.id
+            2. listTddTasksForSession(id, { walkParents: true, walkConversation: true })
+                 a. own session + parent_session_id ancestors     (unnamed subagent, rotated chat_id)
+                 b. + every session sharing a non-null conversation_id (detached / named-teammate session)
+                 ordered main-session first, then started_at DESC; take first open task
+            3. fail if no open task
+  → writeArtifactUnderOpenPhase: getCurrentTddPhase, else auto-open `spike`; writeTddArtifact
+```
+
+Tier b only works once `sessions.conversation_id` is populated, which
+the sidecar registration flow below now guarantees. When the gate still
+finds no evidence, `tdd_phase_transition_request` counts artifacts
+recorded under other sessions of the same conversation in the last 10
+minutes and, if any, tells the agent to set `VITEST_AGENT_TDD_TASK_ID`
+or re-dispatch as an unnamed subagent — see
+[./components/mcp.md](./components/mcp.md) *Phase-transition guards* and
+[./decisions.md](./decisions.md) D21.
 
 **Why hooks call the CLI rather than the DataStore directly.** Hooks are
 shell scripts. The CLI owns the Effect runtime, the schema decode, and the
@@ -602,7 +631,10 @@ SessionStart hook (bash)
   → registerAgentEffect:
        1. mapConversation(transcript_path) — get/create canonical conversation_id
        2. mapSession(host_session_id, conversation_id, projectKey, projectDir) — get/create main_agent_id
-       3. ensure sessions row exists (writeSession idempotent on chat_id)
+       3. ensure sessions row exists — writeSession with conversationId on a fresh insert,
+          then setSessionConversationIdIfNull(sessionRowId, conversationId) unconditionally
+          (backfills the row `record session-start` inserted without a conversation id;
+          no-op when already set — issue #144)
        4. captureAgentContext(cwd) — git rev-parse for branch/sha/worktree
        5. deriveIdempotencyKey + DataStore.registerAgent (returns Agent or IdempotencyHit)
   → JSON output { agentId, conversationId, mainAgentId, idempotencyKey, idempotencyHit }

@@ -2046,6 +2046,76 @@ describe("MCP Router", () => {
 			expect(r.accepted).toBe(false);
 			expect(r.denialReason).toBe("missing_artifact_evidence");
 			expect(r.remediation?.humanHint).toMatch(/test_failed_run/);
+			expect(r.remediation?.humanHint).not.toMatch(/different session of this conversation/);
+		});
+
+		it("appends a cross-session diagnostic sentence when other sessions of the same conversation recorded artifacts recently (issue #144)", async () => {
+			const conversationId = "88888888-8888-8888-8888-888888888888";
+			const { tddId, goalId } = await testRuntime.runPromise(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					const mainSessionId = yield* store.writeSession({
+						chatId: "cc-tdd-trans-detached-diag-main",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "main",
+						conversationId,
+						startedAt: new Date().toISOString(),
+					});
+					const tddId = yield* store.writeTddTask({
+						sessionId: mainSessionId,
+						goal: "g-diag",
+						startedAt: new Date().toISOString(),
+					});
+					yield* store.writeTddPhase({
+						tddTaskId: tddId,
+						phase: "red",
+						startedAt: new Date().toISOString(),
+					});
+					const goal = yield* store.createGoal({ tddTaskId: tddId, goal: "g-diag" });
+					yield* store.updateGoal({ id: goal.id, status: "in_progress" });
+
+					// A DETACHED session sharing the same conversation_id
+					// records a recent artifact — the shape a named-teammate
+					// dispatch produces when its hooks attribute artifacts to
+					// its own session instead of the main task's.
+					const otherSessionId = yield* store.writeSession({
+						chatId: "cc-tdd-trans-detached-diag-other",
+						project: "default",
+						cwd: process.cwd(),
+						agentKind: "subagent",
+						conversationId,
+						startedAt: new Date().toISOString(),
+					});
+					const otherTddId = yield* store.writeTddTask({
+						sessionId: otherSessionId,
+						goal: "other",
+						startedAt: new Date().toISOString(),
+					});
+					const otherPhase = yield* store.writeTddPhase({
+						tddTaskId: otherTddId,
+						phase: "red",
+						startedAt: new Date().toISOString(),
+					});
+					yield* store.writeTddArtifact({
+						phaseId: otherPhase.id,
+						artifactKind: "test_written",
+						recordedAt: new Date().toISOString(),
+					});
+
+					return { tddId, goalId: goal.id };
+				}),
+			);
+			const caller = createTestCaller();
+			const r = (await caller.tdd_phase_transition_request({
+				tddTaskId: tddId,
+				goalId,
+				requestedPhase: "green",
+			})) as { accepted: boolean; denialReason?: string; remediation?: { humanHint: string } };
+			expect(r.accepted).toBe(false);
+			expect(r.denialReason).toBe("missing_artifact_evidence");
+			expect(r.remediation?.humanHint).toMatch(/different session of this conversation/);
+			expect(r.remediation?.humanHint).toMatch(/VITEST_AGENT_TDD_TASK_ID/);
 		});
 
 		it("auto-resolves the failing run for the REQUESTED behavior on red→green, not the newest across behaviors (issue #115)", async () => {
