@@ -107,7 +107,7 @@ export type {
 } from "../services/DataStore.js";
 export { DataStore } from "../services/DataStore.js";
 // Phase-transition pure types (no runtime values)
-export type { ArtifactKind, CitedArtifact, Phase } from "../utils/validate-phase-transition.js";
+export type { ArtifactKind, ArtifactSuite, CitedArtifact, Phase } from "../utils/validate-phase-transition.js";
 export { DataStoreTestLayer, makeTestLayer } from "./layers.js";
 
 /** @public */
