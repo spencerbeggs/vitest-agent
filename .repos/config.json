@@ -22,6 +22,26 @@
 				},
 				"startHere": "packages/effect/src settles what v4 actually exports (evidence-ladder rung 2); migration/*.md settles v3→v4 renames (rung 1). Before trusting an answer, check the pin matches the installed effect version — node_modules wins on disagreement.\n\nServices/tags live in Context.ts — there is no ServiceMap.ts (re-verified at beta.107; agents coming from other Effect lines reliably look for the wrong filename). Key consumer-side fact settled there: Context.Key<Id, Shape> extends Effect<Shape, never, Id> (Context.ts:64) — v4 tags/Service classes are still first-class Effects, flatMap-able without .asEffect()."
 			}
+		},
+		"vitest": {
+			"url": "https://github.com/vitest-dev/vitest.git",
+			"ref": "v5.0.0",
+			"purpose": "Read-only Vitest v5 source pinned to the v5.0.0 tag — the authority on the reporter/runner/benchmark/report APIs the vitest-agent family builds against, plus the official docs (migration guide, benchmarking, reporters). Vendored 2026-09-06 for the Vitest 4→5 migration research.",
+			"sparse": [
+				"packages/vitest/src",
+				"packages/vitest/package.json",
+				"packages/coverage-v8/src",
+				"packages/coverage-istanbul/src",
+				"packages/coverage-v8/package.json",
+				"packages/coverage-istanbul/package.json",
+				"packages/utils/src",
+				"packages/mocker/src",
+				"docs/guide",
+				"docs/config",
+				"docs/api",
+				"docs/advanced",
+				"docs/blog"
+			]
 		}
 	}
 }
