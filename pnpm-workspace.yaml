@@ -4,6 +4,17 @@ packages:
   - plugins/*
   - website
 autoInstallPeers: true
+catalogs:
+  test:
+    vitest: ^5.0.0
+    "@vitest/coverage-v8": ^5.0.0
+    "@vitest/coverage-istanbul": ^5.0.0
+    vite: ^8.2.2
+  test:peers:
+    vitest: ^5.0.0
+    "@vitest/coverage-v8": ^5.0.0
+    "@vitest/coverage-istanbul": ^5.0.0
+    vite: ^6.4.0 || ^7.0.0 || ^8.0.0
 configDependencies:
   "@effected/pnpm-plugin-effect": 0.7.0+sha512-p8/hnp+8yDyUWJBVjXbsNCF1K6XGrxfHH+eh86Vm142C/Rtx09JU7WArjaoM0tMSi5xt0vBQ7lEY9Aq1T+cxJQ==
   "@savvy-web/pnpm-plugin-silk": 0.32.0+sha512-wUSTUyQPFKelByJQ3xvGXNCzXBhGATcmRmFZmiNkKO9lw5no0luAGZfFaqUnZwohoquZcFGaPiGlU2ZTU56ASA==
