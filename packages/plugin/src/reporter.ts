@@ -1210,7 +1210,12 @@ export class AgentReporter {
 			message: string;
 			type?: string;
 			location?: { file: string; line: number; column: number };
-			attachment?: RawAttachment;
+			attachment?: {
+				contentType?: string;
+				path?: string;
+				body?: string | Uint8Array;
+				bodyEncoding?: "base64" | "utf-8";
+			};
 		},
 	): void {
 		if (!this.wantsRunEvents()) return;
@@ -1240,7 +1245,12 @@ export class AgentReporter {
 		artifact: {
 			type?: string;
 			location?: { file: string; line: number; column: number };
-			attachments?: ReadonlyArray<RawAttachment>;
+			attachments?: ReadonlyArray<{
+				contentType?: string;
+				path?: string;
+				body?: string | Uint8Array;
+				bodyEncoding?: "base64" | "utf-8";
+			}>;
 		},
 	): void {
 		if (!this.wantsRunEvents()) return;
