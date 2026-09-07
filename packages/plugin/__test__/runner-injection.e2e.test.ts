@@ -96,9 +96,9 @@ describe("Approach A — runner onCollected (late mutation, blocked for filterin
 			writeFileSync(
 				join(dir, "tag-runner.mjs"),
 				`
-import { VitestTestRunner } from "vitest/runners";
+import { TestRunner } from "vitest";
 
-export default class TaggingRunner extends VitestTestRunner {
+export default class TaggingRunner extends TestRunner {
   async onCollected(files) {
     for (const file of files) {
       const isInt = file.filepath.includes(".int.test.");
