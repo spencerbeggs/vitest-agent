@@ -324,12 +324,18 @@ const toAttachmentInput = (att: RawAttachment): TestAttachmentInput => {
 		};
 	}
 	if (typeof att.body === "string") {
+		// Vitest stamps `bodyEncoding ??= "base64"` on every body before a
+		// reporter sees it (`.repos/vitest/.../runtime/runner/artifact.ts:185`),
+		// so an undeclared body only reaches here from a hand-built object. We
+		// still record what we assumed rather than leaving NULL, so `byteSize`
+		// and `bodyEncoding` always agree on the row.
+		const bodyEncoding = att.bodyEncoding ?? "utf-8";
 		return {
 			...(att.contentType !== undefined && { contentType: att.contentType }),
 			...(att.path !== undefined && { path: att.path }),
 			body: att.body,
-			...(att.bodyEncoding !== undefined && { bodyEncoding: att.bodyEncoding }),
-			byteSize: Buffer.byteLength(att.body, att.bodyEncoding === "base64" ? "base64" : "utf8"),
+			bodyEncoding,
+			byteSize: Buffer.byteLength(att.body, bodyEncoding === "base64" ? "base64" : "utf8"),
 		};
 	}
 	return {
@@ -368,6 +374,43 @@ export const toAnnotationInputs = (
 	}));
 
 /**
+ * Read one property off a user-authored artifact object. Artifact fields
+ * are arbitrary user data and may be live getters that throw, so every
+ * read is guarded -- the same discipline `coerceErrorField` applies to
+ * error objects.
+ */
+const readField = (raw: Record<string, unknown>, key: string): unknown => {
+	try {
+		return raw[key];
+	} catch {
+		return undefined;
+	}
+};
+
+/**
+ * JSON-encode an artifact's custom fields, minus the ones modelled as
+ * their own columns. Returns `undefined` when there is nothing to store
+ * or when the object resists encoding -- a throwing getter surfaced by
+ * `Object.entries`, or a circular structure `JSON.stringify` rejects.
+ * Losing the `data` blob is acceptable; aborting the whole run's
+ * persistence over one malformed user artifact is not.
+ */
+const collectArtifactData = (raw: Record<string, unknown>, skipMessage: boolean): string | undefined => {
+	try {
+		const custom: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(raw)) {
+			if (key === "type" || key === "location" || key === "attachments") continue;
+			if (key === "message" && skipMessage) continue;
+			custom[key] = value;
+		}
+		if (Object.keys(custom).length === 0) return undefined;
+		return JSON.stringify(custom);
+	} catch {
+		return undefined;
+	}
+};
+
+/**
  * Map Vitest test artifacts onto `DataStore.writeArtifacts` inputs.
  *
  * `internal:` is a Vitest-reserved type prefix; `internal:annotation`
@@ -381,21 +424,21 @@ export const toArtifactInputs = (
 ): Array<TestArtifactInput> => {
 	const out: Array<TestArtifactInput> = [];
 	for (const raw of artifacts) {
-		const type = typeof raw.type === "string" ? raw.type : "";
+		const type = typeof readField(raw, "type") === "string" ? (raw.type as string) : "";
 		if (type === "" || type.startsWith("internal:")) continue;
-		const location = raw.location as { file: string; line: number; column: number } | undefined;
-		const attachments = Array.isArray(raw.attachments) ? (raw.attachments as Array<RawAttachment>) : [];
-		const custom: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(raw)) {
-			if (key === "type" || key === "location" || key === "attachments" || key === "message") continue;
-			custom[key] = value;
-		}
-		const dataKeys = Object.keys(custom);
+		const location = readField(raw, "location") as { file: string; line: number; column: number } | undefined;
+		const rawAttachments = readField(raw, "attachments");
+		const attachments = Array.isArray(rawAttachments) ? (rawAttachments as Array<RawAttachment>) : [];
+		// `message` is consumed as its own column only when it is a string;
+		// anything else stays in the custom data rather than vanishing.
+		const message = readField(raw, "message");
+		const messageIsString = typeof message === "string";
+		const data = collectArtifactData(raw, messageIsString);
 		out.push({
 			testCaseId,
 			type,
-			...(typeof raw.message === "string" && { message: raw.message }),
-			...(dataKeys.length > 0 && { data: JSON.stringify(custom) }),
+			...(messageIsString && { message: message as string }),
+			...(data !== undefined && { data }),
 			...(location !== undefined && {
 				locationFile: location.file,
 				locationLine: location.line,

@@ -29,7 +29,7 @@ describe("annotation and artifact ingestion mappers", () => {
 				locationFile: "src/a.test.ts",
 				locationLine: 4,
 				locationColumn: 1,
-				attachments: [{ contentType: "text/plain", body: "hi", byteSize: 2 }],
+				attachments: [{ contentType: "text/plain", body: "hi", bodyEncoding: "utf-8", byteSize: 2 }],
 			},
 		]);
 	});
@@ -95,7 +95,7 @@ describe("annotation and artifact ingestion mappers", () => {
 				locationFile: "src/b.test.ts",
 				locationLine: 12,
 				locationColumn: 3,
-				attachments: [{ contentType: "text/plain", body: "abc", byteSize: 3 }],
+				attachments: [{ contentType: "text/plain", body: "abc", bodyEncoding: "utf-8", byteSize: 3 }],
 			},
 		]);
 	});
@@ -166,6 +166,55 @@ function makeTestModule(tests: Array<VitestTestCase>): VitestTestModule {
 	} as unknown as VitestTestModule;
 }
 
+describe("toArtifactInputs hardening", () => {
+	it("keeps the artifact when a custom-field getter throws, dropping only its data", () => {
+		const raw: Record<string, unknown> = { type: "my-pkg:trace", ok: 1 };
+		Object.defineProperty(raw, "boom", {
+			enumerable: true,
+			get() {
+				throw new Error("live getter exploded");
+			},
+		});
+		const inputs = toArtifactInputs(5, [raw]);
+		expect(inputs).toHaveLength(1);
+		expect(inputs[0]?.type).toBe("my-pkg:trace");
+		expect(inputs[0]?.data).toBeUndefined();
+	});
+
+	it("keeps the artifact when its custom fields are circular, dropping only its data", () => {
+		const cycle: Record<string, unknown> = {};
+		cycle.self = cycle;
+		const inputs = toArtifactInputs(5, [{ type: "my-pkg:trace", cycle }]);
+		expect(inputs).toHaveLength(1);
+		expect(inputs[0]?.type).toBe("my-pkg:trace");
+		expect(inputs[0]?.data).toBeUndefined();
+	});
+
+	it("keeps a non-string message in the custom data rather than dropping it", () => {
+		const inputs = toArtifactInputs(6, [{ type: "my-pkg:trace", message: 42 }]);
+		expect(inputs[0]?.message).toBeUndefined();
+		expect(JSON.parse(inputs[0]?.data ?? "{}")).toEqual({ message: 42 });
+	});
+
+	it("omits a string message from the custom data because it is consumed as the message", () => {
+		const inputs = toArtifactInputs(6, [{ type: "my-pkg:trace", message: "real", spans: 1 }]);
+		expect(inputs[0]?.message).toBe("real");
+		expect(JSON.parse(inputs[0]?.data ?? "{}")).toEqual({ spans: 1 });
+	});
+
+	it("survives a throwing type getter by skipping the artifact", () => {
+		const raw: Record<string, unknown> = {};
+		Object.defineProperty(raw, "type", {
+			enumerable: true,
+			get() {
+				throw new Error("live getter exploded");
+			},
+		});
+		expect(() => toArtifactInputs(7, [raw])).not.toThrow();
+		expect(toArtifactInputs(7, [raw])).toEqual([]);
+	});
+});
+
 describe("onTestRunEnd annotation and artifact ingestion", () => {
 	it("persists each test case's annotations and artifacts against its own row", async () => {
 		const cacheDir = mkdtempSync(join(tmpdir(), "va-ingest-"));
@@ -205,9 +254,11 @@ describe("onTestRunEnd annotation and artifact ingestion", () => {
 			expect(artifacts).toEqual([{ name: "second", type: "my-pkg:trace", data: JSON.stringify({ spans: 2 }) }]);
 
 			const attachments = db
-				.prepare("SELECT content_type AS contentType, body, byte_size AS byteSize FROM attachments")
+				.prepare(
+					"SELECT content_type AS contentType, body, body_encoding AS bodyEncoding, byte_size AS byteSize FROM attachments",
+				)
 				.all();
-			expect(attachments).toEqual([{ contentType: "text/plain", body: "abc", byteSize: 3 }]);
+			expect(attachments).toEqual([{ contentType: "text/plain", body: "abc", bodyEncoding: "utf-8", byteSize: 3 }]);
 		} finally {
 			db.close();
 			rmSync(cacheDir, { recursive: true, force: true });
@@ -241,7 +292,7 @@ describe("streaming annotation and artifact hooks", () => {
 				annotation: "known slow",
 				annotationType: "issues",
 				location: { file: "src/foo.test.ts", line: 4, column: 1 },
-				attachments: [{ contentType: "text/plain", body: "hi", byteSize: 2 }],
+				attachments: [{ contentType: "text/plain", body: "hi", bodyEncoding: "utf-8", byteSize: 2 }],
 			},
 		]);
 	});
