@@ -8,6 +8,7 @@ import {
 	LoggerLive,
 	OutputPipelineLive,
 	migration0001,
+	migration0002,
 } from "@vitest-agent/sdk";
 import type { LogLevel } from "effect";
 import { Layer } from "effect";
@@ -23,6 +24,7 @@ export const ReporterLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFi
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
+			"0002_test_artifacts": migration0002,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 

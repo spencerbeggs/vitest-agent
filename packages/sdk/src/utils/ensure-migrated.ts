@@ -6,6 +6,7 @@ import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { LoggerLive } from "../layers/LoggerLive.js";
 import migration0001 from "../migrations/0001_initial.js";
+import migration0002 from "../migrations/0002_test_artifacts.js";
 
 const GLOBAL_KEY = Symbol.for("vitest-agent/migration-promises");
 
@@ -38,6 +39,7 @@ export function ensureMigrated(dbPath: string, logLevel?: LogLevel.LogLevel, log
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
+			"0002_test_artifacts": migration0002,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
