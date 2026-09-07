@@ -360,6 +360,16 @@ describe("GITHUB_JOB_SUMMARY_COLLISION", () => {
 		expect(warnings).toHaveLength(1);
 	});
 
+	it("warns when github-actions is a tuple with no jobSummary key", async () => {
+		const vitestConfig = makeVitestConfig({
+			reporters: [["github-actions", {}]],
+		});
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(1);
+	});
+
 	it("stays silent when the user disabled jobSummary", async () => {
 		const vitestConfig = makeVitestConfig({
 			reporters: [["github-actions", { jobSummary: { enabled: false } }]],
