@@ -363,24 +363,14 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const { vitest, project } = ctx;
 				log("configureVitest called | project:", project?.name ?? "(root)");
 
-				// Vitest 5's fsModuleCache keys transformed modules on file
+				// Vitest's fsModuleCache keys transformed modules on file
 				// content and environment config alone — it cannot see that the
 				// injected tag prelude comes from a filesystem scan. Fold the
 				// tag set into the key so a changed classification invalidates
-				// the cached prelude. Vitest 4 does not pass the callback;
-				// absence is a no-op.
-				const defineCacheKeyGenerator = (
-					ctx as {
-						defineCacheKeyGenerator?: (cb: (c: { id: string }) => string | undefined) => void;
-					}
-				).defineCacheKeyGenerator;
-				if (
-					typeof defineCacheKeyGenerator === "function" &&
-					discoverStrategyResolved &&
-					!cacheKeyGeneratorByVitest.has(vitest as object)
-				) {
+				// the cached prelude.
+				if (discoverStrategyResolved && !cacheKeyGeneratorByVitest.has(vitest as object)) {
 					cacheKeyGeneratorByVitest.add(vitest as object);
-					defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache));
+					ctx.defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache));
 					log("registered fsModuleCache tag cache-key generator");
 				}
 

@@ -40,7 +40,11 @@ function mockVitest(
  * The mock satisfies the subset of VitestPluginContext that the plugin uses.
  */
 async function callConfigureVitest(plugin: ReturnType<typeof AgentPlugin>, vitest: ReturnType<typeof mockVitest>) {
-	const ctx = { vitest, project: { name: undefined } } as unknown as VitestPluginContext;
+	const ctx = {
+		vitest,
+		project: { name: undefined },
+		defineCacheKeyGenerator: vi.fn(),
+	} as unknown as VitestPluginContext;
 	await plugin.configureVitest(ctx);
 }
 
@@ -537,12 +541,6 @@ describe("AgentPlugin", () => {
 			const generator = defineCacheKeyGenerator.mock.calls[0]?.[0] as (c: { id: string }) => string | undefined;
 			expect(generator({ id: "/repo/packages/plugin/src/plugin.ts" })).toBeUndefined();
 			expect(generator({ id: "/repo/packages/plugin/__test__/plugin.test.ts" })).toMatch(/^vitest-agent:tags:/);
-		});
-
-		it("does not throw when the context omits defineCacheKeyGenerator (Vitest 4)", async () => {
-			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
-			const vitest = mockVitest();
-			await expect(callConfigureVitest(plugin, vitest)).resolves.toBeUndefined();
 		});
 	});
 });
