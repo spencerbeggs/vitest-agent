@@ -57,6 +57,16 @@ every glob. If you relied on a top-level `perFile: true` reaching your
 per-glob thresholds, add `perFile` explicitly to each glob entry that
 needs it.
 
+### `coverage.include` and `coverage.exclude` are root-relative
+
+Vitest 5 matches both lists against each file's path relative to the
+project root that owns it, not the workspace root, so a workspace-anchored
+entry such as `packages/cli/src/bin.ts` never matches from inside that
+package. Re-anchor those patterns as `**/cli/src/bin.ts` and set
+`coverage.excludeAfterRemap: true` so a file reached only through another
+file's source map is still excluded. The Vitest 5 upgrade guide walks
+through it.
+
 ## Features
 
 ### Tag-set changes invalidate the cached tag prelude
@@ -69,11 +79,16 @@ of requiring a manual cache clear.
 ### `github-actions` job summary no longer duplicates
 
 Vitest 5's `github-actions` reporter writes a markdown job summary by
-default. Under the `ci-github` environment the plugin now injects
-`["github-actions", { jobSummary: { enabled: false } }]`, so the inline
-`::error::` annotations stay while the summary is left to the plugin. A
-new `GITHUB_JOB_SUMMARY_COLLISION` configuration warning fires when you
-configure the reporter yourself and leave its summary enabled.
+default, and Vitest seeds the reporter into its own defaults whenever
+`GITHUB_ACTIONS=true`. Under the `ci-github` environment the plugin now
+normalizes whatever entry it finds to
+`["github-actions", { jobSummary: { enabled: false } }]` — preserving the
+entry's other options and its position in the array, and appending one
+when none exists — so the inline `::error::` annotations stay while the
+summary is left to the plugin. An entry that sets
+`jobSummary: { enabled: true }` reads as a deliberate opt-in: the plugin
+leaves it alone and raises the new `GITHUB_JOB_SUMMARY_COLLISION`
+configuration warning instead.
 
 ## Bug Fixes
 

@@ -12,7 +12,9 @@ are newly exported: `PerFileThresholds` (the union) and
 `PatternMetricThresholds` (the metric values a glob-pattern entry carries,
 including its own optional `perFile`). `PatternThresholds`'s second tuple
 element is now `PatternMetricThresholds`; every previously valid value
-still decodes.
+still decodes. The widening is source-visible to TypeScript consumers:
+`const enabled: boolean = resolved.perFile` no longer compiles, so narrow
+with a `typeof resolved.perFile === "boolean"` check first.
 
 ### `coverageTargets` glob entries accept `perFile`
 

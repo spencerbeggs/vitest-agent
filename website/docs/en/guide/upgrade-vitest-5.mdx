@@ -50,13 +50,16 @@ list whenever `GITHUB_ACTIONS=true`. `@vitest-agent/plugin` already
 writes its own GitHub Actions step summary, so two summaries would be
 appended to the same job.
 
-The plugin handles this for the reporter it injects: under the
-`ci-github` environment it now appends
+The plugin handles this for you: under the `ci-github` environment it
+normalizes whatever `github-actions` entry it finds — the one Vitest
+seeded from its defaults included — to
 `["github-actions", { jobSummary: { enabled: false } }]`, keeping the
 inline `::error::` annotations while leaving the summary to the plugin.
+Any other options on the entry are preserved, and when no entry exists
+the plugin appends one.
 
-If you configure `github-actions` yourself, disable its job summary
-explicitly:
+You can also disable the job summary yourself; the plugin leaves an
+entry that already sets it alone:
 
 ```ts
 export default defineConfig({
@@ -66,10 +69,68 @@ export default defineConfig({
 });
 ```
 
-The plugin emits a `GITHUB_JOB_SUMMARY_COLLISION` configuration warning
-when it sees a `github-actions` entry that leaves the summary on. To go
-the other way and keep Vitest's summary instead of the plugin's, set the
-plugin's `console.ci` slot to `"silent"`.
+The one entry the plugin will not touch is an explicit
+`jobSummary: { enabled: true }` — that reads as a deliberate opt-in, so
+the plugin leaves it alone and emits a `GITHUB_JOB_SUMMARY_COLLISION`
+configuration warning instead. To keep Vitest's summary and drop the
+plugin's, set the plugin's `console.ci` slot to `"silent"`.
+
+## `coverage.include` and `coverage.exclude` are root-relative
+
+Vitest 5 matches `coverage.include` and `coverage.exclude` against each
+file's path *relative to the project root it belongs to*, not relative
+to the workspace root. In a monorepo every project has its own root, so
+a workspace-anchored pattern such as `packages/cli/src/bin.ts` is
+compared against `src/bin.ts` from inside `packages/cli` and never
+matches.
+
+Re-anchor every such pattern with a leading `**/` so it matches from
+either side:
+
+```diff
+  coverage: {
+    exclude: [
+      '**/*.{test,spec}.ts',
+-     'packages/cli/src/bin.ts',
+-     'packages/sdk/src/migrations/**',
++     '**/cli/src/bin.ts',
++     '**/sdk/src/migrations/**',
+    ],
+  },
+```
+
+Set `coverage.excludeAfterRemap: true` alongside it. Without it a file
+that coverage only ever reaches through another file's source map is
+remapped in after the exclude list has already been applied, so it shows
+up in the report despite matching an exclude pattern.
+
+This repo's own config carries both:
+
+```ts
+export default async () => {
+  const { projects, tags } = await AgentPlugin.discover();
+  return defineConfig({
+    plugins: [AgentPlugin({ coverageTargets: AgentPlugin.COVERAGE_LEVELS.basic.coverageTargets })],
+    test: {
+      ...(projects ? { projects } : {}),
+      tags,
+      coverage: {
+        enabled: true,
+        provider: 'v8',
+        excludeAfterRemap: true,
+        thresholds: AgentPlugin.COVERAGE_LEVELS.basic.thresholds,
+        exclude: [
+          '**/*.{test,spec}.ts',
+          '**/cli/src/bin.ts',
+          '**/sdk/src/migrations/**',
+        ],
+      },
+    },
+  });
+};
+```
+
+A pattern that was already written with a leading `**/` needs no change.
 
 ## `-t` now matches the names our tools print
 
