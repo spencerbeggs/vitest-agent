@@ -424,7 +424,8 @@ export const toArtifactInputs = (
 ): Array<TestArtifactInput> => {
 	const out: Array<TestArtifactInput> = [];
 	for (const raw of artifacts) {
-		const type = typeof readField(raw, "type") === "string" ? (raw.type as string) : "";
+		const rawType = readField(raw, "type");
+		const type = typeof rawType === "string" ? rawType : "";
 		if (type === "" || type.startsWith("internal:")) continue;
 		const location = readField(raw, "location") as { file: string; line: number; column: number } | undefined;
 		const rawAttachments = readField(raw, "attachments");

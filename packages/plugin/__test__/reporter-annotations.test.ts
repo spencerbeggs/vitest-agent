@@ -202,6 +202,23 @@ describe("toArtifactInputs hardening", () => {
 		expect(JSON.parse(inputs[0]?.data ?? "{}")).toEqual({ spans: 1 });
 	});
 
+	it("reads the artifact type once, so a getter that throws on re-read is harmless", () => {
+		let calls = 0;
+		const raw: Record<string, unknown> = { spans: 1 };
+		Object.defineProperty(raw, "type", {
+			enumerable: false,
+			get() {
+				calls += 1;
+				if (calls > 1) throw new Error("live getter exploded on re-read");
+				return "my-pkg:trace";
+			},
+		});
+		const inputs = toArtifactInputs(8, [raw]);
+		expect(calls).toBe(1);
+		expect(inputs).toHaveLength(1);
+		expect(inputs[0]?.type).toBe("my-pkg:trace");
+	});
+
 	it("survives a throwing type getter by skipping the artifact", () => {
 		const raw: Record<string, unknown> = {};
 		Object.defineProperty(raw, "type", {
