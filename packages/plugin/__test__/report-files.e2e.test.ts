@@ -60,7 +60,9 @@ describe("report files written under .vitest/vitest-agent", () => {
 		runFixture({ AI_AGENT: "claude" });
 		expect(existsSync(REPORT_DIR)).toBe(true);
 		// Both files land on a green run: the envelope is the machine
-		// contract and the markdown always carries the totals table.
+		// contract and the markdown always carries the totals table. The
+		// exact set is an intentional contract pin — a new report file must
+		// be a deliberate change here, not an unnoticed addition.
 		expect(readdirSync(REPORT_DIR).sort()).toEqual(["run.json", "summary.md"]);
 		const raw = readFileSync(join(REPORT_DIR, "run.json"), "utf8");
 		const parsed = Schema.decodeUnknownSync(RunReportFile)(JSON.parse(raw));
