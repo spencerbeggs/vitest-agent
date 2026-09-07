@@ -280,41 +280,97 @@ const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): 
 	return lines.join("\n");
 };
 
+const formatSummaryDuration = (ms: number): string =>
+	ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+
 /**
- * Assemble the vitest-agent markdown body shared by the GitHub step
- * summary and the `summary.md` report file: a `## vitest-agent` heading
- * followed by whichever of the classification, coverage, and trend
- * sections have content. Returns `null` when all three are empty — a
- * clean run should leave neither a bare heading in the job summary nor
- * a content-free file on disk.
+ * Per-project pass/fail/skip/duration table — the unconditional half of
+ * the summary body.
+ *
+ * Vitest's own `github-actions` reporter no longer writes these counts
+ * to the step summary (its job-summary half is disabled), so this table
+ * is the only place a CI reader sees the totals. A multi-project run
+ * gets a trailing `Total` row; a single-project run does not, because
+ * the row would just repeat the one above it.
+ *
+ * `failed` folds in suite-level (collection/load) failures via
+ * `countSuiteFailures`, so a module that never loaded is not reported as
+ * a clean zero.
  *
  * @internal
  */
-const buildSummaryMarkdown = (input: ReporterRenderInput): string | null => {
+const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string => {
+	const rows = reports.map((report) => ({
+		name: report.project ?? "default",
+		passed: report.summary.passed,
+		failed: report.summary.failed + countSuiteFailures(report),
+		skipped: report.summary.skipped,
+		duration: report.summary.duration,
+	}));
+	const lines = [
+		"### Totals",
+		"",
+		"| Project | Passed | Failed | Skipped | Duration |",
+		"| --- | --- | --- | --- | --- |",
+		...rows.map(
+			(r) => `| ${r.name} | ${r.passed} | ${r.failed} | ${r.skipped} | ${formatSummaryDuration(r.duration)} |`,
+		),
+	];
+	if (rows.length > 1) {
+		const total = rows.reduce(
+			(acc, r) => ({
+				passed: acc.passed + r.passed,
+				failed: acc.failed + r.failed,
+				skipped: acc.skipped + r.skipped,
+				duration: acc.duration + r.duration,
+			}),
+			{ passed: 0, failed: 0, skipped: 0, duration: 0 },
+		);
+		lines.push(
+			`| **Total** | ${total.passed} | ${total.failed} | ${total.skipped} | ${formatSummaryDuration(total.duration)} |`,
+		);
+	}
+	return lines.join("\n");
+};
+
+/**
+ * Assemble the vitest-agent markdown body shared by the GitHub step
+ * summary and the `summary.md` report file: a `## vitest-agent` heading,
+ * the always-present per-project totals table, then whichever of the
+ * classification, coverage, and trend sections have content.
+ *
+ * Always returns markdown. An all-green run still gets a body — with
+ * Vitest's own job summary disabled, returning `null` here left the step
+ * summary blank on every passing CI run and wrote no `summary.md` at
+ * all.
+ *
+ * @internal
+ */
+const buildSummaryMarkdown = (input: ReporterRenderInput): string => {
 	const sections = [
 		renderClassificationsSection(input.classifications),
 		renderCoverageSection(input.reports),
 		renderTrendSection(input.trendSummary),
 	].filter((section): section is string => section !== null);
-	if (sections.length === 0) return null;
-	return ["## vitest-agent", ...sections].join("\n\n");
+	return ["## vitest-agent", renderTotalsSection(input.reports), ...sections].join("\n\n");
 };
 
 /**
  * Builds the vitest-agent GitHub step-summary payload — ONE `RenderedOutput`
- * for the whole run, carrying only data Vitest's own built-in
- * `github-actions` reporter cannot know: test classifications (new-failure /
- * persistent / flaky / recovered), coverage-target shortfalls, and the
- * coverage trend. Vitest's reporter already writes pass/fail/skip counts
- * and a flaky-tests section to the same `$GITHUB_STEP_SUMMARY` file, so
- * duplicating that per-project breakdown here would be redundant noise
- * multiplied across every project in a workspace. Returns an empty array
- * when all three sections would be empty — a clean run should not leave a
- * bare heading in the job summary.
+ * for the whole run: the per-project totals table, plus test
+ * classifications (new-failure / persistent / flaky / recovered),
+ * coverage-target shortfalls, and the coverage trend when those have
+ * content.
+ *
+ * The totals used to be omitted on the theory that Vitest's own
+ * `github-actions` reporter already wrote pass/fail/skip counts to the
+ * same `$GITHUB_STEP_SUMMARY` file. That is no longer true — its
+ * job-summary half is disabled — so this block is the only summary a CI
+ * reader gets, and it is always emitted. A green run gets a totals table
+ * rather than nothing at all.
  */
 const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<RenderedOutput> => {
 	const body = buildSummaryMarkdown(input);
-	if (body === null) return [];
 	// Bracketed in newlines: `routeRenderedOutput` APPENDS to
 	// GITHUB_STEP_SUMMARY, and Vitest's own `github-actions` reporter has
 	// usually already written its `## Vitest Test Report` block there. The
@@ -415,15 +471,12 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 					2,
 				)}\n`,
 			});
-			const summary = buildSummaryMarkdown(input);
-			if (summary !== null) {
-				out.push({
-					target: "report",
-					filename: "summary.md",
-					contentType: "text/markdown",
-					content: `${summary}\n`,
-				});
-			}
+			out.push({
+				target: "report",
+				filename: "summary.md",
+				contentType: "text/markdown",
+				content: `${buildSummaryMarkdown(input)}\n`,
+			});
 			return out;
 		},
 	};

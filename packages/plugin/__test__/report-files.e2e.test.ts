@@ -26,17 +26,28 @@ const REPORT_DIR = join(FIXTURE_DIR, ".vitest", "vitest-agent");
 
 afterAll(() => rmSync(join(FIXTURE_DIR, ".vitest"), { recursive: true, force: true }));
 
-const runFixture = (): void => {
+/**
+ * Run the fixture with every executor-detection variable stripped, then
+ * layer `extraEnv` back on. `AI_AGENT` is std-env's explicit override, so
+ * setting it resolves the `agent` executor — the slot report files
+ * default on for. Omitting it leaves `terminal` / `human`, the slot they
+ * default off for.
+ */
+const runFixture = (extraEnv: Record<string, string>): void => {
 	rmSync(join(FIXTURE_DIR, ".vitest"), { recursive: true, force: true });
-	// `AI_AGENT` is std-env's explicit override, so the plugin resolves the
-	// `agent` executor — the slot report files default on for. CI and
-	// GITHUB_ACTIONS are cleared so they cannot win the detection instead.
-	const { CI: _ci, GITHUB_ACTIONS: _gha, ...rest } = process.env;
+	const {
+		CI: _ci,
+		GITHUB_ACTIONS: _gha,
+		AI_AGENT: _aiAgent,
+		CLAUDECODE: _claudecode,
+		CLAUDE_CODE: _claudeCode,
+		...rest
+	} = process.env;
 	try {
 		execFileSync("node", [VITEST_BIN, "run", "--no-color"], {
 			cwd: FIXTURE_DIR,
 			encoding: "utf8",
-			env: { ...rest, AI_AGENT: "claude" },
+			env: { ...rest, ...extraEnv },
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 	} catch {
@@ -46,17 +57,37 @@ const runFixture = (): void => {
 
 describe("report files written under .vitest/vitest-agent", () => {
 	it("writes run.json parsing against RunReportFile", { timeout: 120_000 }, () => {
-		runFixture();
+		runFixture({ AI_AGENT: "claude" });
 		expect(existsSync(REPORT_DIR)).toBe(true);
-		// A clean run has no classification, coverage, or trend section, so
-		// `summary.md` is deliberately absent — the envelope is unconditional,
-		// the markdown is not.
-		expect(readdirSync(REPORT_DIR).sort()).toEqual(["run.json"]);
+		// Both files land on a green run: the envelope is the machine
+		// contract and the markdown always carries the totals table.
+		expect(readdirSync(REPORT_DIR).sort()).toEqual(["run.json", "summary.md"]);
 		const raw = readFileSync(join(REPORT_DIR, "run.json"), "utf8");
 		const parsed = Schema.decodeUnknownSync(RunReportFile)(JSON.parse(raw));
 		expect(parsed.$schema).toBe(RUN_REPORT_FILE_SCHEMA_URL);
 		expect(parsed.schemaVersion).toBe(1);
 		expect(parsed.reports.length).toBeGreaterThan(0);
 		expect(parsed.reports[0]?.summary.passed).toBe(1);
+	});
+
+	it("writes summary.md carrying the totals row for the fixture project", { timeout: 120_000 }, () => {
+		runFixture({ AI_AGENT: "claude" });
+		const summary = readFileSync(join(REPORT_DIR, "summary.md"), "utf8");
+		expect(summary).toContain("## vitest-agent");
+		expect(summary).toContain("### Totals");
+		expect(summary).toContain("| Project | Passed | Failed | Skipped | Duration |");
+		// The fixture has no `name` on its Vitest project, so the reporter
+		// falls back to "default"; one passing test, nothing else.
+		expect(summary).toMatch(/\| default \| 1 \| 0 \| 0 \| [\d.]+m?s \|/);
+	});
+
+	it("writes nothing at all for the human executor", { timeout: 120_000 }, () => {
+		// Negative control: with no agent/CI marker the plugin resolves the
+		// `human` executor, report files default off, and the lazy
+		// `createReport` handle is never opened — so not even the directory
+		// appears. Proves the two assertions above are caused by the
+		// executor forcing rather than by an unconditional write.
+		runFixture({});
+		expect(existsSync(join(FIXTURE_DIR, ".vitest"))).toBe(false);
 	});
 });

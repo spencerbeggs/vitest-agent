@@ -87,15 +87,45 @@ describe("default reporter report files", () => {
 		const summary = outputs.find((o) => o.target === "report" && o.filename === "summary.md");
 		expect(summary?.contentType).toBe("text/markdown");
 		expect(summary?.content).toContain("## vitest-agent");
+		expect(summary?.content).toContain("### Totals");
 		expect(summary?.content).toContain("| flaky | 1 |");
 	});
 
-	it("omits summary.md when every section would be empty", () => {
+	it("writes the totals table and no conditional sections on an all-green run", () => {
 		const kit = makeKit();
 		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(makeInput(), kit);
-		expect(outputs.find((o) => o.target === "report" && o.filename === "summary.md")).toBeUndefined();
-		// run.json is unconditional — the envelope is the machine contract.
+		const summary = outputs.find((o) => o.target === "report" && o.filename === "summary.md");
+		// Never null: Vitest's own job summary is disabled, so a blank body
+		// would leave a passing CI run with no summary at all.
+		expect(summary).toBeDefined();
+		expect(summary?.content).toContain("### Totals");
+		expect(summary?.content).toContain("| Project | Passed | Failed | Skipped | Duration |");
+		expect(summary?.content).toContain("| demo | 1 | 0 | 0 | 10ms |");
+		expect(summary?.content).not.toContain("### Classifications");
+		expect(summary?.content).not.toContain("### Coverage");
+		expect(summary?.content).not.toContain("### Trend");
+		// A single-project run gets no Total row — it would repeat the row above.
+		expect(summary?.content).not.toContain("**Total**");
 		expect(outputs.find((o) => o.target === "report" && o.filename === "run.json")).toBeDefined();
+	});
+
+	it("appends a Total row and folds suite failures for a multi-project run", () => {
+		const kit = makeKit();
+		const reports: ReadonlyArray<AgentReport> = [
+			makeReport({ project: "alpha", summary: { total: 5, passed: 4, failed: 1, skipped: 0, duration: 900 } }),
+			makeReport({
+				project: "beta",
+				summary: { total: 2, passed: 1, failed: 0, skipped: 1, duration: 400 },
+				// A module that failed to load: no failed test cases, but the
+				// project is not green. `countSuiteFailures` must surface it.
+				failed: [{ file: "src/broken.ts", state: "failed", tests: [] }],
+			}),
+		];
+		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(makeInput({ reports }), kit);
+		const summary = outputs.find((o) => o.target === "report" && o.filename === "summary.md");
+		expect(summary?.content).toContain("| alpha | 4 | 1 | 0 | 900ms |");
+		expect(summary?.content).toContain("| beta | 1 | 1 | 1 | 400ms |");
+		expect(summary?.content).toContain("| **Total** | 5 | 2 | 1 | 1.3s |");
 	});
 
 	it("still emits report files in a non-agent console mode", () => {

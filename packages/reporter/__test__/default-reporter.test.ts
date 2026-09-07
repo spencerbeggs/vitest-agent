@@ -126,7 +126,7 @@ describe("DefaultVitestAgentReporter", () => {
 		expect(logOutputs).toHaveLength(1);
 	});
 
-	it("emits no github-summary output on a clean run with no classifications, coverage gaps, or trend", () => {
+	it("still emits a github-summary carrying only totals on a clean run", () => {
 		const kit: ReporterKit = {
 			...makeKit("passthrough"),
 			config: { ...makeKit("passthrough").config, githubActions: true },
@@ -134,7 +134,11 @@ describe("DefaultVitestAgentReporter", () => {
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
 		const output = reporter.render(makeInput(), kit);
 		const summaryOutputs = output.filter((o) => o.target === "github-summary");
-		expect(summaryOutputs).toHaveLength(0);
+		// Vitest's own job-summary half is disabled, so an omitted block here
+		// would leave a passing CI run with a blank step summary.
+		expect(summaryOutputs).toHaveLength(1);
+		expect(summaryOutputs[0]?.content).toContain("### Totals");
+		expect(summaryOutputs[0]?.content).not.toContain("### Classifications");
 	});
 
 	describe("github-summary sections", () => {
@@ -180,7 +184,8 @@ describe("DefaultVitestAgentReporter", () => {
 
 		it("omits the Classifications section when every classification is stable", () => {
 			const content = renderSummary(makeInput({ classifications: new Map([["t1", "stable"]]) }));
-			expect(content).toBeUndefined();
+			expect(content).toContain("### Totals");
+			expect(content).not.toContain("### Classifications");
 		});
 
 		const makeCoverageReport = (belowTarget: ReadonlyArray<FileCoverageReport>): CoverageReport => ({
