@@ -332,7 +332,21 @@ describe("PERFILE_ON_TARGETS", () => {
 		// Then
 		const warnings = result.warnings.filter((w) => w.code === "PERFILE_ON_TARGETS");
 		expect(warnings).toHaveLength(1);
-		expect(warnings[0].message).toMatch(/coverage\.thresholds\.perFile/);
+		expect(warnings[0].message).toMatch(/glob-pattern entry/);
+	});
+
+	it("does not warn when perFile sits inside a glob-pattern entry", async () => {
+		// Vitest 5 lets a glob entry carry its own perFile — only a TOP-LEVEL
+		// key is misplaced inside coverageTargets.
+		const vitestConfig = makeVitestConfig({});
+		const pluginOptions = makePluginOptions({
+			coverageTargets: { "src/**/*.ts": { lines: 90, perFile: true } },
+		});
+
+		const result = await runValidation(vitestConfig, pluginOptions);
+
+		expect(result.warnings.filter((w) => w.code === "PERFILE_ON_TARGETS")).toEqual([]);
+		expect(result.errors.filter((e) => e.code === "INVALID_TARGET_VALUE")).toEqual([]);
 	});
 });
 

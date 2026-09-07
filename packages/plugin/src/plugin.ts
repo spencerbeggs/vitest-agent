@@ -631,8 +631,10 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
  * passed to Vitest's native `coverage.thresholds`; the `coverageTargets`
  * half is passed to `AgentPlugin({ coverageTargets })`.
  *
- * `thresholds` carries the optional `perFile` flag; `coverageTargets`
- * does not — it inherits `perFile` from `coverage.thresholds.perFile`.
+ * `thresholds` carries the optional top-level `perFile` flag. Under
+ * Vitest 5 a glob-pattern entry may carry its own `perFile`, and a file a
+ * pattern matches does NOT inherit the top-level one — the top-level
+ * setting applies only to files no pattern matches.
  * @public
  */
 export interface CoverageLevelPreset {

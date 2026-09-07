@@ -715,4 +715,60 @@ describe("per-pattern perFile", () => {
 		const report = Option.getOrThrow(result);
 		expect(report.lowCoverage.map((f) => f.file)).toEqual(["/repo/src/a.ts"]);
 	});
+	it("does not let a matched pattern without a perFile inherit the top-level one", async () => {
+		// Vitest 5: a matched glob entry's own perFile is the ONLY per-file
+		// setting for that file. The pattern declares none, so the top-level
+		// `perFile: { lines: 90 }` must not reach this file — it is checked
+		// against the pattern's own `lines: 50`, which 60% clears.
+		const map = mockCoverageMap({
+			"/repo/src/a.ts": {
+				summary: { statements: 60, branches: 60, functions: 60, lines: 60 },
+				uncoveredLines: [1],
+			},
+		});
+
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(map, {
+					thresholds: {
+						global: { lines: 50 },
+						perFile: { lines: 90 },
+						patterns: [["/repo/src/*.ts", { lines: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+
+		const report = Option.getOrThrow(result);
+		expect(report.lowCoverage.map((f) => f.file)).toEqual([]);
+	});
+
+	it("falls through to the pattern metrics when the pattern perFile is boolean", async () => {
+		// A boolean pattern perFile carries no metric numbers, so the resolver
+		// returns null and the file is checked against the pattern's own
+		// aggregate metrics — here `lines: 90`, which 60% fails.
+		const map = mockCoverageMap({
+			"/repo/src/a.ts": {
+				summary: { statements: 60, branches: 60, functions: 60, lines: 60 },
+				uncoveredLines: [1],
+			},
+		});
+
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(map, {
+					thresholds: {
+						global: { lines: 10 },
+						perFile: false,
+						patterns: [["/repo/src/*.ts", { lines: 90, perFile: true }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+
+		const report = Option.getOrThrow(result);
+		expect(report.lowCoverage.map((f) => f.file)).toEqual(["/repo/src/a.ts"]);
+	});
 });
