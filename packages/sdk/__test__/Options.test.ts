@@ -3,7 +3,7 @@
  * surface.
  *
  * Locked shape: AgentPluginOptions = { console?, coverageTargets?,
- * transport? } (function-typed `reporter` and `onRunEvent` live on the
+ * transport?, report? } (function-typed `reporter` and `onRunEvent` live on the
  * companion `AgentPluginConstructorOptions` interface, not on the schema).
  * AgentReporterOptions = { projectFilter? }.
  */
@@ -147,5 +147,30 @@ describe("AgentReporterOptions decode", () => {
 				Schema.decodeUnknownSync(AgentReporterOptions)({ [name]: "anything" }, { onExcessProperty: "error" }),
 			).toThrow();
 		}
+	});
+});
+
+describe("AgentPluginOptions report option", () => {
+	it("decodes `report: false`", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({ report: false });
+		expect(result.report).toBe(false);
+	});
+
+	it("decodes `report: {}` (scope omitted)", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({ report: {} });
+		expect(result.report).toEqual({});
+	});
+
+	it("decodes `report: { scope }`", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({ report: { scope: "my-scope" } });
+		expect(result.report).toEqual({ scope: "my-scope" });
+	});
+
+	it("rejects `report: true` (only `false` disables)", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ report: true })).toThrow();
+	});
+
+	it("rejects a non-string scope", () => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ report: { scope: 3 } })).toThrow();
 	});
 });
