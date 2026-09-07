@@ -27,7 +27,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveConfigAnchoredRoot } from "../src/tools/run-tests.js";
+import { resolveAnchoredConfigFile, resolveConfigAnchoredRoot } from "../src/tools/run-tests.js";
 
 describe("resolveConfigAnchoredRoot", () => {
 	let tmpRoot: string;
@@ -131,5 +131,40 @@ describe("resolveConfigAnchoredRoot", () => {
 		const result = resolveConfigAnchoredRoot(pkgDir);
 
 		expect(result).toBe(tmpRoot);
+	});
+});
+
+describe("resolveAnchoredConfigFile", () => {
+	it("returns the vitest config path when it sits in startDir", () => {
+		const dir = mkdtempSync(join(tmpdir(), "va-anchored-config-"));
+		writeFileSync(join(dir, "vitest.config.ts"), "export default {};\n");
+		expect(resolveAnchoredConfigFile(dir)).toBe(join(dir, "vitest.config.ts"));
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("walks up to an ancestor's config", () => {
+		const dir = mkdtempSync(join(tmpdir(), "va-anchored-config-"));
+		writeFileSync(join(dir, "vitest.config.ts"), "export default {};\n");
+		const nested = join(dir, "packages", "foo");
+		mkdirSync(nested, { recursive: true });
+		expect(resolveAnchoredConfigFile(nested)).toBe(join(dir, "vitest.config.ts"));
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("prefers a vitest config over a vite config in the same directory", () => {
+		const dir = mkdtempSync(join(tmpdir(), "va-anchored-config-"));
+		writeFileSync(join(dir, "vite.config.ts"), "export default {};\n");
+		writeFileSync(join(dir, "vitest.config.ts"), "export default {};\n");
+		expect(resolveAnchoredConfigFile(dir)).toBe(join(dir, "vitest.config.ts"));
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("returns null when no config exists within the git boundary", () => {
+		const dir = mkdtempSync(join(tmpdir(), "va-anchored-config-"));
+		mkdirSync(join(dir, ".git"), { recursive: true });
+		const nested = join(dir, "packages", "foo");
+		mkdirSync(nested, { recursive: true });
+		expect(resolveAnchoredConfigFile(nested)).toBeNull();
+		rmSync(dir, { recursive: true, force: true });
 	});
 });

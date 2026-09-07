@@ -304,38 +304,67 @@ export async function resolveGitCommonDir(dir: string): Promise<string | null> {
 
 export type ProjectRootValidation = { ok: true; root: string } | { ok: false; message: string };
 
-// Issue #259: Vitest finds the CONFIG FILE by walking UP from `root`, but
-// resolves that config's relative `globalSetup` / `setupFiles` entries
-// DOWNWARD from `resolved.root` (vitest@4.1.11:
-// `resolved.globalSetup = toArray(...).map((file) => resolvePath(file, resolved.root))`).
-// When the MCP server's boot dir (`ctx.cwd`, passed straight through as
-// Vitest's `root`) is a package subtree of a monorepo, Vitest still walks
-// up and loads `<repo>/vitest.config.ts`, but resolves that config's
-// relative `globalSetup: ["vitest.setup.ts"]` against the subtree —
-// producing `<repo>/packages/<pkg>/vitest.setup.ts`, which does not exist,
-// and the run collects zero tests.
+// Issue #259, restated for Vitest 5: `findConfigFile(root)`
+// (vitest@5.0.0: `node/config/resolveConfig.ts`) probes ONLY the given
+// `root` for `vitest.config.*` / `vite.config.*` and returns `false`
+// otherwise. There is no ancestor walk any more. Under Vitest 4 a `root`
+// pointing at a monorepo package subtree still found the repo-root
+// config (and then mis-resolved that config's relative `globalSetup`
+// against the subtree — the original #259 bug). Under Vitest 5 it finds
+// NOTHING: the run boots on pure defaults, never loads `AgentPlugin`,
+// writes no DB rows, and still reports success.
 //
-// `resolveConfigAnchoredRoot` closes that gap by walking UP from `startDir`
-// looking for the SAME config Vitest would load, and returning the
-// directory that holds it — so `root` and the config's directory can never
-// disagree again. Candidate filenames are checked per-directory in the
-// order Vitest itself prefers: `vitest.config.*` before `vite.config.*`
-// (Vitest falls back to a Vite config only when no Vitest config exists),
-// across ts/mts/cts/js/mjs/cjs. The walk is bounded at the git root (a
+// `resolveConfigAnchoredRoot` walks UP from `startDir` looking for the
+// config, returning the directory that holds it, so the default (no
+// `projectRoot`) path always hands Vitest a root whose own directory
+// carries the config. `resolveAnchoredConfigFile` returns the config
+// PATH from that same walk, so the explicit-`projectRoot` path — which
+// must keep using the caller's root verbatim — can pass `config:`
+// alongside it and get the same config Vitest 4 would have found.
+// Candidate filenames are checked per-directory in the order Vitest
+// itself prefers: `vitest.config.*` before `vite.config.*`, across
+// ts/mts/cts/js/mjs/cjs. The walk is bounded at the git root (a
 // worktree's `.git` is a FILE, not a directory — `existsSync` accepts
 // either) so an unrelated `vite.config.ts` sitting above the repo can't
-// silently capture the root. Never throws and never walks past a config
-// miss into an ambiguous default — an unreadable/exotic path degrades to
-// today's behavior: return `startDir` unchanged.
+// silently capture the root. Neither helper ever throws.
 const VITEST_CONFIG_EXTENSIONS = ["ts", "mts", "cts", "js", "mjs", "cjs"] as const;
 
-function dirHasVitestOrViteConfig(dir: string): boolean {
+function findConfigInDir(dir: string): string | null {
 	for (const prefix of ["vitest.config.", "vite.config."]) {
 		for (const ext of VITEST_CONFIG_EXTENSIONS) {
-			if (existsSync(join(dir, `${prefix}${ext}`))) return true;
+			const candidate = join(dir, `${prefix}${ext}`);
+			if (existsSync(candidate)) return candidate;
 		}
 	}
-	return false;
+	return null;
+}
+
+function dirHasVitestOrViteConfig(dir: string): boolean {
+	return findConfigInDir(dir) !== null;
+}
+
+/**
+ * Walk UP from `startDir` looking for the vitest/vite config file, returning
+ * its absolute path. Same walk and same git-root bound as
+ * `resolveConfigAnchoredRoot`; returns `null` when no config is found in
+ * range or when anything about the walk throws.
+ *
+ * @internal exported for tests
+ */
+export function resolveAnchoredConfigFile(startDir: string): string | null {
+	try {
+		let dir = resolve(startDir);
+		for (;;) {
+			const found = findConfigInDir(dir);
+			if (found !== null) return found;
+			if (existsSync(join(dir, ".git"))) return null;
+			const parent = dirname(dir);
+			if (parent === dir) return null;
+			dir = parent;
+		}
+	} catch {
+		return null;
+	}
 }
 
 /**
@@ -371,11 +400,14 @@ export function resolveConfigAnchoredRoot(startDir: string): string {
  * defaulted to anything else when no config is found in range.
  *
  * A supplied `projectRoot` is VALIDATED, not trusted, and used VERBATIM
- * once validated — explicit is explicit, no anchoring applied. It must
- * resolve to an existing directory that shares a git common directory with
- * `ctxCwd` (same repository, including across worktrees). Any failure
- * returns `{ ok: false, message }` naming both paths — never a silent
- * fallback to `ctxCwd`, never a raw throw.
+ * once validated — explicit is explicit, no anchoring applied to `root`.
+ * It must resolve to an existing directory that shares a git common
+ * directory with `ctxCwd` (same repository, including across worktrees).
+ * Any failure returns `{ ok: false, message }` naming both paths — never a
+ * silent fallback to `ctxCwd`, never a raw throw. The CONFIG for such a
+ * root is resolved separately by the caller via
+ * `resolveAnchoredConfigFile`, because Vitest 5 no longer walks up to find
+ * one.
  *
  * @internal exported for tests
  */
@@ -797,6 +829,25 @@ export const runTests = publicProcedure
 				}
 				const resolvedRoot = projectRootValidation.root;
 
+				// Vitest 5 probes only `root` for a config file. The default
+				// (unsupplied `projectRoot`) path is already anchored at a
+				// directory that holds one, so it needs nothing. An EXPLICIT
+				// `projectRoot` keeps its verbatim `root` and gets the config
+				// passed alongside it — without this a package-subtree root
+				// runs on pure defaults, never loads AgentPlugin, writes no DB
+				// rows, and still returns `kind: "ok"`.
+				let anchoredConfig: string | undefined;
+				if (input.projectRoot !== undefined) {
+					const found = resolveAnchoredConfigFile(resolvedRoot);
+					if (found === null) {
+						return {
+							kind: "error" as const,
+							message: `No vitest.config.* or vite.config.* was found at or above projectRoot "${resolvedRoot}" within the repository. Vitest 5 does not search ancestor directories, so this run would collect no tests and load no plugins. Pass a projectRoot that contains a Vitest config, or omit projectRoot to anchor automatically.`,
+						};
+					}
+					anchoredConfig = found;
+				}
+
 				const timeoutMs = (input.timeout ?? 120) * 1000;
 
 				// Propagate the active SessionContext into process.env so the
@@ -863,9 +914,9 @@ export const runTests = publicProcedure
 					// raw out of the tRPC resolver.
 					covOverride = makeCoverageDirOverride();
 					vitest = await createVitest(
-						"test",
 						{
 							root: resolvedRoot,
+							...(anchoredConfig !== undefined ? { config: anchoredConfig } : {}),
 							run: true,
 							// Inherit coverage from the user's vitest.config (enabled,
 							// provider, thresholds all still apply — this spreads
