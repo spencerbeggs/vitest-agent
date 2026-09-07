@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -18,22 +20,30 @@ interface JsonFileResult {
 }
 
 function runFixture(extraArgs: string[]): JsonFileResult[] {
-	let output: string;
+	const outDir = mkdtempSync(join(tmpdir(), "vitest-agent-json-"));
+	const outputFile = join(outDir, "report.json");
 	try {
-		output = execFileSync("node", [VITEST_BIN, "run", "--reporter=json", "--no-color", ...extraArgs], {
-			cwd: FIXTURE_DIR,
-			encoding: "utf8",
-			env: { ...process.env, CI: "1" },
-			stdio: ["pipe", "pipe", "pipe"],
-		});
-	} catch (err: unknown) {
-		// execFileSync throws on non-zero exit; the JSON still lands on stdout.
-		const e = err as { stdout?: string; stderr?: string };
-		output = `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
+		execFileSync(
+			"node",
+			[VITEST_BIN, "run", "--reporter=json", `--outputFile=${outputFile}`, "--no-color", ...extraArgs],
+			{
+				cwd: FIXTURE_DIR,
+				encoding: "utf8",
+				env: { ...process.env, CI: "1" },
+				stdio: ["pipe", "pipe", "pipe"],
+			},
+		);
+	} catch {
+		// execFileSync throws on non-zero exit; the JSON file is still written.
 	}
-	const line = output.split("\n").find((l) => l.trim().startsWith("{") && l.includes('"testResults"'));
-	if (!line) throw new Error(`no JSON reporter output in:\n${output}`);
-	return (JSON.parse(line) as { testResults: JsonFileResult[] }).testResults;
+	if (!existsSync(outputFile)) {
+		throw new Error(`no JSON reporter output at ${outputFile}`);
+	}
+	try {
+		return (JSON.parse(readFileSync(outputFile, "utf8")) as { testResults: JsonFileResult[] }).testResults;
+	} finally {
+		rmSync(outDir, { recursive: true, force: true });
+	}
 }
 
 const passed = (results: JsonFileResult[]): string[] =>
