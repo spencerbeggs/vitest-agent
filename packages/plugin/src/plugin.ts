@@ -735,9 +735,14 @@ export namespace AgentPlugin {
 	/**
 	 * Tolerance functions for Vitest's `coverage.thresholds.autoUpdate` field.
 	 *
-	 * Vitest's contract: `autoUpdate?: boolean | ((newThreshold: number) => number)`.
-	 * Pass one of these functions directly. `standard` floors; `strict` ceils;
-	 * `lenient` floors and subtracts 2 (clamped to 0) to leave a slack buffer.
+	 * Vitest's contract is
+	 * `autoUpdate?: boolean | ((newThreshold: number, previousThreshold: number) => number)`.
+	 * Pass one of these functions directly. `standard` floors the new value;
+	 * `strict` ceils it; `lenient` floors and subtracts 2 (clamped to 0) to
+	 * leave a slack buffer, and never returns a value below
+	 * `previousThreshold` — so a temporary coverage dip cannot ratchet the
+	 * configured floor downward. `standard` and `strict` ignore
+	 * `previousThreshold`.
 	 *
 	 * ```ts
 	 * defineConfig({
@@ -749,13 +754,16 @@ export namespace AgentPlugin {
 	 * ```
 	 */
 	export const COVERAGE_AUTOUPDATE: Readonly<{
-		standard: (n: number) => number;
-		strict: (n: number) => number;
-		lenient: (n: number) => number;
+		standard: (next: number, previous: number) => number;
+		strict: (next: number, previous: number) => number;
+		lenient: (next: number, previous: number) => number;
 	}> = Object.freeze({
-		standard: (n: number) => Math.floor(n),
-		strict: (n: number) => Math.ceil(n),
-		lenient: (n: number) => Math.max(0, Math.floor(n - 2)),
+		standard: (next: number, _previous: number) => Math.floor(next),
+		strict: (next: number, _previous: number) => Math.ceil(next),
+		lenient: (next: number, previous: number) => {
+			const slack = Math.max(0, Math.floor(next - 2));
+			return typeof previous === "number" ? Math.max(previous, slack) : slack;
+		},
 	});
 
 	/**

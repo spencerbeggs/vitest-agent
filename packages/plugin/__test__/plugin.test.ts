@@ -472,24 +472,24 @@ describe("AgentPlugin", () => {
 		});
 
 		it("COVERAGE_AUTOUPDATE.standard floors fractional values", () => {
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(95.85)).toBe(95);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(50)).toBe(50);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(0)).toBe(0);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(100)).toBe(100);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(95.85, 0)).toBe(95);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(50, 0)).toBe(50);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(0, 0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(100, 0)).toBe(100);
 		});
 
 		it("COVERAGE_AUTOUPDATE.strict ceils fractional values", () => {
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(95.1)).toBe(96);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(50)).toBe(50);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(0)).toBe(0);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(100)).toBe(100);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(95.1, 0)).toBe(96);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(50, 0)).toBe(50);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(0, 0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(100, 0)).toBe(100);
 		});
 
 		it("COVERAGE_AUTOUPDATE.lenient floors then subtracts a two-point slack, clamped to zero", () => {
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(50)).toBe(48);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(1)).toBe(0);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(0)).toBe(0);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(100.9)).toBe(98);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(50, 0)).toBe(48);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(1, 0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(0, 0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(100.9, 0)).toBe(98);
 		});
 	});
 
