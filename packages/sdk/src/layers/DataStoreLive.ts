@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
@@ -275,7 +276,16 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 					// Paths and sizes always; bytes only under the cap. Vitest has
 					// already copied file attachments into `.vitest/attachments/`
 					// -- a 40 MB trace must never land in data.db.
-					const inline = att.body !== undefined && att.byteSize <= INLINE_ATTACHMENT_BODY_CAP_BYTES;
+					//
+					// Gate on what would actually be STORED, not only on the
+					// reported `byteSize`: a caller that under-reports (or
+					// zero-reports) must not be able to smuggle a large string
+					// into the row, and a base64 body's stored string is 4/3 the
+					// size it reports. Both bars have to clear the cap; the
+					// reported size is still recorded verbatim as `byte_size`.
+					const storedBytes = att.body === undefined ? 0 : Buffer.byteLength(att.body, "utf8");
+					const inline =
+						att.body !== undefined && Math.max(storedBytes, att.byteSize) <= INLINE_ATTACHMENT_BODY_CAP_BYTES;
 					const body = inline ? att.body : null;
 					const bodyEncoding = inline ? (att.bodyEncoding ?? null) : null;
 					yield* sql`INSERT INTO attachments (artifact_id, annotation_id, content_type, path, body, body_encoding, byte_size) VALUES (${artifactId}, ${annotationId}, ${att.contentType ?? null}, ${att.path ?? null}, ${body}, ${bodyEncoding}, ${att.byteSize})`;

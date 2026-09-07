@@ -53,14 +53,15 @@ const seed = Effect.gen(function* () {
 		skipped: 0,
 		scoped: false,
 	});
-	const fileId = yield* store.ensureFile(`src/a-${seq}.test.ts`);
+	const modulePath = `src/a-${seq}.test.ts`;
+	const fileId = yield* store.ensureFile(modulePath);
 	const moduleIds = yield* store.writeModules(runId, [
-		{ fileId, relativeModuleId: `src/a-${seq}.test.ts`, state: "passed", duration: 5 },
+		{ fileId, relativeModuleId: modulePath, state: "passed", duration: 5 },
 	]);
 	const testCaseIds = yield* store.writeTestCases(moduleIds[0], [
 		{ name: "works", fullName: "works", state: "passed" },
 	]);
-	return { project, runId, testCaseId: testCaseIds[0] };
+	return { project, runId, modulePath, testCaseId: testCaseIds[0] };
 });
 
 describe("DataStore annotations and artifacts", () => {
@@ -137,6 +138,48 @@ describe("DataStore annotations and artifacts", () => {
 		);
 		expect(rows[0].attachments[0].body).toBe("hello");
 		expect(rows[0].attachments[0].bodyEncoding).toBe("utf-8");
+	});
+
+	it("caps the inline body on its stored length, not on the reported byteSize", async () => {
+		// A caller that under-reports (or zero-reports) byteSize must not be
+		// able to smuggle an arbitrarily large string into data.db. The same
+		// guard covers a base64 body, whose stored string is 4/3 the size it
+		// reports.
+		const big = "x".repeat(70_000);
+		const rows = await run(
+			Effect.gen(function* () {
+				const { project, runId, testCaseId } = yield* seed;
+				const store = yield* DataStore;
+				yield* store.writeAnnotations(runId, [
+					{
+						testCaseId,
+						type: "notice",
+						message: "under-reported size",
+						attachments: [{ contentType: "text/plain", body: big, bodyEncoding: "utf-8", byteSize: 10 }],
+					},
+				]);
+				const reader = yield* DataReader;
+				return yield* reader.getAnnotationsForTest(project, "works");
+			}),
+		);
+		expect(rows[0].attachments[0].body).toBeUndefined();
+		expect(rows[0].attachments[0].bodyEncoding).toBeUndefined();
+		// byte_size is still recorded exactly as the caller reported it.
+		expect(rows[0].attachments[0].byteSize).toBe(10);
+	});
+
+	it("returns the row when the module path matches", async () => {
+		const rows = await run(
+			Effect.gen(function* () {
+				const { project, runId, modulePath, testCaseId } = yield* seed;
+				const store = yield* DataStore;
+				yield* store.writeAnnotations(runId, [{ testCaseId, type: "notice", message: "in module a", attachments: [] }]);
+				const reader = yield* DataReader;
+				return yield* reader.getAnnotationsForTest(project, "works", { modulePath });
+			}),
+		);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].message).toBe("in module a");
 	});
 
 	it("scopes reads to a module path when one is given", async () => {
