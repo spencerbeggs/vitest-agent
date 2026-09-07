@@ -355,16 +355,15 @@ describe("PERFILE_ON_TARGETS", () => {
 // ---------------------------------------------------------------------------
 
 describe("GITHUB_JOB_SUMMARY_COLLISION", () => {
-	it("warns when github-actions is configured as a bare string", async () => {
+	it("stays silent when github-actions is configured as a bare string", async () => {
 		const vitestConfig = makeVitestConfig({ reporters: ["default", "github-actions"] });
 		const result = await runValidation(vitestConfig, makePluginOptions());
 
 		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
-		expect(warnings).toHaveLength(1);
-		expect(warnings[0].remediation).toMatch(/jobSummary/);
+		expect(warnings).toHaveLength(0);
 	});
 
-	it("warns when github-actions is a tuple that leaves jobSummary enabled", async () => {
+	it("warns when the user opted the job summary in explicitly", async () => {
 		const vitestConfig = makeVitestConfig({
 			reporters: [["github-actions", { jobSummary: { enabled: true } }]],
 		});
@@ -372,16 +371,28 @@ describe("GITHUB_JOB_SUMMARY_COLLISION", () => {
 
 		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
 		expect(warnings).toHaveLength(1);
+		expect(warnings[0].message).toMatch(/explicitly/);
+		expect(warnings[0].remediation).toMatch(/jobSummary/);
 	});
 
-	it("warns when github-actions is a tuple with no jobSummary key", async () => {
+	it("warns once when a bare string and an explicit opt-in tuple both appear", async () => {
+		const vitestConfig = makeVitestConfig({
+			reporters: ["github-actions", ["github-actions", { jobSummary: { enabled: true } }]],
+		});
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(1);
+	});
+
+	it("stays silent when github-actions is a tuple with no jobSummary key", async () => {
 		const vitestConfig = makeVitestConfig({
 			reporters: [["github-actions", {}]],
 		});
 		const result = await runValidation(vitestConfig, makePluginOptions());
 
 		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
-		expect(warnings).toHaveLength(1);
+		expect(warnings).toHaveLength(0);
 	});
 
 	it("stays silent when the user disabled jobSummary", async () => {

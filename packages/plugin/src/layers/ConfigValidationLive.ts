@@ -172,20 +172,22 @@ function runMissingProviderPackageRule(input: ValidationInput, errors: Validatio
  * Run the GITHUB_JOB_SUMMARY_COLLISION rule.
  *
  * Vitest 5's `github-actions` reporter writes a markdown job summary by
- * default. The plugin writes its own step summary under `ci-github`, so a
- * user-configured entry that leaves `jobSummary` enabled produces two
- * reports in the same job. Runs in both operating modes — it is a reporter
- * concern, not a coverage concern.
+ * default, and Vitest seeds the reporter from `configDefaults` under
+ * `GITHUB_ACTIONS=true`. The plugin normalizes every such entry to
+ * `jobSummary.enabled = false` in `configureVitest`, so a bare string or a
+ * tuple with no `jobSummary` key is NOT a collision. Only an explicit
+ * `jobSummary: { enabled: true }` survives normalization, and that entry
+ * collides with the plugin's own step summary under `ci-github`. Runs in
+ * both operating modes — it is a reporter concern, not a coverage concern.
  */
 function runGithubJobSummaryCollisionRule(input: ValidationInput, warnings: ValidationWarning[]): void {
 	const reporters = (input.vitestConfig as { reporters?: unknown }).reporters;
 	if (!Array.isArray(reporters)) return;
 
 	const collides = reporters.some((entry) => {
-		if (entry === "github-actions") return true;
 		if (!Array.isArray(entry) || entry[0] !== "github-actions") return false;
 		const options = entry[1] as { jobSummary?: { enabled?: boolean } } | undefined;
-		return options?.jobSummary?.enabled !== false;
+		return options?.jobSummary?.enabled === true;
 	});
 	if (!collides) return;
 
@@ -193,9 +195,9 @@ function runGithubJobSummaryCollisionRule(input: ValidationInput, warnings: Vali
 		code: "GITHUB_JOB_SUMMARY_COLLISION",
 		path: "reporters",
 		message:
-			'The "github-actions" reporter is configured with its markdown job summary enabled, and vitest-agent also writes a GitHub Actions step summary. Both will be appended to the same job summary.',
+			'You enabled the Vitest job summary explicitly on the "github-actions" reporter, and vitest-agent also writes a GitHub Actions step summary. Both summaries will appear in the same job.',
 		remediation:
-			'Configure it as ["github-actions", { jobSummary: { enabled: false } }], or set console.ci to "silent" to suppress the plugin\'s own summary instead.',
+			'Drop the explicit jobSummary option so the plugin can set { jobSummary: { enabled: false } } for you, or set console.ci to "silent" to suppress the plugin\'s own summary instead.',
 	});
 }
 
