@@ -1,4 +1,4 @@
-import type { ResolvedThresholds } from "@vitest-agent/sdk";
+import type { MetricThresholds, PatternMetricThresholds, ResolvedThresholds } from "@vitest-agent/sdk";
 
 const METRIC_KEYS = new Set(["lines", "functions", "branches", "statements"]);
 const RESERVED_KEYS = new Set([...METRIC_KEYS, "100", "perFile", "autoUpdate"]);
@@ -8,6 +8,31 @@ const RESERVED_KEYS = new Set([...METRIC_KEYS, "100", "perFile", "autoUpdate"]);
  * @public
  */
 export type VitestThresholdsInput = Record<string, unknown>;
+
+/**
+ * Extract the four metric numbers (plus the `100: true` shorthand) from a
+ * raw threshold-shaped record. Shared by the global, glob-pattern, and
+ * object-valued `perFile` paths.
+ */
+function extractMetrics(obj: Record<string, unknown>): MetricThresholds {
+	const metrics: { lines?: number; functions?: number; branches?: number; statements?: number } = {};
+
+	if (obj["100"] === true) {
+		metrics.lines = 100;
+		metrics.functions = 100;
+		metrics.branches = 100;
+		metrics.statements = 100;
+	}
+
+	for (const mk of METRIC_KEYS) {
+		const mv = obj[mk];
+		if (typeof mv === "number") {
+			(metrics as Record<string, number>)[mk] = mv;
+		}
+	}
+
+	return metrics;
+}
 
 /**
  * Parse Vitest `coverage.thresholds` format into a normalized `ResolvedThresholds`.
@@ -21,8 +46,8 @@ export function resolveThresholds(input: VitestThresholdsInput | undefined): Res
 	}
 
 	const global: { lines?: number; functions?: number; branches?: number; statements?: number } = {};
-	const patterns: Array<[string, { lines?: number; functions?: number; branches?: number; statements?: number }]> = [];
-	let perFile = false;
+	const patterns: Array<[string, PatternMetricThresholds]> = [];
+	let perFile: boolean | MetricThresholds = false;
 
 	// Handle 100 shorthand
 	if (input["100"] === true) {
@@ -40,9 +65,12 @@ export function resolveThresholds(input: VitestThresholdsInput | undefined): Res
 		}
 	}
 
-	// Extract perFile
+	// Extract perFile. Vitest 5 widened it to `boolean | MetricThresholds`;
+	// an object narrows which metrics the per-file check enforces.
 	if (input.perFile === true) {
 		perFile = true;
+	} else if (typeof input.perFile === "object" && input.perFile !== null && !Array.isArray(input.perFile)) {
+		perFile = extractMetrics(input.perFile as Record<string, unknown>);
 	}
 
 	// Extract glob patterns (any key not in reserved set with object value)
@@ -50,22 +78,17 @@ export function resolveThresholds(input: VitestThresholdsInput | undefined): Res
 		if (RESERVED_KEYS.has(key)) continue;
 		if (typeof value !== "object" || value === null) continue;
 
-		const patternMetrics: { lines?: number; functions?: number; branches?: number; statements?: number } = {};
 		const obj = value as Record<string, unknown>;
+		const patternMetrics: PatternMetricThresholds = extractMetrics(obj);
 
-		// Handle pattern-level 100 shorthand
-		if (obj["100"] === true) {
-			patternMetrics.lines = 100;
-			patternMetrics.functions = 100;
-			patternMetrics.branches = 100;
-			patternMetrics.statements = 100;
-		}
-
-		for (const mk of METRIC_KEYS) {
-			const mv = obj[mk];
-			if (typeof mv === "number") {
-				(patternMetrics as Record<string, number>)[mk] = mv;
-			}
+		// Vitest 5: a glob entry does NOT inherit the top-level `perFile`.
+		// Capture only what the entry itself declared.
+		if (obj.perFile === true || obj.perFile === false) {
+			(patternMetrics as { perFile?: boolean | MetricThresholds }).perFile = obj.perFile;
+		} else if (typeof obj.perFile === "object" && obj.perFile !== null && !Array.isArray(obj.perFile)) {
+			(patternMetrics as { perFile?: boolean | MetricThresholds }).perFile = extractMetrics(
+				obj.perFile as Record<string, unknown>,
+			);
 		}
 
 		if (Object.keys(patternMetrics).length > 0) {

@@ -123,7 +123,7 @@ function runInvalidTargetValueRule(
 		if (warn.code === "PERFILE_ON_TARGETS") {
 			warnings.push({
 				code: "PERFILE_ON_TARGETS",
-				message: `The "perFile" key should not be set inside coverageTargets. Set coverage.thresholds.perFile instead.`,
+				message: `A top-level "perFile" key should not be set inside coverageTargets. Set coverage.thresholds.perFile instead, or move it inside a glob-pattern entry — under Vitest 5 a glob-pattern entry carries its own perFile and no longer inherits the top-level one.`,
 			});
 		}
 	}
