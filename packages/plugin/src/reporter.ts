@@ -1085,6 +1085,12 @@ export class AgentReporter {
 			testName: testCase.name,
 			suitePath: this.collectSuitePath(testCase),
 			annotation: annotation.message,
+			// TODO(#vitest-5-annotations): populate from the real
+			// TestAnnotation shape (type/location/attachments) — tracked
+			// as follow-up work; this call site only had `message` before
+			// the schema widened.
+			annotationType: "note",
+			attachments: [],
 		});
 	}
 
@@ -1108,6 +1114,11 @@ export class AgentReporter {
 			testName: testCase.name,
 			suitePath: this.collectSuitePath(testCase),
 			artifact: artifact.type ?? "artifact",
+			// TODO(#vitest-5-annotations): populate from the real
+			// TestArtifact shape (location/attachments) — tracked as
+			// follow-up work; this call site only had `type` before the
+			// schema widened.
+			attachments: [],
 		});
 	}
 

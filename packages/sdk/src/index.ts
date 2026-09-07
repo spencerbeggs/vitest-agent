@@ -78,6 +78,7 @@ export * from "./schemas/Options.js";
 export * from "./schemas/RenderState.js";
 export * from "./schemas/RunEvent.js";
 export * from "./schemas/Tdd.js";
+export * from "./schemas/TestArtifacts.js";
 export * from "./schemas/Thresholds.js";
 export * from "./schemas/Transport.js";
 export * from "./schemas/Trends.js";
