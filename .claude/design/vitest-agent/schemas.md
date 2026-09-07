@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 93
 related:
   - ./architecture.md
@@ -56,7 +56,7 @@ reducer.
 
 `RunEvent` (`packages/sdk/src/schemas/RunEvent.ts`) is the internal
 discriminated union the plugin's `AgentReporter` emits — one variant per
-Vitest 4.x reporter hook. The surface is **complete**: every reporter
+Vitest reporter hook. The surface is **complete**: every reporter
 hook that fits the event-sourced model has a wired variant, so future
 consumers (analytics taps, the planned MCP dashboard) never need to
 touch the plugin's Vitest-API layer to widen it. Both these schemas are
@@ -76,7 +76,7 @@ frame; see [./components/plugin.md](./components/plugin.md) for the
 hook-to-variant mapping and the deliberately-unmapped hooks.
 
 `ModuleQueued`, `ModuleStarted` and `ModuleFinished` each carry an
-optional `projectName` — the Vitest 4.x `TestModule.project.name` the
+optional `projectName` — the Vitest `TestModule.project.name` the
 reporter has in hand. It is optional so project-less or older events
 decode cleanly as a single anonymous project.
 
@@ -351,8 +351,10 @@ v3 `Schema.Positive`):
 
 Negatives and zeros are rejected at decode time via `Schema.Positive`. A
 decode-time refinement rejects `true` at any key other than `"100"`, and
-`perFile` is not a valid key inside `coverageTargets` — the user sets
-`coverage.thresholds.perFile` instead.
+`perFile` is not a valid key inside the top level of `coverageTargets` —
+the user sets `coverage.thresholds.perFile` instead, or, for a glob-scoped
+target, `perFile` on that same glob's own Vitest threshold entry, since
+Vitest 5 glob-pattern thresholds no longer inherit the top-level value.
 
 `packages/sdk/src/utils/validate-coverage-targets-shape.ts` exports the
 pure helper `validateCoverageTargetsShape(input)` that walks raw input
@@ -361,7 +363,7 @@ and returns structured diagnostics with pinpointed paths:
 | Code | Description |
 | ---- | ----------- |
 | `INVALID_TARGET_VALUE` | Numeric metric value is zero or negative. Path is the offending location: `"lines"` for a top-level metric or `"src/**.ts.lines"` for a metric inside a glob entry |
-| `PERFILE_ON_TARGETS` | The `perFile` key appears inside `coverageTargets`. Path is `"perFile"`; users should set `coverage.thresholds.perFile` instead |
+| `PERFILE_ON_TARGETS` | The `perFile` key appears inside `coverageTargets`. Path is `"perFile"`; users should set `coverage.thresholds.perFile` instead (or on the matching glob's own `perFile` key, since Vitest 5 glob-pattern thresholds do not inherit the top-level value) |
 
 Both codes also surface through the plugin's `ConfigValidation` service —
 the rule registry delegates to this helper for the `INVALID_TARGET_VALUE`
@@ -661,7 +663,7 @@ frame, runs `findFunctionBoundary` on the resolved source, and calls
 ## MCP tag-filtering schemas
 
 The MCP `run_tests`, `inventory`, and `test` tools carry three input
-variants and three output variants that surface Vitest 4.1 native tags
+variants and three output variants that surface Vitest's native tags
 through the agent-facing tool surface. The schemas live alongside the
 existing tool input/output unions in their respective tool files.
 

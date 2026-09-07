@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 93
 related:
   - ../architecture.md
@@ -613,7 +613,7 @@ so a plain not-found result is unchanged.
 
 ## Tag filtering and tag introspection
 
-Vitest 4.1 native tags are the way agents target test subsets
+Vitest's native tags are the way agents target test subsets
 (`unit`, `int`, `e2e`, `slow`, etc.). The plugin's tag-injection
 pipeline populates the `tags` / `test_case_tags` / `test_suite_tags`
 tables; that data is surfaced on three MCP tools (`run_tests`,
@@ -777,7 +777,13 @@ missing `_callerCwd` is the normal case for a plugin-less client. See
 
 Vitest finds the config *file* by walking UP from `root`, but resolves that config's relative `globalSetup` / `setupFiles` entries DOWNWARD from `resolved.root`. Those are independent inputs and `run_tests` let them diverge: `ctx.cwd` was passed straight through as Vitest's `root`, so a server booted inside a monorepo package subtree loaded the repo-root `vitest.config.ts` while resolving that config's relative `globalSetup` against the subtree — a path that does not exist, and a run that collects zero tests (issue #259).
 
+**Restated for Vitest 5.** Vitest 5's `findConfigFile(root)` (`node/config/resolveConfig.ts`) probes ONLY the given `root`; there is no ancestor walk any more. Under Vitest 4 a `root` pointing at a package subtree still found the repo-root config and then mis-resolved its relative `globalSetup` — the original #259 bug. Under Vitest 5 it finds NOTHING: the run boots on pure defaults, never loads `AgentPlugin`, writes no DB rows, and still reports success. The anchoring helpers therefore became *more* load-bearing, not less.
+
 `resolveConfigAnchoredRoot(startDir)` in `packages/mcp/src/tools/run-tests.ts` closes the gap by walking up for the same config Vitest would load and returning the directory holding it: `vitest.config.*` before `vite.config.*` within each directory (Vitest's own preference order, across ts/mts/cts/js/mjs/cjs), first hit wins, bounded at the git root — `.git` is matched as a file *or* a directory so linked worktrees stop there too. Any miss, and anything that throws, returns `startDir` unchanged, so the degraded case is exactly the pre-fix behavior. It is wired into the `projectRoot === undefined` branch of `validateProjectRoot()` only.
+
+A companion helper, `resolveAnchoredConfigFile(startDir)`, returns the config *path* from that same walk. The explicit-`projectRoot` branch — which must keep using the caller's root verbatim — passes that path as `createVitest`'s `config:` option, so an explicit root still gets the config Vitest 4 would have found for it. `config:` is populated end to end: every `run_tests` call now hands Vitest both a `root` and the anchored config path (or the supplied root's own config), rather than relying on Vitest to locate one.
+
+**Caveat for callers.** An explicit `projectRoot` plus the anchored `config:` still resolves that config's relative `setupFiles` / `globalSetup` against the **supplied** root, not the config's own directory. Callers whose config uses relative setup paths should pass the directory that holds the config.
 
 `ctx.cwd` itself (from `packages/mcp/src/bin.ts`) was deliberately left alone: that value also keys the `data.db` path and other resolution, so anchoring it at the source would move far more than the Vitest root.
 

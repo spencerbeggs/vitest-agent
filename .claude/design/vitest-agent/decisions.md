@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 100
 related:
   - ./architecture.md
@@ -280,7 +280,7 @@ pipeline services.
 
 ### Decision 23: Vitest-Native Tag Classification
 
-Test-kind differentiation (`unit`, `int`, `e2e`) uses Vitest 4.1's native
+Test-kind differentiation (`unit`, `int`, `e2e`) uses Vitest's native
 tag system rather than per-kind project splitting or filename-driven
 project names. `discoverProjects()` emits one project per workspace
 package; the plugin installs a Vite `transform` hook (see
@@ -697,7 +697,7 @@ The `human`-slot value is named `stream` (`HumanConsoleMode` is
 `passthrough | silent | stream | agent`) — it describes the user-visible
 behavior rather than the rendering library. It renders a progressively-drawn,
 colored, animated rendering of the agent's run-shape view. The internal
-`RunEvent` surface is complete — every Vitest 4.x reporter hook emits a
+`RunEvent` surface is complete — every Vitest reporter hook emits a
 variant — and a wall-clock animation clock in `createLiveInk` drives the
 spinner and the ticking elapsed column. See
 [./components/reporter.md](./components/reporter.md) and
@@ -768,14 +768,17 @@ halves into Vitest's native `coverage.thresholds` and the plugin's
 full`, `full → full`) so the user's threshold floor and aspirational
 target floor are calibrated together by default without forcing a
 custom triple. `COVERAGE_LEVELS_PER_FILE` applies `perFile: true` to
-the thresholds half only; the coverageTargets half inherits perFile
-from `coverage.thresholds.perFile`.
+the thresholds half only; the coverageTargets half's `perFile` is set
+per-glob under Vitest 5, since glob-pattern thresholds no longer
+inherit the top-level `coverage.thresholds.perFile` value.
 
 **3. `COVERAGE_AUTOUPDATE` is a plain function on Vitest's native
 field.** Vitest's contract for `coverage.thresholds.autoUpdate` is
-`boolean | ((newThreshold: number) => number)`. The function form is
-supported directly, so the three tolerance functions ship as plain
-`(n: number) => number` callables under `AgentPlugin.COVERAGE_AUTOUPDATE`
+`boolean | ((newThreshold: number, previousThreshold: number) => number)`
+(Vitest 5.0.0, `node/types/coverage.ts`). The function form is supported
+directly, so the three tolerance functions ship as plain
+`(newThreshold: number, previousThreshold: number) => number` callables
+under `AgentPlugin.COVERAGE_AUTOUPDATE`
 (`standard` floors, `strict` ceils, `lenient` floors and subtracts 2
 clamped to 0). No type augmentation, no plugin-side wrapping. Users
 pass `AgentPlugin.COVERAGE_AUTOUPDATE.standard` straight into
@@ -1408,7 +1411,8 @@ that project's own failed tests and files.
 ### Decision 49: Per-Invocation Coverage Directory for MCP Runs
 
 **Context.** Vitest's v8 coverage provider `rm -rf`s its reports directory
-at run start (`clean: true` by default). Two runs in one checkout — an MCP
+at run start (`clean: true` by default — re-verified against Vitest 5.0.0,
+`node/config/defaults.ts`, where `coverage.clean` still defaults to `true`). Two runs in one checkout — an MCP
 `run_tests` alongside a Bash `vitest run`, or two MCP calls — share
 `./coverage` and delete each other's `.tmp` files mid-flight, so one dies
 with `ENOENT ... coverage-N.json` (issues #159 / #191 / #194). The obvious
@@ -1725,7 +1729,8 @@ gap is what sent the agent chasing the wrong bar. See
 whole-project denominator no matter how many test files ran: its coverage
 provider's `allTestsRun` flag gates only `autoUpdate`, and
 `checkThresholds` runs unconditionally from `reportCoverage`, which
-Vitest 4.1.11 calls **after every reporter's `onTestRunEnd`**. A
+Vitest calls **after every reporter's `onTestRunEnd`** (confirmed
+unchanged through 5.0.0). A
 `vitest run foo.test.ts` therefore failed on coverage nothing in the run
 touched. The plugin compounded it: it detected scoping only via a
 `projectFilter`, persisted every run with `test_runs.scoped = false`,
@@ -1795,7 +1800,9 @@ the smallest intervention that fixes the observed failure.
 
 **Risk and mitigations.** This depends on two Vitest internals: the
 provider exposing `options.thresholds` and `checkThresholds` reading it
-by reference at report time. Both hold in Vitest 4.1.x; a future
+by reference at report time. Both hold through Vitest 5.0.0
+(`node/coverage.ts` still reads `this.options.thresholds` by reference
+inside `reportThresholds`); a future
 refactor could silently make the neutralisation a no-op, in which case
 the symptom is the original bug (a spurious threshold failure on a scoped
 run), never a crash — both the deletion and the restoration are guarded
@@ -1949,8 +1956,9 @@ Only the `agent` executor is ever relocated. A human's `./coverage`
 output and CI's configured directory are exactly what those executors
 expect to find on disk, so they are never touched.
 
-**Why cleanup lives in `onClose`, not `onTestRunEnd`.** Verified against
-the installed vitest 4.1.11: for a non-watch `vitest run`,
+**Why cleanup lives in `onClose`, not `onTestRunEnd`.** Re-verified
+against Vitest 5.0.0 (`node/core.ts`, end-of-run ordering unchanged from
+4.1.11): for a non-watch `vitest run`,
 `Vitest.report("onTestRunEnd", …)` fires and *returns* before
 `Vitest.reportCoverage()` writes the lcov/html artifacts into
 `reportsDirectory`. Deleting the directory from inside the reporter's
@@ -2027,6 +2035,53 @@ the actual teardown, as before. See
 **Why `plugins/` and not `claude-code/`.** The container is plural to leave room for a second agent-host integration (a Copilot plugin is the stated intent). Only `claude-code/` exists today, and nothing in the repo should be written as if a sibling already existed.
 
 **Consequences to know before editing.** The extra directory level deepened every repo-root walk in the bats suites under `plugins/claude-code/hooks/__test__/` from `../../..` to `../../../..`. Any new test helper or hook script that resolves the repo root by relative traversal must count from `plugins/claude-code/`, not the old repo-root-adjacent `plugin/`. See [Decision 20](#decision-20-file-based-claude-code-plugin), amended.
+
+### Decision 65: Drop Vitest 4, Require `vitest ^5.0.0`, Major the Three Coupled Packages
+
+**Context.** Vitest 5.0.0 shipped a clean break: removed entry points
+(`vitest/coverage`, `vitest/reporters`, `vitest/environments`,
+`vitest/snapshot`, `vitest/runners`, `vitest/suite`, `vitest/mocker`), a
+two-argument `coverage.thresholds.autoUpdate` callback, glob-scoped
+`perFile` that no longer inherits the top-level value, `minimal` as the
+default agent reporter name, `findConfigFile` probing only `root` with no
+ancestor walk, and `fsModuleCache` promoted to a top-level option. It also
+inlined and deprecated `@vitest/runner`, which `@vitest-agent/plugin`
+carried as a direct dependency for `TestTagDefinition` and which has no
+stable 5.x line on npm.
+
+**Decision.** The family drops Vitest 4 entirely. The peer range on
+`@vitest-agent/plugin`, `@vitest-agent/reporter` and `@vitest-agent/mcp`
+becomes `^5.0.0`, and each ships as a major. `@vitest/runner` is removed
+from the plugin's dependencies and its `dtsExternals`; `TestTagDefinition`
+now imports from `vitest/config`. `@vitest-agent/sdk` takes a minor (the
+`perFile` widening), `cli` and `ui` take patches, and the Claude Code
+plugin takes a minor for its updated setup guidance.
+
+**Why not a dual `^4.1.0 || ^5.0.0` range.** Every 5.x behavior the
+migration relies on would otherwise need runtime feature detection inside
+the plugin: the two-argument `autoUpdate` callback, per-glob `perFile`
+with no inheritance, the `minimal` reporter name in the console-reporter
+strip list, `github-actions` defaulting its job summary on, and the
+`config:` anchoring `run_tests` now needs because Vitest 5 no longer walks
+up for a config. Those are not additive — under Vitest 4 several of them
+are actively wrong. Feature-detecting all of them would put permanently
+untestable branches in the hot path of the plugin, and `@vitest/runner`
+has no stable 5.x release to pin a dual range against anyway. Dropping 4 is
+a breaking change for consumers, which is exactly what a major is for.
+
+**Consequences to know before editing.** `test.each` / `test.for` titles
+render through `pretty-format` under 5.x and drop the quotes around
+interpolated strings, so every interpolated title gets a NEW `full_name`
+key on the first 5.x run. `test_history`, classification and trends key off
+`full_name`; there is no deterministic old-to-new mapping, so those tests
+start a fresh history window (and classify as `new-failure` only if they
+fail). `TestOptions.sequential` is gone, so `TagOptions =
+Omit<TestTagDefinition, "name">` loses that key. `vitest/node` now exports
+its own `AgentReporter` (an alias of `MinimalReporter`) that is unrelated
+to the plugin's class of the same name. See
+[./components/plugin.md](./components/plugin.md),
+[./components/mcp.md](./components/mcp.md), and *Constraint: Vitest >=
+5.0.0* below.
 
 ### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
 
@@ -3028,12 +3083,12 @@ too.
 
 ## Constraints and Trade-offs
 
-### Constraint: Vitest >= 4.1.0
+### Constraint: Vitest >= 5.0.0
 
-- **Description:** Requires the Vitest 4 Reporter API with
+- **Description:** Requires the Vitest 5 Reporter API with
   `TestProject`, `TestModule`, and `TestCase`
-- **Impact:** Limits adoption to Vitest 4.1+
-- **Mitigation:** Vitest 4.1+ is current stable; peer dep is explicit
+- **Impact:** Limits adoption to Vitest 5.0+
+- **Mitigation:** Vitest 5.0+ is current stable; peer dep is explicit
 
 ### Trade-off: `onCoverage` Ordering
 

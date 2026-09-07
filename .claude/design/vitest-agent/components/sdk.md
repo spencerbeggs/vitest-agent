@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 96
 related:
   - ../architecture.md
@@ -363,8 +363,8 @@ encode/decode.
 | `Options.ts` | Holds `ConsoleOutputs`, `AgentPluginOptions`, and `AgentReporterOptions`. `AgentPluginOptions` is the 5-field shape — `console`, `coverageTargets`, `transport` on the schema; `reporter` and `onRunEvent` are function-typed and live on the plugin's `AgentPluginConstructorOptions` companion interface. `AgentReporterOptions` is intentionally tiny — one field (`projectFilter`) — and is the narrow per-instance config bag the reporter implementation accepts; most users never see it |
 | `CoverageTargets.ts` | Exports `CoverageTargets` and the nested `CoverageTargetsMetrics` schemas. `CoverageTargets` is a `Schema.Record` whose keys are arbitrary strings (treated as either a top-level metric name or a glob pattern) and values are `Schema.Union(Schema.Positive, Schema.Literal(true), CoverageTargetsMetrics)`. A decode-time refinement rejects `true` at any key other than `"100"` so `{ statements: true }` fails parse rather than silently flowing through to a runtime parser that only honors the canonical shorthand at key `"100"`. Negatives and zeros are rejected at decode time |
 | `Transport.ts` | Single-member discriminated union `Schema.Union(Schema.Struct({ kind: Schema.Literal("local") }))`. Modeled as a union from day one so the 3.0 cloud-backend swap (D1, Turso, etc.) lands as a pure addition of union members rather than a schema-shape change. See [../decisions.md](../decisions.md) D40 |
-| `validate-coverage-targets-shape.ts` (in `utils/`) | Pure helper `validateCoverageTargetsShape(input): { errors, warnings, info }`. Walks raw input and emits structured diagnostics with pinpointed paths: `INVALID_TARGET_VALUE` (zero or negative numbers, at the top level or inside glob-pattern entries) and `PERFILE_ON_TARGETS` (the `perFile` key set inside `coverageTargets` rather than on `coverage.thresholds.perFile`). Consumed by the plugin's `ConfigValidation` rule registry |
-| `RunEvent.ts` | Discriminated union over the `RunEvent` variants — one per Vitest 4.x reporter hook that fits the event-sourced model, covering run / module / suite / hook / test lifecycle, console, coverage, trend, classification and watch mode. Fed by the plugin's streaming callbacks and consumed by `@vitest-agent/ui`'s reducer. See [../schemas.md](../schemas.md) for the variant inventory |
+| `validate-coverage-targets-shape.ts` (in `utils/`) | Pure helper `validateCoverageTargetsShape(input): { errors, warnings, info }`. Walks raw input and emits structured diagnostics with pinpointed paths: `INVALID_TARGET_VALUE` (zero or negative numbers, at the top level or inside glob-pattern entries) and `PERFILE_ON_TARGETS` (the `perFile` key set inside `coverageTargets` rather than on `coverage.thresholds.perFile`, or on the matching glob's own `perFile` key under Vitest 5). Consumed by the plugin's `ConfigValidation` rule registry |
+| `RunEvent.ts` | Discriminated union over the `RunEvent` variants — one per Vitest reporter hook that fits the event-sourced model, covering run / module / suite / hook / test lifecycle, console, coverage, trend, classification and watch mode. Fed by the plugin's streaming callbacks and consumed by `@vitest-agent/ui`'s reducer. See [../schemas.md](../schemas.md) for the variant inventory |
 | `RenderState.ts` | The projected shape the `@vitest-agent/ui` reducer folds events into (`phase`, `runId`, `modules`, `moduleOrder`, `totals`, `coverage`, `failures`, `suggestedActions`, and the optional `collectedModules`). `CoverageRenderState` carries the optional `scoped` / `scopedFiles` / `totalFiles` triple folded from `CoverageReady` (issue #160). Both the agent string renderer and the Ink tree read this shape |
 | `History.ts` | `TestRun`, `TestHistory`, `HistoryRecord` |
 | `Config.ts` | `VitestAgentConfig` for the optional `vitest-agent.config.toml`. Both fields (`cacheDir?`, `projectKey?`) are optional; absence falls back to deriving the path from the workspace's `package.json` `name` |

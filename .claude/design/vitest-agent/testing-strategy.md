@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: testing
 created: 2026-04-29
-updated: 2026-08-25
-last-synced: 2026-08-25
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 95
 related:
   - ./architecture.md
@@ -45,7 +45,7 @@ breakdown.
 
 All four coverage metrics (statements, branches, functions, lines)
 are above 80%. The root `vitest.config.ts` `coverage.exclude` list
-uses `packages/`-prefixed globs to skip bin entries, command glue,
+uses `**/`-prefixed globs to skip bin entries, command glue,
 layer composition factories, and types-only modules that are not
 separately testable.
 
@@ -193,7 +193,18 @@ the v8 provider:
 | Functions | 80% |
 | Lines | 80% |
 
-The `coverage.exclude` list targets the `packages/`-prefixed
+The config also sets `excludeAfterRemap: true`, so the exclude list is
+applied to the **remapped** (original-source) paths rather than to the
+instrumented output. Under Vitest 5 that is what makes a source-file
+exclude land at all: without it, v8 filters before the source map is
+applied and the excluded modules reappear in the report under their
+transformed identities. It is also why the entries are `**/`-prefixed
+rather than `packages/`-prefixed — coverage `include` / `exclude` match a
+root-relative path, and under a `--project` filter the coverage root
+becomes the selected project's own `config.root`, so a `packages/`-anchored
+pattern silently stops matching.
+
+The `coverage.exclude` list targets the per-package
 layout. Excluded paths:
 
 - Bin entries (`packages/{cli,mcp}/src/bin.ts`)

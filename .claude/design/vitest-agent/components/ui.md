@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-12
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 90
 related:
   - ../architecture.md
@@ -74,7 +74,7 @@ The pure rendering-primitives library. One internal stream feeds a shape-tailore
 
 ## The RunEvent taxonomy and reducer
 
-Schemas live in `packages/sdk/src/schemas/RunEvent.ts` and `packages/sdk/src/schemas/RenderState.ts`, re-exported through `@vitest-agent/ui`. The `RunEvent` surface is complete — one variant per Vitest 4.x reporter hook that fits the event-sourced model; see [../schemas.md](../schemas.md) for the variant inventory and [./plugin.md](./plugin.md) for the hook-to-variant mapping the plugin emits.
+Schemas live in `packages/sdk/src/schemas/RunEvent.ts` and `packages/sdk/src/schemas/RenderState.ts`, re-exported through `@vitest-agent/ui`. The `RunEvent` surface is complete — one variant per Vitest reporter hook that fits the event-sourced model; see [../schemas.md](../schemas.md) for the variant inventory and [./plugin.md](./plugin.md) for the hook-to-variant mapping the plugin emits.
 
 The reducer (`packages/ui/src/reducer.ts`) is the pure `(state, event) => state` function; `reduceRenderStateAll(events, seed?)` is the fold helper. The variant union exceeds `pipe`'s 20-argument ceiling, so the reducer is a single `Match.tagsExhaustive` map keyed by `_tag` rather than a chain of per-tag `Match.when` calls. Adding a `RunEvent` variant forces an exhaustiveness compile failure until the new key is handled — `tagsExhaustive` preserves that discipline.
 

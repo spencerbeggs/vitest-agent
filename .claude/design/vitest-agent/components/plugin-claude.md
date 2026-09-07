@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 90
 related:
   - ../architecture.md
@@ -403,7 +403,7 @@ primitive content embedded inline.
 
 ### Slash commands
 
-`/setup` and `/configure` are config helpers for `AgentPlugin` in a project's Vitest config. `/setup` runs a deterministic seven-step flow: verify Vitest 4.1+, `@vitest-agent/plugin` and a coverage provider; detect and convert the config shape to async-arrow; emit the canonical 2.0 config (an `AgentPlugin.discover()` destructure, the five-field options surface with only `coverageTargets` emitted, and split coverage); and migrate pre-2.0 option patterns when upgrading. `/configure` is display-only — it parses the config and renders a five-field options table plus the Vitest coverage block, then points the user at the file for manual edits. It does not mutate the config. `/tdd` launches a TDD session: it performs the pre-dispatch sequence (session lookup, fresh `runId`) and dispatches the orchestrator with the user's goal as the task prompt, following the plain-unnamed-subagent dispatch contract (see *Agent architecture*); all the real TDD work is in the agent.
+`/setup` and `/configure` are config helpers for `AgentPlugin` in a project's Vitest config. `/setup` runs a deterministic seven-step flow: verify Vitest 5.0+, `@vitest-agent/plugin` and a coverage provider; detect and convert the config shape to async-arrow; emit the canonical 2.0 config (an `AgentPlugin.discover()` destructure, the five-field options surface with only `coverageTargets` emitted, and split coverage); and migrate pre-2.0 option patterns when upgrading. `/configure` is display-only — it parses the config and renders a five-field options table plus the Vitest coverage block, then points the user at the file for manual edits. It does not mutate the config. `/tdd` launches a TDD session: it performs the pre-dispatch sequence (session lookup, fresh `runId`) and dispatches the orchestrator with the user's goal as the task prompt, following the plain-unnamed-subagent dispatch contract (see *Agent architecture*); all the real TDD work is in the agent.
 
 ### Dogfood system
 

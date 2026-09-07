@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 93
 related:
   - ../architecture.md
@@ -27,7 +27,7 @@ a user-supplied `VitestAgentReporterFactory`.
 **npm name:** `@vitest-agent/plugin`
 **Location:** `packages/plugin/`
 **Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/reporter`, `@vitest-agent/cli`, `@vitest-agent/mcp`
-**Required peers:** `vitest >= 4.1.0`, `@vitest/runner`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`
+**Required peers:** `vitest >= 5.0.0`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`
 
 `@vitest-agent/cli` and `@vitest-agent/mcp` are regular workspace `dependencies` (`workspace:*`) in source and publish as exact-pinned regular `dependencies` — the earlier `savvy.build.ts` transform that promoted them into `peerDependencies` for the published manifest was removed. The plugin imports no code from either; they are declared so the `vitest-agent` and `vitest-agent-mcp` bins the Claude Code plugin's hook scripts shell out to are installed. Their bins resolve because `@savvy-web/pnpm-plugin-silk` publicly hoists both packages; the peer form was actively harmful — pnpm's `autoInstallPeers` resolution of the cli/mcp peers forced wrong Effect versions into consuming repos. See D33 in [../decisions.md](../decisions.md).
 
@@ -186,7 +186,7 @@ the channel and hand the channel to the factory — it owns no Ink mount.
   rendering. See below.
 
 **Streaming hooks (event emission).** `AgentReporter` wires **every**
-Vitest 4.x reporter hook to an emitted `RunEvent`, so the internal event
+Vitest reporter hook to an emitted `RunEvent`, so the internal event
 surface is complete — future consumers never have to widen the plugin's
 Vitest-API layer. Each callback constructs the matching `RunEvent`
 variant and calls `emit(event)`, which publishes onto the run-event
@@ -540,11 +540,25 @@ hook that, for every test file id:
    the file (for example, `["unit"]` for foo.test.ts, `["e2e"]` for
    foo.e2e.test.ts).
 2. Returns null if the tag list is empty (no rewrite).
-3. Prepends one guarded two-line prelude via magic-string (source maps preserved): a namespace import of `vitest` plus a try/catch that calls `TestRunner?.getCurrentSuite?.()` (a public static since vitest 4.1, the plugin's peer floor), resolves the file task as `collector?.suite ?? collector?.file` (mirroring vitest's own parent-task resolution) and unions the classified tags into `task.tags`.
+3. Prepends one guarded two-line prelude via magic-string (source maps preserved): a namespace import of `vitest` plus a try/catch that calls `TestRunner?.getCurrentSuite?.()` (a public static since vitest 4.1, still public in 5.0.0), resolves the file task as `collector?.suite ?? collector?.file` (mirroring vitest's own parent-task resolution) and unions the classified tags into `task.tags`.
 
 Vitest's runner unions parent tags into every suite and test it registers at collection time, so every declaration form inherits the file-level tags: native `it`/`test`, wrapper testers with a `(name, self, timeout)` signature such as `@effect/vitest`'s `it.effect`, `test.extend` aliases, numeric-timeout calls and dynamically registered tests. The previous implementation parsed each file with acorn plus acorn-typescript and rewrote every `test()`/`it()` call's options argument — that corrupted wrapper testers (the injected options object became the test body, vitest threw "Cannot use two functions as arguments" and collected zero tests — issue #133) and could never reach dynamic or numeric-timeout declarations. There is no parsing at all now; acorn and acorn-typescript were dropped from the plugin's dependencies.
 
 Semantics under the prelude: tests declaring their own `tags` get the classification tags unioned in (the old rewrite skipped such calls), user `@module-tag` pragmas coexist and files with no statically visible test calls are still tagged. Every failure mode degrades to untagged tests, never a crash: a changed collector shape is absorbed by the try/catch; an environment whose `vitest` entry lacks the `TestRunner` export (e.g. browser mode) degrades via the namespace import plus optional chaining instead of failing module instantiation; helpers that register tests at import time evaluate before the prelude (ESM import hoisting) and miss the tags; a classified test file importing another classified test file runs the imported prelude during the importer's collection (benign tag bleed).
+
+**`fsModuleCache` cache-key registration.** Vitest 5 promoted
+`fsModuleCache` to a top-level option and persists transformed modules
+across reruns, keyed on file content and environment config alone. The
+prelude this transform prepends is derived from a filesystem scan Vitest
+cannot see, so a changed classification would otherwise be served from
+cache. `configureVitest` therefore calls
+`ctx.defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache))`
+once per Vitest instance (guarded by a `cacheKeyGeneratorByVitest`
+`WeakSet`, and only when a `discoverStrategy` is resolved). The generator
+runs the same per-id classification the `transform` hook uses and returns
+`vitest-agent:tags:<sorted,comma,joined>` from
+`packages/plugin/src/utils/tag-cache-key.ts`; ids the transform would not
+rewrite classify to `undefined` and contribute nothing to the key.
 
 The classifier and the tag declarations both come from a single
 `DiscoverStrategy` instance — supplied via the `discoverStrategy` plugin
@@ -612,17 +626,20 @@ preset name itself.
   to `CoverageLevelPreset`.
 - `AgentPlugin.COVERAGE_LEVELS_PER_FILE` — same presets with `perFile: true`
   set on the `thresholds` half only. The `coverageTargets` half does not
-  carry `perFile`; it inherits the flag from `coverage.thresholds.perFile`
-  when the user wires the dual output through Vitest.
+  carry `perFile`; ungrouped thresholds read it from
+  `coverage.thresholds.perFile` — glob-pattern threshold entries do not
+  inherit that value under Vitest 5 and need their own `perFile`, which
+  may itself be a per-metric object rather than a boolean.
 - `CoverageLevelPreset` is exported as a public type from
   `@vitest-agent/plugin` so user wiring can name the shape directly.
 
 **`AgentPlugin.COVERAGE_AUTOUPDATE`.** A frozen record of three
-`(n: number) => number` tolerance functions for Vitest's native
-`coverage.thresholds.autoUpdate` field (Vitest's contract is
-`autoUpdate?: boolean | ((newThreshold: number) => number)` — the plain
-function form is supported directly, so no type-augmentation tricks are
-needed). `standard` floors the suggested value; `strict` ceils it;
+`(newThreshold: number, previousThreshold: number) => number` tolerance
+functions for Vitest's native `coverage.thresholds.autoUpdate` field
+(Vitest's contract is
+`autoUpdate?: boolean | ((newThreshold: number, previousThreshold: number) => number)`
+— the plain function form is supported directly, so no type-augmentation
+tricks are needed). `standard` floors the suggested value; `strict` ceils it;
 `lenient` floors and subtracts 2 clamped to 0 to leave a slack buffer.
 Users pass one of these into Vitest's native field; the plugin does not
 configure or override `autoUpdate` itself.
@@ -938,7 +955,8 @@ Vitest enforces `coverage.thresholds` against the **whole-project**
 denominator regardless of how many test files ran: its coverage provider's
 `allTestsRun` flag gates only `autoUpdate`, not `checkThresholds`, and
 `checkThresholds` runs unconditionally from `reportCoverage` **after every
-reporter's `onTestRunEnd`** (Vitest 4.1.11, `Vitest.runFiles`). A
+reporter's `onTestRunEnd`** (confirmed unchanged through Vitest 5.0.0,
+`Vitest.runFiles`). A
 `vitest run foo.test.ts` therefore fails on coverage that nothing in the
 run touched, and previously the plugin compounded it by persisting the run
 with `scoped = false` and emitting its own `ThresholdViolation` events
@@ -1107,8 +1125,8 @@ mirrors it for the CLI path.
   instance, like the aggregating-reporter guard) ensures the decision
   runs once per run even though `configureVitest` fires per project —
   `coverage.reportsDirectory` is root-level config.
-- **Why `onClose`, not `onTestRunEnd`.** Verified against vitest 4.1.11:
-  in a non-watch run `Vitest.report("onTestRunEnd", …)` fires and
+- **Why `onClose`, not `onTestRunEnd`.** Re-verified against Vitest 5.0.0
+  (`node/core.ts`; unchanged from 4.1.11): in a non-watch run `Vitest.report("onTestRunEnd", …)` fires and
   returns *before* `Vitest.reportCoverage()` writes lcov/html into
   `reportsDirectory`, so removing the directory from the reporter's
   `onTestRunEnd` would race that write and recreate the ENOENT. `close()`
