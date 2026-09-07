@@ -268,9 +268,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: catalog:test
         version: 5.0.0(vitest@5.0.0)
-      '@vitest/runner':
-        specifier: ^4.1.10
-        version: 4.1.11
       typescript:
         specifier: catalog:build
         version: 7.0.2

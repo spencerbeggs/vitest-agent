@@ -2,7 +2,6 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { TestTagDefinition } from "@vitest/runner";
 import type {
 	AgentPluginOptions,
 	ConsoleMode,
@@ -29,7 +28,7 @@ import {
 } from "@vitest-agent/sdk";
 import type { Layer } from "effect";
 import { Effect, Schema } from "effect";
-import type { TestProjectInlineConfiguration } from "vitest/config";
+import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";

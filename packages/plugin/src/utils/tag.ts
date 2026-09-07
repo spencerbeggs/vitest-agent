@@ -1,4 +1,4 @@
-import type { TestTagDefinition } from "@vitest/runner";
+import type { TestTagDefinition } from "vitest/config";
 
 /**
  * Options for a `Tag`, mirroring `TestTagDefinition` minus the `name` field.
