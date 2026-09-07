@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import { ensureGithubActionsReporter } from "../src/utils/ensure-github-reporter.js";
 
 describe("ensureGithubActionsReporter", () => {
-	it('appends ["github-actions", {}] when absent', () => {
+	it("appends github-actions with the job summary disabled when absent", () => {
 		const result = ensureGithubActionsReporter(["default", "json"]);
-		expect(result).toEqual(["default", "json", ["github-actions", {}]]);
+		expect(result).toEqual(["default", "json", ["github-actions", { jobSummary: { enabled: false } }]]);
+	});
+
+	it("does not re-enable the job summary on an entry the user already configured", () => {
+		const result = ensureGithubActionsReporter(["default", ["github-actions", { jobSummary: { enabled: true } }]]);
+		expect(result).toEqual(["default", ["github-actions", { jobSummary: { enabled: true } }]]);
 	});
 
 	it("does not double-inject when a bare string entry is already present", () => {
@@ -23,7 +28,12 @@ describe("ensureGithubActionsReporter", () => {
 		const input = ["default", custom, "./custom-reporter.js"];
 		const result = ensureGithubActionsReporter(input);
 		expect(input).toEqual(["default", custom, "./custom-reporter.js"]);
-		expect(result).toEqual(["default", custom, "./custom-reporter.js", ["github-actions", {}]]);
+		expect(result).toEqual([
+			"default",
+			custom,
+			"./custom-reporter.js",
+			["github-actions", { jobSummary: { enabled: false } }],
+		]);
 		expect(result).not.toBe(input);
 	});
 });

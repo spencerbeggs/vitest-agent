@@ -32,10 +32,12 @@ function makeVitestConfig(
 			provider?: string;
 			thresholds?: Record<string, unknown>;
 		};
+		reporters?: unknown[];
 	} = {},
 ): ResolvedConfig {
 	return {
 		coverage: overrides.coverage ?? {},
+		reporters: overrides.reporters ?? [],
 	} as unknown as ResolvedConfig;
 }
 
@@ -331,6 +333,49 @@ describe("PERFILE_ON_TARGETS", () => {
 		const warnings = result.warnings.filter((w) => w.code === "PERFILE_ON_TARGETS");
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0].message).toMatch(/coverage\.thresholds\.perFile/);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// GITHUB_JOB_SUMMARY_COLLISION
+// ---------------------------------------------------------------------------
+
+describe("GITHUB_JOB_SUMMARY_COLLISION", () => {
+	it("warns when github-actions is configured as a bare string", async () => {
+		const vitestConfig = makeVitestConfig({ reporters: ["default", "github-actions"] });
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0].remediation).toMatch(/jobSummary/);
+	});
+
+	it("warns when github-actions is a tuple that leaves jobSummary enabled", async () => {
+		const vitestConfig = makeVitestConfig({
+			reporters: [["github-actions", { jobSummary: { enabled: true } }]],
+		});
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(1);
+	});
+
+	it("stays silent when the user disabled jobSummary", async () => {
+		const vitestConfig = makeVitestConfig({
+			reporters: [["github-actions", { jobSummary: { enabled: false } }]],
+		});
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(0);
+	});
+
+	it("stays silent when no github-actions reporter is configured", async () => {
+		const vitestConfig = makeVitestConfig({ reporters: ["default", "json"] });
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(0);
 	});
 });
 

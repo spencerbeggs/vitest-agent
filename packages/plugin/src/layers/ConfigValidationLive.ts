@@ -1,7 +1,7 @@
 /**
  * Live implementation of the ConfigValidation service.
  *
- * Implements all seven validation rules from the 2.0 starter rule set.
+ * Implements the eight built-in validation rules.
  * Rules run inside `validate(...)` — no I/O at construction time.
  *
  * @packageDocumentation
@@ -169,6 +169,37 @@ function runMissingProviderPackageRule(input: ValidationInput, errors: Validatio
 }
 
 /**
+ * Run the GITHUB_JOB_SUMMARY_COLLISION rule.
+ *
+ * Vitest 5's `github-actions` reporter writes a markdown job summary by
+ * default. The plugin writes its own step summary under `ci-github`, so a
+ * user-configured entry that leaves `jobSummary` enabled produces two
+ * reports in the same job. Runs in both operating modes — it is a reporter
+ * concern, not a coverage concern.
+ */
+function runGithubJobSummaryCollisionRule(input: ValidationInput, warnings: ValidationWarning[]): void {
+	const reporters = (input.vitestConfig as { reporters?: unknown }).reporters;
+	if (!Array.isArray(reporters)) return;
+
+	const collides = reporters.some((entry) => {
+		if (entry === "github-actions") return true;
+		if (!Array.isArray(entry) || entry[0] !== "github-actions") return false;
+		const options = entry[1] as { jobSummary?: { enabled?: boolean } } | undefined;
+		return options?.jobSummary?.enabled !== false;
+	});
+	if (!collides) return;
+
+	warnings.push({
+		code: "GITHUB_JOB_SUMMARY_COLLISION",
+		path: "reporters",
+		message:
+			'The "github-actions" reporter is configured with its markdown job summary enabled, and vitest-agent also writes a GitHub Actions step summary. Both will be appended to the same job summary.',
+		remediation:
+			'Configure it as ["github-actions", { jobSummary: { enabled: false } }], or set console.ci to "silent" to suppress the plugin\'s own summary instead.',
+	});
+}
+
+/**
  * Core validation logic. Runs all rules and accumulates results.
  */
 function runAllRules(input: ValidationInput): ValidationResult {
@@ -181,6 +212,7 @@ function runAllRules(input: ValidationInput): ValidationResult {
 	// Rules that run in both modes
 	runTargetThresholdRules(input, errors, warnings);
 	runInvalidTargetValueRule(input, errors, warnings);
+	runGithubJobSummaryCollisionRule(input, warnings);
 
 	// Rules that run in Full mode only
 	if (mode === "full") {

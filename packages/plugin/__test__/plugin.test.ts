@@ -358,7 +358,7 @@ describe("AgentPlugin", () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
 			const vitest = mockVitest(["default"]);
 			await callConfigureVitest(plugin, vitest);
-			expect(vitest.config.reporters).toContainEqual(["github-actions", {}]);
+			expect(vitest.config.reporters).toContainEqual(["github-actions", { jobSummary: { enabled: false } }]);
 		});
 
 		it("does not append a second github-actions entry when one is already configured", async () => {
@@ -375,7 +375,7 @@ describe("AgentPlugin", () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
 			const vitest = mockVitest(["default"]);
 			await callConfigureVitest(plugin, vitest);
-			expect(vitest.config.reporters).not.toContainEqual(["github-actions", {}]);
+			expect(vitest.config.reporters).not.toContainEqual(["github-actions", { jobSummary: { enabled: false } }]);
 			expect(vitest.config.reporters).not.toContain("github-actions");
 		});
 
@@ -383,7 +383,7 @@ describe("AgentPlugin", () => {
 			const plugin = AgentPlugin({ console: { ci: "silent" } }, EnvironmentDetectorTest.layer("ci-github"));
 			const vitest = mockVitest(["default"]);
 			await callConfigureVitest(plugin, vitest);
-			expect(vitest.config.reporters).not.toContainEqual(["github-actions", {}]);
+			expect(vitest.config.reporters).not.toContainEqual(["github-actions", { jobSummary: { enabled: false } }]);
 			expect(vitest.config.reporters).not.toContain("github-actions");
 		});
 	});
