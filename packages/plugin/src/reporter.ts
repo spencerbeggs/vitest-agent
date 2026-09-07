@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { NodeServices } from "@effect/platform-node";
 import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
@@ -12,6 +12,9 @@ import type {
 	ResolvedReporterConfig,
 	ResolvedThresholds,
 	RunEvent,
+	TestAnnotationInput,
+	TestArtifactInput,
+	TestAttachmentInput,
 	TestClassification,
 	TestErrorInput,
 	TestOutcome,
@@ -274,6 +277,135 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	cacheDir?: string;
 }
 
+/**
+ * Vitest's attachment payload as it reaches a reporter, read
+ * defensively -- the reporter never trusts a live getter on a foreign
+ * object.
+ * @internal
+ */
+interface RawAttachment {
+	contentType?: string;
+	path?: string;
+	body?: string | Uint8Array;
+	bodyEncoding?: "base64" | "utf-8";
+}
+
+/**
+ * Size of a path-only attachment. Vitest has already rewritten `path`
+ * to its `.vitest/attachments/` location (or left an external URL), so
+ * a miss here is a dangling or remote descriptor, not an error.
+ */
+const attachmentPathByteSize = (path: string): number => {
+	try {
+		return statSync(path).size;
+	} catch {
+		return 0;
+	}
+};
+
+/**
+ * Normalize one Vitest attachment onto a `TestAttachmentInput`.
+ *
+ * A `Uint8Array` body is base64-encoded and declared as such, matching
+ * what Vitest does for its own consumers. A string body is passed
+ * through with whatever encoding the producer declared. `byteSize` is
+ * always the size of the decoded payload: the raw array length, the
+ * base64-decoded length, the UTF-8 length of a text body, or the
+ * on-disk size of a path-only attachment.
+ */
+const toAttachmentInput = (att: RawAttachment): TestAttachmentInput => {
+	if (att.body instanceof Uint8Array) {
+		return {
+			...(att.contentType !== undefined && { contentType: att.contentType }),
+			...(att.path !== undefined && { path: att.path }),
+			body: Buffer.from(att.body).toString("base64"),
+			bodyEncoding: "base64",
+			byteSize: att.body.byteLength,
+		};
+	}
+	if (typeof att.body === "string") {
+		return {
+			...(att.contentType !== undefined && { contentType: att.contentType }),
+			...(att.path !== undefined && { path: att.path }),
+			body: att.body,
+			...(att.bodyEncoding !== undefined && { bodyEncoding: att.bodyEncoding }),
+			byteSize: Buffer.byteLength(att.body, att.bodyEncoding === "base64" ? "base64" : "utf8"),
+		};
+	}
+	return {
+		...(att.contentType !== undefined && { contentType: att.contentType }),
+		...(att.path !== undefined && { path: att.path }),
+		byteSize: att.path !== undefined ? attachmentPathByteSize(att.path) : 0,
+	};
+};
+
+const toAttachmentInputs = (attachments: ReadonlyArray<RawAttachment>): Array<TestAttachmentInput> =>
+	attachments.map(toAttachmentInput);
+
+/**
+ * Map Vitest annotations onto `DataStore.writeAnnotations` inputs.
+ * @internal
+ */
+export const toAnnotationInputs = (
+	testCaseId: number,
+	annotations: ReadonlyArray<{
+		message: string;
+		type?: string;
+		location?: { file: string; line: number; column: number };
+		attachment?: RawAttachment;
+	}>,
+): Array<TestAnnotationInput> =>
+	annotations.map((anno) => ({
+		testCaseId,
+		type: anno.type ?? "notice",
+		message: anno.message,
+		...(anno.location !== undefined && {
+			locationFile: anno.location.file,
+			locationLine: anno.location.line,
+			locationColumn: anno.location.column,
+		}),
+		attachments: toAttachmentInputs(anno.attachment !== undefined ? [anno.attachment] : []),
+	}));
+
+/**
+ * Map Vitest test artifacts onto `DataStore.writeArtifacts` inputs.
+ *
+ * `internal:` is a Vitest-reserved type prefix; `internal:annotation`
+ * never reaches `artifacts()` anyway, but the guard keeps any future
+ * internal type out of `test_artifacts`.
+ * @internal
+ */
+export const toArtifactInputs = (
+	testCaseId: number,
+	artifacts: ReadonlyArray<Record<string, unknown> & { type?: string }>,
+): Array<TestArtifactInput> => {
+	const out: Array<TestArtifactInput> = [];
+	for (const raw of artifacts) {
+		const type = typeof raw.type === "string" ? raw.type : "";
+		if (type === "" || type.startsWith("internal:")) continue;
+		const location = raw.location as { file: string; line: number; column: number } | undefined;
+		const attachments = Array.isArray(raw.attachments) ? (raw.attachments as Array<RawAttachment>) : [];
+		const custom: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(raw)) {
+			if (key === "type" || key === "location" || key === "attachments" || key === "message") continue;
+			custom[key] = value;
+		}
+		const dataKeys = Object.keys(custom);
+		out.push({
+			testCaseId,
+			type,
+			...(typeof raw.message === "string" && { message: raw.message }),
+			...(dataKeys.length > 0 && { data: JSON.stringify(custom) }),
+			...(location !== undefined && {
+				locationFile: location.file,
+				locationLine: location.line,
+				locationColumn: location.column,
+			}),
+			attachments: toAttachmentInputs(attachments),
+		});
+	}
+	return out;
+};
 /**
  * Vitest Reporter that produces structured output for LLM coding agents.
  *
@@ -1074,7 +1206,12 @@ export class AgentReporter {
 			parent?: { type: string; name: string; parent?: unknown };
 			module?: { relativeModuleId: string };
 		},
-		annotation: { message: string },
+		annotation: {
+			message: string;
+			type?: string;
+			location?: { file: string; line: number; column: number };
+			attachment?: RawAttachment;
+		},
 	): void {
 		if (!this.wantsRunEvents()) return;
 		const modulePath = testCase.module?.relativeModuleId ?? "";
@@ -1085,12 +1222,9 @@ export class AgentReporter {
 			testName: testCase.name,
 			suitePath: this.collectSuitePath(testCase),
 			annotation: annotation.message,
-			// TODO(#vitest-5-annotations): populate from the real
-			// TestAnnotation shape (type/location/attachments) — tracked
-			// as follow-up work; this call site only had `message` before
-			// the schema widened.
-			annotationType: "note",
-			attachments: [],
+			annotationType: annotation.type ?? "notice",
+			...(annotation.location !== undefined && { location: annotation.location }),
+			attachments: toAttachmentInputs(annotation.attachment !== undefined ? [annotation.attachment] : []),
 		});
 	}
 
@@ -1103,22 +1237,27 @@ export class AgentReporter {
 			parent?: { type: string; name: string; parent?: unknown };
 			module?: { relativeModuleId: string };
 		},
-		artifact: { type?: string },
+		artifact: {
+			type?: string;
+			location?: { file: string; line: number; column: number };
+			attachments?: ReadonlyArray<RawAttachment>;
+		},
 	): void {
 		if (!this.wantsRunEvents()) return;
 		const modulePath = testCase.module?.relativeModuleId ?? "";
 		if (modulePath === "") return;
+		// `internal:` is Vitest's reserved prefix; those artifacts are its
+		// own bookkeeping and never surface on the run-event stream.
+		const type = artifact.type ?? "";
+		if (type === "" || type.startsWith("internal:")) return;
 		this.emit({
 			_tag: "TestArtifactRecorded",
 			modulePath,
 			testName: testCase.name,
 			suitePath: this.collectSuitePath(testCase),
-			artifact: artifact.type ?? "artifact",
-			// TODO(#vitest-5-annotations): populate from the real
-			// TestArtifact shape (location/attachments) — tracked as
-			// follow-up work; this call site only had `type` before the
-			// schema widened.
-			attachments: [],
+			artifact: type,
+			...(artifact.location !== undefined && { location: artifact.location }),
+			attachments: toAttachmentInputs(artifact.attachments ?? []),
 		});
 	}
 
@@ -1864,8 +2003,8 @@ export class AgentReporter {
 					let testIdx = 0;
 					for (const testCase of mod.children.allTests()) {
 						const result = testCase.result();
+						const testCaseId = testCaseIds[testIdx];
 						if (result?.errors && result.errors.length > 0) {
-							const testCaseId = testCaseIds[testIdx];
 							const inputs: TestErrorInput[] = [];
 							for (let ordinal = 0; ordinal < result.errors.length; ordinal++) {
 								// Field reads AND the processFailure input go through safe
@@ -1904,6 +2043,25 @@ export class AgentReporter {
 								});
 							}
 							yield* store.writeErrors(runId, inputs);
+						}
+						// Vitest 5 test annotations and test artifacts. Read here
+						// rather than from the streaming hooks: `annotations()` and
+						// `artifacts()` return the accumulated arrays, so a
+						// `--merge-reports` run (which replays no streaming events)
+						// still persists them.
+						const annotationInputs = toAnnotationInputs(
+							testCaseId,
+							(testCase as { annotations?: () => ReadonlyArray<never> }).annotations?.() ?? [],
+						);
+						if (annotationInputs.length > 0) {
+							yield* store.writeAnnotations(runId, annotationInputs);
+						}
+						const artifactInputs = toArtifactInputs(
+							testCaseId,
+							(testCase as { artifacts?: () => ReadonlyArray<never> }).artifacts?.() ?? [],
+						);
+						if (artifactInputs.length > 0) {
+							yield* store.writeArtifacts(runId, artifactInputs);
 						}
 						testIdx++;
 					}
