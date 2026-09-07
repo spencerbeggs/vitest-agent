@@ -48,6 +48,25 @@ async function callConfigureVitest(plugin: ReturnType<typeof AgentPlugin>, vites
 	await plugin.configureVitest(ctx);
 }
 
+/**
+ * Call configureVitest for a named project against a SHARED vitest object,
+ * the shape Vitest 5's `sharedViteServer: true` default produces: the root
+ * config is evaluated once, so one plugin instance receives one
+ * configureVitest call per project.
+ */
+async function callConfigureVitestForProject(
+	plugin: ReturnType<typeof AgentPlugin>,
+	vitest: ReturnType<typeof mockVitest>,
+	projectName: string,
+) {
+	const ctx = {
+		vitest,
+		project: { name: projectName },
+		defineCacheKeyGenerator: vi.fn(),
+	} as unknown as VitestPluginContext;
+	await plugin.configureVitest(ctx);
+}
+
 describe("AgentPlugin", () => {
 	let stderrWrite: ReturnType<typeof vi.fn>;
 
@@ -104,6 +123,32 @@ describe("AgentPlugin", () => {
 			const vitest = mockVitest([]);
 			await callConfigureVitest(plugin, vitest);
 			expect(vitest.config.reporters.some((r) => r instanceof AgentReporter)).toBe(true);
+		});
+	});
+
+	describe("multi-project shared vite server", () => {
+		it("pushes exactly one AgentReporter across three configureVitest calls on one vitest instance", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["minimal"]);
+
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/sdk");
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/plugin");
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/mcp");
+
+			const reporters = vitest.config.reporters.filter((r) => r instanceof AgentReporter);
+			expect(reporters).toHaveLength(1);
+		});
+
+		it("pushes one AgentReporter per distinct vitest instance", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const first = mockVitest(["minimal"]);
+			const second = mockVitest(["minimal"]);
+
+			await callConfigureVitestForProject(plugin, first, "@vitest-agent/sdk");
+			await callConfigureVitestForProject(plugin, second, "@vitest-agent/sdk");
+
+			expect(first.config.reporters.filter((r) => r instanceof AgentReporter)).toHaveLength(1);
+			expect(second.config.reporters.filter((r) => r instanceof AgentReporter)).toHaveLength(1);
 		});
 	});
 
