@@ -55,7 +55,7 @@ import { captureSettings, hashSettings } from "./utils/capture-settings.js";
 import { isPartialRun } from "./utils/is-partial-run.js";
 import { processFailure } from "./utils/process-failure.js";
 import type { ReportWriter } from "./utils/report-writer.js";
-import { createReportWriter } from "./utils/report-writer.js";
+import { assertReportCapable, createReportWriter } from "./utils/report-writer.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { routeRenderedOutput } from "./utils/route-rendered-output.js";
 import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
@@ -729,6 +729,10 @@ export class AgentReporter {
 	async onInit(vitest: unknown): Promise<void> {
 		this._vitest = vitest;
 		if (this.options.reportScope !== undefined) {
+			// Fail here, before any rendering, rather than mid-routing on the
+			// first report-targeted output. `assertReportCapable` only reads
+			// the property, so the scope directory stays lazily created.
+			assertReportCapable(vitest);
 			this.reportWriter = createReportWriter(vitest, this.options.reportScope);
 		}
 		try {

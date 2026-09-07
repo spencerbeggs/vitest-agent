@@ -3,7 +3,7 @@
  * `.vitest/<scope>` writes introduced alongside Vitest 5's `createReport`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { routeRenderedOutput } from "../src/utils/route-rendered-output.js";
 
 describe("routeRenderedOutput report target", () => {
@@ -32,5 +32,31 @@ describe("routeRenderedOutput report target", () => {
 			{ githubSummaryFile: "/nonexistent/dir/summary.md", writeReport: (f, c) => calls.push([f, c]) },
 		);
 		expect(calls).toEqual([["run.json", "{}"]]);
+	});
+
+	it("contains a throwing writeReport so later outputs are still routed", () => {
+		const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+		try {
+			const outputs = [
+				{ target: "report", filename: "run.json", content: "{}", contentType: "application/json" },
+				{ target: "stdout", content: "after", contentType: "text/plain" },
+			] as const;
+			const routeAll = () => {
+				for (const output of outputs) {
+					routeRenderedOutput(output, {
+						writeReport: () => {
+							throw new Error("boom");
+						},
+					});
+				}
+			};
+			expect(routeAll).not.toThrow();
+			expect(stdout).toHaveBeenCalledWith("after\n");
+			expect(stderr).toHaveBeenCalledWith(expect.stringContaining("run.json"));
+		} finally {
+			stderr.mockRestore();
+			stdout.mockRestore();
+		}
 	});
 });

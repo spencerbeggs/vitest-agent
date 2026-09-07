@@ -58,3 +58,27 @@ describe("report scope resolution", () => {
 		await expect(resolveScope({ report: false }, "agent-shell")).resolves.toBeUndefined();
 	});
 });
+
+describe("onInit rejects an unsupported Vitest", () => {
+	it("throws the Vitest 5 upgrade error when report files are on and createReport is absent", async () => {
+		const reporter = new AgentReporter({ reportScope: "vitest-agent" });
+		await expect(reporter.onInit({})).rejects.toThrow(/requires Vitest 5/);
+	});
+
+	it("does not call createReport eagerly, so the scope directory stays lazy", async () => {
+		let created = 0;
+		const reporter = new AgentReporter({ reportScope: "vitest-agent" });
+		await reporter.onInit({
+			createReport: () => {
+				created++;
+				return { writeFile: async () => {} };
+			},
+		});
+		expect(created).toBe(0);
+	});
+
+	it("ignores a missing createReport when report files are off", async () => {
+		const reporter = new AgentReporter({});
+		await expect(reporter.onInit({})).resolves.toBeUndefined();
+	});
+});

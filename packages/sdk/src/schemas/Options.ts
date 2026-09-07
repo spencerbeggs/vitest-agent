@@ -33,7 +33,15 @@ export type ConsoleOutputs = typeof ConsoleOutputs.Type;
  * @public
  */
 export const ReportSettings = Schema.Struct({
-	scope: Schema.optional(Schema.String),
+	scope: Schema.optional(
+		Schema.String.check(
+			Schema.makeFilter((scope) =>
+				scope.includes("/") || scope.includes("\\") || scope === ".." || scope === "."
+					? `report.scope ${scope} must be a single directory name — it is resolved directly under .vitest/ and cannot nest or escape.`
+					: undefined,
+			),
+		),
+	),
 }).annotate({ identifier: "ReportSettings" });
 /** @public */
 export type ReportSettings = typeof ReportSettings.Type;

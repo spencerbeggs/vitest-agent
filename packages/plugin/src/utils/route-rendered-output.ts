@@ -60,7 +60,14 @@ export const routeRenderedOutput = (output: RenderedOutput, options: RouteOption
 		case "report": {
 			// Dropped when the plugin has no report writer — the same
 			// best-effort contract as `github-summary` outside CI.
-			options.writeReport?.(output.filename, output.content);
+			try {
+				options.writeReport?.(output.filename, output.content);
+			} catch (err) {
+				// Report files are supplemental. A rejected filename, an
+				// unsupported Vitest, or a failed mkdir must not abort the
+				// caller's routing loop and strip every later output.
+				process.stderr.write(`vitest-agent: report file ${output.filename} not written: ${String(err)}\n`);
+			}
 			return;
 		}
 		case "file": {

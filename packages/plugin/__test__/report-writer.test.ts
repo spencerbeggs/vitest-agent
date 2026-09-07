@@ -65,4 +65,17 @@ describe("createReportWriter", () => {
 			stderr.mockRestore();
 		}
 	});
+
+	it.each(["nested/run.json", "nested\\run.json", "../escape.json", "a/../../b.json"])(
+		"rejects the unsafe filename %s",
+		(filename) => {
+			const writer = createReportWriter({ createReport: () => ({ writeFile: async () => {} }) }, "vitest-agent");
+			expect(() => writer.write(filename, "{}")).toThrow(new RegExp(filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+		},
+	);
+
+	it("accepts a flat filename that merely contains dots", () => {
+		const writer = createReportWriter({ createReport: () => ({ writeFile: async () => {} }) }, "vitest-agent");
+		expect(() => writer.write("run..2.json", "{}")).not.toThrow();
+	});
 });

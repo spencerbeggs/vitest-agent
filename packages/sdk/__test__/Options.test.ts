@@ -174,3 +174,14 @@ describe("AgentPluginOptions report option", () => {
 		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ report: { scope: 3 } })).toThrow();
 	});
 });
+
+describe("ReportSettings scope validation", () => {
+	it.each(["nested/scope", "nested\\scope", "..", "../escape", "a/../b"])("rejects the unsafe scope %s", (scope) => {
+		expect(() => Schema.decodeUnknownSync(AgentPluginOptions)({ report: { scope } })).toThrow();
+	});
+
+	it("accepts a flat scope containing dots", () => {
+		const result = Schema.decodeUnknownSync(AgentPluginOptions)({ report: { scope: "vitest.agent" } });
+		expect(result.report).toEqual({ scope: "vitest.agent" });
+	});
+});
