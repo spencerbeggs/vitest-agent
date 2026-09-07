@@ -3,9 +3,12 @@
  * These are the reporters suppressed when an agent takes over console output.
  *
  * @privateRemarks
- * `"agent"` is the built-in Vitest reporter added in v4.1 that reduces
- * console noise for AI agents. We strip it because our reporter replaces
- * its functionality with structured markdown output.
+ * `"agent"` and `"minimal"` both resolve to Vitest's `MinimalReporter`
+ * class. `"agent"` is the v4.1 spelling; `"minimal"` is the v5 spelling
+ * and is what `configDefaults.reporters` selects whenever `std-env`'s
+ * `isAgent` is true — which is the vitest-agent primary use case. Both
+ * are stripped because our reporter replaces their functionality with
+ * structured markdown output.
  *
  * @see {@link https://vitest.dev/api/advanced/reporters.html | Vitest Reporter docs}
  * @internal
@@ -19,6 +22,7 @@ export const CONSOLE_REPORTERS = new Set([
 	"tap-flat",
 	"hanging-process",
 	"agent",
+	"minimal",
 ]);
 
 /**

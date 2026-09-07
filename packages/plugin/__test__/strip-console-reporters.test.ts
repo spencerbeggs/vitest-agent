@@ -21,8 +21,31 @@ describe("stripConsoleReporters", () => {
 		expect(result).toEqual([custom]);
 	});
 
+	it("removes the v5 minimal reporter by string name", () => {
+		const result = stripConsoleReporters(["minimal", "json"]);
+		expect(result).toEqual(["json"]);
+	});
+
+	it("removes the v5 minimal reporter in tuple form", () => {
+		const result = stripConsoleReporters([
+			["minimal", {}],
+			["junit", { outputFile: "out.xml" }],
+		]);
+		expect(result).toEqual([["junit", { outputFile: "out.xml" }]]);
+	});
+
 	it("removes all known console reporters", () => {
-		const consoleNames = ["default", "verbose", "tree", "dot", "tap", "tap-flat", "hanging-process", "agent"];
+		const consoleNames = [
+			"default",
+			"verbose",
+			"tree",
+			"dot",
+			"tap",
+			"tap-flat",
+			"hanging-process",
+			"agent",
+			"minimal",
+		];
 		const result = stripConsoleReporters([...consoleNames, "json", "junit"]);
 		expect(result).toEqual(["json", "junit"]);
 	});
