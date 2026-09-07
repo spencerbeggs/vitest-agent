@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { PerFileThresholds } from "./Thresholds.js";
 
 /**
  * A strictly-positive coverage percentage. Negatives and zeros are rejected
@@ -8,7 +9,8 @@ const PositivePercent = Schema.Number.check(Schema.isGreaterThan(0));
 
 /**
  * Per-metric leaf shape for coverageTargets entries. Allows optional
- * numeric targets per metric and the `100: true` shortcut.
+ * numeric targets per metric, the `100: true` shortcut, and — mirroring
+ * Vitest 5 — a per-glob `perFile` setting.
  * @public
  */
 export const CoverageTargetsMetrics = Schema.Struct({
@@ -17,6 +19,7 @@ export const CoverageTargetsMetrics = Schema.Struct({
 	branches: Schema.optional(PositivePercent),
 	statements: Schema.optional(PositivePercent),
 	100: Schema.optional(Schema.Literal(true)),
+	perFile: Schema.optional(PerFileThresholds),
 }).annotate({ identifier: "CoverageTargetsMetrics" });
 /** @public */
 export type CoverageTargetsMetrics = typeof CoverageTargetsMetrics.Type;
@@ -27,8 +30,10 @@ export type CoverageTargetsMetrics = typeof CoverageTargetsMetrics.Type;
  * Mirrors Vitest's coverage.thresholds shape — per-metric positive numbers,
  * the `100: true` shortcut (only valid at key `"100"`), and glob-pattern
  * entries with metric objects. Positive numbers only; negatives and zeros
- * are rejected. `perFile` is not allowed here — inherit it from
- * `coverage.thresholds.perFile`.
+ * are rejected. A top-level `perFile` is not allowed here — set it on
+ * `coverage.thresholds.perFile`. A `perFile` inside a glob-pattern entry
+ * IS allowed, mirroring Vitest 5, where a glob entry no longer inherits
+ * the top-level setting.
  *
  * A decode-time refinement rejects `true` at any key other than `"100"`
  * so `{ statements: true }` fails parse rather than silently flowing
