@@ -94,5 +94,10 @@
 		"type": "file",
 		"name": "known-issues",
 		"label": "Known issues"
+	},
+	{
+		"type": "file",
+		"name": "upgrade-vitest-5",
+		"label": "Upgrading to Vitest 5"
 	}
 ]

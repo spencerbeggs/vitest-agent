@@ -5,6 +5,8 @@ description: How to build a custom renderer on the @vitest-agent/ui primitives �
 
 # Building renderers
 
+Not to be confused with `AgentReporter` from `vitest/node`, which Vitest 5 exports as an alias of its own built-in `MinimalReporter`. The class documented here is the one exported by `@vitest-agent/plugin`.
+
 `@vitest-agent/ui` is a toolkit of rendering primitives, not a renderer itself. The default reporter in `@vitest-agent/reporter` is built from these primitives; you can build your own renderer — or a thin rendering layer on top of an existing one — using the same pieces. This page walks through the four building blocks you will use: the projected state, the dispatcher, the two render paths, and the PubSub channel for live delivery.
 
 The distinction from writing a full reporter is worth stating up front. A **reporter** wraps rendering in the plugin's lifecycle contract (`VitestAgentReporterFactory`) and manages the Ink live-mount lifecycle via `_createLiveInk`. A **renderer** consumes `RenderState` and calls `dispatch` or `dispatchInk` — it knows nothing about the reporter lifecycle. If you want to replace the default output format, you likely want [a custom reporter](/reporter/custom-reporter). If you want to understand or reuse the rendering layer underneath, this page is the right starting point.

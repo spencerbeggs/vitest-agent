@@ -1,0 +1,132 @@
+---
+title: Upgrading to Vitest 5
+description: What changes when you move a vitest-agent project from Vitest 4 to Vitest 5 — peer ranges, the vite peer dependency, the github-actions job summary, test name matching, and the test history reset.
+---
+
+# Upgrading to Vitest 5
+
+`@vitest-agent/plugin` 3.0, `@vitest-agent/reporter` 3.0, and
+`@vitest-agent/mcp` 3.0 require **Vitest 5.0.0 or newer**. There is no
+dual range — Vitest 4 is not supported by the 3.x line. Stay on the 2.x
+line if you cannot move yet.
+
+## Update your dependencies
+
+Vitest 5 declares `vite` as a required **peer** dependency rather than a
+regular dependency, so a project that never installed `vite` explicitly
+now has to. Install all four together:
+
+import { PackageManagerTabs } from '@rspress/core/theme';
+
+<PackageManagerTabs command="add -D vitest@^5 vite@^8 @vitest/coverage-v8@^5 @vitest-agent/plugin" />
+
+Swap `@vitest/coverage-v8` for `@vitest/coverage-istanbul` if that is the
+provider you configured. Vitest 5 supports `vite` `^6.4.0`, `^7`, and
+`^8`.
+
+Node requirements are unchanged: `@vitest-agent/*` needs Node
+`>=24.11.0`, comfortably inside Vitest 5's `^22.12.0 || ^24.0.0 ||
+>=26.0.0`.
+
+## Ignore the new `.vitest` directory
+
+Vitest 5 consolidates its generated output under a single `.vitest/`
+directory at the root of your project — attachments, blob reports, and
+the default output paths for the `json`, `junit`, and `html` reporters
+all live there now. Add it to `.gitignore`:
+
+```text
+**/.vitest
+```
+
+Coverage output is unaffected and still lands in `./coverage` (or
+whatever `coverage.reportsDirectory` says).
+
+## The `github-actions` reporter now writes a job summary
+
+Under Vitest 5 the built-in `github-actions` reporter writes a markdown
+job summary by default, and it sits in Vitest's own default reporter
+list whenever `GITHUB_ACTIONS=true`. `@vitest-agent/plugin` already
+writes its own GitHub Actions step summary, so two summaries would be
+appended to the same job.
+
+The plugin handles this for the reporter it injects: under the
+`ci-github` environment it now appends
+`["github-actions", { jobSummary: { enabled: false } }]`, keeping the
+inline `::error::` annotations while leaving the summary to the plugin.
+
+If you configure `github-actions` yourself, disable its job summary
+explicitly:
+
+```ts
+export default defineConfig({
+  test: {
+    reporters: [['github-actions', { jobSummary: { enabled: false } }]],
+  },
+});
+```
+
+The plugin emits a `GITHUB_JOB_SUMMARY_COLLISION` configuration warning
+when it sees a `github-actions` entry that leaves the summary on. To go
+the other way and keep Vitest's summary instead of the plugin's, set the
+plugin's `console.ci` slot to `"silent"`.
+
+## `-t` now matches the names our tools print
+
+Vitest 5 joins a test's ancestors with `' > '` when matching
+`--testNamePattern` / `-t`, which is exactly the form
+`test_status`, `test_errors`, and the `test` MCP tool already print. A
+name copied out of one of those outputs can now be pasted straight into
+`-t`:
+
+```bash
+pnpm vitest run -t "resolveThresholds > extracts perFile flag"
+```
+
+Under Vitest 4 the same string did not match, because the matcher joined
+names with a single space.
+
+## `test.each` history resets once
+
+Vitest 5 renders interpolated `test.each` / `test.for` titles through
+`pretty-format` instead of `loupe`, and caps each interpolated value at
+40 characters (`taskTitleValueFormatTruncate`). A `$`-placeholder that
+interpolates a string is no longer quoted: `case 'a1'` becomes
+`case a1`.
+
+`vitest-agent` keys `test_history`, failure classification, and trends
+on a test's full name, so **every parameterised test whose title
+interpolates a value gets a new history key on your first Vitest 5
+run.** There is no deterministic mapping from the old titles to the new
+ones, so there is no migration. What this means in practice:
+
+- Affected tests start a fresh history window.
+- A test that fails on that first run classifies as `new-failure`
+  rather than `persistent` or `flaky`.
+- Tests with static titles are untouched.
+
+Nothing needs to be done about it; the window refills over the next few
+runs.
+
+## Tag options lost `sequential`
+
+Vitest 5 removed the `sequential` test option, so
+`TagOptions` — `Omit<TestTagDefinition, "name">` — no longer accepts it.
+`Tag.make("slow", { sequential: true })` is now a type error. `timeout`
+and `retry`, the two options the built-in tags use, are unchanged.
+
+## Two symbols named `AgentReporter`
+
+Vitest 5's `vitest/node` entry point exports its own `AgentReporter` (an
+alias of the built-in `MinimalReporter`). It is unrelated to
+`AgentReporter` from `@vitest-agent/plugin`, the reporter class this
+project documents. Import ours from `@vitest-agent/plugin` and Vitest's
+from `vitest/node`; nothing needs both.
+
+## Benchmarks are coming
+
+Vitest 5 ships `vitest bench` with a stable reporter hook
+(`onTestCaseBenchmark`) and `TestCase.benchmarks()`. `vitest-agent` does
+not persist or classify benchmark results yet — that lands in a later
+minor. Benchmarks run normally in the meantime; they are simply not
+recorded.
