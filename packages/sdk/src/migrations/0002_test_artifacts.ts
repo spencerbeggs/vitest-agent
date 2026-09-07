@@ -11,7 +11,9 @@
 //     though the sibling `attachments` table already models the 1:N.
 //   - `test_artifacts` had no column for an artifact's custom fields.
 //   - `attachments` recorded no size, so a dangling `.vitest/attachments`
-//     path was not describable after the directory was cleaned.
+//     path was not describable after the directory was cleaned, and no
+//     encoding, so an inline `body` could not be decoded back (Vitest
+//     treats a string body as base64 unless `bodyEncoding` is `"utf-8"`).
 //
 // The two annotation tables were dead, so the table is dropped and
 // recreated rather than patched column by column. `test_artifacts` and
@@ -49,6 +51,10 @@ const migration = Effect.gen(function* () {
 	// Recorded for every attachment, inline or path-referenced, so a
 	// dangling `.vitest/attachments` path is still describable.
 	yield* sql`ALTER TABLE attachments ADD COLUMN byte_size INTEGER`;
+
+	// How to read an inline `body`. Vitest treats a string body as base64
+	// unless the attachment says `utf-8`.
+	yield* sql`ALTER TABLE attachments ADD COLUMN body_encoding TEXT`;
 });
 
 /** @public */

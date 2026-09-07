@@ -322,6 +322,37 @@ export interface TagInventoryRow {
 	readonly testCount: number;
 }
 /** @public */
+export interface TestArtifactQueryOptions {
+	/** Disambiguates a fullName that exists in more than one module. */
+	readonly modulePath?: string;
+}
+/** @public */
+export interface PersistedAttachment {
+	readonly contentType?: string;
+	readonly path?: string;
+	readonly body?: string;
+	/** How to read `body`. Absent when nothing was stored inline. */
+	readonly bodyEncoding?: "base64" | "utf-8";
+	readonly byteSize: number | null;
+}
+/** @public */
+export interface TestAnnotationRow {
+	readonly id: number;
+	readonly type: string;
+	readonly message: string;
+	readonly location?: { readonly file: string; readonly line: number; readonly column: number };
+	readonly attachments: ReadonlyArray<PersistedAttachment>;
+}
+/** @public */
+export interface TestArtifactRow {
+	readonly id: number;
+	readonly type: string;
+	readonly message: string | null;
+	readonly data: string | null;
+	readonly location?: { readonly file: string; readonly line: number; readonly column: number };
+	readonly attachments: ReadonlyArray<PersistedAttachment>;
+}
+/** @public */
 export class DataReader extends Context.Service<
 	DataReader,
 	{
@@ -348,6 +379,18 @@ export class DataReader extends Context.Service<
 			project: string,
 			errorName?: string,
 		) => Effect.Effect<ReadonlyArray<TestError>, DataStoreError>;
+		/** Annotations recorded for a test in the project's latest run. */
+		readonly getAnnotationsForTest: (
+			project: string,
+			fullName: string,
+			options?: TestArtifactQueryOptions,
+		) => Effect.Effect<ReadonlyArray<TestAnnotationRow>, DataStoreError>;
+		/** Artifacts recorded for a test in the project's latest run. */
+		readonly getArtifactsForTest: (
+			project: string,
+			fullName: string,
+			options?: TestArtifactQueryOptions,
+		) => Effect.Effect<ReadonlyArray<TestArtifactRow>, DataStoreError>;
 		readonly getNotes: (
 			scope?: string,
 			project?: string,

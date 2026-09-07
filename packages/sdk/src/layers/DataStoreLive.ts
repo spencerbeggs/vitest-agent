@@ -30,6 +30,9 @@ import type {
 	SettingsInput,
 	SuiteInput,
 	TddTaskInput,
+	TestAnnotationInput,
+	TestArtifactInput,
+	TestAttachmentInput,
 	TestCaseInput,
 	TestErrorInput,
 	TestRunInput,
@@ -43,7 +46,7 @@ import type {
 	WriteTddPhaseInput,
 	WriteTddPhaseOutput,
 } from "../services/DataStore.js";
-import { DataStore } from "../services/DataStore.js";
+import { DataStore, INLINE_ATTACHMENT_BODY_CAP_BYTES } from "../services/DataStore.js";
 import { coerceErrorText } from "../utils/coerce-error-text.js";
 
 const isLegalLifecycleTransition = (from: string, to: string): boolean => {
@@ -258,6 +261,62 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				Effect.annotateLogs("service", "DataStore"),
 				Effect.mapError(
 					(e) => new DataStoreError({ operation: "write", table: "test_errors", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const writeAttachments = (
+			owner: { readonly artifactId: number } | { readonly annotationId: number },
+			attachments: ReadonlyArray<TestAttachmentInput>,
+		) =>
+			Effect.gen(function* () {
+				for (const att of attachments) {
+					const artifactId = "artifactId" in owner ? owner.artifactId : null;
+					const annotationId = "annotationId" in owner ? owner.annotationId : null;
+					// Paths and sizes always; bytes only under the cap. Vitest has
+					// already copied file attachments into `.vitest/attachments/`
+					// -- a 40 MB trace must never land in data.db.
+					const inline = att.body !== undefined && att.byteSize <= INLINE_ATTACHMENT_BODY_CAP_BYTES;
+					const body = inline ? att.body : null;
+					const bodyEncoding = inline ? (att.bodyEncoding ?? null) : null;
+					yield* sql`INSERT INTO attachments (artifact_id, annotation_id, content_type, path, body, body_encoding, byte_size) VALUES (${artifactId}, ${annotationId}, ${att.contentType ?? null}, ${att.path ?? null}, ${body}, ${bodyEncoding}, ${att.byteSize})`;
+				}
+			});
+
+		const writeAnnotations = (
+			runId: number,
+			annotations: ReadonlyArray<TestAnnotationInput>,
+		): Effect.Effect<void, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("writeAnnotations").pipe(Effect.annotateLogs({ runId, count: annotations.length }));
+				for (const anno of annotations) {
+					const locationFileId = anno.locationFile !== undefined ? yield* ensureFile(anno.locationFile) : null;
+					yield* sql`INSERT INTO test_annotations (test_case_id, type, message, location_file_id, location_line, location_column) VALUES (${anno.testCaseId}, ${anno.type}, ${anno.message}, ${locationFileId}, ${anno.locationLine ?? null}, ${anno.locationColumn ?? null})`;
+					const idRows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
+					yield* writeAttachments({ annotationId: idRows[0].id }, anno.attachments ?? []);
+				}
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_annotations", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const writeArtifacts = (
+			runId: number,
+			artifacts: ReadonlyArray<TestArtifactInput>,
+		): Effect.Effect<void, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("writeArtifacts").pipe(Effect.annotateLogs({ runId, count: artifacts.length }));
+				for (const art of artifacts) {
+					const locationFileId = art.locationFile !== undefined ? yield* ensureFile(art.locationFile) : null;
+					yield* sql`INSERT INTO test_artifacts (test_case_id, type, message, data, location_file_id, location_line, location_column) VALUES (${art.testCaseId}, ${art.type}, ${art.message ?? null}, ${art.data ?? null}, ${locationFileId}, ${art.locationLine ?? null}, ${art.locationColumn ?? null})`;
+					const idRows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
+					yield* writeAttachments({ artifactId: idRows[0].id }, art.attachments ?? []);
+				}
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_artifacts", reason: extractSqlReason(e) }),
 				),
 			);
 
@@ -1837,6 +1896,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			writeSuites,
 			writeTestCases,
 			writeErrors,
+			writeAnnotations,
+			writeArtifacts,
 			writeCoverage,
 			writeHistory,
 			writeBaselines,
