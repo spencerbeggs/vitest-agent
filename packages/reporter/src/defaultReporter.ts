@@ -30,13 +30,14 @@ import type {
 	ReporterRenderInput,
 	RunEvent,
 	RunOutcome,
+	RunReportFile,
 	RunShape,
 	TestClassification,
 	TrendSummary,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
-import { countSuiteFailures, isTimeoutError } from "@vitest-agent/sdk";
+import { RUN_REPORT_FILE_SCHEMA_URL, countSuiteFailures, isTimeoutError } from "@vitest-agent/sdk";
 import {
 	classifyOutcome,
 	classifyRunShape,
@@ -280,6 +281,26 @@ const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): 
 };
 
 /**
+ * Assemble the vitest-agent markdown body shared by the GitHub step
+ * summary and the `summary.md` report file: a `## vitest-agent` heading
+ * followed by whichever of the classification, coverage, and trend
+ * sections have content. Returns `null` when all three are empty — a
+ * clean run should leave neither a bare heading in the job summary nor
+ * a content-free file on disk.
+ *
+ * @internal
+ */
+const buildSummaryMarkdown = (input: ReporterRenderInput): string | null => {
+	const sections = [
+		renderClassificationsSection(input.classifications),
+		renderCoverageSection(input.reports),
+		renderTrendSection(input.trendSummary),
+	].filter((section): section is string => section !== null);
+	if (sections.length === 0) return null;
+	return ["## vitest-agent", ...sections].join("\n\n");
+};
+
+/**
  * Builds the vitest-agent GitHub step-summary payload — ONE `RenderedOutput`
  * for the whole run, carrying only data Vitest's own built-in
  * `github-actions` reporter cannot know: test classifications (new-failure /
@@ -292,13 +313,8 @@ const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): 
  * bare heading in the job summary.
  */
 const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<RenderedOutput> => {
-	const sections = [
-		renderClassificationsSection(input.classifications),
-		renderCoverageSection(input.reports),
-		renderTrendSection(input.trendSummary),
-	].filter((section): section is string => section !== null);
-	if (sections.length === 0) return [];
-	const body = ["## vitest-agent", ...sections].join("\n\n");
+	const body = buildSummaryMarkdown(input);
+	if (body === null) return [];
 	// Bracketed in newlines: `routeRenderedOutput` APPENDS to
 	// GITHUB_STEP_SUMMARY, and Vitest's own `github-actions` reporter has
 	// usually already written its `## Vitest Test Report` block there. The
@@ -379,6 +395,34 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 			if (renderKit.config.githubActions === true) {
 				out.push(...renderGithubSummary(input));
 				out.push(renderGithubLog(input, renderKit));
+			}
+			// Report files: written by the plugin into `.vitest/<scope>/` when
+			// reporting is enabled, and dropped by the router when it is not.
+			// Emitted regardless of console mode — they are the machine-facing
+			// artifact, independent of what the terminal shows.
+			out.push({
+				target: "report",
+				filename: "run.json",
+				contentType: "application/json",
+				content: `${JSON.stringify(
+					{
+						$schema: RUN_REPORT_FILE_SCHEMA_URL,
+						schemaVersion: 1 as const,
+						generatedAt: new Date().toISOString(),
+						reports: input.reports,
+					} satisfies RunReportFile,
+					null,
+					2,
+				)}\n`,
+			});
+			const summary = buildSummaryMarkdown(input);
+			if (summary !== null) {
+				out.push({
+					target: "report",
+					filename: "summary.md",
+					contentType: "text/markdown",
+					content: `${summary}\n`,
+				});
 			}
 			return out;
 		},

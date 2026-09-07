@@ -12,6 +12,7 @@ import type {
 	AgentReport,
 	CoverageReport,
 	FileCoverageReport,
+	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
 	VitestAgentReporter,
@@ -50,6 +51,13 @@ const asSingle = (r: VitestAgentReporter | ReadonlyArray<VitestAgentReporter>): 
 	return r as VitestAgentReporter;
 };
 
+// `report`-targeted outputs (run.json / summary.md) are emitted in every
+// console mode — they are the machine-facing artifact and the plugin,
+// not the console mode, decides whether they reach disk. These tests are
+// about console output, so filter them out.
+const consoleOutputs = (outputs: ReadonlyArray<RenderedOutput>): ReadonlyArray<RenderedOutput> =>
+	outputs.filter((o) => o.target !== "report");
+
 const makeReport = (overrides: Partial<AgentReport> = {}): AgentReport => ({
 	timestamp: "2026-05-14T00:00:00.000Z",
 	project: "demo",
@@ -71,7 +79,7 @@ describe("DefaultVitestAgentReporter", () => {
 	it("renders one stdout RenderedOutput for consoleMode=agent", () => {
 		const kit = makeKit("agent");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		const output = reporter.render(makeInput(), kit);
+		const output = consoleOutputs(reporter.render(makeInput(), kit));
 		expect(output).toHaveLength(1);
 		const firstOutput = output[0];
 		expect(firstOutput).toBeDefined();
@@ -83,25 +91,25 @@ describe("DefaultVitestAgentReporter", () => {
 	it("emits nothing for consoleMode=silent", () => {
 		const kit = makeKit("silent");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		expect(reporter.render(makeInput(), kit)).toEqual([]);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=passthrough", () => {
 		const kit = makeKit("passthrough");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		expect(reporter.render(makeInput(), kit)).toEqual([]);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=stream", () => {
 		const kit = makeKit("stream");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		expect(reporter.render(makeInput(), kit)).toEqual([]);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=ci-annotations", () => {
 		const kit = makeKit("ci-annotations");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		expect(reporter.render(makeInput(), kit)).toEqual([]);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))).toEqual([]);
 	});
 
 	it("pushes the github log block alongside the github summary when githubActions is true", () => {
@@ -263,7 +271,7 @@ describe("DefaultVitestAgentReporter", () => {
 			makeReport({ project: "beta", summary: { total: 3, passed: 3, failed: 0, skipped: 0, duration: 8 } }),
 			makeReport({ project: "gamma", summary: { total: 2, passed: 2, failed: 0, skipped: 0, duration: 5 } }),
 		];
-		const output = reporter.render(makeInput({ reports }), kit);
+		const output = consoleOutputs(reporter.render(makeInput({ reports }), kit));
 		expect(output).toHaveLength(1);
 		const firstOutput = output[0];
 		expect(firstOutput).toBeDefined();
