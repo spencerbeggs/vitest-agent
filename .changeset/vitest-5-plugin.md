@@ -9,10 +9,11 @@
 The `vitest`, `@vitest/coverage-v8`, and `@vitest/coverage-istanbul` peer
 ranges move to `^5.0.0`. Vitest 4 is no longer supported. Vitest 5 also
 declares `vite` as a required peer dependency rather than a regular one,
-so a project that never installed `vite` explicitly now must.
+so a project that never installed `vite` explicitly now must. Vitest 5
+accepts vite 6.4 or newer — 6, 7, or 8 all work.
 
 ```bash
-npm install -D vitest@^5 vite@^8 @vitest/coverage-v8@^5
+npm install -D vitest@^5 vite @vitest/coverage-v8@^5
 ```
 
 ### `TagOptions` no longer accepts `sequential`

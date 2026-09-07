@@ -10,10 +10,11 @@ The `vitest` peer range moves to `^5.0.0`, and the optional
 `@vitest/coverage-v8` / `@vitest/coverage-istanbul` peers move with it.
 Vitest 4 is no longer supported. Vitest 5 declares `vite` as a required
 peer dependency of `vitest` rather than a regular one, so install it
-explicitly alongside the upgrade.
+explicitly alongside the upgrade. Vitest 5 accepts vite 6.4 or newer —
+6, 7, or 8 all work.
 
 ```bash
-npm install -D vitest@^5 vite@^8
+npm install -D vitest@^5 vite
 ```
 
 No reporter hook signature changed: `onInit`, `onTestRunStart`,
