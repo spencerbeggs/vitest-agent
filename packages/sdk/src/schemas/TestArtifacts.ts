@@ -27,13 +27,15 @@ export type TestArtifactLocation = typeof TestArtifactLocation.Type;
  * (usually under `.vitest/attachments/`) or an external `http(s)` URL —
  * vitest-agent never copies the file itself. `body` is populated only
  * for inline attachments under the 64 KiB cap; `byteSize` is always
- * recorded so a dangling path stays describable.
+ * recorded so a dangling path stays describable. Vitest treats a string
+ * `body` as base64 unless `bodyEncoding` is `"utf-8"`.
  * @public
  */
 export const TestAttachment = Schema.Struct({
 	contentType: Schema.optional(Schema.String),
 	path: Schema.optional(Schema.String),
 	body: Schema.optional(Schema.String),
+	bodyEncoding: Schema.optional(Schema.Literals(["base64", "utf-8"])),
 	byteSize: Schema.Number,
 }).annotate({ identifier: "TestAttachment" });
 /** @public */
