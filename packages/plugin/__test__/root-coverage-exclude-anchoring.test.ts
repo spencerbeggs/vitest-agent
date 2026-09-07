@@ -27,4 +27,14 @@ describe("root vitest.config.ts coverage.exclude", () => {
 		const offenders = readExcludeEntries().filter((p) => !p.startsWith("**/"));
 		expect(offenders).toEqual([]);
 	});
+
+	it("applies excludes after source-map remap so files reached only via another file's sourcemap are still excluded", () => {
+		// Vitest 5's v8-to-istanbul conversion can expand a single instrumented
+		// script into every file listed in its sourcemap; without
+		// excludeAfterRemap the exclude patterns only ever see the raw script's
+		// own URL, so a file pulled in transitively (e.g. via a barrel import
+		// from another package's tests) escapes exclusion entirely.
+		const source = readFileSync(ROOT_CONFIG, "utf8");
+		expect(source).toContain("excludeAfterRemap: true");
+	});
 });

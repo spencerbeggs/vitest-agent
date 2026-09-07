@@ -21,6 +21,7 @@ export default async () => {
 			coverage: {
 				enabled: true,
 				provider: "v8",
+				excludeAfterRemap: true,
 				thresholds: AgentPlugin.COVERAGE_LEVELS.basic.thresholds,
 				exclude: [
 					"**/*.{test,spec}.ts",
