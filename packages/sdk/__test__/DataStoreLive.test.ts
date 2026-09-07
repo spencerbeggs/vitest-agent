@@ -3073,3 +3073,13 @@ describe("DataStoreLive", () => {
 		});
 	});
 });
+
+describe("test-layer preset fixtures", () => {
+	it("record the current Vitest major in their settings rows", async () => {
+		const { readFileSync } = await import("node:fs");
+		const { fileURLToPath } = await import("node:url");
+		const source = readFileSync(fileURLToPath(new URL("../src/testing/index.ts", import.meta.url)), "utf8");
+		expect(source).not.toContain('vitestVersion: "4.1.5"');
+		expect(source.match(/vitestVersion: "5\.0\.0"/g)).toHaveLength(3);
+	});
+});
