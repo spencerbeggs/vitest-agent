@@ -54,6 +54,8 @@ import { captureEnvVars } from "./utils/capture-env.js";
 import { captureSettings, hashSettings } from "./utils/capture-settings.js";
 import { isPartialRun } from "./utils/is-partial-run.js";
 import { processFailure } from "./utils/process-failure.js";
+import type { ReportWriter } from "./utils/report-writer.js";
+import { createReportWriter } from "./utils/report-writer.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { routeRenderedOutput } from "./utils/route-rendered-output.js";
 import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
@@ -190,6 +192,8 @@ interface ResolvedOptions {
 	githubActions: boolean;
 	githubSummary: boolean;
 	githubSummaryFile: string | undefined;
+	/** `.vitest/<scope>` directory name; undefined disables report files. */
+	reportScope?: string;
 	format?: "terminal" | "markdown" | "json" | "vitest-bypass" | "silent" | "ci-annotations";
 	detail?: "minimal" | "neutral" | "standard" | "verbose";
 	consoleMode: ConsoleMode;
@@ -256,6 +260,13 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	format?: OutputFormat;
 	mcp?: boolean;
 	githubActions?: boolean;
+	/**
+	 * The `.vitest/<scope>` directory name for `report`-targeted rendered
+	 * output. Undefined disables report files.
+	 *
+	 * @internal
+	 */
+	reportScope?: string;
 	transport?: Transport;
 	/**
 	 * Optional `test.passWithNoTests` value the plugin captured from the
@@ -525,6 +536,11 @@ export class AgentReporter {
 	 * @internal
 	 */
 	_vitest: unknown = null;
+	/**
+	 * Lazily-created writer for `report`-targeted output. Null when
+	 * `reportScope` is unset (report files disabled) or before `onInit`.
+	 */
+	private reportWriter: ReportWriter | null = null;
 	private coverage: unknown = null;
 	private logLevel: LogLevel.LogLevel | undefined;
 	private logFile: string | undefined;
@@ -658,6 +674,7 @@ export class AgentReporter {
 			githubActions,
 			githubSummary: githubActions,
 			githubSummaryFile: undefined,
+			...(options.reportScope !== undefined ? { reportScope: options.reportScope } : {}),
 			...(derivedFormat !== undefined ? { format: derivedFormat } : {}),
 			consoleMode,
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
@@ -711,6 +728,9 @@ export class AgentReporter {
 	 */
 	async onInit(vitest: unknown): Promise<void> {
 		this._vitest = vitest;
+		if (this.options.reportScope !== undefined) {
+			this.reportWriter = createReportWriter(vitest, this.options.reportScope);
+		}
 		try {
 			await this.ensureDbPath();
 		} catch {
@@ -1470,6 +1490,7 @@ export class AgentReporter {
 		const opts = this.options;
 		const stashedCoverage = this.coverage;
 		const stashedVitest = this._vitest;
+		const reportWriter = this.reportWriter;
 		const logLevel = this.logLevel;
 		const logFile = this.logFile;
 		// The run-event channel and the reporters resolved at run start
@@ -1687,6 +1708,7 @@ export class AgentReporter {
 				for (const output of allOutputs) {
 					routeRenderedOutput(output, {
 						...(githubSummaryFile !== undefined && { githubSummaryFile }),
+						...(reportWriter !== null && { writeReport: reportWriter.write }),
 					});
 				}
 			});
@@ -1696,6 +1718,7 @@ export class AgentReporter {
 			).catch((err) => {
 				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 			});
+			await reportWriter?.flush();
 			return;
 		}
 
@@ -2521,6 +2544,7 @@ export class AgentReporter {
 			for (const output of allOutputs) {
 				routeRenderedOutput(output, {
 					...(githubSummaryFile !== undefined && { githubSummaryFile }),
+					...(reportWriter !== null && { writeReport: reportWriter.write }),
 				});
 			}
 		});
@@ -2534,6 +2558,7 @@ export class AgentReporter {
 		).catch((err) => {
 			process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 		});
+		await reportWriter?.flush();
 
 		const persistError = persistDisabled ?? persistFailure;
 		if (persistError !== undefined) {

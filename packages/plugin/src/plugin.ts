@@ -382,6 +382,16 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					),
 				);
 				const executor = envToExecutor(env);
+				// Report files default on for machine-facing executors and off
+				// for a human at a terminal; `report: false` disables them, and
+				// `report: { scope }` renames the `.vitest/<scope>` directory.
+				const reportOption = options.report;
+				const reportScope =
+					reportOption === false
+						? undefined
+						: executor === "human" && reportOption === undefined
+							? undefined
+							: (reportOption?.scope ?? "vitest-agent");
 				const consoleMode = resolveConsoleMode(options, executor, env);
 				const format = resolveFormat(consoleMode);
 				// `mcp` is auto-derived from the detected executor — the agent
@@ -593,6 +603,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					consoleMode,
 					mcp,
 					githubActions,
+					...(reportScope !== undefined && { reportScope }),
 					transport,
 					...(passWithNoTests !== undefined ? { passWithNoTests } : {}),
 					...(options.reporter !== undefined && { reporter: options.reporter }),
