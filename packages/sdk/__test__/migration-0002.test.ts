@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
@@ -15,6 +18,15 @@ interface ColumnInfo {
 
 const migrateWith = (record: Record<string, Effect.Effect<void, unknown, SqlClient>>) => {
 	const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
+	const PlatformLayer = NodeServices.layer;
+	const MigratorLayer = SqliteMigrator.layer({
+		loader: SqliteMigrator.fromRecord(record as never),
+	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
+	return Layer.mergeAll(MigratorLayer, SqliteLayer, PlatformLayer);
+};
+
+const migrateWithFile = (filename: string, record: Record<string, Effect.Effect<void, unknown, SqlClient>>) => {
+	const SqliteLayer = sqliteClientLayer({ filename });
 	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord(record as never),
@@ -70,28 +82,92 @@ describe("0002_test_artifacts", () => {
 		expect(result.indexes).toContain("idx_test_annotations_type");
 	});
 
-	it("applies cleanly to a database already migrated to 0001", async () => {
-		const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
-		const PlatformLayer = NodeServices.layer;
-		const Both = SqliteMigrator.layer({
-			loader: SqliteMigrator.fromRecord({
+	it("applies 0002 over a database that already ran only 0001", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "va-0002-"));
+		const filename = join(dir, "data.db");
+		try {
+			// Pass 1: a database that only ever saw 0001 -- the pre-2.0 shape
+			// every installed consumer carries on disk.
+			const first = migrateWithFile(filename, { "0001_initial": migration0001 });
+			const before = await Effect.runPromise(
+				Effect.provide(
+					Effect.gen(function* () {
+						const sql = yield* SqlClient;
+						const ddl = yield* sql<{
+							sql: string;
+						}>`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'test_annotations'`;
+						return { annotations: yield* columns("test_annotations"), ddl: ddl[0].sql };
+					}),
+					first,
+				),
+			);
+			expect(before.ddl).toContain("CHECK");
+			expect(before.annotations.map((c) => c.name)).toContain("attachment_path");
+
+			// Pass 2: a fresh migrator over the SAME file with both
+			// migrations. Only 0002 should run.
+			const second = migrateWithFile(filename, {
 				"0001_initial": migration0001,
 				"0002_test_artifacts": migration0002,
-			} as never),
-		}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
+			});
+			const after = await Effect.runPromise(
+				Effect.provide(
+					Effect.gen(function* () {
+						const sql = yield* SqlClient;
+						const ddl = yield* sql<{
+							sql: string;
+						}>`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'test_annotations'`;
+						const applied = yield* sql<{
+							name: string;
+						}>`SELECT name FROM effect_sql_migrations ORDER BY migration_id`;
+						return {
+							annotations: yield* columns("test_annotations"),
+							artifacts: yield* columns("test_artifacts"),
+							attachments: yield* columns("attachments"),
+							ddl: ddl[0].sql,
+							applied: applied.map((m) => m.name),
+						};
+					}),
+					second,
+				),
+			);
 
-		const rows = await Effect.runPromise(
-			Effect.provide(
-				Effect.gen(function* () {
-					const sql = yield* SqlClient;
-					yield* sql`INSERT INTO test_annotations (test_case_id, type, message) VALUES (NULL, 'issues', 'ok')`.pipe(
-						Effect.catchCause(() => Effect.void),
-					);
-					return yield* sql<{ n: number }>`SELECT COUNT(*) AS n FROM test_annotations`;
-				}),
-				Layer.mergeAll(Both, SqliteLayer, PlatformLayer),
-			),
-		);
-		expect(rows[0].n).toBeGreaterThanOrEqual(0);
+			// Two recorded rows, inserted one pass each: 0001 was NOT re-run
+			// (its migration_id is a primary key, so a re-run would conflict).
+			// The migrator strips the numeric prefix from the recorded name.
+			expect(after.applied).toEqual(["initial", "test_artifacts"]);
+			expect(after.ddl).not.toContain("CHECK");
+			expect(after.annotations.map((c) => c.name)).toEqual([
+				"id",
+				"test_case_id",
+				"type",
+				"message",
+				"location_file_id",
+				"location_line",
+				"location_column",
+			]);
+			expect(after.artifacts.map((c) => c.name)).toEqual([
+				"id",
+				"test_case_id",
+				"type",
+				"message",
+				"location_file_id",
+				"location_line",
+				"location_column",
+				"data",
+			]);
+			expect(after.attachments.map((c) => c.name)).toEqual([
+				"id",
+				"artifact_id",
+				"annotation_id",
+				"content_type",
+				"path",
+				"body",
+				"byte_size",
+				"body_encoding",
+			]);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });
