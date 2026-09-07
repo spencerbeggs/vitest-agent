@@ -520,4 +520,29 @@ describe("AgentPlugin", () => {
 			expect(vitest.config.reporters.some((r) => r instanceof AgentReporter)).toBe(true);
 		});
 	});
+
+	describe("fsModuleCache cache-key generator (Vitest 5)", () => {
+		it("registers the generator once across two projects on the same Vitest instance", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest();
+			const defineCacheKeyGenerator = vi.fn();
+			for (const name of ["a", "b"]) {
+				await plugin.configureVitest({
+					vitest,
+					project: { name },
+					defineCacheKeyGenerator,
+				} as unknown as VitestPluginContext);
+			}
+			expect(defineCacheKeyGenerator).toHaveBeenCalledTimes(1);
+			const generator = defineCacheKeyGenerator.mock.calls[0]?.[0] as (c: { id: string }) => string | undefined;
+			expect(generator({ id: "/repo/packages/plugin/src/plugin.ts" })).toBeUndefined();
+			expect(generator({ id: "/repo/packages/plugin/__test__/plugin.test.ts" })).toMatch(/^vitest-agent:tags:/);
+		});
+
+		it("does not throw when the context omits defineCacheKeyGenerator (Vitest 4)", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest();
+			await expect(callConfigureVitest(plugin, vitest)).resolves.toBeUndefined();
+		});
+	});
 });

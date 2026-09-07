@@ -56,6 +56,7 @@ import {
 	releaseRunScriptLock,
 } from "./utils/run-script-lock.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
+import { makeTagCacheKeyGenerator } from "./utils/tag-cache-key.js";
 
 /**
  * Plugin options shape with the (function-typed) `reporter` factory added
@@ -204,6 +205,15 @@ function resolveFormat(mode: ConsoleMode): OutputFormat {
 const aggregatedReporterByVitest = new WeakSet<object>();
 
 /**
+ * Per-Vitest-instance guard for the `fsModuleCache` cache-key generator.
+ * `configureVitest` fires once per project, but the generator is global to
+ * the Vitest instance — register it exactly once per run.
+ *
+ * @internal
+ */
+const cacheKeyGeneratorByVitest = new WeakSet<object>();
+
+/**
  * Guards the coverage.reportsDirectory isolation decision (issue #194) to
  * run at most once per Vitest run — `configureVitest` fires once per
  * project, but `coverage.reportsDirectory` is root-level config shared by
@@ -316,6 +326,18 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 	const discoverStrategyResolved =
 		options.discoverStrategy === false ? null : (options.discoverStrategy ?? new DefaultDiscoverStrategy());
 
+	// Single source of truth for the per-id tag decision. The `transform`
+	// hook rewrites a file only when this returns a tag list, and
+	// `configureVitest` folds the same list into Vitest 5's fsModuleCache
+	// key, so the cached prelude and the transform can never disagree.
+	const classifyForCache = (id: string): ReadonlyArray<string> | undefined => {
+		if (!discoverStrategyResolved) return undefined;
+		const cleanId = id.split("?")[0] ?? id;
+		if (!isTestFile(cleanId)) return undefined;
+		const tags = discoverStrategyResolved.classify({ module: buildModuleInfo(cleanId) });
+		return tags.length === 0 ? undefined : tags;
+	};
+
 	const pluginObj: {
 		name: "vitest-agent";
 		// Inline structural type (not a named export) so api-extractor's public
@@ -340,6 +362,27 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 			try {
 				const { vitest, project } = ctx;
 				log("configureVitest called | project:", project?.name ?? "(root)");
+
+				// Vitest 5's fsModuleCache keys transformed modules on file
+				// content and environment config alone — it cannot see that the
+				// injected tag prelude comes from a filesystem scan. Fold the
+				// tag set into the key so a changed classification invalidates
+				// the cached prelude. Vitest 4 does not pass the callback;
+				// absence is a no-op.
+				const defineCacheKeyGenerator = (
+					ctx as {
+						defineCacheKeyGenerator?: (cb: (c: { id: string }) => string | undefined) => void;
+					}
+				).defineCacheKeyGenerator;
+				if (
+					typeof defineCacheKeyGenerator === "function" &&
+					discoverStrategyResolved &&
+					!cacheKeyGeneratorByVitest.has(vitest as object)
+				) {
+					cacheKeyGeneratorByVitest.add(vitest as object);
+					defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache));
+					log("registered fsModuleCache tag cache-key generator");
+				}
 
 				// Auto-detect the environment, then map to the executor slot.
 				const env: Environment = await Effect.runPromise(
@@ -583,14 +626,9 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 
 	if (discoverStrategyResolved) {
 		pluginObj.transform = (code, id) => {
-			const cleanId = id.split("?")[0] ?? id;
-			if (!isTestFile(cleanId)) return null;
-			const module = buildModuleInfo(cleanId);
-			const tags = discoverStrategyResolved.classify({ module });
-			if (tags.length === 0) return null;
-			const rewritten = injectTags(code, [...tags]);
-			if (rewritten === null) return null;
-			return rewritten;
+			const tags = classifyForCache(id);
+			if (tags === undefined) return null;
+			return injectTags(code, [...tags]);
 		};
 	}
 
