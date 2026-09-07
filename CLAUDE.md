@@ -38,23 +38,24 @@ The six non-sidecar packages pin `@vitest-agent/sdk` at `workspace:*`.
 
 ## Project Status
 
-**Pre-2.0 release: no backwards compatibility, no migration discipline.**
-`vitest-agent` 2.0 has not shipped to npm. Every dev install on every
-machine is disposable — when the schema changes, developers delete their
-local `data.db` and start fresh. This means: do NOT write multi-step
-SQLite migrations for schema changes that land before 2.0. Edit
-`packages/sdk/src/migrations/0001_initial.ts` directly to define the
-canonical shape; a single fresh-install migration is the entire migration
-chain until 2.0 ships. Don't add `0003_*.ts`, don't ALTER, don't backfill
-— just change the canonical schema. Same applies to breaking renames in
-the SDK schemas, MCP tool surface, CLI flags, and any other public-facing
-shape: pre-2.0 is the moment to break things cleanly. Post-2.0, the
-standard incremental migration discipline applies.
+**Post-2.0: incremental migration discipline applies.**
+`vitest-agent` 2.0 has shipped to npm — `@vitest-agent/plugin@2.0.0`
+through `2.5.x` are published and installed. Consumers carry real
+`data.db` files with real history. This means: schema changes land as
+NEW migrations. Add `packages/sdk/src/migrations/0002_*.ts`,
+`0003_*.ts`, and so on, register each in `ensure-migrated.ts`'s
+`fromRecord`, and never edit `0001_initial.ts` in place — it is a
+historical record of what already ran on every install, not a canonical
+shape to rewrite. A dead table with no readers and no writers may be
+dropped and recreated inside a new migration; a table with data must be
+ALTERed and backfilled. The same discipline applies to breaking renames
+in the SDK schemas, MCP tool surface, and CLI flags: they are majors
+with changesets and migration notes, not free edits.
 
 `vitest-agent` 2.0 is a Vitest reporter, plugin, CLI, and MCP server family
 for LLM coding agents. Six primary capabilities:
 
-1. **`AgentPlugin` + `AgentReporter`** -- Vitest plugin (>= 4.1.0) with
+1. **`AgentPlugin` + `AgentReporter`** -- Vitest plugin (>= 5.0.0) with
    four-environment detection, reporter chain management, a `ConfigValidation`
    Effect service for coverage-config diagnostics, Full and UI-only operating
    modes gated by Vitest's native `coverage.enabled`, and pluggable rendering
@@ -296,15 +297,16 @@ release workflow. Every package versions independently — there is no lockstep 
 
 ## Testing
 
-- **Framework**: [Vitest](https://vitest.dev/) `^4.1.5` with v8
+- **Framework**: [Vitest](https://vitest.dev/) `^5.0.0` with v8
   coverage provider.
 - **Pool**: Uses `forks` (not threads) for broader compatibility.
 - **Config**: `vitest.config.ts` at the repo root is an async function
   that calls `AgentPlugin.discover()` to auto-detect projects and tag
   declarations, destructures `{ projects, tags }`, and threads both into
   `defineConfig({ test: { projects, tags } })`. Project-based filtering
-  is still available via `--project`; test-kind filtering moved to
-  Vitest-native tag expressions (e.g. `--tags-filter "int"`).
+  is still available via `--project` (shorthand `-p`); test-kind
+  filtering moved to Vitest-native tag expressions (e.g.
+  `--tags-filter "int"`).
 - **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
   (flat directory). A test file is discoverable only under a workspace
   package's `src/` (co-located) or `__test__/` directory, anchored at
