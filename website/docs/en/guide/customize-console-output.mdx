@@ -74,7 +74,10 @@ AgentPlugin({
 
 Non-console reporters (`json`, `junit`, `html`, `blob`, `github-actions`) are
 preserved regardless of mode — suppressing the console view never silences
-file-based reporters.
+file-based reporters. Under Vitest 5, `json` and `junit` default to writing
+under the `.vitest/` directory instead of stdout when no `outputFile` is
+configured, and the `html` reporter's directory is set via its `outputDir`
+option; see [Upgrading to Vitest 5](/guide/upgrade-vitest-5).
 
 ### Keep Vitest's default output for humans, use the agent frame for agents
 

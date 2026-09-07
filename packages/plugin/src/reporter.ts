@@ -292,6 +292,10 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
  * results via Vitest's native `TestProject` API. In single-project mode,
  * results are written with project name "default".
  *
+ * Not to be confused with Vitest 5's own `AgentReporter` export from
+ * `vitest/node` (an alias of `MinimalReporter`) — this is
+ * `@vitest-agent/plugin`'s `AgentReporter`, an unrelated class.
+ *
  * @privateRemarks
  * The `onCoverage` hook fires **before** `onTestRunEnd` in Vitest's lifecycle.
  * Coverage data must be stashed as instance state and merged during

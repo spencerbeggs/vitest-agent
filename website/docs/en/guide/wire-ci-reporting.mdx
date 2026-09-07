@@ -24,14 +24,15 @@ always preserved regardless of the `ci` mode setting:
 
 | Reporter | Format |
 | --- | --- |
-| `json` | `--reporter=json` output file |
-| `junit` | `--reporter=junit` output file |
-| `html` | `--reporter=html` output directory |
+| `json` | `--reporter=json` output file; defaults under `.vitest/` on Vitest 5 rather than stdout |
+| `junit` | `--reporter=junit` output file; defaults under `.vitest/` on Vitest 5 rather than stdout |
+| `html` | `--reporter=html` output directory, configured via the `outputDir` option; defaults under `.vitest/` on Vitest 5 |
 | `blob` | `--reporter=blob` output file |
 | `github-actions` | Inline GitHub Actions annotations |
 
 This means you can combine a custom `ci` mode with any file-based reporter and
-both will run.
+both will run. See [Upgrading to Vitest 5](/guide/upgrade-vitest-5) for the
+new `.vitest/` output directory these reporters share.
 
 ## GitHub Actions annotations today
 

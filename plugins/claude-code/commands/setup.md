@@ -10,12 +10,12 @@ emit the canonical 2.0 config. Work through the seven steps below in
 order. The flow is deterministic — verify each prerequisite, then make a
 small number of edits to one config file.
 
-## 1. Verify Vitest 4.1 or newer
+## 1. Verify Vitest 5.0 or newer
 
 Read the project's `package.json` and any workspace-root `package.json`.
 Find the installed `vitest` version. If `vitest` is missing, or the
-version is below 4.1, stop and tell the user to install it first, e.g.
-`pnpm add -D vitest@latest`. Do not continue until Vitest 4.1+ is
+version is below 5.0, stop and tell the user to install it first, e.g.
+`pnpm add -D vitest@latest`. Do not continue until Vitest 5.0+ is
 present — the plugin requires it.
 
 ## 2. Verify `@vitest-agent/plugin`

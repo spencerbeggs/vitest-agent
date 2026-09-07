@@ -320,7 +320,12 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // carries the config. `resolveAnchoredConfigFile` returns the config
 // PATH from that same walk, so the explicit-`projectRoot` path — which
 // must keep using the caller's root verbatim — can pass `config:`
-// alongside it and get the same config Vitest 4 would have found.
+// alongside it and get the same config Vitest 4 would have found. An
+// explicit `projectRoot` plus the anchored `config:` still resolves that
+// config's relative `setupFiles` / `globalSetup` against the SUPPLIED
+// root, not the config's own directory, so callers should pass the
+// directory that holds the config when the config uses relative setup
+// paths.
 // Candidate filenames are checked per-directory in the order Vitest
 // itself prefers: `vitest.config.*` before `vite.config.*`, across
 // ts/mts/cts/js/mjs/cjs. The walk is bounded at the git root (a
@@ -458,8 +463,8 @@ export async function validateProjectRoot(
  * `@vitest-agent/mcp`'s OWN install location. `vitest` is a peerDependency
  * of this package, and pnpm routinely materializes MORE THAN ONE physical
  * instance of the same vitest version when peer-resolution hashes differ
- * (e.g. `vitest@4.1.11_@types+node@26.2.0_...` alongside
- * `vitest@4.1.11_@types+node@26.3.0_...` under `node_modules/.pnpm`). When
+ * (e.g. `vitest@<version>_@types+node@26.2.0_...` alongside
+ * `vitest@<version>_@types+node@26.3.0_...` under `node_modules/.pnpm`). When
  * the bare specifier resolves to a DIFFERENT physical copy than the one the
  * project's test files import, `SnapshotClient.setup()` runs against one
  * copy's module-level `_client` singleton while `expect(...).toMatchSnapshot()`
