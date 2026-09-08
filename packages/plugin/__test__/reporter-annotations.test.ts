@@ -309,9 +309,23 @@ describe("streaming annotation and artifact hooks", () => {
 				annotation: "known slow",
 				annotationType: "issues",
 				location: { file: "src/foo.test.ts", line: 4, column: 1 },
-				attachments: [{ contentType: "text/plain", body: "hi", bodyEncoding: "utf-8", byteSize: 2 }],
+				attachments: [{ contentType: "text/plain", byteSize: 2 }],
 			},
 		]);
+	});
+
+	it("emits an attachment descriptor without the inline body", () => {
+		const events: Array<RunEvent> = [];
+		const body = "x".repeat(100);
+		streamingReporter(events).onTestCaseAnnotate(fakeCase, {
+			message: "big note",
+			attachment: { contentType: "text/plain", body },
+		});
+		const [event] = events;
+		if (event?._tag !== "TestAnnotated") throw new Error("expected a TestAnnotated event");
+		expect(event.attachments).toEqual([{ contentType: "text/plain", byteSize: 100 }]);
+		expect(event.attachments[0]).not.toHaveProperty("body");
+		expect(event.attachments[0]).not.toHaveProperty("bodyEncoding");
 	});
 
 	it("defaults a typeless annotation to notice", () => {

@@ -360,6 +360,18 @@ const toAttachmentInputs = (attachments: ReadonlyArray<RawAttachment>): Array<Te
 	attachments.map(toAttachmentInput);
 
 /**
+ * Strip the inline body off attachment inputs, leaving only the
+ * descriptor (`contentType`, `path`, `byteSize`).
+ *
+ * The run-event stream is a live channel a subscriber may buffer, log or
+ * forward; an inline body can be up to the 64 KiB cap per attachment, so
+ * events carry the descriptor and leave the bytes to the database. The
+ * persistence path keeps using `toAttachmentInputs`.
+ */
+const toAttachmentDescriptors = (attachments: ReadonlyArray<RawAttachment>): Array<TestAttachmentInput> =>
+	toAttachmentInputs(attachments).map(({ body: _body, bodyEncoding: _bodyEncoding, ...descriptor }) => descriptor);
+
+/**
  * Map Vitest annotations onto `DataStore.writeAnnotations` inputs.
  * @internal
  */
@@ -1297,7 +1309,7 @@ export class AgentReporter {
 			annotation: annotation.message,
 			annotationType: annotation.type ?? "notice",
 			...(annotation.location !== undefined && { location: annotation.location }),
-			attachments: toAttachmentInputs(annotation.attachment !== undefined ? [annotation.attachment] : []),
+			attachments: toAttachmentDescriptors(annotation.attachment !== undefined ? [annotation.attachment] : []),
 		});
 	}
 
@@ -1335,7 +1347,7 @@ export class AgentReporter {
 			suitePath: this.collectSuitePath(testCase),
 			artifact: type,
 			...(artifact.location !== undefined && { location: artifact.location }),
-			attachments: toAttachmentInputs(artifact.attachments ?? []),
+			attachments: toAttachmentDescriptors(artifact.attachments ?? []),
 		});
 	}
 
