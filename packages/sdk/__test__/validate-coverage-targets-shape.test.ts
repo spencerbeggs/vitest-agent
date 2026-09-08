@@ -185,3 +185,29 @@ describe("validateCoverageTargetsShape", () => {
 		expect(result.warnings[0]?.code).toBe("PERFILE_ON_TARGETS");
 	});
 });
+
+describe("perFile under Vitest 5 glob semantics", () => {
+	it("still warns on a top-level perFile key, with the reworded message", () => {
+		const result = validateCoverageTargetsShape({ perFile: true, lines: 80 });
+		const warnings = result.warnings.filter((w) => w.code === "PERFILE_ON_TARGETS");
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0].message).toMatch(/glob-pattern entry/);
+		expect(result.errors).toEqual([]);
+	});
+
+	it("accepts perFile inside a glob-pattern entry without warning", () => {
+		const result = validateCoverageTargetsShape({
+			"src/**/*.ts": { lines: 90, perFile: true },
+		});
+		expect(result.warnings).toEqual([]);
+		expect(result.errors).toEqual([]);
+	});
+
+	it("accepts an object-valued perFile inside a glob-pattern entry", () => {
+		const result = validateCoverageTargetsShape({
+			"src/**/*.ts": { lines: 90, perFile: { lines: 70 } },
+		});
+		expect(result.warnings).toEqual([]);
+		expect(result.errors).toEqual([]);
+	});
+});

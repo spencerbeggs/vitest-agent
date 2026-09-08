@@ -116,7 +116,9 @@ using the same `CoverageTargetsMetrics` shape.
 ## Auto-ratcheting thresholds
 
 `AgentPlugin.COVERAGE_AUTOUPDATE` provides three tolerance functions for
-Vitest's native `coverage.thresholds.autoUpdate`. When auto-update is on,
+Vitest's native `coverage.thresholds.autoUpdate`. The callback receives
+both the newly-computed threshold and the previous one —
+`(newThreshold, previousThreshold) => number`. When auto-update is on,
 Vitest mutates the threshold numbers on disk after each green run:
 
 ```typescript

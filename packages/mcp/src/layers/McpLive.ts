@@ -6,8 +6,8 @@ import {
 	DataStoreLive,
 	LoggerLive,
 	OutputPipelineLive,
+	PROJECT_MIGRATIONS,
 	ProjectDiscoveryLive,
-	migration0001,
 } from "@vitest-agent/sdk";
 import type { LogLevel } from "effect";
 import { Layer } from "effect";
@@ -32,9 +32,7 @@ export const McpLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: 
 	// NodeFileSystem layer.
 	const PlatformLayer = NodeServices.layer;
 	const MigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord({
-			"0001_initial": migration0001,
-		}),
+		loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
 	return Layer.mergeAll(DataReaderLive, DataStoreLive, ProjectDiscoveryLive, OutputPipelineLive).pipe(

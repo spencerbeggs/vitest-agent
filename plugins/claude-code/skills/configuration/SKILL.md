@@ -107,3 +107,11 @@ AgentPlugin({
   onRunEvent: live.event,   // fires only when human resolves to ink
 })
 ```
+
+## Inline projects (monorepo configs)
+
+Under Vitest 5, an inline project object in `test.projects` inherits the
+root config — including its `plugins` array — by default. `AgentPlugin`
+therefore reaches an inline project automatically; set `extends: false`
+on a project to opt it out, which also drops `AgentPlugin` from that
+project since inheritance is how the plugin gets there.

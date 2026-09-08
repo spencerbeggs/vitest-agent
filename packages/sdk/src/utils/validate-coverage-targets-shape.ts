@@ -46,13 +46,19 @@ function checkBooleanShortcut(key: string, path: string, errors: CoverageTargets
 	});
 }
 
-/** Checks all values inside a nested per-metric object (glob-pattern entry). */
+/**
+ * Checks all values inside a nested per-metric object (glob-pattern entry).
+ * `perFile` is a legal key inside a glob entry under Vitest 5 — a glob entry
+ * no longer inherits the top-level setting — so it is skipped here rather
+ * than run through the boolean-shortcut check.
+ */
 function checkNestedMetrics(
 	nested: Record<string, unknown>,
 	prefix: string,
 	errors: CoverageTargetsShapeError[],
 ): void {
 	for (const [metricKey, metricValue] of Object.entries(nested)) {
+		if (metricKey === "perFile") continue;
 		const path = `${prefix}.${metricKey}`;
 		if (typeof metricValue === "number") {
 			checkNumericValue(metricValue, path, errors);
@@ -71,8 +77,10 @@ function checkNestedMetrics(
  *   OR a literal `true` appears at any key other than `"100"`. The
  *   offending `path` is included (e.g. `"lines"`, `"src/**.ts.lines"`,
  *   or `"statements"` when misused as a boolean shortcut).
- * - `PERFILE_ON_TARGETS` — the `perFile` key appears inside coverageTargets;
- *   it should be set on `coverage.thresholds.perFile` instead.
+ * - `PERFILE_ON_TARGETS` — a top-level `perFile` key appears in
+ *   coverageTargets; the top-level setting belongs on
+ *   `coverage.thresholds.perFile`. A `perFile` inside a glob-pattern entry
+ *   is legal and is not reported.
  *
  * @param input - The raw value passed as coverageTargets.
  * @returns A result object with errors, warnings, and info arrays.
@@ -92,7 +100,8 @@ export function validateCoverageTargetsShape(input: unknown): CoverageTargetsSha
 			warnings.push({
 				code: "PERFILE_ON_TARGETS",
 				path: key,
-				message: 'The "perFile" key is not valid inside coverageTargets. Set coverage.thresholds.perFile instead.',
+				message:
+					'A top-level "perFile" key is not valid inside coverageTargets. Set coverage.thresholds.perFile instead, or move it inside a glob-pattern entry — under Vitest 5 a glob-pattern entry carries its own perFile and no longer inherits the top-level one.',
 			});
 			continue;
 		}

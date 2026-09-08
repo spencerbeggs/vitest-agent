@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 90
 related:
   - ./components.md
@@ -58,7 +58,7 @@ The project is a pnpm monorepo. Seven publishable workspaces under `packages/`, 
 | `@vitest-agent/claude-code-plugin` | `plugins/claude-code/` | Claude Code plugin distributed via the marketplace as `vitest-agent@spencerbeggs`. Hooks, the TDD orchestrator subagent, slash commands, sub-skill primitives, the MCP loader. A private workspace with no build, no scripts and no npm publish — its `package.json` exists only so changesets has something to version. |
 | `docs` | `website/` | RSPress 2.0 documentation site deployed to `vitest-agent.dev` via Cloudflare Pages. Generates per-package API reference from each package's API Extractor model. Private, versions independently, imports nothing from the runtime packages. See [./components/docs-site.md](./components/docs-site.md). |
 
-The seven npm workspaces version independently per package — there is no shared release train. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` (`workspace:*`) alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`, so a cli or mcp release auto-PATCH-bumps the plugin and re-pins their exact version; they publish as exact-pinned regular `dependencies` too — the earlier `savvy.build.ts` transform that promoted cli and mcp into required `peerDependencies` for the published manifest was removed, because `@savvy-web/pnpm-plugin-silk` already publicly hoists both bins and the peer declaration made pnpm's `autoInstallPeers` force wrong Effect versions into consuming repos (see D33 in [./decisions.md](./decisions.md)). The host-supplied Vitest peers (`vitest`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as `peerDependencies`. Declaring `@vitest-agent/plugin` pulls in the whole `@vitest-agent/*` family for a published consumer transitively. `@vitest-agent/sidecar` reaches a consumer through `@vitest-agent/cli`, along with its four per-platform binaries. All six non-SDK packages pin `@vitest-agent/sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `@vitest-agent/sidecar`.
+The seven npm workspaces version independently per package — there is no shared release train. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` (`workspace:*`) alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`, so a cli or mcp release auto-PATCH-bumps the plugin and re-pins their exact version; they publish as exact-pinned regular `dependencies` too — the earlier `savvy.build.ts` transform that promoted cli and mcp into required `peerDependencies` for the published manifest was removed, because `@savvy-web/pnpm-plugin-silk` already publicly hoists both bins and the peer declaration made pnpm's `autoInstallPeers` force wrong Effect versions into consuming repos (see D33 in [./decisions.md](./decisions.md)). The host-supplied Vitest peers (`vitest`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as `peerDependencies`, at `^5.0.0` — the family dropped Vitest 4 rather than carry a dual range, shipping majors of `plugin`, `reporter` and `mcp` (see Decision 65 in [./decisions.md](./decisions.md)). Declaring `@vitest-agent/plugin` pulls in the whole `@vitest-agent/*` family for a published consumer transitively. `@vitest-agent/sidecar` reaches a consumer through `@vitest-agent/cli`, along with its four per-platform binaries. All six non-SDK packages pin `@vitest-agent/sdk` at `workspace:*`. The four per-platform sidecar sub-packages are not counted among the seven primary workspaces — they carry only a prebuilt binary and an `os` / `cpu` declaration, and are published as `optionalDependencies` of `@vitest-agent/sidecar`.
 
 The Claude Code plugin workspace versions on its own track and never reaches npm. `.changeset/config.json` lists `@vitest-agent/claude-code-plugin` under `versionFiles`, globbing `plugins/claude-code/.claude-plugin/plugin.json` at `$.version`, so one bump rewrites the tracking `package.json` and the marketplace manifest together; with `privatePackages: { tag: true, version: true }` CI cuts a `@vitest-agent/claude-code-plugin@<version>` git tag and a GitHub release and stops there. See Decision 64 in [./decisions.md](./decisions.md).
 
@@ -89,7 +89,8 @@ deterministic XDG-derived path. Three independent processes touch it:
   tests finish, `onTestRunEnd` persists the run, computes classifications
   and trends, then calls the reporter's `render(input, kit)` with a
   second, health-aware `ReporterKit`; the returned `RenderedOutput[]` is
-  routed to stdout, the GitHub Step Summary file or another target. The
+  routed to stdout, the GitHub Step Summary file, or the `.vitest/<scope>/`
+  report directory (`run.json` and `summary.md`). The
   default factory is `DefaultVitestAgentReporter` from
   `@vitest-agent/reporter`, which owns the Ink live mount end to end;
   users supply `reporter` only as an override. The plugin owns no
@@ -204,7 +205,10 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
 - File-to-test mapping is convention-based (`.test.`/`.spec.` strip);
   there is no import-graph analysis.
 - The `RenderedOutput` `file` target is a reserved no-op; current
-  routing dispatches `stdout` and `github-summary` only.
+  routing dispatches `stdout`, `github-summary` and `report`. A `report`
+  output carries a flat `filename` and lands in `.vitest/<scope>/` via
+  Vitest 5's `createReport`; it is dropped when report files are disabled
+  (`report: false`, or the `human` executor default).
 - Standalone `AgentReporter` usage from 1.x is gone. Consumers must
   install `@vitest-agent/plugin` and use `agentPlugin()`; the reporter
   package no longer exports a Vitest-API class.

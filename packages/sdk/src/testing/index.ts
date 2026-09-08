@@ -15,6 +15,9 @@ export {
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
 } from "../errors/TddErrors.js";
+// The project-database migration set, so a consumer building its own test
+// layer registers exactly what the runtime layers register.
+export { PROJECT_MIGRATIONS } from "../migrations/index.js";
 // Agent schemas — classes carry both value and type
 export { Agent, IdempotencyHit } from "../schemas/Agent.js";
 // AgentReport schema — Schema const+type pair
@@ -49,6 +52,7 @@ export type {
 	HypothesisDetail,
 	ModuleListEntry,
 	NoteRow,
+	PersistedAttachment,
 	PersistentFailure,
 	ProjectRunSummary,
 	SessionDetail,
@@ -61,6 +65,9 @@ export type {
 	TddPhaseDetail,
 	TddTaskDetail,
 	TddTaskSummary,
+	TestAnnotationRow,
+	TestArtifactQueryOptions,
+	TestArtifactRow,
 	TestError,
 	TestListEntry,
 	TestLookupOptions,
@@ -92,6 +99,9 @@ export type {
 	StackFrameInput,
 	SuiteInput,
 	TddTaskInput,
+	TestAnnotationInput,
+	TestArtifactInput,
+	TestAttachmentInput,
 	TestCaseInput,
 	TestErrorInput,
 	TestRunInput,
@@ -119,7 +129,7 @@ export function singlePassingRun(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
 		const store = yield* DataStore;
-		yield* store.writeSettings("hash-preset-spr", { vitestVersion: "4.1.5", pool: "forks" }, {});
+		yield* store.writeSettings("hash-preset-spr", { vitestVersion: "5.0.0", pool: "forks" }, {});
 		const runId = yield* store.writeRun({
 			invocationId: "inv-preset-spr-1",
 			project: "default",
@@ -172,7 +182,7 @@ export function withFailures(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
 		const store = yield* DataStore;
-		yield* store.writeSettings("hash-preset-wf", { vitestVersion: "4.1.5", pool: "forks" }, {});
+		yield* store.writeSettings("hash-preset-wf", { vitestVersion: "5.0.0", pool: "forks" }, {});
 		const runId = yield* store.writeRun({
 			invocationId: "inv-preset-wf-1",
 			project: "default",
@@ -231,7 +241,7 @@ export function flaky(filename: string) {
 	const base = makeTestLayer(filename);
 	const seed = Effect.gen(function* () {
 		const store = yield* DataStore;
-		yield* store.writeSettings("hash-preset-flaky", { vitestVersion: "4.1.5", pool: "forks" }, {});
+		yield* store.writeSettings("hash-preset-flaky", { vitestVersion: "5.0.0", pool: "forks" }, {});
 		const runId1 = yield* store.writeRun({
 			invocationId: "inv-preset-flaky-1",
 			project: "default",

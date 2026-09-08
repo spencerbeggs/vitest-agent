@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -41,25 +41,31 @@ test("int test passes", () => { expect(2 + 2).toBe(4); });
 // ---------------------------------------------------------------------------
 
 function runVitest(dir: string, extraArgs: string[]): string {
+	const outDir = mkdtempSync(join(tmpdir(), "vitest-agent-json-"));
+	const outputFile = join(outDir, "report.json");
 	try {
-		return execSync(`node ${VITEST_BIN} run --reporter=json --no-color ${extraArgs.join(" ")}`, {
+		execSync(`node ${VITEST_BIN} run --reporter=json --outputFile=${outputFile} --no-color ${extraArgs.join(" ")}`, {
 			cwd: dir,
 			encoding: "utf8",
 			env: { ...process.env, CI: "1" },
 			stdio: ["pipe", "pipe", "pipe"],
 		});
-	} catch (err: unknown) {
-		// execSync throws on non-zero exit; capture stdout from the error.
-		const e = err as { stdout?: string; stderr?: string };
-		return `${e.stdout ?? ""}\n${e.stderr ?? ""}`;
+	} catch {
+		// execSync throws on non-zero exit; the JSON file is still written.
+	}
+	if (!existsSync(outputFile)) {
+		throw new Error(`no JSON reporter output at ${outputFile}`);
+	}
+	try {
+		return readFileSync(outputFile, "utf8");
+	} finally {
+		rmSync(outDir, { recursive: true, force: true });
 	}
 }
 
 function parseJson(output: string): Record<string, unknown> {
-	const line = output.split("\n").find((l) => l.trim().startsWith("{") && l.includes('"testResults"'));
-	if (!line) return {};
 	try {
-		return JSON.parse(line);
+		return JSON.parse(output);
 	} catch {
 		return {};
 	}
@@ -90,9 +96,9 @@ describe("Approach A — runner onCollected (late mutation, blocked for filterin
 			writeFileSync(
 				join(dir, "tag-runner.mjs"),
 				`
-import { VitestTestRunner } from "vitest/runners";
+import { TestRunner } from "vitest";
 
-export default class TaggingRunner extends VitestTestRunner {
+export default class TaggingRunner extends TestRunner {
   async onCollected(files) {
     for (const file of files) {
       const isInt = file.filepath.includes(".int.test.");

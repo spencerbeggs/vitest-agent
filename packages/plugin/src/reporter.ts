@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { NodeServices } from "@effect/platform-node";
 import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
@@ -12,6 +12,9 @@ import type {
 	ResolvedReporterConfig,
 	ResolvedThresholds,
 	RunEvent,
+	TestAnnotationInput,
+	TestArtifactInput,
+	TestAttachmentInput,
 	TestClassification,
 	TestErrorInput,
 	TestOutcome,
@@ -51,6 +54,8 @@ import { captureEnvVars } from "./utils/capture-env.js";
 import { captureSettings, hashSettings } from "./utils/capture-settings.js";
 import { isPartialRun } from "./utils/is-partial-run.js";
 import { processFailure } from "./utils/process-failure.js";
+import type { ReportWriter } from "./utils/report-writer.js";
+import { assertReportCapable, createReportWriter } from "./utils/report-writer.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { routeRenderedOutput } from "./utils/route-rendered-output.js";
 import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
@@ -187,6 +192,8 @@ interface ResolvedOptions {
 	githubActions: boolean;
 	githubSummary: boolean;
 	githubSummaryFile: string | undefined;
+	/** `.vitest/<scope>` directory name; undefined disables report files. */
+	reportScope?: string;
 	format?: "terminal" | "markdown" | "json" | "vitest-bypass" | "silent" | "ci-annotations";
 	detail?: "minimal" | "neutral" | "standard" | "verbose";
 	consoleMode: ConsoleMode;
@@ -253,6 +260,13 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 	format?: OutputFormat;
 	mcp?: boolean;
 	githubActions?: boolean;
+	/**
+	 * The `.vitest/<scope>` directory name for `report`-targeted rendered
+	 * output. Undefined disables report files.
+	 *
+	 * @internal
+	 */
+	reportScope?: string;
 	transport?: Transport;
 	/**
 	 * Optional `test.passWithNoTests` value the plugin captured from the
@@ -275,6 +289,201 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
 }
 
 /**
+ * Vitest's attachment payload as it reaches a reporter, read
+ * defensively -- the reporter never trusts a live getter on a foreign
+ * object.
+ * @internal
+ */
+interface RawAttachment {
+	contentType?: string;
+	path?: string;
+	body?: string | Uint8Array;
+	bodyEncoding?: "base64" | "utf-8";
+}
+
+/**
+ * Size of a path-only attachment. Vitest has already rewritten `path`
+ * to its `.vitest/attachments/` location (or left an external URL), so
+ * a miss here is a dangling or remote descriptor, not an error.
+ */
+const attachmentPathByteSize = (path: string): number => {
+	try {
+		return statSync(path).size;
+	} catch {
+		return 0;
+	}
+};
+
+/**
+ * Read one property off a user-authored artifact or attachment object.
+ * Both carry arbitrary user data and may expose live getters that throw,
+ * so every read is guarded -- the same discipline `coerceErrorField`
+ * applies to error objects.
+ */
+const readField = (raw: Record<string, unknown>, key: string): unknown => {
+	try {
+		return raw[key];
+	} catch {
+		return undefined;
+	}
+};
+
+/**
+ * Normalize one Vitest attachment onto a `TestAttachmentInput`.
+ *
+ * A `Uint8Array` body is base64-encoded and declared as such, matching
+ * what Vitest does for its own consumers. A string body is passed
+ * through with whatever encoding the producer declared. `byteSize` is
+ * always the size of the decoded payload: the raw array length, the
+ * base64-decoded length, the UTF-8 length of a text body, or the
+ * on-disk size of a path-only attachment.
+ */
+const toAttachmentInput = (att: RawAttachment): TestAttachmentInput => {
+	// An attachment is user-authored data that reaches us by reference, so
+	// any of its fields may be a live getter that throws. Every read goes
+	// through `readField`: a field that explodes reads as absent, and the
+	// attachment degrades to the descriptor we could assemble rather than
+	// aborting the whole persistence walk.
+	const raw = att as unknown as Record<string, unknown>;
+	const contentType = readField(raw, "contentType");
+	const path = readField(raw, "path");
+	const descriptor = {
+		...(typeof contentType === "string" && { contentType }),
+		...(typeof path === "string" && { path }),
+	};
+	const body = readField(raw, "body");
+	if (body instanceof Uint8Array) {
+		return {
+			...descriptor,
+			body: Buffer.from(body).toString("base64"),
+			bodyEncoding: "base64",
+			byteSize: body.byteLength,
+		};
+	}
+	if (typeof body === "string") {
+		// Vitest stamps `bodyEncoding ??= "base64"` on every body before a
+		// reporter sees it (`.repos/vitest/.../runtime/runner/artifact.ts:185`),
+		// so an undeclared body only reaches here from a hand-built object. We
+		// still record what we assumed rather than leaving NULL, so `byteSize`
+		// and `bodyEncoding` always agree on the row.
+		const bodyEncoding = readField(raw, "bodyEncoding") === "base64" ? "base64" : "utf-8";
+		return {
+			...descriptor,
+			body,
+			bodyEncoding,
+			byteSize: Buffer.byteLength(body, bodyEncoding === "base64" ? "base64" : "utf8"),
+		};
+	}
+	return {
+		...descriptor,
+		byteSize: typeof path === "string" ? attachmentPathByteSize(path) : 0,
+	};
+};
+
+const toAttachmentInputs = (attachments: ReadonlyArray<RawAttachment>): Array<TestAttachmentInput> =>
+	attachments.map(toAttachmentInput);
+
+/**
+ * Strip the inline body off attachment inputs, leaving only the
+ * descriptor (`contentType`, `path`, `byteSize`).
+ *
+ * The run-event stream is a live channel a subscriber may buffer, log or
+ * forward; an inline body can be up to the 64 KiB cap per attachment, so
+ * events carry the descriptor and leave the bytes to the database. The
+ * persistence path keeps using `toAttachmentInputs`.
+ */
+const toAttachmentDescriptors = (attachments: ReadonlyArray<RawAttachment>): Array<TestAttachmentInput> =>
+	toAttachmentInputs(attachments).map(({ body: _body, bodyEncoding: _bodyEncoding, ...descriptor }) => descriptor);
+
+/**
+ * Map Vitest annotations onto `DataStore.writeAnnotations` inputs.
+ * @internal
+ */
+export const toAnnotationInputs = (
+	testCaseId: number,
+	annotations: ReadonlyArray<{
+		message: string;
+		type?: string;
+		location?: { file: string; line: number; column: number };
+		attachment?: RawAttachment;
+	}>,
+): Array<TestAnnotationInput> =>
+	annotations.map((anno) => ({
+		testCaseId,
+		type: anno.type ?? "notice",
+		message: anno.message,
+		...(anno.location !== undefined && {
+			locationFile: anno.location.file,
+			locationLine: anno.location.line,
+			locationColumn: anno.location.column,
+		}),
+		attachments: toAttachmentInputs(anno.attachment !== undefined ? [anno.attachment] : []),
+	}));
+
+/**
+ * JSON-encode an artifact's custom fields, minus the ones modelled as
+ * their own columns. Returns `undefined` when there is nothing to store
+ * or when the object resists encoding -- a throwing getter surfaced by
+ * `Object.entries`, or a circular structure `JSON.stringify` rejects.
+ * Losing the `data` blob is acceptable; aborting the whole run's
+ * persistence over one malformed user artifact is not.
+ */
+const collectArtifactData = (raw: Record<string, unknown>, skipMessage: boolean): string | undefined => {
+	try {
+		const custom: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(raw)) {
+			if (key === "type" || key === "location" || key === "attachments") continue;
+			if (key === "message" && skipMessage) continue;
+			custom[key] = value;
+		}
+		if (Object.keys(custom).length === 0) return undefined;
+		return JSON.stringify(custom);
+	} catch {
+		return undefined;
+	}
+};
+
+/**
+ * Map Vitest test artifacts onto `DataStore.writeArtifacts` inputs.
+ *
+ * `internal:` is a Vitest-reserved type prefix; `internal:annotation`
+ * never reaches `artifacts()` anyway, but the guard keeps any future
+ * internal type out of `test_artifacts`.
+ * @internal
+ */
+export const toArtifactInputs = (
+	testCaseId: number,
+	artifacts: ReadonlyArray<Record<string, unknown> & { type?: string }>,
+): Array<TestArtifactInput> => {
+	const out: Array<TestArtifactInput> = [];
+	for (const raw of artifacts) {
+		const rawType = readField(raw, "type");
+		const type = typeof rawType === "string" ? rawType : "";
+		if (type === "" || type.startsWith("internal:")) continue;
+		const location = readField(raw, "location") as { file: string; line: number; column: number } | undefined;
+		const rawAttachments = readField(raw, "attachments");
+		const attachments = Array.isArray(rawAttachments) ? (rawAttachments as Array<RawAttachment>) : [];
+		// `message` is consumed as its own column only when it is a string;
+		// anything else stays in the custom data rather than vanishing.
+		const message = readField(raw, "message");
+		const messageIsString = typeof message === "string";
+		const data = collectArtifactData(raw, messageIsString);
+		out.push({
+			testCaseId,
+			type,
+			...(messageIsString && { message: message as string }),
+			...(data !== undefined && { data }),
+			...(location !== undefined && {
+				locationFile: location.file,
+				locationLine: location.line,
+				locationColumn: location.column,
+			}),
+			attachments: toAttachmentInputs(attachments),
+		});
+	}
+	return out;
+};
+/**
  * Vitest Reporter that produces structured output for LLM coding agents.
  *
  * @remarks
@@ -291,6 +500,10 @@ export interface AgentReporterConstructorOptions extends AgentReporterOptions {
  * The reporter handles both single-package repos and monorepos by grouping
  * results via Vitest's native `TestProject` API. In single-project mode,
  * results are written with project name "default".
+ *
+ * Not to be confused with Vitest 5's own `AgentReporter` export from
+ * `vitest/node` (an alias of `MinimalReporter`) — this is
+ * `@vitest-agent/plugin`'s `AgentReporter`, an unrelated class.
  *
  * @privateRemarks
  * The `onCoverage` hook fires **before** `onTestRunEnd` in Vitest's lifecycle.
@@ -345,6 +558,11 @@ export class AgentReporter {
 	 * @internal
 	 */
 	_vitest: unknown = null;
+	/**
+	 * Lazily-created writer for `report`-targeted output. Null when
+	 * `reportScope` is unset (report files disabled) or before `onInit`.
+	 */
+	private reportWriter: ReportWriter | null = null;
 	private coverage: unknown = null;
 	private logLevel: LogLevel.LogLevel | undefined;
 	private logFile: string | undefined;
@@ -478,6 +696,7 @@ export class AgentReporter {
 			githubActions,
 			githubSummary: githubActions,
 			githubSummaryFile: undefined,
+			...(options.reportScope !== undefined ? { reportScope: options.reportScope } : {}),
 			...(derivedFormat !== undefined ? { format: derivedFormat } : {}),
 			consoleMode,
 			...(options.mcp !== undefined ? { mcp: options.mcp } : {}),
@@ -531,6 +750,13 @@ export class AgentReporter {
 	 */
 	async onInit(vitest: unknown): Promise<void> {
 		this._vitest = vitest;
+		if (this.options.reportScope !== undefined) {
+			// Fail here, before any rendering, rather than mid-routing on the
+			// first report-targeted output. `assertReportCapable` only reads
+			// the property, so the scope directory stays lazily created.
+			assertReportCapable(vitest);
+			this.reportWriter = createReportWriter(vitest, this.options.reportScope);
+		}
 		try {
 			await this.ensureDbPath();
 		} catch {
@@ -1070,7 +1296,17 @@ export class AgentReporter {
 			parent?: { type: string; name: string; parent?: unknown };
 			module?: { relativeModuleId: string };
 		},
-		annotation: { message: string },
+		annotation: {
+			message: string;
+			type?: string;
+			location?: { file: string; line: number; column: number };
+			attachment?: {
+				contentType?: string;
+				path?: string;
+				body?: string | Uint8Array;
+				bodyEncoding?: "base64" | "utf-8";
+			};
+		},
 	): void {
 		if (!this.wantsRunEvents()) return;
 		const modulePath = testCase.module?.relativeModuleId ?? "";
@@ -1081,6 +1317,9 @@ export class AgentReporter {
 			testName: testCase.name,
 			suitePath: this.collectSuitePath(testCase),
 			annotation: annotation.message,
+			annotationType: annotation.type ?? "notice",
+			...(annotation.location !== undefined && { location: annotation.location }),
+			attachments: toAttachmentDescriptors(annotation.attachment !== undefined ? [annotation.attachment] : []),
 		});
 	}
 
@@ -1093,17 +1332,32 @@ export class AgentReporter {
 			parent?: { type: string; name: string; parent?: unknown };
 			module?: { relativeModuleId: string };
 		},
-		artifact: { type?: string },
+		artifact: {
+			type?: string;
+			location?: { file: string; line: number; column: number };
+			attachments?: ReadonlyArray<{
+				contentType?: string;
+				path?: string;
+				body?: string | Uint8Array;
+				bodyEncoding?: "base64" | "utf-8";
+			}>;
+		},
 	): void {
 		if (!this.wantsRunEvents()) return;
 		const modulePath = testCase.module?.relativeModuleId ?? "";
 		if (modulePath === "") return;
+		// `internal:` is Vitest's reserved prefix; those artifacts are its
+		// own bookkeeping and never surface on the run-event stream.
+		const type = artifact.type ?? "";
+		if (type === "" || type.startsWith("internal:")) return;
 		this.emit({
 			_tag: "TestArtifactRecorded",
 			modulePath,
 			testName: testCase.name,
 			suitePath: this.collectSuitePath(testCase),
-			artifact: artifact.type ?? "artifact",
+			artifact: type,
+			...(artifact.location !== undefined && { location: artifact.location }),
+			attachments: toAttachmentDescriptors(artifact.attachments ?? []),
 		});
 	}
 
@@ -1262,6 +1516,7 @@ export class AgentReporter {
 		const opts = this.options;
 		const stashedCoverage = this.coverage;
 		const stashedVitest = this._vitest;
+		const reportWriter = this.reportWriter;
 		const logLevel = this.logLevel;
 		const logFile = this.logFile;
 		// The run-event channel and the reporters resolved at run start
@@ -1479,6 +1734,7 @@ export class AgentReporter {
 				for (const output of allOutputs) {
 					routeRenderedOutput(output, {
 						...(githubSummaryFile !== undefined && { githubSummaryFile }),
+						...(reportWriter !== null && { writeReport: reportWriter.write }),
 					});
 				}
 			});
@@ -1488,6 +1744,7 @@ export class AgentReporter {
 			).catch((err) => {
 				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 			});
+			await reportWriter?.flush();
 			return;
 		}
 
@@ -1849,8 +2106,8 @@ export class AgentReporter {
 					let testIdx = 0;
 					for (const testCase of mod.children.allTests()) {
 						const result = testCase.result();
+						const testCaseId = testCaseIds[testIdx];
 						if (result?.errors && result.errors.length > 0) {
-							const testCaseId = testCaseIds[testIdx];
 							const inputs: TestErrorInput[] = [];
 							for (let ordinal = 0; ordinal < result.errors.length; ordinal++) {
 								// Field reads AND the processFailure input go through safe
@@ -1889,6 +2146,25 @@ export class AgentReporter {
 								});
 							}
 							yield* store.writeErrors(runId, inputs);
+						}
+						// Vitest 5 test annotations and test artifacts. Read here
+						// rather than from the streaming hooks: `annotations()` and
+						// `artifacts()` return the accumulated arrays, so a
+						// `--merge-reports` run (which replays no streaming events)
+						// still persists them.
+						const annotationInputs = toAnnotationInputs(
+							testCaseId,
+							(testCase as { annotations?: () => ReadonlyArray<never> }).annotations?.() ?? [],
+						);
+						if (annotationInputs.length > 0) {
+							yield* store.writeAnnotations(runId, annotationInputs);
+						}
+						const artifactInputs = toArtifactInputs(
+							testCaseId,
+							(testCase as { artifacts?: () => ReadonlyArray<never> }).artifacts?.() ?? [],
+						);
+						if (artifactInputs.length > 0) {
+							yield* store.writeArtifacts(runId, artifactInputs);
 						}
 						testIdx++;
 					}
@@ -2294,6 +2570,7 @@ export class AgentReporter {
 			for (const output of allOutputs) {
 				routeRenderedOutput(output, {
 					...(githubSummaryFile !== undefined && { githubSummaryFile }),
+					...(reportWriter !== null && { writeReport: reportWriter.write }),
 				});
 			}
 		});
@@ -2307,6 +2584,7 @@ export class AgentReporter {
 		).catch((err) => {
 			process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 		});
+		await reportWriter?.flush();
 
 		const persistError = persistDisabled ?? persistFailure;
 		if (persistError !== undefined) {

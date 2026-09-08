@@ -82,6 +82,11 @@
 		"label": "CI reporting"
 	},
 	{
+		"type": "file",
+		"name": "report-files",
+		"label": "Report files"
+	},
+	{
 		"type": "section-header",
 		"label": "Operating as an agent"
 	},
@@ -94,5 +99,10 @@
 		"type": "file",
 		"name": "known-issues",
 		"label": "Known issues"
+	},
+	{
+		"type": "file",
+		"name": "upgrade-vitest-5",
+		"label": "Upgrading to Vitest 5"
 	}
 ]

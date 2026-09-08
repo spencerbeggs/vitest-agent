@@ -40,7 +40,30 @@ function mockVitest(
  * The mock satisfies the subset of VitestPluginContext that the plugin uses.
  */
 async function callConfigureVitest(plugin: ReturnType<typeof AgentPlugin>, vitest: ReturnType<typeof mockVitest>) {
-	const ctx = { vitest, project: { name: undefined } } as unknown as VitestPluginContext;
+	const ctx = {
+		vitest,
+		project: { name: undefined },
+		defineCacheKeyGenerator: vi.fn(),
+	} as unknown as VitestPluginContext;
+	await plugin.configureVitest(ctx);
+}
+
+/**
+ * Call configureVitest for a named project against a SHARED vitest object,
+ * the shape Vitest 5's `sharedViteServer: true` default produces: the root
+ * config is evaluated once, so one plugin instance receives one
+ * configureVitest call per project.
+ */
+async function callConfigureVitestForProject(
+	plugin: ReturnType<typeof AgentPlugin>,
+	vitest: ReturnType<typeof mockVitest>,
+	projectName: string,
+) {
+	const ctx = {
+		vitest,
+		project: { name: projectName },
+		defineCacheKeyGenerator: vi.fn(),
+	} as unknown as VitestPluginContext;
 	await plugin.configureVitest(ctx);
 }
 
@@ -100,6 +123,32 @@ describe("AgentPlugin", () => {
 			const vitest = mockVitest([]);
 			await callConfigureVitest(plugin, vitest);
 			expect(vitest.config.reporters.some((r) => r instanceof AgentReporter)).toBe(true);
+		});
+	});
+
+	describe("multi-project shared vite server", () => {
+		it("pushes exactly one AgentReporter across three configureVitest calls on one vitest instance", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["minimal"]);
+
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/sdk");
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/plugin");
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/mcp");
+
+			const reporters = vitest.config.reporters.filter((r) => r instanceof AgentReporter);
+			expect(reporters).toHaveLength(1);
+		});
+
+		it("pushes one AgentReporter per distinct vitest instance", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("agent-shell"));
+			const first = mockVitest(["minimal"]);
+			const second = mockVitest(["minimal"]);
+
+			await callConfigureVitestForProject(plugin, first, "@vitest-agent/sdk");
+			await callConfigureVitestForProject(plugin, second, "@vitest-agent/sdk");
+
+			expect(first.config.reporters.filter((r) => r instanceof AgentReporter)).toHaveLength(1);
+			expect(second.config.reporters.filter((r) => r instanceof AgentReporter)).toHaveLength(1);
 		});
 	});
 
@@ -358,24 +407,39 @@ describe("AgentPlugin", () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
 			const vitest = mockVitest(["default"]);
 			await callConfigureVitest(plugin, vitest);
-			expect(vitest.config.reporters).toContainEqual(["github-actions", {}]);
+			expect(vitest.config.reporters).toContainEqual(["github-actions", { jobSummary: { enabled: false } }]);
 		});
 
-		it("does not append a second github-actions entry when one is already configured", async () => {
+		it("normalizes the entry Vitest 5 seeds from configDefaults instead of appending a second one", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
 			const vitest = mockVitest(["default", "github-actions"]);
 			await callConfigureVitest(plugin, vitest);
-			const count = vitest.config.reporters.filter(
+			const entries = vitest.config.reporters.filter(
 				(r) => r === "github-actions" || (Array.isArray(r) && r[0] === "github-actions"),
-			).length;
-			expect(count).toBe(1);
+			);
+			expect(entries).toHaveLength(1);
+			expect(entries[0]).toEqual(["github-actions", { jobSummary: { enabled: false } }]);
+		});
+
+		it("normalizes the resolved tuple form Vitest 5 produces for a bare reporter name", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
+			const vitest = mockVitest(["default", ["github-actions", {}]]);
+			await callConfigureVitest(plugin, vitest);
+			expect(vitest.config.reporters).toContainEqual(["github-actions", { jobSummary: { enabled: false } }]);
+		});
+
+		it("leaves an explicit jobSummary opt-in untouched", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("ci-github"));
+			const vitest = mockVitest(["default", ["github-actions", { jobSummary: { enabled: true } }]]);
+			await callConfigureVitest(plugin, vitest);
+			expect(vitest.config.reporters).toContainEqual(["github-actions", { jobSummary: { enabled: true } }]);
 		});
 
 		it("does not append the github-actions reporter outside ci-github", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
 			const vitest = mockVitest(["default"]);
 			await callConfigureVitest(plugin, vitest);
-			expect(vitest.config.reporters).not.toContainEqual(["github-actions", {}]);
+			expect(vitest.config.reporters).not.toContainEqual(["github-actions", { jobSummary: { enabled: false } }]);
 			expect(vitest.config.reporters).not.toContain("github-actions");
 		});
 
@@ -383,7 +447,7 @@ describe("AgentPlugin", () => {
 			const plugin = AgentPlugin({ console: { ci: "silent" } }, EnvironmentDetectorTest.layer("ci-github"));
 			const vitest = mockVitest(["default"]);
 			await callConfigureVitest(plugin, vitest);
-			expect(vitest.config.reporters).not.toContainEqual(["github-actions", {}]);
+			expect(vitest.config.reporters).not.toContainEqual(["github-actions", { jobSummary: { enabled: false } }]);
 			expect(vitest.config.reporters).not.toContain("github-actions");
 		});
 	});
@@ -472,24 +536,24 @@ describe("AgentPlugin", () => {
 		});
 
 		it("COVERAGE_AUTOUPDATE.standard floors fractional values", () => {
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(95.85)).toBe(95);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(50)).toBe(50);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(0)).toBe(0);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(100)).toBe(100);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(95.85, 0)).toBe(95);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(50, 0)).toBe(50);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(0, 0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.standard(100, 0)).toBe(100);
 		});
 
 		it("COVERAGE_AUTOUPDATE.strict ceils fractional values", () => {
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(95.1)).toBe(96);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(50)).toBe(50);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(0)).toBe(0);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(100)).toBe(100);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(95.1, 0)).toBe(96);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(50, 0)).toBe(50);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(0, 0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.strict(100, 0)).toBe(100);
 		});
 
 		it("COVERAGE_AUTOUPDATE.lenient floors then subtracts a two-point slack, clamped to zero", () => {
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(50)).toBe(48);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(1)).toBe(0);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(0)).toBe(0);
-			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(100.9)).toBe(98);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(50, 0)).toBe(48);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(1, 0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(0, 0)).toBe(0);
+			expect(AgentPlugin.COVERAGE_AUTOUPDATE.lenient(100.9, 0)).toBe(98);
 		});
 	});
 
@@ -518,6 +582,25 @@ describe("AgentPlugin", () => {
 			await callConfigureVitest(plugin, vitest);
 			expect(vitest.config.reporters).toContain("default");
 			expect(vitest.config.reporters.some((r) => r instanceof AgentReporter)).toBe(true);
+		});
+	});
+
+	describe("fsModuleCache cache-key generator (Vitest 5)", () => {
+		it("registers the generator once across two projects on the same Vitest instance", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest();
+			const defineCacheKeyGenerator = vi.fn();
+			for (const name of ["a", "b"]) {
+				await plugin.configureVitest({
+					vitest,
+					project: { name },
+					defineCacheKeyGenerator,
+				} as unknown as VitestPluginContext);
+			}
+			expect(defineCacheKeyGenerator).toHaveBeenCalledTimes(1);
+			const generator = defineCacheKeyGenerator.mock.calls[0]?.[0] as (c: { id: string }) => string | undefined;
+			expect(generator({ id: "/repo/packages/plugin/src/plugin.ts" })).toBeUndefined();
+			expect(generator({ id: "/repo/packages/plugin/__test__/plugin.test.ts" })).toMatch(/^vitest-agent:tags:/);
 		});
 	});
 });

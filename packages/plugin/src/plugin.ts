@@ -2,7 +2,6 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { TestTagDefinition } from "@vitest/runner";
 import type {
 	AgentPluginOptions,
 	ConsoleMode,
@@ -29,12 +28,13 @@ import {
 } from "@vitest-agent/sdk";
 import type { Layer } from "effect";
 import { Effect, Schema } from "effect";
-import type { TestProjectInlineConfiguration } from "vitest/config";
+import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";
 import { ConfigValidation } from "./services/ConfigValidation.js";
 import { buildModuleInfo } from "./utils/build-module-info.js";
+import { ConfigurationError } from "./utils/configuration-error.js";
 import type { DiscoverProjectsOptions } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
 import type { DiscoverStrategy } from "./utils/discover-strategy.js";
@@ -43,6 +43,7 @@ import { ensureGithubActionsReporter } from "./utils/ensure-github-reporter.js";
 import type { InjectTagsResult } from "./utils/inject-tags.js";
 import { injectTags } from "./utils/inject-tags.js";
 import { isBenignViteSourceMapWarning } from "./utils/is-benign-vite-source-map-warning.js";
+import { assertFlatScope } from "./utils/report-writer.js";
 import { resolveCoverageDirIsolation } from "./utils/resolve-coverage-dir-isolation.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import {
@@ -57,6 +58,7 @@ import {
 	releaseRunScriptLock,
 } from "./utils/run-script-lock.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
+import { makeTagCacheKeyGenerator } from "./utils/tag-cache-key.js";
 
 /**
  * Plugin options shape with the (function-typed) `reporter` factory added
@@ -205,6 +207,15 @@ function resolveFormat(mode: ConsoleMode): OutputFormat {
 const aggregatedReporterByVitest = new WeakSet<object>();
 
 /**
+ * Per-Vitest-instance guard for the `fsModuleCache` cache-key generator.
+ * `configureVitest` fires once per project, but the generator is global to
+ * the Vitest instance — register it exactly once per run.
+ *
+ * @internal
+ */
+const cacheKeyGeneratorByVitest = new WeakSet<object>();
+
+/**
  * Guards the coverage.reportsDirectory isolation decision (issue #194) to
  * run at most once per Vitest run — `configureVitest` fires once per
  * project, but `coverage.reportsDirectory` is root-level config shared by
@@ -317,6 +328,18 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 	const discoverStrategyResolved =
 		options.discoverStrategy === false ? null : (options.discoverStrategy ?? new DefaultDiscoverStrategy());
 
+	// Single source of truth for the per-id tag decision. The `transform`
+	// hook rewrites a file only when this returns a tag list, and
+	// `configureVitest` folds the same list into Vitest 5's fsModuleCache
+	// key, so the cached prelude and the transform can never disagree.
+	const classifyForCache = (id: string): ReadonlyArray<string> | undefined => {
+		if (!discoverStrategyResolved) return undefined;
+		const cleanId = id.split("?")[0] ?? id;
+		if (!isTestFile(cleanId)) return undefined;
+		const tags = discoverStrategyResolved.classify({ module: buildModuleInfo(cleanId) });
+		return tags.length === 0 ? undefined : tags;
+	};
+
 	const pluginObj: {
 		name: "vitest-agent";
 		// Inline structural type (not a named export) so api-extractor's public
@@ -342,6 +365,17 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const { vitest, project } = ctx;
 				log("configureVitest called | project:", project?.name ?? "(root)");
 
+				// Vitest's fsModuleCache keys transformed modules on file
+				// content and environment config alone — it cannot see that the
+				// injected tag prelude comes from a filesystem scan. Fold the
+				// tag set into the key so a changed classification invalidates
+				// the cached prelude.
+				if (discoverStrategyResolved && !cacheKeyGeneratorByVitest.has(vitest as object)) {
+					cacheKeyGeneratorByVitest.add(vitest as object);
+					ctx.defineCacheKeyGenerator(makeTagCacheKeyGenerator(classifyForCache));
+					log("registered fsModuleCache tag cache-key generator");
+				}
+
 				// Auto-detect the environment, then map to the executor slot.
 				const env: Environment = await Effect.runPromise(
 					Effect.provide(
@@ -350,6 +384,17 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					),
 				);
 				const executor = envToExecutor(env);
+				// Report files default on for machine-facing executors and off
+				// for a human at a terminal; `report: false` disables them, and
+				// `report: { scope }` renames the `.vitest/<scope>` directory.
+				const reportOption = options.report;
+				const reportScope =
+					reportOption === false
+						? undefined
+						: executor === "human" && reportOption === undefined
+							? undefined
+							: (reportOption?.scope ?? "vitest-agent");
+				if (reportScope !== undefined) assertFlatScope(reportScope);
 				const consoleMode = resolveConsoleMode(options, executor, env);
 				const format = resolveFormat(consoleMode);
 				// `mcp` is auto-derived from the detected executor — the agent
@@ -387,15 +432,17 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				}
 
 				// Guarantee the built-in `github-actions` reporter is present under
-				// CI GitHub Actions. Vitest only auto-appends it when the resolved
-				// `reporters` array is empty, which is fragile now that the plugin
-				// always configures at least one entry — make the guarantee explicit.
+				// CI GitHub Actions, with its markdown job summary disabled. Vitest 5
+				// seeds `github-actions` into `configDefaults.reporters` whenever
+				// `GITHUB_ACTIONS=true` and normalizes bare names to `[name, {}]`, so
+				// the array usually already holds an entry whose job summary is still
+				// on — normalize it rather than only appending a missing one.
 				// Skip the injection entirely when `console.ci` resolves to
 				// `"silent"` — that is the documented lever for opting out of all
 				// GitHub Actions output, including the `::error::` annotations the
 				// injected reporter would otherwise emit.
 				if (env === "ci-github" && consoleMode !== "silent") {
-					log("ensuring github-actions reporter is present");
+					log("normalizing the github-actions reporter entry");
 					const withGithubActions = ensureGithubActionsReporter(vitest.config.reporters as unknown[]);
 					(vitest.config as { reporters: unknown[] }).reporters = withGithubActions;
 				}
@@ -559,6 +606,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					consoleMode,
 					mcp,
 					githubActions,
+					...(reportScope !== undefined && { reportScope }),
 					transport,
 					...(passWithNoTests !== undefined ? { passWithNoTests } : {}),
 					...(options.reporter !== undefined && { reporter: options.reporter }),
@@ -576,6 +624,15 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 
 				log("reporters after push:", vitest.config.reporters.length);
 			} catch (err) {
+				// A ConfigurationError is the user's own config mistake, not a
+				// bug in the plugin: report the message alone — no stack, no
+				// "please report an issue" banner — and rethrow so Vitest still
+				// fails the run. Its message already carries the `vitest-agent: `
+				// marker, so it is written verbatim rather than prefixed twice.
+				if (err instanceof ConfigurationError) {
+					process.stderr.write(`${err.message}\n`);
+					throw err;
+				}
 				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 				throw err;
 			}
@@ -584,14 +641,9 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 
 	if (discoverStrategyResolved) {
 		pluginObj.transform = (code, id) => {
-			const cleanId = id.split("?")[0] ?? id;
-			if (!isTestFile(cleanId)) return null;
-			const module = buildModuleInfo(cleanId);
-			const tags = discoverStrategyResolved.classify({ module });
-			if (tags.length === 0) return null;
-			const rewritten = injectTags(code, [...tags]);
-			if (rewritten === null) return null;
-			return rewritten;
+			const tags = classifyForCache(id);
+			if (tags === undefined) return null;
+			return injectTags(code, [...tags]);
 		};
 	}
 
@@ -604,8 +656,10 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
  * passed to Vitest's native `coverage.thresholds`; the `coverageTargets`
  * half is passed to `AgentPlugin({ coverageTargets })`.
  *
- * `thresholds` carries the optional `perFile` flag; `coverageTargets`
- * does not — it inherits `perFile` from `coverage.thresholds.perFile`.
+ * `thresholds` carries the optional top-level `perFile` flag. Under
+ * Vitest 5 a glob-pattern entry may carry its own `perFile`, and a file a
+ * pattern matches does NOT inherit the top-level one — the top-level
+ * setting applies only to files no pattern matches.
  * @public
  */
 export interface CoverageLevelPreset {
@@ -736,9 +790,14 @@ export namespace AgentPlugin {
 	/**
 	 * Tolerance functions for Vitest's `coverage.thresholds.autoUpdate` field.
 	 *
-	 * Vitest's contract: `autoUpdate?: boolean | ((newThreshold: number) => number)`.
-	 * Pass one of these functions directly. `standard` floors; `strict` ceils;
-	 * `lenient` floors and subtracts 2 (clamped to 0) to leave a slack buffer.
+	 * Vitest's contract is
+	 * `autoUpdate?: boolean | ((newThreshold: number, previousThreshold: number) => number)`.
+	 * Pass one of these functions directly. `standard` floors the new value;
+	 * `strict` ceils it; `lenient` floors and subtracts 2 (clamped to 0) to
+	 * leave a slack buffer, and never returns a value below
+	 * `previousThreshold` — so a temporary coverage dip cannot ratchet the
+	 * configured floor downward. `standard` and `strict` ignore
+	 * `previousThreshold`.
 	 *
 	 * ```ts
 	 * defineConfig({
@@ -750,13 +809,16 @@ export namespace AgentPlugin {
 	 * ```
 	 */
 	export const COVERAGE_AUTOUPDATE: Readonly<{
-		standard: (n: number) => number;
-		strict: (n: number) => number;
-		lenient: (n: number) => number;
+		standard: (next: number, previous: number) => number;
+		strict: (next: number, previous: number) => number;
+		lenient: (next: number, previous: number) => number;
 	}> = Object.freeze({
-		standard: (n: number) => Math.floor(n),
-		strict: (n: number) => Math.ceil(n),
-		lenient: (n: number) => Math.max(0, Math.floor(n - 2)),
+		standard: (next: number, _previous: number) => Math.floor(next),
+		strict: (next: number, _previous: number) => Math.ceil(next),
+		lenient: (next: number, previous: number) => {
+			const slack = Math.max(0, Math.floor(next - 2));
+			return typeof previous === "number" ? Math.max(previous, slack) : slack;
+		},
 	});
 
 	/**

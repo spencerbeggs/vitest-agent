@@ -30,13 +30,14 @@ import type {
 	ReporterRenderInput,
 	RunEvent,
 	RunOutcome,
+	RunReportFile,
 	RunShape,
 	TestClassification,
 	TrendSummary,
 	VitestAgentReporter,
 	VitestAgentReporterFactory,
 } from "@vitest-agent/sdk";
-import { countSuiteFailures, isTimeoutError } from "@vitest-agent/sdk";
+import { RUN_REPORT_FILE_SCHEMA_URL, countSuiteFailures, isTimeoutError } from "@vitest-agent/sdk";
 import {
 	classifyOutcome,
 	classifyRunShape,
@@ -279,26 +280,101 @@ const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): 
 	return lines.join("\n");
 };
 
+const formatSummaryDuration = (ms: number): string =>
+	ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+
 /**
- * Builds the vitest-agent GitHub step-summary payload — ONE `RenderedOutput`
- * for the whole run, carrying only data Vitest's own built-in
- * `github-actions` reporter cannot know: test classifications (new-failure /
- * persistent / flaky / recovered), coverage-target shortfalls, and the
- * coverage trend. Vitest's reporter already writes pass/fail/skip counts
- * and a flaky-tests section to the same `$GITHUB_STEP_SUMMARY` file, so
- * duplicating that per-project breakdown here would be redundant noise
- * multiplied across every project in a workspace. Returns an empty array
- * when all three sections would be empty — a clean run should not leave a
- * bare heading in the job summary.
+ * Per-project pass/fail/timeout/skip/duration table — the unconditional
+ * half of the summary body.
+ *
+ * Vitest's own `github-actions` reporter no longer writes these counts
+ * to the step summary (its job-summary half is disabled), so this table
+ * is the only place a CI reader sees the totals. A multi-project run
+ * gets a trailing `Total` row; a single-project run does not, because
+ * the row would just repeat the one above it.
+ *
+ * Every count comes from `summarizeProject`, the same projection the
+ * console surfaces render from — so the table cannot disagree with what
+ * the terminal printed. That matters most for timeouts:
+ * `summarizeProject` folds suite-level (collection/load) failures INTO
+ * `failCount` and pulls timed-out tests back OUT of it, reporting them
+ * in their own column. Recomputing from `report.summary.failed` here
+ * would show a timed-out test as `Failed: 1` while every console surface
+ * says `0 failed, 1 timed out`.
+ *
+ * @internal
  */
-const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<RenderedOutput> => {
+const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string => {
+	const rows = reports.map((report) => summarizeProject(report));
+	const cells = (
+		name: string,
+		passed: number,
+		failed: number,
+		timedOut: number,
+		skipped: number,
+		duration: number,
+	): string => `| ${name} | ${passed} | ${failed} | ${timedOut} | ${skipped} | ${formatSummaryDuration(duration)} |`;
+	const lines = [
+		"### Totals",
+		"",
+		"| Project | Passed | Failed | Timed out | Skipped | Duration |",
+		"| --- | --- | --- | --- | --- | --- |",
+		...rows.map((r) => cells(r.name, r.passCount, r.failCount, r.timeoutCount ?? 0, r.skipCount, r.durationMs)),
+	];
+	if (rows.length > 1) {
+		const total = rows.reduce(
+			(acc, r) => ({
+				passed: acc.passed + r.passCount,
+				failed: acc.failed + r.failCount,
+				timedOut: acc.timedOut + (r.timeoutCount ?? 0),
+				skipped: acc.skipped + r.skipCount,
+				duration: acc.duration + r.durationMs,
+			}),
+			{ passed: 0, failed: 0, timedOut: 0, skipped: 0, duration: 0 },
+		);
+		lines.push(cells("**Total**", total.passed, total.failed, total.timedOut, total.skipped, total.duration));
+	}
+	return lines.join("\n");
+};
+
+/**
+ * Assemble the vitest-agent markdown body shared by the GitHub step
+ * summary and the `summary.md` report file: a `## vitest-agent` heading,
+ * the always-present per-project totals table, then whichever of the
+ * classification, coverage, and trend sections have content.
+ *
+ * Always returns markdown. An all-green run still gets a body — with
+ * Vitest's own job summary disabled, returning `null` here left the step
+ * summary blank on every passing CI run and wrote no `summary.md` at
+ * all.
+ *
+ * @internal
+ */
+const buildSummaryMarkdown = (input: ReporterRenderInput): string => {
 	const sections = [
 		renderClassificationsSection(input.classifications),
 		renderCoverageSection(input.reports),
 		renderTrendSection(input.trendSummary),
 	].filter((section): section is string => section !== null);
-	if (sections.length === 0) return [];
-	const body = ["## vitest-agent", ...sections].join("\n\n");
+	return ["## vitest-agent", renderTotalsSection(input.reports), ...sections].join("\n\n");
+};
+
+/**
+ * Builds the vitest-agent GitHub step-summary payload — ONE `RenderedOutput`
+ * for the whole run: the per-project totals table, plus test
+ * classifications (new-failure / persistent / flaky / recovered),
+ * coverage-target shortfalls, and the coverage trend when those have
+ * content.
+ *
+ * The totals used to be omitted on the theory that Vitest's own
+ * `github-actions` reporter already wrote pass/fail/skip counts to the
+ * same `$GITHUB_STEP_SUMMARY` file. That is no longer true — its
+ * job-summary half is disabled — so this block is the only summary a CI
+ * reader gets, and it is always emitted. A green run gets a totals table
+ * rather than nothing at all.
+ */
+const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<RenderedOutput> => {
+	const body = buildSummaryMarkdown(input);
 	// Bracketed in newlines: `routeRenderedOutput` APPENDS to
 	// GITHUB_STEP_SUMMARY, and Vitest's own `github-actions` reporter has
 	// usually already written its `## Vitest Test Report` block there. The
@@ -380,6 +456,31 @@ export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: Repo
 				out.push(...renderGithubSummary(input));
 				out.push(renderGithubLog(input, renderKit));
 			}
+			// Report files: written by the plugin into `.vitest/<scope>/` when
+			// reporting is enabled, and dropped by the router when it is not.
+			// Emitted regardless of console mode — they are the machine-facing
+			// artifact, independent of what the terminal shows.
+			out.push({
+				target: "report",
+				filename: "run.json",
+				contentType: "application/json",
+				content: `${JSON.stringify(
+					{
+						$schema: RUN_REPORT_FILE_SCHEMA_URL,
+						schemaVersion: 1 as const,
+						generatedAt: new Date().toISOString(),
+						reports: input.reports,
+					} satisfies RunReportFile,
+					null,
+					2,
+				)}\n`,
+			});
+			out.push({
+				target: "report",
+				filename: "summary.md",
+				contentType: "text/markdown",
+				content: `${buildSummaryMarkdown(input)}\n`,
+			});
 			return out;
 		},
 	};

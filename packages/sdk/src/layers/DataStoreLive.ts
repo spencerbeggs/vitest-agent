@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { Effect, Layer, Option } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
@@ -30,6 +31,9 @@ import type {
 	SettingsInput,
 	SuiteInput,
 	TddTaskInput,
+	TestAnnotationInput,
+	TestArtifactInput,
+	TestAttachmentInput,
 	TestCaseInput,
 	TestErrorInput,
 	TestRunInput,
@@ -43,7 +47,7 @@ import type {
 	WriteTddPhaseInput,
 	WriteTddPhaseOutput,
 } from "../services/DataStore.js";
-import { DataStore } from "../services/DataStore.js";
+import { DataStore, INLINE_ATTACHMENT_BODY_CAP_BYTES } from "../services/DataStore.js";
 import { coerceErrorText } from "../utils/coerce-error-text.js";
 
 const isLegalLifecycleTransition = (from: string, to: string): boolean => {
@@ -261,6 +265,71 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
+		const writeAttachments = (
+			owner: { readonly artifactId: number } | { readonly annotationId: number },
+			attachments: ReadonlyArray<TestAttachmentInput>,
+		) =>
+			Effect.gen(function* () {
+				for (const att of attachments) {
+					const artifactId = "artifactId" in owner ? owner.artifactId : null;
+					const annotationId = "annotationId" in owner ? owner.annotationId : null;
+					// Paths and sizes always; bytes only under the cap. Vitest has
+					// already copied file attachments into `.vitest/attachments/`
+					// -- a 40 MB trace must never land in data.db.
+					//
+					// Gate on what would actually be STORED, not only on the
+					// reported `byteSize`: a caller that under-reports (or
+					// zero-reports) must not be able to smuggle a large string
+					// into the row, and a base64 body's stored string is 4/3 the
+					// size it reports. Both bars have to clear the cap; the
+					// reported size is still recorded verbatim as `byte_size`.
+					const storedBytes = att.body === undefined ? 0 : Buffer.byteLength(att.body, "utf8");
+					const inline =
+						att.body !== undefined && Math.max(storedBytes, att.byteSize) <= INLINE_ATTACHMENT_BODY_CAP_BYTES;
+					const body = inline ? att.body : null;
+					const bodyEncoding = inline ? (att.bodyEncoding ?? null) : null;
+					yield* sql`INSERT INTO attachments (artifact_id, annotation_id, content_type, path, body, body_encoding, byte_size) VALUES (${artifactId}, ${annotationId}, ${att.contentType ?? null}, ${att.path ?? null}, ${body}, ${bodyEncoding}, ${att.byteSize})`;
+				}
+			});
+
+		const writeAnnotations = (
+			runId: number,
+			annotations: ReadonlyArray<TestAnnotationInput>,
+		): Effect.Effect<void, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("writeAnnotations").pipe(Effect.annotateLogs({ runId, count: annotations.length }));
+				for (const anno of annotations) {
+					const locationFileId = anno.locationFile !== undefined ? yield* ensureFile(anno.locationFile) : null;
+					yield* sql`INSERT INTO test_annotations (test_case_id, type, message, location_file_id, location_line, location_column) VALUES (${anno.testCaseId}, ${anno.type}, ${anno.message}, ${locationFileId}, ${anno.locationLine ?? null}, ${anno.locationColumn ?? null})`;
+					const idRows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
+					yield* writeAttachments({ annotationId: idRows[0].id }, anno.attachments ?? []);
+				}
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_annotations", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const writeArtifacts = (
+			runId: number,
+			artifacts: ReadonlyArray<TestArtifactInput>,
+		): Effect.Effect<void, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("writeArtifacts").pipe(Effect.annotateLogs({ runId, count: artifacts.length }));
+				for (const art of artifacts) {
+					const locationFileId = art.locationFile !== undefined ? yield* ensureFile(art.locationFile) : null;
+					yield* sql`INSERT INTO test_artifacts (test_case_id, type, message, data, location_file_id, location_line, location_column) VALUES (${art.testCaseId}, ${art.type}, ${art.message ?? null}, ${art.data ?? null}, ${locationFileId}, ${art.locationLine ?? null}, ${art.locationColumn ?? null})`;
+					const idRows = yield* sql<{ id: number }>`SELECT last_insert_rowid() as id`;
+					yield* writeAttachments({ artifactId: idRows[0].id }, art.attachments ?? []);
+				}
+			}).pipe(
+				Effect.annotateLogs("service", "DataStore"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "write", table: "test_artifacts", reason: extractSqlReason(e) }),
+				),
+			);
+
 		const writeCoverage = (
 			runId: number,
 			coverage: ReadonlyArray<FileCoverageInput>,
@@ -292,7 +361,12 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeHistory").pipe(Effect.annotateLogs({ project, modulePath, runId }));
-				yield* sql`INSERT INTO test_history (run_id, project, module_path, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${modulePath}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage})`;
+				// A duplicate (project, module_path, full_name, timestamp) key --
+				// e.g. two test cases in the same run sharing a title -- must not
+				// abort the whole run's persistence with a UNIQUE constraint
+				// violation. Upsert onto the later values instead (issue: a
+				// duplicate test title aborted history persistence for the run).
+				yield* sql`INSERT INTO test_history (run_id, project, module_path, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${modulePath}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage}) ON CONFLICT(project, module_path, full_name, timestamp) DO UPDATE SET run_id = excluded.run_id, state = excluded.state, duration = excluded.duration, flaky = excluded.flaky, retry_count = excluded.retry_count, error_message = excluded.error_message`;
 
 				// Delete oldest entries beyond 10-entry window per (project, module_path, fullName)
 				yield* sql`DELETE FROM test_history WHERE id NOT IN (SELECT id FROM test_history WHERE project = ${project} AND module_path = ${modulePath} AND full_name = ${fullName} ORDER BY timestamp DESC LIMIT 10) AND project = ${project} AND module_path = ${modulePath} AND full_name = ${fullName}`;
@@ -1837,6 +1911,8 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 			writeSuites,
 			writeTestCases,
 			writeErrors,
+			writeAnnotations,
+			writeArtifacts,
 			writeCoverage,
 			writeHistory,
 			writeBaselines,

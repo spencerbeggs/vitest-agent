@@ -24,14 +24,15 @@ always preserved regardless of the `ci` mode setting:
 
 | Reporter | Format |
 | --- | --- |
-| `json` | `--reporter=json` output file |
-| `junit` | `--reporter=junit` output file |
-| `html` | `--reporter=html` output directory |
+| `json` | `--reporter=json` output file; defaults under `.vitest/` on Vitest 5 rather than stdout |
+| `junit` | `--reporter=junit` output file; defaults under `.vitest/` on Vitest 5 rather than stdout |
+| `html` | `--reporter=html` output directory, configured via the `outputDir` option; defaults under `.vitest/` on Vitest 5 |
 | `blob` | `--reporter=blob` output file |
 | `github-actions` | Inline GitHub Actions annotations |
 
 This means you can combine a custom `ci` mode with any file-based reporter and
-both will run.
+both will run. See [Upgrading to Vitest 5](/guide/upgrade-vitest-5) for the
+new `.vitest/` output directory these reporters share.
 
 ## GitHub Actions annotations today
 
@@ -102,9 +103,35 @@ yet. Until it does, `"ci-annotations"` behaves like `"passthrough"` and the
 Use Vitest's native `github-actions` reporter (shown above) for annotations
 today.
 
+## Uploading `.vitest/` as a CI artifact
+
+Vitest 5 writes the `json`, `junit`, `html`, and `blob` reporters'
+output, plus attachments and vitest-agent's own `run.json` and
+`summary.md`, under one `.vitest/` directory. Capture all of it with a
+single upload step:
+
+```yaml
+- name: Upload vitest-agent report files
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: vitest-agent-reports
+    path: .vitest/
+```
+
+See [Report files](/guide/report-files) for what lives under
+`.vitest/vitest-agent/`, the `.gitignore` line, and why a sharded
+pipeline must upload `.vitest/attachments` alongside `.vitest/blob`.
+
 ## Step summaries
 
-vitest-agent does not currently emit a GitHub step summary. If you want a
-formatted summary in the Actions UI, combine Vitest's `json` reporter with a
-separate workflow step that renders the JSON, or use a third-party action that
-consumes JUnit output.
+Under the `ci-github` environment (and unless `console.ci` resolves to
+`"silent"`), the default reporter writes its own GitHub Actions step
+summary: a `## vitest-agent` heading and a `### Totals` table, followed by
+classification, coverage, and trend sections when they have content. This
+setting is auto-derived — there is no separate `githubSummary` option to
+configure. Phase 1 of the Vitest 5 migration disabled Vitest's own
+`github-actions` job summary (`jobSummary.enabled: false`) so the two never
+duplicate; see [Upgrading to Vitest 5](/guide/upgrade-vitest-5) for that
+normalization. See [Report files](/guide/report-files) for the exact
+summary shape — the same markdown also lands in `summary.md`.

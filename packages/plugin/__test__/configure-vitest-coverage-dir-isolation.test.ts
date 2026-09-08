@@ -27,7 +27,11 @@ function mockVitest(coverageEnabled?: boolean) {
 }
 
 async function callConfigureVitest(plugin: ReturnType<typeof AgentPlugin>, vitest: ReturnType<typeof mockVitest>) {
-	const ctx = { vitest, project: { name: undefined } } as unknown as VitestPluginContext;
+	const ctx = {
+		vitest,
+		project: { name: undefined },
+		defineCacheKeyGenerator: vi.fn(),
+	} as unknown as VitestPluginContext;
 	await plugin.configureVitest(ctx);
 }
 

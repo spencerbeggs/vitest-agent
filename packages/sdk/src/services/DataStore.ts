@@ -184,6 +184,50 @@ export interface TestErrorInput {
 	readonly frames?: ReadonlyArray<StackFrameInput>;
 	readonly ordinal?: number;
 }
+
+/**
+ * Ceiling on an inline attachment body. Vitest has already copied file
+ * attachments into `.vitest/attachments/`, so a large body is referenced
+ * by `path` rather than duplicated into `data.db`.
+ * @public
+ */
+export const INLINE_ATTACHMENT_BODY_CAP_BYTES = 64 * 1024;
+
+/** @public */
+export interface TestAttachmentInput {
+	readonly contentType?: string;
+	/** Post-resolution path under `.vitest/attachments/`, or an http(s) URL. */
+	readonly path?: string;
+	/** Inline body; persisted only when `byteSize` is under the 64 KiB cap. */
+	readonly body?: string;
+	/** How to read `body`. Vitest treats a string body as base64 unless `"utf-8"`. */
+	readonly bodyEncoding?: "base64" | "utf-8";
+	readonly byteSize: number;
+}
+/** @public */
+export interface TestAnnotationInput {
+	readonly testCaseId: number;
+	/** Arbitrary Vitest annotation type -- not an enum. */
+	readonly type: string;
+	readonly message: string;
+	readonly locationFile?: string;
+	readonly locationLine?: number;
+	readonly locationColumn?: number;
+	readonly attachments?: ReadonlyArray<TestAttachmentInput>;
+}
+/** @public */
+export interface TestArtifactInput {
+	readonly testCaseId: number;
+	/** `pkg:name`; `internal:` types are Vitest's own and are never written. */
+	readonly type: string;
+	readonly message?: string;
+	/** JSON of the artifact's custom fields, minus attachments and location. */
+	readonly data?: string;
+	readonly locationFile?: string;
+	readonly locationLine?: number;
+	readonly locationColumn?: number;
+	readonly attachments?: ReadonlyArray<TestAttachmentInput>;
+}
 /** @public */
 export interface FileCoverageInput {
 	readonly fileId: number;
@@ -417,6 +461,23 @@ export class DataStore extends Context.Service<
 			tests: ReadonlyArray<TestCaseInput>,
 		) => Effect.Effect<ReadonlyArray<number>, DataStoreError>;
 		readonly writeErrors: (runId: number, errors: ReadonlyArray<TestErrorInput>) => Effect.Effect<void, DataStoreError>;
+		/**
+		 * Persist `context.annotate` notes and their attachment descriptors.
+		 * `runId` is carried for log correlation only -- `test_annotations`
+		 * rows are reachable through `test_cases`.
+		 */
+		readonly writeAnnotations: (
+			runId: number,
+			annotations: ReadonlyArray<TestAnnotationInput>,
+		) => Effect.Effect<void, DataStoreError>;
+		/**
+		 * Persist `recordArtifact` payloads and their attachment
+		 * descriptors. `runId` is carried for log correlation only.
+		 */
+		readonly writeArtifacts: (
+			runId: number,
+			artifacts: ReadonlyArray<TestArtifactInput>,
+		) => Effect.Effect<void, DataStoreError>;
 		readonly writeCoverage: (
 			runId: number,
 			coverage: ReadonlyArray<FileCoverageInput>,

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 93
 related:
   - ../architecture.md
@@ -250,7 +250,9 @@ file per tool — and broadly group into:
   - `inventory` — replaces `project_list` / `module_list` /
     `suite_list` / `session_list` / `session_get`. `action`
     discriminates on `inventoryKind`.
-  - `test` — replaces `test_list` / `test_get` / `test_for_file`.
+  - `test` — replaces `test_list` / `test_get` / `test_for_file`;
+    also carries the `for_tag`, `annotations` and `artifacts`
+    actions (see *Test annotations and test artifacts* below).
   - `note` — replaces `note_create` / `note_list` / `note_get` /
     `note_update` / `note_delete` / `note_search`.
   - `hypothesis` — replaces `hypothesis_record` /
@@ -267,7 +269,9 @@ file per tool — and broadly group into:
   `tdd_artifact_list` (used by the orchestrator to find artifact ids
   without shelling out to sqlite3 — see *Phase-transition
   auto-resolve*; every row carries `suite: "vitest" | "bats"`, issue
-  #363).
+  #363). Its description disambiguates it from `test({ action:
+  "artifacts" })`: TDD artifacts are red/green evidence rows, not Vitest
+  test artifacts.
 - **Agent registration.** `register_agent` is invoked by the MCP
   client (the orchestrator) once at boot when SessionContext recovery
   from env produces a no-op (e.g., MCP running without
@@ -613,7 +617,7 @@ so a plain not-found result is unchanged.
 
 ## Tag filtering and tag introspection
 
-Vitest 4.1 native tags are the way agents target test subsets
+Vitest's native tags are the way agents target test subsets
 (`unit`, `int`, `e2e`, `slow`, etc.). The plugin's tag-injection
 pipeline populates the `tags` / `test_case_tags` / `test_suite_tags`
 tables; that data is surfaced on three MCP tools (`run_tests`,
@@ -733,13 +737,59 @@ alphabetical order. The `kind: "tag"` literal is served from the
 that the served `z.enum` omitted it and real clients could not reach
 the variant; see *Server bootstrap*).
 
-**`test({ action: "for_tag" })`.** New input variant that mirrors
+**`test({ action: "for_tag" })`.** Input variant that mirrors
 `action: "for_file"`. Takes a `tag` plus optional `project`; returns
 `TestRowSchema` rows grouped by project (one group per project carrying
 the tag, or a single group when `project` is supplied). Delegates to
 `DataReader.listTestsForTag`. Like `inventory`'s `tag` kind, the
 `for_tag` literal and its `tag` field were tRPC-only until issue #335;
 the served enum now comes from the exported `TEST_ACTIONS` tuple.
+
+## Test annotations and test artifacts
+
+Vitest 5's `context.annotate` notes and `recordArtifact` payloads reach
+agents through two `test` actions and one widened `test_errors` field.
+Terminology matters here: a **test** artifact is not a **TDD** artifact —
+see [../schemas.md](../schemas.md) *Vocabulary*. Both tool descriptions say
+so explicitly, and `tdd_artifact_list`'s description points back at
+`test({ action: "artifacts" })`, because the two are one word apart and an
+agent picking the wrong one gets a plausible-looking empty result.
+
+**`test({ action: "annotations" | "artifacts" })`.** Both take `fullName`
+plus optional `project`, `modulePath` (disambiguating a `full_name` present
+in more than one module) and `maxBytes`. Both delegate to
+`DataReader.getAnnotationsForTest` / `getArtifactsForTest`, which are scoped
+to the project's latest run, and default `project` to the most recent run's
+project when omitted. Rows carry `id`, `type`, `message`, `location?` and
+`attachments[]`; the artifact rows add the JSON `data` blob.
+
+**Bodies are opt-in and budgeted.** `maxBytes` is a non-negative integer
+total budget for **all** inline attachment bodies in one response and
+defaults to `0`, so the default response is descriptors only —
+`contentType`, `path`, `byteSize`. `applyBodyBudget` walks attachments in
+order, charges each body its recorded `byteSize` (falling back to the stored
+string's length for pre-0002 rows), and drops any body that would exceed the
+budget along with its `bodyEncoding`; the descriptor half always survives,
+so the row count and the shape of the response never depend on `maxBytes`.
+See Decision 69 in [../decisions.md](../decisions.md).
+
+**Markdown rendering.** Both actions render one table (Type / Message /
+Location / Attachments). An artifact routinely carries its payload in `data`
+and no message at all, so the message cell falls back to `data` rather than
+printing an em dash over the row's only content. Cell values are flattened
+(newlines to spaces, pipes escaped) and truncated at 200 characters — the
+structured payload carries the untouched value.
+
+**`test_errors` rows carry `annotations[]`.** Each row gains a projected
+`{ type, message, location? }` list — the reader row's `id` and
+`attachments` are deliberately dropped, because an undeclared key fails the
+SDK's `structuredContent` validation against the zod `outputSchema` derived
+from `TestErrorRow`. The handler reads once per distinct
+`(testFullName, moduleFile)` pair and caches, since several errors routinely
+share a test, and a non-test scope (`module` / `unhandled`) has no test to
+annotate and gets an empty array without a query. The markdown formatter
+prints an `**Annotations:**` list of `- [type] message` lines above the
+cite-able IDs block.
 
 ## Caller-declared project root (`run_tests`)
 
@@ -777,7 +827,13 @@ missing `_callerCwd` is the normal case for a plugin-less client. See
 
 Vitest finds the config *file* by walking UP from `root`, but resolves that config's relative `globalSetup` / `setupFiles` entries DOWNWARD from `resolved.root`. Those are independent inputs and `run_tests` let them diverge: `ctx.cwd` was passed straight through as Vitest's `root`, so a server booted inside a monorepo package subtree loaded the repo-root `vitest.config.ts` while resolving that config's relative `globalSetup` against the subtree — a path that does not exist, and a run that collects zero tests (issue #259).
 
+**Restated for Vitest 5.** Vitest 5's `findConfigFile(root)` (`node/config/resolveConfig.ts`) probes ONLY the given `root`; there is no ancestor walk any more. Under Vitest 4 a `root` pointing at a package subtree still found the repo-root config and then mis-resolved its relative `globalSetup` — the original #259 bug. Under Vitest 5 it finds NOTHING: the run boots on pure defaults, never loads `AgentPlugin`, writes no DB rows, and still reports success. The anchoring helpers therefore became *more* load-bearing, not less.
+
 `resolveConfigAnchoredRoot(startDir)` in `packages/mcp/src/tools/run-tests.ts` closes the gap by walking up for the same config Vitest would load and returning the directory holding it: `vitest.config.*` before `vite.config.*` within each directory (Vitest's own preference order, across ts/mts/cts/js/mjs/cjs), first hit wins, bounded at the git root — `.git` is matched as a file *or* a directory so linked worktrees stop there too. Any miss, and anything that throws, returns `startDir` unchanged, so the degraded case is exactly the pre-fix behavior. It is wired into the `projectRoot === undefined` branch of `validateProjectRoot()` only.
+
+A companion helper, `resolveAnchoredConfigFile(startDir)`, returns the config *path* from that same walk. The explicit-`projectRoot` branch — which must keep using the caller's root verbatim — passes that path as `createVitest`'s `config:` option, so an explicit root still gets the config Vitest 4 would have found for it. `config:` is populated end to end: every `run_tests` call now hands Vitest both a `root` and the anchored config path (or the supplied root's own config), rather than relying on Vitest to locate one.
+
+**Caveat for callers.** An explicit `projectRoot` plus the anchored `config:` still resolves that config's relative `setupFiles` / `globalSetup` against the **supplied** root, not the config's own directory. Callers whose config uses relative setup paths should pass the directory that holds the config.
 
 `ctx.cwd` itself (from `packages/mcp/src/bin.ts`) was deliberately left alone: that value also keys the `data.db` path and other resolution, so anchoring it at the source would move far more than the Vitest root.
 

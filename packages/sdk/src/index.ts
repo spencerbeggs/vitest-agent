@@ -57,6 +57,8 @@ export type { FormatWrapupOptions, WrapupKind } from "./lib/format-wrapup.js";
 export { formatWrapupEffect } from "./lib/format-wrapup.js";
 // Migrations
 export { default as migration0001 } from "./migrations/0001_initial.js";
+export { default as migration0002 } from "./migrations/0002_test_artifacts.js";
+export { PROJECT_MIGRATIONS } from "./migrations/index.js";
 export { default as registryMigration0001 } from "./migrations/registry_0001_initial.js";
 export { default as sessionMapMigration0001 } from "./migrations/session_map_0001_initial.js";
 // Schemas
@@ -76,7 +78,9 @@ export * from "./schemas/Identity.js";
 export * from "./schemas/Options.js";
 export * from "./schemas/RenderState.js";
 export * from "./schemas/RunEvent.js";
+export * from "./schemas/RunReportFile.js";
 export * from "./schemas/Tdd.js";
+export * from "./schemas/TestArtifacts.js";
 export * from "./schemas/Thresholds.js";
 export * from "./schemas/Transport.js";
 export * from "./schemas/Trends.js";

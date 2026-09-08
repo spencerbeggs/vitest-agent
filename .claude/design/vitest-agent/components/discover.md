@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-07
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 95
 related:
   - ../components.md
@@ -23,7 +23,7 @@ A single DiscoverStrategy contract is the one extension point that owns both
 project detection and tag classification. The plugin exposes a thenable
 DiscoverBuilder that supports an addProject method for folders that hold
 tests but are not workspace packages. Test-kind differentiation rides
-Vitest 4.1 native tags (see [../decisions.md](../decisions.md) Decision 23,
+Vitest's native tags (4.1+; see [../decisions.md](../decisions.md) Decision 23,
 with the strategy unification captured in Decision 39).
 
 ---

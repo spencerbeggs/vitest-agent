@@ -107,3 +107,43 @@ describe("getMinThreshold", () => {
 		expect(result).toBe(0);
 	});
 });
+
+describe("Vitest 5 perFile semantics", () => {
+	it("keeps an object-valued perFile instead of normalizing it to false", () => {
+		const result = resolveThresholds({ perFile: { lines: 70, branches: 60 }, lines: 80 });
+		expect(result.perFile).toEqual({ lines: 70, branches: 60 });
+	});
+
+	it("still resolves a boolean perFile", () => {
+		expect(resolveThresholds({ perFile: true, lines: 80 }).perFile).toBe(true);
+		expect(resolveThresholds({ perFile: false, lines: 80 }).perFile).toBe(false);
+	});
+
+	it("captures a boolean perFile on the glob-pattern entry that declared it", () => {
+		const result = resolveThresholds({
+			lines: 80,
+			"src/**/*.ts": { lines: 90, perFile: true },
+		});
+		expect(result.patterns).toEqual([["src/**/*.ts", { lines: 90, perFile: true }]]);
+	});
+
+	it("captures an object-valued perFile on the glob-pattern entry that declared it", () => {
+		const result = resolveThresholds({
+			"src/**/*.ts": { lines: 90, perFile: { lines: 75 } },
+		});
+		expect(result.patterns).toEqual([["src/**/*.ts", { lines: 90, perFile: { lines: 75 } }]]);
+	});
+
+	it("does not leak the top-level perFile onto a glob-pattern entry", () => {
+		const result = resolveThresholds({
+			perFile: true,
+			"src/**/*.ts": { lines: 90 },
+		});
+		expect(result.patterns).toEqual([["src/**/*.ts", { lines: 90 }]]);
+	});
+
+	it("keeps a pattern entry that declares only perFile", () => {
+		const result = resolveThresholds({ "src/**/*.ts": { perFile: true } });
+		expect(result.patterns).toEqual([["src/**/*.ts", { perFile: true }]]);
+	});
+});

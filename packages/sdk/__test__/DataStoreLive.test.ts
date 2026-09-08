@@ -648,46 +648,62 @@ describe("DataStoreLive", () => {
 			expect(b?.runs[0].state).toBe("failed");
 		});
 
-		it("still throws a UNIQUE constraint violation for the exact same (project, module_path, full_name, timestamp) composite key", async () => {
-			// Triangulated by behavior 12's schema/writeHistory implementation.
-			await expect(
-				run(
-					Effect.gen(function* () {
-						const store = yield* DataStore;
-						yield* store.writeSettings("hist-exact-dup-hash", settingsInput, {});
-						const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-exact-dup-hash" });
+		it("upserts onto the later values instead of throwing for the exact same (project, module_path, full_name, timestamp) composite key", async () => {
+			// A duplicate test title within the same run (or the same test run
+			// twice under one timestamp) must not abort the whole run's history
+			// persistence with a UNIQUE constraint violation -- the second write
+			// wins via ON CONFLICT ... DO UPDATE.
+			await run(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeSettings("hist-exact-dup-hash", settingsInput, {});
+					const runId = yield* store.writeRun({ ...runInput, settingsHash: "hist-exact-dup-hash" });
 
-						yield* store.writeHistory(
-							"exact-dup-project",
-							"suite > exact duplicate",
-							"src/exact.test.ts",
-							runId,
-							"2026-03-22T00:00:00.000Z",
-							"passed",
-							50,
-							false,
-							0,
-							null,
-						);
+					yield* store.writeHistory(
+						"exact-dup-project",
+						"suite > exact duplicate",
+						"src/exact.test.ts",
+						runId,
+						"2026-03-22T00:00:00.000Z",
+						"passed",
+						50,
+						false,
+						0,
+						null,
+					);
 
-						// Identical (project, module_path, full_name, timestamp) key --
-						// this is a genuine duplicate, not a cross-file collision, and
-						// must still violate the UNIQUE constraint.
-						yield* store.writeHistory(
-							"exact-dup-project",
-							"suite > exact duplicate",
-							"src/exact.test.ts",
-							runId,
-							"2026-03-22T00:00:00.000Z",
-							"failed",
-							75,
-							false,
-							1,
-							"boom",
-						);
-					}),
-				),
-			).rejects.toThrow();
+					// Identical (project, module_path, full_name, timestamp) key --
+					// this is a genuine duplicate, not a cross-file collision -- and
+					// must upsert rather than throw.
+					yield* store.writeHistory(
+						"exact-dup-project",
+						"suite > exact duplicate",
+						"src/exact.test.ts",
+						runId,
+						"2026-03-22T00:00:00.000Z",
+						"failed",
+						75,
+						false,
+						1,
+						"boom",
+					);
+
+					const sql = yield* SqlClient;
+					const rows = yield* sql<{
+						state: string;
+						duration: number;
+						flaky: number;
+						retry_count: number;
+						error_message: string | null;
+					}>`SELECT state, duration, flaky, retry_count, error_message FROM test_history WHERE project = 'exact-dup-project' AND module_path = 'src/exact.test.ts' AND full_name = 'suite > exact duplicate' AND timestamp = '2026-03-22T00:00:00.000Z'`;
+					expect(rows).toHaveLength(1);
+					expect(rows[0].state).toBe("failed");
+					expect(rows[0].duration).toBe(75);
+					expect(rows[0].flaky).toBe(0);
+					expect(rows[0].retry_count).toBe(1);
+					expect(rows[0].error_message).toBe("boom");
+				}),
+			);
 		});
 
 		it("respects 10-entry sliding window", async () => {
@@ -3071,5 +3087,15 @@ describe("DataStoreLive", () => {
 			expect(result.commit).toHaveLength(1);
 			expect(result.files).toHaveLength(2);
 		});
+	});
+});
+
+describe("test-layer preset fixtures", () => {
+	it("record the current Vitest major in their settings rows", async () => {
+		const { readFileSync } = await import("node:fs");
+		const { fileURLToPath } = await import("node:url");
+		const source = readFileSync(fileURLToPath(new URL("../src/testing/index.ts", import.meta.url)), "utf8");
+		expect(source).not.toContain('vitestVersion: "4.1.5"');
+		expect(source.match(/vitestVersion: "5\.0\.0"/g)).toHaveLength(3);
 	});
 });

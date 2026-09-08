@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 100
 related:
   - ./architecture.md
@@ -141,6 +141,25 @@ formatting is simpler than a separate reporter class. The Step Summary
 path is independent of `consoleMode`: it defaults on under GHA when the
 resolved console mode is not `silent`, and can be forced on or off
 regardless of the console slot.
+
+**The block always carries the per-project totals.** It was once written
+without them, on the premise that Vitest's own `github-actions` reporter
+already wrote pass/fail/skip counts into the same file. That premise is
+retired: the Vitest 5 migration sets `jobSummary: { enabled: false }` on
+that reporter in `configureVitest`, so vitest-agent's block is the only
+summary a CI reader gets, and returning nothing when the classification,
+coverage and trend sections were all empty left the step summary blank on
+every green run. `buildSummaryMarkdown` now always emits `## vitest-agent`
+plus a `### Totals` table (Project / Passed / Failed / Timed out / Skipped
+/ Duration, with a `Total` row only when there is more than one project),
+followed by whichever of the three conditional sections have content. The
+rows come from `summarizeProject` — the same projection the console
+surfaces and `DispatchInputs` render from — so the table cannot disagree
+with the terminal, and in particular a timed-out test shows as
+`0 failed, 1 timed out` in both. The same markdown is what the reporter
+writes to `summary.md`. See
+[./components/reporter.md](./components/reporter.md) and
+[./decisions-retired.md](./decisions-retired.md).
 
 ### Decision 12: Compact Console Output
 
@@ -280,7 +299,7 @@ pipeline services.
 
 ### Decision 23: Vitest-Native Tag Classification
 
-Test-kind differentiation (`unit`, `int`, `e2e`) uses Vitest 4.1's native
+Test-kind differentiation (`unit`, `int`, `e2e`) uses Vitest's native
 tag system rather than per-kind project splitting or filename-driven
 project names. `discoverProjects()` emits one project per workspace
 package; the plugin installs a Vite `transform` hook (see
@@ -697,7 +716,7 @@ The `human`-slot value is named `stream` (`HumanConsoleMode` is
 `passthrough | silent | stream | agent`) — it describes the user-visible
 behavior rather than the rendering library. It renders a progressively-drawn,
 colored, animated rendering of the agent's run-shape view. The internal
-`RunEvent` surface is complete — every Vitest 4.x reporter hook emits a
+`RunEvent` surface is complete — every Vitest reporter hook emits a
 variant — and a wall-clock animation clock in `createLiveInk` drives the
 spinner and the ticking elapsed column. See
 [./components/reporter.md](./components/reporter.md) and
@@ -768,14 +787,17 @@ halves into Vitest's native `coverage.thresholds` and the plugin's
 full`, `full → full`) so the user's threshold floor and aspirational
 target floor are calibrated together by default without forcing a
 custom triple. `COVERAGE_LEVELS_PER_FILE` applies `perFile: true` to
-the thresholds half only; the coverageTargets half inherits perFile
-from `coverage.thresholds.perFile`.
+the thresholds half only; the coverageTargets half's `perFile` is set
+per-glob under Vitest 5, since glob-pattern thresholds no longer
+inherit the top-level `coverage.thresholds.perFile` value.
 
 **3. `COVERAGE_AUTOUPDATE` is a plain function on Vitest's native
 field.** Vitest's contract for `coverage.thresholds.autoUpdate` is
-`boolean | ((newThreshold: number) => number)`. The function form is
-supported directly, so the three tolerance functions ship as plain
-`(n: number) => number` callables under `AgentPlugin.COVERAGE_AUTOUPDATE`
+`boolean | ((newThreshold: number, previousThreshold: number) => number)`
+(Vitest 5.0.0, `node/types/coverage.ts`). The function form is supported
+directly, so the three tolerance functions ship as plain
+`(newThreshold: number, previousThreshold: number) => number` callables
+under `AgentPlugin.COVERAGE_AUTOUPDATE`
 (`standard` floors, `strict` ceils, `lenient` floors and subtracts 2
 clamped to 0). No type augmentation, no plugin-side wrapping. Users
 pass `AgentPlugin.COVERAGE_AUTOUPDATE.standard` straight into
@@ -1408,7 +1430,8 @@ that project's own failed tests and files.
 ### Decision 49: Per-Invocation Coverage Directory for MCP Runs
 
 **Context.** Vitest's v8 coverage provider `rm -rf`s its reports directory
-at run start (`clean: true` by default). Two runs in one checkout — an MCP
+at run start (`clean: true` by default — re-verified against Vitest 5.0.0,
+`node/config/defaults.ts`, where `coverage.clean` still defaults to `true`). Two runs in one checkout — an MCP
 `run_tests` alongside a Bash `vitest run`, or two MCP calls — share
 `./coverage` and delete each other's `.tmp` files mid-flight, so one dies
 with `ENOENT ... coverage-N.json` (issues #159 / #191 / #194). The obvious
@@ -1725,7 +1748,8 @@ gap is what sent the agent chasing the wrong bar. See
 whole-project denominator no matter how many test files ran: its coverage
 provider's `allTestsRun` flag gates only `autoUpdate`, and
 `checkThresholds` runs unconditionally from `reportCoverage`, which
-Vitest 4.1.11 calls **after every reporter's `onTestRunEnd`**. A
+Vitest calls **after every reporter's `onTestRunEnd`** (confirmed
+unchanged through 5.0.0). A
 `vitest run foo.test.ts` therefore failed on coverage nothing in the run
 touched. The plugin compounded it: it detected scoping only via a
 `projectFilter`, persisted every run with `test_runs.scoped = false`,
@@ -1795,7 +1819,9 @@ the smallest intervention that fixes the observed failure.
 
 **Risk and mitigations.** This depends on two Vitest internals: the
 provider exposing `options.thresholds` and `checkThresholds` reading it
-by reference at report time. Both hold in Vitest 4.1.x; a future
+by reference at report time. Both hold through Vitest 5.0.0
+(`node/coverage.ts` still reads `this.options.thresholds` by reference
+inside `reportThresholds`); a future
 refactor could silently make the neutralisation a no-op, in which case
 the symptom is the original bug (a spurious threshold failure on a scoped
 run), never a crash — both the deletion and the restoration are guarded
@@ -1949,8 +1975,9 @@ Only the `agent` executor is ever relocated. A human's `./coverage`
 output and CI's configured directory are exactly what those executors
 expect to find on disk, so they are never touched.
 
-**Why cleanup lives in `onClose`, not `onTestRunEnd`.** Verified against
-the installed vitest 4.1.11: for a non-watch `vitest run`,
+**Why cleanup lives in `onClose`, not `onTestRunEnd`.** Re-verified
+against Vitest 5.0.0 (`node/core.ts`, end-of-run ordering unchanged from
+4.1.11): for a non-watch `vitest run`,
 `Vitest.report("onTestRunEnd", …)` fires and *returns* before
 `Vitest.reportCoverage()` writes the lcov/html artifacts into
 `reportsDirectory`. Deleting the directory from inside the reporter's
@@ -2028,20 +2055,217 @@ the actual teardown, as before. See
 
 **Consequences to know before editing.** The extra directory level deepened every repo-root walk in the bats suites under `plugins/claude-code/hooks/__test__/` from `../../..` to `../../../..`. Any new test helper or hook script that resolves the repo root by relative traversal must count from `plugins/claude-code/`, not the old repo-root-adjacent `plugin/`. See [Decision 20](#decision-20-file-based-claude-code-plugin), amended.
 
-### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
+### Decision 65: Drop Vitest 4, Require `vitest ^5.0.0`, Major the Three Coupled Packages
 
-**Pre-2.0 policy (current).** Before 2.0 ships to npm, the canonical
-per-project schema lives in a single migration file, `0001_initial.ts`.
-Every breaking schema change before 2.0 edits this file directly — no
-`0002_*`, no ALTERs, no backfills. Developers wipe `data.db` on every
-breaking change. (Two sibling files, `session_map_0001_initial.ts` and
-`registry_0001_initial.ts`, cover the per-client and registry SQLite
-scopes the same way.)
+**Context.** Vitest 5.0.0 shipped a clean break: removed entry points
+(`vitest/coverage`, `vitest/reporters`, `vitest/environments`,
+`vitest/snapshot`, `vitest/runners`, `vitest/suite`, `vitest/mocker`), a
+two-argument `coverage.thresholds.autoUpdate` callback, glob-scoped
+`perFile` that no longer inherits the top-level value, `minimal` as the
+default agent reporter name, `findConfigFile` probing only `root` with no
+ancestor walk, and `fsModuleCache` promoted to a top-level option. It also
+inlined and deprecated `@vitest/runner`, which `@vitest-agent/plugin`
+carried as a direct dependency for `TestTagDefinition` and which has no
+stable 5.x line on npm.
 
-**After 2.0 ships,** once users have published data, **no migration is
-allowed to drop and recreate**. 2.0.x and beyond are ALTER-only; for any
-breaking schema shape that ALTER cannot express, ship a one-shot
-export/import path on a major bump rather than dropping data.
+**Decision.** The family drops Vitest 4 entirely. The peer range on
+`@vitest-agent/plugin`, `@vitest-agent/reporter` and `@vitest-agent/mcp`
+becomes `^5.0.0`, and each ships as a major. `@vitest/runner` is removed
+from the plugin's dependencies and its `dtsExternals`; `TestTagDefinition`
+now imports from `vitest/config`. `@vitest-agent/sdk` takes a minor (the
+`perFile` widening), `cli` and `ui` take patches, and the Claude Code
+plugin takes a minor for its updated setup guidance.
+
+**Why not a dual `^4.1.0 || ^5.0.0` range.** Every 5.x behavior the
+migration relies on would otherwise need runtime feature detection inside
+the plugin: the two-argument `autoUpdate` callback, per-glob `perFile`
+with no inheritance, the `minimal` reporter name in the console-reporter
+strip list, `github-actions` defaulting its job summary on, and the
+`config:` anchoring `run_tests` now needs because Vitest 5 no longer walks
+up for a config. Those are not additive — under Vitest 4 several of them
+are actively wrong. Feature-detecting all of them would put permanently
+untestable branches in the hot path of the plugin, and `@vitest/runner`
+has no stable 5.x release to pin a dual range against anyway. Dropping 4 is
+a breaking change for consumers, which is exactly what a major is for.
+
+**Consequences to know before editing.** `test.each` / `test.for` titles
+render through `pretty-format` under 5.x and drop the quotes around
+interpolated strings, so every interpolated title gets a NEW `full_name`
+key on the first 5.x run. `test_history`, classification and trends key off
+`full_name`; there is no deterministic old-to-new mapping, so those tests
+start a fresh history window (and classify as `new-failure` only if they
+fail). `TestOptions.sequential` is gone, so `TagOptions =
+Omit<TestTagDefinition, "name">` loses that key. `vitest/node` now exports
+its own `AgentReporter` (an alias of `MinimalReporter`) that is unrelated
+to the plugin's class of the same name. See
+[./components/plugin.md](./components/plugin.md),
+[./components/mcp.md](./components/mcp.md), and *Constraint: Vitest >=
+5.0.0* below.
+
+### Decision 66: Migration 0002 — Drop the Dead Table, ALTER the Live Ones
+
+**Context.** `test_annotations`, `test_artifacts` and `attachments` shipped
+inside `0001_initial` with zero readers and zero writers. Phase 2 of the
+Vitest 5 work gives them writers, and two of the three shapes were wrong for
+Vitest 5: `test_annotations.type` carried
+`CHECK (type IN ('notice','warning','error'))` although a Vitest annotation
+`type` is an arbitrary string, and the table carried three inline
+`attachment_*` columns although the sibling `attachments` table already
+models the 1:N. `test_artifacts` had no column for an artifact's custom
+fields, and `attachments` recorded neither a size (so a dangling
+`.vitest/attachments` path stopped being describable once the directory was
+cleaned) nor an encoding (so an inline body could not be decoded back).
+
+**Decision.** Ship `packages/sdk/src/migrations/0002_test_artifacts.ts`.
+`test_annotations` is DROPped and recreated with the corrected shape;
+`test_artifacts` gains `data TEXT` and `attachments` gains `byte_size
+INTEGER` and `body_encoding TEXT`, both by `ALTER TABLE`. The migration is
+registered in all three loaders — `utils/ensure-migrated.ts`, the plugin's
+`layers/ReporterLive.ts`, and the sdk testing layer
+(`packages/sdk/src/testing/layers.ts`, which had been stuck at `0001` and is
+the one that gets forgotten).
+
+**Why drop-and-recreate is allowed here.** The post-2.0 rule (D9) is that a
+table holding user data is ALTER-and-backfill only. It says nothing about a
+table that never had a writer: dropping `test_annotations` cannot destroy a
+row, because no released version ever wrote one. Patching it column by
+column — a table rebuild in SQLite, since `CHECK` constraints cannot be
+dropped — would produce the same end state with more moving parts and a
+worse-documented intent. The two tables that could conceivably hold rows get
+ALTERs.
+
+**Consequences.** Editing `0001_initial.ts` in place is no longer a legal
+move anywhere in the repo; it is a historical record of what already ran on
+every 2.0 install. Any registry that loads migrations must list the whole
+set, and `packages/sdk/__test__/migration-0002.test.ts` pins the resulting
+shape. See [./schemas.md](./schemas.md) *SQLite table inventory* and
+[./components/sdk.md](./components/sdk.md) *SQLite migrations*.
+
+### Decision 67: Report Files Are a Versioned Public Contract
+
+**Context.** Vitest 5 added `vitest.createReport(scope)`, a supported way
+for a reporter to write files into `.vitest/<scope>/`. vitest-agent wants
+two of them: `run.json` for machine readers (a Claude Code hook, a CI step,
+an agent that never saw the terminal) and `summary.md` for humans reading a
+job log. `run.json` is read by code that has no dependency on
+`@vitest-agent/sdk`, so its shape cannot be "whatever `AgentReport` encodes
+to this month".
+
+**Decision.** `run.json` is `{ $schema, schemaVersion: 1, generatedAt,
+reports: AgentReport[] }` — an envelope carrying its own contract version
+independent of any package version — and is published as a JSON Schema
+document at `https://vitest-agent.dev/schemas/run-report-file-1.0.0.json`,
+generated from the Effect Schema by `packages/sdk/scripts/generate-schemas.ts`
+into two committed targets: the sdk copy that ships to npm and the docs
+site's `public/schemas/` copy the `$id` URL resolves to. A contract change
+bumps the schema version, the `$id` URL and the filename **together**;
+`@effected/schemastore`'s `block-versioned` policy fails the pipeline when
+it does not, and `run-report-file-schema.test.ts` runs that check in CI
+against both copies.
+
+**Wiring.** `RenderedOutput` becomes a discriminated union with a `report`
+member carrying a flat `filename`. The plugin owns the writing:
+`utils/report-writer.ts` creates the `createReport` handle lazily on the
+first report output (`createReport` mkdirs eagerly and synchronously, so a
+run that emits none leaves no directory behind), never calls `clean()`
+(it would wipe a prior shard's output and is a no-op under
+`--merge-reports` anyway), rejects `/`, `\`, `.` and `..` in both filenames
+and scopes, flushes every queued write before `onTestRunEnd` resolves, and
+writes failures to stderr rather than failing the run. `onInit` asserts
+`createReport` exists so an unsupported Vitest fails before any rendering
+instead of mid-routing. `AgentPlugin({ report })` defaults on for the
+`agent` and `ci` executors and off for `human`; `false` disables, `{ scope }`
+renames the directory, and the default scope is `vitest-agent`
+(`.vitest/vitest-agent/`).
+
+**Why not reuse the `file` target.** `file` has always been the reserved
+no-op with no path convention. `report` has a real destination Vitest
+owns — cleanup, sharding and merge behaviour included — so giving it its own
+member keeps the reporter out of path resolution entirely.
+
+**Consequences.** Report files are machine-facing and independent of console
+mode: an `agent`-mode run that prints nothing still writes them. The
+`.vitest/` directory belongs in a consumer's `.gitignore`. See
+[./schemas.md](./schemas.md) *Run report file*,
+[./components/plugin.md](./components/plugin.md) *Report files*, and
+[./components/reporter.md](./components/reporter.md).
+
+### Decision 68: Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size
+
+**Context.** A test attachment can be a 40 MB trace. Vitest has already
+copied file attachments into `.vitest/attachments/` and rewritten the
+descriptor's `path`, so `data.db` never needs the bytes — but a small inline
+body (a diff, a log excerpt, a snippet of HTML) is worth having in the
+database, because the path may be cleaned away and an agent reading over MCP
+has no filesystem access to the runner anyway.
+
+**Decision.** `DataStoreLive` stores a `body` only when
+`max(Buffer.byteLength(body), byteSize) <= INLINE_ATTACHMENT_BODY_CAP_BYTES`
+(64 KiB). `byte_size` is recorded verbatim for **every** attachment, inline
+or not, so a dangling path stays describable; `path` is recorded as Vitest
+resolved it and no file is ever copied.
+
+**Why both bars.** Gating on the caller's `byteSize` alone trusts a number
+the caller supplied: an under-reporting or zero-reporting producer could
+smuggle an arbitrarily large string into the row. Gating on the stored
+string alone under-charges a base64 body, whose stored form is 4/3 the
+payload it reports. Requiring both to clear the cap makes the row's real
+cost the thing being bounded.
+
+**Consequences.** An over-cap attachment persists as a descriptor —
+`content_type`, `path`, `byte_size`, and no `body` — which is exactly what
+a reader needs to go fetch it. `body_encoding` is stored alongside any body
+that is kept, so a reader always knows whether the string is base64 or
+UTF-8. See [./schemas.md](./schemas.md) *DataStore inputs*.
+
+### Decision 69: MCP Attachment Bodies Are Opt-In and Budgeted
+
+**Context.** The `test` tool's `annotations` and `artifacts` actions return
+every annotation or artifact recorded for one test in the latest run, each
+with its attachments. The 64 KiB persistence cap (Decision 68) is **per
+attachment**, so a test with thirty inline attachments could still flood an
+agent's context window on a single tool call.
+
+**Decision.** Both actions return attachment **descriptors** by default —
+`contentType`, `path`, `byteSize` — and no bodies. An inline `body` comes
+back only when the caller passes `maxBytes`, a non-negative integer total
+byte budget for every body in the response (default `0`). Attachments are
+walked in order and each body is charged its recorded `byteSize` (falling
+back to the stored string's length when the row predates migration 0002); a
+body that would push the running total past the budget is dropped along with
+its `bodyEncoding`, and the descriptor half always survives.
+
+**Why a cumulative budget rather than a per-body cap.** A per-body cap
+bounds one attachment and says nothing about the response. The agent's real
+constraint is the size of the whole tool result, which is what `maxBytes`
+names. Defaulting it to `0` means the cheap call is the default call and
+fetching bytes is a deliberate second step.
+
+**Consequences.** The count and the descriptor list are identical whatever
+`maxBytes` is, so an agent can always see what exists before deciding to
+pay for it. See [./components/mcp.md](./components/mcp.md) *`test` tool*.
+
+### Decision D9: Single Pre-2.0 Migration, Incremental After
+
+**Pre-2.0 policy (historical).** Before 2.0 shipped to npm, the canonical
+per-project schema lived in a single migration file, `0001_initial.ts`, and
+every breaking schema change edited it directly — no `0002_*`, no ALTERs, no
+backfills, developers wiping `data.db` on each change. Entries below that
+say "an in-place edit to `0001_initial.ts`" are recording what happened
+under that policy, not prescribing it. (Two sibling files,
+`session_map_0001_initial.ts` and `registry_0001_initial.ts`, cover the
+per-client and registry SQLite scopes.)
+
+**Post-2.0 policy (current).** Users carry real `data.db` files with real
+history, so `0001_initial.ts` is frozen: it is the record of what already
+ran on every install. Schema changes ship as new `000N_*.ts` files
+registered in `ensure-migrated.ts`, the plugin's `ReporterLive`, and the sdk
+testing layer. **A table holding data is ALTERed and backfilled and is never
+dropped**; for a breaking shape ALTER cannot express, ship a one-shot
+export/import path on a major bump rather than dropping data. A table with
+no readers and no writers is not user data and may be dropped and recreated
+inside the new migration — see Decision 66 for the one case where that
+applies.
 
 **Why a single pre-2.0 migration:**
 
@@ -3028,12 +3252,12 @@ too.
 
 ## Constraints and Trade-offs
 
-### Constraint: Vitest >= 4.1.0
+### Constraint: Vitest >= 5.0.0
 
-- **Description:** Requires the Vitest 4 Reporter API with
+- **Description:** Requires the Vitest 5 Reporter API with
   `TestProject`, `TestModule`, and `TestCase`
-- **Impact:** Limits adoption to Vitest 4.1+
-- **Mitigation:** Vitest 4.1+ is current stable; peer dep is explicit
+- **Impact:** Limits adoption to Vitest 5.0+
+- **Mitigation:** Vitest 5.0+ is current stable; peer dep is explicit
 
 ### Trade-off: `onCoverage` Ordering
 

@@ -86,6 +86,38 @@ function resolveEffectiveThresholds(filePath: string, resolved: ResolvedThreshol
 }
 
 /**
+ * Resolve the per-file threshold override for a file path.
+ *
+ * Vitest 5 widened `perFile` to `boolean | MetricThresholds` and stopped
+ * letting a glob-pattern entry inherit the top-level setting. A matched
+ * pattern's own `perFile` is the ONLY per-file setting for that file — a
+ * pattern that declares none does not fall back to the top-level one. The
+ * top-level `perFile` applies only to files no pattern matches, mirroring
+ * Vitest 5.
+ *
+ * Only an OBJECT-valued setting changes anything here — it replaces the
+ * metric numbers used for the per-file check. `true` / `false` / absent
+ * all return `null`, which leaves the existing per-file reporting behavior
+ * (check against the effective metric thresholds) exactly as it was.
+ */
+function resolveEffectivePerFileThresholds(filePath: string, resolved: ResolvedThresholds): MetricThresholds | null {
+	let setting: boolean | MetricThresholds | undefined;
+	let matched = false;
+	for (const [pattern, metrics] of resolved.patterns ?? []) {
+		if (matchGlob(filePath, pattern)) {
+			matched = true;
+			setting = (metrics as { perFile?: boolean | MetricThresholds }).perFile;
+			break;
+		}
+	}
+	if (!matched) {
+		setting = resolved.perFile;
+	}
+	if (setting === undefined || typeof setting === "boolean") return null;
+	return setting;
+}
+
+/**
  * Internal coverage processing logic. Shared by both `process` and `processScoped`.
  *
  * @param coverageMap - The value received by `onCoverage`; duck-typed at runtime
@@ -144,8 +176,12 @@ function processCoverageInternal(
 			continue;
 		}
 
-		// Resolve effective thresholds for this file (pattern-specific or global)
-		const effectiveThresholds = resolveEffectiveThresholds(filePath, options.thresholds);
+		// Resolve effective thresholds for this file (pattern-specific or global),
+		// letting an object-valued `perFile` (Vitest 5) override the metric set
+		// used for the per-file check.
+		const effectiveThresholds =
+			resolveEffectivePerFileThresholds(filePath, options.thresholds) ??
+			resolveEffectiveThresholds(filePath, options.thresholds);
 		const isBelowThreshold = isBelowMetricThresholds(fileStats, effectiveThresholds);
 
 		if (isBareZero || isBelowThreshold) {

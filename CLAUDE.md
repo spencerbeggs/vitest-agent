@@ -25,7 +25,7 @@ per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linu
 
 Every `@vitest-agent/*` package versions independently — a change to one package bumps only that package, plus a patch ripple to its workspace dependents via changesets' `updateInternalDependencies: "patch"`. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` (`workspace:*`) in source — alongside `@vitest-agent/reporter` and `@vitest-agent/sdk` — so a cli/mcp release auto-PATCH-bumps the plugin (`updateInternalDependencies: patch`) and re-pins their exact version. They publish as exact-pinned regular `dependencies` in the published manifest — the former `savvy.build.ts` `transform()` that promoted them into `peerDependencies` was removed, because the silk pnpm plugin publicly hoists their bins anyway and the peer form triggered pnpm's `autoInstallPeers`, forcing wrong Effect versions into consumer repos. The Vitest-side peers (`vitest`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as `peerDependencies` directly. Declaring `@vitest-agent/plugin` therefore transitively brings `@vitest-agent/cli` and `@vitest-agent/mcp` (and their bins) as regular dependencies. The dependency flow is `plugin → reporter → ui → sdk`: the plugin no longer depends on `@vitest-agent/ui` (or `react` / `ink`) directly — `@vitest-agent/reporter` supplies the default reporter and the Ink live mount, and pulls `ui` / `react` / `ink` transitively. `@vitest-agent/sidecar` reaches a consumer transitively: it is a regular `dependency` of `@vitest-agent/cli`, which is itself a regular dependency of the plugin, so installing the plugin pulls `@vitest-agent/sidecar` and its four per-platform `optionalDependencies` automatically. In the dev workspace, cli/mcp resolve as the plugin's `workspace:*` dependencies; the workspace root `package.json` also declares them as devDependencies and `pnpm-workspace.yaml` keeps a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks; the root no longer lists `@vitest-agent/reporter`, `@vitest-agent/sidecar`, or `@vitest-agent/ui` directly.
 Users typically configure the plugin with just
-`AgentPlugin({ console, coverageTargets, transport? })` — the plugin
+`AgentPlugin({ console, coverageTargets, transport?, report? })` — the plugin
 injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter`, which
 owns rendering and the Ink live mount end to end. Custom reporters
 arrive via the plugin's `reporter` option. The Claude Code plugin's SessionStart hook resolves the
@@ -38,23 +38,24 @@ The six non-sidecar packages pin `@vitest-agent/sdk` at `workspace:*`.
 
 ## Project Status
 
-**Pre-2.0 release: no backwards compatibility, no migration discipline.**
-`vitest-agent` 2.0 has not shipped to npm. Every dev install on every
-machine is disposable — when the schema changes, developers delete their
-local `data.db` and start fresh. This means: do NOT write multi-step
-SQLite migrations for schema changes that land before 2.0. Edit
-`packages/sdk/src/migrations/0001_initial.ts` directly to define the
-canonical shape; a single fresh-install migration is the entire migration
-chain until 2.0 ships. Don't add `0003_*.ts`, don't ALTER, don't backfill
-— just change the canonical schema. Same applies to breaking renames in
-the SDK schemas, MCP tool surface, CLI flags, and any other public-facing
-shape: pre-2.0 is the moment to break things cleanly. Post-2.0, the
-standard incremental migration discipline applies.
+**Post-2.0: incremental migration discipline applies.**
+`vitest-agent` 2.0 has shipped to npm — `@vitest-agent/plugin@2.0.0`
+through `2.5.x` are published and installed. Consumers carry real
+`data.db` files with real history. This means: schema changes land as
+NEW migrations. Add `packages/sdk/src/migrations/0002_*.ts`,
+`0003_*.ts`, and so on, register each in `ensure-migrated.ts`'s
+`fromRecord`, and never edit `0001_initial.ts` in place — it is a
+historical record of what already ran on every install, not a canonical
+shape to rewrite. A dead table with no readers and no writers may be
+dropped and recreated inside a new migration; a table with data must be
+ALTERed and backfilled. The same discipline applies to breaking renames
+in the SDK schemas, MCP tool surface, and CLI flags: they are majors
+with changesets and migration notes, not free edits.
 
 `vitest-agent` 2.0 is a Vitest reporter, plugin, CLI, and MCP server family
 for LLM coding agents. Six primary capabilities:
 
-1. **`AgentPlugin` + `AgentReporter`** -- Vitest plugin (>= 4.1.0) with
+1. **`AgentPlugin` + `AgentReporter`** -- Vitest plugin (>= 5.0.0) with
    four-environment detection, reporter chain management, a `ConfigValidation`
    Effect service for coverage-config diagnostics, Full and UI-only operating
    modes gated by Vitest's native `coverage.enabled`, and pluggable rendering
@@ -296,15 +297,16 @@ release workflow. Every package versions independently — there is no lockstep 
 
 ## Testing
 
-- **Framework**: [Vitest](https://vitest.dev/) `^4.1.5` with v8
+- **Framework**: [Vitest](https://vitest.dev/) `^5.0.0` with v8
   coverage provider.
 - **Pool**: Uses `forks` (not threads) for broader compatibility.
 - **Config**: `vitest.config.ts` at the repo root is an async function
   that calls `AgentPlugin.discover()` to auto-detect projects and tag
   declarations, destructures `{ projects, tags }`, and threads both into
   `defineConfig({ test: { projects, tags } })`. Project-based filtering
-  is still available via `--project`; test-kind filtering moved to
-  Vitest-native tag expressions (e.g. `--tags-filter "int"`).
+  is still available via `--project` (shorthand `-p`); test-kind
+  filtering moved to Vitest-native tag expressions (e.g.
+  `--tags-filter "int"`).
 - **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
   (flat directory). A test file is discoverable only under a workspace
   package's `src/` (co-located) or `__test__/` directory, anchored at

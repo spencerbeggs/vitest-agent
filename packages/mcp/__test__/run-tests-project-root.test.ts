@@ -145,6 +145,9 @@ describe("run_tests projectRoot validation", () => {
 		initGitRepo(main);
 		const worktree = join(tmpRoot, "main-wt");
 		execFileSync("git", ["worktree", "add", worktree], { cwd: main });
+		// Vitest 5 finds no config by walking up, so an explicit projectRoot
+		// must have one in range or `run_tests` rejects the call outright.
+		writeFileSync(join(worktree, "vitest.config.ts"), "export default {};\n");
 
 		const vitest = fakeVitest();
 		createVitestMock.mockResolvedValue(vitest);
@@ -157,7 +160,7 @@ describe("run_tests projectRoot validation", () => {
 
 		expect(result.kind).toBe("ok");
 		expect(createVitestMock).toHaveBeenCalledTimes(1);
-		const [, options] = createVitestMock.mock.calls[0] as [string, { root: string }];
+		const [options] = createVitestMock.mock.calls[0] as [{ root: string }];
 		expect(options.root).toBe(worktree);
 	});
 
@@ -167,6 +170,7 @@ describe("run_tests projectRoot validation", () => {
 		initGitRepo(main);
 		const nested = join(main, "pkg");
 		execFileSync("mkdir", [nested]);
+		writeFileSync(join(main, "vitest.config.ts"), "export default {};\n");
 
 		const vitest = fakeVitest();
 		createVitestMock.mockResolvedValue(vitest);
@@ -181,7 +185,7 @@ describe("run_tests projectRoot validation", () => {
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
 		expect(result.projectRoot).toBe(nested);
-		const [, options] = createVitestMock.mock.calls[0] as [string, { root: string }];
+		const [options] = createVitestMock.mock.calls[0] as [{ root: string }];
 		expect(options.root).toBe(nested);
 	});
 
@@ -205,6 +209,7 @@ describe("run_tests projectRoot validation", () => {
 		initGitRepo(main);
 		const worktree = join(tmpRoot, "main-wt");
 		execFileSync("git", ["worktree", "add", worktree], { cwd: main });
+		writeFileSync(join(worktree, "vitest.config.ts"), "export default {};\n");
 		createVitestMock.mockResolvedValue(fakeVitest());
 
 		const caller = makeCaller(main);
@@ -238,7 +243,7 @@ describe("run_tests projectRoot validation", () => {
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
 		expect(result.projectRoot).toBe(main);
-		const [, options] = createVitestMock.mock.calls[0] as [string, { root: string }];
+		const [options] = createVitestMock.mock.calls[0] as [{ root: string }];
 		expect(options.root).toBe(main);
 	});
 
@@ -261,8 +266,62 @@ describe("run_tests projectRoot validation", () => {
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
 		expect(result.projectRoot).toBe(pkgDir);
-		const [, options] = createVitestMock.mock.calls[0] as [string, { root: string }];
+		const [options] = createVitestMock.mock.calls[0] as [{ root: string }];
 		expect(options.root).toBe(pkgDir);
+	});
+
+	it("passes an anchored config path alongside an explicit subtree projectRoot", async () => {
+		const main = join(tmpRoot, "main");
+		execFileSync("mkdir", [main]);
+		initGitRepo(main);
+		writeFileSync(join(main, "vitest.config.ts"), "export default {};\n");
+		const pkgDir = join(main, "packages", "foo");
+		mkdirSync(pkgDir, { recursive: true });
+
+		createVitestMock.mockResolvedValue(fakeVitest());
+
+		const caller = makeCaller(main);
+		const result = await caller.run_tests({ projectRoot: pkgDir });
+
+		expect(result.kind).toBe("ok");
+		const [options] = createVitestMock.mock.calls[0] as [{ root: string; config?: string }];
+		expect(options.root).toBe(pkgDir);
+		expect(options.config).toBe(join(main, "vitest.config.ts"));
+	});
+
+	it("returns an error envelope when an explicit projectRoot resolves no config, without starting Vitest", async () => {
+		const main = join(tmpRoot, "main");
+		execFileSync("mkdir", [main]);
+		initGitRepo(main);
+		const pkgDir = join(main, "packages", "foo");
+		mkdirSync(pkgDir, { recursive: true });
+
+		createVitestMock.mockResolvedValue(fakeVitest());
+
+		const caller = makeCaller(main);
+		const result = await caller.run_tests({ projectRoot: pkgDir });
+
+		expect(result.kind).toBe("error");
+		if (result.kind !== "error") return;
+		expect(result.message).toContain(pkgDir);
+		expect(result.message).toMatch(/vitest\.config/);
+		expect(createVitestMock).not.toHaveBeenCalled();
+	});
+
+	it("calls createVitest through the non-deprecated overload, with options first", async () => {
+		const main = join(tmpRoot, "main");
+		execFileSync("mkdir", [main]);
+		initGitRepo(main);
+		writeFileSync(join(main, "vitest.config.ts"), "export default {};\n");
+		createVitestMock.mockResolvedValue(fakeVitest());
+
+		const caller = makeCaller(main);
+		await caller.run_tests({});
+
+		const args = createVitestMock.mock.calls[0] as unknown[];
+		expect(typeof args[0]).toBe("object");
+		expect(args[0]).not.toBe("test");
+		expect((args[0] as { root: string }).root).toBe(main);
 	});
 
 	it("echoes the resolved projectRoot on a no-match result", async () => {
@@ -271,6 +330,7 @@ describe("run_tests projectRoot validation", () => {
 		initGitRepo(main);
 		const worktree = join(tmpRoot, "main-wt");
 		execFileSync("git", ["worktree", "add", worktree], { cwd: main });
+		writeFileSync(join(worktree, "vitest.config.ts"), "export default {};\n");
 		createVitestMock.mockResolvedValue(fakeVitest());
 
 		const caller = makeCaller(main);

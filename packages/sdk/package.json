@@ -24,12 +24,15 @@
 		".": "./src/index.ts",
 		"./dispatch": "./src/dispatch.ts",
 		"./testing": "./src/testing/index.ts",
+		"./schemas/*.json": "./schemas/*.json",
 		"./package.json": "./package.json"
 	},
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:prod": "node savvy.build.ts --target prod",
 		"prepare": "turbo run build:dev",
+		"schemas:check": "tsx scripts/generate-schemas.ts --check",
+		"schemas:generate": "tsx scripts/generate-schemas.ts",
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -50,8 +53,10 @@
 	},
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",
+		"@effected/schemastore": "catalog:effected",
 		"@savvy-web/bundler": "^2.3.1",
 		"@types/node": "catalog:build",
+		"tsx": "catalog:build",
 		"typescript": "catalog:build"
 	},
 	"engines": {

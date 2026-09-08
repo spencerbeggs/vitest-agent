@@ -1,7 +1,6 @@
 import { join, sep } from "node:path";
-import type { TestTagDefinition } from "@vitest/runner";
 import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX, TEST_HELPER_DIRS } from "@vitest-agent/sdk";
-import type { TestProjectInlineConfiguration } from "vitest/config";
+import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import { configDefaults } from "vitest/config";
 import { findTestFiles } from "./find-test-files.js";
 import { Tag } from "./tag.js";

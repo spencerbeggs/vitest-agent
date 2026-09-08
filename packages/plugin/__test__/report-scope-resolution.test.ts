@@ -1,0 +1,115 @@
+/**
+ * Task 5: `report` option → `reportScope` resolution inside
+ * `configureVitest`. Report files default ON for the machine-facing
+ * executors (agent, ci) and OFF for a human at a terminal.
+ */
+
+import { EnvironmentDetectorTest } from "@vitest-agent/sdk";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { VitestPluginContext } from "vitest/node";
+import { AgentPlugin } from "../src/plugin.js";
+import { AgentReporter } from "../src/reporter.js";
+import { ConfigurationError } from "../src/utils/configuration-error.js";
+
+function mockVitest() {
+	return {
+		config: { reporters: ["default" as unknown], coverage: {} },
+		vite: { config: { cacheDir: "node_modules/.vite" } },
+		onClose: vi.fn(),
+	};
+}
+
+async function resolveScope(
+	options: Parameters<typeof AgentPlugin>[0],
+	env: "agent-shell" | "terminal" | "ci-github",
+): Promise<string | undefined> {
+	const plugin = AgentPlugin(options, EnvironmentDetectorTest.layer(env));
+	const vitest = mockVitest();
+	await plugin.configureVitest({
+		vitest,
+		project: { name: undefined },
+		defineCacheKeyGenerator: vi.fn(),
+	} as unknown as VitestPluginContext);
+	const reporter = vitest.config.reporters.find((r) => r instanceof AgentReporter) as AgentReporter;
+	return (reporter as unknown as { options: { reportScope?: string } }).options.reportScope;
+}
+
+describe("report scope resolution", () => {
+	it("defaults to the vitest-agent scope for the agent executor", async () => {
+		await expect(resolveScope({}, "agent-shell")).resolves.toBe("vitest-agent");
+	});
+
+	it("defaults to the vitest-agent scope for the ci executor", async () => {
+		await expect(resolveScope({}, "ci-github")).resolves.toBe("vitest-agent");
+	});
+
+	it("defaults off for the human executor", async () => {
+		await expect(resolveScope({}, "terminal")).resolves.toBeUndefined();
+	});
+
+	it("turns on for a human when the report option is set explicitly", async () => {
+		await expect(resolveScope({ report: {} }, "terminal")).resolves.toBe("vitest-agent");
+	});
+
+	it("honours an explicit scope override", async () => {
+		await expect(resolveScope({ report: { scope: "custom" } }, "agent-shell")).resolves.toBe("custom");
+	});
+
+	it("disables report files with report: false, even for the agent executor", async () => {
+		await expect(resolveScope({ report: false }, "agent-shell")).resolves.toBeUndefined();
+	});
+
+	it("accepts a scope containing a dot", async () => {
+		await expect(resolveScope({ report: { scope: "vitest.agent" } }, "agent-shell")).resolves.toBe("vitest.agent");
+	});
+
+	// A bad scope is a user configuration mistake: `configureVitest`
+	// reports it as one clean stderr line — no stack, no issue banner —
+	// and rethrows. Stubbing stderr both asserts that shape and keeps
+	// this file's own output pristine.
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const expectedScopeLine = (scope: string) =>
+		`vitest-agent: report scope ${JSON.stringify(scope)} must be a single flat directory name — it is created directly under <root>/.vitest and must not traverse or nest.\n`;
+
+	/** Drive one bad scope through `configureVitest` and pin the whole stderr trace. */
+	const expectCleanScopeRejection = async (scope: string) => {
+		const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		await expect(resolveScope({ report: { scope } }, "agent-shell")).rejects.toThrow(ConfigurationError);
+		expect(stderr.mock.calls).toEqual([[expectedScopeLine(scope)]]);
+	};
+
+	it("rejects a scope that escapes the .vitest directory", async () => {
+		await expectCleanScopeRejection("../escape");
+	});
+
+	it("rejects an empty scope", async () => {
+		await expectCleanScopeRejection("");
+	});
+});
+
+describe("onInit rejects an unsupported Vitest", () => {
+	it("throws the Vitest 5 upgrade error when report files are on and createReport is absent", async () => {
+		const reporter = new AgentReporter({ reportScope: "vitest-agent" });
+		await expect(reporter.onInit({})).rejects.toThrow(/requires Vitest 5/);
+	});
+
+	it("does not call createReport eagerly, so the scope directory stays lazy", async () => {
+		let created = 0;
+		const reporter = new AgentReporter({ reportScope: "vitest-agent" });
+		await reporter.onInit({
+			createReport: () => {
+				created++;
+				return { writeFile: async () => {} };
+			},
+		});
+		expect(created).toBe(0);
+	});
+
+	it("ignores a missing createReport when report files are off", async () => {
+		const reporter = new AgentReporter({});
+		await expect(reporter.onInit({})).resolves.toBeUndefined();
+	});
+});

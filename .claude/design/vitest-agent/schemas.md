@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 93
 related:
   - ./architecture.md
@@ -52,11 +52,30 @@ union and the `RenderState` reducer projection live in
 [./components/ui.md](./components/ui.md) for the taxonomy and the
 reducer.
 
+## Vocabulary: annotations, artifacts, report files
+
+Four nearby nouns that name four different things (spec §4.1). Use them
+precisely — the shortened "artifact" is ambiguous and should not appear
+alone in prose, a doc comment, or a tool description.
+
+| Term | What it is | Where it lives |
+| ---- | ---------- | -------------- |
+| **test annotation** | A note a test author records with Vitest's `context.annotate(message, type?, attachment?)` | `test_annotations`; `TestAnnotation` in `packages/sdk/src/schemas/TestArtifacts.ts` |
+| **test artifact** | A structured payload a test or a Vitest integration records with `recordArtifact` — a `type` plus arbitrary custom fields and attachments | `test_artifacts` + `attachments`; `TestArtifact` in the same file |
+| **TDD artifact** | Red/green evidence a TDD phase transition cites | `tdd_artifacts`; the `tdd_artifact_list` MCP tool |
+| **report file** | A machine-facing file vitest-agent writes into `.vitest/<scope>/` at run end (`run.json`, `summary.md`) | `RunReportFile` in `packages/sdk/src/schemas/RunReportFile.ts` |
+
+A test annotation and a test artifact both come from Vitest and both hang
+off a `test_cases` row. A TDD artifact comes from the TDD workflow and has
+no relationship to either; the `test` MCP tool's `annotations` / `artifacts`
+actions and `tdd_artifact_list` are deliberately named apart, and both tool
+descriptions say so.
+
 ## RunEvent surface and RenderState
 
 `RunEvent` (`packages/sdk/src/schemas/RunEvent.ts`) is the internal
 discriminated union the plugin's `AgentReporter` emits — one variant per
-Vitest 4.x reporter hook. The surface is **complete**: every reporter
+Vitest reporter hook. The surface is **complete**: every reporter
 hook that fits the event-sourced model has a wired variant, so future
 consumers (analytics taps, the planned MCP dashboard) never need to
 touch the plugin's Vitest-API layer to widen it. Both these schemas are
@@ -75,8 +94,17 @@ from `onTestCaseReady` so the transient running state gets its own
 frame; see [./components/plugin.md](./components/plugin.md) for the
 hook-to-variant mapping and the deliberately-unmapped hooks.
 
+`TestAnnotated` and `TestArtifactRecorded` carry the full Vitest 5 shape:
+`TestAnnotated` adds `annotationType` (an arbitrary string — Vitest applies
+no enum), an optional `location`, and `attachments`; `TestArtifactRecorded`
+adds `location` and `attachments`. `internal:`-prefixed artifact types are
+Vitest's own bookkeeping and never reach the stream. No `@vitest-agent/ui`
+reducer case consumes either variant yet — both are still a no-op in the
+reducer, and the persisted rows (not the stream) are what the MCP surface
+reads.
+
 `ModuleQueued`, `ModuleStarted` and `ModuleFinished` each carry an
-optional `projectName` — the Vitest 4.x `TestModule.project.name` the
+optional `projectName` — the Vitest `TestModule.project.name` the
 reporter has in hand. It is optional so project-less or older events
 decode cleanly as a single anonymous project.
 
@@ -194,9 +222,17 @@ The contract is four types:
   because the plugin owns the Vitest lifecycle and reporters never see Vitest
   events directly.
 
+`RenderedOutput` is a discriminated union on `target`. The `stdout` /
+`github-summary` / `file` member carries `{ content, contentType }`; the
+`report` member additionally carries a flat `filename` and is written into
+the Vitest 5 report scope directory `.vitest/<scope>/`. See *Run report
+file* below.
+
 The reporter returns `RenderedOutput[]`; the plugin routes each entry to its
-declared target (`stdout` / `github-summary` / `file`), so the reporter never
-opens write streams. A no-op reporter is one line:
+declared target (`stdout` / `github-summary` / `report` / `file`), so the
+reporter never opens write streams. A `report` output is dropped when report
+files are disabled, exactly as a `github-summary` output is dropped outside
+GitHub Actions. A no-op reporter is one line:
 `() => ({ render: () => [] })`.
 
 ### Dispatcher contract
@@ -279,11 +315,78 @@ Effect Schema definitions in `packages/sdk/src/schemas/`:
 `stable` / `new-failure` / `persistent` / `flaky` / `recovered`. The reporter
 uses these to drive the suggested-actions output.
 
-## AgentPluginOptions (the 5-field shape)
+## Test annotations and test artifacts
 
-The user-facing `AgentPluginOptions` is exactly five fields. The
+`packages/sdk/src/schemas/TestArtifacts.ts` holds the four shapes behind
+Vitest 5's `context.annotate` and `recordArtifact` surfaces.
+
+| Schema | Shape |
+| ------ | ----- |
+| `TestArtifactLocation` | `{ file, line, column }` — the source position an annotation or artifact points at |
+| `TestAttachment` | `{ contentType?, path?, body?, bodyEncoding?, byteSize }`; `bodyEncoding` is `"base64" \| "utf-8"` |
+| `TestAnnotation` | `{ type, message, location?, attachments }` |
+| `TestArtifact` | `{ type, message?, data?, location?, attachments }` |
+
+Three invariants worth knowing before touching these:
+
+- **`type` is an arbitrary string on both.** Vitest applies no enum to an
+  annotation `type` (`.repos/vitest/packages/vitest/src/runtime/runner/types.ts`),
+  which is why migration 0002 drops the old
+  `CHECK (type IN ('notice','warning','error'))`.
+- **`TestArtifact.data` is JSON of the artifact's *custom* fields only** —
+  `attachments` and `location` are modelled relationally and `message` is
+  its own column when it is a string, so none of them are duplicated into
+  the blob.
+- **Attachments are described, never copied.** Vitest has already
+  rewritten `path` to its `.vitest/attachments/` location (or left an
+  external `http(s)` URL). `byteSize` is recorded for every attachment so a
+  dangling path is still describable after the directory is cleaned;
+  `body` is stored inline only under the 64 KiB cap (see *DataStore
+  inputs*). `bodyEncoding` is what says how to read an inline `body` —
+  Vitest treats a string body as base64 unless it says `utf-8`.
+
+## Run report file (`run.json`)
+
+`packages/sdk/src/schemas/RunReportFile.ts` defines the envelope the
+default reporter writes to `.vitest/<scope>/run.json`:
+
+```text
+{ $schema?, schemaVersion: 1, generatedAt, reports: AgentReport[] }
+```
+
+This is a **public contract**, not the raw `AgentReport` encoding — a
+Claude Code hook or a CI step reads the file, so the envelope carries its
+own `schemaVersion` independent of any package version. `reports` holds one
+`AgentReport` per Vitest project in the run. `generatedAt` is an ISO-8601
+instant, checked by a `Schema.isPattern` regex plus a `Date.parse` filter
+rather than a `format: "date-time"` annotation (the schema pipeline's ajv
+gate ships without ajv-formats and rejects an unknown format; the `Date.parse`
+half rules out impossible component values such as month 13 and has no JSON
+Schema representation, so the emitted document carries only the pattern).
+
+`RUN_REPORT_FILE_SCHEMA_URL` is both the exported constant and the
+document's `$id`: `https://vitest-agent.dev/schemas/run-report-file-1.0.0.json`.
+
+**The JSON Schema is generated, twice.**
+`packages/sdk/scripts/generate-schemas.ts` drives `@effected/schemastore`'s
+`SchemaPipeline` over two targets — `packages/sdk/schemas/run-report-file-1.0.0.json`
+(shipped to npm; the sdk's `exports` opens `./schemas/*.json` and the
+package's `savvy.build.ts` copies the directory into every emitted package
+dir) and `website/docs/public/schemas/run-report-file-1.0.0.json` (what the
+`$id` URL resolves to once the site deploys). `pnpm --filter @vitest-agent/sdk
+schemas:generate` writes them; `schemas:check` reports drift and exits
+non-zero. `packages/sdk/__test__/run-report-file-schema.test.ts` imports the
+same targets, so a stale document, a warning finding, or a contract change
+without a version bump is a test failure rather than a silent 404 of stale
+content. The pipeline's `block-versioned` policy is what forces a
+contract change to bump the schema version, the `$id` URL and the filename
+together. See [./decisions.md](./decisions.md) Decision 67.
+
+## AgentPluginOptions (the 6-field shape)
+
+The user-facing `AgentPluginOptions` is exactly six fields. The
 schema-decodable struct in `packages/sdk/src/schemas/Options.ts` carries
-the three data-shaped fields; `reporter` and `onRunEvent` are function-typed
+the four data-shaped fields; `reporter` and `onRunEvent` are function-typed
 and live on the plugin's `AgentPluginConstructorOptions` companion interface
 because Effect Schema cannot encode functions cleanly.
 
@@ -292,6 +395,7 @@ because Effect Schema cannot encode functions cleanly.
 | `console` | `ConsoleOutputs` (optional) | Per-executor matrix `{ human?, agent?, ci? }` |
 | `coverageTargets` | `CoverageTargets` (optional) | Typed record schema; see below |
 | `transport` | `Transport` (optional) | Single-member `{ kind: "local" }` union |
+| `report` | `ReportOption` (optional) | `false` disables report files; `{ scope }` renames the `.vitest/<scope>` directory. Default: on for the `agent` and `ci` executors, off for `human`. `scope` rejects `/`, `\`, `.` and `..` — it is resolved directly under `.vitest/` and cannot nest or escape |
 | `reporter` | `VitestAgentReporterFactory` (optional) | On `AgentPluginConstructorOptions` |
 | `onRunEvent` | `(event: RunEvent) => void` (optional) | On `AgentPluginConstructorOptions` |
 
@@ -351,8 +455,10 @@ v3 `Schema.Positive`):
 
 Negatives and zeros are rejected at decode time via `Schema.Positive`. A
 decode-time refinement rejects `true` at any key other than `"100"`, and
-`perFile` is not a valid key inside `coverageTargets` — the user sets
-`coverage.thresholds.perFile` instead.
+`perFile` is not a valid key inside the top level of `coverageTargets` —
+the user sets `coverage.thresholds.perFile` instead, or, for a glob-scoped
+target, `perFile` on that same glob's own Vitest threshold entry, since
+Vitest 5 glob-pattern thresholds no longer inherit the top-level value.
 
 `packages/sdk/src/utils/validate-coverage-targets-shape.ts` exports the
 pure helper `validateCoverageTargetsShape(input)` that walks raw input
@@ -361,7 +467,7 @@ and returns structured diagnostics with pinpointed paths:
 | Code | Description |
 | ---- | ----------- |
 | `INVALID_TARGET_VALUE` | Numeric metric value is zero or negative. Path is the offending location: `"lines"` for a top-level metric or `"src/**.ts.lines"` for a metric inside a glob entry |
-| `PERFILE_ON_TARGETS` | The `perFile` key appears inside `coverageTargets`. Path is `"perFile"`; users should set `coverage.thresholds.perFile` instead |
+| `PERFILE_ON_TARGETS` | The `perFile` key appears inside `coverageTargets`. Path is `"perFile"`; users should set `coverage.thresholds.perFile` instead (or on the matching glob's own `perFile` key, since Vitest 5 glob-pattern thresholds do not inherit the top-level value) |
 
 Both codes also surface through the plugin's `ConfigValidation` service —
 the rule registry delegates to this helper for the `INVALID_TARGET_VALUE`
@@ -536,6 +642,20 @@ schemas because the DataStore commits one row at a time inside a single
 - **`TestErrorInput`** — extended with optional `signatureHash` (FK target
   on `test_errors`) and `frames` (per-frame rows). The reporter populates
   both via `processFailure`.
+- **`TestAnnotationInput`** / **`TestArtifactInput`** / **`TestAttachmentInput`**
+  — back `writeAnnotations(runId, inputs)` and `writeArtifacts(runId, inputs)`.
+  Both carry a `testCaseId`, a flattened `locationFile` / `locationLine` /
+  `locationColumn` triple (the file goes through the same `ensureFile`
+  dedup as every other path) and an `attachments[]` array written to the
+  shared `attachments` table. `runId` is carried for log correlation only —
+  the rows are reachable through `test_cases`. The live layer stores an
+  inline `body` only when `max(Buffer.byteLength(body), byteSize)` is at or
+  under `INLINE_ATTACHMENT_BODY_CAP_BYTES` (64 KiB): the gate is on what
+  would actually be **stored**, not on the caller's reported `byteSize`, so
+  an under-reporting caller cannot smuggle a large string into the row and a
+  base64 body is charged the 4/3 its stored string really costs. `byte_size`
+  is recorded verbatim either way. See [./decisions.md](./decisions.md)
+  Decision 68.
 - **`HypothesisInput`** / **`ValidateHypothesisInput`** — back the
   `hypothesis_record` / `hypothesis_validate` MCP tools. `validateHypothesis`
   raises `DataStoreError` if `id` doesn't exist (no silent no-op).
@@ -589,6 +709,13 @@ The notable ones:
 
 - **`SessionSummary`** / **`ListSessionsOptions`** — backs the
   `inventory({ inventoryKind: "session_list" })` action.
+- **`TestAnnotationRow`** / **`TestArtifactRow`** / **`PersistedAttachment`**
+  — returned by `getAnnotationsForTest(project, fullName, { modulePath? })`
+  and `getArtifactsForTest(...)`. Both scope to the project's **latest run**
+  (the same semantics as `getErrors`) and take the optional `modulePath` to
+  disambiguate a `full_name` present in more than one module (Decision D20).
+  `PersistedAttachment.byteSize` is nullable because rows written before
+  migration 0002 have no size.
 - **`FailureSignatureDetail`** — `lastSeenAt` is nullable: a signature row
   carries no last-sighting timestamp until it recurs. See
   `failure_signatures` in the table inventory below for the recurrence
@@ -661,7 +788,7 @@ frame, runs `findFunctionBoundary` on the resolved source, and calls
 ## MCP tag-filtering schemas
 
 The MCP `run_tests`, `inventory`, and `test` tools carry three input
-variants and three output variants that surface Vitest 4.1 native tags
+variants and three output variants that surface Vitest's native tags
 through the agent-facing tool surface. The schemas live alongside the
 existing tool input/output unions in their respective tool files.
 
@@ -738,12 +865,25 @@ group; when supplied, returns a single group. Definition:
 
 ## SQLite table inventory
 
-The canonical per-project schema lives in a single migration:
-`packages/sdk/src/migrations/0001_initial.ts`. Per the pre-2.0 policy,
-every schema change before 2.0 ships edits this file directly — there are
-no ALTERs, no backfills, no incremental migration history. All migrations
-run via `@effect/sql-sqlite-node`'s `SqliteMigrator` with WAL journal mode
-and foreign keys enabled.
+The per-project schema is an ordered migration set rooted at
+`packages/sdk/src/migrations/0001_initial.ts` — the historical record of
+what already ran on every 2.0 install — followed by
+`0002_test_artifacts.ts`. All migrations run via
+`@effect/sql-sqlite-node`'s `SqliteMigrator` with WAL journal mode and
+foreign keys enabled. Every registry that loads them has to list the whole
+set: `utils/ensure-migrated.ts`, the plugin's
+`layers/ReporterLive.ts`, and the sdk testing layer
+(`packages/sdk/src/testing/layers.ts`, which had silently sat at `0001`
+until 0002 landed and is the easiest one to forget).
+
+**`0002_test_artifacts`** gives the three dormant tables their writers.
+`test_annotations` had zero readers and zero writers, so it is dropped and
+recreated without the wrong `CHECK (type IN ('notice','warning','error'))`
+and without the three inline `attachment_*` columns the sibling
+`attachments` table already models. `test_artifacts` and `attachments` hold
+data in principle and are widened in place: `ALTER TABLE test_artifacts ADD
+COLUMN data TEXT`, `ALTER TABLE attachments ADD COLUMN byte_size INTEGER`,
+`ADD COLUMN body_encoding TEXT`.
 
 Two additional migration files cover the per-client and registry
 SQLite scopes for the agent-taxonomy work:
@@ -752,9 +892,12 @@ SQLite scopes for the agent-taxonomy work:
 *Three-tier storage architecture* section below for the path
 layout.
 
-Editing `0001_initial.ts` directly is the canonical pre-2.0 path:
-developers delete `data.db` on every breaking schema change. Post-2.0,
-the standard incremental-migration discipline takes over.
+**Post-2.0 discipline is in force.** `0001_initial.ts` is never edited in
+place — every schema change ships as a NEW `000N_*.ts` registered in all
+three loaders. A table with data is ALTERed and backfilled; a table with no
+readers and no writers may be dropped and recreated inside the new
+migration, which is what 0002 does. See [./decisions.md](./decisions.md)
+Decision D9 and Decision 66.
 
 **Spine.** `test_runs` is the run record; each owns one or more
 `test_modules`, which own `test_suites` and `test_cases`. Errors attach via
@@ -784,8 +927,9 @@ read the already-updated row and accumulate stale tokens.
 | `stack_frames` | Parsed frames; carries `source_mapped_line` and `function_boundary_line` |
 | `tags` | Deduplicated tag names |
 | `test_case_tags` / `test_suite_tags` | Tag associations |
-| `test_annotations` | Notice / warning / error annotations |
-| `test_artifacts` / `attachments` | Artifacts and binary blobs |
+| `test_annotations` | Test annotations from `context.annotate`. `type` is an arbitrary string (no CHECK); location is a `files` FK plus line/column; attachments hang off the `attachments` table, not inline columns (migration 0002) |
+| `test_artifacts` | Test artifacts from `recordArtifact`. `type` (`internal:`-prefixed types are never written), optional `message`, `data` (JSON of the remaining custom fields), location triple |
+| `attachments` | Attachment descriptors for either owner (`annotation_id` XOR `artifact_id`): `content_type`, `path`, `body` (inline only under the 64 KiB cap), `body_encoding`, `byte_size` |
 | `import_durations` | Module import timing |
 | `task_metadata` | Key-value metadata |
 | `console_logs` | Per-test stdout/stderr capture |

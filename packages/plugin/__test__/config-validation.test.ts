@@ -32,10 +32,12 @@ function makeVitestConfig(
 			provider?: string;
 			thresholds?: Record<string, unknown>;
 		};
+		reporters?: unknown[];
 	} = {},
 ): ResolvedConfig {
 	return {
 		coverage: overrides.coverage ?? {},
+		reporters: overrides.reporters ?? [],
 	} as unknown as ResolvedConfig;
 }
 
@@ -330,7 +332,85 @@ describe("PERFILE_ON_TARGETS", () => {
 		// Then
 		const warnings = result.warnings.filter((w) => w.code === "PERFILE_ON_TARGETS");
 		expect(warnings).toHaveLength(1);
-		expect(warnings[0].message).toMatch(/coverage\.thresholds\.perFile/);
+		expect(warnings[0].message).toMatch(/glob-pattern entry/);
+	});
+
+	it("does not warn when perFile sits inside a glob-pattern entry", async () => {
+		// Vitest 5 lets a glob entry carry its own perFile — only a TOP-LEVEL
+		// key is misplaced inside coverageTargets.
+		const vitestConfig = makeVitestConfig({});
+		const pluginOptions = makePluginOptions({
+			coverageTargets: { "src/**/*.ts": { lines: 90, perFile: true } },
+		});
+
+		const result = await runValidation(vitestConfig, pluginOptions);
+
+		expect(result.warnings.filter((w) => w.code === "PERFILE_ON_TARGETS")).toEqual([]);
+		expect(result.errors.filter((e) => e.code === "INVALID_TARGET_VALUE")).toEqual([]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// GITHUB_JOB_SUMMARY_COLLISION
+// ---------------------------------------------------------------------------
+
+describe("GITHUB_JOB_SUMMARY_COLLISION", () => {
+	it("stays silent when github-actions is configured as a bare string", async () => {
+		const vitestConfig = makeVitestConfig({ reporters: ["default", "github-actions"] });
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(0);
+	});
+
+	it("warns when the user opted the job summary in explicitly", async () => {
+		const vitestConfig = makeVitestConfig({
+			reporters: [["github-actions", { jobSummary: { enabled: true } }]],
+		});
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0].message).toMatch(/explicitly/);
+		expect(warnings[0].remediation).toMatch(/jobSummary/);
+	});
+
+	it("warns once when a bare string and an explicit opt-in tuple both appear", async () => {
+		const vitestConfig = makeVitestConfig({
+			reporters: ["github-actions", ["github-actions", { jobSummary: { enabled: true } }]],
+		});
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(1);
+	});
+
+	it("stays silent when github-actions is a tuple with no jobSummary key", async () => {
+		const vitestConfig = makeVitestConfig({
+			reporters: [["github-actions", {}]],
+		});
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(0);
+	});
+
+	it("stays silent when the user disabled jobSummary", async () => {
+		const vitestConfig = makeVitestConfig({
+			reporters: [["github-actions", { jobSummary: { enabled: false } }]],
+		});
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(0);
+	});
+
+	it("stays silent when no github-actions reporter is configured", async () => {
+		const vitestConfig = makeVitestConfig({ reporters: ["default", "json"] });
+		const result = await runValidation(vitestConfig, makePluginOptions());
+
+		const warnings = result.warnings.filter((w) => w.code === "GITHUB_JOB_SUMMARY_COLLISION");
+		expect(warnings).toHaveLength(0);
 	});
 });
 

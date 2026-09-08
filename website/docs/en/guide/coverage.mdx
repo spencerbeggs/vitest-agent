@@ -57,8 +57,11 @@ The `CoverageTargets` schema accepts positive numeric values per metric
 (`lines`, `branches`, `functions`, `statements`), the `100: true` shortcut
 for all-metrics-to-100, and nested per-glob `CoverageTargetsMetrics`
 entries. Zeros and negatives are rejected at decode time. `perFile` is
-not accepted directly on targets — it is inherited from
-`coverage.thresholds.perFile`.
+not accepted directly on targets. Vitest reads the top-level
+`coverage.thresholds.perFile` for ungrouped thresholds; glob-pattern
+threshold entries do **not** inherit that value — set `perFile` on each
+glob individually if you need it there. A `coverageTargets` per-glob
+entry accepts its own `perFile` the same way.
 
 ## The two operating modes
 
@@ -115,7 +118,9 @@ defineConfig({
 ## COVERAGE_AUTOUPDATE
 
 `AgentPlugin.COVERAGE_AUTOUPDATE` provides three tolerance functions for
-Vitest's native `coverage.thresholds.autoUpdate`. When Vitest's auto-update
+Vitest's native `coverage.thresholds.autoUpdate`, which receives both the
+newly-computed threshold and the previous one —
+`(newThreshold, previousThreshold) => number`. When Vitest's auto-update
 is on, it mutates the threshold numbers on disk after a green run. The
 tolerance functions let you control how aggressively the numbers ratchet up:
 

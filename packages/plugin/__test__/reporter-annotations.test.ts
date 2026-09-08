@@ -1,0 +1,393 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import type { RunEvent, VitestTestCase, VitestTestModule } from "@vitest-agent/sdk";
+import { afterAll, describe, expect, it } from "vitest";
+import { AgentReporter, toAnnotationInputs, toArtifactInputs } from "../src/reporter.js";
+
+const scratch = mkdtempSync(join(tmpdir(), "va-annotations-"));
+afterAll(() => {
+	rmSync(scratch, { recursive: true, force: true });
+});
+
+describe("annotation and artifact ingestion mappers", () => {
+	it("maps an annotation with a location and an inline attachment", () => {
+		const inputs = toAnnotationInputs(7, [
+			{
+				type: "issues",
+				message: "known slow",
+				location: { file: "src/a.test.ts", line: 4, column: 1 },
+				attachment: { contentType: "text/plain", body: "hi" },
+			},
+		]);
+		expect(inputs).toEqual([
+			{
+				testCaseId: 7,
+				type: "issues",
+				message: "known slow",
+				locationFile: "src/a.test.ts",
+				locationLine: 4,
+				locationColumn: 1,
+				attachments: [{ contentType: "text/plain", body: "hi", bodyEncoding: "utf-8", byteSize: 2 }],
+			},
+		]);
+	});
+
+	it("degrades to a descriptor when an attachment field getter throws", () => {
+		const attachment = {
+			contentType: "text/plain",
+			path: ".vitest/attachments/gone.txt",
+			get body(): string {
+				throw new Error("body getter exploded");
+			},
+			get bodyEncoding(): "utf-8" {
+				throw new Error("bodyEncoding getter exploded");
+			},
+		};
+		const inputs = toAnnotationInputs(1, [{ message: "m", attachment }]);
+		expect(inputs[0]?.attachments).toEqual([
+			{ contentType: "text/plain", path: ".vitest/attachments/gone.txt", byteSize: 0 },
+		]);
+	});
+
+	it("defaults a typeless annotation to notice and tolerates no attachment", () => {
+		const inputs = toAnnotationInputs(1, [{ message: "plain" }]);
+		expect(inputs[0]?.type).toBe("notice");
+		expect(inputs[0]?.attachments).toEqual([]);
+	});
+
+	it("carries a declared utf-8 body encoding through and sizes the decoded bytes", () => {
+		const inputs = toAnnotationInputs(1, [{ message: "m", attachment: { body: "héllo", bodyEncoding: "utf-8" } }]);
+		expect(inputs[0]?.attachments).toEqual([{ body: "héllo", bodyEncoding: "utf-8", byteSize: 6 }]);
+	});
+
+	it("normalizes a non-base64 declared body encoding to utf-8", () => {
+		// Vitest's declared type only allows "base64" | "utf-8", but a
+		// hand-built attachment (or a future Vitest release) could carry
+		// anything else -- the mapper treats any non-"base64" value as
+		// "utf-8" rather than passing an unrecognized encoding through.
+		const inputs = toAnnotationInputs(1, [
+			{ message: "m", attachment: { body: "hi", bodyEncoding: "latin1" } as unknown as { body: string } },
+		]);
+		expect(inputs[0]?.attachments).toEqual([{ body: "hi", bodyEncoding: "utf-8", byteSize: 2 }]);
+	});
+
+	it("sizes a declared base64 body by its decoded byte length", () => {
+		const inputs = toAnnotationInputs(1, [
+			{ message: "m", attachment: { contentType: "image/png", body: "AAAA", bodyEncoding: "base64" } },
+		]);
+		expect(inputs[0]?.attachments).toEqual([
+			{ contentType: "image/png", body: "AAAA", bodyEncoding: "base64", byteSize: 3 },
+		]);
+	});
+
+	it("base64-encodes a binary body and records the raw byte length", () => {
+		const inputs = toAnnotationInputs(1, [
+			{ message: "m", attachment: { contentType: "image/png", body: new Uint8Array([1, 2, 3]) } },
+		]);
+		expect(inputs[0]?.attachments).toEqual([
+			{
+				contentType: "image/png",
+				body: Buffer.from([1, 2, 3]).toString("base64"),
+				bodyEncoding: "base64",
+				byteSize: 3,
+			},
+		]);
+	});
+
+	it("skips internal artifact types", () => {
+		const inputs = toArtifactInputs(2, [
+			{ type: "internal:annotation" },
+			{ type: "my-pkg:trace", spans: 3, attachments: [] },
+		]);
+		expect(inputs).toHaveLength(1);
+		expect(inputs[0]?.type).toBe("my-pkg:trace");
+		expect(JSON.parse(inputs[0]?.data ?? "{}")).toEqual({ spans: 3 });
+	});
+
+	it("maps an artifact's message, location and attachments", () => {
+		const inputs = toArtifactInputs(9, [
+			{
+				type: "my-pkg:shot",
+				message: "diff exceeded",
+				location: { file: "src/b.test.ts", line: 12, column: 3 },
+				attachments: [{ contentType: "text/plain", body: "abc" }],
+			},
+		]);
+		expect(inputs).toEqual([
+			{
+				testCaseId: 9,
+				type: "my-pkg:shot",
+				message: "diff exceeded",
+				locationFile: "src/b.test.ts",
+				locationLine: 12,
+				locationColumn: 3,
+				attachments: [{ contentType: "text/plain", body: "abc", bodyEncoding: "utf-8", byteSize: 3 }],
+			},
+		]);
+	});
+
+	it("records a path attachment's size without a body", () => {
+		const inputs = toArtifactInputs(3, [
+			{
+				type: "my-pkg:shot",
+				attachments: [{ contentType: "image/png", path: ".vitest/attachments/s.png" }],
+			},
+		]);
+		expect(inputs[0]?.attachments).toEqual([
+			{ contentType: "image/png", path: ".vitest/attachments/s.png", byteSize: 0 },
+		]);
+	});
+
+	it("reads an existing path attachment's size from disk", () => {
+		const file = join(scratch, "shot.bin");
+		writeFileSync(file, Buffer.alloc(11));
+		const inputs = toArtifactInputs(3, [{ type: "my-pkg:shot", attachments: [{ path: file }] }]);
+		expect(inputs[0]?.attachments).toEqual([{ path: file, byteSize: 11 }]);
+	});
+
+	it("drops an artifact carrying no usable type", () => {
+		expect(toArtifactInputs(4, [{ spans: 1 }])).toEqual([]);
+	});
+});
+
+interface AnnotationFixture {
+	message: string;
+	type?: string;
+	location?: { file: string; line: number; column: number };
+	attachment?: { contentType?: string; path?: string; body?: string | Uint8Array };
+}
+
+function makeTestCase(
+	name: string,
+	annotations: Array<AnnotationFixture>,
+	artifacts: Array<Record<string, unknown>>,
+): VitestTestCase {
+	return {
+		type: "test",
+		name,
+		fullName: name,
+		tags: [],
+		result: () => ({ state: "passed" }),
+		diagnostic: () => ({ duration: 1, flaky: false, slow: false }),
+		annotations: () => annotations,
+		artifacts: () => artifacts,
+	} as unknown as VitestTestCase;
+}
+
+function makeTestModule(tests: Array<VitestTestCase>): VitestTestModule {
+	return {
+		type: "module",
+		moduleId: "/abs/src/foo.test.ts",
+		relativeModuleId: "src/foo.test.ts",
+		project: { name: "" },
+		state: () => "passed",
+		children: {
+			*allTests() {
+				for (const t of tests) yield t;
+			},
+			*allSuites() {},
+		},
+		diagnostic: () => ({ duration: 5 }),
+		errors: () => [],
+	} as unknown as VitestTestModule;
+}
+
+describe("toArtifactInputs hardening", () => {
+	it("keeps the artifact when a custom-field getter throws, dropping only its data", () => {
+		const raw: Record<string, unknown> = { type: "my-pkg:trace", ok: 1 };
+		Object.defineProperty(raw, "boom", {
+			enumerable: true,
+			get() {
+				throw new Error("live getter exploded");
+			},
+		});
+		const inputs = toArtifactInputs(5, [raw]);
+		expect(inputs).toHaveLength(1);
+		expect(inputs[0]?.type).toBe("my-pkg:trace");
+		expect(inputs[0]?.data).toBeUndefined();
+	});
+
+	it("keeps the artifact when its custom fields are circular, dropping only its data", () => {
+		const cycle: Record<string, unknown> = {};
+		cycle.self = cycle;
+		const inputs = toArtifactInputs(5, [{ type: "my-pkg:trace", cycle }]);
+		expect(inputs).toHaveLength(1);
+		expect(inputs[0]?.type).toBe("my-pkg:trace");
+		expect(inputs[0]?.data).toBeUndefined();
+	});
+
+	it("keeps a non-string message in the custom data rather than dropping it", () => {
+		const inputs = toArtifactInputs(6, [{ type: "my-pkg:trace", message: 42 }]);
+		expect(inputs[0]?.message).toBeUndefined();
+		expect(JSON.parse(inputs[0]?.data ?? "{}")).toEqual({ message: 42 });
+	});
+
+	it("omits a string message from the custom data because it is consumed as the message", () => {
+		const inputs = toArtifactInputs(6, [{ type: "my-pkg:trace", message: "real", spans: 1 }]);
+		expect(inputs[0]?.message).toBe("real");
+		expect(JSON.parse(inputs[0]?.data ?? "{}")).toEqual({ spans: 1 });
+	});
+
+	it("reads the artifact type once, so a getter that throws on re-read is harmless", () => {
+		let calls = 0;
+		const raw: Record<string, unknown> = { spans: 1 };
+		Object.defineProperty(raw, "type", {
+			enumerable: false,
+			get() {
+				calls += 1;
+				if (calls > 1) throw new Error("live getter exploded on re-read");
+				return "my-pkg:trace";
+			},
+		});
+		const inputs = toArtifactInputs(8, [raw]);
+		expect(calls).toBe(1);
+		expect(inputs).toHaveLength(1);
+		expect(inputs[0]?.type).toBe("my-pkg:trace");
+	});
+
+	it("survives a throwing type getter by skipping the artifact", () => {
+		const raw: Record<string, unknown> = {};
+		Object.defineProperty(raw, "type", {
+			enumerable: true,
+			get() {
+				throw new Error("live getter exploded");
+			},
+		});
+		expect(() => toArtifactInputs(7, [raw])).not.toThrow();
+		expect(toArtifactInputs(7, [raw])).toEqual([]);
+	});
+});
+
+describe("onTestRunEnd annotation and artifact ingestion", () => {
+	it("persists each test case's annotations and artifacts against its own row", async () => {
+		const cacheDir = mkdtempSync(join(tmpdir(), "va-ingest-"));
+		const reporter = new AgentReporter({ cacheDir, format: "silent" });
+		const modules = [
+			makeTestModule([
+				makeTestCase(
+					"first",
+					[{ message: "slow one", type: "issues", location: { file: "src/foo.test.ts", line: 3, column: 2 } }],
+					[{ type: "internal:annotation" }],
+				),
+				makeTestCase(
+					"second",
+					[],
+					[{ type: "my-pkg:trace", spans: 2, attachments: [{ contentType: "text/plain", body: "abc" }] }],
+				),
+			]),
+		];
+		await reporter.onTestRunEnd(modules, [], "passed");
+
+		const db = new DatabaseSync(join(cacheDir, "data.db"), { readOnly: true });
+		try {
+			const annotations = db
+				.prepare(
+					"SELECT tc.name AS name, a.type AS type, a.message AS message, a.location_line AS line, f.path AS file FROM test_annotations a JOIN test_cases tc ON tc.id = a.test_case_id LEFT JOIN files f ON f.id = a.location_file_id",
+				)
+				.all();
+			expect(annotations).toEqual([
+				{ name: "first", type: "issues", message: "slow one", line: 3, file: "src/foo.test.ts" },
+			]);
+
+			const artifacts = db
+				.prepare(
+					"SELECT tc.name AS name, ar.type AS type, ar.data AS data FROM test_artifacts ar JOIN test_cases tc ON tc.id = ar.test_case_id",
+				)
+				.all();
+			expect(artifacts).toEqual([{ name: "second", type: "my-pkg:trace", data: JSON.stringify({ spans: 2 }) }]);
+
+			const attachments = db
+				.prepare(
+					"SELECT content_type AS contentType, body, body_encoding AS bodyEncoding, byte_size AS byteSize FROM attachments",
+				)
+				.all();
+			expect(attachments).toEqual([{ contentType: "text/plain", body: "abc", bodyEncoding: "utf-8", byteSize: 3 }]);
+		} finally {
+			db.close();
+			rmSync(cacheDir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("streaming annotation and artifact hooks", () => {
+	const streamingReporter = (events: Array<RunEvent>) =>
+		new AgentReporter({
+			cacheDir: scratch,
+			format: "silent",
+			onRunEvent: (e) => events.push(e),
+		});
+	const fakeCase = { name: "my test", module: { relativeModuleId: "src/foo.test.ts" } };
+
+	it("carries the annotation type, location and attachments onto TestAnnotated", () => {
+		const events: Array<RunEvent> = [];
+		streamingReporter(events).onTestCaseAnnotate(fakeCase, {
+			message: "known slow",
+			type: "issues",
+			location: { file: "src/foo.test.ts", line: 4, column: 1 },
+			attachment: { contentType: "text/plain", body: "hi" },
+		});
+		expect(events).toEqual([
+			{
+				_tag: "TestAnnotated",
+				modulePath: "src/foo.test.ts",
+				testName: "my test",
+				suitePath: [],
+				annotation: "known slow",
+				annotationType: "issues",
+				location: { file: "src/foo.test.ts", line: 4, column: 1 },
+				attachments: [{ contentType: "text/plain", byteSize: 2 }],
+			},
+		]);
+	});
+
+	it("emits an attachment descriptor without the inline body", () => {
+		const events: Array<RunEvent> = [];
+		const body = "x".repeat(100);
+		streamingReporter(events).onTestCaseAnnotate(fakeCase, {
+			message: "big note",
+			attachment: { contentType: "text/plain", body },
+		});
+		const [event] = events;
+		if (event?._tag !== "TestAnnotated") throw new Error("expected a TestAnnotated event");
+		expect(event.attachments).toEqual([{ contentType: "text/plain", byteSize: 100 }]);
+		expect(event.attachments[0]).not.toHaveProperty("body");
+		expect(event.attachments[0]).not.toHaveProperty("bodyEncoding");
+	});
+
+	it("defaults a typeless annotation to notice", () => {
+		const events: Array<RunEvent> = [];
+		streamingReporter(events).onTestCaseAnnotate(fakeCase, { message: "plain" });
+		expect(events[0]).toMatchObject({ annotationType: "notice", attachments: [] });
+		expect(events[0]).not.toHaveProperty("location");
+	});
+
+	it("carries the artifact location and attachments onto TestArtifactRecorded", () => {
+		const events: Array<RunEvent> = [];
+		streamingReporter(events).onTestCaseArtifactRecord(fakeCase, {
+			type: "my-pkg:shot",
+			location: { file: "src/foo.test.ts", line: 9, column: 2 },
+			attachments: [{ contentType: "image/png", path: ".vitest/attachments/s.png" }],
+		});
+		expect(events).toEqual([
+			{
+				_tag: "TestArtifactRecorded",
+				modulePath: "src/foo.test.ts",
+				testName: "my test",
+				suitePath: [],
+				artifact: "my-pkg:shot",
+				location: { file: "src/foo.test.ts", line: 9, column: 2 },
+				attachments: [{ contentType: "image/png", path: ".vitest/attachments/s.png", byteSize: 0 }],
+			},
+		]);
+	});
+
+	it("emits nothing for a reserved internal artifact type", () => {
+		const events: Array<RunEvent> = [];
+		const reporter = streamingReporter(events);
+		reporter.onTestCaseArtifactRecord(fakeCase, { type: "internal:annotation" });
+		reporter.onTestCaseArtifactRecord(fakeCase, {});
+		expect(events).toEqual([]);
+	});
+});

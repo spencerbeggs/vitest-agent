@@ -263,6 +263,13 @@ const strategy = DiscoverStrategy.create({
 
 Passing `input.fs` straight through is safe when it is `undefined` — `findTestFiles` falls back to `nodeWalkerFs` itself.
 
+Under Vitest 5, an inline project object inherits the root config —
+including its `plugins` array — by default; `extends: true` above is
+therefore the default and can be omitted. Set `extends: false` to opt an
+inline project out of that inheritance; doing so also drops `AgentPlugin`
+from that project, since the plugin only reaches inline projects through
+the inherited root config.
+
 The port is deliberately narrow. It is not `fs.promises`-shaped, because widening it would invite call sites to reach past it, and it is not shaped like the `SyncFileSystem` that `@effected/workspaces` uses to resolve the workspace root (injectable separately as `discoverProjects({ syncOps })`), because that port answers entry names only and the walkers need the entry type from the same call.
 
 ## Disabling the Vite transform

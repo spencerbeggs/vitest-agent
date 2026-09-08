@@ -12,6 +12,7 @@ import type {
 	AgentReport,
 	CoverageReport,
 	FileCoverageReport,
+	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
 	VitestAgentReporter,
@@ -50,6 +51,13 @@ const asSingle = (r: VitestAgentReporter | ReadonlyArray<VitestAgentReporter>): 
 	return r as VitestAgentReporter;
 };
 
+// `report`-targeted outputs (run.json / summary.md) are emitted in every
+// console mode — they are the machine-facing artifact and the plugin,
+// not the console mode, decides whether they reach disk. These tests are
+// about console output, so filter them out.
+const consoleOutputs = (outputs: ReadonlyArray<RenderedOutput>): ReadonlyArray<RenderedOutput> =>
+	outputs.filter((o) => o.target !== "report");
+
 const makeReport = (overrides: Partial<AgentReport> = {}): AgentReport => ({
 	timestamp: "2026-05-14T00:00:00.000Z",
 	project: "demo",
@@ -71,7 +79,7 @@ describe("DefaultVitestAgentReporter", () => {
 	it("renders one stdout RenderedOutput for consoleMode=agent", () => {
 		const kit = makeKit("agent");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		const output = reporter.render(makeInput(), kit);
+		const output = consoleOutputs(reporter.render(makeInput(), kit));
 		expect(output).toHaveLength(1);
 		const firstOutput = output[0];
 		expect(firstOutput).toBeDefined();
@@ -83,25 +91,25 @@ describe("DefaultVitestAgentReporter", () => {
 	it("emits nothing for consoleMode=silent", () => {
 		const kit = makeKit("silent");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		expect(reporter.render(makeInput(), kit)).toEqual([]);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=passthrough", () => {
 		const kit = makeKit("passthrough");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		expect(reporter.render(makeInput(), kit)).toEqual([]);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=stream", () => {
 		const kit = makeKit("stream");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		expect(reporter.render(makeInput(), kit)).toEqual([]);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))).toEqual([]);
 	});
 
 	it("emits nothing for consoleMode=ci-annotations", () => {
 		const kit = makeKit("ci-annotations");
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
-		expect(reporter.render(makeInput(), kit)).toEqual([]);
+		expect(consoleOutputs(reporter.render(makeInput(), kit))).toEqual([]);
 	});
 
 	it("pushes the github log block alongside the github summary when githubActions is true", () => {
@@ -118,7 +126,7 @@ describe("DefaultVitestAgentReporter", () => {
 		expect(logOutputs).toHaveLength(1);
 	});
 
-	it("emits no github-summary output on a clean run with no classifications, coverage gaps, or trend", () => {
+	it("still emits a github-summary carrying only totals on a clean run", () => {
 		const kit: ReporterKit = {
 			...makeKit("passthrough"),
 			config: { ...makeKit("passthrough").config, githubActions: true },
@@ -126,7 +134,11 @@ describe("DefaultVitestAgentReporter", () => {
 		const reporter = asSingle(DefaultVitestAgentReporter(kit));
 		const output = reporter.render(makeInput(), kit);
 		const summaryOutputs = output.filter((o) => o.target === "github-summary");
-		expect(summaryOutputs).toHaveLength(0);
+		// Vitest's own job-summary half is disabled, so an omitted block here
+		// would leave a passing CI run with a blank step summary.
+		expect(summaryOutputs).toHaveLength(1);
+		expect(summaryOutputs[0]?.content).toContain("### Totals");
+		expect(summaryOutputs[0]?.content).not.toContain("### Classifications");
 	});
 
 	describe("github-summary sections", () => {
@@ -172,7 +184,8 @@ describe("DefaultVitestAgentReporter", () => {
 
 		it("omits the Classifications section when every classification is stable", () => {
 			const content = renderSummary(makeInput({ classifications: new Map([["t1", "stable"]]) }));
-			expect(content).toBeUndefined();
+			expect(content).toContain("### Totals");
+			expect(content).not.toContain("### Classifications");
 		});
 
 		const makeCoverageReport = (belowTarget: ReadonlyArray<FileCoverageReport>): CoverageReport => ({
@@ -263,7 +276,7 @@ describe("DefaultVitestAgentReporter", () => {
 			makeReport({ project: "beta", summary: { total: 3, passed: 3, failed: 0, skipped: 0, duration: 8 } }),
 			makeReport({ project: "gamma", summary: { total: 2, passed: 2, failed: 0, skipped: 0, duration: 5 } }),
 		];
-		const output = reporter.render(makeInput({ reports }), kit);
+		const output = consoleOutputs(reporter.render(makeInput({ reports }), kit));
 		expect(output).toHaveLength(1);
 		const firstOutput = output[0];
 		expect(firstOutput).toBeDefined();

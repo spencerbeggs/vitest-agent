@@ -15,6 +15,7 @@ const sampleRow = (overrides: Partial<TestErrorsResultType["errors"][number]> = 
 	scope: "test" as const,
 	testFullName: "lifecycle > sum adds two numbers" as string | null,
 	moduleFile: "playground/src/lifecycle.test.ts" as string | null,
+	annotations: [] as TestErrorsResultType["errors"][number]["annotations"],
 	...overrides,
 });
 
@@ -98,5 +99,31 @@ describe("TestErrorsAsMarkdown (Schema.transformOrFail)", () => {
 		expect(() => Schema.encodeSync(TestErrorsAsMarkdown)("# arbitrary markdown")).toThrow(
 			/one-way|cannot be parsed back/i,
 		);
+	});
+});
+
+describe("formatTestErrorsMarkdown annotations", () => {
+	it("renders one bullet per annotation after the File line", () => {
+		const text = formatTestErrorsMarkdown(
+			sample(
+				{},
+				sampleRow({
+					annotations: [
+						{ type: "issues", message: "known slow under CI" },
+						{ type: "notice", message: "retried once" },
+					],
+				}),
+			),
+		);
+		const lines = text.split("\n");
+		const fileIndex = lines.indexOf("**File:** `playground/src/lifecycle.test.ts`");
+		expect(fileIndex).toBeGreaterThan(-1);
+		expect(lines[fileIndex + 1]).toBe("**Annotations:**");
+		expect(lines[fileIndex + 2]).toBe("- [issues] known slow under CI");
+		expect(lines[fileIndex + 3]).toBe("- [notice] retried once");
+	});
+
+	it("omits the Annotations block entirely when the test recorded none", () => {
+		expect(formatTestErrorsMarkdown(sample())).not.toContain("**Annotations:**");
 	});
 });

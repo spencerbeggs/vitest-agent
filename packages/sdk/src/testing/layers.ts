@@ -4,16 +4,14 @@ import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Layer } from "effect";
 import { DataReaderLive } from "../layers/DataReaderLive.js";
 import { DataStoreLive } from "../layers/DataStoreLive.js";
-import migration0001 from "../migrations/0001_initial.js";
+import { PROJECT_MIGRATIONS } from "../migrations/index.js";
 /** @public */
 export function makeTestLayer(filename: string) {
 	const SqliteLayer = sqliteClientLayer({ filename });
 	const PlatformLayer = NodeServices.layer;
 
 	const MigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord({
-			"0001_initial": migration0001,
-		}),
+		loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 
 	return Layer.mergeAll(

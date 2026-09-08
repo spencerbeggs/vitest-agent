@@ -20,6 +20,7 @@ import type {
 	HypothesisDetail,
 	ModuleListEntry,
 	NoteRow,
+	PersistedAttachment,
 	PersistentFailure,
 	ProjectRunSummary,
 	SessionDetail,
@@ -30,6 +31,9 @@ import type {
 	TddArtifactRow,
 	TddTaskDetail,
 	TddTaskSummary,
+	TestAnnotationRow,
+	TestArtifactQueryOptions,
+	TestArtifactRow,
 	TestError,
 	TestListEntry,
 	TestLookupOptions,
@@ -963,6 +967,141 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				Effect.annotateLogs("service", "DataReader"),
 				Effect.mapError(
 					(e) => new DataStoreError({ operation: "read", table: "test_errors", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const latestRunId = (project: string) =>
+			Effect.gen(function* () {
+				const runs = yield* sql<{
+					id: number;
+				}>`SELECT id FROM test_runs WHERE project = ${project} ORDER BY timestamp DESC LIMIT 1`;
+				return runs.length === 0 ? null : runs[0].id;
+			});
+
+		const attachmentsFor = (column: "annotation_id" | "artifact_id", ownerId: number) =>
+			Effect.gen(function* () {
+				const rows =
+					column === "annotation_id"
+						? yield* sql<{
+								content_type: string | null;
+								path: string | null;
+								body: string | null;
+								body_encoding: string | null;
+								byte_size: number | null;
+							}>`SELECT content_type, path, body, body_encoding, byte_size FROM attachments WHERE annotation_id = ${ownerId} ORDER BY id`
+						: yield* sql<{
+								content_type: string | null;
+								path: string | null;
+								body: string | null;
+								body_encoding: string | null;
+								byte_size: number | null;
+							}>`SELECT content_type, path, body, body_encoding, byte_size FROM attachments WHERE artifact_id = ${ownerId} ORDER BY id`;
+				return rows.map(
+					(r): PersistedAttachment => ({
+						...(r.content_type !== null && { contentType: r.content_type }),
+						...(r.path !== null && { path: r.path }),
+						...(r.body !== null && { body: r.body }),
+						...(r.body_encoding !== null && { bodyEncoding: r.body_encoding as "base64" | "utf-8" }),
+						byteSize: r.byte_size,
+					}),
+				);
+			});
+
+		const getAnnotationsForTest = (
+			project: string,
+			fullName: string,
+			options?: TestArtifactQueryOptions,
+		): Effect.Effect<ReadonlyArray<TestAnnotationRow>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("getAnnotationsForTest").pipe(Effect.annotateLogs({ project, fullName }));
+				const runId = yield* latestRunId(project);
+				if (runId === null) return [];
+				const modulePath = options?.modulePath ?? null;
+				const rows = yield* sql<{
+					id: number;
+					type: string;
+					message: string;
+					location_line: number | null;
+					location_column: number | null;
+					location_path: string | null;
+				}>`SELECT ta.id, ta.type, ta.message, ta.location_line, ta.location_column, f.path AS location_path
+					FROM test_annotations ta
+					JOIN test_cases tc ON tc.id = ta.test_case_id
+					JOIN test_modules tm ON tm.id = tc.module_id
+					LEFT JOIN files f ON f.id = ta.location_file_id
+					WHERE tm.run_id = ${runId} AND tc.full_name = ${fullName}
+						AND (${modulePath} IS NULL OR tm.relative_module_id = ${modulePath})
+					ORDER BY ta.id`;
+				const out: Array<TestAnnotationRow> = [];
+				for (const r of rows) {
+					const attachments = yield* attachmentsFor("annotation_id", r.id);
+					out.push({
+						id: r.id,
+						type: r.type,
+						message: r.message,
+						...(r.location_path !== null &&
+							r.location_line !== null &&
+							r.location_column !== null && {
+								location: { file: r.location_path, line: r.location_line, column: r.location_column },
+							}),
+						attachments,
+					});
+				}
+				return out;
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "test_annotations", reason: extractSqlReason(e) }),
+				),
+			);
+
+		const getArtifactsForTest = (
+			project: string,
+			fullName: string,
+			options?: TestArtifactQueryOptions,
+		): Effect.Effect<ReadonlyArray<TestArtifactRow>, DataStoreError> =>
+			Effect.gen(function* () {
+				yield* Effect.logDebug("getArtifactsForTest").pipe(Effect.annotateLogs({ project, fullName }));
+				const runId = yield* latestRunId(project);
+				if (runId === null) return [];
+				const modulePath = options?.modulePath ?? null;
+				const rows = yield* sql<{
+					id: number;
+					type: string;
+					message: string | null;
+					data: string | null;
+					location_line: number | null;
+					location_column: number | null;
+					location_path: string | null;
+				}>`SELECT ta.id, ta.type, ta.message, ta.data, ta.location_line, ta.location_column, f.path AS location_path
+					FROM test_artifacts ta
+					JOIN test_cases tc ON tc.id = ta.test_case_id
+					JOIN test_modules tm ON tm.id = tc.module_id
+					LEFT JOIN files f ON f.id = ta.location_file_id
+					WHERE tm.run_id = ${runId} AND tc.full_name = ${fullName}
+						AND (${modulePath} IS NULL OR tm.relative_module_id = ${modulePath})
+					ORDER BY ta.id`;
+				const out: Array<TestArtifactRow> = [];
+				for (const r of rows) {
+					const attachments = yield* attachmentsFor("artifact_id", r.id);
+					out.push({
+						id: r.id,
+						type: r.type,
+						message: r.message,
+						data: r.data,
+						...(r.location_path !== null &&
+							r.location_line !== null &&
+							r.location_column !== null && {
+								location: { file: r.location_path, line: r.location_line, column: r.location_column },
+							}),
+						attachments,
+					});
+				}
+				return out;
+			}).pipe(
+				Effect.annotateLogs("service", "DataReader"),
+				Effect.mapError(
+					(e) => new DataStoreError({ operation: "read", table: "test_artifacts", reason: extractSqlReason(e) }),
 				),
 			);
 
@@ -2709,6 +2848,8 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 			getCoverage,
 			getTestsForFile,
 			getErrors,
+			getAnnotationsForTest,
+			getArtifactsForTest,
 			getNotes,
 			getNoteById,
 			searchNotes,

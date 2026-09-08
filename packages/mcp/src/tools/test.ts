@@ -9,6 +9,7 @@
  * @packageDocumentation
  */
 
+import type { PersistedAttachment } from "@vitest-agent/sdk";
 import { DataReader } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
@@ -81,17 +82,91 @@ const TestForTagResult = Schema.Struct({
 	groups: Schema.Array(TestListGroup),
 }).annotate({ identifier: "TestForTag" });
 
+const AttachmentDescriptor = Schema.Struct({
+	contentType: Schema.optional(Schema.String),
+	path: Schema.optional(Schema.String),
+	byteSize: Schema.NullOr(Schema.Number),
+	/** Present only for inline attachments under the 64 KiB persistence cap. */
+	body: Schema.optional(Schema.String),
+	/** How to read `body`. Absent when nothing was stored inline. */
+	bodyEncoding: Schema.optional(Schema.Literals(["base64", "utf-8"])),
+}).annotate({ identifier: "TestAttachmentDescriptor" });
+
+/**
+ * Inline bodies are opt-in and budgeted. The 64 KiB persistence cap is
+ * per attachment, so a test with many attachments could still flood an
+ * agent's context; `maxBytes` (default 0) is the total byte budget for
+ * every body in one response. Attachments are walked in order and each
+ * body is charged its recorded `byteSize` (falling back to the stored
+ * string's length when the row carries none). A body that would take
+ * the running total past the budget is dropped along with its
+ * `bodyEncoding`; the descriptor half — `contentType`, `path`,
+ * `byteSize` — always survives.
+ */
+const applyBodyBudget = <A extends { readonly attachments: ReadonlyArray<PersistedAttachment> }>(
+	rows: ReadonlyArray<A>,
+	maxBytes: number,
+): Array<A> => {
+	let spent = 0;
+	return rows.map((row) => ({
+		...row,
+		attachments: row.attachments.map((attachment) => {
+			const { body, bodyEncoding, ...descriptor } = attachment;
+			if (body === undefined) return descriptor;
+			const cost = attachment.byteSize ?? body.length;
+			if (spent + cost > maxBytes) return descriptor;
+			spent += cost;
+			return { ...descriptor, body, ...(bodyEncoding !== undefined && { bodyEncoding }) };
+		}),
+	}));
+};
+
+const AnnotationRowSchema = Schema.Struct({
+	id: Schema.Number,
+	type: Schema.String,
+	message: Schema.String,
+	location: Schema.optional(Schema.Struct({ file: Schema.String, line: Schema.Number, column: Schema.Number })),
+	attachments: Schema.Array(AttachmentDescriptor),
+}).annotate({ identifier: "TestAnnotationRow" });
+
+const ArtifactRowSchema = Schema.Struct({
+	id: Schema.Number,
+	type: Schema.String,
+	message: Schema.NullOr(Schema.String),
+	data: Schema.NullOr(Schema.String),
+	location: Schema.optional(Schema.Struct({ file: Schema.String, line: Schema.Number, column: Schema.Number })),
+	attachments: Schema.Array(AttachmentDescriptor),
+}).annotate({ identifier: "TestArtifactRow" });
+
+const TestAnnotationsResult = Schema.Struct({
+	action: Schema.Literal("annotations"),
+	project: Schema.String,
+	fullName: Schema.String,
+	count: Schema.Number,
+	annotations: Schema.Array(AnnotationRowSchema),
+}).annotate({ identifier: "TestAnnotations" });
+
+const TestArtifactsResult = Schema.Struct({
+	action: Schema.Literal("artifacts"),
+	project: Schema.String,
+	fullName: Schema.String,
+	count: Schema.Number,
+	artifacts: Schema.Array(ArtifactRowSchema),
+}).annotate({ identifier: "TestArtifacts" });
+
 export const TestResult = Schema.Union([
 	TestListResult,
 	TestGetFound,
 	TestGetMissing,
 	TestForFileResult,
 	TestForTagResult,
+	TestAnnotationsResult,
+	TestArtifactsResult,
 ]).annotate({
 	identifier: "TestResult",
 	title: "test result",
 	description:
-		"Discriminate on `action`. `get` further discriminates on `found`. `list`, `for_file`, and `for_tag` all carry counted arrays — `list` and `for_tag` group by project.",
+		"Discriminate on `action`. `get` further discriminates on `found`. `list`, `for_file`, `for_tag`, `annotations`, and `artifacts` all carry counted arrays — `list` and `for_tag` group by project; `annotations` and `artifacts` are scoped to one test and return attachment descriptors — an inline `body` comes back only when `maxBytes` is passed and the running total stays inside it.",
 });
 export type TestResultType = Schema.Schema.Type<typeof TestResult>;
 
@@ -213,6 +288,59 @@ export const formatTestMarkdown = (data: TestResultType): string => {
 		}
 		return lines.join("\n").trimEnd();
 	}
+	if (data.action === "annotations" || data.action === "artifacts") {
+		const noun = data.action === "annotations" ? "test annotations" : "test artifacts";
+		if (data.count === 0) return `No ${noun} recorded for \`${data.fullName}\`.`;
+		const rows =
+			data.action === "annotations"
+				? data.annotations.map((a) => ({
+						type: a.type,
+						message: a.message,
+						location: a.location,
+						attachments: a.attachments,
+					}))
+				: data.artifacts.map((a) => ({
+						type: a.type,
+						// An artifact routinely carries its payload in `data` and no
+						// message at all; rendering `—` there would hide the only
+						// content the row has.
+						message: a.message ?? a.data,
+						location: a.location,
+						attachments: a.attachments,
+					}));
+		// An artifact's `data` blob and a multi-line annotation both have to
+		// survive a single table cell: newlines and pipes would break the
+		// row, and an unbounded blob would swamp the agent's context. The
+		// structured payload carries the untouched value.
+		const cell = (value: string): string => {
+			const flat = value.split("\n").join(" ").split("|").join("\\|");
+			return flat.length > 200 ? `${flat.slice(0, 200)}… (truncated)` : flat;
+		};
+		const lines: string[] = [
+			`# ${data.action === "annotations" ? "Annotations" : "Artifacts"} for \`${data.fullName}\``,
+			"",
+			`Project: \`${data.project}\` — ${data.count} row${data.count === 1 ? "" : "s"}.`,
+			"",
+			"| Type | Message | Location | Attachments |",
+			"| --- | --- | --- | --- |",
+		];
+		for (const row of rows) {
+			const location = row.location ? `\`${row.location.file}:${row.location.line}:${row.location.column}\`` : "—";
+			const attachments =
+				row.attachments.length === 0
+					? "—"
+					: row.attachments
+							.map((att) => {
+								const label = cell(att.path ?? att.contentType ?? "(inline)");
+								const size = att.byteSize !== null ? ` (${att.byteSize} bytes)` : "";
+								return `\`${label}\`${size}`;
+							})
+							.join(", ");
+			const message = row.message === null ? "—" : cell(row.message);
+			lines.push(`| ${row.type} | ${message} | ${location} | ${attachments} |`);
+		}
+		return lines.join("\n");
+	}
 	// for_file
 	if (data.count === 0) {
 		return `No test modules found covering \`${data.filePath}\`. Run run_tests({}) to populate the database, or check the file path.`;
@@ -262,14 +390,51 @@ const ForTagVariant = Schema.Struct({
 	project: Schema.optional(Schema.String),
 });
 
-const TestInput = Schema.Union([ListVariant, GetVariant, ForFileVariant, ForTagVariant]);
+const AnnotationsVariant = Schema.Struct({
+	action: Schema.Literal("annotations"),
+	fullName: Schema.String,
+	project: Schema.optional(Schema.String),
+	modulePath: Schema.optional(Schema.String).annotate({
+		description: "Exact module_path match — disambiguates a fullName that exists in more than one test file.",
+	}),
+	maxBytes: Schema.optional(
+		Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).annotate({
+			description:
+				"Total byte budget for inline attachment bodies across the whole response. Must be a non-negative integer. Defaults to 0 — descriptors only, no bodies.",
+		}),
+	),
+});
+
+const ArtifactsVariant = Schema.Struct({
+	action: Schema.Literal("artifacts"),
+	fullName: Schema.String,
+	project: Schema.optional(Schema.String),
+	modulePath: Schema.optional(Schema.String).annotate({
+		description: "Exact module_path match — disambiguates a fullName that exists in more than one test file.",
+	}),
+	maxBytes: Schema.optional(
+		Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).annotate({
+			description:
+				"Total byte budget for inline attachment bodies across the whole response. Must be a non-negative integer. Defaults to 0 — descriptors only, no bodies.",
+		}),
+	),
+});
+
+const TestInput = Schema.Union([
+	ListVariant,
+	GetVariant,
+	ForFileVariant,
+	ForTagVariant,
+	AnnotationsVariant,
+	ArtifactsVariant,
+]);
 
 /**
  * Single source of truth for the `test` tool's `action` discriminant,
  * consumed by `server.ts`'s served `z.enum(...)` so the MCP-SDK-side
  * registration cannot drift from this tRPC input union (issue #335).
  */
-export const TEST_ACTIONS = ["list", "get", "for_file", "for_tag"] as const;
+export const TEST_ACTIONS = ["list", "get", "for_file", "for_tag", "annotations", "artifacts"] as const;
 type TestAction = Schema.Schema.Type<typeof TestInput>["action"];
 // Compile-time equality check, both directions: fails to typecheck if
 // TEST_ACTIONS is missing a variant present in TestInput, or contains a
@@ -383,6 +548,40 @@ export const test = publicProcedure
 								tests: group.rows,
 							}));
 							return { action: "for_tag" as const, tag: variant.tag, count: grouped.total, groups };
+						}),
+					annotations: (variant) =>
+						Effect.gen(function* () {
+							const reader = yield* DataReader;
+							const project =
+								variant.project ?? (yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs[0]?.project ?? "")));
+							const rows = yield* reader.getAnnotationsForTest(project, variant.fullName, {
+								...(variant.modulePath !== undefined && { modulePath: variant.modulePath }),
+							});
+							const annotations = applyBodyBudget(rows, variant.maxBytes ?? 0);
+							return {
+								action: "annotations" as const,
+								project,
+								fullName: variant.fullName,
+								count: annotations.length,
+								annotations,
+							};
+						}),
+					artifacts: (variant) =>
+						Effect.gen(function* () {
+							const reader = yield* DataReader;
+							const project =
+								variant.project ?? (yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs[0]?.project ?? "")));
+							const rows = yield* reader.getArtifactsForTest(project, variant.fullName, {
+								...(variant.modulePath !== undefined && { modulePath: variant.modulePath }),
+							});
+							const artifacts = applyBodyBudget(rows, variant.maxBytes ?? 0);
+							return {
+								action: "artifacts" as const,
+								project,
+								fullName: variant.fullName,
+								count: artifacts.length,
+								artifacts,
+							};
 						}),
 				}),
 			),

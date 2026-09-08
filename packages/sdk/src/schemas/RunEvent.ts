@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
 import { CoverageTotals, FileCoverageReport } from "./Coverage.js";
+import { TestArtifactLocation, TestAttachment } from "./TestArtifacts.js";
 import { MetricThresholds } from "./Thresholds.js";
 
 // --- Helper shapes ---
@@ -161,12 +162,17 @@ export const RunEvent = Schema.Union([
 		testName: Schema.String,
 		suitePath: Schema.Array(Schema.String),
 		annotation: Schema.String,
+		annotationType: Schema.String,
+		location: Schema.optional(TestArtifactLocation),
+		attachments: Schema.Array(TestAttachment),
 	}),
 	Schema.TaggedStruct("TestArtifactRecorded", {
 		modulePath: Schema.String,
 		testName: Schema.String,
 		suitePath: Schema.Array(Schema.String),
 		artifact: Schema.String,
+		location: Schema.optional(TestArtifactLocation),
+		attachments: Schema.Array(TestAttachment),
 	}),
 	Schema.TaggedStruct("WatcherReady", {}),
 	Schema.TaggedStruct("WatcherRerun", {

@@ -387,19 +387,26 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"test",
 		{
 			description:
-				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file; action='for_tag' (tag, project?) returns tests carrying a tag, grouped by project. structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
+				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file; action='for_tag' (tag, project?) returns tests carrying a tag, grouped by project; action='annotations' (fullName, project?, modulePath?) returns the test annotations the author recorded via context.annotate; action='artifacts' (fullName, project?, modulePath?) returns the test artifacts recorded for the test — both return attachment descriptors (contentType, path, byteSize) and omit inline bodies unless maxBytes (a non-negative integer byte budget for the whole response, default 0) is passed, and neither has anything to do with TDD artifacts (see tdd_artifact_list). structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
 			inputSchema: strict({
 				action: z.enum(TEST_ACTIONS).describe("Inspection discriminator"),
 				project: z.optional(z.string()),
 				state: z.optional(z.string()).describe("list: filter by state"),
 				module: z.optional(z.string()).describe("list: filter by module path"),
 				limit: z.optional(z.coerce.number()).describe("list: max rows to return"),
-				fullName: z.optional(z.string()).describe("get: full test name"),
+				fullName: z.optional(z.string()).describe("get / annotations / artifacts: full test name"),
 				modulePath: z
 					.optional(z.string())
-					.describe("get: exact module path, disambiguating a fullName present in several files"),
+					.describe(
+						"get / annotations / artifacts: exact module path, disambiguating a fullName present in several files",
+					),
 				filePath: z.optional(z.string()).describe("for_file: source file path"),
 				tag: z.optional(z.string()).describe("for_tag: tag name"),
+				maxBytes: z
+					.optional(z.coerce.number().int().nonnegative())
+					.describe(
+						"annotations / artifacts: total byte budget for inline attachment bodies across the response; default 0 returns descriptors only",
+					),
 			}),
 			outputSchema: effectToZodSchema(TestResult) as never,
 		},
@@ -422,6 +429,22 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 				});
 			} else if (args.action === "for_file") {
 				data = await caller.test({ action: "for_file", filePath: args.filePath as string });
+			} else if (args.action === "annotations") {
+				data = await caller.test({
+					action: "annotations",
+					fullName: args.fullName as string,
+					...(args.project !== undefined && { project: args.project }),
+					...(args.modulePath !== undefined && { modulePath: args.modulePath }),
+					...(args.maxBytes !== undefined && { maxBytes: args.maxBytes }),
+				});
+			} else if (args.action === "artifacts") {
+				data = await caller.test({
+					action: "artifacts",
+					fullName: args.fullName as string,
+					...(args.project !== undefined && { project: args.project }),
+					...(args.modulePath !== undefined && { modulePath: args.modulePath }),
+					...(args.maxBytes !== undefined && { maxBytes: args.maxBytes }),
+				});
 			} else {
 				data = await caller.test({
 					action: "for_tag",

@@ -1,7 +1,6 @@
 import { build } from "@savvy-web/bundler";
 
 await build({
-	dtsExternals: ["@vitest/runner"],
 	meta: {
 		localPaths: ["../../website/lib/models/plugin"],
 		tsdoc: {

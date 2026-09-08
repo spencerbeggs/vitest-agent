@@ -159,11 +159,12 @@ transform hook entirely.
 The plugin namespace also exposes the dual-output preset constants
 (`AgentPlugin.COVERAGE_LEVELS`, `AgentPlugin.COVERAGE_LEVELS_PER_FILE`)
 that each return `{ thresholds, coverageTargets }`, plus
-`AgentPlugin.COVERAGE_AUTOUPDATE` — three `(n: number) => number`
-tolerance functions (`standard`, `strict`, `lenient`) that pass
-directly into Vitest's native `coverage.thresholds.autoUpdate`. The
-public `CoverageLevelPreset` type names the dual-output shape for
-user wiring.
+`AgentPlugin.COVERAGE_AUTOUPDATE` — three
+`(next: number, previous: number) => number` tolerance functions
+(`standard`, `strict`, `lenient`) that pass directly into Vitest's
+native `coverage.thresholds.autoUpdate`; `lenient` never ratchets below
+`previous`. The public `CoverageLevelPreset` type names the dual-output
+shape for user wiring.
 
 ## AgentPlugin.runScript
 

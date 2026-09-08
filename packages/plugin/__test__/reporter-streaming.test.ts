@@ -336,9 +336,12 @@ describe("AgentReporter streaming callbacks", () => {
 		reporter.onTestRunStart([]);
 		const testCase = { name: "adds", module: { relativeModuleId: "a.test.ts" } };
 		reporter.onTestCaseAnnotate(testCase, { message: "slow path" });
-		reporter.onTestCaseArtifactRecord(testCase, { type: "internal:annotation" });
+		reporter.onTestCaseArtifactRecord(testCase, { type: "my-pkg:trace" });
 		expect(events.find((e) => e._tag === "TestAnnotated")).toMatchObject({ testName: "adds", annotation: "slow path" });
-		expect(events.find((e) => e._tag === "TestArtifactRecorded")).toMatchObject({ testName: "adds" });
+		expect(events.find((e) => e._tag === "TestArtifactRecorded")).toMatchObject({
+			testName: "adds",
+			artifact: "my-pkg:trace",
+		});
 	});
 
 	it("publishes WatcherReady and WatcherRerun for watch-mode transitions", () => {

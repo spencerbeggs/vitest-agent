@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-05
-last-synced: 2026-09-05
+updated: 2026-09-07
+last-synced: 2026-09-07
 completeness: 90
 related:
   - ./architecture.md
@@ -204,7 +204,7 @@ package, no colon suffix) is keyed solely by its `name` — `@vitest-agent/sdk`,
 the schema; the legacy `splitProject()` utility and `(project, subProject)`
 column pair were dropped in 2.0.
 
-Test-kind differentiation uses **Vitest-native tags** (Vitest 4.1+).
+Test-kind differentiation uses **Vitest-native tags** (available since Vitest 4.1; Vitest 5.0+ required).
 `DiscoverStrategy` in `@vitest-agent/plugin` declares the available tags
 (`unit`, `int`, `e2e` by default) and a `classify()` method that maps a
 test file to a tag list. The plugin installs a Vite `transform` hook

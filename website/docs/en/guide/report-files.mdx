@@ -1,0 +1,125 @@
+---
+title: Report files
+description: The .vitest/vitest-agent/ report files vitest-agent writes on every agent and ci run, the single .vitest gitignore line, uploading them in CI, and the vocabulary that keeps test annotations, test artifacts, TDD artifacts, and report files distinct.
+---
+
+# Report files
+
+Every run under the `agent` and `ci` executors leaves two report files
+under `.vitest/vitest-agent/`: `run.json`, a machine-readable envelope,
+and `summary.md`, a markdown digest. Interactive `human` runs write
+nothing unless `report` is set explicitly. This page covers what they contain, the single `.gitignore`
+line Vitest 5 needs, uploading them in CI, and why attachment bytes
+are not inside blob output.
+
+## What gets written
+
+`run.json` is a versioned envelope:
+
+```json
+{
+  "$schema": "https://vitest-agent.dev/schemas/run-report-file-1.0.0.json",
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-07T00:00:00.000Z",
+  "reports": []
+}
+```
+
+`reports` holds one `AgentReport` per Vitest project. The `$schema` key
+points at the published Draft-07 JSON Schema; the same document ships
+inside `@vitest-agent/sdk` under `schemas/run-report-file-1.0.0.json`
+(resolvable via the package's `./schemas/*.json` export) for offline
+validation.
+
+`summary.md` starts with a `## vitest-agent` heading and a `### Totals`
+table — Project, Passed, Failed, Timed out, Skipped, Duration — followed
+by whichever of the classification, coverage, and trend sections have
+content. It is always written alongside `run.json`; the same markdown
+feeds the GitHub step summary when the plugin's step-summary output is
+enabled. See [Upgrading to Vitest 5](/guide/upgrade-vitest-5) for how
+the two files were introduced.
+
+Report files are on by default for the `agent` and `ci` executors and
+off for `human` — a human running Vitest at a terminal does not usually
+want files written on every run. Configure this on `AgentPlugin`:
+
+```typescript
+// Disable report files entirely, for any executor.
+AgentPlugin({ report: false });
+
+// Rename the directory from .vitest/vitest-agent/ to .vitest/my-scope/.
+AgentPlugin({ report: { scope: "my-scope" } });
+```
+
+An explicit `report` option always wins — even a `human` executor
+writes report files if you pass one. The `scope` (and every report
+filename) must be flat: no `/`, `\`, or `..` segments. Vitest's
+`createReport` API writes directly into the scope directory and creates
+no intermediate directories, so a nested path is rejected.
+
+## One `.gitignore` line: `.vitest`
+
+Add `**/.vitest` to `.gitignore` — see [Upgrading to Vitest
+5](/guide/upgrade-vitest-5#ignore-the-new-vitest-directory) for why one
+line covers attachments, blob, json, junit, and html output together.
+
+## Uploading in CI
+
+One `actions/upload-artifact` step with `path: .vitest/` captures the
+report files, the attachments, and any blob shards together:
+
+```yaml
+- name: Upload vitest-agent report files
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: vitest-agent-reports
+    path: .vitest/
+```
+
+See [CI reporting](/guide/wire-ci-reporting) for the rest of the CI
+picture — passthrough mode, preserved reporters, and GitHub Actions
+annotations.
+
+## Attachments are not inside blob output
+
+Vitest's `blob` reporter carries annotation and artifact metadata, but
+not file-based attachment contents. In a sharded or multi-environment
+pipeline that merges blob reports (`--merge-reports`), each shard's
+`.vitest/attachments/` directory must be uploaded and merged alongside
+its `.vitest/blob` shard — merging blob alone loses the attachment
+bytes. `report.clean()` is a no-op under `--merge-reports` by design,
+and vitest-agent never calls it, so a merge step sees every shard's
+files rather than only the last one's.
+
+## Attachments are referenced, not stored
+
+The database records an attachment's path, content type, and byte
+size — the bytes themselves stay in `.vitest/attachments/` on disk.
+Only inline payloads under 64 KiB are ever persisted into the database,
+and even then only when a caller opts in (see the vocabulary table
+below). `.vitest/` is repo-local and disposable, while the database is
+XDG-scoped and long-lived, so a recorded path can dangle after a clean
+or a CI runner is torn down — the size and content type keep the row
+describable even when the file behind it is gone.
+
+## Vocabulary
+
+Four terms sound alike and mean different things:
+
+| Term | Database table | MCP surface |
+| --- | --- | --- |
+| Test annotation | `test_annotations` | `test({ action: "annotations" })`; also surfaced inline on `test_errors` rows |
+| Test artifact | `test_artifacts` | `test({ action: "artifacts" })` |
+| TDD artifact | `tdd_artifacts` | `tdd_artifact_list` |
+| Report file | — (not persisted to SQLite) | `.vitest/vitest-agent/run.json` and `summary.md` on disk |
+
+Test annotations and test artifacts are Vitest-native concepts — the
+things a test calls `context.annotate()` or records an artifact for
+during a run — and both can carry attachments (`maxBytes` on the
+`test` tool controls how many inline attachment bytes come back; the
+default of `0` returns descriptors only). TDD artifacts are a
+vitest-agent concept: red/green evidence rows recorded by the TDD
+workflow, unrelated to Vitest's own annotation/artifact APIs. Report
+files are neither — they are the on-disk `run.json` and `summary.md`
+files this page describes, and have no database row of their own.

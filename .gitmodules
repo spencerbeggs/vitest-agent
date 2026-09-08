@@ -2,3 +2,7 @@
 	path = .repos/effect
 	url = https://github.com/Effect-TS/effect.git
 	shallow = true
+[submodule ".repos/vitest"]
+	path = .repos/vitest
+	url = https://github.com/vitest-dev/vitest.git
+	shallow = true

@@ -23,6 +23,7 @@ export type { AgentPluginConstructorOptions } from "./plugin.js";
 export { AgentPlugin } from "./plugin.js";
 export type { AgentReporterConstructorOptions } from "./reporter.js";
 export { AgentReporter } from "./reporter.js";
+export { ConfigurationError } from "./utils/configuration-error.js";
 export type { InjectTagsResult } from "./utils/inject-tags.js";
 
 // --- Discovery ---

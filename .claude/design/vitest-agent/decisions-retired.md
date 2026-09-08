@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-08-12
-last-synced: 2026-08-12
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 100
 related:
   - ./decisions.md
@@ -209,3 +209,28 @@ in place of the anchored two-pattern form, plus a `**/dist/**` exclude and
 helper-directory excludes rewritten to match at any depth) shipped
 alongside this extension in `@vitest-agent/plugin@2.1.0` and was documented
 as supported behavior in the `test-discovery` plugin skill.
+
+---
+
+## Decision 10 (counts-omitted form): The Step Summary Leaves Totals to Vitest (Retired)
+
+**Superseded by:** Decision 10 in [./decisions.md](./decisions.md) — the
+step-summary block now always carries a `### Totals` table.
+
+**What it was:** `renderGithubSummary` emitted only the three conditional
+sections — test classifications, coverage-target shortfalls, and the
+coverage trend — and returned an empty array when all three were empty. The
+premise was that Vitest's own `github-actions` reporter already wrote
+pass/fail/skip counts and a flaky-tests section into the same
+`$GITHUB_STEP_SUMMARY` file, so repeating a per-project breakdown would be
+redundant noise multiplied across every project in a workspace, and that a
+clean run should not leave a bare heading in the job summary.
+
+**Why it didn't survive:** Phase 1 of the Vitest 5 migration sets
+`jobSummary: { enabled: false }` on the `github-actions` reporter in
+`configureVitest` (the plugin's `ConfigValidation` service warns when a user
+re-enables it explicitly, precisely because two summaries would then appear
+in one job). With Vitest's half off, the premise inverted: nobody was
+writing the counts, and an all-green run produced a completely blank step
+summary. The totals table became unconditional, and the same markdown was
+reused for the `summary.md` report file rather than being step-summary-only.
