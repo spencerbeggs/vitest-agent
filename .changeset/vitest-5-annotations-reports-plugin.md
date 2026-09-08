@@ -21,3 +21,7 @@ New `report` option on `AgentPlugin`, on by default for the `agent` and `ci` exe
 Report filenames and the configured scope name are validated up front — no path separators, and no empty, `.` or `..` scope names that could nest or escape `.vitest/`. An invalid scope throws during plugin configuration and names the offending value.
 
 Because report files are on by default for `ci` and `agent`, an upgraded project will start finding a `.vitest/vitest-agent/` directory in its checkout — including on CI runners. Add `**/.vitest` to `.gitignore` before upgrading, or set `report: false`, or a dirty-tree check will start failing on the new directory.
+
+## Bug Fixes
+
+* A bad `report.scope` is now reported as a single `vitest-agent: …` stderr line — no stack trace and no "please report an issue" banner — instead of being surfaced as an internal plugin bug. The new `ConfigurationError` export marks these user configuration mistakes.

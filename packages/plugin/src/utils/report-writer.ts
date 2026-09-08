@@ -12,6 +12,8 @@
  * @internal
  */
 
+import { ConfigurationError } from "./configuration-error.js";
+
 interface ReportHandle {
 	readonly writeFile: (filename: string, content: string) => Promise<void>;
 }
@@ -51,7 +53,7 @@ export const assertReportCapable = (vitest: unknown): void => {
  */
 const assertFlatFilename = (filename: string): void => {
 	if (filename.includes("/") || filename.includes("\\") || filename === ".." || filename === ".") {
-		throw new Error(
+		throw new ConfigurationError(
 			`vitest-agent: report filename ${filename} must be a flat name — Vitest writes it directly into the report scope directory and creates no intermediate directories.`,
 		);
 	}
@@ -71,7 +73,7 @@ const assertFlatFilename = (filename: string): void => {
  */
 export const assertFlatScope = (scope: string): void => {
 	if (scope === "" || scope.includes("/") || scope.includes("\\") || scope === "." || scope === "..") {
-		throw new Error(
+		throw new ConfigurationError(
 			`vitest-agent: report scope ${JSON.stringify(scope)} must be a single flat directory name — it is created directly under <root>/.vitest and must not traverse or nest.`,
 		);
 	}

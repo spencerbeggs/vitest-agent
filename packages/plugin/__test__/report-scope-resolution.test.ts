@@ -5,10 +5,11 @@
  */
 
 import { EnvironmentDetectorTest } from "@vitest-agent/sdk";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { VitestPluginContext } from "vitest/node";
 import { AgentPlugin } from "../src/plugin.js";
 import { AgentReporter } from "../src/reporter.js";
+import { ConfigurationError } from "../src/utils/configuration-error.js";
 
 function mockVitest() {
 	return {
@@ -62,12 +63,30 @@ describe("report scope resolution", () => {
 		await expect(resolveScope({ report: { scope: "vitest.agent" } }, "agent-shell")).resolves.toBe("vitest.agent");
 	});
 
+	// A bad scope is a user configuration mistake: `configureVitest`
+	// reports it as one clean stderr line — no stack, no issue banner —
+	// and rethrows. Stubbing stderr both asserts that shape and keeps
+	// this file's own output pristine.
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const expectedScopeLine = (scope: string) =>
+		`vitest-agent: report scope ${JSON.stringify(scope)} must be a single flat directory name — it is created directly under <root>/.vitest and must not traverse or nest.\n`;
+
+	/** Drive one bad scope through `configureVitest` and pin the whole stderr trace. */
+	const expectCleanScopeRejection = async (scope: string) => {
+		const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		await expect(resolveScope({ report: { scope } }, "agent-shell")).rejects.toThrow(ConfigurationError);
+		expect(stderr.mock.calls).toEqual([[expectedScopeLine(scope)]]);
+	};
+
 	it("rejects a scope that escapes the .vitest directory", async () => {
-		await expect(resolveScope({ report: { scope: "../escape" } }, "agent-shell")).rejects.toThrow(/\.\.\/escape/);
+		await expectCleanScopeRejection("../escape");
 	});
 
 	it("rejects an empty scope", async () => {
-		await expect(resolveScope({ report: { scope: "" } }, "agent-shell")).rejects.toThrow(/report scope/);
+		await expectCleanScopeRejection("");
 	});
 });
 

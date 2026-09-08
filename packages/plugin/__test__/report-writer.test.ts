@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createReportWriter } from "../src/utils/report-writer.js";
+import { ConfigurationError } from "../src/utils/configuration-error.js";
+import { assertFlatScope, createReportWriter } from "../src/utils/report-writer.js";
 
 describe("createReportWriter", () => {
 	it("creates the report handle lazily, on the first write", async () => {
@@ -71,8 +72,17 @@ describe("createReportWriter", () => {
 		(filename) => {
 			const writer = createReportWriter({ createReport: () => ({ writeFile: async () => {} }) }, "vitest-agent");
 			expect(() => writer.write(filename, "{}")).toThrow(new RegExp(filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+			// A bad filename is a user configuration mistake, not an internal
+			// bug — it must carry the ConfigurationError marker so the
+			// plugin's catch reports it without a stack or issue banner.
+			expect(() => writer.write(filename, "{}")).toThrow(ConfigurationError);
 		},
 	);
+
+	it("rejects an unsafe report scope with a ConfigurationError", () => {
+		expect(() => assertFlatScope("../escape")).toThrow(ConfigurationError);
+		expect(() => assertFlatScope("../escape")).toThrow(/report scope "\.\.\/escape"/);
+	});
 
 	it("accepts a flat filename that merely contains dots", () => {
 		const writer = createReportWriter({ createReport: () => ({ writeFile: async () => {} }) }, "vitest-agent");

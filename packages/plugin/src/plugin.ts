@@ -34,6 +34,7 @@ import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
 import { AgentReporter } from "./reporter.js";
 import { ConfigValidation } from "./services/ConfigValidation.js";
 import { buildModuleInfo } from "./utils/build-module-info.js";
+import { ConfigurationError } from "./utils/configuration-error.js";
 import type { DiscoverProjectsOptions } from "./utils/discover-projects.js";
 import { discoverProjects } from "./utils/discover-projects.js";
 import type { DiscoverStrategy } from "./utils/discover-strategy.js";
@@ -623,6 +624,15 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 
 				log("reporters after push:", vitest.config.reporters.length);
 			} catch (err) {
+				// A ConfigurationError is the user's own config mistake, not a
+				// bug in the plugin: report the message alone — no stack, no
+				// "please report an issue" banner — and rethrow so Vitest still
+				// fails the run. Its message already carries the `vitest-agent: `
+				// marker, so it is written verbatim rather than prefixed twice.
+				if (err instanceof ConfigurationError) {
+					process.stderr.write(`${err.message}\n`);
+					throw err;
+				}
 				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 				throw err;
 			}
