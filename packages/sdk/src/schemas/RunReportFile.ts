@@ -29,21 +29,20 @@ export const RUN_REPORT_FILE_SCHEMA_URL = "https://vitest-agent.dev/schemas/run-
  */
 const ISO_8601_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
+const ISO_8601_MESSAGE = "generatedAt must be an ISO-8601 instant, e.g. 2026-09-07T23:45:57.308Z.";
+
 const IsoInstant = Schema.String.check(
 	// No `format: "date-time"` annotation: the pipeline's ajv gate ships
 	// without ajv-formats and rejects the document with `unknown format
 	// "date-time"`, so the pattern is the contract a reader validates on.
 	Schema.isPattern(ISO_8601_INSTANT, {
 		description: "An ISO-8601 instant, the shape Date.prototype.toISOString produces.",
+		message: ISO_8601_MESSAGE,
 	}),
 	// Rules out impossible component values (month 13, hour 99) the pattern
 	// alone admits. It has no JSON Schema representation, so the emitted
 	// document carries only the pattern above.
-	Schema.makeFilter((value) =>
-		Number.isNaN(Date.parse(value))
-			? `generatedAt ${value} must be an ISO-8601 instant, e.g. 2026-09-07T23:45:57.308Z.`
-			: undefined,
-	),
+	Schema.makeFilter((value) => (Number.isNaN(Date.parse(value)) ? ISO_8601_MESSAGE : undefined)),
 ).annotate({ identifier: "IsoInstant" });
 
 /**

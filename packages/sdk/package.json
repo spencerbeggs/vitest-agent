@@ -24,6 +24,7 @@
 		".": "./src/index.ts",
 		"./dispatch": "./src/dispatch.ts",
 		"./testing": "./src/testing/index.ts",
+		"./schemas/*.json": "./schemas/*.json",
 		"./package.json": "./package.json"
 	},
 	"scripts": {
