@@ -585,6 +585,27 @@ describe("AgentPlugin", () => {
 		});
 	});
 
+	describe("Vitest 4 peer version mismatch", () => {
+		it("throws and writes exactly one clean stderr line when ctx lacks defineCacheKeyGenerator", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest();
+			const ctx = {
+				vitest,
+				project: { name: undefined },
+				experimental_defineCacheKeyGenerator: vi.fn(),
+			} as unknown as VitestPluginContext;
+
+			await expect(plugin.configureVitest(ctx)).rejects.toThrow();
+
+			expect(stderrWrite).toHaveBeenCalledTimes(1);
+			const line = stderrWrite.mock.calls[0]?.[0] as string;
+			expect(line).toMatch(/^vitest-agent: .+\n$/);
+			expect(line).not.toContain("Please report at");
+			expect(line).not.toContain("\n    at ");
+			expect(line.split("\n")).toHaveLength(2); // one content line + trailing empty from final \n
+		});
+	});
+
 	describe("fsModuleCache cache-key generator (Vitest 5)", () => {
 		it("registers the generator once across two projects on the same Vitest instance", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
