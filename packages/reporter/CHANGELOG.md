@@ -1,5 +1,48 @@
 # @vitest-agent/reporter
 
+## 3.0.0
+
+### Breaking Changes
+
+#### Requires Vitest 5
+
+- The `vitest` peer range moves to `^5.0.0`, and the optional&#10;`@vitest/coverage-v8` / `@vitest/coverage-istanbul` peers move with it.
+  Vitest 4 is no longer supported. Vitest 5 declares `vite` as a required
+  peer dependency of `vitest` rather than a regular one, so install it
+  explicitly alongside the upgrade. Vitest 5 accepts vite 6.4 or newer —
+  6, 7, or 8 all work.
+
+```bash
+npm install -D vitest@^5 vite
+```
+
+- No reporter hook signature changed: `onInit`, `onTestRunStart`,&#10;`onTestRunEnd`, and every streaming hook the default reporter taps are
+  identical in Vitest 5. [#380][#380]
+
+### Features
+
+- The default reporter now writes `run.json` and `summary.md` report files whenever the plugin's report option is on.
+
+### Bug Fixes
+
+- The summary now always starts with a Totals table (Project / Passed / Failed / Timed out / Skipped / Duration), so a green run no longer renders a blank GitHub Actions job summary — a gap left by Phase 1's job-summary change, where Vitest's own counts were relied on and stopped appearing once report files took over emitting the summary body. [#380][#380]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.5.1 | 3.0.0 |
+| @vitest-agent/ui | dependency | updated | 2.3.1 | 2.4.0 |
+| @vitest/coverage-istanbul | peerDependency | updated | ^4.1.0 | ^5.0.0 |
+| @vitest/coverage-v8 | peerDependency | updated | ^4.1.0 | ^5.0.0 |
+| vitest | peerDependency | updated | ^4.1.0 | ^5.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#380]: https://github.com/spencerbeggs/vitest-agent/pull/380
+
 ## 2.2.4
 
 ### Dependencies

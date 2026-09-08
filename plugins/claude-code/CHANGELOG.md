@@ -1,5 +1,19 @@
 # @vitest-agent/claude-code-plugin
 
+## 2.6.0
+
+### Documentation
+
+- `/setup` command now checks for Vitest 5.0 or newer instead of 4.1, matching the plugin's new Vitest 5 floor
+- `configuration` skill documents that inline projects inherit the root config (and `AgentPlugin`) by default under Vitest 5, and that `extends: false` opts a project out of both
+- `CLAUDE.md`'s command table row for `/setup` now says "Verify Vitest 5.0+" instead of "4.1+" [#380][#380]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#380]: https://github.com/spencerbeggs/vitest-agent/pull/380
+
 ## 2.5.6
 
 ### Bug Fixes
