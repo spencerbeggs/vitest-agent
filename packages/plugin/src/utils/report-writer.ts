@@ -57,6 +57,26 @@ const assertFlatFilename = (filename: string): void => {
 	}
 };
 
+/**
+ * The report scope names a single directory under `<config.root>/.vitest`.
+ * Vitest joins it without a containment check, so a `..` segment or a
+ * path separator escapes `.vitest` entirely, and an empty scope resolves
+ * to `.vitest` itself. Reject all of those here, where the message can
+ * name the offending scope.
+ *
+ * A dot inside the name (`vitest.agent`) is fine — only the bare `.` and
+ * `..` traversal names are rejected.
+ *
+ * @internal
+ */
+export const assertFlatScope = (scope: string): void => {
+	if (scope === "" || scope.includes("/") || scope.includes("\\") || scope === "." || scope === "..") {
+		throw new Error(
+			`vitest-agent: report scope ${JSON.stringify(scope)} must be a single flat directory name — it is created directly under <root>/.vitest and must not traverse or nest.`,
+		);
+	}
+};
+
 /** @internal */
 export const createReportWriter = (vitest: unknown, scope: string): ReportWriter => {
 	let handle: ReportHandle | null = null;

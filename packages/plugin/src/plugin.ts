@@ -42,6 +42,7 @@ import { ensureGithubActionsReporter } from "./utils/ensure-github-reporter.js";
 import type { InjectTagsResult } from "./utils/inject-tags.js";
 import { injectTags } from "./utils/inject-tags.js";
 import { isBenignViteSourceMapWarning } from "./utils/is-benign-vite-source-map-warning.js";
+import { assertFlatScope } from "./utils/report-writer.js";
 import { resolveCoverageDirIsolation } from "./utils/resolve-coverage-dir-isolation.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import {
@@ -392,6 +393,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 						: executor === "human" && reportOption === undefined
 							? undefined
 							: (reportOption?.scope ?? "vitest-agent");
+				if (reportScope !== undefined) assertFlatScope(reportScope);
 				const consoleMode = resolveConsoleMode(options, executor, env);
 				const format = resolveFormat(consoleMode);
 				// `mcp` is auto-derived from the detected executor — the agent

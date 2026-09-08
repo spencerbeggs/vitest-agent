@@ -57,6 +57,18 @@ describe("report scope resolution", () => {
 	it("disables report files with report: false, even for the agent executor", async () => {
 		await expect(resolveScope({ report: false }, "agent-shell")).resolves.toBeUndefined();
 	});
+
+	it("accepts a scope containing a dot", async () => {
+		await expect(resolveScope({ report: { scope: "vitest.agent" } }, "agent-shell")).resolves.toBe("vitest.agent");
+	});
+
+	it("rejects a scope that escapes the .vitest directory", async () => {
+		await expect(resolveScope({ report: { scope: "../escape" } }, "agent-shell")).rejects.toThrow(/\.\.\/escape/);
+	});
+
+	it("rejects an empty scope", async () => {
+		await expect(resolveScope({ report: { scope: "" } }, "agent-shell")).rejects.toThrow(/report scope/);
+	});
 });
 
 describe("onInit rejects an unsupported Vitest", () => {
