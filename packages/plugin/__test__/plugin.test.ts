@@ -604,6 +604,39 @@ describe("AgentPlugin", () => {
 			expect(line).not.toContain("\n    at ");
 			expect(line.split("\n")).toHaveLength(2); // one content line + trailing empty from final \n
 		});
+
+		it("reports the detected Vitest version when readable off ctx.vitest.version", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = { ...mockVitest(), version: "4.1.11" };
+			const ctx = {
+				vitest,
+				project: { name: undefined },
+				experimental_defineCacheKeyGenerator: vi.fn(),
+			} as unknown as VitestPluginContext;
+
+			await expect(plugin.configureVitest(ctx)).rejects.toThrow();
+
+			const line = stderrWrite.mock.calls[0]?.[0] as string;
+			expect(line).toBe(
+				"vitest-agent: @vitest-agent/plugin 3.x requires Vitest >= 5. Detected Vitest 4.1.11. Install @vitest-agent/plugin 2.x for Vitest 4.\n",
+			);
+		});
+
+		it("degrades gracefully with no version number when ctx.vitest.version is unreadable", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest(); // no `.version` field
+			const ctx = {
+				vitest,
+				project: { name: undefined },
+			} as unknown as VitestPluginContext;
+
+			await expect(plugin.configureVitest(ctx)).rejects.toThrow();
+
+			const line = stderrWrite.mock.calls[0]?.[0] as string;
+			expect(line).toBe(
+				"vitest-agent: @vitest-agent/plugin 3.x requires Vitest >= 5. The installed Vitest version could not be detected. Install @vitest-agent/plugin 2.x for Vitest 4.\n",
+			);
+		});
 	});
 
 	describe("fsModuleCache cache-key generator (Vitest 5)", () => {
