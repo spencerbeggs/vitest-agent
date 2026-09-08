@@ -99,8 +99,8 @@ describe("default reporter report files", () => {
 		// would leave a passing CI run with no summary at all.
 		expect(summary).toBeDefined();
 		expect(summary?.content).toContain("### Totals");
-		expect(summary?.content).toContain("| Project | Passed | Failed | Skipped | Duration |");
-		expect(summary?.content).toContain("| demo | 1 | 0 | 0 | 10ms |");
+		expect(summary?.content).toContain("| Project | Passed | Failed | Timed out | Skipped | Duration |");
+		expect(summary?.content).toContain("| demo | 1 | 0 | 0 | 0 | 10ms |");
 		expect(summary?.content).not.toContain("### Classifications");
 		expect(summary?.content).not.toContain("### Coverage");
 		expect(summary?.content).not.toContain("### Trend");
@@ -123,9 +123,41 @@ describe("default reporter report files", () => {
 		];
 		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(makeInput({ reports }), kit);
 		const summary = outputs.find((o) => o.target === "report" && o.filename === "summary.md");
-		expect(summary?.content).toContain("| alpha | 4 | 1 | 0 | 900ms |");
-		expect(summary?.content).toContain("| beta | 1 | 1 | 1 | 400ms |");
-		expect(summary?.content).toContain("| **Total** | 5 | 2 | 1 | 1.3s |");
+		expect(summary?.content).toContain("| alpha | 4 | 1 | 0 | 0 | 900ms |");
+		expect(summary?.content).toContain("| beta | 1 | 1 | 0 | 1 | 400ms |");
+		expect(summary?.content).toContain("| **Total** | 5 | 2 | 0 | 1 | 1.3s |");
+	});
+
+	it("reports a timed-out test in its own column, not as a plain failure", () => {
+		const kit = makeKit();
+		// One failing test whose error message is Vitest's timeout text.
+		// `summarizeProject` counts it via `isTimeoutError` and subtracts it
+		// from `failCount`, so the console reads "0 failed, 1 timed out" —
+		// the totals table must agree rather than recomputing from
+		// `summary.failed`.
+		const reports: ReadonlyArray<AgentReport> = [
+			makeReport({
+				project: "slow",
+				summary: { total: 1, passed: 0, failed: 1, skipped: 0, duration: 5000 },
+				failed: [
+					{
+						file: "slow.test.ts",
+						state: "failed",
+						tests: [
+							{
+								name: "waits forever",
+								fullName: "slow > waits forever",
+								state: "failed",
+								errors: [{ message: "Test timed out in 5000ms." }],
+							},
+						],
+					},
+				],
+			}),
+		];
+		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(makeInput({ reports }), kit);
+		const summary = outputs.find((o) => o.target === "report" && o.filename === "summary.md");
+		expect(summary?.content).toContain("| slow | 0 | 0 | 1 | 0 | 5.0s |");
 	});
 
 	it("still emits report files in a non-agent console mode", () => {

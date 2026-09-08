@@ -284,8 +284,8 @@ const formatSummaryDuration = (ms: number): string =>
 	ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
 
 /**
- * Per-project pass/fail/skip/duration table — the unconditional half of
- * the summary body.
+ * Per-project pass/fail/timeout/skip/duration table — the unconditional
+ * half of the summary body.
  *
  * Vitest's own `github-actions` reporter no longer writes these counts
  * to the step summary (its job-summary half is disabled), so this table
@@ -293,42 +293,46 @@ const formatSummaryDuration = (ms: number): string =>
  * gets a trailing `Total` row; a single-project run does not, because
  * the row would just repeat the one above it.
  *
- * `failed` folds in suite-level (collection/load) failures via
- * `countSuiteFailures`, so a module that never loaded is not reported as
- * a clean zero.
+ * Every count comes from `summarizeProject`, the same projection the
+ * console surfaces render from — so the table cannot disagree with what
+ * the terminal printed. That matters most for timeouts:
+ * `summarizeProject` folds suite-level (collection/load) failures INTO
+ * `failCount` and pulls timed-out tests back OUT of it, reporting them
+ * in their own column. Recomputing from `report.summary.failed` here
+ * would show a timed-out test as `Failed: 1` while every console surface
+ * says `0 failed, 1 timed out`.
  *
  * @internal
  */
 const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string => {
-	const rows = reports.map((report) => ({
-		name: report.project ?? "default",
-		passed: report.summary.passed,
-		failed: report.summary.failed + countSuiteFailures(report),
-		skipped: report.summary.skipped,
-		duration: report.summary.duration,
-	}));
+	const rows = reports.map((report) => summarizeProject(report));
+	const cells = (
+		name: string,
+		passed: number,
+		failed: number,
+		timedOut: number,
+		skipped: number,
+		duration: number,
+	): string => `| ${name} | ${passed} | ${failed} | ${timedOut} | ${skipped} | ${formatSummaryDuration(duration)} |`;
 	const lines = [
 		"### Totals",
 		"",
-		"| Project | Passed | Failed | Skipped | Duration |",
-		"| --- | --- | --- | --- | --- |",
-		...rows.map(
-			(r) => `| ${r.name} | ${r.passed} | ${r.failed} | ${r.skipped} | ${formatSummaryDuration(r.duration)} |`,
-		),
+		"| Project | Passed | Failed | Timed out | Skipped | Duration |",
+		"| --- | --- | --- | --- | --- | --- |",
+		...rows.map((r) => cells(r.name, r.passCount, r.failCount, r.timeoutCount ?? 0, r.skipCount, r.durationMs)),
 	];
 	if (rows.length > 1) {
 		const total = rows.reduce(
 			(acc, r) => ({
-				passed: acc.passed + r.passed,
-				failed: acc.failed + r.failed,
-				skipped: acc.skipped + r.skipped,
-				duration: acc.duration + r.duration,
+				passed: acc.passed + r.passCount,
+				failed: acc.failed + r.failCount,
+				timedOut: acc.timedOut + (r.timeoutCount ?? 0),
+				skipped: acc.skipped + r.skipCount,
+				duration: acc.duration + r.durationMs,
 			}),
-			{ passed: 0, failed: 0, skipped: 0, duration: 0 },
+			{ passed: 0, failed: 0, timedOut: 0, skipped: 0, duration: 0 },
 		);
-		lines.push(
-			`| **Total** | ${total.passed} | ${total.failed} | ${total.skipped} | ${formatSummaryDuration(total.duration)} |`,
-		);
+		lines.push(cells("**Total**", total.passed, total.failed, total.timedOut, total.skipped, total.duration));
 	}
 	return lines.join("\n");
 };

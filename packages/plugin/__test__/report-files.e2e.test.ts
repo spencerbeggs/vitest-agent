@@ -77,10 +77,10 @@ describe("report files written under .vitest/vitest-agent", () => {
 		const summary = readFileSync(join(REPORT_DIR, "summary.md"), "utf8");
 		expect(summary).toContain("## vitest-agent");
 		expect(summary).toContain("### Totals");
-		expect(summary).toContain("| Project | Passed | Failed | Skipped | Duration |");
+		expect(summary).toContain("| Project | Passed | Failed | Timed out | Skipped | Duration |");
 		// The fixture has no `name` on its Vitest project, so the reporter
 		// falls back to "default"; one passing test, nothing else.
-		expect(summary).toMatch(/\| default \| 1 \| 0 \| 0 \| [\d.]+m?s \|/);
+		expect(summary).toMatch(/\| default \| 1 \| 0 \| 0 \| 0 \| [\d.]+m?s \|/);
 	});
 
 	it("writes nothing at all for the human executor", { timeout: 120_000 }, () => {
