@@ -30,10 +30,10 @@
 # the hook's final updatedInput.command can be compared regardless of
 # which path ran.
 
-HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)"
 # Repository root, resolved at runtime — never hardcode a developer checkout path.
-REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../../.." && pwd)"
-FIXTURES_DIR="${HOOKS_DIR}/fixtures"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
+FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/fixtures"
 
 BATS_SESSION_ID="test-session-id-bats-layer2-001"
 

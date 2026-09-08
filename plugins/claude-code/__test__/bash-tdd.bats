@@ -7,7 +7,7 @@
 # commands naming a file like `cells.snapshot.test.ts` were denied and the
 # agent had to paraphrase the filename to get work through (issue #247).
 
-HOOK="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/pre-tool-use/bash-tdd.sh"
+HOOK="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)/pre-tool-use/bash-tdd.sh"
 
 # Feed the hook a Bash tool call from the tdd-task agent.
 _run_bash() {

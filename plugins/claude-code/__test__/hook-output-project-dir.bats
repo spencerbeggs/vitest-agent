@@ -13,7 +13,7 @@
 # real hooks run in — so a regression that trips set -e (e.g. a bare
 # `[ ] && export`) surfaces as a non-zero exit here.
 
-LIB="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/lib/hook-output.sh"
+LIB="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)/lib/hook-output.sh"
 
 # Source the lib in a clean strict-mode subshell with a controlled environment,
 # then print the resulting VITEST_AGENT_PROJECT_DIR. `env -i` strips inherited

@@ -13,6 +13,17 @@ export const TEST_HELPER_DIRS = ["fixtures", "snapshots", "utils"] as const;
 export const TEST_FILE_GLOB_SUFFIX = "*.{test,spec}.{ts,tsx,js,jsx}";
 
 /**
+ * Glob suffix matching every Bats shell test file. Bats tests are run by
+ * `bats`, not Vitest — a package whose `__test__/` directory holds only
+ * `.bats` files (plus any of {@link TEST_HELPER_DIRS}) is a fully supported,
+ * intentional layout, not an orphaned test directory. Paired with
+ * {@link TEST_FILE_GLOB_SUFFIX} by `@vitest-agent/plugin`'s
+ * `isTestShapedPackage` to decide whether a package without a discoverable
+ * Vitest project still warrants a warning. @public
+ */
+export const BATS_FILE_GLOB_SUFFIX = "*.bats";
+
+/**
  * Directory names discovery never walks into, and therefore never collects
  * tests from. Keep in step with {@link TEST_FILE_GLOB_SUFFIX}'s extension set:
  * this is the directory half of the same "what can Vitest reach" question.

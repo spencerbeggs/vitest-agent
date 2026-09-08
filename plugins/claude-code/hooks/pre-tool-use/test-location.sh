@@ -53,7 +53,7 @@ fi
 # Prefilter: purely lexical, no layout knowledge, no process spawn. The
 # overwhelming majority of tool calls leave here at zero cost. Scoping to
 # these extensions also keeps the hook off non-Vitest suites — the .bats
-# files under plugins/claude-code/hooks/__test__/ are correct where they are.
+# files under plugins/claude-code/__test__/ are correct where they are.
 case "$(basename "$file_path")" in
 	*.test.ts|*.test.tsx|*.test.js|*.test.jsx|*.spec.ts|*.spec.tsx|*.spec.js|*.spec.jsx) ;;
 	*) emit_noop; exit 0 ;;

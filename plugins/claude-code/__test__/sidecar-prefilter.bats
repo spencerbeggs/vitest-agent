@@ -23,10 +23,10 @@
 # Tests that assert Layer 1 suppression write a session-env file whose
 # values override the ambient vars after source_session_env runs.
 
-HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)"
 # Repository root, resolved at runtime — never hardcode a developer checkout path.
-REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../../.." && pwd)"
-FIXTURES_DIR="${HOOKS_DIR}/fixtures"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
+FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/fixtures"
 
 # Session id used for all Layer 1 tests. Must be a valid session-id shape
 # (no slashes, no .., no whitespace) so source-session-env.sh won't

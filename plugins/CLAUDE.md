@@ -18,7 +18,7 @@ This directory holds the repo's agent plugins. They are not npm packages: nothin
 
 ## Tooling
 
-- `pnpm test:bats` runs `bats --recursive plugins`; the suites live in `claude-code/hooks/__test__/`.
+- `pnpm test:bats` runs `bats --recursive plugins`; the suites live in `claude-code/__test__/`.
 - `pnpm claude` loads the plugin locally via `claude --plugin-dir plugins/claude-code`.
 
 ## Going deeper

@@ -585,6 +585,80 @@ describe("AgentPlugin", () => {
 		});
 	});
 
+	describe("Vitest 4 peer version mismatch", () => {
+		it("throws and writes exactly one clean stderr line when ctx lacks defineCacheKeyGenerator", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest();
+			const ctx = {
+				vitest,
+				project: { name: undefined },
+				experimental_defineCacheKeyGenerator: vi.fn(),
+			} as unknown as VitestPluginContext;
+
+			await expect(plugin.configureVitest(ctx)).rejects.toThrow();
+
+			expect(stderrWrite).toHaveBeenCalledTimes(1);
+			const line = stderrWrite.mock.calls[0]?.[0] as string;
+			expect(line).toMatch(/^vitest-agent: .+\n$/);
+			expect(line).not.toContain("Please report at");
+			expect(line).not.toContain("\n    at ");
+			expect(line.split("\n")).toHaveLength(2); // one content line + trailing empty from final \n
+		});
+
+		it("reports the detected Vitest version when readable off ctx.vitest.version", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = { ...mockVitest(), version: "4.1.11" };
+			const ctx = {
+				vitest,
+				project: { name: undefined },
+				experimental_defineCacheKeyGenerator: vi.fn(),
+			} as unknown as VitestPluginContext;
+
+			await expect(plugin.configureVitest(ctx)).rejects.toThrow();
+
+			const line = stderrWrite.mock.calls[0]?.[0] as string;
+			expect(line).toBe(
+				"vitest-agent: @vitest-agent/plugin 3.x requires Vitest >= 5. Detected Vitest 4.1.11. Install @vitest-agent/plugin 2.x for Vitest 4.\n",
+			);
+		});
+
+		it("degrades gracefully with no version number when ctx.vitest.version is unreadable", async () => {
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest(); // no `.version` field
+			const ctx = {
+				vitest,
+				project: { name: undefined },
+			} as unknown as VitestPluginContext;
+
+			await expect(plugin.configureVitest(ctx)).rejects.toThrow();
+
+			const line = stderrWrite.mock.calls[0]?.[0] as string;
+			expect(line).toBe(
+				"vitest-agent: @vitest-agent/plugin 3.x requires Vitest >= 5. The installed Vitest version could not be detected. Install @vitest-agent/plugin 2.x for Vitest 4.\n",
+			);
+		});
+
+		it("does not affect an unrelated configureVitest error, which still gets the formatFatalError stack + issue-report URL treatment", async () => {
+			// target (50) < threshold (80) → a real ConfigValidation
+			// TARGET_BELOW_THRESHOLD error, unrelated to the cache-key-generator
+			// guard — defineCacheKeyGenerator IS present on this ctx.
+			const plugin = AgentPlugin({ coverageTargets: { lines: 50 } }, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["default"], { thresholds: { lines: 80 } });
+			const ctx = {
+				vitest,
+				project: { name: undefined },
+				defineCacheKeyGenerator: vi.fn(),
+			} as unknown as VitestPluginContext;
+
+			await expect(plugin.configureVitest(ctx)).rejects.toThrow("TARGET_BELOW_THRESHOLD");
+
+			expect(stderrWrite).toHaveBeenCalled();
+			const lastCall = stderrWrite.mock.calls[stderrWrite.mock.calls.length - 1]?.[0] as string;
+			expect(lastCall).toContain("Please report at https://github.com/spencerbeggs/vitest-agent/issues");
+			expect(lastCall).toContain("\n    at ");
+		});
+	});
+
 	describe("fsModuleCache cache-key generator (Vitest 5)", () => {
 		it("registers the generator once across two projects on the same Vitest instance", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));

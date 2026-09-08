@@ -6,7 +6,7 @@
 # open on every error path. The fail-open cases are the load-bearing ones: a
 # detector that cannot reason must never block work.
 
-HOOK="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/pre-tool-use/test-location.sh"
+HOOK="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)/pre-tool-use/test-location.sh"
 
 setup() {
 	STUB_DIR="$(mktemp -d)"

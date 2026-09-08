@@ -26,11 +26,13 @@ describe("isTestShapedPackage()", () => {
 	});
 
 	it("returns true for a package with an empty __test__/ directory (naming mismatch case)", async () => {
-		// Given: a __test__/ dir exists but holds no files matching the naming convention
+		// Given: a __test__/ dir exists but holds no files matching the Vitest OR
+		// bats naming convention
 		await mkdir(join(tmpDir, "__test__"), { recursive: true });
 		await writeFile(join(tmpDir, "__test__", "helper.ts"), "");
 
-		// When/Then: directory existence alone is the signal — this is exactly the
+		// When/Then: neither a Vitest test nor a bats test was found, so
+		// directory existence alone is the signal — this is exactly the
 		// "forgot the .test. suffix" mistake the warning exists to catch.
 		expect(await isTestShapedPackage(tmpDir)).toBe(true);
 	});
@@ -40,9 +42,21 @@ describe("isTestShapedPackage()", () => {
 		expect(await isTestShapedPackage(tmpDir)).toBe(true);
 	});
 
-	it("returns true for a package with co-located src/ test files", async () => {
+	it("returns false for a package with co-located src/ test files (a real Vitest test was found)", async () => {
 		await mkdir(join(tmpDir, "src"), { recursive: true });
 		await writeFile(join(tmpDir, "src", "foo.test.ts"), "");
-		expect(await isTestShapedPackage(tmpDir)).toBe(true);
+		expect(await isTestShapedPackage(tmpDir)).toBe(false);
+	});
+
+	it("returns false for a __test__/ directory containing only .bats files (bats runs them, not Vitest)", async () => {
+		await mkdir(join(tmpDir, "__test__"), { recursive: true });
+		await writeFile(join(tmpDir, "__test__", "some.bats"), "#!/usr/bin/env bats\n");
+		expect(await isTestShapedPackage(tmpDir)).toBe(false);
+	});
+
+	it("returns false for a nested .bats file under __test__/ (recursive bats search)", async () => {
+		await mkdir(join(tmpDir, "__test__", "sub"), { recursive: true });
+		await writeFile(join(tmpDir, "__test__", "sub", "nested.bats"), "#!/usr/bin/env bats\n");
+		expect(await isTestShapedPackage(tmpDir)).toBe(false);
 	});
 });

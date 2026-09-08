@@ -12,16 +12,16 @@ through `render-fixture.sh` — which substitutes the real root — instead of
 
 ```bash
 # From the repo root:
-bash plugins/claude-code/hooks/__test__/render-fixture.sh \
-  plugins/claude-code/hooks/fixtures/post-tool-use-write-test.json \
+bash plugins/claude-code/__test__/render-fixture.sh \
+  plugins/claude-code/__test__/fixtures/post-tool-use-write-test.json \
   | bash plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
 
-bash plugins/claude-code/hooks/__test__/render-fixture.sh \
-  plugins/claude-code/hooks/fixtures/post-tool-use-record-write.json \
+bash plugins/claude-code/__test__/render-fixture.sh \
+  plugins/claude-code/__test__/fixtures/post-tool-use-record-write.json \
   | bash plugins/claude-code/hooks/post-tool-use/record.sh
 
-bash plugins/claude-code/hooks/__test__/render-fixture.sh \
-  plugins/claude-code/hooks/fixtures/user-prompt-submit.json \
+bash plugins/claude-code/__test__/render-fixture.sh \
+  plugins/claude-code/__test__/fixtures/user-prompt-submit.json \
   | bash plugins/claude-code/hooks/user-prompt-submit/record.sh
 ```
 
@@ -33,8 +33,8 @@ To see errors and CLI output:
 
 ```bash
 VITEST_AGENT_HOOK_DEBUG=1 \
-  bash plugins/claude-code/hooks/__test__/render-fixture.sh \
-    plugins/claude-code/hooks/fixtures/post-tool-use-write-test.json \
+  bash plugins/claude-code/__test__/render-fixture.sh \
+    plugins/claude-code/__test__/fixtures/post-tool-use-write-test.json \
   | bash plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
 
 # Then inspect:
@@ -52,14 +52,14 @@ substitute a real open CC session ID from the database:
 SESSION_ID=$(sqlite3 ~/.local/share/vitest-agent/vitest-agent/data.db \
   "SELECT chat_id FROM sessions ORDER BY id DESC LIMIT 1;")
 
-sed "s/SESSION_ID/$SESSION_ID/g" plugins/claude-code/hooks/fixtures/post-tool-use-write-test.json \
+sed "s/SESSION_ID/$SESSION_ID/g" plugins/claude-code/__test__/fixtures/post-tool-use-write-test.json \
   | bash plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
 ```
 
 Or set it inline:
 
 ```bash
-cat plugins/claude-code/hooks/fixtures/post-tool-use-write-test.json \
+cat plugins/claude-code/__test__/fixtures/post-tool-use-write-test.json \
   | jq --arg sid "YOUR_CC_SESSION_ID" '.session_id = $sid' \
   | bash plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
 ```

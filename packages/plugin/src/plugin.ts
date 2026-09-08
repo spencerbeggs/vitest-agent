@@ -59,6 +59,7 @@ import {
 } from "./utils/run-script-lock.js";
 import { stripConsoleReporters } from "./utils/strip-console-reporters.js";
 import { makeTagCacheKeyGenerator } from "./utils/tag-cache-key.js";
+import { readVitestVersion, vitestPeerVersionMismatchMessage } from "./utils/vitest-peer-version-mismatch-error.js";
 
 /**
  * Plugin options shape with the (function-typed) `reporter` factory added
@@ -364,6 +365,23 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 			try {
 				const { vitest, project } = ctx;
 				log("configureVitest called | project:", project?.name ?? "(root)");
+
+				// `@vitest-agent/plugin` 3.x is Vitest-5-only by design (no
+				// `experimental_` fallback, no silent degradation — commit
+				// f5d5332 deliberately removed the old `typeof` guard here).
+				// `defineCacheKeyGenerator` only exists on the Vitest 5
+				// configureVitest context; its absence is the reliable signal
+				// that the host project's `vitest` peer resolves to Vitest 4
+				// (which exposes only the deprecated
+				// `experimental_defineCacheKeyGenerator` alias). Fail fast with
+				// one clean diagnostic instead of letting the raw
+				// "ctx.defineCacheKeyGenerator is not a function" TypeError
+				// surface. A peer mismatch is the user's own environment to
+				// fix, so it rides ConfigurationError and its single
+				// no-stack, no-issue-banner branch in the catch below.
+				if (typeof ctx.defineCacheKeyGenerator !== "function") {
+					throw new ConfigurationError(vitestPeerVersionMismatchMessage(readVitestVersion(vitest)));
+				}
 
 				// Vitest's fsModuleCache keys transformed modules on file
 				// content and environment config alone — it cannot see that the

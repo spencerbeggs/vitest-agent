@@ -19,10 +19,10 @@
 #   - our fake pnpm strips "exec" and runs: vitest-agent agent <sub> ...
 #   - our fake vitest-agent writes $* to BATS_ARGV_CAPTURE
 
-HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)"
 # Repository root, resolved at runtime — never hardcode a developer checkout path.
-REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../../.." && pwd)"
-FIXTURES_DIR="${HOOKS_DIR}/fixtures"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
+FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/fixtures"
 TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 
 setup() {
