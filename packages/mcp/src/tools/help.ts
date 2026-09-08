@@ -37,14 +37,16 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 | \`file_coverage\` | \`filePath\`, \`project?\` | Per-file coverage with uncovered lines and related tests |
 | \`test_history\` | \`project\` | Flaky/persistent/recovered tests |
 | \`test_trends\` | \`project\`, \`limit?\` | Coverage trajectory over time |
-| \`test_errors\` | \`project\`, \`errorName?\`, \`format?\` (\`markdown\` \\| \`xml\`) | Errors with diffs, stacks, and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
-| \`test\` | \`action\` (\`list\`/\`get\`/\`for_file\`/\`for_tag\`), plus per-action params | Consolidated test inspection: list/get/for_file/for_tag |
+| \`test_errors\` | \`project\`, \`errorName?\`, \`format?\` (\`markdown\` \\| \`xml\`) | Errors with diffs, stacks, each row's \`annotations[]\` (the test annotations the author recorded), and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
+| \`test\` | \`action\` (\`list\`/\`get\`/\`for_file\`/\`for_tag\`/\`annotations\`/\`artifacts\`), plus per-action params | Consolidated test inspection: list/get/for_file/for_tag/annotations/artifacts |
 
 \`test\` actions:
 - \`{ action: "list", project?, state?, module?, limit? }\`
 - \`{ action: "get", fullName, project?, modulePath? }\` — a \`fullName\` present in more than one module returns \`found: false\` with \`ambiguous: true\` and \`candidateModules[]\`; pass \`modulePath\` to pick one
 - \`{ action: "for_file", filePath }\`
 - \`{ action: "for_tag", tag, project? }\` — list every test carrying a tag, grouped by project (or one group when project is supplied)
+- \`{ action: "annotations", fullName, project?, modulePath? }\` — the test annotations the author recorded via \`context.annotate\`, with attachment descriptors (\`contentType\`, \`path\`, \`byteSize\`)
+- \`{ action: "artifacts", fullName, project?, modulePath? }\` — the test artifacts recorded for the test, same descriptor shape. These are Vitest test artifacts, not TDD artifacts
 
 ## Discovery
 
@@ -113,7 +115,7 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 | \`tdd_task\` | \`action\` (\`start\`/\`end\`/\`get\`/\`resume\`), plus per-action params | TDD task lifecycle |
 | \`tdd_goal\` | \`action\` (\`create\`/\`update\`/\`delete\`/\`get\`/\`list\`), plus per-action params | Goals under a TDD task |
 | \`tdd_behavior\` | \`action\` (\`create\`/\`update\`/\`delete\`/\`get\`/\`list_by_goal\`/\`list_by_tdd_task\`), plus per-action params | Behaviors under a goal |
-| \`tdd_artifact_list\` | \`tddTaskId\`, \`artifactKind?\`, \`phaseId?\`, \`behaviorId?\`, \`limit?\`, \`format?\` | List recorded TDD artifacts (newest first); use to find the artifact id to cite in \`tdd_phase_transition_request\` |
+| \`tdd_artifact_list\` | \`tddTaskId\`, \`artifactKind?\`, \`phaseId?\`, \`behaviorId?\`, \`limit?\`, \`format?\` | List recorded TDD artifacts (newest first); use to find the artifact id to cite in \`tdd_phase_transition_request\`. TDD artifacts are red/green evidence rows, not Vitest test artifacts (see \`test\` action \`artifacts\`) |
 | \`tdd_phase_transition_request\` | \`tddTaskId\`, \`goalId\`, \`requestedPhase\`, \`citedArtifactId?\`, \`citedArtifactKind?\`, \`behaviorId?\`, \`reason?\` | Request a phase transition; validates D2 binding rules. \`citedArtifactId\` is optional — when omitted, the most recent matching artifact (kind from \`citedArtifactKind\` or the transition's required-evidence rule) is auto-resolved |
 | \`tdd_progress_push\` | \`payload\` | Push a TDD progress event to the main agent (best-effort) |
 

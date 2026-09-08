@@ -59,6 +59,8 @@ const cases: ReadonlyArray<[tool: string, validArgs: Record<string, unknown>]> =
 	["test_trends", { project: "x" }],
 	["test_errors", { project: "x" }],
 	["test", { action: "list" }],
+	["test", { action: "annotations", fullName: "x" }],
+	["test", { action: "artifacts", fullName: "x" }],
 	["file_coverage", { filePath: "x" }],
 	["configure", {}],
 	["inventory", { kind: "project" }],

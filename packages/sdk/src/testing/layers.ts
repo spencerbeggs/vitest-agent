@@ -5,6 +5,7 @@ import { Layer } from "effect";
 import { DataReaderLive } from "../layers/DataReaderLive.js";
 import { DataStoreLive } from "../layers/DataStoreLive.js";
 import migration0001 from "../migrations/0001_initial.js";
+import migration0002 from "../migrations/0002_test_artifacts.js";
 /** @public */
 export function makeTestLayer(filename: string) {
 	const SqliteLayer = sqliteClientLayer({ filename });
@@ -13,6 +14,7 @@ export function makeTestLayer(filename: string) {
 	const MigratorLayer = SqliteMigrator.layer({
 		loader: SqliteMigrator.fromRecord({
 			"0001_initial": migration0001,
+			"0002_test_artifacts": migration0002,
 		}),
 	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
 

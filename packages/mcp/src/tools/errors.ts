@@ -20,6 +20,15 @@ import { DataReader } from "@vitest-agent/sdk";
 import { Effect, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 
+/** One annotation attached to a failing test, surfaced with its error. */
+export const TestErrorAnnotation = Schema.Struct({
+	type: Schema.String.annotate({
+		description: "Annotation type as the test author wrote it — an arbitrary string, not an enum.",
+	}),
+	message: Schema.String,
+	location: Schema.optional(Schema.Struct({ file: Schema.String, line: Schema.Number, column: Schema.Number })),
+}).annotate({ identifier: "TestErrorAnnotation" });
+
 /** One row in the structured `errors[]` array. */
 export const TestErrorRow = Schema.Struct({
 	id: Schema.Finite.annotate({
@@ -61,6 +70,10 @@ export const TestErrorRow = Schema.Struct({
 	moduleFile: Schema.NullOr(Schema.String).annotate({
 		description: "Repo-relative path of the test module the error originated in.",
 	}),
+	annotations: Schema.Array(TestErrorAnnotation).annotate({
+		description:
+			"Test annotations the author recorded on this test (`context.annotate`). Empty for non-test scopes and for tests with no annotations.",
+	}),
 }).annotate({
 	identifier: "TestErrorRow",
 	title: "Test error row",
@@ -89,6 +102,7 @@ export const TestErrorsResult = Schema.Struct({
 		"Structured payload of the `test_errors` MCP tool. Carries the cite-able test_errors.id and stack_frames.id values agents need for `hypothesis (action: record)`.",
 });
 export type TestErrorsResultType = Schema.Schema.Type<typeof TestErrorsResult>;
+type TestErrorAnnotationType = Schema.Schema.Type<typeof TestErrorAnnotation>;
 
 const TRUNCATION_LIMIT = 500;
 const truncate = (s: string): { value: string; truncated: boolean } =>
@@ -113,6 +127,12 @@ export const formatTestErrorsMarkdown = (data: TestErrorsResultType): string => 
 		lines.push(`**Scope:** ${error.scope}`);
 		if (error.testFullName !== null) lines.push(`**Test:** ${error.testFullName}`);
 		if (error.moduleFile !== null) lines.push(`**File:** \`${error.moduleFile}\``);
+		if (error.annotations.length > 0) {
+			lines.push("**Annotations:**");
+			for (const annotation of error.annotations) {
+				lines.push(`- [${annotation.type}] ${annotation.message}`);
+			}
+		}
 		lines.push("");
 		lines.push("**Cite-able IDs (for `hypothesis (action: record)`):**");
 		lines.push(`- citedTestErrorId: ${error.id}`);
@@ -193,11 +213,35 @@ export const testErrors = publicProcedure
 				Effect.gen(function* () {
 					const reader = yield* DataReader;
 					const errors = yield* reader.getErrors(input.project, input.errorName);
+					// One read per distinct (testFullName, moduleFile) pair: several
+					// errors routinely share a test, and a non-test scope
+					// (`module` / `unhandled`) has no test to annotate at all.
+					const cache = new Map<string, ReadonlyArray<TestErrorAnnotationType>>();
+					const rows: Array<Schema.Schema.Type<typeof TestErrorRow>> = [];
+					for (const error of errors) {
+						if (error.testFullName === null) {
+							rows.push({ ...error, annotations: [] });
+							continue;
+						}
+						const key = `${error.testFullName}\u0000${error.moduleFile ?? ""}`;
+						let annotations = cache.get(key);
+						if (annotations === undefined) {
+							// Projected down to the declared shape: the reader row also
+							// carries `id` and `attachments`, and an undeclared key would
+							// fail the SDK's structuredContent validation against the
+							// zod outputSchema derived from `TestErrorRow`.
+							annotations = (yield* reader.getAnnotationsForTest(input.project, error.testFullName, {
+								...(error.moduleFile !== null && { modulePath: error.moduleFile }),
+							})).map((a) => ({ type: a.type, message: a.message, ...(a.location && { location: a.location }) }));
+							cache.set(key, annotations);
+						}
+						rows.push({ ...error, annotations });
+					}
 					return {
 						project: input.project,
 						...(input.errorName !== undefined && { errorName: input.errorName }),
-						count: errors.length,
-						errors,
+						count: rows.length,
+						errors: rows,
 					};
 				}),
 			),
