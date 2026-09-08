@@ -44,9 +44,11 @@ whatever `coverage.reportsDirectory` says).
 
 ## The agent writes `run.json` and `summary.md`
 
-Every run now leaves two report files under
-`.vitest/vitest-agent/`: `summary.md`, a markdown digest, and `run.json`,
-a machine-readable envelope holding one report per Vitest project.
+Every run under the `agent` and `ci` executors now leaves two report
+files under `.vitest/vitest-agent/`: `summary.md`, a markdown digest, and
+`run.json`, a machine-readable envelope holding one report per Vitest
+project. Interactive `human` runs write nothing unless you set `report`
+explicitly.
 
 `run.json` is a versioned public contract, so its first key is a
 `$schema` pointing at the published Draft-07 JSON Schema —

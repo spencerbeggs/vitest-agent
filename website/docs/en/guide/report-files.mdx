@@ -1,13 +1,14 @@
 ---
 title: Report files
-description: The .vitest/vitest-agent/ report files vitest-agent writes on every run, the single .vitest gitignore line, uploading them in CI, and the vocabulary that keeps test annotations, test artifacts, TDD artifacts, and report files distinct.
+description: The .vitest/vitest-agent/ report files vitest-agent writes on every agent and ci run, the single .vitest gitignore line, uploading them in CI, and the vocabulary that keeps test annotations, test artifacts, TDD artifacts, and report files distinct.
 ---
 
 # Report files
 
-Every run leaves two report files under `.vitest/vitest-agent/`:
-`run.json`, a machine-readable envelope, and `summary.md`, a markdown
-digest. This page covers what they contain, the single `.gitignore`
+Every run under the `agent` and `ci` executors leaves two report files
+under `.vitest/vitest-agent/`: `run.json`, a machine-readable envelope,
+and `summary.md`, a markdown digest. Interactive `human` runs write
+nothing unless `report` is set explicitly. This page covers what they contain, the single `.gitignore`
 line Vitest 5 needs, uploading them in CI, and why attachment bytes
 are not inside blob output.
 
