@@ -1,5 +1,20 @@
 # @vitest-agent/sdk
 
+## 3.1.0
+
+### Features
+
+- Added `BATS_FILE_GLOB_SUFFIX` (`"*.bats"`) to `utils/test-location.ts`,
+  alongside `TEST_FILE_GLOB_SUFFIX`, as the single source of truth for
+  the Bats shell test file naming convention. Consumed by&#10;`@vitest-agent/plugin`'s `isTestShapedPackage` so a package whose
+  tests are Bats-only no longer trips the declined-package warning. [#402][#402]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#402]: https://github.com/spencerbeggs/vitest-agent/pull/402
+
 ## 3.0.0
 
 ### Breaking Changes
