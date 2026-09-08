@@ -57,10 +57,11 @@ export const RunReportFile = Schema.Struct({
 	reports: Schema.Array(AgentReport),
 }).annotate({
 	identifier: "RunReportFile",
-	// Reader guidance lives in `description`, a standard keyword, rather
-	// than an `x-` extension: ajv's strict mode refuses to compile a
-	// document carrying an undeclared keyword, so an extension would force
-	// every consumer validating this schema to call `addVocabulary` first.
+	// Reader guidance lives in `description`, a standard keyword. The
+	// published document deliberately carries no extension keywords: ajv's
+	// strict mode refuses to compile a schema with an undeclared keyword,
+	// so an extension would force every validating consumer to register it
+	// before they could check a `run.json` at all.
 	description:
 		"The vitest-agent run report file (.vitest/vitest-agent/run.json): one AgentReport per Vitest project from the most recent run. Read reports[].summary for pass/fail counts and reports[].failed for the failing modules and their tests. schemaVersion is the envelope contract version; generatedAt is when the run finished.",
 });
