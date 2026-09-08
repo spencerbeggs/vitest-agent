@@ -62,6 +62,17 @@ describe("annotation and artifact ingestion mappers", () => {
 		expect(inputs[0]?.attachments).toEqual([{ body: "héllo", bodyEncoding: "utf-8", byteSize: 6 }]);
 	});
 
+	it("normalizes a non-base64 declared body encoding to utf-8", () => {
+		// Vitest's declared type only allows "base64" | "utf-8", but a
+		// hand-built attachment (or a future Vitest release) could carry
+		// anything else -- the mapper treats any non-"base64" value as
+		// "utf-8" rather than passing an unrecognized encoding through.
+		const inputs = toAnnotationInputs(1, [
+			{ message: "m", attachment: { body: "hi", bodyEncoding: "latin1" } as unknown as { body: string } },
+		]);
+		expect(inputs[0]?.attachments).toEqual([{ body: "hi", bodyEncoding: "utf-8", byteSize: 2 }]);
+	});
+
 	it("sizes a declared base64 body by its decoded byte length", () => {
 		const inputs = toAnnotationInputs(1, [
 			{ message: "m", attachment: { contentType: "image/png", body: "AAAA", bodyEncoding: "base64" } },

@@ -10,6 +10,8 @@ The plugin now ingests test annotations and test artifacts at run end, reading `
 
 The streaming `TestAnnotated` and `TestArtifactRecorded` run events now also carry the annotation type, source location, and attachment descriptors. Event attachments are descriptors only — content type, path and byte size — so a large inline body never rides the live event stream.
 
+An attachment whose declared `bodyEncoding` is anything other than `base64` is recorded as `utf-8`.
+
 `TestArtifactRecorded` is no longer emitted at all for an artifact whose type is empty or carries the reserved `internal:` prefix. This is a change to the event stream itself, separate from the persistence skip above: a subscriber that counted those events will see fewer of them.
 
 ### Report files
