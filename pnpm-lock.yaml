@@ -44,6 +44,9 @@ catalogs:
     react:
       specifier: ^19.2.8
       version: 19.2.8
+    tsx:
+      specifier: ^4.23.13
+      version: 4.23.13
     typescript:
       specifier: ^7.0.2
       version: 7.0.2
@@ -93,6 +96,9 @@ catalogs:
       specifier: ^0.9.0
       version: 0.9.0
     '@effected/memfs':
+      specifier: ^0.6.0
+      version: 0.6.0
+    '@effected/schemastore':
       specifier: ^0.6.0
       version: 0.6.0
     '@effected/toml':
@@ -377,12 +383,18 @@ importers:
       '@effected/memfs':
         specifier: catalog:effected
         version: 0.6.0(effect@4.0.0-rc.112)
+      '@effected/schemastore':
+        specifier: catalog:effected
+        version: 0.6.0(effect@4.0.0-rc.112)
       '@savvy-web/bundler':
         specifier: ^2.3.1
         version: 2.3.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/semver@0.6.0(effect@4.0.0-rc.112))(@effected/walker@0.6.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@types/node@26.4.1)(@types/react-dom@19.2.7(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(tsx@4.23.13)(typescript@7.0.2)
       '@types/node':
         specifier: catalog:build
         version: 26.4.1
+      tsx:
+        specifier: catalog:build
+        version: 4.23.13
       typescript:
         specifier: catalog:build
         version: 7.0.2
@@ -934,6 +946,12 @@ packages:
 
   '@effected/schema-org@0.2.0':
     resolution: {integrity: sha512-smnMlkZVnn8NEJjsOOOA39jP4a25TpckVs5jGLz10kCO/Qvkmqx98gEvrUokRiIH9DHDLQ8TeK9K2SGDqb+S+A==}
+    engines: {node: '>=24.11.0'}
+    peerDependencies:
+      effect: 4.0.0-rc.112
+
+  '@effected/schemastore@0.6.0':
+    resolution: {integrity: sha512-ovNd84TjtDN6H0x4TvOCCwond3bPaAXBOo1by5s4osaOBhFP3+u2nnquoJwTkCoX35GDB6opRtceN8fevxjJ0g==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       effect: 4.0.0-rc.112
@@ -5318,6 +5336,12 @@ snapshots:
 
   '@effected/schema-org@0.2.0(effect@4.0.0-rc.112)':
     dependencies:
+      effect: 4.0.0-rc.112
+
+  '@effected/schemastore@0.6.0(effect@4.0.0-rc.112)':
+    dependencies:
+      '@effected/semver': 0.6.0(effect@4.0.0-rc.112)
+      ajv: 8.20.0
       effect: 4.0.0-rc.112
 
   '@effected/semver@0.6.0(effect@4.0.0-rc.112)':

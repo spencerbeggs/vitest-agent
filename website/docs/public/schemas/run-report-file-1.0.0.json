@@ -1,0 +1,964 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://vitest-agent.dev/schemas/run-report-file-1.0.0.json",
+	"$ref": "#/$defs/RunReportFile",
+	"$defs": {
+		"IsoInstant": {
+			"type": "string",
+			"pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+			"description": "An ISO-8601 instant, the shape Date.prototype.toISOString produces."
+		},
+		"TestRunReason": {
+			"type": "string",
+			"enum": ["passed", "failed", "interrupted"]
+		},
+		"ReportSummary": {
+			"type": "object",
+			"properties": {
+				"total": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"passed": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"failed": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"skipped": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"duration": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"modules": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["total", "passed", "failed", "skipped", "duration"],
+			"additionalProperties": false
+		},
+		"TestState": {
+			"type": "string",
+			"enum": ["passed", "failed", "skipped", "pending"]
+		},
+		"ReportError": {
+			"type": "object",
+			"properties": {
+				"message": {
+					"type": "string"
+				},
+				"stack": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"diff": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"expected": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"received": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["message"],
+			"additionalProperties": false
+		},
+		"TestClassification": {
+			"type": "string",
+			"enum": ["stable", "new-failure", "persistent", "flaky", "recovered"]
+		},
+		"TestReport": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"fullName": {
+					"type": "string"
+				},
+				"state": {
+					"$ref": "#/$defs/TestState"
+				},
+				"duration": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"flaky": {
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"slow": {
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"errors": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/ReportError"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"classification": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/TestClassification"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["name", "fullName", "state"],
+			"additionalProperties": false
+		},
+		"ModuleReport": {
+			"type": "object",
+			"properties": {
+				"file": {
+					"type": "string"
+				},
+				"state": {
+					"$ref": "#/$defs/TestState"
+				},
+				"duration": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"errors": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/ReportError"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tests": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/TestReport"
+					}
+				}
+			},
+			"required": ["file", "state", "tests"],
+			"additionalProperties": false
+		},
+		"CoverageTotals": {
+			"type": "object",
+			"properties": {
+				"statements": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"branches": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"functions": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"lines": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				}
+			},
+			"required": ["statements", "branches", "functions", "lines"],
+			"additionalProperties": false
+		},
+		"MetricThresholds": {
+			"type": "object",
+			"properties": {
+				"lines": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"functions": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"branches": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"statements": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"additionalProperties": false
+		},
+		"PerFileThresholds": {
+			"anyOf": [
+				{
+					"type": "boolean"
+				},
+				{
+					"$ref": "#/$defs/MetricThresholds"
+				}
+			]
+		},
+		"PatternMetricThresholds": {
+			"type": "object",
+			"properties": {
+				"lines": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"functions": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"branches": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"statements": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"perFile": {
+					"$ref": "#/$defs/PerFileThresholds"
+				}
+			},
+			"additionalProperties": false
+		},
+		"PatternThresholds": {
+			"type": "array",
+			"maxItems": 2,
+			"minItems": 2,
+			"items": [
+				{
+					"type": "string"
+				},
+				{
+					"$ref": "#/$defs/PatternMetricThresholds"
+				}
+			]
+		},
+		"FileCoverageReport": {
+			"type": "object",
+			"properties": {
+				"file": {
+					"type": "string"
+				},
+				"summary": {
+					"$ref": "#/$defs/CoverageTotals"
+				},
+				"uncoveredLines": {
+					"type": "string"
+				}
+			},
+			"required": ["file", "summary", "uncoveredLines"],
+			"additionalProperties": false
+		},
+		"CoverageReport": {
+			"type": "object",
+			"properties": {
+				"totals": {
+					"$ref": "#/$defs/CoverageTotals"
+				},
+				"thresholds": {
+					"type": "object",
+					"properties": {
+						"global": {
+							"$ref": "#/$defs/MetricThresholds"
+						},
+						"patterns": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/PatternThresholds"
+							}
+						}
+					},
+					"required": ["global"],
+					"additionalProperties": false
+				},
+				"targets": {
+					"anyOf": [
+						{
+							"type": "object",
+							"properties": {
+								"global": {
+									"$ref": "#/$defs/MetricThresholds"
+								},
+								"patterns": {
+									"type": "array",
+									"items": {
+										"$ref": "#/$defs/PatternThresholds"
+									}
+								}
+							},
+							"required": ["global"],
+							"additionalProperties": false
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"baselines": {
+					"anyOf": [
+						{
+							"type": "object",
+							"properties": {
+								"global": {
+									"$ref": "#/$defs/MetricThresholds"
+								},
+								"patterns": {
+									"type": "array",
+									"items": {
+										"$ref": "#/$defs/PatternThresholds"
+									}
+								}
+							},
+							"required": ["global"],
+							"additionalProperties": false
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"scoped": {
+					"type": "boolean"
+				},
+				"scopedFiles": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"totalFiles": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"lowCoverage": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/FileCoverageReport"
+					}
+				},
+				"lowCoverageFiles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"belowTarget": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/FileCoverageReport"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"belowTargetFiles": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["totals", "thresholds", "lowCoverage", "lowCoverageFiles"],
+			"additionalProperties": false
+		},
+		"TagCountEntry": {
+			"type": "object",
+			"properties": {
+				"passed": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"failed": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"skipped": {
+					"anyOf": [
+						{
+							"anyOf": [
+								{
+									"type": "number"
+								},
+								{
+									"type": "string",
+									"enum": ["Infinity", "-Infinity", "NaN"]
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"additionalProperties": false
+		},
+		"ConsoleLeakFile": {
+			"type": "object",
+			"properties": {
+				"file": {
+					"type": "string"
+				},
+				"stdout": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"stderr": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"tests": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"sample": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["file", "stdout", "stderr"],
+			"additionalProperties": false
+		},
+		"ConsoleLeaksFromFailingTests": {
+			"type": "object",
+			"properties": {
+				"total": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"files": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				}
+			},
+			"required": ["total", "files"],
+			"additionalProperties": false
+		},
+		"ConsoleLeaks": {
+			"type": "object",
+			"properties": {
+				"total": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "string",
+							"enum": ["Infinity", "-Infinity", "NaN"]
+						}
+					]
+				},
+				"byFile": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/ConsoleLeakFile"
+					}
+				},
+				"truncated": {
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"fromFailingTests": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ConsoleLeaksFromFailingTests"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["total", "byFile"],
+			"additionalProperties": false
+		},
+		"AgentReport": {
+			"type": "object",
+			"properties": {
+				"timestamp": {
+					"type": "string"
+				},
+				"project": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"reason": {
+					"$ref": "#/$defs/TestRunReason"
+				},
+				"summary": {
+					"$ref": "#/$defs/ReportSummary"
+				},
+				"failed": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/ModuleReport"
+					}
+				},
+				"unhandledErrors": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/ReportError"
+					}
+				},
+				"failedFiles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"coverage": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/CoverageReport"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"tagCounts": {
+					"anyOf": [
+						{
+							"type": "object",
+							"additionalProperties": {
+								"$ref": "#/$defs/TagCountEntry"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"consoleLeaks": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ConsoleLeaks"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["timestamp", "reason", "summary", "failed", "unhandledErrors", "failedFiles"],
+			"additionalProperties": false
+		},
+		"RunReportFile": {
+			"type": "object",
+			"properties": {
+				"$schema": {
+					"type": "string"
+				},
+				"schemaVersion": {
+					"type": "number",
+					"enum": [1]
+				},
+				"generatedAt": {
+					"$ref": "#/$defs/IsoInstant"
+				},
+				"reports": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/AgentReport"
+					}
+				}
+			},
+			"required": ["schemaVersion", "generatedAt", "reports"],
+			"additionalProperties": false,
+			"description": "The vitest-agent run report file (.vitest/vitest-agent/run.json): one AgentReport per Vitest project from the most recent run.",
+			"x-ai-hint": "Read reports[].summary for pass/fail counts and reports[].failures for the failing tests. schemaVersion is the envelope contract version; generatedAt is when the run finished."
+		}
+	}
+}

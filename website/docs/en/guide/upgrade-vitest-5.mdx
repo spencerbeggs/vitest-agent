@@ -42,6 +42,19 @@ all live there now. Add it to `.gitignore`:
 Coverage output is unaffected and still lands in `./coverage` (or
 whatever `coverage.reportsDirectory` says).
 
+## The agent writes `run.json` and `summary.md`
+
+Every run now leaves two report files under
+`.vitest/vitest-agent/`: `summary.md`, a markdown digest, and `run.json`,
+a machine-readable envelope holding one report per Vitest project.
+
+`run.json` is a versioned public contract, so its first key is a
+`$schema` pointing at the published Draft-07 JSON Schema —
+[`https://vitest-agent.dev/schemas/run-report-file-1.0.0.json`](https://vitest-agent.dev/schemas/run-report-file-1.0.0.json)
+— which editors, CI steps and agents can validate the file against. The
+same document ships inside `@vitest-agent/sdk` under `schemas/` for
+offline validation.
+
 ## The `github-actions` reporter now writes a job summary
 
 Under Vitest 5 the built-in `github-actions` reporter writes a markdown
