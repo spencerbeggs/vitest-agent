@@ -58,18 +58,9 @@ no intermediate directories, so a nested path is rejected.
 
 ## One `.gitignore` line: `.vitest`
 
-Vitest 5 consolidated attachments, blob, json, junit, and html output
-under a single `.vitest/` directory at the project root. Add one line:
-
-```text
-**/.vitest
-```
-
-Do not add the Vitest 4 paths (`.vitest-attachements`, `.vitest-reports`,
-`html/`) — they no longer apply. Coverage is the exception:
-`coverage.reportsDirectory` still defaults to `./coverage`, separate
-from `.vitest/`. Point it at `.vitest/coverage` yourself if you want
-everything under one root.
+Add `**/.vitest` to `.gitignore` — see [Upgrading to Vitest
+5](/guide/upgrade-vitest-5#ignore-the-new-vitest-directory) for why one
+line covers attachments, blob, json, junit, and html output together.
 
 ## Uploading in CI
 

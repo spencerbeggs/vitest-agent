@@ -125,7 +125,13 @@ pipeline must upload `.vitest/attachments` alongside `.vitest/blob`.
 
 ## Step summaries
 
-vitest-agent does not currently emit a GitHub step summary. If you want a
-formatted summary in the Actions UI, combine Vitest's `json` reporter with a
-separate workflow step that renders the JSON, or use a third-party action that
-consumes JUnit output.
+Under the `ci-github` environment (and unless `console.ci` resolves to
+`"silent"`), the default reporter writes its own GitHub Actions step
+summary: a `## vitest-agent` heading and a `### Totals` table, followed by
+classification, coverage, and trend sections when they have content. This
+setting is auto-derived — there is no separate `githubSummary` option to
+configure. Phase 1 of the Vitest 5 migration disabled Vitest's own
+`github-actions` job summary (`jobSummary.enabled: false`) so the two never
+duplicate; see [Upgrading to Vitest 5](/guide/upgrade-vitest-5) for that
+normalization. See [Report files](/guide/report-files) for the exact
+summary shape — the same markdown also lands in `summary.md`.
