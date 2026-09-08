@@ -1,5 +1,29 @@
 # @vitest-agent/ui
 
+## 2.4.0
+
+### Features
+
+- The `TestAnnotated` and `TestArtifactRecorded` run events now carry the annotation type, source location, and attachment descriptors, matching the wider events the plugin and reporter now emit. Both remain no-ops in the reducer. [#380][#380]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.5.1 | 3.0.0 |
+
+### Maintenance
+
+- Development-time Vitest pin moved to `5.0.0`. Neither package imports
+  Vitest at runtime and neither declares a Vitest peer, so there is no
+  change to installed behavior. [#380][#380]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#380]: https://github.com/spencerbeggs/vitest-agent/pull/380
+
 ## 2.3.1
 
 ### Dependencies

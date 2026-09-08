@@ -1,5 +1,54 @@
 # @vitest-agent/mcp
 
+## 3.0.0
+
+### Breaking Changes
+
+#### Requires Vitest 5
+
+- The `vitest` peer range moves to `^5.0.0`. Vitest 4 is no longer
+  supported, and `vite` must now be installed explicitly because Vitest 5
+  declares it as a required peer rather than a regular dependency.
+
+#### `run_tests` rejects a `projectRoot` with no reachable config
+
+- Vitest 5 probes only the given `root` for a config file and no longer
+  walks up through ancestor directories. A `run_tests` call passing an
+  explicit `projectRoot` that points at a package subtree previously found
+  the workspace config by that upward walk; under Vitest 5 it would find
+  nothing, run on pure defaults, never load `AgentPlugin`, write no rows,
+  and still report success.
+
+- `run_tests` now resolves the config itself and passes it alongside the
+  caller's verbatim `root`. When no `vitest.config.*` or `vite.config.*`&#10;exists at or above the supplied `projectRoot` within the repository, the
+  call returns an error envelope naming the path instead of a silent
+  empty pass.
+
+### Features
+
+- `test_errors` rows now carry an `annotations` array — the test annotations the author recorded via `context.annotate`, rendered in both the markdown and XML formats.
+
+- The `test` tool gains `annotations` and `artifacts` actions, both scoped to one test by `fullName` (plus optional `project` / `modulePath`) and returning descriptors — content type, path, byte size — never raw bytes by default. Pass `maxBytes` (default `0`) to include inline attachment bodies up to that total byte budget; a body already too large to have been persisted inline is never returned regardless of `maxBytes`.
+
+- Help text documents both new actions and disambiguates the `test` tool's `artifacts` action — Vitest test artifacts — from `tdd_artifact_list`'s TDD artifacts, which are unrelated red/green evidence rows. [#380][#380]
+
+### Bug Fixes
+
+- `run_tests` moved to the non-deprecated&#10;`createVitest(options, viteOverrides, vitestOptions)` overload; the&#10;`mode` first argument is deprecated in Vitest 5. [#380][#380]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.5.1 | 3.0.0 |
+| vitest | peerDependency | updated | ^4.1.0 | ^5.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#380]: https://github.com/spencerbeggs/vitest-agent/pull/380
+
 ## 2.4.15
 
 ### Dependencies

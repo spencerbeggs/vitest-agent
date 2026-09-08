@@ -1,5 +1,129 @@
 # @vitest-agent/plugin
 
+## 3.0.0
+
+### Breaking Changes
+
+#### Requires Vitest 5
+
+- The `vitest`, `@vitest/coverage-v8`, and `@vitest/coverage-istanbul` peer
+  ranges move to `^5.0.0`. Vitest 4 is no longer supported. Vitest 5 also
+  declares `vite` as a required peer dependency rather than a regular one,
+  so a project that never installed `vite` explicitly now must. Vitest 5
+  accepts vite 6.4 or newer — 6, 7, or 8 all work.
+
+```bash
+npm install -D vitest@^5 vite @vitest/coverage-v8@^5
+```
+
+#### `TagOptions` no longer accepts `sequential`
+
+- `TagOptions` is `Omit<TestTagDefinition, "name">`, and Vitest 5 removed
+  the `sequential` test option, so `Tag.make("slow", { sequential: true })`&#10;is now a type error. `timeout` and `retry` are unaffected, and the
+  built-in tag definitions never used `sequential`.
+
+#### `COVERAGE_AUTOUPDATE` functions take two arguments
+
+- Vitest 5 calls `coverage.thresholds.autoUpdate` with&#10;`(newThreshold, previousThreshold)`. All three tolerance functions now
+  declare both parameters. `standard` and `strict` behave exactly as
+  before. `lenient` now uses the second argument as a floor: it still
+  floors the new value and subtracts a two-point buffer, but never returns
+  a value below the previous threshold, so a temporary coverage dip cannot
+  ratchet the configured floor downward.
+
+#### Test history resets for parameterised titles
+
+- Vitest 5 renders interpolated `test.each` / `test.for` titles through&#10;`pretty-format` instead of `loupe` and drops the quotes around
+  interpolated strings, and it truncates each interpolated value at 40
+  characters. Test history, failure classification, and trends are keyed on
+  a test's full name, so every parameterised test whose title interpolates
+  a value gets a new history key on the first Vitest 5 run. There is no
+  deterministic mapping between the old and new titles and therefore no
+  migration: affected tests start a fresh history window, and one that
+  fails on that first run classifies as `new-failure` rather than&#10;`persistent` or `flaky`. Tests with static titles are unaffected.
+
+#### Glob-scoped `perFile` no longer inherits the top-level setting
+
+- Vitest 5 widened `coverage.thresholds.perFile` to accept a per-metric
+  object, and stopped letting a glob-pattern threshold entry inherit the
+  top-level `perFile` flag. The plugin now resolves an object-valued&#10;`perFile` instead of normalizing it to `false`, and applies a `perFile`&#10;declared inside a glob-pattern entry only to that pattern rather than to
+  every glob. If you relied on a top-level `perFile: true` reaching your
+  per-glob thresholds, add `perFile` explicitly to each glob entry that
+  needs it.
+
+#### `coverage.include` and `coverage.exclude` are root-relative
+
+- Vitest 5 matches both lists against each file's path relative to the
+  project root that owns it, not the workspace root, so a workspace-anchored
+  entry such as `packages/cli/src/bin.ts` never matches from inside that
+  package. Re-anchor those patterns as `**/cli/src/bin.ts` and set&#10;`coverage.excludeAfterRemap: true` so a file reached only through another
+  file's source map is still excluded. The Vitest 5 upgrade guide walks
+  through it.
+
+### Features
+
+#### Tag-set changes invalidate the cached tag prelude
+
+- The plugin now registers a `fsModuleCache` cache-key generator via Vitest
+  5's `defineCacheKeyGenerator`. Changing the set of classification tags
+  declared in config now busts the cached tag prelude automatically instead
+  of requiring a manual cache clear.
+
+#### `github-actions` job summary no longer duplicates
+
+- Vitest 5's `github-actions` reporter writes a markdown job summary by
+  default, and Vitest seeds the reporter into its own defaults whenever&#10;`GITHUB_ACTIONS=true`. Under the `ci-github` environment the plugin now
+  normalizes whatever entry it finds to&#10;`["github-actions", { jobSummary: { enabled: false } }]` — preserving the
+  entry's other options and its position in the array, and appending one
+  when none exists — so the inline `::error::` annotations stay while the
+  summary is left to the plugin. An entry that sets&#10;`jobSummary: { enabled: true }` reads as a deliberate opt-in: the plugin
+  leaves it alone and raises the new `GITHUB_JOB_SUMMARY_COLLISION`&#10;configuration warning instead.
+
+#### Test annotations and test artifacts
+
+- The plugin now ingests test annotations and test artifacts at run end, reading `testCase.annotations()` and `testCase.artifacts()` during the persistence walk so merge-report runs are covered as well as single-shard ones. Artifacts whose type carries the reserved `internal:` prefix are skipped. Attachments referenced by path are never copied — only their path, content type and byte size are recorded, alongside an inline body when it is small enough to persist. Every attachment and artifact field is read defensively, so a user-authored object exposing a getter that throws degrades to the descriptor that could be read instead of aborting the run's persistence.
+
+- The streaming `TestAnnotated` and `TestArtifactRecorded` run events now also carry the annotation type, source location, and attachment descriptors. Event attachments are descriptors only — content type, path and byte size — so a large inline body never rides the live event stream.
+
+- An attachment whose declared `bodyEncoding` is anything other than `base64` is recorded as `utf-8`.
+
+- `TestArtifactRecorded` is no longer emitted at all for an artifact whose type is empty or carries the reserved `internal:` prefix. This is a change to the event stream itself, separate from the persistence skip above: a subscriber that counted those events will see fewer of them.
+
+* A bad `report.scope` is now reported as a single `vitest-agent: …` stderr line — no stack trace and no "please report an issue" banner — instead of being surfaced as an internal plugin bug. The new `ConfigurationError` export marks these user configuration mistakes. [#380][#380]
+
+#### Report files
+
+- New `report` option on `AgentPlugin`, on by default for the `agent` and `ci` executors and off for `human`. Pass `report: false` to disable report files outright, or `{ scope }` to rename the directory they land in — otherwise files are written under `.vitest/vitest-agent/`. The plugin creates the underlying Vitest 5 `Report` handle lazily on first write and never calls `clean()` on it, so a prior shard's output survives. Requires a Vitest version whose reporter context exposes `createReport`; older versions fail loudly with an upgrade message instead of silently dropping report files.
+
+- Report filenames and the configured scope name are validated up front — no path separators, and no empty, `.` or `..` scope names that could nest or escape `.vitest/`. An invalid scope throws during plugin configuration and names the offending value.
+
+- Because report files are on by default for `ci` and `agent`, an upgraded project will start finding a `.vitest/vitest-agent/` directory in its checkout — including on CI runners. Add `**/.vitest` to `.gitignore` before upgrading, or set `report: false`, or a dirty-tree check will start failing on the new directory.
+
+### Bug Fixes
+
+- `stripConsoleReporters` now removes Vitest's `minimal` reporter, which
+  is the default whenever `std-env`'s `isAgent` is true under Vitest 5.
+  Without this the runner's own console output double-printed in the&#10;`agent`, `stream`, and `ci-annotations` console modes. [#380][#380]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest/runner | devDependency | removed | ^4.1.10 | — |
+| @vitest-agent/cli | dependency | updated | 2.2.15 | 2.2.16 |
+| @vitest-agent/mcp | dependency | updated | 2.4.15 | 3.0.0 |
+| @vitest-agent/reporter | dependency | updated | 2.2.4 | 3.0.0 |
+| @vitest-agent/sdk | dependency | updated | 2.5.1 | 3.0.0 |
+| @vitest/coverage-istanbul | peerDependency | updated | ^4.1.0 | ^5.0.0 |
+| @vitest/coverage-v8 | peerDependency | updated | ^4.1.0 | ^5.0.0 |
+| vitest | peerDependency | updated | ^4.1.0 | ^5.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#380]: https://github.com/spencerbeggs/vitest-agent/pull/380
+
 ## 2.5.7
 
 ### Dependencies

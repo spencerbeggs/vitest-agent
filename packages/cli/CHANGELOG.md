@@ -1,5 +1,26 @@
 # @vitest-agent/cli
 
+## 2.2.16
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 2.5.1 | 3.0.0 |
+| @vitest-agent/sidecar | dependency | updated | 2.1.15 | 2.1.16 |
+
+### Maintenance
+
+- Development-time Vitest pin moved to `5.0.0`. Neither package imports
+  Vitest at runtime and neither declares a Vitest peer, so there is no
+  change to installed behavior. [#380][#380]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#380]: https://github.com/spencerbeggs/vitest-agent/pull/380
+
 ## 2.2.15
 
 ### Dependencies
