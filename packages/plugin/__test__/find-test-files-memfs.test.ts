@@ -136,4 +136,15 @@ describe("discovery walkers over a virtual volume", () => {
 
 		expect(shaped).toBe(false);
 	});
+
+	it("isTestShapedPackage is false for a nested .bats file (recursive bats search)", async () => {
+		const shaped = await withMemfsWalker(
+			{
+				"/pkg/__test__/sub/nested.bats": "#!/usr/bin/env bats\n",
+			},
+			(fs) => isTestShapedPackage("/pkg", fs),
+		);
+
+		expect(shaped).toBe(false);
+	});
 });
