@@ -25,9 +25,9 @@ import {
 	DataStoreLive,
 	DiscoveryRegistryLive,
 	LoggerLive,
+	PROJECT_MIGRATIONS,
 	PerClientSessionMapWriterLive,
 	RunContextLive,
-	migration0001,
 	registryMigration0001,
 	sessionMapMigration0001,
 } from "@vitest-agent/sdk";
@@ -63,7 +63,7 @@ export const SidecarLive = (paths: SidecarPaths) => {
 	// Per-project data.db
 	const ProjectSqliteLayer = sqliteClientLayer({ filename: paths.perProjectDbPath });
 	const ProjectMigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord({ "0001_initial": migration0001 }),
+		loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS),
 	}).pipe(Layer.provide(Layer.merge(ProjectSqliteLayer, PlatformLayer)));
 	const ProjectStoreLayer = Layer.mergeAll(
 		DataStoreLive.pipe(Layer.provide(ProjectSqliteLayer)),

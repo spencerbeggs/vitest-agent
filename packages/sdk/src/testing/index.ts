@@ -15,6 +15,9 @@ export {
 	TddTaskAlreadyEndedError,
 	TddTaskNotFoundError,
 } from "../errors/TddErrors.js";
+// The project-database migration set, so a consumer building its own test
+// layer registers exactly what the runtime layers register.
+export { PROJECT_MIGRATIONS } from "../migrations/index.js";
 // Agent schemas — classes carry both value and type
 export { Agent, IdempotencyHit } from "../schemas/Agent.js";
 // AgentReport schema — Schema const+type pair
