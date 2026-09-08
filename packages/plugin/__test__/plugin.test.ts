@@ -637,6 +637,26 @@ describe("AgentPlugin", () => {
 				"vitest-agent: @vitest-agent/plugin 3.x requires Vitest >= 5. The installed Vitest version could not be detected. Install @vitest-agent/plugin 2.x for Vitest 4.\n",
 			);
 		});
+
+		it("does not affect an unrelated configureVitest error, which still gets the formatFatalError stack + issue-report URL treatment", async () => {
+			// target (50) < threshold (80) → a real ConfigValidation
+			// TARGET_BELOW_THRESHOLD error, unrelated to the cache-key-generator
+			// guard — defineCacheKeyGenerator IS present on this ctx.
+			const plugin = AgentPlugin({ coverageTargets: { lines: 50 } }, EnvironmentDetectorTest.layer("agent-shell"));
+			const vitest = mockVitest(["default"], { thresholds: { lines: 80 } });
+			const ctx = {
+				vitest,
+				project: { name: undefined },
+				defineCacheKeyGenerator: vi.fn(),
+			} as unknown as VitestPluginContext;
+
+			await expect(plugin.configureVitest(ctx)).rejects.toThrow("TARGET_BELOW_THRESHOLD");
+
+			expect(stderrWrite).toHaveBeenCalled();
+			const lastCall = stderrWrite.mock.calls[stderrWrite.mock.calls.length - 1]?.[0] as string;
+			expect(lastCall).toContain("Please report at https://github.com/spencerbeggs/vitest-agent/issues");
+			expect(lastCall).toContain("\n    at ");
+		});
 	});
 
 	describe("fsModuleCache cache-key generator (Vitest 5)", () => {
