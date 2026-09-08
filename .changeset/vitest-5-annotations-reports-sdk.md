@@ -32,6 +32,10 @@ New `report` target on `RenderedOutput` carrying a `filename` and content destin
 
 The `RunReportFile` contract is also published as a standalone JSON Schema at `schemas/run-report-file-1.0.0.json`, reachable via the new `./schemas/*.json` export, with `RUN_REPORT_FILE_SCHEMA_URL` pointing at the canonical hosted copy written into `run.json`'s `$schema` field.
 
+## Bug Fixes
+
+A duplicate test title no longer aborts history persistence for the run.
+
 ## Dependencies
 
 | Dependency             | Type          | Action | From | To      |

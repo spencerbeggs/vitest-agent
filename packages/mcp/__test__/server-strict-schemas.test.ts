@@ -50,56 +50,58 @@ const BOGUS_KEY = "__bogus_extra_key__";
 
 // One minimal-but-schema-valid payload per parameterized tool (excludes
 // help/cache_health/settings_list/ping, which declare no inputSchema at
-// all and so have nothing to strip).
-const cases: ReadonlyArray<[tool: string, validArgs: Record<string, unknown>]> = [
-	["test_status", {}],
-	["test_overview", {}],
-	["test_coverage", {}],
-	["test_history", { project: "x" }],
-	["test_trends", { project: "x" }],
-	["test_errors", { project: "x" }],
-	["test", { action: "list" }],
-	["test", { action: "annotations", fullName: "x" }],
-	["test", { action: "artifacts", fullName: "x", maxBytes: 0 }],
-	["file_coverage", { filePath: "x" }],
-	["configure", {}],
-	["inventory", { kind: "project" }],
-	["register_agent", { chatId: "x", agentType: "claude-code-main-x" }],
-	["note", { action: "list" }],
-	["turn_search", {}],
-	["failure_signature_get", { hash: "x" }],
-	["tdd_task", { action: "get" }],
-	["tdd_phase_transition_request", { tddTaskId: 1, goalId: 1, requestedPhase: "red" }],
-	["tdd_goal", { action: "list" }],
-	["tdd_behavior", { action: "list_by_tdd_task" }],
-	["tdd_artifact_list", { tddTaskId: 1 }],
-	["hypothesis", { action: "list" }],
-	["tdd_progress_push", { payload: "{}" }],
-	["acceptance_metrics", {}],
-	["triage_brief", {}],
-	["wrapup_prompt", {}],
-	["commit_changes", {}],
+// all and so have nothing to strip). `label` disambiguates the multiple
+// `test` tool cases (different `action` values) so `it.each` titles stay
+// unique -- two cases sharing a title collapse into one reported test.
+const cases: ReadonlyArray<[label: string, tool: string, validArgs: Record<string, unknown>]> = [
+	["test_status", "test_status", {}],
+	["test_overview", "test_overview", {}],
+	["test_coverage", "test_coverage", {}],
+	["test_history", "test_history", { project: "x" }],
+	["test_trends", "test_trends", { project: "x" }],
+	["test_errors", "test_errors", { project: "x" }],
+	["test (list)", "test", { action: "list" }],
+	["test (annotations)", "test", { action: "annotations", fullName: "x" }],
+	["test (artifacts)", "test", { action: "artifacts", fullName: "x", maxBytes: 0 }],
+	["file_coverage", "file_coverage", { filePath: "x" }],
+	["configure", "configure", {}],
+	["inventory", "inventory", { kind: "project" }],
+	["register_agent", "register_agent", { chatId: "x", agentType: "claude-code-main-x" }],
+	["note", "note", { action: "list" }],
+	["turn_search", "turn_search", {}],
+	["failure_signature_get", "failure_signature_get", { hash: "x" }],
+	["tdd_task", "tdd_task", { action: "get" }],
+	["tdd_phase_transition_request", "tdd_phase_transition_request", { tddTaskId: 1, goalId: 1, requestedPhase: "red" }],
+	["tdd_goal", "tdd_goal", { action: "list" }],
+	["tdd_behavior", "tdd_behavior", { action: "list_by_tdd_task" }],
+	["tdd_artifact_list", "tdd_artifact_list", { tddTaskId: 1 }],
+	["hypothesis", "hypothesis", { action: "list" }],
+	["tdd_progress_push", "tdd_progress_push", { payload: "{}" }],
+	["acceptance_metrics", "acceptance_metrics", {}],
+	["triage_brief", "triage_brief", {}],
+	["wrapup_prompt", "wrapup_prompt", {}],
+	["commit_changes", "commit_changes", {}],
 ];
 
 describe("every registerTool input shape rejects unknown keys", () => {
-	it.each(cases)("%s rejects an unknown parameter instead of silently stripping it", async (tool, validArgs) => {
+	it.each(cases)("%s rejects an unknown parameter instead of silently stripping it", async (label, tool, validArgs) => {
 		const result = await client.callTool({
 			name: tool,
 			arguments: { ...validArgs, [BOGUS_KEY]: true },
 		});
-		expect(result.isError, `${tool} should reject an unknown key`).toBe(true);
+		expect(result.isError, `${label} should reject an unknown key`).toBe(true);
 		const text = (result.content as Array<{ type: string; text?: string }>).map((c) => c.text ?? "").join("\n");
-		expect(text, `${tool}'s error should name the offending key`).toContain(BOGUS_KEY);
+		expect(text, `${label}'s error should name the offending key`).toContain(BOGUS_KEY);
 	});
 
-	it.each(cases)("%s still accepts its own documented params with no unknown keys", async (tool, validArgs) => {
+	it.each(cases)("%s still accepts its own documented params with no unknown keys", async (label, tool, validArgs) => {
 		const result = await client.callTool({ name: tool, arguments: validArgs });
 		// The strictness pass must not become over-strict: a call carrying
 		// only documented params must never fail with an MCP-level
 		// InvalidParams error (isError may still be true for domain reasons,
 		// e.g. register_agent's SESSION_NOT_FOUND, but never for schema shape).
 		const text = (result.content as Array<{ type: string; text?: string }>).map((c) => c.text ?? "").join("\n");
-		expect(text, `${tool} rejected its own valid params`).not.toContain("Input validation error");
+		expect(text, `${label} rejected its own valid params`).not.toContain("Input validation error");
 	});
 });
 

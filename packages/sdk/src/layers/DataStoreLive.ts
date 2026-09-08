@@ -361,7 +361,12 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 		): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("writeHistory").pipe(Effect.annotateLogs({ project, modulePath, runId }));
-				yield* sql`INSERT INTO test_history (run_id, project, module_path, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${modulePath}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage})`;
+				// A duplicate (project, module_path, full_name, timestamp) key --
+				// e.g. two test cases in the same run sharing a title -- must not
+				// abort the whole run's persistence with a UNIQUE constraint
+				// violation. Upsert onto the later values instead (issue: a
+				// duplicate test title aborted history persistence for the run).
+				yield* sql`INSERT INTO test_history (run_id, project, module_path, full_name, timestamp, state, duration, flaky, retry_count, error_message) VALUES (${runId}, ${project}, ${modulePath}, ${fullName}, ${timestamp}, ${state}, ${duration}, ${flaky ? 1 : 0}, ${retryCount}, ${errorMessage}) ON CONFLICT(project, module_path, full_name, timestamp) DO UPDATE SET run_id = excluded.run_id, state = excluded.state, duration = excluded.duration, flaky = excluded.flaky, retry_count = excluded.retry_count, error_message = excluded.error_message`;
 
 				// Delete oldest entries beyond 10-entry window per (project, module_path, fullName)
 				yield* sql`DELETE FROM test_history WHERE id NOT IN (SELECT id FROM test_history WHERE project = ${project} AND module_path = ${modulePath} AND full_name = ${fullName} ORDER BY timestamp DESC LIMIT 10) AND project = ${project} AND module_path = ${modulePath} AND full_name = ${fullName}`;
