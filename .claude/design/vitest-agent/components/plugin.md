@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-07
-last-synced: 2026-09-07
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 93
 related:
   - ../architecture.md
@@ -59,7 +59,7 @@ then constructs an `AgentReporter` per project and pushes it onto
 and does not touch `@vitest-agent/ui` directly.
 
 **The user-facing options shape.** `AgentPluginOptions` is exactly
-five fields — see [./sdk.md](./sdk.md) for the schema and
+six fields — see [./sdk.md](./sdk.md) for the schema and
 [../decisions.md](../decisions.md) D40 for the rationale.
 
 | Field | Source of truth | Notes |
@@ -67,6 +67,7 @@ five fields — see [./sdk.md](./sdk.md) for the schema and
 | `console` | `AgentPluginOptions` (schema) | Per-executor `ConsoleOutputs` matrix |
 | `coverageTargets` | `AgentPluginOptions` (schema) | Typed `CoverageTargets` schema with positive-numbers-only validation |
 | `transport` | `AgentPluginOptions` (schema) | Single-member `{ kind: "local" }` union; 2.x default |
+| `report` | `AgentPluginOptions` (schema) | Report files under `.vitest/<scope>/`. On for `agent` / `ci`, off for `human`; `false` disables, `{ scope }` renames. See *Report files* below |
 | `reporter` | `AgentPluginConstructorOptions` (companion interface) | `VitestAgentReporterFactory`; function-typed, lives outside the schema |
 | `onRunEvent` | `AgentPluginConstructorOptions` (companion interface) | Tee-out hook for the live `RunEvent` stream |
 
@@ -275,6 +276,10 @@ output. See *Render survives persistence failure* below and Decision 47 in
    frame, finding the function boundary, computing the stable failure
    signature), upsert `failure_signatures`, then persist runs, modules,
    suites, test cases, errors, coverage, history, and source-map entries.
+   The same per-test walk that feeds `writeErrors` also reads
+   `testCase.annotations()` and `testCase.artifacts()` and calls
+   `DataStore.writeAnnotations` / `writeArtifacts` (see *Test annotations
+   and test artifacts* below).
    First project (alphabetically) processes global coverage; others skip.
    Before the program runs, the handler decides `isPartial` (see
    *Partial-run detection and threshold suppression* below) — a partial run
@@ -856,9 +861,97 @@ instead.
   kit appropriate to their phase.
 - `route-rendered-output.ts` — dispatches a `RenderedOutput` by its declared
   `target`. `stdout` writes to `process.stdout`; `github-summary` appends to
-  the resolved `GITHUB_STEP_SUMMARY` file or user override; `file` is
-  reserved (currently a no-op) pending a future convention for arbitrary
-  on-disk artifacts.
+  the resolved `GITHUB_STEP_SUMMARY` file or user override; `report` hands
+  `(filename, content)` to the optional `writeReport` sink and is **dropped
+  when the sink is absent**, the same best-effort contract `github-summary`
+  has outside CI; `file` is reserved (currently a no-op) — `report` covers
+  the `.vitest` case that motivated it. A throwing `report` write is caught
+  and written to stderr so one rejected filename cannot abort the routing
+  loop and strip every later output.
+- `report-writer.ts` — the `writeReport` sink itself. See *Report files*.
+
+## Test annotations and test artifacts
+
+`packages/plugin/src/reporter.ts` ingests Vitest 5's `context.annotate`
+notes and `recordArtifact` payloads. Terminology: these are *test*
+annotations and *test* artifacts, not TDD artifacts — see
+[../schemas.md](../schemas.md) *Vocabulary*.
+
+**Persisted at `onTestRunEnd`, not from the streaming hooks.** The walk
+reads `testCase.annotations()` and `testCase.artifacts()` in the same loop
+that feeds `writeErrors`, using the `testCaseId` the batch insert just
+returned. Both methods return the accumulated arrays, so a
+`--merge-reports` run — which replays no streaming events — still persists
+everything. The streaming `TestAnnotated` / `TestArtifactRecorded` emits
+still fire for live consumers and now carry the type, location and
+attachments, but they are not the persistence path.
+
+**Mapping helpers** (`toAnnotationInputs`, `toArtifactInputs`, both
+`@internal` but exported for tests):
+
+- `internal:`-prefixed artifact types are Vitest's own bookkeeping and are
+  skipped, on both the persistence path and the event stream.
+- Artifact objects are **user data**, so every field read goes through a
+  guarded accessor — the same discipline `coerceErrorField` applies to error
+  objects. A throwing getter or a circular `data` structure degrades to an
+  artifact with no `data`, never to an aborted persistence phase for the
+  whole run.
+- `message` becomes its own column only when it is a string; anything else
+  stays inside the JSON `data` blob rather than vanishing. `data` itself is
+  the artifact's custom fields minus `type`, `location`, `attachments` and a
+  string `message`.
+- A `Uint8Array` attachment body is base64-encoded and stamped
+  `bodyEncoding: "base64"`; a string body keeps whatever encoding the
+  producer declared, and an undeclared one is stamped `"utf-8"` (Vitest
+  itself defaults `bodyEncoding ??= "base64"` before a reporter sees a body,
+  so an undeclared body only arrives from a hand-built object — recording
+  the assumption keeps `byteSize` and `bodyEncoding` agreeing on the row).
+- `byteSize` is always the decoded payload size: the array length, the
+  base64-decoded length, the UTF-8 length of a text body, or `statSync` on a
+  path-only attachment (a miss returns `0` — a dangling or remote descriptor
+  is not an error).
+
+The 64 KiB inline-body cap lives in the SDK's `DataStoreLive`, not here; see
+Decision 68 in [../decisions.md](../decisions.md).
+
+## Report files
+
+`AgentPlugin({ report })` controls the `.vitest/<scope>/` report files
+written through Vitest 5's `vitest.createReport(scope)`.
+
+**Option resolution** (`plugin.ts`, in `configureVitest`): report files
+default **on** for the `agent` and `ci` executors and **off** for `human`;
+`report: false` disables them outright; `report: { scope }` renames the
+directory. The default scope is `vitest-agent`, so the default destination
+is `.vitest/vitest-agent/`. The resolved `reportScope` is threaded onto the
+internal `AgentReporter`'s options; `undefined` means disabled.
+
+**The writer** (`packages/plugin/src/utils/report-writer.ts`):
+
+- **Lazy handle.** `createReport(scope)` mkdirs `<config.root>/.vitest/<scope>`
+  eagerly and synchronously at call time, so the handle is created on the
+  first report-targeted output rather than at reporter construction — a run
+  that emits none leaves no directory behind.
+- **`clean()` is never called.** It would wipe a prior shard's output, and
+  it is a no-op under `--merge-reports` anyway.
+- **Flat filenames only.** Vitest's `Report.writeFile` resolves `filename`
+  against the scope directory with no `mkdir` and no containment check, so
+  `/`, `\`, `.` and `..` are rejected here where the error message can name
+  the culprit. `report.scope` gets the same check at the schema boundary
+  (`ReportSettings` in the SDK).
+- **Failures are supplemental.** A rejected write is caught and reported on
+  stderr; it never fails the test run.
+- **Flush before resolve.** Writes are queued and `flush()` is awaited
+  before `onTestRunEnd` resolves — including on the UI-only short-circuit
+  path — so the files exist by the time Vitest moves on.
+- **`onInit` asserts capability.** `assertReportCapable(vitest)` throws the
+  upgrade message when `createReport` is missing, failing before any
+  rendering rather than mid-routing. It only reads the property, so the
+  lazy directory creation is preserved.
+
+The default reporter emits `run.json` and `summary.md`; see
+[./reporter.md](./reporter.md) and Decision 67 in
+[../decisions.md](../decisions.md).
 
 ## ReporterLive composition layer
 

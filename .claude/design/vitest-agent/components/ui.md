@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-12
-updated: 2026-09-07
-last-synced: 2026-09-07
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 90
 related:
   - ../architecture.md
@@ -78,7 +78,7 @@ Schemas live in `packages/sdk/src/schemas/RunEvent.ts` and `packages/sdk/src/sch
 
 The reducer (`packages/ui/src/reducer.ts`) is the pure `(state, event) => state` function; `reduceRenderStateAll(events, seed?)` is the fold helper. The variant union exceeds `pipe`'s 20-argument ceiling, so the reducer is a single `Match.tagsExhaustive` map keyed by `_tag` rather than a chain of per-tag `Match.when` calls. Adding a `RunEvent` variant forces an exhaustiveness compile failure until the new key is handled — `tagsExhaustive` preserves that discipline.
 
-Most variants fold meaningfully (run / module / test lifecycle, coverage, classification). `RunTimedOut` folds into a dedicated `"timed-out"` terminal `phase` on `RenderState` so the renderer shows a final frame instead of hanging. The completeness variants that exist purely so the surface is whole (suite / hook lifecycle, console, annotations, watch mode — see the union in `packages/sdk/src/schemas/RunEvent.ts`) get no-op reducer cases: they pass through `Match` without changing `RenderState`, but are still delivered to every PubSub subscriber and the `onRunEvent` tap, so a future analytics consumer or the MCP dashboard receives them without any plugin change.
+Most variants fold meaningfully (run / module / test lifecycle, coverage, classification). `RunTimedOut` folds into a dedicated `"timed-out"` terminal `phase` on `RenderState` so the renderer shows a final frame instead of hanging. The completeness variants that exist purely so the surface is whole (suite / hook lifecycle, console, annotations, watch mode — see the union in `packages/sdk/src/schemas/RunEvent.ts`) get no-op reducer cases: they pass through `Match` without changing `RenderState`, but are still delivered to every PubSub subscriber and the `onRunEvent` tap, so a future analytics consumer or the MCP dashboard receives them without any plugin change. `TestAnnotated` and `TestArtifactRecorded` stayed no-ops when the Vitest 5 work widened them to carry annotation type, source location and attachment descriptors: the reducer case does not read the new fields, and the persistence path (not the stream) is what the MCP annotations / artifacts surface reads. Widening the variants without a reducer change is the whole point of the no-op cases.
 
 The module-lifecycle reducer cases also thread the optional `projectName` from `ModuleQueued` / `ModuleStarted` / `ModuleFinished` onto `ModuleRecord`, which is what lets `StreamApp` group modules by Vitest project.
 

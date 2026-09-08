@@ -3,14 +3,16 @@ status: current
 module: vitest-agent
 category: documentation
 created: 2026-05-27
-updated: 2026-06-30
-last-synced: 2026-06-30
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 85
 related:
   - ../architecture.md
   - ../components.md
   - ../file-structure.md
   - ../decisions.md
+  - ../schemas.md
+  - ./sdk.md
 dependencies: []
 ---
 
@@ -32,6 +34,25 @@ Top nav is two entries, **Guide** and **Packages**, wired in `website/docs/en/_n
 - `/guide` (`website/docs/en/guide/`) is the learning spine: getting-started, concepts, how-to and operating-as-an-agent pages. This is the narrative path a reader follows — the first three groups target a human user, the operating-as-an-agent group targets an agent driving the tool (running tests via MCP, silencing leaking output, known issues).
 - Each of the seven packages owns a directory under `website/docs/en/<short>/` (`plugin`, `sdk`, `mcp`, `cli`, `reporter`, `ui`, `sidecar`) holding an Overview `index.mdx`, hand-written deep-dive pages and a generated `api/` subtree.
 - `/packages` (`website/docs/en/packages/`) is the ecosystem map that orients a reader across the package family.
+
+The how-to group carries **Report files** (`website/docs/en/guide/report-files.mdx`),
+the user-facing page for `.vitest/vitest-agent/run.json` and `summary.md`:
+the `report` option, the scope directory, the `run.json` envelope and its
+`$schema` URL, the `.gitignore` line, and the sharding note about uploading
+`.vitest/attachments` alongside `.vitest/blob`. Its neighbours cross-link to
+it — **Wire CI reporting**'s *Step summaries* section (which used to say
+vitest-agent emits no step summary, and now describes the `## vitest-agent`
+heading plus `### Totals` table it actually writes, and the Vitest job
+summary Phase 1 disabled so the two never duplicate) and **Upgrading to
+Vitest 5**'s `.vitest/` gitignore guidance.
+
+`website/docs/public/schemas/` is a second static tree the site serves
+verbatim: it holds the generated JSON Schema documents whose `$id` URLs point
+at `https://vitest-agent.dev/schemas/…`, written by
+`packages/sdk/scripts/generate-schemas.ts` as a second target alongside the
+sdk's own copy. It is generated but **committed and not gitignored** — the
+deploy has to serve it, and a drift test compares it byte-for-byte with the
+sdk copy. See [./sdk.md](./sdk.md) *Published JSON Schema documents*.
 
 Per-directory `_meta.json` files drive sidebar ordering within each section. The locale is scoped under `docs/en/`; the site is single-locale (English) today but the directory shape leaves room for more.
 

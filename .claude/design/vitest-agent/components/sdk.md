@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-07
-last-synced: 2026-09-07
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 96
 related:
   - ../architecture.md
@@ -355,6 +355,8 @@ encode/decode.
 | `Common.ts` | Shared literals (`TestState`, `Environment`, `Executor`, `OutputFormat`, `DetailLevel`, `HumanConsoleMode`, `AgentConsoleMode`, `CiConsoleMode`, and the union `ConsoleMode`) |
 | `AgentReport.ts` | The test-run report shape and its constituents |
 | `Coverage.ts` | Coverage report shapes. `CoverageReport` carries three distinct policy facets (`thresholds` / `targets` / `baselines`, issue #237) plus the optional `totalFiles` a scoped run's note renders as "N of M" (issue #160) |
+| `TestArtifacts.ts` | Vitest 5 test annotations and test artifacts: `TestAnnotation`, `TestArtifact`, `TestAttachment`, `TestArtifactLocation`. See [../schemas.md](../schemas.md) *Vocabulary* — these are not TDD artifacts |
+| `RunReportFile.ts` | The `.vitest/<scope>/run.json` envelope (`$schema`, `schemaVersion`, `generatedAt`, `reports[]`) plus `RUN_REPORT_FILE_SCHEMA_URL`. A versioned public contract, published as a JSON Schema document |
 | `Thresholds.ts` | Coverage threshold and resolved-threshold shapes |
 | `Baselines.ts` | Coverage baseline shapes |
 | `Trends.ts` | Coverage trend shapes |
@@ -382,6 +384,12 @@ bearing types: `ResolvedReporterConfig`, `ReporterKit`,
 `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory`,
 `RenderedOutput`. These live in the SDK so the plugin and reporter packages
 can share them without either taking a runtime dependency on the other.
+
+`RenderedOutput` (`packages/sdk/src/formatters/types.ts`) is a discriminated
+union on `target`. The `stdout` / `github-summary` / `file` member is
+`{ content, contentType }`; the `report` member adds a flat `filename` and
+is written into Vitest 5's `.vitest/<scope>/` report directory by the
+plugin. See Decision 67 in [../decisions.md](../decisions.md).
 
 `ResolvedReporterConfig` carries a required `readonly coverageMode: "full" |
 "ui-only"` field. The plugin resolves it from Vitest's native
@@ -419,6 +427,18 @@ The non-obvious pieces:
   high-water mark can never be mistaken for the enforced bar or the
   aspirational one — see Decision 58 in [../decisions.md](../decisions.md)
   (issue #237).
+- **Annotation and artifact writers.** `writeAnnotations(runId, inputs)` and
+  `writeArtifacts(runId, inputs)` persist Vitest 5 test annotations and test
+  artifacts, each followed by its attachment rows in the shared `attachments`
+  table (`annotation_id` XOR `artifact_id`). Location files go through the
+  same `ensureFile` dedup as every other path. `runId` is for log
+  correlation only — the rows are reachable through `test_cases`. An inline
+  attachment `body` is stored only when
+  `max(Buffer.byteLength(body), byteSize) <= INLINE_ATTACHMENT_BODY_CAP_BYTES`
+  (64 KiB, exported from `services/DataStore.ts`); `byte_size` is recorded
+  verbatim either way and no file is ever copied — Vitest already put file
+  attachments in `.vitest/attachments/`. See Decision 68 in
+  [../decisions.md](../decisions.md).
 - **Turn fanout.** `writeTurn` writes to `turns` and, for `file_edit` and
   `tool_result` payload types, also fans out to per-turn detail tables
   (`file_edits`, `tool_invocations`) inside the same SQL transaction via
@@ -530,6 +550,14 @@ The non-obvious pieces:
 - **`getManifest` resolves cacheDir from SQLite metadata.** It calls
   `PRAGMA database_list` and picks the file path of the `"main"` database.
   In-memory databases report empty.
+- **Annotation and artifact reads are latest-run scoped.**
+  `getAnnotationsForTest(project, fullName, { modulePath? })` and
+  `getArtifactsForTest(...)` resolve the project's most recent
+  `test_runs` row and return the rows hanging off that run's test case, each
+  with its attachments ordered by id — the same latest-run semantics as
+  `getErrors`. `modulePath` disambiguates a `full_name` present in more than
+  one module (Decision D20). `PersistedAttachment.byteSize` is nullable
+  because rows written before migration 0002 carry no size.
 - **Coverage fall-back.** `getCoverage` and `getFileCoverage` only return
   `Option.none()` when **both** `file_coverage` and `coverage_trends` are
   empty. The reporter only writes per-file rows for files below a bar, so a
@@ -746,11 +774,26 @@ themselves.
 which feeds them to `@effect/sql-sqlite-node`'s `SqliteMigrator` (WAL
 journal mode, foreign keys enabled).
 
-The per-project data-store migration set is a single file:
-**`0001_initial.ts`**. Per the pre-2.0 policy, every schema change before
-2.0 ships edits this file directly — there are no ALTERs, no backfills, no
-incremental migration history to apply. Dev databases are deleted and
-re-created when the canonical shape changes.
+The per-project data-store migration set is ordered and cumulative:
+
+- **`0001_initial.ts`** — the whole pre-2.0 schema in one file. Frozen: it
+  is the record of what already ran on every 2.0 install, not a canonical
+  shape to rewrite.
+- **`0002_test_artifacts.ts`** — gives the three dormant annotation /
+  artifact / attachment tables their writers. Drops and recreates the dead
+  `test_annotations` (losing the wrong `type` CHECK and the inline
+  `attachment_*` columns), then `ALTER TABLE test_artifacts ADD COLUMN data
+  TEXT`, `ALTER TABLE attachments ADD COLUMN byte_size INTEGER` and `ADD
+  COLUMN body_encoding TEXT`. See Decision 66 in
+  [../decisions.md](../decisions.md).
+
+**Every loader lists the whole set.** Three places construct
+`SqliteMigrator.fromRecord`: `utils/ensure-migrated.ts`, the plugin's
+`layers/ReporterLive.ts`, and the sdk testing layer at
+`src/testing/layers.ts` — the last of which sat silently at `0001` until
+0002 landed and is the one that gets forgotten. A migration missing from a
+loader does not error; the tests using that layer just run against an old
+schema.
 
 Two additional migration files cover the per-client and registry
 SQLite scopes for the agent-agnostic taxonomy:
@@ -767,11 +810,11 @@ SQLite scopes for the agent-agnostic taxonomy:
   `$XDG_DATA_HOME/vitest-agent/registry.db`. WAL plus
   `busy_timeout=5000`.
 
-**Pre-2.0 migration discipline.** Edit `0001_initial.ts` (or its
-session-map/registry siblings) directly. Do not add `0002_*.ts`. Do
-not ALTER. Developers delete `data.db` on every breaking schema
-change. Post-2.0, the standard incremental-migration discipline
-takes over.
+**Post-2.0 migration discipline.** Never edit `0001_initial.ts` in place.
+Add a new `000N_*.ts`, register it in all three loaders, and ALTER-plus-
+backfill any table that holds data; only a table with no readers and no
+writers may be dropped and recreated. See Decision D9 and Decision 66 in
+[../decisions.md](../decisions.md).
 
 `packages/sdk/src/sql/rows.ts` defines `Schema.Struct` row shapes
 (snake-case) for every table. `packages/sdk/src/sql/assemblers.ts` joins
@@ -781,6 +824,35 @@ hierarchy live in `schemas/Tdd.ts`.
 
 For the table inventory and column-level details see
 [../schemas.md](../schemas.md).
+
+## Published JSON Schema documents
+
+`packages/sdk/schemas/` holds the generated, committed JSON Schema
+documents the package publishes — today one:
+`run-report-file-1.0.0.json`, the contract for the `run.json` report file.
+
+- **Generator.** `packages/sdk/scripts/generate-schemas.ts` builds one
+  `SchemaTarget` per output and runs `@effected/schemastore`'s
+  `SchemaPipeline`. `pnpm --filter @vitest-agent/sdk schemas:generate`
+  writes; `schemas:check` reports drift and exits non-zero when a document
+  is stale, blocked, or changed without a version bump.
+- **Two targets, one source.** The same document is emitted into the sdk's
+  `schemas/` directory (shipped to npm) and into
+  `website/docs/public/schemas/` (what the `$id` URL resolves to once the
+  docs site deploys). The website copy is a second generated target rather
+  than a hand-copy, so drift between them is a test failure instead of a
+  stale document served at a live URL.
+- **Packaging.** `package.json` exposes `"./schemas/*.json"` in `exports`
+  so a consumer can resolve the document offline, and `savvy.build.ts`
+  copies the directory into every emitted package dir — the bundler's
+  exports graph never sees generated assets, only source modules.
+- **Drift test.** `packages/sdk/__test__/run-report-file-schema.test.ts`
+  imports the targets from the generator, asserts the pipeline reports no
+  warnings and nothing to write for either, pins the `$id` and the Draft-07
+  `$schema`, and asserts the two committed documents are byte-equal.
+
+See [../schemas.md](../schemas.md) *Run report file* and Decision 67 in
+[../decisions.md](../decisions.md).
 
 ## Testing subpath
 

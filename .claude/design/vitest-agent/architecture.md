@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-09-07
-last-synced: 2026-09-07
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 90
 related:
   - ./components.md
@@ -89,7 +89,8 @@ deterministic XDG-derived path. Three independent processes touch it:
   tests finish, `onTestRunEnd` persists the run, computes classifications
   and trends, then calls the reporter's `render(input, kit)` with a
   second, health-aware `ReporterKit`; the returned `RenderedOutput[]` is
-  routed to stdout, the GitHub Step Summary file or another target. The
+  routed to stdout, the GitHub Step Summary file, or the `.vitest/<scope>/`
+  report directory (`run.json` and `summary.md`). The
   default factory is `DefaultVitestAgentReporter` from
   `@vitest-agent/reporter`, which owns the Ink live mount end to end;
   users supply `reporter` only as an override. The plugin owns no
@@ -204,7 +205,10 @@ live in [./components/plugin-claude.md](./components/plugin-claude.md).
 - File-to-test mapping is convention-based (`.test.`/`.spec.` strip);
   there is no import-graph analysis.
 - The `RenderedOutput` `file` target is a reserved no-op; current
-  routing dispatches `stdout` and `github-summary` only.
+  routing dispatches `stdout`, `github-summary` and `report`. A `report`
+  output carries a flat `filename` and lands in `.vitest/<scope>/` via
+  Vitest 5's `createReport`; it is dropped when report files are disabled
+  (`report: false`, or the `human` executor default).
 - Standalone `AgentReporter` usage from 1.x is gone. Consumers must
   install `@vitest-agent/plugin` and use `agentPlugin()`; the reporter
   package no longer exports a Vitest-API class.

@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-07
-last-synced: 2026-09-07
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 92
 related:
   - ./architecture.md
@@ -247,13 +247,17 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |     agent-mode stdout entry — dispatch()/dispatchInk() append
   |     "Coverage thresholds skipped: partial run (N of M test files)"
   |     after the cell output when state.coverage.scoped is true. Adds a github-summary RenderedOutput
-  |     when kit.config.githubActions is true. (For consoleMode "stream"
-  |     it painted live during the run off the run-event channel.)
+  |     when kit.config.githubActions is true, and always appends two
+  |     report RenderedOutputs (run.json, summary.md). (For consoleMode
+  |     "stream" it painted live during the run off the run-event channel.)
   +-- Concatenate all RenderedOutput[] in order
-  +-- For each: routeRenderedOutput(out, { githubSummaryFile? })
+  +-- For each: routeRenderedOutput(out, { githubSummaryFile?, writeReport? })
   |     stdout         -> process.stdout
   |     github-summary -> append to summary file
+  |     report         -> writeReport(filename, content) into .vitest/<scope>/,
+  |                       dropped when report files are disabled
   |     file           -> reserved (no-op)
+  +-- await reportWriter.flush() before onTestRunEnd resolves
   |
   +-- Effect.runPromise(persistProgram.pipe(
   |     Effect.provide(ReporterLive(dbPath))))            [may be skipped]
@@ -270,6 +274,22 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
 emits a `RenderedOutput` with `target: "github-summary"` as a normal entry;
 the router appends it to `GITHUB_STEP_SUMMARY`. The plugin no longer carries
 a `shouldWriteGfm` block.
+
+**Report files ride the same routing.** The default reporter appends
+`run.json` and `summary.md` as `target: "report"` outputs at the end of
+`render`, regardless of console mode. The router hands each to the plugin's
+lazily-created `createReport` writer, or drops it when report files are
+disabled (`report: false`, or the `human` executor default). The writer is
+flushed before `onTestRunEnd` resolves — on the UI-only short-circuit path
+too — so the files exist by the time Vitest continues. See
+[./components/plugin.md](./components/plugin.md) *Report files*.
+
+**Annotations and artifacts persist in the error walk.** The same per-test
+loop that feeds `writeErrors` reads `testCase.annotations()` and
+`testCase.artifacts()` and calls `writeAnnotations` / `writeArtifacts`.
+Reading the accumulated arrays at `onTestRunEnd` rather than off the
+streaming hooks is what makes a `--merge-reports` run — which replays no
+streaming events — still persist them.
 
 ## Flow 2: AgentPlugin.configureVitest
 
@@ -320,6 +340,10 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
 - Resolve `githubSummary` (default on under GHA when `consoleMode !==
   "silent"`); the plugin emits a `RenderedOutput` for the Step Summary
   file independent of the console mode.
+- Resolve `reportScope` from `options.report`: on for the `agent` and `ci`
+  executors and off for `human`, `false` disabling and `{ scope }`
+  overriding the default `vitest-agent`. `undefined` means report files are
+  off, and the router drops every `report` output.
 - Resolve the `VitestAgentReporterFactory` from `options.reporter`
   (default `DefaultVitestAgentReporter` from `@vitest-agent/reporter`;
   user-supplied factories replace the built-in entirely — there is no

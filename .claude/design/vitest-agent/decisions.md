@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-09-07
-last-synced: 2026-09-07
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 100
 related:
   - ./architecture.md
@@ -141,6 +141,25 @@ formatting is simpler than a separate reporter class. The Step Summary
 path is independent of `consoleMode`: it defaults on under GHA when the
 resolved console mode is not `silent`, and can be forced on or off
 regardless of the console slot.
+
+**The block always carries the per-project totals.** It was once written
+without them, on the premise that Vitest's own `github-actions` reporter
+already wrote pass/fail/skip counts into the same file. That premise is
+retired: the Vitest 5 migration sets `jobSummary: { enabled: false }` on
+that reporter in `configureVitest`, so vitest-agent's block is the only
+summary a CI reader gets, and returning nothing when the classification,
+coverage and trend sections were all empty left the step summary blank on
+every green run. `buildSummaryMarkdown` now always emits `## vitest-agent`
+plus a `### Totals` table (Project / Passed / Failed / Timed out / Skipped
+/ Duration, with a `Total` row only when there is more than one project),
+followed by whichever of the three conditional sections have content. The
+rows come from `summarizeProject` — the same projection the console
+surfaces and `DispatchInputs` render from — so the table cannot disagree
+with the terminal, and in particular a timed-out test shows as
+`0 failed, 1 timed out` in both. The same markdown is what the reporter
+writes to `summary.md`. See
+[./components/reporter.md](./components/reporter.md) and
+[./decisions-retired.md](./decisions-retired.md).
 
 ### Decision 12: Compact Console Output
 
@@ -2083,20 +2102,170 @@ to the plugin's class of the same name. See
 [./components/mcp.md](./components/mcp.md), and *Constraint: Vitest >=
 5.0.0* below.
 
-### Decision D9: Single Pre-2.0 Migration, ALTER-Only After
+### Decision 66: Migration 0002 — Drop the Dead Table, ALTER the Live Ones
 
-**Pre-2.0 policy (current).** Before 2.0 ships to npm, the canonical
-per-project schema lives in a single migration file, `0001_initial.ts`.
-Every breaking schema change before 2.0 edits this file directly — no
-`0002_*`, no ALTERs, no backfills. Developers wipe `data.db` on every
-breaking change. (Two sibling files, `session_map_0001_initial.ts` and
-`registry_0001_initial.ts`, cover the per-client and registry SQLite
-scopes the same way.)
+**Context.** `test_annotations`, `test_artifacts` and `attachments` shipped
+inside `0001_initial` with zero readers and zero writers. Phase 2 of the
+Vitest 5 work gives them writers, and two of the three shapes were wrong for
+Vitest 5: `test_annotations.type` carried
+`CHECK (type IN ('notice','warning','error'))` although a Vitest annotation
+`type` is an arbitrary string, and the table carried three inline
+`attachment_*` columns although the sibling `attachments` table already
+models the 1:N. `test_artifacts` had no column for an artifact's custom
+fields, and `attachments` recorded neither a size (so a dangling
+`.vitest/attachments` path stopped being describable once the directory was
+cleaned) nor an encoding (so an inline body could not be decoded back).
 
-**After 2.0 ships,** once users have published data, **no migration is
-allowed to drop and recreate**. 2.0.x and beyond are ALTER-only; for any
-breaking schema shape that ALTER cannot express, ship a one-shot
-export/import path on a major bump rather than dropping data.
+**Decision.** Ship `packages/sdk/src/migrations/0002_test_artifacts.ts`.
+`test_annotations` is DROPped and recreated with the corrected shape;
+`test_artifacts` gains `data TEXT` and `attachments` gains `byte_size
+INTEGER` and `body_encoding TEXT`, both by `ALTER TABLE`. The migration is
+registered in all three loaders — `utils/ensure-migrated.ts`, the plugin's
+`layers/ReporterLive.ts`, and the sdk testing layer
+(`packages/sdk/src/testing/layers.ts`, which had been stuck at `0001` and is
+the one that gets forgotten).
+
+**Why drop-and-recreate is allowed here.** The post-2.0 rule (D9) is that a
+table holding user data is ALTER-and-backfill only. It says nothing about a
+table that never had a writer: dropping `test_annotations` cannot destroy a
+row, because no released version ever wrote one. Patching it column by
+column — a table rebuild in SQLite, since `CHECK` constraints cannot be
+dropped — would produce the same end state with more moving parts and a
+worse-documented intent. The two tables that could conceivably hold rows get
+ALTERs.
+
+**Consequences.** Editing `0001_initial.ts` in place is no longer a legal
+move anywhere in the repo; it is a historical record of what already ran on
+every 2.0 install. Any registry that loads migrations must list the whole
+set, and `packages/sdk/__test__/migration-0002.test.ts` pins the resulting
+shape. See [./schemas.md](./schemas.md) *SQLite table inventory* and
+[./components/sdk.md](./components/sdk.md) *SQLite migrations*.
+
+### Decision 67: Report Files Are a Versioned Public Contract
+
+**Context.** Vitest 5 added `vitest.createReport(scope)`, a supported way
+for a reporter to write files into `.vitest/<scope>/`. vitest-agent wants
+two of them: `run.json` for machine readers (a Claude Code hook, a CI step,
+an agent that never saw the terminal) and `summary.md` for humans reading a
+job log. `run.json` is read by code that has no dependency on
+`@vitest-agent/sdk`, so its shape cannot be "whatever `AgentReport` encodes
+to this month".
+
+**Decision.** `run.json` is `{ $schema, schemaVersion: 1, generatedAt,
+reports: AgentReport[] }` — an envelope carrying its own contract version
+independent of any package version — and is published as a JSON Schema
+document at `https://vitest-agent.dev/schemas/run-report-file-1.0.0.json`,
+generated from the Effect Schema by `packages/sdk/scripts/generate-schemas.ts`
+into two committed targets: the sdk copy that ships to npm and the docs
+site's `public/schemas/` copy the `$id` URL resolves to. A contract change
+bumps the schema version, the `$id` URL and the filename **together**;
+`@effected/schemastore`'s `block-versioned` policy fails the pipeline when
+it does not, and `run-report-file-schema.test.ts` runs that check in CI
+against both copies.
+
+**Wiring.** `RenderedOutput` becomes a discriminated union with a `report`
+member carrying a flat `filename`. The plugin owns the writing:
+`utils/report-writer.ts` creates the `createReport` handle lazily on the
+first report output (`createReport` mkdirs eagerly and synchronously, so a
+run that emits none leaves no directory behind), never calls `clean()`
+(it would wipe a prior shard's output and is a no-op under
+`--merge-reports` anyway), rejects `/`, `\`, `.` and `..` in both filenames
+and scopes, flushes every queued write before `onTestRunEnd` resolves, and
+writes failures to stderr rather than failing the run. `onInit` asserts
+`createReport` exists so an unsupported Vitest fails before any rendering
+instead of mid-routing. `AgentPlugin({ report })` defaults on for the
+`agent` and `ci` executors and off for `human`; `false` disables, `{ scope }`
+renames the directory, and the default scope is `vitest-agent`
+(`.vitest/vitest-agent/`).
+
+**Why not reuse the `file` target.** `file` has always been the reserved
+no-op with no path convention. `report` has a real destination Vitest
+owns — cleanup, sharding and merge behaviour included — so giving it its own
+member keeps the reporter out of path resolution entirely.
+
+**Consequences.** Report files are machine-facing and independent of console
+mode: an `agent`-mode run that prints nothing still writes them. The
+`.vitest/` directory belongs in a consumer's `.gitignore`. See
+[./schemas.md](./schemas.md) *Run report file*,
+[./components/plugin.md](./components/plugin.md) *Report files*, and
+[./components/reporter.md](./components/reporter.md).
+
+### Decision 68: Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size
+
+**Context.** A test attachment can be a 40 MB trace. Vitest has already
+copied file attachments into `.vitest/attachments/` and rewritten the
+descriptor's `path`, so `data.db` never needs the bytes — but a small inline
+body (a diff, a log excerpt, a snippet of HTML) is worth having in the
+database, because the path may be cleaned away and an agent reading over MCP
+has no filesystem access to the runner anyway.
+
+**Decision.** `DataStoreLive` stores a `body` only when
+`max(Buffer.byteLength(body), byteSize) <= INLINE_ATTACHMENT_BODY_CAP_BYTES`
+(64 KiB). `byte_size` is recorded verbatim for **every** attachment, inline
+or not, so a dangling path stays describable; `path` is recorded as Vitest
+resolved it and no file is ever copied.
+
+**Why both bars.** Gating on the caller's `byteSize` alone trusts a number
+the caller supplied: an under-reporting or zero-reporting producer could
+smuggle an arbitrarily large string into the row. Gating on the stored
+string alone under-charges a base64 body, whose stored form is 4/3 the
+payload it reports. Requiring both to clear the cap makes the row's real
+cost the thing being bounded.
+
+**Consequences.** An over-cap attachment persists as a descriptor —
+`content_type`, `path`, `byte_size`, and no `body` — which is exactly what
+a reader needs to go fetch it. `body_encoding` is stored alongside any body
+that is kept, so a reader always knows whether the string is base64 or
+UTF-8. See [./schemas.md](./schemas.md) *DataStore inputs*.
+
+### Decision 69: MCP Attachment Bodies Are Opt-In and Budgeted
+
+**Context.** The `test` tool's `annotations` and `artifacts` actions return
+every annotation or artifact recorded for one test in the latest run, each
+with its attachments. The 64 KiB persistence cap (Decision 68) is **per
+attachment**, so a test with thirty inline attachments could still flood an
+agent's context window on a single tool call.
+
+**Decision.** Both actions return attachment **descriptors** by default —
+`contentType`, `path`, `byteSize` — and no bodies. An inline `body` comes
+back only when the caller passes `maxBytes`, a non-negative integer total
+byte budget for every body in the response (default `0`). Attachments are
+walked in order and each body is charged its recorded `byteSize` (falling
+back to the stored string's length when the row predates migration 0002); a
+body that would push the running total past the budget is dropped along with
+its `bodyEncoding`, and the descriptor half always survives.
+
+**Why a cumulative budget rather than a per-body cap.** A per-body cap
+bounds one attachment and says nothing about the response. The agent's real
+constraint is the size of the whole tool result, which is what `maxBytes`
+names. Defaulting it to `0` means the cheap call is the default call and
+fetching bytes is a deliberate second step.
+
+**Consequences.** The count and the descriptor list are identical whatever
+`maxBytes` is, so an agent can always see what exists before deciding to
+pay for it. See [./components/mcp.md](./components/mcp.md) *`test` tool*.
+
+### Decision D9: Single Pre-2.0 Migration, Incremental After
+
+**Pre-2.0 policy (historical).** Before 2.0 shipped to npm, the canonical
+per-project schema lived in a single migration file, `0001_initial.ts`, and
+every breaking schema change edited it directly — no `0002_*`, no ALTERs, no
+backfills, developers wiping `data.db` on each change. Entries below that
+say "an in-place edit to `0001_initial.ts`" are recording what happened
+under that policy, not prescribing it. (Two sibling files,
+`session_map_0001_initial.ts` and `registry_0001_initial.ts`, cover the
+per-client and registry SQLite scopes.)
+
+**Post-2.0 policy (current).** Users carry real `data.db` files with real
+history, so `0001_initial.ts` is frozen: it is the record of what already
+ran on every install. Schema changes ship as new `000N_*.ts` files
+registered in `ensure-migrated.ts`, the plugin's `ReporterLive`, and the sdk
+testing layer. **A table holding data is ALTERed and backfilled and is never
+dropped**; for a breaking shape ALTER cannot express, ship a one-shot
+export/import path on a major bump rather than dropping data. A table with
+no readers and no writers is not user data and may be dropped and recreated
+inside the new migration — see Decision 66 for the one case where that
+applies.
 
 **Why a single pre-2.0 migration:**
 

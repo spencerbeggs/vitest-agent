@@ -3,13 +3,15 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-04
-last-synced: 2026-09-04
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 90
 related:
   - ../architecture.md
   - ../components.md
   - ../decisions.md
+  - ../decisions-retired.md
+  - ../schemas.md
   - ./plugin.md
   - ./sdk.md
   - ./ui.md
@@ -50,7 +52,7 @@ The dispatcher itself, the cells and the reducer live in `@vitest-agent/ui` and 
 `packages/reporter/src/defaultReporter.ts` exports `DefaultVitestAgentReporter`. The factory is invoked once at **run start** (by the plugin's `initReporters()` in `onInit`), so a live-painting reporter can subscribe to the run-event channel before the first event. Two things happen:
 
 - **At factory invocation** — when `kit.config.consoleMode === "stream"` and `kit.runEvents` is present, the factory subscribes a live Ink mount to the run-event channel and forks a drain fiber that feeds `createLiveInk`. The reporter owns the Ink mount lifecycle end to end: mount, rerender per event, unmount on `RunFinished`. See D34 / D41 in [../decisions.md](../decisions.md).
-- **At `render(input, kit)`** — called once at run end with a second, health-aware `ReporterKit`. For `consoleMode === "agent"` it folds `input.reports` through the synthesizer and reducer, builds `DispatchInputs`, calls `dispatch(inputs, opts)` and returns one `RenderedOutput` with `target: "stdout"`. For `silent`, `passthrough`, `stream` and `ci-annotations` it emits no stdout output (the `stream` live painting already happened off the stream). When `kit.config.githubActions` is `true` it emits an additional `target: "github-summary"` `RenderedOutput` regardless of console mode.
+- **At `render(input, kit)`** — called once at run end with a second, health-aware `ReporterKit`. For `consoleMode === "agent"` it folds `input.reports` through the synthesizer and reducer, builds `DispatchInputs`, calls `dispatch(inputs, opts)` and returns one `RenderedOutput` with `target: "stdout"`. For `silent`, `passthrough`, `stream` and `ci-annotations` it emits no stdout output (the `stream` live painting already happened off the stream). When `kit.config.githubActions` is `true` it emits an additional `target: "github-summary"` `RenderedOutput` regardless of console mode, and it always appends two `target: "report"` outputs — `run.json` and `summary.md` — which the plugin writes or drops depending on whether report files are enabled. See *Report files* below.
 
 The two-kit model is part of the contract: `render(input, kit)` takes a second argument because the factory kit is resolved at run start (neutral run health) and the render kit is resolved at run end (post-run `detail`). See `VitestAgentReporter` in `packages/sdk/src/contracts/reporter.ts`.
 
@@ -61,6 +63,21 @@ The two-kit model is part of the contract: `render(input, kit)` takes a second a
 **Suite-load failures count in the per-project summary.** `summarizeProject`'s `failCount` is `report.summary.failed + countSuiteFailures(report)` — `summary.failed` is a pure test-case count, so a module that failed to *import* (zero test cases) would otherwise render green. The SDK helper `countSuiteFailures(report)` (in `packages/sdk/src/utils/build-report.ts`) supplies the suite-level count that the render path folds back in. This is the reporter-side half of the false-green fix; see Decision 45 in [../decisions.md](../decisions.md).
 
 **Timeouts are counted once, per project (issue #242).** `summarizeProject` also derives `ProjectSummary.timeoutCount` by walking `report.failed[].tests[]` and testing each failed test's first error with the SDK's `isTimeoutError` (`countTimeouts`). The result is subtracted from `failCount` — so a timed-out test is a timeout, not a failure *and* a timeout — and spread onto the summary only when nonzero (absent = 0), matching the `@vitest-agent/ui` reducer's split and `StreamApp`'s `buildProjectSummary`. The `workspace` cells' project rows and total line then render `N timed out` and mark the project `✗`; see [./ui.md](./ui.md).
+
+**The step summary and `summary.md` share one builder.** `buildSummaryMarkdown(input)` always returns markdown: a `## vitest-agent` heading, an unconditional `### Totals` table, then whichever of the classification, coverage-shortfall and trend sections have content. It used to return nothing when all three sections were empty, on the premise that Vitest's own `github-actions` reporter wrote the counts — with that reporter's job summary now disabled, that left a blank step summary on every green run. See Decision 10 in [../decisions.md](../decisions.md) and the retired form in [../decisions-retired.md](../decisions-retired.md).
+
+`renderTotalsSection` builds its rows from `summarizeProject` — the same projection the console cells and `DispatchInputs` render from — so the table cannot disagree with the terminal. That matters most for timeouts: `summarizeProject` folds suite-level (collection/load) failures **into** `failCount` and pulls timed-out tests back **out** of it into their own column, so recomputing from `report.summary.failed` here would print `Failed: 1` for a test every console surface calls a timeout. Columns are Project / Passed / Failed / Timed out / Skipped / Duration; a `Total` row is appended only when there is more than one project, since with one it would just repeat the row above.
+
+---
+
+## Report files
+
+Whenever report files are enabled the reporter appends two `target: "report"` outputs at the end of `render`, regardless of console mode — they are the machine-facing artifact and are independent of what the terminal shows. The plugin's router drops them when reporting is off.
+
+- **`run.json`** — `{ $schema, schemaVersion: 1, generatedAt, reports }`, pretty-printed with a trailing newline. `$schema` is the SDK's `RUN_REPORT_FILE_SCHEMA_URL` constant, `generatedAt` is `new Date().toISOString()`, and `reports` is `input.reports` verbatim (one `AgentReport` per project). The object is built `satisfies RunReportFile`, so a shape change fails to typecheck against the published contract.
+- **`summary.md`** — `buildSummaryMarkdown(input)` plus a trailing newline: the same markdown the GitHub step summary receives.
+
+Writing, scope resolution, filename validation and flushing all live in the plugin (`utils/report-writer.ts`); the reporter names a file and hands over a string. See [./plugin.md](./plugin.md) *Report files*, [../schemas.md](../schemas.md) *Run report file*, and Decision 67 in [../decisions.md](../decisions.md).
 
 ---
 
