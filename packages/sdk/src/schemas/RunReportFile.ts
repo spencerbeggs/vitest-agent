@@ -57,10 +57,12 @@ export const RunReportFile = Schema.Struct({
 	reports: Schema.Array(AgentReport),
 }).annotate({
 	identifier: "RunReportFile",
+	// Reader guidance lives in `description`, a standard keyword, rather
+	// than an `x-` extension: ajv's strict mode refuses to compile a
+	// document carrying an undeclared keyword, so an extension would force
+	// every consumer validating this schema to call `addVocabulary` first.
 	description:
-		"The vitest-agent run report file (.vitest/vitest-agent/run.json): one AgentReport per Vitest project from the most recent run.",
-	"x-ai-hint":
-		"Read reports[].summary for pass/fail counts and reports[].failures for the failing tests. schemaVersion is the envelope contract version; generatedAt is when the run finished.",
+		"The vitest-agent run report file (.vitest/vitest-agent/run.json): one AgentReport per Vitest project from the most recent run. Read reports[].summary for pass/fail counts and reports[].failed for the failing modules and their tests. schemaVersion is the envelope contract version; generatedAt is when the run finished.",
 });
 /** @public */
 export type RunReportFile = typeof RunReportFile.Type;

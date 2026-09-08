@@ -114,11 +114,10 @@ describe("default reporter report files", () => {
 			readFileSync(require_.resolve("@vitest-agent/sdk/schemas/run-report-file-1.0.0.json"), "utf-8"),
 		) as Record<string, unknown>;
 
+		// A plain strict ajv, with no vocabulary declared: the published
+		// document carries no extension keywords, so a third party can
+		// validate `run.json` with exactly this much setup.
 		const ajv = new Ajv({ strict: true, allErrors: true });
-		// `x-ai-hint` is our own annotation-only extension keyword. Declaring
-		// it teaches ajv's strict mode that it is intentional; it carries no
-		// validation semantics and does not relax any constraint.
-		ajv.addVocabulary(["x-ai-hint"]);
 		const validate = ajv.compile(schema);
 		const valid = validate(document);
 		expect(validate.errors ?? []).toEqual([]);

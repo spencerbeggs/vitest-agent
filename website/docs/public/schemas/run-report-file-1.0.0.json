@@ -957,8 +957,7 @@
 			},
 			"required": ["schemaVersion", "generatedAt", "reports"],
 			"additionalProperties": false,
-			"description": "The vitest-agent run report file (.vitest/vitest-agent/run.json): one AgentReport per Vitest project from the most recent run.",
-			"x-ai-hint": "Read reports[].summary for pass/fail counts and reports[].failures for the failing tests. schemaVersion is the envelope contract version; generatedAt is when the run finished."
+			"description": "The vitest-agent run report file (.vitest/vitest-agent/run.json): one AgentReport per Vitest project from the most recent run. Read reports[].summary for pass/fail counts and reports[].failed for the failing modules and their tests. schemaVersion is the envelope contract version; generatedAt is when the run finished."
 		}
 	}
 }
