@@ -56,6 +56,16 @@ describe("RunReportFile", () => {
 		).not.toThrow();
 	});
 
+	it("accepts the exact stamp the reporter emits", () => {
+		// The reporter writes `new Date().toISOString()`. Pinning the check
+		// against a hard-coded literal only proves the literal is valid; this
+		// binds the schema to the producer, so a future change to either side
+		// that drifts the format fails here.
+		const generatedAt = new Date().toISOString();
+		const parsed = Schema.decodeUnknownSync(RunReportFile)({ ...validEnvelope, generatedAt });
+		expect(parsed.generatedAt).toBe(generatedAt);
+	});
+
 	it("rejects a schemaVersion other than 1", () => {
 		expect(() => Schema.decodeUnknownSync(RunReportFile)({ ...validEnvelope, schemaVersion: 2 })).toThrow();
 	});
