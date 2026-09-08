@@ -82,6 +82,11 @@
 		"label": "CI reporting"
 	},
 	{
+		"type": "file",
+		"name": "report-files",
+		"label": "Report files"
+	},
+	{
 		"type": "section-header",
 		"label": "Operating as an agent"
 	},

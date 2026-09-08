@@ -103,6 +103,26 @@ yet. Until it does, `"ci-annotations"` behaves like `"passthrough"` and the
 Use Vitest's native `github-actions` reporter (shown above) for annotations
 today.
 
+## Uploading `.vitest/` as a CI artifact
+
+Vitest 5 writes the `json`, `junit`, `html`, and `blob` reporters'
+output, plus attachments and vitest-agent's own `run.json` and
+`summary.md`, under one `.vitest/` directory. Capture all of it with a
+single upload step:
+
+```yaml
+- name: Upload vitest-agent report files
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: vitest-agent-reports
+    path: .vitest/
+```
+
+See [Report files](/guide/report-files) for what lives under
+`.vitest/vitest-agent/`, the `.gitignore` line, and why a sharded
+pipeline must upload `.vitest/attachments` alongside `.vitest/blob`.
+
 ## Step summaries
 
 vitest-agent does not currently emit a GitHub step summary. If you want a
