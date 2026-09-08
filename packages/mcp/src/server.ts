@@ -387,7 +387,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		"test",
 		{
 			description:
-				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file; action='for_tag' (tag, project?) returns tests carrying a tag, grouped by project; action='annotations' (fullName, project?, modulePath?) returns the test annotations the author recorded via context.annotate; action='artifacts' (fullName, project?, modulePath?) returns the test artifacts recorded for the test — both return attachment descriptors (contentType, path, byteSize), never inline bytes beyond what the 64 KiB persistence cap already stored, and neither has anything to do with TDD artifacts (see tdd_artifact_list). structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
+				"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file; action='for_tag' (tag, project?) returns tests carrying a tag, grouped by project; action='annotations' (fullName, project?, modulePath?) returns the test annotations the author recorded via context.annotate; action='artifacts' (fullName, project?, modulePath?) returns the test artifacts recorded for the test — both return attachment descriptors (contentType, path, byteSize) and omit inline bodies unless maxBytes (a non-negative integer byte budget for the whole response, default 0) is passed, and neither has anything to do with TDD artifacts (see tdd_artifact_list). structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
 			inputSchema: strict({
 				action: z.enum(TEST_ACTIONS).describe("Inspection discriminator"),
 				project: z.optional(z.string()),
@@ -402,6 +402,11 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					),
 				filePath: z.optional(z.string()).describe("for_file: source file path"),
 				tag: z.optional(z.string()).describe("for_tag: tag name"),
+				maxBytes: z
+					.optional(z.coerce.number().int().nonnegative())
+					.describe(
+						"annotations / artifacts: total byte budget for inline attachment bodies across the response; default 0 returns descriptors only",
+					),
 			}),
 			outputSchema: effectToZodSchema(TestResult) as never,
 		},
@@ -430,6 +435,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					fullName: args.fullName as string,
 					...(args.project !== undefined && { project: args.project }),
 					...(args.modulePath !== undefined && { modulePath: args.modulePath }),
+					...(args.maxBytes !== undefined && { maxBytes: args.maxBytes }),
 				});
 			} else if (args.action === "artifacts") {
 				data = await caller.test({
@@ -437,6 +443,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 					fullName: args.fullName as string,
 					...(args.project !== undefined && { project: args.project }),
 					...(args.modulePath !== undefined && { modulePath: args.modulePath }),
+					...(args.maxBytes !== undefined && { maxBytes: args.maxBytes }),
 				});
 			} else {
 				data = await caller.test({

@@ -45,8 +45,9 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 - \`{ action: "get", fullName, project?, modulePath? }\` — a \`fullName\` present in more than one module returns \`found: false\` with \`ambiguous: true\` and \`candidateModules[]\`; pass \`modulePath\` to pick one
 - \`{ action: "for_file", filePath }\`
 - \`{ action: "for_tag", tag, project? }\` — list every test carrying a tag, grouped by project (or one group when project is supplied)
-- \`{ action: "annotations", fullName, project?, modulePath? }\` — the test annotations the author recorded via \`context.annotate\`, with attachment descriptors (\`contentType\`, \`path\`, \`byteSize\`)
-- \`{ action: "artifacts", fullName, project?, modulePath? }\` — the test artifacts recorded for the test, same descriptor shape. These are Vitest test artifacts, not TDD artifacts
+- \`{ action: "annotations", fullName, project?, modulePath?, maxBytes? }\` — the test annotations the author recorded via \`context.annotate\`, with attachment descriptors (\`contentType\`, \`path\`, \`byteSize\`)
+- \`{ action: "artifacts", fullName, project?, modulePath?, maxBytes? }\` — the test artifacts recorded for the test, same descriptor shape. These are Vitest test artifacts, not TDD artifacts
+- \`maxBytes\` (both actions) is the total byte budget for inline attachment bodies across the response; it defaults to 0, so a \`body\` is returned only when you ask for one and the running total stays inside the budget
 
 ## Discovery
 

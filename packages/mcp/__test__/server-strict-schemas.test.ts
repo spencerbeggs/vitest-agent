@@ -60,7 +60,7 @@ const cases: ReadonlyArray<[tool: string, validArgs: Record<string, unknown>]> =
 	["test_errors", { project: "x" }],
 	["test", { action: "list" }],
 	["test", { action: "annotations", fullName: "x" }],
-	["test", { action: "artifacts", fullName: "x" }],
+	["test", { action: "artifacts", fullName: "x", maxBytes: 0 }],
 	["file_coverage", { filePath: "x" }],
 	["configure", {}],
 	["inventory", { kind: "project" }],

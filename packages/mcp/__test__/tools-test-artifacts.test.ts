@@ -81,7 +81,10 @@ const seedFixture = async () => {
 					locationFile: MODULE,
 					locationLine: 12,
 					locationColumn: 3,
-					attachments: [],
+					attachments: [
+						{ contentType: "text/plain", body: "aaaa", bodyEncoding: "utf-8", byteSize: 4 },
+						{ contentType: "text/plain", body: "bbbb", bodyEncoding: "utf-8", byteSize: 4 },
+					],
 				},
 			]);
 			const big = "x".repeat(70_000);
@@ -222,10 +225,11 @@ describe("test({ action: 'artifacts' })", () => {
 		// The over-cap body was dropped at write time; only its size survives.
 		expect(artifact?.attachments[1]?.byteSize).toBe(70_000);
 		expect(artifact?.attachments[1]?.body).toBeUndefined();
-		// An under-cap body survives, and its encoding comes back with it so
-		// the agent knows whether the string is base64.
-		expect(artifact?.attachments[2]?.body).toBe("hello");
-		expect(artifact?.attachments[2]?.bodyEncoding).toBe("utf-8");
+		// An under-cap body IS stored, but it stays behind `maxBytes`: the
+		// default response is descriptors only.
+		expect(artifact?.attachments[2]?.byteSize).toBe(5);
+		expect(artifact?.attachments[2]?.body).toBeUndefined();
+		expect(artifact?.attachments[2]?.bodyEncoding).toBeUndefined();
 	});
 
 	it("returns an empty, counted payload for a test that recorded nothing", async () => {
@@ -238,6 +242,72 @@ describe("test({ action: 'artifacts' })", () => {
 			count: 0,
 			artifacts: [],
 		});
+	});
+});
+
+describe("inline attachment bodies are gated behind maxBytes", () => {
+	it("omits every stored body by default", async () => {
+		const caller = makeCaller();
+		const result = await caller.test({ action: "annotations", fullName: FULL_NAME, project: PROJECT });
+		if (result.action !== "annotations") throw new Error("expected the annotations variant");
+		const attachments = result.annotations[0]?.attachments ?? [];
+		expect(attachments).toHaveLength(2);
+		for (const attachment of attachments) {
+			expect(attachment.body).toBeUndefined();
+			expect(attachment.bodyEncoding).toBeUndefined();
+			// The descriptor half always survives.
+			expect(attachment.contentType).toBe("text/plain");
+			expect(attachment.byteSize).toBe(4);
+		}
+	});
+
+	it("includes every body when the budget covers them all", async () => {
+		const caller = makeCaller();
+		const result = await caller.test({
+			action: "annotations",
+			fullName: FULL_NAME,
+			project: PROJECT,
+			maxBytes: 100,
+		});
+		if (result.action !== "annotations") throw new Error("expected the annotations variant");
+		const attachments = result.annotations[0]?.attachments ?? [];
+		expect(attachments[0]?.body).toBe("aaaa");
+		expect(attachments[0]?.bodyEncoding).toBe("utf-8");
+		expect(attachments[1]?.body).toBe("bbbb");
+	});
+
+	it("spends the budget cumulatively: the first body fits, the second does not", async () => {
+		const caller = makeCaller();
+		// Each body is 4 bytes and the budget is 5: either one fits alone,
+		// but only the first fits once the running total is charged.
+		const result = await caller.test({
+			action: "annotations",
+			fullName: FULL_NAME,
+			project: PROJECT,
+			maxBytes: 5,
+		});
+		if (result.action !== "annotations") throw new Error("expected the annotations variant");
+		const attachments = result.annotations[0]?.attachments ?? [];
+		expect(attachments[0]?.body).toBe("aaaa");
+		expect(attachments[1]?.body).toBeUndefined();
+		expect(attachments[1]?.bodyEncoding).toBeUndefined();
+		expect(attachments[1]?.byteSize).toBe(4);
+	});
+
+	it("gates artifact bodies through the same budget", async () => {
+		const caller = makeCaller();
+		const result = await caller.test({
+			action: "artifacts",
+			fullName: FULL_NAME,
+			project: PROJECT,
+			maxBytes: 100,
+		});
+		if (result.action !== "artifacts") throw new Error("expected the artifacts variant");
+		const attachments = result.artifacts[0]?.attachments ?? [];
+		// The over-cap body was never stored, so no budget can resurrect it.
+		expect(attachments[1]?.body).toBeUndefined();
+		expect(attachments[2]?.body).toBe("hello");
+		expect(attachments[2]?.bodyEncoding).toBe("utf-8");
 	});
 });
 
@@ -360,6 +430,49 @@ describe("formatTestMarkdown for the two new actions", () => {
 		// rather than opening a sixth column.
 		expect(row.startsWith("| notice | a\\|b c")).toBe(true);
 		expect(row.endsWith(" | — | — |")).toBe(true);
+	});
+
+	it("falls back to the artifact's data payload when it carries no message", () => {
+		const text = formatTestMarkdown({
+			action: "artifacts",
+			project: PROJECT,
+			fullName: FULL_NAME,
+			count: 1,
+			artifacts: [{ id: 1, type: "my-pkg:trace", message: null, data: JSON.stringify({ spans: 2 }), attachments: [] }],
+		});
+		const row = text.split("\n").at(-1) ?? "";
+		expect(row).toBe('| my-pkg:trace | {"spans":2} | — | — |');
+	});
+
+	it("still renders an em dash when the artifact has neither a message nor data", () => {
+		const text = formatTestMarkdown({
+			action: "artifacts",
+			project: PROJECT,
+			fullName: FULL_NAME,
+			count: 1,
+			artifacts: [{ id: 1, type: "my-pkg:trace", message: null, data: null, attachments: [] }],
+		});
+		expect(text.split("\n").at(-1)).toBe("| my-pkg:trace | — | — | — |");
+	});
+
+	it("escapes a pipe inside an attachment path so it cannot open a column", () => {
+		const text = formatTestMarkdown({
+			action: "annotations",
+			project: PROJECT,
+			fullName: FULL_NAME,
+			count: 1,
+			annotations: [
+				{
+					id: 1,
+					type: "notice",
+					message: "see the attachment",
+					attachments: [{ path: ".vitest/attachments/a|b.png", byteSize: 12 }],
+				},
+			],
+		});
+		const row = text.split("\n").at(-1) ?? "";
+		expect(row).toContain("a\\|b.png");
+		expect(row.endsWith("(12 bytes) |")).toBe(true);
 	});
 
 	it("renders a type/message/location/attachments table for artifacts", () => {

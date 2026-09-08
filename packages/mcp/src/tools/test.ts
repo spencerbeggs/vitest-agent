@@ -9,6 +9,7 @@
  * @packageDocumentation
  */
 
+import type { PersistedAttachment } from "@vitest-agent/sdk";
 import { DataReader } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
@@ -91,6 +92,35 @@ const AttachmentDescriptor = Schema.Struct({
 	bodyEncoding: Schema.optional(Schema.Literals(["base64", "utf-8"])),
 }).annotate({ identifier: "TestAttachmentDescriptor" });
 
+/**
+ * Inline bodies are opt-in and budgeted. The 64 KiB persistence cap is
+ * per attachment, so a test with many attachments could still flood an
+ * agent's context; `maxBytes` (default 0) is the total byte budget for
+ * every body in one response. Attachments are walked in order and each
+ * body is charged its recorded `byteSize` (falling back to the stored
+ * string's length when the row carries none). A body that would take
+ * the running total past the budget is dropped along with its
+ * `bodyEncoding`; the descriptor half — `contentType`, `path`,
+ * `byteSize` — always survives.
+ */
+const applyBodyBudget = <A extends { readonly attachments: ReadonlyArray<PersistedAttachment> }>(
+	rows: ReadonlyArray<A>,
+	maxBytes: number,
+): Array<A> => {
+	let spent = 0;
+	return rows.map((row) => ({
+		...row,
+		attachments: row.attachments.map((attachment) => {
+			const { body, bodyEncoding, ...descriptor } = attachment;
+			if (body === undefined) return descriptor;
+			const cost = attachment.byteSize ?? body.length;
+			if (spent + cost > maxBytes) return descriptor;
+			spent += cost;
+			return { ...descriptor, body, ...(bodyEncoding !== undefined && { bodyEncoding }) };
+		}),
+	}));
+};
+
 const AnnotationRowSchema = Schema.Struct({
 	id: Schema.Number,
 	type: Schema.String,
@@ -136,7 +166,7 @@ export const TestResult = Schema.Union([
 	identifier: "TestResult",
 	title: "test result",
 	description:
-		"Discriminate on `action`. `get` further discriminates on `found`. `list`, `for_file`, `for_tag`, `annotations`, and `artifacts` all carry counted arrays — `list` and `for_tag` group by project; `annotations` and `artifacts` are scoped to one test and return attachment descriptors, never inline bytes beyond what the 64 KiB persistence cap already stored.",
+		"Discriminate on `action`. `get` further discriminates on `found`. `list`, `for_file`, `for_tag`, `annotations`, and `artifacts` all carry counted arrays — `list` and `for_tag` group by project; `annotations` and `artifacts` are scoped to one test and return attachment descriptors — an inline `body` comes back only when `maxBytes` is passed and the running total stays inside it.",
 });
 export type TestResultType = Schema.Schema.Type<typeof TestResult>;
 
@@ -271,7 +301,10 @@ export const formatTestMarkdown = (data: TestResultType): string => {
 					}))
 				: data.artifacts.map((a) => ({
 						type: a.type,
-						message: a.message,
+						// An artifact routinely carries its payload in `data` and no
+						// message at all; rendering `—` there would hide the only
+						// content the row has.
+						message: a.message ?? a.data,
 						location: a.location,
 						attachments: a.attachments,
 					}));
@@ -298,7 +331,7 @@ export const formatTestMarkdown = (data: TestResultType): string => {
 					? "—"
 					: row.attachments
 							.map((att) => {
-								const label = att.path ?? att.contentType ?? "(inline)";
+								const label = cell(att.path ?? att.contentType ?? "(inline)");
 								const size = att.byteSize !== null ? ` (${att.byteSize} bytes)` : "";
 								return `\`${label}\`${size}`;
 							})
@@ -364,6 +397,12 @@ const AnnotationsVariant = Schema.Struct({
 	modulePath: Schema.optional(Schema.String).annotate({
 		description: "Exact module_path match — disambiguates a fullName that exists in more than one test file.",
 	}),
+	maxBytes: Schema.optional(
+		Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).annotate({
+			description:
+				"Total byte budget for inline attachment bodies across the whole response. Must be a non-negative integer. Defaults to 0 — descriptors only, no bodies.",
+		}),
+	),
 });
 
 const ArtifactsVariant = Schema.Struct({
@@ -373,6 +412,12 @@ const ArtifactsVariant = Schema.Struct({
 	modulePath: Schema.optional(Schema.String).annotate({
 		description: "Exact module_path match — disambiguates a fullName that exists in more than one test file.",
 	}),
+	maxBytes: Schema.optional(
+		Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).annotate({
+			description:
+				"Total byte budget for inline attachment bodies across the whole response. Must be a non-negative integer. Defaults to 0 — descriptors only, no bodies.",
+		}),
+	),
 });
 
 const TestInput = Schema.Union([
@@ -509,9 +554,10 @@ export const test = publicProcedure
 							const reader = yield* DataReader;
 							const project =
 								variant.project ?? (yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs[0]?.project ?? "")));
-							const annotations = yield* reader.getAnnotationsForTest(project, variant.fullName, {
+							const rows = yield* reader.getAnnotationsForTest(project, variant.fullName, {
 								...(variant.modulePath !== undefined && { modulePath: variant.modulePath }),
 							});
+							const annotations = applyBodyBudget(rows, variant.maxBytes ?? 0);
 							return {
 								action: "annotations" as const,
 								project,
@@ -525,9 +571,10 @@ export const test = publicProcedure
 							const reader = yield* DataReader;
 							const project =
 								variant.project ?? (yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs[0]?.project ?? "")));
-							const artifacts = yield* reader.getArtifactsForTest(project, variant.fullName, {
+							const rows = yield* reader.getArtifactsForTest(project, variant.fullName, {
 								...(variant.modulePath !== undefined && { modulePath: variant.modulePath }),
 							});
+							const artifacts = applyBodyBudget(rows, variant.maxBytes ?? 0);
 							return {
 								action: "artifacts" as const,
 								project,
