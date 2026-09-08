@@ -16,8 +16,8 @@
 # fake pnpm also emits the real WARN to stderr, and the fake vitest-agent returns
 # real JSON for register-agent and an executable path for sidecar-path.
 
-HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
-FIXTURES_DIR="${HOOKS_DIR}/fixtures"
+HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)"
+FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/fixtures"
 TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 
 # Matches fixtures/session-start.json's session_id — the env file lands under

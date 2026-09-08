@@ -19,8 +19,8 @@
 # merges the two into $output by default and that would hide the very leak
 # under test.
 
-HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
-REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../../.." && pwd)"
+HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
 LIB="${HOOKS_DIR}/lib/hook-output.sh"
 
 setup() {

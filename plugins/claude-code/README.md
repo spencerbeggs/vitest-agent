@@ -154,12 +154,12 @@ To dogfood this plugin while developing `vitest-agent`:
 claude --plugin-dir ./plugin
 
 # Test hooks manually using the bundled fixtures
-cat plugins/claude-code/hooks/fixtures/post-tool-use-write-test.json \
+cat plugins/claude-code/__test__/fixtures/post-tool-use-write-test.json \
   | bash plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
 
 # Enable debug logging for a manual run
 VITEST_AGENT_HOOK_DEBUG=1 \
-  cat plugins/claude-code/hooks/fixtures/user-prompt-submit.json \
+  cat plugins/claude-code/__test__/fixtures/user-prompt-submit.json \
   | bash plugins/claude-code/hooks/user-prompt-submit/record.sh
 
 # Then inspect logs
@@ -167,7 +167,7 @@ cat /tmp/vitest-agent-hook-debug.log
 cat /tmp/vitest-agent-hook-errors.log
 ```
 
-See `hooks/fixtures/README.md` for the full fixture inventory and substitution instructions.
+See `__test__/fixtures/README.md` for the full fixture inventory and substitution instructions.
 
 ## Repository
 

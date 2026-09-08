@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-07
-last-synced: 2026-09-07
+updated: 2026-09-08
+last-synced: 2026-09-08
 completeness: 90
 related:
   - ../architecture.md
@@ -136,13 +136,13 @@ categories:
   snapshot guard is `\.snap([^A-Za-z0-9]|$)` — the extension, not a bare
   substring. As a plain `\.snap` it denied any command that merely *named* a
   file like `cells.snapshot.test.ts`, including ordinary greps and commits
-  (issue #247). `plugins/claude-code/hooks/__test__/bash-tdd.bats` pins both directions:
+  (issue #247). `plugins/claude-code/__test__/bash-tdd.bats` pins both directions:
   a command carrying a real `.snap` operand (quoted, or followed by more
   command text) is still denied, an incidental mention of a `.snapshot.`
   filename is allowed.
   `post-tool-use/tdd-artifact.sh`'s test-run matcher recognizes bats
   invocations as well as vitest/jest ones (issue #360) so shell-hook
-  behaviors whose only tests are `plugins/claude-code/hooks/__test__/*.bats` still
+  behaviors whose only tests are `plugins/claude-code/__test__/*.bats` still
   record run evidence, and passes `--suite bats` so the validator can
   bind them (issue #363); see *Artifact-binding* below for the shape.
 - **Layout enforcement.** `pre-tool-use/test-location.sh` fires on
@@ -170,7 +170,7 @@ categories:
   and both the deny and the advisory text open with "Under the default
   discovery layout, …" and name the opt-out, so a consumer the lexical
   detector misses still gets a truthful message and a way out.
-  `plugins/claude-code/hooks/__test__/test-location.bats` pins the opt-out and the
+  `plugins/claude-code/__test__/test-location.bats` pins the opt-out and the
   wording; `skills/test-discovery/SKILL.md` documents the limitation for
   the agent.
   Because an `excluded` verdict is a *deny* on a new test file, the
@@ -194,7 +194,7 @@ Hook scripts source two shared helpers from `hooks/lib/`.
 
 `hook-output.sh` centralizes every JSON shape a hook may emit — `emit_noop`, `emit_allow`, `emit_deny`, `emit_additional_context` and `emit_system_message`, plus `emit_raw` as the escape hatch for a payload none of them cover (in practice PreToolUse `updatedInput`, whose object is tool-specific). All user-provided strings flow through `jq -n --arg` so embedded quotes, newlines and backslashes cannot break the output; `emit_raw` reads an already-encoded object on stdin and still owes its caller that same encoder.
 
-The helper also **fences stdout** (issue #373, Decision D23). Claude Code parses a hook's stdout as ONE JSON object, so any other byte on fd 1 — most easily the stdout of a spawned `vitest-agent` CLI whose call site only redirected stderr — corrupts the payload and the host rejects the whole thing with "Hook output looks like a JSON object but is not valid JSON". At source time the lib runs `exec 3>&1 1>&2` behind a `_VITEST_AGENT_HOOK_STDOUT_FENCED` guard: the real hook stdout moves to fd 3 and fd 1 becomes stderr, so only the `emit_*` helpers, which write explicitly to `>&3`, can reach the host. That invariant is what makes `emit_raw` necessary: a bare `jq -n …` writing to fd 1 is diverted to stderr and the host sees an empty payload, so the two hooks that need a custom shape (`pre-tool-use/bash.sh`, `pre-tool-use/mcp-run-tests.sh`) pipe into `emit_raw` rather than printing. Command substitution is unaffected because `$(cmd)` installs its own fd 1. The guard is deliberately **not** exported, so a nested script that sources the lib fences its own fd 1 rather than inheriting the parent's fd 3. Two consequences for call sites: a hook that spawns a CLI should still redirect (`>/dev/null 2>&1`) to keep the log quiet, and anything that detaches a background worker MUST close the inherited descriptor with `3>&-`. `plugins/claude-code/hooks/__test__/hook-stdout-fence.bats` pins both layers — the lib's diversion, and `post-tool-use/test-run.sh` emitting exactly one object against a CLI stub that deliberately prints to stdout — and asserts on stdout alone, since bats merges stderr into `$output` by default and would hide the very leak under test. The helper also propagates `VITEST_AGENT_PROJECT_DIR` at source time: it applies the assignment `VITEST_AGENT_PROJECT_DIR=${CLAUDE_PROJECT_DIR:-}` only when the var is not already set, then exports it. This anchors every `vitest-agent` CLI invocation spawned by a hook to the same project root the MCP server uses, which is load-bearing for subagent TDD recording: a `post-tool-use/tdd-artifact.sh` hook that runs from a monorepo sub-package `cwd` would otherwise resolve a different per-project `data.db` than the one the MCP server (and the open TDD task) lives in, silently splitting evidence and turn writes across two databases.
+The helper also **fences stdout** (issue #373, Decision D23). Claude Code parses a hook's stdout as ONE JSON object, so any other byte on fd 1 — most easily the stdout of a spawned `vitest-agent` CLI whose call site only redirected stderr — corrupts the payload and the host rejects the whole thing with "Hook output looks like a JSON object but is not valid JSON". At source time the lib runs `exec 3>&1 1>&2` behind a `_VITEST_AGENT_HOOK_STDOUT_FENCED` guard: the real hook stdout moves to fd 3 and fd 1 becomes stderr, so only the `emit_*` helpers, which write explicitly to `>&3`, can reach the host. That invariant is what makes `emit_raw` necessary: a bare `jq -n …` writing to fd 1 is diverted to stderr and the host sees an empty payload, so the two hooks that need a custom shape (`pre-tool-use/bash.sh`, `pre-tool-use/mcp-run-tests.sh`) pipe into `emit_raw` rather than printing. Command substitution is unaffected because `$(cmd)` installs its own fd 1. The guard is deliberately **not** exported, so a nested script that sources the lib fences its own fd 1 rather than inheriting the parent's fd 3. Two consequences for call sites: a hook that spawns a CLI should still redirect (`>/dev/null 2>&1`) to keep the log quiet, and anything that detaches a background worker MUST close the inherited descriptor with `3>&-`. `plugins/claude-code/__test__/hook-stdout-fence.bats` pins both layers — the lib's diversion, and `post-tool-use/test-run.sh` emitting exactly one object against a CLI stub that deliberately prints to stdout — and asserts on stdout alone, since bats merges stderr into `$output` by default and would hide the very leak under test. The helper also propagates `VITEST_AGENT_PROJECT_DIR` at source time: it applies the assignment `VITEST_AGENT_PROJECT_DIR=${CLAUDE_PROJECT_DIR:-}` only when the var is not already set, then exports it. This anchors every `vitest-agent` CLI invocation spawned by a hook to the same project root the MCP server uses, which is load-bearing for subagent TDD recording: a `post-tool-use/tdd-artifact.sh` hook that runs from a monorepo sub-package `cwd` would otherwise resolve a different per-project `data.db` than the one the MCP server (and the open TDD task) lives in, silently splitting evidence and turn writes across two databases.
 
 `hook-debug.sh` provides two logging functions. `hook_error` always appends to `/tmp/vitest-agent-hook-errors.log` (overrideable via `VITEST_AGENT_HOOK_ERROR_LOG`); CLI failures in recording and artifact hooks write here instead of being silently swallowed. `hook_debug` appends to `/tmp/vitest-agent-hook-debug.log` (overrideable via `VITEST_AGENT_HOOK_DEBUG_LOG`) but only when `VITEST_AGENT_HOOK_DEBUG=1` is set. Recording and artifact hooks use a structured capture-and-log pattern: CLI output is captured, exit status is tested, and failures call `hook_error` before the hook exits — the previous pattern of appending `|| true` to silence errors is gone.
 
@@ -234,7 +234,7 @@ orchestrator subagent. It detects:
   passed, because there is no `test_cases` row for a bats test — and the
   hook appends `--suite bats` so the row's `tdd_artifacts.suite` column
   says so; vitest/jest matches omit the flag and take the `vitest`
-  default. `plugins/claude-code/hooks/__test__/tdd-artifact-bats.bats` pins the
+  default. `plugins/claude-code/__test__/tdd-artifact-bats.bats` pins the
   matcher in both directions (build commands and `bats --version` are
   not matched) and the `--suite bats` forwarding.
 - **File edits** by tool name. Edits to `*.test.*` paths produce
@@ -257,7 +257,7 @@ task's open phase — the explicit escape hatch for a *detached session*
 `parent_session_id`) whose artifacts would otherwise land under a session
 the task lookup never reaches. It is a last resort layered behind the
 automatic conversation-tree fallback described under *Artifact-binding
-across `chat_id` rotation*; `plugins/claude-code/hooks/__test__/tdd-artifact-task-id.bats`
+across `chat_id` rotation*; `plugins/claude-code/__test__/tdd-artifact-task-id.bats`
 pins the forwarding. The variable is never set by the plugin itself — the
 agent sets it only after a `tdd_phase_transition_request` denial names it.
 

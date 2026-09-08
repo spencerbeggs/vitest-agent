@@ -267,7 +267,7 @@ programs. Zod is used only for MCP tool input schemas.
 
 The Claude Code plugin is a collection of static files: `.claude-plugin/plugin.json` manifest, `.mcp.json` for MCP server registration, shell-based hooks, markdown skill files and markdown command files. Claude Code's plugin system discovers plugins via filesystem conventions, so no compilation or runtime is needed. Hooks use shell scripts for broad compatibility. The plugin has no dependencies and no build step, and it is never published to npm — it ships through the Claude marketplace as `vitest-agent@spencerbeggs`.
 
-**Amended.** This decision originally also placed the tree at `plugin/` and asserted it was NOT a pnpm workspace, on the grounds that a build-free, test-free directory would gain nothing from workspace membership. Both halves of that premise have since changed: the tree lives at `plugins/claude-code/`, it has bats test suites under `hooks/__test__/`, and it IS a pnpm workspace. What survives unchanged is the file-based, compile-free, npm-free nature of the plugin itself. See [Decision 64](#decision-64-claude-code-plugin-as-a-release-only-pnpm-workspace).
+**Amended.** This decision originally also placed the tree at `plugin/` and asserted it was NOT a pnpm workspace, on the grounds that a build-free, test-free directory would gain nothing from workspace membership. Both halves of that premise have since changed: the tree lives at `plugins/claude-code/`, it has bats test suites under `__test__/`, and it IS a pnpm workspace. What survives unchanged is the file-based, compile-free, npm-free nature of the plugin itself. See [Decision 64](#decision-64-claude-code-plugin-as-a-release-only-pnpm-workspace).
 
 ### Decision 21: `spawnSync` for `run_tests`
 
@@ -2053,7 +2053,7 @@ the actual teardown, as before. See
 
 **Why `plugins/` and not `claude-code/`.** The container is plural to leave room for a second agent-host integration (a Copilot plugin is the stated intent). Only `claude-code/` exists today, and nothing in the repo should be written as if a sibling already existed.
 
-**Consequences to know before editing.** The extra directory level deepened every repo-root walk in the bats suites under `plugins/claude-code/hooks/__test__/` from `../../..` to `../../../..`. Any new test helper or hook script that resolves the repo root by relative traversal must count from `plugins/claude-code/`, not the old repo-root-adjacent `plugin/`. See [Decision 20](#decision-20-file-based-claude-code-plugin), amended.
+**Consequences to know before editing.** Relative traversal depth has moved twice under this decision and is easy to copy wrongly. The move to `plugins/claude-code/` added a directory level, deepening every repo-root walk in the bats suites — which then lived one level deeper, inside the `hooks/` subtree — from `../../..` to `../../../..`; hoisting those suites to the package-root `plugins/claude-code/__test__/`, the location the repo's test-layout convention prescribes, brought the walk back to `../../..`, which is the current state. Hook scripts under `hooks/<event>/` sit a level deeper than the suites that exercise them, so the two do not share a depth. Any new test helper or hook script that resolves the repo root by relative traversal must count levels from its own location up to `plugins/claude-code/` — not the old repo-root-adjacent `plugin/`, and not by copying a depth from a neighbouring file. See [Decision 20](#decision-20-file-based-claude-code-plugin), amended.
 
 ### Decision 65: Drop Vitest 4, Require `vitest ^5.0.0`, Major the Three Coupled Packages
 
@@ -2890,7 +2890,7 @@ denial keeps the D7 posture intact.
 
 **Context.** Issue #360 taught `post-tool-use/tdd-artifact.sh` to record
 `test_failed_run` / `test_passed_run` artifacts for bats invocations, so
-shell-hook behaviors whose only tests are `plugins/claude-code/hooks/__test__/*.bats`
+shell-hook behaviors whose only tests are `plugins/claude-code/__test__/*.bats`
 leave run evidence. Those rows are necessarily **run-level** — there is
 no `test_cases` row for a bats test, so no `test_case_id` — and D11's
 rule 1 denied every run-level artifact as anchorless. A bats-only cycle
@@ -2946,7 +2946,7 @@ artifact is honest evidence where the alternative was no gate at all.
 
 **Consequences for detached work.** A backgrounded process inherits fd 3 and therefore a handle on the host's real stdout pipe. That defeats the SessionEnd detach (the `session/end-record.sh` shim), whose entire point is that the host's stream-close wait resolves the instant the shim exits, so the `nohup … &` closes it with `3>&-`. Any future detach owes the same close.
 
-Command substitution is unaffected in both directions: `$(cmd)` installs its own fd 1 for the child, so capture keeps working and the captured bytes never reach the host. `plugins/claude-code/hooks/__test__/hook-stdout-fence.bats` pins the fence, the double-source guard, the command-substitution carve-out and the `test-run.sh` regression — asserting on stdout alone, because bats folds stderr into `$output` and would otherwise hide the leak under test.
+Command substitution is unaffected in both directions: `$(cmd)` installs its own fd 1 for the child, so capture keeps working and the captured bytes never reach the host. `plugins/claude-code/__test__/hook-stdout-fence.bats` pins the fence, the double-source guard, the command-substitution carve-out and the `test-run.sh` regression — asserting on stdout alone, because bats folds stderr into `$output` and would otherwise hide the leak under test.
 
 ---
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # render-fixture.sh — emit a hook fixture with __REPO_ROOT__ resolved.
 #
-# The fixtures under plugins/claude-code/hooks/fixtures/ are templates: the machine-specific
+# The fixtures under plugins/claude-code/__test__/fixtures/ are templates: the machine-specific
 # repository root is stored as the literal token __REPO_ROOT__ so the suite is
 # not pinned to one developer's checkout path. Hook scripts `cd "$cwd"` before
 # shelling out to the CLI, so a stale absolute path makes the cd fail, the
@@ -29,8 +29,8 @@ if [ ! -f "$fixture" ]; then
 	exit 1
 fi
 
-# __test__/ -> hooks/ -> claude-code/ -> plugins/ -> repo root
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+# __test__/ -> claude-code/ -> plugins/ -> repo root
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # Use a sed delimiter that cannot appear in an absolute path.
 sed "s|__REPO_ROOT__|${REPO_ROOT}|g" "$fixture"

@@ -15,10 +15,10 @@
 # is called, emits a JSON payload with a predictable agentId so start-tdd.sh can
 # extract and write it into the state file.
 
-HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)"
 # Repository root, resolved at runtime — never hardcode a developer checkout path.
-REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../../.." && pwd)"
-FIXTURES_DIR="${HOOKS_DIR}/fixtures"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.." && pwd)"
+FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/fixtures"
 
 # Shared chat_id used across tests. Must be a valid session-id shape
 # (no slashes, no .., no whitespace) so source-session-env.sh won't reject it.

@@ -12,8 +12,8 @@
 # Stub strategy: same pnpm/vitest-agent fake pattern as
 # cli-rename-cascade.bats.
 
-HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
-FIXTURES_DIR="${HOOKS_DIR}/fixtures"
+HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)"
+FIXTURES_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)/fixtures"
 TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 
 setup() {
