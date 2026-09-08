@@ -45,6 +45,7 @@
 		"@types/react": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",
+		"ajv": "^8.20.0",
 		"typescript": "catalog:build",
 		"vite": "catalog:docs",
 		"vitest": "catalog:test"

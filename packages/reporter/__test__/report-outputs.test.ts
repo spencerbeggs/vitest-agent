@@ -4,8 +4,11 @@
  * `summary.md` (the same markdown the GitHub step summary carries).
  */
 
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import type { AgentReport, ReporterKit, ReporterRenderInput, VitestAgentReporter } from "@vitest-agent/sdk";
 import { RUN_REPORT_FILE_SCHEMA_URL, RunReportFile } from "@vitest-agent/sdk";
+import { Ajv } from "ajv";
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { DefaultVitestAgentReporter } from "../src/defaultReporter.js";
@@ -68,6 +71,58 @@ describe("default reporter report files", () => {
 		expect(parsed.schemaVersion).toBe(1);
 		expect(parsed.$schema).toBe(RUN_REPORT_FILE_SCHEMA_URL);
 		expect(parsed.reports.length).toBeGreaterThan(0);
+	});
+
+	it("emits a run.json that validates against the published JSON Schema", () => {
+		const kit = makeKit();
+		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(
+			makeInput({
+				reports: [
+					makeReport(),
+					makeReport({
+						project: "other",
+						reason: "failed",
+						summary: { total: 2, passed: 1, failed: 1, skipped: 0, duration: 42 },
+						failed: [
+							{
+								file: "src/add.test.ts",
+								state: "failed",
+								duration: 12,
+								tests: [
+									{
+										name: "adds",
+										fullName: "math > adds",
+										state: "failed",
+										duration: 12,
+										classification: "new-failure",
+										errors: [{ message: "expected 1 to be 2", diff: "- 1\n+ 2" }],
+									},
+								],
+							},
+						],
+						failedFiles: ["src/add.test.ts"],
+					}),
+				],
+			}),
+			kit,
+		);
+		const runJson = outputs.find((o) => o.target === "report" && o.filename === "run.json");
+		const document = JSON.parse(runJson?.content ?? "{}") as Record<string, unknown>;
+
+		const require_ = createRequire(import.meta.url);
+		const schema = JSON.parse(
+			readFileSync(require_.resolve("@vitest-agent/sdk/schemas/run-report-file-1.0.0.json"), "utf-8"),
+		) as Record<string, unknown>;
+
+		const ajv = new Ajv({ strict: true, allErrors: true });
+		// `x-ai-hint` is our own annotation-only extension keyword. Declaring
+		// it teaches ajv's strict mode that it is intentional; it carries no
+		// validation semantics and does not relax any constraint.
+		ajv.addVocabulary(["x-ai-hint"]);
+		const validate = ajv.compile(schema);
+		const valid = validate(document);
+		expect(validate.errors ?? []).toEqual([]);
+		expect(valid).toBe(true);
 	});
 
 	it("writes $schema as the first key of run.json", () => {

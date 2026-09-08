@@ -324,6 +324,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: catalog:test
         version: 5.0.0(vitest@5.0.0)
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
       typescript:
         specifier: catalog:build
         version: 7.0.2
