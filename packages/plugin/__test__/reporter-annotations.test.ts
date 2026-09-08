@@ -34,6 +34,23 @@ describe("annotation and artifact ingestion mappers", () => {
 		]);
 	});
 
+	it("degrades to a descriptor when an attachment field getter throws", () => {
+		const attachment = {
+			contentType: "text/plain",
+			path: ".vitest/attachments/gone.txt",
+			get body(): string {
+				throw new Error("body getter exploded");
+			},
+			get bodyEncoding(): "utf-8" {
+				throw new Error("bodyEncoding getter exploded");
+			},
+		};
+		const inputs = toAnnotationInputs(1, [{ message: "m", attachment }]);
+		expect(inputs[0]?.attachments).toEqual([
+			{ contentType: "text/plain", path: ".vitest/attachments/gone.txt", byteSize: 0 },
+		]);
+	});
+
 	it("defaults a typeless annotation to notice and tolerates no attachment", () => {
 		const inputs = toAnnotationInputs(1, [{ message: "plain" }]);
 		expect(inputs[0]?.type).toBe("notice");

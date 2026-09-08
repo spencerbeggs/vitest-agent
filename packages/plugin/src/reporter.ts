@@ -315,6 +315,20 @@ const attachmentPathByteSize = (path: string): number => {
 };
 
 /**
+ * Read one property off a user-authored artifact or attachment object.
+ * Both carry arbitrary user data and may expose live getters that throw,
+ * so every read is guarded -- the same discipline `coerceErrorField`
+ * applies to error objects.
+ */
+const readField = (raw: Record<string, unknown>, key: string): unknown => {
+	try {
+		return raw[key];
+	} catch {
+		return undefined;
+	}
+};
+
+/**
  * Normalize one Vitest attachment onto a `TestAttachmentInput`.
  *
  * A `Uint8Array` body is base64-encoded and declared as such, matching
@@ -325,34 +339,44 @@ const attachmentPathByteSize = (path: string): number => {
  * on-disk size of a path-only attachment.
  */
 const toAttachmentInput = (att: RawAttachment): TestAttachmentInput => {
-	if (att.body instanceof Uint8Array) {
+	// An attachment is user-authored data that reaches us by reference, so
+	// any of its fields may be a live getter that throws. Every read goes
+	// through `readField`: a field that explodes reads as absent, and the
+	// attachment degrades to the descriptor we could assemble rather than
+	// aborting the whole persistence walk.
+	const raw = att as unknown as Record<string, unknown>;
+	const contentType = readField(raw, "contentType");
+	const path = readField(raw, "path");
+	const descriptor = {
+		...(typeof contentType === "string" && { contentType }),
+		...(typeof path === "string" && { path }),
+	};
+	const body = readField(raw, "body");
+	if (body instanceof Uint8Array) {
 		return {
-			...(att.contentType !== undefined && { contentType: att.contentType }),
-			...(att.path !== undefined && { path: att.path }),
-			body: Buffer.from(att.body).toString("base64"),
+			...descriptor,
+			body: Buffer.from(body).toString("base64"),
 			bodyEncoding: "base64",
-			byteSize: att.body.byteLength,
+			byteSize: body.byteLength,
 		};
 	}
-	if (typeof att.body === "string") {
+	if (typeof body === "string") {
 		// Vitest stamps `bodyEncoding ??= "base64"` on every body before a
 		// reporter sees it (`.repos/vitest/.../runtime/runner/artifact.ts:185`),
 		// so an undeclared body only reaches here from a hand-built object. We
 		// still record what we assumed rather than leaving NULL, so `byteSize`
 		// and `bodyEncoding` always agree on the row.
-		const bodyEncoding = att.bodyEncoding ?? "utf-8";
+		const bodyEncoding = readField(raw, "bodyEncoding") === "base64" ? "base64" : "utf-8";
 		return {
-			...(att.contentType !== undefined && { contentType: att.contentType }),
-			...(att.path !== undefined && { path: att.path }),
-			body: att.body,
+			...descriptor,
+			body,
 			bodyEncoding,
-			byteSize: Buffer.byteLength(att.body, bodyEncoding === "base64" ? "base64" : "utf8"),
+			byteSize: Buffer.byteLength(body, bodyEncoding === "base64" ? "base64" : "utf8"),
 		};
 	}
 	return {
-		...(att.contentType !== undefined && { contentType: att.contentType }),
-		...(att.path !== undefined && { path: att.path }),
-		byteSize: att.path !== undefined ? attachmentPathByteSize(att.path) : 0,
+		...descriptor,
+		byteSize: typeof path === "string" ? attachmentPathByteSize(path) : 0,
 	};
 };
 
@@ -395,20 +419,6 @@ export const toAnnotationInputs = (
 		}),
 		attachments: toAttachmentInputs(anno.attachment !== undefined ? [anno.attachment] : []),
 	}));
-
-/**
- * Read one property off a user-authored artifact object. Artifact fields
- * are arbitrary user data and may be live getters that throw, so every
- * read is guarded -- the same discipline `coerceErrorField` applies to
- * error objects.
- */
-const readField = (raw: Record<string, unknown>, key: string): unknown => {
-	try {
-		return raw[key];
-	} catch {
-		return undefined;
-	}
-};
 
 /**
  * JSON-encode an artifact's custom fields, minus the ones modelled as
