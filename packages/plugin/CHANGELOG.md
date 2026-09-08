@@ -1,5 +1,39 @@
 # @vitest-agent/plugin
 
+## 3.0.1
+
+### Bug Fixes
+
+- `AgentPlugin`'s declined-package warning no longer fires for a package
+  whose `__test__/` directory holds only Bats shell tests (`.bats`&#10;files, run by `bats`, not Vitest) — for example&#10;`@effected/claude-code-plugin`'s `plugins/claude-code/__test__/`. The&#10;`isTestShapedPackage` predicate now warns only when neither a
+  discoverable Vitest test file nor a `.bats` file (searched recursively
+  under the package) is found anywhere; a `__test__/` directory whose
+  contents match neither convention — including an empty one — still
+  warns exactly as before. [#402][#402]
+
+* `AgentPlugin`'s `configureVitest` now fails fast with a single clean&#10;`vitest-agent: ...` stderr line when the host project's `vitest` peer
+  resolves to a pre-5 release, instead of letting the raw&#10;`TypeError: ctx.defineCacheKeyGenerator is not a function` surface
+  with a stack trace and an issue-report URL. The diagnostic reports the
+  detected Vitest version when it can be read off the Vitest instance,
+  and points the user at `@vitest-agent/plugin` 2.x for Vitest 4. Every
+  other `configureVitest` error keeps its existing stack-plus-issue-URL
+  treatment. [#402][#402]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 2.2.16 | 2.2.17 |
+| @vitest-agent/mcp | dependency | updated | 3.0.0 | 3.0.1 |
+| @vitest-agent/reporter | dependency | updated | 3.0.0 | 3.0.1 |
+| @vitest-agent/sdk | dependency | updated | 3.0.0 | 3.1.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#402]: https://github.com/spencerbeggs/vitest-agent/pull/402
+
 ## 3.0.0
 
 ### Breaking Changes
