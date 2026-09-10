@@ -1,12 +1,29 @@
 # @vitest-agent/sdk
 
+## 3.1.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.20.1 | ^0.20.3 |
+
+[#409][#409]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#409]: https://github.com/spencerbeggs/vitest-agent/pull/409
+
 ## 3.1.0
 
 ### Features
 
 - Added `BATS_FILE_GLOB_SUFFIX` (`"*.bats"`) to `utils/test-location.ts`,
   alongside `TEST_FILE_GLOB_SUFFIX`, as the single source of truth for
-  the Bats shell test file naming convention. Consumed by&#10;`@vitest-agent/plugin`'s `isTestShapedPackage` so a package whose
+  the Bats shell test file naming convention. Consumed by
+  `@vitest-agent/plugin`'s `isTestShapedPackage` so a package whose
   tests are Bats-only no longer trips the declined-package warning. [#402][#402]
 
 ### Thanks
@@ -51,17 +68,20 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
 
 - `ResolvedThresholds.perFile` is now `boolean | MetricThresholds`,
   mirroring Vitest 5's widened `coverage.thresholds.perFile`. Two schemas
-  are newly exported: `PerFileThresholds` (the union) and&#10;`PatternMetricThresholds` (the metric values a glob-pattern entry carries,
+  are newly exported: `PerFileThresholds` (the union) and
+  `PatternMetricThresholds` (the metric values a glob-pattern entry carries,
   including its own optional `perFile`). `PatternThresholds`'s second tuple
   element is now `PatternMetricThresholds`; every previously valid value
-  still decodes. The widening is source-visible to TypeScript consumers:&#10;`const enabled: boolean = resolved.perFile` no longer compiles, so narrow
+  still decodes. The widening is source-visible to TypeScript consumers:
+  `const enabled: boolean = resolved.perFile` no longer compiles, so narrow
   with a `typeof resolved.perFile === "boolean"` check first.
 
 #### `coverageTargets` glob entries accept `perFile`
 
 - Under Vitest 5 a glob-scoped threshold entry no longer inherits the
   top-level `perFile`, so `CoverageTargets` glob-pattern entries now accept
-  their own. A top-level `perFile` is still rejected — that belongs on&#10;`coverage.thresholds.perFile` — and the `PERFILE_ON_TARGETS` diagnostic
+  their own. A top-level `perFile` is still rejected — that belongs on
+  `coverage.thresholds.perFile` — and the `PERFILE_ON_TARGETS` diagnostic
   was reworded to say so and narrowed so it no longer fires on a legitimate
   per-glob setting.
 

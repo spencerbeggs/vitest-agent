@@ -1,5 +1,14 @@
 # @vitest-agent/reporter
 
+## 3.0.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 3.1.0 | 3.1.1 |
+| @vitest-agent/ui | dependency | updated | 2.4.1 | 2.4.2 |
+
 ## 3.0.1
 
 ### Dependencies
@@ -15,7 +24,8 @@
 
 #### Requires Vitest 5
 
-- The `vitest` peer range moves to `^5.0.0`, and the optional&#10;`@vitest/coverage-v8` / `@vitest/coverage-istanbul` peers move with it.
+- The `vitest` peer range moves to `^5.0.0`, and the optional
+  `@vitest/coverage-v8` / `@vitest/coverage-istanbul` peers move with it.
   Vitest 4 is no longer supported. Vitest 5 declares `vite` as a required
   peer dependency of `vitest` rather than a regular one, so install it
   explicitly alongside the upgrade. Vitest 5 accepts vite 6.4 or newer —
@@ -25,7 +35,8 @@
 npm install -D vitest@^5 vite
 ```
 
-- No reporter hook signature changed: `onInit`, `onTestRunStart`,&#10;`onTestRunEnd`, and every streaming hook the default reporter taps are
+- No reporter hook signature changed: `onInit`, `onTestRunStart`,
+  `onTestRunEnd`, and every streaming hook the default reporter taps are
   identical in Vitest 5. [#380][#380]
 
 ### Features
