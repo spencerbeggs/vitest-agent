@@ -580,8 +580,8 @@ importers:
         specifier: catalog:docs
         version: 19.2.8(react@19.2.8)
       rspress-plugin-api-extractor:
-        specifier: ^0.16.3
-        version: 0.16.3(@effected/config-file@0.7.0(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@rspress/core@2.0.21(@rspack/core@2.2.3(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.5.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0)
+        specifier: ^0.16.4
+        version: 0.16.4(@effected/config-file@0.7.0(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@rspress/core@2.0.21(@rspack/core@2.2.3(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.5.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0)
       rspress-plugin-mermaid:
         specifier: catalog:docs
         version: 1.0.1(@rspress/core@2.0.21(@rspack/core@2.2.3(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(supports-color@9.4.0)
@@ -1850,16 +1850,16 @@ packages:
     peerDependencies:
       effect: 4.0.0-rc.112
 
-  '@tsdoctor/model@0.6.4':
-    resolution: {integrity: sha512-ECcH0EbREAjWqut2Ogaa9qny7tAA408QK19Ebn/Dx430VVHstAsQV8vitPp5RZqpijTQMh4vGgVLFnIVNuEczw==}
+  '@tsdoctor/model@0.6.5':
+    resolution: {integrity: sha512-Wd5SYtQl9gDJ3d+hQk9SfJ/gc467N0IQPfr0V05hZ0D++PSJdBnU+pOxHyNvHMz5tk0qNWG+u/81Zkkb4SRpIw==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@effected/markdown': ^0.9.1
       '@effected/yaml': ^0.14.0
       effect: 4.0.0-rc.112
 
-  '@tsdoctor/pages@0.1.5':
-    resolution: {integrity: sha512-erD4jJbti2ze6nRPEBCssvogHQfv9Vv0X6ioIej+qpFQzlyrNIWeDsR6rLKdewUmmfsASDBIfpEjB5ZCCjAP2Q==}
+  '@tsdoctor/pages@0.1.6':
+    resolution: {integrity: sha512-xQKRQBuXWBfYMnvUxLF5gZdZCvjDXLXx6wU6vxR/2qW6Vg7APyhu67/O1BQOe95Xk7MSZF9UAtFdajMlvmZEgQ==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@effected/markdown': ^0.9.1
@@ -4277,8 +4277,8 @@ packages:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
 
-  rspress-plugin-api-extractor@0.16.3:
-    resolution: {integrity: sha512-4qhjdpswhZ5Tq0jYa8078qSAXPsAVvYmS+MOi3Dnp38Cfamw+CkaBwFnIqftR2np80GUs3Yibddk/EmBpqHvHw==}
+  rspress-plugin-api-extractor@0.16.4:
+    resolution: {integrity: sha512-RG9LdCuUXWjnr9r1yzXjBMtVgC9WvMdp4Y8BJ1D0QLlQU3FCy8V6bCctuaBPQrcFPh63cnQwvFbg+lJPYA0S5A==}
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@rspress/core': ^2.0.0
@@ -6310,7 +6310,7 @@ snapshots:
     dependencies:
       effect: 4.0.0-rc.112
 
-  '@tsdoctor/model@0.6.4(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)':
+  '@tsdoctor/model@0.6.5(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)':
     dependencies:
       '@effected/markdown': 0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112)
       '@effected/yaml': 0.14.0(effect@4.0.0-rc.112)
@@ -6325,11 +6325,11 @@ snapshots:
       - '@typescript/vfs'
       - typescript
 
-  '@tsdoctor/pages@0.1.5(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/package-json@0.14.0(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)':
+  '@tsdoctor/pages@0.1.6(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/package-json@0.14.0(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)':
     dependencies:
       '@effected/markdown': 0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112)
       '@microsoft/api-extractor-model': 7.33.12(@types/node@26.5.0)
-      '@tsdoctor/model': 0.6.4(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)
+      '@tsdoctor/model': 0.6.5(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)
       '@tsdoctor/seo': 0.2.1(@effected/package-json@0.14.0(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112)
       effect: 4.0.0-rc.112
       prettier: 3.9.6
@@ -9160,7 +9160,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  rspress-plugin-api-extractor@0.16.3(@effected/config-file@0.7.0(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@rspress/core@2.0.21(@rspack/core@2.2.3(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.5.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0):
+  rspress-plugin-api-extractor@0.16.4(@effected/config-file@0.7.0(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@rspress/core@2.0.21(@rspack/core@2.2.3(@swc/helpers@0.5.23))(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@9.4.0))(supports-color@9.4.0))(@types/node@26.5.0)(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(redis@6.2.1)(supports-color@9.4.0):
     dependencies:
       '@effect/platform-node': 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
       '@effected/github': 0.9.0(effect@4.0.0-rc.112)
@@ -9180,8 +9180,8 @@ snapshots:
       '@shikijs/twoslash': 4.4.3(supports-color@9.4.0)(typescript@6.0.3)
       '@tsdoctor/bundle': 0.3.2(ed1b3ae2fa941d4f68e197e454617316)
       '@tsdoctor/manifest': 0.1.1(effect@4.0.0-rc.112)
-      '@tsdoctor/model': 0.6.4(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)
-      '@tsdoctor/pages': 0.1.5(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/package-json@0.14.0(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)
+      '@tsdoctor/model': 0.6.5(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)
+      '@tsdoctor/pages': 0.1.6(@effected/markdown@0.9.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/package-json@0.14.0(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@types/node@26.5.0)(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)
       '@tsdoctor/registry': 0.3.5(@effect/platform-node@4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1))(@effected/semver@0.6.0(effect@4.0.0-rc.112))(@effected/store@0.7.0(effect@4.0.0-rc.112))(@effected/tsconfig-json@0.8.1(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/xdg@0.4.1(@effected/config-file@0.7.0(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/toml@0.6.0(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/yaml@0.14.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@effected/walker@0.7.0(@effected/glob@0.5.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(effect@4.0.0-rc.112))(@shikijs/twoslash@4.4.3(supports-color@9.4.0)(typescript@6.0.3))(@typescript/vfs@1.6.4(supports-color@9.4.0)(typescript@6.0.3))(effect@4.0.0-rc.112)(typescript@6.0.3)
       '@tsdoctor/seo': 0.2.1(@effected/package-json@0.14.0(effect@4.0.0-rc.112))(@effected/schema-org@0.2.0(effect@4.0.0-rc.112))(@effected/spdx@0.6.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112)
       '@tsdoctor/snapshot': 0.2.5(@effected/jsonc@0.9.0(effect@4.0.0-rc.112))(@effected/store@0.7.0(effect@4.0.0-rc.112))(effect@4.0.0-rc.112)
