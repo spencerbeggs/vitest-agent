@@ -1,18 +1,43 @@
 # @vitest-agent/plugin
 
+## 3.0.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.20.1 | ^0.20.3 |
+| @vitest-agent/cli | dependency | updated | 2.2.17 | 2.2.18 |
+| @vitest-agent/mcp | dependency | updated | 3.0.1 | 3.0.2 |
+| @vitest-agent/reporter | dependency | updated | 3.0.1 | 3.0.2 |
+| @vitest-agent/sdk | dependency | updated | 3.1.0 | 3.1.1 |
+
+[#409][#409]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#409]: https://github.com/spencerbeggs/vitest-agent/pull/409
+
 ## 3.0.1
 
 ### Bug Fixes
 
 - `AgentPlugin`'s declined-package warning no longer fires for a package
-  whose `__test__/` directory holds only Bats shell tests (`.bats`&#10;files, run by `bats`, not Vitest) — for example&#10;`@effected/claude-code-plugin`'s `plugins/claude-code/__test__/`. The&#10;`isTestShapedPackage` predicate now warns only when neither a
+  whose `__test__/` directory holds only Bats shell tests (`.bats`
+  files, run by `bats`, not Vitest) — for example
+  `@effected/claude-code-plugin`'s `plugins/claude-code/__test__/`. The
+  `isTestShapedPackage` predicate now warns only when neither a
   discoverable Vitest test file nor a `.bats` file (searched recursively
   under the package) is found anywhere; a `__test__/` directory whose
   contents match neither convention — including an empty one — still
   warns exactly as before. [#402][#402]
 
-* `AgentPlugin`'s `configureVitest` now fails fast with a single clean&#10;`vitest-agent: ...` stderr line when the host project's `vitest` peer
-  resolves to a pre-5 release, instead of letting the raw&#10;`TypeError: ctx.defineCacheKeyGenerator is not a function` surface
+* `AgentPlugin`'s `configureVitest` now fails fast with a single clean
+  `vitest-agent: ...` stderr line when the host project's `vitest` peer
+  resolves to a pre-5 release, instead of letting the raw
+  `TypeError: ctx.defineCacheKeyGenerator is not a function` surface
   with a stack trace and an issue-report URL. The diagnostic reports the
   detected Vitest version when it can be read off the Vitest instance,
   and points the user at `@vitest-agent/plugin` 2.x for Vitest 4. Every
@@ -53,12 +78,14 @@ npm install -D vitest@^5 vite @vitest/coverage-v8@^5
 #### `TagOptions` no longer accepts `sequential`
 
 - `TagOptions` is `Omit<TestTagDefinition, "name">`, and Vitest 5 removed
-  the `sequential` test option, so `Tag.make("slow", { sequential: true })`&#10;is now a type error. `timeout` and `retry` are unaffected, and the
+  the `sequential` test option, so `Tag.make("slow", { sequential: true })`
+  is now a type error. `timeout` and `retry` are unaffected, and the
   built-in tag definitions never used `sequential`.
 
 #### `COVERAGE_AUTOUPDATE` functions take two arguments
 
-- Vitest 5 calls `coverage.thresholds.autoUpdate` with&#10;`(newThreshold, previousThreshold)`. All three tolerance functions now
+- Vitest 5 calls `coverage.thresholds.autoUpdate` with
+  `(newThreshold, previousThreshold)`. All three tolerance functions now
   declare both parameters. `standard` and `strict` behave exactly as
   before. `lenient` now uses the second argument as a floor: it still
   floors the new value and subtracts a two-point buffer, but never returns
@@ -67,20 +94,24 @@ npm install -D vitest@^5 vite @vitest/coverage-v8@^5
 
 #### Test history resets for parameterised titles
 
-- Vitest 5 renders interpolated `test.each` / `test.for` titles through&#10;`pretty-format` instead of `loupe` and drops the quotes around
+- Vitest 5 renders interpolated `test.each` / `test.for` titles through
+  `pretty-format` instead of `loupe` and drops the quotes around
   interpolated strings, and it truncates each interpolated value at 40
   characters. Test history, failure classification, and trends are keyed on
   a test's full name, so every parameterised test whose title interpolates
   a value gets a new history key on the first Vitest 5 run. There is no
   deterministic mapping between the old and new titles and therefore no
   migration: affected tests start a fresh history window, and one that
-  fails on that first run classifies as `new-failure` rather than&#10;`persistent` or `flaky`. Tests with static titles are unaffected.
+  fails on that first run classifies as `new-failure` rather than
+  `persistent` or `flaky`. Tests with static titles are unaffected.
 
 #### Glob-scoped `perFile` no longer inherits the top-level setting
 
 - Vitest 5 widened `coverage.thresholds.perFile` to accept a per-metric
   object, and stopped letting a glob-pattern threshold entry inherit the
-  top-level `perFile` flag. The plugin now resolves an object-valued&#10;`perFile` instead of normalizing it to `false`, and applies a `perFile`&#10;declared inside a glob-pattern entry only to that pattern rather than to
+  top-level `perFile` flag. The plugin now resolves an object-valued
+  `perFile` instead of normalizing it to `false`, and applies a `perFile`
+  declared inside a glob-pattern entry only to that pattern rather than to
   every glob. If you relied on a top-level `perFile: true` reaching your
   per-glob thresholds, add `perFile` explicitly to each glob entry that
   needs it.
@@ -90,7 +121,8 @@ npm install -D vitest@^5 vite @vitest/coverage-v8@^5
 - Vitest 5 matches both lists against each file's path relative to the
   project root that owns it, not the workspace root, so a workspace-anchored
   entry such as `packages/cli/src/bin.ts` never matches from inside that
-  package. Re-anchor those patterns as `**/cli/src/bin.ts` and set&#10;`coverage.excludeAfterRemap: true` so a file reached only through another
+  package. Re-anchor those patterns as `**/cli/src/bin.ts` and set
+  `coverage.excludeAfterRemap: true` so a file reached only through another
   file's source map is still excluded. The Vitest 5 upgrade guide walks
   through it.
 
@@ -106,12 +138,16 @@ npm install -D vitest@^5 vite @vitest/coverage-v8@^5
 #### `github-actions` job summary no longer duplicates
 
 - Vitest 5's `github-actions` reporter writes a markdown job summary by
-  default, and Vitest seeds the reporter into its own defaults whenever&#10;`GITHUB_ACTIONS=true`. Under the `ci-github` environment the plugin now
-  normalizes whatever entry it finds to&#10;`["github-actions", { jobSummary: { enabled: false } }]` — preserving the
+  default, and Vitest seeds the reporter into its own defaults whenever
+  `GITHUB_ACTIONS=true`. Under the `ci-github` environment the plugin now
+  normalizes whatever entry it finds to
+  `["github-actions", { jobSummary: { enabled: false } }]` — preserving the
   entry's other options and its position in the array, and appending one
   when none exists — so the inline `::error::` annotations stay while the
-  summary is left to the plugin. An entry that sets&#10;`jobSummary: { enabled: true }` reads as a deliberate opt-in: the plugin
-  leaves it alone and raises the new `GITHUB_JOB_SUMMARY_COLLISION`&#10;configuration warning instead.
+  summary is left to the plugin. An entry that sets
+  `jobSummary: { enabled: true }` reads as a deliberate opt-in: the plugin
+  leaves it alone and raises the new `GITHUB_JOB_SUMMARY_COLLISION`
+  configuration warning instead.
 
 #### Test annotations and test artifacts
 
@@ -137,7 +173,8 @@ npm install -D vitest@^5 vite @vitest/coverage-v8@^5
 
 - `stripConsoleReporters` now removes Vitest's `minimal` reporter, which
   is the default whenever `std-env`'s `isAgent` is true under Vitest 5.
-  Without this the runner's own console output double-printed in the&#10;`agent`, `stream`, and `ci-annotations` console modes. [#380][#380]
+  Without this the runner's own console output double-printed in the
+  `agent`, `stream`, and `ci-annotations` console modes. [#380][#380]
 
 ### Dependencies
 
@@ -273,7 +310,8 @@ Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributio
   opt in. `AgentPlugin.discover({ maxDepth })` now forwards the same override
   through its options-object form.
 
-- Default behavior is unchanged when `maxDepth` is omitted (the&#10;`@effected/workspaces` default depth still applies).
+- Default behavior is unchanged when `maxDepth` is omitted (the
+  `@effected/workspaces` default depth still applies).
 
 - Existing output shape and caller compatibility remain unchanged. [#326][#326]
 

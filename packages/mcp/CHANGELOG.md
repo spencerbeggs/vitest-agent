@@ -1,5 +1,13 @@
 # @vitest-agent/mcp
 
+## 3.0.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 3.1.0 | 3.1.1 |
+
 ## 3.0.1
 
 ### Dependencies
@@ -28,7 +36,8 @@
   and still report success.
 
 - `run_tests` now resolves the config itself and passes it alongside the
-  caller's verbatim `root`. When no `vitest.config.*` or `vite.config.*`&#10;exists at or above the supplied `projectRoot` within the repository, the
+  caller's verbatim `root`. When no `vitest.config.*` or `vite.config.*`
+  exists at or above the supplied `projectRoot` within the repository, the
   call returns an error envelope naming the path instead of a silent
   empty pass.
 
@@ -42,7 +51,9 @@
 
 ### Bug Fixes
 
-- `run_tests` moved to the non-deprecated&#10;`createVitest(options, viteOverrides, vitestOptions)` overload; the&#10;`mode` first argument is deprecated in Vitest 5. [#380][#380]
+- `run_tests` moved to the non-deprecated
+  `createVitest(options, viteOverrides, vitestOptions)` overload; the
+  `mode` first argument is deprecated in Vitest 5. [#380][#380]
 
 ### Dependencies
 
