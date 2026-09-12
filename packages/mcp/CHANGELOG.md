@@ -1,5 +1,21 @@
 # @vitest-agent/mcp
 
+## 3.0.4
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| zod | dependency | updated | ^4.5.4 | ^4.6.2 |
+
+[#418][#418]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#418]: https://github.com/spencerbeggs/vitest-agent/pull/418
+
 ## 3.0.3
 
 ### Dependencies
