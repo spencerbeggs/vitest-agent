@@ -1,5 +1,30 @@
 # @vitest-agent/cli
 
+## 2.2.19
+
+### Refactoring
+
+- Ported the `vitest-agent` command tree to the PascalCase `effect/unstable/cli` constructors introduced in `effect@4.0.0-rc.113` (`Flag.String`, `Flag.Int`, `Flag.Boolean`, `Flag.Literals`, `Argument.String`). Flag names, defaults, help output, and parsing behaviour are unchanged. [#416][#416]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.112 | 4.0.0-rc.115 |
+| @effect/sql-sqlite-node | dependency | updated | 4.0.0-rc.112 | 4.0.0-rc.115 |
+| @effected/workspaces | dependency | updated | ^0.20.3 | ^0.21.0 |
+| @vitest-agent/sdk | dependency | updated | 3.1.1 | 3.1.2 |
+| @vitest-agent/sidecar | dependency | updated | 2.1.18 | 2.1.19 |
+| effect | dependency | updated | 4.0.0-rc.112 | 4.0.0-rc.115 |
+
+[#416][#416]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#416]: https://github.com/spencerbeggs/vitest-agent/pull/416
+
 ## 2.2.18
 
 ### Dependencies

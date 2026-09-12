@@ -1,5 +1,34 @@
 # @vitest-agent/sdk
 
+## 3.1.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.112 | 4.0.0-rc.115 |
+| @effect/sql-sqlite-node | dependency | updated | 4.0.0-rc.112 | 4.0.0-rc.115 |
+| @effected/config-file | dependency | updated | ^0.7.0 | ^0.8.0 |
+| @effected/jsonc | dependency | updated | ^0.9.0 | ^0.11.0 |
+| @effected/toml | dependency | updated | ^0.6.0 | ^0.7.0 |
+| @effected/walker | dependency | updated | ^0.7.0 | ^0.8.0 |
+| @effected/workspaces | dependency | updated | ^0.20.3 | ^0.21.0 |
+| @effected/xdg | dependency | updated | ^0.4.1 | ^0.5.0 |
+| @effected/yaml | dependency | updated | ^0.14.0 | ^0.15.0 |
+| effect | dependency | updated | 4.0.0-rc.112 | 4.0.0-rc.115 |
+
+[#416][#416]
+
+### Maintenance
+
+- Regenerated the published `run-report-file-1.0.0.json` JSON Schema with `effect@4.0.0-rc.115`, whose `Schema.toJsonSchemaDocument` now emits object schemas open by default. Every struct in the document changed from `additionalProperties: false` to `additionalProperties: true`, matching how the SDK's own Effect decoders already treated unknown keys. Documents that validated before still validate; the schema no longer rejects extra properties. [#416][#416]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#416]: https://github.com/spencerbeggs/vitest-agent/pull/416
+
 ## 3.1.1
 
 ### Dependencies
