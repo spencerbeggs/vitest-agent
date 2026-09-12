@@ -26,7 +26,7 @@ const pathCommand = Command.make("path", {}, () =>
 
 // prune -----------------------------------------------------------------------
 
-const keepRecentOption = Flag.withDefault(Flag.integer("keep-recent"), 30).pipe(
+const keepRecentOption = Flag.withDefault(Flag.Int("keep-recent"), 30).pipe(
 	Flag.withDescription("Number of most-recent sessions to keep in full"),
 );
 
@@ -44,7 +44,7 @@ const pruneCommand = Command.make("prune", { keepRecent: keepRecentOption }, ({ 
 
 // reset -----------------------------------------------------------------------
 
-const yesOption = Flag.boolean("yes").pipe(
+const yesOption = Flag.Boolean("yes").pipe(
 	Flag.withDefault(false),
 	Flag.withDescription("Skip the interactive confirmation prompt"),
 );
@@ -115,12 +115,12 @@ const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 
 // query -----------------------------------------------------------------------
 
-const queryFormatOption = Flag.choice("format", ["table", "json"]).pipe(
+const queryFormatOption = Flag.Literals("format", ["table", "json"]).pipe(
 	Flag.withDefault("table"),
 	Flag.withDescription("Output format for query results"),
 );
 
-const sqlArg = Argument.string("sql").pipe(
+const sqlArg = Argument.String("sql").pipe(
 	Argument.withDescription("Read-only SQL statement to execute against data.db"),
 );
 

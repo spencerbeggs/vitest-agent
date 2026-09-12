@@ -90,7 +90,7 @@
 				}
 			},
 			"required": ["total", "passed", "failed", "skipped", "duration"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"TestState": {
 			"type": "string",
@@ -144,7 +144,7 @@
 				}
 			},
 			"required": ["message"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"TestClassification": {
 			"type": "string",
@@ -225,7 +225,7 @@
 				}
 			},
 			"required": ["name", "fullName", "state"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"ModuleReport": {
 			"type": "object",
@@ -275,7 +275,7 @@
 				}
 			},
 			"required": ["file", "state", "tests"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"CoverageTotals": {
 			"type": "object",
@@ -326,7 +326,7 @@
 				}
 			},
 			"required": ["statements", "branches", "functions", "lines"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"MetricThresholds": {
 			"type": "object",
@@ -404,7 +404,7 @@
 					]
 				}
 			},
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"PerFileThresholds": {
 			"anyOf": [
@@ -495,7 +495,7 @@
 					"$ref": "#/$defs/PerFileThresholds"
 				}
 			},
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"PatternThresholds": {
 			"type": "array",
@@ -524,7 +524,7 @@
 				}
 			},
 			"required": ["file", "summary", "uncoveredLines"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"CoverageReport": {
 			"type": "object",
@@ -546,7 +546,7 @@
 						}
 					},
 					"required": ["global"],
-					"additionalProperties": false
+					"additionalProperties": true
 				},
 				"targets": {
 					"anyOf": [
@@ -564,7 +564,7 @@
 								}
 							},
 							"required": ["global"],
-							"additionalProperties": false
+							"additionalProperties": true
 						},
 						{
 							"type": "null"
@@ -587,7 +587,7 @@
 								}
 							},
 							"required": ["global"],
-							"additionalProperties": false
+							"additionalProperties": true
 						},
 						{
 							"type": "null"
@@ -668,7 +668,7 @@
 				}
 			},
 			"required": ["totals", "thresholds", "lowCoverage", "lowCoverageFiles"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"TagCountEntry": {
 			"type": "object",
@@ -728,7 +728,7 @@
 					]
 				}
 			},
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"ConsoleLeakFile": {
 			"type": "object",
@@ -783,7 +783,7 @@
 				}
 			},
 			"required": ["file", "stdout", "stderr"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"ConsoleLeaksFromFailingTests": {
 			"type": "object",
@@ -812,7 +812,7 @@
 				}
 			},
 			"required": ["total", "files"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"ConsoleLeaks": {
 			"type": "object",
@@ -856,7 +856,7 @@
 				}
 			},
 			"required": ["total", "byFile"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"AgentReport": {
 			"type": "object",
@@ -933,7 +933,7 @@
 				}
 			},
 			"required": ["timestamp", "reason", "summary", "failed", "unhandledErrors", "failedFiles"],
-			"additionalProperties": false
+			"additionalProperties": true
 		},
 		"RunReportFile": {
 			"type": "object",
@@ -956,7 +956,7 @@
 				}
 			},
 			"required": ["schemaVersion", "generatedAt", "reports"],
-			"additionalProperties": false,
+			"additionalProperties": true,
 			"description": "The vitest-agent run report file (.vitest/vitest-agent/run.json): one AgentReport per Vitest project from the most recent run. Read reports[].summary for pass/fail counts and reports[].failed for the failing modules and their tests. schemaVersion is the envelope contract version; generatedAt is when the run finished."
 		}
 	}

@@ -85,22 +85,22 @@ const mapDefectToExit = (cause: Cause.Cause<unknown>): Effect.Effect<never> => {
 
 // register-agent --------------------------------------------------------------
 
-const hostKindOpt = Flag.string("host-kind").pipe(
+const hostKindOpt = Flag.String("host-kind").pipe(
 	Flag.withDescription("Host vendor identifier; e.g. 'claude-code', 'cursor', 'goose'"),
 );
-const agentTypeOpt = Flag.string("agent-type").pipe(
+const agentTypeOpt = Flag.String("agent-type").pipe(
 	Flag.withDescription("Agent type, must begin with the host-kind prefix"),
 );
-const hostSessionIdOpt = Flag.string("host-session-id").pipe(
+const hostSessionIdOpt = Flag.String("host-session-id").pipe(
 	Flag.withDescription("Host's native session id (host chat UUID; `session_id` in the CC hook payload)"),
 );
-const transcriptPathOpt = Flag.string("transcript-path").pipe(
+const transcriptPathOpt = Flag.String("transcript-path").pipe(
 	Flag.withDescription("Path to the host's transcript file (basename UUID is the conversation key)"),
 );
-const cwdOpt = Flag.string("cwd").pipe(Flag.withDescription("Workspace root directory the agent is running in"));
-const parentAgentIdOpt = Flag.optional(Flag.string("parent-agent-id"));
-const clientNonceOpt = Flag.optional(Flag.string("client-nonce"));
-const projectKeyOverrideOpt = Flag.optional(Flag.string("project-key"));
+const cwdOpt = Flag.String("cwd").pipe(Flag.withDescription("Workspace root directory the agent is running in"));
+const parentAgentIdOpt = Flag.optional(Flag.String("parent-agent-id"));
+const clientNonceOpt = Flag.optional(Flag.String("client-nonce"));
+const projectKeyOverrideOpt = Flag.optional(Flag.String("project-key"));
 
 export const registerAgentSubcommand = Command.make(
 	"register-agent",
@@ -157,16 +157,16 @@ export const registerAgentSubcommand = Command.make(
 
 // end-agent ------------------------------------------------------------------
 
-const agentIdOpt = Flag.string("agent-id").pipe(
+const agentIdOpt = Flag.String("agent-id").pipe(
 	Flag.withDescription("The agent_id (UUID) returned by an earlier register-agent call"),
 );
-const endedAtOpt = Flag.optional(Flag.integer("ended-at"));
-const endHostSessionIdOpt = Flag.optional(Flag.string("host-session-id"));
-const endCwdOpt = Flag.string("cwd").pipe(
+const endedAtOpt = Flag.optional(Flag.Int("ended-at"));
+const endHostSessionIdOpt = Flag.optional(Flag.String("host-session-id"));
+const endCwdOpt = Flag.String("cwd").pipe(
 	Flag.withDefault(process.cwd()),
 	Flag.withDescription("Workspace root, used to locate the per-project data.db"),
 );
-const endProjectKeyOverrideOpt = Flag.optional(Flag.string("project-key"));
+const endProjectKeyOverrideOpt = Flag.optional(Flag.String("project-key"));
 
 export const endAgentSubcommand = Command.make(
 	"end-agent",
@@ -205,10 +205,10 @@ export const endAgentSubcommand = Command.make(
 
 // inject-env -----------------------------------------------------------------
 
-const commandOpt = Flag.string("command").pipe(
+const commandOpt = Flag.String("command").pipe(
 	Flag.withDescription("The Bash command to (possibly) rewrite with VITEST_AGENT_* env-prefix"),
 );
-const cwdInjectOpt = Flag.string("cwd").pipe(
+const cwdInjectOpt = Flag.String("cwd").pipe(
 	Flag.withDefault(process.cwd()),
 	Flag.withDescription("Working directory; used to find package.json scripts"),
 );
@@ -234,7 +234,7 @@ export const sidecarPathSubcommand = Command.make("sidecar-path", {}, () =>
 
 // check-test-path -------------------------------------------------------------
 
-const testPathArg = Argument.string("path").pipe(
+const testPathArg = Argument.String("path").pipe(
 	Argument.withDescription(
 		"Path to classify against the workspace test layout; relative paths resolve against VITEST_AGENT_PROJECT_DIR, or cwd when that is unset",
 	),
