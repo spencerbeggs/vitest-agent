@@ -1,5 +1,22 @@
 # @vitest-agent/ui
 
+## 2.4.3
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 3.1.1 | 3.1.2 |
+| effect | dependency | updated | 4.0.0-rc.112 | 4.0.0-rc.115 |
+
+[#416][#416]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#416]: https://github.com/spencerbeggs/vitest-agent/pull/416
+
 ## 2.4.2
 
 ### Dependencies
