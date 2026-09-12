@@ -2,8 +2,11 @@
 	"$schema": "https://www.schemastore.org/claude-code-settings.json",
 	"enableAllProjectMcpServers": true,
 	"enabledPlugins": {
+		"api-docs@spencerbeggs": true,
 		"design-docs@spencerbeggs": true,
 		"effected@spencerbeggs": true,
+		"okfit@spencerbeggs": true,
+		"plugin-bot@spencerbeggs": true,
 		"silk@savvy-web-systems": true,
 		"superpowers@claude-plugins-official": true,
 		"vitest-agent@spencerbeggs": true

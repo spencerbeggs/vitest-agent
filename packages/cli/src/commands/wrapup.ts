@@ -13,14 +13,14 @@ import { formatWrapupEffect } from "@vitest-agent/sdk";
 import { Effect } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
-const rowIdOption = Flag.optional(Flag.integer("row-id"));
-const chatIdOption = Flag.optional(Flag.string("chat-id"));
+const rowIdOption = Flag.optional(Flag.Int("row-id"));
+const chatIdOption = Flag.optional(Flag.String("chat-id"));
 const kindOption = Flag.withDefault(
-	Flag.choice("kind", ["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"]),
+	Flag.Literals("kind", ["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"]),
 	"session_end",
 );
-const userPromptHintOption = Flag.optional(Flag.string("user-prompt-hint"));
-const formatOption = Flag.withDefault(Flag.choice("format", ["markdown", "json"]), "markdown");
+const userPromptHintOption = Flag.optional(Flag.String("user-prompt-hint"));
+const formatOption = Flag.withDefault(Flag.Literals("format", ["markdown", "json"]), "markdown");
 
 export const wrapupCommand = Command.make(
 	"wrapup",

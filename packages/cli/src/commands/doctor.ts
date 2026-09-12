@@ -10,7 +10,7 @@ import { Command, Flag } from "effect/unstable/cli";
 import type { CheckResult } from "../lib/format-doctor.js";
 import { formatDoctor } from "../lib/format-doctor.js";
 
-const formatOption = Flag.withDefault(Flag.choice("format", ["markdown", "json"]), "markdown");
+const formatOption = Flag.withDefault(Flag.Literals("format", ["markdown", "json"]), "markdown");
 
 const writeOutput = (results: CheckResult[], format: string) =>
 	Effect.sync(() => {

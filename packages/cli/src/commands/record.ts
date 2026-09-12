@@ -17,23 +17,23 @@ import { dispatchRecordTddArtifactEffect } from "../lib/record-tdd-artifact.js";
 import { recordTurnEffect } from "../lib/record-turn.js";
 import { recordRunWorkspaceChangesEffect } from "../lib/record-workspace-changes.js";
 
-const chatId = Flag.string("chat-id").pipe(
+const chatId = Flag.String("chat-id").pipe(
 	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
 );
 
-const occurredAt = Flag.string("occurred-at").pipe(
+const occurredAt = Flag.String("occurred-at").pipe(
 	Flag.withDefault(new Date().toISOString()),
 	Flag.withDescription("ISO 8601 timestamp; defaults to now"),
 );
 
-const payloadArg = Argument.string("payload-json").pipe(
+const payloadArg = Argument.String("payload-json").pipe(
 	Argument.withDescription("Stringified JSON payload (validated against TurnPayload)"),
 );
 
-const project = Flag.string("project");
-const cwd = Flag.string("cwd");
-const projectOptional = Flag.optional(Flag.string("project"));
-const cwdOptional = Flag.optional(Flag.string("cwd"));
+const project = Flag.String("project");
+const cwd = Flag.String("cwd");
+const projectOptional = Flag.optional(Flag.String("project"));
+const cwdOptional = Flag.optional(Flag.String("cwd"));
 
 const turnSubcommand = Command.make(
 	"turn",
@@ -55,11 +55,11 @@ const turnSubcommand = Command.make(
 			),
 		),
 ).pipe(Command.withDescription("Validate a TurnPayload JSON and write a turn row"));
-const agentKind = Flag.choice("agent-kind", ["main", "subagent"]).pipe(Flag.withDefault("main"));
-const agentType = Flag.optional(Flag.string("agent-type"));
-const parentChatId = Flag.optional(Flag.string("parent-chat-id"));
-const triageWasNonEmpty = Flag.boolean("triage-was-non-empty").pipe(Flag.withDefault(false));
-const startedAt = Flag.string("started-at").pipe(Flag.withDefault(new Date().toISOString()));
+const agentKind = Flag.Literals("agent-kind", ["main", "subagent"]).pipe(Flag.withDefault("main"));
+const agentType = Flag.optional(Flag.String("agent-type"));
+const parentChatId = Flag.optional(Flag.String("parent-chat-id"));
+const triageWasNonEmpty = Flag.Boolean("triage-was-non-empty").pipe(Flag.withDefault(false));
+const startedAt = Flag.String("started-at").pipe(Flag.withDefault(new Date().toISOString()));
 
 const sessionStartSubcommand = Command.make(
 	"session-start",
@@ -96,8 +96,8 @@ const sessionStartSubcommand = Command.make(
 		),
 ).pipe(Command.withDescription("Insert a new sessions row"));
 
-const endedAt = Flag.string("ended-at").pipe(Flag.withDefault(new Date().toISOString()));
-const endReason = Flag.optional(Flag.string("end-reason"));
+const endedAt = Flag.String("ended-at").pipe(Flag.withDefault(new Date().toISOString()));
+const endReason = Flag.optional(Flag.String("end-reason"));
 
 const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endReason }, (opts) =>
 	recordSessionEnd({
@@ -115,7 +115,7 @@ const sessionEndSubcommand = Command.make("session-end", { chatId, endedAt, endR
 	),
 ).pipe(Command.withDescription("Update sessions.ended_at + end_reason"));
 
-const artifactKindOpt = Flag.choice("artifact-kind", [
+const artifactKindOpt = Flag.Literals("artifact-kind", [
 	"test_written",
 	"test_failed_run",
 	"code_written",
@@ -123,21 +123,21 @@ const artifactKindOpt = Flag.choice("artifact-kind", [
 	"refactor",
 	"test_weakened",
 ]);
-const filePathOpt = Flag.optional(Flag.string("file-path"));
-const testCaseIdOpt = Flag.optional(Flag.integer("test-case-id"));
-const testRunIdOpt = Flag.optional(Flag.integer("test-run-id"));
-const testFirstFailureRunIdOpt = Flag.optional(Flag.integer("test-first-failure-run-id"));
-const diffExcerptOpt = Flag.optional(Flag.string("diff-excerpt"));
-const recordedAtOpt = Flag.string("recorded-at").pipe(Flag.withDefault(new Date().toISOString()));
-const chatIdOptional = Flag.optional(Flag.string("chat-id")).pipe(
+const filePathOpt = Flag.optional(Flag.String("file-path"));
+const testCaseIdOpt = Flag.optional(Flag.Int("test-case-id"));
+const testRunIdOpt = Flag.optional(Flag.Int("test-run-id"));
+const testFirstFailureRunIdOpt = Flag.optional(Flag.Int("test-first-failure-run-id"));
+const diffExcerptOpt = Flag.optional(Flag.String("diff-excerpt"));
+const recordedAtOpt = Flag.String("recorded-at").pipe(Flag.withDefault(new Date().toISOString()));
+const chatIdOptional = Flag.optional(Flag.String("chat-id")).pipe(
 	Flag.withDescription("Host chat id; omit when --tdd-task-id is supplied instead"),
 );
-const tddTaskIdOpt = Flag.optional(Flag.integer("tdd-task-id")).pipe(
+const tddTaskIdOpt = Flag.optional(Flag.Int("tdd-task-id")).pipe(
 	Flag.withDescription(
 		"Explicit TDD task id escape hatch (issue #144): bypasses chat-id -> session -> task resolution entirely",
 	),
 );
-const suiteOpt = Flag.choice("suite", ["vitest", "bats"]).pipe(
+const suiteOpt = Flag.Literals("suite", ["vitest", "bats"]).pipe(
 	Flag.withDefault("vitest"),
 	Flag.withDescription(
 		"Explicit test-runner marker (issue #363): 'vitest' (default) or 'bats'. Distinguishes a bats run-level artifact (no test_case_id) from a vitest one for the D2 phase-transition validator.",
@@ -215,7 +215,7 @@ const testCaseTurnsSubcommand = Command.make("test-case-turns", { chatId }, ({ c
 	Command.withDescription("Backfill test_cases.created_turn_id from file_edits in the current session (BUG-2 fix)"),
 );
 
-const invocationMethodOpt = Flag.choice("invocation-method", ["bash", "mcp", "cli"]).pipe(
+const invocationMethodOpt = Flag.Literals("invocation-method", ["bash", "mcp", "cli"]).pipe(
 	Flag.withDescription('How tests were invoked: "bash", "mcp", or "cli"'),
 	Flag.withDefault("bash"),
 );
@@ -240,14 +240,14 @@ const runTriggerSubcommand = Command.make(
 		),
 ).pipe(Command.withDescription("Associate the latest test run with the current Claude Code session"));
 
-const shaOpt = Flag.string("sha");
-const parentShaOpt = Flag.optional(Flag.string("parent-sha"));
-const messageOpt = Flag.optional(Flag.string("message"));
-const authorOpt = Flag.optional(Flag.string("author"));
-const committedAtOpt = Flag.optional(Flag.string("committed-at"));
-const branchOpt = Flag.optional(Flag.string("branch"));
-const projectOpt = Flag.optional(Flag.string("project"));
-const filesArg = Argument.string("files-json").pipe(
+const shaOpt = Flag.String("sha");
+const parentShaOpt = Flag.optional(Flag.String("parent-sha"));
+const messageOpt = Flag.optional(Flag.String("message"));
+const authorOpt = Flag.optional(Flag.String("author"));
+const committedAtOpt = Flag.optional(Flag.String("committed-at"));
+const branchOpt = Flag.optional(Flag.String("branch"));
+const projectOpt = Flag.optional(Flag.String("project"));
+const filesArg = Argument.String("files-json").pipe(
 	Argument.withDescription('JSON array of {"filePath","changeKind"} objects'),
 );
 
