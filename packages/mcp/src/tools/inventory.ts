@@ -250,14 +250,16 @@ const ModuleVariant = Schema.Struct({
 const SuiteVariant = Schema.Struct({
 	kind: Schema.Literal("suite"),
 	project: Schema.optionalKey(Schema.String),
-	module: Schema.optionalKey(Schema.String),
+	module: Schema.optionalKey(Schema.String).annotate({ description: "suite: filter by module path" }),
 });
 const SessionVariant = Schema.Struct({
 	kind: Schema.Literal("session"),
-	id: Schema.optionalKey(Schema.Finite),
+	id: Schema.optionalKey(Schema.Finite).annotate({ description: "session: single-row lookup by id" }),
 	project: Schema.optionalKey(Schema.String),
-	agentKind: Schema.optionalKey(Schema.Literals(["main", "subagent"])),
-	limit: Schema.optionalKey(Schema.Finite),
+	agentKind: Schema.optionalKey(Schema.Literals(["main", "subagent"])).annotate({
+		description: "session: filter by agent kind",
+	}),
+	limit: Schema.optionalKey(Schema.Finite).annotate({ description: "session: max rows" }),
 });
 const TagVariant = Schema.Struct({
 	kind: Schema.Literal("tag"),

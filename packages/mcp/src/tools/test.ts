@@ -367,14 +367,14 @@ export const TestAsMarkdown = TestResult.pipe(
 const ListVariant = Schema.Struct({
 	action: Schema.Literal("list"),
 	project: Schema.optionalKey(Schema.String),
-	state: Schema.optionalKey(Schema.String),
-	module: Schema.optionalKey(Schema.String),
-	limit: Schema.optionalKey(Schema.Finite),
+	state: Schema.optionalKey(Schema.String).annotate({ description: "list: filter by state" }),
+	module: Schema.optionalKey(Schema.String).annotate({ description: "list: filter by module path" }),
+	limit: Schema.optionalKey(Schema.Finite).annotate({ description: "list: max rows to return" }),
 });
 
 const GetVariant = Schema.Struct({
 	action: Schema.Literal("get"),
-	fullName: Schema.String,
+	fullName: Schema.String.annotate({ description: "get / annotations / artifacts: full test name" }),
 	project: Schema.optionalKey(Schema.String),
 	modulePath: Schema.optionalKey(Schema.String).annotate({
 		description: "Exact module_path match — disambiguates a fullName that exists in more than one test file.",
@@ -383,18 +383,18 @@ const GetVariant = Schema.Struct({
 
 const ForFileVariant = Schema.Struct({
 	action: Schema.Literal("for_file"),
-	filePath: Schema.String,
+	filePath: Schema.String.annotate({ description: "for_file: source file path" }),
 });
 
 const ForTagVariant = Schema.Struct({
 	action: Schema.Literal("for_tag"),
-	tag: Schema.String,
+	tag: Schema.String.annotate({ description: "for_tag: tag name" }),
 	project: Schema.optionalKey(Schema.String),
 });
 
 const AnnotationsVariant = Schema.Struct({
 	action: Schema.Literal("annotations"),
-	fullName: Schema.String,
+	fullName: Schema.String.annotate({ description: "get / annotations / artifacts: full test name" }),
 	project: Schema.optionalKey(Schema.String),
 	modulePath: Schema.optionalKey(Schema.String).annotate({
 		description: "Exact module_path match — disambiguates a fullName that exists in more than one test file.",
@@ -409,7 +409,7 @@ const AnnotationsVariant = Schema.Struct({
 
 const ArtifactsVariant = Schema.Struct({
 	action: Schema.Literal("artifacts"),
-	fullName: Schema.String,
+	fullName: Schema.String.annotate({ description: "get / annotations / artifacts: full test name" }),
 	project: Schema.optionalKey(Schema.String),
 	modulePath: Schema.optionalKey(Schema.String).annotate({
 		description: "Exact module_path match — disambiguates a fullName that exists in more than one test file.",

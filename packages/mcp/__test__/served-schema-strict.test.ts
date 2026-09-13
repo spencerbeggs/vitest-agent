@@ -24,7 +24,8 @@ const collectObjectNodes = (node: unknown, path: string, out: Array<{ path: stri
 		return;
 	}
 	if (!isObject(node)) return;
-	if (node.type === "object") out.push({ path, node });
+	// A node with `properties` but no `type` is still an object shape — do not let it slip past.
+	if (node.type === "object" || isObject(node.properties)) out.push({ path, node });
 	for (const [key, value] of Object.entries(node)) {
 		if (key === "properties" && isObject(value)) {
 			for (const [propertyName, propertySchema] of Object.entries(value)) {
