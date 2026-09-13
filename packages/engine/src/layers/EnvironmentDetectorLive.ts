@@ -17,7 +17,7 @@ const isCI = (env: Env): boolean => isGitHub(env) || env.CI === "true";
  * @param agentShell - whether the process runs under an AI agent (`std-env`'s `isAgent`)
  * @public
  */
-export const classifyEnvironment = (env: Env, agentShell: boolean): Environment => {
+export const classifyEnvironment = (env: Record<string, string | undefined>, agentShell: boolean): Environment => {
 	if (agentShell) return "agent-shell";
 	if (isGitHub(env)) return "ci-github";
 	if (isCI(env)) return "ci-generic";
@@ -31,7 +31,7 @@ export const classifyEnvironment = (env: Env, agentShell: boolean): Environment 
  * @param env - the environment map to consult (the front end passes `process.env`)
  * @public
  */
-export const EnvironmentDetectorLive = (env: Env): Layer.Layer<EnvironmentDetector> =>
+export const EnvironmentDetectorLive = (env: Record<string, string | undefined>): Layer.Layer<EnvironmentDetector> =>
 	Layer.succeed(EnvironmentDetector, {
 		detect: () => Effect.sync(() => classifyEnvironment(env, isAgent)),
 		isAgent: Effect.sync(() => isAgent),

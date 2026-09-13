@@ -1,13 +1,9 @@
-/**
- * Lib function for the `record tdd-artifact` CLI subcommand.
- *
- * Per Decision D7, artifact writes go through the CLI (driven by
- * PostToolUse hooks) -- never through MCP. The hook supplies the
- * host chat id; this lib resolves the active TDD phase for that
- * session and writes the artifact under it.
- *
- * @packageDocumentation
- */
+// Lib function for the `record tdd-artifact` CLI subcommand.
+//
+// Per Decision D7, artifact writes go through the CLI (driven by
+// PostToolUse hooks) -- never through MCP. The hook supplies the
+// host chat id; this lib resolves the active TDD phase for that
+// session and writes the artifact under it.
 
 import type { ArtifactKind, ArtifactSuite, DataStoreError } from "@vitest-agent/sdk";
 import type { FileSystem } from "effect";
@@ -16,14 +12,28 @@ import { DataReader } from "../services/DataReader.js";
 import { DataStore } from "../services/DataStore.js";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 
+/**
+ * Input for {@link recordTddArtifactEffect}: an artifact keyed by the host
+ * chat id, resolved to the open TDD task under that session.
+ *
+ * @public
+ */
 export interface RecordTddArtifactInput {
+	/** Host chat id whose open TDD task receives the artifact. */
 	readonly chatId: string;
+	/** Kind of evidence being recorded. */
 	readonly artifactKind: ArtifactKind;
+	/** `files.id` the artifact refers to, when file-scoped. */
 	readonly fileId?: number;
+	/** `test_cases.id` the artifact refers to, when test-scoped. */
 	readonly testCaseId?: number;
+	/** `test_runs.id` that produced the evidence. */
 	readonly testRunId?: number;
+	/** Run id of the first observed failure for a red-phase artifact. */
 	readonly testFirstFailureRunId?: number;
+	/** Short diff excerpt attached to the artifact. */
 	readonly diffExcerpt?: string;
+	/** ISO-8601 timestamp of the artifact. */
 	readonly recordedAt: string;
 	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
 	readonly suite?: ArtifactSuite;
@@ -41,8 +51,15 @@ export interface RecordTddArtifactInput {
 	readonly project?: string;
 }
 
+/**
+ * Result of a TDD artifact write: the new artifact row and the phase it landed under.
+ *
+ * @public
+ */
 export interface RecordTddArtifactResult {
+	/** The new `tdd_artifacts.id`. */
 	readonly id: number;
+	/** The `tdd_phases.id` the artifact was written under. */
 	readonly phaseId: number;
 }
 
@@ -97,6 +114,14 @@ const writeArtifactUnderOpenPhase = (
 		return { id, phaseId };
 	});
 
+/**
+ * Record a TDD artifact under the open TDD task for `chatId`, walking
+ * parent and conversation links to find the task and auto-opening a
+ * `spike` phase when the task has none.
+ *
+ * @param input - the artifact to record, keyed by host chat id
+ * @public
+ */
 export const recordTddArtifactEffect = (
 	input: RecordTddArtifactInput,
 ): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore | FileSystem.FileSystem> =>
@@ -144,14 +169,28 @@ export const recordTddArtifactEffect = (
 		return yield* writeArtifactUnderOpenPhase(openTdd.id, input);
 	});
 
+/**
+ * Input for {@link recordTddArtifactByTaskIdEffect}: an artifact keyed by an
+ * explicit TDD task id.
+ *
+ * @public
+ */
 export interface RecordTddArtifactByTaskIdInput {
+	/** The `tdd_tasks.id` that receives the artifact. */
 	readonly tddTaskId: number;
+	/** Kind of evidence being recorded. */
 	readonly artifactKind: ArtifactKind;
+	/** `files.id` the artifact refers to, when file-scoped. */
 	readonly fileId?: number;
+	/** `test_cases.id` the artifact refers to, when test-scoped. */
 	readonly testCaseId?: number;
+	/** `test_runs.id` that produced the evidence. */
 	readonly testRunId?: number;
+	/** Run id of the first observed failure for a red-phase artifact. */
 	readonly testFirstFailureRunId?: number;
+	/** Short diff excerpt attached to the artifact. */
 	readonly diffExcerpt?: string;
+	/** ISO-8601 timestamp of the artifact. */
 	readonly recordedAt: string;
 	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
 	readonly suite?: ArtifactSuite;
@@ -166,6 +205,9 @@ export interface RecordTddArtifactByTaskIdInput {
  * the right task). Fails loudly when the task does not exist or has
  * already ended — writing to a closed task's phase would silently
  * corrupt the evidence trail.
+ *
+ * @param input - the artifact to record, keyed by TDD task id
+ * @public
  */
 export const recordTddArtifactByTaskIdEffect = (
 	input: RecordTddArtifactByTaskIdInput,
@@ -186,18 +228,34 @@ export const recordTddArtifactByTaskIdEffect = (
 		return yield* writeArtifactUnderOpenPhase(input.tddTaskId, input);
 	});
 
+/**
+ * Input for {@link dispatchRecordTddArtifactEffect}: the union of the chat-id
+ * and task-id recording shapes, with `tddTaskId` taking priority.
+ *
+ * @public
+ */
 export interface DispatchRecordTddArtifactInput {
+	/** Host chat id to resolve the open TDD task from (used when `tddTaskId` is absent). */
 	readonly chatId?: string;
+	/** Explicit `tdd_tasks.id`; takes priority over `chatId`. */
 	readonly tddTaskId?: number;
+	/** Kind of evidence being recorded. */
 	readonly artifactKind: ArtifactKind;
+	/** `files.id` the artifact refers to, when file-scoped. */
 	readonly fileId?: number;
+	/** `test_cases.id` the artifact refers to, when test-scoped. */
 	readonly testCaseId?: number;
+	/** `test_runs.id` that produced the evidence. */
 	readonly testRunId?: number;
+	/** Run id of the first observed failure for a red-phase artifact. */
 	readonly testFirstFailureRunId?: number;
+	/** Short diff excerpt attached to the artifact. */
 	readonly diffExcerpt?: string;
+	/** ISO-8601 timestamp of the artifact. */
 	readonly recordedAt: string;
 	/** Ambient input (see `RecordTddArtifactInput.cwd`); only consulted on the `chatId` branch. */
 	readonly cwd: string;
+	/** Project name for bootstrapped session rows; only consulted on the `chatId` branch. */
 	readonly project?: string;
 	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
 	readonly suite?: ArtifactSuite;
@@ -209,6 +267,9 @@ export interface DispatchRecordTddArtifactInput {
  * takes priority when both are supplied — it is the explicit escape
  * hatch and should never silently fall back to (weaker) session
  * resolution.
+ *
+ * @param input - the artifact plus either a chat id or a TDD task id
+ * @public
  */
 export const dispatchRecordTddArtifactEffect = (
 	input: DispatchRecordTddArtifactInput,

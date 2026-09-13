@@ -1,33 +1,29 @@
-/**
- * Call-time SessionContext recovery from the per-session env files the
- * plugin's SessionStart hook writes to `~/.claude/session-env/`.
- *
- * The boot-time env recovery (`sessionContextFromEnv`) depends on Claude
- * Code auto-sourcing `CLAUDE_ENV_FILE` into the MCP child — which loses
- * two races:
- *
- * 1. **Boot race.** On a fresh Claude Code launch the MCP child can spawn
- *    before the SessionStart hook has written `CLAUDE_ENV_FILE`, so the
- *    child's `process.env` never carries the canonical UUIDs (observed
- *    live: MCP spawn at 00:41:50, env file written 00:41:51).
- * 2. **`/reload-plugins`.** A plugin reload restarts the MCP server
- *    mid-session with a fresh environment that has no session exports.
- *
- * In both cases the SessionStart hook has (or will have) written the same
- * exports to a second, known-name surface:
- * `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh`. This module
- * reads that surface directly, so a null boot context can be recovered
- * lazily at the first tool call that needs it.
- *
- * Selection rule: among all session dirs whose exports name this server's
- * `projectDir`, the newest-mtime file wins — the most recently started
- * session for this project. With two live Claude Code windows on the same
- * project this can name the other window's session; that ambiguity is
- * inherent to a per-project (not per-process) surface and is accepted —
- * the pre-existing alternative was no attribution at all.
- *
- * @packageDocumentation
- */
+// Call-time SessionContext recovery from the per-session env files the
+// plugin's SessionStart hook writes to `~/.claude/session-env/`.
+//
+// The boot-time env recovery (`sessionContextFromEnv`) depends on Claude
+// Code auto-sourcing `CLAUDE_ENV_FILE` into the MCP child — which loses
+// two races:
+//
+// 1. **Boot race.** On a fresh Claude Code launch the MCP child can spawn
+//    before the SessionStart hook has written `CLAUDE_ENV_FILE`, so the
+//    child's `process.env` never carries the canonical UUIDs (observed
+//    live: MCP spawn at 00:41:50, env file written 00:41:51).
+// 2. **`/reload-plugins`.** A plugin reload restarts the MCP server
+//    mid-session with a fresh environment that has no session exports.
+//
+// In both cases the SessionStart hook has (or will have) written the same
+// exports to a second, known-name surface:
+// `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh`. This module
+// reads that surface directly, so a null boot context can be recovered
+// lazily at the first tool call that needs it.
+//
+// Selection rule: among all session dirs whose exports name this server's
+// `projectDir`, the newest-mtime file wins — the most recently started
+// session for this project. With two live Claude Code windows on the same
+// project this can name the other window's session; that ambiguity is
+// inherent to a per-project (not per-process) surface and is accepted —
+// the pre-existing alternative was no attribution at all.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";

@@ -1,17 +1,13 @@
-/**
- * Lib function for the `record run-workspace-changes` CLI subcommand.
- *
- * Driven by the PostToolUse hook on `git commit` / `git push`. Writes a
- * commits row (idempotent on sha via ON CONFLICT DO NOTHING in
- * DataStore.writeCommit) and zero or more run_changed_files rows.
- *
- * Optionally associates the changed files with a test_run_id; for the
- * commit-side write path we don't have a run, so we associate the files
- * with the most-recent test_run for the project (best-effort) or skip
- * the file rows entirely if no test_run exists yet.
- *
- * @packageDocumentation
- */
+// Lib function for the `record run-workspace-changes` CLI subcommand.
+//
+// Driven by the PostToolUse hook on `git commit` / `git push`. Writes a
+// commits row (idempotent on sha via ON CONFLICT DO NOTHING in
+// DataStore.writeCommit) and zero or more run_changed_files rows.
+//
+// Optionally associates the changed files with a test_run_id; for the
+// commit-side write path we don't have a run, so we associate the files
+// with the most-recent test_run for the project (best-effort) or skip
+// the file rows entirely if no test_run exists yet.
 
 import type { DataStoreError } from "@vitest-agent/sdk";
 import { Effect } from "effect";
@@ -19,23 +15,43 @@ import { SqlClient } from "effect/unstable/sql/SqlClient";
 import type { ChangeKind } from "../services/DataStore.js";
 import { DataStore } from "../services/DataStore.js";
 
+/**
+ * Input for {@link recordRunWorkspaceChangesEffect}: one commit plus the
+ * files it touched.
+ *
+ * @public
+ */
 export interface RecordWorkspaceChangesInput {
+	/** Commit sha; the `commits` row is idempotent on it. */
 	readonly sha: string;
+	/** Parent commit sha, when known. */
 	readonly parentSha?: string;
+	/** Commit message. */
 	readonly message?: string;
+	/** Commit author. */
 	readonly author?: string;
+	/** ISO-8601 commit timestamp. */
 	readonly committedAt?: string;
+	/** Branch the commit landed on. */
 	readonly branch?: string;
 	/** When provided, scope the most-recent-run lookup to this project. */
 	readonly project?: string;
+	/** Files changed by the commit, each with its change kind. */
 	readonly files: ReadonlyArray<{
 		readonly filePath: string;
 		readonly changeKind: ChangeKind;
 	}>;
 }
 
+/**
+ * Result of a workspace-changes write.
+ *
+ * @public
+ */
 export interface RecordWorkspaceChangesResult {
+	/** The commit sha that was recorded. */
 	readonly sha: string;
+	/** Number of `run_changed_files` rows written (0 when no test run exists yet). */
 	readonly fileRowsWritten: number;
 }
 
@@ -62,6 +78,13 @@ const findLatestRunId = (project: string | undefined): Effect.Effect<number | nu
 		return rows.length === 0 ? null : rows[0].id;
 	}).pipe(Effect.orElseSucceed(() => null));
 
+/**
+ * Record a commit and, best-effort, associate its changed files with the
+ * most recent test run for the project.
+ *
+ * @param input - the commit and its changed files
+ * @public
+ */
 export const recordRunWorkspaceChangesEffect = (
 	input: RecordWorkspaceChangesInput,
 ): Effect.Effect<RecordWorkspaceChangesResult, DataStoreError, DataStore | SqlClient> =>

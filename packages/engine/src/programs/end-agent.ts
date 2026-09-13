@@ -1,22 +1,25 @@
-/**
- * `agent end-agent` program (formerly the CLI's lib/internal-end-agent.ts).
- *
- * Sets `agents.ended_at` on the per-project store. For main-agent
- * stops (SessionEnd), the caller also passes `--host-session-id` so
- * the per-client session map's `ended_at` is updated and
- * `lookupByProjectDir` no longer returns the row as the active
- * session. For subagent stops (SubagentStop), the host session stays
- * open — only the subagent's `agents` row is closed.
- *
- * @packageDocumentation
- */
+// `agent end-agent` program (formerly the CLI's lib/internal-end-agent.ts).
+//
+// Sets `agents.ended_at` on the per-project store. For main-agent
+// stops (SessionEnd), the caller also passes `--host-session-id` so
+// the per-client session map's `ended_at` is updated and
+// `lookupByProjectDir` no longer returns the row as the active
+// session. For subagent stops (SubagentStop), the host session stays
+// open — only the subagent's `agents` row is closed.
 
 import { Effect } from "effect";
 import { DataStore } from "../services/DataStore.js";
 import { PerClientSessionMapWriter } from "../services/PerClientSessionMap.js";
 
+/**
+ * Input for {@link endAgentEffect}: which `agents` row to close and when.
+ *
+ * @public
+ */
 export interface EndAgentInput {
+	/** The `agents.id` row to close. */
 	readonly agentId: string;
+	/** Epoch-millisecond timestamp written to `agents.ended_at`. */
 	readonly endedAt: number;
 	/**
 	 * When set, also marks the session map row for this host_session_id
@@ -28,6 +31,9 @@ export interface EndAgentInput {
 /**
  * End an agent. Closes the `agents` row, optionally also closes the
  * `session_map` row.
+ *
+ * @param input - the agent id, end timestamp, and optional host session id
+ * @public
  */
 export const endAgentEffect = (input: EndAgentInput) =>
 	Effect.gen(function* () {

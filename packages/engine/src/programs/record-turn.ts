@@ -5,8 +5,22 @@ import type { DataReader } from "../services/DataReader.js";
 import { DataStore } from "../services/DataStore.js";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 
+/**
+ * Outcome of {@link parseAndValidateTurnPayload}: the decoded `TurnPayload`
+ * on success, or a human-readable error string.
+ *
+ * @public
+ */
 export type ParseResult = { ok: true; payload: typeof TurnPayload.Type } | { ok: false; error: string };
 
+/**
+ * Parse a raw JSON string and validate it against the `TurnPayload` schema
+ * without throwing.
+ *
+ * @param raw - the JSON text delivered by the hook
+ * @returns the decoded payload, or an error describing why it was rejected
+ * @public
+ */
 export const parseAndValidateTurnPayload = (raw: string): ParseResult => {
 	let parsed: unknown;
 	try {
@@ -21,9 +35,17 @@ export const parseAndValidateTurnPayload = (raw: string): ParseResult => {
 	return { ok: true, payload: decoded.success };
 };
 
+/**
+ * Input for {@link recordTurnEffect}: a turn payload keyed by host chat id.
+ *
+ * @public
+ */
 export interface RecordTurnInput {
+	/** Host chat id whose session receives the turn. */
 	readonly chatId: string;
+	/** Raw JSON text of the `TurnPayload`; stored verbatim after validation. */
 	readonly payloadJson: string;
+	/** ISO-8601 timestamp of the turn. */
 	readonly occurredAt: string;
 	/**
 	 * Working directory of the calling process (ambient input — the CLI
@@ -41,6 +63,14 @@ export interface RecordTurnInput {
 	readonly project?: string;
 }
 
+/**
+ * Validate a turn payload and write it as a `turns` row under the session
+ * resolved for `chatId` (bootstrapping the session row when needed).
+ *
+ * @param input - the turn to record
+ * @returns the new `turns.id`
+ * @public
+ */
 export const recordTurnEffect = (
 	input: RecordTurnInput,
 ): Effect.Effect<{ turnId: number }, Error, DataReader | DataStore | FileSystem.FileSystem> =>
