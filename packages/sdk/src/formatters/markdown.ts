@@ -20,6 +20,7 @@ export const MarkdownFormatter: Formatter = {
 			const md = formatConsoleMarkdown(report, {
 				consoleOutput: context.detail === "minimal" ? "failures" : "full",
 				coverageConsoleLimit: context.coverageConsoleLimit,
+				cwd: context.cwd,
 				noColor: context.noColor,
 				...(context.trendSummary !== undefined ? { trendSummary: context.trendSummary } : {}),
 				...(context.runCommand !== undefined ? { runCommand: context.runCommand } : {}),

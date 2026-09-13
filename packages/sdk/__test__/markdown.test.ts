@@ -17,6 +17,7 @@ describe("MarkdownFormatter", () => {
 		};
 		const outputs = MarkdownFormatter.render([report], {
 			detail: "minimal",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});

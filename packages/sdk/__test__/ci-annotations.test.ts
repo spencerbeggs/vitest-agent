@@ -33,6 +33,7 @@ describe("ciAnnotationsFormatter", () => {
 		};
 		const out = ciAnnotationsFormatter.render([report], {
 			detail: "neutral",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
@@ -53,6 +54,7 @@ describe("ciAnnotationsFormatter", () => {
 		};
 		const out = ciAnnotationsFormatter.render([report], {
 			detail: "neutral",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
@@ -84,6 +86,7 @@ describe("ciAnnotationsFormatter", () => {
 		};
 		const out = ciAnnotationsFormatter.render([report], {
 			detail: "neutral",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
@@ -117,6 +120,7 @@ describe("ciAnnotationsFormatter", () => {
 		};
 		const out = ciAnnotationsFormatter.render([report], {
 			detail: "neutral",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
@@ -151,6 +155,7 @@ describe("ciAnnotationsFormatter", () => {
 		};
 		const out = ciAnnotationsFormatter.render([report], {
 			detail: "neutral",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
@@ -170,6 +175,7 @@ describe("ciAnnotationsFormatter", () => {
 		};
 		const out = ciAnnotationsFormatter.render([report], {
 			detail: "neutral",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
@@ -211,6 +217,7 @@ describe("ciAnnotationsFormatter", () => {
 		const start = Date.now();
 		const out = ciAnnotationsFormatter.render([report], {
 			detail: "neutral",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});

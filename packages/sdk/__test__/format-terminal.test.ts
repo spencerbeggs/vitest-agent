@@ -34,7 +34,7 @@ const coverage = (
 	} as CoverageReport;
 };
 
-const baseOptions = { noColor: true, coverageConsoleLimit: 10 };
+const baseOptions = { cwd: "/workspace", noColor: true, coverageConsoleLimit: 10 };
 
 describe("formatTerminal", () => {
 	it("emits the single-default-project shape for one unnamed report", () => {
@@ -364,7 +364,7 @@ describe("formatTerminal", () => {
 					}),
 				}),
 			],
-			{ noColor: true, coverageConsoleLimit: 1 },
+			{ cwd: "/workspace", noColor: true, coverageConsoleLimit: 1 },
 		);
 		expect(out).toContain("… 1 more (use the test_coverage MCP tool for the full list)");
 	});
@@ -474,7 +474,7 @@ describe("formatTerminal — per-tag counts", () => {
 					tagCounts: { unit: { passed: 746 }, int: { passed: 6 } },
 				}) as never,
 			],
-			{ noColor: true, coverageConsoleLimit: 10 },
+			{ cwd: "/workspace", noColor: true, coverageConsoleLimit: 10 },
 		);
 		expect(out).toContain("vitest-agent-sdk");
 		expect(out).toMatch(/unit:746/);
@@ -488,7 +488,7 @@ describe("formatTerminal — per-tag counts", () => {
 					tagCounts: { unit: { passed: 752 } },
 				}) as never,
 			],
-			{ noColor: true, coverageConsoleLimit: 10 },
+			{ cwd: "/workspace", noColor: true, coverageConsoleLimit: 10 },
 		);
 		expect(out).not.toMatch(/unit:752/);
 	});
@@ -504,7 +504,7 @@ describe("formatTerminal — per-tag counts", () => {
 					},
 				}) as never,
 			],
-			{ noColor: true, coverageConsoleLimit: 10 },
+			{ cwd: "/workspace", noColor: true, coverageConsoleLimit: 10 },
 		);
 		expect(out).toMatch(/unit\s+744p\s+2f/);
 		expect(out).toMatch(/int\s+4p\s+2f/);
@@ -518,7 +518,7 @@ describe("formatTerminal — per-tag counts", () => {
 					tagCounts: { unit: { passed: 10 }, e2e: { passed: 5 }, int: { passed: 3 } },
 				}) as never,
 			],
-			{ noColor: true, coverageConsoleLimit: 10 },
+			{ cwd: "/workspace", noColor: true, coverageConsoleLimit: 10 },
 		);
 
 		// When: we locate each tag counter in the output string
@@ -551,7 +551,7 @@ describe("formatTerminal — per-tag counts", () => {
 					tagCounts: { unit: { passed: 10 } },
 				}) as never,
 			],
-			{ noColor: true, coverageConsoleLimit: 10 },
+			{ cwd: "/workspace", noColor: true, coverageConsoleLimit: 10 },
 		);
 
 		// Then: the inline rollup appears on the failing project's tick row
@@ -576,7 +576,7 @@ describe("formatTerminal — per-tag counts", () => {
 					},
 				}) as never,
 			],
-			{ noColor: true, coverageConsoleLimit: 10 },
+			{ cwd: "/workspace", noColor: true, coverageConsoleLimit: 10 },
 		);
 
 		// Then: the inline rollup appears even though there are failures

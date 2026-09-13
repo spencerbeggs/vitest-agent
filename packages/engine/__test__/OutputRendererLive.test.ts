@@ -21,6 +21,7 @@ describe("OutputRendererLive", () => {
 			Effect.flatMap(OutputRenderer, (r) =>
 				r.render([minimalReport], "markdown", {
 					detail: "verbose",
+					cwd: "/workspace",
 					noColor: true,
 					coverageConsoleLimit: 10,
 				}),
@@ -35,6 +36,7 @@ describe("OutputRendererLive", () => {
 			Effect.flatMap(OutputRenderer, (r) =>
 				r.render([minimalReport], "json", {
 					detail: "verbose",
+					cwd: "/workspace",
 					noColor: true,
 					coverageConsoleLimit: 10,
 				}),
@@ -49,6 +51,7 @@ describe("OutputRendererLive", () => {
 			Effect.flatMap(OutputRenderer, (r) =>
 				r.render([minimalReport], "silent", {
 					detail: "verbose",
+					cwd: "/workspace",
 					noColor: true,
 					coverageConsoleLimit: 10,
 				}),
@@ -62,6 +65,7 @@ describe("OutputRendererLive", () => {
 			Effect.flatMap(OutputRenderer, (r) =>
 				r.render([minimalReport], "vitest-bypass", {
 					detail: "verbose",
+					cwd: "/workspace",
 					noColor: true,
 					coverageConsoleLimit: 10,
 				}),

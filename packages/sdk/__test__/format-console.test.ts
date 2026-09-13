@@ -12,6 +12,7 @@ import { determineTier, formatConsoleMarkdown, getWorstMetric, relativePath } fr
 // --- Test Fixtures ---
 
 const baseOptions: ConsoleFormatOptions = {
+	cwd: "/Users/dev/project",
 	consoleOutput: "failures",
 	coverageConsoleLimit: 10,
 	noColor: true,

@@ -1,4 +1,4 @@
-import { basename, join, relative, sep } from "node:path";
+import { basenamePosix, joinPosix, relativePosix, toPosix } from "./posix-path.js";
 
 /** Directory holding source files whose tests may be co-located. @public */
 export const SRC_DIR = "src";
@@ -80,9 +80,17 @@ export interface WorkspaceLike {
 	readonly path: string;
 }
 
-/** True when `child` is `parent` or sits beneath it on a segment boundary. */
+/**
+ * True when `child` is `parent` or sits beneath it on a segment boundary.
+ * Both sides are normalized to forward slashes first, so a Windows path
+ * compares the same way a POSIX one does.
+ */
 function contains(parent: string, child: string): boolean {
-	return child === parent || child.startsWith(parent.endsWith(sep) ? parent : `${parent}${sep}`);
+	const parentPosix = toPosix(parent);
+	const childPosix = toPosix(child);
+	return (
+		childPosix === parentPosix || childPosix.startsWith(parentPosix.endsWith("/") ? parentPosix : `${parentPosix}/`)
+	);
 }
 
 /**
@@ -128,7 +136,7 @@ export function classifyTestPath(
 	const owner = findOwningWorkspace(workspaces, filePath);
 	if (owner === null) return null;
 
-	const segments = relative(owner.path, filePath).split(sep);
+	const segments = relativePosix(owner.path, filePath).split("/");
 
 	// Discovery never walks into these, so nothing under one is collected — and
 	// nothing under one is this workspace's business either. A vendored upstream
@@ -162,6 +170,6 @@ export function classifyTestPath(
 	return {
 		verdict: "invalid",
 		workspace: owner.name,
-		suggestedPath: join(owner.path, TEST_DIR, basename(filePath)),
+		suggestedPath: joinPosix(owner.path, TEST_DIR, basenamePosix(filePath)),
 	};
 }

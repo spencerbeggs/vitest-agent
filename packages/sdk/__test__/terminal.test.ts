@@ -34,6 +34,7 @@ describe("TerminalFormatter", () => {
 	it("emits OSC-8 hyperlinks with absolute file:// targets for failing test rows", () => {
 		const outputs = TerminalFormatter.render([reportWithFailingTest()], {
 			detail: "verbose",
+			cwd: "/workspace",
 			noColor: false,
 			coverageConsoleLimit: 10,
 		});
@@ -51,6 +52,7 @@ describe("TerminalFormatter", () => {
 	it("does not emit OSC-8 escapes when noColor is set", () => {
 		const outputs = TerminalFormatter.render([reportWithFailingTest()], {
 			detail: "verbose",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
@@ -64,6 +66,7 @@ describe("TerminalFormatter", () => {
 		// containing only an empty string.
 		const outputs = TerminalFormatter.render([], {
 			detail: "verbose",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
@@ -81,6 +84,7 @@ describe("TerminalFormatter", () => {
 		// formatter still produces stdout output.
 		const outputs = TerminalFormatter.render([reportWithFailingTest()], {
 			detail: "verbose",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 			trendSummary: { direction: "improving", runCount: 7 },
@@ -98,6 +102,7 @@ describe("TerminalFormatter", () => {
 		// being dropped by a faulty spread.
 		const outputs = TerminalFormatter.render([reportWithFailingTest()], {
 			detail: "verbose",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 			mcp: true,

@@ -26,6 +26,12 @@ export type RenderedOutput =
 /** @public */
 export interface FormatterContext {
 	readonly detail: DetailLevel;
+	/**
+	 * Absolute project root the run executed from. Formatters strip it from
+	 * absolute file paths for display and resolve relative paths back against
+	 * it for `file://` hyperlinks — the core never reads `process.cwd()`.
+	 */
+	readonly cwd: string;
 	readonly noColor: boolean;
 	readonly coverageConsoleLimit: number;
 	readonly trendSummary?: {

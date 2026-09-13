@@ -35,6 +35,8 @@ const compressUncov = (uncoveredLines: string): string => {
  * @internal
  */
 export interface TerminalFormatOptions {
+	/** Absolute project root; stripped from file paths for display. */
+	readonly cwd: string;
 	readonly noColor: boolean;
 	readonly coverageConsoleLimit: number;
 	readonly trendSummary?: {
@@ -235,7 +237,7 @@ const sepRow = (widths: ReadonlyArray<number>): string => widths.map((w) => "-".
  *
  * @internal
  */
-const renderBelowTargetTable = (files: ReadonlyArray<FileCoverageReport>): string[] => {
+const renderBelowTargetTable = (files: ReadonlyArray<FileCoverageReport>, cwd: string): string[] => {
 	if (files.length === 0) return [];
 
 	interface Row {
@@ -248,7 +250,7 @@ const renderBelowTargetTable = (files: ReadonlyArray<FileCoverageReport>): strin
 	}
 
 	const rows: Row[] = files.map((f) => ({
-		file: relativePath(f.file),
+		file: relativePath(f.file, cwd),
 		stmts: String(Math.round(f.summary.statements)),
 		branches: String(Math.round(f.summary.branches)),
 		funcs: String(Math.round(f.summary.functions)),
@@ -443,7 +445,7 @@ const renderCoverageSection = (
 		lines.push("Files below aspirational target:");
 		const limit = options.coverageConsoleLimit;
 		const shown = agg.belowTargetFiles.slice(0, limit);
-		lines.push(...renderBelowTargetTable(shown));
+		lines.push(...renderBelowTargetTable(shown, options.cwd));
 		if (agg.belowTargetFiles.length > limit) {
 			lines.push(`… ${agg.belowTargetFiles.length - limit} more (use the test_coverage MCP tool for the full list)`);
 		}
@@ -458,7 +460,7 @@ const renderCoverageSection = (
  *
  * @internal
  */
-const renderFailuresSection = (reports: ReadonlyArray<AgentReport>, ao: AnsiOptions): string[] => {
+const renderFailuresSection = (reports: ReadonlyArray<AgentReport>, cwd: string, ao: AnsiOptions): string[] => {
 	const lines: string[] = [];
 	const reportsWithFailures = reports.filter((r) => r.summary.failed > 0 || r.unhandledErrors.length > 0);
 	if (reportsWithFailures.length === 0) return lines;
@@ -468,7 +470,7 @@ const renderFailuresSection = (reports: ReadonlyArray<AgentReport>, ao: AnsiOpti
 		const projectName = report.project ?? "default";
 		lines.push(`  ${projectName}`);
 		for (const mod of report.failed) {
-			const file = relativePath(mod.file);
+			const file = relativePath(mod.file, cwd);
 			const failedTests = mod.tests.filter((t) => t.state === "failed");
 			for (const test of failedTests) {
 				lines.push(...renderFailedTest(file, test, ao));
@@ -532,7 +534,7 @@ const renderNextSteps = (reports: ReadonlyArray<AgentReport>, options: TerminalF
 	const lines: string[] = [];
 	const allFailedFiles = new Set<string>();
 	for (const r of reports) {
-		for (const f of r.failedFiles) allFailedFiles.add(relativePath(f));
+		for (const f of r.failedFiles) allFailedFiles.add(relativePath(f, options.cwd));
 	}
 	if (allFailedFiles.size === 0) return lines;
 
@@ -619,7 +621,7 @@ export const formatTerminal = (reports: ReadonlyArray<AgentReport>, options: Ter
 		}
 	}
 
-	const failures = renderFailuresSection(reports, ao);
+	const failures = renderFailuresSection(reports, options.cwd, ao);
 	if (failures.length > 0) {
 		out.push(...failures);
 		out.push("");

@@ -12,6 +12,8 @@ import { formatScopedCoverageNote } from "./format-scoped-coverage-note.js";
  * @internal
  */
 export interface ConsoleFormatOptions {
+	/** Absolute project root; stripped from file paths for display. */
+	cwd: string;
 	/** Output verbosity: `"failures"` (default), `"full"`, or `"silent"`. */
 	consoleOutput: "failures" | "full" | "silent";
 	/** Maximum number of low-coverage files to show in console output. */
@@ -60,15 +62,14 @@ export function getWorstMetric(f: FileCoverageReport): { label: string; pct: num
  * project-relative path for display.
  *
  * @param filePath - Absolute or relative file path
- * @param cwd - Working directory to strip; defaults to `process.cwd()`
+ * @param cwd - Working directory to strip
  * @returns Project-relative path string
  *
  * @internal
  */
-export function relativePath(filePath: string, cwd?: string): string {
-	const root = cwd ?? process.cwd();
-	if (filePath.startsWith(root)) {
-		const rel = filePath.slice(root.length);
+export function relativePath(filePath: string, cwd: string): string {
+	if (filePath.startsWith(cwd)) {
+		const rel = filePath.slice(cwd.length);
 		return rel.startsWith("/") ? rel.slice(1) : rel;
 	}
 	return filePath;
@@ -121,7 +122,7 @@ export function determineTier(report: AgentReport): "green" | "yellow" | "red" {
  * @internal
  */
 export function formatConsoleMarkdown(report: AgentReport, options: ConsoleFormatOptions): string {
-	const { consoleOutput, coverageConsoleLimit, noColor } = options;
+	const { consoleOutput, coverageConsoleLimit, noColor, cwd } = options;
 
 	if (consoleOutput === "silent") return "";
 
@@ -180,7 +181,7 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 	// 2. Failed tests with diffs
 	if (hasFailures) {
 		for (const mod of report.failed) {
-			const file = relativePath(mod.file);
+			const file = relativePath(mod.file, cwd);
 			lines.push(`### ${ansi("\u2717", "red", ao)} \`${file}\``);
 			lines.push("");
 
@@ -240,7 +241,7 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 			lines.push(`### Coverage gaps`);
 			lines.push("");
 			for (const f of filesToShow) {
-				const file = relativePath(f.file);
+				const file = relativePath(f.file, cwd);
 				const worst = getWorstMetric(f);
 				// Look up the threshold for the worst metric
 				const metricKey =
@@ -265,7 +266,7 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 			lines.push(`### Coverage improvements needed`);
 			lines.push("");
 			for (const f of cov.belowTarget.slice(0, coverageConsoleLimit)) {
-				const file = relativePath(f.file);
+				const file = relativePath(f.file, cwd);
 				const worst = getWorstMetric(f);
 				const metricKey =
 					worst.label === "Stmts"
@@ -301,7 +302,7 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 					...new Set(
 						report.failed
 							.filter((m) => m.tests.some((t) => t.classification === "new-failure"))
-							.map((m) => relativePath(m.file)),
+							.map((m) => relativePath(m.file, cwd)),
 					),
 				];
 				lines.push(
@@ -318,7 +319,7 @@ export function formatConsoleMarkdown(report: AgentReport, options: ConsoleForma
 			}
 
 			for (const file of report.failedFiles) {
-				lines.push(`- Re-run: \`vitest run ${relativePath(file)}\``);
+				lines.push(`- Re-run: \`vitest run ${relativePath(file, cwd)}\``);
 			}
 			if (options.mcp) {
 				lines.push("- Use `test_history` for failure trends");

@@ -74,6 +74,7 @@ export * from "./utils/function-boundary.js";
 export * from "./utils/hyperlink.js";
 export * from "./utils/match-vitest-command.js";
 export * from "./utils/normalize-workspace-key.js";
+export * from "./utils/posix-path.js";
 export * from "./utils/probe-host-metadata.js";
 export * from "./utils/safe-filename.js";
 export * from "./utils/test-location.js";
@@ -81,12 +82,4 @@ export * from "./utils/validate-coverage-targets-shape.js";
 export * from "./utils/validate-phase-transition.js";
 
 // --- Package version constant ---
-/**
- * The version of this package. Inlined at build time from
- * package.json#version via rslib-builder's __PACKAGE_VERSION__ substitution.
- * Source-level reads (workspace `exports: "./src/index.ts"` during dev)
- * see the `"0.0.0"` fallback — a clear signal the build pipeline has not
- * substituted yet. Exported for version introspection by downstream tooling.
- * @public
- */
-export const CURRENT_SDK_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";
+export { CURRENT_SDK_VERSION } from "./version.js";

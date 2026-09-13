@@ -1,6 +1,6 @@
-import * as path from "node:path";
 import { formatTerminal } from "../utils/format-terminal.js";
 import { osc8 } from "../utils/hyperlink.js";
+import { joinPosix } from "../utils/posix-path.js";
 import type { Formatter, FormatterContext, RenderedOutput } from "./types.js";
 
 /**
@@ -25,7 +25,7 @@ import type { Formatter, FormatterContext, RenderedOutput } from "./types.js";
  * requires an absolute filesystem path inside a `file://` URL —
  * iTerm2 / WezTerm / Kitty / VSCode all silently fail to open
  * relative targets. Resolve the captured value back to absolute
- * against the cwd before handing it to `osc8`. The display label
+ * against `ctx.cwd` before handing it to `osc8`. The display label
  * stays relative so the rendered output is unchanged.
  * @public
  */
@@ -34,7 +34,7 @@ const FAILED_TEST_ROW = /^( {4}(?:\x1b\[\d+m)?✗(?:\x1b\[\d+m)? )([^ ]+)( > )/g
 
 const wrapHyperlinks = (text: string, ctx: FormatterContext): string =>
 	text.replace(FAILED_TEST_ROW, (_match, prefix: string, captured: string, suffix: string) => {
-		const absolute = path.resolve(process.cwd(), captured);
+		const absolute = captured.startsWith("/") ? captured : joinPosix(ctx.cwd, captured);
 		const linked = osc8(`file://${absolute}`, captured, { enabled: !ctx.noColor });
 		return `${prefix}${linked}${suffix}`;
 	});
@@ -43,6 +43,7 @@ export const TerminalFormatter: Formatter = {
 	format: "terminal",
 	render: (reports, context) => {
 		const text = formatTerminal(reports, {
+			cwd: context.cwd,
 			noColor: context.noColor,
 			coverageConsoleLimit: context.coverageConsoleLimit,
 			...(context.trendSummary !== undefined ? { trendSummary: context.trendSummary } : {}),

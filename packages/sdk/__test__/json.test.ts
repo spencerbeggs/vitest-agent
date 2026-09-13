@@ -17,6 +17,7 @@ describe("JsonFormatter", () => {
 		};
 		const outputs = JsonFormatter.render([report], {
 			detail: "verbose",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});

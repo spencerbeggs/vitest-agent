@@ -17,6 +17,7 @@ describe("GfmFormatter", () => {
 		};
 		const outputs = GfmFormatter.render([report], {
 			detail: "verbose",
+			cwd: "/workspace",
 			noColor: true,
 			coverageConsoleLimit: 10,
 		});
