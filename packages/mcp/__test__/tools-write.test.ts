@@ -471,6 +471,63 @@ const seedTaskWithGoal = (h: McpHarness, chatId: string) =>
 		return { sessionId, tddTaskId, goalId };
 	});
 
+describe("tdd_task get over a populated tree", () => {
+	it("encodes the nested goals/behaviors, phases, artifacts and currentPhase through the wire", async () => {
+		const [got] = await session((h) =>
+			Effect.gen(function* () {
+				const { tddTaskId, goalId } = yield* seedTaskWithGoal(h, "cc-tdd-get-populated");
+				const behavior = (yield* h.callTool("tdd_behavior", {
+					action: "create",
+					goalId,
+					behavior: "returns the sum",
+					suggestedTestName: "adds numbers",
+				})) as CallToolResult;
+				const behaviorId = field<{ id: number }>(behavior, "behavior").id;
+				const entered = (yield* h.callTool("tdd_phase_transition_request", {
+					tddTaskId,
+					goalId,
+					requestedPhase: "red",
+					behaviorId,
+					reason: "start the cycle",
+				})) as CallToolResult;
+				const phaseId = entered.structuredContent?.newPhaseId as number;
+				yield* Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.writeTddArtifact({ phaseId, artifactKind: "test_written", recordedAt: "2026-09-05T00:00:03Z" });
+				}).pipe(Effect.provideContext(h.services), Effect.orDie);
+				return [yield* h.callTool("tdd_task", { action: "get", tddTaskId })];
+			}),
+		);
+		expect(got?.isError).toBe(false);
+		expect(got?.structuredContent).toMatchObject({
+			action: "get",
+			found: true,
+			task: {
+				goal: "goal text",
+				endedAt: null,
+				outcome: null,
+				goals: [
+					{
+						goal: "goal text",
+						status: "in_progress",
+						behaviors: [{ behavior: "returns the sum", suggestedTestName: "adds numbers", status: "in_progress" }],
+					},
+				],
+				phases: [
+					{ phase: "spike" },
+					{ phase: "red", behaviorId: expect.any(Number), transitionReason: "start the cycle" },
+				],
+				artifacts: [{ artifactKind: "test_written", testCaseId: null, testRunId: null }],
+			},
+			currentPhase: { phase: "red", behaviorId: expect.any(Number) },
+		});
+		const markdown = text(got as CallToolResult);
+		expect(markdown).toContain("## Goals and Behaviors");
+		expect(markdown).toContain("- **returns the sum** [in_progress]");
+		expect(markdown).toContain("## Artifacts");
+	});
+});
+
 describe("tdd_goal", () => {
 	it("create returns the goal with ordinal 0 and replays with the marker on a duplicate", async () => {
 		const [a, b] = await session((h) =>
