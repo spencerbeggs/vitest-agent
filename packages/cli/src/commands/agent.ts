@@ -120,11 +120,7 @@ export const registerAgentSubcommand = Command.make(
 			const registryDbPath = join(resolveRegistryDir(), REGISTRY_DB_FILENAME);
 			const sessionMapDbPath = yield* resolveSessionMapPath().pipe(Effect.catchCause(mapDefectToExit));
 
-			const sidecar = SidecarLive({
-				perProjectDbPath,
-				sessionMapDbPath,
-				registryDbPath,
-			});
+			const sidecar = SidecarLive({ perProjectDbPath, sessionMapDbPath, registryDbPath }, process.env);
 
 			const program = registerAgentEffect({
 				hostSessionId: opts.hostSessionId,
@@ -183,11 +179,7 @@ export const endAgentSubcommand = Command.make(
 			const registryDbPath = join(resolveRegistryDir(), REGISTRY_DB_FILENAME);
 			const sessionMapDbPath = yield* resolveSessionMapPath().pipe(Effect.catchCause(mapDefectToExit));
 
-			const sidecar = SidecarLive({
-				perProjectDbPath,
-				sessionMapDbPath,
-				registryDbPath,
-			});
+			const sidecar = SidecarLive({ perProjectDbPath, sessionMapDbPath, registryDbPath }, process.env);
 
 			const endedAt = Option.isSome(opts.endedAt) ? opts.endedAt.value : Math.floor(Date.now() / 1000);
 

@@ -643,8 +643,8 @@ export class AgentReporter {
 	constructor(options: AgentReporterConstructorOptions = {}) {
 		// logLevel and logFile read from VITEST_REPORTER_LOG_LEVEL /
 		// VITEST_REPORTER_LOG_FILE env vars — no user option threading.
-		this.logLevel = resolveLogLevel();
-		this.logFile = resolveLogFile();
+		this.logLevel = resolveLogLevel(process.env);
+		this.logFile = resolveLogFile(process.env);
 		this.onRunEvent = options.onRunEvent;
 		this.hasCustomReporter = options.reporter !== undefined;
 
@@ -807,7 +807,7 @@ export class AgentReporter {
 				return { env, executor, format, detail };
 			});
 			const { env, executor, format, detail } = await Effect.runPromise(
-				initProgram.pipe(Effect.provide(OutputPipelineLive), Effect.provide(NodeServices.layer)),
+				initProgram.pipe(Effect.provide(OutputPipelineLive(process.env)), Effect.provide(NodeServices.layer)),
 			);
 			const kit = buildReporterKit({
 				env,
@@ -1744,7 +1744,7 @@ export class AgentReporter {
 			});
 
 			await Effect.runPromise(
-				uiProgram.pipe(Effect.provide(OutputPipelineLive), Effect.provide(NodeServices.layer)),
+				uiProgram.pipe(Effect.provide(OutputPipelineLive(process.env)), Effect.provide(NodeServices.layer)),
 			).catch((err) => {
 				process.stderr.write(`vitest-agent: ${formatFatalError(err)}\n`);
 			});
@@ -2493,7 +2493,7 @@ export class AgentReporter {
 			persistResult = await Effect.runPromise(
 				persistProgram.pipe(
 					Effect.annotateLogs("service", "reporter"),
-					Effect.provide(ReporterLive(dbPath, logLevel, logFile)),
+					Effect.provide(ReporterLive({ dbPath, env: process.env, logLevel, logFile })),
 				),
 			).catch((err) => {
 				persistFailure = formatFatalError(err);
@@ -2582,7 +2582,7 @@ export class AgentReporter {
 		await Effect.runPromise(
 			renderProgram.pipe(
 				Effect.annotateLogs("service", "reporter"),
-				Effect.provide(OutputPipelineLive),
+				Effect.provide(OutputPipelineLive(process.env)),
 				Effect.provide(NodeServices.layer),
 			),
 		).catch((err) => {

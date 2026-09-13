@@ -69,7 +69,7 @@ function fakeVitest() {
 	};
 }
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 
 describe("run_tests projectRoot validation", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<never, never>;

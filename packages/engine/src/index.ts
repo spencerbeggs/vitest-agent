@@ -43,6 +43,9 @@ export { default as migration0002 } from "./migrations/0002_test_artifacts.js";
 export { PROJECT_MIGRATIONS } from "./migrations/index.js";
 export { default as registryMigration0001 } from "./migrations/registry_0001_initial.js";
 export { default as sessionMapMigration0001 } from "./migrations/session_map_0001_initial.js";
+// Platform assembly + project-dir resolution
+export * from "./platform.js";
+export * from "./project-dir.js";
 // Services
 export * from "./services/Config.js";
 export * from "./services/DataReader.js";

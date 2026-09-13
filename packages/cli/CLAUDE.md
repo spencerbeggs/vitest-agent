@@ -7,10 +7,10 @@ The `effect/unstable/cli`-based bin (`vitest-agent`) for utility functions, data
 ```text
 src/
   bin.ts              -- bin entry: resolves dbPath via resolveDataPath,
-                         provides CliLive(dbPath, logLevel?, logFile?)
+                         provides the engine's PlatformLive({ dbPath, env, logLevel?, logFile? })
                          to Command.run, runs via NodeRuntime.runMain;
                          withSubcommands is exactly doctor / db / agent
-  index.ts            -- programmatic barrel: re-exports CliLive,
+  index.ts            -- programmatic barrel: re-exports
                          SidecarLive, registerAgentEffect, and the
                          lib/sidecar-paths.ts path helpers. Does NOT
                          re-export dispatch / injectEnv / exitCodeForTag —
@@ -32,10 +32,10 @@ src/
                           constants; re-exported from src/index.ts.
                           exitCodeForTag moved to @vitest-agent/sdk
   layers/
-    CliLive.ts        -- (dbPath, logLevel?, logFile?) composition:
-                         DataReader + ProjectDiscovery + HistoryTracker
-                         + OutputPipeline + SqliteClient + Migrator
-                         + NodeServices + Logger
+    (no CliLive.ts -- the runtime layer is the engine's PlatformLive:
+                         DataReader + DataStore + ProjectDiscovery
+                         + HistoryTracker + OutputPipeline + SqliteClient
+                         + Migrator + NodeServices + Logger)
     SidecarLive.ts    -- per-project / per-client / registry SQLite scopes
                          backing the three sidecar subcommands
 ```
@@ -44,14 +44,14 @@ src/
 
 | File | Purpose |
 | ---- | ------- |
-| `bin.ts` | Bin entry. Pipeline: `resolveDataPath(cwd)` -> provide `PathResolutionLive(projectDir) + NodeServices.layer` -> provide `CliLive(dbPath, ...)` -> run the `Command.run(rootCommand, { version })` Effect (v4 `Command.run` drops the `name` arg — the name comes from `Command.make` — and reads argv from the Stdio service rather than an explicit `process.argv`). `withSubcommands` is `[dbCommand, doctorCommand, agentCommand]` |
+| `bin.ts` | Bin entry. Pipeline: `resolveDataPath(cwd)` -> provide `PathResolutionLive(projectDir) + NodeServices.layer` -> provide `PlatformLive({ dbPath, env: process.env, logLevel, logFile })` (from `@vitest-agent/engine`; the project dir comes from the engine's `resolveProjectDir({ env, cwd })`) -> run the `Command.run(rootCommand, { version })` Effect (v4 `Command.run` drops the `name` arg — the name comes from `Command.make` — and reads argv from the Stdio service rather than an explicit `process.argv`). `withSubcommands` is `[dbCommand, doctorCommand, agentCommand]` |
 | `commands/db.ts` | `db` parent with four subcommands. `db path` prints the deterministic XDG path (no probing); `db prune --keep-recent N` drops old sessions' turn history (default N=30); `db reset` wipes the DB (human-only, agent-blocked); `db query <sql>` runs read-only SQL |
 | `commands/doctor.ts` | 5-point health diagnostic (manifest assembly, latest-run integrity, staleness check). Keeps `--format markdown\|json` |
 | `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand`, the sidecar subcommands `register-agent`, `end-agent`, `inject-env`, `sidecar-path`, and — outside that family, with its own exit-code contract — `check-test-path` |
 | `lib/format-db-query.ts` | Pure tabular formatter for `db query` output: column headers, whitespace-padded rows, `(0 rows)` on empty; `--format json` emits a JSON array of row objects |
 | `lib/format-doctor.ts`, `lib/format-triage.ts`, `lib/format-wrapup.ts` | Pure formatting functions tested as plain functions; `format-triage` / `format-wrapup` are shared with the MCP package |
 | `lib/sidecar-paths.ts` | Path-resolution helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). Re-exported from `src/index.ts`. The dispatch core (`dispatch`, `injectEnv`, `exitCodeForTag`) moved to `@vitest-agent/sdk/dispatch`; `agent.ts` imports `exitCodeForTag` / `injectEnv` from there |
-| `layers/CliLive.ts` | Composition layer for the CLI runtime |
+| `layers/SidecarLive.ts` | Three-DB sidecar layer built from the engine's `makeSqliteStack` (the CLI runtime layer itself is the engine's `PlatformLive`) |
 | `layers/SidecarLive.ts` | Composition layer backing the three sidecar subcommands under `agent` |
 
 ## Conventions
@@ -142,7 +142,7 @@ src/
 
 The sidecar subcommand bodies live in `lib/internal-*.ts`.
 
-**Barrel exports.** `src/index.ts` re-exports `CliLive`, `SidecarLive`, `registerAgentEffect`, and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `@vitest-agent/sdk/dispatch` entry point. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `@vitest-agent/sdk/dispatch`, and the per-platform `@vitest-agent/sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
+**Barrel exports.** `src/index.ts` re-exports `SidecarLive`, `registerAgentEffect`, and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `@vitest-agent/sdk/dispatch` entry point. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `@vitest-agent/sdk/dispatch`, and the per-platform `@vitest-agent/sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
 
 **SidecarLive layer** (`layers/SidecarLive.ts`) composes three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — plus the platform context. Each store gets its own `SqlClient` connection.
 

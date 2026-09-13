@@ -26,7 +26,7 @@ export const test = base
 	.extend("runtime", { scope: "file" }, async ({ tmpDir }, { onCleanup }): Promise<McpRuntime> => {
 		const McpTestLayer = Layer.mergeAll(
 			makeTestLayer(join(tmpDir, "data.db")),
-			OutputPipelineLive,
+			OutputPipelineLive(process.env),
 			ProjectDiscoveryTest.layer([]),
 		);
 		const rt = ManagedRuntime.make(McpTestLayer);

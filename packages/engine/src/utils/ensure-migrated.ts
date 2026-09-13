@@ -1,11 +1,8 @@
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
-import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { LogLevel } from "effect";
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { LoggerLive } from "../layers/LoggerLive.js";
-import { PROJECT_MIGRATIONS } from "../migrations/index.js";
+import { NodePlatformLayer, makeSqliteStack } from "../platform.js";
 
 const GLOBAL_KEY = Symbol.for("vitest-agent/migration-promises");
 
@@ -33,11 +30,7 @@ export function ensureMigrated(dbPath: string, logLevel?: LogLevel.LogLevel, log
 	const cached = cache.get(dbPath);
 	if (cached) return cached;
 
-	const SqliteLayer = sqliteClientLayer({ filename: dbPath });
-	const PlatformLayer = NodeServices.layer;
-	const MigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS),
-	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
+	const { SqliteLayer, MigratorLayer } = makeSqliteStack(dbPath);
 
 	// MigratorLayer is `Layer.effectDiscard(...)` — it provides nothing but
 	// runs migrations as a side effect of layer acquisition. Effect's runtime
@@ -51,7 +44,7 @@ export function ensureMigrated(dbPath: string, logLevel?: LogLevel.LogLevel, log
 		yield* SqlClient;
 	}).pipe(
 		Effect.provide(MigratorLayer),
-		Effect.provide(Layer.merge(SqliteLayer, PlatformLayer)),
+		Effect.provide(Layer.merge(SqliteLayer, NodePlatformLayer)),
 		Effect.provide(LoggerLive(logLevel, logFile)),
 	);
 

@@ -1,12 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DataReader, DataStore } from "@vitest-agent/engine";
+import { DataReader, DataStore, PlatformLive } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
-import { McpLive } from "../src/layers/McpLive.js";
 
-// Regression: `McpLive` must register every project-database migration, not
+// Regression: the MCP server's layer (`PlatformLive`) must register every project-database migration, not
 // just `0001_initial`. Reading artifacts touches `test_artifacts.data`, a
 // column added by `0002_test_artifacts`; a layer stuck on `0001` fails the
 // query with `no such column: ta.data`.
@@ -16,7 +15,7 @@ afterAll(() => {
 	rmSync(dir, { recursive: true, force: true });
 });
 
-describe("McpLive migrations", () => {
+describe("PlatformLive migrations (MCP server layer)", () => {
 	it("reads artifacts on a fresh database opened through the layer alone", async () => {
 		const program = Effect.gen(function* () {
 			const store = yield* DataStore;
@@ -40,7 +39,9 @@ describe("McpLive migrations", () => {
 			return yield* reader.getArtifactsForTest("pkg", "does not exist");
 		});
 
-		const rows = await Effect.runPromise(Effect.provide(program, McpLive(join(dir, "data.db"))));
+		const rows = await Effect.runPromise(
+			Effect.provide(program, PlatformLive({ dbPath: join(dir, "data.db"), env: {} })),
+		);
 
 		expect(rows).toStrictEqual([]);
 	});

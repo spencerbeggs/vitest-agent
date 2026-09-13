@@ -8,14 +8,20 @@
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { PathResolutionLive, resolveDataPath, resolveLogFile, resolveLogLevel } from "@vitest-agent/engine";
+import {
+	PathResolutionLive,
+	PlatformLive,
+	resolveDataPath,
+	resolveLogFile,
+	resolveLogLevel,
+	resolveProjectDir,
+} from "@vitest-agent/engine";
 import { formatFatalError } from "@vitest-agent/sdk";
 import { Cause, Console, Effect } from "effect";
 import { Command } from "effect/unstable/cli";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { CliLive } from "./layers/CliLive.js";
 
 const rootCommand = Command.make("vitest-agent").pipe(
 	Command.withSubcommands([dbCommand, doctorCommand, agentCommand]),
@@ -25,22 +31,24 @@ const cli = Command.run(rootCommand, {
 	version: "0.0.0",
 });
 
-const logLevel = resolveLogLevel();
-const logFile = resolveLogFile();
+const env = process.env;
+const logLevel = resolveLogLevel(env);
+const logFile = resolveLogFile(env);
 
-// Resolve the project root used for `data.db` resolution. Honor an explicit
-// `VITEST_AGENT_PROJECT_DIR` override before `process.cwd()` so hook-driven
-// invocations resolve the SAME database the MCP server uses (rooted at
-// `CLAUDE_PROJECT_DIR`). Without this, a PostToolUse/SubagentStart hook that
-// runs from a sub-package cwd (e.g. a monorepo workspace with its own
+// Resolve the project root used for `data.db` resolution. `resolveProjectDir`
+// honors `VITEST_AGENT_PROJECT_DIR` (then the MCP server's
+// `VITEST_AGENT_REPORTER_PROJECT_DIR`, then `CLAUDE_PROJECT_DIR`) before
+// `process.cwd()` so hook-driven invocations resolve the SAME database the
+// MCP server uses. Without this, a PostToolUse/SubagentStart hook that runs
+// from a sub-package cwd (e.g. a monorepo workspace with its own
 // package.json#name) resolves a different per-project `data.db`, so the
 // open TDD task lives in one DB while artifact/turn recording writes to
 // another — silently breaking evidence binding. The plugin's shared hook
 // lib exports `VITEST_AGENT_PROJECT_DIR` from `CLAUDE_PROJECT_DIR`.
-const projectDir = process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd();
+const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
 
 const main = resolveDataPath(projectDir).pipe(
-	Effect.flatMap((dbPath) => cli.pipe(Effect.provide(CliLive(dbPath, logLevel, logFile)))),
+	Effect.flatMap((dbPath) => cli.pipe(Effect.provide(PlatformLive({ dbPath, env, logLevel, logFile })))),
 	Effect.provide(PathResolutionLive(projectDir)),
 	Effect.provide(NodeServices.layer),
 	Effect.catchCause((cause) => {

@@ -42,11 +42,6 @@ export const LoggerLive = (level?: LogLevel.LogLevel, logFile?: string): Layer.L
 	return Layer.merge(Logger.layer(loggers), Layer.succeed(References.MinimumLogLevel, level));
 };
 
-/**
- * Resolve log level from option or environment variable.
- * Priority: explicit option \> VITEST_REPORTER_LOG_LEVEL env var \> undefined
- * @public
- */
 // Map common shorthand names to Effect's LogLevel string values
 const LEVEL_ALIASES: Record<string, LogLevel.LogLevel> = {
 	warn: "Warn",
@@ -59,9 +54,19 @@ const LEVEL_ALIASES: Record<string, LogLevel.LogLevel> = {
 	all: "All",
 	none: "None",
 };
-/** @public */
-export function resolveLogLevel(option?: string): LogLevel.LogLevel | undefined {
-	const raw = option ?? process.env.VITEST_REPORTER_LOG_LEVEL;
+/**
+ * Resolve log level from option or environment variable.
+ * Priority: explicit option \> `VITEST_REPORTER_LOG_LEVEL` in `env` \> undefined.
+ *
+ * @param env - the environment map to consult (the front end passes `process.env`)
+ * @param option - explicit override
+ * @public
+ */
+export function resolveLogLevel(
+	env: Record<string, string | undefined>,
+	option?: string,
+): LogLevel.LogLevel | undefined {
+	const raw = option ?? env.VITEST_REPORTER_LOG_LEVEL;
 	if (!raw) return undefined;
 	// Resolve alias first ("warn" -> "Warn"), then try title-case normalization
 	const normalized = LEVEL_ALIASES[raw.toLowerCase()] ?? `${raw.charAt(0).toUpperCase()}${raw.slice(1).toLowerCase()}`;
@@ -69,9 +74,13 @@ export function resolveLogLevel(option?: string): LogLevel.LogLevel | undefined 
 }
 
 /**
- * Resolve log file from option or environment variable.
+ * Resolve log file from option or environment variable
+ * (`VITEST_REPORTER_LOG_FILE` in `env`).
+ *
+ * @param env - the environment map to consult (the front end passes `process.env`)
+ * @param option - explicit override
  * @public
  */
-export function resolveLogFile(option?: string): string | undefined {
-	return option ?? process.env.VITEST_REPORTER_LOG_FILE ?? undefined;
+export function resolveLogFile(env: Record<string, string | undefined>, option?: string): string | undefined {
+	return option ?? env.VITEST_REPORTER_LOG_FILE ?? undefined;
 }

@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { PathResolutionLive, resolveDataPath, resolveLogFile, resolveLogLevel } from "@vitest-agent/engine";
+import {
+	PathResolutionLive,
+	PlatformLive,
+	resolveDataPath,
+	resolveLogFile,
+	resolveLogLevel,
+	resolveProjectDir,
+} from "@vitest-agent/engine";
 import { Effect, ManagedRuntime } from "effect";
 import type { McpContext } from "./context.js";
 import { createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./context.js";
-import { McpLive } from "./layers/McpLive.js";
 import { startMcpServer } from "./server.js";
 import { recoverSessionContextFromSessionEnv } from "./session-env.js";
 import { shouldExitOnUncaughtException } from "./utils/crash-guards.js";
@@ -87,24 +93,11 @@ function scheduleTestCrashInjection(): void {
 	});
 }
 
-/**
- * Resolve the user's project directory.
- *
- * Precedence (most explicit wins):
- *
- * 1. `VITEST_AGENT_REPORTER_PROJECT_DIR` — set by the Claude Code plugin
- *    loader (`plugins/claude-code/bin/mcp-server.mjs`) to the resolved project root.
- *    The loader controls this end-to-end so the value is reliable when
- *    set.
- * 2. `CLAUDE_PROJECT_DIR` — exported by Claude Code for hook scripts and
- *    (per docs hints) MCP server subprocesses. Used when the loader is
- *    bypassed (e.g. someone wires the MCP binary up manually).
- * 3. `process.cwd()` — fall-through for direct invocation outside Claude
- *    Code, where the user is presumably running from their project root.
- */
-function resolveProjectDir(): string {
-	return process.env.VITEST_AGENT_REPORTER_PROJECT_DIR ?? process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
-}
+// The project directory comes from the engine's `resolveProjectDir`:
+// `VITEST_AGENT_PROJECT_DIR`, then `VITEST_AGENT_REPORTER_PROJECT_DIR` (set by
+// the Claude Code plugin loader, `plugins/claude-code/bin/mcp-server.mjs`),
+// then `CLAUDE_PROJECT_DIR` (exported by Claude Code for hook scripts and MCP
+// server subprocesses), then `process.cwd()` for direct invocation.
 
 /**
  * Optional first positional argument: an initial Claude Code chat UUID
@@ -132,7 +125,8 @@ function resolveInitialSessionId(): string | null {
 }
 
 async function main() {
-	const projectDir = resolveProjectDir();
+	const env = process.env;
+	const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
 	const initialSessionId = resolveInitialSessionId();
 
 	const dbPath = await Effect.runPromise(
@@ -142,17 +136,17 @@ async function main() {
 		),
 	);
 
-	const logLevel = resolveLogLevel();
-	const logFile = resolveLogFile();
+	const logLevel = resolveLogLevel(env);
+	const logFile = resolveLogFile(env);
 
-	const runtime = ManagedRuntime.make(McpLive(dbPath, logLevel, logFile));
+	const runtime = ManagedRuntime.make(PlatformLive({ dbPath, env, logLevel, logFile }));
 
 	// Recover the canonical agent attribution context. SessionStart wrote
 	// VITEST_AGENT_CHAT_ID, _CONVERSATION_ID, and _MAIN_AGENT_ID to
 	// CLAUDE_ENV_FILE, which Claude Code auto-sources into this MCP child's
 	// process.env (per Spike 5). Falls back to null in dev / test where
 	// the env vars aren't set; tools handle that gracefully.
-	const recoveredContext = sessionContextFromEnv(process.env);
+	const recoveredContext = sessionContextFromEnv(env);
 
 	const ctx: McpContext = {
 		runtime: runtime as unknown as McpContext["runtime"],

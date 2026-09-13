@@ -17,17 +17,15 @@
  * absorb concurrency between sidecar processes from parallel hooks.
  */
 
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
-import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import {
 	DataReaderLive,
 	DataStoreLive,
 	DiscoveryRegistryLive,
 	LoggerLive,
-	PROJECT_MIGRATIONS,
+	NodePlatformLayer,
 	PerClientSessionMapWriterLive,
 	RunContextLive,
+	makeSqliteStack,
 	registryMigration0001,
 	sessionMapMigration0001,
 } from "@vitest-agent/engine";
@@ -51,48 +49,40 @@ export interface SidecarPaths {
  * Build the sidecar Live layer for the supplied SQLite paths.
  *
  * Each store gets its own `SqlClient` connection (separate scopes,
- * independent migrators) so concurrent operations on the three
- * stores don't share lock state.
+ * independent migrators, all built through the engine's shared
+ * `makeSqliteStack`) so concurrent operations on the three stores
+ * don't share lock state.
  *
  * @param paths - the three SQLite database paths to open
+ * @param env - the environment map `RunContextLive` probes for host
+ *   metadata (the bin passes `process.env`)
  * @public
  */
-export const SidecarLive = (paths: SidecarPaths) => {
-	const PlatformLayer = NodeServices.layer;
-
+export const SidecarLive = (paths: SidecarPaths, env: Record<string, string | undefined>) => {
 	// Per-project data.db
-	const ProjectSqliteLayer = sqliteClientLayer({ filename: paths.perProjectDbPath });
-	const ProjectMigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS),
-	}).pipe(Layer.provide(Layer.merge(ProjectSqliteLayer, PlatformLayer)));
+	const project = makeSqliteStack(paths.perProjectDbPath);
 	const ProjectStoreLayer = Layer.mergeAll(
-		DataStoreLive.pipe(Layer.provide(ProjectSqliteLayer)),
-		DataReaderLive.pipe(Layer.provide(ProjectSqliteLayer)),
-		ProjectMigratorLayer,
+		DataStoreLive.pipe(Layer.provide(project.SqliteLayer)),
+		DataReaderLive.pipe(Layer.provide(project.SqliteLayer)),
+		project.MigratorLayer,
 	);
 
 	// Per-client session map (sessions.db)
-	const SessionMapSqliteLayer = sqliteClientLayer({ filename: paths.sessionMapDbPath });
-	const SessionMapMigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord({ "0001_initial": sessionMapMigration0001 }),
-	}).pipe(Layer.provide(Layer.merge(SessionMapSqliteLayer, PlatformLayer)));
+	const sessionMap = makeSqliteStack(paths.sessionMapDbPath, { "0001_initial": sessionMapMigration0001 });
 	const SessionMapLayer = Layer.mergeAll(
-		PerClientSessionMapWriterLive.pipe(Layer.provide(SessionMapSqliteLayer)),
-		SessionMapMigratorLayer,
+		PerClientSessionMapWriterLive.pipe(Layer.provide(sessionMap.SqliteLayer)),
+		sessionMap.MigratorLayer,
 	);
 
 	// Global discovery registry
-	const RegistrySqliteLayer = sqliteClientLayer({ filename: paths.registryDbPath });
-	const RegistryMigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord({ "0001_initial": registryMigration0001 }),
-	}).pipe(Layer.provide(Layer.merge(RegistrySqliteLayer, PlatformLayer)));
+	const registry = makeSqliteStack(paths.registryDbPath, { "0001_initial": registryMigration0001 });
 	const RegistryLayer = Layer.mergeAll(
-		DiscoveryRegistryLive.pipe(Layer.provide(RegistrySqliteLayer)),
-		RegistryMigratorLayer,
+		DiscoveryRegistryLive.pipe(Layer.provide(registry.SqliteLayer)),
+		registry.MigratorLayer,
 	);
 
-	return Layer.mergeAll(ProjectStoreLayer, SessionMapLayer, RegistryLayer, RunContextLive).pipe(
-		Layer.provideMerge(PlatformLayer),
+	return Layer.mergeAll(ProjectStoreLayer, SessionMapLayer, RegistryLayer, RunContextLive(env)).pipe(
+		Layer.provideMerge(NodePlatformLayer),
 		Layer.provideMerge(LoggerLive()),
 	);
 };

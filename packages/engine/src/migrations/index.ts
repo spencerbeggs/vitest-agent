@@ -6,10 +6,11 @@ import migration0002 from "./0002_test_artifacts.js";
  * migration id in application order.
  *
  * This is the single source of truth for the project database's migration
- * set: `ensureMigrated`, the sdk testing layer, `ReporterLive`, `McpLive`,
- * `CliLive` and `SidecarLive` all pass it straight to
- * `SqliteMigrator.fromRecord`, so adding a migration file and registering it
- * here is enough to reach every process that opens a project database.
+ * set: `makeSqliteStack` (and through it `PlatformLive`, `ensureMigrated`,
+ * the testing layers, `ReporterLive` and `SidecarLive`) defaults to it when
+ * calling `SqliteMigrator.fromRecord`, so adding a migration file and
+ * registering it here is enough to reach every process that opens a project
+ * database.
  *
  * The session-map and discovery-registry databases are separate schemas with
  * their own migrations and are deliberately not listed here.

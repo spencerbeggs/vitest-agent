@@ -6,7 +6,7 @@ import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef
 import { appRouter } from "../src/router.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
 function createTestCaller() {

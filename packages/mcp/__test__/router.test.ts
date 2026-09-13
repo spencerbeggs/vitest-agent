@@ -33,7 +33,7 @@ vi.mock("node:fs", async (importOriginal) => {
 	};
 });
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
 function createTestCaller(cwd: string = process.cwd(), initialSessionId: string | null = null) {

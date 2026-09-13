@@ -38,7 +38,7 @@ import { DataStoreTestLayer } from "./utils/layers.js";
 // instead of accidentally running the whole monorepo suite.
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "console-leak-project");
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
 let client: Client;

@@ -59,19 +59,22 @@ const captureAgentContextEffect = (cwd: string, spawner: Spawner): Effect.Effect
 
 /**
  * Live layer. Requires `ChildProcessSpawner` (provided by
- * `NodeServices.layer` at the entry point). Reads `process.env`
- * directly for host-metadata probes — the env walk is pure but the
- * env source is process-global, captured once when the layer
- * constructs.
+ * `NodeServices.layer` at the entry point). Host-metadata probes read
+ * the injected `env` map — the env walk is pure and the map is captured
+ * once when the layer is built.
+ *
+ * @param env - the environment map to probe (the front end passes `process.env`)
  * @public
  */
-export const RunContextLive: Layer.Layer<RunContextService, never, ChildProcessSpawner.ChildProcessSpawner> =
+export const RunContextLive = (
+	env: Record<string, string | undefined>,
+): Layer.Layer<RunContextService, never, ChildProcessSpawner.ChildProcessSpawner> =>
 	Layer.effect(
 		RunContextService,
 		Effect.gen(function* () {
 			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 			return {
-				captureRunContext: (cwd: string) => captureRunContextEffect(cwd, spawner, process.env),
+				captureRunContext: (cwd: string) => captureRunContextEffect(cwd, spawner, env),
 				captureAgentContext: (cwd: string) => captureAgentContextEffect(cwd, spawner),
 			};
 		}),

@@ -20,7 +20,7 @@ import { createCurrentSessionIdRef, createSessionContextRef } from "../src/conte
 import { buildMcpServer } from "../src/server.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
 let client: Client;

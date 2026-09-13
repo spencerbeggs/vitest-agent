@@ -9,7 +9,7 @@ src/
   bin.ts              -- bin entry: registers the module-scope
                          unhandledRejection / uncaughtException guards,
                          resolves projectDir, dbPath, builds
-                         ManagedRuntime.make(McpLive(dbPath, ...)), wires
+                         ManagedRuntime.make(PlatformLive({ dbPath, env, ... })) (engine), wires
                          the session refs (with the lazy recover thunk
                          from session-env.ts), calls startMcpServer(ctx)
   index.ts            -- programmatic entry; also exports buildMcpServer,
@@ -62,10 +62,10 @@ src/
                          success-shape { ok: false, error: {
                          _tag: "UnexpectedToolError", ... } } + isError
   layers/
-    McpLive.ts        -- (dbPath, logLevel?, logFile?) composition:
+    (no McpLive.ts -- the runtime layer is the engine's PlatformLive:
                          DataReader + DataStore + ProjectDiscovery +
-                         OutputPipeline + SqliteClient + Migrator +
-                         NodeServices + Logger
+                         HistoryTracker + OutputPipeline + SqliteClient +
+                         Migrator + NodeServices + Logger)
 ```
 
 ## Key files

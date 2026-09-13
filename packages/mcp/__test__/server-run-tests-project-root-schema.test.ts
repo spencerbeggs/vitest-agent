@@ -19,7 +19,7 @@ import type { McpContext } from "../src/context.js";
 import { createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
 import { buildMcpServer } from "../src/server.js";
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
 let client: Client;

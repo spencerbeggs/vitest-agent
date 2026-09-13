@@ -24,7 +24,7 @@ const createVitestMock = vi.fn();
 
 const { appRouter } = await import("../src/router.js");
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 
 describe("run_tests timeout classification (issue #320)", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<never, never>;

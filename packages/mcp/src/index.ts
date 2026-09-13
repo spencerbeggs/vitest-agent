@@ -15,7 +15,6 @@
 
 export type { CurrentSessionIdRef, McpContext, SessionContext, SessionContextRef } from "./context.js";
 export { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "./context.js";
-export { McpLive } from "./layers/McpLive.js";
 export { appRouter } from "./router.js";
 export { buildMcpServer, startMcpServer } from "./server.js";
 export { parseSessionEnvExports, recoverSessionContextFromSessionEnv } from "./session-env.js";

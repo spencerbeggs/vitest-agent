@@ -19,7 +19,7 @@ import type { InventoryResultType } from "../src/tools/inventory.js";
 import { InventoryResult, formatInventoryMarkdown } from "../src/tools/inventory.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive, ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
 const makeCaller = () => {

@@ -1,96 +1,72 @@
 import { Layer } from "effect";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { LoggerLive, resolveLogFile, resolveLogLevel } from "../src/layers/LoggerLive.js";
 
 describe("resolveLogLevel", () => {
-	afterEach(() => {
-		vi.unstubAllEnvs();
+	it("returns undefined when option and env var are both absent", () => {
+		expect(resolveLogLevel({}, undefined)).toBeUndefined();
 	});
 
-	it("returns undefined when option and env var are both absent", () => {
-		vi.stubEnv("VITEST_REPORTER_LOG_LEVEL", "");
-		// Empty string is treated as absent by the falsy check in resolveLogLevel
-		const result = resolveLogLevel(undefined);
-		expect(result).toBeUndefined();
+	it("treats an empty env var as absent", () => {
+		expect(resolveLogLevel({ VITEST_REPORTER_LOG_LEVEL: "" }, undefined)).toBeUndefined();
 	});
 
 	it("returns LogLevel.Debug for 'debug' (lowercase)", () => {
-		const result = resolveLogLevel("debug");
-		expect(result).toBeDefined();
-		expect(result).toBe("Debug");
+		expect(resolveLogLevel({}, "debug")).toBe("Debug");
 	});
 
 	it("returns LogLevel.Debug for 'Debug' (capitalized)", () => {
-		const result = resolveLogLevel("Debug");
-		expect(result).toBeDefined();
-		expect(result).toBe("Debug");
+		expect(resolveLogLevel({}, "Debug")).toBe("Debug");
 	});
 
 	it("returns LogLevel.Info for 'INFO' (uppercase)", () => {
-		const result = resolveLogLevel("INFO");
-		expect(result).toBeDefined();
-		expect(result).toBe("Info");
+		expect(resolveLogLevel({}, "INFO")).toBe("Info");
 	});
 
 	it("falls back to env var when option is not provided", () => {
-		vi.stubEnv("VITEST_REPORTER_LOG_LEVEL", "info");
-		const result = resolveLogLevel(undefined);
-		expect(result).toBeDefined();
-		expect(result).toBe("Info");
+		expect(resolveLogLevel({ VITEST_REPORTER_LOG_LEVEL: "info" }, undefined)).toBe("Info");
 	});
 
 	it("explicit option takes priority over env var", () => {
-		vi.stubEnv("VITEST_REPORTER_LOG_LEVEL", "info");
-		const result = resolveLogLevel("debug");
-		expect(result).toBe("Debug");
+		expect(resolveLogLevel({ VITEST_REPORTER_LOG_LEVEL: "info" }, "debug")).toBe("Debug");
+	});
+
+	it("returns undefined for an unknown level name", () => {
+		expect(resolveLogLevel({ VITEST_REPORTER_LOG_LEVEL: "loud" }, undefined)).toBeUndefined();
 	});
 
 	it("resolves 'warn' alias to Warn", () => {
-		const result = resolveLogLevel("warn");
-		expect(result).toBeDefined();
-		expect(result).toBe("Warn");
+		expect(resolveLogLevel({}, "warn")).toBe("Warn");
 	});
 
 	it("resolves 'warning' to Warn", () => {
-		const result = resolveLogLevel("warning");
-		expect(result).toBeDefined();
-		expect(result).toBe("Warn");
+		expect(resolveLogLevel({}, "warning")).toBe("Warn");
 	});
 
 	it("resolves 'WARN' to Warn", () => {
-		const result = resolveLogLevel("WARN");
-		expect(result).toBeDefined();
-		expect(result).toBe("Warn");
+		expect(resolveLogLevel({}, "WARN")).toBe("Warn");
 	});
 });
 
 describe("resolveLogFile", () => {
-	afterEach(() => {
-		vi.unstubAllEnvs();
-	});
-
 	it("returns undefined when option and env var are both absent", () => {
-		vi.stubEnv("VITEST_REPORTER_LOG_FILE", "");
-		const result = resolveLogFile(undefined);
-		// empty string is falsy but not undefined; env var returns ""
-		expect(result === undefined || result === "").toBe(true);
+		expect(resolveLogFile({}, undefined)).toBeUndefined();
 	});
 
 	it("returns the explicit path when provided", () => {
-		const result = resolveLogFile("/tmp/my-log.ndjson");
-		expect(result).toBe("/tmp/my-log.ndjson");
+		expect(resolveLogFile({}, "/tmp/my-log.ndjson")).toBe("/tmp/my-log.ndjson");
 	});
 
 	it("falls back to env var when option is not provided", () => {
-		vi.stubEnv("VITEST_REPORTER_LOG_FILE", "/var/log/vitest.ndjson");
-		const result = resolveLogFile(undefined);
-		expect(result).toBe("/var/log/vitest.ndjson");
+		expect(resolveLogFile({ VITEST_REPORTER_LOG_FILE: "/var/log/vitest.ndjson" }, undefined)).toBe(
+			"/var/log/vitest.ndjson",
+		);
 	});
 
 	it("explicit option takes priority over env var", () => {
-		vi.stubEnv("VITEST_REPORTER_LOG_FILE", "/env/path.log");
-		const result = resolveLogFile("/explicit/path.log");
-		expect(result).toBe("/explicit/path.log");
+		expect(resolveLogFile({ VITEST_REPORTER_LOG_FILE: "/env/path.log" }, "/explicit/path.log")).toBe(
+			"/explicit/path.log",
+		);
 	});
 });
 

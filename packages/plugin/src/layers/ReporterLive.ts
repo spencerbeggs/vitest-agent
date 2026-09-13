@@ -1,34 +1,16 @@
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
-import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
-import {
-	DataReaderLive,
-	DataStoreLive,
-	HistoryTrackerLive,
-	LoggerLive,
-	OutputPipelineLive,
-	PROJECT_MIGRATIONS,
-} from "@vitest-agent/engine";
-import type { LogLevel } from "effect";
+import type { PlatformOptions } from "@vitest-agent/engine";
+import { PlatformLive } from "@vitest-agent/engine";
 import { Layer } from "effect";
 import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";
 
 /**
- * Composition layer for a single `AgentReporter` run. Wires SQLite, migrations, and all service layers.
+ * Composition layer for a single `AgentReporter` run: the engine's
+ * `PlatformLive` (SQLite, migrations, Node platform services, logger and
+ * the shared service layers) plus the plugin-only `CoverageAnalyzer`.
+ *
+ * @param options - forwarded to `PlatformLive`; the reporter passes
+ *   `process.env` as `env`
  * @public
  */
-export const ReporterLive = (dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string) => {
-	const SqliteLayer = sqliteClientLayer({ filename: dbPath });
-	const PlatformLayer = NodeServices.layer;
-	const MigratorLayer = SqliteMigrator.layer({
-		loader: SqliteMigrator.fromRecord(PROJECT_MIGRATIONS),
-	}).pipe(Layer.provide(Layer.merge(SqliteLayer, PlatformLayer)));
-
-	return Layer.mergeAll(DataStoreLive, CoverageAnalyzerLive, HistoryTrackerLive, OutputPipelineLive).pipe(
-		Layer.provideMerge(DataReaderLive),
-		Layer.provideMerge(MigratorLayer),
-		Layer.provideMerge(SqliteLayer),
-		Layer.provideMerge(PlatformLayer),
-		Layer.provideMerge(LoggerLive(logLevel, logFile)),
-	);
-};
+export const ReporterLive = (options: PlatformOptions) =>
+	CoverageAnalyzerLive.pipe(Layer.provideMerge(PlatformLive(options)));

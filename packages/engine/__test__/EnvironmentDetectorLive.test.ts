@@ -1,15 +1,22 @@
-import type { Environment } from "@vitest-agent/sdk";
-import { Effect, Layer } from "effect";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { EnvironmentDetectorLive } from "../src/layers/EnvironmentDetectorLive.js";
+import { Effect } from "effect";
+import { describe, expect, it } from "vitest";
+import { EnvironmentDetectorLive, classifyEnvironment } from "../src/layers/EnvironmentDetectorLive.js";
 import { EnvironmentDetector } from "../src/services/EnvironmentDetector.js";
 
-const run = <A, E>(effect: Effect.Effect<A, E, EnvironmentDetector>) =>
-	Effect.runPromise(Effect.provide(effect, EnvironmentDetectorLive));
+type Env = Record<string, string | undefined>;
+
+const run = <A, E>(effect: Effect.Effect<A, E, EnvironmentDetector>, env: Env = {}) =>
+	Effect.runPromise(Effect.provide(effect, EnvironmentDetectorLive(env)));
+
+const detect = (env: Env) =>
+	run(
+		Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
+		env,
+	);
 
 describe("EnvironmentDetectorLive", () => {
 	it("returns environment as one of the four types", async () => {
-		const env = await run(Effect.flatMap(EnvironmentDetector, (d) => d.detect()));
+		const env = await detect({});
 		expect(["agent-shell", "terminal", "ci-github", "ci-generic"]).toContain(env);
 	});
 
@@ -23,79 +30,35 @@ describe("EnvironmentDetectorLive", () => {
 		expect(result === undefined || typeof result === "string").toBe(true);
 	});
 
-	describe("CI detection (via test layer with isAgent=false)", () => {
-		afterEach(() => {
-			vi.unstubAllEnvs();
+	// CI detection reads only the injected env map; `std-env`'s `isAgent` is
+	// process-global and wins first, so the CI branches are exercised through
+	// the pure classifier with the agent probe forced off.
+	describe("CI detection from the injected env (classifyEnvironment, agent off)", () => {
+		it("detects ci-github when GITHUB_ACTIONS=true", () => {
+			expect(classifyEnvironment({ GITHUB_ACTIONS: "true", CI: "true" }, false)).toBe("ci-github");
 		});
 
-		/**
-		 * Build a test layer that simulates a non-agent environment so we can
-		 * exercise the CI detection branches that are unreachable when isAgent=true.
-		 */
-		const makeNonAgentLayer = (): Layer.Layer<EnvironmentDetector> =>
-			Layer.succeed(EnvironmentDetector, {
-				detect: () =>
-					Effect.sync((): Environment => {
-						const isGitHub = process.env.GITHUB_ACTIONS === "true" || process.env.GITHUB_ACTIONS === "1";
-						const isCI = isGitHub || process.env.CI === "true";
-						if (isGitHub) return "ci-github";
-						if (isCI) return "ci-generic";
-						return "terminal";
-					}),
-				isAgent: Effect.sync(() => false),
-				agentName: Effect.sync(() => undefined),
-			});
-
-		it("detects ci-github when GITHUB_ACTIONS=true", async () => {
-			vi.stubEnv("GITHUB_ACTIONS", "true");
-			vi.stubEnv("CI", "true");
-			const layer = makeNonAgentLayer();
-			const env = await Effect.runPromise(
-				Effect.provide(
-					Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
-					layer,
-				),
-			);
-			expect(env).toBe("ci-github");
+		it("detects ci-github when GITHUB_ACTIONS=1", () => {
+			expect(classifyEnvironment({ GITHUB_ACTIONS: "1", CI: "true" }, false)).toBe("ci-github");
 		});
 
-		it("detects ci-github when GITHUB_ACTIONS=1", async () => {
-			vi.stubEnv("GITHUB_ACTIONS", "1");
-			vi.stubEnv("CI", "true");
-			const layer = makeNonAgentLayer();
-			const env = await Effect.runPromise(
-				Effect.provide(
-					Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
-					layer,
-				),
-			);
-			expect(env).toBe("ci-github");
+		it("detects ci-generic when CI=true but GITHUB_ACTIONS is absent", () => {
+			expect(classifyEnvironment({ GITHUB_ACTIONS: "", CI: "true" }, false)).toBe("ci-generic");
 		});
 
-		it("detects ci-generic when CI=true but GITHUB_ACTIONS is absent", async () => {
-			vi.stubEnv("GITHUB_ACTIONS", "");
-			vi.stubEnv("CI", "true");
-			const layer = makeNonAgentLayer();
-			const env = await Effect.runPromise(
-				Effect.provide(
-					Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
-					layer,
-				),
-			);
-			expect(env).toBe("ci-generic");
+		it("detects terminal when neither CI nor GITHUB_ACTIONS is set", () => {
+			expect(classifyEnvironment({ GITHUB_ACTIONS: "", CI: "" }, false)).toBe("terminal");
 		});
 
-		it("detects terminal when neither CI nor GITHUB_ACTIONS is set", async () => {
-			vi.stubEnv("GITHUB_ACTIONS", "");
-			vi.stubEnv("CI", "");
-			const layer = makeNonAgentLayer();
-			const env = await Effect.runPromise(
-				Effect.provide(
-					Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
-					layer,
-				),
-			);
-			expect(env).toBe("terminal");
+		it("agent shell wins over CI", () => {
+			expect(classifyEnvironment({ GITHUB_ACTIONS: "true", CI: "true" }, true)).toBe("agent-shell");
 		});
+	});
+
+	it("does not read process.env — a CI process env is invisible when the injected map is empty", async () => {
+		// Whatever the host process env says, an empty map can only yield
+		// "terminal" or "agent-shell" (the std-env agent probe is process-global).
+		const env = await detect({});
+		expect(["terminal", "agent-shell"]).toContain(env);
 	});
 });

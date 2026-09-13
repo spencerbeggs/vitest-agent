@@ -11,7 +11,6 @@
  * @packageDocumentation
  */
 
-export { CliLive } from "./layers/CliLive.js";
 export { SidecarLive, type SidecarPaths } from "./layers/SidecarLive.js";
 export {
 	type RegisterAgentInput,
