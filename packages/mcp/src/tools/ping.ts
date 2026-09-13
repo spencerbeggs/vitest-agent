@@ -8,7 +8,8 @@
  * @packageDocumentation
  */
 
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
+import { Tool } from "effect/unstable/ai";
 import { publicProcedure } from "../context.js";
 
 export const PingResult = Schema.Struct({
@@ -23,3 +24,27 @@ export const PingResult = Schema.Struct({
 export type PingResultType = Schema.Schema.Type<typeof PingResult>;
 
 export const ping = publicProcedure.query(async (): Promise<PingResultType> => ({ message: "pong" as const }));
+
+/**
+ * The Effect-native `ping` tool. No parameters (the default
+ * `Tool.EmptyParams` serves as a strict empty object; `Schema.Struct({})`
+ * would serialize to a non-object JSON Schema that MCP rejects).
+ *
+ * @public
+ */
+export const pingTool = Tool.make("ping", {
+	description: "Ping the MCP server — returns 'pong'. Used to verify hot-patch reload.",
+	success: PingResult,
+})
+	.annotate(Tool.Title, "Ping")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true);
+
+/**
+ * Handler for {@link pingTool}.
+ *
+ * @public
+ */
+export const handlePing = (): Effect.Effect<PingResultType> => Effect.succeed({ message: "pong" as const });

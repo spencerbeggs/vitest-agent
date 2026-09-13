@@ -1,4 +1,6 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 export const HelpResult = Schema.Struct({
@@ -151,3 +153,29 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 `;
 
 export const help = publicProcedure.query((): HelpResultType => ({ helpText: HELP_TEXT }));
+
+/**
+ * The Effect-native `help` tool. Renders the help markdown as the text
+ * channel via `RenderText` while `structuredContent.helpText` carries the
+ * same string for programmatic readers.
+ *
+ * @public
+ */
+export const helpTool = Tool.make("help", {
+	description:
+		"List all available MCP tools with parameters. Read structuredContent.helpText programmatically; the same markdown lives in content[].text.",
+	success: HelpResult,
+})
+	.annotate(Tool.Title, "Help")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => (encoded as HelpResultType).helpText);
+
+/**
+ * Handler for {@link helpTool}.
+ *
+ * @public
+ */
+export const handleHelp = (): Effect.Effect<HelpResultType> => Effect.succeed({ helpText: HELP_TEXT });
