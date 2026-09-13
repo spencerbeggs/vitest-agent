@@ -16,24 +16,16 @@ import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-age
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
+import { createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
 import { buildMcpServer } from "../src/server.js";
 import { formatTestMarkdown } from "../src/tools/test.js";
+import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
-const makeCaller = () => {
-	const factory = createCallerFactory(appRouter);
-	return factory({
-		runtime: testRuntime as unknown as McpContext["runtime"],
-		cwd: process.cwd(),
-		currentSessionId: createCurrentSessionIdRef(),
-		sessionContext: createSessionContextRef(),
-	});
-};
+const caller = makeCaller(testRuntime);
 
 afterAll(async () => {
 	await testRuntime.dispose();
@@ -163,8 +155,7 @@ beforeAll(async () => {
 
 describe("test({ action: 'annotations' })", () => {
 	it("returns an empty, counted payload for a test that recorded nothing", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({ action: "annotations", fullName: "anno > absent", project: PROJECT });
+		const result = await caller("test", { action: "annotations", fullName: "anno > absent", project: PROJECT });
 		expect(result).toEqual({
 			action: "annotations",
 			project: PROJECT,
@@ -175,8 +166,7 @@ describe("test({ action: 'annotations' })", () => {
 	});
 
 	it("returns the recorded annotation with its type, message and location", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({ action: "annotations", fullName: FULL_NAME, project: PROJECT });
+		const result = await caller("test", { action: "annotations", fullName: FULL_NAME, project: PROJECT });
 		if (result.action !== "annotations") throw new Error("expected the annotations variant");
 		expect(result.count).toBe(1);
 		expect(result.annotations[0]?.type).toBe("issues");
@@ -185,8 +175,7 @@ describe("test({ action: 'annotations' })", () => {
 	});
 
 	it("scopes to a modulePath, returning nothing for a module the test does not live in", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({
+		const result = await caller("test", {
 			action: "annotations",
 			fullName: FULL_NAME,
 			project: PROJECT,
@@ -197,8 +186,7 @@ describe("test({ action: 'annotations' })", () => {
 	});
 
 	it("returns the row when the modulePath matches", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({
+		const result = await caller("test", {
 			action: "annotations",
 			fullName: FULL_NAME,
 			project: PROJECT,
@@ -211,8 +199,7 @@ describe("test({ action: 'annotations' })", () => {
 
 describe("test({ action: 'artifacts' })", () => {
 	it("returns attachment descriptors carrying path and byteSize and no inline body", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({ action: "artifacts", fullName: FULL_NAME, project: PROJECT });
+		const result = await caller("test", { action: "artifacts", fullName: FULL_NAME, project: PROJECT });
 		if (result.action !== "artifacts") throw new Error("expected the artifacts variant");
 		expect(result.count).toBe(1);
 		const artifact = result.artifacts[0];
@@ -233,8 +220,7 @@ describe("test({ action: 'artifacts' })", () => {
 	});
 
 	it("returns an empty, counted payload for a test that recorded nothing", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({ action: "artifacts", fullName: "anno > absent", project: PROJECT });
+		const result = await caller("test", { action: "artifacts", fullName: "anno > absent", project: PROJECT });
 		expect(result).toEqual({
 			action: "artifacts",
 			project: PROJECT,
@@ -247,8 +233,7 @@ describe("test({ action: 'artifacts' })", () => {
 
 describe("inline attachment bodies are gated behind maxBytes", () => {
 	it("omits every stored body by default", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({ action: "annotations", fullName: FULL_NAME, project: PROJECT });
+		const result = await caller("test", { action: "annotations", fullName: FULL_NAME, project: PROJECT });
 		if (result.action !== "annotations") throw new Error("expected the annotations variant");
 		const attachments = result.annotations[0]?.attachments ?? [];
 		expect(attachments).toHaveLength(2);
@@ -262,8 +247,7 @@ describe("inline attachment bodies are gated behind maxBytes", () => {
 	});
 
 	it("includes every body when the budget covers them all", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({
+		const result = await caller("test", {
 			action: "annotations",
 			fullName: FULL_NAME,
 			project: PROJECT,
@@ -277,10 +261,9 @@ describe("inline attachment bodies are gated behind maxBytes", () => {
 	});
 
 	it("spends the budget cumulatively: the first body fits, the second does not", async () => {
-		const caller = makeCaller();
 		// Each body is 4 bytes and the budget is 5: either one fits alone,
 		// but only the first fits once the running total is charged.
-		const result = await caller.test({
+		const result = await caller("test", {
 			action: "annotations",
 			fullName: FULL_NAME,
 			project: PROJECT,
@@ -295,8 +278,7 @@ describe("inline attachment bodies are gated behind maxBytes", () => {
 	});
 
 	it("gates artifact bodies through the same budget", async () => {
-		const caller = makeCaller();
-		const result = await caller.test({
+		const result = await caller("test", {
 			action: "artifacts",
 			fullName: FULL_NAME,
 			project: PROJECT,
@@ -313,8 +295,7 @@ describe("inline attachment bodies are gated behind maxBytes", () => {
 
 describe("test_errors carries the failing test's annotations", () => {
 	it("attaches the recorded annotations to the error row and leaves other scopes empty", async () => {
-		const caller = makeCaller();
-		const result = await caller.test_errors({ project: ERROR_PROJECT });
+		const result = await caller("test_errors", { project: ERROR_PROJECT });
 		expect(result.count).toBe(2);
 		const testScoped = result.errors.find((e) => e.scope === "test");
 		expect(testScoped?.annotations).toEqual([

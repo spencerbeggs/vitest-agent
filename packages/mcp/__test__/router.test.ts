@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import type { McpContext } from "../src/context.js";
 import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
 import { appRouter } from "../src/router.js";
+import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
 // Fault-injection hook for the "mkdtempSync throws" coverage-dir test below.
@@ -35,6 +36,8 @@ vi.mock("node:fs", async (importOriginal) => {
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
+/** The Effect-native caller for the 18 read-only tools; the tRPC caller below remains for the tools Task 16 ports. */
+const call = makeCaller(testRuntime);
 
 function createTestCaller(cwd: string = process.cwd(), initialSessionId: string | null = null) {
 	const factory = createCallerFactory(appRouter);
@@ -172,29 +175,25 @@ describe("MCP Router", () => {
 	});
 
 	it("test_status returns dataAvailable=false on empty DB", async () => {
-		const caller = createTestCaller();
-		const result = await caller.test_status({});
+		const result = await call("test_status", {});
 		expect(result.dataAvailable).toBe(false);
 	});
 
 	it("cache_health returns structured diagnostic on empty DB", async () => {
-		const caller = createTestCaller();
-		const result = (await caller.cache_health()) as { manifestPresent: boolean };
+		const result = (await call("cache_health", undefined)) as { manifestPresent: boolean };
 		expect(typeof result).toBe("object");
 		// On an empty DB the manifest hasn't been written yet.
 		expect(result.manifestPresent).toBe(false);
 	});
 
 	it("test_overview returns dataAvailable=false on empty DB", async () => {
-		const caller = createTestCaller();
-		const result = await caller.test_overview({});
+		const result = await call("test_overview", {});
 		expect(result.dataAvailable).toBe(false);
 	});
 
 	it("configure returns structured settings when no hash provided", async () => {
 		await seedTestData();
-		const caller = createTestCaller();
-		const result = (await caller.configure({})) as {
+		const result = (await call("configure", {})) as {
 			found: boolean;
 			source: string;
 			settings?: { hash: string };
@@ -301,8 +300,7 @@ describe("MCP Router", () => {
 	});
 
 	it("test for_file returns count=0 and an empty testFiles[] for unknown file", async () => {
-		const caller = createTestCaller();
-		const result = await caller.test({ action: "for_file", filePath: "nonexistent.ts" });
+		const result = await call("test", { action: "for_file", filePath: "nonexistent.ts" });
 		expect(result.action).toBe("for_file");
 		if (result.action === "for_file") {
 			expect(result.count).toBe(0);
@@ -311,8 +309,7 @@ describe("MCP Router", () => {
 	});
 
 	it("test_coverage returns coverage data after seeding", async () => {
-		const caller = createTestCaller();
-		const result = await caller.test_coverage({ project: "default" });
+		const result = await call("test_coverage", { project: "default" });
 		expect(result.dataAvailable).toBe(true);
 		if (result.dataAvailable) {
 			expect(result.project).toBe("default");
@@ -385,39 +382,33 @@ describe("MCP Router", () => {
 	});
 
 	it("inventory project returns the inventoryKind discriminant", async () => {
-		const caller = createTestCaller();
-		const result = await caller.inventory({ kind: "project" });
+		const result = await call("inventory", { kind: "project" });
 		expect(result.inventoryKind).toBe("project");
 	});
 
 	it("test list returns a structured groups envelope", async () => {
-		const caller = createTestCaller();
-		const result = await caller.test({ action: "list", project: "default" });
+		const result = await call("test", { action: "list", project: "default" });
 		expect(result.action).toBe("list");
 	});
 
 	it("inventory module returns the inventoryKind discriminant", async () => {
-		const caller = createTestCaller();
-		const result = await caller.inventory({ kind: "module", project: "default" });
+		const result = await call("inventory", { kind: "module", project: "default" });
 		expect(result.inventoryKind).toBe("module");
 	});
 
 	it("inventory suite returns the inventoryKind discriminant", async () => {
-		const caller = createTestCaller();
-		const result = await caller.inventory({ kind: "suite", project: "default" });
+		const result = await call("inventory", { kind: "suite", project: "default" });
 		expect(result.inventoryKind).toBe("suite");
 	});
 
 	it("settings_list returns count and the captured settings rows", async () => {
-		const caller = createTestCaller();
-		const result = await caller.settings_list({});
+		const result = await call("settings_list", undefined);
 		expect(result.count).toBeGreaterThan(0);
 		expect(result.settings[0]?.hash.length).toBeGreaterThan(0);
 	});
 
 	it("test get returns the structured test row for a known test", async () => {
-		const caller = createTestCaller();
-		const result = await caller.test({ action: "get", fullName: "utils > adds numbers", project: "default" });
+		const result = await call("test", { action: "get", fullName: "utils > adds numbers", project: "default" });
 		expect(result.action).toBe("get");
 		if (result.action === "get" && result.found) {
 			expect(result.test.fullName).toBe("utils > adds numbers");
@@ -427,8 +418,7 @@ describe("MCP Router", () => {
 	});
 
 	it("test get returns found=false for an unknown test", async () => {
-		const caller = createTestCaller();
-		const result = await caller.test({ action: "get", fullName: "nonexistent > test", project: "default" });
+		const result = await call("test", { action: "get", fullName: "nonexistent > test", project: "default" });
 		expect(result.action).toBe("get");
 		if (result.action === "get") expect(result.found).toBe(false);
 	});
@@ -505,8 +495,7 @@ describe("MCP Router", () => {
 			}),
 		);
 
-		const caller = createTestCaller();
-		const result = await caller.test({ action: "get", fullName: "Suite > shared", project });
+		const result = await call("test", { action: "get", fullName: "Suite > shared", project });
 		expect(result.action).toBe("get");
 		if (result.action === "get" && result.found) {
 			expect(result.test.module).toBe("src/zzz-real.test.ts");
@@ -576,8 +565,7 @@ describe("MCP Router", () => {
 
 	it("test get refuses to guess when a fullName exists in more than one module", async () => {
 		await seedAmbiguousFullName();
-		const caller = createTestCaller();
-		const result = await caller.test({ action: "get", fullName: "Suite > shared", project: AMBIGUOUS_PROJECT });
+		const result = await call("test", { action: "get", fullName: "Suite > shared", project: AMBIGUOUS_PROJECT });
 
 		expect(result.action).toBe("get");
 		if (result.action !== "get" || result.found) {
@@ -590,9 +578,8 @@ describe("MCP Router", () => {
 
 	it("test get returns the requested variant when modulePath disambiguates", async () => {
 		await seedAmbiguousFullName();
-		const caller = createTestCaller();
 
-		const second = await caller.test({
+		const second = await call("test", {
 			action: "get",
 			fullName: "Suite > shared",
 			project: AMBIGUOUS_PROJECT,
@@ -610,7 +597,7 @@ describe("MCP Router", () => {
 
 		// The other direction too, so this cannot pass by picking whichever
 		// row the unfiltered ORDER BY happens to surface first.
-		const first = await caller.test({
+		const first = await call("test", {
 			action: "get",
 			fullName: "Suite > shared",
 			project: AMBIGUOUS_PROJECT,
@@ -628,15 +615,13 @@ describe("MCP Router", () => {
 	});
 
 	it("file_coverage returns dataAvailable=true for the tracked project", async () => {
-		const caller = createTestCaller();
-		const result = await caller.file_coverage({ filePath: "src/utils.ts", project: "default" });
+		const result = await call("file_coverage", { filePath: "src/utils.ts", project: "default" });
 		expect(result.dataAvailable).toBe(true);
 		if (result.dataAvailable) expect(result.filePath).toBe("src/utils.ts");
 	});
 
 	it("file_coverage returns matched=false for an unknown file", async () => {
-		const caller = createTestCaller();
-		const result = await caller.file_coverage({ filePath: "nonexistent.ts", project: "default" });
+		const result = await call("file_coverage", { filePath: "nonexistent.ts", project: "default" });
 		expect(result.dataAvailable).toBe(true);
 		if (result.dataAvailable) {
 			expect(result.matched).toBe(false);
@@ -1058,8 +1043,7 @@ describe("MCP Router", () => {
 
 	describe("triage_brief tool", () => {
 		it("renders either the cold-start hint or a real triage brief depending on prior seeding", async () => {
-			const caller = createTestCaller();
-			const result = await caller.triage_brief({});
+			const result = await call("triage_brief", {});
 			// The shared runtime may carry seed data from prior tests, so
 			// either branch of `hasContent` is acceptable; we assert the
 			// markdown body matches one of the two expected shapes.
@@ -1067,9 +1051,8 @@ describe("MCP Router", () => {
 		});
 
 		it("includes content when test runs are seeded", async () => {
-			const caller = createTestCaller();
 			await seedTestData();
-			const result = await caller.triage_brief({});
+			const result = await call("triage_brief", {});
 			expect(result.hasContent).toBe(true);
 			expect(result.markdown.length).toBeGreaterThan(0);
 		});
@@ -1152,8 +1135,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const result = await caller.test_history({ project: "history-recovered-proj" });
+			const result = await call("test_history", { project: "history-recovered-proj" });
 
 			expect(result.history.tests).toHaveLength(2);
 			const moduleAEntry = result.history.tests.find((t) => t.modulePath === "src/a.test.ts");
@@ -1222,8 +1204,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const result = await caller.test_history({ project: "history-testname-proj", testName: "Suite > test one" });
+			const result = await call("test_history", { project: "history-testname-proj", testName: "Suite > test one" });
 
 			expect(result.history.tests).toHaveLength(1);
 			expect(result.history.tests[0]?.fullName).toBe("Suite > test one");
@@ -1277,54 +1258,48 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-
-			const unscoped = await caller.test_history({ project });
+			const unscoped = await call("test_history", { project });
 			expect(unscoped.hasData).toBe(true);
 			expect(unscoped.flaky.length).toBeGreaterThan(0);
 			expect(unscoped.persistent.length).toBeGreaterThan(0);
 
-			const scoped = await caller.test_history({ project, testName: "Suite > never ran" });
+			const scoped = await call("test_history", { project, testName: "Suite > never ran" });
 			expect(scoped.history.tests).toHaveLength(0);
 			expect(scoped.flaky).toHaveLength(0);
 			expect(scoped.persistent).toHaveLength(0);
 			expect(scoped.hasData).toBe(false);
 
 			// Not over-scoped: asking for the decoy still yields its rows.
-			const scopedToDecoy = await caller.test_history({ project, modulePath: "src/decoy.test.ts" });
+			const scopedToDecoy = await call("test_history", { project, modulePath: "src/decoy.test.ts" });
 			expect(scopedToDecoy.hasData).toBe(true);
 			expect(scopedToDecoy.flaky.map((f) => f.fullName)).toEqual(["Suite > decoy"]);
 			expect(scopedToDecoy.persistent.map((p) => p.fullName)).toEqual(["Suite > decoy"]);
 		});
 
 		it("rejects a non-positive or fractional limit instead of silently returning empty history", async () => {
-			const caller = createTestCaller();
 			for (const limit of [0, -1, 2.5, Number.NaN]) {
 				await expect(
-					caller.test_history({ project: "history-testname-proj", limit }),
+					call("test_history", { project: "history-testname-proj", limit }),
 					`limit=${limit} should be rejected`,
 				).rejects.toThrow();
 			}
 		});
 
 		it("still accepts a valid positive integer limit", async () => {
-			const caller = createTestCaller();
-			const result = await caller.test_history({ project: "history-testname-proj", limit: 5 });
+			const result = await call("test_history", { project: "history-testname-proj", limit: 5 });
 			expect(result.project).toBe("history-testname-proj");
 		});
 	});
 
 	describe("wrapup_prompt tool", () => {
 		it("returns hasContent=false for an unknown session", async () => {
-			const caller = createTestCaller();
-			const result = await caller.wrapup_prompt({});
+			const result = await call("wrapup_prompt", {});
 			expect(result.hasContent).toBe(false);
 			expect(result.markdown).toMatch(/Nothing to wrap up|no recent activity/i);
 		});
 
 		it("emits a failure-prompt nudge for the user_prompt_nudge variant", async () => {
-			const caller = createTestCaller();
-			const result = await caller.wrapup_prompt({
+			const result = await call("wrapup_prompt", {
 				kind: "user_prompt_nudge",
 				userPromptHint: "fix the broken test in foo.test.ts",
 			});
@@ -1393,8 +1368,7 @@ describe("MCP Router", () => {
 
 	describe("commit_changes tool", () => {
 		it("returns count=0 and an empty commits[] on empty DB", async () => {
-			const caller = createTestCaller();
-			const r = (await caller.commit_changes({})) as { count: number; commits: ReadonlyArray<unknown> };
+			const r = (await call("commit_changes", {})) as { count: number; commits: ReadonlyArray<unknown> };
 			expect(r.count).toBe(0);
 			expect(r.commits).toEqual([]);
 		});

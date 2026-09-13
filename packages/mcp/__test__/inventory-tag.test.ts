@@ -12,25 +12,15 @@
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
 import type { InventoryResultType } from "../src/tools/inventory.js";
 import { InventoryResult, formatInventoryMarkdown } from "../src/tools/inventory.js";
+import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
-const makeCaller = () => {
-	const factory = createCallerFactory(appRouter);
-	return factory({
-		runtime: testRuntime as unknown as McpContext["runtime"],
-		cwd: process.cwd(),
-		currentSessionId: createCurrentSessionIdRef(),
-		sessionContext: createSessionContextRef(),
-	});
-};
+const caller = makeCaller(testRuntime);
 
 afterAll(async () => {
 	await testRuntime.dispose();
@@ -122,8 +112,7 @@ beforeAll(async () => {
 
 describe("inventory({ kind: 'tag' }) — scoped", () => {
 	it("returns inventoryKind 'tag_scoped' with the project name and per-tag rows", async () => {
-		const caller = makeCaller();
-		const result = (await caller.inventory({ kind: "tag", project: "proj-a" })) as InventoryResultType;
+		const result = (await caller("inventory", { kind: "tag", project: "proj-a" })) as InventoryResultType;
 		expect(result.inventoryKind).toBe("tag_scoped");
 		if (result.inventoryKind !== "tag_scoped") return;
 		expect(result.project).toBe("proj-a");
@@ -138,8 +127,7 @@ describe("inventory({ kind: 'tag' }) — scoped", () => {
 
 	it("returns an empty tag list for a project with no tagged tests", async () => {
 		// Use a project name that does not appear in the seeded fixture.
-		const caller = makeCaller();
-		const result = (await caller.inventory({ kind: "tag", project: "proj-nonexistent" })) as InventoryResultType;
+		const result = (await caller("inventory", { kind: "tag", project: "proj-nonexistent" })) as InventoryResultType;
 		expect(result.inventoryKind).toBe("tag_scoped");
 		if (result.inventoryKind !== "tag_scoped") return;
 		expect(result.project).toBe("proj-nonexistent");
@@ -150,8 +138,7 @@ describe("inventory({ kind: 'tag' }) — scoped", () => {
 
 describe("inventory({ kind: 'tag' }) — unscoped", () => {
 	it("returns inventoryKind 'tag_unscoped' and carries a byProject breakdown per tag", async () => {
-		const caller = makeCaller();
-		const result = (await caller.inventory({ kind: "tag" })) as InventoryResultType;
+		const result = (await caller("inventory", { kind: "tag" })) as InventoryResultType;
 		expect(result.inventoryKind).toBe("tag_unscoped");
 		if (result.inventoryKind !== "tag_unscoped") return;
 		expect(result.count).toBeGreaterThanOrEqual(2);

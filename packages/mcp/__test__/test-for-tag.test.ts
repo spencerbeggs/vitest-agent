@@ -8,25 +8,15 @@
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
 import type { TestResultType } from "../src/tools/test.js";
 import { TestResult, formatTestMarkdown } from "../src/tools/test.js";
+import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
-const makeCaller = () => {
-	const factory = createCallerFactory(appRouter);
-	return factory({
-		runtime: testRuntime as unknown as McpContext["runtime"],
-		cwd: process.cwd(),
-		currentSessionId: createCurrentSessionIdRef(),
-		sessionContext: createSessionContextRef(),
-	});
-};
+const caller = makeCaller(testRuntime);
 
 afterAll(async () => {
 	await testRuntime.dispose();
@@ -117,8 +107,7 @@ beforeAll(async () => {
 
 describe("test({ action: 'for_tag' }) — unscoped", () => {
 	it("groups all int-tagged tests by project across the latest run of each project", async () => {
-		const caller = makeCaller();
-		const result = (await caller.test({ action: "for_tag", tag: "int" })) as TestResultType;
+		const result = (await caller("test", { action: "for_tag", tag: "int" })) as TestResultType;
 		expect(result.action).toBe("for_tag");
 		if (result.action !== "for_tag") return;
 		expect(result.tag).toBe("int");
@@ -134,8 +123,7 @@ describe("test({ action: 'for_tag' }) — unscoped", () => {
 
 describe("test({ action: 'for_tag' }) — project scoped", () => {
 	it("returns a single group when project is supplied", async () => {
-		const caller = makeCaller();
-		const result = (await caller.test({ action: "for_tag", tag: "int", project: "proj-alpha" })) as TestResultType;
+		const result = (await caller("test", { action: "for_tag", tag: "int", project: "proj-alpha" })) as TestResultType;
 		expect(result.action).toBe("for_tag");
 		if (result.action !== "for_tag") return;
 		expect(result.count).toBe(2);
@@ -145,8 +133,7 @@ describe("test({ action: 'for_tag' }) — project scoped", () => {
 	});
 
 	it("returns empty groups when the tag does not match any test in the project", async () => {
-		const caller = makeCaller();
-		const result = (await caller.test({
+		const result = (await caller("test", {
 			action: "for_tag",
 			tag: "nonexistent",
 			project: "proj-alpha",

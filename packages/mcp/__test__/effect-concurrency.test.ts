@@ -1,9 +1,7 @@
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
+import { makeCaller } from "./utils/caller.js";
 
 const waitForSchedulingTurn = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 25));
 
@@ -17,13 +15,7 @@ const makeGate = (): { readonly wait: Promise<void>; readonly release: () => voi
 
 const createTestCaller = (reader: DataReader["Service"]) => {
 	const runtime = ManagedRuntime.make(Layer.succeed(DataReader, DataReader.of(reader)));
-	const caller = createCallerFactory(appRouter)({
-		runtime: runtime as unknown as McpContext["runtime"],
-		cwd: process.cwd(),
-		currentSessionId: createCurrentSessionIdRef(),
-		sessionContext: createSessionContextRef(),
-	});
-	return { caller, runtime };
+	return { caller: makeCaller(runtime), runtime };
 };
 
 describe("MCP tool Effect concurrency", () => {
@@ -46,7 +38,7 @@ describe("MCP tool Effect concurrency", () => {
 				}),
 		} as unknown as DataReader["Service"]);
 
-		const pending = caller.test_overview({});
+		const pending = caller("test_overview", {});
 		try {
 			await waitForSchedulingTurn();
 			expect(manifestStarted).toBe(true);
@@ -92,7 +84,7 @@ describe("MCP tool Effect concurrency", () => {
 				}),
 		} as unknown as DataReader["Service"]);
 
-		const pending = caller.test_history({ project: "parallel-project" });
+		const pending = caller("test_history", { project: "parallel-project" });
 		try {
 			await waitForSchedulingTurn();
 			expect(historyStarted).toBe(true);

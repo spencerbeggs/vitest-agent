@@ -1,23 +1,14 @@
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { describe, expect, it } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
+import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 
 function createTestCaller() {
 	const runtime = ManagedRuntime.make(TestLayer);
-	const factory = createCallerFactory(appRouter);
-	const caller = factory({
-		runtime: runtime as unknown as McpContext["runtime"],
-		cwd: process.cwd(),
-		currentSessionId: createCurrentSessionIdRef(),
-		sessionContext: createSessionContextRef(),
-	});
-	return { caller, runtime };
+	return { caller: makeCaller(runtime), runtime };
 }
 
 async function seedFailureSignature(
@@ -60,7 +51,7 @@ describe("failure_signature_get structured payload", () => {
 			const hash = "abc123def456cafe";
 			await seedFailureSignature(runtime as unknown as ManagedRuntime.ManagedRuntime<DataStore, never>, hash);
 
-			const result = await caller.failure_signature_get({ hash });
+			const result = await caller("failure_signature_get", { hash });
 
 			expect(result.found).toBe(true);
 			if (result.found) expect(result.signatureHash).toBe(hash);
