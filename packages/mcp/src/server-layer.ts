@@ -6,7 +6,7 @@
 
 import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/engine";
 import type { Stdio } from "effect";
-import { Layer } from "effect";
+import { Layer, Logger } from "effect";
 import { McpProtocol, McpServer } from "effect/unstable/ai";
 import { registerStrictToolkit } from "./register-toolkit.js";
 import type { McpSession } from "./session.js";
@@ -61,5 +61,10 @@ export const ServerLayer = (
 				protocols: [McpProtocol.v2025_11_25, McpProtocol.v2025_06_18, McpProtocol.v2025_03_26],
 			}),
 		),
+		// Effect's default logger writes to stdout unless this reference is
+		// set — and stdout is the JSON-RPC wire. Every tool defect is logged
+		// (`registerStrictToolkit`) and the stdio protocol logs stdin errors,
+		// so this is mandatory, not cosmetic. The bin may provide it again.
+		Layer.provide(Layer.succeed(Logger.LogToStderr, true)),
 		Layer.orDie,
 	);

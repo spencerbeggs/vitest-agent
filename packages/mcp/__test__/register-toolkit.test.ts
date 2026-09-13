@@ -122,3 +122,42 @@ describe("collectUnknownKeys", () => {
 		expect(collectUnknownKeys({ bogus: 1 }, schema)).toEqual([{ path: [], unknown: ["bogus"], accepted: [] }]);
 	});
 });
+
+const Identified = Schema.Struct({
+	project: Schema.optionalKey(Schema.String),
+}).annotate({ identifier: "IdentifiedParams" });
+
+const IdentifiedUnion = Schema.Union([
+	Schema.Struct({ action: Schema.Literal("list"), project: Schema.optionalKey(Schema.String) }).annotate({
+		identifier: "ListParams",
+	}),
+	Schema.Struct({ action: Schema.Literal("get"), id: Schema.Number }).annotate({ identifier: "GetParams" }),
+]);
+
+describe("strictifyJsonSchema with $ref roots (identifier annotations)", () => {
+	it("inlines a $ref root so an identified Struct serves as a strict object", () => {
+		const raw = Tool.getJsonSchema(Tool.make("t", { parameters: Identified })) as JsonObject;
+		expect(raw.$ref).toBe("#/$defs/IdentifiedParams");
+		const schema = strictifyJsonSchema(raw);
+		expect(schema.$ref).toBeUndefined();
+		expect(schema.type).toBe("object");
+		expect(schema.additionalProperties).toBe(false);
+		expect(Object.keys(schema.properties as JsonObject)).toEqual(["project"]);
+	});
+
+	it("inlines $ref union members and rewrites the union to oneOf + x-discriminator", () => {
+		const schema = served(IdentifiedUnion);
+		expect(schema.type).toBe("object");
+		expect(schema["x-discriminator"]).toBe("action");
+		expect((schema.oneOf as Array<JsonObject>).every((m) => m.$ref === undefined && m.type === "object")).toBe(true);
+		expect(nonStrictObjectPaths(schema)).toEqual([]);
+	});
+
+	it("rejects an unknown key in the branch an identified union selects", () => {
+		const schema = served(IdentifiedUnion);
+		expect(collectUnknownKeys({ action: "get", id: 1, project: "x" }, schema)).toEqual([
+			{ path: [], unknown: ["project"], accepted: ["action", "id"] },
+		]);
+		expect(collectUnknownKeys({ action: "list", project: "x" }, schema)).toEqual([]);
+	});
+});

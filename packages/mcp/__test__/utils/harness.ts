@@ -14,7 +14,7 @@
 import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import type { Cause, Scope } from "effect";
-import { Deferred, Effect, Layer, Logger, Queue, References, Sink, Stdio, Stream } from "effect";
+import { Console, Deferred, Effect, Layer, Logger, Queue, References, Sink, Stdio, Stream } from "effect";
 import { ServerLayer } from "../../src/server-layer.js";
 import { McpSession } from "../../src/session.js";
 
@@ -43,8 +43,12 @@ export interface McpHarness {
 	readonly listTools: Effect.Effect<ReadonlyArray<McpToolDescriptor>>;
 	/** `tools/call`; resolves to the `CallToolResult`, or dies on a JSON-RPC error. */
 	readonly callTool: (name: string, args?: unknown) => Effect.Effect<unknown>;
-	/** Every stderr chunk (and Effect log line) written so far. */
+	/** Every stderr chunk (and Effect log line, or `console.error` call under the default logger) written so far. */
 	readonly stderrSoFar: Effect.Effect<ReadonlyArray<string>>;
+	/** Every raw stdout chunk written so far (the JSON-RPC wire, unparsed). */
+	readonly rawStdoutSoFar: Effect.Effect<ReadonlyArray<string>>;
+	/** Every `console.log` call the server made (should stay empty — stdout is the wire). */
+	readonly consoleLogSoFar: Effect.Effect<ReadonlyArray<string>>;
 	/** Simulates stdin EOF. */
 	readonly close: Effect.Effect<void>;
 }
@@ -53,6 +57,13 @@ export interface HarnessOptions {
 	/** Extra already-provided layers (e.g. a throwaway `registerStrictToolkit` for a test tool). */
 	readonly extraLayers?: ReadonlyArray<Layer.Layer<never>> | undefined;
 	readonly serverVersion?: string | undefined;
+	/**
+	 * Keep Effect's DEFAULT logger (which writes through the `Console`
+	 * reference) instead of the harness's stderr-buffer logger, with a
+	 * captured `Console` so `console.log` vs `console.error` routing is
+	 * observable. This is how `Logger.LogToStderr` is proven.
+	 */
+	readonly useDefaultLogger?: boolean | undefined;
 }
 
 const isJsonRpcMessage = (value: unknown): value is JsonRpcMessage =>
@@ -73,6 +84,8 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		const messages = yield* Queue.unbounded<JsonRpcMessage>();
 		const responseQueues = new Map<string, Queue.Queue<JsonRpcMessage>>();
 		const stderrLines: Array<string> = [];
+		const rawStdout: Array<string> = [];
+		const consoleLog: Array<string> = [];
 		const encoder = new TextEncoder();
 		const stdoutDecoder = new TextDecoder();
 		const stderrDecoder = new TextDecoder();
@@ -88,7 +101,20 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		const stderrLogger = Logger.map(Logger.formatLogFmt, (line) => {
 			stderrLines.push(line);
 		});
-		const loggerLayer = Layer.succeed(References.CurrentLoggers, new Set([stderrLogger]));
+		const format = (args: ReadonlyArray<unknown>) => args.map((a) => (typeof a === "string" ? a : String(a))).join(" ");
+		const capturedConsole: Console.Console = {
+			...globalThis.console,
+			log: (...args) => {
+				consoleLog.push(format(args));
+			},
+			error: (...args) => {
+				stderrLines.push(format(args));
+			},
+		};
+		const loggerLayer =
+			options.useDefaultLogger === true
+				? Layer.succeed(Console.Console, capturedConsole)
+				: Layer.succeed(References.CurrentLoggers, new Set([stderrLogger]));
 
 		// `DataStoreTestLayer` carries the engine's `NodePlatformLayer`, which
 		// provides the REAL process `Stdio`. The queue-backed `stdioLayer` is
@@ -125,7 +151,9 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 			let pending = "";
 			while (true) {
 				const chunk = yield* Queue.take(stdout);
-				pending += typeof chunk === "string" ? chunk : stdoutDecoder.decode(chunk, { stream: true });
+				const text = typeof chunk === "string" ? chunk : stdoutDecoder.decode(chunk, { stream: true });
+				rawStdout.push(text);
+				pending += text;
 				let newline = pending.indexOf("\n");
 				while (newline !== -1) {
 					const line = pending.slice(0, newline);
@@ -185,6 +213,8 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 			listTools,
 			callTool,
 			stderrSoFar: Effect.sync(() => [...stderrLines]),
+			rawStdoutSoFar: Effect.sync(() => [...rawStdout]),
+			consoleLogSoFar: Effect.sync(() => [...consoleLog]),
 			close: Queue.end(stdin).pipe(Effect.asVoid),
 		} satisfies McpHarness;
 	});

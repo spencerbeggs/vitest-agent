@@ -20,6 +20,29 @@ const BoomLayer = registerStrictToolkit(Toolkit.make(boomTool)).pipe(
 	Layer.provide(Toolkit.make(boomTool).toLayer({ boom: () => Effect.die(new Error("kaboom")) })),
 );
 
+class DeclaredFailure extends Schema.TaggedError<DeclaredFailure>()("DeclaredFailure", { message: Schema.String }) {}
+const failingTool = Tool.make("fails", {
+	description: "Throwaway tool with a declared failure.",
+	success: Schema.Struct({ never: Schema.String }),
+	failure: DeclaredFailure,
+});
+const identifiedTool = Tool.make("identified", {
+	description: "Throwaway tool whose parameters carry an identifier annotation.",
+	parameters: Schema.Struct({ project: Schema.optionalKey(Schema.String) }).annotate({
+		identifier: "IdentifiedParams",
+	}),
+	success: Schema.Struct({ ok: Schema.Boolean }),
+});
+const ExtraKit = Toolkit.make(failingTool, identifiedTool);
+const ExtraLayer = registerStrictToolkit(ExtraKit).pipe(
+	Layer.provide(
+		ExtraKit.toLayer({
+			fails: () => Effect.fail(new DeclaredFailure({ message: "declared boom" })),
+			identified: () => Effect.succeed({ ok: true }),
+		}),
+	),
+);
+
 const withHarness = <A>(
 	f: (harness: McpHarness) => Effect.Effect<A>,
 	options?: Parameters<typeof makeHarness>[0],
@@ -143,5 +166,63 @@ describe("ServerLayer over stdio", () => {
 		expect(boomStderr.length).toBeGreaterThan(0);
 		expect(boomStderr.join("\n")).toContain("kaboom");
 		for (const line of boomStderr) expect(line).not.toContain("jsonrpc");
+	});
+
+	it("a declared failure surfaces as isError with the error message and no structuredContent (upstream parity)", async () => {
+		const result = (await withHarness((h) => h.initialize().pipe(Effect.andThen(h.callTool("fails", {}))), {
+			extraLayers: [ExtraLayer],
+		})) as CallToolResult;
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toBeUndefined();
+		expect(result.content[0]?.text).toBe("declared boom");
+	});
+
+	it("an identifier-annotated parameters schema registers and lists as a strict object", async () => {
+		const { tools, result } = await withHarness(
+			(h) =>
+				Effect.gen(function* () {
+					yield* h.initialize();
+					const tools = yield* h.listTools;
+					const result = (yield* h.callTool("identified", { project: "x" })) as CallToolResult;
+					return { tools, result };
+				}),
+			{ extraLayers: [ExtraLayer] },
+		);
+		const tool = tools.find((t) => t.name === "identified") as { inputSchema: Record<string, unknown> };
+		expect(tool.inputSchema.type).toBe("object");
+		expect(tool.inputSchema.additionalProperties).toBe(false);
+		expect(tool.inputSchema.$ref).toBeUndefined();
+		expect(result.structuredContent).toEqual({ ok: true });
+	});
+
+	it("ping lists an outputSchema even though PingResult carries an identifier", async () => {
+		const tools = await withHarness((h) => h.initialize().pipe(Effect.andThen(h.listTools)));
+		const ping = tools.find((t) => t.name === "ping") as { outputSchema?: Record<string, unknown> };
+		expect(ping.outputSchema?.type).toBe("object");
+		expect(ping.outputSchema?.$ref).toBeUndefined();
+	});
+
+	it("routes Effect logs to stderr under the default logger so stdout stays pure JSON-RPC", async () => {
+		const { rawStdout, consoleLog, consoleError } = await withHarness(
+			(h) =>
+				Effect.gen(function* () {
+					yield* h.initialize();
+					yield* h.callTool("boom", {});
+					return {
+						rawStdout: yield* h.rawStdoutSoFar,
+						consoleLog: yield* h.consoleLogSoFar,
+						consoleError: yield* h.stderrSoFar,
+					};
+				}),
+			{ extraLayers: [BoomLayer], useDefaultLogger: true },
+		);
+		const lines = rawStdout
+			.join("")
+			.split("\n")
+			.filter((line) => line.length > 0);
+		expect(lines.length).toBeGreaterThan(0);
+		for (const line of lines) expect(JSON.parse(line).jsonrpc).toBe("2.0");
+		expect(consoleLog).toEqual([]);
+		expect(consoleError.join("\n")).toContain("kaboom");
 	});
 });

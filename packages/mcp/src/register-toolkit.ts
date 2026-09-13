@@ -15,10 +15,14 @@
  *    params, at every object level;
  * 3. renders the dual channel — `structuredContent` = the encoded result,
  *    `content[0].text` = the tool's `RenderText` markdown or the JSON;
- * 4. maps a handler defect or non-declared failure to the
+ * 4. maps a declared, `Error`-shaped failure to `{ isError: true,
+ *    content: [{ text: error.message }] }` exactly as Effect's own
+ *    `registerToolkit` does, and every OTHER failure or defect to the
  *    `UnexpectedToolError` envelope as `structuredContent` with
  *    `isError: true`, so an in-boundary crash comes back in the same
- *    structured shape as every other tool error.
+ *    structured shape as every other tool error;
+ * 5. inlines a `$ref` root (what an `identifier` annotation produces)
+ *    before the object checks, so identified schemas register and list.
  *
  * Adapted from Effect's own `registerToolkit`
  * (`effect/unstable/ai/McpServer.ts`, rc.115).
@@ -68,6 +72,46 @@ const findDiscriminant = (members: ReadonlyArray<unknown>): (typeof DISCRIMINANT
 	return undefined;
 };
 
+const REF_PREFIX = "#/$defs/";
+
+const lookupRef = (ref: unknown, root: JsonObject): JsonObject | undefined => {
+	if (typeof ref !== "string" || !ref.startsWith(REF_PREFIX)) return undefined;
+	const defs = root.$defs;
+	if (!isPlainObject(defs)) return undefined;
+	const target = defs[ref.slice(REF_PREFIX.length)];
+	return isPlainObject(target) ? target : undefined;
+};
+
+/**
+ * Replace a `$ref` node with its `$defs` target merged under the node's
+ * own keywords (the node's keys win). Follows chained refs; gives up on a
+ * cycle or a dangling ref and returns the node as-is.
+ */
+const inlineRef = (node: JsonObject, root: JsonObject, seen: ReadonlySet<unknown> = new Set()): JsonObject => {
+	const target = lookupRef(node.$ref, root);
+	if (target === undefined || seen.has(node.$ref)) return node;
+	const { $ref, ...rest } = node;
+	return inlineRef({ ...target, ...rest }, root, new Set([...seen, $ref]));
+};
+
+/**
+ * A schema whose root (or whose top-level union members) is a `$ref` —
+ * what Effect emits for any schema carrying an `identifier` annotation —
+ * is inlined so the object / discriminant checks below see the real
+ * shape. `$defs` is kept for any nested references.
+ *
+ * @internal
+ */
+export const inlineRootRefs = (schema: JsonObject): JsonObject => {
+	const root = inlineRef(schema, schema);
+	const combinator = Array.isArray(root.anyOf) ? "anyOf" : Array.isArray(root.oneOf) ? "oneOf" : undefined;
+	if (combinator === undefined) return root;
+	const members = (root[combinator] as ReadonlyArray<unknown>).map((member) =>
+		isPlainObject(member) ? inlineRef(member, schema) : member,
+	);
+	return { ...root, [combinator]: members };
+};
+
 /**
  * Deep-copy `schema`, setting `additionalProperties: false` on every
  * object node that declares `properties` (or is a bare object with no
@@ -113,7 +157,7 @@ export const strictifyJsonSchema = (schema: JsonObject): JsonObject => {
 		}
 		return out;
 	};
-	const strict = visit(schema) as JsonObject;
+	const strict = visit(inlineRootRefs(schema)) as JsonObject;
 	const members = strict.anyOf ?? strict.oneOf;
 	if (Array.isArray(members) && strict.type === undefined) {
 		const discriminant = findDiscriminant(members);
@@ -131,16 +175,7 @@ interface UnknownKeysAtLevel {
 	readonly accepted: ReadonlyArray<string>;
 }
 
-const resolveRef = (node: JsonObject, root: JsonObject): JsonObject => {
-	const ref = node.$ref;
-	if (typeof ref !== "string") return node;
-	const prefix = "#/$defs/";
-	if (!ref.startsWith(prefix)) return node;
-	const defs = root.$defs;
-	if (!isPlainObject(defs)) return node;
-	const target = defs[ref.slice(prefix.length)];
-	return isPlainObject(target) ? target : node;
-};
+const resolveRef = (node: JsonObject, root: JsonObject): JsonObject => lookupRef(node.$ref, root) ?? node;
 
 /** Pick the union member a payload object matches, or `undefined` when none does unambiguously. */
 const selectMember = (members: ReadonlyArray<unknown>, value: JsonObject, root: JsonObject): JsonObject | undefined => {
@@ -254,6 +289,9 @@ const formatUnknownKeys = (levels: ReadonlyArray<UnknownKeysAtLevel>): string =>
 const toStructuredContent = (value: unknown): Schema.JsonObject | undefined =>
 	isPlainObject(value) ? (value as Schema.JsonObject) : undefined;
 
+const declaredFailureResult = (message: string): McpSchema.CallToolResult =>
+	new McpSchema.CallToolResult({ isError: true, content: [{ type: "text", text: message }] });
+
 const envelopeResult = (toolName: string, err: unknown): McpSchema.CallToolResult => {
 	const envelope = buildUnexpectedToolErrorEnvelope(toolName, err);
 	return new McpSchema.CallToolResult({
@@ -286,8 +324,9 @@ export const registerStrictToolkitEffect: <Tools extends Record<string, Tool.Any
 	for (const tool of Object.values(built.tools)) {
 		const annotations = tool.annotations;
 		const render = Context.get(annotations, RenderText);
+		const isDeclaredFailure = Schema.is(tool.failureSchema);
 		const toolMeta = Context.getOrUndefined(annotations, Tool.Meta);
-		const outputJsonSchema = Tool.getJsonSchemaFromSchema(tool.successSchema);
+		const outputJsonSchema = inlineRootRefs(Tool.getJsonSchemaFromSchema(tool.successSchema) as JsonObject);
 		const outputSchema =
 			outputJsonSchema.type === "object"
 				? yield* Schema.decodeUnknownEffect(McpSchema.ToolJsonSchema)(outputJsonSchema).pipe(Effect.orDie)
@@ -344,7 +383,13 @@ export const registerStrictToolkitEffect: <Tools extends Record<string, Tool.Any
 						if (AiError.isAiError(err) && err.reason._tag === "ToolParameterValidationError") {
 							return Effect.fail(new McpSchema.InvalidParams({ message: err.reason.message }));
 						}
-						return Effect.logError(`tool ${tool.name} failed`, cause).pipe(Effect.as(envelopeResult(tool.name, err)));
+						const logged = Effect.logError(`tool ${tool.name} failed`, cause);
+						if (isDeclaredFailure(err) && err instanceof Error) {
+							// Upstream parity: a declared, Error-shaped failure ships its
+							// message as text with no structuredContent.
+							return Effect.as(logged, declaredFailureResult(err.message));
+						}
+						return Effect.as(logged, envelopeResult(tool.name, err));
 					}),
 				);
 			},
