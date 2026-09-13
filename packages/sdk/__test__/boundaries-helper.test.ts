@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { VERSION_TOKEN, importSpecifiers, referencesProcess, walkTs } from "./utils/boundaries.js";
+import { VERSION_TOKEN, importSpecifiers, referencesProcess, stripComments, walkTs } from "./utils/boundaries.js";
 
 describe("boundaries helper: referencesProcess", () => {
 	it("returns false for source with no process reference", () => {
@@ -48,6 +50,29 @@ describe("boundaries helper: importSpecifiers", () => {
 	it("ignores import specifiers mentioned only inside comments", () => {
 		const source = ['// import { X } from "node:fs";', 'export const foo = "node:fs";'].join("\n");
 		expect(importSpecifiers(source)).toEqual([]);
+	});
+});
+
+describe("boundaries helper: stripComments regex literals", () => {
+	it("does not read a regex character class like [^/*] as a block-comment opener", () => {
+		const source = ["const RE = /[^/*]/;", 'import x from "node:fs";'].join("\n");
+		expect(importSpecifiers(source)).toEqual(["node:fs"]);
+	});
+
+	it("still strips a real block comment after a division expression", () => {
+		expect(stripComments("const z = a / b /* comment */ c;")).toBe("const z = a / b   c;");
+	});
+
+	it("does not read // inside a regex literal as a line comment", () => {
+		const source = 'const RE = /https?:\\/\\//;\nconst kept = "after";';
+		expect(stripComments(source)).toContain('const kept = "after"');
+	});
+
+	it("matches the real detect-non-default-discover-strategy.ts source without dropping code after its regex literals", () => {
+		const filePath = join(import.meta.dirname, "..", "src", "utils", "detect-non-default-discover-strategy.ts");
+		const source = readFileSync(filePath, "utf8");
+		const stripped = stripComments(source);
+		expect(stripped).toContain("IMPLEMENTS_STRATEGY_RE.test(stripped)");
 	});
 });
 
