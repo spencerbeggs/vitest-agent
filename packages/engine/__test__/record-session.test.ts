@@ -6,7 +6,7 @@ import { DataReaderLive, DataStoreLive, migration0001 } from "@vitest-agent/engi
 import { Effect, Layer } from "effect";
 import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
-import { recordSessionEnd, recordSessionStart } from "../src/lib/record-session.js";
+import { recordSessionEnd, recordSessionStart } from "../src/programs/record-session.js";
 
 // Each call to `run` builds a fresh in-memory DB by re-evaluating the layer.
 // The :memory: connection is per-Layer so all services share it within one run.

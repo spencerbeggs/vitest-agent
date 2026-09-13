@@ -30,9 +30,26 @@
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { SessionContext } from "./context.js";
+
+/**
+ * Recovered session attribution context — the canonical UUIDs the
+ * SessionStart hook wrote to `${CLAUDE_ENV_FILE}` (auto-sourced into the
+ * MCP server child's `process.env`) and to the per-session
+ * `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh` surface this
+ * module reads back.
+ *
+ * Read by the MCP server's `run_tests` to populate `VITEST_AGENT_AGENT_ID`
+ * and friends on the Vitest child process so the reporter attributes runs
+ * back to the active agent.
+ *
+ * @public
+ */
+export interface SessionContext {
+	readonly chatId: string;
+	readonly conversationId: string;
+	readonly mainAgentId: string;
+}
 
 const EXPORT_LINE = /^export ([A-Z_][A-Z0-9_]*)=(.*)$/;
 
@@ -78,15 +95,19 @@ export const parseSessionEnvExports = (content: string): Record<string, string> 
  * session dir matches the project. Never throws — recovery is best-effort
  * and callers fall back to their existing null-context behavior.
  *
- * @param opts - `projectDir` to match against; `sessionEnvRoot` overrides
- *   the default `~/.claude/session-env` (tests)
+ * Synchronous by contract: the MCP server calls it from the lazy
+ * `SessionContextRef.get()` recover thunk, which is itself synchronous.
+ *
+ * @param opts - `projectDir` to match against; `homeDir` is the caller's
+ *   home directory (ambient input — the MCP bin passes `os.homedir()`),
+ *   under which `.claude/session-env` is read
  * @public
  */
 export const recoverSessionContextFromSessionEnv = (opts: {
 	readonly projectDir: string;
-	readonly sessionEnvRoot?: string;
+	readonly homeDir: string;
 }): SessionContext | null => {
-	const root = opts.sessionEnvRoot ?? join(homedir(), ".claude", "session-env");
+	const root = join(opts.homeDir, ".claude", "session-env");
 	const wantDir = resolve(opts.projectDir);
 	let entries: string[];
 	try {

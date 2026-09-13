@@ -3,7 +3,12 @@ import { AppDirs, Xdg } from "@effected/xdg";
 import { Layer } from "effect";
 import { ConfigLive } from "./ConfigLive.js";
 
-const APP_NAMESPACE = "vitest-agent";
+/**
+ * The XDG namespace every vitest-agent data directory lives under —
+ * `<XDG data>/vitest-agent`. The one place the name exists.
+ * @public
+ */
+export const APP_NAMESPACE = "vitest-agent";
 
 /**
  * `AppDirs` over the ambient `Xdg` environment, bound to a `const` so the

@@ -6,7 +6,7 @@ import { DataReaderLive, DataReader as DataReaderTag, DataStoreLive, migration00
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
-import { recordRunWorkspaceChangesEffect } from "../src/lib/record-workspace-changes.js";
+import { recordRunWorkspaceChangesEffect } from "../src/programs/record-workspace-changes.js";
 
 const PlatformLayer = NodeServices.layer;
 

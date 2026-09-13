@@ -9,14 +9,18 @@
  */
 
 import type { ChangeKind, RunInvocationMethod } from "@vitest-agent/engine";
-import { DataReader, DataStore } from "@vitest-agent/engine";
+import {
+	DataReader,
+	DataStore,
+	dispatchRecordTddArtifactEffect,
+	recordRunWorkspaceChangesEffect,
+	recordSessionEnd,
+	recordSessionStart,
+	recordTurnEffect,
+} from "@vitest-agent/engine";
 import type { ArtifactKind, ArtifactSuite } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
-import { recordSessionEnd, recordSessionStart } from "../lib/record-session.js";
-import { dispatchRecordTddArtifactEffect } from "../lib/record-tdd-artifact.js";
-import { recordTurnEffect } from "../lib/record-turn.js";
-import { recordRunWorkspaceChangesEffect } from "../lib/record-workspace-changes.js";
 
 const chatId = Flag.String("chat-id").pipe(
 	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
@@ -45,7 +49,8 @@ const turnSubcommand = Command.make(
 			payloadJson: payload,
 			occurredAt,
 			...(project._tag === "Some" && { project: project.value }),
-			...(cwd._tag === "Some" && { cwd: cwd.value }),
+			// Ambient input: the engine program never reads process.cwd() itself.
+			cwd: cwd._tag === "Some" ? cwd.value : process.cwd(),
 		}).pipe(
 			Effect.flatMap((result) => Effect.sync(() => process.stdout.write(`${JSON.stringify(result)}\n`))),
 			Effect.catch((err) =>
@@ -173,7 +178,7 @@ const tddArtifactSubcommand = Command.make(
 				...(opts.chatId._tag === "Some" && { chatId: opts.chatId.value }),
 				...(opts.tddTaskId._tag === "Some" && { tddTaskId: opts.tddTaskId.value }),
 				...(opts.project._tag === "Some" && { project: opts.project.value }),
-				...(opts.cwd._tag === "Some" && { cwd: opts.cwd.value }),
+				cwd: opts.cwd._tag === "Some" ? opts.cwd.value : process.cwd(),
 				artifactKind: opts.artifactKind as ArtifactKind,
 				...(fileId !== undefined && { fileId }),
 				...(opts.testCaseId._tag === "Some" && { testCaseId: opts.testCaseId.value }),

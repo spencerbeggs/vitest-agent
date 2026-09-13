@@ -9,9 +9,11 @@
  * @packageDocumentation
  */
 
-import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { ArtifactKind, ArtifactSuite, DataStoreError } from "@vitest-agent/sdk";
+import type { FileSystem } from "effect";
 import { Effect, Option } from "effect";
+import { DataReader } from "../services/DataReader.js";
+import { DataStore } from "../services/DataStore.js";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 
 export interface RecordTddArtifactInput {
@@ -26,11 +28,12 @@ export interface RecordTddArtifactInput {
 	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
 	readonly suite?: ArtifactSuite;
 	/**
-	 * Working directory of the calling process. When omitted, the
-	 * resolver falls back to `process.cwd()`. Used to bootstrap a
-	 * missing session row when the chat id has no exact match.
+	 * Working directory of the calling process (ambient input — the CLI
+	 * command passes its own `process.cwd()` when no `--cwd` flag was
+	 * given). Used to bootstrap a missing session row when the chat id
+	 * has no exact match.
 	 */
-	readonly cwd?: string;
+	readonly cwd: string;
 	/**
 	 * Project name for bootstrapped session rows. When omitted, the
 	 * resolver reads `package.json#name` from `cwd`.
@@ -96,7 +99,7 @@ const writeArtifactUnderOpenPhase = (
 
 export const recordTddArtifactEffect = (
 	input: RecordTddArtifactInput,
-): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore> =>
+): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore | FileSystem.FileSystem> =>
 	Effect.gen(function* () {
 		const reader = yield* DataReader;
 
@@ -104,7 +107,7 @@ export const recordTddArtifactEffect = (
 			chatId: input.chatId,
 			recordedAt: input.recordedAt,
 			...(input.project !== undefined && { project: input.project }),
-			...(input.cwd !== undefined && { cwd: input.cwd }),
+			cwd: input.cwd,
 		});
 
 		// Find the TDD task(s) under this session OR any of its
@@ -193,7 +196,8 @@ export interface DispatchRecordTddArtifactInput {
 	readonly testFirstFailureRunId?: number;
 	readonly diffExcerpt?: string;
 	readonly recordedAt: string;
-	readonly cwd?: string;
+	/** Ambient input (see `RecordTddArtifactInput.cwd`); only consulted on the `chatId` branch. */
+	readonly cwd: string;
 	readonly project?: string;
 	/** Issue #363: explicit suite marker. Defaults to `"vitest"` when omitted. */
 	readonly suite?: ArtifactSuite;
@@ -208,7 +212,7 @@ export interface DispatchRecordTddArtifactInput {
  */
 export const dispatchRecordTddArtifactEffect = (
 	input: DispatchRecordTddArtifactInput,
-): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore> => {
+): Effect.Effect<RecordTddArtifactResult, DataStoreError | Error, DataReader | DataStore | FileSystem.FileSystem> => {
 	if (input.tddTaskId !== undefined) {
 		return recordTddArtifactByTaskIdEffect({
 			tddTaskId: input.tddTaskId,
@@ -237,7 +241,7 @@ export const dispatchRecordTddArtifactEffect = (
 			...(input.diffExcerpt !== undefined && { diffExcerpt: input.diffExcerpt }),
 			...(input.suite !== undefined && { suite: input.suite }),
 			recordedAt: input.recordedAt,
-			...(input.cwd !== undefined && { cwd: input.cwd }),
+			cwd: input.cwd,
 			...(input.project !== undefined && { project: input.project }),
 		});
 	}

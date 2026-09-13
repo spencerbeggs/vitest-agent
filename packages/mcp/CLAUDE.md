@@ -11,17 +11,21 @@ src/
                          resolves projectDir, dbPath, builds
                          ManagedRuntime.make(PlatformLive({ dbPath, env, ... })) (engine), wires
                          the session refs (with the lazy recover thunk
-                         from session-env.ts), calls startMcpServer(ctx)
-  index.ts            -- programmatic entry; also exports buildMcpServer,
-                         parseSessionEnvExports,
-                         recoverSessionContextFromSessionEnv
+                         calling the engine's
+                         recoverSessionContextFromSessionEnv({ projectDir,
+                         homeDir: os.homedir() })), calls startMcpServer(ctx)
+  index.ts            -- programmatic entry; also exports buildMcpServer
+                         (parseSessionEnvExports /
+                         recoverSessionContextFromSessionEnv now ship
+                         from @vitest-agent/engine)
   context.ts          -- tRPC McpContext: { runtime, cwd,
                          currentSessionId, sessionContext };
-                         createSessionContextRef(initial, recover?)
-  session-env.ts      -- lazy call-time SessionContext recovery: reads
-                         the newest ~/.claude/session-env/<chat_id>/
-                         vitest-agent-hook.sh whose exports match this
-                         server's projectDir
+                         createSessionContextRef(initial, recover?);
+                         re-exports the engine's SessionContext type
+  (session-env.ts moved to @vitest-agent/engine programs/session-env.ts:
+   lazy call-time SessionContext recovery reading the newest
+   <homeDir>/.claude/session-env/<chat_id>/vitest-agent-hook.sh whose
+   exports match this server's projectDir)
   router.ts           -- tRPC router aggregating all tool procedures
   server.ts           -- buildMcpServer(): constructs the server and
                          registers all tools (every inputSchema wrapped
@@ -268,7 +272,7 @@ written by SessionStart hook to `CLAUDE_ENV_FILE` and auto-sourced
 into the MCP child). Boot recovery loses both the fresh-launch race
 (the MCP child can spawn before SessionStart writes the env file) and
 the `/reload-plugins` restart (fresh environment, no exports), so
-`session-env.ts` also recovers lazily: at the first `get()` that
+the engine's `programs/session-env.ts` also recovers lazily: at the first `get()` that
 finds a null context it reads the newest
 `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh` whose exports
 match this server's `projectDir`.

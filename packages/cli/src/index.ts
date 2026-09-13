@@ -5,26 +5,16 @@
  * reports status, overview, coverage, history, trends, and cache health.
  *
  * The default entry point is `bin.ts` (registered as the
- * `vitest-agent` bin); this barrel re-exports the supporting
- * pieces for programmatic use.
+ * `vitest-agent` bin); this barrel exposes the package version for
+ * programmatic introspection.
  *
  * @packageDocumentation
  */
 
-export { SidecarLive, type SidecarPaths } from "./layers/SidecarLive.js";
-export {
-	type RegisterAgentInput,
-	type RegisterAgentOutput,
-	registerAgentEffect,
-} from "./lib/internal-register-agent.js";
-export {
-	DATA_DB_FILENAME,
-	REGISTRY_DB_FILENAME,
-	SESSIONS_DB_FILENAME,
-	resolveProjectDataDir,
-	resolveRegistryDir,
-	resolveSessionMapPath,
-} from "./lib/sidecar-paths.js";
+// The sidecar platform layer (`SidecarPlatformLive`), the hook-path
+// resolver (`resolveHookPaths`) and the register/end-agent programs live
+// in `@vitest-agent/engine` as of the #412 engine split; import them from
+// there. This barrel no longer re-exports them.
 
 /**
  * The version of this package, inlined at build time from

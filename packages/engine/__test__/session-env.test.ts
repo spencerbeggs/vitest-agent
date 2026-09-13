@@ -2,15 +2,21 @@ import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { createSessionContextRef } from "../src/context.js";
-import { parseSessionEnvExports, recoverSessionContextFromSessionEnv } from "../src/session-env.js";
+import { parseSessionEnvExports, recoverSessionContextFromSessionEnv } from "../src/programs/session-env.js";
 
 const roots: string[] = [];
 
-function makeRoot(): string {
-	const root = mkdtempSync(join(tmpdir(), "vitest-agent-session-env-"));
-	roots.push(root);
-	return root;
+/**
+ * A fake home directory. The recovery program reads
+ * `<homeDir>/.claude/session-env`, so the returned `home` is what the
+ * program takes and `root` is where the session dirs are written.
+ */
+function makeRoot(): { home: string; root: string } {
+	const home = mkdtempSync(join(tmpdir(), "vitest-agent-session-env-"));
+	roots.push(home);
+	const root = join(home, ".claude", "session-env");
+	mkdirSync(root, { recursive: true });
+	return { home, root };
 }
 
 function writeSessionDir(
@@ -84,16 +90,16 @@ describe("recoverSessionContextFromSessionEnv", () => {
 		expect(
 			recoverSessionContextFromSessionEnv({
 				projectDir: "/tmp/none",
-				sessionEnvRoot: join(tmpdir(), "vitest-agent-does-not-exist"),
+				homeDir: join(tmpdir(), "vitest-agent-does-not-exist"),
 			}),
 		).toBeNull();
 	});
 
 	it("recovers the context for the matching project dir", () => {
-		const root = makeRoot();
+		const { home, root } = makeRoot();
 		writeSessionDir(root, "chat-match", { projectDir: "/tmp/project-a" });
 		writeSessionDir(root, "chat-other", { projectDir: "/tmp/project-b" });
-		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", sessionEnvRoot: root });
+		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home });
 		expect(ctx).toEqual({
 			chatId: "chat-match",
 			conversationId: "conv-chat-match",
@@ -102,69 +108,29 @@ describe("recoverSessionContextFromSessionEnv", () => {
 	});
 
 	it("picks the newest-mtime session dir when several match the project", () => {
-		const root = makeRoot();
+		const { home, root } = makeRoot();
 		writeSessionDir(root, "chat-old", { projectDir: "/tmp/project-a", mtime: new Date("2026-07-01T00:00:00Z") });
 		writeSessionDir(root, "chat-new", { projectDir: "/tmp/project-a", mtime: new Date("2026-07-02T00:00:00Z") });
-		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", sessionEnvRoot: root });
+		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home });
 		expect(ctx?.chatId).toBe("chat-new");
 	});
 
 	it("skips session dirs missing required UUID exports", () => {
-		const root = makeRoot();
+		const { home, root } = makeRoot();
 		writeSessionDir(root, "chat-incomplete", {
 			projectDir: "/tmp/project-a",
 			omit: ["VITEST_AGENT_CONVERSATION_ID"],
 		});
-		expect(recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", sessionEnvRoot: root })).toBeNull();
+		expect(recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home })).toBeNull();
 	});
 
 	it("falls back to VITEST_AGENT_AGENT_ID when MAIN_AGENT_ID is absent", () => {
-		const root = makeRoot();
+		const { home, root } = makeRoot();
 		writeSessionDir(root, "chat-agent-only", {
 			projectDir: "/tmp/project-a",
 			omit: ["VITEST_AGENT_MAIN_AGENT_ID"],
 		});
-		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", sessionEnvRoot: root });
+		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home });
 		expect(ctx?.mainAgentId).toBe("agent-chat-agent-only");
-	});
-});
-
-describe("createSessionContextRef lazy recovery", () => {
-	it("invokes recover while null and caches the first non-null result", () => {
-		let calls = 0;
-		const results = [null, { chatId: "c", conversationId: "v", mainAgentId: "a" }] as const;
-		const ref = createSessionContextRef(null, () => {
-			const r = results[Math.min(calls, 1)] ?? null;
-			calls += 1;
-			return r;
-		});
-		expect(ref.get()).toBeNull();
-		expect(calls).toBe(1);
-		expect(ref.get()?.chatId).toBe("c");
-		expect(calls).toBe(2);
-		// Cached — recover is not called again.
-		expect(ref.get()?.chatId).toBe("c");
-		expect(calls).toBe(2);
-	});
-
-	it("does not recover when constructed with an initial value", () => {
-		let calls = 0;
-		const ref = createSessionContextRef({ chatId: "boot", conversationId: "v", mainAgentId: "a" }, () => {
-			calls += 1;
-			return null;
-		});
-		expect(ref.get()?.chatId).toBe("boot");
-		expect(calls).toBe(0);
-	});
-
-	it("set() overrides and stops further recovery", () => {
-		let calls = 0;
-		const ref = createSessionContextRef(null, () => {
-			calls += 1;
-			return null;
-		});
-		ref.set({ chatId: "explicit", conversationId: "v", mainAgentId: "a" });
-		expect(ref.get()?.chatId).toBe("explicit");
-		expect(calls).toBe(0);
 	});
 });

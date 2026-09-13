@@ -1,5 +1,6 @@
-import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect } from "effect";
+import { DataReader } from "../services/DataReader.js";
+import { DataStore } from "../services/DataStore.js";
 
 export interface RecordSessionStartInput {
 	readonly chatId: string;

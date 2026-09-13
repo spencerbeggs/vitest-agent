@@ -45,6 +45,18 @@ export { default as registryMigration0001 } from "./migrations/registry_0001_ini
 export { default as sessionMapMigration0001 } from "./migrations/session_map_0001_initial.js";
 // Platform assembly + project-dir resolution
 export * from "./platform.js";
+// Programs shared by the CLI and the MCP server (hook plumbing, recording,
+// session recovery) plus the sidecar platform assembly.
+export * from "./programs/end-agent.js";
+export * from "./programs/hook-paths.js";
+export * from "./programs/platform-sidecar.js";
+export * from "./programs/record-session.js";
+export * from "./programs/record-tdd-artifact.js";
+export * from "./programs/record-turn.js";
+export * from "./programs/record-workspace-changes.js";
+export * from "./programs/register-agent.js";
+export * from "./programs/resolve-session-for-recording.js";
+export * from "./programs/session-env.js";
 export * from "./project-dir.js";
 // Services
 export * from "./services/Config.js";

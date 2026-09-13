@@ -33,11 +33,11 @@
  * @packageDocumentation
  */
 
-import { readFileSync } from "node:fs";
-import type { SessionDetail } from "@vitest-agent/engine";
-import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { DataStoreError } from "@vitest-agent/sdk";
-import { Effect, Option } from "effect";
+import { Effect, FileSystem, Option } from "effect";
+import type { SessionDetail } from "../services/DataReader.js";
+import { DataReader } from "../services/DataReader.js";
+import { DataStore } from "../services/DataStore.js";
 
 export interface ResolveSessionForRecordingInput {
 	readonly chatId: string;
@@ -48,18 +48,20 @@ export interface ResolveSessionForRecordingInput {
 	 */
 	readonly project?: string;
 	/**
-	 * Working directory for the bootstrapped row. Defaults to
-	 * `process.cwd()`.
+	 * Working directory for the bootstrapped row and the `package.json`
+	 * probe. Ambient input: the caller (a CLI command) passes its own
+	 * `process.cwd()`; the engine never reads `process` itself.
 	 */
-	readonly cwd?: string;
+	readonly cwd: string;
 }
 
 export const resolveSessionForRecording = (
 	input: ResolveSessionForRecordingInput,
-): Effect.Effect<SessionDetail, DataStoreError, DataReader | DataStore> =>
+): Effect.Effect<SessionDetail, DataStoreError, DataReader | DataStore | FileSystem.FileSystem> =>
 	Effect.gen(function* () {
 		const reader = yield* DataReader;
 		const store = yield* DataStore;
+		const fs = yield* FileSystem.FileSystem;
 
 		const exact = yield* reader.getSessionByChatId(input.chatId);
 		if (Option.isSome(exact)) return exact.value;
@@ -67,8 +69,8 @@ export const resolveSessionForRecording = (
 		const synthetic = yield* reader.findSessionsByChatPrefix(`${input.chatId}-subagent-`);
 		if (synthetic.length > 0) return synthetic[0];
 
-		const cwd = input.cwd ?? process.cwd();
-		const project = input.project ?? readPackageName(cwd) ?? "unknown";
+		const cwd = input.cwd;
+		const project = input.project ?? (yield* readPackageName(fs, cwd)) ?? "unknown";
 		yield* store.upsertSession({
 			chatId: input.chatId,
 			project,
@@ -84,12 +86,14 @@ export const resolveSessionForRecording = (
 		);
 	});
 
-const readPackageName = (cwd: string): string | undefined => {
-	try {
-		const raw = readFileSync(`${cwd}/package.json`, "utf8");
-		const parsed = JSON.parse(raw) as { name?: unknown };
-		return typeof parsed.name === "string" ? parsed.name : undefined;
-	} catch {
-		return undefined;
-	}
-};
+/**
+ * Best-effort `package.json#name` read through the injected `FileSystem`.
+ * Any read or parse failure resolves to `undefined` — the caller falls
+ * back to `"unknown"`, exactly as the former sync `readFileSync` probe did.
+ */
+const readPackageName = (fs: FileSystem.FileSystem, cwd: string): Effect.Effect<string | undefined> =>
+	fs.readFileString(`${cwd}/package.json`).pipe(
+		Effect.flatMap((raw) => Effect.try(() => JSON.parse(raw) as { name?: unknown })),
+		Effect.map((parsed) => (typeof parsed.name === "string" ? parsed.name : undefined)),
+		Effect.catch(() => Effect.succeed(undefined)),
+	);

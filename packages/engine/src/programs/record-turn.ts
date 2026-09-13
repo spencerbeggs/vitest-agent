@@ -1,7 +1,8 @@
-import type { DataReader } from "@vitest-agent/engine";
-import { DataStore } from "@vitest-agent/engine";
 import { TurnPayload } from "@vitest-agent/sdk";
+import type { FileSystem } from "effect";
 import { Effect, Schema } from "effect";
+import type { DataReader } from "../services/DataReader.js";
+import { DataStore } from "../services/DataStore.js";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 
 export type ParseResult = { ok: true; payload: typeof TurnPayload.Type } | { ok: false; error: string };
@@ -25,13 +26,13 @@ export interface RecordTurnInput {
 	readonly payloadJson: string;
 	readonly occurredAt: string;
 	/**
-	 * Working directory of the calling process. When omitted, the
-	 * resolver falls back to `process.cwd()`. Used to bootstrap a
-	 * session row when no exact `chat_id` match exists, which happens
-	 * after Claude Code rotates the chat id mid-window without
-	 * `SessionStart` re-firing for the new id.
+	 * Working directory of the calling process (ambient input — the CLI
+	 * command passes its own `process.cwd()` when no `--cwd` flag was
+	 * given). Used to bootstrap a session row when no exact `chat_id`
+	 * match exists, which happens after Claude Code rotates the chat id
+	 * mid-window without `SessionStart` re-firing for the new id.
 	 */
-	readonly cwd?: string;
+	readonly cwd: string;
 	/**
 	 * Project name for bootstrapped session rows. When omitted, the
 	 * resolver reads `package.json#name` from `cwd`, falling back to
@@ -42,7 +43,7 @@ export interface RecordTurnInput {
 
 export const recordTurnEffect = (
 	input: RecordTurnInput,
-): Effect.Effect<{ turnId: number }, Error, DataReader | DataStore> =>
+): Effect.Effect<{ turnId: number }, Error, DataReader | DataStore | FileSystem.FileSystem> =>
 	Effect.gen(function* () {
 		const parse = parseAndValidateTurnPayload(input.payloadJson);
 		if (!parse.ok) {
@@ -52,7 +53,7 @@ export const recordTurnEffect = (
 			chatId: input.chatId,
 			recordedAt: input.occurredAt,
 			...(input.project !== undefined && { project: input.project }),
-			...(input.cwd !== undefined && { cwd: input.cwd }),
+			cwd: input.cwd,
 		});
 		const store = yield* DataStore;
 		const turnId = yield* store.writeTurn({

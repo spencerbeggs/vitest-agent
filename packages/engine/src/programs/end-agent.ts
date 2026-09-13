@@ -1,5 +1,5 @@
 /**
- * Sidecar `_internal end-agent` implementation.
+ * `agent end-agent` program (formerly the CLI's lib/internal-end-agent.ts).
  *
  * Sets `agents.ended_at` on the per-project store. For main-agent
  * stops (SessionEnd), the caller also passes `--host-session-id` so
@@ -11,8 +11,9 @@
  * @packageDocumentation
  */
 
-import { DataStore, PerClientSessionMapWriter } from "@vitest-agent/engine";
 import { Effect } from "effect";
+import { DataStore } from "../services/DataStore.js";
+import { PerClientSessionMapWriter } from "../services/PerClientSessionMap.js";
 
 export interface EndAgentInput {
 	readonly agentId: string;

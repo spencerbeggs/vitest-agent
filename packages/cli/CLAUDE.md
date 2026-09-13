@@ -10,11 +10,12 @@ src/
                          provides the engine's PlatformLive({ dbPath, env, logLevel?, logFile? })
                          to Command.run, runs via NodeRuntime.runMain;
                          withSubcommands is exactly doctor / db / agent
-  index.ts            -- programmatic barrel: re-exports
-                         SidecarLive, registerAgentEffect, and the
-                         lib/sidecar-paths.ts path helpers. Does NOT
-                         re-export dispatch / injectEnv / exitCodeForTag —
-                         those moved to @vitest-agent/sdk/dispatch
+  index.ts            -- programmatic barrel: exports only
+                         CURRENT_CLI_VERSION. The sidecar layer, hook-path
+                         helpers and register/end-agent programs moved to
+                         @vitest-agent/engine (programs/); dispatch /
+                         injectEnv / exitCodeForTag live in
+                         @vitest-agent/sdk/dispatch
   commands/           -- thin effect/unstable/cli Command wrappers
     doctor.ts          -- top-level `doctor` diagnostic
     db.ts              -- `db` parent: path / prune / reset / query
@@ -23,21 +24,14 @@ src/
                           sidecar-path, check-test-path
     record.ts triage.ts wrapup.ts
                        -- subcommand bodies composed under `agent`
-  lib/                -- pure formatting + sidecar logic (where tests live)
+  lib/                -- pure formatting functions (where tests live)
     format-doctor.ts format-db-query.ts
-    format-triage.ts format-wrapup.ts
-    internal-register-agent.ts internal-end-agent.ts
-    internal-inject-env.ts
-    sidecar-paths.ts   -- path-resolution helpers + *_DB_FILENAME
-                          constants; re-exported from src/index.ts.
-                          exitCodeForTag moved to @vitest-agent/sdk
-  layers/
-    (no CliLive.ts -- the runtime layer is the engine's PlatformLive:
-                         DataReader + DataStore + ProjectDiscovery
-                         + HistoryTracker + OutputPipeline + SqliteClient
-                         + Migrator + NodeServices + Logger)
-    SidecarLive.ts    -- per-project / per-client / registry SQLite scopes
-                         backing the three sidecar subcommands
+  (no layers/ and no lib/internal-*.ts / record-*.ts / sidecar-paths.ts:
+   the runtime layer is the engine's PlatformLive, the sidecar layer is the
+   engine's SidecarPlatformLive, and the hook programs — registerAgentEffect,
+   endAgentEffect, record*, resolveHookPaths — live in
+   @vitest-agent/engine's programs/ directory. Commands are thin wrappers
+   that pass process.env / process.cwd() into them.)
 ```
 
 ## Key files
@@ -50,9 +44,8 @@ src/
 | `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand`, the sidecar subcommands `register-agent`, `end-agent`, `inject-env`, `sidecar-path`, and — outside that family, with its own exit-code contract — `check-test-path` |
 | `lib/format-db-query.ts` | Pure tabular formatter for `db query` output: column headers, whitespace-padded rows, `(0 rows)` on empty; `--format json` emits a JSON array of row objects |
 | `lib/format-doctor.ts`, `lib/format-triage.ts`, `lib/format-wrapup.ts` | Pure formatting functions tested as plain functions; `format-triage` / `format-wrapup` are shared with the MCP package |
-| `lib/sidecar-paths.ts` | Path-resolution helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). Re-exported from `src/index.ts`. The dispatch core (`dispatch`, `injectEnv`, `exitCodeForTag`) moved to `@vitest-agent/sdk/dispatch`; `agent.ts` imports `exitCodeForTag` / `injectEnv` from there |
-| `layers/SidecarLive.ts` | Three-DB sidecar layer built from the engine's `makeSqliteStack` (the CLI runtime layer itself is the engine's `PlatformLive`) |
-| `layers/SidecarLive.ts` | Composition layer backing the three sidecar subcommands under `agent` |
+| (engine) `programs/hook-paths.ts` | `resolveHookPaths({ env, projectKey })` returns the created per-project `data.db`, `registry.db` and `sessions.db` paths; `agent.ts` passes `process.env`. The dispatch core (`dispatch`, `injectEnv`, `exitCodeForTag`) lives in `@vitest-agent/sdk/dispatch`; `agent.ts` imports `exitCodeForTag` / `injectEnv` from there |
+| (engine) `programs/platform-sidecar.ts` | `SidecarPlatformLive(paths, env)` — three-DB sidecar layer built from the engine's `makeSqliteStack`, backing `register-agent` / `end-agent` (the CLI runtime layer itself is the engine's `PlatformLive`) |
 
 ## Conventions
 
@@ -140,12 +133,12 @@ src/
 - `agent sidecar-path` — calls `resolveSidecarBinaryPath()` from `@vitest-agent/sidecar` and prints the absolute path of the installed platform binary to stdout (exit 0), or exits non-zero when no platform binary is resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`.
 - `agent check-test-path <path>` — NOT a sidecar subcommand: it shares neither their exit-code taxonomy (where `1` means registration conflict) nor their stderr shape. Classifies a path via `classifyTestPath` from `@vitest-agent/sdk`. `<path>` is resolved to an absolute path relative to `VITEST_AGENT_PROJECT_DIR`/cwd when not already absolute, and it is only ever the file being classified — the workspace root is always resolved via `findWorkspaceRootSync` from `VITEST_AGENT_PROJECT_DIR`/cwd itself, never from `<path>`. Exits `1` with empty stdout whenever no verdict is rendered — no containing workspace, a workspace vitest/vite config that is unreadable or carries a non-default `DiscoverStrategy` marker (`detectNonDefaultDiscoverStrategy` from the SDK; the default-layout rule cannot speak for a custom strategy, issue #230), a `NON_DISCOVERABLE_DIRS` segment in the relative path, or a nested `package.json` between the owning package root and the file (a filesystem probe local to this command, since `classifyTestPath` is pure) — so hook callers fail open; on success prints `{ verdict, workspace, suggestedPath }` JSON to stdout. Powers the PreToolUse hook `plugins/claude-code/hooks/pre-tool-use/test-location.sh`.
 
-The sidecar subcommand bodies live in `lib/internal-*.ts`.
+The sidecar subcommand bodies (`registerAgentEffect`, `endAgentEffect`) live in `@vitest-agent/engine`'s `programs/register-agent.ts` / `programs/end-agent.ts`; the record bodies in `programs/record-*.ts`. `record turn` / `record tdd-artifact` pass `process.cwd()` when `--cwd` is absent — the engine programs take `cwd` as a required ambient input and never read `process` themselves.
 
-**Barrel exports.** `src/index.ts` re-exports `SidecarLive`, `registerAgentEffect`, and the `lib/sidecar-paths.ts` path helpers (`resolveProjectDataDir`, `resolveRegistryDir`, `resolveSessionMapPath`, the `*_DB_FILENAME` constants). It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `@vitest-agent/sdk/dispatch` entry point. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `@vitest-agent/sdk/dispatch`, and the per-platform `@vitest-agent/sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
+**Barrel exports.** `src/index.ts` exports only `CURRENT_CLI_VERSION`. It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `@vitest-agent/sdk/dispatch` entry point — nor the sidecar layer / hook programs, which ship from `@vitest-agent/engine`. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `@vitest-agent/sdk/dispatch`, and the per-platform `@vitest-agent/sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
 
-**SidecarLive layer** (`layers/SidecarLive.ts`) composes three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — plus the platform context. Each store gets its own `SqlClient` connection.
+**SidecarPlatformLive layer** (engine `programs/platform-sidecar.ts`) composes three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — plus the platform context. Each store gets its own `SqlClient` connection.
 
-**Sidecar resolves data paths** from `XDG_DATA_HOME` plus normalized `projectKey` directly (does not depend on workspace-discovery), so it works in non-pnpm-workspace project shapes.
+**Sidecar resolves data paths** via the engine's `resolveHookPaths` — `@effected/xdg` over the injected env (`XDG_DATA_HOME`, falling back to `~/.local/share`) plus the normalized `projectKey` directly (does not depend on workspace-discovery), so it works in non-pnpm-workspace project shapes.
 
 **CLI flags for agent-facing IDs.** `record` subcommands take `--chat-id` (host chat UUID) and `--parent-chat-id`. `record tdd-artifact` alternatively accepts `--tdd-task-id <int>`, which bypasses session resolution entirely and writes the artifact under that task's current phase (the `tdd-artifact.sh` hook forwards `VITEST_AGENT_TDD_TASK_ID` this way); one of `--chat-id` / `--tdd-task-id` is required. The `wrapup` command takes `--chat-id` (host chat UUID) or `--row-id` (internal integer FK, mostly for debugging).

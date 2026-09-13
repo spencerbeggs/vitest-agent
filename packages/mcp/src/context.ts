@@ -1,5 +1,5 @@
 import { initTRPC } from "@trpc/server";
-import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/engine";
+import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery, SessionContext } from "@vitest-agent/engine";
 import type { ManagedRuntime } from "effect";
 import { MutableRef } from "effect";
 
@@ -39,23 +39,11 @@ export const createCurrentSessionIdRef = (initial: string | null = null): Curren
 };
 
 /**
- * Recovered session attribution context — the canonical UUIDs the
- * SessionStart hook wrote to `${CLAUDE_ENV_FILE}` so they auto-source
- * into the MCP server child's `process.env`, with the per-client
- * session map as a fallback when the env vars are missing (dev /
- * tests).
- *
- * Read by `run_tests` to populate `VITEST_AGENT_AGENT_ID` and friends
- * on the Vitest child process so the reporter attributes runs back to
- * the active agent.
- *
- * @public
+ * `SessionContext` is declared by `@vitest-agent/engine` (next to the
+ * session-env recovery program that produces it) and re-exported here so
+ * the MCP barrel keeps its public name.
  */
-export interface SessionContext {
-	readonly chatId: string;
-	readonly conversationId: string;
-	readonly mainAgentId: string;
-}
+export type { SessionContext };
 
 /**
  * Mutable ref holding the MCP server's recovered {@link SessionContext}.

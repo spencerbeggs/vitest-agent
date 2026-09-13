@@ -9,6 +9,7 @@ import {
 	DataStore as DataStoreTag,
 	migration0001,
 } from "@vitest-agent/engine";
+import type { FileSystem } from "effect";
 import { Effect, Layer, Option } from "effect";
 import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
@@ -16,7 +17,7 @@ import {
 	dispatchRecordTddArtifactEffect,
 	recordTddArtifactByTaskIdEffect,
 	recordTddArtifactEffect,
-} from "../src/lib/record-tdd-artifact.js";
+} from "../src/programs/record-tdd-artifact.js";
 
 const PlatformLayer = NodeServices.layer;
 
@@ -36,7 +37,7 @@ const buildLive = () => {
 	);
 };
 
-const run = <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore | SqlClient>) =>
+const run = <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore | SqlClient | FileSystem.FileSystem>) =>
 	Effect.runPromise(Effect.provide(effect, buildLive()));
 
 describe("recordTddArtifactEffect", () => {
@@ -64,6 +65,7 @@ describe("recordTddArtifactEffect", () => {
 				});
 
 				return yield* recordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					chatId: "cc-art",
 					artifactKind: "test_written",
 					recordedAt: "2026-04-29T00:00:03Z",
@@ -87,6 +89,7 @@ describe("recordTddArtifactEffect", () => {
 						startedAt: "2026-04-29T00:00:00Z",
 					});
 					return yield* recordTddArtifactEffect({
+						cwd: "/tmp/demo",
 						chatId: "cc-no-tdd",
 						artifactKind: "code_written",
 						recordedAt: "2026-04-29T00:00:01Z",
@@ -102,6 +105,7 @@ describe("recordTddArtifactEffect", () => {
 		const exit = await Effect.runPromiseExit(
 			Effect.provide(
 				recordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					chatId: "nonexistent",
 					artifactKind: "code_written",
 					recordedAt: "2026-04-29T00:00:01Z",
@@ -134,6 +138,7 @@ describe("recordTddArtifactEffect", () => {
 				});
 
 				return yield* recordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					chatId: "cc-no-phase",
 					artifactKind: "test_written",
 					recordedAt: "2026-04-29T00:00:02Z",
@@ -179,6 +184,7 @@ describe("recordTddArtifactEffect", () => {
 				});
 
 				return yield* recordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					chatId: "cc-conv-detached-artifact",
 					artifactKind: "test_written",
 					recordedAt: "2026-04-29T00:00:04Z",
@@ -255,6 +261,7 @@ describe("recordTddArtifactEffect", () => {
 				]);
 
 				return yield* recordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					chatId: "cc-all-fks",
 					artifactKind: "test_failed_run",
 					fileId,
@@ -294,6 +301,7 @@ describe("recordTddArtifactEffect", () => {
 				});
 
 				const bats = yield* recordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					chatId: "cc-art-suite",
 					artifactKind: "test_failed_run",
 					suite: "bats",
@@ -302,6 +310,7 @@ describe("recordTddArtifactEffect", () => {
 				const batsRow = yield* reader.getTddArtifactWithContext(bats.id);
 
 				const vitestDefault = yield* recordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					chatId: "cc-art-suite",
 					artifactKind: "test_written",
 					recordedAt: "2026-04-29T00:00:04Z",
@@ -416,6 +425,7 @@ describe("dispatchRecordTddArtifactEffect (issue #144 CLI wiring)", () => {
 				yield* ds.writeTddPhase({ tddTaskId: tddId, phase: "red", startedAt: "2026-04-29T00:00:02Z" });
 
 				return yield* dispatchRecordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					tddTaskId: tddId,
 					artifactKind: "test_written",
 					recordedAt: "2026-04-29T00:00:03Z",
@@ -444,6 +454,7 @@ describe("dispatchRecordTddArtifactEffect (issue #144 CLI wiring)", () => {
 				yield* ds.writeTddPhase({ tddTaskId: tddId, phase: "red", startedAt: "2026-04-29T00:00:02Z" });
 
 				return yield* dispatchRecordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					chatId: "cc-dispatch-chat-id",
 					artifactKind: "test_written",
 					recordedAt: "2026-04-29T00:00:03Z",
@@ -457,6 +468,7 @@ describe("dispatchRecordTddArtifactEffect (issue #144 CLI wiring)", () => {
 		const exit = await Effect.runPromiseExit(
 			Effect.provide(
 				dispatchRecordTddArtifactEffect({
+					cwd: "/tmp/demo",
 					artifactKind: "code_written",
 					recordedAt: "2026-04-29T00:00:01Z",
 				}),

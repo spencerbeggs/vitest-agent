@@ -17,7 +17,8 @@ export type { CurrentSessionIdRef, McpContext, SessionContext, SessionContextRef
 export { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "./context.js";
 export { appRouter } from "./router.js";
 export { buildMcpServer, startMcpServer } from "./server.js";
-export { parseSessionEnvExports, recoverSessionContextFromSessionEnv } from "./session-env.js";
+// `parseSessionEnvExports` / `recoverSessionContextFromSessionEnv` moved
+// to `@vitest-agent/engine` (#412); import them from there.
 export type { Remediation, TddErrorEnvelope } from "./tools/_tdd-error-envelope.js";
 
 // --- Package version constant ---

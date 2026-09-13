@@ -24,7 +24,7 @@ import {
 } from "@vitest-agent/engine";
 import { Effect, Layer, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { registerAgentEffect } from "../src/lib/internal-register-agent.js";
+import { registerAgentEffect } from "../src/programs/register-agent.js";
 
 const PlatformLayer = NodeServices.layer;
 

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { homedir } from "node:os";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
 	PathResolutionLive,
 	PlatformLive,
+	recoverSessionContextFromSessionEnv,
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
@@ -12,7 +14,6 @@ import { Effect, ManagedRuntime } from "effect";
 import type { McpContext } from "./context.js";
 import { createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./context.js";
 import { startMcpServer } from "./server.js";
-import { recoverSessionContextFromSessionEnv } from "./session-env.js";
 import { shouldExitOnUncaughtException } from "./utils/crash-guards.js";
 import { safeFormatFatalError } from "./utils/safe-format-fatal-error.js";
 
@@ -157,7 +158,7 @@ async function main() {
 		// thunk re-reads the hook's session-env surface at the first tool
 		// call that needs context, when the file is reliably on disk.
 		sessionContext: createSessionContextRef(recoveredContext, () =>
-			recoverSessionContextFromSessionEnv({ projectDir }),
+			recoverSessionContextFromSessionEnv({ projectDir, homeDir: homedir() }),
 		),
 	};
 

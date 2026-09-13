@@ -13,11 +13,11 @@
  * @packageDocumentation
  */
 
-import type { ChangeKind } from "@vitest-agent/engine";
-import { DataStore } from "@vitest-agent/engine";
 import type { DataStoreError } from "@vitest-agent/sdk";
 import { Effect } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
+import type { ChangeKind } from "../services/DataStore.js";
+import { DataStore } from "../services/DataStore.js";
 
 export interface RecordWorkspaceChangesInput {
 	readonly sha: string;

@@ -1,10 +1,11 @@
 /*
- * Sidecar layer composition.
+ * Sidecar platform assembly (formerly `@vitest-agent/cli`'s
+ * `layers/SidecarLive.ts`).
  *
  * Wires the per-project data.db, the per-client sessions.db, the
  * registry.db, and the platform context (ChildProcessSpawner for git
- * probes) into a single layer the _internal CLI subcommands
- * consume.
+ * probes) into a single layer the `agent register-agent` /
+ * `agent end-agent` programs consume.
  *
  * Three SQLite handles are open per sidecar invocation:
  *   - per-project data.db — DataStore + DataReader
@@ -17,22 +18,21 @@
  * absorb concurrency between sidecar processes from parallel hooks.
  */
 
-import {
-	DataReaderLive,
-	DataStoreLive,
-	DiscoveryRegistryLive,
-	LoggerLive,
-	NodePlatformLayer,
-	PerClientSessionMapWriterLive,
-	RunContextLive,
-	makeSqliteStack,
-	registryMigration0001,
-	sessionMapMigration0001,
-} from "@vitest-agent/engine";
 import { Layer } from "effect";
+import { DataReaderLive } from "../layers/DataReaderLive.js";
+import { DataStoreLive } from "../layers/DataStoreLive.js";
+import { DiscoveryRegistryLive } from "../layers/DiscoveryRegistryLive.js";
+import { LoggerLive } from "../layers/LoggerLive.js";
+import { PerClientSessionMapWriterLive } from "../layers/PerClientSessionMapLive.js";
+import { RunContextLive } from "../layers/RunContextLive.js";
+import registryMigration0001 from "../migrations/registry_0001_initial.js";
+import sessionMapMigration0001 from "../migrations/session_map_0001_initial.js";
+import { NodePlatformLayer, makeSqliteStack } from "../platform.js";
 
 /**
- * SQLite database paths consumed by {@link SidecarLive}.
+ * SQLite database paths consumed by {@link SidecarPlatformLive}.
+ * Structurally a subset of `HookPaths` from `resolveHookPaths`, so the
+ * resolver's result can be passed straight in.
  *
  * @public
  */
@@ -58,7 +58,7 @@ export interface SidecarPaths {
  *   metadata (the bin passes `process.env`)
  * @public
  */
-export const SidecarLive = (paths: SidecarPaths, env: Record<string, string | undefined>) => {
+export const SidecarPlatformLive = (paths: SidecarPaths, env: Record<string, string | undefined>) => {
 	// Per-project data.db
 	const project = makeSqliteStack(paths.perProjectDbPath);
 	const ProjectStoreLayer = Layer.mergeAll(

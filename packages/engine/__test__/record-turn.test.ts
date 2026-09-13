@@ -3,11 +3,12 @@ import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { DataReader, DataStore } from "@vitest-agent/engine";
 import { DataReaderLive, DataStoreLive, migration0001 } from "@vitest-agent/engine";
+import type { FileSystem } from "effect";
 import { Effect, Layer } from "effect";
 import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";
-import { recordSessionStart } from "../src/lib/record-session.js";
-import { parseAndValidateTurnPayload, recordTurnEffect } from "../src/lib/record-turn.js";
+import { recordSessionStart } from "../src/programs/record-session.js";
+import { parseAndValidateTurnPayload, recordTurnEffect } from "../src/programs/record-turn.js";
 
 const PlatformLayer = NodeServices.layer;
 
@@ -27,7 +28,7 @@ const buildLive = () => {
 	);
 };
 
-const run = <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore | SqlClient>) =>
+const run = <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore | SqlClient | FileSystem.FileSystem>) =>
 	Effect.runPromise(Effect.provide(effect, buildLive()));
 
 describe("parseAndValidateTurnPayload", () => {
@@ -83,6 +84,7 @@ describe("recordTurnEffect", () => {
 					triageWasNonEmpty: false,
 				});
 				return yield* recordTurnEffect({
+					cwd: "/tmp/demo",
 					chatId: "cc-rt-1",
 					payloadJson: JSON.stringify({ type: "user_prompt", prompt: "hello" }),
 					occurredAt: "2026-04-29T00:00:01Z",
@@ -151,6 +153,7 @@ describe("recordTurnEffect", () => {
 						triageWasNonEmpty: false,
 					});
 					return yield* recordTurnEffect({
+						cwd: "/tmp/demo",
 						chatId: "cc-rt-bad-json",
 						payloadJson: "{not json",
 						occurredAt: "2026-04-29T00:00:01Z",
@@ -173,6 +176,7 @@ describe("recordTurnEffect", () => {
 						triageWasNonEmpty: false,
 					});
 					return yield* recordTurnEffect({
+						cwd: "/tmp/demo",
 						chatId: "cc-rt-bad-shape",
 						payloadJson: JSON.stringify({ type: "user_prompt" /* missing prompt */ }),
 						occurredAt: "2026-04-29T00:00:01Z",

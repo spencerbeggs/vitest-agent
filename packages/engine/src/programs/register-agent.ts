@@ -1,5 +1,6 @@
 /*
- * Sidecar _internal register-agent implementation.
+ * `agent register-agent` program (formerly the CLI's
+ * lib/internal-register-agent.ts).
  *
  * Wires together the four services that registration touches:
  *
@@ -20,21 +21,19 @@
  * still works.
  */
 
-import {
-	DataReader,
-	DataStore,
-	PerClientSessionMapWriter,
-	RunContextService,
-	deriveIdempotencyKey,
-} from "@vitest-agent/engine";
 import { Effect, Option } from "effect";
+import { DataReader } from "../services/DataReader.js";
+import { DataStore } from "../services/DataStore.js";
+import { deriveIdempotencyKey } from "../services/idempotency.js";
+import { PerClientSessionMapWriter } from "../services/PerClientSessionMap.js";
+import { RunContextService } from "../services/RunContext.js";
 
 /**
  * Input for the end-to-end agent registration effect.
  *
  * @public
  */
-export interface RegisterAgentInput {
+export interface RegisterAgentProgramInput {
 	/** The host's native session identifier (e.g. Claude's `session_id`). */
 	readonly hostSessionId: string;
 	/** Absolute path to the host's conversation transcript file. */
@@ -58,7 +57,7 @@ export interface RegisterAgentInput {
  *
  * @public
  */
-export interface RegisterAgentOutput {
+export interface RegisterAgentProgramOutput {
 	/** Canonical UUID assigned to this agent in the per-project store. */
 	readonly agentId: string;
 	/** UUID of the conversation this agent belongs to. */
@@ -69,7 +68,7 @@ export interface RegisterAgentOutput {
 	readonly idempotencyHit: boolean;
 }
 
-const deriveDefaultClientNonce = (input: RegisterAgentInput): string => {
+const deriveDefaultClientNonce = (input: RegisterAgentProgramInput): string => {
 	const parent = input.parentAgentId ?? "__ROOT__";
 	return `${input.hostSessionId}|${input.agentType}|${parent}`;
 };
@@ -83,10 +82,10 @@ const deriveDefaultClientNonce = (input: RegisterAgentInput): string => {
  * of inserting a new one.
  *
  * @param input - registration inputs including host identifiers and agent metadata
- * @returns an Effect resolving to `RegisterAgentOutput`
+ * @returns an Effect resolving to `RegisterAgentProgramOutput`
  * @public
  */
-export const registerAgentEffect = (input: RegisterAgentInput) =>
+export const registerAgentEffect = (input: RegisterAgentProgramInput) =>
 	Effect.gen(function* () {
 		const sessionMap = yield* PerClientSessionMapWriter;
 		const reader = yield* DataReader;
