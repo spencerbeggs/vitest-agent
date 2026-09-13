@@ -28,8 +28,8 @@ plugins/claude-code/
 ├── agents/
 │   └── tdd-task.md      # tdd-task subagent (context:fork, drives red-green-refactor cycles)
 ├── bin/
-│   ├── start-mcp.sh     # POSIX shell loader (preferred): exec-replaces itself with PM command
-│   └── start-mcp.mjs    # Node.js loader (fallback): spawns PM via child_process, stays alive
+│   ├── start-mcp.sh     # POSIX shell loader (active): execs node_modules/.bin/vitest-agent-mcp, else npx fallback
+│   └── start-mcp.mjs    # Node.js loader (debug alternative): same .bin preference, PM-dispatch fallback
 ├── commands/
 │   ├── configure.md     # /configure slash command
 │   ├── setup.md         # /setup slash command
@@ -69,16 +69,17 @@ plugins/claude-code/
 
 ## MCP loader
 
-Claude Code spawns `start-mcp.sh` as a direct child process over the stdio transport. The loader:
+Claude Code spawns `bin/start-mcp.sh` (POSIX `sh`, `set -eu`) as a direct child over the stdio transport. The loader:
 
-1. Detects the project's package manager from `packageManager` in `package.json` or lockfile presence (npm / pnpm / yarn / bun).
-2. Resolves `projectDir` from `CLAUDE_PROJECT_DIR` (falling back to `process.cwd()`).
-3. Spawns `vitest-agent-mcp` through that package manager with `VITEST_AGENT_REPORTER_PROJECT_DIR` set, so the MCP server uses the correct workspace root.
-4. On failure, prints PM-specific install instructions and exits non-zero.
+1. Resolves `ROOT` from `CLAUDE_PROJECT_DIR` (falling back to `pwd`) and exports `VITEST_AGENT_REPORTER_PROJECT_DIR="$ROOT"` so the server keys the right `data.db` (Claude Code does not reliably propagate `CLAUDE_PROJECT_DIR` to MCP children).
+2. **Execs `$ROOT/node_modules/.bin/vitest-agent-mcp`** when it is executable — the bin the `@vitest-agent/plugin` carrier links into every consumer (issue #412). Positional args (`--noop=1`) pass through verbatim. No package-manager dispatch is ever the exec target.
+3. Otherwise detects the package manager (`packageManager` field via grep/sed — no `jq` — then lockfiles in the order `pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `yarn.lock`, `package-lock.json`, default npm) only to print a not-installed block with the matching install line (`pnpm add -D @vitest-agent/plugin` / `yarn add -D` / `bun add -d` / `npm install --save-dev`) on **stderr**, then `exec npx --yes @vitest-agent/mcp "$@"` — a network fetch of the published server.
 
-`start-mcp.sh` uses `exec` to replace itself — after startup, CC's direct child is the package manager with no shell wrapper. `start-mcp.mjs` stays alive as a wrapper (useful for debugging) and is not the active loader unless `plugin.json` is changed to reference it.
+`start-mcp.mjs` keeps the same `.bin`-first preference but falls back to the PM dispatch instead of `npx --yes`; it stays alive as a wrapper and is not the active loader unless `plugin.json` is changed. Both are covered by `__test__/bin-preference.bats`.
 
-The MCP server communicates with CC over stdin/stdout. When CC closes its session, it closes the pipe; the MCP server exits via EOF. No orphan processes.
+The MCP server is Effect-native (`effect/unstable/ai` `McpServer`); every log line goes to stderr, stdout is the JSON-RPC wire. When CC closes the pipe the server exits 0 on stdin EOF; a startup failure (for example an unwritable data dir) writes `vitest-agent-mcp: startup failed: …` to stderr and exits 1. No orphan processes.
+
+In the dogfood workspace the root devDepends on `@vitest-agent/plugin` only; that single dependency is what links both `node_modules/.bin/vitest-agent` and `.bin/vitest-agent-mcp` (no `publicHoistPattern`, no root cli/mcp devDeps).
 
 ## Hooks
 
@@ -122,9 +123,11 @@ At source time it also installs a **stdout fence**: `exec 3>&1 1>&2` behind the 
 
 | Agent file | Invocation name | Description |
 | --- | --- | --- |
-| `agents/tdd-task.md` | `vitest-agent:tdd-task` | TDD orchestrator with `context:fork`. Drives red-green-refactor cycles with evidence-based phase transitions, three-tier goal/behavior hierarchy, mandatory MCP gates, and channel event push. Cannot write production code without a failing test first. |
+| `agents/tdd-task.md` | `vitest-agent:tdd-task` | TDD orchestrator with `context:fork`. Drives red-green-refactor cycles with evidence-based phase transitions, three-tier goal/behavior hierarchy, mandatory MCP gates, and `tdd_progress_push` progress events. Cannot write production code without a failing test first. |
 
 `context: fork` gives the agent a clean conversation context — it does not inherit the dispatching agent's history. Task prompts must be self-contained. This is correct for dogfood dispatches (prevents cheatsheet leakage) and for production use (the agent should reason from its prompt, not accumulated conversation state).
+
+**Progress events are NOT a Claude Code channel.** `tdd_progress_push` keeps its input/output contract, but the Effect `McpServer` cannot emit the custom `notifications/claude/channel` method: the enriched event now rides the standard `notifications/message` frame (level `info`, logger `vitest-agent/channel`, `data` = the event), which Claude Code's channel feature does not surface as `<channel source="mcp">` tags. Treat the push as best-effort telemetry (events are still persisted): the dispatching agent must narrate progress from `tdd_task (action: get)` / `(action: resume)` polling and the background-completion notification. `skills/tdd/SKILL.md:31-45` and `agents/tdd-task.md:238` still promise `<channel source="mcp">` delivery — stale, to be corrected in a follow-up edit of those two files.
 
 **Dispatch contract:** the agent is spawned as a plain unnamed background subagent (`run_in_background: true`, no `name`/team argument) — a named-teammate dispatch spawns a detached session with its own `conversation_id`, splitting the task from its artifacts so every phase gate denies. Task-panel tools and `TodoWrite` are host-session-gated and may be absent; the agent treats them as best-effort mirrors while `tdd_progress_push` events remain the mandatory progress signal, and the main agent narrates progress in text when the panel is unavailable. The main agent cleans up any dispatched agents once the run completes. If a launch prompt carries no `chatId` (raw dispatch that skipped the bootstrap), the agent self-bootstraps into its own session rather than borrowing one.
 
@@ -140,7 +143,7 @@ Skills are loaded into the dispatching agent's context via three mechanisms: exp
 
 | Skill | Group | Purpose |
 | --- | --- | --- |
-| `tdd` | preloaded (tdd-task) | Main TDD workflow: session lifecycle, phase transitions, goal/behavior hierarchy, channel events |
+| `tdd` | preloaded (tdd-task) | Main TDD workflow: session lifecycle, phase transitions, goal/behavior hierarchy, progress pushes (its `<channel>` section is stale — see Agents) |
 | `interpret-test-failure` | preloaded primitive | Parse failure output, classify failure kind |
 | `derive-test-name-from-behavior` | preloaded primitive | Name a test from a behavior description |
 | `derive-test-shape-from-name` | preloaded primitive | Choose `it`, `describe/it`, parametric, etc. from test name |
@@ -173,7 +176,7 @@ Skills are loaded into the dispatching agent's context via three mechanisms: exp
 | Plugin allowlist (`safe-mcp-vitest-agent-ops.txt`) | None — takes effect on the next tool call |
 | `hooks.json` (new entry or matcher) | `/reload-plugins` — hook registrations reload with the plugin |
 | `plugin.json` `mcpServers.<server>.args` | `/reload-plugins` — changing `args` restarts that MCP server |
-| MCP server or SDK source (`packages/mcp/`, `packages/sdk/`) | `pnpm ci:build` + `/reload-plugins` |
+| MCP server, engine or SDK source (`packages/mcp/`, `packages/engine/`, `packages/sdk/`) | `pnpm ci:build` + `/reload-plugins` |
 | Database schema / migration | `pnpm ci:build` + delete `data.db` + `/reload-plugins` |
 | `plugin.json` structural fields (new `mcpServers`, metadata) | Full CC restart — `/reload-plugins` is not sufficient |
 
@@ -249,7 +252,7 @@ Values are quoted with `printf '%q'` to safely handle anything that might contai
 
 **SubagentStop end-agent integration** pairs stops to starts via a per-dispatch state file. `subagent/start-tdd.sh` writes `~/.claude/session-env/${chat_id}/active-subagents/<ts>-<pid>.json` (the file name is the synthetic-key tail with the `${chat_id}-subagent-` prefix stripped) holding `agentId`, `agentType`, `syntheticKey`, and `startedAt`. `subagent/stop-tdd.sh` pairs on `agent_type` (oldest-start-with-oldest-stop), reads the matched `agentId`, calls `vitest-agent agent end-agent --agent-id $agentId` — with no `--host-session-id`, so the subagent stop sets `agents.ended_at` but leaves the main agent's `session_map` row open — then removes the state file. `session/end-record-worker.sh` removes the whole `active-subagents/` directory for the closing `chat_id` as janitorial cleanup against orphan files from crashed SubagentStop hooks. Pairing is deterministic for sequential same-type dispatches and approximate for concurrent same-type dispatches, but the total open-subagent count stays correct.
 
-**PreToolUse Bash hook** (`pre-tool-use/bash.sh`) is a three-layer `inject-env` pipeline. Layer 0 is a bash regex prefilter that emits a no-op before any sidecar work when the command cannot invoke Vitest (~80–90% of Bash calls). Layer 1 self-sources the session env and skips the sidecar when the active agent is the main agent — the auto-sourced `VITEST_AGENT_*` env is already correct, so only subagent-triggered Bash needs the rewrite. Layer 2 reads `$VITEST_AGENT_SIDECAR_BIN` (an absolute path written once per session by `session/start.sh` via `vitest-agent agent sidecar-path`); when the var is non-empty and executable the binary is exec'd directly — no PATH lookup, no PM wrapper. When absent or non-executable it falls back to running `vitest-agent agent inject-env` through the detected package manager. The sidecar binary is not discoverable via `command -v` because pnpm/npm do not hoist transitive optional-dependency bins into `node_modules/.bin/`. The sidecar matches the command against the five Vitest invocation shapes (direct, runner, pm exec, pm script, node bin path); on match it returns the command prepended with `VITEST_AGENT_CONVERSATION_ID=<uuid> VITEST_AGENT_AGENT_ID=<uuid>` so the spawned Vitest process inherits attribution. Hook returns `hookSpecificOutput.updatedInput.command` per the PreToolUse contract. Payload parsing was consolidated to one `jq` call and one `dirname` lookup.
+**PreToolUse Bash hook** (`pre-tool-use/bash.sh`) is a three-layer `inject-env` pipeline. Layer 0 is a bash regex prefilter that emits a no-op before any sidecar work when the command cannot invoke Vitest (~80–90% of Bash calls). Layer 1 self-sources the session env and skips the sidecar when the active agent is the main agent — the auto-sourced `VITEST_AGENT_*` env is already correct, so only subagent-triggered Bash needs the rewrite. Layer 2 reads `$VITEST_AGENT_SIDECAR_BIN` (an absolute path written once per session by `session/start.sh` via `vitest-agent agent sidecar-path`); when the var is non-empty and executable the binary is exec'd directly — no PATH lookup, no PM wrapper. When absent or non-executable it falls back to running `vitest-agent agent inject-env` through the CLI resolved by `detect_vitest_agent_bin`. The sidecar binary is not discoverable via `command -v` because pnpm/npm do not hoist transitive optional-dependency bins into `node_modules/.bin/`. The sidecar matches the command against the five Vitest invocation shapes (direct, runner, pm exec, pm script, node bin path); on match it returns the command prepended with `VITEST_AGENT_CONVERSATION_ID=<uuid> VITEST_AGENT_AGENT_ID=<uuid>` so the spawned Vitest process inherits attribution. Hook returns `hookSpecificOutput.updatedInput.command` per the PreToolUse contract. Payload parsing was consolidated to one `jq` call and one `dirname` lookup.
 
 **TDD-restricted hook** (`pre-tool-use/tdd-restricted.sh`) reads `tool_input.action` and denies `delete` actions on the consolidated `tdd_goal` and `tdd_behavior` tools. Defense-in-depth on top of the `tdd-task` agent's frontmatter `tools:` list.
 

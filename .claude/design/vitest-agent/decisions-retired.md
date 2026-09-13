@@ -3,8 +3,8 @@ status: archived
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-08
-last-synced: 2026-09-08
+updated: 2026-09-13
+last-synced: 2026-09-13
 completeness: 100
 related:
   - ./decisions.md
@@ -234,3 +234,154 @@ in one job). With Vitest's half off, the premise inverted: nobody was
 writing the counts, and an all-green run produced a completely blank step
 summary. The totals table became unconditional, and the same markdown was
 reused for the `summary.md` report file rather than being step-summary-only.
+
+---
+
+## Decision 19: tRPC for MCP Routing (Retired)
+
+**Superseded by:** [Decision 71 — Effect-Native MCP
+Server](./decisions.md#decision-71-effect-native-mcp-server)
+
+**Why retired:** tRPC bought type-safe procedures, a `createCallerFactory`
+for transport-free tests and middleware — but it required zod for input
+validation, which meant every tool input existed twice (the Effect Schema
+in `tools/<name>.ts` and a hand-synced zod `inputSchema` in `server.ts`)
+plus an Effect-Schema → JSON-Schema → `z.fromJSONSchema` bridge for
+outputs. Three shipped bugs (#200, #246, #335) were the same hand-sync
+failure. Effect v4's `McpServer` serves Effect Schemas natively, so the
+router, the bridge, the MCP SDK and zod were all removed together. The
+transport-free testing seam survives as `__test__/utils/caller.ts`'s
+`makeCaller` (decodes params through the tool's schema and invokes
+`toolHandlers[name]`) and the in-process harness over `Stdio.layerTest`.
+
+**What it was:** the MCP server exposed one tool per tRPC procedure; the
+tRPC context carried a `ManagedRuntime` for Effect service access and each
+procedure called `ctx.runtime.runPromise(effect)`; zod was used only for
+MCP tool input schemas; an `idempotentProcedure` middleware wrapped the
+write tools.
+
+---
+
+## Decision 30 (PM-exec form): Plugin MCP Loader as PM-Detect + Exec (Retired)
+
+**Superseded by:** [Decision 30 — Plugin MCP Loader Execs the Consumer's
+`node_modules/.bin`](./decisions.md#decision-30-plugin-mcp-loader-execs-the-consumers-node_modulesbin)
+and [Decision 70 — Carrier Pattern and Ranked
+Layering](./decisions.md#decision-70-carrier-pattern-and-ranked-layering)
+
+**Why retired:** the loader `exec`-replaced itself with
+`<pm-exec> vitest-agent-mcp` (`pnpm exec`, `npx --no-install`, `yarn run`,
+`bun x`) on the theory that "the user's PM already knows how to find and
+execute project bins". That was only true because a pnpm plugin publicly
+hoisted the transitive `@vitest-agent/mcp`; pnpm links direct-dependency
+bins only, so a bare pnpm consumer had no bin for `pnpm exec` to find, and
+each dispatch layer resolved differently per manager. Once the carrier
+declares the bin itself, `node_modules/.bin/vitest-agent-mcp` exists under
+every manager and the loader execs it directly; PM detection survives only
+to word the install line in the not-installed message, and the fallback is
+`npx --yes @vitest-agent/mcp`. The hook library's `detect_pm_exec` remains
+as the last rung of `detect_vitest_agent_bin`.
+
+**What it was:** detect the PM (`packageManager` field, then lockfile), then
+`exec <pm-exec> vitest-agent-mcp` with `VITEST_AGENT_REPORTER_PROJECT_DIR`
+exported; print PM-specific install instructions and exit 1 if the bin was
+missing. The rationale said re-implementing bin resolution in the loader
+was the wrong layer, and that `npx --no-install` prevented a registry fetch
+inside Claude Code's MCP startup window.
+
+---
+
+## Decision 33 (hoisting note): Bins Reach Consumers via `publicHoistPattern` (Retired)
+
+**Superseded by:** [Decision 70 — Carrier Pattern and Ranked
+Layering](./decisions.md#decision-70-carrier-pattern-and-ranked-layering)
+
+**Why retired:** the root `package.json` declared `@vitest-agent/cli` and
+`@vitest-agent/mcp` directly as devDependencies and `pnpm-workspace.yaml`
+kept a `publicHoistPattern` for both so their bins landed in the root
+`node_modules/.bin` for the dogfood hooks, while published consumers relied
+on `@savvy-web/pnpm-plugin-silk` publicly hoisting the transitive packages.
+Both were workarounds for pnpm's direct-dependency-only bin linking. The
+carrier makes them unnecessary: `@vitest-agent/plugin` declares both bins
+as 4-line shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main`,
+so the root devDependencies shrank to the plugin alone, the hoist pattern
+was deleted, and no pnpm plugin or manual install step is required for a
+consumer to get working bins. The packed-install e2e proves it under npm,
+pnpm, yarn and bun.
+
+**What it was:** the closing sentence of Decision 33's "why regular deps"
+paragraph, describing the root devDeps + `publicHoistPattern` arrangement
+and the silk plugin's public hoist as the reason the bins resolved.
+
+---
+
+## Decision 50 (zod mechanics): `strict(shape)` over `z.strictObject` (Retired)
+
+**Superseded by:** [Decision 50 — Strict MCP Tool
+Inputs](./decisions.md#decision-50-strict-mcp-tool-inputs--reject-unknown-keys-never-silently-widen)
+(the rule is unchanged; the mechanism moved) and [Decision
+71](./decisions.md#decision-71-effect-native-mcp-server)
+
+**Why retired:** the zod helper only existed because the served schema was
+zod. With Effect's `McpServer` the served JSON Schema is generated from the
+tool's Effect Schema, and strictness is applied by `registerStrictToolkit`
+— `additionalProperties: false` on every object node of the served schema
+plus a raw-payload walk before decoding — instead of by wrapping each
+registration.
+
+**What it was:** every `registerTool` input in `server.ts` went through a
+local `strict(shape)` helper wrapping `z.strictObject` with a custom
+`unrecognized_keys` message naming the offending key(s) and the accepted
+params; nested shapes went through the same helper after issue #243; the
+four tools that declared no `inputSchema` were the carve-out; validation
+happened inside the MCP SDK's `validateToolInput` step. The structural
+sweep and the two-direction `it.each` table survive in
+`served-schema-strict.test.ts`.
+
+---
+
+## Decision 60 (zod-enum projection): Served Enums Built from the Exported Tuple (Retired)
+
+**Superseded by:** [Decision 60 — Single-Source Served MCP
+Discriminants](./decisions.md#decision-60-single-source-served-mcp-discriminants-from-the-tool-core)
+(the tuple and its compile-time assertion stay; the projection is gone)
+
+**Why retired:** `server.ts` imported each tool's discriminant tuple and
+passed it to `z.enum(...)` so the served enum could not drift from the
+union. There is no served zod schema any more: `registerStrictToolkit`
+derives the served `oneOf` + `x-discriminator` from the union's own
+generated JSON Schema, so the union is the single source on both sides and
+the tuple's only runtime consumer is `served-enum-drift.test.ts`, which
+asserts the served `oneOf` members match it.
+
+**What it was:** `server.ts` built every served `z.enum(...)` from the
+imported tuple and never spelled a literal list; `server-enum-drift.test.ts`
+listed the tools over an `InMemoryTransport` client and compared each
+served enum to its tuple. The "why not derive the zod enum from the Effect
+schema" argument — that the served input was deliberately flatter than the
+tRPC union — no longer applies because the served input *is* the union.
+
+---
+
+## Decision D19: Effect Schema at the MCP Boundary via `setRequestHandler` (Retired)
+
+**Superseded by:** [Decision 71 — Effect-Native MCP
+Server](./decisions.md#decision-71-effect-native-mcp-server)
+
+**Why retired:** the MCP TypeScript SDK's high-level `registerTool` /
+`server.tool(name, shape, …)` surfaces accepted only zod shapes, so using
+Effect Schema at the boundary meant dropping to
+`server.setRequestHandler(ListToolsRequestSchema, …)` /
+`setRequestHandler(CallToolRequestSchema, …)` and emitting JSON Schema by
+hand. Effect's own `McpServer` takes Effect Schemas directly, so the seam
+and the SDK are gone. The `anyOf` → `oneOf` + `x-discriminator` rewrite the
+decision described now lives in `registerStrictToolkit`, where it is also
+load-bearing: a bare `anyOf` root fails `ToolJsonSchema`'s `type: "object"`
+requirement and would `orDie` at registration.
+
+**What it was:** `tools/list` returned
+`Schema.toJsonSchemaDocument(EffectSchema)` per tool and `tools/call`
+validated payloads via `Schema.decodeUnknownEffect`; resources and prompts
+stayed on the SDK's high-level `registerResource` / `registerPrompt` API,
+mixing the two layers. The brand-schema guidance (`Schema.UUID` as the base
+for branded ids) survives in the current D19 stub.

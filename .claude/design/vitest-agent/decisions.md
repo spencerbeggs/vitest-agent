@@ -3,12 +3,13 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-03-20
-updated: 2026-09-08
-last-synced: 2026-09-08
+updated: 2026-09-13
+last-synced: 2026-09-13
 completeness: 100
 related:
   - ./architecture.md
   - ./components/sdk.md
+  - ./components/engine.md
   - ./components/plugin.md
   - ./components/reporter.md
   - ./components/cli.md
@@ -82,10 +83,10 @@ to/from JSON. Effect Schema definitions live under
 (`Schema.decodeUnknownEffect` / `Schema.encodeUnknownEffect`). Schemas
 compose with Effect services without bridging.
 
-`zod` is a runtime dependency only for tRPC procedure input validation in
-the MCP server. Effect Schema remains the source of truth for data
-structures; Zod is scoped to MCP tool input schemas where `@trpc/server`
-requires it.
+Effect Schema is the only schema language in the family. The MCP
+server's tool inputs, outputs and prompt arguments are Effect Schemas
+served through Effect's own `McpServer` (Decision 71); the earlier zod
+dependency for tRPC input validation is gone.
 
 ### Decision 6: Effect Services over Plain Functions
 
@@ -242,26 +243,26 @@ routine package-manager operations. SQLite at an XDG-derived path resolves
 all three.
 
 The migration story uses `@effect/sql-sqlite-node`'s `SqliteMigrator`
-with WAL journal mode. Composition layers (`ReporterLive`, `CliLive`,
-`McpLive`) are functions of `dbPath` that construct the `SqliteClient`
-layer inline. On Effect v4 the SQL core (`SqlClient`, `SqlError`,
+with WAL journal mode. The one composition layer, the engine's
+`PlatformLive({ dbPath, env, … })`, builds the `SqliteClient` layer and
+its migrator through `makeSqliteStack(dbPath)`; the plugin's
+`ReporterLive` wraps it (Decision 70). On Effect v4 the SQL core (`SqlClient`, `SqlError`,
 `Statement`) lives in `effect/unstable/sql`; the driver
 (`@effect/sql-sqlite-node`, v4) now runs on Node's built-in `node:sqlite`
 (`DatabaseSync`), so the former `better-sqlite3` native binding is removed
 entirely.
 
-### Decision 19: tRPC for MCP Routing
+### Decision 19: tRPC for MCP Routing (Retired)
 
-The MCP server exposes one tool per tRPC procedure. tRPC gives type-safe
-procedures, `createCallerFactory` for testing without MCP transport,
-middleware support, input validation via Zod, and clean separation of
-routing from transport. The `createCallerFactory` pattern enables unit
-testing of tool procedures without starting the MCP server, which a
-direct MCP SDK handler approach could not match.
+**Superseded by:** Decision 71 — Effect-Native MCP Server (see below).
 
-tRPC context carries a `ManagedRuntime` for Effect service access. Each
-procedure calls `ctx.runtime.runPromise(effect)` to execute Effect
-programs. Zod is used only for MCP tool input schemas.
+See [./decisions-retired.md](./decisions-retired.md) for the retired
+entry. The MCP server no longer routes through tRPC or validates inputs
+with zod: every tool is a `Tool.make` value whose parameters and result
+are Effect Schemas, gathered into one `Toolkit` and registered through
+`registerStrictToolkit`. Handler-level tests use
+`__test__/utils/caller.ts`'s `makeCaller` in place of
+`createCallerFactory`.
 
 ### Decision 20: File-Based Claude Code Plugin
 
@@ -273,7 +274,7 @@ The Claude Code plugin is a collection of static files: `.claude-plugin/plugin.j
 
 The `run_tests` MCP tool uses `spawnSync` with a configurable timeout
 (default 120s) to execute `npx vitest run`. MCP tool handlers are already
-async (tRPC procedures return Promises), so blocking the handler with
+async, so blocking the handler with
 `spawnSync` keeps the implementation simple — the tool blocks until
 Vitest completes, then returns the result. The timeout prevents runaway
 test runs from blocking the MCP server.
@@ -376,7 +377,7 @@ write-write upgrade conflicts on deferred transactions, so the SQLite
 driver's busy_timeout did not help.
 
 The fix is `ensureMigrated(dbPath, logLevel?, logFile?)` in
-`packages/sdk/src/utils/ensure-migrated.ts`. A promise cache keyed at
+`packages/engine/src/utils/ensure-migrated.ts`. A promise cache keyed at
 `Symbol.for("vitest-agent/migration-promises")` on `globalThis` ensures
 migration runs exactly once per `dbPath` and concurrent reporter
 instances share the same in-flight promise. The `globalThis` key
@@ -391,47 +392,61 @@ stderr and returns. After the migration completes, normal reads/writes
 work under WAL + `busy_timeout`. The fix lives at the call site — the
 migrator's transaction boundaries are not ours to rewrite.
 
-### Decision 30: Plugin MCP Loader as PM-Detect + Exec
+### Decision 30: Plugin MCP Loader Execs the Consumer's `node_modules/.bin`
 
-`plugins/claude-code/bin/start-mcp.sh` is a zero-deps POSIX shell PM-detect + exec loader:
+`plugins/claude-code/bin/start-mcp.sh` is a zero-deps POSIX shell loader
+(`set -eu`, no `jq`) that Claude Code spawns as a direct child over stdio:
 
-1. Resolve `projectDir` from `CLAUDE_PROJECT_DIR` (or `pwd`).
-2. Detect the user's package manager via `packageManager` field in
-   `<projectDir>/package.json`, then by lockfile presence
-   (`pnpm-lock.yaml` → pnpm, `bun.lock`/`bun.lockb` → bun, `yarn.lock`
-   → yarn, `package-lock.json` → npm). Default `npm`.
-3. `exec`-replace the shell with `<pm-exec> vitest-agent-mcp` (the bin name), exporting
-   `VITEST_AGENT_REPORTER_PROJECT_DIR=projectDir`. PM commands are
-   `pnpm exec`, `npx --no-install`, `yarn run`, `bun x`.
-4. Print PM-specific install instructions and exit 1 if the bin is missing.
+1. Resolve `ROOT` from `CLAUDE_PROJECT_DIR` (or `pwd`) and export
+   `VITEST_AGENT_REPORTER_PROJECT_DIR=$ROOT`.
+2. If `$ROOT/node_modules/.bin/vitest-agent-mcp` is executable,
+   `exec` it with the positional args passed through verbatim
+   (`--noop=1` from `plugin.json`). This is the whole happy path.
+3. Otherwise detect the package manager — the `packageManager` field in
+   `package.json` (grep/sed) wins outright, then the first lockfile in the
+   order `pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `yarn.lock`,
+   `package-lock.json`, default npm — **only** to choose the install line
+   in the not-installed message printed to stderr, then
+   `exec npx --yes @vitest-agent/mcp "$@"` as a network fallback.
 
-The `exec` is load-bearing — after startup, Claude Code's direct child is
-the PM process; there is no shell wrapper. A Node.js fallback loader
-(`start-mcp.mjs`) exists for debugging but is not the active loader unless
-`plugin.json` is changed to reference it.
+The `exec` is load-bearing: after startup Claude Code's direct child is the
+MCP server process itself; there is no shell wrapper to forward signals or
+buffer stdio, and stdin EOF ends the session. `start-mcp.mjs` mirrors the
+same preference order (`accessSync(localBin, X_OK)` → spawn the bin
+directly; else the install block plus the existing PM dispatch as its
+fallback) for debugging; `plugin.json` references the shell loader.
 
-**Why this shape:** the MCP server is its own package
-(`@vitest-agent/mcp`) with its own bin. The user's PM already knows how
-to find and execute project bins; re-implementing that resolution in
-the loader is the wrong layer. A missing peer dep surfaces as a
-PM-level error with PM-native install instructions, not "couldn't find
-./mcp export". `npx --no-install` (not plain `npx`) prevents npx from
-silently downloading from the registry and exceeding Claude Code's MCP
-startup window.
+**Why `.bin`-first (Decision 70).** `@vitest-agent/plugin` is the carrier:
+it declares `vitest-agent-mcp` as its own bin, so every consumer that
+installs the plugin — under npm, pnpm, yarn or bun — has the bin at
+`node_modules/.bin/vitest-agent-mcp`. Exec'ing that path directly removes
+the package-manager dispatch layer (`pnpm exec` / `yarn run` / `bun x` /
+`npx --no-install`), which resolved bins differently per manager and, for
+pnpm, only found a transitive bin because a pnpm plugin publicly hoisted
+it. The earlier PM-exec rationale is retired to
+[./decisions-retired.md](./decisions-retired.md).
 
 **`VITEST_AGENT_REPORTER_PROJECT_DIR` env passthrough:** the spawned MCP
-subprocess uses this env var as the highest-precedence source for
-`projectDir`. Claude Code sets `CLAUDE_PROJECT_DIR` for hook scripts
-but does not reliably propagate it to MCP server subprocesses; this
-passthrough ensures the MCP server sees the same project root the
-loader resolved.
+server reads this variable as the second rung of `resolveProjectDir`
+(after the hook-driven `VITEST_AGENT_PROJECT_DIR`, before
+`CLAUDE_PROJECT_DIR` and `cwd`). Claude Code sets `CLAUDE_PROJECT_DIR` for
+hook scripts but does not reliably propagate it to MCP server subprocesses;
+this passthrough ensures the server sees the project root the loader
+resolved.
 
-**Trade-off:** the loader knows about four PMs and their `exec`
-syntaxes. Keeping that table current is a small maintenance cost.
-`@vitest-agent/mcp` is an exact-pinned regular `dependency` of the
-plugin, and `@savvy-web/pnpm-plugin-silk` publicly hoists it, so
-installing the plugin lands the MCP server's bin where the loader's PM
-`exec` resolves it.
+**The hooks use the same preference.** `hooks/lib/detect-pm.sh`'s
+`detect_vitest_agent_bin cwd` returns `$VITEST_AGENT_CLI_CMD` when set,
+else the relative `node_modules/.bin/vitest-agent` when the consumer has
+it, else `<pm exec> vitest-agent`; the relative form exists so an unquoted
+`$cli` expansion survives a `cwd` containing spaces (the call-site
+`cd "$cwd" &&` is load-bearing). Fifteen hook scripts route through it.
+`bin-preference.bats` covers both the loader and the helper.
+
+**Trade-off:** the fallback `npx --yes @vitest-agent/mcp` fetches the
+published package from the registry — the intended UX for a consumer that
+has not installed the plugin, but it means the dogfood repo depends on the
+carrier's built bin being linked at the root (it is, via the root's single
+`@vitest-agent/plugin` devDependency).
 
 ### Decision 31: Deterministic XDG Path Resolution
 
@@ -517,47 +532,55 @@ race.
 
 ### Decision 33: Package Split
 
-The dependency graph is a four-layer chain — `plugin → reporter → ui → sdk`
-— across seven publishable workspaces (the four above plus `cli`, `mcp` and
-`sidecar`). `@vitest-agent/plugin` has no direct `@vitest-agent/ui`
-dependency: it imports the default reporter from `@vitest-agent/reporter` and
-nothing from `ui`. `react` + `ink` are full `dependencies` of
-`@vitest-agent/reporter` (the plugin does not touch JSX); `ui` keeps them as
-`peerDependencies`. The sidecar dispatch core (`dispatch`, `injectEnv`,
-`exitCodeForTag`) lives in `@vitest-agent/sdk` behind a dedicated `./dispatch`
-entry, so the per-platform sidecar children depend on the SDK rather than the
-CLI — there is no workspace dependency cycle. See
-[./components/sdk.md](./components/sdk.md) and
+The dependency graph is a ranked DAG (Decision 70) across eight publishable
+workspaces under `packages/` plus the four per-platform sidecar children.
+The rendering chain is `plugin → reporter → ui → sdk`; the data chain is
+`plugin → {cli, mcp} → engine → sdk`. `@vitest-agent/plugin` has no direct
+`@vitest-agent/ui` dependency: it imports the default reporter from
+`@vitest-agent/reporter` and nothing from `ui`. `react` + `ink` are full
+`dependencies` of `@vitest-agent/reporter` (the plugin does not touch JSX);
+`ui` keeps them as `peerDependencies`. The sidecar dispatch core
+(`dispatch`, `injectEnv`, `exitCodeForTag`) lives in `@vitest-agent/sdk`
+behind a dedicated, pure `./dispatch` entry, so the per-platform sidecar
+children depend on the core rather than the CLI — there is no workspace
+dependency cycle. See [./components/sdk.md](./components/sdk.md),
+[./components/engine.md](./components/engine.md) and
 [./components/sidecar.md](./components/sidecar.md).
 
-The seven workspaces under `packages/`:
+The eight workspaces under `packages/`:
 
 | Package | Role |
 | --- | --- |
-| `@vitest-agent/sdk` | data layer, schemas, services, formatters, utilities, XDG path stack, sidecar dispatch core (`./dispatch` entry) — no internal deps |
-| `@vitest-agent/plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; declares cli, mcp, reporter and sdk as regular dependencies (not ui). Owns no rendering |
-| `@vitest-agent/reporter` | the default reporter package: `DefaultVitestAgentReporter` (the plugin's built-in factory, owns the Ink live mount), contract re-exports, dispatch helpers. Declares `react` + `ink` as full deps; depends on sdk and ui |
-| `@vitest-agent/ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, `RunEventChannel` PubSub). Consumed by `@vitest-agent/reporter`; `react` / `ink` are `peerDependencies` |
-| `@vitest-agent/cli` | `vitest-agent` bin |
-| `@vitest-agent/mcp` | `vitest-agent-mcp` bin |
-| `@vitest-agent/sidecar` | per-Bash `inject-env` fast-path native binary; a regular `dependency` of `@vitest-agent/cli` |
+| `@vitest-agent/sdk` | platform-free core: schemas, contracts, errors, pure formatters and utils, the pure `./dispatch` entry, `./schemas/*.json` — no internal deps, no `node:` imports |
+| `@vitest-agent/engine` | platform half: services, Live layers, SQLite stack and migrations, `PlatformLive`, `resolveProjectDir`, hook programs, session recovery, `./testing`; depends on sdk |
+| `@vitest-agent/plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; the **carrier** — declares the `vitest-agent` and `vitest-agent-mcp` bins as 4-line shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main`; depends on cli, mcp, reporter, engine and sdk (not ui). Owns no rendering |
+| `@vitest-agent/reporter` | the default reporter package: `DefaultVitestAgentReporter` (owns the Ink live mount), contract re-exports, dispatch helpers. Declares `react` + `ink` as full deps; depends on ui and sdk |
+| `@vitest-agent/ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, `RunEventChannel` PubSub). Depends on sdk; `react` / `ink` are `peerDependencies` |
+| `@vitest-agent/cli` | `vitest-agent` bin; `bin.ts` / `main.ts` (`./main`) / `index.ts`; depends on engine, sdk and sidecar |
+| `@vitest-agent/mcp` | `vitest-agent-mcp` bin; same entry contract; depends on engine and sdk |
+| `@vitest-agent/sidecar` | per-Bash `inject-env` fast-path native binary resolver; the four `sidecar-*` children are its `optionalDependencies`; a regular `dependency` of `@vitest-agent/cli` |
 
-Every `@vitest-agent/*` package versions independently — changesets carries no `fixed`/`linked` grouping, so a bump to one package does not force the rest (see D36). The plugin declares the CLI and MCP packages as regular `dependencies` alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`, so installing the plugin pulls the agent tooling with it. `@vitest-agent/sidecar` is not a direct plugin dependency at all — it is a regular `dependency` of `@vitest-agent/cli`, which drags it in transitively.
+Every `@vitest-agent/*` package versions independently — changesets carries no `fixed`/`linked` grouping, so a bump to one package does not force the rest (see D36). The plugin declares the CLI and MCP packages as regular `dependencies` alongside `@vitest-agent/reporter`, `@vitest-agent/engine` and `@vitest-agent/sdk`, so installing the plugin pulls the agent tooling with it. `@vitest-agent/sidecar` is not a direct plugin dependency at all — it is a regular `dependency` of `@vitest-agent/cli`, which drags it in transitively.
 
-**Why this split:** the shared package boundary is determined by "what
-does more than one runtime package need". The data layer, output
-pipeline, path-resolution stack and dispatch core are all needed by
-more than one runtime, so they live in `@vitest-agent/sdk` — circular
-imports are impossible by construction. The CLI/MCP split is a
-module-boundary decision: the `effect/unstable/cli` surface is the CLI's
-own concern and the MCP SDK + tRPC + zod stack is the MCP server's own
-concern, so each keeps its dependency surface in its own package.
+**Why this split:** the core/engine boundary is "does it touch a
+platform" — `node:*`, `@effect/platform-node`, SQLite, `@effected/*`,
+`process` — enforced by per-package boundary tests, so the SEA binary, the
+`ui` package and every schema consumer can depend on the core without
+pulling a data layer. The engine boundary is "what does more than one
+front end need": services, layers, migrations, the one platform
+assembly and the hook programs both the CLI commands and the MCP tools
+wrap. The CLI/MCP split is a module-boundary decision: the
+`effect/unstable/cli` surface is the CLI's own concern and the
+`effect/unstable/ai` `McpServer` surface is the MCP server's own concern,
+so each keeps its dependency surface in its own package and neither
+imports the other.
 
-**Why regular deps for cli and mcp (vs required peers):** every plugin consumer needs both packages — for the bin invocations the reporter's "Next steps" output suggests and for the MCP server the Claude Code plugin needs. They were previously required `peerDependencies` (source `workspace:*` deps promoted at build by a `savvy.build.ts` manifest transform) on the theory that only an auto-installed peer lands its bin at the consumer's top level. That promotion was removed: `@savvy-web/pnpm-plugin-silk` publicly hoists both packages so their bins resolve regardless, and the peer declaration was actively harmful — pnpm's `autoInstallPeers` resolution of the plugin's cli/mcp peers forced wrong Effect versions into consuming repos. Both now publish as exact-pinned regular `dependencies` (the default manifest transform rewrites the source `workspace:*` protocol to the exact current version at publish). The changesets ripple is unchanged: a cli/mcp release pushes the plugin's `workspace:*` dep out of range and auto-PATCH-bumps the plugin via `updateInternalDependencies: "patch"`, re-pinning the exact version — and with no cli/mcp peer range in the published manifest, the forced-major peer-range hazard is gone entirely (see D36). In the monorepo dev workspace the root `package.json` still declares `@vitest-agent/cli` and `@vitest-agent/mcp` directly as devDependencies and `pnpm-workspace.yaml` keeps a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks.
+**Why regular deps for cli and mcp (vs required peers):** every plugin consumer needs both packages — for the bin invocations the reporter's "Next steps" output suggests and for the MCP server the Claude Code plugin needs. They were previously required `peerDependencies` (source `workspace:*` deps promoted at build by a `savvy.build.ts` manifest transform) on the theory that only an auto-installed peer lands its bin at the consumer's top level. That promotion was removed, and the peer declaration was actively harmful — pnpm's `autoInstallPeers` resolution of the plugin's cli/mcp peers forced wrong Effect versions into consuming repos. Both now publish as exact-pinned regular `dependencies` (the default manifest transform rewrites the source `workspace:*` protocol to the exact current version at publish). The changesets ripple is unchanged: a cli/mcp release pushes the plugin's `workspace:*` dep out of range and auto-PATCH-bumps the plugin via `updateInternalDependencies: "patch"`, re-pinning the exact version (see D36). The bins themselves no longer depend on hoisting at all: the carrier declares them (Decision 70), so the root `package.json` lists only `@vitest-agent/plugin` as a workspace devDependency and `pnpm-workspace.yaml` carries no `publicHoistPattern`; the retired hoisting note lives in [./decisions-retired.md](./decisions-retired.md).
 
 **Trade-offs:** every source `package.json` is `private: true`
-(rslib-builder transforms each on publish), and consumers importing schemas
-use `from "@vitest-agent/sdk"`.
+(the bundler transforms each on publish), consumers importing schemas
+use `from "@vitest-agent/sdk"`, and consumers of the data layer or the
+testing presets import from `@vitest-agent/engine` / `@vitest-agent/engine/testing`.
 
 ### Decision 34: Plugin/Reporter Split
 
@@ -628,16 +651,16 @@ Hook scripts call the CLI bin `vitest-agent`.
 
 ### Decision 35: Framing-Only MCP Prompts
 
-The MCP server exposes framing-only prompts alongside the tRPC tool
-router: `triage`, `why-flaky`, `regression-since-pass`,
-`explain-failure`, `tdd-resume`, `wrapup`. Each takes a zod-validated
-argument set and returns user-role messages that orient the agent
-toward the right tool composition — no tool data is pre-fetched on the
-server.
+The MCP server exposes framing-only prompts alongside the toolkit:
+`triage`, `why-flaky`, `regression-since-pass`, `explain-failure`,
+`tdd-resume`, `wrapup`. Each takes an Effect-Schema-validated, string-based
+argument set and returns user-role messages that orient the agent toward
+the right tool composition — no tool data is pre-fetched on the server.
 
-The registrar (`packages/mcp/src/prompts/index.ts`) is called from
-`server.ts` immediately before `StdioServerTransport` is constructed.
-An earlier form of this decision also registered a resources surface
+`PromptsLayer` (`packages/mcp/src/prompts/layer.ts`) is `Layer.mergeAll`
+of six `McpServer.prompt` layers, merged with the strict toolkit
+registration inside `ServerLayer` so tools and prompts register into the
+same `McpServer` (Decision 71). An earlier form of this decision also registered a resources surface
 alongside the prompts; that surface was removed — see
 [./decisions-retired.md](./decisions-retired.md).
 
@@ -650,18 +673,18 @@ turns earlier than when the agent uses the data; by then it's stale.
 Framing-only prompts compose with existing tools: `triage` orients
 the agent toward `triage_brief` + `failure_signature_get` +
 `hypothesis`, and the agent calls those tools at the right
-time. Argument validation lives in the prompt (zod), so failures show
-up at prompt selection rather than several turns later in tool calls.
+time. Argument validation lives in the prompt schema (`required` is
+served from `SchemaAST.isOptional`, the description from the field's
+annotation), so failures show up at prompt selection as a `-32602`
+rather than several turns later in tool calls.
 
-**Why direct SDK registration (vs tRPC):** tRPC is the right
-abstraction for tools (input validation + typed context + caller
-factory for testing). Prompts are templated message emitters,
-well-served by the SDK's native `registerPrompt` API, which
-understands argument schemas natively. Forcing prompts through tRPC
-would mean inventing a procedure-per-prompt convention on top of a
-router designed for request/response tools. The prompt surface shares
-the same `McpServer` instance, the same stdio transport, and the same
-`ManagedRuntime` indirectly as the tRPC tool router.
+**Why `McpServer.prompt` rather than a tool per prompt:** prompts are
+templated message emitters, and Effect's prompt registration understands
+argument schemas natively; forcing them through the toolkit would mean
+inventing a tool-per-prompt convention on top of a surface designed for
+request/response tools. The one server-side input is `tdd-resume`'s
+`sessionId` default, read from `McpSession`. Prompt `title` cannot be set
+at rc.115, so the six prompts are surfaced by name.
 
 **Trade-off:** prompts cannot dynamically discover tools — a future
 "this prompt should expand to whatever tools are currently
@@ -1445,7 +1468,7 @@ its own `mkdtemp` `coverage.reportsDirectory`, spread onto the `createVitest`
 overrides as a field-level merge so `enabled`, provider and thresholds still
 come from the user's config. The override is created *inside* the tool's
 `try` so a throwing `mkdtempSync` returns the tool's normal error envelope
-instead of escaping the tRPC resolver, and cleanup is a best-effort `rmSync`
+instead of escaping the handler, and cleanup is a best-effort `rmSync`
 in `finally`.
 
 **Trade-off accepted.** Final coverage artifacts (html, lcov) from MCP-driven
@@ -1464,45 +1487,45 @@ Decision 62, which mirrors the per-process directory inside
 
 ### Decision 50: Strict MCP Tool Inputs — Reject Unknown Keys, Never Silently Widen
 
-**Context.** MCP tool inputs registered as bare zod raw shapes are
-non-strict: the SDK strips any key the schema does not declare. Two
-failure modes share that root cause. A caller that misspells a parameter
-gets a successful result computed from a wider filter set than it asked
-for — `run_tests` runs the entire workspace and reports green while the
-agent believes it scoped the run. And a served schema that simply forgot
-to declare a parameter the tRPC procedure handles is indistinguishable
-from one that ignored it: `tags` and `passWithNoTests` were tRPC-only for
-their whole life before issue #200, so every real client's tag filter was
-dropped in silence. An agent cannot detect either case from the response.
+**Context.** A non-strict tool input strips any key the schema does not
+declare. Two failure modes share that root cause. A caller that misspells
+a parameter gets a successful result computed from a wider filter set than
+it asked for — `run_tests` runs the entire workspace and reports green
+while the agent believes it scoped the run. And a served schema that
+simply forgot to declare a parameter the handler accepts is
+indistinguishable from one that ignored it: `tags` and `passWithNoTests`
+were handler-only for their whole life before issue #200, so every real
+client's tag filter was dropped in silence. An agent cannot detect either
+case from the response.
 
-**Decision.** Every `registerTool` input in `server.ts` goes through a
-local `strict(shape)` helper wrapping `z.strictObject`, with a custom
-`unrecognized_keys` message naming both the offending key(s) and the
-accepted-param list. All 26 parameterized tools, including the
-empty-shape one (`strict({})`); the four tools that declare no
-`inputSchema` have nothing to strip. Partial adoption was rejected
-explicitly: a surface where unknown-key rejection is per-tool luck
-teaches agents nothing they can rely on. A table-driven test asserts both
-directions per tool — unknown key rejected, documented params still
-accepted — so the pass cannot quietly overshoot into rejecting valid
-calls.
+**Decision.** Every served tool input is strict, and the rule is per
+object *level*, not per tool (issue #243): an unknown key is rejected at
+the top level, inside nested objects, inside array elements and inside the
+union branch a discriminant selects, with an error naming both the
+offending key(s) — path-qualified — and the accepted params at that level.
+Partial adoption was rejected explicitly: a surface where unknown-key
+rejection is per-tool luck teaches agents nothing they can rely on.
 
-**Extension (issue #243): the rule is per object *level*, not per
-tool.** The first pass wrapped only each tool's outermost shape, which
-left the identical hole one level down — a plain nested `z.object`
-strips unknown keys exactly like a bare raw shape. `run_tests` declared
-`tags` and `_sessionContext` that way, so `{ tags: { anyy: [...] } }`
-decoded to `{ tags: {} }`: the filter disappeared, the run went wide
-across the whole workspace, and the strict top level reported nothing.
-Nested shapes go through the same helper. The regression guard is
-structural rather than table-driven — a sweep walks every *served* JSON
-Schema (recursing through `properties`, the `anyOf` / `oneOf` / `allOf`
-/ `prefixItems` wrappers zod emits around optionals and unions, `items`,
-and `$defs`) and asserts `additionalProperties: false` on every object
-node. A sweep is the right shape here for two reasons a longer case
-table cannot match: it covers tools a unit suite cannot safely *call*
-(`run_tests` runs tests), and it keeps holding for nested shapes added
-later without anyone remembering to extend a list.
+**Mechanism.** Effect's `McpServer.toolkit` decodes with
+`onExcessProperty: "ignore"`, so registration goes through the package's
+own `registerStrictToolkit` (Decision 71), which serves
+`additionalProperties: false` on every object node of the generated JSON
+Schema and walks the raw payload against that served schema *before*
+decoding, failing `InvalidParams` on the first unknown key. A rejected call
+never reaches a `DataReader` / `DataStore` call. The zod `strict()` helper
+and the hand-synced `z.strictObject` registrations this replaced are
+retired to [./decisions-retired.md](./decisions-retired.md).
+
+**Guards.** `served-schema-strict.test.ts` is structural and table-driven
+at once: a sweep over every *served* schema (recursing through
+`properties`, `oneOf` / `anyOf` / `allOf`, `items`, `prefixItems`, `$defs`)
+asserts `additionalProperties: false` on every object node, and an
+`it.each` table calls every tool but `run_tests` with a bogus extra key
+(rejected, naming the key) *and* with only its documented params (never
+rejected at the parameter boundary). The second half keeps the pass from
+overshooting into rejecting valid calls; a guard test asserts the table
+equals `tools/list` minus `run_tests`, whose wire coverage lives in
+`run-tests-wire.e2e.test.ts`.
 
 **Companion: positive confirmation of scope.** Rejection covers the
 misspelled-key case; it cannot cover a caller that passes nothing and
@@ -1542,10 +1565,11 @@ client session exists to preserve, so failing fast and loud beats
 spinning in a half-initialized state.
 
 **Scope boundary.** These guards are not the same layer as the
-`registerTool` wrapper that returns an `UnexpectedToolError` envelope. A
-throw *inside* a tool call was already caught by the MCP SDK and never
-threatened the process; that wrapper only upgrades the SDK's untyped
-error string to the structured shape the rest of the tool surface uses.
+`registerStrictToolkit` catch that returns an `UnexpectedToolError`
+envelope. A throw *inside* a tool call is caught at the registration
+boundary and never threatens the process; that catch only upgrades an
+untyped failure to the structured shape the rest of the tool surface
+uses.
 Do not conflate the two. See [./components/mcp.md](./components/mcp.md).
 
 ### Decision 52: Serialize `runScript` Builds with a File-Based Advisory Lock
@@ -1837,52 +1861,38 @@ surface and RenderState*.
 
 ### Decision 60: Single-Source Served MCP Discriminants from the Tool Core
 
-**Context.** Every MCP tool input is declared twice — the tRPC
-`Schema.Union` in `tools/<name>.ts` and the served zod `inputSchema` in
-`server.ts` — and the two are hand-synced (see *Server bootstrap* in
-[./components/mcp.md](./components/mcp.md)). Decision 50 made the
-served side strict so a forgotten *field* fails loudly instead of being
-stripped. It did nothing for a forgotten *discriminant literal*: the
-`test` tool's served `z.enum` listed `list` / `get` / `for_file` while
-the tRPC union also handled `for_tag`, and `inventory`'s served `kind`
-omitted `tag`. Router-level tests exercised both variants happily; a
-real MCP client got an `invalid_enum_value` rejection. Strictness had
-turned a silent-widening bug into a loud one, but the loud one still
-shipped (issue #335).
+**Context.** When every tool input was declared twice — an Effect
+`Schema.Union` in `tools/<name>.ts` and a hand-synced zod `inputSchema` in
+`server.ts` — a forgotten discriminant *literal* shipped silently: the
+`test` tool's served enum listed `list` / `get` / `for_file` while the
+union also handled `for_tag`, and `inventory`'s served `kind` omitted
+`tag`. Router-level tests exercised both variants happily; a real MCP
+client got a rejection (issue #335).
 
-**Decision.** The discriminant tuple lives with the union, not with
-the registration. Each consolidated tool core exports its literal
-tuple (`TEST_ACTIONS`, `INVENTORY_KINDS`, `NOTE_ACTIONS`,
-`HYPOTHESIS_ACTIONS`, `TDD_TASK_ACTIONS`, `TDD_GOAL_ACTIONS`,
-`TDD_BEHAVIOR_ACTIONS`) immediately after its `Schema.Union`, and a
-two-way conditional-type assertion (`Action extends Tuple[number]` and
-`Tuple[number] extends Action`) pins the tuple to the union's
-`action` / `kind` type at compile time. `server.ts` imports the tuple
-and passes it to `z.enum(...)`; it never spells a literal list. Two
-tests guard the runtime side: `server-enum-drift.test.ts` lists every
-tool over an `InMemoryTransport` client and asserts each served enum
-equals its exported tuple, and per-variant served-schema tests
-(`server-test-for-tag-schema.test.ts`,
-`server-inventory-tag-schema.test.ts`) pin that the once-dead variants'
-fields are accepted end to end.
+**Decision.** The discriminant tuple lives with the union. Each
+consolidated tool core exports its literal tuple (`TEST_ACTIONS`,
+`INVENTORY_KINDS`, `NOTE_ACTIONS`, `HYPOTHESIS_ACTIONS`, `TDD_TASK_ACTIONS`,
+`TDD_GOAL_ACTIONS`, `TDD_BEHAVIOR_ACTIONS`) immediately after its
+`Schema.Union`, and a two-way conditional-type assertion (`Action extends
+Tuple[number]` and `Tuple[number] extends Action`) pins the tuple to the
+union's `action` / `kind` type at compile time. The served enum is no
+longer a projection anyone writes: `registerStrictToolkit` derives the
+served `oneOf` + `x-discriminator` from the union's own generated JSON
+Schema, so the union is the single source on both sides. The zod-enum
+projection this replaced is retired to
+[./decisions-retired.md](./decisions-retired.md).
 
-**Why not derive the zod enum from the Effect schema directly.** A
-generic `Schema.Union → z.enum` bridge would need to introspect the
-union's AST for the discriminant field, and the served `inputSchema` is
-deliberately *flatter* than the tRPC union — one optional bag of every
-variant's fields, with dispatch on `action` in the handler — so the
-shapes are not isomorphic and a full bridge would be more code than the
-problem warrants. A tuple plus a type assertion costs six lines per
-tool and fails the build at exactly the moment a variant is added
-without extending it, which is the failure mode that actually occurred.
+**Why keep the tuple at all.** It is what `served-enum-drift.test.ts`
+asserts the served `oneOf` members against — the runtime check that the
+generated schema still carries every literal — and it fails the build at
+exactly the moment a variant is added to the union without extending it,
+which is the failure mode that actually occurred. Six lines per tool.
 
 **Why the tuple is exported from the tool core rather than declared in
-`server.ts`.** The union is the authority on what the procedure
-handles; the served enum is a projection of it. Putting the tuple next
-to the union keeps the assertion in the same file as the thing it
-asserts about, so a reviewer editing `TestInput` sees `TEST_ACTIONS`
-three lines below it. Declaring it in `server.ts` would recreate the
-hand-sync problem one hop away.
+`toolkit.ts`.** The union is the authority on what the handler handles;
+putting the tuple next to it keeps the assertion in the same file as the
+thing it asserts about, so a reviewer editing `TestInput` sees
+`TEST_ACTIONS` three lines below it.
 
 ### Decision 61: Fail Open on Non-Default Discovery via Lexical Config Detection
 
@@ -2116,13 +2126,13 @@ fields, and `attachments` recorded neither a size (so a dangling
 `.vitest/attachments` path stopped being describable once the directory was
 cleaned) nor an encoding (so an inline body could not be decoded back).
 
-**Decision.** Ship `packages/sdk/src/migrations/0002_test_artifacts.ts`.
+**Decision.** Ship `packages/engine/src/migrations/0002_test_artifacts.ts`.
 `test_annotations` is DROPped and recreated with the corrected shape;
 `test_artifacts` gains `data TEXT` and `attachments` gains `byte_size
 INTEGER` and `body_encoding TEXT`, both by `ALTER TABLE`. The migration is
 registered in all three loaders — `utils/ensure-migrated.ts`, the plugin's
 `layers/ReporterLive.ts`, and the sdk testing layer
-(`packages/sdk/src/testing/layers.ts`, which had been stuck at `0001` and is
+(`packages/engine/src/testing/layers.ts`, which had been stuck at `0001` and is
 the one that gets forgotten).
 
 **Why drop-and-recreate is allowed here.** The post-2.0 rule (D9) is that a
@@ -2245,6 +2255,377 @@ fetching bytes is a deliberate second step.
 `maxBytes` is, so an agent can always see what exists before deciding to
 pay for it. See [./components/mcp.md](./components/mcp.md) *`test` tool*.
 
+### Decision 70: Carrier Pattern and Ranked Layering
+
+Issue #412. The package graph is restructured on the okfit carrier pattern:
+one platform-free core, one platform half, two process-owning front ends
+with a fixed entry contract, and a single top-of-graph carrier whose bins
+reach every consumer without package-manager hoisting tricks.
+
+**Context.** Before this the shared `@vitest-agent/sdk` mixed pure schemas
+and formatters with SQLite, `@effect/platform-node`, `@effected/xdg` and
+`std-env`, so the sidecar SEA and the `./dispatch` entry had to tree-shake
+their way out of the whole data layer, and `process.env` / `process.cwd()`
+reads were scattered through layers (`LoggerLive`,
+`EnvironmentDetectorLive`, `RunContextLive`), the CLI's `lib/`, and the
+MCP `bin.ts`. Each front end also assembled its own composite layer
+(`CliLive`, `McpLive`) and its own three-level `projectDir` precedence,
+which drifted (the CLI ignored `VITEST_AGENT_REPORTER_PROJECT_DIR`, the
+MCP ignored `VITEST_AGENT_PROJECT_DIR`). On the install side the
+`vitest-agent` and `vitest-agent-mcp` bins reached a consumer only because
+`@savvy-web/pnpm-plugin-silk` publicly hoisted the transitive `cli` and
+`mcp` packages — pnpm links only *direct*-dependency bins into
+`node_modules/.bin`, so without that plugin (and under a bare `pnpm`
+consumer) the Claude Code plugin's hooks and loader had no bin to call.
+
+**Decision — ranked layering.** Every workspace edge points to a strictly
+lower rank; `cli` and `mcp` never import each other.
+
+| Rank | Package | Runtime workspace deps |
+| --- | --- | --- |
+| 1 | `@vitest-agent/sdk` (core) | none |
+| 2 | `@vitest-agent/ui` | sdk |
+| 2 | `@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` | sdk (build-time only; deleted from the published manifest) |
+| 3 | `@vitest-agent/engine` | sdk |
+| 3 | `@vitest-agent/reporter` | ui, sdk |
+| 3 | `@vitest-agent/sidecar` | the four `sidecar-*` as `optionalDependencies` |
+| 4 | `@vitest-agent/cli` | engine, sdk, sidecar |
+| 4 | `@vitest-agent/mcp` | engine, sdk |
+| 5 | `@vitest-agent/plugin` (carrier) | cli, mcp, reporter, engine, sdk |
+| — | root `vitest-agent` (dev) | plugin only |
+
+`packages/plugin/__test__/workspace-layering.test.ts` reads every workspace
+manifest (`packages/*`, `plugins/*`, `website`, `playground`, root) with
+`__test__/utils/workspace-graph.ts`, asserts every package has a declared
+rank in `LAYER_RANKS`, that every `dependencies` / `devDependencies` /
+`peerDependencies` / `optionalDependencies` edge points to a strictly lower
+rank, that the two front ends never depend on each other, and that a
+topological sort consumes every node. It lives in the carrier's test tree
+because the carrier already depends on everything and root-level tests are
+not discovered (`classifyTestPath`).
+
+**`@vitest-agent/sdk` keeps its name and becomes the core.** The package
+that ships `./schemas/*.json` and `RUN_REPORT_FILE_SCHEMA_URL` must keep
+its npm name — the published `$id` URLs and every consumer's
+`from "@vitest-agent/sdk"` schema import stay valid — so the *name* stays
+with the pure half and the platform half is the new package. The core keeps
+`contracts/`, `schemas/`, `errors/`, the formatters, the pure `utils/`, the
+`./dispatch` entry and the JSON Schema documents. It lost `services/`,
+`layers/`, `sql/`, `migrations/`, `lib/`, `testing/` and the platform utils
+(`ensure-migrated`, `resolve-data-path`, `resolve-project-key-from-cwd`,
+`resolve-workspace-key`, `failure-signature`, `idempotency`) — a major for
+sdk. Its runtime dependencies collapsed to `effect`, `acorn` and
+`acorn-typescript`.
+
+**`@vitest-agent/engine` is new.** It received everything sdk lost plus
+three modules that did not exist before: `platform.ts` (one `PlatformLive`
+factory over `makeSqliteStack` + `NodePlatformLayer` + `LoggerLive`; the
+composite the CLI, MCP server, plugin `ReporterLive`, `ensureMigrated` and
+the testing layer all build from — `CliLive` and `McpLive` are deleted),
+`project-dir.ts` (one `resolveProjectDir({ env, cwd })` with the four-name
+precedence `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR`
+→ `CLAUDE_PROJECT_DIR` → `cwd`; both front ends call it), and parametric env
+readers (`EnvironmentDetectorLive(env)`, `RunContextLive(env)`,
+`OutputPipelineLive(env)`, `resolveLogLevel(env)`, `resolveLogFile(env)`).
+The CLI's hook programs (`register-agent`, `end-agent`, `record-*`,
+`resolve-session-for-recording`, the XDG `hook-paths` resolver and the
+three-database `SidecarPlatformLive`) and the MCP server's session-env
+recovery (`recoverSessionContextFromSessionEnv({ projectDir, homeDir })`)
+moved into `engine/src/programs/`, so both front ends are thin command and
+transport wrappers over engine programs. Every ambient input a program
+needs — `env`, `cwd`, `homeDir` — is a parameter the front end passes.
+
+**Boundary tests, one per package.** Each of sdk, engine, cli and mcp
+carries `__test__/boundaries.test.ts` over a shared comment-stripping
+scanner (`__test__/utils/boundaries.ts`: `walkTs`, `referencesProcess`,
+`importSpecifiers`):
+
+- **sdk** may not import `node:*`, `@effect/platform-node`,
+  `@effect/sql-sqlite-node` or any `@effected/*` package, and may not
+  reference `process.`. `utils/test-location.ts` and
+  `formatters/terminal.ts` dropped `node:path` for the pure
+  `utils/posix-path.ts` helpers; `format-console.ts#relativePath` takes a
+  required `cwd`; `FormatterContext.cwd` is required.
+- **engine** may not reference `process.` anywhere — **no allowlist** — and
+  may not import any front end or the rendering packages.
+- **cli** allows `process` only in `bin.ts`, `main.ts`, `version.ts` and
+  `commands/**` (the thin `effect/unstable/cli` wrappers that thread
+  `process.env` / `process.cwd()` into engine programs); **mcp** allows it
+  only in `bin.ts`, `main.ts`, `version.ts` and `tools/run-tests.ts` (the one
+  tool that must set `process.env.VITEST_AGENT_*` on the in-process Vitest).
+  Both forbid importing the other front end, `plugin`, `reporter`, `ui`, and
+  (mcp) `@modelcontextprotocol/sdk`, `@trpc/server`, `zod`.
+- The single exemption everywhere is the exact token
+  `process.env.__PACKAGE_VERSION__`, a compile-time literal the bundler
+  substitutes, and it may appear only in `src/version.ts`. The scanner
+  asserts the token's user list is exactly `["version.ts"]`.
+
+**`./dispatch` stays in sdk and is pure.** `dispatch(argv, io)` takes
+`io = { cwd, env, readFile }`; `injectEnv` takes `readFile` too. The four
+sidecar bins and the CLI's `agent inject-env` pass `process.cwd()`,
+`process.env` and a `readFileSync` wrapper. The SEA bundle therefore
+reaches nothing platform-bound from the core.
+
+**Front-end entry contract.** Each of `cli` and `mcp` ships three files:
+`src/bin.ts` = shebang + `import { main } from "./main.js"; main();`
+(`void main()` for the async MCP one); `src/main.ts` owns the process
+(every `process` read, `NodeRuntime.runMain`, teardown) and is published as
+the `./main` subpath; `src/index.ts` is a side-effect-free barrel that
+never imports `main.ts`, so a library consumer's import graph never pulls
+in the process-owning module. `src/version.ts` holds
+`CURRENT_<PKG>_VERSION`.
+
+**The carrier.** `@vitest-agent/plugin` declares both bins itself — two
+4-line shims, `src/bin/vitest-agent.ts` (`import { main } from
+"@vitest-agent/cli/main"; main();`) and `src/bin/vitest-agent-mcp.ts`
+(`import { main } from "@vitest-agent/mcp/main"; void main();`). A
+consumer installs only the plugin, and because the plugin is a *direct*
+dependency its bins land in `node_modules/.bin` under every package manager
+— including pnpm, which links direct-dependency bins only. The root
+`package.json` devDependencies shrank to the plugin (plus silk); the
+`publicHoistPattern` in `pnpm-workspace.yaml` and the direct cli/mcp root
+devDeps are gone. The dogfood `node_modules/.bin/vitest-agent` and
+`vitest-agent-mcp` now resolve to the carrier's built shims.
+
+Under npm, yarn (node-modules linker) and bun, which hoist transitive bins,
+`@vitest-agent/cli`'s own `vitest-agent` bin wins the `.bin` slot and
+**shadows** the carrier's same-named shim. Both run the same `main()`
+today, so this is harmless — but if the shim and the cli bin ever diverge,
+those consumers silently get the cli's. Recorded here so nobody is
+surprised by the symlink target.
+
+**Loaders and hooks prefer `node_modules/.bin`.** `bin/start-mcp.sh` execs
+`$ROOT/node_modules/.bin/vitest-agent-mcp` when it is executable; package
+manager detection survives only to pick the install line in the
+not-installed message, after which the loader falls back to
+`npx --yes @vitest-agent/mcp`. The hook library's
+`detect_vitest_agent_bin cwd` prefers (1) `$VITEST_AGENT_CLI_CMD` verbatim
+when set, (2) the *relative* `node_modules/.bin/vitest-agent` when
+`$cwd/node_modules/.bin/vitest-agent` is executable, (3)
+`$(detect_pm_exec cwd) vitest-agent`. Rung 2 returns a relative path on
+purpose: every call site expands `$cli` unquoted (required for the
+multi-word rungs 1 and 3), so an absolute path containing a space
+word-split and the bin silently never ran; the call-site `cd "$cwd" &&` is
+therefore load-bearing. `VITEST_AGENT_CLI_CMD` doubles as the bats suites'
+stub hook and as an operator knob, the same shape as
+`VITEST_AGENT_SIDECAR_BIN`.
+
+**Packed-install e2e per package manager.**
+`packages/plugin/__test__/bins-packed-install.e2e.test.ts` packs every
+family package from `dist/prod/npm/pkg` with `npm pack`, writes a consumer
+`package.json` that depends on the plugin tarball with tarball overrides
+for the rest (`overrides`, `pnpm.overrides`, `resolutions`, plus a
+settings-only `pnpm-workspace.yaml` because pnpm ≥ 10 ignores
+`package.json#pnpm`), installs it under npm, pnpm, yarn (berry,
+`nodeLinker: node-modules`) and bun, and asserts per manager that
+`node_modules/.bin/vitest-agent` and `vitest-agent-mcp` are executable,
+that `vitest-agent --version` exits 0 with a semver, and that
+`vitest-agent-mcp` answers a JSON-RPC `initialize` on stdout with empty
+stderr and exit 0. A guard test asserts every `@vitest-agent/*` name any
+packed manifest references has a tarball. **Release gate:** engine must be
+published before the plugin — a consumer resolves it only via the tarball
+override until then.
+
+**Dynamic `await import` is not a house pattern.** Static imports
+everywhere. The single sanctioned exception is mcp `main.ts`, where the
+crash guards must register before the server graph evaluates (Decision 51);
+the pre-existing dynamic imports in `tools/run-tests.ts` (root-anchored
+`vitest/node`, Decision 55) and the reporter's lazy `ink` load stay.
+
+**Consequences.** `@vitest-agent/sdk` major (removed data-layer exports,
+`dispatch(argv, io)`, `FormatterContext.cwd`, `InjectEnvInput.readFile`);
+`@vitest-agent/engine` new; `@vitest-agent/cli` and `@vitest-agent/mcp`
+lose the re-exports that moved (`SidecarLive`, `registerAgentEffect`, the
+`resolve*Dir` helpers, `parseSessionEnvExports`,
+`recoverSessionContextFromSessionEnv`) and gain `./main`;
+`@vitest-agent/plugin` gains two bins. The engine's `resolveHookPaths`
+requires `HOME`/`USERPROFILE` in the env map for its XDG rung
+(`XdgEnvError` → exit 5) where the old `os.homedir()` read never failed;
+hook environments always carry `HOME`.
+`suggestedPath` from `classifyTestPath` now uses `/` on Windows. Decision
+19 (tRPC), Decision 30's PM-exec rationale, Decision 33's hoisting note,
+Decision 50's zod `strict()` mechanics, Decision 60's zod-enum projection and
+Decision D19 are retired to [./decisions-retired.md](./decisions-retired.md).
+See [./components/engine.md](./components/engine.md),
+[./components/sdk.md](./components/sdk.md),
+[./components/plugin.md](./components/plugin.md) and
+[./components/plugin-claude.md](./components/plugin-claude.md).
+
+**Follow-ups (recorded, not open work).**
+
+- XDG fallback split (pre-existing, now visible): `PathResolutionLive`
+  passes no `fallbackDir`, so with `XDG_DATA_HOME` unset the reporter and
+  MCP `data.db` lands in `~/.vitest-agent/<key>/` (`@effected/xdg` rung 5)
+  while the hook paths use `fallbackDir: ".local/share/vitest-agent"` and
+  CLAUDE.md documents `~/.local/share`. Preserved as-is; aligning them
+  changes real installs' reporter data paths and is the user's call.
+- `std-env`'s `isAgent` / `agent` read `process.env` at module load inside
+  engine; the textual boundary scanner cannot see it. Inject an
+  `agentShell` later.
+- Windows: `formatters/terminal.ts`'s OSC-8 absolute-path check only
+  handles `/`-rooted paths (no `[A-Za-z]:` drive form); no production
+  caller today.
+- `packages/ui/biome.json` `$schema` is one patch newer than the Biome CLI
+  (informational deserialize notice on every `pnpm lint`).
+
+### Decision 71: Effect-Native MCP Server
+
+Issue #413. `@vitest-agent/mcp` is rebuilt on Effect's own `McpServer`
+(`effect/unstable/ai`, rc.115): the 30 tools are `Tool.make` values in one
+`Toolkit`, the six prompts are `McpServer.prompt` layers, the server is one
+`Layer` over `McpServer.layerStdio`, and `@modelcontextprotocol/sdk`,
+`@trpc/server` and `zod` are gone from the dependency graph.
+
+**Context.** The previous server registered every tool twice — a tRPC
+procedure with an Effect Schema input in `tools/<name>.ts` and a hand-synced
+zod `inputSchema` in `server.ts` — bridged by an Effect-Schema → JSON-Schema
+→ `z.fromJSONSchema` adapter for outputs. Three shipped bugs (#200 dead
+`tags`, #246 drifted `validatedAt`, #335 missing enum literals) were the
+same hand-sync failure. Effect v4 ships an MCP server whose tools *are*
+Effect Schemas, so the second schema language and the bridge can go.
+
+**Shape.** One file per tool under `src/tools/` exporting the Effect
+Schema `parameters` / `success`, the discriminant tuple where applicable,
+the markdown formatter, the `handle<Name>` `Effect`, and the `Tool.make`
+value (annotated `Tool.Title` / `Readonly` / `Destructive` / `OpenWorld` /
+`Idempotent` and, for a markdown text channel, `RenderText`). `toolkit.ts`
+gathers `Kit = Toolkit.make(...)`, the `toolHandlers` record (`satisfies
+Toolkit.HandlersFrom<typeof Kit.tools>`, so a tool without a handler is a
+compile error) and `ToolsLayer = Kit.toLayer(toolHandlers)`. `server.ts`
+exports `ServerLayer({ version })`. Handlers require `DataReader |
+DataStore | ProjectDiscovery | OutputRenderer | McpSession`; `McpSession`
+is a `Context.Service` carrying `{ cwd, currentSessionId, sessionContext }`
+that replaces the tRPC `McpContext`.
+
+**Strict registration over `McpServer.addTool`, not `McpServer.toolkit`.**
+`McpServer.toolkit` decodes arguments with Effect's default
+`onExcessProperty: "ignore"`, which strips unknown keys — the exact silent
+widening Decision 50 exists to forbid. `register-toolkit.ts` therefore
+adapts Effect's own `registerToolkit` over the public `addTool` and:
+(a) walks the raw payload against the *served* JSON Schema before decoding
+and fails `McpSchema.InvalidParams` with `Unrecognized parameter(s): …
+Accepted params: …`, path-qualified at every object level, array elements
+and the union branch the discriminant selects, each echoed key truncated to
+200 characters; (b) inlines `$ref` roots and `$ref` union members (what an
+`identifier` annotation produces — a `$ref` root fails `ToolJsonSchema`'s
+`type: "object"` requirement and would `orDie` at registration);
+(c) sets `additionalProperties: false` on every object node recursively;
+(d) rewrites a top-level `action` / `kind` union from `anyOf` to `oneOf` +
+`x-discriminator` (a bare `anyOf` root also fails `ToolJsonSchema`, so the
+rewrite is necessary, not cosmetic; the synthesized union root itself
+carries no `additionalProperties: false` because it declares no
+`properties`); (e) emits the dual channel — `structuredContent` = the
+encoded result, `content[0].text` = the tool's `RenderText` markdown or the
+JSON; (f) maps a declared, `Error`-shaped failure to `{ isError: true,
+content: [{ text: message }] }` with no `structuredContent` (upstream
+parity), and every other failure or defect to the `UnexpectedToolError`
+envelope as `structuredContent` with `isError: true`, after
+`Effect.logError`. Interrupt-only causes propagate untouched.
+
+**Domain envelopes stay success-shaped.** `{ ok: false, error: { _tag, …,
+remediation } }` is a member of each tool's `success` union exactly as
+before; `failure` stays `Schema.Never` and every handler `orDie`s its
+`DataStoreError`. Nothing relies on Effect's declared-failure wire path.
+The `Toolkit` encoder strips undeclared result keys, so `_idempotentReplay`
+is declared on the replayable success structs (`IdempotentReplayMarker`)
+and advertised in those tools' output schemas. Union-rooted results
+(`inventory`, `test`, …) list no `outputSchema` (MCP requires `type:
+object`); `register_agent`'s `ok: false` no longer sets `isError`.
+
+**Idempotency is a combinator.** `withIdempotency(path, handler)(params)`
+in `idempotency.ts` replaces the tRPC middleware: derive the key from the
+registry, `DataReader.findIdempotentResponse` → replay with
+`_idempotentReplay: true` on a hit, else run the handler and persist
+best-effort. A read failure and a corrupt (non-JSON) row are both treated
+as a **miss** — the combinator's error channel is `never`, a read failure
+must not fail the tool, and the worst case is a duplicate write, the same
+posture as the persist-failure swallow. Rows never self-heal: the insert is
+`INSERT … ON CONFLICT DO NOTHING` against the `(procedure_path, key)`
+primary key, so a corrupt row degrades to a permanent miss instead of a
+crash. An engine-level upsert is a follow-up.
+
+**Protocols and the error shape by protocol.** `protocols` is
+`[v2025_11_25, v2025_06_18, v2025_03_26]`, newest first, because the
+registry falls back to `protocols[0]` for an unknown client version. The
+strict registrar's `InvalidParams` surfaces as an `isError: true` text
+result on 2025-11-25 and as a JSON-RPC `-32602` error on 2025-06-18 and
+earlier — Effect's per-version protocol mapping, pinned by
+`server-layer.test.ts` on both. Server name `vitest-agent`, version
+`CURRENT_MCP_VERSION`.
+
+**Process contract.** `Layer.succeed(Logger.LogToStderr, true)` is provided
+inside `ServerLayer` *and* on the launched effect in `main.ts` (a
+layer-build failure is reported by `runMain` outside the layer), because
+Effect's default logger writes to stdout and stdout is the JSON-RPC wire.
+`main.ts` registers the crash guards, resolves `projectDir` / `dbPath`,
+builds `McpSession.layer` from `sessionContextFromEnv(env)` plus the
+engine's lazy recover thunk, provides `PlatformLive` and `NodeStdio.layer`,
+and launches under `NodeRuntime.runMain` with a teardown that maps success
+or an interrupts-only cause to exit 0 — stdin EOF interrupts the fiber that
+built the stdio protocol, which `Runtime.defaultTeardown` would report as
+130. `transportConnected` is set from a `Layer.effectDiscard` provided
+*by* `Main` (`Layer.provide` builds its dependency to completion before the
+dependent; `Layer.mergeAll` is concurrent, which is why the flag is not in
+a merge). Any startup rejection — a dynamic import, `resolveDataPath`, the
+layer graph — is caught and exits 1 with a stderr diagnostic; left to the
+`unhandledRejection` guard the event loop would drain to exit 0 with no
+server listening. The e2e suite asserts empty stderr across `initialize` +
+`ping` and exit 0 within 2 s of stdin close.
+
+**`tdd_progress_push` changed its wire method.** Effect's server cannot
+emit the custom `notifications/claude/channel` method the old server sent.
+The tool keeps its input/output contract and carries the enriched event on
+the standard `notifications/message` (level `info`, logger
+`vitest-agent/channel`, `data` = the event object, or the raw string when
+the payload was not JSON). Verified before the switch: nothing consumed the
+old method — no hook, skill or design doc read it; the `tdd` skill treats
+the push as best-effort, narration is primary, and events are persisted and
+readable via `tdd_task get`.
+
+**What rc.115 cannot express.** `instructions` cannot be set through
+`layerStdio`, so `serverInfo.description` carries a one-line pointer and
+the `help` tool remains the orientation surface. `McpServer.prompt` has no
+`title` option, so the six prompts lost their titles on the wire; Claude
+Code surfaces prompts by name.
+
+**Schema policy and its wire consequence.** Input schemas use
+`Schema.optionalKey` (not `optional`) so the served `required` list is
+right, and `Schema.Finite` (not `Number`) for numeric fields. The old zod
+side used `z.coerce.number()`, so `"limit": "5"` and `"timeout": "120"`
+strings were accepted; they are now rejected with a decode error on every
+tool except `hypothesis record`'s `tddTaskId` / `sessionId`, whose
+`Union([Finite, FiniteFromString])` is preserved and served as `anyOf
+[number, string]`. This is a behavior change and a migration note.
+
+**Era-agnostic constraints.** No `initialize`-time state beyond the
+framework's, no server-initiated requests, no session reliance, paging via
+tool arguments only, every tool pure request/response. The server stays
+portable across MCP protocol revisions and transports.
+
+**Testing.** `__test__/utils/harness.ts` builds the real `ServerLayer` over
+`Stdio.layerTest` queues — no child process — with `initialize`,
+`listTools`, `callTool`, `sendRequest`, `seed`, `session` and
+`stderrSoFar` / `consoleLogSoFar`; the test Stdio must be provided
+innermost because `DataStoreTestLayer` carries `NodeServices.layer`, whose
+real `Stdio` would otherwise win the merge. `__test__/utils/caller.ts`'s
+`makeCaller(runtime, session?)` decodes params through the tool's schema
+and invokes `toolHandlers[name]` directly for handler-level assertions.
+`served-schema-strict.test.ts` walks every served schema for
+`additionalProperties: false` and calls every tool but `run_tests` with a
+bogus key and with only its documented params; `served-enum-drift.test.ts`
+asserts each served `oneOf` matches the exported discriminant tuple.
+`server-lifecycle.e2e.test.ts` and `bin-crash-resilience.e2e.test.ts` spawn
+the built bin. Tests use plain vitest + `Effect.runPromise`; `@effect/vitest`
+is not a dependency.
+
+**Trade-offs.** Effect's stdio protocol interrupts an in-flight `tools/call`
+when stdin closes immediately after it (`initialize` is answered because it
+is processed in the same decode turn); real clients keep stdin open. The
+strict registrar is ~300 lines adapted from upstream that must track
+`McpServer.ts` across rc bumps. `McpSession` is unused by the 18 read-only
+tools today. See [./components/mcp.md](./components/mcp.md) and
+[./data-flows.md](./data-flows.md) Flows 4 and 7.
+
 ### Decision D9: Single Pre-2.0 Migration, Incremental After
 
 **Pre-2.0 policy (historical).** Before 2.0 shipped to npm, the canonical
@@ -2295,7 +2676,7 @@ needed.
 The failure signature is a 16-char `sha256` hex prefix of `(error_name |
 normalized assertion shape | top non-framework function name |
 function-boundary line)`, computed by `computeFailureSignature` in
-`packages/sdk/src/utils/failure-signature.ts`. The function-boundary
+`packages/engine/src/utils/failure-signature.ts`. The function-boundary
 line comes from `findFunctionBoundary` in
 `packages/sdk/src/utils/function-boundary.ts`, which parses the source
 via `acorn` and walks the AST for the smallest enclosing function whose
@@ -2762,44 +3143,18 @@ in favor of the three-layer bash prefilter and SEA binary on the hot path
 — see Decision 42. The composition still stands as the rule for any future
 per-instance coordination state that needs documented surfaces only.
 
-### Decision D19: Effect Schema at the MCP Boundary via `setRequestHandler`
+### Decision D19: Effect Schema at the MCP Boundary via `setRequestHandler` (Retired)
 
-The MCP TypeScript SDK v1's high-level surfaces (`registerTool`,
-`server.tool(name, shape, …)`)
-expect a Zod-shape object and run `zod-to-json-schema` internally.
-There is no public overload that accepts an arbitrary JSON Schema
-literal.
+**Superseded by:** Decision 71 — Effect-Native MCP Server (see above).
 
-To use **Effect Schema** at the MCP boundary (consistent with the
-rest of the SDK), drop down to
-`server.setRequestHandler(ListToolsRequestSchema, …)` and
-`setRequestHandler(CallToolRequestSchema, …)`. The `tools/list`
-handler returns `Schema.toJsonSchemaDocument(EffectSchema)` per tool
-(the v4 JSON-Schema emitter; on v3 this was `JSONSchema.make`);
-`tools/call` validates incoming payloads via
-`Schema.decodeUnknownEffect(EffectSchema)`. Resources and prompts stay on
-the SDK's high-level `registerResource` / `registerPrompt` API —
-mixing the two layers is supported and preserves the SDK's auto-
-registration of `resources/*`, `prompts/*`, `ping`, and
-`notifications/*` handlers.
-
-**Brand schemas use `Schema.UUID`** as the base
-(`Schema.UUID.pipe(Schema.brand("AgentId"))`) so the JSON-Schema emitter
-(`Schema.toJsonSchemaDocument` on v4; `JSONSchema.make` on v3)
-reliably emits `{ type: "string", format: "uuid", pattern: <rfc-4122> }`
-across Effect versions. The historical `Schema.pattern` chained
-after `Schema.brand` has had emission inconsistencies; `Schema.UUID`
-avoids them. Note that v4's `isUUID` validation is stricter (it checks the
-RFC version/variant nibbles), so placeholder fixtures like `aaaa…` are now
-rejected — see Decision 46.
-
-**Tagged unions emit `anyOf`, not `oneOf` + discriminator.**
-Effect's JSON-Schema emitter produces JSON Schema `anyOf` for
-discriminated unions; JSON Schema 2020-12 has no `discriminator`
-keyword (that's an OpenAPI extension). A small post-processing step
-rewrites the top-level `anyOf` to `oneOf` and adds
-`x-discriminator: "action"` for consolidated tools, improving
-model-side tool-use accuracy without changing functional dispatch.
+See [./decisions-retired.md](./decisions-retired.md) for the retired
+entry. The MCP TypeScript SDK and its `setRequestHandler` seam are gone;
+Effect's `McpServer` serves Effect Schemas natively, and the `anyOf` →
+`oneOf` + `x-discriminator` rewrite now lives in `registerStrictToolkit`.
+The one part that survives unchanged is the brand-schema guidance: brands
+use `Schema.UUID` as the base so the JSON-Schema emitter reliably emits
+`{ type: "string", format: "uuid", pattern }`; v4's `isUUID` is stricter
+(RFC version/variant nibbles) — see Decision 46.
 
 ### Decision D20: File-Qualified `test_history` Identity
 
@@ -2952,19 +3307,20 @@ Command substitution is unaffected in both directions: `$(cmd)` installs its own
 
 ## Notes
 
-### Note N1: tRPC idempotency middleware persist-failure handling
+### Note N1: `withIdempotency` persist-failure handling
 
-Mutation tools wired through `idempotentProcedure` (see N2 for the set) are
-wrapped by the tRPC idempotency middleware. The middleware **swallows**
-persist errors rather than surfacing them as tool errors. The procedure
-already succeeded; surfacing a cache-write failure as a tool error
+Mutation tools wrapped in `withIdempotency` (see N2 for the set)
+**swallow** persist errors rather than surfacing them as tool errors. The
+handler already succeeded; surfacing a cache-write failure as a tool error
 inverts the success/failure signal: the agent sees "error" and retries,
 but the underlying write already succeeded, creating a duplicate. Worst
-case after a swallowed persist failure: the next call re-runs `next()`
-— mild data hygiene cost (possibly two rows), no correctness issue.
-The composite PK on `mcp_idempotent_responses` is
-`(procedure_path, key)` with `INSERT ... ON CONFLICT DO NOTHING`, so a
-parallel insert race resolves to a no-op.
+case after a swallowed persist failure: the next call re-runs the handler
+— mild data hygiene cost (possibly two rows), no correctness issue. The
+same posture covers the read side: a `findIdempotentResponse` failure and
+a corrupt cached row are both a miss (Decision 71). The composite PK on
+`mcp_idempotent_responses` is `(procedure_path, key)` with
+`INSERT ... ON CONFLICT DO NOTHING`, so a parallel insert race resolves to
+a no-op — and a corrupt row is never overwritten.
 
 ### Note N2: `tdd_phase_transition_request` is NOT in the idempotency-key registry
 
@@ -3088,7 +3444,7 @@ asymptotically as signatures recur.
 
 `DataStore.writeFailureSignature` persists computed failure signatures.
 The natural input name is `FailureSignatureInput`, but that name is
-already taken by `packages/sdk/src/utils/failure-signature.ts` — the
+already taken by `packages/engine/src/utils/failure-signature.ts` — the
 **compute-time** input to `computeFailureSignature` (the un-hashed
 `error_name` / `assertion_message` / `top_frame_*` fields that get
 hashed *into* the signature). The persistence-time input is named
@@ -3110,7 +3466,7 @@ An end-to-end test that builds the CLI bin to disk and spawns it via
 The unit tests for `parseAndValidateTurnPayload`, `recordTurnEffect`,
 `recordSessionStart`, and `recordSessionEnd` exercise the lib functions
 against an in-memory `SqliteClient`. The bin's wiring is thin
-(`bin.ts` resolves `dbPath`, builds `CliLive`, hands the
+(`main.ts` resolves `dbPath`, builds `PlatformLive`, hands the
 `Command.run` effect to `effect/unstable/cli`).
 
 **Why acceptable:** the build-and-spawn loop would add the rslib
@@ -3204,12 +3560,12 @@ too.
 - **Why used:** Clean separation between service interface
   (`Context.Service`, the v4 rename of `Context.Tag`) and implementation
   (Layer). Enables swapping live I/O for test mocks
-- **Implementation:** Service tags in `packages/sdk/src/services/`
+- **Implementation:** Service tags in `packages/engine/src/services/`
   (plus `packages/plugin/src/services/CoverageAnalyzer.ts`), live and
-  test layers in `packages/sdk/src/layers/` (plus the
+  test layers in `packages/engine/src/layers/` (plus the
   plugin-package-local `CoverageAnalyzerLive` /
   `CoverageAnalyzerTest`), merged composition layers
-  (`ReporterLive`, `CliLive`, `McpLive`, `OutputPipelineLive`)
+  (`PlatformLive`, `ReporterLive`, `SidecarPlatformLive`, `OutputPipelineLive`)
 
 ### Pattern: Scoped `Effect.runPromise`
 
@@ -3220,15 +3576,19 @@ too.
 - **Implementation:** Each hook builds a self-contained effect,
   provides the layer inline, and runs via `Effect.runPromise`
 
-### Pattern: `ManagedRuntime` for Long-Lived Processes
+### Pattern: One Launched `Layer` for Long-Lived Processes
 
 - **Where used:** MCP server
 - **Why used:** The MCP server is a long-running stdio process where
   per-call layer construction would be wasteful
-- **Implementation:** `ManagedRuntime.make(McpLive(dbPath))` creates
-  a shared runtime. tRPC context carries the runtime so procedures
-  call `ctx.runtime.runPromise(effect)`. Database connection is held
-  for the process lifetime
+- **Implementation:** `main.ts` builds `ServerLayer` provided with
+  `McpSession`, the engine's `PlatformLive` and `NodeStdio.layer`, and
+  runs `Layer.launch` under `NodeRuntime.runMain` (Decision 71). Tool
+  handlers are Effects that declare their services as `Tool.make`
+  `dependencies`; the SQLite connection and the stdio protocol are scoped
+  to the launched layer and released together when stdin closes. (The
+  earlier form was `ManagedRuntime.make(McpLive(dbPath))` with a tRPC
+  context carrying the runtime.)
 
 ### Pattern: Hash-Based Change Detection
 
@@ -3287,16 +3647,18 @@ too.
   cases. The `source_test_map` table supports multiple mapping types
   for future expansion
 
-### Trade-off: Zod for tRPC
+### Trade-off: A Local Strict Registrar over Effect's `McpServer.toolkit`
 
-- **What we gained:** tRPC integration with type-safe procedures and
-  testable caller factory
-- **What we sacrificed:** Added Zod as a runtime dependency
-  alongside Effect Schema
-- **Why it's acceptable:** Zod is scoped to MCP tool input schemas
-  only. Effect Schema remains the source of truth for all domain
-  data structures. tRPC requires Zod for input validation; there is
-  no Effect Schema adapter for tRPC procedures
+- **What we gained:** one schema language end to end (Effect Schema for
+  tool inputs, outputs and prompt arguments), no MCP SDK / tRPC / zod
+  dependencies, and unknown-key rejection at every object level
+- **What we sacrificed:** `register-toolkit.ts` is adapted from Effect's
+  own `registerToolkit` and must track `McpServer.ts` across rc bumps
+- **Why it's acceptable:** the upstream toolkit strips unknown keys by
+  design (`onExcessProperty: "ignore"`), which is the silent-widening bug
+  class Decision 50 forbids; the adaptation is ~300 lines with its own
+  unit tests, and the alternative was carrying a second schema language
+  forever
 
 ### Trade-off: SQLite Binary Format
 

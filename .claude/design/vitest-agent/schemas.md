@@ -3,14 +3,15 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-08
-last-synced: 2026-09-08
+updated: 2026-09-13
+last-synced: 2026-09-13
 completeness: 93
 related:
   - ./architecture.md
   - ./data-flows.md
   - ./decisions.md
   - ./components/sdk.md
+  - ./components/engine.md
   - ./components/ui.md
 dependencies: []
 ---
@@ -30,7 +31,7 @@ files; do not duplicate them here.
 All persisted shapes are Effect Schema definitions in
 `packages/sdk/src/schemas/`. TypeScript types derive via
 `typeof Schema.Type`. Effect Schema is canonical because every input that
-crosses a process boundary (CLI stdin payload, MCP tRPC request, hook envelope)
+crosses a process boundary (CLI stdin payload, MCP tool call, hook envelope)
 is decoded through the same schema, so there is one authority for what the
 shape looks like at runtime and at compile time. See
 [./decisions.md](./decisions.md) for the rationale (D5).
@@ -39,10 +40,10 @@ The Common schema literals (`Environment`, `Executor`, `OutputFormat`,
 `DetailLevel`, plus the three per-executor `*ConsoleMode` literals and
 their union `ConsoleMode`) live in
 `packages/sdk/src/schemas/Common.ts`. The `human` slot's `HumanConsoleMode`
-is `passthrough | silent | stream | agent`. The MCP server's tRPC `McpContext`
-(carrying a `ManagedRuntime` over `DataReader | DataStore |
-ProjectDiscovery | OutputRenderer`) is defined in
-`packages/mcp/src/context.ts`. Formatter types (`Formatter`,
+is `passthrough | silent | stream | agent`. The MCP server's `McpSession`
+service (`{ cwd, currentSessionId, sessionContext }`; tool handlers require
+it alongside `DataReader | DataStore | ProjectDiscovery | OutputRenderer`)
+is defined in `packages/mcp/src/session.ts`. Formatter types (`Formatter`,
 `FormatterContext`, `RenderedOutput`) live in
 `packages/sdk/src/formatters/types.ts`. The `RunEvent` discriminated
 union and the `RenderState` reducer projection live in
@@ -495,7 +496,7 @@ type still exists because the CLI and MCP surfaces speak it.
 the **compute-time** input to `computeFailureSignature` — the un-hashed
 fields that get hashed into the signature.
 
-`FailureSignatureWriteInput` (in `packages/sdk/src/services/DataStore.ts`) is
+`FailureSignatureWriteInput` (in `packages/engine/src/services/DataStore.ts`) is
 the **persistence-time** input to `DataStore.writeFailureSignature` — the
 already-computed `signatureHash` plus the metadata to store alongside it. The
 `*WriteInput` suffix mirrors the convention used for the other DataStore
@@ -629,7 +630,7 @@ final state is correct even if individual events are lost in transit.
 
 ## DataStore inputs
 
-`packages/sdk/src/services/DataStore.ts` exports the input types every writer
+`packages/engine/src/services/DataStore.ts` exports the input types every writer
 accepts. These are persistence-shaped — flatter and looser than the wire
 schemas because the DataStore commits one row at a time inside a single
 `sql.withTransaction`. The notable ones:
@@ -665,7 +666,7 @@ schemas because the DataStore commits one row at a time inside a single
   `DataStore.setSessionConversationIdIfNull({ sessionId, conversationId })`,
   never through a re-insert or a generic update (see *Conversation-id
   immutability triggers*).
-- **`IdempotentResponseInput`** — backs the tRPC idempotency middleware. See
+- **`IdempotentResponseInput`** — backs the MCP `withIdempotency` combinator. See
   Flow 7 in [./data-flows.md](./data-flows.md) and
   [./decisions.md](./decisions.md) for the `(procedure_path, key)` PK and
   the replay semantics.
@@ -702,7 +703,7 @@ DataStore boundary. Illegal transitions surface as
 
 ## DataReader outputs
 
-`packages/sdk/src/services/DataReader.ts` exports the output shapes every
+`packages/engine/src/services/DataReader.ts` exports the output shapes every
 MCP read tool and CLI command consumes. Like the inputs, these are
 persistence-shaped — typically a row plus a small amount of joined context.
 The notable ones:
@@ -866,14 +867,14 @@ group; when supplied, returns a single group. Definition:
 ## SQLite table inventory
 
 The per-project schema is an ordered migration set rooted at
-`packages/sdk/src/migrations/0001_initial.ts` — the historical record of
+`packages/engine/src/migrations/0001_initial.ts` — the historical record of
 what already ran on every 2.0 install — followed by
 `0002_test_artifacts.ts`. All migrations run via
 `@effect/sql-sqlite-node`'s `SqliteMigrator` with WAL journal mode and
 foreign keys enabled. Every registry that loads them has to list the whole
 set: `utils/ensure-migrated.ts`, the plugin's
 `layers/ReporterLive.ts`, and the sdk testing layer
-(`packages/sdk/src/testing/layers.ts`, which had silently sat at `0001`
+(`packages/engine/src/testing/layers.ts`, which had silently sat at `0001`
 until 0002 landed and is the easiest one to forget).
 
 **`0002_test_artifacts`** gives the three dormant tables their writers.
@@ -1080,7 +1081,7 @@ the coverage section is silently skipped — the reporter still runs.
 The TDD error envelope (`packages/mcp/src/tools/_tdd-error-envelope.ts`)
 catches tagged TDD errors at the MCP boundary and surfaces them as
 success-shape `{ ok: false, error: { _tag, ..., remediation } }` responses
-so the orchestrator can recover without seeing a tRPC-level failure.
+so the orchestrator can recover without seeing a protocol-level failure.
 
 ## Agent-agnostic taxonomy schemas
 
@@ -1176,7 +1177,7 @@ halves of the trigger's contract.
 | Global discovery registry | `$XDG_DATA_HOME/vitest-agent/registry.db` | No | `known_projects` index for cross-project tooling |
 
 Per-client session map schema lives at
-`packages/sdk/src/migrations/session_map_0001_initial.ts`. Two STRICT
+`packages/engine/src/migrations/session_map_0001_initial.ts`. Two STRICT
 tables — `conversation_map` (transcript UUID → canonical
 conversation UUID) and `session_map` (host session id → conversation
 id, project, main agent id) — plus four indexes including the
@@ -1184,6 +1185,6 @@ partial `(project_dir) WHERE ended_at IS NULL` for the
 `lookupByProjectDir` hot path.
 
 Global discovery registry lives at
-`packages/sdk/src/migrations/registry_0001_initial.ts`. Single
+`packages/engine/src/migrations/registry_0001_initial.ts`. Single
 STRICT `known_projects` table indexed by `project_key` with WAL plus
 busy_timeout=5000.

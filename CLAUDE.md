@@ -9,8 +9,9 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 
 | Workspace | Path | Purpose |
 | --------- | ---- | ------- |
-| `@vitest-agent/sdk` | `packages/sdk/` | Shared schemas, data layer, services, formatters, utilities, public reporter + dispatcher contracts (no internal deps) |
-| `@vitest-agent/plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ConfigValidation`, `ReporterLive` |
+| `@vitest-agent/sdk` | `packages/sdk/` | Platform-free core: Effect Schemas, public reporter + dispatcher contracts, tagged errors, pure formatters and utils, the pure `./dispatch` entry, `./schemas/*.json` (no internal deps, no `node:`) |
+| `@vitest-agent/engine` | `packages/engine/` | Platform half: Effect services and Live layers, SQLite client/migrator (`makeSqliteStack`), migrations, `PlatformLive` (the one platform layer both front ends provide), `resolveProjectDir`, hook programs, session recovery, `./testing` |
+| `@vitest-agent/plugin` | `packages/plugin/` | Vitest plugin (`AgentPlugin`), internal reporter class, `CoverageAnalyzer`, `ConfigValidation`, `ReporterLive`; the carrier that declares the `vitest-agent` and `vitest-agent-mcp` bins |
 | `@vitest-agent/reporter` | `packages/reporter/` | Default reporter package and reference package for custom-reporter authors: ships `DefaultVitestAgentReporter`, owns the Ink live-mount lifecycle (`_createLiveInk`), re-exports the `VitestAgentReporterFactory` contract types from sdk plus the dispatch helpers from ui |
 | `@vitest-agent/cli` | `packages/cli/` | CLI bin (`vitest-agent`) |
 | `@vitest-agent/mcp` | `packages/mcp/` | MCP server bin (`vitest-agent-mcp`) |
@@ -20,53 +21,49 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 | `playground` | `playground/` | Dogfooding sandbox — intentionally imperfect code for agent demos |
 | `@vitest-agent/claude-code-plugin` | `plugins/claude-code/` | File-based Claude Code plugin (hooks, skills, agents, commands). Private tracking package — versioned by changesets, never published to npm |
 
-The seven publishable packages live under `packages/`. The `docs` site (`website/`) is a private workspace — it renders documentation and is never published. Four
-per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries and are pulled in as `optionalDependencies` of `@vitest-agent/sidecar`. The Claude Code plugin lives at `plugins/claude-code/` and IS a pnpm workspace member (`pnpm-workspace.yaml` includes `plugins/*`), but it never publishes to npm — its `package.json` (`@vitest-agent/claude-code-plugin`, `"private": true`, no `publishConfig`) exists only to give changesets something to version. The `plugins/` container is plural to leave room for future agent-platform plugins; today `claude-code/` is the only one. Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces. To scope commands to a specific package, use `--filter='./packages/<name>'`.
+The eight publishable packages live under `packages/`; four per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries as `optionalDependencies` of `@vitest-agent/sidecar`. The Claude Code plugin at `plugins/claude-code/` is a workspace member (`plugins/*`) whose private `package.json` exists only so changesets can version it. Root-level configs (`turbo.json`, `biome.jsonc`, etc.) apply to all workspaces; scope commands with `--filter='./packages/<name>'`.
 
-Every `@vitest-agent/*` package versions independently — a change to one package bumps only that package, plus a patch ripple to its workspace dependents via changesets' `updateInternalDependencies: "patch"`. `@vitest-agent/plugin` declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` (`workspace:*`) in source — alongside `@vitest-agent/reporter` and `@vitest-agent/sdk` — so a cli/mcp release auto-PATCH-bumps the plugin (`updateInternalDependencies: patch`) and re-pins their exact version. They publish as exact-pinned regular `dependencies` in the published manifest — the former `savvy.build.ts` `transform()` that promoted them into `peerDependencies` was removed, because the silk pnpm plugin publicly hoists their bins anyway and the peer form triggered pnpm's `autoInstallPeers`, forcing wrong Effect versions into consumer repos. The Vitest-side peers (`vitest`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as `peerDependencies` directly. Declaring `@vitest-agent/plugin` therefore transitively brings `@vitest-agent/cli` and `@vitest-agent/mcp` (and their bins) as regular dependencies. The dependency flow is `plugin → reporter → ui → sdk`: the plugin no longer depends on `@vitest-agent/ui` (or `react` / `ink`) directly — `@vitest-agent/reporter` supplies the default reporter and the Ink live mount, and pulls `ui` / `react` / `ink` transitively. `@vitest-agent/sidecar` reaches a consumer transitively: it is a regular `dependency` of `@vitest-agent/cli`, which is itself a regular dependency of the plugin, so installing the plugin pulls `@vitest-agent/sidecar` and its four per-platform `optionalDependencies` automatically. In the dev workspace, cli/mcp resolve as the plugin's `workspace:*` dependencies; the workspace root `package.json` also declares them as devDependencies and `pnpm-workspace.yaml` keeps a `publicHoistPattern` for both so their bins land in the root `node_modules/.bin` for the dogfood Claude Code plugin hooks; the root no longer lists `@vitest-agent/reporter`, `@vitest-agent/sidecar`, or `@vitest-agent/ui` directly.
-Users typically configure the plugin with just
-`AgentPlugin({ console, coverageTargets, transport?, report? })` — the plugin
-injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter`, which
-owns rendering and the Ink live mount end to end. Custom reporters
-arrive via the plugin's `reporter` option. The Claude Code plugin's SessionStart hook resolves the
-sidecar binary path once per session via `vitest-agent agent sidecar-path`,
-exports `VITEST_AGENT_SIDECAR_BIN`; the PreToolUse Bash hook reads that
-env var to exec the binary directly, falling back to the JS CLI when absent.
-The six non-sidecar packages pin `@vitest-agent/sdk` at `workspace:*`.
+**Layering (the rank rule, issue #412).** Every workspace edge points to a strictly lower rank; `cli` and `mcp` never import each other. Enforced by `packages/plugin/__test__/workspace-layering.test.ts` plus per-package `__test__/boundaries.test.ts` source scans.
 
-**Legacy naming — watch out.** Pre-2.0 this whole system was one package, `vitest-agent-reporter`. The 2.0 split renamed that package to `@vitest-agent/reporter` at `packages/reporter/`; as of the 2.0 reporter-restructure that package ships `DefaultVitestAgentReporter` and owns the Ink live-mount lifecycle. The Vitest API lifecycle (persistence, classification, baselines, trends) lives in `@vitest-agent/plugin` at `packages/plugin/`. Prose and comments still occasionally say `vitest-agent-reporter` in the legacy whole-system sense when they should say `@vitest-agent/plugin` — update references as you encounter them.
+| Rank | Package(s) | Runtime workspace deps |
+| ---- | ---------- | ---------------------- |
+| 1 | `sdk` | none |
+| 2 | `ui`, `sidecar-*` | sdk |
+| 3 | `engine`, `reporter`, `sidecar` | engine → sdk; reporter → ui, sdk; sidecar → the four `sidecar-*` (optional) |
+| 4 | `cli`, `mcp` | engine, sdk (+ sidecar for cli) |
+| 5 | `plugin` (carrier) | cli, mcp, reporter, engine, sdk |
+| — | root `vitest-agent` (dev) | plugin only |
+
+**The carrier.** `@vitest-agent/plugin` is the one package a consumer installs: it depends on cli/mcp (exact-pinned) and declares `bin.vitest-agent` / `bin.vitest-agent-mcp` itself as four-line shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main`, because pnpm links only direct-dependency bins (proven under npm/pnpm/yarn/bun by `packages/plugin/__test__/bins-packed-install.e2e.test.ts`). No `publicHoistPattern`, pnpm plugin, or manual step is involved — the workspace root devDepends on the plugin only; rationale in `.claude/design/vitest-agent/decisions.md` Decision 70. Users configure `AgentPlugin({ console, coverageTargets, transport?, report? })`; the plugin injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` unless a custom `reporter` is passed.
+
+**Legacy naming — watch out.** Pre-2.0 the whole system was one package, `vitest-agent-reporter`; prose that still says it in the whole-system sense means `@vitest-agent/plugin` (the reporter package now owns only rendering and the Ink mount). Likewise, `@vitest-agent/sdk` text older than the #412 split may describe services, layers, migrations, or `./testing` that now live in `@vitest-agent/engine`.
 
 ## Project Status
 
-**Post-2.0: incremental migration discipline applies.**
-`vitest-agent` 2.0 has shipped to npm — `@vitest-agent/plugin@2.0.0`
-through `2.5.x` are published and installed. Consumers carry real
-`data.db` files with real history. This means: schema changes land as
-NEW migrations. Add `packages/sdk/src/migrations/0002_*.ts`,
-`0003_*.ts`, and so on, register each in `ensure-migrated.ts`'s
-`fromRecord`, and never edit `0001_initial.ts` in place — it is a
-historical record of what already ran on every install, not a canonical
-shape to rewrite. A dead table with no readers and no writers may be
-dropped and recreated inside a new migration; a table with data must be
-ALTERed and backfilled. The same discipline applies to breaking renames
-in the SDK schemas, MCP tool surface, and CLI flags: they are majors
-with changesets and migration notes, not free edits.
+**Post-2.0: incremental migration discipline applies.** 2.x is published
+and consumers carry real `data.db` history, so schema changes land as NEW
+migrations: add `packages/engine/src/migrations/0003_*.ts` and onward
+(`0002_test_artifacts.ts` exists), register each in `migrations/index.ts`'s
+`PROJECT_MIGRATIONS`, and never edit `0001_initial.ts` in place. A dead
+table may be dropped and recreated in a new migration; a table with data
+must be ALTERed and backfilled. Breaking renames in SDK schemas, the MCP
+tool surface, and CLI flags are majors with changesets, not free edits.
 
-`vitest-agent` 2.0 is a Vitest reporter, plugin, CLI, and MCP server family
-for LLM coding agents. Six primary capabilities:
+Six primary capabilities:
 
 1. **`AgentPlugin` + `AgentReporter`** -- Vitest plugin (>= 5.0.0) with
-   four-environment detection, reporter chain management, a `ConfigValidation`
-   Effect service for coverage-config diagnostics, Full and UI-only operating
-   modes gated by Vitest's native `coverage.enabled`, and pluggable rendering
-   via `VitestAgentReporterFactory`.
+   environment detection, reporter chain management, a `ConfigValidation`
+   service for coverage-config diagnostics, Full and UI-only modes gated by
+   Vitest's native `coverage.enabled`, and pluggable rendering via
+   `VitestAgentReporterFactory`.
 2. **`vitest-agent` CLI** -- `effect/unstable/cli`-based utility-only bin with a
    three-command tree: `doctor`, `db` (`path` / `prune` / `reset` /
    `query`), and `agent` -- a namespace for hook-driven plumbing
    (`triage`, `wrapup`, `record`, `register-agent`, `end-agent`,
-   `inject-env`, `sidecar-path`). Test-landscape queries (status, overview, coverage,
-   history, trends) moved to the MCP server. `--format` is scoped to
-   `agent triage`, `agent wrapup`, `doctor`, and `db query`.
+   `inject-env`, `sidecar-path`, `check-test-path`). Test-landscape queries
+   (status, overview, coverage, history, trends) moved to the MCP server.
+   `--format` is scoped to `agent triage`, `agent wrapup`, `doctor`, and
+   `db query`.
 3. **Suggested actions & failure history** -- actionable suggestions in
    console output, per-test failure persistence, and test classification
    (`stable`, `new-failure`, `persistent`, `flaky`, `recovered`).
@@ -76,31 +73,39 @@ for LLM coding agents. Six primary capabilities:
    coverageTargets }`, three `AgentPlugin.COVERAGE_AUTOUPDATE` tolerance
    functions that pass straight into Vitest's native
    `coverage.thresholds.autoUpdate`, and per-project trend tracking.
-   Users set `coverage.thresholds` directly on Vitest's native config; the
-   plugin's `ConfigValidation` service catches mismatches against
-   `coverageTargets`.
-5. **MCP server** -- 30 MCP tools via tRPC router. Action-keyed surface:
+   `ConfigValidation` catches mismatches between Vitest's native
+   `coverage.thresholds` and `coverageTargets`.
+5. **MCP server** -- Effect-native: `effect/unstable/ai`'s `McpServer` over
+   stdio, no MCP SDK, no tRPC, no zod. 30 tools (`Tool.make`, one file per
+   tool in `packages/mcp/src/tools/`) gathered into one `Toolkit` and six
+   framing-only prompts (`McpServer.prompt`). Action-keyed surface:
    per-CRUD families collapse into one tool each (`tdd_task`, `tdd_goal`,
    `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) that dispatch
-   on an `action` / `kind` discriminator. Also: `register_agent`,
-   `tdd_artifact_list`, and six framing-only prompts. Every served tool
-   input is strict — an unknown key is rejected with an error naming the
-   accepted params, never silently stripped.
+   on an `action` / `kind` discriminator; also `register_agent` and
+   `tdd_artifact_list`. Every served input is strict at every object level
+   (`registerStrictToolkit` rejects unknown keys naming the accepted params).
+   `tdd_progress_push` rides the standard `notifications/message` frame
+   (logger `vitest-agent/channel`), not a custom channel method.
 6. **Claude Code plugin** -- file-based plugin at `plugins/claude-code/`
-   distributed via the Claude marketplace as `vitest-agent@spencerbeggs`. Ships a PM-detect
-   spawn loader, lifecycle hooks, the `tdd-task` subagent (`context:fork`),
+   distributed via the Claude marketplace as `vitest-agent@spencerbeggs`. Ships an
+   MCP loader (`bin/start-mcp.sh`: execs the project's own
+   `node_modules/.bin/vitest-agent-mcp`, else prints a PM-specific install
+   line on stderr and falls back to `npx --yes @vitest-agent/mcp`), lifecycle
+   hooks that resolve the CLI via `detect_vitest_agent_bin`
+   (`VITEST_AGENT_CLI_CMD` override → relative `node_modules/.bin/vitest-agent`
+   → `<pm> exec vitest-agent`), the `tdd-task` subagent (`context:fork`),
    `/tdd` slash command, and 15 skills (one TDD workflow skill, nine
    preloaded TDD primitives, one path-triggered test-layout skill, plus
    four standalone reference skills). The plugin is the primary AI
-   integration surface — the npm packages collect and store data; the
-   plugin turns that data into agent behavior. The plugin's PreToolUse
-   Bash hook routes the `inject-env` hot path through the
-   `@vitest-agent/sidecar` native binary (path resolved once per session by SessionStart and exported as `VITEST_AGENT_SIDECAR_BIN`), falling back to the JS CLI when
-   the per-platform binary is absent.
+   integration surface. Its PreToolUse Bash hook routes the `inject-env`
+   hot path through the `@vitest-agent/sidecar` binary (resolved once per
+   session by SessionStart as `VITEST_AGENT_SIDECAR_BIN`), falling back to
+   the JS CLI when absent.
 
 Effect service architecture: I/O encapsulated in Effect services with live
-and test layer implementations. All data structures use Effect Schema
-definitions. Schemas are re-exported from `@vitest-agent/sdk` for consumer use.
+and test layer implementations (`@vitest-agent/engine`). All data structures
+use Effect Schema definitions, exported from the platform-free
+`@vitest-agent/sdk` core for consumer use.
 
 **For architecture details (progressive loading — load only what you need):**
 
@@ -108,13 +113,11 @@ definitions. Schemas are re-exported from `@vitest-agent/sdk` for consumer use.
   Load when you need a system overview, package diagram, or to find which
   sub-doc covers a topic. This is the hub.
 - `.claude/design/vitest-agent/components/<package>.md` (a family, not one file)
-  Per-package deep dives (`sdk.md`, `plugin.md`, `reporter.md`, `cli.md`,
-  `mcp.md`, `ui.md`, `plugin-claude.md`). Load only the file for the
-  package you are touching.
+  Per-package deep dives (`sdk.md`, `engine.md`, `plugin.md`, `reporter.md`,
+  `cli.md`, `mcp.md`, `ui.md`, `sidecar.md`, `plugin-claude.md`). Load only
+  the file for the package you are touching.
 - `@./.claude/design/vitest-agent/components/docs-site.md`
-  Load when working on the `docs` site (`website/`): its Guide/Packages IA,
-  the api-extractor model wiring, the committed snapshot db, or the
-  Cloudflare deploy.
+  Load when working on the `docs` site (`website/`).
 - `@./.claude/design/vitest-agent/schemas.md`
   Load when working with TypeScript types, Effect Schema definitions, or
   the SQLite tables.
@@ -125,19 +128,15 @@ definitions. Schemas are re-exported from `@vitest-agent/sdk` for consumer use.
   Load when working on the repo layout, XDG path resolution, project keying
   - tag classification, or PM detection.
 - `@./.claude/design/vitest-agent/decisions.md`
-  Load when you need to understand "why" a design choice was made. Retired
-  decisions live in `decisions-retired.md`.
+  Load for the "why" behind a design choice (Decision 70: the carrier;
+  Decision 71: the layering / boundary rules). Retired decisions live in
+  `decisions-retired.md`.
 - `@./.claude/design/vitest-agent/testing-strategy.md`
   Load when writing tests or reviewing testing patterns and coverage.
 
-**For Claude Code plugin details:**
-
-- `@./.claude/design/vitest-agent/components/plugin-claude.md`
-  Load for the design doc covering hooks, the tdd-task agent, skills,
-  commands, the MCP loader, and the dogfood workflow.
-- `plugins/claude-code/CLAUDE.md`
-  Load for the file-based plugin's directory layout and quick-reference
-  tables (hooks, skills, commands, hot-reload cost matrix).
+**For Claude Code plugin details:** `@./.claude/design/vitest-agent/components/plugin-claude.md`
+(hooks, tdd-task agent, skills, MCP loader, dogfood workflow) and
+`plugins/claude-code/CLAUDE.md` (layout and quick-reference tables).
 
 ## Database Location
 
@@ -148,9 +147,10 @@ $XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db
 ```
 
 `<workspaceKey>` is the root `package.json` `name`, normalized for
-filesystem safety (`@org/pkg` -> `@org__pkg`). Falls back to
-`~/.local/share/vitest-agent/<workspaceKey>/data.db` when `XDG_DATA_HOME`
-is unset.
+filesystem safety (`@org/pkg` -> `@org__pkg`). The documented fallback when
+`XDG_DATA_HOME` is unset is `~/.local/share/vitest-agent/<workspaceKey>/data.db`.
+
+Known discrepancy (pre-existing, tracked as a follow-up): with `XDG_DATA_HOME` unset the reporter/MCP route (`resolveDataPath`) currently lands at `~/.vitest-agent/<workspaceKey>/` via `@effected/xdg`'s fallback while the hook/sidecar route (`resolveHookPaths`) uses `~/.local/share/vitest-agent/<workspaceKey>/`.
 
 Resolution precedence (highest first):
 
@@ -159,14 +159,13 @@ Resolution precedence (highest first):
 3. `projectKey` field in `vitest-agent.config.toml`.
 4. Normalized workspace `name` (default).
 
-Fails loudly with `WorkspaceRootNotFoundError` if no identity is resolvable.
-No silent fallback to a path hash.
+Fails loudly with `WorkspaceRootNotFoundError` if no identity is resolvable — no silent path-hash fallback.
 
 ## Cross-package versioning
 
-Every `@vitest-agent/*` package versions independently — there is no lockstep `fixed` group. Consumers only ever install `@vitest-agent/plugin`; `cli` and `mcp` arrive as its exact-pinned regular dependencies and the rest arrive transitively, so version skew across the family is invisible to a published consumer. The runtime drift check (the `checkVersionDrift` helper formerly wired into `AgentPlugin()`, the `vitest-agent-mcp` bin, and the `vitest-agent` CLI bin) was removed. Each package still exports a `CURRENT_<PKG>_VERSION` constant (inlined at build time from its own `package.json#version`) as a public API for version introspection by downstream tooling, but nothing imports it internally anymore.
+Every `@vitest-agent/*` package versions independently (no lockstep `fixed` group); a change bumps only that package plus a patch ripple to its workspace dependents (`updateInternalDependencies: "patch"`). Consumers only install `@vitest-agent/plugin`, so family version skew is invisible to them; the former runtime drift check was removed, and each package's `CURRENT_<PKG>_VERSION` (inlined at build time) is a public introspection API nothing imports internally.
 
-The Claude Code plugin versions on its own track through the private `@vitest-agent/claude-code-plugin` tracking package. `.changeset/config.json` maps that package's `versionFiles` to `plugins/claude-code/.claude-plugin/plugin.json` at `$.version`, so CI bumps the tracking `package.json` and the plugin manifest together. Write changesets naming `@vitest-agent/claude-code-plugin` for plugin-only changes — a changeset for any other package does nothing for the plugin, and bumping `@vitest-agent/plugin` for a plugin edit forces a pointless npm build and publish.
+The Claude Code plugin versions through the private `@vitest-agent/claude-code-plugin` tracking package; `.changeset/config.json` maps its `versionFiles` to `plugins/claude-code/.claude-plugin/plugin.json` `$.version`. Write changesets naming `@vitest-agent/claude-code-plugin` for plugin-only changes — bumping `@vitest-agent/plugin` for a plugin edit forces a pointless npm publish.
 
 ## Build Pipeline
 
@@ -179,10 +178,9 @@ produce dual build outputs via [Rslib](https://rslib.rs/) for each package:
 | Development | `packages/<name>/dist/dev/` | Local development with source maps |
 | Production | `packages/<name>/dist/npm/` | Published to npm |
 
-Each source `package.json` is marked `"private": true` — **this is
-intentional and correct**. The rslib-builder `transform()` callback rewrites
-`exports`, sets `private: false`, and strips devDependencies on publish. Never
-manually set `"private": false` in a source `package.json`.
+Each source `package.json` is marked `"private": true` — **intentional**: the
+build `transform()` rewrites `exports`, sets `private: false`, and strips
+devDependencies on publish. Never set `"private": false` in source.
 
 Turbo orchestration: `types:check` runs first, then `build:dev` and
 `build:prod` both depend on it. Cache excludes `*.md`, `.changeset/**`,
@@ -225,7 +223,7 @@ pnpm run test:coverage     # Run tests with v8 coverage report
 ### Building
 
 ```bash
-pnpm run build             # Build the reporter package (dev + prod) via Turbo
+pnpm run build             # Build every package (dev + prod) via Turbo
 pnpm run ci:build          # Same with CI=true and grouped output
 ```
 
@@ -233,38 +231,25 @@ To build a specific package, use the Turbo filter:
 
 ```bash
 turbo run build:dev build:prod --filter='./packages/sdk'
+turbo run build:dev build:prod --filter='./packages/engine'
 turbo run build:dev build:prod --filter='./packages/cli'
 turbo run build:dev build:prod --filter='./packages/mcp'
 ```
 
+Run `pnpm run build` (prod) before the packed-install e2e and rebuild
+`dist/dev` before any e2e that spawns a built bin. The API Extractor / tsdoc
+pass runs inside the build (`dist/<target>/issues.json`) and is not a user
+command — dispatch `tsdoctor` when a build reports `ae-*` issues.
+
 ### Running a Specific Test
 
 ```bash
-pnpm vitest run packages/sdk/__test__/resolve-data-path.test.ts
+pnpm vitest run packages/engine/__test__/resolve-data-path.test.ts
 ```
 
 ## Code Quality and Hooks
 
-### Biome
-
-Unified linter and formatter replacing ESLint + Prettier. Configuration
-in `biome.jsonc` extends `@savvy-web/silk/biome`.
-
-### Commitlint
-
-Enforces conventional commit format with DCO signoff. Configuration in
-`lib/configs/commitlint.config.ts` uses the `CommitlintConfig.silk()`
-preset.
-
-### Husky Git Hooks
-
-| Hook | Action |
-| ---- | ------ |
-| `pre-commit` | Runs lint-staged (Biome on staged files) |
-| `commit-msg` | Validates commit message format via commitlint |
-| `pre-push` | Runs tests for affected packages using Turbo |
-| `post-checkout` | Package manager setup |
-| `post-merge` | Package manager setup |
+Biome (`biome.jsonc`, extends `@savvy-web/silk/biome`) lints and formats; commitlint (`lib/configs/commitlint.config.ts`, `CommitlintConfig.silk()`) enforces conventional commits with DCO signoff. Husky: `pre-commit` runs lint-staged (Biome on staged files), `commit-msg` runs commitlint, `pre-push` runs tests for affected packages via Turbo, `post-checkout` / `post-merge` do package-manager setup.
 
 ## Conventions
 
@@ -275,12 +260,32 @@ preset.
   `import fs from 'node:fs'`).
 - Separate type imports: `import type { Foo } from './bar.js'`.
 - Cross-package imports use the package name
-  (`import { DataStore } from "@vitest-agent/sdk"`),
+  (`import { DataStore } from "@vitest-agent/engine"`,
+  `import { AgentReport } from "@vitest-agent/sdk"`),
   never relative paths across package boundaries.
+- **Static imports everywhere.** Dynamic `await import(...)` is not a house
+  pattern; the single sanctioned exception is `packages/mcp/src/main.ts`
+  (crash guards must register before the server graph evaluates).
+
+### Entry points and package boundaries
+
+- **Front-end entry contract** (`cli`, `mcp`): `src/bin.ts` is a shebang shim,
+  `src/main.ts` owns the process and is exported at `./main` (so the carrier
+  can ship the same bin), `src/index.ts` is a side-effect-free barrel, and
+  `CURRENT_<PKG>_VERSION` lives in `src/version.ts`.
+- **Boundary tests** (`packages/{sdk,engine,cli,mcp}/__test__/boundaries.test.ts`):
+  sdk imports no `node:*` / `@effect/platform-node` / `@effect/sql-sqlite-node`
+  / `@effected/*` and never reads `process`; engine never reads `process` with
+  no allowlist and never imports a front end; cli and mcp read `process` only
+  through narrow allowlists (`bin.ts`, `main.ts`, `version.ts`, plus
+  `commands/**` or `tools/run-tests.ts`) and never import each other; the
+  token `process.env.__PACKAGE_VERSION__` may appear only in each package's
+  `version.ts`. Details: `.claude/design/vitest-agent/decisions.md`
+  Decision 71 and `components/engine.md`.
 
 ### Dependencies
 
-- Effect v4 collapsed the standalone `@effect/*` packages into `effect/unstable/*` namespaces (e.g. `@effect/cli` → `effect/unstable/cli`, `@effect/sql` → `effect/unstable/sql`), so the old peer-closure padding (`@effect/experimental`, `@effect/workflow`, `@effect/printer`, `@effect/printer-ansi`, `@effect/typeclass`) is gone. The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node` — both directly imported in source. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. Rationale in the architecture design doc.
+- Effect v4 collapsed the standalone `@effect/*` packages into `effect/unstable/*` namespaces (`effect/unstable/cli`, `effect/unstable/sql`, `effect/unstable/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. Rationale in the architecture design doc.
 
 ### Commits
 
@@ -291,9 +296,9 @@ All commits require:
 
 ### Publishing
 
-All seven `packages/` workspaces publish to npm with
+All eight `packages/` workspaces (plus the four `sidecar-*` platform packages) publish to npm with
 provenance via the [@savvy-web/changesets](https://github.com/savvy-web/changesets)
-release workflow. Every package versions independently — there is no lockstep `fixed` group. Each release publishes a git tag per package of the form `@vitest-agent/<pkg>@<version>` (e.g. `@vitest-agent/plugin@1.1.0`) plus one GitHub Release per package, replacing the retired unified single-semver-tag (`1.0.0`) + one-combined-release scheme. `@vitest-agent/claude-code-plugin` is the eighth workspace member and releases the same way minus the npm step: `privatePackages: { tag: true, version: true }` cuts a `@vitest-agent/claude-code-plugin@<version>` tag and a GitHub Release with **no npm publish**. The prior `1.0.0`/`1.0.1` unified tags/releases were retroactively split into per-package tags/releases so history matches; the bare `1.0.0`/`1.0.1` tags no longer exist.
+release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus one GitHub Release per package. `@vitest-agent/claude-code-plugin` releases the same way minus the npm step (`privatePackages: { tag: true, version: true }`). The pre-2.0 unified `1.0.0`/`1.0.1` tags were retroactively split per package and no longer exist.
 
 ## Testing
 
@@ -307,20 +312,30 @@ release workflow. Every package versions independently — there is no lockstep 
   is still available via `--project` (shorthand `-p`); test-kind
   filtering moved to Vitest-native tag expressions (e.g.
   `--tags-filter "int"`).
-- **Test file layout**: Tests live in `packages/*/__test__/*.test.ts`
-  (flat directory). A test file is discoverable only under a workspace
-  package's `src/` (co-located) or `__test__/` directory, anchored at
-  the package root — nothing nested elsewhere in the tree is
-  discovered. Subdirectories under `__test__/` ARE discovered; only
-  `fixtures/`, `snapshots/`, and `utils/` sitting directly under
-  `__test__/` are excluded (a deeper `__test__/unit/utils/` is an
-  ordinary suite — issue #251). The rule lives in `classifyTestPath`
-  and its constants in `@vitest-agent/sdk`'s `utils/test-location.ts`.
-  Test-kind differentiation comes from `DiscoverStrategy.classify`
-  (default classifies `.e2e.`, `.int.`, and otherwise `unit` by
-  filename), not from project splits — there is one Vitest project
-  per workspace package.
+- **Test file layout**: tests live in `packages/*/__test__/*.test.ts`
+  (flat). A test file is discoverable only under a workspace package's
+  `src/` or `__test__/`, anchored at the package root; only `fixtures/`,
+  `snapshots/`, and `utils/` directly under `__test__/` are excluded
+  (issue #251). The rule is `classifyTestPath` in `@vitest-agent/sdk`'s
+  `utils/test-location.ts`. Test kind (`unit` / `int` / `e2e`) comes from
+  `DiscoverStrategy.classify` by filename suffix — one Vitest project per
+  workspace package.
 - **Filesystem in tests**: mount an `@effected/memfs` virtual volume instead of building a real temp tree; new filesystem-walking code takes an injected port (`WalkerFileSystem` from `@vitest-agent/plugin`) rather than importing `node:fs` directly.
+- **`.e2e.test.ts` is mandatory for anything that spawns a process** or
+  runs Vitest in-process: a plain `.test.ts` classifies as `unit` (5 s
+  timeout) and times out in CI; the `e2e` tag gives 120 s plus retry.
+- **Guardrail suites**: the four `boundaries.test.ts` files and
+  `packages/plugin/__test__/workspace-layering.test.ts` (a new package needs a
+  rank in `__test__/utils/workspace-graph.ts`).
+- **MCP tools**: `packages/mcp/__test__/utils/harness.ts` runs the real
+  `ServerLayer` in-process over `Stdio.layerTest` queues (exact served schemas
+  and wire results); only crash guards and process lifecycle need the spawned
+  bin (`*.e2e.test.ts`).
+- **Packed-install e2e**: `packages/plugin/__test__/bins-packed-install.e2e.test.ts`
+  installs the packed plugin into a scratch consumer under four PMs; needs
+  `pnpm run build` (prod) and network, skips otherwise.
+- **Engine layers in unit tests**: `makeTestLayer(":memory:")` and the preset
+  factories ship from `@vitest-agent/engine/testing`.
 - **CI**: `pnpm run ci:test` sets `CI=true` and enables coverage.
 
 **For detailed testing and discovery guidance:**

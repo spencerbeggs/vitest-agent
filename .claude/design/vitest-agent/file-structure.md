@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-07
-last-synced: 2026-09-07
+updated: 2026-09-13
+last-synced: 2026-09-13
 completeness: 90
 related:
   - ./architecture.md
@@ -12,6 +12,7 @@ related:
   - ./data-flows.md
   - ./decisions.md
   - ./components/sdk.md
+  - ./components/engine.md
   - ./components/ui.md
   - ./components/docs-site.md
 dependencies: []
@@ -25,17 +26,39 @@ reporter contract) see [./components/](./components/).
 
 ## Repo layout
 
-Source lives in seven publishable pnpm workspaces under `packages/` (plus four per-platform sidecar sub-packages), the `docs` documentation-site workspace at `website/`, and the Claude Code plugin workspace at `plugins/claude-code/`. `pnpm-workspace.yaml` globs `packages/*`, `plugins/*`, `playground` and `website`, so the plugin is a workspace member — private, unbuilt and never published, but versioned by changesets. The `plugins/` container is plural in anticipation of a second agent host; only `claude-code/` exists today.
+Source lives in eight publishable pnpm workspaces under `packages/` (plus four per-platform sidecar sub-packages), the `docs` documentation-site workspace at `website/`, and the Claude Code plugin workspace at `plugins/claude-code/`. `pnpm-workspace.yaml` globs `packages/*`, `plugins/*`, `playground` and `website`, so the plugin is a workspace member — private, unbuilt and never published, but versioned by changesets. The `plugins/` container is plural in anticipation of a second agent host; only `claude-code/` exists today.
 
 ```text
 packages/
-  sdk/         @vitest-agent/sdk (no internal deps; owns RunEvent + RenderState schemas; three entry points: . / ./dispatch / ./testing)
-  plugin/      @vitest-agent/plugin (deps on sdk+reporter+cli+mcp; Vitest packages are required peers; streaming hooks + run-event PubSub channel + onRunEvent tap; owns no rendering)
-  reporter/    @vitest-agent/reporter (depends on sdk + ui + react + ink; default reporter package — DefaultVitestAgentReporter + live Ink mount + contract re-exports + dispatch helpers)
-  ui/          @vitest-agent/ui (depends on sdk; react/ink peers; pure rendering primitives — reducer + shape-tailored dispatcher matrix + synthesizers + RunEventChannel PubSub)
-  cli/         @vitest-agent/cli (bin: vitest-agent; depends on sdk + sidecar)
-  mcp/         @vitest-agent/mcp (bin: vitest-agent-mcp; pulled in by the plugin)
-  sidecar/     @vitest-agent/sidecar (depends on cli + sdk; rslib re-export entry — src/index.ts exports resolveSidecarBinaryPath; no bin)
+  sdk/         @vitest-agent/sdk — rank 1, the platform-free core (no internal deps, no node:, no process; schemas, contracts, errors, pure formatters + utils; entry points: . / ./dispatch / ./schemas/*.json)
+    src/version.ts             CURRENT_SDK_VERSION — the only file allowed the __PACKAGE_VERSION__ token
+    src/dispatch.ts            the pure dispatch(argv, io) entry the sidecar bins import
+    src/utils/posix-path.ts    the node:path replacement
+  engine/      @vitest-agent/engine — rank 3, the platform half (depends on sdk; services, layers, sql, migrations, lib, testing; entry points: . / ./testing)
+    src/platform.ts            PlatformLive({ dbPath, env, logLevel?, logFile? }), makeSqliteStack, NodePlatformLayer
+    src/project-dir.ts         resolveProjectDir({ env, cwd }) — the four-name precedence
+    src/programs/              hook-paths, platform-sidecar, register-agent, end-agent, record-*, resolve-session-for-recording, session-env
+    __test__/boundaries.test.ts  no `process` anywhere under src/, no allowlist
+  plugin/      @vitest-agent/plugin — rank 5, the carrier (deps on cli+mcp+reporter+engine+sdk; Vitest packages are required peers; owns no rendering)
+    src/bin/vitest-agent.ts        4-line shim: import { main } from "@vitest-agent/cli/main"
+    src/bin/vitest-agent-mcp.ts    4-line shim: import { main } from "@vitest-agent/mcp/main"
+    __test__/workspace-layering.test.ts    the rank / DAG check (utils/workspace-graph.ts)
+    __test__/bins-packed-install.e2e.test.ts  npm / pnpm / yarn / bun consumer install
+  reporter/    @vitest-agent/reporter — rank 3 (depends on sdk + ui + react + ink; DefaultVitestAgentReporter + live Ink mount + contract re-exports + dispatch helpers)
+  ui/          @vitest-agent/ui — rank 2 (depends on sdk; react/ink peers; pure rendering primitives)
+  cli/         @vitest-agent/cli — rank 4 (bin: vitest-agent; depends on engine + sdk + sidecar)
+    src/bin.ts                 shim: import { main } from "./main.js"; main();
+    src/main.ts                owns the process; published as ./main
+    src/index.ts               side-effect-free barrel (CURRENT_CLI_VERSION only)
+    src/commands/              the effect/unstable/cli wrappers (process allowlisted here)
+  mcp/         @vitest-agent/mcp — rank 4 (bin: vitest-agent-mcp; depends on engine + sdk)
+    src/bin.ts / main.ts / index.ts   same entry contract (main.ts: crash guards first, then dynamic imports)
+    src/server.ts              ServerLayer over McpServer.layerStdio
+    src/toolkit.ts             Kit + toolHandlers + ToolsLayer
+    src/register-toolkit.ts    registerStrictToolkit
+    src/tools/                 one file per tool (30)
+    src/prompts/layer.ts       PromptsLayer (six McpServer.prompt)
+  sidecar/     @vitest-agent/sidecar — rank 3 (optional deps on the four sidecar-* children; src/index.ts exports resolveSidecarBinaryPath; no bin)
   sidecar-darwin-arm64/  per-platform binary sub-package (os: darwin, cpu: arm64)
   sidecar-linux-arm64/   per-platform binary sub-package (os: linux, cpu: arm64)
   sidecar-linux-x64/     per-platform binary sub-package (os: linux, cpu: x64)
@@ -58,9 +81,10 @@ plugins/       agent-host plugin workspaces (pnpm-workspace.yaml globs plugins/*
   claude-code/ @vitest-agent/claude-code-plugin (private; no build, no scripts; marketplace-distributed)
     package.json                  release-tracking manifest; changesets versions it, npm never sees it
     .claude-plugin/plugin.json    marketplace manifest + inline mcpServers config; version kept in step by changesets versionFiles
-    bin/start-mcp.sh              zero-deps POSIX shell PM-detect + exec loader
-    bin/start-mcp.mjs             Node.js fallback loader (not active by default)
-    hooks/                        shell scripts + hooks.json + fixtures/ + lib/ + __test__/ (bats)
+    bin/start-mcp.sh              zero-deps POSIX shell loader: exec node_modules/.bin/vitest-agent-mcp, else install message + npx fallback
+    bin/start-mcp.mjs             Node.js fallback loader, same .bin-first preference (not active by default)
+    hooks/                        shell scripts + hooks.json + fixtures/ + lib/ (detect-pm.sh: detect_vitest_agent_bin)
+    __test__/                     bats suites (bin-preference.bats covers the loaders and the .bin-first hook contract)
     agents/tdd-task.md            tdd-task subagent definition
     skills/                       plugin-shipped skills
     commands/                     slash commands
@@ -74,11 +98,16 @@ plugins/       agent-host plugin workspaces (pnpm-workspace.yaml globs plugins/*
 Each primary `packages/<name>/` follows the standard layout: `src/` for
 source, `__test__/` for test files (flat layout, not co-located with
 source), `lib/` for build/maintenance scripts where applicable, `dist/dev/`
-and `dist/npm/` produced by `@savvy-web/rslib-builder`. The parent
+and `dist/npm/` produced by the bundler. The two front ends (`cli`, `mcp`)
+add the entry contract from Decision 70 — `src/bin.ts` (shebang +
+`main()`), `src/main.ts` (owns the process, published as `./main`),
+`src/index.ts` (side-effect-free barrel), `src/version.ts` — and every
+package that may touch `process` carries a `__test__/boundaries.test.ts`
+naming exactly where. The parent
 `sidecar/` follows the standard rslib layout but ships only a single
 `src/index.ts` entry exporting `resolveSidecarBinaryPath` — no tests. The
 four `sidecar-*` sub-packages depart from the standard layout: each carries a
-thin `src/bin.ts` runner that imports `dispatch` from `@vitest-agent/sdk/dispatch`,
+thin `src/bin.ts` runner that imports the pure `dispatch` from `@vitest-agent/sdk/dispatch` and passes `process.cwd()`, `process.env` and a `readFileSync` wrapper as its `io`,
 plus its own `lib/scripts/tsdown.ts` programmatic build script and builds a
 Node SEA binary into `bin/` with tsdown's `exe` mode rather than
 rslib-builder (see [./components/sidecar.md](./components/sidecar.md)) — no
@@ -112,18 +141,26 @@ testing patterns and per-project counts.
 The SQLite database lives at a deterministic XDG-derived location keyed by
 the workspace's identity, not its filesystem path. See
 [./decisions.md](./decisions.md) D31 for the resolution-precedence rationale
-and [./components/sdk.md](./components/sdk.md) for the
-`packages/sdk/src/utils/resolve-data-path.ts` implementation.
+and [./components/engine.md](./components/engine.md) for the
+`packages/engine/src/utils/resolve-data-path.ts` implementation.
 
 ```text
 $XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db
 ```
 
-On systems without `XDG_DATA_HOME` set, falls back to:
+On systems without `XDG_DATA_HOME` set, the hook-driven sidecar paths
+(`programs/hook-paths.ts`, `fallbackDir: ".local/share/vitest-agent"`)
+fall back to:
 
 ```text
 ~/.local/share/vitest-agent/<workspaceKey>/data.db
 ```
+
+The reporter / MCP path (`PathResolutionLive`, no `fallbackDir`) currently
+falls back to `~/.vitest-agent/<workspaceKey>/data.db` instead — a
+pre-existing split made visible by the engine extraction and recorded as
+a follow-up under Decision 70; it is invisible wherever `XDG_DATA_HOME` is
+set.
 
 `<workspaceKey>` is derived from the root `package.json` `name` via
 `normalizeWorkspaceKey`:
@@ -226,7 +263,10 @@ Run-command output and the MCP loader both need the project's package
 manager. Canonical detection logic lives in `packages/sdk/src/utils/detect-pm.ts`
 behind a `FileSystemAdapter` interface for testability. The plugin's
 `bin/start-mcp.sh` (and `hooks/lib/detect-pm.sh`) ship zero-deps copies
-with the same detection order:
+with the same detection order — though since Decision 70 both prefer the
+consumer's `node_modules/.bin/vitest-agent[-mcp]` (the carrier's bins) and
+use the detected manager only for the install-instruction line or the
+last-resort `<pm exec>` rung:
 
 1. Check `packageManager` field in root `package.json`
 2. Fall back to lockfile detection (`pnpm-lock.yaml`, `bun.lock`,
@@ -244,7 +284,7 @@ drift in observable behavior.
 
 The `resolveDataPath` chain (workspace name only) is supplemented
 by `ProjectIdentity.resolve` (see
-`packages/sdk/src/services/ProjectIdentity.ts`), a 5-source fallback:
+`packages/engine/src/services/ProjectIdentity.ts`), a 5-source fallback:
 
 1. Explicit option
 2. `projectKey` field in `vitest-agent.config.toml` at the workspace root
@@ -290,11 +330,14 @@ files are ephemeral and safe to delete; see
 [./components/plugin.md](./components/plugin.md).
 
 The CLI's `agent` sidecar subcommands resolve all three SQLite
-paths from env at invocation time:
+paths from the injected env at invocation time through the engine's
+`resolveHookPaths({ env, projectKey })`:
 
 - Per-project: `$XDG_DATA_HOME/vitest-agent/<projectKey>/data.db` where `<projectKey>` comes from `ProjectIdentity` resolution against `--cwd`
 - Per-client: `${CLAUDE_PLUGIN_DATA}/sessions.db`, falling back to `${VITEST_AGENT_SESSION_MAP_DIR}/sessions.db`, falling back to `~/.vitest-agent/sessions.db`
 - Registry: `$XDG_DATA_HOME/vitest-agent/registry.db`
 
-`mkdirSync(..., { recursive: true })` ensures every parent dir exists
-before SQLite opens the file.
+`resolveHookPaths` creates every parent dir (`AppDirs.ensureData` for the
+root, `FileSystem.makeDirectory` for the project and session-map dirs)
+before SQLite opens the file; `HOME` or `USERPROFILE` must be present in
+the env map for the XDG rung (`XdgEnvError` → exit 5).

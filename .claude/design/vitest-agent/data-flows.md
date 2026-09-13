@@ -3,14 +3,15 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-08
-last-synced: 2026-09-08
+updated: 2026-09-13
+last-synced: 2026-09-13
 completeness: 92
 related:
   - ./architecture.md
   - ./schemas.md
   - ./decisions.md
   - ./components/plugin.md
+  - ./components/engine.md
   - ./components/cli.md
   - ./components/mcp.md
   - ./components/plugin-claude.md
@@ -215,7 +216,7 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   |   Input is the PersistResult, or — when persistence was disabled or
   |   failed — one synthesized from fallbackReports with empty
   |   classifications and no trendSummary.
-  +-- Resolve env / executor / format / detail via SDK pipeline services
+  +-- Resolve env / executor / format / detail via the engine pipeline services
   +-- buildReporterKit(...) -> run-end ReporterKit (health-aware;
   |     carries this.runEvents and post-run detail)
   |     run health `hasFailures` keys off report.failedFiles.length
@@ -260,9 +261,9 @@ async onTestRunEnd(testModules, unhandledErrors, reason)
   +-- await reportWriter.flush() before onTestRunEnd resolves
   |
   +-- Effect.runPromise(persistProgram.pipe(
-  |     Effect.provide(ReporterLive(dbPath))))            [may be skipped]
+  |     Effect.provide(ReporterLive({ dbPath, env }))))            [may be skipped]
   +-- Effect.runPromise(renderProgram.pipe(
-  |     Effect.provide(OutputPipelineLive),
+  |     Effect.provide(OutputPipelineLive(env)),
   |     Effect.provide(NodeServices.layer)))              [always runs]
   |
   +-- if persistDisabled ?? persistFailure:
@@ -367,10 +368,18 @@ instantiated. See [./components/plugin.md](./components/plugin.md).
 
 Owned by `@vitest-agent/cli`. See [./components/cli.md](./components/cli.md).
 
-- `bin.ts` resolves `dbPath` via `resolveDataPath(cwd)` under
+- `bin.ts` is a 4-line shim that calls `main()` from `main.ts` (published
+  as `./main`; the carrier's `packages/plugin/src/bin/vitest-agent.ts`
+  imports the same function — Decision 70).
+- `main.ts` reads `process.env` once, resolves `projectDir =
+  resolveProjectDir({ env, cwd: process.cwd() })` (engine: `VITEST_AGENT_PROJECT_DIR`
+  → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → cwd), then
+  `dbPath` via `resolveDataPath(projectDir)` under
   `PathResolutionLive(projectDir) + NodeServices.layer`.
-- Provides `CliLive(dbPath, logLevel?, logFile?)` to the `effect/unstable/cli`
-  `Command.run` effect; executes via `NodeRuntime.runMain`.
+- Provides the engine's `PlatformLive({ dbPath, env, logLevel, logFile })`
+  to the `effect/unstable/cli` `Command.run` effect; executes via
+  `NodeRuntime.runMain`. Only `bin.ts`, `main.ts`, `version.ts` and
+  `commands/**` may touch `process` (boundary test).
 - The top-level tree is exactly three commands: `doctor`, `db`, `agent`.
   The CLI is utility-only — MCP (Flow 4) is the data path for
   test-landscape queries.
@@ -393,41 +402,66 @@ Owned by `@vitest-agent/cli`. See [./components/cli.md](./components/cli.md).
     (suffix-match UPDATE on `test_cases`) then
     `DataReader.getLatestTestCaseForSession`. Outputs `{ updated: N,
     latestTestCaseId: <id|null> }`.
-- All `record` paths use `CliLive`, which includes `DataStoreLive` in
-  addition to `DataReaderLive`.
+- All `record` paths run the engine's `programs/record-*.ts` effects
+  against `PlatformLive`, which includes `DataStoreLive` in addition to
+  `DataReaderLive`; the sidecar subcommands (`register-agent`, `end-agent`)
+  instead resolve `resolveHookPaths({ env, projectKey })` and provide
+  `SidecarPlatformLive(paths, env)` (three databases).
 
 ## Flow 4: MCP server
 
 Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components/mcp.md).
 
-- `bin.ts` resolves `projectDir` from `VITEST_AGENT_REPORTER_PROJECT_DIR` (set
-  by the plugin loader) ?? `CLAUDE_PROJECT_DIR` ?? `process.cwd()`.
-- Resolve `dbPath` via `resolveDataPath(projectDir)` under
-  `PathResolutionLive(projectDir) + NodeServices.layer`.
-- Create `ManagedRuntime.make(McpLive(dbPath, logLevel?, logFile?))`,
-  call `startMcpServer({ runtime, cwd: projectDir })`.
-- Before any of that, `bin.ts` installs process-level `unhandledRejection`
-  and `uncaughtException` handlers at module scope. A rejection outside any
-  tool-call boundary logs to stderr and the process stays alive; an
-  uncaught exception exits only when the transport has not connected yet
-  (`shouldExitOnUncaughtException`). Issue #191 — a crash used to close the
-  stdio transport and silently deregister every tool mid-session. See
+- `bin.ts` is a shim over `main()` from `main.ts` (published as `./main`;
+  the carrier's `packages/plugin/src/bin/vitest-agent-mcp.ts` imports the
+  same function).
+- `main.ts` registers the process-level `unhandledRejection` and
+  `uncaughtException` guards **first**, then dynamically imports everything
+  else inside a `try` (the one sanctioned dynamic-import site — Decision
+  70). A rejection outside any tool-call boundary logs to stderr and the
+  process stays alive; an uncaught exception exits only when the transport
+  has not connected yet (`shouldExitOnUncaughtException`). Issue #191 — a
+  crash used to close the stdio transport and silently deregister every
+  tool mid-session. Any startup rejection (an import, `resolveDataPath`,
+  the layer graph) exits 1 with a stderr diagnostic. See
   [./components/mcp.md](./components/mcp.md) "Crash resilience".
-- `StdioServerTransport` connects; tool invocations route through tRPC via
-  `createCallerFactory(appRouter)`. Each procedure calls
-  `ctx.runtime.runPromise(effect)` against `DataReader`, `DataStore`,
-  `ProjectDiscovery`, or `OutputRenderer`.
-- Input validation happens twice on the way in: the MCP SDK validates the
-  request against the served `inputSchema`, which is strict — unknown keys
-  are rejected with an error naming the offending key and the accepted
-  params rather than silently stripped (issue #200) — and the tRPC
-  procedure then decodes its own Effect Schema input. A resolver throw that
-  escapes the tool's own error handling is caught by the `registerTool`
-  wrapper and returned as an `UnexpectedToolError` envelope with
-  `isError: true`, not a bare SDK error string.
-- `server.ts` calls `registerAllPrompts(server)` before constructing
-  `StdioServerTransport`, so tool / prompt surfaces are registered as one
-  unit.
+- `projectDir = resolveProjectDir({ env, cwd: process.cwd() })` (engine:
+  `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR`, set by
+  the plugin loader → `CLAUDE_PROJECT_DIR` → cwd); `dbPath` via
+  `resolveDataPath(projectDir)` under `PathResolutionLive(projectDir) +
+  NodeServices.layer`.
+- `McpSession.layer({ cwd: projectDir, initialSessionId, initialContext:
+  sessionContextFromEnv(env), recover })` (see *MCP boot context recovery*
+  below), then `Main = ServerLayer({ version })` provided with the session,
+  `PlatformLive({ dbPath, env, logLevel, logFile })`, `NodeStdio.layer` and
+  `Logger.LogToStderr = true`. `Layer.launch` under `NodeRuntime.runMain`
+  with a teardown that maps success or an interrupts-only cause (stdin EOF)
+  to exit 0. `transportConnected` flips from a layer provided *by* `Main`,
+  so it runs strictly after the stdio protocol is reading stdin.
+- `ServerLayer` = `registerStrictToolkit(Kit)` + `PromptsLayer` over
+  `McpServer.layerStdio({ name: "vitest-agent", protocols: [2025-11-25,
+  2025-06-18, 2025-03-26] })`, so tools and prompts register into one
+  `McpServer` as a unit.
+- A `tools/call` goes through `registerStrictToolkit`'s handler: (1) the raw
+  `arguments` are walked against the *served* JSON Schema — strictified
+  with `additionalProperties: false` at every object level, `$ref` roots
+  inlined, a top-level `action` / `kind` union rewritten to `oneOf` +
+  `x-discriminator` — and an unknown key at any level fails
+  `InvalidParams` naming the key path and the accepted params (issue #200 /
+  #243; an `isError` text result on 2025-11-25, a JSON-RPC `-32602` on
+  older protocols); (2) the arguments are decoded through the tool's
+  Effect `parameters` schema (`optionalKey` / `Finite` — a numeric string
+  is rejected); (3) `toolHandlers[name]` runs as an `Effect` requiring
+  `McpSession | DataReader | DataStore | ProjectDiscovery | OutputRenderer`
+  (write tools wrap themselves in `withIdempotency`, Flow 7); (4) the
+  result is encoded through the tool's `success` schema into
+  `structuredContent` (undeclared keys are stripped) and rendered to
+  `content[0].text` via the tool's `RenderText` markdown or JSON; (5) a
+  defect or undeclared failure is logged to stderr and returned as the
+  `UnexpectedToolError` success-shape envelope with `isError: true`, never
+  as a bare error string; an interrupt propagates. Domain errors
+  (`{ ok: false, error: { _tag, …, remediation } }`) are members of the
+  `success` union, not failures (Decision 71).
 - `run_tests` runs Vitest in-process via `createVitest` (from `vitest/node`) with a per-call timeout — it awaits `localVitest.start(...)` and reads results (including `state.getFiles()`) before returning. The in-process run blocks the long-lived stdio server for its duration, which is acceptable because agents wait for results before proceeding. The timeout is modelled in the Effect error channel (issue #320): `Effect.tryPromise` → `Effect.timeout(timeoutMs)` → `Effect.catchTag("TimeoutError")` → `Effect.catch`, folded into an `ok | timeout | failed` outcome so `{ kind: "timeout" }` can only come from a real `Cause.TimeoutError`, never from an ordinary error whose message happens to be `VITEST_TIMEOUT`. See [./decisions.md](./decisions.md) Decision 63.
 - After the run, `state.getFiles()` is walked by `collectConsoleLeakEntries` → `buildConsoleLeaks` and the result attached as `report.consoleLeaks` when any `console.*` output was captured. Each entry is attributed to its owning task's `result.state`; only non-failing-test output counts toward `total` / `byFile`, and failing-test output lands in `fromFailingTests`. The text summary warns only on `total > 0` (issue #263; see [./decisions.md](./decisions.md) Decision 57).
 - The Vitest root for the call is resolved first: a supplied `projectRoot` is validated then used verbatim, and an unsupplied one anchors at the directory of the config Vitest would load (issue #259). Vitest 5's `findConfigFile` probes only `root` with no ancestor walk, so the run also passes an explicit `config:` — `resolveAnchoredConfigFile` walks up for the config path and it is threaded into `createVitest` alongside `root`; without it a subtree root would boot on pure defaults, never load `AgentPlugin`, and still report success. A caller passing an explicit `projectRoot` should pass the directory holding the config when that config uses relative `setupFiles` / `globalSetup`, because those still resolve against the supplied root. `vitest/node` is then resolved *from that root* rather than from the bare specifier, so the run drives the same physical vitest copy the project's test files import (issue #303). See [./components/mcp.md](./components/mcp.md) and [./decisions.md](./decisions.md) Decisions 55 and 56.
@@ -435,18 +469,21 @@ Owned by the `@vitest-agent/mcp` package. See [./components/mcp.md](./components
 
 ## Flow 5: Plugin → MCP server spawn
 
-Owned by the Claude Code plugin at `plugins/claude-code/`. See [./components/plugin-claude.md](./components/plugin-claude.md) and [./decisions.md](./decisions.md) D30.
+Owned by the Claude Code plugin at `plugins/claude-code/`. See [./components/plugin-claude.md](./components/plugin-claude.md) and [./decisions.md](./decisions.md) D30 and Decision 70.
 
-- `plugins/claude-code/bin/start-mcp.sh` (zero-deps POSIX shell) reads
-  `CLAUDE_PROJECT_DIR` (or falls back to `pwd`).
-- Detect PM: `packageManager` field in root `package.json`, else lockfile
-  (`pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `yarn.lock`,
-  `package-lock.json`), else default `npm`.
-- `exec`-replaces itself with `<pm-exec> vitest-agent-mcp` (`pnpm exec`,
-  `npx --no-install`, `yarn run`, or `bun x`) with `VITEST_AGENT_REPORTER_PROJECT_DIR`
-  set so the spawned bin sees the right project root (Flow 4).
-- After exec, Claude Code's direct child is the PM process; no wrapper hangs around.
-  Print PM-specific install instructions and exit non-zero if the bin is missing.
+- `plugins/claude-code/bin/start-mcp.sh` (zero-deps POSIX shell, `set -eu`)
+  reads `CLAUDE_PROJECT_DIR` (or falls back to `pwd`) as `ROOT` and exports
+  `VITEST_AGENT_REPORTER_PROJECT_DIR=$ROOT` so the spawned bin resolves the
+  right project root (Flow 4).
+- If `$ROOT/node_modules/.bin/vitest-agent-mcp` is executable — the
+  carrier's bin, present for every consumer that installed
+  `@vitest-agent/plugin` under any package manager — `exec` it with the
+  positional args passed through. After exec, Claude Code's direct child is
+  the MCP server process; no wrapper or PM dispatch hangs around.
+- Otherwise detect the PM (`packageManager` field, else lockfile in the
+  order `pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `yarn.lock`,
+  `package-lock.json`, else `npm`) **only** to word the install line, print
+  the not-installed block to stderr, and `exec npx --yes @vitest-agent/mcp`.
 
 The loader is a thin spawner because Claude Code's MCP integration runs the
 configured command as a child process and the plugin can't assume the user
@@ -455,8 +492,10 @@ has the npm packages installed globally.
 ## Flow 6: Plugin record hooks → CLI → DataStore
 
 The `*-record.sh` hook scripts shell out to the user's installed
-`vitest-agent` CLI via the same PM detection pattern as the MCP loader
-(Flow 5). The hooks own the Claude Code event taxonomy; the CLI owns the
+`vitest-agent` CLI through `detect_vitest_agent_bin` — `$VITEST_AGENT_CLI_CMD`,
+else the relative `node_modules/.bin/vitest-agent` (the carrier's bin), else
+the package-manager dispatch — behind a load-bearing `cd "$cwd" &&`
+(Decision 70). The hooks own the Claude Code event taxonomy; the CLI owns the
 schema decode and the DataStore write.
 
 | Hook event | Script | What it records |
@@ -518,12 +557,14 @@ encode this rule.
 
 **Why SessionEnd detaches.** Claude Code runs SessionEnd hooks under an abortable timeout and cancels in-flight hooks unconditionally on interactive exit ("Hook cancelled"); the worker's serial `<pm> exec vitest-agent` spawns can outlast that window on a cold cache, leaving rows half-written. Detaching the worker on exit-type reasons gives the host nothing to abort; the wrap-up computation is skipped there (`quiet` mode) because nobody is listening after exit. See [./components/plugin-claude.md](./components/plugin-claude.md) for the shim/worker contract.
 
-## Flow 7: tRPC idempotency middleware
+## Flow 7: the `withIdempotency` combinator
 
-Owned by the `@vitest-agent/mcp` package. The middleware sits between the tRPC input
-parser and the procedure body for any tool wired with `idempotentProcedure`.
-The `idempotencyKeys` registry in `packages/mcp/src/middleware/idempotency.ts`
-decides which `(tool, action)` pairs derive a key — see
+Owned by the `@vitest-agent/mcp` package. `withIdempotency(path, handler)`
+wraps a write tool's handler inside `toolkit.ts`'s `toolHandlers` record,
+after the strict registrar has decoded the params (so no key can have been
+stripped). The `idempotencyKeys` registry in
+`packages/mcp/src/idempotency.ts` decides which `(tool, action)` pairs
+derive a key — see
 [./components/mcp.md](./components/mcp.md) for the current set and
 [./decisions.md](./decisions.md) for why those are idempotent and
 [./schemas.md](./schemas.md) for `mcp_idempotent_responses`.
@@ -531,21 +572,23 @@ decides which `(tool, action)` pairs derive a key — see
 ```text
 incoming MCP request
   |
-  +-- derive idempotency key from input via the per-procedure function in
-  |   idempotencyKeys (keyed on the action discriminator; returns null
-  |   for non-idempotent actions, which skips the cache entirely)
+  +-- derive idempotency key from the decoded params via the per-tool spec
+  |   in idempotencyKeys (keyed on the action discriminator; returns null
+  |   for non-idempotent actions and unregistered paths, which skips the
+  |   cache entirely)
   |
   +-- DataReader.findIdempotentResponse(procedurePath, key)
   |     +-- Option.some(resultJson):
-  |     |     JSON.parse the cached response
-  |     |     attach _idempotentReplay: true
-  |     |     return without calling next() — the inner procedure body
-  |     |     does NOT run, so the DataStore write does NOT run
-  |     +-- Option.none():
-  |           call next() (the inner procedure body, which runs
-  |           DataStore.writeHypothesis or DataStore.validateHypothesis)
+  |     |     Effect.try(JSON.parse) the cached response
+  |     |       parse ok  -> attach _idempotentReplay: true (object results)
+  |     |                    and return WITHOUT running the handler — the
+  |     |                    DataStore write does NOT run
+  |     |       parse fails -> treated as a MISS (fall through)
+  |     +-- Option.none(), or a read FAILURE (also a miss; E stays never):
+  |           run the handler (which runs DataStore.writeHypothesis,
+  |           DataStore.validateHypothesis, writeTddTask, createGoal, ...)
   |
-  +-- hypothesis (action: record) procedure body:
+  +-- hypothesis (action: record) handler body:
   |     resolve binding session server-side. Precedence:
   |       1. tddTaskId (preferred, deterministic — the orchestrator
   |          holds the id returned by tdd_task action:start):
@@ -565,7 +608,7 @@ incoming MCP request
   |     See components/mcp.md "Hypothesis session binding" for the
   |     dual-registration hand-sync lesson behind the tddTaskId input.
   |
-  +-- after next() resolves successfully:
+  +-- after the handler succeeds (miss path only):
   |     DataStore.recordIdempotentResponse({ procedurePath, key,
   |       resultJson: JSON.stringify(result), createdAt: now })
   |     errors here are SWALLOWED — best-effort persistence; the worst
@@ -574,12 +617,19 @@ incoming MCP request
 
 The composite PK `(procedure_path, key)` plus `INSERT ... ON CONFLICT DO
 NOTHING` semantics mean a parallel insert race resolves to a no-op — both
-branches "see" the same cached value, which is the correct behavior.
+branches "see" the same cached value, which is the correct behavior. The
+same clause is why a corrupt row never heals: the re-persist after a
+corrupt-row miss is a no-op against the existing row, so that key stays a
+permanent miss (the handler runs on every call) until something with
+`DELETE` / `UPDATE` access clears it — an engine-level upsert is a
+recorded follow-up (Decision 71).
 
-This is why the middleware is safe under concurrent calls: the cache miss /
+This is why the combinator is safe under concurrent calls: the cache miss /
 write race produces the same observable result as a cache hit. The
-DataStore is the synchronization point; the middleware does not need its
-own lock.
+DataStore is the synchronization point; the combinator does not need its
+own lock. The `_idempotentReplay` marker survives the wire because the
+replayable success structs declare it — the `Toolkit` encoder strips any
+undeclared result key.
 
 ## Error handling across flows
 
@@ -602,17 +652,19 @@ in [./decisions.md](./decisions.md).
 The MCP server (Flow 4) catches tagged TDD errors at the boundary via the
 `_tdd-error-envelope.ts` helper and surfaces them as success-shape
 `{ ok: false, error: { _tag, ..., remediation } }` responses so the
-orchestrator can recover without seeing a tRPC-level failure. An
-*unexpected* resolver throw — one no tool-level handler anticipated — gets
-the same success-shape treatment from the `registerTool` wrapper
-(`UnexpectedToolError`), and a throw or rejection that escapes the tool-call
-boundary entirely lands on the process-level guards rather than killing the
-server. Both are issue #191; see [./components/mcp.md](./components/mcp.md)
-"Crash resilience" for the layering.
+orchestrator can recover without seeing a protocol-level failure — every
+tool's `failure` channel is `Schema.Never` and the domain envelopes are
+`success` union members (Decision 71). An *unexpected* defect — one no
+tool-level handler anticipated — gets the same success-shape treatment
+from `registerStrictToolkit` (`UnexpectedToolError`, `isError: true`), and
+a throw or rejection that escapes the tool-call boundary entirely lands on
+the process-level guards in `main.ts` rather than killing the server. Both
+are issue #191; see [./components/mcp.md](./components/mcp.md) "Crash
+resilience" for the layering.
 
-The idempotency middleware (Flow 7) deliberately swallows errors on the
-cache write (not the procedure body) because re-running an idempotent
-procedure is itself safe.
+The `withIdempotency` combinator (Flow 7) deliberately treats a cache read
+failure, a corrupt cached row and a cache-write failure as misses (never as
+tool errors) because re-running an idempotent handler is itself safe.
 
 ## Agent-agnostic taxonomy flows
 
@@ -708,8 +760,8 @@ description/timeout/run_in_background unchanged).
 
 ### MCP boot context recovery
 
-MCP server entry (`packages/mcp/src/bin.ts`) reads `process.env.VITEST_AGENT_*` at startup via `sessionContextFromEnv` and populates `McpContext.sessionContext` (a `SessionContextRef`). The `run_tests` tool reads from the ref before each Vitest invocation. The boot-time path relies on Claude Code auto-sourcing `CLAUDE_ENV_FILE` into the MCP server child process, but that alone loses two races: a fresh launch can spawn the MCP child before SessionStart writes the env file, and `/reload-plugins` restarts the MCP with no session env at all.
+The MCP server's `main.ts` reads `process.env.VITEST_AGENT_*` at startup via `sessionContextFromEnv(env)` and seeds `McpSession.sessionContext` (a `SessionContextRef`). The `run_tests` tool reads from the ref before each Vitest invocation. The boot-time path relies on Claude Code auto-sourcing `CLAUDE_ENV_FILE` into the MCP server child process, but that alone loses two races: a fresh launch can spawn the MCP child before SessionStart writes the env file, and `/reload-plugins` restarts the MCP with no session env at all.
 
-Recovery is therefore also lazy: `createSessionContextRef(initial, recover)` invokes `recoverSessionContextFromSessionEnv({ projectDir })` at the first `get()` that finds a null value and caches the first non-null result — reading the newest `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh` whose `VITEST_AGENT_PROJECT_DIR` matches the server's `projectDir`. Two live windows on the same project resolve to the newest session; that ambiguity is accepted. See [./components/mcp.md](./components/mcp.md) "MCP boot context recovery" for details.
+Recovery is therefore also lazy: `createSessionContextRef(initial, recover)` invokes the engine's `recoverSessionContextFromSessionEnv({ projectDir, homeDir })` (`packages/engine/src/programs/session-env.ts`) at the first `get()` that finds a null value and caches the first non-null result — reading the newest `~/.claude/session-env/<chat_id>/vitest-agent-hook.sh` whose `VITEST_AGENT_PROJECT_DIR` matches the server's `projectDir`. Two live windows on the same project resolve to the newest session; that ambiguity is accepted. See [./components/mcp.md](./components/mcp.md) "MCP boot context recovery" for details.
 
 The session map's `lookupByProjectDir` is the dev / test fallback when `CLAUDE_ENV_FILE` isn't available; the per-project `data.db` itself never reads from the session map at runtime.

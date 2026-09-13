@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-08
-last-synced: 2026-09-08
+updated: 2026-09-13
+last-synced: 2026-09-13
 completeness: 90
 related:
   - ../architecture.md
@@ -20,7 +20,7 @@ The Claude Code plugin at `plugins/claude-code/` is the primary AI integration s
 
 The plugin is a **file-based Claude Code plugin**: static files that Claude Code discovers by filesystem convention, with no build step and no npm publish. It ships through the Claude marketplace as `vitest-agent@spencerbeggs` and versions independently from the npm packages. It IS a pnpm workspace — `pnpm-workspace.yaml` globs `plugins/*`, and `plugins/claude-code/package.json` declares the private, script-free `@vitest-agent/claude-code-plugin` package whose only job is to give changesets something to version (Decision 64). The `plugins/` container is plural to leave room for a future second agent host; `claude-code/` is the only one that exists. Child context for working in the tree lives at `plugins/claude-code/CLAUDE.md`.
 
-For decisions that shaped this design, see [../decisions.md](../decisions.md): D20 (file-based plugin), Decision 64 (release-only workspace under `plugins/`), D30 (PM-detect spawn loader), D34 (plugin/reporter split), D11 (TDD evidence binding), D12 (three-tier hierarchy), D13 (capability-vs-scoping doctrine), D23 (hook stdout fence).
+For decisions that shaped this design, see [../decisions.md](../decisions.md): D20 (file-based plugin), Decision 64 (release-only workspace under `plugins/`), D30 (`.bin`-first MCP loader), Decision 70 (the carrier and the `.bin`-first hook contract), Decision 71 (the Effect-native MCP server and the `tdd_progress_push` wire change), D34 (plugin/reporter split), D11 (TDD evidence binding), D12 (three-tier hierarchy), D13 (capability-vs-scoping doctrine), D23 (hook stdout fence).
 
 ---
 
@@ -55,7 +55,7 @@ what makes them load-bearing.
 Claude Code session
    │
    ├── reads plugin.json   ──► registers MCP server, hooks, agents, skills, commands
-   ├── spawns start-mcp.sh ──► PM-exec → vitest-agent-mcp (user's project deps)
+   ├── spawns start-mcp.sh ──► exec node_modules/.bin/vitest-agent-mcp (the carrier's bin)
    ├── fires hooks         ──► record turns, gate tools, inject context
    └── dispatches tdd-task ──► forked context, drives red-green-refactor
                               against the user's tests via MCP
@@ -65,42 +65,69 @@ Claude Code session
 
 ### Loader strategy
 
-`bin/start-mcp.sh` is a POSIX shell loader that Claude Code spawns as a direct
-child process over stdio. It is intentionally tiny and dependency-free: it must
-run before the user has installed anything.
+`bin/start-mcp.sh` is a POSIX shell loader (`set -eu`, no `jq`) that Claude
+Code spawns as a direct child process over stdio. It is intentionally tiny
+and dependency-free: it must run before the user has installed anything.
 
 The loader has three responsibilities:
 
-1. Resolve `projectDir` from `CLAUDE_PROJECT_DIR` (or `pwd`).
-2. Detect the project's package manager — first the `packageManager` field in
-   `package.json`, then lockfile presence (`pnpm-lock.yaml`, `yarn.lock`,
-   `bun.lock`, defaulting to npm).
-3. `exec` into `<pm exec> vitest-agent-mcp`, replacing itself.
+1. Resolve `ROOT` from `CLAUDE_PROJECT_DIR` (or `pwd`) and export
+   `VITEST_AGENT_REPORTER_PROJECT_DIR=$ROOT`.
+2. If `$ROOT/node_modules/.bin/vitest-agent-mcp` is executable, `exec` it
+   with the positional args passed through verbatim (`--noop=1` from
+   `plugin.json`). That bin is the carrier's shim — `@vitest-agent/plugin`
+   declares `vitest-agent-mcp` itself, so every consumer that installed the
+   plugin has it under npm, pnpm, yarn and bun (Decision 70). This is the
+   whole happy path.
+3. Otherwise detect the package manager — the `packageManager` field in
+   `package.json` (grep/sed) wins outright over any lockfile, then the
+   first lockfile in the order `pnpm-lock.yaml`, `bun.lock`, `bun.lockb`,
+   `yarn.lock`, `package-lock.json`, default npm — **only** to choose the
+   install line (`pnpm add -D` / `yarn add -D` / `bun add -d` /
+   `npm install --save-dev @vitest-agent/plugin`) in the not-installed block
+   printed to **stderr**, then `exec npx --yes @vitest-agent/mcp "$@"` as a
+   registry fallback.
 
 The `exec` is load-bearing. After startup, Claude Code's direct child is the
-package manager process — there is no shell wrapper hanging around to forward
-signals or buffer stdio. When Claude Code closes the session pipe, the MCP
-server exits via EOF. No orphan processes. A Node-based loader (`start-mcp.mjs`)
-exists as a fallback for debugging but is not the active loader unless
-`plugin.json` is changed to reference it.
+MCP server process itself — there is no shell wrapper or package-manager
+dispatch hanging around to forward signals or buffer stdio. When Claude
+Code closes the session pipe, the server exits 0 via EOF. No orphan
+processes. `start-mcp.mjs` mirrors the same preference order
+(`accessSync(localBin, X_OK)` → spawn the bin directly; else the install
+block on stderr and the pre-existing PM dispatch as its fallback) and
+exists for debugging; it is not active unless `plugin.json` is changed to
+reference it. `__test__/bin-preference.bats` covers both loaders: the
+local-bin exec with argv passthrough, the `VITEST_AGENT_REPORTER_PROJECT_DIR`
+export, the fallback with the PM-specific install line on stderr and
+nothing on stdout, and `packageManager` beating a co-present lockfile.
 
 `VITEST_AGENT_REPORTER_PROJECT_DIR` is exported into the spawned MCP server's
 environment. This passthrough exists because Claude Code does not reliably
-propagate `CLAUDE_PROJECT_DIR` to MCP server subprocesses; the MCP server reads
-this env var as the highest-precedence source for `projectDir` resolution. The
-SDK package and MCP server both share this contract — see D30 for the full
-rationale.
+propagate `CLAUDE_PROJECT_DIR` to MCP server subprocesses; the server's
+`resolveProjectDir` reads it as the second rung (after the hook-driven
+`VITEST_AGENT_PROJECT_DIR`, before `CLAUDE_PROJECT_DIR` and cwd) — see D30
+and [./engine.md](./engine.md).
 
-The MCP server itself is **not bundled** with the plugin. It is a dependency of
-`@vitest-agent/plugin` in the user's project and is resolved by the user's PM at
-spawn time. Bundling was rejected because the SDK's data layer binds a
-platform-specific SQLite driver (on v4, `@effect/sql-sqlite-node` over Node's
-built-in `node:sqlite`) that must match the user's Node version. See
-D29 (retired) for the dynamic-import approach this replaced.
+The MCP server itself is **not bundled** with the plugin. It is a dependency
+of `@vitest-agent/plugin` in the user's project and is resolved from the
+user's `node_modules` at spawn time. Bundling was rejected because the
+engine's data layer binds a platform-specific SQLite driver (on v4,
+`@effect/sql-sqlite-node` over Node's built-in `node:sqlite`) that must
+match the user's Node version. See D29 (retired) for the dynamic-import
+approach this replaced, and D30 (PM-exec form, retired) for the
+package-manager dispatch the `.bin`-first exec replaced.
 
-The PM-walk is also load-bearing for dependency resolution (Decision 36). The MCP server must run from the consumer's installation context so the dependency on `@vitest-agent/mcp` resolves to whatever the consumer's lockfile holds — a version compatible with the `@vitest-agent/plugin` that wired up the reporter. A global `npx vitest-agent-mcp` invocation (or any spawn rooted outside the user's package manager) would resolve against an arbitrary version and could drift from the plugin's expected SDK contract. The CLI is directory-bound for the same reason.
+Exec'ing the consumer's own `.bin` is also what keeps dependency resolution
+honest (Decision 36): the MCP server runs from the consumer's installation
+context, so `@vitest-agent/mcp` resolves to whatever the consumer's lockfile
+holds — the version the installed `@vitest-agent/plugin` pinned. The
+`npx --yes` fallback is the one path that fetches from the registry, and it
+only runs when the plugin is not installed at all. The CLI is
+directory-bound for the same reason.
 
 ### Hook architecture
+
+**How hooks find the CLI.** Every hook that shells out to `vitest-agent` resolves the command through `hooks/lib/detect-pm.sh`'s `detect_vitest_agent_bin cwd` (fifteen scripts plus the lib): (1) `$VITEST_AGENT_CLI_CMD` verbatim when non-empty — the bats suites' stub hook and an operator knob, the same shape as `VITEST_AGENT_SIDECAR_BIN`; (2) the **relative** `node_modules/.bin/vitest-agent` when `$cwd/node_modules/.bin/vitest-agent` is executable — the carrier's bin (Decision 70); (3) `$(detect_pm_exec "$cwd") vitest-agent`, the package-manager dispatch, as the last rung. Rung 2 returns a relative path on purpose: call sites expand `$cli` unquoted (required for the multi-word rungs 1 and 3), so an absolute path containing a space word-split and the bin silently never ran — every call therefore sits behind a `cd "$cwd" &&`, and that `cd` is load-bearing. `bin-preference.bats` covers all three rungs, the non-executable-file case, and two end-to-end hook cases with a `cwd` containing a space.
 
 Hooks register against Claude Code's lifecycle events through `hooks/hooks.json`.
 Every hook script is Bash — `#!/bin/bash`, almost all under `set -euo pipefail`, and invoked as `bash <script>` by every `hooks.json` registration. Each sources shared helpers from `hooks/lib/`, and
@@ -353,10 +380,25 @@ state.
 session complete), it calls `tdd_progress_push` with a typed payload. The MCP
 server validates the payload against the `ChannelEvent` discriminated union,
 **resolves `goalId` and `sessionId` server-side from `behaviorId`** for
-behavior-scoped events, and forwards the event to the main agent through
-Claude Code's notification channel. The main agent's `tdd` skill renders the
-events as a flat task panel with `[G<n>.B<m>]` labels (Claude Code's
+behavior-scoped events, and emits the enriched event as a standard MCP
+`notifications/message` frame (level `info`, logger `vitest-agent/channel`,
+`data` = the event object). The main agent's `tdd` skill renders the events
+it sees as a flat task panel with `[G<n>.B<m>]` labels (Claude Code's
 `TaskCreate` doesn't nest cleanly past one parent).
+
+**Wire change and the polling fallback (Decision 71).** The previous server
+sent these events on a custom `notifications/claude/channel` method;
+Effect's `McpServer` cannot emit a custom notification, so
+`notifications/message` with the `vitest-agent/channel` logger is the only
+form now. Nothing consumed the old method — no hook, skill or design doc
+read it, and the push was always best-effort: narration is primary and
+every event is persisted server-side. A main agent that does not receive
+the frames (a host that does not surface MCP logging notifications, or a
+`/reload-plugins` mid-run) must fall back to polling `tdd_task({ action:
+"get" })`, which returns the full goal / behavior / phase tree, to mirror
+progress into the task panel. The `tdd` skill and the `tdd-task` agent
+prompt should describe the push in these terms rather than promising
+`<channel source="mcp">` events.
 
 The server-side ID resolution exists so that a stale orchestrator context
 cannot push the wrong tree coordinates — even if the orchestrator's mental
@@ -473,13 +515,16 @@ agent's prompt and the hook layer that gates its tools. Per-phase
 sub-orchestrators would multiply the number of `subagent-start` and
 `subagent-stop` hooks for marginal isolation gain.
 
-**Why the loader uses the user's package manager.** The MCP server is its own
-npm package with its own bin entry. The user's PM already knows how to
-resolve and execute project bins (hoisting rules, monorepo awareness, PnP
-support). Re-implementing that resolution in the loader was the wrong layer
-of abstraction. A missing peer dep now surfaces as a PM-level error with
-PM-native install instructions, not a cryptic dynamic-import failure.
-See D30.
+**Why the loader execs `node_modules/.bin` directly.** The carrier
+(`@vitest-agent/plugin`) declares the `vitest-agent-mcp` bin, so a consumer
+that installed the plugin has it at a fixed, manager-independent path.
+Dispatching through the package manager (`pnpm exec` / `yarn run` /
+`bun x` / `npx --no-install`) added a layer that resolved bins differently
+per manager and, under pnpm, only found a transitive bin because a pnpm
+plugin hoisted it. The loader still detects the manager, but only to
+word the install line in the not-installed message; a missing install
+surfaces as that message plus a registry fallback, not a cryptic
+dynamic-import failure. See D30 and Decision 70.
 
 ## Agent-agnostic taxonomy hooks
 
@@ -501,7 +546,7 @@ All four shell out to the CLI's `agent` sidecar subcommands (see
 
 - **Layer 0 — bash regex prefilter.** A POSIX-ERE regex (`SIDECAR_PREFILTER_RE`) is matched against the raw command with bash's built-in `[[ =~ ]]` operator — no fork, sub-millisecond. If the command contains no `vitest` token and no PM `test`-script shape, the hook emits a no-op and exits before any sidecar work. The regex is deliberately conservative: a false positive costs only the sidecar's latency, but a false negative would silently drop attribution, so all known PM script-indirection shapes are included.
 - **Layer 1 — main-agent skip.** After Layer 0 passes and `source-session-env.sh` populates the canonical exports, the hook compares `VITEST_AGENT_AGENT_ID` against `VITEST_AGENT_MAIN_AGENT_ID`. They are equal when the active actor is the main agent, whose auto-sourced env is already correct for the spawned Vitest process — so the hook skips the sidecar. The check falls through conservatively (does NOT skip) when either var is unset. Layer 1 must run after the source call because hook subprocesses do not get auto-sourcing. Together Layers 0 and 1 eliminate the sidecar from ~98% of Bash calls.
-- **Layer 2 — sidecar binary with JS fallback.** Only subagent-triggered Vitest invocations reach Layer 2. The hook reads `$VITEST_AGENT_SIDECAR_BIN` (set by the SessionStart hook once per session via `vitest-agent agent sidecar-path`), checks that it is non-empty and executable, and execs the binary directly when valid. Using the env var rather than `command -v vitest-agent-sidecar` is necessary because pnpm/npm never hoist transitive optional-dependency bins into `node_modules/.bin/`, so a `command -v` probe always misses. When `VITEST_AGENT_SIDECAR_BIN` is absent or non-executable — an unsupported platform, a skipped optional dependency, or a session that pre-dates the SessionStart resolution — the hook falls back to `vitest-agent agent inject-env` through the project's package manager. The two paths produce byte-identical rewritten output.
+- **Layer 2 — sidecar binary with JS fallback.** Only subagent-triggered Vitest invocations reach Layer 2. The hook reads `$VITEST_AGENT_SIDECAR_BIN` (set by the SessionStart hook once per session via `vitest-agent agent sidecar-path`), checks that it is non-empty and executable, and execs the binary directly when valid. Using the env var rather than `command -v vitest-agent-sidecar` is necessary because pnpm/npm never hoist transitive optional-dependency bins into `node_modules/.bin/`, so a `command -v` probe always misses. When `VITEST_AGENT_SIDECAR_BIN` is absent or non-executable — an unsupported platform, a skipped optional dependency, or a session that pre-dates the SessionStart resolution — the hook falls back to `vitest-agent agent inject-env` via `detect_vitest_agent_bin` (the carrier's `node_modules/.bin/vitest-agent`, else the package manager). The two paths produce byte-identical rewritten output — both run the core's pure `injectEnv` with `process.cwd()`, `process.env` and a file reader supplied by the bin.
 
 `@vitest-agent/sidecar` is not a direct dependency of `@vitest-agent/plugin` — it is a regular `dependency` of `@vitest-agent/cli`, which is itself a regular `dependency` of the plugin, so installing the plugin pulls the sidecar and its per-platform binaries in transitively. For the package's build, distribution and the `inject-env`-only scope, see [./sidecar.md](./sidecar.md).
 

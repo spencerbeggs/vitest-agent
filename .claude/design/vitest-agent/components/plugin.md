@@ -3,8 +3,8 @@ status: current
 module: vitest-agent
 category: architecture
 created: 2026-05-06
-updated: 2026-09-08
-last-synced: 2026-09-08
+updated: 2026-09-13
+last-synced: 2026-09-13
 completeness: 93
 related:
   - ../architecture.md
@@ -12,7 +12,10 @@ related:
   - ../decisions.md
   - ../schemas.md
   - ./sdk.md
+  - ./engine.md
   - ./reporter.md
+  - ./cli.md
+  - ./mcp.md
   - ./ui.md
 dependencies: []
 ---
@@ -26,10 +29,85 @@ a user-supplied `VitestAgentReporterFactory`.
 
 **npm name:** `@vitest-agent/plugin`
 **Location:** `packages/plugin/`
-**Internal dependencies:** `@vitest-agent/sdk`, `@vitest-agent/reporter`, `@vitest-agent/cli`, `@vitest-agent/mcp`
+**Rank:** 5 — the carrier, top of the graph (Decision 70 in [../decisions.md](../decisions.md))
+**Internal dependencies:** `@vitest-agent/cli`, `@vitest-agent/mcp`, `@vitest-agent/reporter`, `@vitest-agent/engine`, `@vitest-agent/sdk`
+**Bins:** `vitest-agent`, `vitest-agent-mcp`
 **Required peers:** `vitest >= 5.0.0`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`
 
-`@vitest-agent/cli` and `@vitest-agent/mcp` are regular workspace `dependencies` (`workspace:*`) in source and publish as exact-pinned regular `dependencies` — the earlier `savvy.build.ts` transform that promoted them into `peerDependencies` for the published manifest was removed. The plugin imports no code from either; they are declared so the `vitest-agent` and `vitest-agent-mcp` bins the Claude Code plugin's hook scripts shell out to are installed. Their bins resolve because `@savvy-web/pnpm-plugin-silk` publicly hoists both packages; the peer form was actively harmful — pnpm's `autoInstallPeers` resolution of the cli/mcp peers forced wrong Effect versions into consuming repos. See D33 in [../decisions.md](../decisions.md).
+`@vitest-agent/cli` and `@vitest-agent/mcp` are regular workspace `dependencies` (`workspace:*`) in source and publish as exact-pinned regular `dependencies` — the earlier `savvy.build.ts` transform that promoted them into `peerDependencies` for the published manifest was removed; the peer form was actively harmful, because pnpm's `autoInstallPeers` resolution of the cli/mcp peers forced wrong Effect versions into consuming repos. The plugin's *source* imports nothing from either; they are declared so the two front ends install, and the plugin re-exposes their bins itself (below). See D33 and Decision 70 in [../decisions.md](../decisions.md).
+
+## The carrier bins
+
+The plugin is the family's carrier: a consumer installs only
+`@vitest-agent/plugin`, and because the plugin is a *direct* dependency,
+its bins are linked into `node_modules/.bin` under every package manager —
+including pnpm, which links direct-dependency bins only and was the reason
+the bins previously depended on a pnpm plugin's public hoist. Two 4-line
+shims under `packages/plugin/src/bin/`, declared in `package.json#bin`:
+
+```ts
+// src/bin/vitest-agent.ts
+#!/usr/bin/env node
+import { main } from "@vitest-agent/cli/main";
+main();
+
+// src/bin/vitest-agent-mcp.ts
+#!/usr/bin/env node
+import { main } from "@vitest-agent/mcp/main";
+void main();
+```
+
+Each front end publishes its process-owning `main.ts` as the `./main`
+subpath for exactly this import (see [./cli.md](./cli.md) and
+[./mcp.md](./mcp.md)). The workspace dependency stays external in the
+built shim (`dist/dev/pkg/bin/vitest-agent.js` keeps the
+`@vitest-agent/cli/main` import), and the emitted manifest carries
+`"bin": { "vitest-agent": "bin/vitest-agent.js", "vitest-agent-mcp":
+"bin/vitest-agent-mcp.js" }`. The root `package.json` lists only
+`@vitest-agent/plugin` as a workspace devDependency and
+`pnpm-workspace.yaml` carries no `publicHoistPattern`; the dogfood
+`node_modules/.bin/vitest-agent` and `vitest-agent-mcp` resolve to the
+carrier's built shims. Under npm, yarn (node-modules linker) and bun,
+which hoist transitive bins, `@vitest-agent/cli`'s own `vitest-agent` bin
+wins the `.bin` slot and shadows the carrier's shim — same program today.
+
+**Release gate.** `@vitest-agent/engine` must be published before the
+plugin: a consumer resolves it only through the plugin's dependency graph,
+and the packed-install e2e below only passes because it overrides every
+family package with a local tarball.
+
+## Workspace-layering and packed-install tests
+
+Two guardrails live in this package's test tree because the carrier is
+the top of the graph and root-level tests are not discovered
+(`classifyTestPath`).
+
+**`__test__/workspace-layering.test.ts`** reads every workspace manifest
+through `__test__/utils/workspace-graph.ts` (`readWorkspaceGraph(rootDir)`
+over `packages/*`, `plugins/*`, `website`, `playground` and the root;
+`LAYER_RANKS`) and asserts that every package has a declared rank, that
+every `dependencies` / `devDependencies` / `peerDependencies` /
+`optionalDependencies` edge points to a strictly lower rank, that the two
+front ends never depend on each other, and that a topological sort
+consumes every node (the graph is a DAG). The rank table is Decision 70's.
+
+**`__test__/bins-packed-install.e2e.test.ts`** proves the carrier's
+promise outside the workspace: it packs every family package from
+`dist/prod/npm/pkg` with `npm pack` (so `pnpm build` must have run — the
+suite skips when the prod build is absent, and on win32), writes a
+consumer `package.json` depending on the plugin tarball with tarball
+overrides for the rest (`overrides` / `pnpm.overrides` / `resolutions`,
+plus a settings-only `pnpm-workspace.yaml` because pnpm ≥ 10 reads
+overrides from there, not `package.json#pnpm`), installs it under npm,
+pnpm, yarn (berry via corepack, `nodeLinker: node-modules`) and bun with
+`XDG_DATA_HOME` pointed inside the scratch dir, and asserts per manager
+that `node_modules/.bin/vitest-agent` and `vitest-agent-mcp` are
+executable, that `vitest-agent --version` exits 0 with a semver, and that
+`vitest-agent-mcp` answers a JSON-RPC `initialize` on stdout with empty
+stderr and exit 0. A guard test asserts every `@vitest-agent/*` name any
+packed manifest references has a tarball. Network is required (vitest and
+the coverage peers come from the registry); `KEEP_PACKED_INSTALL=1` keeps
+the scratch tree for inspection.
 
 The plugin owns persistence, classification, baselines, trends, and Vitest
 lifecycle wiring. Rendering is delegated entirely to the reporter factory —
@@ -76,7 +154,7 @@ override. Everything that is really a plugin-internal resolved fact stays
 out of the user surface — see the **Resolved internally** section below.
 
 **Cache directory resolution.** Resolved entirely through the XDG path
-stack in `packages/sdk/src/utils/resolve-data-path.ts` — programmatic
+stack in `packages/engine/src/utils/resolve-data-path.ts` — programmatic
 `cacheDir` option, then `vitest-agent.config.toml`'s `cacheDir`, then its
 `projectKey`, then the workspace `package.json#name`. The plugin no
 longer reads `outputFile['vitest-agent']` and there is no Vite-cacheDir
@@ -269,7 +347,7 @@ output. See *Render survives persistence failure* below and Decision 47 in
    records a `persistDisabled` reason and skips straight to the render
    program.
 4. **Persist program** (`DataStore | DataReader | CoverageAnalyzer |
-   HistoryTracker`, provided by `ReporterLive(dbPath)`): persist Vitest
+   HistoryTracker`, provided by `ReporterLive({ dbPath, env, … })`): persist Vitest
    settings + env vars via `DataStore.writeSettings()`; per project build
    the `AgentReport`, classify outcomes via `HistoryTracker`, run each
    error through `processFailure` (source-mapping the top non-framework
@@ -370,7 +448,7 @@ shapes this defends against live in [./sdk.md](./sdk.md).
 
 Each lifecycle hook builds a scoped Effect and runs it with
 `Effect.runPromise`. The persist program is provided
-`ReporterLive(dbPath)`; the render program is provided
+`ReporterLive({ dbPath, env, … })`; the render program is provided
 `OutputPipelineLive` merged with `NodeServices.layer`, and touches no
 SQLite service.
 
@@ -955,11 +1033,14 @@ The default reporter emits `run.json` and `summary.md`; see
 
 ## ReporterLive composition layer
 
-`packages/plugin/src/layers/ReporterLive.ts`. Composes the live layers the
-plugin's lifecycle class needs from the SDK plus the agent-local
-`CoverageAnalyzerLive`. Does not pull `NodeServices` directly because
-`ensureMigrated` and `resolveDataPath` provide their own platform layers
-earlier in the pipeline.
+`packages/plugin/src/layers/ReporterLive.ts`.
+`ReporterLive(options: PlatformOptions) =
+CoverageAnalyzerLive.pipe(Layer.provideMerge(PlatformLive(options)))` —
+the engine's one platform composite (SQLite + migrator + Node platform
+services + logger + the shared service layers) plus the plugin-only
+`CoverageAnalyzer`. The reporter passes `process.env` as `options.env`;
+the plugin's own `resolveLogLevel(env)` / `resolveLogFile(env)` calls do
+the same. See [./engine.md](./engine.md) *`PlatformLive`*.
 
 ## Reporter actor resolution
 

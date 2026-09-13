@@ -1,6 +1,6 @@
 # @vitest-agent/sidecar
 
-The seventh publishable workspace. Sole responsibility: ship a fast-path native binary for the `inject-env` operation on the per-Bash-call PreToolUse hot path, and export `resolveSidecarBinaryPath` so callers can find that binary at runtime.
+Rank 3 in the workspace layering (its only workspace edges are the four optional `sidecar-*` platform packages, rank 2). Sole responsibility: ship a fast-path native binary for the `inject-env` operation on the per-Bash-call PreToolUse hot path, and export `resolveSidecarBinaryPath` so callers can find that binary at runtime.
 
 **Internal dependencies:** none (the parent package has no runtime workspace deps). `@vitest-agent/cli` depends on `@vitest-agent/sidecar` — not the reverse.
 
@@ -17,7 +17,7 @@ __test__/                       -- unit tests for the resolver (dependency injec
                                     via options.resolver; no real binary required)
 ```
 
-The per-platform SEA binaries ship in four sibling child packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`) listed as `optionalDependencies`. Each child declares the binary as its own `bin` entry; pnpm installs only the matching one based on `os`/`cpu` fields. Each child's `src/bin.ts` imports `dispatch` from `@vitest-agent/sdk/dispatch` — `@vitest-agent/sdk` is the sole workspace devDependency bundled into the SEA.
+The per-platform SEA binaries ship in four sibling child packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}`) listed as `optionalDependencies`. Each child declares the binary as its own `bin` entry; pnpm installs only the matching one based on `os`/`cpu` fields. Each child's `src/bin.ts` imports `dispatch` from `@vitest-agent/sdk/dispatch` and calls it as `dispatch(argv, { cwd: process.cwd(), env: process.env, readFile: (p) => readFileSync(p, "utf-8") })` — `dispatch` is pure (issue #412), so the bin is the only place `process` is read. `@vitest-agent/sdk` is the sole workspace dependency bundled into the SEA (the build `transform()` drops it from the published manifest).
 
 ## Key API
 
@@ -31,7 +31,7 @@ The per-platform SEA binaries ship in four sibling child packages (`@vitest-agen
 
 ## Conventions
 
-- **No runtime workspace deps.** The parent `packages/sidecar/` has zero workspace runtime dependencies. `@vitest-agent/sdk` is the only workspace devDependency of the per-platform child packages — each child's `src/bin.ts` does `import { dispatch } from "@vitest-agent/sdk/dispatch"`, bundled into the SEA at build time. The children no longer devDepend on `@vitest-agent/cli`.
+- **No runtime workspace deps.** The parent `packages/sidecar/` has zero workspace runtime dependencies beyond the optional children. `@vitest-agent/sdk` is the only workspace dependency of the per-platform child packages — each child's `src/bin.ts` does `import { dispatch } from "@vitest-agent/sdk/dispatch"`, bundled into the SEA at build time. The children never depend on `@vitest-agent/cli` or `@vitest-agent/engine`; `workspace-layering.test.ts` in the plugin package enforces the ranks.
 - **`packages/sidecar/turbo.json` has no `dependsOn` override.** With the dispatch core moved into `@vitest-agent/sdk`, the old `cli → sidecar → sidecar-<platform> → cli` cycle is gone, so the parent sidecar build inherits the normal `^build` topological ordering (`build:dev` uses `["^build:dev"]`, `build:prod` uses `["^build:prod"]`).
 - **Building.** The parent package builds with rslib-builder. The per-platform children build with tsdown's `exe` mode (Node SEA) via `lib/scripts/tsdown.ts`. Use `turbo run build:dev build:prod --filter='./packages/sidecar'` to build the parent.
 

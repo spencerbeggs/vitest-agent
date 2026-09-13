@@ -1,257 +1,113 @@
 # @vitest-agent/sdk
 
-The no-internal-deps base package. Owns the data layer, schemas, errors,
-migrations, services, layers, formatters, the XDG path-resolution stack,
-the process-level migration coordinator, the public reporter contract types,
-the `RunEvent` / `RenderState` schemas consumed by `@vitest-agent/ui`, the
-sidecar dispatch core, and the shared `lib/` markdown generators. The plugin,
-reporter, CLI, MCP, and UI packages all depend on this package; changes to its
-public exports ripple to all five runtimes.
+The platform-free core of the family (rank 1 — no workspace deps, and
+`effect` + `acorn` / `acorn-typescript` are its only runtime deps). Owns the
+Effect Schemas, the public reporter + dispatcher contract types, the tagged
+errors, the pure formatters and utilities, the pure sidecar `./dispatch`
+entry, and the published `./schemas/*.json` (`RUN_REPORT_FILE_SCHEMA_URL` —
+deploy the website schema URL before publishing). Everything that touches a
+filesystem, a process, SQLite or `@effected/*` — services, Live layers,
+migrations, `resolveDataPath`, `ensureMigrated`, `PathResolutionLive`,
+`computeFailureSignature`, `lib/format-*`, and the `./testing` subpath — moved
+to `@vitest-agent/engine` (issue #412). Every other family package depends on
+this one; a public-export change ripples to all of them.
 
-Ships THREE entry points: `.` (the main barrel — `src/index.ts`), `./dispatch`
-(`src/dispatch.ts`), and `./testing` (`src/testing/index.ts`). The `./dispatch`
-entry exports `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`,
-and `exitCodeForTag` — the sidecar dispatch core. These symbols ship ONLY from
-`./dispatch`, never the main barrel, so the SEA bundler's reachable graph from
-`./dispatch` stays minimal (no Effect, no SQLite data layer).
+Entry points: `.` (`src/index.ts`), `./dispatch` (`src/dispatch.ts`),
+`./schemas/*.json`. There is no `./testing` here any more — use
+`@vitest-agent/engine/testing`.
 
 ## Layout
 
 ```text
 src/
-  index.ts            -- main-barrel public re-exports (the `.` entry point)
-  dispatch.ts         -- the `./dispatch` entry-point barrel: exports
-                         dispatch / DispatchResult, injectEnv /
-                         InjectEnvInput, exitCodeForTag. Minimal reachable
-                         graph for the SEA bundler — no Effect, no data layer
-  sidecar-dispatch.ts -- dispatch / DispatchResult (moved from cli)
-  internal-inject-env.ts -- injectEnv / InjectEnvInput (moved from cli)
-  exit-code-for-tag.ts   -- exitCodeForTag (moved from cli)
-  contracts/          -- public reporter + dispatcher contract types
-    reporter.ts       -- ResolvedReporterConfig, ReporterKit,
-                         ReporterRenderInput, VitestAgentReporter,
-                         VitestAgentReporterFactory
-    dispatcher.ts     -- RunShape, RunOutcome, ProjectSummary,
-                         TrendSummary, DispatchInputs, CellOptions
-                         (T6 UI rewrite)
-  services/           -- 14 Effect Context.Service definitions
-  layers/             -- live + test layer implementations
-  schemas/            -- Effect Schema definitions
-    RunEvent.ts       -- discriminated union of streaming run events
-                         consumed by `@vitest-agent/ui`'s reducer
-    RenderState.ts    -- denormalized projection of a RunEvent stream;
-                         the shape both renderers consume
-    turns/            -- TurnPayload discriminated union (7 variants)
-  errors/             -- tagged errors (DataStore, Discovery, Tdd, ...)
-  formatters/         -- markdown, gfm, json, silent, ci-annotations
-  migrations/         -- 0001_initial (canonical pre-2.0 schema; the
-                         former 0002_comprehensive was folded in),
-                         registry_0001_initial, session_map_0001_initial
-                         (see Key files)
-  sql/                -- row types + DB-to-domain assemblers
-  utils/              -- pure utilities (paths, signatures, validators)
-  lib/                -- pure markdown generators (CLI + MCP)
-  testing/            -- exported via `@vitest-agent/sdk/testing` subpath
+  index.ts            -- main barrel (contracts, schemas, errors,
+                         formatters, utils, CURRENT_SDK_VERSION)
+  version.ts          -- CURRENT_SDK_VERSION: the ONE sanctioned
+                         process.env.__PACKAGE_VERSION__ read
+  dispatch.ts         -- the `./dispatch` barrel: dispatch / DispatchIo /
+                         DispatchResult, injectEnv / InjectEnvInput,
+                         exitCodeForTag. Minimal reachable graph for the
+                         sidecar SEA bundler -- no Effect, no data layer
+  sidecar-dispatch.ts -- dispatch(argv, io) with io = { cwd, env, readFile }
+  internal-inject-env.ts -- injectEnv({ ..., readFile }); reads
+                         `${cwd}/package.json` through the injected readFile
+  exit-code-for-tag.ts   -- error-tag -> exit code map for the sidecar bins
+  contracts/          -- reporter.ts (ResolvedReporterConfig, ReporterKit,
+                         VitestAgentReporter(Factory)); dispatcher.ts
+                         (RunShape, RunOutcome, DispatchInputs, CellOptions)
+  schemas/            -- Effect Schema definitions (AgentReport, Coverage*,
+                         Identity, Agent, Tdd, TestArtifacts, RunEvent,
+                         RenderState, Options, Transport, turns/, ...)
+  errors/             -- Data.TaggedError families (DataStore, Discovery,
+                         PathResolution, ProjectIdentity, RunContext, Tdd, Agent)
+  formatters/         -- terminal, markdown, gfm, json, silent,
+                         ci-annotations; FormatterContext (types.ts) carries a
+                         required `cwd`
+  utils/              -- pure helpers: posix-path.ts (toPosix, basenamePosix,
+                         joinPosix, relativePosix), test-location.ts,
+                         format-console.ts (relativePath(filePath, cwd)),
+                         build-report.ts, validate-phase-transition.ts,
+                         function-boundary.ts, console-leaks.ts,
+                         match-vitest-command.ts, probe-host-metadata.ts,
+                         canonicalize-git-url.ts, normalize-workspace-key.ts,
+                         detect-pm.ts, coerce-error-text.ts, ...
+schemas/              -- generated JSON Schemas (`pnpm --filter
+                         @vitest-agent/sdk schemas:check`)
 ```
+
+## Boundary (enforced by `__test__/boundaries.test.ts`)
+
+- No `node:*`, `@effect/platform-node`, `@effect/sql-sqlite-node`, or
+  `@effected/*` import anywhere under `src/`.
+- No `process.` reference anywhere under `src/`; the build-time token
+  `process.env.__PACKAGE_VERSION__` may appear only in `version.ts`.
+- Paths are handled with the `posix-path.ts` helpers, never `node:path`;
+  anything that needs a cwd takes it as a parameter (`FormatterContext.cwd`,
+  `relativePath(filePath, cwd)`, `DispatchIo.cwd`). Windows callers get
+  forward-slash output from `classifyTestPath`'s `suggestedPath`.
+- **No internal deps.** Never import `@vitest-agent/engine`, `plugin`,
+  `reporter`, `cli`, `mcp`, or `ui`.
 
 ## Key files
 
 | File | Purpose |
 | ---- | ------- |
-| `contracts/reporter.ts` | Public reporter contract types: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory` |
-| `contracts/dispatcher.ts` | Public T6 dispatcher contract types: `RunShape` (4 cases), `RunOutcome` (3 cases), `ProjectSummary`, `TrendSummary`, `DispatchInputs`, `CellOptions`. Consumed by `@vitest-agent/ui`'s dispatcher matrix and `DefaultVitestAgentReporter` |
-| `services/DataStore.ts` + `layers/DataStoreLive.ts` | All SQLite writes. Defines all write-input types plus `backfillTestCaseTurns(chatId)` and the 2.0 goal/behavior CRUD methods. `coverage_baselines` rows carry a `kind` column (`baseline` / `threshold` / `target`): `writeBaselines` writes the ratcheted baselines, `writeThresholds` the enforced Vitest `coverage.thresholds`, `writeTargets` the aspirational `coverageTargets` — three distinct bars, never merged |
-| `services/DataReader.ts` + `layers/DataReaderLive.ts` | All SQLite reads; assembles domain types via `sql/assemblers.ts`. Provides `getSessionById`, `searchTurns`, `computeAcceptanceMetrics`, `getLatestTestCaseForSession`, `getSessionByTddTaskId` (resolves the session a TDD task was opened under; powers the MCP `hypothesis` tool's deterministic `tddTaskId` binding), and the 2.0 goal/behavior read methods. `getHistory(project, options?)` takes `HistoryQueryOptions` (`{ testName?, modulePath?, limit? }`): exact-match SQL predicates plus a **per-test** run cap (default 20) implemented with `ROW_NUMBER() OVER (PARTITION BY module_path, full_name)` — a flat row `LIMIT` would starve later tests instead of trimming each test's own series. `getFlaky` / `getPersistentFailures` take the same `testName` / `modulePath` predicates via `ClassificationQueryOptions`, so a scoped caller no longer receives the whole project's classifications (issue #243). `getTestByFullName(project, fullName, options?)` takes `TestLookupOptions` (`{ modulePath? }`) plus a deterministic `ORDER BY f.path ASC` so the unfiltered case is stable, and `getTestModulesByFullName` lists every module carrying a name so callers can detect ambiguity instead of guessing. `getCoverage(project)` returns `thresholds`, `targets`, and `baselines` as distinct fields keyed off `coverage_baselines.kind`. `listTddTasksForSession(sessionId, { walkParents?, walkConversation? })` optionally widens to the parent-session chain and to every session sharing the `conversation_id` |
-| `utils/resolve-data-path.ts` | Deterministic XDG-derived `dbPath` orchestrator (Decision 31) |
-| `utils/ensure-migrated.ts` | Process-level migration coordinator using a `globalThis`-keyed promise cache (Decision 28). Registers `0001_initial` only on the main `data.db`; the registry and session-map DBs use their own single-file migrations |
-| `layers/PathResolutionLive.ts` | Composite: `XdgLive` + `ConfigLive` + `WorkspacesLive` |
-| `migrations/0001_initial.ts` | Canonical pre-2.0 schema. Pre-2.0 policy is "edit this file directly when the shape changes and delete `data.db`"; the former `0002_comprehensive` was folded in. Post-2.0 ships ALTER-only migrations (Decision D9) |
-| `utils/function-boundary.ts` | `findFunctionBoundary(source, line)` parses via `acorn` (extended with `acorn-typescript`) and returns the smallest enclosing function's start line + name |
-| `utils/coerce-error-text.ts` | `coerceErrorText(value)` coerces an unknown error-field value: `undefined`/`null` stay `undefined` (caller picks null vs sentinel), strings pass through, other primitives go through `String`, objects through `JSON.stringify` with a `String(value)` fallback and a `"<unserializable>"` sentinel only when both throw. `coerceErrorField(source, key)` guards the property READ as well — a live getter that throws (the ConfigError shape) yields `"<unreadable field>"` instead of throwing at the access site. Use `coerceErrorField` for raw Vitest error objects; `coerceErrorText` for values already in hand |
-| `utils/build-report.ts` | `buildAgentReport(...)` builds the `AgentReport`. Fails a module when its own state is `failed`, when any suite is `failed`, or when suite/hook errors are present (not just when `errors()` is populated); self-corrects a `"passed"` `reason` to `"failed"` when failed files or unhandled errors exist; sets `summary.modules` to the collected-module count so a green run is not reported as zero modules |
-| `utils/failure-signature.ts` | `computeFailureSignature` produces a 16-char sha256 from `error_name`, normalized assertion shape, top-frame function name, and function-boundary line. See Decision D10 |
-| `utils/validate-phase-transition.ts` | Pure validator for TDD phase transitions; returns acceptance or a typed `DenialReason` + a one-step actionable remediation. The D2 window check compares the cited artifact's `phase_id` against `PhaseTransitionContext.current_phase_id` (not the test-case creation turn); `refactor` is denied from any phase other than `green` / `green.fake-it` with `refactor_without_passing_run`. See Decision D11 |
-| `utils/console-leaks.ts` | `buildConsoleLeaks` partitions captured console output by test outcome: leaks from passing tests populate `byFile`; output from failing tests is summarized separately under `fromFailingTests` so a failing test's own diagnostics are not flagged as leaks |
-| `utils/detect-non-default-discover-strategy.ts` | `detectNonDefaultDiscoverStrategy(configSource)` — pure marker scan of a vitest/vite config source for a custom `DiscoverStrategy`. Backs `agent check-test-path`'s fail-open path |
-| `utils/format-scoped-coverage-note.ts` | `formatScopedCoverageNote(scopedFiles, totalFiles)` — the shared "coverage reflects N of M files" note rendered by the UI dispatcher and the MCP `run_tests` tool for partial runs |
-| `utils/test-location.ts` | The single source of truth for the test-layout rule. Exports `SRC_DIR`, `TEST_DIR`, `TEST_HELPER_DIRS`, `TEST_FILE_GLOB_SUFFIX`, `NON_DISCOVERABLE_DIRS` constants, the `isTestFileName` predicate, `findOwningWorkspace`, and `classifyTestPath(workspaces, filePath)`, which classifies an absolute path as `valid` (under a workspace's `src/` or non-helper `__test__/`, anchored at the package root), `excluded` (under a helper dir sitting DIRECTLY under `__test__/` — `fixtures`/`snapshots`/`utils`; only that one segment is inspected, so a deeper `__test__/unit/utils/` stays `valid`, issue #251), or `invalid` (anywhere else, with a `suggestedPath`). Returns `null` — not a verdict, so callers must fail open — when no supplied workspace contains the path, and when any segment of the workspace-relative path is in `NON_DISCOVERABLE_DIRS` (`node_modules`, `.git`, `dist`): discovery never walks there, so an installed dependency's or a vendored checkout's test file gets no opinion rather than a suggestion to move it into this repo. The nested-`package.json` boundary the walker also honors needs a filesystem probe and therefore lives in the CLI seam, not here. Consumed by `@vitest-agent/plugin`'s discovery include/exclude globs, `findTestFiles` walker, cache-signature walk, and tag-injection gate; by `sdk`'s own `ProjectDiscoveryLive` (which extends the skip set); and by `@vitest-agent/cli`'s `agent check-test-path` subcommand backing the `test-location.sh` PreToolUse hook |
-| `lib/format-triage.ts` | Pure markdown generator powering both `triage_brief` MCP tool and `triage` CLI subcommand |
-| `lib/format-wrapup.ts` | Pure markdown generator for wrap-up nudges; five `kind` variants. Powers `wrapup_prompt` MCP tool and `wrapup` CLI subcommand |
-| `dispatch.ts` | The `@vitest-agent/sdk/dispatch` entry-point barrel. Exports `dispatch` / `DispatchResult`, `injectEnv` / `InjectEnvInput`, `exitCodeForTag`. The sidecar SEA bundler imports `dispatch` from here; the barrel deliberately reaches only `sidecar-dispatch.ts` / `internal-inject-env.ts` / `exit-code-for-tag.ts` so no Effect or SQLite data layer enters the bundle |
-| `sidecar-dispatch.ts`, `internal-inject-env.ts`, `exit-code-for-tag.ts` | The dispatch core, relocated from `@vitest-agent/cli` to break a workspace dependency cycle. Re-exported only via `dispatch.ts`, never `index.ts` |
-| `testing/layers.ts` | `makeTestLayer(filename)` and the `DataStoreTestLayer` `:memory:` convenience — exported via the `@vitest-agent/sdk/testing` subpath |
-| `testing/index.ts` | Five preset factories (`empty`, `singlePassingRun`, `withFailures`, `flaky`, `withTddTask`) that seed representative DB states for use in tests; also re-exports `ResolvedThresholds` for `writeThresholds` / `writeTargets` callers |
+| `contracts/reporter.ts` | Public reporter contract: `ResolvedReporterConfig`, `ReporterKit`, `ReporterRenderInput`, `VitestAgentReporter`, `VitestAgentReporterFactory` |
+| `contracts/dispatcher.ts` | Public dispatcher contract consumed by `@vitest-agent/ui`'s matrix and `DefaultVitestAgentReporter` |
+| `sidecar-dispatch.ts` | `dispatch(argv, io)` — pure; the four `sidecar-*` bins and the CLI's `agent inject-env` fallback pass `{ cwd: process.cwd(), env: process.env, readFile: readFileSync wrapper }`. `--cwd` falls back to `io.cwd` |
+| `utils/test-location.ts` | Single source of truth for the test-layout rule: `SRC_DIR`, `TEST_DIR`, `TEST_HELPER_DIRS`, `NON_DISCOVERABLE_DIRS`, `isTestFileName`, `findOwningWorkspace`, `classifyTestPath(workspaces, filePath)` (`valid` / `excluded` / `invalid`, or `null` = no verdict, fail open; issue #251). Consumed by the plugin's discovery globs and walkers, engine's `ProjectDiscoveryLive`, and `vitest-agent agent check-test-path` |
+| `utils/validate-phase-transition.ts` | Pure TDD phase-transition validator returning acceptance or a typed `DenialReason` + remediation (Decision D11). No I/O, no Effect |
+| `utils/build-report.ts` | `buildAgentReport(...)`; fails a module on its own `failed` state, a failed suite, or suite/hook errors; sets `summary.modules` |
+| `utils/coerce-error-text.ts` | `coerceErrorText` / `coerceErrorField` — exception-safe reads of raw Vitest error fields (a getter may throw) |
+| `utils/function-boundary.ts` | `findFunctionBoundary(source, line)` via `acorn` + `acorn-typescript`; hash input for engine's `computeFailureSignature` (Decision D10 — format is versioned) |
+| `schemas/CoverageLevel.ts`, `schemas/CoverageTargets.ts` | Five named presets + `.withPerFile()` / `.extend({})`; `CoverageTargets` record schema (`Schema.Positive`, `100: true` shortcut) with `validateCoverageTargetsShape` diagnostics |
+| `schemas/Options.ts`, `schemas/Transport.ts` | Slim `AgentPluginOptions` (`console`, `coverageTargets`, `transport`); `Transport` is a single-member discriminated union (`{ kind: "local" }`) so cloud backends land as added members (D40) |
+| `schemas/Identity.ts`, `schemas/Agent.ts` | UUID-branded `AgentId` / `ConversationId` / `SessionId` / `TddTaskId`, `ProjectKey`, `ActorType`, `HostKind`; `Agent` + `IdempotencyHit` |
+| `schemas/turns/` | `TurnPayload` discriminated union (7 variants); a new variant also needs an engine migration extending the `turns.type` CHECK |
 
 ## Conventions
 
-- **No internal deps.** Never import from `@vitest-agent/plugin`,
-  `@vitest-agent/reporter`, `@vitest-agent/cli`, `@vitest-agent/mcp`, or
-  `@vitest-agent/ui`. Keeps the dependency graph acyclic by construction.
-- **Public-API-by-default.** Anything exported from `index.ts` is part
-  of the contract used by all five runtime packages. Adding or removing
-  exports needs to be considered against all five consumers.
-- **External `@effected/*` kit deps unique to this package:**
-  `@effected/xdg`, `@effected/config-file`, `@effected/workspaces`
-  (plus the codec deps `@effected/jsonc`, `@effected/toml`,
-  `@effected/walker`, `@effected/yaml`). Adopted directly — NOT via
-  `@effected/app` / `@effected/store`. Don't add these to the runtime
-  packages; consume the resolved layers/services from here instead. Also
-  unique here: `acorn ^8.17.0` and `acorn-typescript ^1.4.13` for
-  `function-boundary.ts`'s AST walk.
-- **Effect Schema is the source of truth** for data structures. Zod
-  belongs only in the MCP package (for tRPC tool input validation).
-- **Errors use `Data.TaggedError`** with derived `[operation
-  table-or-path] reason` messages set via `Object.defineProperty`,
-  and use `extractSqlReason(e)` from `errors/DataStoreError.ts` for
-  the `reason` field on every SQL `mapError`.
-- **Never trust an error field's declared type.** Vitest failure values
-  are typed as strings but carry whatever the test threw (objects from
-  `Effect.flip`, getters that throw). Read fields off raw error objects
-  through `coerceErrorField` (the property access itself can throw — a
-  bare `coerceErrorText(e.message)` is not safe) and coerce values
-  already in hand through `coerceErrorText`; `extractSqlReason`
-  and `String()` calls on unknown values must stay exception-safe.
-- **Test layers live next to live layers** (`*Live.ts` / `*Test.ts`)
-  so consumers can import either side via the same package entry.
-- **Test helpers are in `testing/`, exported via `@vitest-agent/sdk/testing`.**
-  Use `makeTestLayer(":memory:")` (or the `DataStoreTestLayer` shorthand)
-  in unit tests; use the preset factories when you need a pre-seeded DB state.
-  Tests live in `packages/sdk/__test__/` (flat directory). Tests that need a
-  filesystem mount an `@effected/memfs` virtual volume rather than building a
-  real temp tree (`ConfigLive.test.ts`, `ProjectDiscoveryLive.test.ts`).
-- **`CoverageLevel` schema** (`schemas/CoverageLevel.ts`) defines the five
-  named presets (`none`, `basic`, `standard`, `strict`, `full`), the
-  `.withPerFile()` builder, `.extend({})` override, and `resolveCoverageInput`
-  / `validateCoverageConfig` helpers. `validateCoverageConfig` is no longer
-  called by the plugin (the `ConfigValidation` service is the read path);
-  the helper stays as a public utility for downstream callers.
-- **Typed `coverageTargets`** (`schemas/CoverageTargets.ts`, extracted from
-  `Options.ts` in T7) defines `CoverageTargets` as a `Schema.Record` with
-  `Schema.Positive`, the `100: true` shortcut, and nested
-  `CoverageTargetsMetrics` glob entries. Negatives and zeros are rejected
-  at decode time. A refinement also rejects `true` at any key other than
-  `"100"`. The pure helper `validateCoverageTargetsShape` in `utils/`
-  emits structured diagnostics (`INVALID_TARGET_VALUE`,
-  `PERFILE_ON_TARGETS`) with pinpointed `path` strings; the plugin's
-  `ConfigValidation` rule registry calls into it.
-- **`Transport` schema** (`schemas/Transport.ts`, new in T7) is the
-  persistence-layer transport binding. 2.x ships only
-  `{ kind: "local" }`. The shape is modeled as a single-member
-  discriminated union from day one so the 3.0 cloud-backend swap (D1,
-  Turso, etc.) lands as a pure addition of new union members rather
-  than a schema-shape change. See `.claude/design/vitest-agent/decisions.md`
-  D40.
-- **Slim `AgentPluginOptions`** (`schemas/Options.ts`). After T7 the
-  schema-decodable struct carries exactly three fields — `console`,
-  `coverageTargets`, `transport` — with `reporter` and `onRunEvent`
-  layered on the plugin's `AgentPluginConstructorOptions` companion
-  interface. `AgentReporterOptions` is intentionally tiny in 2.0 (one
-  field: `projectFilter`); the substantive reporter contract lives in
-  `contracts/reporter.ts` as `ResolvedReporterConfig` / `ReporterKit` /
-  `VitestAgentReporter` / `VitestAgentReporterFactory`. The old
-  `CoverageOptions` and `FormatterOptions` schemas were unused dead code
-  and were deleted in the same pass.
-
-## When working in this package
-
-- Adding a new `DataStore`/`DataReader` method: update both the service
-  tag and the live layer, add `Effect.logDebug`, use
-  `extractSqlReason(e)` in `mapError`, and consider whether MCP/CLI
-  consumers will want it.
-- Adding read-narrowing options (the `HistoryQueryOptions` pattern):
-  push predicates into SQL as `(${value} IS NULL OR col = ${value})`
-  guards so one query shape serves the scoped and unscoped calls, and
-  cap per-test series with a window function rather than a flat row
-  `LIMIT`. Export the options interface from both `index.ts` and
-  `testing/index.ts` — MCP tools consume the type.
-- Touching `resolveDataPath`/`PathResolutionLive`: callers still need
-  `NodeServices.layer` (the v4 layer subsuming the former
-  `NodeContext` + `NodeFileSystem`); don't bake it into
-  `PathResolutionLive` itself.
-- Touching `ensureMigrated`: the `globalThis`-keyed cache is intentional
-  (Vite can load this module twice in one process for multi-project
-  Vitest configs). Don't switch to a module-local Map. See Decision 28
-  and Decision 32.
-- Adding/changing migrations: pre-2.0, edit `0001_initial.ts` in place
-  and delete the local `data.db` between turns. Post-2.0 ships
-  ALTER-only migrations (Decision D9). SQLite uses WAL +
-  `busy_timeout`; multi-project test runs share one DB. Verify against
-  `ensureMigrated.test.ts`.
-- Renaming a public export: search all five runtime packages
-  (`packages/plugin`, `packages/reporter`, `packages/cli`,
-  `packages/mcp`, `packages/ui`) before committing.
-- Adding a new turn payload type: add the `Schema.Struct` to
-  `schemas/turns/`, extend the `TurnPayload` discriminated union in
-  `schemas/turns/index.ts`, AND add the new `type` literal to the
-  `turns.type` CHECK constraint via a new ALTER-only migration.
-- Touching `failure-signature.ts` or `function-boundary.ts`: signature
-  stability is the contract — changing the hash inputs invalidates every
-  existing `failure_signatures` row. Treat the format as versioned.
-  See Decision D10.
-- Touching `validate-phase-transition.ts`: keep it pure (no I/O, no
-  Effect). Adding a binding rule means a new branch and a new
-  `DenialReason` literal. See Decision D11.
-- Adding to `lib/`: generators must stay pure (E = never). They are
-  consumed by both a CLI subcommand and an MCP tool — keep the
-  generators free of service requirements so both surfaces can call
-  them directly.
+- **Effect Schema is the source of truth** for every data structure; the
+  MCP server generates its served JSON Schema from these (no zod anywhere).
+- **Errors use `Data.TaggedError`** with derived `[operation table-or-path]
+  reason` messages; `extractSqlReason(e)` in `errors/DataStoreError.ts` is
+  what engine layers call in `mapError`.
+- **Public-API-by-default.** Anything exported from `index.ts` is contract
+  for every other package; renaming one is a major. Search all consumers
+  (`packages/{engine,plugin,reporter,cli,mcp,ui,sidecar-*}`) first.
+- **`./dispatch` stays Effect-free and data-layer-free** so the SEA bundle
+  stays small; its symbols never ship from the main barrel.
+- Tests live in `packages/sdk/__test__/` (flat) and need no filesystem —
+  inject `readFile` maps / explicit `cwd` strings instead.
 
 ## Design references
 
 - `@./.claude/design/vitest-agent/components/sdk.md`
-  Load when working on this package's services, layers, formatters,
-  utilities, or migrations.
+  Load when working on schemas, contracts, formatters, or utilities.
 - `@./.claude/design/vitest-agent/schemas.md`
-  Load when adding or changing Effect Schemas, the reporter contract types,
-  or SQLite tables.
-- `@./.claude/design/vitest-agent/file-structure.md`
-  Load when touching `resolveDataPath`, `PathResolutionLive`, workspace-key
-  normalization, or the project-keying / tag-classification model that
-  replaced `splitProject()` in 2.0.
+  Load when adding or changing Effect Schemas or the reporter contract types.
 - `@./.claude/design/vitest-agent/decisions.md`
-  Load when you need rationale for a design choice (especially D40 T7
-  five-field options surface and the `transport` forward-declaration,
-  D9 migration policy, D10 failure signatures, D11 phase transitions,
-  D28 `ensureMigrated`, D31 path resolution).
+  Load for D40 (options surface / `transport`), D10 (failure signatures),
+  D11 (phase transitions).
 - `@./.claude/design/vitest-agent/testing-strategy.md`
-  Load when writing tests for this package or reviewing testing patterns.
-- `@./.claude/design/vitest-agent/components/discover.md`
-  Load when adding new preset factories to `testing/` or changing
-  `makeTestLayer`.
-
-## Agent-agnostic taxonomy additions (Phases 1–4)
-
-The 0001_initial migration is now consolidated (the prior 0002 was
-folded in) and adds the `agents` table, `actor_type` / `agent_id` /
-`conversation_id` columns on action tables (`test_runs`,
-`hypotheses`, `notes`, `tdd_phases`), per-run git context columns
-(`git_branch`, `git_commit_sha`, `git_dirty`, `git_upstream`,
-`git_worktree_dir`), and host-metadata columns (`host_source`,
-`host_value`, `host_metadata`) on `test_runs`. Six AFTER UPDATE
-triggers lock `conversation_id` immutable on every table that
-carries it; `sessions` alone permits one NULL → value transition,
-because `record session-start` inserts the row before
-`register-agent` resolves and backfills the canonical
-`conversation_id` (issue #144).
-
-| New file | Purpose |
-| -------- | ------- |
-| `schemas/Identity.ts` | UUID-branded `AgentId`, `ConversationId`, `SessionId`, `TddTaskId`; string-branded `ProjectKey`; literal unions `ActorType`, `HostKind`. Built on `Schema.UUID` so `JSONSchema.make` emits `format: "uuid"` reliably |
-| `schemas/Agent.ts` | `Agent` Schema.TaggedClass + `IdempotencyHit` Data.TaggedClass for the `RegisterAgentResult` success-channel union |
-| `services/idempotency.ts` | `deriveIdempotencyKey` shared between sidecar CLI and MCP server; SHA-256 over (agentType, parentAgentId or sentinel, clientNonce), base32 26-char output. Frozen vector test guards drift |
-| `services/ProjectIdentity.ts` + `layers/ProjectIdentityLive.ts` | 5-source fallback resolver (explicit option → TOML → git remote → package.json#repository.url → normalized name). `resolveProjectIdentityFromCandidates` is the pure priority resolver; the Live layer wires `Command`/`FileSystem`/`WorkspaceDiscovery`/`VitestAgentConfigFile` |
-| `services/RunContext.ts` + `layers/RunContextLive.ts` | `captureRunContext(cwd)` (git branch/sha/dirty/upstream/worktree + host metadata) and `captureAgentContext(cwd)` (the inheritable subset for agent registration) |
-| `services/PerClientSessionMap.ts` + `layers/PerClientSessionMapLive.ts` | Reader / Writer split. The MCP server provides only the Reader (read-only `?mode=ro` SQLite); the sidecar provides the Writer which also satisfies the Reader tag |
-| `services/DiscoveryRegistry.ts` + `layers/DiscoveryRegistryLive.ts` | Global `known_projects` index at `$XDG_DATA_HOME/vitest-agent/registry.db`. Used by `mcp-app` and any future cross-project tooling |
-| `migrations/registry_0001_initial.ts` | STRICT `known_projects` schema with WAL plus busy_timeout |
-| `migrations/session_map_0001_initial.ts` | STRICT `conversation_map` and `session_map` schemas with the partial active-session index |
-| `utils/canonicalize-git-url.ts` | Pure SSH/HTTPS/git+ssh URL canonicalizer; the `gitUrlToProjectKey` helper maps to the filesystem-safe `host__path` form |
-| `utils/probe-host-metadata.ts` | 9-tier probe chain (TMUX_PANE → WT_SESSION → … → CI runners). First match wins. Pure (env map in, result out) |
-| `utils/match-vitest-command.ts` | Pattern matchers for the five Vitest invocation shapes plus `buildEnvPrefix` and `rewriteBashCommand`. Used by the sidecar's `_internal inject-env` |
-
-`DataStore` gains `registerAgent(input): Effect<Agent | IdempotencyHit, RegistrationConflictError | DataStoreError>`
-and `endAgent(agentId, endedAt): Effect<void, AgentNotFoundError | DataStoreError>`.
-`TestRunInput` gains optional `actorType`, `agentId`, `conversationId`,
-`gitBranch`, `gitCommitSha`, `gitDirty`, `gitUpstream`,
-`gitWorktreeDir`, `hostSource`, `hostValue`, `hostMetadata` fields the
-reporter populates before each `writeRun`.
+  Load when writing tests for this package.

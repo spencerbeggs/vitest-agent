@@ -5,18 +5,18 @@ class. Owns the Vitest lifecycle hooks, persistence, classification,
 baseline/trend computation, and delegates rendering entirely to a
 `VitestAgentReporterFactory` — it injects `DefaultVitestAgentReporter` from
 `@vitest-agent/reporter` when the user does not pass a custom `reporter`
-option, and never touches rendering itself. The reporter owns mode branching and the Ink live-mount lifecycle. Declares `@vitest-agent/cli` and `@vitest-agent/mcp` as regular workspace `dependencies` at `workspace:*` (alongside `@vitest-agent/reporter` and `@vitest-agent/sdk`); they publish as exact-pinned regular `dependencies` — the former `savvy.build.ts` peer promotion was removed because the silk pnpm plugin hoists their bins anyway and the peer form triggered pnpm auto-install-peers, forcing wrong Effect versions into consumer repos. A cli/mcp release still patch-bumps the plugin and re-pins the exact version rather than publishing an inexact caret (changesets reads the source `dependencies` declaration). The Vitest-side peers (`vitest`,
-`@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay declared as
-`peerDependencies` directly. The plugin no longer
-depends on `@vitest-agent/ui`, `react`, or `ink` — `reporter` pulls those
-transitively. `@vitest-agent/sidecar` is not a direct dependency — it
-arrives transitively through `@vitest-agent/cli`.
+option, and never touches rendering itself. The reporter owns mode branching and the Ink live-mount lifecycle.
+
+**The carrier (rank 5, issue #412).** This is the one package a consumer installs. It declares `@vitest-agent/cli`, `@vitest-agent/mcp`, `@vitest-agent/reporter`, `@vitest-agent/engine`, and `@vitest-agent/sdk` as regular `workspace:*` dependencies (published exact-pinned; a cli/mcp release patch-bumps the plugin) AND declares both bins itself — `bin.vitest-agent` → `src/bin/vitest-agent.ts` (`import { main } from "@vitest-agent/cli/main"; main();`) and `bin.vitest-agent-mcp` → `src/bin/vitest-agent-mcp.ts` (`void main()` from `@vitest-agent/mcp/main`). pnpm links only direct-dependency bins, so these shims are what put `node_modules/.bin/vitest-agent` and `.bin/vitest-agent-mcp` into a consumer under every package manager; no `publicHoistPattern`, pnpm plugin, or manual step is involved. The Vitest-side peers (`vitest`, `@vitest/coverage-v8`, `@vitest/coverage-istanbul`) stay `peerDependencies`. The plugin does not depend on `@vitest-agent/ui`, `react`, or `ink` (reporter pulls them) nor on `@vitest-agent/sidecar` (cli pulls it). `ReporterLive(options: PlatformOptions)` is `CoverageAnalyzerLive` over the engine's `PlatformLive`.
 
 ## Layout
 
 ```text
 src/
   index.ts            -- public re-exports
+  bin/
+    vitest-agent.ts     -- 4-line carrier shim over @vitest-agent/cli/main
+    vitest-agent-mcp.ts -- 4-line carrier shim over @vitest-agent/mcp/main
   plugin.ts           -- AgentPlugin factory + namespace
   reporter.ts         -- internal AgentReporter Vitest-API class
   services/
@@ -103,7 +103,10 @@ src/
 | `utils/find-test-files.ts` | Async glob walker built on the injected `WalkerFileSystem` (trailing optional param, defaults to `nodeWalkerFs`) with an inline glob-to-regex compiler. Skips `NON_DISCOVERABLE_DIRS` from `@vitest-agent/sdk` (`node_modules`, `.git`, `dist` — the same constant `classifyTestPath` and the cache-signature walk use), and stops at a nested `package.json` boundary (any directory but the walk root that declares one is another unit — keeps `**/`-shaped patterns from double-counting sibling packages). The boundary applies to every pattern, anchored or not. Exported as part of the public surface so user strategies can reuse the walk without reimplementing it |
 | `utils/tag.ts` | `Tag` class with `Tag.make(name, options?)`. Validates the name and exposes a `TestTagDefinition` via `.definition` for Vitest's `test.tags` array |
 | `utils/inject-tags.ts` | Prepends a guarded two-line prelude to each classified test file: a namespace `vitest` import plus a try/catch that calls `TestRunner?.getCurrentSuite?.()`, resolves `collector?.suite ?? collector?.file`, and unions the resolved tags into the task's `tags`. Vitest's runner unions parent tags into every suite/test at registration, so every declaration form inherits — native `test`/`it`, wrapper testers like `@effect/vitest`'s `it.effect`, `test.extend` aliases, numeric-timeout third-arg calls, dynamic registration (issue #133). No acorn parsing; the `magic-string` prepend preserves source maps, and the try/catch degrades to untagged tests, never a crash. The plugin enables this transform whenever a `DiscoverStrategy` is active (the default) and bypasses it entirely when the user passes `discoverStrategy: false`. Subprocess e2e coverage lives in `__test__/inject-tags-prelude.e2e.test.ts` with the `__test__/fixtures/tag-prelude-project/` fixture |
-| `layers/ReporterLive.ts` | Composition layer for `AgentReporter`. Used per-run via `Effect.runPromise` (not ManagedRuntime — the reporter is short-lived per run) |
+| `layers/ReporterLive.ts` | `ReporterLive({ dbPath, env, logLevel?, logFile? })` = `CoverageAnalyzerLive` provided with the engine's `PlatformLive`. Used per-run via `Effect.runPromise` (not ManagedRuntime — the reporter is short-lived per run) |
+| `bin/vitest-agent.ts`, `bin/vitest-agent-mcp.ts` | The carrier shims. Keep them at four lines; all process ownership lives in the front ends' `main.ts`. Never add logic here — the cli/mcp packages ship the same bins directly |
+| `__test__/workspace-layering.test.ts` (+ `utils/workspace-graph.ts`) | Reads every workspace manifest and asserts the #412 rank rule (`sdk 1 → ui/sidecar-* 2 → engine/reporter/sidecar 3 → cli/mcp 4 → plugin 5`; root devDepends on plugin only), that cli and mcp never depend on each other, and that the graph is a DAG. A new workspace package must be added to `LAYER_RANKS` |
+| `__test__/bins-packed-install.e2e.test.ts` | Packs every family package from `dist/prod/npm/pkg`, installs the plugin tarball into a scratch consumer under npm / pnpm / yarn / bun (tarball `overrides` for the rest), and asserts `node_modules/.bin/vitest-agent --version` and `vitest-agent-mcp` `initialize` (clean stdout, empty stderr, exit 0). Needs `pnpm run build` (prod) and network; skips when prod dist is absent or on Windows; `KEEP_PACKED_INSTALL=1` keeps the scratch dir |
 
 ## AgentPlugin.discover()
 
@@ -190,7 +193,7 @@ hanging the caller's test run.
   Users who want custom rendering implement `VitestAgentReporterFactory`
   and pass it as `reporterFactory` to `AgentPlugin()`.
 - **Per-call layer construction is fine here.** The reporter runs
-  `Effect.runPromise` in `onTestRunEnd` with `ReporterLive(dbPath)` inline.
+  `Effect.runPromise` in `onTestRunEnd` with `ReporterLive({ dbPath, env, ... })` inline.
   This is appropriate because the reporter runs briefly per test suite.
   Only the MCP server uses `ManagedRuntime`.
 - **Rendering never depends on persistence (D47).** Keep `onTestRunEnd`'s
@@ -199,7 +202,7 @@ hanging the caller's test run.
   still runs against `fallbackReports`. Never `return` early out of
   `onTestRunEnd` for a persistence-side failure, and never move
   DB-requiring services into the render program.
-- **`ensureMigrated` must be awaited before the persist Effect.** In
+- **`ensureMigrated` (from `@vitest-agent/engine`) must be awaited before the persist Effect.** In
   multi-project configs, multiple reporter instances share one `data.db`;
   `ensureMigrated` serializes the migration step via the `globalThis`
   promise cache (Decision 28). On rejection, record the formatted error
@@ -219,6 +222,13 @@ hanging the caller's test run.
 
 ## When working in this package
 
+- Adding a workspace dependency: it must have a strictly lower rank
+  (`workspace-layering.test.ts`); the plugin is the top of the graph, so
+  nothing may depend on it except the workspace root.
+- Touching `package.json#bin` or the shims: rebuild prod (`pnpm run build`)
+  and run `bins-packed-install.e2e.test.ts` — the dev workspace's
+  `node_modules/.bin` is linked from this package's `publishConfig.linkDirectory`
+  and does not prove a consumer install.
 - Adding a new reporter option: extend `AgentPluginOptions` in
   `@vitest-agent/sdk`'s `schemas/Options.ts` for data-shaped fields, or
   add it to the plugin's `AgentPluginConstructorOptions` companion
