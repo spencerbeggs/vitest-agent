@@ -71,9 +71,11 @@ cli_cmd=$(detect_vitest_agent_bin "$cwd")
 
 # Unquoted on purpose — cli_cmd may carry a subcommand (e.g. "pnpm exec
 # vitest-agent") and must word-split, matching the $cli usage in
-# post-tool-use/git-commit.sh.
+# post-tool-use/git-commit.sh. The `cd "$cwd"` is load-bearing: the helper
+# returns a RELATIVE node_modules/.bin path so a space in the project path
+# cannot break the unquoted expansion.
 # shellcheck disable=SC2086
-if ! verdict_json=$($cli_cmd agent check-test-path "$file_path" 2>/dev/null); then
+if ! verdict_json=$(cd "$cwd" && $cli_cmd agent check-test-path "$file_path" 2>/dev/null); then
 	hook_debug "$_HOOK" "check-test-path failed for $file_path"
 	emit_noop
 	exit 0

@@ -142,12 +142,14 @@ STUB
 # hooks/lib/detect-pm.sh — detect_vitest_agent_bin
 # ---------------------------------------------------------------------------
 
-@test "detect_vitest_agent_bin prefers node_modules/.bin/vitest-agent when executable" {
+@test "detect_vitest_agent_bin prefers node_modules/.bin/vitest-agent when executable (relative path)" {
 	link_bin vitest-agent
 	touch "${PROJECT}/pnpm-lock.yaml"
 	run bash -c ". '$DETECT_PM'; detect_vitest_agent_bin '$PROJECT'"
 	[ "$status" -eq 0 ]
-	[ "$output" = "${PROJECT}/node_modules/.bin/vitest-agent" ]
+	# Relative on purpose: call sites expand it unquoted after `cd "$cwd"`, so
+	# an absolute path would word-split on a space in the project path.
+	[ "$output" = "node_modules/.bin/vitest-agent" ]
 }
 
 @test "detect_vitest_agent_bin falls back to the package-manager exec prefix" {
@@ -186,4 +188,55 @@ STUB
 	[ "$status" -eq 0 ]
 	[ "$output" = '{"continue": true, "suppressOutput": true}' ]
 	grep -q '^local vitest-agent agent record turn --chat-id bin-preference-001' "$CAPTURE"
+}
+
+@test "a hook runs the local bin when the project path contains a space" {
+	local spaced="${PROJECT}/my project"
+	mkdir -p "${spaced}/node_modules/.bin"
+	local marker="${spaced}/ran"
+	cat > "${spaced}/node_modules/.bin/vitest-agent" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" > "${marker}"
+exit 0
+STUB
+	chmod +x "${spaced}/node_modules/.bin/vitest-agent"
+	local payload
+	payload=$(jq -cn --arg cwd "$spaced" '{
+		session_id: "bin-preference-space-001",
+		cwd: $cwd,
+		tool_name: "Read",
+		tool_use_id: "toolu_bin_preference_space_001",
+		tool_input: { file_path: "/tmp/example.ts" },
+		hook_event_name: "PreToolUse"
+	}')
+	run bash -c "printf '%s' '$payload' | bash '${PLUGIN_DIR}/hooks/pre-tool-use/record.sh'"
+	[ "$status" -eq 0 ]
+	[ "$output" = '{"continue": true, "suppressOutput": true}' ]
+	[ -f "$marker" ]
+	grep -q '^agent record turn --chat-id bin-preference-space-001' "$marker"
+}
+
+@test "test-location.sh runs the local bin when the project path contains a space" {
+	local spaced="${PROJECT}/my project"
+	mkdir -p "${spaced}/node_modules/.bin"
+	local marker="${spaced}/ran"
+	cat > "${spaced}/node_modules/.bin/vitest-agent" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" > "${marker}"
+printf '{"verdict":"valid"}\n'
+exit 0
+STUB
+	chmod +x "${spaced}/node_modules/.bin/vitest-agent"
+	local payload
+	payload=$(jq -cn --arg cwd "$spaced" --arg fp "${spaced}/src/example.test.ts" '{
+		session_id: "bin-preference-space-002",
+		cwd: $cwd,
+		tool_name: "Write",
+		tool_input: { file_path: $fp, content: "" },
+		hook_event_name: "PreToolUse"
+	}')
+	run bash -c "printf '%s' '$payload' | bash '${PLUGIN_DIR}/hooks/pre-tool-use/test-location.sh'"
+	[ "$status" -eq 0 ]
+	[ -f "$marker" ]
+	grep -q '^agent check-test-path ' "$marker"
 }
