@@ -11,9 +11,10 @@
  * captures both.
  */
 
+import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/engine";
 import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
-import type { Cause, Scope } from "effect";
+import type { Cause, Context, Scope } from "effect";
 import { Console, Deferred, Effect, Layer, Logger, Queue, References, Sink, Stdio, Stream } from "effect";
 import { ServerLayer } from "../../src/server-layer.js";
 import { McpSession } from "../../src/session.js";
@@ -29,13 +30,19 @@ export interface JsonRpcMessage {
 
 export interface McpToolDescriptor {
 	readonly name: string;
+	readonly title?: string;
 	readonly description?: string;
 	readonly inputSchema: Record<string, unknown>;
 	readonly outputSchema?: Record<string, unknown>;
 	readonly annotations?: Record<string, unknown>;
 }
 
+/** The services the harness builds for the server (and hands to `seed` / `services`). */
+export type HarnessServices = McpSession | DataReader | DataStore | ProjectDiscovery | OutputRenderer;
+
 export interface McpHarness {
+	/** The built service context: run a seeding effect against the SAME in-memory store the server reads. */
+	readonly services: Context.Context<HarnessServices>;
 	/** `initialize` + `notifications/initialized`; returns the initialize response. */
 	readonly initialize: (protocolVersion?: string) => Effect.Effect<JsonRpcMessage>;
 	readonly sendRequest: (method: string, params?: unknown, id?: string | number) => Effect.Effect<JsonRpcMessage>;
@@ -64,6 +71,8 @@ export interface HarnessOptions {
 	 * observable. This is how `Logger.LogToStderr` is proven.
 	 */
 	readonly useDefaultLogger?: boolean | undefined;
+	/** Runs against the built services before the server starts (seed the in-memory DB). */
+	readonly seed?: Effect.Effect<void, never, HarnessServices> | undefined;
 }
 
 const isJsonRpcMessage = (value: unknown): value is JsonRpcMessage =>
@@ -125,10 +134,15 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 			OutputPipelineLive(process.env),
 			ProjectDiscoveryTest.layer([]),
 		);
+		// Built once here so a `seed` (or a test, via `services`) talks to the
+		// same in-memory store the server reads — providing `ServicesLayer`
+		// twice would build two databases.
+		const services = yield* Layer.build(ServicesLayer);
+		if (options.seed !== undefined) yield* options.seed.pipe(Effect.provideContext(services));
 		const Main = Layer.mergeAll(
 			ServerLayer({ version: options.serverVersion ?? "0.0.0-test" }),
 			...(options.extraLayers ?? []),
-		).pipe(Layer.provide(stdioLayer), Layer.provide(ServicesLayer), Layer.provide(loggerLayer));
+		).pipe(Layer.provide(stdioLayer), Layer.provide(Layer.succeedContext(services)), Layer.provide(loggerLayer));
 
 		const ready = yield* Deferred.make<void>();
 		yield* Effect.gen(function* () {
@@ -207,6 +221,7 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 			sendRequest("tools/call", { name, arguments: args ?? {} }).pipe(Effect.flatMap(unwrapResult));
 
 		return {
+			services,
 			initialize,
 			sendRequest,
 			sendNotification,

@@ -271,7 +271,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			outputSchema: effectToZodSchema(TestStatusResult) as never,
 		},
 		async (args) => {
-			const data = await caller.test_status({ project: args.project });
+			const data = await caller.test_status({ ...(args.project !== undefined && { project: args.project }) });
 			const text = Schema.decodeSync(TestStatusAsMarkdown)(data);
 			return structuredResult(text, data);
 		},
@@ -288,7 +288,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			outputSchema: effectToZodSchema(TestOverviewResult) as never,
 		},
 		async (args) => {
-			const data = await caller.test_overview({ project: args.project });
+			const data = await caller.test_overview({ ...(args.project !== undefined && { project: args.project }) });
 			const text = Schema.decodeSync(TestOverviewAsMarkdown)(data);
 			return structuredResult(text, data);
 		},
@@ -305,7 +305,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			outputSchema: effectToZodSchema(TestCoverageResult) as never,
 		},
 		async (args) => {
-			const data = await caller.test_coverage({ project: args.project });
+			const data = await caller.test_coverage({ ...(args.project !== undefined && { project: args.project }) });
 			const text = Schema.decodeSync(TestCoverageAsMarkdown)(data);
 			return structuredResult(text, data);
 		},
@@ -332,9 +332,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		async (args) => {
 			const data = await caller.test_history({
 				project: args.project,
-				testName: args.testName,
-				modulePath: args.modulePath,
-				limit: args.limit,
+				...(args.testName !== undefined && { testName: args.testName }),
+				...(args.modulePath !== undefined && { modulePath: args.modulePath }),
+				...(args.limit !== undefined && { limit: args.limit }),
 			});
 			const text = Schema.decodeSync(TestHistoryAsMarkdown)(data);
 			return structuredResult(text, data);
@@ -353,7 +353,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			outputSchema: effectToZodSchema(TestTrendsResult) as never,
 		},
 		async (args) => {
-			const data = await caller.test_trends({ project: args.project, limit: args.limit });
+			const data = await caller.test_trends({
+				project: args.project,
+				...(args.limit !== undefined && { limit: args.limit }),
+			});
 			const text = Schema.decodeSync(TestTrendsAsMarkdown)(data);
 			return structuredResult(text, data);
 		},

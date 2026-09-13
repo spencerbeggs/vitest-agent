@@ -12,6 +12,8 @@
 import { DataReader } from "@vitest-agent/engine";
 import { TrendRecord } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const TrendsAvailable = Schema.Struct({
@@ -119,29 +121,60 @@ export const TestTrendsAsMarkdown = TestTrendsResult.pipe(
 	}),
 );
 
+/**
+ * The `test_trends` tool's parameters.
+ *
+ * @public
+ */
+export const TestTrendsInput = Schema.Struct({
+	project: Schema.String.annotate({ description: "Project name (required)" }),
+	limit: Schema.optionalKey(Schema.Number).annotate({ description: "Max number of trend entries to return" }),
+});
+/**
+ * The decoded {@link TestTrendsInput}.
+ *
+ * @public
+ */
+export type TestTrendsInputType = Schema.Schema.Type<typeof TestTrendsInput>;
+
+/**
+ * Handler for {@link testTrendsTool}.
+ *
+ * @public
+ */
+export const handleTestTrends = (input: TestTrendsInputType): Effect.Effect<TestTrendsResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const trendsOpt = yield* reader.getTrends(input.project, input.limit);
+		if (Option.isNone(trendsOpt) || trendsOpt.value.entries.length === 0) {
+			return { dataAvailable: false as const, project: input.project };
+		}
+		return {
+			dataAvailable: true as const,
+			project: input.project,
+			trends: trendsOpt.value,
+		};
+	}).pipe(Effect.orDie);
+
 export const testTrends = publicProcedure
-	.input(
-		Schema.toStandardSchemaV1(
-			Schema.Struct({
-				project: Schema.String,
-				limit: Schema.optional(Schema.Number),
-			}),
-		),
-	)
-	.query(
-		async ({ ctx, input }): Promise<TestTrendsResultType> =>
-			ctx.runtime.runPromise(
-				Effect.gen(function* () {
-					const reader = yield* DataReader;
-					const trendsOpt = yield* reader.getTrends(input.project, input.limit);
-					if (Option.isNone(trendsOpt) || trendsOpt.value.entries.length === 0) {
-						return { dataAvailable: false as const, project: input.project };
-					}
-					return {
-						dataAvailable: true as const,
-						project: input.project,
-						trends: trendsOpt.value,
-					};
-				}),
-			),
-	);
+	.input(Schema.toStandardSchemaV1(TestTrendsInput))
+	.query(({ ctx, input }): Promise<TestTrendsResultType> => ctx.runtime.runPromise(handleTestTrends(input)));
+
+/**
+ * The Effect-native `test_trends` tool.
+ *
+ * @public
+ */
+export const testTrendsTool = Tool.make("test_trends", {
+	description:
+		"Use when you want to see whether a project's coverage is trending up or down over time. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, project, trends? }).",
+	parameters: TestTrendsInput,
+	success: TestTrendsResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Test trends")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatTestTrendsMarkdown(encoded as TestTrendsResultType));

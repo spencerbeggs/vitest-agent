@@ -7,6 +7,8 @@
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifestEntry } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const StatusAvailable = Schema.Struct({
@@ -69,39 +71,75 @@ export const TestStatusAsMarkdown = TestStatusResult.pipe(
 	}),
 );
 
+/**
+ * The `test_status` tool's parameters.
+ *
+ * @public
+ */
+export const TestStatusInput = Schema.Struct({
+	project: Schema.optionalKey(Schema.String).annotate({ description: "Filter to a specific project" }),
+});
+/**
+ * The decoded {@link TestStatusInput}.
+ *
+ * @public
+ */
+export type TestStatusInputType = Schema.Schema.Type<typeof TestStatusInput>;
+
+/**
+ * Handler for {@link testStatusTool}: the single implementation of the
+ * tool, shared by the tRPC procedure until that surface is deleted.
+ *
+ * @public
+ */
+export const handleTestStatus = (input: TestStatusInputType): Effect.Effect<TestStatusResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const manifestOpt = yield* reader.getManifest();
+		if (Option.isNone(manifestOpt)) {
+			return {
+				dataAvailable: false as const,
+				reason: "no_manifest" as const,
+				...(input.project !== undefined && { projectFilter: input.project }),
+			};
+		}
+		const manifest = manifestOpt.value;
+		const entries =
+			input.project === undefined ? manifest.projects : manifest.projects.filter((e) => e.project === input.project);
+		if (entries.length === 0) {
+			return {
+				dataAvailable: false as const,
+				reason: "project_filter_empty" as const,
+				...(input.project !== undefined && { projectFilter: input.project }),
+			};
+		}
+		return {
+			dataAvailable: true as const,
+			manifestUpdatedAt: manifest.updatedAt,
+			...(input.project !== undefined && { projectFilter: input.project }),
+			entries,
+		};
+	}).pipe(Effect.orDie);
+
 export const testStatus = publicProcedure
-	.input(Schema.toStandardSchemaV1(Schema.Struct({ project: Schema.optional(Schema.String) })))
-	.query(
-		async ({ ctx, input }): Promise<TestStatusResultType> =>
-			ctx.runtime.runPromise(
-				Effect.gen(function* () {
-					const reader = yield* DataReader;
-					const manifestOpt = yield* reader.getManifest();
-					if (Option.isNone(manifestOpt)) {
-						return {
-							dataAvailable: false as const,
-							reason: "no_manifest" as const,
-							...(input.project !== undefined && { projectFilter: input.project }),
-						};
-					}
-					const manifest = manifestOpt.value;
-					const entries =
-						input.project === undefined
-							? manifest.projects
-							: manifest.projects.filter((e) => e.project === input.project);
-					if (entries.length === 0) {
-						return {
-							dataAvailable: false as const,
-							reason: "project_filter_empty" as const,
-							...(input.project !== undefined && { projectFilter: input.project }),
-						};
-					}
-					return {
-						dataAvailable: true as const,
-						manifestUpdatedAt: manifest.updatedAt,
-						...(input.project !== undefined && { projectFilter: input.project }),
-						entries,
-					};
-				}),
-			),
-	);
+	.input(Schema.toStandardSchemaV1(TestStatusInput))
+	.query(({ ctx, input }): Promise<TestStatusResultType> => ctx.runtime.runPromise(handleTestStatus(input)));
+
+/**
+ * The Effect-native `test_status` tool.
+ *
+ * @public
+ */
+export const testStatusTool = Tool.make("test_status", {
+	description:
+		"Use when you need each project's current pass/fail state from the most recent run. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, manifestUpdatedAt, projectFilter?, entries[] } or absent variant).",
+	parameters: TestStatusInput,
+	success: TestStatusResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Test status")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatTestStatusMarkdown(encoded as TestStatusResultType));
