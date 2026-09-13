@@ -24,7 +24,13 @@ export const HelpResult = Schema.Struct({
  */
 export type HelpResultType = Schema.Schema.Type<typeof HelpResult>;
 
-const HELP_TEXT = `# vitest-agent MCP Tools
+/**
+ * The static markdown `help` returns. Exported so `__test__/help-drift.test.ts`
+ * can pin its tool and prompt rows to the served toolkit and prompt layer.
+ *
+ * @internal
+ */
+export const HELP_TEXT = `# vitest-agent MCP Tools
 
 > Consolidated tool surface (Phase 3 of the agent-agnostic taxonomy).
 > Action-keyed tools collapse the prior 5–6 CRUD families into one tool
@@ -151,6 +157,19 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 - \`{ action: "get", id }\`
 - \`{ action: "list_by_goal", goalId }\`
 - \`{ action: "list_by_tdd_task", tddTaskId }\`
+
+## Prompts
+
+Six framing-only prompts (\`prompts/get\`; Claude Code surfaces them as slash commands):
+
+| Prompt | Arguments | Description |
+| ------ | --------- | ----------- |
+| \`triage\` | \`project?\` | Orient toward a triage workflow over the most recent run |
+| \`why-flaky\` | \`test\`, \`project?\` | Diagnose why a named test is flaky |
+| \`regression-since-pass\` | \`test\`, \`project?\` | Walk back from the last passing run to the change that broke it |
+| \`explain-failure\` | \`signature\` | Root-cause explanation from a failure signature's recurrence history |
+| \`tdd-resume\` | \`sessionId?\` | Resume the active TDD task from its current phase |
+| \`wrapup\` | \`kind?\`, \`since?\` | The same wrap-up content the post-hooks emit automatically |
 
 ## Parameter Key
 

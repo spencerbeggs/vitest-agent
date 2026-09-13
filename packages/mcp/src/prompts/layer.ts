@@ -26,6 +26,21 @@ import { whyFlakyPrompt } from "./why-flaky.js";
 import type { WrapupKind } from "./wrapup.js";
 import { wrapupPrompt } from "./wrapup.js";
 
+/**
+ * The six prompt names `PromptsLayer` registers, in registration order.
+ * Pinned against the `help` text by `__test__/help-drift.test.ts`.
+ *
+ * @internal
+ */
+export const PROMPT_NAMES = [
+	"triage",
+	"why-flaky",
+	"regression-since-pass",
+	"explain-failure",
+	"tdd-resume",
+	"wrapup",
+] as const;
+
 /** The `wrapup.kind` literal set, served as the argument's closed vocabulary. */
 export const WRAPUP_KINDS = ["stop", "session_end", "pre_compact", "tdd_handoff", "user_prompt_nudge"] as const;
 
@@ -35,7 +50,7 @@ const toMessages = (result: PromptResult): Array<McpSchema.PromptMessage> =>
 const projectArg = Schema.optionalKey(Schema.String.annotate({ description: "Filter to a specific project" }));
 
 const Triage = McpServer.prompt({
-	name: "triage",
+	name: PROMPT_NAMES[0],
 	description:
 		"Orient toward a triage workflow over the most recent test run; compose triage_brief, failure_signature_get, hypothesis_record.",
 	parameters: { project: projectArg },
@@ -44,7 +59,7 @@ const Triage = McpServer.prompt({
 });
 
 const WhyFlaky = McpServer.prompt({
-	name: "why-flaky",
+	name: PROMPT_NAMES[1],
 	description:
 		"Diagnose why a named test is flaky; compose test_history and failure_signature_get with timing/shared-state framing.",
 	parameters: {
@@ -60,7 +75,7 @@ const WhyFlaky = McpServer.prompt({
 });
 
 const RegressionSincePass = McpServer.prompt({
-	name: "regression-since-pass",
+	name: PROMPT_NAMES[2],
 	description:
 		"Walk back from the test's most recent passing run to identify the change that broke it; compose test_history, commit_changes, turn_search.",
 	parameters: {
@@ -78,7 +93,7 @@ const RegressionSincePass = McpServer.prompt({
 });
 
 const ExplainFailure = McpServer.prompt({
-	name: "explain-failure",
+	name: PROMPT_NAMES[3],
 	description: "Synthesize a root-cause explanation from the recurrence history of a failure signature.",
 	parameters: {
 		signature: Schema.String.annotate({ description: "16-char failure signature hex" }),
@@ -87,7 +102,7 @@ const ExplainFailure = McpServer.prompt({
 });
 
 const TddResume = McpServer.prompt({
-	name: "tdd-resume",
+	name: PROMPT_NAMES[4],
 	description: "Resume the active TDD task from its current phase; iron-law reminder for evidence-bound transitions.",
 	parameters: {
 		sessionId: Schema.optionalKey(
@@ -103,7 +118,7 @@ const TddResume = McpServer.prompt({
 });
 
 const Wrapup = McpServer.prompt({
-	name: "wrapup",
+	name: PROMPT_NAMES[5],
 	description: "Surface the same wrapup content the post-hooks emit automatically.",
 	parameters: {
 		kind: Schema.optionalKey(

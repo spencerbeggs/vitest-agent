@@ -78,12 +78,12 @@ STUB
 	touch "${PROJECT}/pnpm-lock.yaml"
 	run --separate-stderr env CLAUDE_PROJECT_DIR="$PROJECT" sh "$LOADER_SH" --noop=1
 	[ "$status" -eq 0 ]
-	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp --noop=1" ]
+	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@4 --noop=1" ]
 	[ -z "$output" ]
 	[[ "$stderr" == *"vitest-agent-mcp is not installed"* ]]
 	[[ "$stderr" == *"Detected package manager: pnpm"* ]]
 	[[ "$stderr" == *"  pnpm add -D @vitest-agent/plugin"* ]]
-	[[ "$stderr" == *"Falling back to \`npx --yes @vitest-agent/mcp\`"* ]]
+	[[ "$stderr" == *"Falling back to \`npx --yes @vitest-agent/mcp@4\`"* ]]
 }
 
 @test "start-mcp.sh install line follows the packageManager field over a lockfile (no jq)" {

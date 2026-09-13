@@ -1,12 +1,12 @@
 /**
- * Direct handler caller for the Effect-native tools — the replacement for
- * the retired tRPC `createCallerFactory(appRouter)` caller. It decodes `params`
+ * Direct handler caller for the Effect-native tools. It decodes `params`
  * through the tool's `parameters` schema (the same step `Toolkit.handle`
- * performs, so an invalid input REJECTS exactly as the tRPC input
- * validation did) and then invokes `toolHandlers[name]` straight on a
- * `ManagedRuntime`, bypassing the wire (no JSON Schema strictness, no
- * result encoding), so a test can assert the handler's DECODED result with
- * full type narrowing.
+ * performs, so an invalid input REJECTS exactly as the served tool would)
+ * and then invokes `toolHandlers[name]` straight on a `ManagedRuntime`,
+ * bypassing the wire (no JSON Schema strictness, no result encoding), so a
+ * test can assert the handler's DECODED result with full type narrowing.
+ * Wire-exact behavior belongs to `harness.ts`, which runs the real
+ * `ServerLayer` over in-process stdio queues.
  *
  * Requirements are checked per tool: the returned caller accepts only the
  * tools whose handler requirements (minus `McpSession`) the runtime
@@ -15,10 +15,10 @@
  * a missing-service defect at run time.
  *
  * `McpSession` is the one service provided PER CALL rather than by the
- * runtime: the old tests built one tRPC context per caller with its own
- * `cwd` and refs over a shared runtime, and `session` maps that shape
- * one-to-one (`McpSession.layer({...})` / `McpSession.layerTest({...})`).
- * A runtime that also carries `McpSession` is shadowed by `session`.
+ * runtime: each test supplies its own `cwd` and refs over a shared runtime
+ * through `session` (`McpSession.layer({...})` /
+ * `McpSession.layerTest({...})`). A runtime that also carries `McpSession`
+ * is shadowed by `session`.
  */
 
 import type { Layer, ManagedRuntime } from "effect";

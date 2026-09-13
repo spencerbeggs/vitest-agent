@@ -1,14 +1,13 @@
-// Structured envelope for a resolver throw that escapes a tool's own
+// Structured envelope for a handler throw that escapes a tool's own
 // domain-specific error handling (issue #191, sub-item A).
 //
-// The MCP SDK's own `CallToolRequestSchema` handler already catches any
-// throw/rejection from a tool's resolver so a stray error inside a
-// single tool call cannot crash the process — but its fallback
-// (`createToolError`) is a bare, untyped `content[].text` string. Every
-// other tool in this package that can fail returns a structured
-// `{ ok: false, error: { _tag, ... } }` shape (see
+// The Effect `McpServer` already contains any defect or unhandled failure
+// from a tool handler so a stray error inside a single tool call cannot
+// crash the process — but its fallback is a bare, untyped `content[].text`
+// string. Every other tool in this package that can fail returns a
+// structured `{ ok: false, error: { _tag, ... } }` shape (see
 // `_tdd-error-envelope.ts`'s `TddErrorEnvelope` for the pattern this
-// mirrors). `server.ts`'s `safeRegisterTool` wrapper uses this builder
+// mirrors). `register-toolkit.ts`'s registration wrapper uses this builder
 // so an *unexpected* throw gets the same structured treatment instead
 // of degrading to a plain string the agent has to pattern-match.
 
@@ -24,7 +23,7 @@ export interface UnexpectedToolErrorRemediation {
 }
 
 /**
- * Success-shaped envelope returned when a tool's resolver throws or
+ * Success-shaped envelope returned when a tool's handler throws or
  * rejects in a way none of its own domain-specific error handling
  * anticipated.
  *
@@ -80,9 +79,9 @@ function coerceThrownMessage(err: unknown): string {
 
 /**
  * Builds the structured envelope a tool's catch-all wrapper returns
- * when its resolver throws unexpectedly.
+ * when its handler throws unexpectedly.
  *
- * @param toolName - the MCP tool name under which the resolver was registered
+ * @param toolName - the MCP tool name under which the handler was registered
  * @param err - the value thrown or the rejection reason
  * @public
  */
@@ -97,7 +96,7 @@ export function buildUnexpectedToolErrorEnvelope(toolName: string, err: unknown)
 			remediation: {
 				suggestedTool: toolName,
 				suggestedArgs: {},
-				humanHint: `The "${toolName}" tool's resolver threw before producing a result (unrelated to your input in most cases). Retry the call; if it persists, check the MCP server's stderr for the logged error.`,
+				humanHint: `The "${toolName}" tool's handler threw before producing a result (unrelated to your input in most cases). Retry the call; if it persists, check the MCP server's stderr for the logged error.`,
 			},
 		},
 	};
