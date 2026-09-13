@@ -251,6 +251,7 @@ const PACKAGE_MANAGERS: readonly PackageManager[] = [
 					"",
 				].join("\n"),
 			),
+		// Berry has no --ignore-scripts; `enableScripts: false` in .yarnrc.yml is the equivalent.
 		installArgs: ["install"],
 	},
 	{
@@ -312,6 +313,9 @@ describe.skipIf(!PROD_BUILD_PRESENT || IS_WINDOWS)(SUITE_NAME, () => {
 		const tarballs = join(scratch, "tarballs");
 		mkdirSync(tarballs);
 		packed = PACK_LIST.map((pkg) => packOne(pkg, tarballs));
+		// Intentional, read-only exception to "never touch the repo's node_modules":
+		// the vitest peer version comes from the pnpm catalog, so no manifest in the
+		// repo states it literally — the installed package is the only place to read it.
 		vitestVersion = readManifest(join(REPO_ROOT, "node_modules", "vitest")).version;
 	}, PACK_TIMEOUT_MS * PACK_LIST.length);
 
