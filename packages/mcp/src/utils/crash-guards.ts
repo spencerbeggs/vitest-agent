@@ -1,5 +1,5 @@
 /**
- * Pure decision logic backing `bin.ts`'s `process.on("uncaughtException")`
+ * Pure decision logic backing `main.ts`'s `process.on("uncaughtException")`
  * guard (issue #191, sub-item A).
  *
  * Node's own guidance for `uncaughtException` is "do not resume normal

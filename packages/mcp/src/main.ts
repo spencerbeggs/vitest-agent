@@ -111,81 +111,96 @@ export const main = async (): Promise<void> => {
 		}
 	});
 
-	// No static imports of the server graph above this line (`crash-guards`
-	// is a dependency-free leaf and is the one exception).
-	const { safeFormatFatalError } = await import("./utils/safe-format-fatal-error.js");
-	formatFatal = safeFormatFatalError;
-	const NodeRuntime = await import("@effect/platform-node/NodeRuntime");
-	const NodeServices = await import("@effect/platform-node/NodeServices");
-	const NodeStdio = await import("@effect/platform-node/NodeStdio");
-	const { Cause, Effect, Exit, Layer, Logger, Runtime } = await import("effect");
-	const {
-		PathResolutionLive,
-		PlatformLive,
-		recoverSessionContextFromSessionEnv,
-		resolveDataPath,
-		resolveLogFile,
-		resolveLogLevel,
-		resolveProjectDir,
-	} = await import("@vitest-agent/engine");
-	const { McpSession, sessionContextFromEnv } = await import("./session.js");
-	const { ServerLayer } = await import("./server-layer.js");
-	const { CURRENT_MCP_VERSION } = await import("./version.js");
+	// Anything that rejects before `runMain` owns the process — a dynamic
+	// import failing to resolve, `resolveDataPath` failing, the layer
+	// graph refusing to build — must exit non-zero with a diagnostic. Left
+	// to the `unhandledRejection` guard above it would only be logged and
+	// the event loop would drain to exit 0 with no server listening.
+	try {
+		// No static imports of the server graph above this line (`crash-guards`
+		// is a dependency-free leaf and is the one exception).
+		const { safeFormatFatalError } = await import("./utils/safe-format-fatal-error.js");
+		formatFatal = safeFormatFatalError;
+		const NodeRuntime = await import("@effect/platform-node/NodeRuntime");
+		const NodeServices = await import("@effect/platform-node/NodeServices");
+		const NodeStdio = await import("@effect/platform-node/NodeStdio");
+		const { Cause, Effect, Exit, Layer, Logger, Runtime } = await import("effect");
+		const {
+			PathResolutionLive,
+			PlatformLive,
+			recoverSessionContextFromSessionEnv,
+			resolveDataPath,
+			resolveLogFile,
+			resolveLogLevel,
+			resolveProjectDir,
+		} = await import("@vitest-agent/engine");
+		const { McpSession, sessionContextFromEnv } = await import("./session.js");
+		const { ServerLayer } = await import("./server-layer.js");
+		const { CURRENT_MCP_VERSION } = await import("./version.js");
 
-	const env = process.env;
-	// `VITEST_AGENT_PROJECT_DIR`, then `VITEST_AGENT_REPORTER_PROJECT_DIR`
-	// (the Claude Code plugin loader), then `CLAUDE_PROJECT_DIR`, then cwd.
-	const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
-	const initialSessionId = resolveInitialSessionId(process.argv);
+		const env = process.env;
+		// `VITEST_AGENT_PROJECT_DIR`, then `VITEST_AGENT_REPORTER_PROJECT_DIR`
+		// (the Claude Code plugin loader), then `CLAUDE_PROJECT_DIR`, then cwd.
+		const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
+		const initialSessionId = resolveInitialSessionId(process.argv);
 
-	const dbPath = await Effect.runPromise(
-		resolveDataPath(projectDir).pipe(
-			Effect.provide(PathResolutionLive(projectDir)),
-			Effect.provide(NodeServices.layer),
-		),
-	);
+		const dbPath = await Effect.runPromise(
+			resolveDataPath(projectDir).pipe(
+				Effect.provide(PathResolutionLive(projectDir)),
+				Effect.provide(NodeServices.layer),
+			),
+		);
 
-	// Boot-time recovery from the env SessionStart wrote to `CLAUDE_ENV_FILE`.
-	// It races the hook on a fresh launch and is empty after /reload-plugins,
-	// so the session also carries a lazy recover thunk that re-reads the
-	// hook's session-env surface at the first tool call that needs context.
-	const recovered = sessionContextFromEnv(env);
-	const homeDir = env.HOME ?? env.USERPROFILE ?? "";
-	const Session = McpSession.layer({
-		cwd: projectDir,
-		initialSessionId: initialSessionId ?? recovered?.chatId ?? null,
-		initialContext: recovered,
-		recover: () => recoverSessionContextFromSessionEnv({ projectDir, homeDir }),
-	});
+		// Boot-time recovery from the env SessionStart wrote to `CLAUDE_ENV_FILE`.
+		// It races the hook on a fresh launch and is empty after /reload-plugins,
+		// so the session also carries a lazy recover thunk that re-reads the
+		// hook's session-env surface at the first tool call that needs context.
+		const recovered = sessionContextFromEnv(env);
+		const homeDir = env.HOME ?? env.USERPROFILE ?? "";
+		const Session = McpSession.layer({
+			cwd: projectDir,
+			initialSessionId: initialSessionId ?? recovered?.chatId ?? null,
+			initialContext: recovered,
+			recover: () => recoverSessionContextFromSessionEnv({ projectDir, homeDir }),
+		});
 
-	const Main = ServerLayer({ version: CURRENT_MCP_VERSION }).pipe(
-		Layer.provide(Session),
-		Layer.provide(PlatformLive({ dbPath, env, logLevel: resolveLogLevel(env), logFile: resolveLogFile(env) })),
-		Layer.provide(NodeStdio.layer),
-		// Defense in depth with `ServerLayer`: every log line must land on
-		// stderr, because stdout is the JSON-RPC wire.
-		Layer.provide(Layer.succeed(Logger.LogToStderr, true)),
-	);
+		const Main = ServerLayer({ version: CURRENT_MCP_VERSION }).pipe(
+			Layer.provide(Session),
+			Layer.provide(PlatformLive({ dbPath, env, logLevel: resolveLogLevel(env), logFile: resolveLogFile(env) })),
+			Layer.provide(NodeStdio.layer),
+			// Defense in depth with `ServerLayer`: every log line must land on
+			// stderr, because stdout is the JSON-RPC wire.
+			Layer.provide(Layer.succeed(Logger.LogToStderr, true)),
+		);
 
-	// `Layer.launch(Main)` never resolves, so the "transport connected" flag
-	// is set from a layer built strictly AFTER `Main`: `Layer.provide` builds
-	// its dependency to completion before the dependent (`provideWith` is
-	// `flatMap(that.build, self.build)`), and `Main`'s stdio protocol is
-	// itself reached through `Layer.provide` chains, so by the time this
-	// effect runs the server is reading stdin.
-	const Connected = Layer.effectDiscard(
-		Effect.sync(() => {
-			transportConnected = true;
-			scheduleTestCrashInjection();
-		}),
-	).pipe(Layer.provide(Main));
+		// `Layer.launch(Main)` never resolves, so the "transport connected" flag
+		// is set from a layer built strictly AFTER `Main`: `Layer.provide` builds
+		// its dependency to completion before the dependent (`provideWith` is
+		// `flatMap(that.build, self.build)`), and `Main`'s stdio protocol is
+		// itself reached through `Layer.provide` chains, so by the time this
+		// effect runs the server is reading stdin.
+		const Connected = Layer.effectDiscard(
+			Effect.sync(() => {
+				transportConnected = true;
+				scheduleTestCrashInjection();
+			}),
+		).pipe(Layer.provide(Main));
 
-	NodeRuntime.runMain(Layer.launch(Connected), {
-		// `Runtime.defaultTeardown` reports 130 whenever the main fiber's cause
-		// is interrupts-only — exactly what stdin EOF produces, since the stdio
-		// protocol interrupts the fiber that built it when stdin ends. A client
-		// disconnect is the ordinary end of every session, so map it to 0.
-		teardown: (exit, onExit) =>
-			Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause) ? onExit(0) : Runtime.defaultTeardown(exit, onExit),
-	});
+		// `runMain` logs a layer-build failure's cause itself, outside `Main`
+		// where `LogToStderr` is not yet in scope — provide it on the launched
+		// effect too so that report can never land on the JSON-RPC wire.
+		const program = Layer.launch(Connected).pipe(Effect.provideService(Logger.LogToStderr, true));
+
+		NodeRuntime.runMain(program, {
+			// `Runtime.defaultTeardown` reports 130 whenever the main fiber's cause
+			// is interrupts-only — exactly what stdin EOF produces, since the stdio
+			// protocol interrupts the fiber that built it when stdin ends. A client
+			// disconnect is the ordinary end of every session, so map it to 0.
+			teardown: (exit, onExit) =>
+				Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause) ? onExit(0) : Runtime.defaultTeardown(exit, onExit),
+		});
+	} catch (err) {
+		process.stderr.write(`vitest-agent-mcp: startup failed: ${formatFatal(err)}\n`);
+		process.exit(1);
+	}
 };

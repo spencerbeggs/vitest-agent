@@ -9,8 +9,8 @@
  * not a crash — without a custom teardown `runMain` would report 130).
  */
 
-import { rmSync } from "node:fs";
-import { dirname } from "node:path";
+import { rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
@@ -65,6 +65,25 @@ describe("server lifecycle", () => {
 					expect(stderr).not.toContain('"method"');
 					expect(stderr).toBe("");
 					yield* server.closeStdin;
+				}),
+			),
+		);
+	});
+
+	it("exits non-zero with a diagnostic on stderr when startup fails", async () => {
+		// A regular file where the XDG data directory should be makes
+		// `resolveDataPath` / the SQLite layer fail before the server listens.
+		const notADir = join(dirname(scratch.projectDir), "xdg-is-a-file");
+		writeFileSync(notADir, "");
+		await run(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const server = yield* spawnMcp({ ...ENV, XDG_DATA_HOME: notADir });
+					const code = yield* server.exitCode.pipe(
+						Effect.timeoutOrElse({ duration: "10 seconds", orElse: () => Effect.fail("did not exit" as const) }),
+					);
+					expect(code).not.toBe(0);
+					expect(yield* server.stderrSoFar).not.toBe("");
 				}),
 			),
 		);
