@@ -1,23 +1,17 @@
-import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
-import { Layer, ManagedRuntime } from "effect";
+import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
+import { makeCaller as makeToolCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
-const makeCaller = () => {
-	const factory = createCallerFactory(appRouter);
-	return factory({
-		runtime: testRuntime as unknown as McpContext["runtime"],
-		cwd: process.cwd(),
-		currentSessionId: createCurrentSessionIdRef(),
-		sessionContext: createSessionContextRef(),
-	});
-};
+const call = makeToolCaller(testRuntime);
+const makeCaller = () => ({
+	register_agent: (params: Parameters<typeof call<"register_agent">>[1]) => call("register_agent", params),
+	inventory: (params: Parameters<typeof call<"inventory">>[1]) => call("inventory", params),
+});
 
 afterAll(async () => {
 	await testRuntime.dispose();
@@ -27,8 +21,6 @@ const seedSession = async (chatId: string) => {
 	const caller = makeCaller();
 	await caller.inventory({ kind: "session" }); // best-effort warm-up
 	// Seed the session row directly through DataStore via the runtime.
-	const { Effect } = await import("effect");
-	const { DataStore } = await import("@vitest-agent/engine");
 	await testRuntime.runPromise(
 		Effect.gen(function* () {
 			const store = yield* DataStore;

@@ -6,6 +6,7 @@
  */
 
 import { Toolkit } from "effect/unstable/ai";
+import { withIdempotency } from "./idempotency.js";
 import { acceptanceMetricsTool, handleAcceptanceMetrics } from "./tools/acceptance-metrics.js";
 import { cacheHealthTool, handleCacheHealth } from "./tools/cache-health.js";
 import { commitChangesTool, handleCommitChanges } from "./tools/commit-changes.js";
@@ -16,9 +17,12 @@ import { failureSignatureGetTool, handleFailureSignatureGet } from "./tools/fail
 import { fileCoverageTool, handleFileCoverage } from "./tools/file-coverage.js";
 import { handleHelp, helpTool } from "./tools/help.js";
 import { handleTestHistory, testHistoryTool } from "./tools/history.js";
+import { handleHypothesis, hypothesisTool } from "./tools/hypothesis.js";
 import { handleInventory, inventoryTool } from "./tools/inventory.js";
+import { handleNote, noteTool } from "./tools/note.js";
 import { handleTestOverview, testOverviewTool } from "./tools/overview.js";
 import { handlePing, pingTool } from "./tools/ping.js";
+import { handleRegisterAgent, registerAgentTool } from "./tools/register-agent.js";
 import { handleSettingsList, settingsListTool } from "./tools/settings-list.js";
 import { handleTestStatus, testStatusTool } from "./tools/status.js";
 import { handleTest, testTool } from "./tools/test.js";
@@ -53,6 +57,9 @@ export const Kit = Toolkit.make(
 	wrapupPromptTool,
 	inventoryTool,
 	testTool,
+	registerAgentTool,
+	noteTool,
+	hypothesisTool,
 );
 
 /**
@@ -81,6 +88,9 @@ export const toolHandlers = {
 	wrapup_prompt: handleWrapupPrompt,
 	inventory: handleInventory,
 	test: handleTest,
+	register_agent: handleRegisterAgent,
+	note: handleNote,
+	hypothesis: withIdempotency("hypothesis", handleHypothesis),
 } satisfies Toolkit.HandlersFrom<typeof Kit.tools>;
 
 /**

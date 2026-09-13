@@ -157,3 +157,22 @@ export class McpSession extends Context.Service<
 			...(overrides.recover === undefined ? {} : { recover: overrides.recover }),
 		});
 }
+
+/**
+ * Wrap the tRPC-era context refs as an `McpSession` layer so a tRPC
+ * procedure can delegate to a handler that reads the session. Kept until
+ * the tRPC server is deleted (Task 17).
+ *
+ * @param ctx - the `cwd` and the two session refs the tRPC context carries
+ * @internal
+ */
+export const sessionFromContext = (ctx: {
+	readonly cwd: string;
+	readonly currentSessionId: CurrentSessionIdRef;
+	readonly sessionContext: SessionContextRef;
+}): Layer.Layer<McpSession> =>
+	Layer.succeed(McpSession, {
+		cwd: ctx.cwd,
+		currentSessionId: ctx.currentSessionId,
+		sessionContext: ctx.sessionContext,
+	});

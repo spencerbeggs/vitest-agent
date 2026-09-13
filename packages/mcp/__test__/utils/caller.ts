@@ -8,37 +8,55 @@
  * result encoding), so a test can assert the handler's DECODED result with
  * full type narrowing.
  *
- * The runtime must provide exactly what the registered handlers require
- * (`HandlerRequirements`, derived from `toolHandlers`) — today that is
- * `DataReader` alone, so a test may hand in a runtime built from a stubbed
- * `DataReader` layer. When a Task 16 handler adds `McpSession` (or another
- * service) to its requirements, the derived type widens and the runtime
- * must provide it; nothing is provided implicitly here.
+ * Requirements are checked per tool: the returned caller accepts only the
+ * tools whose handler requirements (minus `McpSession`) the runtime
+ * provides — a `DataReader`-only runtime can call the read-only tools and
+ * nothing else, and the mismatch is a compile error at the call site, not
+ * a missing-service defect at run time.
+ *
+ * `McpSession` is the one service provided PER CALL rather than by the
+ * runtime: the old tests built one tRPC context per caller with its own
+ * `cwd` and refs over a shared runtime, and `session` maps that shape
+ * one-to-one (`McpSession.layer({...})` / `McpSession.layerTest({...})`).
+ * A runtime that also carries `McpSession` is shadowed by `session`.
  */
 
-import type { ManagedRuntime } from "effect";
+import type { Layer, ManagedRuntime } from "effect";
 import { Effect, Schema } from "effect";
+import { McpSession } from "../../src/session.js";
 import { Kit, toolHandlers } from "../../src/toolkit.js";
 
 type Handlers = typeof toolHandlers;
 export type ToolName = keyof Handlers;
-export type ToolParams<Name extends ToolName> = Parameters<Handlers[Name]>[0];
+/** The wire (encoded) shape of a tool's parameters — a numeric-string id is accepted where the schema coerces one. */
+export type ToolParams<Name extends ToolName> =
+	Parameters<Handlers[Name]> extends []
+		? undefined | Record<string, never>
+		: Schema.Codec.Encoded<(typeof Kit.tools)[Name]["parametersSchema"]>;
 export type ToolResult<Name extends ToolName> = Effect.Success<ReturnType<Handlers[Name]>>;
+/** The services a tool's handler requires beyond the per-call `McpSession`. */
+export type ToolRequirements<Name extends ToolName> = Exclude<Effect.Services<ReturnType<Handlers[Name]>>, McpSession>;
 /** The union of every registered handler's service requirements. */
-export type HandlerRequirements = Effect.Services<ReturnType<Handlers[ToolName]>>;
+export type HandlerRequirements = ToolRequirements<ToolName>;
+/** The tools a runtime providing `R` can call. */
+export type CallableTools<R> = { [Name in ToolName]: ToolRequirements<Name> extends R ? Name : never }[ToolName];
 
-export type ToolCaller = <Name extends ToolName>(name: Name, params: ToolParams<Name>) => Promise<ToolResult<Name>>;
+export type ToolCaller<R> = <Name extends CallableTools<R>>(
+	name: Name,
+	params: ToolParams<Name>,
+) => Promise<ToolResult<Name>>;
 
 /**
- * The runtime must provide at least `HandlerRequirements` (a wider runtime
- * is accepted — `ManagedRuntime` is contravariant in its services). `ER`
- * is the runtime's own build error (the engine test layer carries
+ * `ER` is the runtime's own build error (the engine test layer carries
  * `MigrationError | SqlError`), which never reaches a handler.
  */
-export const makeCaller = <ER>(runtime: ManagedRuntime.ManagedRuntime<HandlerRequirements, ER>): ToolCaller => {
+export const makeCaller = <R, ER>(
+	runtime: ManagedRuntime.ManagedRuntime<R, ER>,
+	session: Layer.Layer<McpSession> = McpSession.layerTest(),
+): ToolCaller<R> => {
 	return (name, params) => {
-		const handler = toolHandlers[name] as (p: unknown) => Effect.Effect<unknown, never, HandlerRequirements>;
+		const handler = toolHandlers[name] as (p: unknown) => Effect.Effect<unknown, never, R | McpSession>;
 		const decode = Schema.decodeUnknownEffect(Kit.tools[name].parametersSchema as Schema.Codec<unknown>);
-		return runtime.runPromise(decode(params ?? {}).pipe(Effect.flatMap(handler))) as never;
+		return runtime.runPromise(decode(params ?? {}).pipe(Effect.flatMap(handler), Effect.provide(session))) as never;
 	};
 };

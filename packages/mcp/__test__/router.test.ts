@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import type { McpContext } from "../src/context.js";
 import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
 import { appRouter } from "../src/router.js";
+import { McpSession } from "../src/session.js";
 import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
@@ -144,8 +145,7 @@ afterAll(async () => {
 
 describe("MCP Router", () => {
 	it("help returns complete tool catalog", async () => {
-		const caller = createTestCaller();
-		const result = await caller.help();
+		const result = await call("help", undefined);
 		expect(result.helpText).toContain("vitest-agent MCP Tools");
 		expect(result.helpText).toContain("test_status");
 		expect(result.helpText).toContain("run_tests");
@@ -154,8 +154,7 @@ describe("MCP Router", () => {
 	});
 
 	it("help describes the T2 tag-filtering and tag-introspection surface", async () => {
-		const caller = createTestCaller();
-		const result = await caller.help();
+		const result = await call("help", undefined);
 		// run_tests describes the new tags + passWithNoTests inputs and the no-match discriminator
 		expect(result.helpText).toContain("`tags?`");
 		expect(result.helpText).toContain("`passWithNoTests?`");
@@ -168,8 +167,7 @@ describe("MCP Router", () => {
 	});
 
 	it("help describes hypothesis validate with validatedAt as optional, not a bare required param", async () => {
-		const caller = createTestCaller();
-		const result = await caller.help();
+		const result = await call("help", undefined);
 		expect(result.helpText).not.toContain('{ action: "validate", id, outcome, validatedAt, validatedTurnId? }');
 		expect(result.helpText).toContain("validatedAt?");
 	});
@@ -205,10 +203,8 @@ describe("MCP Router", () => {
 	});
 
 	it("note CRUD lifecycle", async () => {
-		const caller = createTestCaller();
-
 		// Create
-		const created = await caller.note({
+		const created = await call("note", {
 			action: "create",
 			title: "Test Note",
 			content: "Some content",
@@ -218,7 +214,7 @@ describe("MCP Router", () => {
 		expect(id).toBeGreaterThan(0);
 
 		// Read
-		const note = (await caller.note({ action: "get", id })) as {
+		const note = (await call("note", { action: "get", id })) as {
 			found: boolean;
 			note?: { title: string };
 		};
@@ -226,8 +222,8 @@ describe("MCP Router", () => {
 		if (note.found && note.note) expect(note.note.title).toBe("Test Note");
 
 		// Update
-		await caller.note({ action: "update", id, title: "Updated" });
-		const updated = (await caller.note({ action: "get", id })) as {
+		await call("note", { action: "update", id, title: "Updated" });
+		const updated = (await call("note", { action: "get", id })) as {
 			found: boolean;
 			note?: { title: string };
 		};
@@ -235,15 +231,14 @@ describe("MCP Router", () => {
 		if (updated.found && updated.note) expect(updated.note.title).toBe("Updated");
 
 		// Delete
-		await caller.note({ action: "delete", id });
-		const deleted = (await caller.note({ action: "get", id })) as { found: boolean };
+		await call("note", { action: "delete", id });
+		const deleted = (await call("note", { action: "get", id })) as { found: boolean };
 		expect(deleted.found).toBe(false);
 	});
 
 	it("note list returns count=0 and an empty notes[] for an empty filter", async () => {
 		// Use a scope filter that won't match any notes
-		const caller = createTestCaller();
-		const result = (await caller.note({ action: "list", scope: "test", testFullName: "nonexistent" })) as {
+		const result = (await call("note", { action: "list", scope: "test", testFullName: "nonexistent" })) as {
 			action: string;
 			count: number;
 			notes: ReadonlyArray<unknown>;
@@ -254,9 +249,8 @@ describe("MCP Router", () => {
 	});
 
 	it("note list returns the matching notes structurally when notes exist", async () => {
-		const caller = createTestCaller();
-		await caller.note({ action: "create", title: "Table Note", content: "Content for table test", scope: "global" });
-		const result = (await caller.note({ action: "list" })) as {
+		await call("note", { action: "create", title: "Table Note", content: "Content for table test", scope: "global" });
+		const result = (await call("note", { action: "list" })) as {
 			action: string;
 			count: number;
 			notes: ReadonlyArray<{ title: string }>;
@@ -267,8 +261,7 @@ describe("MCP Router", () => {
 	});
 
 	it("note search returns count=0 and an empty notes[] when no rows match", async () => {
-		const caller = createTestCaller();
-		const result = (await caller.note({ action: "search", query: "nonexistentkeyword999" })) as {
+		const result = (await call("note", { action: "search", query: "nonexistentkeyword999" })) as {
 			action: string;
 			query: string;
 			count: number;
@@ -280,14 +273,13 @@ describe("MCP Router", () => {
 	});
 
 	it("note search returns the matching notes structurally", async () => {
-		const caller = createTestCaller();
-		await caller.note({
+		await call("note", {
 			action: "create",
 			title: "Searchable Note",
 			content: "This contains unique keyword xylophone",
 			scope: "global",
 		});
-		const result = (await caller.note({ action: "search", query: "xylophone" })) as {
+		const result = (await call("note", { action: "search", query: "xylophone" })) as {
 			action: string;
 			query: string;
 			count: number;
@@ -645,8 +637,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const first = await caller.hypothesis({
+			const first = await call("hypothesis", {
 				action: "record",
 				sessionId,
 				content: "The failure is caused by a missing null guard in the parser.",
@@ -658,7 +649,7 @@ describe("MCP Router", () => {
 			// Second call with the same args writes a new row. (Idempotency
 			// middleware no longer wraps the consolidated tool — a follow-up
 			// can re-add it once the discriminator union surface stabilizes.)
-			const second = await caller.hypothesis({
+			const second = await call("hypothesis", {
 				action: "record",
 				sessionId,
 				content: "The failure is caused by a missing null guard in the parser.",
@@ -694,19 +685,18 @@ describe("MCP Router", () => {
 			// The single-process MCP server's recovered context always names the
 			// MAIN agent. The caller passes NO sessionId — the tool must resolve
 			// the running subagent child server-side.
-			const factory = createCallerFactory(appRouter);
-			const caller = factory({
-				runtime: testRuntime as unknown as McpContext["runtime"],
-				cwd: process.cwd(),
-				currentSessionId: createCurrentSessionIdRef(),
-				sessionContext: createSessionContextRef({
-					chatId: "cc-hyp-resolve-main",
-					conversationId: "conv-resolve-1",
-					mainAgentId: "agent-resolve-1",
+			const callWithContext = makeCaller(
+				testRuntime,
+				McpSession.layerTest({
+					initialContext: {
+						chatId: "cc-hyp-resolve-main",
+						conversationId: "conv-resolve-1",
+						mainAgentId: "agent-resolve-1",
+					},
 				}),
-			});
+			);
 
-			const recorded = await caller.hypothesis({
+			const recorded = await callWithContext("hypothesis", {
 				action: "record",
 				content: "clamp ignores inverted bounds; a min>max guard will fix it.",
 			});
@@ -714,9 +704,9 @@ describe("MCP Router", () => {
 
 			// The hypothesis is findable by the SUBAGENT session id (the
 			// seven-step audit query), and is NOT bound to the parent main.
-			const underSub = await caller.hypothesis({ action: "list", sessionId: subId });
+			const underSub = await callWithContext("hypothesis", { action: "list", sessionId: subId });
 			expect((underSub as { count: number }).count).toBe(1);
-			const underMain = await caller.hypothesis({ action: "list", sessionId: mainId });
+			const underMain = await callWithContext("hypothesis", { action: "list", sessionId: mainId });
 			expect((underMain as { count: number }).count).toBe(0);
 		});
 
@@ -744,15 +734,14 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const recorded = await caller.hypothesis({
+			const recorded = await call("hypothesis", {
 				action: "record",
 				tddTaskId,
 				content: "the reducer drops the last event; flush on unmount fixes it.",
 			});
 			expect((recorded as { id: number }).id).toBeGreaterThan(0);
 
-			const underSession = await caller.hypothesis({ action: "list", sessionId });
+			const underSession = await call("hypothesis", { action: "list", sessionId });
 			expect((underSession as { count: number }).count).toBe(1);
 		});
 
@@ -797,19 +786,18 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const factory = createCallerFactory(appRouter);
-			const caller = factory({
-				runtime: testRuntime as unknown as McpContext["runtime"],
-				cwd: process.cwd(),
-				currentSessionId: createCurrentSessionIdRef(),
-				sessionContext: createSessionContextRef({
-					chatId: "cc-hyp-tddtask-b-main",
-					conversationId: "conv-precedence-1",
-					mainAgentId: "agent-precedence-1",
+			const callWithContext = makeCaller(
+				testRuntime,
+				McpSession.layerTest({
+					initialContext: {
+						chatId: "cc-hyp-tddtask-b-main",
+						conversationId: "conv-precedence-1",
+						mainAgentId: "agent-precedence-1",
+					},
 				}),
-			});
+			);
 
-			const recorded = await caller.hypothesis({
+			const recorded = await callWithContext("hypothesis", {
 				action: "record",
 				tddTaskId,
 				content: "off-by-one in the range clamp; inclusive upper bound fixes it.",
@@ -817,18 +805,17 @@ describe("MCP Router", () => {
 			expect((recorded as { id: number }).id).toBeGreaterThan(0);
 
 			// Bound to the task's session, NOT the sc-resolved subagent/main.
-			const underTask = await caller.hypothesis({ action: "list", sessionId: taskSessionId });
+			const underTask = await callWithContext("hypothesis", { action: "list", sessionId: taskSessionId });
 			expect((underTask as { count: number }).count).toBe(1);
-			const underSub = await caller.hypothesis({ action: "list", sessionId: subId });
+			const underSub = await callWithContext("hypothesis", { action: "list", sessionId: subId });
 			expect((underSub as { count: number }).count).toBe(0);
-			const underMain = await caller.hypothesis({ action: "list", sessionId: mainId });
+			const underMain = await callWithContext("hypothesis", { action: "list", sessionId: mainId });
 			expect((underMain as { count: number }).count).toBe(0);
 		});
 
 		it("hypothesis_record fails with a typed error for an unknown tddTaskId", async () => {
-			const caller = createTestCaller();
 			await expect(
-				caller.hypothesis({
+				call("hypothesis", {
 					action: "record",
 					tddTaskId: 987654,
 					content: "this should never be written.",
@@ -865,8 +852,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const recorded = await caller.hypothesis({
+			const recorded = await call("hypothesis", {
 				action: "record",
 				// Passed as a STRING, the exact shape the dogfood orchestrator sent.
 				tddTaskId: String(tddTaskId),
@@ -874,7 +860,7 @@ describe("MCP Router", () => {
 			});
 			expect((recorded as { id: number }).id).toBeGreaterThan(0);
 
-			const underSession = await caller.hypothesis({ action: "list", sessionId });
+			const underSession = await call("hypothesis", { action: "list", sessionId });
 			expect((underSession as { count: number }).count).toBe(1);
 		});
 
@@ -894,15 +880,14 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const recorded = await caller.hypothesis({
+			const recorded = await call("hypothesis", {
 				action: "record",
 				sessionId: String(sessionId),
 				content: "stringified sessionId fallback must bind.",
 			});
 			expect((recorded as { id: number }).id).toBeGreaterThan(0);
 
-			const underSession = await caller.hypothesis({ action: "list", sessionId });
+			const underSession = await call("hypothesis", { action: "list", sessionId });
 			expect((underSession as { count: number }).count).toBe(1);
 		});
 
@@ -910,9 +895,8 @@ describe("MCP Router", () => {
 			// FiniteFromString rejects NaN, so a genuinely non-numeric string
 			// fails validation rather than coercing to NaN (or 0) and slipping
 			// through as a bogus id.
-			const caller = createTestCaller();
 			await expect(
-				caller.hypothesis({
+				call("hypothesis", {
 					action: "record",
 					tddTaskId: "abc",
 					content: "this should never be written.",
@@ -940,8 +924,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const result = await caller.hypothesis({
+			const result = await call("hypothesis", {
 				action: "validate",
 				id: hypothesisId,
 				outcome: "confirmed",
@@ -952,9 +935,8 @@ describe("MCP Router", () => {
 		});
 
 		it("hypothesis validate returns error for unknown hypothesis id", async () => {
-			const caller = createTestCaller();
 			await expect(
-				caller.hypothesis({
+				call("hypothesis", {
 					action: "validate",
 					id: 999999,
 					outcome: "refuted",
@@ -982,9 +964,8 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
 			const before = new Date();
-			const result = await caller.hypothesis({
+			const result = await call("hypothesis", {
 				action: "validate",
 				id: hypothesisId,
 				outcome: "confirmed",
@@ -993,7 +974,7 @@ describe("MCP Router", () => {
 
 			expect(result).toEqual({ action: "validate" });
 
-			const listed = await caller.hypothesis({ action: "list", sessionId });
+			const listed = await call("hypothesis", { action: "list", sessionId });
 			if (listed.action !== "list") throw new Error("expected list result");
 			const row = listed.hypotheses.find((h) => h.id === hypothesisId);
 			expect(row).toBeDefined();
@@ -1023,9 +1004,8 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
 			const explicitValidatedAt = "2020-01-01T00:00:00.000Z";
-			const result = await caller.hypothesis({
+			const result = await call("hypothesis", {
 				action: "validate",
 				id: hypothesisId,
 				outcome: "refuted",
@@ -1034,7 +1014,7 @@ describe("MCP Router", () => {
 
 			expect(result).toEqual({ action: "validate" });
 
-			const listed = await caller.hypothesis({ action: "list", sessionId });
+			const listed = await call("hypothesis", { action: "list", sessionId });
 			if (listed.action !== "list") throw new Error("expected list result");
 			const row = listed.hypotheses.find((h) => h.id === hypothesisId);
 			expect(row?.validatedAt).toBe(explicitValidatedAt);

@@ -29,19 +29,40 @@
 
 import { DataReader, DataStore, deriveIdempotencyKey } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
+import { Tool } from "effect/unstable/ai";
 import { publicProcedure } from "../context.js";
 
-const RegisterAgentInput = Schema.Struct({
-	chatId: Schema.String,
-	conversationId: Schema.optional(Schema.String),
-	hostKind: Schema.optional(Schema.String),
-	agentType: Schema.String,
-	parentAgentId: Schema.optional(Schema.String),
-	clientNonce: Schema.optional(Schema.String),
-	startGitBranch: Schema.optional(Schema.String),
-	startGitCommitSha: Schema.optional(Schema.String),
-	startWorktreeDir: Schema.optional(Schema.String),
+/**
+ * The `register_agent` tool's parameters.
+ *
+ * @public
+ */
+export const RegisterAgentInput = Schema.Struct({
+	chatId: Schema.String.annotate({ description: "Host's chat UUID (session_id from CC hook payload, etc.)" }),
+	conversationId: Schema.optionalKey(Schema.String).annotate({
+		description: "Canonical conversation UUID (from session-map mapConversation)",
+	}),
+	hostKind: Schema.optionalKey(Schema.String).annotate({
+		description: "Host vendor identifier; defaults to 'claude-code'",
+	}),
+	agentType: Schema.String.annotate({ description: "Agent type; must begin with the host-kind prefix" }),
+	parentAgentId: Schema.optionalKey(Schema.String).annotate({
+		description: "Parent agent UUID for subagent registrations",
+	}),
+	clientNonce: Schema.optionalKey(Schema.String).annotate({
+		description:
+			"Disambiguator for sibling-subagent registrations under the same parent; the server derives a deterministic default when omitted, which collapses parallel siblings into one row",
+	}),
+	startGitBranch: Schema.optionalKey(Schema.String),
+	startGitCommitSha: Schema.optionalKey(Schema.String),
+	startWorktreeDir: Schema.optionalKey(Schema.String),
 });
+/**
+ * The decoded {@link RegisterAgentInput}.
+ *
+ * @public
+ */
+export type RegisterAgentInputType = Schema.Schema.Type<typeof RegisterAgentInput>;
 
 const RegisterAgentSuccess = Schema.Struct({
 	ok: Schema.Literal(true).annotate({
@@ -89,9 +110,17 @@ export const RegisterAgentResult = Schema.Union([RegisterAgentSuccess, RegisterA
 });
 export type RegisterAgentOutput = Schema.Schema.Type<typeof RegisterAgentResult>;
 
-export const registerAgent = publicProcedure
-	.input(Schema.toStandardSchemaV1(RegisterAgentInput))
-	.mutation(async ({ ctx, input }): Promise<RegisterAgentOutput> => {
+/**
+ * Handler for {@link registerAgentTool}. Idempotency is the tool's own
+ * business rule (the `agents` idempotency key), not the generic
+ * `withIdempotency` combinator.
+ *
+ * @public
+ */
+export const handleRegisterAgent = (
+	input: RegisterAgentInputType,
+): Effect.Effect<RegisterAgentOutput, never, DataReader | DataStore> =>
+	Effect.gen(function* () {
 		const hostKind = input.hostKind ?? "claude-code";
 		const expectedPrefix = `${hostKind}-`;
 		if (!input.agentType.startsWith(expectedPrefix)) {
@@ -102,7 +131,7 @@ export const registerAgent = publicProcedure
 					message: `agentType "${input.agentType}" must start with "${expectedPrefix}"`,
 					expectedPrefix,
 				},
-			};
+			} satisfies RegisterAgentOutput;
 		}
 
 		const clientNonce = input.clientNonce ?? `${input.chatId}|${input.agentType}|${input.parentAgentId ?? "__ROOT__"}`;
@@ -113,72 +142,89 @@ export const registerAgent = publicProcedure
 			clientNonce,
 		});
 
-		return ctx.runtime.runPromise(
-			Effect.gen(function* () {
-				const reader = yield* DataReader;
-				const store = yield* DataStore;
+		const reader = yield* DataReader;
+		const store = yield* DataStore;
 
-				const sessionOpt = yield* reader.getSessionByChatId(input.chatId);
-				if (Option.isNone(sessionOpt)) {
-					return {
-						ok: false,
-						error: {
-							code: "SESSION_NOT_FOUND",
-							message: `chat ${input.chatId} has not been registered; the host must call its SessionStart equivalent first`,
-						},
-					} satisfies RegisterAgentOutput;
-				}
-				const sessionRowId = sessionOpt.value.id;
+		const sessionOpt = yield* reader.getSessionByChatId(input.chatId);
+		if (Option.isNone(sessionOpt)) {
+			return {
+				ok: false,
+				error: {
+					code: "SESSION_NOT_FOUND",
+					message: `chat ${input.chatId} has not been registered; the host must call its SessionStart equivalent first`,
+				},
+			} satisfies RegisterAgentOutput;
+		}
+		const sessionRowId = sessionOpt.value.id;
 
-				const result = yield* store
-					.registerAgent({
-						sessionId: sessionRowId,
-						agentType: input.agentType,
-						parentAgentId: input.parentAgentId ?? null,
-						conversationId: input.conversationId ?? null,
-						startedAt: Math.floor(Date.now() / 1000),
-						...(input.startGitBranch !== undefined && { startGitBranch: input.startGitBranch }),
-						...(input.startGitCommitSha !== undefined && { startGitCommitSha: input.startGitCommitSha }),
-						...(input.startWorktreeDir !== undefined && { startWorktreeDir: input.startWorktreeDir }),
-						idempotencyKey,
-					})
-					.pipe(
-						Effect.catchTag("RegistrationConflictError", (e) =>
-							Effect.succeed({
-								_tag: "Conflict" as const,
-								reason: e.reason,
-							}),
-						),
-					);
+		const result = yield* store
+			.registerAgent({
+				sessionId: sessionRowId,
+				agentType: input.agentType,
+				parentAgentId: input.parentAgentId ?? null,
+				conversationId: input.conversationId ?? null,
+				startedAt: Math.floor(Date.now() / 1000),
+				...(input.startGitBranch !== undefined && { startGitBranch: input.startGitBranch }),
+				...(input.startGitCommitSha !== undefined && { startGitCommitSha: input.startGitCommitSha }),
+				...(input.startWorktreeDir !== undefined && { startWorktreeDir: input.startWorktreeDir }),
+				idempotencyKey,
+			})
+			.pipe(
+				Effect.catchTag("RegistrationConflictError", (e) =>
+					Effect.succeed({
+						_tag: "Conflict" as const,
+						reason: e.reason,
+					}),
+				),
+			);
 
-				if ("_tag" in result && result._tag === "Conflict") {
-					return {
-						ok: false,
-						error: {
-							code: "PARENT_AGENT_NOT_FOUND",
-							message: result.reason,
-						},
-					} satisfies RegisterAgentOutput;
-				}
+		if ("_tag" in result && result._tag === "Conflict") {
+			return {
+				ok: false,
+				error: {
+					code: "PARENT_AGENT_NOT_FOUND",
+					message: result.reason,
+				},
+			} satisfies RegisterAgentOutput;
+		}
 
-				if ("_tag" in result && result._tag === "IdempotencyHit") {
-					return {
-						ok: false,
-						error: {
-							code: "AGENT_ALREADY_REGISTERED",
-							message:
-								"agent already registered for (chatId, agentType, parentAgentId, clientNonce); use existingAgentId",
-							existingAgentId: result.existingAgentId,
-						},
-					} satisfies RegisterAgentOutput;
-				}
+		if ("_tag" in result && result._tag === "IdempotencyHit") {
+			return {
+				ok: false,
+				error: {
+					code: "AGENT_ALREADY_REGISTERED",
+					message: "agent already registered for (chatId, agentType, parentAgentId, clientNonce); use existingAgentId",
+					existingAgentId: result.existingAgentId,
+				},
+			} satisfies RegisterAgentOutput;
+		}
 
-				return {
-					ok: true,
-					agentId: result.agentId,
-					conversationId: result.conversationId,
-					idempotencyKey: result.idempotencyKey,
-				} satisfies RegisterAgentOutput;
-			}),
-		);
-	});
+		return {
+			ok: true,
+			agentId: result.agentId,
+			conversationId: result.conversationId,
+			idempotencyKey: result.idempotencyKey,
+		} satisfies RegisterAgentOutput;
+	}).pipe(Effect.orDie);
+
+export const registerAgent = publicProcedure
+	.input(Schema.toStandardSchemaV1(RegisterAgentInput))
+	.mutation(({ ctx, input }): Promise<RegisterAgentOutput> => ctx.runtime.runPromise(handleRegisterAgent(input)));
+
+/**
+ * The Effect-native `register_agent` tool.
+ *
+ * @public
+ */
+export const registerAgentTool = Tool.make("register_agent", {
+	description:
+		"Use when an LLM-agent invocation starts and must be recorded in the per-project store. Idempotent on (chatId, agentType, parentAgentId, clientNonce). Returns ok:true with agentId on insert, or ok:false with error.code='AGENT_ALREADY_REGISTERED'/'PARENT_AGENT_NOT_FOUND'/'SESSION_NOT_FOUND'/'INVALID_AGENT_TYPE_PREFIX' on the four documented failure modes. agentType must begin with the host-kind prefix (e.g., 'claude-code-main').",
+	parameters: RegisterAgentInput,
+	success: RegisterAgentResult,
+	dependencies: [DataReader, DataStore],
+})
+	.annotate(Tool.Title, "Register agent")
+	.annotate(Tool.Readonly, false)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true);

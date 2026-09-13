@@ -12,6 +12,8 @@
 import type { NoteInput } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const NoteScope = Schema.Literals(["global", "project", "module", "suite", "test", "note"]);
@@ -124,52 +126,65 @@ export const formatNoteListMarkdown = (data: NoteResultType): string => {
 	return JSON.stringify(data, null, 2);
 };
 
+/**
+ * The text channel: list/search render markdown; the mutation actions
+ * (create/get/update/delete) render the pretty-printed JSON, exactly as
+ * the old `structuredJsonResult` boundary did.
+ */
+const renderNoteText = (data: NoteResultType): string =>
+	data.action === "list" || data.action === "search" ? formatNoteListMarkdown(data) : JSON.stringify(data, null, 2);
+
 const CreateVariant = Schema.Struct({
-	action: Schema.Literal("create"),
+	action: Schema.Literal("create").annotate({ description: "CRUD discriminator" }),
 	title: Schema.String,
 	content: Schema.String,
-	scope: NoteScope,
-	project: Schema.optional(Schema.String),
-	testFullName: Schema.optional(Schema.String),
-	modulePath: Schema.optional(Schema.String),
-	parentNoteId: Schema.optional(Schema.Number),
-	createdBy: Schema.optional(Schema.String),
-	expiresAt: Schema.optional(Schema.String),
-	pinned: Schema.optional(Schema.Boolean),
+	scope: NoteScope.annotate({ description: "create: required scope; list: optional filter" }),
+	project: Schema.optionalKey(Schema.String),
+	testFullName: Schema.optionalKey(Schema.String),
+	modulePath: Schema.optionalKey(Schema.String),
+	parentNoteId: Schema.optionalKey(Schema.Finite),
+	createdBy: Schema.optionalKey(Schema.String),
+	expiresAt: Schema.optionalKey(Schema.String),
+	pinned: Schema.optionalKey(Schema.Boolean),
 });
 
 const ListVariant = Schema.Struct({
-	action: Schema.Literal("list"),
-	scope: Schema.optional(Schema.String),
-	project: Schema.optional(Schema.String),
-	testFullName: Schema.optional(Schema.String),
+	action: Schema.Literal("list").annotate({ description: "CRUD discriminator" }),
+	scope: Schema.optionalKey(NoteScope).annotate({ description: "create: required scope; list: optional filter" }),
+	project: Schema.optionalKey(Schema.String),
+	testFullName: Schema.optionalKey(Schema.String),
 });
 
 const GetVariant = Schema.Struct({
-	action: Schema.Literal("get"),
-	id: Schema.Number,
+	action: Schema.Literal("get").annotate({ description: "CRUD discriminator" }),
+	id: Schema.Finite.annotate({ description: "get/update/delete: note id" }),
 });
 
 const UpdateVariant = Schema.Struct({
-	action: Schema.Literal("update"),
-	id: Schema.Number,
-	title: Schema.optional(Schema.String),
-	content: Schema.optional(Schema.String),
-	pinned: Schema.optional(Schema.Boolean),
-	expiresAt: Schema.optional(Schema.String),
+	action: Schema.Literal("update").annotate({ description: "CRUD discriminator" }),
+	id: Schema.Finite.annotate({ description: "get/update/delete: note id" }),
+	title: Schema.optionalKey(Schema.String),
+	content: Schema.optionalKey(Schema.String),
+	pinned: Schema.optionalKey(Schema.Boolean),
+	expiresAt: Schema.optionalKey(Schema.String),
 });
 
 const DeleteVariant = Schema.Struct({
-	action: Schema.Literal("delete"),
-	id: Schema.Number,
+	action: Schema.Literal("delete").annotate({ description: "CRUD discriminator" }),
+	id: Schema.Finite.annotate({ description: "get/update/delete: note id" }),
 });
 
 const SearchVariant = Schema.Struct({
-	action: Schema.Literal("search"),
-	query: Schema.String,
+	action: Schema.Literal("search").annotate({ description: "CRUD discriminator" }),
+	query: Schema.String.annotate({ description: "search: FTS5 query" }),
 });
 
-const NoteInputUnion = Schema.Union([
+/**
+ * The `note` tool's parameters — a union discriminated on `action`.
+ *
+ * @public
+ */
+export const NoteParams = Schema.Union([
 	CreateVariant,
 	ListVariant,
 	GetVariant,
@@ -177,6 +192,12 @@ const NoteInputUnion = Schema.Union([
 	DeleteVariant,
 	SearchVariant,
 ]);
+/**
+ * The decoded {@link NoteParams}.
+ *
+ * @public
+ */
+export type NoteParamsType = Schema.Schema.Type<typeof NoteParams>;
 
 /**
  * Single source of truth for the `note` tool's `action` discriminant,
@@ -184,7 +205,7 @@ const NoteInputUnion = Schema.Union([
  * registration cannot drift from this tRPC input union (issue #335).
  */
 export const NOTE_ACTIONS = ["create", "list", "get", "update", "delete", "search"] as const;
-type NoteAction = Schema.Schema.Type<typeof NoteInputUnion>["action"];
+type NoteAction = Schema.Schema.Type<typeof NoteParams>["action"];
 type _AssertNoteActions = NoteAction extends (typeof NOTE_ACTIONS)[number]
 	? (typeof NOTE_ACTIONS)[number] extends NoteAction
 		? true
@@ -193,69 +214,94 @@ type _AssertNoteActions = NoteAction extends (typeof NOTE_ACTIONS)[number]
 const _assertNoteActions: _AssertNoteActions = true;
 void _assertNoteActions;
 
+/**
+ * Handler for {@link noteTool}.
+ *
+ * @public
+ */
+export const handleNote = (input: NoteParamsType): Effect.Effect<NoteResultType, never, DataReader | DataStore> =>
+	Match.value(input)
+		.pipe(
+			Match.discriminatorsExhaustive("action")({
+				create: (variant) =>
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const noteInput = {
+							title: variant.title,
+							content: variant.content,
+							scope: variant.scope,
+							...(variant.project !== undefined && { project: variant.project }),
+							...(variant.testFullName !== undefined && { testFullName: variant.testFullName }),
+							...(variant.modulePath !== undefined && { modulePath: variant.modulePath }),
+							...(variant.parentNoteId !== undefined && { parentNoteId: variant.parentNoteId }),
+							...(variant.createdBy !== undefined && { createdBy: variant.createdBy }),
+							...(variant.expiresAt !== undefined && { expiresAt: variant.expiresAt }),
+							...(variant.pinned !== undefined && { pinned: variant.pinned }),
+						};
+						const id = yield* store.writeNote(noteInput);
+						return { action: "create" as const, id };
+					}),
+				list: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const notes = yield* reader.getNotes(variant.scope, variant.project, variant.testFullName);
+						return { action: "list" as const, count: notes.length, notes };
+					}),
+				get: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const noteOpt = yield* reader.getNoteById(variant.id);
+						return Option.isNone(noteOpt)
+							? { action: "get" as const, found: false as const, id: variant.id }
+							: { action: "get" as const, found: true as const, note: noteOpt.value };
+					}),
+				update: (variant) =>
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						const fields: Partial<NoteInput> = {
+							...(variant.title !== undefined && { title: variant.title }),
+							...(variant.content !== undefined && { content: variant.content }),
+							...(variant.pinned !== undefined && { pinned: variant.pinned }),
+							...(variant.expiresAt !== undefined && { expiresAt: variant.expiresAt }),
+						};
+						yield* store.updateNote(variant.id, fields);
+						return { action: "update" as const, success: true as const };
+					}),
+				delete: (variant) =>
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						yield* store.deleteNote(variant.id);
+						return { action: "delete" as const, success: true as const };
+					}),
+				search: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const notes = yield* reader.searchNotes(variant.query);
+						return { action: "search" as const, query: variant.query, count: notes.length, notes };
+					}),
+			}),
+		)
+		.pipe(Effect.orDie);
+
 export const note = publicProcedure
-	.input(Schema.toStandardSchemaV1(NoteInputUnion))
-	.mutation(async ({ ctx, input }): Promise<NoteResultType> => {
-		return ctx.runtime.runPromise(
-			Match.value(input).pipe(
-				Match.discriminatorsExhaustive("action")({
-					create: (variant) =>
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const noteInput = {
-								title: variant.title,
-								content: variant.content,
-								scope: variant.scope,
-								...(variant.project !== undefined && { project: variant.project }),
-								...(variant.testFullName !== undefined && { testFullName: variant.testFullName }),
-								...(variant.modulePath !== undefined && { modulePath: variant.modulePath }),
-								...(variant.parentNoteId !== undefined && { parentNoteId: variant.parentNoteId }),
-								...(variant.createdBy !== undefined && { createdBy: variant.createdBy }),
-								...(variant.expiresAt !== undefined && { expiresAt: variant.expiresAt }),
-								...(variant.pinned !== undefined && { pinned: variant.pinned }),
-							};
-							const id = yield* store.writeNote(noteInput);
-							return { action: "create" as const, id };
-						}),
-					list: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const notes = yield* reader.getNotes(variant.scope, variant.project, variant.testFullName);
-							return { action: "list" as const, count: notes.length, notes };
-						}),
-					get: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const noteOpt = yield* reader.getNoteById(variant.id);
-							return Option.isNone(noteOpt)
-								? { action: "get" as const, found: false as const, id: variant.id }
-								: { action: "get" as const, found: true as const, note: noteOpt.value };
-						}),
-					update: (variant) =>
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							const fields: Partial<NoteInput> = {
-								...(variant.title !== undefined && { title: variant.title }),
-								...(variant.content !== undefined && { content: variant.content }),
-								...(variant.pinned !== undefined && { pinned: variant.pinned }),
-								...(variant.expiresAt !== undefined && { expiresAt: variant.expiresAt }),
-							};
-							yield* store.updateNote(variant.id, fields);
-							return { action: "update" as const, success: true as const };
-						}),
-					delete: (variant) =>
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							yield* store.deleteNote(variant.id);
-							return { action: "delete" as const, success: true as const };
-						}),
-					search: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const notes = yield* reader.searchNotes(variant.query);
-							return { action: "search" as const, query: variant.query, count: notes.length, notes };
-						}),
-				}),
-			),
-		);
-	});
+	.input(Schema.toStandardSchemaV1(NoteParams))
+	.mutation(({ ctx, input }): Promise<NoteResultType> => ctx.runtime.runPromise(handleNote(input)));
+
+/**
+ * The Effect-native `note` tool.
+ *
+ * @public
+ */
+export const noteTool = Tool.make("note", {
+	description:
+		"Use to manage notes, with a CRUD action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`); list/search additionally render markdown in the text channel.",
+	parameters: NoteParams,
+	success: NoteResult,
+	dependencies: [DataReader, DataStore],
+})
+	.annotate(Tool.Title, "Note")
+	.annotate(Tool.Readonly, false)
+	.annotate(Tool.Destructive, true)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, false)
+	.annotate(RenderText, (encoded) => renderNoteText(encoded as NoteResultType));
