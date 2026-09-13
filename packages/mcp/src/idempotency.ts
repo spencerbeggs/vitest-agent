@@ -157,8 +157,11 @@ const withReplayMarker = (parsed: unknown): unknown =>
  *    guarantees no key was stripped). No registered spec, or a `null`
  *    key, runs `handler` untouched with nothing cached.
  * 2. Cache HIT — `DataReader.findIdempotentResponse` returns the stored
- *    JSON. It is parsed and, for an object payload, `_idempotentReplay:
- *    true` is merged in (a non-object payload passes through unchanged).
+ *    JSON. A row that parses falls through to step 2a; a row that fails
+ *    to parse (corrupt or truncated) is treated as step 3, a cache MISS —
+ *    it is not a reason to fail the call.
+ * 2a. The parsed value is merged with `_idempotentReplay: true` for an
+ *    object payload (a non-object payload passes through unchanged).
  *    `handler` does not run.
  * 3. Cache MISS — run `handler`, then persist the result via
  *    `DataStore.recordIdempotentResponse` best-effort: a persistence
@@ -188,8 +191,14 @@ export const withIdempotency =
 				.pipe(Effect.orElseSucceed((): Option.Option<string> => Option.none()));
 
 			if (Option.isSome(cached)) {
-				const parsed: unknown = JSON.parse(cached.value);
-				return withReplayMarker(parsed) as R & { _idempotentReplay: true };
+				const parsed = yield* Effect.try(() => JSON.parse(cached.value) as unknown).pipe(
+					Effect.map(Option.some),
+					Effect.orElseSucceed((): Option.Option<unknown> => Option.none()),
+				);
+				if (Option.isSome(parsed)) {
+					return withReplayMarker(parsed.value) as R & { _idempotentReplay: true };
+				}
+				// Corrupt/unparseable row — fall through to the miss path below.
 			}
 
 			const result = yield* handler(params);

@@ -216,6 +216,38 @@ describe("withIdempotency", () => {
 		expect(result).toEqual({ id: 303, outcome: "confirmed" });
 	});
 
+	it("corrupt cached row: treated as a miss, the handler runs and its fresh result is returned", async () => {
+		let calls = 0;
+		const handler = withIdempotency("hypothesis", (params: ValidateParams) =>
+			Effect.sync(() => {
+				calls++;
+				return { id: params.id, outcome: params.outcome };
+			}),
+		);
+		const params: ValidateParams = { action: "validate", id: 404, outcome: "confirmed" };
+		const key = "validate:404:confirmed";
+
+		const { first, second } = await Effect.runPromise(
+			Effect.gen(function* () {
+				const store = yield* DataStore;
+				yield* store.recordIdempotentResponse({
+					procedurePath: "hypothesis",
+					key,
+					resultJson: "{not json",
+					createdAt: new Date().toISOString(),
+				});
+				const first = yield* handler(params);
+				const second = yield* handler(params);
+				return { first, second };
+			}).pipe(Effect.provide(DataStoreTestLayer)),
+		);
+
+		expect(calls).toBe(2);
+		expect(first).toEqual({ id: 404, outcome: "confirmed" });
+		expect(second).toEqual({ id: 404, outcome: "confirmed" });
+		expect(first).not.toHaveProperty("_idempotentReplay");
+	});
+
 	it("non-object cached payload passes through unchanged (no marker merge)", async () => {
 		const handler = withIdempotency("tdd_goal", (_params: { action: string; tddTaskId: number; goal: string }) =>
 			Effect.succeed("a plain string result" as unknown as { tddTaskId: number; goal: string }),
