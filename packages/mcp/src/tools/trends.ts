@@ -1,13 +1,9 @@
-/**
- * `test_trends` MCP tool — Schema-driven implementation.
- *
- * Wraps the existing `TrendRecord` Schema in a result envelope that
- * carries the project name and a `dataAvailable` flag, so callers
- * can distinguish "no trend data yet" from "data plus rendering"
- * without parsing prose.
- *
- * @packageDocumentation
- */
+// `test_trends` MCP tool — Schema-driven implementation.
+//
+// Wraps the existing `TrendRecord` Schema in a result envelope that
+// carries the project name and a `dataAvailable` flag, so callers
+// can distinguish "no trend data yet" from "data plus rendering"
+// without parsing prose.
 
 import { DataReader } from "@vitest-agent/engine";
 import { TrendRecord } from "@vitest-agent/sdk";
@@ -32,11 +28,21 @@ const TrendsAbsent = Schema.Struct({
 	project: Schema.String,
 }).annotate({ identifier: "TestTrendsAbsent" });
 
+/**
+ * The `test_trends` tool's success payload.
+ *
+ * @public
+ */
 export const TestTrendsResult = Schema.Union([TrendsAvailable, TrendsAbsent]).annotate({
 	identifier: "TestTrendsResult",
 	title: "test_trends result",
 	description: "Coverage trend record per project. Discriminate on `dataAvailable` to handle the cold-start case.",
 });
+/**
+ * The decoded {@link TestTrendsResult}.
+ *
+ * @public
+ */
 export type TestTrendsResultType = Schema.Schema.Type<typeof TestTrendsResult>;
 
 const SPARKLINE_CHARS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"] as const;

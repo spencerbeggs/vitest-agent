@@ -1,10 +1,6 @@
-/**
- * Idempotency as an Effect combinator: the key-derivation registry and
- * `withIdempotency`, which wraps a write tool's handler so a replayed
- * call returns the persisted first result (marked `_idempotentReplay`).
- *
- * @packageDocumentation
- */
+// Idempotency as an Effect combinator: the key-derivation registry and
+// `withIdempotency`, which wraps a write tool's handler so a replayed
+// call returns the persisted first result (marked `_idempotentReplay`).
 
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Option } from "effect";

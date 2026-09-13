@@ -1,13 +1,9 @@
-/**
- * `tdd_progress_push` MCP tool: a TDD orchestrator reports progress to the
- * main agent. The payload is validated against the `ChannelEvent` union,
- * enriched server-side with the tree coordinates a stale orchestrator
- * context cannot be trusted to supply, and published as an MCP
- * `notifications/message` (logger `vitest-agent/channel`). Best-effort:
- * the tool returns `{ ok: true }` whether or not a client received it.
- *
- * @packageDocumentation
- */
+// `tdd_progress_push` MCP tool: a TDD orchestrator reports progress to the
+// main agent. The payload is validated against the `ChannelEvent` union,
+// enriched server-side with the tree coordinates a stale orchestrator
+// context cannot be trusted to supply, and published as an MCP
+// `notifications/message` (logger `vitest-agent/channel`). Best-effort:
+// the tool returns `{ ok: true }` whether or not a client received it.
 
 import { DataReader } from "@vitest-agent/engine";
 import { ChannelEvent } from "@vitest-agent/sdk";

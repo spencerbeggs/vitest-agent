@@ -1,15 +1,11 @@
-/**
- * Consolidated `tdd_task` MCP tool — Schema-driven implementation.
- *
- * `start` and `end` mutate; `get` and `resume` read. Every action
- * now returns a structured payload — `get` carries the full nested
- * `TddTaskDetail` tree plus the `currentPhase` lookup, and `resume`
- * carries a compact summary discriminated by `phaseAvailable`. The
- * boundary in server.ts uses `formatTddTaskMarkdown` to render
- * `get` / `resume` text.
- *
- * @packageDocumentation
- */
+// Consolidated `tdd_task` MCP tool — Schema-driven implementation.
+//
+// `start` and `end` mutate; `get` and `resume` read. Every action
+// now returns a structured payload — `get` carries the full nested
+// `TddTaskDetail` tree plus the `currentPhase` lookup, and `resume`
+// carries a compact summary discriminated by `phaseAvailable`. The
+// boundary in server.ts uses `formatTddTaskMarkdown` to render
+// `get` / `resume` text.
 
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail } from "@vitest-agent/sdk";

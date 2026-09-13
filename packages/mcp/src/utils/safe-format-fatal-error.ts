@@ -1,19 +1,15 @@
-/**
- * Crash-handler-safe wrapper around `@vitest-agent/sdk`'s
- * {@link formatFatalError}.
- *
- * `bin.ts`'s `unhandledRejection` / `uncaughtException` handlers exist so
- * a stray throw cannot kill a live MCP session (issue #191). Calling the
- * formatter directly from inside them reopened exactly that hole:
- * `formatFatalError` introspects the value it is given — `Symbol.for(...)
- * in reason`, `err instanceof Error`, `JSON.stringify(err)` — and every
- * one of those is hijackable by a `Proxy` whose `has` / `getPrototypeOf`
- * / `get` trap throws. A throw *inside* an `uncaughtException` handler is
- * fatal to the process with no second chance to report it, so the crash
- * guard would have crashed the process it exists to protect (issue #243).
- *
- * @packageDocumentation
- */
+// Crash-handler-safe wrapper around `@vitest-agent/sdk`'s
+// {@link formatFatalError}.
+//
+// `bin.ts`'s `unhandledRejection` / `uncaughtException` handlers exist so
+// a stray throw cannot kill a live MCP session (issue #191). Calling the
+// formatter directly from inside them reopened exactly that hole:
+// `formatFatalError` introspects the value it is given — `Symbol.for(...)
+// in reason`, `err instanceof Error`, `JSON.stringify(err)` — and every
+// one of those is hijackable by a `Proxy` whose `has` / `getPrototypeOf`
+// / `get` trap throws. A throw *inside* an `uncaughtException` handler is
+// fatal to the process with no second chance to report it, so the crash
+// guard would have crashed the process it exists to protect (issue #243).
 
 import { formatFatalError } from "@vitest-agent/sdk";
 

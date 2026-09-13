@@ -1,15 +1,11 @@
-/**
- * `tdd_artifact_list` MCP tool — Schema-driven implementation.
- *
- * Returns the artifacts recorded for a TDD task, ordered with the
- * most recent first. The structuredContent payload carries
- * tddTaskId, the applied filters, the count, and the artifact
- * rows so the orchestrator can extract artifact ids without parsing
- * markdown. The legacy `format` input was dropped because
- * structuredContent supersedes it.
- *
- * @packageDocumentation
- */
+// `tdd_artifact_list` MCP tool — Schema-driven implementation.
+//
+// Returns the artifacts recorded for a TDD task, ordered with the
+// most recent first. The structuredContent payload carries
+// tddTaskId, the applied filters, the count, and the artifact
+// rows so the orchestrator can extract artifact ids without parsing
+// markdown. The legacy `format` input was dropped because
+// structuredContent supersedes it.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
@@ -59,6 +55,11 @@ const ArtifactFilters = Schema.Struct({
 	behaviorId: Schema.optional(Schema.Number),
 }).annotate({ identifier: "TddArtifactFilters" });
 
+/**
+ * The `tdd_artifact_list` tool's success payload.
+ *
+ * @public
+ */
 export const TddArtifactListResult = Schema.Struct({
 	tddTaskId: Schema.Number,
 	filters: ArtifactFilters,
@@ -70,6 +71,11 @@ export const TddArtifactListResult = Schema.Struct({
 	description:
 		"Newest-first artifact rows for a TDD task. Echoes the filters that were applied so callers can reason about what is/isn't included.",
 });
+/**
+ * The decoded {@link TddArtifactListResult}.
+ *
+ * @public
+ */
 export type TddArtifactListResultType = Schema.Schema.Type<typeof TddArtifactListResult>;
 
 const describeFilters = (filters: Schema.Schema.Type<typeof ArtifactFilters>): string => {

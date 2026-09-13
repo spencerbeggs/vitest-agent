@@ -1,13 +1,9 @@
-/**
- * Consolidated `test` MCP tool — Schema-driven implementation.
- *
- * Replaces `test_list`, `test_get`, and `test_for_file` with one
- * tool keyed on `action`. Result variants discriminate on
- * `inventoryKind` so a single Effect Schema describes every shape
- * the tool can emit.
- *
- * @packageDocumentation
- */
+// Consolidated `test` MCP tool — Schema-driven implementation.
+//
+// Replaces `test_list`, `test_get`, and `test_for_file` with one
+// tool keyed on `action`. Result variants discriminate on
+// `inventoryKind` so a single Effect Schema describes every shape
+// the tool can emit.
 
 import type { PersistedAttachment } from "@vitest-agent/engine";
 import { DataReader } from "@vitest-agent/engine";
@@ -155,6 +151,11 @@ const TestArtifactsResult = Schema.Struct({
 	artifacts: Schema.Array(ArtifactRowSchema),
 }).annotate({ identifier: "TestArtifacts" });
 
+/**
+ * The `test` tool's success payload.
+ *
+ * @public
+ */
 export const TestResult = Schema.Union([
 	TestListResult,
 	TestGetFound,
@@ -169,6 +170,11 @@ export const TestResult = Schema.Union([
 	description:
 		"Discriminate on `action`. `get` further discriminates on `found`. `list`, `for_file`, `for_tag`, `annotations`, and `artifacts` all carry counted arrays — `list` and `for_tag` group by project; `annotations` and `artifacts` are scoped to one test and return attachment descriptors — an inline `body` comes back only when `maxBytes` is passed and the running total stays inside it.",
 });
+/**
+ * The decoded {@link TestResult}.
+ *
+ * @public
+ */
 export type TestResultType = Schema.Schema.Type<typeof TestResult>;
 
 export const formatTestMarkdown = (data: TestResultType): string => {

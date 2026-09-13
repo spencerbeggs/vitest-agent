@@ -94,6 +94,11 @@ const PhaseTransitionDenied = Schema.Struct({
 	remediation: RemediationSchema,
 }).annotate({ identifier: "PhaseTransitionDenied" });
 
+/**
+ * The `tdd_phase_transition_request` tool's success payload.
+ *
+ * @public
+ */
 export const PhaseTransitionResult = Schema.Union([PhaseTransitionAccepted, PhaseTransitionDenied]).annotate({
 	identifier: "PhaseTransitionResult",
 	title: "tdd_phase_transition_request result",

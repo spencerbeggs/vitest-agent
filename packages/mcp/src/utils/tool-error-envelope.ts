@@ -1,20 +1,16 @@
-/**
- * Structured envelope for a resolver throw that escapes a tool's own
- * domain-specific error handling (issue #191, sub-item A).
- *
- * The MCP SDK's own `CallToolRequestSchema` handler already catches any
- * throw/rejection from a tool's resolver so a stray error inside a
- * single tool call cannot crash the process — but its fallback
- * (`createToolError`) is a bare, untyped `content[].text` string. Every
- * other tool in this package that can fail returns a structured
- * `{ ok: false, error: { _tag, ... } }` shape (see
- * `_tdd-error-envelope.ts`'s `TddErrorEnvelope` for the pattern this
- * mirrors). `server.ts`'s `safeRegisterTool` wrapper uses this builder
- * so an *unexpected* throw gets the same structured treatment instead
- * of degrading to a plain string the agent has to pattern-match.
- *
- * @packageDocumentation
- */
+// Structured envelope for a resolver throw that escapes a tool's own
+// domain-specific error handling (issue #191, sub-item A).
+//
+// The MCP SDK's own `CallToolRequestSchema` handler already catches any
+// throw/rejection from a tool's resolver so a stray error inside a
+// single tool call cannot crash the process — but its fallback
+// (`createToolError`) is a bare, untyped `content[].text` string. Every
+// other tool in this package that can fail returns a structured
+// `{ ok: false, error: { _tag, ... } }` shape (see
+// `_tdd-error-envelope.ts`'s `TddErrorEnvelope` for the pattern this
+// mirrors). `server.ts`'s `safeRegisterTool` wrapper uses this builder
+// so an *unexpected* throw gets the same structured treatment instead
+// of degrading to a plain string the agent has to pattern-match.
 
 /**
  * Suggested recovery action attached to an {@link UnexpectedToolErrorEnvelope}.

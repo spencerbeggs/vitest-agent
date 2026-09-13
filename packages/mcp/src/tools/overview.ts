@@ -1,8 +1,4 @@
-/**
- * `test_overview` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `test_overview` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
@@ -31,11 +27,21 @@ const OverviewAbsent = Schema.Struct({
 	reason: Schema.Literals(["no_runs", "project_filter_empty"]),
 }).annotate({ identifier: "TestOverviewAbsent" });
 
+/**
+ * The `test_overview` tool's success payload.
+ *
+ * @public
+ */
 export const TestOverviewResult = Schema.Union([OverviewAvailable, OverviewAbsent]).annotate({
 	identifier: "TestOverviewResult",
 	title: "test_overview result",
 	description: "Per-project run metrics. Discriminate on `dataAvailable` for cold-start handling.",
 });
+/**
+ * The decoded {@link TestOverviewResult}.
+ *
+ * @public
+ */
 export type TestOverviewResultType = Schema.Schema.Type<typeof TestOverviewResult>;
 
 const iconForResult = (r: string | null): string => {

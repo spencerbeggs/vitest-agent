@@ -1,13 +1,9 @@
-/**
- * Consolidated `note` MCP tool — Schema-driven implementation.
- *
- * Every action now returns a structured object; the boundary in
- * server.ts renders markdown for `list` / `search` callers via the
- * exported `formatNoteListMarkdown` helper. The mutation actions
- * (`create`, `update`, `delete`, `get`) carry their previous shapes.
- *
- * @packageDocumentation
- */
+// Consolidated `note` MCP tool — Schema-driven implementation.
+//
+// Every action now returns a structured object; the boundary in
+// server.ts renders markdown for `list` / `search` callers via the
+// exported `formatNoteListMarkdown` helper. The mutation actions
+// (`create`, `update`, `delete`, `get`) carry their previous shapes.
 
 import type { NoteInput } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
@@ -78,6 +74,11 @@ const NoteSearchOk = Schema.Struct({
 	notes: Schema.Array(NoteRowSchema).annotate({ description: "Notes whose title or content match the FTS5 query." }),
 });
 
+/**
+ * The `note` tool's success payload.
+ *
+ * @public
+ */
 export const NoteResult = Schema.Union([
 	NoteCreateOk,
 	NoteListOk,
@@ -91,6 +92,11 @@ export const NoteResult = Schema.Union([
 	title: "note result",
 	description: "Discriminate on `action`. `get` further discriminates on `found`.",
 });
+/**
+ * The decoded {@link NoteResult}.
+ *
+ * @public
+ */
 export type NoteResultType = Schema.Schema.Type<typeof NoteResult>;
 type NoteRowType = Schema.Schema.Type<typeof NoteRowSchema>;
 

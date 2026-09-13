@@ -1,8 +1,4 @@
-/**
- * `configure` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `configure` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
@@ -54,11 +50,21 @@ const SettingsAbsent = Schema.Struct({
 	}),
 }).annotate({ identifier: "ConfigureAbsent" });
 
+/**
+ * The `configure` tool's success payload.
+ *
+ * @public
+ */
 export const ConfigureResult = Schema.Union([SettingsFound, SettingsAbsent]).annotate({
 	identifier: "ConfigureResult",
 	title: "configure result",
 	description: "Captured Vitest settings for a run, or an absence record when the lookup found nothing.",
 });
+/**
+ * The decoded {@link ConfigureResult}.
+ *
+ * @public
+ */
 export type ConfigureResultType = Schema.Schema.Type<typeof ConfigureResult>;
 
 const formatSettings = (s: Schema.Schema.Type<typeof SettingsRowSchema>): string => {

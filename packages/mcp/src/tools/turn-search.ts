@@ -1,8 +1,4 @@
-/**
- * `turn_search` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `turn_search` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
@@ -23,6 +19,11 @@ const TurnRow = Schema.Struct({
 	occurredAt: Schema.String.annotate({ description: "ISO-8601 timestamp the turn was recorded at." }),
 }).annotate({ identifier: "TurnRow", description: "One row from the turns log." });
 
+/**
+ * The `turn_search` tool's success payload.
+ *
+ * @public
+ */
 export const TurnSearchResult = Schema.Struct({
 	count: Schema.Finite.annotate({ description: "Number of matching turn rows returned." }),
 	turns: Schema.Array(TurnRow).annotate({ description: "Matching turns ordered by `occurredAt` ascending." }),
@@ -31,6 +32,11 @@ export const TurnSearchResult = Schema.Struct({
 	title: "turn_search result",
 	description: "Turn-log search results across all sessions, optionally filtered by session, time, type.",
 });
+/**
+ * The decoded {@link TurnSearchResult}.
+ *
+ * @public
+ */
 export type TurnSearchResultType = Schema.Schema.Type<typeof TurnSearchResult>;
 
 export const formatTurnSearchMarkdown = (data: TurnSearchResultType): string => {

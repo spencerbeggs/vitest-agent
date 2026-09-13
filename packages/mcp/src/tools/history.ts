@@ -1,12 +1,8 @@
-/**
- * `test_history` MCP tool — Schema-driven implementation.
- *
- * The structured payload bundles the underlying `HistoryRecord` plus
- * the lighter `flaky` / `persistent` projections the UI uses, so an
- * agent doesn't need to recompute them from runs[].
- *
- * @packageDocumentation
- */
+// `test_history` MCP tool — Schema-driven implementation.
+//
+// The structured payload bundles the underlying `HistoryRecord` plus
+// the lighter `flaky` / `persistent` projections the UI uses, so an
+// agent doesn't need to recompute them from runs[].
 
 import { DataReader } from "@vitest-agent/engine";
 import { HistoryRecord } from "@vitest-agent/sdk";
@@ -61,6 +57,11 @@ const RecoveredTestRow = Schema.Struct({
 	description: "A test whose latest run passed after the previous one failed.",
 });
 
+/**
+ * The `test_history` tool's success payload.
+ *
+ * @public
+ */
 export const TestHistoryResult = Schema.Struct({
 	project: Schema.String.annotate({ description: "Workspace project key the history was computed for." }),
 	hasData: Schema.Boolean.annotate({
@@ -77,6 +78,11 @@ export const TestHistoryResult = Schema.Struct({
 	title: "test_history result",
 	description: "Per-project flaky/persistent/recovered test classifications computed from `test_runs` history.",
 });
+/**
+ * The decoded {@link TestHistoryResult}.
+ *
+ * @public
+ */
 export type TestHistoryResultType = Schema.Schema.Type<typeof TestHistoryResult>;
 
 export const formatTestHistoryMarkdown = (data: TestHistoryResultType): string => {

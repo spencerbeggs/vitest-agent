@@ -1,8 +1,4 @@
-/**
- * `failure_signature_get` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `failure_signature_get` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
@@ -34,11 +30,21 @@ const SignatureMissing = Schema.Struct({
 	requestedHash: Schema.String,
 });
 
+/**
+ * The `failure_signature_get` tool's success payload.
+ *
+ * @public
+ */
 export const FailureSignatureGetResult = Schema.Union([SignatureFound, SignatureMissing]).annotate({
 	identifier: "FailureSignatureGetResult",
 	title: "failure_signature_get result",
 	description: "Discriminate on `found`. Found rows carry first/last-seen timestamps and recent occurrences.",
 });
+/**
+ * The decoded {@link FailureSignatureGetResult}.
+ *
+ * @public
+ */
 export type FailureSignatureGetResultType = Schema.Schema.Type<typeof FailureSignatureGetResult>;
 
 export const formatFailureSignatureMarkdown = (data: FailureSignatureGetResultType): string => {

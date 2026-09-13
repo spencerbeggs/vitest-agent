@@ -1,8 +1,4 @@
-/**
- * `test_coverage` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `test_coverage` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import type { FileCoverageReport } from "@vitest-agent/sdk";
@@ -22,11 +18,21 @@ const CoverageAbsent = Schema.Struct({
 	project: Schema.String,
 }).annotate({ identifier: "TestCoverageAbsent" });
 
+/**
+ * The `test_coverage` tool's success payload.
+ *
+ * @public
+ */
 export const TestCoverageResult = Schema.Union([CoverageAvailable, CoverageAbsent]).annotate({
 	identifier: "TestCoverageResult",
 	title: "test_coverage result",
 	description: "Per-project coverage report. Discriminate on `dataAvailable` for cold-start handling.",
 });
+/**
+ * The decoded {@link TestCoverageResult}.
+ *
+ * @public
+ */
 export type TestCoverageResultType = Schema.Schema.Type<typeof TestCoverageResult>;
 
 const METRICS = ["statements", "branches", "functions", "lines"] as const;

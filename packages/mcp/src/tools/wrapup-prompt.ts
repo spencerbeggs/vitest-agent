@@ -1,18 +1,19 @@
-/**
- * `wrapup_prompt` MCP tool — Schema-driven implementation.
- *
- * Same envelope shape as `triage_brief`: thin wrapper around the
- * markdown rendering with a `hasContent` discriminant for the empty
- * case.
- *
- * @packageDocumentation
- */
+// `wrapup_prompt` MCP tool — Schema-driven implementation.
+//
+// Same envelope shape as `triage_brief`: thin wrapper around the
+// markdown rendering with a `hasContent` discriminant for the empty
+// case.
 
 import { DataReader, formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
 
+/**
+ * The `wrapup_prompt` tool's success payload.
+ *
+ * @public
+ */
 export const WrapupPromptResult = Schema.Struct({
 	hasContent: Schema.Boolean.annotate({
 		description: "`false` when there is nothing to wrap up for the named session/kind.",
@@ -26,6 +27,11 @@ export const WrapupPromptResult = Schema.Struct({
 	title: "wrapup_prompt result",
 	description: "Wrap-up envelope. Branch on `hasContent` for the empty case; consume `markdown` for rendering.",
 });
+/**
+ * The decoded {@link WrapupPromptResult}.
+ *
+ * @public
+ */
 export type WrapupPromptResultType = Schema.Schema.Type<typeof WrapupPromptResult>;
 
 /**

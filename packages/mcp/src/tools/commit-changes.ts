@@ -1,8 +1,4 @@
-/**
- * `commit_changes` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `commit_changes` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
@@ -35,6 +31,11 @@ const CommitRow = Schema.Struct({
 	files: Schema.Array(FileRow).annotate({ description: "Files this commit changed, with per-file change kinds." }),
 }).annotate({ identifier: "CommitRow" });
 
+/**
+ * The `commit_changes` tool's success payload.
+ *
+ * @public
+ */
 export const CommitChangesResult = Schema.Struct({
 	filterSha: Schema.optional(Schema.String).annotate({
 		description:
@@ -49,6 +50,11 @@ export const CommitChangesResult = Schema.Struct({
 	title: "commit_changes result",
 	description: "Commit metadata + per-file changes captured by the post-commit Bash hook.",
 });
+/**
+ * The decoded {@link CommitChangesResult}.
+ *
+ * @public
+ */
 export type CommitChangesResultType = Schema.Schema.Type<typeof CommitChangesResult>;
 
 export const formatCommitChangesMarkdown = (data: CommitChangesResultType): string => {

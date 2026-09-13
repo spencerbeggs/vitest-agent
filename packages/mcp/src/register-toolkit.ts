@@ -1,34 +1,30 @@
-/**
- * Strict toolkit registration for the Effect-native MCP server.
- *
- * `McpServer.toolkit` decodes tool arguments with Effect's default
- * `onExcessProperty: "ignore"`, so an unknown key is silently stripped —
- * a misspelled filter runs a *wider* query while reporting success
- * (issues #200 / #243). This module registers each tool over the public
- * `McpServer.McpServer.addTool` instead and:
- *
- * 1. serves the tool's JSON Schema with `additionalProperties: false` on
- *    every object node (and a top-level `action` / `kind` union rewritten
- *    to `oneOf` + `x-discriminator`);
- * 2. walks the raw payload against that served schema before decoding and
- *    fails with `InvalidParams` naming the unknown key(s) and the accepted
- *    params, at every object level;
- * 3. renders the dual channel — `structuredContent` = the encoded result,
- *    `content[0].text` = the tool's `RenderText` markdown or the JSON;
- * 4. maps a declared, `Error`-shaped failure to `{ isError: true,
- *    content: [{ text: error.message }] }` exactly as Effect's own
- *    `registerToolkit` does, and every OTHER failure or defect to the
- *    `UnexpectedToolError` envelope as `structuredContent` with
- *    `isError: true`, so an in-boundary crash comes back in the same
- *    structured shape as every other tool error;
- * 5. inlines a `$ref` root (what an `identifier` annotation produces)
- *    before the object checks, so identified schemas register and list.
- *
- * Adapted from Effect's own `registerToolkit`
- * (`effect/unstable/ai/McpServer.ts`, rc.115).
- *
- * @packageDocumentation
- */
+// Strict toolkit registration for the Effect-native MCP server.
+//
+// `McpServer.toolkit` decodes tool arguments with Effect's default
+// `onExcessProperty: "ignore"`, so an unknown key is silently stripped —
+// a misspelled filter runs a *wider* query while reporting success
+// (issues #200 / #243). This module registers each tool over the public
+// `McpServer.McpServer.addTool` instead and:
+//
+// 1. serves the tool's JSON Schema with `additionalProperties: false` on
+//    every object node (and a top-level `action` / `kind` union rewritten
+//    to `oneOf` + `x-discriminator`);
+// 2. walks the raw payload against that served schema before decoding and
+//    fails with `InvalidParams` naming the unknown key(s) and the accepted
+//    params, at every object level;
+// 3. renders the dual channel — `structuredContent` = the encoded result,
+//    `content[0].text` = the tool's `RenderText` markdown or the JSON;
+// 4. maps a declared, `Error`-shaped failure to `{ isError: true,
+//    content: [{ text: error.message }] }` exactly as Effect's own
+//    `registerToolkit` does, and every OTHER failure or defect to the
+//    `UnexpectedToolError` envelope as `structuredContent` with
+//    `isError: true`, so an in-boundary crash comes back in the same
+//    structured shape as every other tool error;
+// 5. inlines a `$ref` root (what an `identifier` annotation produces)
+//    before the object checks, so identified schemas register and list.
+//
+// Adapted from Effect's own `registerToolkit`
+// (`effect/unstable/ai/McpServer.ts`, rc.115).
 
 import { Cause, Context, Effect, Layer, Option, Result, Schema, Sink, Stream } from "effect";
 import type { Toolkit } from "effect/unstable/ai";

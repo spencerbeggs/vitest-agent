@@ -1,19 +1,15 @@
-/**
- * `test_errors` MCP tool — Schema-driven implementation.
- *
- * The Effect Schema `TestErrorsResult` is the canonical contract for
- * the tool's output. The same Schema:
- *   - types the handler's return value;
- *   - drives `formatTestErrorsMarkdown` (input typed via `Schema.Type`);
- *   - composes into `TestErrorsAsMarkdown`, a one-way
- *     `Schema.decodeTo` whose `decode` direction renders the
- *     markdown the text channel carries (encode is forbidden because
- *     markdown rendering is lossy);
- *   - is the `Tool.make` `success` schema, so the `outputSchema` served
- *     to MCP stays in lockstep with what the handler actually emits.
- *
- * @packageDocumentation
- */
+// `test_errors` MCP tool — Schema-driven implementation.
+//
+// The Effect Schema `TestErrorsResult` is the canonical contract for
+// the tool's output. The same Schema:
+//   - types the handler's return value;
+//   - drives `formatTestErrorsMarkdown` (input typed via `Schema.Type`);
+//   - composes into `TestErrorsAsMarkdown`, a one-way
+//     `Schema.decodeTo` whose `decode` direction renders the
+//     markdown the text channel carries (encode is forbidden because
+//     markdown rendering is lossy);
+//   - is the `Tool.make` `success` schema, so the `outputSchema` served
+//     to MCP stays in lockstep with what the handler actually emits.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
@@ -80,7 +76,11 @@ export const TestErrorRow = Schema.Struct({
 	description: "Single error captured during a test run, joined with stack frame and source-location context.",
 });
 
-/** Top-level structured payload — populates `structuredContent`. */
+/**
+ * The `test_errors` tool's success payload — populates `structuredContent`.
+ *
+ * @public
+ */
 export const TestErrorsResult = Schema.Struct({
 	project: Schema.String.annotate({
 		title: "Project name",
@@ -101,6 +101,11 @@ export const TestErrorsResult = Schema.Struct({
 	description:
 		"Structured payload of the `test_errors` MCP tool. Carries the cite-able test_errors.id and stack_frames.id values agents need for `hypothesis (action: record)`.",
 });
+/**
+ * The decoded {@link TestErrorsResult}.
+ *
+ * @public
+ */
 export type TestErrorsResultType = Schema.Schema.Type<typeof TestErrorsResult>;
 type TestErrorAnnotationType = Schema.Schema.Type<typeof TestErrorAnnotation>;
 

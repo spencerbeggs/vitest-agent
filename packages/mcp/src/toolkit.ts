@@ -1,9 +1,5 @@
-/**
- * The Effect-native tool surface: one `Toolkit` gathering every tool, the
- * handler record, and the handlers layer `registerStrictToolkit` requires.
- *
- * @packageDocumentation
- */
+// The Effect-native tool surface: one `Toolkit` gathering every tool, the
+// handler record, and the handlers layer `registerStrictToolkit` requires.
 
 import { Toolkit } from "effect/unstable/ai";
 import { withIdempotency } from "./idempotency.js";

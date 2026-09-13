@@ -1,13 +1,9 @@
-/**
- * `acceptance_metrics` MCP tool — Schema-driven implementation.
- *
- * Mirrors `DataReader.AcceptanceMetrics` as an Effect Schema so the
- * structured payload the agent receives, the markdown rendering on
- * the text channel, and the SDK-side `outputSchema` all derive from
- * one canonical contract.
- *
- * @packageDocumentation
- */
+// `acceptance_metrics` MCP tool — Schema-driven implementation.
+//
+// Mirrors `DataReader.AcceptanceMetrics` as an Effect Schema so the
+// structured payload the agent receives, the markdown rendering on
+// the text channel, and the SDK-side `outputSchema` all derive from
+// one canonical contract.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
@@ -19,6 +15,11 @@ const ratioAnnotation = {
 	description: "Compliance ratio in [0, 1]. Multiply by 100 for the percentage form rendered in the markdown view.",
 };
 
+/**
+ * The `acceptance_metrics` tool's success payload.
+ *
+ * @public
+ */
 export const AcceptanceMetricsResult = Schema.Struct({
 	phaseEvidenceIntegrity: Schema.Struct({
 		total: Schema.Finite.annotate(totalAnnotation),
@@ -68,6 +69,11 @@ export const AcceptanceMetricsResult = Schema.Struct({
 	description:
 		"The four spec Annex A metrics computed from the current database. Each carries a sample size, a count, and a ratio.",
 });
+/**
+ * The decoded {@link AcceptanceMetricsResult}.
+ *
+ * @public
+ */
 export type AcceptanceMetricsResultType = Schema.Schema.Type<typeof AcceptanceMetricsResult>;
 
 const fmtBucket = (r: { readonly total: number; readonly ratio: number }) =>

@@ -1,8 +1,4 @@
-/**
- * `settings_list` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `settings_list` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
@@ -16,6 +12,11 @@ const SettingsRow = Schema.Struct({
 	capturedAt: Schema.String.annotate({ description: "ISO-8601 timestamp the settings row was first written." }),
 }).annotate({ identifier: "SettingsListRow" });
 
+/**
+ * The `settings_list` tool's success payload.
+ *
+ * @public
+ */
 export const SettingsListResult = Schema.Struct({
 	count: Schema.Number,
 	settings: Schema.Array(SettingsRow).annotate({
@@ -26,6 +27,11 @@ export const SettingsListResult = Schema.Struct({
 	title: "settings_list result",
 	description: "Roster of distinct Vitest settings hashes the reporter has captured.",
 });
+/**
+ * The decoded {@link SettingsListResult}.
+ *
+ * @public
+ */
 export type SettingsListResultType = Schema.Schema.Type<typeof SettingsListResult>;
 
 export const formatSettingsListMarkdown = (data: SettingsListResultType): string => {

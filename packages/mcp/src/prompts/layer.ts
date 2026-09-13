@@ -1,21 +1,17 @@
-/**
- * The six framing prompts registered on the Effect-native `McpServer`.
- *
- * Each prompt is a thin wire adapter over a pure factory in this directory
- * (`triagePrompt`, `whyFlakyPrompt`, ...): the factory owns the text and is
- * unit-tested directly; this module owns the names, descriptions, argument
- * schemas and the mapping to `McpSchema.PromptMessage`. Prompt arguments
- * are strings on the wire (MCP `prompts/get` carries `Record<string,
- * string>`), so every parameter is `Schema.String`-based; `optionalKey`
- * marks the ones `prompts/list` advertises as not required.
- *
- * `tdd-resume` is the one prompt with a server-side default: when the
- * client omits `sessionId`, the text names the chat id the server recovered
- * for this process (`McpSession`), which is why {@link PromptsLayer}
- * requires that service.
- *
- * @packageDocumentation
- */
+// The six framing prompts registered on the Effect-native `McpServer`.
+//
+// Each prompt is a thin wire adapter over a pure factory in this directory
+// (`triagePrompt`, `whyFlakyPrompt`, ...): the factory owns the text and is
+// unit-tested directly; this module owns the names, descriptions, argument
+// schemas and the mapping to `McpSchema.PromptMessage`. Prompt arguments
+// are strings on the wire (MCP `prompts/get` carries `Record<string,
+// string>`), so every parameter is `Schema.String`-based; `optionalKey`
+// marks the ones `prompts/list` advertises as not required.
+//
+// `tdd-resume` is the one prompt with a server-side default: when the
+// client omits `sessionId`, the text names the chat id the server recovered
+// for this process (`McpSession`), which is why {@link PromptsLayer}
+// requires that service.
 
 import { Effect, Layer, Schema } from "effect";
 import { McpSchema, McpServer } from "effect/unstable/ai";

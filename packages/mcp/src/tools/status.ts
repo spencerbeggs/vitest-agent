@@ -1,8 +1,4 @@
-/**
- * `test_status` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `test_status` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifestEntry } from "@vitest-agent/sdk";
@@ -31,11 +27,21 @@ const StatusAbsent = Schema.Struct({
 	reason: Schema.Literals(["no_manifest", "project_filter_empty"]),
 }).annotate({ identifier: "TestStatusAbsent" });
 
+/**
+ * The `test_status` tool's success payload.
+ *
+ * @public
+ */
 export const TestStatusResult = Schema.Union([StatusAvailable, StatusAbsent]).annotate({
 	identifier: "TestStatusResult",
 	title: "test_status result",
 	description: "Per-project last-run summary. Discriminate on `dataAvailable` for cold-start handling.",
 });
+/**
+ * The decoded {@link TestStatusResult}.
+ *
+ * @public
+ */
 export type TestStatusResultType = Schema.Schema.Type<typeof TestStatusResult>;
 
 const iconForResult = (r: string | null): string => {

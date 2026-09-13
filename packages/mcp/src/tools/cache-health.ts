@@ -1,15 +1,11 @@
-/**
- * `cache_health` MCP tool — Schema-driven implementation.
- *
- * Wraps the cache manifest in a `CacheHealthResult` Schema that
- * captures both the present and absent cases. The text channel
- * renders the same markdown the previous implementation produced;
- * the structured payload now exposes `manifestPresent` plus the
- * computed `ageMs` so agents can branch on freshness without parsing
- * prose.
- *
- * @packageDocumentation
- */
+// `cache_health` MCP tool — Schema-driven implementation.
+//
+// Wraps the cache manifest in a `CacheHealthResult` Schema that
+// captures both the present and absent cases. The text channel
+// renders the same markdown the previous implementation produced;
+// the structured payload now exposes `manifestPresent` plus the
+// computed `ageMs` so agents can branch on freshness without parsing
+// prose.
 
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifest } from "@vitest-agent/sdk";
@@ -38,11 +34,21 @@ const ManifestAbsent = Schema.Struct({
 	}),
 }).annotate({ identifier: "CacheHealthAbsent", title: "Cache manifest absent" });
 
+/**
+ * The `cache_health` tool's success payload.
+ *
+ * @public
+ */
 export const CacheHealthResult = Schema.Union([ManifestPresent, ManifestAbsent]).annotate({
 	identifier: "CacheHealthResult",
 	title: "cache_health result",
 	description: "Cache health snapshot. Discriminate on `manifestPresent` to see whether the manifest exists.",
 });
+/**
+ * The decoded {@link CacheHealthResult}.
+ *
+ * @public
+ */
 export type CacheHealthResultType = Schema.Schema.Type<typeof CacheHealthResult>;
 
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;

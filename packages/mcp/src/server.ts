@@ -1,8 +1,4 @@
-/**
- * The assembled Effect-native MCP server over stdio.
- *
- * @packageDocumentation
- */
+// The assembled Effect-native MCP server over stdio.
 
 import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/engine";
 import type { Stdio } from "effect";

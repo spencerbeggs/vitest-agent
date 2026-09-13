@@ -1,12 +1,8 @@
-/**
- * `ping` MCP tool — Schema-driven implementation.
- *
- * Trivial liveness probe used to verify hot-patch reload of the MCP
- * server. Returns the canonical `pong` payload so callers can assert
- * a healthy round-trip.
- *
- * @packageDocumentation
- */
+// `ping` MCP tool — Schema-driven implementation.
+//
+// Trivial liveness probe used to verify hot-patch reload of the MCP
+// server. Returns the canonical `pong` payload so callers can assert
+// a healthy round-trip.
 
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";

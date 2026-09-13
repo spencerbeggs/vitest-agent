@@ -1,8 +1,4 @@
-/**
- * `file_coverage` MCP tool — Schema-driven implementation.
- *
- * @packageDocumentation
- */
+// `file_coverage` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
 import { CoverageTotals, FileCoverageReport } from "@vitest-agent/sdk";
@@ -39,6 +35,11 @@ const FileCoverageAbsent = Schema.Struct({
 	filePath: Schema.String,
 }).annotate({ identifier: "FileCoverageAbsent" });
 
+/**
+ * The `file_coverage` tool's success payload.
+ *
+ * @public
+ */
 export const FileCoverageResult = Schema.Union([FileCoverageMatched, FileCoverageNoMatch, FileCoverageAbsent]).annotate(
 	{
 		identifier: "FileCoverageResult",
@@ -46,6 +47,11 @@ export const FileCoverageResult = Schema.Union([FileCoverageMatched, FileCoverag
 		description: "Per-file coverage with related tests. Discriminate on `dataAvailable` then on `matched`.",
 	},
 );
+/**
+ * The decoded {@link FileCoverageResult}.
+ *
+ * @public
+ */
 export type FileCoverageResultType = Schema.Schema.Type<typeof FileCoverageResult>;
 
 export const formatFileCoverageMarkdown = (data: FileCoverageResultType): string => {

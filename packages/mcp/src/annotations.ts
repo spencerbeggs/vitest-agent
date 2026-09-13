@@ -1,10 +1,6 @@
-/**
- * Tool annotations specific to the vitest-agent MCP server, read by
- * `registerStrictToolkit` alongside Effect's built-in `Tool.Readonly` /
- * `Tool.Destructive` / `Tool.Idempotent` / `Tool.OpenWorld` keys.
- *
- * @packageDocumentation
- */
+// Tool annotations specific to the vitest-agent MCP server, read by
+// `registerStrictToolkit` alongside Effect's built-in `Tool.Readonly` /
+// `Tool.Destructive` / `Tool.Idempotent` / `Tool.OpenWorld` keys.
 
 import { Context } from "effect";
 

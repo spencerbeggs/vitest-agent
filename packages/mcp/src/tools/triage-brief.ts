@@ -1,19 +1,20 @@
-/**
- * `triage_brief` MCP tool — Schema-driven implementation.
- *
- * The structured payload is a thin envelope around the markdown
- * rendering since this is a narrative tool — there's no underlying
- * record set the agent would parse separately. The `hasContent` flag
- * lets callers branch on the cold-start case without grepping prose.
- *
- * @packageDocumentation
- */
+// `triage_brief` MCP tool — Schema-driven implementation.
+//
+// The structured payload is a thin envelope around the markdown
+// rendering since this is a narrative tool — there's no underlying
+// record set the agent would parse separately. The `hasContent` flag
+// lets callers branch on the cold-start case without grepping prose.
 
 import { DataReader, formatTriageEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
 
+/**
+ * The `triage_brief` tool's success payload.
+ *
+ * @public
+ */
 export const TriageBriefResult = Schema.Struct({
 	hasContent: Schema.Boolean.annotate({
 		description: "`false` when no orientation signal is available yet (run tests to populate).",
@@ -24,6 +25,11 @@ export const TriageBriefResult = Schema.Struct({
 	title: "triage_brief result",
 	description: "Orientation triage envelope. Branch on `hasContent` for cold-start; consume `markdown` for rendering.",
 });
+/**
+ * The decoded {@link TriageBriefResult}.
+ *
+ * @public
+ */
 export type TriageBriefResultType = Schema.Schema.Type<typeof TriageBriefResult>;
 
 /**

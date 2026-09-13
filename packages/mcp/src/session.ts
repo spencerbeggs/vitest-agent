@@ -1,12 +1,8 @@
-/**
- * The per-process MCP session: the working directory the server was
- * launched for, the currently-associated host chat id, and the recovered
- * `SessionContext`. One MCP process serves one host window, so a single
- * `McpSession` service carrying two mutable refs is enough — no
- * cross-window contention.
- *
- * @packageDocumentation
- */
+// The per-process MCP session: the working directory the server was
+// launched for, the currently-associated host chat id, and the recovered
+// `SessionContext`. One MCP process serves one host window, so a single
+// `McpSession` service carrying two mutable refs is enough — no
+// cross-window contention.
 
 import type { SessionContext } from "@vitest-agent/engine";
 import { Context, Layer, MutableRef } from "effect";

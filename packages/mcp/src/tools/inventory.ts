@@ -1,15 +1,11 @@
-/**
- * Consolidated `inventory` MCP tool — Schema-driven implementation.
- *
- * Each `kind` produces a structured result that the boundary in
- * server.ts can render as markdown via the exported
- * `formatInventoryMarkdown` helper. The structured payload uses an
- * `inventoryKind` discriminant (named separately from the input
- * `kind` because `session` collapses to two output shapes — one for
- * single-id lookup and one for list).
- *
- * @packageDocumentation
- */
+// Consolidated `inventory` MCP tool — Schema-driven implementation.
+//
+// Each `kind` produces a structured result that the boundary in
+// server.ts can render as markdown via the exported
+// `formatInventoryMarkdown` helper. The structured payload uses an
+// `inventoryKind` discriminant (named separately from the input
+// `kind` because `session` collapses to two output shapes — one for
+// single-id lookup and one for list).
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
@@ -127,6 +123,11 @@ const TagInventoryUnscoped = Schema.Struct({
 	tags: Schema.Array(TagRowUnscoped),
 }).annotate({ identifier: "TagInventoryUnscoped" });
 
+/**
+ * The `inventory` tool's success payload.
+ *
+ * @public
+ */
 export const InventoryResult = Schema.Union([
 	ProjectInventory,
 	ModuleInventory,
@@ -142,6 +143,11 @@ export const InventoryResult = Schema.Union([
 	description:
 		"Discriminate on `inventoryKind`. project/module/suite carry counted lists; session_detail discriminates further on `found`; session_list returns the matching sessions; tag_scoped and tag_unscoped carry per-tag counts (the unscoped form also carries a `byProject` breakdown per tag).",
 });
+/**
+ * The decoded {@link InventoryResult}.
+ *
+ * @public
+ */
 export type InventoryResultType = Schema.Schema.Type<typeof InventoryResult>;
 
 export const formatInventoryMarkdown = (data: InventoryResultType): string => {

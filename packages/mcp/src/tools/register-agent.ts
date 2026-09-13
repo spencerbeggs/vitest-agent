@@ -102,11 +102,21 @@ const RegisterAgentFailure = Schema.Struct({
 	}),
 }).annotate({ identifier: "RegisterAgentFailure" });
 
+/**
+ * The `register_agent` tool's success payload.
+ *
+ * @public
+ */
 export const RegisterAgentResult = Schema.Union([RegisterAgentSuccess, RegisterAgentFailure]).annotate({
 	identifier: "RegisterAgentResult",
 	title: "register_agent result",
 	description: "Discriminate on `ok`. The four failure codes are documented per their `code` literal.",
 });
+/**
+ * The decoded {@link RegisterAgentResult}.
+ *
+ * @public
+ */
 export type RegisterAgentOutput = Schema.Schema.Type<typeof RegisterAgentResult>;
 
 /**

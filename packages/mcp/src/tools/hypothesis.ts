@@ -1,13 +1,9 @@
-/**
- * Consolidated `hypothesis` MCP tool — Schema-driven implementation.
- *
- * `record` and `validate` are mutations whose result is a small
- * structured envelope. `list` now returns a structured array; the
- * boundary in server.ts renders it as markdown via the exported
- * `formatHypothesisListMarkdown` helper.
- *
- * @packageDocumentation
- */
+// Consolidated `hypothesis` MCP tool — Schema-driven implementation.
+//
+// `record` and `validate` are mutations whose result is a small
+// structured envelope. `list` now returns a structured array; the
+// boundary in server.ts renders it as markdown via the exported
+// `formatHypothesisListMarkdown` helper.
 
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { DataStoreError } from "@vitest-agent/sdk";

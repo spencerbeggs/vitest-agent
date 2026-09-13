@@ -108,12 +108,22 @@ const RunTestsNoMatch = Schema.Struct({
 	}),
 }).annotate({ identifier: "RunTestsNoMatch" });
 
+/**
+ * The `run_tests` tool's success payload.
+ *
+ * @public
+ */
 export const RunTestsResult = Schema.Union([RunTestsOk, RunTestsTimeout, RunTestsError, RunTestsNoMatch]).annotate({
 	identifier: "RunTestsResult",
 	title: "run_tests result",
 	description:
 		"Discriminate on `kind`. ok carries the full AgentReport plus per-test classifications; timeout / error are the two failure modes; no-match indicates that the resolved filter set matched zero test cases.",
 });
+/**
+ * The decoded {@link RunTestsResult}.
+ *
+ * @public
+ */
 export type RunTestsResultType = Schema.Schema.Type<typeof RunTestsResult>;
 
 /**
