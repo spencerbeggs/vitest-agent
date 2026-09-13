@@ -8,8 +8,8 @@
  * package overridden to its own tarball, and the package manager under test
  * installs it. The assertions are the ones from issue #412's verification
  * section: `node_modules/.bin/vitest-agent` exists and is executable,
- * `vitest-agent --version` exits 0 with a semver on stdout, and (once the
- * carrier ships it) `vitest-agent-mcp` answers a JSON-RPC `initialize`.
+ * `vitest-agent --version` exits 0 with a semver on stdout, and
+ * `vitest-agent-mcp` answers a JSON-RPC `initialize` with empty stderr.
  *
  * This is deliberately plain Vitest + `node:child_process`: the subject is
  * the package managers and the published manifests, not Effect.
@@ -381,15 +381,13 @@ describe.skipIf(!PROD_BUILD_PRESENT || IS_WINDOWS)(SUITE_NAME, () => {
 				BIN_TIMEOUT_MS,
 			);
 
-			// TODO(Task 14): unskip when the carrier ships vitest-agent-mcp.
-			it.skip("links node_modules/.bin/vitest-agent-mcp as an executable", () => {
+			it("links node_modules/.bin/vitest-agent-mcp as an executable", () => {
 				const bin = join(binDir, "vitest-agent-mcp");
 				expect(existsSync(bin), `expected ${bin} to exist`).toBe(true);
 				expect(() => accessSync(bin, constants.X_OK)).not.toThrow();
 			});
 
-			// TODO(Task 14): unskip when the carrier ships vitest-agent-mcp.
-			it.skip(
+			it(
 				"vitest-agent-mcp answers a JSON-RPC initialize on stdout with empty stderr",
 				() => {
 					const bin = join(binDir, "vitest-agent-mcp");

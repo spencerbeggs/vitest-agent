@@ -27,7 +27,7 @@ export interface CurrentSessionIdRef {
 }
 
 /**
- * Creates a new {@link CurrentSessionIdRef} with an optional initial value.
+ * Creates a new `CurrentSessionIdRef` with an optional initial value.
  *
  * @param initial - the starting chat id, or `null` when unknown at construction time
  * @returns a mutable ref holding the current session id
@@ -44,7 +44,7 @@ export const createCurrentSessionIdRef = (initial: string | null = null): Curren
 };
 
 /**
- * Mutable ref holding the MCP server's recovered {@link SessionContext}.
+ * Mutable ref holding the MCP server's recovered `SessionContext`.
  *
  * @public
  */
@@ -54,7 +54,7 @@ export interface SessionContextRef {
 }
 
 /**
- * Creates a new {@link SessionContextRef} with an optional initial value.
+ * Creates a new `SessionContextRef` with an optional initial value.
  *
  * When a `recover` thunk is supplied, `get()` invokes it lazily while the
  * held value is `null` and caches the first non-null result. This is how
@@ -109,7 +109,7 @@ export const sessionContextFromEnv = (env: Record<string, string | undefined>): 
 };
 
 /**
- * Options for {@link McpSession.layer}.
+ * Options for `McpSession.layer`.
  *
  * @public
  */

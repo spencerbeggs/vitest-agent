@@ -3,6 +3,11 @@ import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
+/**
+ * The `help` tool's success payload.
+ *
+ * @public
+ */
 export const HelpResult = Schema.Struct({
 	helpText: Schema.String.annotate({
 		description: "Markdown table of every MCP tool with parameters and a one-line description.",
@@ -13,6 +18,11 @@ export const HelpResult = Schema.Struct({
 	description:
 		"Static help reference. Read structuredContent.helpText programmatically; the same string lives in content[].text for transcripts.",
 });
+/**
+ * The decoded {@link HelpResult}.
+ *
+ * @public
+ */
 export type HelpResultType = Schema.Schema.Type<typeof HelpResult>;
 
 const HELP_TEXT = `# vitest-agent MCP Tools

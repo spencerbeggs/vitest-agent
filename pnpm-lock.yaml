@@ -144,9 +144,6 @@ importers:
       '@savvy-web/silk':
         specifier: ^4.0.1
         version: 4.0.1(@changesets/cli@3.0.2)(@commitlint/cli@21.2.2(@types/node@26.5.1)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.2)(@effected/jsonc@0.11.0(effect@4.0.0-rc.115))(@types/bun@1.4.2)(@types/node@26.5.1)(@vitest/coverage-istanbul@5.0.0)(@vitest/coverage-v8@5.0.0)(@vitest/expect@5.0.0)(husky@9.1.7)(lint-staged@17.5.1)(markdownlint-cli2-formatter-codequality@0.0.7(markdownlint-cli2@0.23.2))(markdownlint-cli2@0.23.2)(redis@6.2.1)(tsx@4.23.13)(turbo@2.10.12)(typescript@7.0.2)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.13)(yaml@2.9.1))(vitest@5.0.0)
-      '@vitest-agent/mcp':
-        specifier: workspace:*
-        version: link:packages/mcp/dist/dev/pkg
       '@vitest-agent/plugin':
         specifier: workspace:*
         version: link:packages/plugin/dist/dev/pkg
@@ -6848,7 +6845,7 @@ snapshots:
 
   bun-types@1.4.2:
     dependencies:
-      '@types/node': 26.5.1
+      '@types/node': 22.20.2
 
   bundle-name@4.1.0:
     dependencies:

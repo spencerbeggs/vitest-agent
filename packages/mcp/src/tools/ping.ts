@@ -12,6 +12,11 @@ import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { publicProcedure } from "../context.js";
 
+/**
+ * The `ping` tool's success payload.
+ *
+ * @public
+ */
 export const PingResult = Schema.Struct({
 	message: Schema.Literal("pong").annotate({
 		description: "Constant `pong`. Presence confirms the MCP server responded.",
@@ -21,6 +26,11 @@ export const PingResult = Schema.Struct({
 	title: "ping result",
 	description: "Liveness probe. Carries no data beyond the constant `pong` discriminant.",
 });
+/**
+ * The decoded {@link PingResult}.
+ *
+ * @public
+ */
 export type PingResultType = Schema.Schema.Type<typeof PingResult>;
 
 export const ping = publicProcedure.query(async (): Promise<PingResultType> => ({ message: "pong" as const }));

@@ -152,7 +152,7 @@ const withReplayMarker = (parsed: unknown): unknown =>
  *
  * Semantics match the retired tRPC `idempotentProcedure` middleware:
  *
- * 1. Look up the {@link IdempotencyKeySpec} registered for `path`, and
+ * 1. Look up the `IdempotencyKeySpec` registered for `path`, and
  *    derive a key from `params` (already decoded — strict registration
  *    guarantees no key was stripped). No registered spec, or a `null`
  *    key, runs `handler` untouched with nothing cached.

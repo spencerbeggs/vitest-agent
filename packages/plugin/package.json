@@ -25,7 +25,8 @@
 		"./package.json": "./package.json"
 	},
 	"bin": {
-		"vitest-agent": "./src/bin/vitest-agent.ts"
+		"vitest-agent": "./src/bin/vitest-agent.ts",
+		"vitest-agent-mcp": "./src/bin/vitest-agent-mcp.ts"
 	},
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
