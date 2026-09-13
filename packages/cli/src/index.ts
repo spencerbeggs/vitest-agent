@@ -16,11 +16,6 @@
 // in `@vitest-agent/engine` as of the #412 engine split; import them from
 // there. This barrel no longer re-exports them.
 
-/**
- * The version of this package, inlined at build time from
- * `package.json#version` via rslib-builder's `__PACKAGE_VERSION__` substitution.
- * Exported for version introspection by downstream tooling.
- *
- * @public
- */
-export const CURRENT_CLI_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";
+// Side-effect-free and never imports `./main.js` — the process-owning
+// assembled program — so a library consumer's import graph never pulls it in.
+export { CURRENT_CLI_VERSION } from "./version.js";

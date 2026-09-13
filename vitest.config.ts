@@ -27,6 +27,7 @@ export default async () => {
 					"**/*.{test,spec}.ts",
 					"**/cli/src/bin.ts",
 					"**/cli/src/index.ts",
+					"**/cli/src/main.ts",
 					"**/reporter/src/index.ts",
 					"**/plugin/src/index.ts",
 					"**/cli/src/commands/**",
