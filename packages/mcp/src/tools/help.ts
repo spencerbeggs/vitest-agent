@@ -1,7 +1,6 @@
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 /**
  * The `help` tool's success payload.
@@ -161,8 +160,6 @@ const HELP_TEXT = `# vitest-agent MCP Tools
 - \`state\` accepts: \`passed\`, \`failed\`, \`skipped\`, \`pending\`
 - \`scope\` accepts: \`global\`, \`project\`, \`module\`, \`suite\`, \`test\`, \`note\`
 `;
-
-export const help = publicProcedure.query((): HelpResultType => ({ helpText: HELP_TEXT }));
 
 /**
  * The Effect-native `help` tool. Renders the help markdown as the text

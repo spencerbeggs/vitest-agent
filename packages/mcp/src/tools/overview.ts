@@ -8,7 +8,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const ProjectRunSummary = Schema.Struct({
 	project: Schema.String,
@@ -140,10 +139,6 @@ export const handleTestOverview = (
 			runs: filteredRuns,
 		};
 	}).pipe(Effect.orDie);
-
-export const testOverview = publicProcedure
-	.input(Schema.toStandardSchemaV1(TestOverviewInput))
-	.query(({ ctx, input }): Promise<TestOverviewResultType> => ctx.runtime.runPromise(handleTestOverview(input)));
 
 /**
  * The Effect-native `test_overview` tool.

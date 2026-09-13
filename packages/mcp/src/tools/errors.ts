@@ -3,15 +3,14 @@
  *
  * The Effect Schema `TestErrorsResult` is the canonical contract for
  * the tool's output. The same Schema:
- *   - types the procedure's return value;
+ *   - types the handler's return value;
  *   - drives `formatTestErrorsMarkdown` (input typed via `Schema.Type`);
  *   - composes into `TestErrorsAsMarkdown`, a one-way
  *     `Schema.decodeTo` whose `decode` direction renders the
  *     markdown the text channel carries (encode is forbidden because
  *     markdown rendering is lossy);
- *   - bridges to zod via `effectToZodSchema` for the SDK's
- *     `outputSchema` field, so the structured shape we declare to MCP
- *     stays in lockstep with what the procedure actually emits.
+ *   - is the `Tool.make` `success` schema, so the `outputSchema` served
+ *     to MCP stays in lockstep with what the handler actually emits.
  *
  * @packageDocumentation
  */
@@ -20,7 +19,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 /** One annotation attached to a failing test, surfaced with its error. */
 export const TestErrorAnnotation = Schema.Struct({
@@ -256,10 +254,6 @@ export const handleTestErrors = (input: TestErrorsInputType): Effect.Effect<Test
 			errors: rows,
 		};
 	}).pipe(Effect.orDie);
-
-export const testErrors = publicProcedure
-	.input(Schema.toStandardSchemaV1(TestErrorsInput))
-	.query(({ ctx, input }): Promise<TestErrorsResultType> => ctx.runtime.runPromise(handleTestErrors(input)));
 
 /**
  * The Effect-native `test_errors` tool.

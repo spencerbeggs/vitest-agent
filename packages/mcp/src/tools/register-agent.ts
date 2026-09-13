@@ -30,7 +30,6 @@
 import { DataReader, DataStore, deriveIdempotencyKey } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { publicProcedure } from "../context.js";
 
 /**
  * The `register_agent` tool's parameters.
@@ -206,10 +205,6 @@ export const handleRegisterAgent = (
 			idempotencyKey: result.idempotencyKey,
 		} satisfies RegisterAgentOutput;
 	}).pipe(Effect.orDie);
-
-export const registerAgent = publicProcedure
-	.input(Schema.toStandardSchemaV1(RegisterAgentInput))
-	.mutation(({ ctx, input }): Promise<RegisterAgentOutput> => ctx.runtime.runPromise(handleRegisterAgent(input)));
 
 /**
  * The Effect-native `register_agent` tool.

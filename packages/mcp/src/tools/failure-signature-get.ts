@@ -8,7 +8,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const RecentError = Schema.Struct({
 	runId: Schema.Number,
@@ -99,13 +98,6 @@ export const handleFailureSignatureGet = (
 		if (Option.isNone(opt)) return { found: false as const, requestedHash: input.hash };
 		return { found: true as const, ...opt.value };
 	}).pipe(Effect.orDie);
-
-export const failureSignatureGet = publicProcedure
-	.input(Schema.toStandardSchemaV1(FailureSignatureGetInput))
-	.query(
-		({ ctx, input }): Promise<FailureSignatureGetResultType> =>
-			ctx.runtime.runPromise(handleFailureSignatureGet(input)),
-	);
 
 /**
  * The Effect-native `failure_signature_get` tool.

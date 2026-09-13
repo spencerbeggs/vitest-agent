@@ -1,10 +1,14 @@
 /**
  * @vitest-agent/mcp
  *
- * Model Context Protocol server for vitest-agent. Exposes 29 tools
- * via tRPC over stdio that give agents structured access to test data,
- * coverage, history, trends, errors, and notes — backed by the SQLite
- * database that the reporter writes during test runs.
+ * Model Context Protocol server for vitest-agent, built on Effect's
+ * native `McpServer` (`effect/unstable/ai`). Exposes 30 tools (one
+ * `Tool.make` per file under `tools/`, assembled in `toolkit.ts` and
+ * registered under the strict-input contract by `register-toolkit.ts`)
+ * plus six framing prompts (`prompts/layer.ts`) over stdio, giving agents
+ * structured access to test data, coverage, history, trends, errors,
+ * notes and the TDD lifecycle — backed by the SQLite database that the
+ * reporter writes during test runs.
  *
  * The default entry point is `bin.ts` (registered as the
  * `vitest-agent-mcp` bin) over `main.ts` (published as `./main` so the
@@ -15,16 +19,13 @@
  */
 
 export { RenderText } from "./annotations.js";
-export type { CurrentSessionIdRef, McpContext, SessionContext, SessionContextRef } from "./context.js";
-export { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "./context.js";
 export { withIdempotency } from "./idempotency.js";
+export { PromptsLayer } from "./prompts/layer.js";
 export { registerStrictToolkit } from "./register-toolkit.js";
-export { appRouter } from "./router.js";
-export { buildMcpServer, startMcpServer } from "./server.js";
-export type { PlatformServices, ServerLayerOptions } from "./server-layer.js";
-export { ServerLayer } from "./server-layer.js";
-export type { McpSessionOptions } from "./session.js";
-export { McpSession } from "./session.js";
+export type { PlatformServices, ServerLayerOptions } from "./server.js";
+export { ServerLayer } from "./server.js";
+export type { CurrentSessionIdRef, McpSessionOptions, SessionContext, SessionContextRef } from "./session.js";
+export { McpSession, createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./session.js";
 export { Kit, ToolsLayer, toolHandlers } from "./toolkit.js";
 // `parseSessionEnvExports` / `recoverSessionContextFromSessionEnv` moved
 // to `@vitest-agent/engine` (#412); import them from there.

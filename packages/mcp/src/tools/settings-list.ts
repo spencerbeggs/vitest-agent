@@ -8,7 +8,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const SettingsRow = Schema.Struct({
 	hash: Schema.String.annotate({
@@ -54,10 +53,6 @@ export const handleSettingsList = (): Effect.Effect<SettingsListResultType, neve
 		const settings = yield* reader.listSettings();
 		return { count: settings.length, settings };
 	}).pipe(Effect.orDie);
-
-export const settingsList = publicProcedure
-	.input(Schema.toStandardSchemaV1(Schema.Struct({})))
-	.query(({ ctx }): Promise<SettingsListResultType> => ctx.runtime.runPromise(handleSettingsList()));
 
 /**
  * The Effect-native `settings_list` tool. No parameters (the default

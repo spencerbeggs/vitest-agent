@@ -9,7 +9,6 @@ import { CacheManifestEntry } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const StatusAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true).annotate({
@@ -88,7 +87,7 @@ export type TestStatusInputType = Schema.Schema.Type<typeof TestStatusInput>;
 
 /**
  * Handler for {@link testStatusTool}: the single implementation of the
- * tool, shared by the tRPC procedure until that surface is deleted.
+ * tool.
  *
  * @public
  */
@@ -120,10 +119,6 @@ export const handleTestStatus = (input: TestStatusInputType): Effect.Effect<Test
 			entries,
 		};
 	}).pipe(Effect.orDie);
-
-export const testStatus = publicProcedure
-	.input(Schema.toStandardSchemaV1(TestStatusInput))
-	.query(({ ctx, input }): Promise<TestStatusResultType> => ctx.runtime.runPromise(handleTestStatus(input)));
 
 /**
  * The Effect-native `test_status` tool.

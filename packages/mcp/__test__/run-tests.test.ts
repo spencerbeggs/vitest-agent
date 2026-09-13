@@ -684,7 +684,7 @@ describe("withStdioCaptured", () => {
 	it("does not divert writes from concurrent async contexts", async () => {
 		// The reviewer's concern (PR #47): the prior implementation mutated
 		// process.stdout.write globally for the full duration of the test
-		// run, so a concurrent MCP tool response from another tRPC procedure
+		// run, so a concurrent MCP tool response from another tool handler
 		// would be swallowed into the null sink and disappear from the
 		// JSON-RPC transport. AsyncLocalStorage scopes the diversion to the
 		// async context that called withStdioCaptured; writes initiated from

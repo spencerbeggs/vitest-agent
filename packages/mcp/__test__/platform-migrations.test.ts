@@ -5,7 +5,7 @@ import { DataReader, DataStore, PlatformLive } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
 
-// Regression: the MCP server's layer (`PlatformLive`) must register every project-database migration, not
+// Regression: the MCP server's runtime layer (the engine's `PlatformLive`, provided by `main.ts`) must register every project-database migration, not
 // just `0001_initial`. Reading artifacts touches `test_artifacts.data`, a
 // column added by `0002_test_artifacts`; a layer stuck on `0001` fails the
 // query with `no such column: ta.data`.

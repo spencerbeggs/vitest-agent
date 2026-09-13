@@ -12,7 +12,6 @@ import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail, GoalRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { idempotentProcedure } from "../middleware/idempotency.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
 
@@ -138,9 +137,9 @@ export const TddGoalInput = Schema.Union([CreateVariant, UpdateVariant, DeleteVa
 export type TddGoalInputType = Schema.Schema.Type<typeof TddGoalInput>;
 
 /**
- * Single source of truth for the `tdd_goal` tool's `action`
- * discriminant, consumed by `server.ts`'s served `z.enum(...)` so the
- * MCP-SDK-side registration cannot drift from this tRPC input union
+ * Single source of truth for the `tdd_goal` tool's `action` discriminant.
+ * `served-enum-drift.test.ts` asserts the served `oneOf` members match
+ * this tuple exactly, so the wire enum cannot drift from the input union
  * (issue #335).
  */
 export const TDD_GOAL_ACTIONS = ["create", "update", "delete", "get", "list"] as const;
@@ -214,10 +213,6 @@ export const handleTddGoal = (
 			}),
 		)
 		.pipe(Effect.orDie);
-
-export const tddGoal = idempotentProcedure
-	.input(Schema.toStandardSchemaV1(TddGoalInput))
-	.mutation(({ ctx, input }): Promise<TddGoalResultType> => ctx.runtime.runPromise(handleTddGoal(input)));
 
 /**
  * The Effect-native `tdd_goal` tool.

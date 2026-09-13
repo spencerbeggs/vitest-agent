@@ -13,7 +13,6 @@ import { DataReader, formatTriageEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 export const TriageBriefResult = Schema.Struct({
 	hasContent: Schema.Boolean.annotate({
@@ -60,10 +59,6 @@ export const handleTriageBrief = (
 			? { hasContent: true, markdown: md }
 			: { hasContent: false, markdown: "No orientation signal yet — run tests to populate the database." };
 	});
-
-export const triageBrief = publicProcedure
-	.input(Schema.toStandardSchemaV1(TriageBriefInput))
-	.query(({ ctx, input }): Promise<TriageBriefResultType> => ctx.runtime.runPromise(handleTriageBrief(input)));
 
 /**
  * The Effect-native `triage_brief` tool. The text channel is the

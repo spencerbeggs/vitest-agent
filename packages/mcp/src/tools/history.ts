@@ -13,7 +13,6 @@ import { HistoryRecord } from "@vitest-agent/sdk";
 import { Effect, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const FlakyTestRow = Schema.Struct({
 	fullName: Schema.String.annotate({ description: "Full hierarchical test name (`describe > it`)." }),
@@ -244,10 +243,6 @@ export const handleTestHistory = (
 			recovered,
 		};
 	}).pipe(Effect.orDie);
-
-export const testHistory = publicProcedure
-	.input(Schema.toStandardSchemaV1(TestHistoryInput))
-	.query(({ ctx, input }): Promise<TestHistoryResultType> => ctx.runtime.runPromise(handleTestHistory(input)));
 
 /**
  * The Effect-native `test_history` tool.

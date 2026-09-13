@@ -9,7 +9,6 @@ import { CoverageTotals, FileCoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const CoverageGlobalThresholds = Schema.Struct({
 	statements: Schema.optional(Schema.Number),
@@ -164,10 +163,6 @@ export const handleFileCoverage = (
 			relatedTestFiles,
 		};
 	}).pipe(Effect.orDie);
-
-export const fileCoverage = publicProcedure
-	.input(Schema.toStandardSchemaV1(FileCoverageInput))
-	.query(({ ctx, input }): Promise<FileCoverageResultType> => ctx.runtime.runPromise(handleFileCoverage(input)));
 
 /**
  * The Effect-native `file_coverage` tool.

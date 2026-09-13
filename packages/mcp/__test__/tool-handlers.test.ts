@@ -130,7 +130,7 @@ afterAll(async () => {
 	await testRuntime.dispose();
 });
 
-describe("MCP Router", () => {
+describe("MCP tool handlers (direct caller)", () => {
 	it("help returns complete tool catalog", async () => {
 		const result = await call("help", undefined);
 		expect(result.helpText).toContain("vitest-agent MCP Tools");
@@ -673,6 +673,7 @@ describe("MCP Router", () => {
 			const callWithContext = makeCaller(
 				testRuntime,
 				McpSession.layerTest({
+					cwd: process.cwd(),
 					initialContext: {
 						chatId: "cc-hyp-resolve-main",
 						conversationId: "conv-resolve-1",
@@ -774,6 +775,7 @@ describe("MCP Router", () => {
 			const callWithContext = makeCaller(
 				testRuntime,
 				McpSession.layerTest({
+					cwd: process.cwd(),
 					initialContext: {
 						chatId: "cc-hyp-tddtask-b-main",
 						conversationId: "conv-precedence-1",

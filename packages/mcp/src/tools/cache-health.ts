@@ -16,7 +16,6 @@ import { CacheManifest } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const ManifestPresent = Schema.Struct({
 	manifestPresent: Schema.Literal(true).annotate({
@@ -115,10 +114,6 @@ export const handleCacheHealth = (): Effect.Effect<CacheHealthResultType, never,
 			stale: ageMs > STALE_AFTER_MS,
 		};
 	}).pipe(Effect.orDie);
-
-export const cacheHealth = publicProcedure.query(
-	({ ctx }): Promise<CacheHealthResultType> => ctx.runtime.runPromise(handleCacheHealth()),
-);
 
 /**
  * The Effect-native `cache_health` tool. No parameters (the default

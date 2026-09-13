@@ -13,7 +13,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const totalAnnotation = { description: "Sample size — number of observations the metric ratio is computed over." };
 const ratioAnnotation = {
@@ -103,10 +102,6 @@ export const handleAcceptanceMetrics = (): Effect.Effect<AcceptanceMetricsResult
 		const reader = yield* DataReader;
 		return yield* reader.computeAcceptanceMetrics();
 	}).pipe(Effect.orDie);
-
-export const acceptanceMetrics = publicProcedure
-	.input(Schema.toStandardSchemaV1(Schema.Struct({})))
-	.query(({ ctx }): Promise<AcceptanceMetricsResultType> => ctx.runtime.runPromise(handleAcceptanceMetrics()));
 
 /**
  * The Effect-native `acceptance_metrics` tool. No parameters (the default

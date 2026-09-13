@@ -14,7 +14,6 @@ import { TrendRecord } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const TrendsAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true).annotate({
@@ -155,10 +154,6 @@ export const handleTestTrends = (input: TestTrendsInputType): Effect.Effect<Test
 			trends: trendsOpt.value,
 		};
 	}).pipe(Effect.orDie);
-
-export const testTrends = publicProcedure
-	.input(Schema.toStandardSchemaV1(TestTrendsInput))
-	.query(({ ctx, input }): Promise<TestTrendsResultType> => ctx.runtime.runPromise(handleTestTrends(input)));
 
 /**
  * The Effect-native `test_trends` tool.

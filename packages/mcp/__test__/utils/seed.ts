@@ -1,7 +1,7 @@
 /**
  * Shared seed for the Effect-native tool tests: one passing run for the
  * `default` project with a module, a suite, two test cases, coverage and
- * a trend entry — the same shape `router.test.ts` seeds for the tRPC
+ * a trend entry — the same shape `tool-handlers.test.ts` seeds for the direct
  * caller — plus a second, failing project carrying an annotated error.
  * Runs against whatever `DataStore` is in context (the harness's fresh
  * in-memory store, or a test's own `ManagedRuntime`).

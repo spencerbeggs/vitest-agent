@@ -22,9 +22,8 @@ import type { Context } from "effect";
 import { Data, Effect, Schema, SchemaGetter, Semaphore } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
-import { McpSession, sessionFromContext } from "../session.js";
+import { McpSession } from "../session.js";
 
 const TagFilter = Schema.Struct({
 	all: Schema.optionalKey(Schema.Array(Schema.String)).annotate({ description: "Require every listed tag" }),
@@ -203,7 +202,7 @@ export const makeCoverageDirOverride = (): { dir: string; coverage: { reportsDir
 // Now: the wrapper is patched onto `process.stdout` / `process.stderr` once,
 // then consults the per-context storage on every call. Inside a
 // `withStdioCaptured` async context the write is diverted to the sink;
-// outside of it (i.e. every other tRPC procedure handler running on its
+// outside of it (i.e. every other tool handler running on its
 // own top-level async chain) the write passes through to the original.
 /**
  * Typed wrapper for a rejected `vitest.start(...)` promise (issue #320).
@@ -248,7 +247,7 @@ function ensureStdioPatched(): void {
 /**
  * Run `fn` with `process.stdout.write` and `process.stderr.write`
  * diverted to `stream.write` for code executing inside the call's
- * async context. Code in other async contexts (concurrent tRPC
+ * async context. Code in other async contexts (concurrent tool
  * procedure handlers, the MCP stdio transport) sees the original
  * writes unchanged.
  *
@@ -519,7 +518,7 @@ export const vitestLoader = {
 // Serializes concurrent run_tests invocations. The body assigns the
 // active attribution UUIDs into `process.env.VITEST_AGENT_*` and then
 // awaits `createVitest`/`vitest.start`, which spawns the worker pool
-// that snapshots env at spawn time. Two interleaved tRPC calls would
+// that snapshots env at spawn time. Two interleaved tool calls would
 // race: caller B's env assignment can land between A's assignment and
 // A's worker spawn, attributing A's results to B's agent. A single-
 // permit semaphore keeps that env-write + worker-spawn pair atomic from
@@ -938,7 +937,7 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		// mkdtempSync — e.g. a full or read-only tmpdir — is caught
 		// by the surrounding catch and returns the tool's normal
 		// `{ kind: "error", message }` shape instead of propagating
-		// raw out of the tRPC resolver.
+		// raw out of the handler.
 		covOverride = makeCoverageDirOverride();
 		vitest = await createVitest(
 			{
@@ -1126,7 +1125,7 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 	} catch (err) {
 		// Exception-safe error extraction: a hostile thrown value (a
 		// throwing `message` getter or `toString`) must still produce
-		// the `{ kind: "error" }` envelope, never a raw tRPC rejection.
+		// the `{ kind: "error" }` envelope, never a raw rejection.
 		let message: string;
 		try {
 			message = err instanceof Error ? err.message : String(err);
@@ -1179,13 +1178,6 @@ export const handleRunTests = (
 			Effect.promise(() => runTestsBody(input, ctx)),
 		);
 	});
-
-export const runTests = publicProcedure
-	.input(Schema.toStandardSchemaV1(RunTestsInput))
-	.mutation(
-		({ ctx, input }): Promise<RunTestsResultType> =>
-			ctx.runtime.runPromise(handleRunTests(input).pipe(Effect.provide(sessionFromContext(ctx)))),
-	);
 
 /**
  * The Effect-native `run_tests` tool.

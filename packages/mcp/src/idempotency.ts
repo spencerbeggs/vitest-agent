@@ -1,9 +1,7 @@
 /**
  * Idempotency as an Effect combinator: the key-derivation registry and
- * `withIdempotency`, the Effect-native replacement for the tRPC
- * `idempotentProcedure` middleware (`middleware/idempotency.ts`, kept until
- * every write tool is ported — Task 17 deletes it and this module becomes
- * the sole owner of the registry).
+ * `withIdempotency`, which wraps a write tool's handler so a replayed
+ * call returns the persisted first result (marked `_idempotentReplay`).
  *
  * @packageDocumentation
  */
@@ -150,7 +148,7 @@ const withReplayMarker = (parsed: unknown): unknown =>
 /**
  * Wraps `handler` with idempotent-response caching keyed on `path`.
  *
- * Semantics match the retired tRPC `idempotentProcedure` middleware:
+ * Semantics (unchanged from the retired tRPC middleware):
  *
  * 1. Look up the `IdempotencyKeySpec` registered for `path`, and
  *    derive a key from `params` (already decoded — strict registration

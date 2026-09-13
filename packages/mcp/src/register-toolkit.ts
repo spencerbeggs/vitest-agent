@@ -270,7 +270,7 @@ export const collectUnknownKeys = (value: unknown, schema: JsonObject): Readonly
 };
 
 /**
- * The exact wording the tRPC-era `strict()` helper produced, so agents
+ * The exact wording the pre-Effect `strict()` helper produced, so agents
  * that learned to self-correct on it keep working.
  */
 const formatUnknownKeys = (levels: ReadonlyArray<UnknownKeysAtLevel>): string =>

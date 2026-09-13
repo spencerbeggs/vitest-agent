@@ -4,7 +4,7 @@
  * representative `tools/call` returns the typed `structuredContent` plus
  * the text channel. The idempotently-wrapped tools are called twice and
  * the replay marker asserted on the second response. Assertions mirror
- * the tRPC-caller tests in `router.test.ts` and the old InMemoryTransport
+ * the direct-caller tests in `tool-handlers.test.ts` and the retired InMemoryTransport
  * schema suites (`server-hypothesis-schema`, `server-tdd-artifact-list-
  * schema`, `server-run-tests-*-schema`, `server-tool-resolver-throw`)
  * they replace.
@@ -305,7 +305,7 @@ describe("hypothesis", () => {
 		// Served through the harness's default `McpSession.layerTest()` — no
 		// recovered context — so the route under test is the caller-supplied
 		// sessionId fallback; the context-driven resolution is pinned by the
-		// `makeCaller` tests in router.test.ts.
+		// `makeCaller` tests in tool-handlers.test.ts.
 		const [recorded, listed] = await session((h) =>
 			Effect.gen(function* () {
 				const sessionId = yield* seedSession(h, "cc-hyp-fallback");

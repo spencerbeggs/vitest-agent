@@ -14,7 +14,6 @@ import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const NoteScope = Schema.Literals(["global", "project", "module", "suite", "test", "note"]);
 
@@ -200,9 +199,10 @@ export const NoteParams = Schema.Union([
 export type NoteParamsType = Schema.Schema.Type<typeof NoteParams>;
 
 /**
- * Single source of truth for the `note` tool's `action` discriminant,
- * consumed by `server.ts`'s served `z.enum(...)` so the MCP-SDK-side
- * registration cannot drift from this tRPC input union (issue #335).
+ * Single source of truth for the `note` tool's `action` discriminant.
+ * `served-enum-drift.test.ts` asserts the served `oneOf` members match
+ * this tuple exactly, so the wire enum cannot drift from the input union
+ * (issue #335).
  */
 export const NOTE_ACTIONS = ["create", "list", "get", "update", "delete", "search"] as const;
 type NoteAction = Schema.Schema.Type<typeof NoteParams>["action"];
@@ -282,10 +282,6 @@ export const handleNote = (input: NoteParamsType): Effect.Effect<NoteResultType,
 			}),
 		)
 		.pipe(Effect.orDie);
-
-export const note = publicProcedure
-	.input(Schema.toStandardSchemaV1(NoteParams))
-	.mutation(({ ctx, input }): Promise<NoteResultType> => ctx.runtime.runPromise(handleNote(input)));
 
 /**
  * The Effect-native `note` tool.

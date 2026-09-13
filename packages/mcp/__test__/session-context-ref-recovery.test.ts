@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { createSessionContextRef } from "../src/context.js";
+import { createSessionContextRef } from "../src/session.js";
 
 describe("createSessionContextRef lazy recovery", () => {
 	it("invokes recover while null and caches the first non-null result", () => {

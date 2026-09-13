@@ -8,7 +8,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const FileRow = Schema.Struct({
 	filePath: Schema.String.annotate({ description: "Repo-relative path of the changed file." }),
@@ -116,10 +115,6 @@ export const handleCommitChanges = (
 			commits: entries,
 		};
 	}).pipe(Effect.orDie);
-
-export const commitChanges = publicProcedure
-	.input(Schema.toStandardSchemaV1(CommitChangesInput))
-	.query(({ ctx, input }): Promise<CommitChangesResultType> => ctx.runtime.runPromise(handleCommitChanges(input)));
 
 /**
  * The Effect-native `commit_changes` tool.

@@ -15,7 +15,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const ArtifactKindSchema = Schema.Literals([
 	"test_written",
@@ -152,10 +151,6 @@ export const handleTddArtifactList = (
 			artifacts: rows,
 		};
 	}).pipe(Effect.orDie);
-
-export const tddArtifactList = publicProcedure
-	.input(Schema.toStandardSchemaV1(TddArtifactListInput))
-	.query(({ ctx, input }): Promise<TddArtifactListResultType> => ctx.runtime.runPromise(handleTddArtifactList(input)));
 
 /**
  * The Effect-native `tdd_artifact_list` tool.

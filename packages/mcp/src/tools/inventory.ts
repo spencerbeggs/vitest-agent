@@ -15,7 +15,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
 
 const ProjectRunSummary = Schema.Struct({
@@ -282,9 +281,10 @@ export const InventoryInput = Schema.Union([ProjectVariant, ModuleVariant, Suite
 export type InventoryInputType = Schema.Schema.Type<typeof InventoryInput>;
 
 /**
- * Single source of truth for the `inventory` tool's `kind` discriminant,
- * consumed by `server.ts`'s served `z.enum(...)` so the MCP-SDK-side
- * registration cannot drift from this tRPC input union (issue #335).
+ * Single source of truth for the `inventory` tool's `kind` discriminant.
+ * `served-enum-drift.test.ts` asserts the served `oneOf` members match
+ * this tuple exactly, so the wire enum cannot drift from the input union
+ * (issue #335).
  */
 export const INVENTORY_KINDS = ["project", "module", "suite", "session", "tag"] as const;
 type InventoryKindInput = Schema.Schema.Type<typeof InventoryInput>["kind"];
@@ -421,10 +421,6 @@ export const handleInventory = (input: InventoryInputType): Effect.Effect<Invent
 			}),
 		)
 		.pipe(Effect.orDie);
-
-export const inventory = publicProcedure
-	.input(Schema.toStandardSchemaV1(InventoryInput))
-	.query(({ ctx, input }): Promise<InventoryResultType> => ctx.runtime.runPromise(handleInventory(input)));
 
 /**
  * The Effect-native `inventory` tool.

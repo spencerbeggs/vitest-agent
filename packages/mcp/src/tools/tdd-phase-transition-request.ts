@@ -10,7 +10,6 @@ import {
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 /**
  * Lookback window for the missing_artifact_evidence cross-session
@@ -423,12 +422,6 @@ export const handlePhaseTransitionRequest = (
 			}),
 		};
 	}).pipe(Effect.orDie);
-
-export const tddPhaseTransitionRequest = publicProcedure
-	.input(Schema.toStandardSchemaV1(PhaseTransitionInput))
-	.mutation(
-		({ ctx, input }): Promise<PhaseTransitionResultType> => ctx.runtime.runPromise(handlePhaseTransitionRequest(input)),
-	);
 
 /**
  * The Effect-native `tdd_phase_transition_request` tool.

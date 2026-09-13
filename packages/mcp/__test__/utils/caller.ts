@@ -1,6 +1,6 @@
 /**
  * Direct handler caller for the Effect-native tools — the replacement for
- * the tRPC `createCallerFactory(appRouter)` caller. It decodes `params`
+ * the retired tRPC `createCallerFactory(appRouter)` caller. It decodes `params`
  * through the tool's `parameters` schema (the same step `Toolkit.handle`
  * performs, so an invalid input REJECTS exactly as the tRPC input
  * validation did) and then invokes `toolHandlers[name]` straight on a
@@ -52,7 +52,7 @@ export type ToolCaller<R> = <Name extends CallableTools<R>>(
  */
 export const makeCaller = <R, ER>(
 	runtime: ManagedRuntime.ManagedRuntime<R, ER>,
-	session: Layer.Layer<McpSession> = McpSession.layerTest(),
+	session: Layer.Layer<McpSession> = McpSession.layerTest({ cwd: process.cwd() }),
 ): ToolCaller<R> => {
 	return (name, params) => {
 		const handler = toolHandlers[name] as (p: unknown) => Effect.Effect<unknown, never, R | McpSession>;

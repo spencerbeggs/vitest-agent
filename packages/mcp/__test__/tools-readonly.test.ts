@@ -2,8 +2,8 @@
  * The 18 read-only tools over the in-process stdio harness: each is
  * listed with the read-only annotation set, and a representative
  * `tools/call` returns the typed `structuredContent` plus the markdown
- * (or JSON) text channel. Assertions mirror the tRPC-caller tests in
- * `router.test.ts` and the per-tool suites they replace.
+ * (or JSON) text channel. Assertions mirror the direct-caller tests in
+ * `tool-handlers.test.ts` and the per-tool suites they replace.
  */
 
 import { DataStore } from "@vitest-agent/engine";

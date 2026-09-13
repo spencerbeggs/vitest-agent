@@ -12,6 +12,15 @@ import type { SessionContext } from "@vitest-agent/engine";
 import { Context, Layer, MutableRef } from "effect";
 
 /**
+ * `SessionContext` is declared by `@vitest-agent/engine` (next to the
+ * session-env recovery program that produces it) and re-exported here so
+ * the MCP barrel keeps its public name.
+ *
+ * @public
+ */
+export type { SessionContext };
+
+/**
  * Mutable holder for the MCP server's currently-associated host chat
  * id (the per-process CC chat UUID).
  *
@@ -146,33 +155,17 @@ export class McpSession extends Context.Service<
 		});
 
 	/**
-	 * A test session: `cwd` defaults to `process.cwd()`, both refs start
-	 * `null`, and any field can be overridden.
+	 * A test session: `cwd` is the caller's (this module is process-free,
+	 * so the test harness passes `process.cwd()` itself), both refs start
+	 * `null`, and either can be overridden.
 	 */
-	static readonly layerTest = (overrides: Partial<McpSessionOptions> = {}): Layer.Layer<McpSession> =>
+	static readonly layerTest = (
+		overrides: Pick<McpSessionOptions, "cwd"> & Partial<McpSessionOptions>,
+	): Layer.Layer<McpSession> =>
 		McpSession.layer({
-			cwd: overrides.cwd ?? process.cwd(),
+			cwd: overrides.cwd,
 			initialSessionId: overrides.initialSessionId ?? null,
 			initialContext: overrides.initialContext ?? null,
 			...(overrides.recover === undefined ? {} : { recover: overrides.recover }),
 		});
 }
-
-/**
- * Wrap the tRPC-era context refs as an `McpSession` layer so a tRPC
- * procedure can delegate to a handler that reads the session. Kept until
- * the tRPC server is deleted (Task 17).
- *
- * @param ctx - the `cwd` and the two session refs the tRPC context carries
- * @internal
- */
-export const sessionFromContext = (ctx: {
-	readonly cwd: string;
-	readonly currentSessionId: CurrentSessionIdRef;
-	readonly sessionContext: SessionContextRef;
-}): Layer.Layer<McpSession> =>
-	Layer.succeed(McpSession, {
-		cwd: ctx.cwd,
-		currentSessionId: ctx.currentSessionId,
-		sessionContext: ctx.sessionContext,
-	});

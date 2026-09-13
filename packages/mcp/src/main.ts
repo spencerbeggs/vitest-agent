@@ -135,7 +135,7 @@ export const main = async (): Promise<void> => {
 			resolveProjectDir,
 		} = await import("@vitest-agent/engine");
 		const { McpSession, sessionContextFromEnv } = await import("./session.js");
-		const { ServerLayer } = await import("./server-layer.js");
+		const { ServerLayer } = await import("./server.js");
 		const { CURRENT_MCP_VERSION } = await import("./version.js");
 
 		const env = process.env;

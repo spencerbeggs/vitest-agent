@@ -10,7 +10,6 @@ import { CoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const CoverageAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true),
@@ -131,10 +130,6 @@ export const handleTestCoverage = (
 		}
 		return { dataAvailable: true as const, project, coverage: coverageOpt.value };
 	}).pipe(Effect.orDie);
-
-export const testCoverage = publicProcedure
-	.input(Schema.toStandardSchemaV1(TestCoverageInput))
-	.query(({ ctx, input }): Promise<TestCoverageResultType> => ctx.runtime.runPromise(handleTestCoverage(input)));
 
 /**
  * The Effect-native `test_coverage` tool.

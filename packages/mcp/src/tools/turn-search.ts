@@ -8,7 +8,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const TurnRow = Schema.Struct({
 	id: Schema.Finite.annotate({ description: "Numeric primary key of this turn row." }),
@@ -90,10 +89,6 @@ export const handleTurnSearch = (input: TurnSearchInputType): Effect.Effect<Turn
 		});
 		return { count: rows.length, turns: rows };
 	}).pipe(Effect.orDie);
-
-export const turnSearch = publicProcedure
-	.input(Schema.toStandardSchemaV1(TurnSearchInput))
-	.query(({ ctx, input }): Promise<TurnSearchResultType> => ctx.runtime.runPromise(handleTurnSearch(input)));
 
 /**
  * The Effect-native `turn_search` tool.

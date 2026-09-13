@@ -8,7 +8,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 const SettingsRowSchema = Schema.Struct({
 	hash: Schema.String.annotate({
@@ -145,10 +144,6 @@ export const handleConfigure = (input: ConfigureInputType): Effect.Effect<Config
 				}
 			: { found: true as const, source: "requested" as const, settings: settingsOpt.value };
 	}).pipe(Effect.orDie);
-
-export const configure = publicProcedure
-	.input(Schema.toStandardSchemaV1(ConfigureInput))
-	.query(({ ctx, input }): Promise<ConfigureResultType> => ctx.runtime.runPromise(handleConfigure(input)));
 
 /**
  * The Effect-native `configure` tool.

@@ -2,7 +2,7 @@
  * Integration tests for the T2 tag-filtering MCP surface.
  *
  * Seeds a multi-tag fixture into the persistence layer, then walks the
- * three new tool surfaces end-to-end via the tRPC caller:
+ * three new tool surfaces end-to-end via the direct handler caller:
  *   inventory({ kind: "tag" })        — scoped + unscoped pivots
  *   test({ action: "for_tag" })       — per-project grouping
  *

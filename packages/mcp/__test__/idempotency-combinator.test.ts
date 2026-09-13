@@ -1,6 +1,6 @@
 /**
  * `withIdempotency` — the Effect-native idempotency combinator that
- * replaces the tRPC `idempotentProcedure` middleware (Task 17 deletes the
+ * replaced the tRPC `idempotentProcedure` middleware (deleted with the
  * middleware once every write tool is ported). Key-derivation cases are
  * ported from `idempotency.test.ts`; the remaining cases pin the
  * combinator's cache hit / miss / null-key / persist-failure / non-object

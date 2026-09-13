@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCurrentSessionIdRef } from "../src/context.js";
+import { createCurrentSessionIdRef } from "../src/session.js";
 
 /**
  * `createCurrentSessionIdRef` is backed by Effect's `MutableRef` rather than

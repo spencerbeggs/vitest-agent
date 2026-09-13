@@ -12,7 +12,6 @@ import { DataReader, DataStore } from "@vitest-agent/engine";
 import { BehaviorDetail, BehaviorRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { idempotentProcedure } from "../middleware/idempotency.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
 
@@ -161,9 +160,9 @@ export const TddBehaviorInput = Schema.Union([
 export type TddBehaviorInputType = Schema.Schema.Type<typeof TddBehaviorInput>;
 
 /**
- * Single source of truth for the `tdd_behavior` tool's `action`
- * discriminant, consumed by `server.ts`'s served `z.enum(...)` so the
- * MCP-SDK-side registration cannot drift from this tRPC input union
+ * Single source of truth for the `tdd_behavior` tool's `action` discriminant.
+ * `served-enum-drift.test.ts` asserts the served `oneOf` members match
+ * this tuple exactly, so the wire enum cannot drift from the input union
  * (issue #335).
  */
 export const TDD_BEHAVIOR_ACTIONS = ["create", "update", "delete", "get", "list_by_goal", "list_by_tdd_task"] as const;
@@ -268,10 +267,6 @@ export const handleTddBehavior = (
 			}),
 		)
 		.pipe(Effect.orDie);
-
-export const tddBehavior = idempotentProcedure
-	.input(Schema.toStandardSchemaV1(TddBehaviorInput))
-	.mutation(({ ctx, input }): Promise<TddBehaviorResultType> => ctx.runtime.runPromise(handleTddBehavior(input)));
 
 /**
  * The Effect-native `tdd_behavior` tool.

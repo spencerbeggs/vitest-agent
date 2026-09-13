@@ -14,7 +14,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
 
 const TestRowSchema = Schema.Struct({
@@ -445,9 +444,10 @@ export const TestInput = Schema.Union([
 export type TestInputType = Schema.Schema.Type<typeof TestInput>;
 
 /**
- * Single source of truth for the `test` tool's `action` discriminant,
- * consumed by `server.ts`'s served `z.enum(...)` so the MCP-SDK-side
- * registration cannot drift from this tRPC input union (issue #335).
+ * Single source of truth for the `test` tool's `action` discriminant.
+ * `served-enum-drift.test.ts` asserts the served `oneOf` members match
+ * this tuple exactly, so the wire enum cannot drift from the input union
+ * (issue #335).
  */
 export const TEST_ACTIONS = ["list", "get", "for_file", "for_tag", "annotations", "artifacts"] as const;
 type TestAction = Schema.Schema.Type<typeof TestInput>["action"];
@@ -604,10 +604,6 @@ export const handleTest = (input: TestInputType): Effect.Effect<TestResultType, 
 			}),
 		)
 		.pipe(Effect.orDie);
-
-export const test = publicProcedure
-	.input(Schema.toStandardSchemaV1(TestInput))
-	.query(({ ctx, input }): Promise<TestResultType> => ctx.runtime.runPromise(handleTest(input)));
 
 /**
  * The Effect-native `test` tool.

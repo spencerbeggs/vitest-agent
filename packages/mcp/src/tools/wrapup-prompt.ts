@@ -12,7 +12,6 @@ import { DataReader, formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { publicProcedure } from "../context.js";
 
 export const WrapupPromptResult = Schema.Struct({
 	hasContent: Schema.Boolean.annotate({
@@ -71,10 +70,6 @@ export const handleWrapupPrompt = (
 			? { hasContent: true, kind, markdown: md }
 			: { hasContent: false, kind, markdown: "Nothing to wrap up." };
 	});
-
-export const wrapupPrompt = publicProcedure
-	.input(Schema.toStandardSchemaV1(WrapupPromptInput))
-	.query(({ ctx, input }): Promise<WrapupPromptResultType> => ctx.runtime.runPromise(handleWrapupPrompt(input)));
 
 /**
  * The Effect-native `wrapup_prompt` tool. The text channel is the

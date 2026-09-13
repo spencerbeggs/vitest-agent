@@ -16,7 +16,6 @@ import { GoalDetail } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { idempotentProcedure } from "../middleware/idempotency.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 
 const TddPhaseRow = Schema.Struct({
@@ -233,9 +232,9 @@ export const TddTaskInput = Schema.Union([StartVariant, EndVariant, GetVariant, 
 export type TddTaskInputType = Schema.Schema.Type<typeof TddTaskInput>;
 
 /**
- * Single source of truth for the `tdd_task` tool's `action`
- * discriminant, consumed by `server.ts`'s served `z.enum(...)` so the
- * MCP-SDK-side registration cannot drift from this tRPC input union
+ * Single source of truth for the `tdd_task` tool's `action` discriminant.
+ * `served-enum-drift.test.ts` asserts the served `oneOf` members match
+ * this tuple exactly, so the wire enum cannot drift from the input union
  * (issue #335).
  */
 export const TDD_TASK_ACTIONS = ["start", "end", "get", "resume"] as const;
@@ -251,7 +250,7 @@ void _assertTddTaskActions;
 /**
  * Handler for {@link tddTaskTool}. A `start` with neither `sessionId` nor
  * `chatId`, an unknown `chatId`, or a blank `runId` fails as a defect (the
- * `UnexpectedToolError` envelope on the wire), as the tRPC procedure did.
+ * `UnexpectedToolError` envelope on the wire), as the retired tRPC procedure did.
  *
  * @public
  */
@@ -360,10 +359,6 @@ export const handleTddTask = (
 			}),
 		)
 		.pipe(Effect.orDie);
-
-export const tddTask = idempotentProcedure
-	.input(Schema.toStandardSchemaV1(TddTaskInput))
-	.mutation(({ ctx, input }): Promise<TddTaskResultType> => ctx.runtime.runPromise(handleTddTask(input)));
 
 /**
  * The Effect-native `tdd_task` tool.

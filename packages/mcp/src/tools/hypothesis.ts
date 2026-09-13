@@ -14,8 +14,7 @@ import { DataStoreError } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
-import { idempotentProcedure } from "../middleware/idempotency.js";
-import { McpSession, sessionFromContext } from "../session.js";
+import { McpSession } from "../session.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 
 const HypothesisRowSchema = Schema.Struct({
@@ -158,9 +157,9 @@ export const HypothesisInput = Schema.Union([RecordVariant, ValidateVariant, Lis
 export type HypothesisInputType = Schema.Schema.Type<typeof HypothesisInput>;
 
 /**
- * Single source of truth for the `hypothesis` tool's `action`
- * discriminant, consumed by `server.ts`'s served `z.enum(...)` so the
- * MCP-SDK-side registration cannot drift from this tRPC input union
+ * Single source of truth for the `hypothesis` tool's `action` discriminant.
+ * `served-enum-drift.test.ts` asserts the served `oneOf` members match
+ * this tuple exactly, so the wire enum cannot drift from the input union
  * (issue #335).
  */
 export const HYPOTHESIS_ACTIONS = ["record", "validate", "list"] as const;
@@ -275,13 +274,6 @@ export const handleHypothesis = (
 			}),
 		)
 		.pipe(Effect.orDie);
-
-export const hypothesis = idempotentProcedure
-	.input(Schema.toStandardSchemaV1(HypothesisInput))
-	.mutation(
-		({ ctx, input }): Promise<HypothesisResultType> =>
-			ctx.runtime.runPromise(handleHypothesis(input).pipe(Effect.provide(sessionFromContext(ctx)))),
-	);
 
 /**
  * The Effect-native `hypothesis` tool.

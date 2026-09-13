@@ -16,7 +16,7 @@ import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import type { Cause, Context, Scope } from "effect";
 import { Console, Deferred, Effect, Layer, Logger, Queue, References, Sink, Stdio, Stream } from "effect";
-import { ServerLayer } from "../../src/server-layer.js";
+import { ServerLayer } from "../../src/server.js";
 import { McpSession } from "../../src/session.js";
 
 export interface JsonRpcMessage {
@@ -73,7 +73,7 @@ export interface HarnessOptions {
 	readonly useDefaultLogger?: boolean | undefined;
 	/** Runs against the built services before the server starts (seed the in-memory DB). */
 	readonly seed?: Effect.Effect<void, never, HarnessServices> | undefined;
-	/** The `McpSession` the server sees; defaults to `McpSession.layerTest()` (cwd = process.cwd(), no recovered context). */
+	/** The `McpSession` the server sees; defaults to `McpSession.layerTest({ cwd: process.cwd() })` (no recovered context). */
 	readonly session?: Layer.Layer<McpSession> | undefined;
 }
 
@@ -131,7 +131,7 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		// provides the REAL process `Stdio`. The queue-backed `stdioLayer` is
 		// provided first (innermost) so it wins over that one.
 		const ServicesLayer = Layer.mergeAll(
-			options.session ?? McpSession.layerTest(),
+			options.session ?? McpSession.layerTest({ cwd: process.cwd() }),
 			DataStoreTestLayer,
 			OutputPipelineLive(process.env),
 			ProjectDiscoveryTest.layer([]),
