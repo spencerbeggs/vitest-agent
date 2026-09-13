@@ -38,13 +38,12 @@ import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
+import { McpSession } from "../src/session.js";
 import { vitestLoader } from "../src/tools/run-tests.js";
+import type { ToolParams } from "./utils/caller.js";
+import { makeCaller as makeToolCaller } from "./utils/caller.js";
 
 const createVitestMock = vi.fn();
-
-const { appRouter } = await import("../src/router.js");
 
 const GIT_IDENTITY_ENV = {
 	GIT_AUTHOR_NAME: "vitest-agent-test",
@@ -72,13 +71,13 @@ function fakeVitest() {
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 
 describe("run_tests projectRoot validation", () => {
-	let runtime: ManagedRuntime.ManagedRuntime<never, never>;
+	let runtime: ManagedRuntime.ManagedRuntime<Layer.Success<typeof TestLayer>, Layer.Error<typeof TestLayer>>;
 	let tmpRoot: string;
 
 	const originalVitestLoad = vitestLoader.load;
 
 	beforeEach(() => {
-		runtime = ManagedRuntime.make(TestLayer) as unknown as ManagedRuntime.ManagedRuntime<never, never>;
+		runtime = ManagedRuntime.make(TestLayer);
 		tmpRoot = mkdtempSync(join(tmpdir(), "va-run-tests-project-root-"));
 		createVitestMock.mockReset();
 		// Issue #303: substitute the loader directly rather than `vi.mock`ing
@@ -94,13 +93,10 @@ describe("run_tests projectRoot validation", () => {
 		vitestLoader.load = originalVitestLoad;
 	});
 
-	const makeCaller = (cwd: string) =>
-		createCallerFactory(appRouter)({
-			runtime: runtime as unknown as McpContext["runtime"],
-			cwd,
-			currentSessionId: createCurrentSessionIdRef(null),
-			sessionContext: createSessionContextRef(),
-		});
+	const makeCaller = (cwd: string) => ({
+		run_tests: (params: ToolParams<"run_tests">) =>
+			makeToolCaller(runtime, McpSession.layerTest({ cwd }))("run_tests", params),
+	});
 
 	it("rejects a projectRoot belonging to an unrelated git repository, naming both paths, without starting Vitest", async () => {
 		const repoA = join(tmpRoot, "repo-a");

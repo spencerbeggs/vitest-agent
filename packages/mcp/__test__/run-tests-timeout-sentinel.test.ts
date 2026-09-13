@@ -16,23 +16,20 @@ import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
 import { vitestLoader } from "../src/tools/run-tests.js";
+import { makeCaller } from "./utils/caller.js";
 
 const createVitestMock = vi.fn();
-
-const { appRouter } = await import("../src/router.js");
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 
 describe("run_tests timeout classification (issue #320)", () => {
-	let runtime: ManagedRuntime.ManagedRuntime<never, never>;
+	let runtime: ManagedRuntime.ManagedRuntime<Layer.Success<typeof TestLayer>, Layer.Error<typeof TestLayer>>;
 
 	const originalVitestLoad = vitestLoader.load;
 
 	beforeEach(() => {
-		runtime = ManagedRuntime.make(TestLayer) as unknown as ManagedRuntime.ManagedRuntime<never, never>;
+		runtime = ManagedRuntime.make(TestLayer);
 		createVitestMock.mockReset();
 		vitestLoader.load = (async () => ({
 			createVitest: (...innerArgs: unknown[]) => createVitestMock(...innerArgs),
@@ -44,13 +41,7 @@ describe("run_tests timeout classification (issue #320)", () => {
 		vitestLoader.load = originalVitestLoad;
 	});
 
-	const makeCaller = () =>
-		createCallerFactory(appRouter)({
-			runtime: runtime as unknown as McpContext["runtime"],
-			cwd: process.cwd(),
-			currentSessionId: createCurrentSessionIdRef(null),
-			sessionContext: createSessionContextRef(),
-		});
+	const runTests = (params: { timeout: number }) => makeCaller(runtime)("run_tests", params);
 
 	it('reports { kind: "error" }, not { kind: "timeout" }, when an ordinary thrown error\'s message happens to be the literal string VITEST_TIMEOUT', async () => {
 		createVitestMock.mockResolvedValue({
@@ -61,8 +52,7 @@ describe("run_tests timeout classification (issue #320)", () => {
 			close: vi.fn(async () => undefined),
 		});
 
-		const caller = makeCaller();
-		const result = await caller.run_tests({ timeout: 30 });
+		const result = await runTests({ timeout: 30 });
 
 		expect(result.kind).toBe("error");
 		if (result.kind !== "error") return;
@@ -77,8 +67,7 @@ describe("run_tests timeout classification (issue #320)", () => {
 			close: vi.fn(async () => undefined),
 		});
 
-		const caller = makeCaller();
-		const result = await caller.run_tests({ timeout: 0.05 });
+		const result = await runTests({ timeout: 0.05 });
 
 		expect(result.kind).toBe("timeout");
 		if (result.kind !== "timeout") return;

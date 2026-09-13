@@ -18,13 +18,18 @@ import {
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
+import type { Context } from "effect";
 import { Data, Effect, Schema, SchemaGetter, Semaphore } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
+import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
+import { McpSession, sessionFromContext } from "../session.js";
 
 const TagFilter = Schema.Struct({
-	all: Schema.optional(Schema.Array(Schema.String)),
-	any: Schema.optional(Schema.Array(Schema.String)),
-	none: Schema.optional(Schema.Array(Schema.String)),
+	all: Schema.optionalKey(Schema.Array(Schema.String)).annotate({ description: "Require every listed tag" }),
+	any: Schema.optionalKey(Schema.Array(Schema.String)).annotate({ description: "Require at least one listed tag" }),
+	none: Schema.optionalKey(Schema.Array(Schema.String)).annotate({ description: "Exclude any listed tag" }),
 }).annotate({
 	identifier: "TagFilter",
 	description:
@@ -520,14 +525,6 @@ export const vitestLoader = {
 // permit semaphore keeps that env-write + worker-spawn pair atomic from
 // the perspective of any other run_tests call in this process.
 const runTestsSemaphore = Effect.runSync(Semaphore.make(1));
-function serializeRunTests<T>(fn: () => Promise<T>): Promise<T> {
-	return Effect.runPromise(
-		Semaphore.withPermit(
-			runTestsSemaphore,
-			Effect.promise(() => fn()),
-		),
-	);
-}
 
 /**
  * Coerce unknown Vitest unhandled errors into VitestModuleError shape.
@@ -770,364 +767,441 @@ export function formatReportMarkdown(
 	return lines.join("\n");
 }
 
-export const runTests = publicProcedure
-	.input(
-		Schema.toStandardSchemaV1(
-			Schema.Struct({
-				files: Schema.optional(Schema.Array(Schema.String)),
-				project: Schema.optional(Schema.String),
-				tags: Schema.optional(TagFilter),
-				passWithNoTests: Schema.optional(Schema.Boolean),
-				timeout: Schema.optional(Schema.Number),
-				// Issue #252: the MCP server freezes its Vitest `root` at boot
-				// (`ctx.cwd`) and cannot observe a caller's cwd. When supplied,
-				// this overrides that root -- but only after validation (see
-				// `validateProjectRoot`): it must be an existing directory
-				// belonging to the same git repository as `ctx.cwd` (checked via
-				// `git rev-parse --git-common-dir`, identical across a repo and
-				// all its worktrees). A path in a different repo, or a
-				// non-existent path, returns `{ kind: "error" }` naming both
-				// paths -- never a silent fallback to `ctx.cwd`. The resolved
-				// root actually used is always echoed back on `RunTestsOk` /
-				// `RunTestsNoMatch`, whether or not this was supplied.
-				projectRoot: Schema.optional(Schema.String),
-				// Injected by the `pre-tool-use-mcp-run-tests.sh` hook —
-				// agents do not pass this directly. Carries the recovered
-				// VITEST_AGENT_* attribution UUIDs because Claude Code does
-				// not auto-source CLAUDE_ENV_FILE into MCP children.
-				_sessionContext: Schema.optional(
-					Schema.Struct({
-						chatId: Schema.String,
-						conversationId: Schema.String,
-						mainAgentId: Schema.String,
-					}),
+/**
+ * The `run_tests` tool's parameters. `tags` and `_sessionContext` are
+ * nested structs and are served strict at their own level (issue #243).
+ *
+ * @public
+ */
+export const RunTestsInput = Schema.Struct({
+	files: Schema.optionalKey(Schema.Array(Schema.String)).annotate({ description: "Test file paths to run" }),
+	project: Schema.optionalKey(Schema.String).annotate({ description: "Project name to filter" }),
+	// Issue #252: the MCP server freezes its Vitest `root` at boot
+	// (`ctx.cwd`) and cannot observe a caller's cwd. When supplied,
+	// this overrides that root -- but only after validation (see
+	// `validateProjectRoot`): it must be an existing directory
+	// belonging to the same git repository as `ctx.cwd` (checked via
+	// `git rev-parse --git-common-dir`, identical across a repo and
+	// all its worktrees). A path in a different repo, or a
+	// non-existent path, returns `{ kind: "error" }` naming both
+	// paths -- never a silent fallback to `ctx.cwd`. The resolved
+	// root actually used is always echoed back on `RunTestsOk` /
+	// `RunTestsNoMatch`, whether or not this was supplied.
+	projectRoot: Schema.optionalKey(Schema.String).annotate({
+		description:
+			"Explicit Vitest root for this call, used verbatim. Omit it to get the config-anchored default (walk up from the server's boot dir for a vitest/vite config, bounded at the git root). Prefer an absolute path; a relative path is resolved against ctx.cwd, not the server process's cwd. Validated: must be an existing directory in the same git repository as ctx.cwd (same git-common-dir, e.g. a sibling worktree). Rejected with { kind: 'error' } naming both paths otherwise.",
+	}),
+	tags: Schema.optionalKey(TagFilter).annotate({
+		description: "Structured tag filter; all/any/none AND together with each other and with project/files",
+	}),
+	passWithNoTests: Schema.optionalKey(Schema.Boolean).annotate({
+		description: "Per-call override of Vitest's native test.passWithNoTests",
+	}),
+	timeout: Schema.optionalKey(Schema.Finite).annotate({ description: "Timeout in seconds (default: 120)" }),
+	// Injected by the `pre-tool-use-mcp-run-tests.sh` hook —
+	// agents do not pass this directly. Carries the recovered
+	// VITEST_AGENT_* attribution UUIDs because Claude Code does
+	// not auto-source CLAUDE_ENV_FILE into MCP children.
+	_sessionContext: Schema.optionalKey(
+		Schema.Struct({
+			chatId: Schema.String,
+			conversationId: Schema.String,
+			mainAgentId: Schema.String,
+		}),
+	).annotate({ description: "Hook-injected session attribution UUIDs; do not pass manually." }),
+});
+/**
+ * The decoded {@link RunTestsInput}.
+ *
+ * @public
+ */
+export type RunTestsInputType = Schema.Schema.Type<typeof RunTestsInput>;
+
+/** What the promise-shaped run body reads from the Effect world: the session and a way to run DB effects. */
+interface RunTestsContext {
+	readonly cwd: string;
+	readonly currentSessionId: CurrentSessionIdRef;
+	readonly sessionContext: SessionContextRef;
+	readonly runPromise: <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>) => Promise<A>;
+}
+
+/**
+ * The run body, promise-shaped because it drives Vitest's promise API and
+ * the AsyncLocalStorage stdio capture; every failure is folded into the
+ * `{ kind: "error" }` envelope, so it never rejects.
+ */
+const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Promise<RunTestsResultType> => {
+	const files = input.files ? sanitizeTestArgs(input.files) : [];
+	const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
+	// Sanitize tag values too — they ride into Vitest's tag-expression
+	// compiler unmodified, so shell-metachar injections must be
+	// rejected the same way file/project arguments are.
+	const tagsInput = input.tags;
+	if (tagsInput) {
+		if (tagsInput.all) sanitizeTestArgs(tagsInput.all);
+		if (tagsInput.any) sanitizeTestArgs(tagsInput.any);
+		if (tagsInput.none) sanitizeTestArgs(tagsInput.none);
+	}
+	const resolvedExpression = composeTagExpression(tagsInput ?? null);
+	const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
+
+	// Issue #252: validate (never trust) an explicit projectRoot
+	// before it can influence anything below. A rejection returns
+	// the tool's normal error envelope and never reaches
+	// createVitest — this must happen before any Vitest/coverage
+	// setup so a mismatched root can't leak into a real run.
+	const projectRootValidation = await validateProjectRoot(input.projectRoot, ctx.cwd);
+	if (!projectRootValidation.ok) {
+		return { kind: "error" as const, message: projectRootValidation.message };
+	}
+	const resolvedRoot = projectRootValidation.root;
+
+	// Vitest 5 probes only `root` for a config file. The default
+	// (unsupplied `projectRoot`) path is already anchored at a
+	// directory that holds one, so it needs nothing. An EXPLICIT
+	// `projectRoot` keeps its verbatim `root` and gets the config
+	// passed alongside it — without this a package-subtree root
+	// runs on pure defaults, never loads AgentPlugin, writes no DB
+	// rows, and still returns `kind: "ok"`.
+	let anchoredConfig: string | undefined;
+	if (input.projectRoot !== undefined) {
+		const found = resolveAnchoredConfigFile(resolvedRoot);
+		if (found === null) {
+			return {
+				kind: "error" as const,
+				message: `No vitest.config.* or vite.config.* was found at or above projectRoot "${resolvedRoot}" within the repository. Vitest 5 does not search ancestor directories, so this run would collect no tests and load no plugins. Pass a projectRoot that contains a Vitest config, or omit projectRoot to anchor automatically.`,
+			};
+		}
+		anchoredConfig = found;
+	}
+
+	const timeoutMs = (input.timeout ?? 120) * 1000;
+
+	// Propagate the active SessionContext into process.env so the
+	// in-process Vitest reporter (which reads VITEST_AGENT_*
+	// directly from the environment at startup) attributes this run
+	// to the active agent. The surrounding `serializeRunTests`
+	// semaphore permit keeps this write atomic with the worker-pool
+	// spawn — concurrent calls cannot interleave their env
+	// assignments between another call's write and its `createVitest`
+	// start.
+	//
+	// Source priority (most authoritative first):
+	//   1. `input._sessionContext` — injected by the
+	//      `pre-tool-use-mcp-run-tests.sh` hook on every call;
+	//      always reflects the SessionStart-written exports.
+	//   2. `ctx.sessionContext.get()` — boot-time fallback (will be
+	//      `null` in practice because Claude Code does not
+	//      auto-source CLAUDE_ENV_FILE into MCP children).
+	const fromInput = input._sessionContext ?? null;
+	const recovered = fromInput ?? ctx.sessionContext.get();
+	if (recovered !== null) {
+		process.env.VITEST_AGENT_CHAT_ID = recovered.chatId;
+		process.env.VITEST_AGENT_CONVERSATION_ID = recovered.conversationId;
+		process.env.VITEST_AGENT_AGENT_ID = recovered.mainAgentId;
+	}
+
+	// The MCP server communicates over stdio, so Vitest's console
+	// output must not leak into stdout. Redirect to a null writable.
+	const nullStream = new Writable({
+		write(_chunk, _encoding, cb) {
+			cb();
+		},
+	});
+
+	// Dynamic import: vitest/node is only needed when this tool is
+	// invoked. Keeps the MCP server startup fast. Issue #303: resolve
+	// the specifier anchored at `resolvedRoot` (see
+	// `resolveVitestNodeEntry`) rather than importing the bare
+	// "vitest/node" specifier, which would resolve relative to this
+	// package's own install location and can silently drive a
+	// DIFFERENT physical vitest copy than the one the project under
+	// test imports — corrupting the module-level SnapshotClient
+	// singleton and failing every snapshot assertion. Routed through
+	// `vitestLoader.load` (rather than a bare `await import(...)`
+	// here) because vitest's own vite-node externalizes the
+	// "vitest"/"vitest/node" package for every importer, but only
+	// special-cases AST-literal `import("vitest/node")` call sites
+	// for `vi.mock` interception — a computed specifier (required
+	// here, since the whole point is to resolve a DIFFERENT physical
+	// path per call) silently bypasses mocking and loads the real
+	// module. `vitestLoader` is a plain mutable object so tests can
+	// substitute `.load` directly (property mutation on a shared
+	// object reference, no `vi.mock` needed).
+	const { createVitest } = await vitestLoader.load(resolveVitestNodeEntry(resolvedRoot));
+
+	let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
+	let covOverride: ReturnType<typeof makeCoverageDirOverride> | undefined;
+
+	try {
+		// Assigned inside the try (not before it) so a throwing
+		// mkdtempSync — e.g. a full or read-only tmpdir — is caught
+		// by the surrounding catch and returns the tool's normal
+		// `{ kind: "error", message }` shape instead of propagating
+		// raw out of the tRPC resolver.
+		covOverride = makeCoverageDirOverride();
+		vitest = await createVitest(
+			{
+				root: resolvedRoot,
+				...(anchoredConfig !== undefined ? { config: anchoredConfig } : {}),
+				run: true,
+				// Inherit coverage from the user's vitest.config (enabled,
+				// provider, thresholds all still apply — this spreads
+				// `coverage.reportsDirectory` as a field-level merge, not a
+				// replacement). Forcing `enabled: false` here was overriding
+				// intentional "coverage on by default" configurations and
+				// forced the orchestrator to make a parallel Bash --coverage
+				// call just to populate file_coverage rows.
+				coverage: covOverride.coverage,
+				...(project ? { project } : {}),
+				// Vitest's `tagsFilter: string[]` accepts one or more
+				// tag-expression strings (AND-ed together). We compose
+				// a single expression from the structured TagFilter
+				// and pass it as a one-element array.
+				...(resolvedExpression !== null ? { tagsFilter: [resolvedExpression] } : {}),
+				// Per-call override of Vitest's native test.passWithNoTests.
+				// When unset on the input we forward nothing, and Vitest
+				// re-resolves the policy from the project config on disk.
+				// The plugin's ResolvedReporterConfig snapshot of the
+				// captured value is informational for consumer reporters
+				// and is not read here.
+				...(input.passWithNoTests !== undefined ? { passWithNoTests: input.passWithNoTests } : {}),
+			},
+			{}, // viteOverrides
+			{
+				stdout: nullStream as unknown as NodeJS.WriteStream,
+				stderr: nullStream as unknown as NodeJS.WriteStream,
+			},
+		);
+		const localVitest = vitest;
+
+		// Issue #320: the timeout is modeled in the Effect error channel
+		// via `Effect.timeout` rather than a `Promise.race` against a
+		// `setTimeout` that rejected with a string-sentinel Error
+		// ("VITEST_TIMEOUT") — a sentinel collides with an ordinary
+		// thrown error carrying that exact message. `Effect.timeout`
+		// fails with a typed `Cause.TimeoutError` (`_tag: "TimeoutError"`),
+		// which cannot collide with an arbitrary Error's `.message`, and
+		// `Effect.catchTag("TimeoutError", ...)` recovers from exactly
+		// that tag. Both the timeout and the ordinary-failure branches are
+		// folded into a success-channel discriminated outcome (rather than
+		// left as promise rejections, whose value shape `Effect.runPromise`
+		// does not guarantee to be the bare error) so the classification
+		// happens entirely inside Effect combinators. Interrupting the
+		// underlying `localVitest.start(...)` promise on timeout is still
+		// best-effort (as before) — Effect fiber interruption cannot cancel
+		// an in-flight Promise.
+		const startOutcome = await withStdioCaptured(nullStream, () =>
+			Effect.runPromise(
+				Effect.tryPromise({
+					try: () => localVitest.start(files.length > 0 ? files : undefined),
+					// Wrap the rejection in a tagged error so the error channel
+					// stays a discriminated union (`VitestStartFailure |
+					// TimeoutError`); an `unknown` member would collapse
+					// `Effect.catchTag`'s tag parameter to `never`.
+					catch: (cause) => new VitestStartFailure({ cause }),
+				}).pipe(
+					Effect.timeout(timeoutMs),
+					Effect.map((value) => ({ outcome: "ok" as const, value })),
+					Effect.catchTag("TimeoutError", () => Effect.succeed({ outcome: "timeout" as const })),
+					Effect.catchTag("VitestStartFailure", (e) => Effect.succeed({ outcome: "failed" as const, cause: e.cause })),
 				),
-			}),
-		),
-	)
+			),
+		);
+		if (startOutcome.outcome === "timeout") {
+			return { kind: "timeout" as const, timeoutSeconds: input.timeout ?? 120 };
+		}
+		if (startOutcome.outcome === "failed") {
+			throw startOutcome.cause;
+		}
+		const result = startOutcome.value;
+
+		const testModules = result.testModules as unknown as Parameters<typeof buildAgentReport>[0];
+		const unhandledErrors = coerceErrors(result.unhandledErrors);
+
+		// Detect "no test cases matched the resolved filter set".
+		// Tests-did-not-run vs tests-ran-and-passed is filter-driven, not
+		// result-driven: an empty workspace with no filter is `ok` with
+		// an empty report. The `passWithNoTests` policy controls
+		// pass/fail classification only — it never reshapes the
+		// discriminator.
+		if (hasFilter && result.testModules.length === 0 && unhandledErrors.length === 0) {
+			return {
+				kind: "no-match" as const,
+				projectRoot: resolvedRoot,
+				filter: {
+					project: project ?? null,
+					files,
+					tags: tagsInput ?? null,
+					resolvedExpression,
+				},
+			};
+		}
+
+		const preliminaryReason =
+			unhandledErrors.length > 0 || result.testModules.some((m) => m.state() === "failed") ? "failed" : "passed";
+
+		const baseReport = buildAgentReport(testModules, unhandledErrors, preliminaryReason, {
+			omitPassingTests: true,
+		});
+		// buildAgentReport self-corrects reason for suite/collection failures.
+		const leaks = buildConsoleLeaks(
+			collectConsoleLeakEntries(localVitest.state.getFiles() as unknown as ConsoleLeakTask[]),
+		);
+		const report = leaks !== undefined ? { ...baseReport, consoleLeaks: leaks } : baseReport;
+
+		// Read stored classifications from DB (written by the reporter via
+		// classifyTest() during vitest.start). This avoids reimplementing
+		// classification logic and stays consistent with AgentReporter.
+		let classifications: ReadonlyMap<string, string> | undefined;
+		try {
+			classifications = await ctx.runPromise(
+				Effect.gen(function* () {
+					const reader = yield* DataReader;
+					const projects: ReadonlyArray<string> = project
+						? [project]
+						: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => r.project)));
+					const entries: Array<[string, string]> = [];
+					for (const p of projects) {
+						const tests = yield* reader.listTests(p, {});
+						for (const t of tests) {
+							if (t.classification != null) entries.push([t.fullName, t.classification]);
+						}
+					}
+					return new Map(entries);
+				}),
+			);
+		} catch {
+			// Classification is best-effort; don't fail the tool if DB read fails
+		}
+
+		// Best-effort: associate the run with the current session so
+		// session-scoped queries reflect this run. Never blocks the result.
+		const chatId = ctx.currentSessionId.get();
+		if (chatId !== null) {
+			ctx
+				.runPromise(
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						yield* store.associateLatestRunWithSession({ chatId, invocationMethod: "mcp" });
+					}),
+				)
+				.catch(() => undefined);
+		}
+
+		// Issue #160: a filtered call (files/project/tags) only exercises
+		// a subset of the project's test files. Vitest enforces
+		// coverage.thresholds against the whole-project denominator
+		// regardless of how many files ran, so surface why a coverage
+		// verdict from this call should not be trusted. Best-effort:
+		// `globTestSpecifications()` failing (e.g. an unusual project
+		// config) degrades to a note with no total-file count rather
+		// than failing the whole call.
+		let scopedNote: string | null = null;
+		if (hasFilter) {
+			const testedFileCount = testModules.length;
+			let totalFileCount: number | undefined;
+			try {
+				totalFileCount = (await localVitest.globTestSpecifications()).length;
+			} catch {
+				// Best-effort — the note degrades to omit the total count.
+			}
+			scopedNote = formatScopedCoverageNote(testedFileCount, totalFileCount);
+		}
+
+		return {
+			kind: "ok" as const,
+			...(project !== undefined && { project }),
+			projectRoot: resolvedRoot,
+			scope: {
+				project: project ?? null,
+				files,
+				tags: tagsInput ?? null,
+			},
+			report,
+			classifications: classifications ? Object.fromEntries(classifications) : {},
+			discoveryLastScannedAt: readDiscoveryLastScannedAt() ?? null,
+			scopedNote,
+		};
+	} catch (err) {
+		// Exception-safe error extraction: a hostile thrown value (a
+		// throwing `message` getter or `toString`) must still produce
+		// the `{ kind: "error" }` envelope, never a raw tRPC rejection.
+		let message: string;
+		try {
+			message = err instanceof Error ? err.message : String(err);
+		} catch {
+			message = coerceErrorField(err, "message") ?? "<unserializable error>";
+		}
+		return { kind: "error" as const, message };
+	} finally {
+		// Nested finally: a rejecting `vitest.close()` must not skip the
+		// stream teardown or the coverage tmpdir removal.
+		try {
+			await vitest?.close();
+		} finally {
+			nullStream.destroy();
+			if (covOverride !== undefined) {
+				try {
+					rmSync(covOverride.dir, { recursive: true, force: true });
+				} catch {
+					// best-effort cleanup; tmpdir reaping will get it eventually
+				}
+			}
+		}
+	}
+};
+
+/**
+ * Handler for {@link runTestsTool}. Serialized through a one-permit
+ * semaphore: the body assigns the active attribution UUIDs into
+ * `process.env.VITEST_AGENT_*` and then awaits `createVitest` /
+ * `vitest.start`, which spawns the worker pool that snapshots env at
+ * spawn time — two interleaved calls would race, attributing one call's
+ * results to the other's agent.
+ *
+ * @public
+ */
+export const handleRunTests = (
+	input: RunTestsInputType,
+): Effect.Effect<RunTestsResultType, never, McpSession | DataReader | DataStore> =>
+	Effect.gen(function* () {
+		const session = yield* McpSession;
+		const services: Context.Context<DataReader | DataStore> = yield* Effect.context<DataReader | DataStore>();
+		const ctx: RunTestsContext = {
+			cwd: session.cwd,
+			currentSessionId: session.currentSessionId,
+			sessionContext: session.sessionContext,
+			runPromise: (effect) => Effect.runPromise(Effect.provideContext(effect, services)),
+		};
+		return yield* Semaphore.withPermit(
+			runTestsSemaphore,
+			Effect.promise(() => runTestsBody(input, ctx)),
+		);
+	});
+
+export const runTests = publicProcedure
+	.input(Schema.toStandardSchemaV1(RunTestsInput))
 	.mutation(
 		({ ctx, input }): Promise<RunTestsResultType> =>
-			serializeRunTests(async (): Promise<RunTestsResultType> => {
-				const files = input.files ? sanitizeTestArgs(input.files) : [];
-				const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
-				// Sanitize tag values too — they ride into Vitest's tag-expression
-				// compiler unmodified, so shell-metachar injections must be
-				// rejected the same way file/project arguments are.
-				const tagsInput = input.tags;
-				if (tagsInput) {
-					if (tagsInput.all) sanitizeTestArgs(tagsInput.all);
-					if (tagsInput.any) sanitizeTestArgs(tagsInput.any);
-					if (tagsInput.none) sanitizeTestArgs(tagsInput.none);
-				}
-				const resolvedExpression = composeTagExpression(tagsInput ?? null);
-				const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
-
-				// Issue #252: validate (never trust) an explicit projectRoot
-				// before it can influence anything below. A rejection returns
-				// the tool's normal error envelope and never reaches
-				// createVitest — this must happen before any Vitest/coverage
-				// setup so a mismatched root can't leak into a real run.
-				const projectRootValidation = await validateProjectRoot(input.projectRoot, ctx.cwd);
-				if (!projectRootValidation.ok) {
-					return { kind: "error" as const, message: projectRootValidation.message };
-				}
-				const resolvedRoot = projectRootValidation.root;
-
-				// Vitest 5 probes only `root` for a config file. The default
-				// (unsupplied `projectRoot`) path is already anchored at a
-				// directory that holds one, so it needs nothing. An EXPLICIT
-				// `projectRoot` keeps its verbatim `root` and gets the config
-				// passed alongside it — without this a package-subtree root
-				// runs on pure defaults, never loads AgentPlugin, writes no DB
-				// rows, and still returns `kind: "ok"`.
-				let anchoredConfig: string | undefined;
-				if (input.projectRoot !== undefined) {
-					const found = resolveAnchoredConfigFile(resolvedRoot);
-					if (found === null) {
-						return {
-							kind: "error" as const,
-							message: `No vitest.config.* or vite.config.* was found at or above projectRoot "${resolvedRoot}" within the repository. Vitest 5 does not search ancestor directories, so this run would collect no tests and load no plugins. Pass a projectRoot that contains a Vitest config, or omit projectRoot to anchor automatically.`,
-						};
-					}
-					anchoredConfig = found;
-				}
-
-				const timeoutMs = (input.timeout ?? 120) * 1000;
-
-				// Propagate the active SessionContext into process.env so the
-				// in-process Vitest reporter (which reads VITEST_AGENT_*
-				// directly from the environment at startup) attributes this run
-				// to the active agent. The surrounding `serializeRunTests`
-				// semaphore permit keeps this write atomic with the worker-pool
-				// spawn — concurrent calls cannot interleave their env
-				// assignments between another call's write and its `createVitest`
-				// start.
-				//
-				// Source priority (most authoritative first):
-				//   1. `input._sessionContext` — injected by the
-				//      `pre-tool-use-mcp-run-tests.sh` hook on every call;
-				//      always reflects the SessionStart-written exports.
-				//   2. `ctx.sessionContext.get()` — boot-time fallback (will be
-				//      `null` in practice because Claude Code does not
-				//      auto-source CLAUDE_ENV_FILE into MCP children).
-				const fromInput = input._sessionContext ?? null;
-				const recovered = fromInput ?? ctx.sessionContext.get();
-				if (recovered !== null) {
-					process.env.VITEST_AGENT_CHAT_ID = recovered.chatId;
-					process.env.VITEST_AGENT_CONVERSATION_ID = recovered.conversationId;
-					process.env.VITEST_AGENT_AGENT_ID = recovered.mainAgentId;
-				}
-
-				// The MCP server communicates over stdio, so Vitest's console
-				// output must not leak into stdout. Redirect to a null writable.
-				const nullStream = new Writable({
-					write(_chunk, _encoding, cb) {
-						cb();
-					},
-				});
-
-				// Dynamic import: vitest/node is only needed when this tool is
-				// invoked. Keeps the MCP server startup fast. Issue #303: resolve
-				// the specifier anchored at `resolvedRoot` (see
-				// `resolveVitestNodeEntry`) rather than importing the bare
-				// "vitest/node" specifier, which would resolve relative to this
-				// package's own install location and can silently drive a
-				// DIFFERENT physical vitest copy than the one the project under
-				// test imports — corrupting the module-level SnapshotClient
-				// singleton and failing every snapshot assertion. Routed through
-				// `vitestLoader.load` (rather than a bare `await import(...)`
-				// here) because vitest's own vite-node externalizes the
-				// "vitest"/"vitest/node" package for every importer, but only
-				// special-cases AST-literal `import("vitest/node")` call sites
-				// for `vi.mock` interception — a computed specifier (required
-				// here, since the whole point is to resolve a DIFFERENT physical
-				// path per call) silently bypasses mocking and loads the real
-				// module. `vitestLoader` is a plain mutable object so tests can
-				// substitute `.load` directly (property mutation on a shared
-				// object reference, no `vi.mock` needed).
-				const { createVitest } = await vitestLoader.load(resolveVitestNodeEntry(resolvedRoot));
-
-				let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
-				let covOverride: ReturnType<typeof makeCoverageDirOverride> | undefined;
-
-				try {
-					// Assigned inside the try (not before it) so a throwing
-					// mkdtempSync — e.g. a full or read-only tmpdir — is caught
-					// by the surrounding catch and returns the tool's normal
-					// `{ kind: "error", message }` shape instead of propagating
-					// raw out of the tRPC resolver.
-					covOverride = makeCoverageDirOverride();
-					vitest = await createVitest(
-						{
-							root: resolvedRoot,
-							...(anchoredConfig !== undefined ? { config: anchoredConfig } : {}),
-							run: true,
-							// Inherit coverage from the user's vitest.config (enabled,
-							// provider, thresholds all still apply — this spreads
-							// `coverage.reportsDirectory` as a field-level merge, not a
-							// replacement). Forcing `enabled: false` here was overriding
-							// intentional "coverage on by default" configurations and
-							// forced the orchestrator to make a parallel Bash --coverage
-							// call just to populate file_coverage rows.
-							coverage: covOverride.coverage,
-							...(project ? { project } : {}),
-							// Vitest's `tagsFilter: string[]` accepts one or more
-							// tag-expression strings (AND-ed together). We compose
-							// a single expression from the structured TagFilter
-							// and pass it as a one-element array.
-							...(resolvedExpression !== null ? { tagsFilter: [resolvedExpression] } : {}),
-							// Per-call override of Vitest's native test.passWithNoTests.
-							// When unset on the input we forward nothing, and Vitest
-							// re-resolves the policy from the project config on disk.
-							// The plugin's ResolvedReporterConfig snapshot of the
-							// captured value is informational for consumer reporters
-							// and is not read here.
-							...(input.passWithNoTests !== undefined ? { passWithNoTests: input.passWithNoTests } : {}),
-						},
-						{}, // viteOverrides
-						{
-							stdout: nullStream as unknown as NodeJS.WriteStream,
-							stderr: nullStream as unknown as NodeJS.WriteStream,
-						},
-					);
-					const localVitest = vitest;
-
-					// Issue #320: the timeout is modeled in the Effect error channel
-					// via `Effect.timeout` rather than a `Promise.race` against a
-					// `setTimeout` that rejected with a string-sentinel Error
-					// ("VITEST_TIMEOUT") — a sentinel collides with an ordinary
-					// thrown error carrying that exact message. `Effect.timeout`
-					// fails with a typed `Cause.TimeoutError` (`_tag: "TimeoutError"`),
-					// which cannot collide with an arbitrary Error's `.message`, and
-					// `Effect.catchTag("TimeoutError", ...)` recovers from exactly
-					// that tag. Both the timeout and the ordinary-failure branches are
-					// folded into a success-channel discriminated outcome (rather than
-					// left as promise rejections, whose value shape `Effect.runPromise`
-					// does not guarantee to be the bare error) so the classification
-					// happens entirely inside Effect combinators. Interrupting the
-					// underlying `localVitest.start(...)` promise on timeout is still
-					// best-effort (as before) — Effect fiber interruption cannot cancel
-					// an in-flight Promise.
-					const startOutcome = await withStdioCaptured(nullStream, () =>
-						Effect.runPromise(
-							Effect.tryPromise({
-								try: () => localVitest.start(files.length > 0 ? files : undefined),
-								// Wrap the rejection in a tagged error so the error channel
-								// stays a discriminated union (`VitestStartFailure |
-								// TimeoutError`); an `unknown` member would collapse
-								// `Effect.catchTag`'s tag parameter to `never`.
-								catch: (cause) => new VitestStartFailure({ cause }),
-							}).pipe(
-								Effect.timeout(timeoutMs),
-								Effect.map((value) => ({ outcome: "ok" as const, value })),
-								Effect.catchTag("TimeoutError", () => Effect.succeed({ outcome: "timeout" as const })),
-								Effect.catchTag("VitestStartFailure", (e) =>
-									Effect.succeed({ outcome: "failed" as const, cause: e.cause }),
-								),
-							),
-						),
-					);
-					if (startOutcome.outcome === "timeout") {
-						return { kind: "timeout" as const, timeoutSeconds: input.timeout ?? 120 };
-					}
-					if (startOutcome.outcome === "failed") {
-						throw startOutcome.cause;
-					}
-					const result = startOutcome.value;
-
-					const testModules = result.testModules as unknown as Parameters<typeof buildAgentReport>[0];
-					const unhandledErrors = coerceErrors(result.unhandledErrors);
-
-					// Detect "no test cases matched the resolved filter set".
-					// Tests-did-not-run vs tests-ran-and-passed is filter-driven, not
-					// result-driven: an empty workspace with no filter is `ok` with
-					// an empty report. The `passWithNoTests` policy controls
-					// pass/fail classification only — it never reshapes the
-					// discriminator.
-					if (hasFilter && result.testModules.length === 0 && unhandledErrors.length === 0) {
-						return {
-							kind: "no-match" as const,
-							projectRoot: resolvedRoot,
-							filter: {
-								project: project ?? null,
-								files,
-								tags: tagsInput ?? null,
-								resolvedExpression,
-							},
-						};
-					}
-
-					const preliminaryReason =
-						unhandledErrors.length > 0 || result.testModules.some((m) => m.state() === "failed") ? "failed" : "passed";
-
-					const baseReport = buildAgentReport(testModules, unhandledErrors, preliminaryReason, {
-						omitPassingTests: true,
-					});
-					// buildAgentReport self-corrects reason for suite/collection failures.
-					const leaks = buildConsoleLeaks(
-						collectConsoleLeakEntries(localVitest.state.getFiles() as unknown as ConsoleLeakTask[]),
-					);
-					const report = leaks !== undefined ? { ...baseReport, consoleLeaks: leaks } : baseReport;
-
-					// Read stored classifications from DB (written by the reporter via
-					// classifyTest() during vitest.start). This avoids reimplementing
-					// classification logic and stays consistent with AgentReporter.
-					let classifications: ReadonlyMap<string, string> | undefined;
-					try {
-						classifications = await ctx.runtime.runPromise(
-							Effect.gen(function* () {
-								const reader = yield* DataReader;
-								const projects: ReadonlyArray<string> = project
-									? [project]
-									: yield* reader.getRunsByProject().pipe(Effect.map((rs) => rs.map((r) => r.project)));
-								const entries: Array<[string, string]> = [];
-								for (const p of projects) {
-									const tests = yield* reader.listTests(p, {});
-									for (const t of tests) {
-										if (t.classification != null) entries.push([t.fullName, t.classification]);
-									}
-								}
-								return new Map(entries);
-							}),
-						);
-					} catch {
-						// Classification is best-effort; don't fail the tool if DB read fails
-					}
-
-					// Best-effort: associate the run with the current session so
-					// session-scoped queries reflect this run. Never blocks the result.
-					const chatId = ctx.currentSessionId.get();
-					if (chatId !== null) {
-						ctx.runtime
-							.runPromise(
-								Effect.gen(function* () {
-									const store = yield* DataStore;
-									yield* store.associateLatestRunWithSession({ chatId, invocationMethod: "mcp" });
-								}),
-							)
-							.catch(() => undefined);
-					}
-
-					// Issue #160: a filtered call (files/project/tags) only exercises
-					// a subset of the project's test files. Vitest enforces
-					// coverage.thresholds against the whole-project denominator
-					// regardless of how many files ran, so surface why a coverage
-					// verdict from this call should not be trusted. Best-effort:
-					// `globTestSpecifications()` failing (e.g. an unusual project
-					// config) degrades to a note with no total-file count rather
-					// than failing the whole call.
-					let scopedNote: string | null = null;
-					if (hasFilter) {
-						const testedFileCount = testModules.length;
-						let totalFileCount: number | undefined;
-						try {
-							totalFileCount = (await localVitest.globTestSpecifications()).length;
-						} catch {
-							// Best-effort — the note degrades to omit the total count.
-						}
-						scopedNote = formatScopedCoverageNote(testedFileCount, totalFileCount);
-					}
-
-					return {
-						kind: "ok" as const,
-						...(project !== undefined && { project }),
-						projectRoot: resolvedRoot,
-						scope: {
-							project: project ?? null,
-							files,
-							tags: tagsInput ?? null,
-						},
-						report,
-						classifications: classifications ? Object.fromEntries(classifications) : {},
-						discoveryLastScannedAt: readDiscoveryLastScannedAt() ?? null,
-						scopedNote,
-					};
-				} catch (err) {
-					// Exception-safe error extraction: a hostile thrown value (a
-					// throwing `message` getter or `toString`) must still produce
-					// the `{ kind: "error" }` envelope, never a raw tRPC rejection.
-					let message: string;
-					try {
-						message = err instanceof Error ? err.message : String(err);
-					} catch {
-						message = coerceErrorField(err, "message") ?? "<unserializable error>";
-					}
-					return { kind: "error" as const, message };
-				} finally {
-					// Nested finally: a rejecting `vitest.close()` must not skip the
-					// stream teardown or the coverage tmpdir removal.
-					try {
-						await vitest?.close();
-					} finally {
-						nullStream.destroy();
-						if (covOverride !== undefined) {
-							try {
-								rmSync(covOverride.dir, { recursive: true, force: true });
-							} catch {
-								// best-effort cleanup; tmpdir reaping will get it eventually
-							}
-						}
-					}
-				}
-			}),
+			ctx.runtime.runPromise(handleRunTests(input).pipe(Effect.provide(sessionFromContext(ctx)))),
 	);
+
+/**
+ * The Effect-native `run_tests` tool.
+ *
+ * @public
+ */
+export const runTestsTool = Tool.make("run_tests", {
+	description:
+		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --git-common-dir`, which is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. The legacy format=json arg is dropped — structuredContent supersedes it.',
+	parameters: RunTestsInput,
+	success: RunTestsResult,
+	dependencies: [McpSession, DataReader, DataStore],
+})
+	.annotate(Tool.Title, "Run tests")
+	.annotate(Tool.Readonly, false)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, false)
+	.annotate(RenderText, (encoded) => formatRunTestsMarkdown(encoded as RunTestsResultType));

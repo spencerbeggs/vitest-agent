@@ -8,10 +8,10 @@ import { Layer, ManagedRuntime } from "effect";
 import type { SqlClient } from "effect/unstable/sql/SqlClient";
 import { test as base } from "vitest";
 
-// Superset of McpContext.runtime — adds SqlClient so tests can do raw SQL
-// assertions while the cast to McpContext["runtime"] still works for the caller.
+// Superset of the tool handlers' requirements — adds SqlClient so tests can
+// do raw SQL assertions while `makeCaller(runtime)` still accepts it.
 // Uses only well-structured package imports so tsgo can name the type.
-type McpRuntime = ManagedRuntime.ManagedRuntime<
+export type McpRuntime = ManagedRuntime.ManagedRuntime<
 	DataReader | DataStore | ProjectDiscovery | OutputRenderer | typeof SqlClient.Service,
 	never
 >;

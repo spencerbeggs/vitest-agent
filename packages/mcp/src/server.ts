@@ -671,11 +671,17 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		},
 		async (args) => {
 			const data = await caller.run_tests({
-				files: args.files,
-				project: args.project,
-				tags: args.tags,
-				passWithNoTests: args.passWithNoTests,
-				timeout: args.timeout,
+				...(args.files !== undefined && { files: args.files }),
+				...(args.project !== undefined && { project: args.project }),
+				...(args.tags !== undefined && {
+					tags: {
+						...(args.tags.all !== undefined && { all: args.tags.all }),
+						...(args.tags.any !== undefined && { any: args.tags.any }),
+						...(args.tags.none !== undefined && { none: args.tags.none }),
+					},
+				}),
+				...(args.passWithNoTests !== undefined && { passWithNoTests: args.passWithNoTests }),
+				...(args.timeout !== undefined && { timeout: args.timeout }),
 				...(args.projectRoot !== undefined && { projectRoot: args.projectRoot }),
 				...(args._sessionContext !== undefined && { _sessionContext: args._sessionContext }),
 			});

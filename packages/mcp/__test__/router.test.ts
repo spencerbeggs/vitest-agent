@@ -4,9 +4,6 @@ import { join } from "node:path";
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
 import { McpSession } from "../src/session.js";
 import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
@@ -37,18 +34,8 @@ vi.mock("node:fs", async (importOriginal) => {
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
-/** The Effect-native caller for the 18 read-only tools; the tRPC caller below remains for the tools Task 16 ports. */
+/** The Effect-native caller (default `McpSession.layerTest()`: cwd = process.cwd(), no recovered context). */
 const call = makeCaller(testRuntime);
-
-function createTestCaller(cwd: string = process.cwd(), initialSessionId: string | null = null) {
-	const factory = createCallerFactory(appRouter);
-	return factory({
-		runtime: testRuntime as unknown as McpContext["runtime"],
-		cwd,
-		currentSessionId: createCurrentSessionIdRef(initialSessionId),
-		sessionContext: createSessionContextRef(),
-	});
-}
 
 async function seedTestData() {
 	await testRuntime.runPromise(
@@ -315,8 +302,8 @@ describe("MCP Router", () => {
 		// AgentPlugin and contend with the outer reporter on the same DB).
 		const isolated = mkdtempSync(join(tmpdir(), "vitest-agent-run-tests-"));
 		try {
-			const caller = createTestCaller(isolated);
-			const result = await caller.run_tests({ files: ["nonexistent.test.ts"], timeout: 5 });
+			const isolatedCall = makeCaller(testRuntime, McpSession.layerTest({ cwd: isolated }));
+			const result = await isolatedCall("run_tests", { files: ["nonexistent.test.ts"], timeout: 5 });
 			expect(["ok", "timeout", "error"]).toContain(result.kind);
 		} finally {
 			rmSync(isolated, { recursive: true, force: true });
@@ -330,8 +317,7 @@ describe("MCP Router", () => {
 		// { kind: "error" }, not propagate raw out of the tRPC resolver.
 		throwMkdtempSyncFor = "vitest-agent-cov-";
 		try {
-			const caller = createTestCaller();
-			const result = await caller.run_tests({ files: ["nonexistent.test.ts"], timeout: 5 });
+			const result = await call("run_tests", { files: ["nonexistent.test.ts"], timeout: 5 });
 			expect(result.kind).toBe("error");
 			if (result.kind === "error") {
 				expect(result.message).toContain("ENOSPC");
@@ -361,8 +347,7 @@ describe("MCP Router", () => {
 		throwMkdtempSyncFor = "vitest-agent-cov-";
 		throwMkdtempSyncValue = hostile;
 		try {
-			const caller = createTestCaller();
-			const result = await caller.run_tests({ files: ["nonexistent.test.ts"], timeout: 5 });
+			const result = await call("run_tests", { files: ["nonexistent.test.ts"], timeout: 5 });
 			expect(result.kind).toBe("error");
 			if (result.kind === "error") {
 				expect(typeof result.message).toBe("string");

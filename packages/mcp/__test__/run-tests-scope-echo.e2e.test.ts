@@ -15,10 +15,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
+import { McpSession } from "../src/session.js";
+import type { McpRuntime } from "./integration/utils/fixtures.js";
 import { test } from "./integration/utils/fixtures.js";
+import type { ToolParams } from "./utils/caller.js";
+import { makeCaller as makeToolCaller } from "./utils/caller.js";
 
 const fixturesRoot = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const fixtureDir = join(fixturesRoot, "console-leak-project");
@@ -38,13 +39,10 @@ afterAll(() => {
 	rmSync(xdgDir, { recursive: true, force: true });
 });
 
-const makeCaller = (runtime: unknown, cwd: string = fixtureDir) =>
-	createCallerFactory(appRouter)({
-		runtime: runtime as McpContext["runtime"],
-		cwd,
-		currentSessionId: createCurrentSessionIdRef(null),
-		sessionContext: createSessionContextRef(),
-	});
+const makeCaller = (runtime: McpRuntime, cwd: string = fixtureDir) => ({
+	run_tests: (params: ToolParams<"run_tests">) =>
+		makeToolCaller(runtime, McpSession.layerTest({ cwd }))("run_tests", params),
+});
 
 describe("run_tests echoes the resolved scope on success (e2e)", () => {
 	test("an unfiltered run echoes an empty scope", { timeout: 120_000 }, async ({ runtime }) => {

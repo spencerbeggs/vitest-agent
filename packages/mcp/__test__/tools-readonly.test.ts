@@ -6,6 +6,7 @@
  * `router.test.ts` and the per-tool suites they replace.
  */
 
+import { DataStore } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import type { HarnessOptions, McpHarness, McpToolDescriptor } from "./utils/harness.js";
@@ -206,6 +207,70 @@ describe("test_history", () => {
 	it("rejects a missing project", async () => {
 		const result = await call("test_history", {});
 		expect(result.isError).toBe(true);
+	});
+});
+
+describe("test_history: served schema and single-test scoping (was server-test-history-schema)", () => {
+	const HISTORY_PROJECT = "served-history-proj";
+	const seedHistory: HarnessOptions = {
+		seed: Effect.gen(function* () {
+			const store = yield* DataStore;
+			yield* store.writeSettings("served-history-hash", { vitestVersion: "3.2.0" }, {});
+			const runId = yield* store.writeRun({
+				invocationId: "inv-served-history",
+				project: HISTORY_PROJECT,
+				settingsHash: "served-history-hash",
+				timestamp: "2026-03-26T00:00:00.000Z",
+				commitSha: null,
+				branch: null,
+				reason: "passed",
+				duration: 100,
+				total: 2,
+				passed: 2,
+				failed: 0,
+				skipped: 0,
+				scoped: false,
+			});
+			for (const [fullName, modulePath] of [
+				["Suite > one", "src/a.test.ts"],
+				["Suite > two", "src/b.test.ts"],
+			] as const) {
+				yield* store.writeHistory(
+					HISTORY_PROJECT,
+					fullName,
+					modulePath,
+					runId,
+					"2026-03-26T00:00:00.000Z",
+					"passed",
+					10,
+					false,
+					0,
+					null,
+				);
+			}
+		}).pipe(Effect.orDie),
+	};
+
+	it("declares testName, modulePath, and limit on the served inputSchema", async () => {
+		const tool = (await listTools()).find((t) => t.name === "test_history");
+		const properties = tool?.inputSchema.properties as Record<string, unknown>;
+		expect(Object.keys(properties)).toEqual(expect.arrayContaining(["project", "testName", "modulePath", "limit"]));
+	});
+
+	it("forwards testName through to a real single-test result", async () => {
+		const result = await call("test_history", { project: HISTORY_PROJECT, testName: "Suite > one" }, seedHistory);
+		expect(result.isError ?? false).toBe(false);
+		const history = result.structuredContent?.history as { tests: Array<{ fullName: string }> };
+		expect(history.tests).toHaveLength(1);
+		expect(history.tests[0]?.fullName).toBe("Suite > one");
+	});
+
+	it("rejects a non-numeric limit naming the field, and still accepts a positive integer", async () => {
+		const rejected = await call("test_history", { project: HISTORY_PROJECT, limit: "abc" }, seedHistory);
+		expect(rejected.isError).toBe(true);
+		expect(text(rejected)).toMatch(/limit/i);
+		const accepted = await call("test_history", { project: HISTORY_PROJECT, limit: 3 }, seedHistory);
+		expect(accepted.isError ?? false).toBe(false);
 	});
 });
 
@@ -550,6 +615,73 @@ describe("test", () => {
 		expect(result.structuredContent?.found).toBe(true);
 		const row = result.structuredContent?.test as { fullName: string; state: string; module: string };
 		expect(row).toMatchObject({ fullName: "utils > adds numbers", state: "passed", module: SEED_MODULE });
+	});
+
+	it("get refuses to guess an ambiguous fullName without modulePath, and forwards modulePath to the requested variant (was server-test-get-modulepath)", async () => {
+		const PROJECT = "served-ambiguous-proj";
+		const FULL_NAME = "Suite > shared";
+		const FIRST_MODULE = "src/first.test.ts";
+		const SECOND_MODULE = "src/second.test.ts";
+		const seedAmbiguous: HarnessOptions = {
+			seed: Effect.gen(function* () {
+				const store = yield* DataStore;
+				yield* store.writeSettings("served-ambiguous-hash", { vitestVersion: "3.2.0" }, {});
+				const runId = yield* store.writeRun({
+					invocationId: "inv-served-ambiguous",
+					project: PROJECT,
+					settingsHash: "served-ambiguous-hash",
+					timestamp: "2026-03-28T00:00:00.000Z",
+					commitSha: null,
+					branch: null,
+					reason: "failed",
+					duration: 100,
+					total: 2,
+					passed: 1,
+					failed: 1,
+					skipped: 0,
+					scoped: false,
+				});
+				for (const [modulePath, state] of [
+					[FIRST_MODULE, "passed"],
+					[SECOND_MODULE, "failed"],
+				] as const) {
+					const fileId = yield* store.ensureFile(modulePath);
+					const [moduleId] = yield* store.writeModules(runId, [
+						{ fileId, relativeModuleId: modulePath, state, duration: 20 },
+					]);
+					yield* store.writeSuites(moduleId, [{ name: "Suite", fullName: "Suite", state }]);
+					yield* store.writeTestCases(moduleId, [{ name: "shared", fullName: FULL_NAME, state, duration: 5 }]);
+				}
+			}).pipe(Effect.orDie),
+		};
+		const tool = (await listTools()).find((t) => t.name === "test") as McpToolDescriptor;
+		const getMember = (
+			tool.inputSchema.oneOf as Array<{ properties: Record<string, { const?: string; enum?: string[] }> }>
+		).find((m) => m.properties.action?.const === "get" || m.properties.action?.enum?.[0] === "get");
+		expect(Object.keys(getMember?.properties ?? {})).toContain("modulePath");
+
+		const ambiguous = await call("test", { action: "get", fullName: FULL_NAME, project: PROJECT }, seedAmbiguous);
+		expect(ambiguous.structuredContent).toMatchObject({
+			found: false,
+			ambiguous: true,
+			candidateModules: [FIRST_MODULE, SECOND_MODULE],
+		});
+		expect(text(ambiguous)).toContain(FIRST_MODULE);
+		expect(text(ambiguous)).toContain(SECOND_MODULE);
+
+		const second = await call(
+			"test",
+			{ action: "get", fullName: FULL_NAME, project: PROJECT, modulePath: SECOND_MODULE },
+			seedAmbiguous,
+		);
+		expect(second.structuredContent?.found).toBe(true);
+		expect(second.structuredContent?.test).toMatchObject({ module: SECOND_MODULE, state: "failed" });
+		const first = await call(
+			"test",
+			{ action: "get", fullName: FULL_NAME, project: PROJECT, modulePath: FIRST_MODULE },
+			seedAmbiguous,
+		);
+		expect(first.structuredContent?.test).toMatchObject({ module: FIRST_MODULE, state: "passed" });
 	});
 
 	it("get returns found=false for an unknown test", async () => {

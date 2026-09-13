@@ -741,3 +741,63 @@ describe("tdd_progress_push", () => {
 		expect(text(unknown)).toContain("Accepted params");
 	});
 });
+
+describe("run_tests (served schema only — the run itself is covered by the e2e/int suites)", () => {
+	it("is listed as a non-read-only, non-destructive, non-idempotent tool that declares projectRoot, tags and passWithNoTests", async () => {
+		const tool = (await listTools()).find((t) => t.name === "run_tests") as McpToolDescriptor;
+		expect(tool).toBeDefined();
+		expect(tool.annotations).toMatchObject({
+			readOnlyHint: false,
+			destructiveHint: false,
+			idempotentHint: false,
+			openWorldHint: false,
+		});
+		const properties = tool.inputSchema.properties as Record<string, Record<string, unknown>>;
+		expect(Object.keys(properties).sort()).toEqual(
+			["_sessionContext", "files", "passWithNoTests", "project", "projectRoot", "tags", "timeout"].sort(),
+		);
+		expect(tool.description).toContain("projectRoot");
+		expect(tool.inputSchema.required).toBeUndefined();
+		// Nested structs are strict at their own level (issue #243).
+		// `tags` is an identified schema, served as a $ref into $defs; resolve it.
+		const defs = tool.inputSchema.$defs as Record<string, Record<string, unknown>>;
+		const tags = defs[String(properties.tags?.$ref).replace("#/$defs/", "")];
+		expect(tags?.additionalProperties).toBe(false);
+		expect(Object.keys(tags?.properties as object).sort()).toEqual(["all", "any", "none"]);
+		expect(properties._sessionContext?.additionalProperties).toBe(false);
+	});
+
+	it("rejects an unknown parameter (testFiles) naming the accepted params instead of silently stripping it", async () => {
+		const result = await call("run_tests", { testFiles: ["x.test.ts"] });
+		expect(result.isError).toBe(true);
+		expect(text(result)).toContain("testFiles");
+		expect(text(result)).toContain("Accepted params");
+		expect(text(result)).toContain("files");
+	});
+
+	it("rejects an unknown key nested inside tags, and inside _sessionContext, instead of emptying the filter", async () => {
+		const tags = await call("run_tests", { tags: { anyy: ["unit"] } });
+		expect(tags.isError).toBe(true);
+		expect(text(tags)).toContain("anyy");
+		expect(text(tags)).toContain("Accepted params");
+		expect(text(tags)).toContain("any");
+		const sessionContext = await call("run_tests", {
+			_sessionContext: { chat_id: "x", conversationId: "y", mainAgentId: "z" },
+		});
+		expect(sessionContext.isError).toBe(true);
+		expect(text(sessionContext)).toContain("chat_id");
+	});
+
+	it("still rejects a genuinely unknown key alongside projectRoot", async () => {
+		const result = await call("run_tests", { projectRoot: "/tmp", bogus: 1 });
+		expect(result.isError).toBe(true);
+		expect(text(result)).toContain("bogus");
+	});
+
+	it("forwards a well-formed nested tags object to the handler, which refuses a shell-metachar tag before starting Vitest", async () => {
+		const result = await call("run_tests", { tags: { any: ["unit; rm -rf /"] } });
+		expect(result.isError).toBe(true);
+		expect(text(result)).not.toContain("Unrecognized parameter");
+		expect(text(result)).toContain("Unsafe argument rejected");
+	});
+});

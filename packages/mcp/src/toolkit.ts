@@ -23,6 +23,7 @@ import { handleNote, noteTool } from "./tools/note.js";
 import { handleTestOverview, testOverviewTool } from "./tools/overview.js";
 import { handlePing, pingTool } from "./tools/ping.js";
 import { handleRegisterAgent, registerAgentTool } from "./tools/register-agent.js";
+import { handleRunTests, runTestsTool } from "./tools/run-tests.js";
 import { handleSettingsList, settingsListTool } from "./tools/settings-list.js";
 import { handleTestStatus, testStatusTool } from "./tools/status.js";
 import { handleTddArtifactList, tddArtifactListTool } from "./tools/tdd-artifact.js";
@@ -72,6 +73,7 @@ export const Kit = Toolkit.make(
 	tddBehaviorTool,
 	tddArtifactListTool,
 	tddProgressPushTool,
+	runTestsTool,
 );
 
 /**
@@ -109,6 +111,7 @@ export const toolHandlers = {
 	tdd_behavior: withIdempotency("tdd_behavior", handleTddBehavior),
 	tdd_artifact_list: handleTddArtifactList,
 	tdd_progress_push: handleTddProgressPush,
+	run_tests: handleRunTests,
 } satisfies Toolkit.HandlersFrom<typeof Kit.tools>;
 
 /**

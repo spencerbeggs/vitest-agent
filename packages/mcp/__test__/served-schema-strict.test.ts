@@ -43,14 +43,30 @@ const listAllTools = (): Promise<ReadonlyArray<McpToolDescriptor>> =>
 	);
 
 describe("served input schemas are strict at every object level", () => {
-	it("lists every ported tool", async () => {
+	it("lists exactly the 30 served tools", async () => {
 		const names = (await listAllTools()).map((t) => t.name);
-		expect(names).toEqual(
-			expect.arrayContaining([
+		expect([...names].sort()).toEqual(
+			[
 				"ping",
 				"help",
 				"test_status",
+				"test_overview",
+				"test_coverage",
+				"test_history",
+				"test_trends",
 				"test_errors",
+				"file_coverage",
+				"settings_list",
+				"cache_health",
+				"configure",
+				"commit_changes",
+				"turn_search",
+				"failure_signature_get",
+				"acceptance_metrics",
+				"triage_brief",
+				"wrapup_prompt",
+				"inventory",
+				"test",
 				"register_agent",
 				"note",
 				"hypothesis",
@@ -60,7 +76,8 @@ describe("served input schemas are strict at every object level", () => {
 				"tdd_behavior",
 				"tdd_artifact_list",
 				"tdd_progress_push",
-			]),
+				"run_tests",
+			].sort(),
 		);
 	});
 

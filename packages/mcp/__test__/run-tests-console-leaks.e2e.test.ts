@@ -3,10 +3,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
+import { McpSession } from "../src/session.js";
 import { test } from "./integration/utils/fixtures.js";
+import { makeCaller } from "./utils/caller.js";
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "console-leak-project");
 let xdgDir: string;
@@ -23,20 +22,12 @@ afterAll(() => {
 	rmSync(xdgDir, { recursive: true, force: true });
 });
 
-const makeCaller = (runtime: unknown) =>
-	createCallerFactory(appRouter)({
-		runtime: runtime as McpContext["runtime"],
-		cwd: fixtureDir,
-		currentSessionId: createCurrentSessionIdRef(null),
-		sessionContext: createSessionContextRef(),
-	});
-
 describe("run_tests folds console leaks into the report under the real reporter topology (e2e)", () => {
 	test("a leaking passing test surfaces consoleLeaks with attribution and sample", { timeout: 120_000 }, async ({
 		runtime,
 	}) => {
-		const caller = makeCaller(runtime);
-		const result = await caller.run_tests({});
+		const call = makeCaller(runtime, McpSession.layerTest({ cwd: fixtureDir }));
+		const result = await call("run_tests", {});
 
 		expect(result.kind).toBe("ok");
 		if (result.kind !== "ok") return;
