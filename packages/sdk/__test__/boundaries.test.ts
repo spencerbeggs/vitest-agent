@@ -6,8 +6,7 @@ import { VERSION_TOKEN, importSpecifiers, referencesProcess, walkTs } from "./ut
 const SRC_ROOT = join(import.meta.dirname, "..", "src");
 const rel = (file: string): string => relative(SRC_ROOT, file);
 
-// TODO(#412): unskip in Task 5
-describe.skip("@vitest-agent/sdk is a platform-free core", () => {
+describe("@vitest-agent/sdk is a platform-free core", () => {
 	const files = walkTs(SRC_ROOT);
 	it("no file under src/ references process (version token exempt, only in version.ts)", () => {
 		const offenders = files.filter((f) => referencesProcess(readFileSync(f, "utf8")));

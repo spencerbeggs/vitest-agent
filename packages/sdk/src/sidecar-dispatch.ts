@@ -1,6 +1,20 @@
 import { exitCodeForTag } from "./exit-code-for-tag.js";
 import { injectEnv } from "./internal-inject-env.js";
 
+/**
+ * The process-level inputs {@link dispatch} needs, supplied by the bin
+ * runner so the dispatch core itself never reads `process` or `node:fs`.
+ * @public
+ */
+export interface DispatchIo {
+	/** Default working directory when `--cwd` is not passed. */
+	readonly cwd: string;
+	/** Environment map (`process.env` in the sidecar bins). */
+	readonly env: Record<string, string | undefined>;
+	/** Synchronous file reader; throws on a miss — dispatch/injectEnv catch. */
+	readonly readFile: (path: string) => string;
+}
+
 /** Result of a {@link dispatch} call: captured stdout/stderr + exit code.
  * @public
  */
@@ -52,18 +66,19 @@ const messageFromError = (err: unknown): string => {
 
 /**
  * Dispatch one argv invocation. `argv` is the post-`node post-bin`
- * slice — i.e. `process.argv.slice(2)`. Never throws: every failure is
- * folded into the returned {@link DispatchResult}.
+ * slice — i.e. `process.argv.slice(2)` — and `io` carries the process
+ * facts (cwd, env, a file reader) the runner owns. Never throws: every
+ * failure is folded into the returned {@link DispatchResult}.
  * @public
  */
-export const dispatch = async (argv: readonly string[]): Promise<DispatchResult> => {
+export const dispatch = async (argv: readonly string[], io: DispatchIo): Promise<DispatchResult> => {
 	const subcommand = argv[0];
 	const rest = argv.slice(1);
 
 	if (subcommand === "inject-env") {
 		const flags = parseFlags(rest);
 		const command = flags.command;
-		const cwd = flags.cwd ?? process.cwd();
+		const cwd = flags.cwd ?? io.cwd;
 		if (command === undefined) {
 			return {
 				stdout: "",
@@ -72,7 +87,7 @@ export const dispatch = async (argv: readonly string[]): Promise<DispatchResult>
 			};
 		}
 		try {
-			const out = injectEnv({ command, cwd, env: process.env });
+			const out = injectEnv({ command, cwd, env: io.env, readFile: io.readFile });
 			return { stdout: `${out}\n`, stderr: "", code: 0 };
 		} catch (err) {
 			const tag = tagFromError(err);

@@ -3,7 +3,8 @@
  * `@vitest-agent/sidecar-linux-x64` SEA entry point.
  *
  * The thin program runner for this platform's Single Executable
- * Application (SEA) binary. It owns nothing but the process plumbing:
+ * Application (SEA) binary. It owns nothing but the process plumbing
+ * (argv, cwd, env, and a `readFileSync` wrapper handed to `dispatch`):
  * the argv-dispatch logic is a clean package export of
  * `@vitest-agent/sdk` ({@link dispatch}), imported from its dedicated
  * `@vitest-agent/sdk/dispatch` entry point as a normal package
@@ -25,10 +26,15 @@
  * @packageDocumentation
  */
 
+import { readFileSync } from "node:fs";
 import { dispatch } from "@vitest-agent/sdk/dispatch";
 
 const main = async (): Promise<void> => {
-	const result = await dispatch(process.argv.slice(2));
+	const result = await dispatch(process.argv.slice(2), {
+		cwd: process.cwd(),
+		env: process.env,
+		readFile: (path) => readFileSync(path, "utf-8"),
+	});
 	if (result.stdout.length > 0) process.stdout.write(result.stdout);
 	if (result.stderr.length > 0) process.stderr.write(result.stderr);
 	process.exitCode = result.code;

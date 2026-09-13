@@ -211,7 +211,12 @@ const cwdInjectOpt = Flag.String("cwd").pipe(
 
 export const injectEnvSubcommand = Command.make("inject-env", { command: commandOpt, cwd: cwdInjectOpt }, (opts) =>
 	Effect.sync(() => {
-		const out = injectEnv({ command: opts.command, cwd: opts.cwd, env: process.env });
+		const out = injectEnv({
+			command: opts.command,
+			cwd: opts.cwd,
+			env: process.env,
+			readFile: (path) => readFileSync(path, "utf-8"),
+		});
 		process.stdout.write(`${out}\n`);
 	}),
 ).pipe(Command.withDescription("Rewrite a Bash command to prepend VITEST_AGENT_* env vars when it invokes Vitest"));

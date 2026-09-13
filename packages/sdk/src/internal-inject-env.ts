@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { detectVitestScripts, rewriteBashCommand } from "./utils/match-vitest-command.js";
 
 /** Input to {@link injectEnv}. @public */
@@ -7,11 +5,16 @@ export interface InjectEnvInput {
 	readonly command: string;
 	readonly cwd: string;
 	readonly env: Record<string, string | undefined>;
+	/**
+	 * Synchronous file reader, injected so the core never touches
+	 * `node:fs`. Throws on a missing file; {@link injectEnv} catches.
+	 */
+	readonly readFile: (path: string) => string;
 }
 
-const readPackageScripts = (cwd: string): Record<string, string> => {
+const readPackageScripts = (cwd: string, readFile: (path: string) => string): Record<string, string> => {
 	try {
-		const raw = readFileSync(join(cwd, "package.json"), "utf-8");
+		const raw = readFile(`${cwd}/package.json`);
 		const parsed = JSON.parse(raw) as { scripts?: Record<string, string> };
 		return parsed.scripts ?? {};
 	} catch {
@@ -29,8 +32,8 @@ const readPackageScripts = (cwd: string): Record<string, string> => {
  *   - `VITEST_AGENT_CONVERSATION_ID` or `VITEST_AGENT_AGENT_ID` is
  *     missing from env (no agent context to attribute to)
  *
- * Always synchronous — the package.json read is the only I/O and is
- * fast enough not to need Effect wrapping.
+ * Always synchronous — the package.json read is the only I/O, goes through
+ * the injected `readFile`, and is fast enough not to need Effect wrapping.
  * @public
  */
 export const injectEnv = (input: InjectEnvInput): string => {
@@ -38,7 +41,7 @@ export const injectEnv = (input: InjectEnvInput): string => {
 	const agentId = input.env.VITEST_AGENT_AGENT_ID;
 	if (conversationId === undefined || agentId === undefined) return input.command;
 
-	const scripts = readPackageScripts(input.cwd);
+	const scripts = readPackageScripts(input.cwd, input.readFile);
 	const vitestScripts = detectVitestScripts(scripts);
 
 	const parentAgentId = input.env.VITEST_AGENT_PARENT_AGENT_ID;
