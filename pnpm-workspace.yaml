@@ -4,8 +4,45 @@ packages:
   - plugins/*
   - website
 autoInstallPeers: true
+catalogs:
+  build:
+    "@types/node": ^26.5.1
+    "@types/react": ^19.3.0
+    react: ^19.3.0
+    tsx: ^4.23.13
+    typescript: ^7.0.2
+  docs:
+    "@rspress/core": ^2.0.21
+    "@rspress/plugin-sitemap": ^2.0.21
+    "@types/node": ^26.5.1
+    "@types/react": ^19.3.0
+    "@types/react-dom": ^19.3.0
+    react: ^19.3.0
+    react-dom: ^19.3.0
+    rspress-plugin-mermaid: ^1.0.1
+    vite: ^8.3.0
+  effect:
+    "@effect/platform-node": 4.0.0-rc.115
+    "@effect/sql-sqlite-node": 4.0.0-rc.115
+    effect: 4.0.0-rc.115
+  effected:
+    "@effected/config-file": ^0.9.0
+    "@effected/jsonc": ^0.11.0
+    "@effected/memfs": ^0.7.0
+    "@effected/schemastore": ^0.8.0
+    "@effected/toml": ^0.7.0
+    "@effected/walker": ^0.9.0
+    "@effected/workspaces": ^0.21.1
+    "@effected/xdg": ^0.5.1
+    "@effected/yaml": ^0.15.1
+  test:
+    "@vitest/coverage-istanbul": ^5.0.0
+    "@vitest/coverage-v8": ^5.0.0
+    vitest: ^5.0.0
+  test:peers:
+    vitest: ^5.0.0
 configDependencies:
-  "@effected/pnpm-plugin-effect": 0.8.0+sha512-CuwFoo5l+6m6PRF3uEUg8VqUkYlf9IPbDOHGU/xbBRW7OPbocs4JSMqfwcj+CEQJP9YH6+QSxAb4zsGlX3SeCA==
+  "@effected/pnpm-plugin-effect": 0.8.2+sha512-i9FWW92WlVXDk9Mlbd2DJC1mtE4P56cH/v+z36N7d/OJsDLjwsnG+nI6WvALVlQmZ/uTMd7rytmAR9MCOIs/CQ==
   "@savvy-web/pnpm-plugin-silk": 0.36.0+sha512-k5sHGnJ4SUk1iDzIUV6qWbJAquJl3LIEHKEKPQyrqge5h2Hr3xvCHGH3n0AcBNuGTp4cf4YESrOg0/YKXWhZ1w==
 linkWorkspacePackages: deep
 verifyDepsBeforeRun: false

@@ -60,6 +60,7 @@ const fakeConfigFile = (config: VitestAgentConfig) => {
 		loadFrom: () => Effect.succeed(config),
 		discover: Effect.succeed([]),
 		write: () => Effect.die(new Error("write not used in tests")),
+		encode: () => Effect.die(new Error("encode not used in tests")),
 		loadOrDefault: () => Effect.succeed(config),
 		save: () => Effect.die(new Error("save not used in tests")),
 		update: () => Effect.die(new Error("update not used in tests")),
