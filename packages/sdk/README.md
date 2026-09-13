@@ -4,18 +4,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-4caf50.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript 6.0](https://img.shields.io/badge/TypeScript-6.0-3178c6.svg)](https://www.typescriptlang.org/)
 
-> **Part of the [vitest-agent](https://vitest-agent.dev) ecosystem.** Most users want **[@vitest-agent/plugin](https://www.npmjs.com/package/@vitest-agent/plugin)**, which pulls this package in automatically. Install `@vitest-agent/sdk` directly only if you build tooling on the shared schemas or data layer.
+> **Part of the [vitest-agent](https://vitest-agent.dev) ecosystem.** Most users want **[@vitest-agent/plugin](https://www.npmjs.com/package/@vitest-agent/plugin)**, which pulls this package in automatically. Install `@vitest-agent/sdk` directly only if you build tooling on the shared schemas or contract types.
 
-The no-internal-deps base for the vitest-agent ecosystem. Carries the Effect Schemas, SQLite migrations and data layer, services and live layers, formatters, XDG path resolution, the public reporter and dispatcher contract types, and testing utilities.
+The platform-free core of the vitest-agent ecosystem. Carries the Effect Schemas, the public reporter and dispatcher contract types, the tagged errors, the pure formatters and utilities, the pure sidecar `dispatch` entry, and the published JSON Schemas. It has no workspace dependencies and never imports `node:*`, so it runs anywhere Effect does.
+
+Everything that touches a filesystem, a process, or SQLite — the `DataStore` / `DataReader` services and their live layers, migrations, `ensureMigrated`, `PlatformLive`, `resolveDataPath`, and the test-layer helpers — lives in **[@vitest-agent/engine](https://www.npmjs.com/package/@vitest-agent/engine)**.
 
 ## Features
 
-- **Effect Schemas** — all domain types (`RunEvent`, `RenderState`, `CoverageTargets`, `TurnPayload`, identity types) defined with Effect Schema; runtime validation and TypeScript types from one source
-- **SQLite data layer** — `DataStore` and `DataReader` Effect services with live and `:memory:` test layers; `ensureMigrated` for safe multi-project setups
-- **XDG path resolution** — deterministic `dbPath` derivation from workspace identity with a five-source fallback chain
+- **Effect Schemas** — all domain types (`AgentReport`, `RunEvent`, `RenderState`, `CoverageTargets`, `TurnPayload`, identity types) defined with Effect Schema; runtime validation and TypeScript types from one source
 - **Reporter and dispatcher contracts** — `VitestAgentReporterFactory`, `ReporterKit`, `ResolvedReporterConfig`, `DispatchInputs` and the types consumed by every other package
+- **Tagged errors** — `Data.TaggedError` families for data-store, discovery, path-resolution, project-identity, run-context, TDD and agent failures
+- **Pure formatters and utilities** — terminal, markdown, GFM, JSON and CI-annotation formatters, plus `classifyTestPath`, `buildAgentReport`, `validatePhaseTransition` and the posix path helpers
 - **Sidecar dispatch core** — `dispatch`, `injectEnv` and `exitCodeForTag` on the `@vitest-agent/sdk/dispatch` sub-path for a minimal SEA bundle
-- **Test utilities** — `makeTestLayer`, `DataStoreTestLayer` and five preset factory functions on the `@vitest-agent/sdk/testing` sub-path
+- **JSON Schemas** — generated schemas on the `@vitest-agent/sdk/schemas/*.json` sub-path (for example the run-report file schema)
 
 ## Install
 
@@ -28,19 +30,21 @@ pnpm add @vitest-agent/sdk
 ## Quick start
 
 ```ts
-import { Effect } from "effect";
-import { DataReader } from "@vitest-agent/sdk";
-import { singlePassingRun } from "@vitest-agent/sdk/testing";
+import { Schema } from "effect";
+import { AgentReport, CoverageLevel } from "@vitest-agent/sdk";
 
-const layer = singlePassingRun(":memory:");
+// Decode a persisted run report with the shared schema
+const report = Schema.decodeUnknownSync(AgentReport)(JSON.parse(raw));
 
-await Effect.runPromise(
-  Effect.provide(
-    Effect.flatMap(DataReader, (r) => r.getLatestRun("default", null)),
-    layer,
-  ),
-);
-// returns the seeded run row
+// Reuse the coverage presets that AgentPlugin.COVERAGE_LEVELS is built on
+const targets = CoverageLevel.standard.withPerFile();
+```
+
+Need the data layer, services, or an in-memory test layer? Reach for the engine:
+
+```ts
+import { DataReader } from "@vitest-agent/engine";
+import { singlePassingRun } from "@vitest-agent/engine/testing";
 ```
 
 ## Documentation

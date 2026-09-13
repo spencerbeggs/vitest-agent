@@ -1,6 +1,26 @@
 ---
-"@vitest-agent/plugin": minor
+"@vitest-agent/plugin": major
 ---
+
+## Breaking Changes
+
+### `ReporterLive` takes a single options object
+
+The public `ReporterLive` layer factory now forwards one `PlatformOptions` object to the engine's `PlatformLive` instead of positional arguments. `env` is required (the reporter passes `process.env`), so the platform layer no longer reads the process environment on its own.
+
+```ts
+// before
+ReporterLive(dbPath, logLevel, logFile);
+
+// after
+ReporterLive({ dbPath, env: process.env, logLevel, logFile });
+```
+
+`dbPath` is the absolute path to the per-project `data.db` (or `":memory:"`); `logLevel` and `logFile` stay optional.
+
+### The plugin carries the new CLI and MCP majors
+
+`@vitest-agent/plugin` now exact-pins `@vitest-agent/cli` 3.x and `@vitest-agent/mcp` 4.x, both of which are major releases (the utility-only three-command CLI and the Effect-native action-keyed MCP server). Upgrading the plugin upgrades both bins at once; read those packages' release notes for the renamed commands and tools.
 
 ## Features
 
@@ -10,7 +30,7 @@
 
 ```jsonc
 // package.json — this is all a consumer needs
-{ "devDependencies": { "@vitest-agent/plugin": "^3.1.0" } }
+{ "devDependencies": { "@vitest-agent/plugin": "^4.0.0" } }
 ```
 
 ```sh

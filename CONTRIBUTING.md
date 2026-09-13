@@ -53,27 +53,36 @@ vitest-agent/
 │   │       ├── render-ink/         # React Ink components
 │   │       ├── pubsub/             # RunEvent PubSub channel
 │   │       └── factory/            # EventSourcedReporterFactory, LiveInkRenderer
-│   ├── sdk/                    # @vitest-agent/sdk (data layer + services)
+│   ├── sdk/                    # @vitest-agent/sdk (platform-free core)
 │   │   └── src/
 │   │       ├── schemas/            # Effect Schema definitions (RunEvent, RenderState, ...)
-│   │       ├── services/           # Effect Context.Tag definitions
-│   │       ├── layers/             # Live + test layer implementations
+│   │       ├── contracts/          # Public reporter + dispatcher contract types
 │   │       ├── errors/             # Tagged error types
-│   │       ├── formatters/         # markdown, gfm, json, silent
+│   │       ├── formatters/         # terminal, markdown, gfm, json, silent, ci-annotations
+│   │       ├── dispatch.ts         # Pure sidecar dispatch entry (./dispatch)
+│   │       └── utils/              # Pure utilities
+│   ├── engine/                 # @vitest-agent/engine (services + data layer)
+│   │   └── src/
+│   │       ├── services/           # Effect Context.Service definitions
+│   │       ├── layers/             # Live layer implementations, PlatformLive
 │   │       ├── migrations/         # SQLite migrations (0001_initial canonical)
 │   │       ├── sql/                # Row types + assemblers
-│   │       └── utils/              # Pure utilities
+│   │       ├── programs/           # Hook programs (triage, wrapup, record, ...)
+│   │       └── testing/            # makeTestLayer + preset factories (./testing)
 │   ├── cli/                    # @vitest-agent/cli (CLI bin)
 │   │   └── src/
-│   │       ├── bin.ts              # effect/unstable/cli entry point
-│   │       ├── commands/           # Thin command wrappers (status, show, ...)
+│   │       ├── bin.ts              # Shebang shim over main.ts
+│   │       ├── main.ts             # effect/unstable/cli entry point (exported at ./main)
+│   │       ├── commands/           # Thin command wrappers (doctor, db, agent)
 │   │       └── lib/                # Testable formatting logic
 │   ├── mcp/                    # @vitest-agent/mcp (MCP server bin)
 │   │   └── src/
-│   │       ├── server.ts           # @modelcontextprotocol/sdk server
-│   │       ├── router.ts           # tRPC router (29 tools)
-│   │       ├── context.ts          # ManagedRuntime context
-│   │       └── tools/              # MCP tool implementations
+│   │       ├── bin.ts              # Shebang shim over main.ts
+│   │       ├── main.ts             # Process owner (exported at ./main)
+│   │       ├── server.ts           # Effect-native ServerLayer (effect/unstable/ai McpServer)
+│   │       ├── toolkit.ts          # Toolkit gathering the 30 Tool.make definitions
+│   │       ├── prompts/            # Six framing-only prompts
+│   │       └── tools/              # One file per MCP tool
 │   ├── sidecar/                # @vitest-agent/sidecar (Node SEA inject-env binary)
 │   └── sidecar-*/              # Prebuilt per-platform binaries (optionalDependencies)
 ├── plugins/
@@ -92,8 +101,10 @@ vitest-agent/
 └── .claude/design/             # Architecture design documents
 ```
 
-`@vitest-agent/sdk` is the dependency hub — `plugin`, `reporter`, `ui`,
-`cli`, and `mcp` all import from it. The dependency flow is
+`@vitest-agent/sdk` is the dependency hub — every other package imports
+from it, and it imports none of them. `@vitest-agent/engine` owns the
+platform half (services, live layers, SQLite) and is consumed by `cli`,
+`mcp`, and `plugin`; the rendering flow is
 `plugin → reporter → ui → sdk`. `@vitest-agent/plugin` declares
 `@vitest-agent/cli` and `@vitest-agent/mcp` as exact-pinned regular
 dependencies, so a single install of the plugin pulls the whole family
@@ -106,17 +117,18 @@ dependencies, so a single install of the plugin pulls the whole family
 The project uses [Effect](https://effect.website/) for dependency injection
 and service composition. Key patterns:
 
-- **Services** (`packages/sdk/src/services/`) define interfaces via
-  `Context.Tag`
-- **Live layers** (`packages/sdk/src/layers/*Live.ts`) provide
+- **Services** (`packages/engine/src/services/`) define interfaces via
+  `Context.Service`
+- **Live layers** (`packages/engine/src/layers/*Live.ts`) provide
   production implementations using `@effect/platform-node` for file I/O and
   `@effect/sql-sqlite-node` (backed by Node's built-in `node:sqlite`) for the
-  database
-- **Test layers** (`packages/sdk/src/layers/*Test.ts`) provide mock
-  implementations with state containers for assertions
-- **Schemas** (`packages/sdk/src/schemas/`) use Effect Schema (not
-  Zod) for data validation and serialization. Zod is used only inside
-  `packages/mcp/` for tRPC procedure input schemas
+  database; `PlatformLive` is the one platform layer both front ends provide
+- **Test layers** (`@vitest-agent/engine/testing`) provide in-memory
+  implementations and seeded preset factories for assertions
+- **Schemas** (`packages/sdk/src/schemas/`) use Effect Schema for data
+  validation and serialization everywhere — MCP tool inputs and outputs in
+  `packages/mcp/src/tools/` are Effect Schemas too (`Tool.make`), with no
+  MCP SDK, tRPC, or Zod in the graph
 
 ### Reporter Integration
 
@@ -189,19 +201,19 @@ pnpm run test:watch
 pnpm run test:coverage
 
 # Run a specific test file
-pnpm vitest run packages/sdk/src/utils/resolve-data-path.test.ts
+pnpm vitest run packages/engine/__test__/resolve-data-path.test.ts
 ```
 
 ### Testing Effect Services
 
-The `@vitest-agent/sdk/testing` subpath provides `makeTestLayer` and five
+The `@vitest-agent/engine/testing` subpath provides `makeTestLayer` and five
 preset factory functions for seeding representative database states. Import
 from the subpath:
 
 ```typescript
 import { Effect } from "effect";
-import { DataReader } from "@vitest-agent/sdk";
-import { singlePassingRun, withFailures } from "@vitest-agent/sdk/testing";
+import { DataReader } from "@vitest-agent/engine";
+import { singlePassingRun, withFailures } from "@vitest-agent/engine/testing";
 
 it("returns the latest run for a project", async () => {
   const layer = singlePassingRun(":memory:");
@@ -230,8 +242,8 @@ the state directly via `DataStore`:
 
 ```typescript
 import { Effect, Layer } from "effect";
-import { DataStore } from "@vitest-agent/sdk";
-import { makeTestLayer } from "@vitest-agent/sdk/testing";
+import { DataStore } from "@vitest-agent/engine";
+import { makeTestLayer } from "@vitest-agent/engine/testing";
 
 const layer = makeTestLayer(":memory:");
 const seed = Effect.gen(function* () {
