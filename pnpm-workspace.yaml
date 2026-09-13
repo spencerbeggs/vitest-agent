@@ -42,7 +42,7 @@ catalogs:
   test:peers:
     vitest: ^5.0.0
 configDependencies:
-  "@effected/pnpm-plugin-effect": 0.8.2+sha512-i9FWW92WlVXDk9Mlbd2DJC1mtE4P56cH/v+z36N7d/OJsDLjwsnG+nI6WvALVlQmZ/uTMd7rytmAR9MCOIs/CQ==
-  "@savvy-web/pnpm-plugin-silk": 0.36.0+sha512-k5sHGnJ4SUk1iDzIUV6qWbJAquJl3LIEHKEKPQyrqge5h2Hr3xvCHGH3n0AcBNuGTp4cf4YESrOg0/YKXWhZ1w==
+  "@effected/pnpm-plugin-effect": 0.8.3+sha512-o19ddEUsrlmDKzg7cobg31Q06RjKJH103DRKzoEGssIK4wt3e4D+eP5Aa0mQk0R4OHI/siCJybanksCvgWIHOQ==
+  "@savvy-web/pnpm-plugin-silk": 0.37.0+sha512-PLAkQmkvC1A4x0/q66Bycb8fk8LgBgh9MLhd6rApPX/FINCyh8Py0HaiV3czTaw3xOM/ehdSN3ab1+X2YujUIw==
 linkWorkspacePackages: deep
 verifyDepsBeforeRun: false
