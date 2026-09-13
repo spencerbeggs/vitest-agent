@@ -43,9 +43,25 @@ const listAllTools = (): Promise<ReadonlyArray<McpToolDescriptor>> =>
 	);
 
 describe("served input schemas are strict at every object level", () => {
-	it("lists at least the two already-ported tools plus the read-only set", async () => {
+	it("lists every ported tool", async () => {
 		const names = (await listAllTools()).map((t) => t.name);
-		expect(names).toEqual(expect.arrayContaining(["ping", "help", "test_status", "test_errors"]));
+		expect(names).toEqual(
+			expect.arrayContaining([
+				"ping",
+				"help",
+				"test_status",
+				"test_errors",
+				"register_agent",
+				"note",
+				"hypothesis",
+				"tdd_task",
+				"tdd_phase_transition_request",
+				"tdd_goal",
+				"tdd_behavior",
+				"tdd_artifact_list",
+				"tdd_progress_push",
+			]),
+		);
 	});
 
 	it("every object node carries additionalProperties: false; a oneOf root is exempt but each member is strict", async () => {

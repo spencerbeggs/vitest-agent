@@ -2,19 +2,12 @@ import { DataStore } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect } from "vitest";
-import type { McpContext } from "../../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../../src/context.js";
-import { appRouter } from "../../src/router.js";
+import { makeCaller } from "../utils/caller.js";
 import { test } from "./utils/fixtures.js";
 
 describe("tdd_session_start integration", () => {
 	test("same (sessionId, runId) returns the same id and marks replay on retry", async ({ runtime }) => {
-		const caller = createCallerFactory(appRouter)({
-			runtime: runtime as unknown as McpContext["runtime"],
-			cwd: process.cwd(),
-			currentSessionId: createCurrentSessionIdRef(null),
-			sessionContext: createSessionContextRef(),
-		});
+		const call = makeCaller(runtime);
 
 		const sessionId = await runtime.runPromise(
 			Effect.gen(function* () {
@@ -29,13 +22,13 @@ describe("tdd_session_start integration", () => {
 			}),
 		);
 
-		const first = await caller.tdd_task({
+		const first = await call("tdd_task", {
 			action: "start",
 			sessionId,
 			goal: "Implement the feature",
 			runId: "run-mcp-1",
 		});
-		const second = await caller.tdd_task({
+		const second = await call("tdd_task", {
 			action: "start",
 			sessionId,
 			goal: "Implement the feature",
@@ -82,12 +75,7 @@ describe("tdd_session_start integration", () => {
 	});
 
 	test("blank runId is rejected", async ({ runtime }) => {
-		const caller = createCallerFactory(appRouter)({
-			runtime: runtime as unknown as McpContext["runtime"],
-			cwd: process.cwd(),
-			currentSessionId: createCurrentSessionIdRef(null),
-			sessionContext: createSessionContextRef(),
-		});
+		const call = makeCaller(runtime);
 
 		const sessionId = await runtime.runPromise(
 			Effect.gen(function* () {
@@ -103,7 +91,7 @@ describe("tdd_session_start integration", () => {
 		);
 
 		await expect(
-			caller.tdd_task({ action: "start", sessionId, goal: "Test blank runId", runId: "" }),
+			call("tdd_task", { action: "start", sessionId, goal: "Test blank runId", runId: "" }),
 		).rejects.toThrow();
 	});
 
@@ -143,12 +131,7 @@ describe("tdd_session_start integration", () => {
 
 describe("tdd_goal_create integration", () => {
 	test("same (sessionId, goal) is idempotent via middleware", async ({ runtime }) => {
-		const caller = createCallerFactory(appRouter)({
-			runtime: runtime as unknown as McpContext["runtime"],
-			cwd: process.cwd(),
-			currentSessionId: createCurrentSessionIdRef(null),
-			sessionContext: createSessionContextRef(),
-		});
+		const call = makeCaller(runtime);
 
 		const tddTaskId = await runtime.runPromise(
 			Effect.gen(function* () {
@@ -169,12 +152,12 @@ describe("tdd_goal_create integration", () => {
 			}),
 		);
 
-		const first = await caller.tdd_goal({
+		const first = await call("tdd_goal", {
 			action: "create",
 			tddTaskId: tddTaskId,
 			goal: "Write unit tests for the parser",
 		});
-		const second = await caller.tdd_goal({
+		const second = await call("tdd_goal", {
 			action: "create",
 			tddTaskId: tddTaskId,
 			goal: "Write unit tests for the parser",

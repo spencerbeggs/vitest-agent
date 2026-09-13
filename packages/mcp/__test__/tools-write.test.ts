@@ -37,6 +37,10 @@ const listTools = (): Promise<ReadonlyArray<McpToolDescriptor>> =>
 
 const text = (result: CallToolResult): string => result.content[0]?.text ?? "";
 
+/** A typed view of one `structuredContent` field (an absent result reads as `{}`). */
+const field = <T>(result: CallToolResult | undefined, key: string): T =>
+	((result?.structuredContent ?? {}) as Record<string, unknown>)[key] as T;
+
 /** Seed a host session row (the FK every write tool resolves through) against the harness store. */
 const seedSession = (h: McpHarness, chatId: string, agentKind: "main" | "subagent" = "main") =>
 	Effect.gen(function* () {
@@ -59,9 +63,18 @@ const seedTddTask = (h: McpHarness, chatId: string) =>
 		return { sessionId, tddTaskId };
 	}).pipe(Effect.provideContext(h.services), Effect.orDie);
 
-const WRITE_TOOLS = ["register_agent", "note", "hypothesis"] as const;
-const DESTRUCTIVE_TOOLS = ["note"] as const;
-const IDEMPOTENT_TOOLS = ["register_agent"] as const;
+const WRITE_TOOLS = [
+	"register_agent",
+	"note",
+	"hypothesis",
+	"tdd_task",
+	"tdd_phase_transition_request",
+	"tdd_goal",
+	"tdd_behavior",
+	"tdd_progress_push",
+] as const;
+const DESTRUCTIVE_TOOLS = ["note", "tdd_goal", "tdd_behavior"] as const;
+const IDEMPOTENT_TOOLS = ["register_agent", "tdd_task", "tdd_phase_transition_request"] as const;
 
 describe("write tools: tools/list", () => {
 	it("lists every write tool with readOnly false and openWorld false, and the per-tool destructive/idempotent hints", async () => {
@@ -78,6 +91,16 @@ describe("write tools: tools/list", () => {
 			expect(typeof tool?.title).toBe("string");
 			expect(tool?.description?.length ?? 0).toBeGreaterThan(20);
 		}
+	});
+
+	it("lists tdd_artifact_list with the read-only annotation set", async () => {
+		const tool = (await listTools()).find((t) => t.name === "tdd_artifact_list");
+		expect(tool?.annotations).toMatchObject({
+			readOnlyHint: true,
+			destructiveHint: false,
+			idempotentHint: true,
+			openWorldHint: false,
+		});
 	});
 });
 
@@ -359,5 +382,362 @@ describe("hypothesis", () => {
 		const result = await call("hypothesis", { action: "list" });
 		expect(result.structuredContent).toEqual({ action: "list", count: 0, hypotheses: [] });
 		expect(text(result)).toBe("No hypotheses matched.");
+	});
+});
+
+describe("tdd_task", () => {
+	it("start inserts on the first call and replays with _idempotentReplay on the second", async () => {
+		const [r1, r2] = await session((h) =>
+			Effect.gen(function* () {
+				const sessionId = yield* seedSession(h, "cc-tdd-start-test");
+				const r1 = yield* h.callTool("tdd_task", { action: "start", sessionId, goal: "add login" });
+				const r2 = yield* h.callTool("tdd_task", { action: "start", sessionId, goal: "add login" });
+				return [r1, r2];
+			}),
+		);
+		expect(r1?.structuredContent).toMatchObject({ action: "start", goal: "add login" });
+		expect(r1?.structuredContent?._idempotentReplay).toBeUndefined();
+		expect(r2?.structuredContent).toMatchObject({
+			action: "start",
+			tddTaskId: r1?.structuredContent?.tddTaskId,
+			_idempotentReplay: true,
+		});
+		// start/end render the JSON as the text channel.
+		expect(JSON.parse(text(r2 as CallToolResult))).toEqual(r2?.structuredContent);
+	});
+
+	it("end closes the task and replays on a duplicate; get and resume then report the outcome", async () => {
+		const [r1, r2, got, resumed] = await session((h) =>
+			Effect.gen(function* () {
+				const sessionId = yield* seedSession(h, "cc-tdd-end-test");
+				const created = (yield* h.callTool("tdd_task", {
+					action: "start",
+					sessionId,
+					goal: "ending-test",
+				})) as CallToolResult;
+				const tddTaskId = created.structuredContent?.tddTaskId;
+				const r1 = yield* h.callTool("tdd_task", { action: "end", tddTaskId, outcome: "succeeded" });
+				const r2 = yield* h.callTool("tdd_task", { action: "end", tddTaskId, outcome: "succeeded" });
+				const got = yield* h.callTool("tdd_task", { action: "get", tddTaskId });
+				const resumed = yield* h.callTool("tdd_task", { action: "resume", tddTaskId });
+				return [r1, r2, got, resumed];
+			}),
+		);
+		expect(r1?.structuredContent).toEqual({ action: "end", tddTaskId: expect.any(Number), outcome: "succeeded" });
+		expect(r2?.structuredContent?._idempotentReplay).toBe(true);
+		expect(got?.structuredContent).toMatchObject({ action: "get", found: true, task: { goal: "ending-test" } });
+		expect(text(got as CallToolResult)).toContain("- current phase: spike [phaseId=");
+		expect(resumed?.structuredContent).toMatchObject({ action: "resume", found: true, status: "succeeded" });
+		expect(text(resumed as CallToolResult)).toContain("**Status:** succeeded");
+	});
+
+	it("get and resume return found=false for an unknown id", async () => {
+		const got = await call("tdd_task", { action: "get", tddTaskId: 99999 });
+		expect(got.structuredContent).toEqual({ action: "get", found: false, tddTaskId: 99999 });
+		expect(text(got)).toBe("No TDD task with tddTaskId=99999.");
+		const resumed = await call("tdd_task", { action: "resume", tddTaskId: 99999 });
+		expect(resumed.structuredContent).toEqual({ action: "resume", found: false, tddTaskId: 99999 });
+	});
+
+	it("start with an unknown chatId returns the UnexpectedToolError envelope", async () => {
+		const result = await call("tdd_task", { action: "start", chatId: "never-seen", goal: "x" });
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent).toMatchObject({
+			ok: false,
+			error: { _tag: "UnexpectedToolError", tool: "tdd_task" },
+		});
+		expect(String((result.structuredContent?.error as { message: string } | undefined)?.message)).toContain(
+			"Unknown chatId",
+		);
+	});
+
+	it("rejects an unknown action and a foreign key", async () => {
+		expect((await call("tdd_task", { action: "pause", tddTaskId: 1 })).isError).toBe(true);
+		const foreign = await call("tdd_task", { action: "get", tddTaskId: 1, goal: "x" });
+		expect(foreign.isError).toBe(true);
+		expect(text(foreign)).toContain("Accepted params");
+	});
+});
+
+/** Open a task, create a goal, move it to in_progress; returns the ids. */
+const seedTaskWithGoal = (h: McpHarness, chatId: string) =>
+	Effect.gen(function* () {
+		const sessionId = yield* seedSession(h, chatId);
+		const task = (yield* h.callTool("tdd_task", { action: "start", sessionId, goal: "goal text" })) as CallToolResult;
+		const tddTaskId = task.structuredContent?.tddTaskId as number;
+		const goal = (yield* h.callTool("tdd_goal", { action: "create", tddTaskId, goal: "goal text" })) as CallToolResult;
+		const goalId = field<{ id: number }>(goal, "goal").id;
+		yield* h.callTool("tdd_goal", { action: "update", id: goalId, status: "in_progress" });
+		return { sessionId, tddTaskId, goalId };
+	});
+
+describe("tdd_goal", () => {
+	it("create returns the goal with ordinal 0 and replays with the marker on a duplicate", async () => {
+		const [a, b] = await session((h) =>
+			Effect.gen(function* () {
+				const sessionId = yield* seedSession(h, "cc-mcp-goal-idem");
+				const task = (yield* h.callTool("tdd_task", { action: "start", sessionId, goal: "obj" })) as CallToolResult;
+				const tddTaskId = task.structuredContent?.tddTaskId;
+				const a = yield* h.callTool("tdd_goal", { action: "create", tddTaskId, goal: "Handle bounds" });
+				const b = yield* h.callTool("tdd_goal", { action: "create", tddTaskId, goal: "Handle bounds" });
+				return [a, b];
+			}),
+		);
+		expect(a?.structuredContent).toMatchObject({
+			ok: true,
+			action: "create",
+			goal: { ordinal: 0, goal: "Handle bounds", status: "pending" },
+		});
+		expect(b?.structuredContent).toMatchObject({
+			ok: true,
+			goal: { id: field<{ id: number }>(a, "goal").id },
+			_idempotentReplay: true,
+		});
+	});
+
+	it("create against an unknown task returns the TddTaskNotFoundError envelope with an object remediation", async () => {
+		const result = await call("tdd_goal", { action: "create", tddTaskId: 99999, goal: "G" });
+		expect(result.isError).toBeFalsy();
+		expect(result.structuredContent).toMatchObject({
+			ok: false,
+			error: {
+				_tag: "TddTaskNotFoundError",
+				id: 99999,
+				remediation: { suggestedTool: "tdd_task", suggestedArgs: { action: "start" } },
+			},
+		});
+		expect(field<{ remediation: { humanHint: string } }>(result, "error").remediation.humanHint).toContain("tdd_task");
+	});
+
+	it("supports the get, update, list lifecycle and the IllegalStatusTransitionError envelope", async () => {
+		const [fetched, updated, list, illegal] = await session((h) =>
+			Effect.gen(function* () {
+				const { tddTaskId, goalId } = yield* seedTaskWithGoal(h, "cc-mcp-goal-lifecycle");
+				const fetched = yield* h.callTool("tdd_goal", { action: "get", id: goalId });
+				const updated = yield* h.callTool("tdd_goal", { action: "update", id: goalId, status: "done" });
+				const list = yield* h.callTool("tdd_goal", { action: "list", tddTaskId });
+				const illegal = yield* h.callTool("tdd_goal", { action: "update", id: goalId, status: "pending" });
+				return [fetched, updated, list, illegal];
+			}),
+		);
+		expect(fetched?.structuredContent).toMatchObject({
+			action: "get",
+			found: true,
+			goal: { goal: "goal text", behaviors: [] },
+		});
+		expect(updated?.structuredContent).toMatchObject({ ok: true, action: "update", goal: { status: "done" } });
+		expect(field<ReadonlyArray<{ status: string }>>(list, "goals").map((g) => g.status)).toEqual(["done"]);
+		expect(illegal?.structuredContent).toMatchObject({ ok: false, error: { _tag: "IllegalStatusTransitionError" } });
+	});
+
+	it("delete removes the goal", async () => {
+		const [deleted, gone] = await session((h) =>
+			Effect.gen(function* () {
+				const { goalId } = yield* seedTaskWithGoal(h, "cc-mcp-goal-delete");
+				const deleted = yield* h.callTool("tdd_goal", { action: "delete", id: goalId });
+				const gone = yield* h.callTool("tdd_goal", { action: "get", id: goalId });
+				return [deleted, gone];
+			}),
+		);
+		expect(deleted?.structuredContent).toMatchObject({ ok: true, action: "delete" });
+		expect(gone?.structuredContent).toMatchObject({ action: "get", found: false });
+	});
+});
+
+describe("tdd_behavior", () => {
+	it("create replays with the marker; get surfaces parentGoal and dependencies; delete cascades", async () => {
+		const [dep, depAgain, fetched, byGoal, byTask, deleted, gone] = await session((h) =>
+			Effect.gen(function* () {
+				const { tddTaskId, goalId } = yield* seedTaskWithGoal(h, "cc-mcp-beh-deps");
+				const dep = (yield* h.callTool("tdd_behavior", {
+					action: "create",
+					goalId,
+					behavior: "dep",
+				})) as CallToolResult;
+				const depAgain = yield* h.callTool("tdd_behavior", { action: "create", goalId, behavior: "dep" });
+				const depId = field<{ id: number }>(dep, "behavior").id;
+				const target = (yield* h.callTool("tdd_behavior", {
+					action: "create",
+					goalId,
+					behavior: "target",
+					dependsOnBehaviorIds: [depId],
+				})) as CallToolResult;
+				const targetId = field<{ id: number }>(target, "behavior").id;
+				const fetched = yield* h.callTool("tdd_behavior", { action: "get", id: targetId });
+				const byGoal = yield* h.callTool("tdd_behavior", { action: "list_by_goal", goalId });
+				const byTask = yield* h.callTool("tdd_behavior", { action: "list_by_tdd_task", tddTaskId });
+				const deleted = yield* h.callTool("tdd_behavior", { action: "delete", id: targetId });
+				const gone = yield* h.callTool("tdd_behavior", { action: "get", id: targetId });
+				return [dep, depAgain, fetched, byGoal, byTask, deleted, gone];
+			}),
+		);
+		expect(dep?.structuredContent).toMatchObject({ ok: true, action: "create", behavior: { behavior: "dep" } });
+		expect(depAgain?.structuredContent).toMatchObject({ ok: true, _idempotentReplay: true });
+		expect(fetched?.structuredContent).toMatchObject({
+			action: "get",
+			found: true,
+			behavior: { behavior: "target", parentGoal: { goal: "goal text" }, dependencies: [{ behavior: "dep" }] },
+		});
+		expect(field<ReadonlyArray<{ behavior: string }>>(byGoal, "behaviors").map((b) => b.behavior)).toEqual([
+			"dep",
+			"target",
+		]);
+		expect(byTask?.structuredContent).toMatchObject({ ok: true, action: "list_by_tdd_task" });
+		expect(deleted?.structuredContent).toMatchObject({ ok: true, action: "delete" });
+		expect(gone?.structuredContent).toMatchObject({ action: "get", found: false });
+	});
+
+	it("create against an unknown goal returns the GoalNotFoundError envelope", async () => {
+		const result = await call("tdd_behavior", { action: "create", goalId: 99999, behavior: "x" });
+		expect(result.structuredContent).toMatchObject({
+			ok: false,
+			error: { _tag: "GoalNotFoundError", remediation: { suggestedTool: "tdd_goal" } },
+		});
+	});
+});
+
+describe("tdd_phase_transition_request", () => {
+	it("denies with goal_not_found, and with missing_artifact_evidence when the cited artifact does not exist", async () => {
+		const [notFound, missing] = await session((h) =>
+			Effect.gen(function* () {
+				const { tddTaskId, goalId } = yield* seedTaskWithGoal(h, "cc-mcp-ptr");
+				const notFound = yield* h.callTool("tdd_phase_transition_request", {
+					tddTaskId,
+					goalId: 99999,
+					requestedPhase: "red",
+				});
+				const missing = yield* h.callTool("tdd_phase_transition_request", {
+					tddTaskId,
+					goalId,
+					requestedPhase: "green",
+					citedArtifactId: 999999,
+				});
+				return [notFound, missing];
+			}),
+		);
+		expect(notFound?.structuredContent).toMatchObject({ accepted: false, denialReason: "goal_not_found" });
+		expect(missing?.structuredContent).toMatchObject({
+			accepted: false,
+			denialReason: "missing_artifact_evidence",
+			remediation: { suggestedTool: "run_tests" },
+		});
+		expect(JSON.parse(text(missing as CallToolResult))).toEqual(missing?.structuredContent);
+	});
+
+	it("accepts spike -> red with no artifact and echoes the new phase id", async () => {
+		const [accepted] = await session((h) =>
+			Effect.gen(function* () {
+				const { tddTaskId, goalId } = yield* seedTaskWithGoal(h, "cc-mcp-ptr-accept");
+				return [yield* h.callTool("tdd_phase_transition_request", { tddTaskId, goalId, requestedPhase: "red" })];
+			}),
+		);
+		expect(accepted?.structuredContent).toMatchObject({ accepted: true, phase: "red", newPhaseId: expect.any(Number) });
+		expect(accepted?.structuredContent?.citedArtifactId).toBeUndefined();
+	});
+
+	it("rejects a missing goalId and an unknown key", async () => {
+		expect((await call("tdd_phase_transition_request", { tddTaskId: 1, requestedPhase: "red" })).isError).toBe(true);
+		const unknown = await call("tdd_phase_transition_request", {
+			tddTaskId: 1,
+			goalId: 1,
+			requestedPhase: "red",
+			phase: "x",
+		});
+		expect(unknown.isError).toBe(true);
+		expect(text(unknown)).toContain("Accepted params");
+	});
+});
+
+describe("tdd_artifact_list", () => {
+	it('lists the recorded artifacts newest-first, echoes suite:"bats" for a bats-suite artifact, and honors artifactKind', async () => {
+		const [all, filtered, none] = await session((h) =>
+			Effect.gen(function* () {
+				const { tddTaskId } = yield* seedTddTask(h, "cc-served-schema-artifact-suite");
+				yield* Effect.gen(function* () {
+					const store = yield* DataStore;
+					const red = yield* store.writeTddPhase({ tddTaskId, phase: "red", startedAt: "2026-09-05T00:00:02Z" });
+					yield* store.writeTddArtifact({
+						phaseId: red.id,
+						artifactKind: "test_written",
+						recordedAt: "2026-09-05T00:00:03Z",
+					});
+					yield* store.writeTddArtifact({
+						phaseId: red.id,
+						artifactKind: "test_failed_run",
+						recordedAt: "2026-09-05T00:00:04Z",
+						suite: "bats",
+					});
+				}).pipe(Effect.provideContext(h.services), Effect.orDie);
+				const all = yield* h.callTool("tdd_artifact_list", { tddTaskId });
+				const filtered = yield* h.callTool("tdd_artifact_list", { tddTaskId, artifactKind: "test_failed_run" });
+				const none = yield* h.callTool("tdd_artifact_list", { tddTaskId, artifactKind: "refactor" });
+				return [all, filtered, none];
+			}),
+		);
+		expect(all?.isError ?? false).toBe(false);
+		expect(all?.structuredContent?.count).toBe(2);
+		const artifacts = all?.structuredContent?.artifacts as ReadonlyArray<{ artifactKind: string; suite: string }>;
+		expect(artifacts.map((a) => a.artifactKind)).toEqual(["test_failed_run", "test_written"]);
+		expect(artifacts[0]?.suite).toBe("bats");
+		expect(text(all as CallToolResult)).toContain("(newest first, 2 shown)");
+		expect(filtered?.structuredContent).toMatchObject({ count: 1, filters: { artifactKind: "test_failed_run" } });
+		expect(none?.structuredContent).toMatchObject({ count: 0, artifacts: [] });
+		expect(text(none as CallToolResult)).toContain("No artifacts recorded");
+	});
+
+	it("advertises an object outputSchema and rejects an unknown filter", async () => {
+		const tool = (await listTools()).find((t) => t.name === "tdd_artifact_list");
+		expect(tool?.outputSchema?.type).toBe("object");
+		const result = await call("tdd_artifact_list", { tddTaskId: 1, kind: "test_written" });
+		expect(result.isError).toBe(true);
+		expect(text(result)).toContain("kind");
+	});
+});
+
+describe("tdd_progress_push", () => {
+	it("returns { ok: true } and publishes a notifications/message frame carrying the enriched event", async () => {
+		const [result, frames] = await withHarness((h) =>
+			h.initialize().pipe(
+				Effect.andThen(
+					Effect.gen(function* () {
+						// A filler session first so the host session id and the tdd task id diverge.
+						yield* seedSession(h, "cc-progress-push-filler");
+						const { tddTaskId } = yield* seedTddTask(h, "cc-progress-push");
+						const goal = (yield* h.callTool("tdd_goal", { action: "create", tddTaskId, goal: "G" })) as CallToolResult;
+						const goalId = field<{ id: number }>(goal, "goal").id;
+						const result = yield* h.callTool("tdd_progress_push", {
+							// A stale sessionId (0) — the server must overwrite it from the goal row.
+							payload: JSON.stringify({ type: "goal_started", sessionId: 0, goalId }),
+						});
+						// The notification is broadcast asynchronously; give the wire a turn.
+						yield* Effect.sleep("50 millis");
+						const frames = (yield* h.rawStdoutSoFar).join("");
+						return [result as CallToolResult, { frames, tddTaskId, goalId }] as const;
+					}),
+				),
+			),
+		);
+		expect(result.structuredContent).toEqual({ ok: true });
+		expect(frames.frames).toContain('"method":"notifications/message"');
+		expect(frames.frames).toContain('"logger":"vitest-agent/channel"');
+		// GoalDetail.sessionId is the owning tdd task id (legacy column naming); the stale 0 must be gone.
+		expect(frames.frames).toContain(
+			`"data":{"type":"goal_started","sessionId":${frames.tddTaskId},"goalId":${frames.goalId}}`,
+		);
+		expect(frames.frames).not.toContain('"sessionId":0');
+	});
+
+	it("returns { ok: true } for malformed JSON and for an event the schema does not know", async () => {
+		const malformed = await call("tdd_progress_push", { payload: "{not json" });
+		expect(malformed.structuredContent).toEqual({ ok: true });
+		const unknown = await call("tdd_progress_push", { payload: JSON.stringify({ type: "future_event" }) });
+		expect(unknown.structuredContent).toEqual({ ok: true });
+	});
+
+	it("rejects a missing payload and an unknown key", async () => {
+		expect((await call("tdd_progress_push", {})).isError).toBe(true);
+		const unknown = await call("tdd_progress_push", { payload: "{}", event: "{}" });
+		expect(unknown.isError).toBe(true);
+		expect(text(unknown)).toContain("Accepted params");
 	});
 });

@@ -1,23 +1,12 @@
 import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
-import type { McpContext } from "../src/context.js";
-import { createCallerFactory, createCurrentSessionIdRef, createSessionContextRef } from "../src/context.js";
-import { appRouter } from "../src/router.js";
+import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
 const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
-
-function createTestCaller() {
-	const factory = createCallerFactory(appRouter);
-	return factory({
-		runtime: testRuntime as unknown as McpContext["runtime"],
-		cwd: process.cwd(),
-		currentSessionId: createCurrentSessionIdRef(null),
-		sessionContext: createSessionContextRef(),
-	});
-}
+const call = makeCaller(testRuntime);
 
 afterAll(async () => {
 	await testRuntime.dispose();
@@ -25,8 +14,7 @@ afterAll(async () => {
 
 describe("tdd_session_get (now tdd_task action=get)", () => {
 	it("returns found=false when id does not exist", async () => {
-		const caller = createTestCaller();
-		const result = await caller.tdd_task({ action: "get", tddTaskId: 99999 });
+		const result = await call("tdd_task", { action: "get", tddTaskId: 99999 });
 		expect(result.action).toBe("get");
 		if (result.action === "get") {
 			expect(result.found).toBe(false);
@@ -48,12 +36,11 @@ describe("tdd_session_get (now tdd_task action=get)", () => {
 			}),
 		);
 
-		const caller = createTestCaller();
-		const tdd = await caller.tdd_task({ action: "start", sessionId, goal: "implement parser" });
+		const tdd = await call("tdd_task", { action: "start", sessionId, goal: "implement parser" });
 		const tddId = (tdd as { tddTaskId: number }).tddTaskId;
-		await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "Handle empty input" });
+		await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "Handle empty input" });
 
-		const result = await caller.tdd_task({ action: "get", tddTaskId: tddId });
+		const result = await call("tdd_task", { action: "get", tddTaskId: tddId });
 		expect(result.action).toBe("get");
 		if (result.action === "get" && result.found) {
 			expect(result.task.goals.length).toBeGreaterThan(0);
@@ -75,13 +62,12 @@ describe("tdd_session_get (now tdd_task action=get)", () => {
 			}),
 		);
 
-		const caller = createTestCaller();
-		const tdd = await caller.tdd_task({ action: "start", sessionId, goal: "implement features" });
+		const tdd = await call("tdd_task", { action: "start", sessionId, goal: "implement features" });
 		const tddId = (tdd as { tddTaskId: number }).tddTaskId;
-		await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "Goal Alpha" });
-		await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "Goal Beta" });
+		await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "Goal Alpha" });
+		await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "Goal Beta" });
 
-		const result = await caller.tdd_task({ action: "get", tddTaskId: tddId });
+		const result = await call("tdd_task", { action: "get", tddTaskId: tddId });
 		if (result.action === "get" && result.found) {
 			const goals = result.task.goals;
 			expect(goals.length).toBe(2);
@@ -106,17 +92,16 @@ describe("tdd_session_get (now tdd_task action=get)", () => {
 			}),
 		);
 
-		const caller = createTestCaller();
-		const tdd = await caller.tdd_task({ action: "start", sessionId, goal: "handle validation" });
+		const tdd = await call("tdd_task", { action: "start", sessionId, goal: "handle validation" });
 		const tddId = (tdd as { tddTaskId: number }).tddTaskId;
-		const goalResult = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "Validate inputs" })) as {
+		const goalResult = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "Validate inputs" })) as {
 			ok: true;
 			goal: { id: number };
 		};
-		await caller.tdd_behavior({ action: "create", goalId: goalResult.goal.id, behavior: "rejects empty string" });
-		await caller.tdd_behavior({ action: "create", goalId: goalResult.goal.id, behavior: "accepts valid token" });
+		await call("tdd_behavior", { action: "create", goalId: goalResult.goal.id, behavior: "rejects empty string" });
+		await call("tdd_behavior", { action: "create", goalId: goalResult.goal.id, behavior: "accepts valid token" });
 
-		const result = await caller.tdd_task({ action: "get", tddTaskId: tddId });
+		const result = await call("tdd_task", { action: "get", tddTaskId: tddId });
 		if (result.action === "get" && result.found) {
 			const goal = result.task.goals.find((g) => g.id === goalResult.goal.id);
 			expect(goal).toBeDefined();
@@ -141,11 +126,10 @@ describe("tdd_session_get (now tdd_task action=get)", () => {
 			}),
 		);
 
-		const caller = createTestCaller();
-		const tdd = await caller.tdd_task({ action: "start", sessionId, goal: "no goals yet" });
+		const tdd = await call("tdd_task", { action: "start", sessionId, goal: "no goals yet" });
 		const tddId = (tdd as { tddTaskId: number }).tddTaskId;
 
-		const result = await caller.tdd_task({ action: "get", tddTaskId: tddId });
+		const result = await call("tdd_task", { action: "get", tddTaskId: tddId });
 		if (result.action === "get" && result.found) {
 			expect(result.task.goals).toEqual([]);
 		}

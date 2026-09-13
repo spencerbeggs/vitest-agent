@@ -25,6 +25,12 @@ import { handlePing, pingTool } from "./tools/ping.js";
 import { handleRegisterAgent, registerAgentTool } from "./tools/register-agent.js";
 import { handleSettingsList, settingsListTool } from "./tools/settings-list.js";
 import { handleTestStatus, testStatusTool } from "./tools/status.js";
+import { handleTddArtifactList, tddArtifactListTool } from "./tools/tdd-artifact.js";
+import { handleTddBehavior, tddBehaviorTool } from "./tools/tdd-behavior.js";
+import { handleTddGoal, tddGoalTool } from "./tools/tdd-goal.js";
+import { handlePhaseTransitionRequest, tddPhaseTransitionRequestTool } from "./tools/tdd-phase-transition-request.js";
+import { handleTddProgressPush, tddProgressPushTool } from "./tools/tdd-progress-push.js";
+import { handleTddTask, tddTaskTool } from "./tools/tdd-task.js";
 import { handleTest, testTool } from "./tools/test.js";
 import { handleTestTrends, testTrendsTool } from "./tools/trends.js";
 import { handleTriageBrief, triageBriefTool } from "./tools/triage-brief.js";
@@ -60,6 +66,12 @@ export const Kit = Toolkit.make(
 	registerAgentTool,
 	noteTool,
 	hypothesisTool,
+	tddTaskTool,
+	tddPhaseTransitionRequestTool,
+	tddGoalTool,
+	tddBehaviorTool,
+	tddArtifactListTool,
+	tddProgressPushTool,
 );
 
 /**
@@ -91,6 +103,12 @@ export const toolHandlers = {
 	register_agent: handleRegisterAgent,
 	note: handleNote,
 	hypothesis: withIdempotency("hypothesis", handleHypothesis),
+	tdd_task: withIdempotency("tdd_task", handleTddTask),
+	tdd_phase_transition_request: handlePhaseTransitionRequest,
+	tdd_goal: withIdempotency("tdd_goal", handleTddGoal),
+	tdd_behavior: withIdempotency("tdd_behavior", handleTddBehavior),
+	tdd_artifact_list: handleTddArtifactList,
+	tdd_progress_push: handleTddProgressPush,
 } satisfies Toolkit.HandlersFrom<typeof Kit.tools>;
 
 /**

@@ -14,7 +14,10 @@
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { idempotentProcedure } from "../middleware/idempotency.js";
+import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 
 const TddPhaseRow = Schema.Struct({
 	id: Schema.Number,
@@ -59,12 +62,14 @@ const TddTaskStartOk = Schema.Struct({
 	tddTaskId: Schema.Number,
 	goal: Schema.String,
 	runId: Schema.optional(Schema.String),
+	...IdempotentReplayMarker,
 }).annotate({ identifier: "TddTaskStartOk" });
 
 const TddTaskEndOk = Schema.Struct({
 	action: Schema.Literal("end"),
 	tddTaskId: Schema.Number,
 	outcome: Schema.Literals(["succeeded", "blocked", "abandoned"]),
+	...IdempotentReplayMarker,
 }).annotate({ identifier: "TddTaskEndOk" });
 
 const TddTaskGetFound = Schema.Struct({
@@ -186,33 +191,46 @@ export const TddTaskAsMarkdown = TddTaskResult.pipe(
 );
 
 const StartVariant = Schema.Struct({
-	action: Schema.Literal("start"),
-	goal: Schema.String,
-	sessionId: Schema.optional(Schema.Number),
-	chatId: Schema.optional(Schema.String),
-	parentTddTaskId: Schema.optional(Schema.Number),
-	startedAt: Schema.optional(Schema.String),
-	runId: Schema.optional(Schema.String),
+	action: Schema.Literal("start").annotate({ description: "Lifecycle discriminator" }),
+	goal: Schema.String.annotate({ description: "start: goal text" }),
+	sessionId: Schema.optionalKey(Schema.Finite).annotate({ description: "start: sessions.id (alternative to chatId)" }),
+	chatId: Schema.optionalKey(Schema.String).annotate({ description: "start: host chat UUID" }),
+	parentTddTaskId: Schema.optionalKey(Schema.Finite).annotate({
+		description: "start: parent task id when decomposing",
+	}),
+	startedAt: Schema.optionalKey(Schema.String),
+	runId: Schema.optionalKey(Schema.String),
 });
 
 const EndVariant = Schema.Struct({
-	action: Schema.Literal("end"),
-	tddTaskId: Schema.Number,
-	outcome: Schema.Literals(["succeeded", "blocked", "abandoned"]),
-	summaryNoteId: Schema.optional(Schema.Number),
+	action: Schema.Literal("end").annotate({ description: "Lifecycle discriminator" }),
+	tddTaskId: Schema.Finite.annotate({ description: "end/get/resume: tdd task id" }),
+	outcome: Schema.Literals(["succeeded", "blocked", "abandoned"]).annotate({ description: "end: final outcome" }),
+	summaryNoteId: Schema.optionalKey(Schema.Finite),
 });
 
 const GetVariant = Schema.Struct({
-	action: Schema.Literal("get"),
-	tddTaskId: Schema.Number,
+	action: Schema.Literal("get").annotate({ description: "Lifecycle discriminator" }),
+	tddTaskId: Schema.Finite.annotate({ description: "end/get/resume: tdd task id" }),
 });
 
 const ResumeVariant = Schema.Struct({
-	action: Schema.Literal("resume"),
-	tddTaskId: Schema.Number,
+	action: Schema.Literal("resume").annotate({ description: "Lifecycle discriminator" }),
+	tddTaskId: Schema.Finite.annotate({ description: "end/get/resume: tdd task id" }),
 });
 
-const TddTaskInput = Schema.Union([StartVariant, EndVariant, GetVariant, ResumeVariant]);
+/**
+ * The `tdd_task` tool's parameters — a union discriminated on `action`.
+ *
+ * @public
+ */
+export const TddTaskInput = Schema.Union([StartVariant, EndVariant, GetVariant, ResumeVariant]);
+/**
+ * The decoded {@link TddTaskInput}.
+ *
+ * @public
+ */
+export type TddTaskInputType = Schema.Schema.Type<typeof TddTaskInput>;
 
 /**
  * Single source of truth for the `tdd_task` tool's `action`
@@ -230,109 +248,138 @@ type _AssertTddTaskActions = TddTaskAction extends (typeof TDD_TASK_ACTIONS)[num
 const _assertTddTaskActions: _AssertTddTaskActions = true;
 void _assertTddTaskActions;
 
+/**
+ * Handler for {@link tddTaskTool}. A `start` with neither `sessionId` nor
+ * `chatId`, an unknown `chatId`, or a blank `runId` fails as a defect (the
+ * `UnexpectedToolError` envelope on the wire), as the tRPC procedure did.
+ *
+ * @public
+ */
+export const handleTddTask = (
+	input: TddTaskInputType,
+): Effect.Effect<TddTaskResultType, never, DataReader | DataStore> =>
+	Match.value(input)
+		.pipe(
+			Match.discriminatorsExhaustive("action")({
+				start: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const store = yield* DataStore;
+						let sessionId: number;
+						if (variant.sessionId !== undefined) {
+							sessionId = variant.sessionId;
+						} else if (variant.chatId !== undefined) {
+							const opt = yield* reader.getSessionByChatId(variant.chatId);
+							if (Option.isNone(opt)) {
+								return yield* Effect.fail(
+									new Error(`Unknown chatId: ${variant.chatId}. Run record session-start first.`),
+								);
+							}
+							sessionId = opt.value.id;
+						} else {
+							return yield* Effect.fail(new Error("tdd_task action=start: provide sessionId or chatId"));
+						}
+						if (variant.runId !== undefined && variant.runId.trim().length === 0) {
+							return yield* Effect.fail(new Error("tdd_task action=start: runId must not be blank"));
+						}
+						const tddTaskId = yield* store.writeTddTask({
+							sessionId,
+							goal: variant.goal,
+							startedAt: variant.startedAt ?? new Date().toISOString(),
+							...(variant.runId !== undefined && { runId: variant.runId }),
+							...(variant.parentTddTaskId !== undefined && { parentTddTaskId: variant.parentTddTaskId }),
+						});
+						return {
+							action: "start" as const,
+							tddTaskId,
+							goal: variant.goal,
+							...(variant.runId !== undefined && { runId: variant.runId }),
+						};
+					}),
+				end: (variant) =>
+					Effect.gen(function* () {
+						const store = yield* DataStore;
+						yield* store.endTddTask({
+							id: variant.tddTaskId,
+							outcome: variant.outcome,
+							endedAt: new Date().toISOString(),
+							...(variant.summaryNoteId !== undefined && { summaryNoteId: variant.summaryNoteId }),
+						});
+						return { action: "end" as const, tddTaskId: variant.tddTaskId, outcome: variant.outcome };
+					}),
+				get: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const opt = yield* reader.getTddTaskById(variant.tddTaskId);
+						if (Option.isNone(opt))
+							return { action: "get" as const, found: false as const, tddTaskId: variant.tddTaskId };
+						const currentOpt = yield* reader.getCurrentTddPhase(variant.tddTaskId);
+						const { id, ...rest } = opt.value;
+						return {
+							action: "get" as const,
+							found: true as const,
+							task: { tddTaskId: id, ...rest },
+							currentPhase: Option.match(currentOpt, {
+								onNone: () => null,
+								onSome: (p) => ({
+									id: p.id,
+									phase: p.phase as string,
+									startedAt: p.startedAt,
+									behaviorId: p.behaviorId,
+								}),
+							}),
+						};
+					}),
+				resume: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const tddOpt = yield* reader.getTddTaskById(variant.tddTaskId);
+						if (Option.isNone(tddOpt))
+							return { action: "resume" as const, found: false as const, tddTaskId: variant.tddTaskId };
+						const tdd = tddOpt.value;
+						const currentOpt = yield* reader.getCurrentTddPhase(variant.tddTaskId);
+						return {
+							action: "resume" as const,
+							found: true as const,
+							tddTaskId: tdd.id,
+							goal: tdd.goal,
+							status: tdd.outcome ?? "in progress",
+							currentPhase: Option.match(currentOpt, {
+								onNone: () => null,
+								onSome: (p) => ({
+									id: p.id,
+									phase: p.phase as string,
+									startedAt: p.startedAt,
+									behaviorId: p.behaviorId,
+								}),
+							}),
+							phasesRecorded: tdd.phases.length,
+							artifactsRecorded: tdd.artifacts.length,
+						};
+					}),
+			}),
+		)
+		.pipe(Effect.orDie);
+
 export const tddTask = idempotentProcedure
 	.input(Schema.toStandardSchemaV1(TddTaskInput))
-	.mutation(async ({ ctx, input }): Promise<TddTaskResultType> => {
-		return ctx.runtime.runPromise(
-			Match.value(input).pipe(
-				Match.discriminatorsExhaustive("action")({
-					start: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const store = yield* DataStore;
-							let sessionId: number;
-							if (variant.sessionId !== undefined) {
-								sessionId = variant.sessionId;
-							} else if (variant.chatId !== undefined) {
-								const opt = yield* reader.getSessionByChatId(variant.chatId);
-								if (Option.isNone(opt)) {
-									return yield* Effect.fail(
-										new Error(`Unknown chatId: ${variant.chatId}. Run record session-start first.`),
-									);
-								}
-								sessionId = opt.value.id;
-							} else {
-								return yield* Effect.fail(new Error("tdd_task action=start: provide sessionId or chatId"));
-							}
-							if (variant.runId !== undefined && variant.runId.trim().length === 0) {
-								return yield* Effect.fail(new Error("tdd_task action=start: runId must not be blank"));
-							}
-							const tddTaskId = yield* store.writeTddTask({
-								sessionId,
-								goal: variant.goal,
-								startedAt: variant.startedAt ?? new Date().toISOString(),
-								...(variant.runId !== undefined && { runId: variant.runId }),
-								...(variant.parentTddTaskId !== undefined && { parentTddTaskId: variant.parentTddTaskId }),
-							});
-							return {
-								action: "start" as const,
-								tddTaskId,
-								goal: variant.goal,
-								...(variant.runId !== undefined && { runId: variant.runId }),
-							};
-						}),
-					end: (variant) =>
-						Effect.gen(function* () {
-							const store = yield* DataStore;
-							yield* store.endTddTask({
-								id: variant.tddTaskId,
-								outcome: variant.outcome,
-								endedAt: new Date().toISOString(),
-								...(variant.summaryNoteId !== undefined && { summaryNoteId: variant.summaryNoteId }),
-							});
-							return { action: "end" as const, tddTaskId: variant.tddTaskId, outcome: variant.outcome };
-						}),
-					get: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const opt = yield* reader.getTddTaskById(variant.tddTaskId);
-							if (Option.isNone(opt))
-								return { action: "get" as const, found: false as const, tddTaskId: variant.tddTaskId };
-							const currentOpt = yield* reader.getCurrentTddPhase(variant.tddTaskId);
-							const { id, ...rest } = opt.value;
-							return {
-								action: "get" as const,
-								found: true as const,
-								task: { tddTaskId: id, ...rest },
-								currentPhase: Option.match(currentOpt, {
-									onNone: () => null,
-									onSome: (p) => ({
-										id: p.id,
-										phase: p.phase as string,
-										startedAt: p.startedAt,
-										behaviorId: p.behaviorId,
-									}),
-								}),
-							};
-						}),
-					resume: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const tddOpt = yield* reader.getTddTaskById(variant.tddTaskId);
-							if (Option.isNone(tddOpt))
-								return { action: "resume" as const, found: false as const, tddTaskId: variant.tddTaskId };
-							const tdd = tddOpt.value;
-							const currentOpt = yield* reader.getCurrentTddPhase(variant.tddTaskId);
-							return {
-								action: "resume" as const,
-								found: true as const,
-								tddTaskId: tdd.id,
-								goal: tdd.goal,
-								status: tdd.outcome ?? "in progress",
-								currentPhase: Option.match(currentOpt, {
-									onNone: () => null,
-									onSome: (p) => ({
-										id: p.id,
-										phase: p.phase as string,
-										startedAt: p.startedAt,
-										behaviorId: p.behaviorId,
-									}),
-								}),
-								phasesRecorded: tdd.phases.length,
-								artifactsRecorded: tdd.artifacts.length,
-							};
-						}),
-				}),
-			),
-		);
-	});
+	.mutation(({ ctx, input }): Promise<TddTaskResultType> => ctx.runtime.runPromise(handleTddTask(input)));
+
+/**
+ * The Effect-native `tdd_task` tool.
+ *
+ * @public
+ */
+export const tddTaskTool = Tool.make("tdd_task", {
+	description:
+		"Use to manage a TDD task lifecycle, with an action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns markdown details; action='resume' (tddTaskId) returns a compact digest.",
+	parameters: TddTaskInput,
+	success: TddTaskResult,
+	dependencies: [DataReader, DataStore],
+})
+	.annotate(Tool.Title, "TDD task")
+	.annotate(Tool.Readonly, false)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatTddTaskMarkdown(encoded as TddTaskResultType));

@@ -1305,9 +1305,8 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const r1 = await caller.tdd_task({ action: "start", sessionId, goal: "add login" });
-			const r2 = await caller.tdd_task({ action: "start", sessionId, goal: "add login" });
+			const r1 = await call("tdd_task", { action: "start", sessionId, goal: "add login" });
+			const r2 = await call("tdd_task", { action: "start", sessionId, goal: "add login" });
 			expect((r1 as { tddTaskId: number }).tddTaskId).toBe((r2 as { tddTaskId: number }).tddTaskId);
 			expect((r2 as { _idempotentReplay?: boolean })._idempotentReplay).toBe(true);
 		});
@@ -1329,14 +1328,13 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const created = await caller.tdd_task({ action: "start", sessionId, goal: "ending-test" });
-			const r1 = await caller.tdd_task({
+			const created = await call("tdd_task", { action: "start", sessionId, goal: "ending-test" });
+			const r1 = await call("tdd_task", {
 				action: "end",
 				tddTaskId: (created as { tddTaskId: number }).tddTaskId,
 				outcome: "succeeded",
 			});
-			const r2 = await caller.tdd_task({
+			const r2 = await call("tdd_task", {
 				action: "end",
 				tddTaskId: (created as { tddTaskId: number }).tddTaskId,
 				outcome: "succeeded",
@@ -1368,10 +1366,9 @@ describe("MCP Router", () => {
 					});
 				}),
 			);
-			const caller = createTestCaller();
-			const tdd = await caller.tdd_task({ action: "start", sessionId, goal: "resume-test" });
+			const tdd = await call("tdd_task", { action: "start", sessionId, goal: "resume-test" });
 			const tddId = (tdd as { tddTaskId: number }).tddTaskId;
-			const out = await caller.tdd_task({ action: "resume", tddTaskId: tddId });
+			const out = await call("tdd_task", { action: "resume", tddTaskId: tddId });
 			expect(out.action).toBe("resume");
 			if (out.action === "resume" && out.found) {
 				expect(out.tddTaskId).toBe(tddId);
@@ -1380,8 +1377,7 @@ describe("MCP Router", () => {
 		});
 
 		it("returns found=false for an unknown id", async () => {
-			const caller = createTestCaller();
-			const out = await caller.tdd_task({ action: "resume", tddTaskId: 99999 });
+			const out = await call("tdd_task", { action: "resume", tddTaskId: 99999 });
 			expect(out.action).toBe("resume");
 			if (out.action === "resume") expect(out.found).toBe(false);
 		});
@@ -1402,11 +1398,10 @@ describe("MCP Router", () => {
 					return { sessionId: sid };
 				}),
 			);
-			const caller = createTestCaller();
-			const tdd = (await caller.tdd_task({ action: "start", sessionId, goal: "current-phase-test" })) as {
+			const tdd = (await call("tdd_task", { action: "start", sessionId, goal: "current-phase-test" })) as {
 				tddTaskId: number;
 			};
-			const out = await caller.tdd_task({ action: "get", tddTaskId: tdd.tddTaskId });
+			const out = await call("tdd_task", { action: "get", tddTaskId: tdd.tddTaskId });
 			expect(out.action).toBe("get");
 			if (out.action === "get" && out.found) {
 				expect(out.currentPhase?.phase).toBe("spike");
@@ -1478,8 +1473,7 @@ describe("MCP Router", () => {
 
 		it("returns the recorded artifacts in newest-first order", async () => {
 			const seeded = await seedSessionWithArtifacts();
-			const caller = createTestCaller();
-			const out = await caller.tdd_artifact_list({ tddTaskId: seeded.tddId });
+			const out = await call("tdd_artifact_list", { tddTaskId: seeded.tddId });
 			expect(out.tddTaskId).toBe(seeded.tddId);
 			expect(out.count).toBe(3);
 			expect(out.artifacts[0].artifactKind).toBe("code_written");
@@ -1491,8 +1485,7 @@ describe("MCP Router", () => {
 
 		it("filters by artifactKind", async () => {
 			const seeded = await seedSessionWithArtifacts();
-			const caller = createTestCaller();
-			const out = await caller.tdd_artifact_list({
+			const out = await call("tdd_artifact_list", {
 				tddTaskId: seeded.tddId,
 				artifactKind: "test_failed_run",
 			});
@@ -1503,8 +1496,7 @@ describe("MCP Router", () => {
 
 		it("returns count=0 and an empty artifacts[] when there is no match", async () => {
 			const seeded = await seedSessionWithArtifacts();
-			const caller = createTestCaller();
-			const out = await caller.tdd_artifact_list({
+			const out = await call("tdd_artifact_list", {
 				tddTaskId: seeded.tddId,
 				artifactKind: "refactor",
 			});
@@ -1531,21 +1523,19 @@ describe("MCP Router", () => {
 					});
 				}),
 			);
-			const caller = createTestCaller();
-			const tdd = await caller.tdd_task({ action: "start", sessionId, goal: goalText });
+			const tdd = await call("tdd_task", { action: "start", sessionId, goal: goalText });
 			const tddId = (tdd as { tddTaskId: number }).tddTaskId;
-			const goalRes = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: goalText })) as {
+			const goalRes = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: goalText })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			await caller.tdd_goal({ action: "update", id: goalRes.goal.id, status: "in_progress" });
+			await call("tdd_goal", { action: "update", id: goalRes.goal.id, status: "in_progress" });
 			return { tddId, goalId: goalRes.goal.id, sessionId };
 		}
 
 		it("rejects with missing_artifact_evidence when cited artifact does not exist", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-missing", "g");
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "green",
@@ -1577,8 +1567,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "red",
@@ -1607,8 +1596,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "green",
@@ -1624,16 +1612,15 @@ describe("MCP Router", () => {
 			// proving the wrong check ran first. requestedPhase 'refactor' from 'red'
 			// must be denied for being an illegal transition, not for lacking evidence.
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-361-refactor", "g");
-			const caller = createTestCaller();
 
-			const entered = (await caller.tdd_phase_transition_request({
+			const entered = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "red",
 			})) as { accepted: boolean };
 			expect(entered.accepted).toBe(true);
 
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "refactor",
@@ -1646,8 +1633,7 @@ describe("MCP Router", () => {
 
 		it("rejects with goal_not_found when goalId does not exist", async () => {
 			const { tddId } = await seedTddSessionForTransition("cc-tdd-trans-goalmissing", "g");
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId: 99999,
 				requestedPhase: "red",
@@ -1659,9 +1645,8 @@ describe("MCP Router", () => {
 
 		it("rejects with goal_not_in_progress when goal status is done", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-goaldone", "g");
-			const caller = createTestCaller();
-			await caller.tdd_goal({ action: "update", id: goalId, status: "done" });
-			const r = (await caller.tdd_phase_transition_request({
+			await call("tdd_goal", { action: "update", id: goalId, status: "done" });
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "red",
@@ -1673,8 +1658,7 @@ describe("MCP Router", () => {
 
 		it("rejects with behavior_not_found when behaviorId does not exist", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-behmissing", "g");
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				behaviorId: 99999,
@@ -1687,16 +1671,15 @@ describe("MCP Router", () => {
 
 		it("rejects with behavior_not_in_goal when behavior belongs to a different goal", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-othergoal", "g");
-			const caller = createTestCaller();
-			const otherGoal = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "other" })) as {
+			const otherGoal = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "other" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const otherBeh = (await caller.tdd_behavior({ action: "create", goalId: otherGoal.goal.id, behavior: "x" })) as {
+			const otherBeh = (await call("tdd_behavior", { action: "create", goalId: otherGoal.goal.id, behavior: "x" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				behaviorId: otherBeh.behavior.id,
@@ -1709,8 +1692,7 @@ describe("MCP Router", () => {
 
 		it("auto-promotes behavior pending → in_progress on accepted transition", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-autopromote", "g");
-			const caller = createTestCaller();
-			const beh = (await caller.tdd_behavior({ action: "create", goalId, behavior: "b1" })) as {
+			const beh = (await call("tdd_behavior", { action: "create", goalId, behavior: "b1" })) as {
 				ok: true;
 				behavior: { id: number; status: string };
 			};
@@ -1733,7 +1715,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				behaviorId: beh.behavior.id,
@@ -1742,7 +1724,7 @@ describe("MCP Router", () => {
 			})) as { accepted: boolean };
 			expect(r.accepted).toBe(true);
 
-			const updated = (await caller.tdd_behavior({ action: "get", id: beh.behavior.id })) as {
+			const updated = (await call("tdd_behavior", { action: "get", id: beh.behavior.id })) as {
 				found: true;
 				behavior: { status: string };
 			};
@@ -1754,10 +1736,9 @@ describe("MCP Router", () => {
 			// sessionId is the sessions.id for the Claude Code session that owns the TDD session.
 			// The turn written for test_case_authored_in_session must belong to this same session.
 			const { tddId, goalId, sessionId } = await seedTddSessionForTransition("cc-tdd-trans-green-autopromote", "g");
-			const caller = createTestCaller();
 
 			// Create a behavior — must start as pending.
-			const beh = (await caller.tdd_behavior({ action: "create", goalId, behavior: "green-b1" })) as {
+			const beh = (await call("tdd_behavior", { action: "create", goalId, behavior: "green-b1" })) as {
 				ok: true;
 				behavior: { id: number; status: string };
 			};
@@ -1854,14 +1835,14 @@ describe("MCP Router", () => {
 			);
 
 			// The behavior is still pending before the transition.
-			const before = (await caller.tdd_behavior({ action: "get", id: beh.behavior.id })) as {
+			const before = (await call("tdd_behavior", { action: "get", id: beh.behavior.id })) as {
 				found: true;
 				behavior: { status: string };
 			};
 			expect(before.behavior.status).toBe("pending");
 
 			// Request red→green — this should be accepted and auto-promote the behavior.
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				behaviorId: beh.behavior.id,
@@ -1871,7 +1852,7 @@ describe("MCP Router", () => {
 			expect(r.accepted).toBe(true);
 
 			// After the accepted transition the behavior must be in_progress.
-			const after = (await caller.tdd_behavior({ action: "get", id: beh.behavior.id })) as {
+			const after = (await call("tdd_behavior", { action: "get", id: beh.behavior.id })) as {
 				found: true;
 				behavior: { status: string };
 			};
@@ -1887,9 +1868,8 @@ describe("MCP Router", () => {
 			// ACCEPTED — before the fix, D2 rule 1 compared test_case_created_turn_at
 			// (spike) against phase_started_at (red) and wrongly denied it.
 			const { tddId, goalId, sessionId } = await seedTddSessionForTransition("cc-tdd-trans-245-spike-then-red", "g");
-			const caller = createTestCaller();
 
-			const beh = (await caller.tdd_behavior({ action: "create", goalId, behavior: "245-b1" })) as {
+			const beh = (await call("tdd_behavior", { action: "create", goalId, behavior: "245-b1" })) as {
 				ok: true;
 				behavior: { id: number; status: string };
 			};
@@ -1972,7 +1952,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				behaviorId: beh.behavior.id,
@@ -1985,8 +1965,7 @@ describe("MCP Router", () => {
 
 		it("auto-resolves citedArtifactId for spike→red when neither citedArtifactId nor citedArtifactKind is supplied (no artifact required)", async () => {
 			const { tddId, goalId } = await seedTddSessionForTransition("cc-tdd-trans-spike-red-noart", "g");
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "red",
@@ -2018,12 +1997,11 @@ describe("MCP Router", () => {
 					return { newest };
 				}),
 			);
-			const caller = createTestCaller();
 			// Request spike→red (no required artifact) but pass an explicit
 			// citedArtifactKind to exercise the explicit-kind branch. The
 			// transition itself still accepts; the response should echo the
 			// auto-picked id and source label.
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "red",
@@ -2048,8 +2026,7 @@ describe("MCP Router", () => {
 					});
 				}),
 			);
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "green",
@@ -2117,8 +2094,7 @@ describe("MCP Router", () => {
 					return { tddId, goalId: goal.id };
 				}),
 			);
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "green",
@@ -2136,12 +2112,11 @@ describe("MCP Router", () => {
 			// the validator then rejected at rule 2 (evidence_not_for_behavior), even though behavior 1's
 			// valid failing run existed. Auto-resolution must scope the lookup to the requested behavior.
 			const { tddId, goalId, sessionId } = await seedTddSessionForTransition("cc-tdd-trans-autoresolve-beh", "g");
-			const caller = createTestCaller();
-			const b1 = (await caller.tdd_behavior({ action: "create", goalId, behavior: "beh-1" })) as {
+			const b1 = (await call("tdd_behavior", { action: "create", goalId, behavior: "beh-1" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
-			const b2 = (await caller.tdd_behavior({ action: "create", goalId, behavior: "beh-2" })) as {
+			const b2 = (await call("tdd_behavior", { action: "create", goalId, behavior: "beh-2" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
@@ -2214,7 +2189,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				behaviorId: b1.behavior.id,
@@ -2233,12 +2208,11 @@ describe("MCP Router", () => {
 			// behavior 1's failing run — the lookup must NOT be scoped to behavior 2 (which owns nothing),
 			// mirroring the validator's decision to skip behavior-match for triangulation.
 			const { tddId, goalId, sessionId } = await seedTddSessionForTransition("cc-tdd-trans-triangulate", "g");
-			const caller = createTestCaller();
-			const b1 = (await caller.tdd_behavior({ action: "create", goalId, behavior: "tri-1" })) as {
+			const b1 = (await call("tdd_behavior", { action: "create", goalId, behavior: "tri-1" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
-			const b2 = (await caller.tdd_behavior({ action: "create", goalId, behavior: "tri-2" })) as {
+			const b2 = (await call("tdd_behavior", { action: "create", goalId, behavior: "tri-2" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
@@ -2304,7 +2278,7 @@ describe("MCP Router", () => {
 				}),
 			);
 
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				behaviorId: b2.behavior.id,
@@ -2334,8 +2308,7 @@ describe("MCP Router", () => {
 					return { artifactId };
 				}),
 			);
-			const caller = createTestCaller();
-			const r = (await caller.tdd_phase_transition_request({
+			const r = (await call("tdd_phase_transition_request", {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "red",
@@ -2361,15 +2334,13 @@ describe("MCP Router", () => {
 					});
 				}),
 			);
-			const caller = createTestCaller();
-			const tdd = await caller.tdd_task({ action: "start", sessionId, goal });
+			const tdd = await call("tdd_task", { action: "start", sessionId, goal });
 			return (tdd as { tddTaskId: number }).tddTaskId;
 		};
 
 		it("creates a goal and returns it with ordinal 0", async () => {
 			const tddId = await seedTddSession("cc-mcp-goal-create");
-			const caller = createTestCaller();
-			const r = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "Handle bounds" })) as {
+			const r = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "Handle bounds" })) as {
 				ok: true;
 				goal: { id: number; ordinal: number; goal: string; status: string };
 			};
@@ -2381,12 +2352,11 @@ describe("MCP Router", () => {
 
 		it("returns idempotent replay on duplicate tdd_goal_create", async () => {
 			const tddId = await seedTddSession("cc-mcp-goal-idem");
-			const caller = createTestCaller();
-			const a = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
+			const a = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const b = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
+			const b = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 				_idempotentReplay?: boolean;
@@ -2396,8 +2366,7 @@ describe("MCP Router", () => {
 		});
 
 		it("returns error envelope for tdd_goal_create against unknown session", async () => {
-			const caller = createTestCaller();
-			const r = (await caller.tdd_goal({ action: "create", tddTaskId: 99999, goal: "G" })) as {
+			const r = (await call("tdd_goal", { action: "create", tddTaskId: 99999, goal: "G" })) as {
 				ok: false;
 				error: { _tag: string; remediation: { humanHint: string } };
 			};
@@ -2408,24 +2377,23 @@ describe("MCP Router", () => {
 
 		it("supports tdd_goal_get, tdd_goal_update, tdd_goal_list lifecycle", async () => {
 			const tddId = await seedTddSession("cc-mcp-goal-lifecycle");
-			const caller = createTestCaller();
-			const created = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
+			const created = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const fetched = (await caller.tdd_goal({ action: "get", id: created.goal.id })) as {
+			const fetched = (await call("tdd_goal", { action: "get", id: created.goal.id })) as {
 				found: true;
 				goal: { goal: string; behaviors: ReadonlyArray<unknown> };
 			};
 			expect(fetched.found).toBe(true);
 			expect(fetched.goal.goal).toBe("G");
 			expect(fetched.goal.behaviors).toEqual([]);
-			const updated = (await caller.tdd_goal({ action: "update", id: created.goal.id, status: "in_progress" })) as {
+			const updated = (await call("tdd_goal", { action: "update", id: created.goal.id, status: "in_progress" })) as {
 				ok: true;
 				goal: { status: string };
 			};
 			expect(updated.goal.status).toBe("in_progress");
-			const list = (await caller.tdd_goal({ action: "list", tddTaskId: tddId })) as {
+			const list = (await call("tdd_goal", { action: "list", tddTaskId: tddId })) as {
 				ok: true;
 				goals: ReadonlyArray<{ id: number; status: string }>;
 			};
@@ -2435,14 +2403,13 @@ describe("MCP Router", () => {
 
 		it("rejects done → pending transition with IllegalStatusTransitionError envelope", async () => {
 			const tddId = await seedTddSession("cc-mcp-goal-illegal");
-			const caller = createTestCaller();
-			const created = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
+			const created = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			await caller.tdd_goal({ action: "update", id: created.goal.id, status: "in_progress" });
-			await caller.tdd_goal({ action: "update", id: created.goal.id, status: "done" });
-			const r = (await caller.tdd_goal({ action: "update", id: created.goal.id, status: "pending" })) as {
+			await call("tdd_goal", { action: "update", id: created.goal.id, status: "in_progress" });
+			await call("tdd_goal", { action: "update", id: created.goal.id, status: "done" });
+			const r = (await call("tdd_goal", { action: "update", id: created.goal.id, status: "pending" })) as {
 				ok: false;
 				error: { _tag: string };
 			};
@@ -2452,22 +2419,21 @@ describe("MCP Router", () => {
 
 		it("creates a behavior with dependencies and surfaces full BehaviorDetail via tdd_behavior_get", async () => {
 			const tddId = await seedTddSession("cc-mcp-beh-deps");
-			const caller = createTestCaller();
-			const goal = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
+			const goal = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const dep = (await caller.tdd_behavior({ action: "create", goalId: goal.goal.id, behavior: "dep" })) as {
+			const dep = (await call("tdd_behavior", { action: "create", goalId: goal.goal.id, behavior: "dep" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
-			const target = (await caller.tdd_behavior({
+			const target = (await call("tdd_behavior", {
 				action: "create",
 				goalId: goal.goal.id,
 				behavior: "target",
 				dependsOnBehaviorIds: [dep.behavior.id],
 			})) as { ok: true; behavior: { id: number } };
-			const fetched = (await caller.tdd_behavior({ action: "get", id: target.behavior.id })) as {
+			const fetched = (await call("tdd_behavior", { action: "get", id: target.behavior.id })) as {
 				found: true;
 				behavior: {
 					behavior: string;
@@ -2483,14 +2449,13 @@ describe("MCP Router", () => {
 
 		it("tdd_behavior_list scope='goal' returns the goal's behaviors", async () => {
 			const tddId = await seedTddSession("cc-mcp-beh-list-goal");
-			const caller = createTestCaller();
-			const goal = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
+			const goal = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			await caller.tdd_behavior({ action: "create", goalId: goal.goal.id, behavior: "x" });
-			await caller.tdd_behavior({ action: "create", goalId: goal.goal.id, behavior: "y" });
-			const r = (await caller.tdd_behavior({ action: "list_by_goal", goalId: goal.goal.id })) as {
+			await call("tdd_behavior", { action: "create", goalId: goal.goal.id, behavior: "x" });
+			await call("tdd_behavior", { action: "create", goalId: goal.goal.id, behavior: "y" });
+			const r = (await call("tdd_behavior", { action: "list_by_goal", goalId: goal.goal.id })) as {
 				ok: true;
 				behaviors: ReadonlyArray<{ behavior: string }>;
 			};
@@ -2500,18 +2465,17 @@ describe("MCP Router", () => {
 
 		it("tdd_behavior_list scope='session' returns behaviors across goals", async () => {
 			const tddId = await seedTddSession("cc-mcp-beh-list-session");
-			const caller = createTestCaller();
-			const g1 = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "g1" })) as {
+			const g1 = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "g1" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const g2 = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "g2" })) as {
+			const g2 = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "g2" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			await caller.tdd_behavior({ action: "create", goalId: g1.goal.id, behavior: "a" });
-			await caller.tdd_behavior({ action: "create", goalId: g2.goal.id, behavior: "b" });
-			const r = (await caller.tdd_behavior({ action: "list_by_tdd_task", tddTaskId: tddId })) as {
+			await call("tdd_behavior", { action: "create", goalId: g1.goal.id, behavior: "a" });
+			await call("tdd_behavior", { action: "create", goalId: g2.goal.id, behavior: "b" });
+			const r = (await call("tdd_behavior", { action: "list_by_tdd_task", tddTaskId: tddId })) as {
 				ok: true;
 				behaviors: ReadonlyArray<{ behavior: string }>;
 			};
@@ -2520,24 +2484,23 @@ describe("MCP Router", () => {
 
 		it("tdd_behavior_delete cascades dependency rows", async () => {
 			const tddId = await seedTddSession("cc-mcp-beh-delete");
-			const caller = createTestCaller();
-			const goal = (await caller.tdd_goal({ action: "create", tddTaskId: tddId, goal: "G" })) as {
+			const goal = (await call("tdd_goal", { action: "create", tddTaskId: tddId, goal: "G" })) as {
 				ok: true;
 				goal: { id: number };
 			};
-			const dep = (await caller.tdd_behavior({ action: "create", goalId: goal.goal.id, behavior: "dep" })) as {
+			const dep = (await call("tdd_behavior", { action: "create", goalId: goal.goal.id, behavior: "dep" })) as {
 				ok: true;
 				behavior: { id: number };
 			};
-			const target = (await caller.tdd_behavior({
+			const target = (await call("tdd_behavior", {
 				action: "create",
 				goalId: goal.goal.id,
 				behavior: "target",
 				dependsOnBehaviorIds: [dep.behavior.id],
 			})) as { ok: true; behavior: { id: number } };
-			const del = (await caller.tdd_behavior({ action: "delete", id: target.behavior.id })) as { ok: true };
+			const del = (await call("tdd_behavior", { action: "delete", id: target.behavior.id })) as { ok: true };
 			expect(del.ok).toBe(true);
-			const fetched = (await caller.tdd_behavior({ action: "get", id: target.behavior.id })) as { found: false };
+			const fetched = (await call("tdd_behavior", { action: "get", id: target.behavior.id })) as { found: false };
 			expect(fetched.found).toBe(false);
 		});
 	});

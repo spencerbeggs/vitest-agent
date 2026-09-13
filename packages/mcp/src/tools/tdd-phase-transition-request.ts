@@ -8,6 +8,8 @@ import {
 } from "@vitest-agent/sdk";
 
 import { Effect, Option, Schema } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 /**
@@ -99,306 +101,350 @@ export const PhaseTransitionResult = Schema.Union([PhaseTransitionAccepted, Phas
 	description:
 		"Discriminate on `accepted`. Acceptance carries the new phaseId; denial carries a typed reason and a remediation pointer.",
 });
+/**
+ * The decoded {@link PhaseTransitionResult}.
+ *
+ * @public
+ */
+export type PhaseTransitionResultType = Schema.Schema.Type<typeof PhaseTransitionResult>;
+
+/**
+ * The `tdd_phase_transition_request` tool's parameters.
+ *
+ * `citedArtifactId` is optional in 2.0+. When omitted, the tool resolves
+ * the most recent matching artifact for this session, where "matching" is
+ * either the explicit `citedArtifactKind` value, or the kind required by
+ * the transition (per `requiredArtifactForTransition`), or "no artifact
+ * needed" for transitions like `spike→red` where the validator's
+ * `requiredArtifactForTransition` returns null. The accepted response
+ * carries `citedArtifactId` so the caller can see which row was used.
+ *
+ * @public
+ */
+export const PhaseTransitionInput = Schema.Struct({
+	tddTaskId: Schema.Finite.annotate({ description: "tdd_tasks.id" }),
+	goalId: Schema.Finite.annotate({ description: "tdd_session_goals.id (required; goal must be in_progress)" }),
+	requestedPhase: phaseLiteral.annotate({ description: "Phase to transition to" }),
+	citedArtifactId: Schema.optionalKey(Schema.Finite).annotate({
+		description: "tdd_artifacts.id supplying the evidence. Optional — auto-resolved when omitted.",
+	}),
+	citedArtifactKind: Schema.optionalKey(artifactKindLiteral).annotate({
+		description: "Kind to look up when citedArtifactId is omitted (defaults to the kind required by the transition).",
+	}),
+	behaviorId: Schema.optionalKey(Schema.Finite).annotate({
+		description: "tdd_session_behaviors.id when transitioning a specific behavior (must belong to goalId)",
+	}),
+	reason: Schema.optionalKey(Schema.String).annotate({ description: "Free-text reason for the transition" }),
+});
+/**
+ * The decoded {@link PhaseTransitionInput}.
+ *
+ * @public
+ */
+export type PhaseTransitionInputType = Schema.Schema.Type<typeof PhaseTransitionInput>;
+
+/**
+ * Handler for {@link tddPhaseTransitionRequestTool}.
+ *
+ * @public
+ */
+export const handlePhaseTransitionRequest = (
+	input: PhaseTransitionInputType,
+): Effect.Effect<PhaseTransitionResultType, never, DataReader | DataStore> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const store = yield* DataStore;
+
+		// 1. Resolve current phase. If none, treat current_phase as "spike"
+		//    (the entry point for every TDD cycle per D11).
+		const currentOpt = yield* reader.getCurrentTddPhase(input.tddTaskId);
+		const currentPhase: Phase = Option.isSome(currentOpt) ? currentOpt.value.phase : "spike";
+		const phaseStartedAt = Option.isSome(currentOpt) ? currentOpt.value.startedAt : new Date().toISOString();
+		const currentPhaseId: number | null = Option.isSome(currentOpt) ? currentOpt.value.id : null;
+
+		// 2. Validate goal: exists + belongs to the requested TDD session + status is in_progress.
+		const goalOpt = yield* reader.getGoalById(input.goalId);
+		if (Option.isNone(goalOpt)) {
+			return {
+				accepted: false as const,
+				phase: currentPhase,
+				denialReason: "goal_not_found" as const,
+				remediation: {
+					suggestedTool: "tdd_goal",
+					suggestedArgs: { action: "list", tddTaskId: input.tddTaskId },
+					humanHint: `No tdd_session_goals row with id=${input.goalId}. Call tdd_goal({ action: "list" }) to find the correct goal id.`,
+				},
+			};
+		}
+		if (goalOpt.value.sessionId !== input.tddTaskId) {
+			return {
+				accepted: false as const,
+				phase: currentPhase,
+				denialReason: "goal_not_in_tdd_task" as const,
+				remediation: {
+					suggestedTool: "tdd_goal",
+					suggestedArgs: { action: "list", tddTaskId: input.tddTaskId },
+					humanHint:
+						`Goal id=${input.goalId} belongs to TDD task ${goalOpt.value.sessionId}, ` +
+						`not the requested tddTaskId=${input.tddTaskId}. ` +
+						"Pass the tddTaskId of the goal's parent task, or pick a goal that belongs to the active task.",
+				},
+			};
+		}
+		if (goalOpt.value.status !== "in_progress") {
+			return {
+				accepted: false as const,
+				phase: currentPhase,
+				denialReason: "goal_not_in_progress" as const,
+				remediation: {
+					suggestedTool: "tdd_goal_update",
+					suggestedArgs: { id: input.goalId, status: "in_progress" },
+					humanHint:
+						`Goal id=${input.goalId} has status '${goalOpt.value.status}'. ` +
+						"Phase transitions require the goal to be in_progress. " +
+						"Call tdd_goal_update({status:'in_progress'}) before requesting transitions.",
+				},
+			};
+		}
+
+		// 3. If behaviorId is supplied, validate it exists and belongs to goalId.
+		if (input.behaviorId !== undefined) {
+			const behaviorOpt = yield* reader.getBehaviorById(input.behaviorId);
+			if (Option.isNone(behaviorOpt)) {
+				return {
+					accepted: false as const,
+					phase: currentPhase,
+					denialReason: "behavior_not_found" as const,
+					remediation: {
+						suggestedTool: "tdd_behavior_list",
+						suggestedArgs: { scope: "goal", goalId: input.goalId },
+						humanHint: `No tdd_session_behaviors row with id=${input.behaviorId}. Call tdd_behavior_list to find the correct behavior id.`,
+					},
+				};
+			}
+			if (behaviorOpt.value.goalId !== input.goalId) {
+				return {
+					accepted: false as const,
+					phase: currentPhase,
+					denialReason: "behavior_not_in_goal" as const,
+					remediation: {
+						suggestedTool: "tdd_behavior_get",
+						suggestedArgs: { id: input.behaviorId },
+						humanHint:
+							`Behavior id=${input.behaviorId} belongs to goal ${behaviorOpt.value.goalId}, ` +
+							`not the requested goalId=${input.goalId}. Pass the goalId of the behavior's parent goal.`,
+					},
+				};
+			}
+		}
+
+		// 4. Resolve cited artifact id + binding-rule context.
+		//
+		//    Three input modes:
+		//      a. `citedArtifactId` supplied → load + validate.
+		//      b. `citedArtifactKind` supplied (or kind derivable
+		//         from the transition) → look up the most recent
+		//         matching artifact for this session.
+		//      c. Neither supplied AND the transition does not
+		//         require an artifact (e.g. spike→red) → skip
+		//         artifact loading; pass a stub the validator
+		//         won't read.
+		const requiredKindForTransition = requiredArtifactForTransition(currentPhase, input.requestedPhase);
+
+		let resolvedArtifactId: number | undefined;
+		let resolvedKindSource: "explicit-id" | "explicit-kind" | "transition-derived" | "none" = "none";
+		let kindToLookUp: ArtifactKind | undefined;
+
+		if (input.citedArtifactId !== undefined) {
+			resolvedArtifactId = input.citedArtifactId;
+			resolvedKindSource = "explicit-id";
+		} else if (input.citedArtifactKind !== undefined) {
+			kindToLookUp = input.citedArtifactKind;
+			resolvedKindSource = "explicit-kind";
+		} else if (requiredKindForTransition !== null) {
+			kindToLookUp = requiredKindForTransition.kind;
+			resolvedKindSource = "transition-derived";
+		}
+
+		// Scope the artifact lookup to the requested behavior only for the transitions where
+		// the validator enforces behavior-match (rule 2): red→green and green→refactor. For
+		// those, the newest matching artifact task-wide may belong to a different behavior and
+		// get rejected even though the correct one exists (issue #115). We must NOT scope for
+		// red.triangulate→green (the batch's failing run belongs to an earlier behavior) or
+		// refactor→red (the evidence is the just-finished behavior, not the requested one) —
+		// scoping there would filter out the very artifact the validator is willing to accept.
+		const scopeLookupByBehavior =
+			input.behaviorId !== undefined && transitionEnforcesBehaviorMatch(currentPhase, input.requestedPhase);
+
+		if (resolvedArtifactId === undefined && kindToLookUp !== undefined) {
+			const recent = yield* reader.listTddArtifactsForTask({
+				tddTaskId: input.tddTaskId,
+				artifactKind: kindToLookUp,
+				...(scopeLookupByBehavior && { behaviorId: input.behaviorId }),
+				limit: 1,
+			});
+			if (recent.length === 0) {
+				// Diagnostic (issue #144): a detached session (a named
+				// teammate, or any session whose hooks otherwise
+				// attribute artifacts away from this task) can leave
+				// this task starved of evidence while artifacts pile
+				// up elsewhere in the same conversation. Surface that
+				// signal instead of a bare "no artifact found" when
+				// it exists.
+				const sinceIso = new Date(Date.now() - DIAGNOSTIC_WINDOW_MINUTES * 60_000).toISOString();
+				const crossSessionCount = yield* reader.countRecentArtifactsInOtherSessionsOfConversation({
+					tddTaskId: input.tddTaskId,
+					sinceIso,
+				});
+				const baseHint =
+					`No '${kindToLookUp}' artifact has been recorded for tdd_task ${input.tddTaskId}. ` +
+					"Artifacts are recorded by hooks observing your tool calls (Decision D7) — " +
+					"run the test (e.g. via run_tests) or make the file edit first; the post-tool-use " +
+					"hook will write the matching tdd_artifacts row and the next call to this tool " +
+					"will pick it up automatically.";
+				const humanHint =
+					crossSessionCount > 0
+						? `${baseHint} ${crossSessionCount} artifact${crossSessionCount === 1 ? " was" : "s were"} recorded ` +
+							`under a different session of this conversation in the last ${DIAGNOSTIC_WINDOW_MINUTES} minutes — ` +
+							"the subagent's hooks may be attributing to a detached session; set " +
+							`VITEST_AGENT_TDD_TASK_ID=${input.tddTaskId} in the subagent's environment or dispatch ` +
+							"it as an unnamed background subagent."
+						: baseHint;
+				return {
+					accepted: false as const,
+					phase: currentPhase,
+					denialReason: "missing_artifact_evidence" as const,
+					remediation: {
+						suggestedTool: "run_tests",
+						suggestedArgs: {},
+						humanHint,
+					},
+				};
+			}
+			resolvedArtifactId = recent[0].id;
+		}
+
+		// Build the artifact context for the validator. When no
+		// artifact is required AND the agent didn't supply one, we
+		// pass a sentinel that the validator will never read (it
+		// returns early when `requiredArtifactForTransition` returns
+		// null). Otherwise load the row.
+		let citedArtifact: CitedArtifactRow;
+		if (resolvedArtifactId !== undefined) {
+			const artifactOpt = yield* reader.getTddArtifactWithContext(resolvedArtifactId);
+			if (Option.isNone(artifactOpt)) {
+				return {
+					accepted: false as const,
+					phase: currentPhase,
+					denialReason: "missing_artifact_evidence" as const,
+					remediation: {
+						suggestedTool: "run_tests",
+						suggestedArgs: {},
+						humanHint:
+							`Cited artifact id ${resolvedArtifactId} does not exist. ` +
+							"Artifacts are recorded by hooks observing your tool calls (Decision D7), " +
+							"so run the test (e.g. via the run_tests MCP tool) or make the file edit " +
+							"first; the post-tool-use hook will write the matching tdd_artifacts row " +
+							"and return its id, which can then be cited here.",
+					},
+				};
+			}
+			citedArtifact = artifactOpt.value;
+		} else {
+			// Stub artifact for transitions that don't require one
+			// (e.g. spike→red). The validator returns early on these
+			// transitions and never inspects the value.
+			citedArtifact = {
+				id: -1,
+				phase_id: -1,
+				artifact_kind: "test_written" as const,
+				test_case_id: null,
+				test_case_created_turn_at: null,
+				test_case_authored_in_session: false,
+				test_run_id: null,
+				test_first_failure_run_id: null,
+				behavior_id: null,
+				suite: "vitest" as const,
+			};
+		}
+
+		// 5. Validate against the binding rules.
+		const result = validatePhaseTransition({
+			tdd_task_id: input.tddTaskId,
+			current_phase: currentPhase,
+			current_phase_id: currentPhaseId,
+			phase_started_at: phaseStartedAt,
+			now: new Date().toISOString(),
+			requested_phase: input.requestedPhase,
+			cited_artifact: citedArtifact,
+			requested_behavior_id: input.behaviorId ?? null,
+		});
+
+		if (!result.accepted) {
+			return result;
+		}
+
+		// 6. Open the new phase row (which closes the prior one).
+		const out = yield* store.writeTddPhase({
+			tddTaskId: input.tddTaskId,
+			phase: result.phase,
+			startedAt: new Date().toISOString(),
+			...(input.behaviorId !== undefined && { behaviorId: input.behaviorId }),
+			...(input.reason !== undefined && { transitionReason: input.reason }),
+		});
+
+		// 7. Auto-promote behavior status pending → in_progress on accepted transition.
+		//    Only when behaviorId is supplied AND the behavior is currently pending.
+		//    Failures here are swallowed so a partial promotion doesn't block phase
+		//    advancement (the orchestrator can detect drift via tdd_behavior_get).
+		if (input.behaviorId !== undefined) {
+			yield* Effect.gen(function* () {
+				const behOpt = yield* reader.getBehaviorById(input.behaviorId as number);
+				if (Option.isSome(behOpt) && behOpt.value.status === "pending") {
+					yield* store.updateBehavior({ id: input.behaviorId as number, status: "in_progress" });
+				}
+			}).pipe(
+				// v4 dropped `Effect.ignoreLogged`; swallow the failure so a partial
+				// promotion doesn't block phase advancement, but keep the debug log.
+				Effect.catchCause((cause) => Effect.logDebug("behavior auto-promotion failed", cause)),
+			);
+		}
+
+		return {
+			accepted: true as const,
+			phase: result.phase,
+			newPhaseId: out.id,
+			previousPhaseId: out.previousPhaseId,
+			// Echo what was actually cited so the agent can see the
+			// auto-resolved value (or confirm the explicit id).
+			...(resolvedArtifactId !== undefined && {
+				citedArtifactId: resolvedArtifactId,
+				citedArtifactSource: resolvedKindSource,
+			}),
+		};
+	}).pipe(Effect.orDie);
 
 export const tddPhaseTransitionRequest = publicProcedure
-	.input(
-		Schema.toStandardSchemaV1(
-			Schema.Struct({
-				tddTaskId: Schema.Number,
-				goalId: Schema.Number,
-				requestedPhase: phaseLiteral,
-				// `citedArtifactId` is optional in 2.0+. When omitted, the
-				// tool resolves the most recent matching artifact for this
-				// session, where "matching" is either:
-				//   - the explicit `citedArtifactKind` value, or
-				//   - the kind required by the transition (per
-				//     `requiredArtifactForTransition`), or
-				//   - "no artifact needed" for transitions like `spike→red`
-				//     where the validator's `requiredArtifactForTransition`
-				//     returns null.
-				//
-				// The accepted response carries `citedArtifactId` so the
-				// caller can see which row was used.
-				citedArtifactId: Schema.optional(Schema.Number),
-				citedArtifactKind: Schema.optional(artifactKindLiteral),
-				behaviorId: Schema.optional(Schema.Number),
-				reason: Schema.optional(Schema.String),
-			}),
-		),
-	)
-	.mutation(async ({ ctx, input }) => {
-		return ctx.runtime.runPromise(
-			Effect.gen(function* () {
-				const reader = yield* DataReader;
-				const store = yield* DataStore;
+	.input(Schema.toStandardSchemaV1(PhaseTransitionInput))
+	.mutation(
+		({ ctx, input }): Promise<PhaseTransitionResultType> => ctx.runtime.runPromise(handlePhaseTransitionRequest(input)),
+	);
 
-				// 1. Resolve current phase. If none, treat current_phase as "spike"
-				//    (the entry point for every TDD cycle per D11).
-				const currentOpt = yield* reader.getCurrentTddPhase(input.tddTaskId);
-				const currentPhase: Phase = Option.isSome(currentOpt) ? currentOpt.value.phase : "spike";
-				const phaseStartedAt = Option.isSome(currentOpt) ? currentOpt.value.startedAt : new Date().toISOString();
-				const currentPhaseId: number | null = Option.isSome(currentOpt) ? currentOpt.value.id : null;
-
-				// 2. Validate goal: exists + belongs to the requested TDD session + status is in_progress.
-				const goalOpt = yield* reader.getGoalById(input.goalId);
-				if (Option.isNone(goalOpt)) {
-					return {
-						accepted: false as const,
-						phase: currentPhase,
-						denialReason: "goal_not_found" as const,
-						remediation: {
-							suggestedTool: "tdd_goal",
-							suggestedArgs: { action: "list", tddTaskId: input.tddTaskId },
-							humanHint: `No tdd_session_goals row with id=${input.goalId}. Call tdd_goal({ action: "list" }) to find the correct goal id.`,
-						},
-					};
-				}
-				if (goalOpt.value.sessionId !== input.tddTaskId) {
-					return {
-						accepted: false as const,
-						phase: currentPhase,
-						denialReason: "goal_not_in_tdd_task" as const,
-						remediation: {
-							suggestedTool: "tdd_goal",
-							suggestedArgs: { action: "list", tddTaskId: input.tddTaskId },
-							humanHint:
-								`Goal id=${input.goalId} belongs to TDD task ${goalOpt.value.sessionId}, ` +
-								`not the requested tddTaskId=${input.tddTaskId}. ` +
-								"Pass the tddTaskId of the goal's parent task, or pick a goal that belongs to the active task.",
-						},
-					};
-				}
-				if (goalOpt.value.status !== "in_progress") {
-					return {
-						accepted: false as const,
-						phase: currentPhase,
-						denialReason: "goal_not_in_progress" as const,
-						remediation: {
-							suggestedTool: "tdd_goal_update",
-							suggestedArgs: { id: input.goalId, status: "in_progress" },
-							humanHint:
-								`Goal id=${input.goalId} has status '${goalOpt.value.status}'. ` +
-								"Phase transitions require the goal to be in_progress. " +
-								"Call tdd_goal_update({status:'in_progress'}) before requesting transitions.",
-						},
-					};
-				}
-
-				// 3. If behaviorId is supplied, validate it exists and belongs to goalId.
-				if (input.behaviorId !== undefined) {
-					const behaviorOpt = yield* reader.getBehaviorById(input.behaviorId);
-					if (Option.isNone(behaviorOpt)) {
-						return {
-							accepted: false as const,
-							phase: currentPhase,
-							denialReason: "behavior_not_found" as const,
-							remediation: {
-								suggestedTool: "tdd_behavior_list",
-								suggestedArgs: { scope: "goal", goalId: input.goalId },
-								humanHint: `No tdd_session_behaviors row with id=${input.behaviorId}. Call tdd_behavior_list to find the correct behavior id.`,
-							},
-						};
-					}
-					if (behaviorOpt.value.goalId !== input.goalId) {
-						return {
-							accepted: false as const,
-							phase: currentPhase,
-							denialReason: "behavior_not_in_goal" as const,
-							remediation: {
-								suggestedTool: "tdd_behavior_get",
-								suggestedArgs: { id: input.behaviorId },
-								humanHint:
-									`Behavior id=${input.behaviorId} belongs to goal ${behaviorOpt.value.goalId}, ` +
-									`not the requested goalId=${input.goalId}. Pass the goalId of the behavior's parent goal.`,
-							},
-						};
-					}
-				}
-
-				// 4. Resolve cited artifact id + binding-rule context.
-				//
-				//    Three input modes:
-				//      a. `citedArtifactId` supplied → load + validate.
-				//      b. `citedArtifactKind` supplied (or kind derivable
-				//         from the transition) → look up the most recent
-				//         matching artifact for this session.
-				//      c. Neither supplied AND the transition does not
-				//         require an artifact (e.g. spike→red) → skip
-				//         artifact loading; pass a stub the validator
-				//         won't read.
-				const requiredKindForTransition = requiredArtifactForTransition(currentPhase, input.requestedPhase);
-
-				let resolvedArtifactId: number | undefined;
-				let resolvedKindSource: "explicit-id" | "explicit-kind" | "transition-derived" | "none" = "none";
-				let kindToLookUp: ArtifactKind | undefined;
-
-				if (input.citedArtifactId !== undefined) {
-					resolvedArtifactId = input.citedArtifactId;
-					resolvedKindSource = "explicit-id";
-				} else if (input.citedArtifactKind !== undefined) {
-					kindToLookUp = input.citedArtifactKind;
-					resolvedKindSource = "explicit-kind";
-				} else if (requiredKindForTransition !== null) {
-					kindToLookUp = requiredKindForTransition.kind;
-					resolvedKindSource = "transition-derived";
-				}
-
-				// Scope the artifact lookup to the requested behavior only for the transitions where
-				// the validator enforces behavior-match (rule 2): red→green and green→refactor. For
-				// those, the newest matching artifact task-wide may belong to a different behavior and
-				// get rejected even though the correct one exists (issue #115). We must NOT scope for
-				// red.triangulate→green (the batch's failing run belongs to an earlier behavior) or
-				// refactor→red (the evidence is the just-finished behavior, not the requested one) —
-				// scoping there would filter out the very artifact the validator is willing to accept.
-				const scopeLookupByBehavior =
-					input.behaviorId !== undefined && transitionEnforcesBehaviorMatch(currentPhase, input.requestedPhase);
-
-				if (resolvedArtifactId === undefined && kindToLookUp !== undefined) {
-					const recent = yield* reader.listTddArtifactsForTask({
-						tddTaskId: input.tddTaskId,
-						artifactKind: kindToLookUp,
-						...(scopeLookupByBehavior && { behaviorId: input.behaviorId }),
-						limit: 1,
-					});
-					if (recent.length === 0) {
-						// Diagnostic (issue #144): a detached session (a named
-						// teammate, or any session whose hooks otherwise
-						// attribute artifacts away from this task) can leave
-						// this task starved of evidence while artifacts pile
-						// up elsewhere in the same conversation. Surface that
-						// signal instead of a bare "no artifact found" when
-						// it exists.
-						const sinceIso = new Date(Date.now() - DIAGNOSTIC_WINDOW_MINUTES * 60_000).toISOString();
-						const crossSessionCount = yield* reader.countRecentArtifactsInOtherSessionsOfConversation({
-							tddTaskId: input.tddTaskId,
-							sinceIso,
-						});
-						const baseHint =
-							`No '${kindToLookUp}' artifact has been recorded for tdd_task ${input.tddTaskId}. ` +
-							"Artifacts are recorded by hooks observing your tool calls (Decision D7) — " +
-							"run the test (e.g. via run_tests) or make the file edit first; the post-tool-use " +
-							"hook will write the matching tdd_artifacts row and the next call to this tool " +
-							"will pick it up automatically.";
-						const humanHint =
-							crossSessionCount > 0
-								? `${baseHint} ${crossSessionCount} artifact${crossSessionCount === 1 ? " was" : "s were"} recorded ` +
-									`under a different session of this conversation in the last ${DIAGNOSTIC_WINDOW_MINUTES} minutes — ` +
-									"the subagent's hooks may be attributing to a detached session; set " +
-									`VITEST_AGENT_TDD_TASK_ID=${input.tddTaskId} in the subagent's environment or dispatch ` +
-									"it as an unnamed background subagent."
-								: baseHint;
-						return {
-							accepted: false as const,
-							phase: currentPhase,
-							denialReason: "missing_artifact_evidence" as const,
-							remediation: {
-								suggestedTool: "run_tests",
-								suggestedArgs: {},
-								humanHint,
-							},
-						};
-					}
-					resolvedArtifactId = recent[0].id;
-				}
-
-				// Build the artifact context for the validator. When no
-				// artifact is required AND the agent didn't supply one, we
-				// pass a sentinel that the validator will never read (it
-				// returns early when `requiredArtifactForTransition` returns
-				// null). Otherwise load the row.
-				let citedArtifact: CitedArtifactRow;
-				if (resolvedArtifactId !== undefined) {
-					const artifactOpt = yield* reader.getTddArtifactWithContext(resolvedArtifactId);
-					if (Option.isNone(artifactOpt)) {
-						return {
-							accepted: false as const,
-							phase: currentPhase,
-							denialReason: "missing_artifact_evidence" as const,
-							remediation: {
-								suggestedTool: "run_tests",
-								suggestedArgs: {},
-								humanHint:
-									`Cited artifact id ${resolvedArtifactId} does not exist. ` +
-									"Artifacts are recorded by hooks observing your tool calls (Decision D7), " +
-									"so run the test (e.g. via the run_tests MCP tool) or make the file edit " +
-									"first; the post-tool-use hook will write the matching tdd_artifacts row " +
-									"and return its id, which can then be cited here.",
-							},
-						};
-					}
-					citedArtifact = artifactOpt.value;
-				} else {
-					// Stub artifact for transitions that don't require one
-					// (e.g. spike→red). The validator returns early on these
-					// transitions and never inspects the value.
-					citedArtifact = {
-						id: -1,
-						phase_id: -1,
-						artifact_kind: "test_written" as const,
-						test_case_id: null,
-						test_case_created_turn_at: null,
-						test_case_authored_in_session: false,
-						test_run_id: null,
-						test_first_failure_run_id: null,
-						behavior_id: null,
-						suite: "vitest" as const,
-					};
-				}
-
-				// 5. Validate against the binding rules.
-				const result = validatePhaseTransition({
-					tdd_task_id: input.tddTaskId,
-					current_phase: currentPhase,
-					current_phase_id: currentPhaseId,
-					phase_started_at: phaseStartedAt,
-					now: new Date().toISOString(),
-					requested_phase: input.requestedPhase,
-					cited_artifact: citedArtifact,
-					requested_behavior_id: input.behaviorId ?? null,
-				});
-
-				if (!result.accepted) {
-					return result;
-				}
-
-				// 6. Open the new phase row (which closes the prior one).
-				const out = yield* store.writeTddPhase({
-					tddTaskId: input.tddTaskId,
-					phase: result.phase,
-					startedAt: new Date().toISOString(),
-					...(input.behaviorId !== undefined && { behaviorId: input.behaviorId }),
-					...(input.reason !== undefined && { transitionReason: input.reason }),
-				});
-
-				// 7. Auto-promote behavior status pending → in_progress on accepted transition.
-				//    Only when behaviorId is supplied AND the behavior is currently pending.
-				//    Failures here are swallowed so a partial promotion doesn't block phase
-				//    advancement (the orchestrator can detect drift via tdd_behavior_get).
-				if (input.behaviorId !== undefined) {
-					yield* Effect.gen(function* () {
-						const behOpt = yield* reader.getBehaviorById(input.behaviorId as number);
-						if (Option.isSome(behOpt) && behOpt.value.status === "pending") {
-							yield* store.updateBehavior({ id: input.behaviorId as number, status: "in_progress" });
-						}
-					}).pipe(
-						// v4 dropped `Effect.ignoreLogged`; swallow the failure so a partial
-						// promotion doesn't block phase advancement, but keep the debug log.
-						Effect.catchCause((cause) => Effect.logDebug("behavior auto-promotion failed", cause)),
-					);
-				}
-
-				return {
-					accepted: true as const,
-					phase: result.phase,
-					newPhaseId: out.id,
-					previousPhaseId: out.previousPhaseId,
-					// Echo what was actually cited so the agent can see the
-					// auto-resolved value (or confirm the explicit id).
-					...(resolvedArtifactId !== undefined && {
-						citedArtifactId: resolvedArtifactId,
-						citedArtifactSource: resolvedKindSource,
-					}),
-				};
-			}),
-		);
-	});
+/**
+ * The Effect-native `tdd_phase_transition_request` tool.
+ *
+ * @public
+ */
+export const tddPhaseTransitionRequestTool = Tool.make("tdd_phase_transition_request", {
+	description:
+		"Use when advancing a TDD cycle and you need a phase transition validated and recorded. Validates goal status, behavior↔goal membership, and D2 artifact-evidence binding rules; returns accept/deny. On accept, auto-promotes a behavior 'pending' → 'in_progress' when behaviorId is supplied. citedArtifactId is OPTIONAL — when omitted, the most recent matching artifact is auto-resolved (kind comes from citedArtifactKind if supplied, otherwise from the transition's required-evidence rule). Transitions like spike→red that require no artifact need neither field. The accepted response echoes citedArtifactId + citedArtifactSource so the caller can see which row was picked.",
+	parameters: PhaseTransitionInput,
+	success: PhaseTransitionResult,
+	dependencies: [DataReader, DataStore],
+})
+	.annotate(Tool.Title, "TDD phase transition request")
+	.annotate(Tool.Readonly, false)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => JSON.stringify(encoded, null, 2));

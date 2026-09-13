@@ -13,6 +13,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const ArtifactKindSchema = Schema.Literals([
@@ -101,36 +103,75 @@ export const TddArtifactListAsMarkdown = TddArtifactListResult.pipe(
 	}),
 );
 
-const TddArtifactListInput = Schema.Struct({
-	tddTaskId: Schema.Number,
-	artifactKind: Schema.optional(ArtifactKindSchema),
-	phaseId: Schema.optional(Schema.Number),
-	behaviorId: Schema.optional(Schema.Number),
-	limit: Schema.optional(Schema.Number),
+/**
+ * The `tdd_artifact_list` tool's parameters.
+ *
+ * @public
+ */
+export const TddArtifactListInput = Schema.Struct({
+	tddTaskId: Schema.Finite.annotate({ description: "tdd_tasks.id" }),
+	artifactKind: Schema.optionalKey(ArtifactKindSchema).annotate({ description: "Restrict to one artifact kind" }),
+	phaseId: Schema.optionalKey(Schema.Finite).annotate({ description: "Restrict to artifacts recorded in one phase" }),
+	behaviorId: Schema.optionalKey(Schema.Finite).annotate({
+		description: "Restrict to artifacts recorded in phases bound to one behavior",
+	}),
+	limit: Schema.optionalKey(Schema.Finite).annotate({ description: "Max rows (default 50)" }),
 });
+/**
+ * The decoded {@link TddArtifactListInput}.
+ *
+ * @public
+ */
+export type TddArtifactListInputType = Schema.Schema.Type<typeof TddArtifactListInput>;
 
-export const tddArtifactList = publicProcedure.input(Schema.toStandardSchemaV1(TddArtifactListInput)).query(
-	async ({ ctx, input }): Promise<TddArtifactListResultType> =>
-		ctx.runtime.runPromise(
-			Effect.gen(function* () {
-				const reader = yield* DataReader;
-				const rows = yield* reader.listTddArtifactsForTask({
-					tddTaskId: input.tddTaskId,
-					...(input.artifactKind !== undefined && { artifactKind: input.artifactKind }),
-					...(input.phaseId !== undefined && { phaseId: input.phaseId }),
-					...(input.behaviorId !== undefined && { behaviorId: input.behaviorId }),
-					...(input.limit !== undefined && { limit: input.limit }),
-				});
-				return {
-					tddTaskId: input.tddTaskId,
-					filters: {
-						...(input.artifactKind !== undefined && { artifactKind: input.artifactKind }),
-						...(input.phaseId !== undefined && { phaseId: input.phaseId }),
-						...(input.behaviorId !== undefined && { behaviorId: input.behaviorId }),
-					},
-					count: rows.length,
-					artifacts: rows,
-				};
-			}),
-		),
-);
+/**
+ * Handler for {@link tddArtifactListTool}.
+ *
+ * @public
+ */
+export const handleTddArtifactList = (
+	input: TddArtifactListInputType,
+): Effect.Effect<TddArtifactListResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const rows = yield* reader.listTddArtifactsForTask({
+			tddTaskId: input.tddTaskId,
+			...(input.artifactKind !== undefined && { artifactKind: input.artifactKind }),
+			...(input.phaseId !== undefined && { phaseId: input.phaseId }),
+			...(input.behaviorId !== undefined && { behaviorId: input.behaviorId }),
+			...(input.limit !== undefined && { limit: input.limit }),
+		});
+		return {
+			tddTaskId: input.tddTaskId,
+			filters: {
+				...(input.artifactKind !== undefined && { artifactKind: input.artifactKind }),
+				...(input.phaseId !== undefined && { phaseId: input.phaseId }),
+				...(input.behaviorId !== undefined && { behaviorId: input.behaviorId }),
+			},
+			count: rows.length,
+			artifacts: rows,
+		};
+	}).pipe(Effect.orDie);
+
+export const tddArtifactList = publicProcedure
+	.input(Schema.toStandardSchemaV1(TddArtifactListInput))
+	.query(({ ctx, input }): Promise<TddArtifactListResultType> => ctx.runtime.runPromise(handleTddArtifactList(input)));
+
+/**
+ * The Effect-native `tdd_artifact_list` tool.
+ *
+ * @public
+ */
+export const tddArtifactListTool = Tool.make("tdd_artifact_list", {
+	description:
+		"Use when you need the artifact id to cite in tdd_phase_transition_request without querying SQLite directly. Lists TDD artifacts (test_written, test_failed_run, code_written, test_passed_run, refactor, test_weakened) for a tdd_task, newest first. Filters: artifactKind, phaseId, behaviorId, limit (default 50).",
+	parameters: TddArtifactListInput,
+	success: TddArtifactListResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "TDD artifact list")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatTddArtifactListMarkdown(encoded as TddArtifactListResultType));
