@@ -6,6 +6,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const TurnRow = Schema.Struct({
@@ -50,31 +52,64 @@ export const TurnSearchAsMarkdown = TurnSearchResult.pipe(
 	}),
 );
 
+/**
+ * The `turn_search` tool's parameters.
+ *
+ * @public
+ */
+export const TurnSearchInput = Schema.Struct({
+	sessionId: Schema.optionalKey(Schema.Number).annotate({ description: "Filter to a specific session id" }),
+	since: Schema.optionalKey(Schema.String).annotate({
+		description: "ISO 8601 cutoff — return turns after this timestamp",
+	}),
+	type: Schema.optionalKey(
+		Schema.Literals(["user_prompt", "tool_call", "tool_result", "file_edit", "hook_fire", "note", "hypothesis"]),
+	).annotate({ description: "Filter by turn type" }),
+	limit: Schema.optionalKey(Schema.Number).annotate({ description: "Max turns to return (default 100)" }),
+});
+/**
+ * The decoded {@link TurnSearchInput}.
+ *
+ * @public
+ */
+export type TurnSearchInputType = Schema.Schema.Type<typeof TurnSearchInput>;
+
+/**
+ * Handler for {@link turnSearchTool}.
+ *
+ * @public
+ */
+export const handleTurnSearch = (input: TurnSearchInputType): Effect.Effect<TurnSearchResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const rows = yield* reader.searchTurns({
+			...(input.sessionId !== undefined && { sessionId: input.sessionId }),
+			...(input.since !== undefined && { since: input.since }),
+			...(input.type !== undefined && { type: input.type }),
+			limit: input.limit ?? 100,
+		});
+		return { count: rows.length, turns: rows };
+	}).pipe(Effect.orDie);
+
 export const turnSearch = publicProcedure
-	.input(
-		Schema.toStandardSchemaV1(
-			Schema.Struct({
-				sessionId: Schema.optional(Schema.Number),
-				since: Schema.optional(Schema.String),
-				type: Schema.optional(
-					Schema.Literals(["user_prompt", "tool_call", "tool_result", "file_edit", "hook_fire", "note", "hypothesis"]),
-				),
-				limit: Schema.optional(Schema.Number),
-			}),
-		),
-	)
-	.query(
-		async ({ ctx, input }): Promise<TurnSearchResultType> =>
-			ctx.runtime.runPromise(
-				Effect.gen(function* () {
-					const reader = yield* DataReader;
-					const rows = yield* reader.searchTurns({
-						...(input.sessionId !== undefined && { sessionId: input.sessionId }),
-						...(input.since !== undefined && { since: input.since }),
-						...(input.type !== undefined && { type: input.type }),
-						limit: input.limit ?? 100,
-					});
-					return { count: rows.length, turns: rows };
-				}),
-			),
-	);
+	.input(Schema.toStandardSchemaV1(TurnSearchInput))
+	.query(({ ctx, input }): Promise<TurnSearchResultType> => ctx.runtime.runPromise(handleTurnSearch(input)));
+
+/**
+ * The Effect-native `turn_search` tool.
+ *
+ * @public
+ */
+export const turnSearchTool = Tool.make("turn_search", {
+	description:
+		"Use when you need to find past turns across sessions by type, time, or session. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, turns[] }).",
+	parameters: TurnSearchInput,
+	success: TurnSearchResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Turn search")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatTurnSearchMarkdown(encoded as TurnSearchResultType));

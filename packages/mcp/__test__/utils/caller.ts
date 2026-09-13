@@ -20,7 +20,7 @@ import { toolHandlers } from "../../src/toolkit.js";
 type Handlers = typeof toolHandlers;
 export type ToolName = keyof Handlers;
 export type ToolParams<Name extends ToolName> = Parameters<Handlers[Name]>[0];
-export type ToolResult<Name extends ToolName> = Effect.Effect.Success<ReturnType<Handlers[Name]>>;
+export type ToolResult<Name extends ToolName> = Effect.Success<ReturnType<Handlers[Name]>>;
 
 export type ToolCaller = <Name extends ToolName>(name: Name, params: ToolParams<Name>) => Promise<ToolResult<Name>>;
 

@@ -7,6 +7,8 @@
 import { DataReader } from "@vitest-agent/engine";
 import { CoverageTotals, FileCoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const CoverageGlobalThresholds = Schema.Struct({
@@ -107,48 +109,81 @@ export const FileCoverageAsMarkdown = FileCoverageResult.pipe(
 	}),
 );
 
+/**
+ * The `file_coverage` tool's parameters.
+ *
+ * @public
+ */
+export const FileCoverageInput = Schema.Struct({
+	filePath: Schema.String.annotate({ description: "Source file path to check coverage for" }),
+	project: Schema.optionalKey(Schema.String).annotate({ description: "Project name" }),
+});
+/**
+ * The decoded {@link FileCoverageInput}.
+ *
+ * @public
+ */
+export type FileCoverageInputType = Schema.Schema.Type<typeof FileCoverageInput>;
+
+/**
+ * Handler for {@link fileCoverageTool}.
+ *
+ * @public
+ */
+export const handleFileCoverage = (
+	input: FileCoverageInputType,
+): Effect.Effect<FileCoverageResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const project = input.project ?? "default";
+		const coverageOpt = yield* reader.getCoverage(project);
+		if (Option.isNone(coverageOpt)) {
+			return { dataAvailable: false as const, filePath: input.filePath };
+		}
+		const coverage = coverageOpt.value;
+		const normalizedPath = input.filePath.replace(/^\.\//, "");
+		const match =
+			coverage.lowCoverage.find((f) => f.file === normalizedPath) ??
+			coverage.lowCoverage.find((f) => f.file.endsWith(normalizedPath) || normalizedPath.endsWith(f.file));
+		const relatedTestFiles = yield* reader.getTestsForFile(normalizedPath);
+		if (match) {
+			return {
+				dataAvailable: true as const,
+				matched: true as const,
+				filePath: normalizedPath,
+				report: match,
+				globalThresholds: coverage.thresholds.global,
+				relatedTestFiles,
+			};
+		}
+		return {
+			dataAvailable: true as const,
+			matched: false as const,
+			filePath: normalizedPath,
+			totals: coverage.totals,
+			relatedTestFiles,
+		};
+	}).pipe(Effect.orDie);
+
 export const fileCoverage = publicProcedure
-	.input(
-		Schema.toStandardSchemaV1(
-			Schema.Struct({
-				filePath: Schema.String,
-				project: Schema.optional(Schema.String),
-			}),
-		),
-	)
-	.query(
-		async ({ ctx, input }): Promise<FileCoverageResultType> =>
-			ctx.runtime.runPromise(
-				Effect.gen(function* () {
-					const reader = yield* DataReader;
-					const project = input.project ?? "default";
-					const coverageOpt = yield* reader.getCoverage(project);
-					if (Option.isNone(coverageOpt)) {
-						return { dataAvailable: false as const, filePath: input.filePath };
-					}
-					const coverage = coverageOpt.value;
-					const normalizedPath = input.filePath.replace(/^\.\//, "");
-					const match =
-						coverage.lowCoverage.find((f) => f.file === normalizedPath) ??
-						coverage.lowCoverage.find((f) => f.file.endsWith(normalizedPath) || normalizedPath.endsWith(f.file));
-					const relatedTestFiles = yield* reader.getTestsForFile(normalizedPath);
-					if (match) {
-						return {
-							dataAvailable: true as const,
-							matched: true as const,
-							filePath: normalizedPath,
-							report: match,
-							globalThresholds: coverage.thresholds.global,
-							relatedTestFiles,
-						};
-					}
-					return {
-						dataAvailable: true as const,
-						matched: false as const,
-						filePath: normalizedPath,
-						totals: coverage.totals,
-						relatedTestFiles,
-					};
-				}),
-			),
-	);
+	.input(Schema.toStandardSchemaV1(FileCoverageInput))
+	.query(({ ctx, input }): Promise<FileCoverageResultType> => ctx.runtime.runPromise(handleFileCoverage(input)));
+
+/**
+ * The Effect-native `file_coverage` tool.
+ *
+ * @public
+ */
+export const fileCoverageTool = Tool.make("file_coverage", {
+	description:
+		"Use when you need coverage for one source file: per-metric values, uncovered lines, and related tests. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, matched?, filePath, report?, totals?, relatedTestFiles[] }).",
+	parameters: FileCoverageInput,
+	success: FileCoverageResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "File coverage")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatFileCoverageMarkdown(encoded as FileCoverageResultType));

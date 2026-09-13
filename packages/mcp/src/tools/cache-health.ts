@@ -14,6 +14,8 @@
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifest } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const ManifestPresent = Schema.Struct({
@@ -92,23 +94,47 @@ export const CacheHealthAsMarkdown = CacheHealthResult.pipe(
 	}),
 );
 
+/**
+ * Handler for {@link cacheHealthTool}.
+ *
+ * @public
+ */
+export const handleCacheHealth = (): Effect.Effect<CacheHealthResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const manifestOpt = yield* reader.getManifest();
+		if (Option.isNone(manifestOpt)) {
+			return { manifestPresent: false as const };
+		}
+		const manifest = manifestOpt.value;
+		const ageMs = Date.now() - new Date(manifest.updatedAt).getTime();
+		return {
+			manifestPresent: true as const,
+			manifest,
+			ageMs,
+			stale: ageMs > STALE_AFTER_MS,
+		};
+	}).pipe(Effect.orDie);
+
 export const cacheHealth = publicProcedure.query(
-	async ({ ctx }): Promise<CacheHealthResultType> =>
-		ctx.runtime.runPromise(
-			Effect.gen(function* () {
-				const reader = yield* DataReader;
-				const manifestOpt = yield* reader.getManifest();
-				if (Option.isNone(manifestOpt)) {
-					return { manifestPresent: false as const };
-				}
-				const manifest = manifestOpt.value;
-				const ageMs = Date.now() - new Date(manifest.updatedAt).getTime();
-				return {
-					manifestPresent: true as const,
-					manifest,
-					ageMs,
-					stale: ageMs > STALE_AFTER_MS,
-				};
-			}),
-		),
+	({ ctx }): Promise<CacheHealthResultType> => ctx.runtime.runPromise(handleCacheHealth()),
 );
+
+/**
+ * The Effect-native `cache_health` tool. No parameters (the default
+ * `Tool.EmptyParams` serves as a strict empty object).
+ *
+ * @public
+ */
+export const cacheHealthTool = Tool.make("cache_health", {
+	description:
+		"Use when you suspect stale data and need manifest presence, project states, and staleness. Returns markdown in content[] and a typed JSON object in structuredContent ({ manifestPresent, manifest?, ageMs?, stale? }).",
+	success: CacheHealthResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Cache health")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatCacheHealthMarkdown(encoded as CacheHealthResultType));

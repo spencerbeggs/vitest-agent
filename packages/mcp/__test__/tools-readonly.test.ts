@@ -10,7 +10,15 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import type { HarnessOptions, McpHarness, McpToolDescriptor } from "./utils/harness.js";
 import { makeHarness } from "./utils/harness.js";
-import { SEED_ERROR_FULL_NAME, SEED_ERROR_PROJECT, SEED_PROJECT, seedReadonlyFixture } from "./utils/seed.js";
+import {
+	SEED_COMMIT_SHA,
+	SEED_ERROR_FULL_NAME,
+	SEED_ERROR_PROJECT,
+	SEED_PROJECT,
+	SEED_SETTINGS_HASH,
+	SEED_SOURCE_FILE,
+	seedReadonlyFixture,
+} from "./utils/seed.js";
 
 interface CallToolResult {
 	isError?: boolean;
@@ -38,12 +46,26 @@ const READONLY_TOOLS = [
 	"test_history",
 	"test_trends",
 	"test_errors",
+	"file_coverage",
+	"settings_list",
+	"cache_health",
+	"configure",
+	"commit_changes",
+	"turn_search",
 ] as const;
 
 /** Result schemas that are a single `Schema.Struct` — these list an `outputSchema`. */
-const STRUCT_RESULT_TOOLS = ["test_history", "test_errors"] as const;
+const STRUCT_RESULT_TOOLS = ["test_history", "test_errors", "settings_list", "commit_changes", "turn_search"] as const;
 /** Result schemas that are a `Schema.Union` — no `outputSchema` (a `oneOf` root is not `type: object`). */
-const UNION_RESULT_TOOLS = ["test_status", "test_overview", "test_coverage", "test_trends"] as const;
+const UNION_RESULT_TOOLS = [
+	"test_status",
+	"test_overview",
+	"test_coverage",
+	"test_trends",
+	"file_coverage",
+	"cache_health",
+	"configure",
+] as const;
 
 describe("read-only tools: tools/list", () => {
 	it("lists every read-only tool with readOnly/idempotent true and destructive/openWorld false", async () => {
@@ -216,5 +238,137 @@ describe("test_errors", () => {
 		const result = await call("test_errors", { project: SEED_ERROR_PROJECT, errorName: "SyntaxError" }, SEEDED);
 		expect(result.structuredContent?.errorName).toBe("SyntaxError");
 		expect(result.structuredContent?.count).toBe(1);
+	});
+});
+
+describe("file_coverage", () => {
+	it("returns dataAvailable=false when no coverage exists", async () => {
+		const result = await call("file_coverage", { filePath: SEED_SOURCE_FILE });
+		expect(result.structuredContent).toEqual({ dataAvailable: false, filePath: SEED_SOURCE_FILE });
+		expect(text(result)).toBe("No coverage data available. Run tests with coverage enabled.");
+	});
+
+	it("returns dataAvailable=true for the tracked project", async () => {
+		const result = await call("file_coverage", { filePath: SEED_SOURCE_FILE, project: SEED_PROJECT }, SEEDED);
+		expect(result.structuredContent?.dataAvailable).toBe(true);
+		expect(result.structuredContent?.filePath).toBe(SEED_SOURCE_FILE);
+		expect(text(result)).toContain(`# Coverage: \`${SEED_SOURCE_FILE}\``);
+	});
+
+	it("returns matched=false for an unknown file", async () => {
+		const result = await call("file_coverage", { filePath: "nonexistent.ts", project: SEED_PROJECT }, SEEDED);
+		expect(result.structuredContent?.dataAvailable).toBe(true);
+		expect(result.structuredContent?.matched).toBe(false);
+		expect(result.structuredContent?.filePath).toBe("nonexistent.ts");
+		expect(text(result)).toContain("This file is not in the low-coverage list.");
+	});
+
+	it("rejects a missing filePath", async () => {
+		const result = await call("file_coverage", {});
+		expect(result.isError).toBe(true);
+	});
+});
+
+describe("settings_list", () => {
+	it("returns count=0 and the cold-start text on an empty DB", async () => {
+		const result = await call("settings_list", {});
+		expect(result.structuredContent).toEqual({ count: 0, settings: [] });
+		expect(text(result)).toBe("No settings found. Run tests first.");
+	});
+
+	it("returns count and the captured settings rows after seeding", async () => {
+		const result = await call("settings_list", {}, SEEDED);
+		expect(result.structuredContent?.count).toBeGreaterThan(0);
+		const settings = result.structuredContent?.settings as Array<{ hash: string }>;
+		expect(settings[0]?.hash.length).toBeGreaterThan(0);
+		expect(text(result)).toContain("## Settings");
+		expect(text(result)).toContain(`| ${SEED_SETTINGS_HASH} |`);
+	});
+
+	it("rejects an unknown parameter", async () => {
+		const result = await call("settings_list", { bogus: 1 });
+		expect(result.isError).toBe(true);
+		expect(text(result)).toContain("Unrecognized parameter(s): bogus");
+	});
+});
+
+describe("cache_health", () => {
+	it("returns manifestPresent=false on an empty DB", async () => {
+		const result = await call("cache_health", {});
+		expect(result.structuredContent).toEqual({ manifestPresent: false });
+		expect(text(result)).toContain("**Manifest:** not found");
+	});
+
+	it("returns the manifest, ageMs and stale after seeding", async () => {
+		const result = await call("cache_health", {}, SEEDED);
+		expect(result.structuredContent?.manifestPresent).toBe(true);
+		expect(typeof result.structuredContent?.ageMs).toBe("number");
+		expect(typeof result.structuredContent?.stale).toBe("boolean");
+		const manifest = result.structuredContent?.manifest as { projects: Array<{ project: string }> };
+		expect(manifest.projects.map((p) => p.project)).toEqual(expect.arrayContaining([SEED_PROJECT]));
+		expect(text(result)).toContain("# Cache Health");
+		expect(text(result)).toContain("**Manifest:** present");
+	});
+});
+
+describe("configure", () => {
+	it("returns found=false with source=latest on an empty DB", async () => {
+		const result = await call("configure", {});
+		expect(result.structuredContent).toEqual({ found: false, source: "latest" });
+		expect(text(result)).toContain("No settings captured yet. Run tests first.");
+	});
+
+	it("returns the latest settings when no hash is provided", async () => {
+		const result = await call("configure", {}, SEEDED);
+		expect(result.structuredContent?.found).toBe(true);
+		expect(result.structuredContent?.source).toBe("latest");
+		const settings = result.structuredContent?.settings as { hash: string } | undefined;
+		expect(settings?.hash).toBe(SEED_SETTINGS_HASH);
+		expect(text(result)).toContain(`# Settings — \`${SEED_SETTINGS_HASH}\``);
+	});
+
+	it("echoes the requested hash when it matches nothing", async () => {
+		const result = await call("configure", { settingsHash: "nope" }, SEEDED);
+		expect(result.structuredContent).toEqual({ found: false, source: "requested", requestedHash: "nope" });
+		expect(text(result)).toBe("No settings found for hash `nope`.");
+	});
+});
+
+describe("commit_changes", () => {
+	it("returns count=0 and an empty commits[] on an empty DB", async () => {
+		const result = await call("commit_changes", {});
+		expect(result.structuredContent).toEqual({ count: 0, commits: [] });
+		expect(text(result)).toContain("No commits recorded yet.");
+	});
+
+	it("returns the recorded commit by sha and echoes filterSha", async () => {
+		const result = await call("commit_changes", { sha: SEED_COMMIT_SHA }, SEEDED);
+		expect(result.structuredContent?.filterSha).toBe(SEED_COMMIT_SHA);
+		expect(result.structuredContent?.count).toBe(1);
+		const commits = result.structuredContent?.commits as Array<{ sha: string; message: string | null }>;
+		expect(commits[0]).toMatchObject({ sha: SEED_COMMIT_SHA, message: "feat: seed commit" });
+		expect(text(result)).toContain(`## ${SEED_COMMIT_SHA.slice(0, 8)} feat: seed commit`);
+	});
+});
+
+describe("turn_search", () => {
+	it("returns count=0 and 'No turns matched.' on an empty DB", async () => {
+		const result = await call("turn_search", {});
+		expect(result.structuredContent).toEqual({ count: 0, turns: [] });
+		expect(text(result)).toBe("No turns matched.");
+	});
+
+	it("returns the seeded turn filtered by type", async () => {
+		const result = await call("turn_search", { type: "user_prompt", limit: 10 }, SEEDED);
+		expect(result.structuredContent?.count).toBe(1);
+		const turns = result.structuredContent?.turns as Array<{ type: string; turnNo: number }>;
+		expect(turns[0]?.type).toBe("user_prompt");
+		expect(text(result)).toContain("# Turns");
+		expect(text(result)).toContain("type=user_prompt");
+	});
+
+	it("rejects an unknown turn type", async () => {
+		const result = await call("turn_search", { type: "bogus" });
+		expect(result.isError).toBe(true);
 	});
 });

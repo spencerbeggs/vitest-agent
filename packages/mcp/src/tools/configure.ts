@@ -6,6 +6,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const SettingsRowSchema = Schema.Struct({
@@ -103,27 +105,66 @@ export const ConfigureAsMarkdown = ConfigureResult.pipe(
 	}),
 );
 
+/**
+ * The `configure` tool's parameters.
+ *
+ * @public
+ */
+export const ConfigureInput = Schema.Struct({
+	settingsHash: Schema.optionalKey(Schema.String).annotate({
+		description: "Settings hash from a manifest entry or test run",
+	}),
+});
+/**
+ * The decoded {@link ConfigureInput}.
+ *
+ * @public
+ */
+export type ConfigureInputType = Schema.Schema.Type<typeof ConfigureInput>;
+
+/**
+ * Handler for {@link configureTool}.
+ *
+ * @public
+ */
+export const handleConfigure = (input: ConfigureInputType): Effect.Effect<ConfigureResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		if (input.settingsHash === undefined) {
+			const latestOpt = yield* reader.getLatestSettings();
+			return Option.isNone(latestOpt)
+				? { found: false as const, source: "latest" as const }
+				: { found: true as const, source: "latest" as const, settings: latestOpt.value };
+		}
+		const settingsOpt = yield* reader.getSettings(input.settingsHash);
+		return Option.isNone(settingsOpt)
+			? {
+					found: false as const,
+					source: "requested" as const,
+					requestedHash: input.settingsHash,
+				}
+			: { found: true as const, source: "requested" as const, settings: settingsOpt.value };
+	}).pipe(Effect.orDie);
+
 export const configure = publicProcedure
-	.input(Schema.toStandardSchemaV1(Schema.Struct({ settingsHash: Schema.optional(Schema.String) })))
-	.query(
-		async ({ ctx, input }): Promise<ConfigureResultType> =>
-			ctx.runtime.runPromise(
-				Effect.gen(function* () {
-					const reader = yield* DataReader;
-					if (input.settingsHash === undefined) {
-						const latestOpt = yield* reader.getLatestSettings();
-						return Option.isNone(latestOpt)
-							? { found: false as const, source: "latest" as const }
-							: { found: true as const, source: "latest" as const, settings: latestOpt.value };
-					}
-					const settingsOpt = yield* reader.getSettings(input.settingsHash);
-					return Option.isNone(settingsOpt)
-						? {
-								found: false as const,
-								source: "requested" as const,
-								requestedHash: input.settingsHash,
-							}
-						: { found: true as const, source: "requested" as const, settings: settingsOpt.value };
-				}),
-			),
-	);
+	.input(Schema.toStandardSchemaV1(ConfigureInput))
+	.query(({ ctx, input }): Promise<ConfigureResultType> => ctx.runtime.runPromise(handleConfigure(input)));
+
+/**
+ * The Effect-native `configure` tool.
+ *
+ * @public
+ */
+export const configureTool = Tool.make("configure", {
+	description:
+		"Use when you need the captured Vitest settings for a test run. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, source, settings?, requestedHash? }).",
+	parameters: ConfigureInput,
+	success: ConfigureResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Configure")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatConfigureMarkdown(encoded as ConfigureResultType));

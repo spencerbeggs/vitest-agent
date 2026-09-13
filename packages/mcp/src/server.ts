@@ -473,7 +473,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			outputSchema: effectToZodSchema(FileCoverageResult) as never,
 		},
 		async (args) => {
-			const data = await caller.file_coverage({ filePath: args.filePath, project: args.project });
+			const data = await caller.file_coverage({
+				filePath: args.filePath,
+				...(args.project !== undefined && { project: args.project }),
+			});
 			const text = Schema.decodeSync(FileCoverageAsMarkdown)(data);
 			return structuredResult(text, data);
 		},
@@ -490,7 +493,9 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			outputSchema: effectToZodSchema(ConfigureResult) as never,
 		},
 		async (args) => {
-			const data = await caller.configure({ settingsHash: args.settingsHash });
+			const data = await caller.configure({
+				...(args.settingsHash !== undefined && { settingsHash: args.settingsHash }),
+			});
 			const text = Schema.decodeSync(ConfigureAsMarkdown)(data);
 			return structuredResult(text, data);
 		},
@@ -779,10 +784,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		},
 		async (args) => {
 			const data = await caller.turn_search({
-				sessionId: args.sessionId,
-				since: args.since,
-				type: args.type,
-				limit: args.limit,
+				...(args.sessionId !== undefined && { sessionId: args.sessionId }),
+				...(args.since !== undefined && { since: args.since }),
+				...(args.type !== undefined && { type: args.type }),
+				...(args.limit !== undefined && { limit: args.limit }),
 			});
 			const text = Schema.decodeSync(TurnSearchAsMarkdown)(data);
 			return structuredResult(text, data);
@@ -1242,7 +1247,7 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			outputSchema: effectToZodSchema(CommitChangesResult) as never,
 		},
 		async (args) => {
-			const data = await caller.commit_changes({ sha: args.sha });
+			const data = await caller.commit_changes({ ...(args.sha !== undefined && { sha: args.sha }) });
 			const text = Schema.decodeSync(CommitChangesAsMarkdown)(data);
 			return structuredResult(text, data);
 		},

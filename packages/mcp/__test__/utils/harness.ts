@@ -137,7 +137,7 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		// Built once here so a `seed` (or a test, via `services`) talks to the
 		// same in-memory store the server reads — providing `ServicesLayer`
 		// twice would build two databases.
-		const services = yield* Layer.build(ServicesLayer);
+		const services = yield* Layer.build(ServicesLayer).pipe(Effect.orDie);
 		if (options.seed !== undefined) yield* options.seed.pipe(Effect.provideContext(services));
 		const Main = Layer.mergeAll(
 			ServerLayer({ version: options.serverVersion ?? "0.0.0-test" }),

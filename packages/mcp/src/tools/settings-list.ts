@@ -6,6 +6,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const SettingsRow = Schema.Struct({
@@ -41,13 +43,37 @@ export const SettingsListAsMarkdown = SettingsListResult.pipe(
 	}),
 );
 
-export const settingsList = publicProcedure.input(Schema.toStandardSchemaV1(Schema.Struct({}))).query(
-	async ({ ctx }): Promise<SettingsListResultType> =>
-		ctx.runtime.runPromise(
-			Effect.gen(function* () {
-				const reader = yield* DataReader;
-				const settings = yield* reader.listSettings();
-				return { count: settings.length, settings };
-			}),
-		),
-);
+/**
+ * Handler for {@link settingsListTool}.
+ *
+ * @public
+ */
+export const handleSettingsList = (): Effect.Effect<SettingsListResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const settings = yield* reader.listSettings();
+		return { count: settings.length, settings };
+	}).pipe(Effect.orDie);
+
+export const settingsList = publicProcedure
+	.input(Schema.toStandardSchemaV1(Schema.Struct({})))
+	.query(({ ctx }): Promise<SettingsListResultType> => ctx.runtime.runPromise(handleSettingsList()));
+
+/**
+ * The Effect-native `settings_list` tool. No parameters (the default
+ * `Tool.EmptyParams` serves as a strict empty object).
+ *
+ * @public
+ */
+export const settingsListTool = Tool.make("settings_list", {
+	description:
+		"Use when you need every captured settings snapshot and its hash. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, settings[] }).",
+	success: SettingsListResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Settings list")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatSettingsListMarkdown(encoded as SettingsListResultType));
