@@ -43,6 +43,10 @@ STUB
 
 	export BATS_ARGV_CAPTURE
 	export PATH="${BATS_TMPDIR}:${PATH}"
+	# Route every hook at the stub: the hooks prefer the project's own
+	# node_modules/.bin/vitest-agent (real, in this repo) over the PATH lookup
+	# the fake pnpm above intercepts, so the override must name the stub.
+	export VITEST_AGENT_CLI_CMD="${BATS_TMPDIR}/vitest-agent"
 }
 
 teardown() {

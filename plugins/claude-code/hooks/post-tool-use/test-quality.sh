@@ -92,12 +92,12 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
 recorded_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 diff_excerpt=$(echo "$new_content" | head -c 4096)
 
-cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record tdd-artifact \
+cd "$cwd" >/dev/null && $cli agent record tdd-artifact \
 	--chat-id "$chat_id" \
 	--artifact-kind "test_weakened" \
 	--file-path "$file_path" \

@@ -63,6 +63,10 @@ STUB
     chmod +x "${BATS_TMPDIR}/pnpm"
 
     export PATH="${BATS_TMPDIR}:${PATH}"
+    # Route every hook at the stub: the hooks prefer the project's own
+    # node_modules/.bin/vitest-agent (real, in this repo) over the PATH lookup
+    # the fake pnpm above intercepts, so the override must name the stub.
+    export VITEST_AGENT_CLI_CMD="${BATS_TMPDIR}/vitest-agent"
 
     ENV_DIR="${HOME}/.claude/session-env/${BATS_SESSION_ID}"
     ENV_FILE="${ENV_DIR}/vitest-agent-hook.sh"

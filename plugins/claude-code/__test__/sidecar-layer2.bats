@@ -94,6 +94,10 @@ STUB
     chmod +x "${BATS_STUB_DIR}/pnpm"
 
     export PATH="${BATS_STUB_DIR}:${PATH}"
+    # Route the JS-fallback path at the stub: the hook prefers the project's
+    # own node_modules/.bin/vitest-agent (real, in this repo) over the PATH
+    # lookup the fake pnpm above intercepts, so the override must name it.
+    export VITEST_AGENT_CLI_CMD="${BATS_STUB_DIR}/vitest-agent"
 }
 
 teardown() {

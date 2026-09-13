@@ -78,9 +78,9 @@ files_json=${files_json:-"[]"}
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
-cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record run-workspace-changes \
+cd "$cwd" >/dev/null && $cli agent record run-workspace-changes \
 	--sha "$sha" \
 	${parent_sha:+--parent-sha "$parent_sha"} \
 	${message:+--message "$message"} \

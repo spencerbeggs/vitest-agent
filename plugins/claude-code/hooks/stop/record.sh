@@ -22,19 +22,19 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
 # 1. Record the firing as a hook_fire turn.
 fire_payload=$(jq -nc --arg cc "$chat_id" \
 	'{type: "hook_fire", hook_kind: "Stop", chat_id: $cc}')
-cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record turn \
+cd "$cwd" >/dev/null && $cli agent record turn \
 	--chat-id "$chat_id" \
 	"$fire_payload" \
 	>/dev/null 2>&1 \
 	|| true
 
 # 2. Compute the wrap-up nudge.
-nudge=$(cd "$cwd" && $pm_exec vitest-agent agent wrapup \
+nudge=$(cd "$cwd" && $cli agent wrapup \
 	--chat-id "$chat_id" \
 	--kind stop \
 	--format markdown 2>/dev/null || echo "")

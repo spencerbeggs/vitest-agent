@@ -45,12 +45,12 @@ subagent_session_key="${chat_id}-subagent-$(date +%s)-$$"
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
 project=$(jq -r '.name // "unknown"' < "$cwd/package.json" 2>/dev/null || echo "unknown")
 started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-hook_debug "$_HOOK" "INPUT session_id=$chat_id parent=$parent_chat_id synthetic_key=$subagent_session_key cwd=$cwd pm_exec=$pm_exec"
+hook_debug "$_HOOK" "INPUT session_id=$chat_id parent=$parent_chat_id synthetic_key=$subagent_session_key cwd=$cwd cli=$cli"
 
 # Ensure the parent main row exists before the subagent row references
 # it. SessionStart usually creates this row, but Claude Code can rotate
@@ -59,7 +59,7 @@ hook_debug "$_HOOK" "INPUT session_id=$chat_id parent=$parent_chat_id synthetic_
 # is idempotent on `chat_id` (UPSERT via ON CONFLICT DO NOTHING):
 # no-op when the row already exists, bootstrap when it does not.
 _parent_err=$(mktemp)
-_parent_out=$(cd "$cwd" && $pm_exec vitest-agent agent record session-start \
+_parent_out=$(cd "$cwd" && $cli agent record session-start \
 	--chat-id "$chat_id" \
 	--project "$project" \
 	--cwd "$cwd" \
@@ -77,7 +77,7 @@ hook_debug "$_HOOK" "record session-start (parent bootstrap): $_parent_out"
 # context:fork dispatches, leaving the subagent row orphaned and breaking the
 # parent walk that `record-tdd-artifact` uses to find the open tdd_task.
 _session_err=$(mktemp)
-_session_out=$(cd "$cwd" && $pm_exec vitest-agent agent record session-start \
+_session_out=$(cd "$cwd" && $cli agent record session-start \
 	--chat-id "$subagent_session_key" \
 	--project "$project" \
 	--cwd "$cwd" \
@@ -111,7 +111,7 @@ if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 	# Capture stderr separately (not 2>&1): pnpm's stderr notices would otherwise
 	# corrupt the JSON jq parses below and zero out the subagent's agentId.
 	_register_err=$(mktemp)
-	_register_out=$(cd "$cwd" && $pm_exec vitest-agent agent register-agent \
+	_register_out=$(cd "$cwd" && $cli agent register-agent \
 		--host-kind claude-code \
 		--agent-type claude-code-tdd-task \
 		--host-session-id "$subagent_session_key" \

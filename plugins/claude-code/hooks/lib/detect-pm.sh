@@ -1,5 +1,6 @@
 #!/bin/bash
-# detect-pm.sh — shared package-manager detection for record-* hooks.
+# detect-pm.sh — shared package-manager detection and vitest-agent bin
+# resolution for the hooks.
 #
 # Mirrors the PM detection in plugins/claude-code/bin/start-mcp.sh so the hook surface
 # stays consistent for npm/pnpm/yarn/bun users (Decision 30).
@@ -7,6 +8,7 @@
 # Usage:
 #   source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/detect-pm.sh"
 #   pm_exec=$(detect_pm_exec "$cwd")  # e.g., "pnpm exec", "npx --no-install"
+#   cli=$(detect_vitest_agent_bin "$cwd")  # local .bin path, else "$pm_exec vitest-agent"
 #
 # Detection order:
 #   1. `packageManager` field in <cwd>/package.json
@@ -51,4 +53,31 @@ detect_pm_exec() {
 		bun)  echo "bun x" ;;
 		*)    echo "npx --no-install" ;;
 	esac
+}
+
+# Echoes the command prefix that runs the `vitest-agent` CLI for the cwd.
+#
+# Preference order (issue #412 — the carrier `@vitest-agent/plugin` links the
+# bin into every consumer, so the direct path is the common case):
+#   1. $VITEST_AGENT_CLI_CMD when non-empty — an explicit override, echoed
+#      verbatim (may be multi-word). Also how the bats suites route the hooks
+#      at a stub instead of the repo's real linked bin.
+#   2. <cwd>/node_modules/.bin/vitest-agent when executable.
+#   3. `<pm> <exec> vitest-agent` via detect_pm_exec — the PM resolves it.
+#
+# Usage:
+#   cli=$(detect_vitest_agent_bin "$cwd")
+#   $cli agent record turn ...        # unquoted on purpose: may be 2-3 words
+detect_vitest_agent_bin() {
+	local cwd="$1"
+	if [ -n "${VITEST_AGENT_CLI_CMD:-}" ]; then
+		echo "${VITEST_AGENT_CLI_CMD}"
+		return 0
+	fi
+	local local_bin="$cwd/node_modules/.bin/vitest-agent"
+	if [ -x "$local_bin" ]; then
+		echo "$local_bin"
+		return 0
+	fi
+	echo "$(detect_pm_exec "$cwd") vitest-agent"
 }

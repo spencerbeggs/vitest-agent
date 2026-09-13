@@ -24,6 +24,9 @@
 		".": "./src/index.ts",
 		"./package.json": "./package.json"
 	},
+	"bin": {
+		"vitest-agent": "./src/bin/vitest-agent.ts"
+	},
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:prod": "node savvy.build.ts --target prod",

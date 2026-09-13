@@ -30,9 +30,9 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
-hook_debug "$_HOOK" "pm_exec=$pm_exec"
+hook_debug "$_HOOK" "cli=$cli"
 
 # 1. Always emit a tool_result turn.
 result_payload=$(jq -nc \
@@ -42,7 +42,7 @@ result_payload=$(jq -nc \
 	'{type: "tool_result", tool_name: $tn, success: $ok} + (if $tuid != "" then {tool_use_id: $tuid} else {} end)')
 
 _turn_err=$(mktemp)
-_turn_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
+_turn_out=$(cd "$cwd" && $cli agent record turn \
 	--chat-id "$chat_id" \
 	"$result_payload" 2>"$_turn_err") || {
 	_rc=$?
@@ -69,7 +69,7 @@ case "$tool_name" in
 			--arg ek "$edit_kind" \
 			'{type: "file_edit", file_path: $fp, edit_kind: $ek}')
 		_edit_err=$(mktemp)
-		_edit_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
+		_edit_out=$(cd "$cwd" && $cli agent record turn \
 			--chat-id "$chat_id" \
 			"$edit_payload" 2>"$_edit_err") || {
 			_rc=$?

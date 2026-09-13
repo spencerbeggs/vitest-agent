@@ -2,11 +2,12 @@
 /**
  * Plugin MCP server loader.
  *
- * Detects the user's package manager and spawns
- * `vitest-agent-mcp` through it. The package manager handles
- * binary resolution (node_modules/.bin lookup, monorepo hoisting, etc.)
- * and we just forward stdio so Claude Code talks to the MCP subprocess
- * directly.
+ * Prefers the project's own `node_modules/.bin/vitest-agent-mcp` (the
+ * carrier `@vitest-agent/plugin` links that bin into every consumer that
+ * depends on it — issue #412) and execs it directly. Only when that bin is
+ * absent does it fall back to detecting the user's package manager and
+ * spawning `vitest-agent-mcp` through it, printing the PM-specific install
+ * line to stderr so the user knows how to get the direct path.
  *
  * Zero runtime dependencies on purpose — this script must work without
  * an `npm install`. It resolves the user's project from
@@ -18,7 +19,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const BIN_NAME = "vitest-agent-mcp";
@@ -80,7 +81,36 @@ const env = { ...process.env, VITEST_AGENT_REPORTER_PROJECT_DIR: projectDir };
 // the loader script in the manifest. Pass them through verbatim so the
 // MCP bin sees them as its own argv.
 const extraArgs = process.argv.slice(2);
-const child = spawn(pm.cmd, [...pm.args, BIN_NAME, ...extraArgs], {
+
+// Preference order: the project's own linked bin first, PM dispatch second.
+const localBin = join(projectDir, "node_modules", ".bin", BIN_NAME);
+let isLocalBinExecutable = false;
+try {
+	accessSync(localBin, constants.X_OK);
+	isLocalBinExecutable = true;
+} catch {
+	// Not linked (or not executable) — fall back to the package manager.
+}
+
+if (!isLocalBinExecutable) {
+	process.stderr.write(
+		[
+			`vitest-agent plugin: ${localBin} is not installed in this project.`,
+			"",
+			`Detected package manager: ${pmName}`,
+			`Project directory: ${projectDir}`,
+			"",
+			"Install it with:",
+			`  ${pm.install}`,
+			"",
+			`Falling back to \`${pm.cmd} ${pm.args.join(" ")} ${BIN_NAME}\`.`,
+			"",
+		].join("\n"),
+	);
+}
+
+const [cmd, args] = isLocalBinExecutable ? [localBin, extraArgs] : [pm.cmd, [...pm.args, BIN_NAME, ...extraArgs]];
+const child = spawn(cmd, args, {
 	cwd: projectDir,
 	stdio: "inherit",
 	env,
@@ -89,7 +119,7 @@ const child = spawn(pm.cmd, [...pm.args, BIN_NAME, ...extraArgs], {
 child.on("error", (err) => {
 	process.stderr.write(
 		[
-			`vitest-agent plugin: failed to invoke '${pm.cmd}'.`,
+			`vitest-agent plugin: failed to invoke '${cmd}'.`,
 			"",
 			`Detected package manager: ${pmName}`,
 			`Project directory: ${projectDir}`,
@@ -116,7 +146,7 @@ child.on("exit", (code, signal) => {
 	}
 	process.stderr.write(
 		[
-			`vitest-agent plugin: ${pm.cmd} ${pm.args.join(" ")} ${BIN_NAME} exited with code ${code}.`,
+			`vitest-agent plugin: ${[cmd, ...args].join(" ")} exited with code ${code}.`,
 			"",
 			`Detected package manager: ${pmName}`,
 			`Project directory: ${projectDir}`,

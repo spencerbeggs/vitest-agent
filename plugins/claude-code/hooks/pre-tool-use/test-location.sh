@@ -59,21 +59,18 @@ case "$(basename "$file_path")" in
 	*) emit_noop; exit 0 ;;
 esac
 
-# Resolve the CLI. VITEST_AGENT_CLI_CMD overrides for tests and for anyone
-# who has the bin on PATH directly; otherwise route through the detected
-# package manager the way every other hook does.
-cli_cmd=${VITEST_AGENT_CLI_CMD:-}
-if [ -z "$cli_cmd" ]; then
-	cwd=$(echo "$hook_json" | jq -r '.cwd // ""' 2>/dev/null || echo "")
-	[ -n "$cwd" ] || cwd="${CLAUDE_PROJECT_DIR:-.}"
-	# shellcheck source=../lib/detect-pm.sh
-	. "$(dirname "$0")/../lib/detect-pm.sh"
-	pm_exec=$(detect_pm_exec "$cwd")
-	cli_cmd="$pm_exec vitest-agent"
-fi
+# Resolve the CLI through the shared helper: VITEST_AGENT_CLI_CMD overrides
+# (tests, or anyone with the bin on PATH directly), then the project's own
+# node_modules/.bin/vitest-agent, then the detected package manager — the
+# same order every other hook uses.
+cwd=$(echo "$hook_json" | jq -r '.cwd // ""' 2>/dev/null || echo "")
+[ -n "$cwd" ] || cwd="${CLAUDE_PROJECT_DIR:-.}"
+# shellcheck source=../lib/detect-pm.sh
+. "$(dirname "$0")/../lib/detect-pm.sh"
+cli_cmd=$(detect_vitest_agent_bin "$cwd")
 
 # Unquoted on purpose — cli_cmd may carry a subcommand (e.g. "pnpm exec
-# vitest-agent") and must word-split, matching the $pm_exec usage in
+# vitest-agent") and must word-split, matching the $cli usage in
 # post-tool-use/git-commit.sh.
 # shellcheck disable=SC2086
 if ! verdict_json=$($cli_cmd agent check-test-path "$file_path" 2>/dev/null); then

@@ -31,9 +31,9 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
-hook_debug "$_HOOK" "pm_exec=$pm_exec"
+hook_debug "$_HOOK" "cli=$cli"
 
 # 1. Record the prompt as a user_prompt turn.
 # cc_message_id is intentionally omitted: the Claude Code envelope does not
@@ -43,7 +43,7 @@ hook_debug "$_HOOK" "pm_exec=$pm_exec"
 payload=$(jq -nc --arg p "$prompt" '{type: "user_prompt", prompt: $p}')
 
 _turn_err=$(mktemp)
-_turn_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
+_turn_out=$(cd "$cwd" && $cli agent record turn \
 	--chat-id "$chat_id" \
 	"$payload" 2>"$_turn_err") || {
 	_rc=$?
@@ -53,7 +53,7 @@ rm -f "$_turn_err"
 hook_debug "$_HOOK" "record turn user_prompt: $_turn_out"
 
 # 2. Compute the nudge (empty when the prompt isn't failure-related).
-nudge=$(cd "$cwd" && $pm_exec vitest-agent agent wrapup \
+nudge=$(cd "$cwd" && $cli agent wrapup \
 	--chat-id "$chat_id" \
 	--kind user_prompt_nudge \
 	--user-prompt-hint "$prompt" \

@@ -39,9 +39,9 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
-hook_debug "$_HOOK" "pm_exec=$pm_exec"
+hook_debug "$_HOOK" "cli=$cli"
 
 recorded_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -94,7 +94,7 @@ case "$tool_name" in
 			# Capture stderr separately (not 2>&1) so pnpm's stderr notices don't
 			# corrupt the JSON the jq below parses for latestTestCaseId.
 			_turns_err=$(mktemp)
-			_turns_out=$(cd "$cwd" && $pm_exec vitest-agent agent record test-case-turns \
+			_turns_out=$(cd "$cwd" && $cli agent record test-case-turns \
 				--chat-id "$chat_id" 2>"$_turns_err") || {
 				_rc=$?
 				hook_error "$_HOOK" "record test-case-turns rc=$_rc cc=$chat_id: $(cat "$_turns_err")"
@@ -109,7 +109,7 @@ case "$tool_name" in
 			fi
 			_artifact_err=$(mktemp)
 			# shellcheck disable=SC2086
-			_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
+			_artifact_out=$(cd "$cwd" && $cli agent record tdd-artifact \
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
@@ -172,7 +172,7 @@ case "$tool_name" in
 			# Capture stderr separately (not 2>&1) so pnpm's stderr notices don't
 			# corrupt the JSON the jq below parses for latestTestCaseId.
 			_turns_err=$(mktemp)
-			_turns_out=$(cd "$cwd" && $pm_exec vitest-agent agent record test-case-turns \
+			_turns_out=$(cd "$cwd" && $cli agent record test-case-turns \
 				--chat-id "$chat_id" 2>"$_turns_err") || {
 				_rc=$?
 				hook_error "$_HOOK" "record test-case-turns rc=$_rc cc=$chat_id: $(cat "$_turns_err")"
@@ -187,7 +187,7 @@ case "$tool_name" in
 			fi
 			_artifact_err=$(mktemp)
 			# shellcheck disable=SC2086
-			_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
+			_artifact_out=$(cd "$cwd" && $cli agent record tdd-artifact \
 				--chat-id "$chat_id" \
 				--artifact-kind "$kind" \
 				--recorded-at "$recorded_at" \
@@ -215,7 +215,7 @@ case "$tool_name" in
 		esac
 		_artifact_err=$(mktemp)
 		# shellcheck disable=SC2086
-		_artifact_out=$(cd "$cwd" && $pm_exec vitest-agent agent record tdd-artifact \
+		_artifact_out=$(cd "$cwd" && $cli agent record tdd-artifact \
 			--chat-id "$chat_id" \
 			--artifact-kind "$kind" \
 			--file-path "$file_path" \

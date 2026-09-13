@@ -33,7 +33,7 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
 # Close the subagent's agents.ended_at by pairing with the oldest state
 # file that matches this agent_type. SubagentStart writes one
@@ -63,7 +63,7 @@ if [ -n "$state_file" ] && [ -f "$state_file" ]; then
 		# shellcheck disable=SC2086
 		_end_err=$(mktemp)
 		# shellcheck disable=SC2086
-		if ! (cd "$cwd" && $pm_exec vitest-agent agent end-agent \
+		if ! (cd "$cwd" && $cli agent end-agent \
 			--agent-id "$subagent_agent_id" \
 			--ended-at "$ended_at_unix" \
 			--cwd "$cwd" >/dev/null 2>"$_end_err"); then
@@ -76,7 +76,7 @@ if [ -n "$state_file" ] && [ -f "$state_file" ]; then
 fi
 
 # Generate the handoff message using the wrapup CLI in tdd_handoff mode.
-handoff=$(cd "$cwd" && $pm_exec vitest-agent agent wrapup \
+handoff=$(cd "$cwd" && $cli agent wrapup \
 	--chat-id "$chat_id" \
 	--kind tdd_handoff \
 	--format markdown 2>/dev/null || echo "")
@@ -89,7 +89,7 @@ if [ -n "$handoff" ]; then
 	parent_cc=$(echo "$hook_json" | jq -r '.parent_session_id // ""')
 	if [ -n "$parent_cc" ]; then
 		payload=$(jq -nc --arg c "$handoff" '{type: "note", scope: "tdd_handoff", content: $c}')
-		cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record turn \
+		cd "$cwd" >/dev/null && $cli agent record turn \
 			--chat-id "$parent_cc" \
 			"$payload" \
 			>/dev/null 2>&1 \

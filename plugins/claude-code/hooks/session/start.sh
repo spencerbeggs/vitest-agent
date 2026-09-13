@@ -31,10 +31,10 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$PROJECT_DIR")
+cli=$(detect_vitest_agent_bin "$PROJECT_DIR")
 
 # 1. Generate the triage brief.
-triage_md=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent triage --format markdown 2>/dev/null || echo "")
+triage_md=$(cd "$PROJECT_DIR" && $cli agent triage --format markdown 2>/dev/null || echo "")
 
 # 2. Compute the triage_was_non_empty flag.
 if [ -n "$triage_md" ]; then
@@ -47,12 +47,12 @@ fi
 project=$(jq -r '.name // "unknown"' < "$PROJECT_DIR/package.json" 2>/dev/null || echo "unknown")
 started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-hook_debug "$_HOOK" "INPUT session_id=$chat_id PROJECT_DIR=$PROJECT_DIR pm_exec=$pm_exec"
+hook_debug "$_HOOK" "INPUT session_id=$chat_id PROJECT_DIR=$PROJECT_DIR cli=$cli"
 
 # shellcheck disable=SC2086
 # Capture stderr separately (not 2>&1) so pnpm's config notices don't taint the recorded output logged below.
 _session_err=$(mktemp)
-_session_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent record session-start \
+_session_out=$(cd "$PROJECT_DIR" && $cli agent record session-start \
 	--chat-id "$chat_id" \
 	--project "$project" \
 	--cwd "$PROJECT_DIR" \
@@ -79,7 +79,7 @@ if [ -n "$transcript_path" ]; then
 	# corrupts the JSON the jq calls below parse — silently zeroing agentId and
 	# skipping the whole env block (sidecar binary included).
 	_register_err=$(mktemp)
-	_register_out=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent register-agent \
+	_register_out=$(cd "$PROJECT_DIR" && $cli agent register-agent \
 		--host-kind claude-code \
 		--agent-type claude-code-main \
 		--host-session-id "$chat_id" \
@@ -158,7 +158,7 @@ if [ -n "$agent_id" ]; then
 	# `command -v` cannot reach) and prints it to stdout on success, or prints
 	# nothing and exits non-zero when no platform binary is installed.
 	# Skip the export entirely when the command fails or returns empty.
-	_sidecar_bin=$(cd "$PROJECT_DIR" && $pm_exec vitest-agent agent sidecar-path 2>/dev/null) || _sidecar_bin=""
+	_sidecar_bin=$(cd "$PROJECT_DIR" && $cli agent sidecar-path 2>/dev/null) || _sidecar_bin=""
 	if [ -n "$_sidecar_bin" ] && [ -x "$_sidecar_bin" ]; then
 		printf 'export %s=%q\n' "VITEST_AGENT_SIDECAR_BIN" "$_sidecar_bin" >> "$hook_env_file"
 		if [ -n "${CLAUDE_ENV_FILE:-}" ]; then

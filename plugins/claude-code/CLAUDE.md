@@ -23,7 +23,7 @@ plugins/claude-code/
 │                        #   sidecar-env-warn.bats, subagent-state-file.bats,
 │                        #   cli-rename-cascade.bats, test-location.bats,
 │                        #   bash-tdd.bats, tdd-artifact-bats.bats,
-│                        #   tdd-artifact-task-id.bats
+│                        #   tdd-artifact-task-id.bats, bin-preference.bats
 │   └── fixtures/        # Synthetic JSON payloads for manual hook invocation (README inside)
 ├── agents/
 │   └── tdd-task.md      # tdd-task subagent (context:fork, drives red-green-refactor cycles)
@@ -83,6 +83,8 @@ The MCP server communicates with CC over stdin/stdout. When CC closes its sessio
 ## Hooks
 
 Hook scripts in `hooks/` are Bash (`#!/bin/bash`, almost all under `set -euo pipefail`), grouped by hook event into subdirectories, and every registration in `hooks.json` invokes them with `bash`. Only `bin/start-mcp.sh` is POSIX `sh`, because it is the MCP loader rather than a hook. All source shared helpers from `hooks/lib/` via `$(dirname "$0")/../lib/<helper>`. Key scripts:
+
+Every hook that shells out to the CLI resolves it through `detect_vitest_agent_bin` (`hooks/lib/detect-pm.sh`): `VITEST_AGENT_CLI_CMD` if set, else the project's own `node_modules/.bin/vitest-agent` (linked by the `@vitest-agent/plugin` carrier — issue #412), else `<pm> exec vitest-agent` via the detected package manager; `bin/start-mcp.sh` applies the same preference to `node_modules/.bin/vitest-agent-mcp` before falling back to `npx --yes @vitest-agent/mcp`. Covered by `__test__/bin-preference.bats`.
 
 | Script | Trigger | Behavior |
 | --- | --- | --- |

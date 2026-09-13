@@ -40,7 +40,7 @@ hook_debug "$_HOOK" "WORKER chat_id=$chat_id cwd=$cwd reason=$reason mode=$mode"
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-pm_exec=$(detect_pm_exec "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd")
 
 ended_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -48,7 +48,7 @@ ended_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 fire_payload=$(jq -nc --arg cc "$chat_id" \
 	'{type: "hook_fire", hook_kind: "SessionEnd", chat_id: $cc}')
 _fire_err=$(mktemp)
-_fire_out=$(cd "$cwd" && $pm_exec vitest-agent agent record turn \
+_fire_out=$(cd "$cwd" && $cli agent record turn \
 	--chat-id "$chat_id" \
 	"$fire_payload" 2>"$_fire_err") || {
 	_rc=$?
@@ -59,14 +59,14 @@ hook_debug "$_HOOK" "record turn hook_fire: $_fire_out"
 
 # 2. Record the session end.
 if [ -n "$reason" ]; then
-	cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record session-end \
+	cd "$cwd" >/dev/null && $cli agent record session-end \
 		--chat-id "$chat_id" \
 		--ended-at "$ended_at" \
 		--end-reason "$reason" \
 		>/dev/null 2>&1 \
 		|| true
 else
-	cd "$cwd" >/dev/null && $pm_exec vitest-agent agent record session-end \
+	cd "$cwd" >/dev/null && $cli agent record session-end \
 		--chat-id "$chat_id" \
 		--ended-at "$ended_at" \
 		>/dev/null 2>&1 \
@@ -85,7 +85,7 @@ if [ -n "${VITEST_AGENT_MAIN_AGENT_ID:-}" ]; then
 	# shellcheck disable=SC2086
 	_end_err=$(mktemp)
 	# shellcheck disable=SC2086
-	if ! (cd "$cwd" && $pm_exec vitest-agent agent end-agent \
+	if ! (cd "$cwd" && $cli agent end-agent \
 		--agent-id "$VITEST_AGENT_MAIN_AGENT_ID" \
 		--host-session-id "$chat_id" \
 		--ended-at "$ended_at_unix" \
@@ -104,7 +104,7 @@ rm -rf "$HOME/.claude/session-env/$chat_id/active-subagents" 2>/dev/null || true
 # it (mode=wrapup on the clear/resume path). On a true exit nobody is
 # listening, so skip the extra CLI spawn entirely.
 if [ "$mode" = "wrapup" ]; then
-	wrapup=$(cd "$cwd" && $pm_exec vitest-agent agent wrapup \
+	wrapup=$(cd "$cwd" && $cli agent wrapup \
 		--chat-id "$chat_id" \
 		--kind session_end \
 		--format markdown 2>/dev/null || echo "")

@@ -25,13 +25,13 @@ if echo "$COMMAND" | grep -qE '(^|/|npx[[:space:]]+|pnpm[[:space:]]+(exec[[:spac
   # Best-effort: errors are silently ignored so the hook never blocks on
   # a DB failure. The association enables session-scoped test-run queries.
   if [ -n "$CC_SESSION_ID" ] && [ -n "$CWD" ]; then
-    pm_exec=$(detect_pm_exec "$CWD")
+    cli=$(detect_vitest_agent_bin "$CWD")
     # `record test-case-turns` prints a JSON result object; discard both
     # streams so nothing but this hook's own encoder reaches stdout.
-    (cd "$CWD" && $pm_exec vitest-agent agent record run-trigger \
+    (cd "$CWD" && $cli agent record run-trigger \
       --chat-id "$CC_SESSION_ID" \
       --invocation-method bash >/dev/null 2>&1) || true
-    (cd "$CWD" && $pm_exec vitest-agent agent record test-case-turns \
+    (cd "$CWD" && $cli agent record test-case-turns \
       --chat-id "$CC_SESSION_ID" >/dev/null 2>&1) || true
   fi
 
