@@ -9,8 +9,8 @@
  * @packageDocumentation
  */
 
+import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { ArtifactKind, ArtifactSuite, DataStoreError } from "@vitest-agent/sdk";
-import { DataReader, DataStore } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 

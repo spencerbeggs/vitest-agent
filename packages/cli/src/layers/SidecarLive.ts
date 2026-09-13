@@ -30,7 +30,7 @@ import {
 	RunContextLive,
 	registryMigration0001,
 	sessionMapMigration0001,
-} from "@vitest-agent/sdk";
+} from "@vitest-agent/engine";
 import { Layer } from "effect";
 
 /**

@@ -8,11 +8,10 @@ import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
 	AgentReport as AgentReportSchema,
-	DataReader,
-	DataStore,
 	buildAgentReport,
 	buildConsoleLeaks,
 	coerceErrorField,

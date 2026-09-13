@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { SettingsInput } from "@vitest-agent/sdk";
+import type { SettingsInput } from "@vitest-agent/engine";
 
 /**
  * Extract a serializable settings snapshot from the resolved Vitest config.

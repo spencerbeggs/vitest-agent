@@ -12,8 +12,8 @@
  * does not work here — issue #303).
  */
 
-import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/sdk";
-import { DataStoreTestLayer } from "@vitest-agent/sdk/testing";
+import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { McpContext } from "../src/context.js";

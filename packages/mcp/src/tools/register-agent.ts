@@ -27,7 +27,7 @@
  * outcome.
  */
 
-import { DataReader, DataStore, deriveIdempotencyKey } from "@vitest-agent/sdk";
+import { DataReader, DataStore, deriveIdempotencyKey } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 

@@ -2,7 +2,7 @@
 	"name": "@vitest-agent/sdk",
 	"version": "3.1.2",
 	"private": true,
-	"description": "Shared Effect Schema, SQLite migrations, data layer, services, formatters, and utilities for vitest-agent packages.",
+	"description": "Platform-free core for the vitest-agent package family: Effect Schema definitions, reporter and dispatcher contracts, errors, formatters, and pure utilities.",
 	"keywords": ["vitest", "agent", "shared", "effect", "sqlite"],
 	"homepage": "https://github.com/spencerbeggs/vitest-agent#readme",
 	"bugs": {
@@ -23,7 +23,6 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./dispatch": "./src/dispatch.ts",
-		"./testing": "./src/testing/index.ts",
 		"./schemas/*.json": "./schemas/*.json",
 		"./package.json": "./package.json"
 	},
@@ -36,23 +35,12 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effect",
-		"@effect/sql-sqlite-node": "catalog:effect",
-		"@effected/config-file": "catalog:effected",
-		"@effected/jsonc": "catalog:effected",
-		"@effected/toml": "catalog:effected",
-		"@effected/walker": "catalog:effected",
-		"@effected/workspaces": "catalog:effected",
-		"@effected/xdg": "catalog:effected",
-		"@effected/yaml": "catalog:effected",
 		"acorn": "^8.18.0",
 		"acorn-typescript": "^1.4.13",
-		"ajv": "^8.20.0",
-		"effect": "catalog:effect",
-		"std-env": "^4.2.0"
+		"effect": "catalog:effect"
 	},
 	"devDependencies": {
-		"@effected/memfs": "catalog:effected",
+		"@effect/platform-node": "catalog:effect",
 		"@effected/schemastore": "catalog:effected",
 		"@savvy-web/bundler": "^2.3.4",
 		"@types/node": "catalog:build",

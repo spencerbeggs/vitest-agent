@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
-import type { StackFrameInput } from "@vitest-agent/sdk";
-import { computeFailureSignature, findFunctionBoundary } from "@vitest-agent/sdk";
+import type { StackFrameInput } from "@vitest-agent/engine";
+import { computeFailureSignature } from "@vitest-agent/engine";
+import { findFunctionBoundary } from "@vitest-agent/sdk";
 
 /**
  * A single parsed stack frame as Vitest represents it.

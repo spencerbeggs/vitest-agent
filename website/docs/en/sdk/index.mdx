@@ -16,7 +16,7 @@ Install `@vitest-agent/plugin` for normal use; install `@vitest-agent/sdk` direc
 - **XDG path resolution** — deterministic `dbPath` derivation from workspace identity with a five-source fallback chain
 - **Reporter and dispatcher contracts** — `VitestAgentReporterFactory`, `ReporterKit`, `ResolvedReporterConfig`, `DispatchInputs`, and the types consumed by every other package
 - **Sidecar dispatch core** — `dispatch`, `injectEnv`, and `exitCodeForTag` on the `@vitest-agent/sdk/dispatch` sub-path for a minimal SEA bundle
-- **Test utilities** — `makeTestLayer`, `DataStoreTestLayer`, and five preset factory functions on the `@vitest-agent/sdk/testing` sub-path
+- **Test utilities** — `makeTestLayer`, `DataStoreTestLayer`, and five preset factory functions on the `@vitest-agent/engine/testing` sub-path
 
 ## Install
 
@@ -32,8 +32,8 @@ The main export provides access to the Effect services. Use the testing sub-path
 
 ```ts with-api
 import { Effect } from "effect";
-import { DataReader } from "@vitest-agent/sdk";
-import { singlePassingRun } from "@vitest-agent/sdk/testing";
+import { DataReader } from "@vitest-agent/engine";
+import { singlePassingRun } from "@vitest-agent/engine/testing";
 
 // Seed an in-memory DB with a single passing test run
 const layer = singlePassingRun(":memory:");
@@ -55,14 +55,14 @@ The SDK ships three distinct entry points:
 |-------|---------|-------------|
 | `@vitest-agent/sdk` | Main barrel — services, schemas, layers, formatters, contracts, utilities | Everywhere except the SEA bundle |
 | `@vitest-agent/sdk/dispatch` | `dispatch`, `injectEnv`, `exitCodeForTag` | The sidecar SEA binary; keeps the bundle minimal (no Effect, no SQLite) |
-| `@vitest-agent/sdk/testing` | `makeTestLayer`, `DataStoreTestLayer`, five preset factories | Unit tests for packages that write to or read from SQLite |
+| `@vitest-agent/engine/testing` | `makeTestLayer`, `DataStoreTestLayer`, five preset factories | Unit tests for packages that write to or read from SQLite |
 
 ## Effect services
 
 The core data services are Effect Context tags with live and test layer implementations:
 
 ```ts with-api
-import { DataStore, DataReader } from "@vitest-agent/sdk";
+import { DataStore, DataReader } from "@vitest-agent/engine";
 
 // DataStore: all SQLite writes
 // DataReader: all SQLite reads, assembles domain types from row data
@@ -75,7 +75,7 @@ const effect = Effect.flatMap(DataReader, (reader) =>
 Live layers take the resolved `dbPath` as input. Test layers use `:memory:` for isolation:
 
 ```ts with-api
-import { makeTestLayer } from "@vitest-agent/sdk/testing";
+import { makeTestLayer } from "@vitest-agent/engine/testing";
 
 const testLayer = makeTestLayer(":memory:");
 // Provides DataStore + DataReader backed by a fresh in-memory SQLite
@@ -92,7 +92,7 @@ import {
   withFailures,
   flaky,
   withTddTask,
-} from "@vitest-agent/sdk/testing";
+} from "@vitest-agent/engine/testing";
 
 // empty(dbPath)          — migrated DB, no rows
 // singlePassingRun(p)    — one run, all tests pass
@@ -108,12 +108,7 @@ Each factory returns an Effect `Layer` you provide directly in your test.
 The SDK defines the contract shapes consumed by `@vitest-agent/reporter`, `@vitest-agent/ui`, and `@vitest-agent/plugin`:
 
 ```ts with-api
-import type {
-  VitestAgentReporterFactory,
-  ReporterKit,
-  ReporterRenderInput,
-  RenderedOutput,
-} from "@vitest-agent/sdk";
+import type { VitestAgentReporterFactory, ReporterKit, ReporterRenderInput, RenderedOutput } from "@vitest-agent/sdk";
 
 // VitestAgentReporterFactory: (kit: ReporterKit) => VitestAgentReporter
 // ReporterKit: resolved config + run-event channel + health info
@@ -132,7 +127,7 @@ import type {
 5. Fails loudly — no silent fallback
 
 ```ts with-api
-import { resolveDataPath } from "@vitest-agent/sdk";
+import { resolveDataPath } from "@vitest-agent/engine";
 // resolveDataPath(cwd) → Effect<string, WorkspaceRootNotFoundError>
 ```
 

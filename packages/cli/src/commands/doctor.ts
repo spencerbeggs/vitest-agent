@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { DataReader, resolveDataPath } from "@vitest-agent/sdk";
+import { DataReader, resolveDataPath } from "@vitest-agent/engine";
 import { Effect, Option } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 import type { CheckResult } from "../lib/format-doctor.js";

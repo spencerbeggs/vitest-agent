@@ -1,4 +1,4 @@
-import { DataReader } from "@vitest-agent/sdk";
+import { DataReader } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import type { McpContext } from "../src/context.js";

@@ -34,8 +34,9 @@
  */
 
 import { readFileSync } from "node:fs";
-import type { DataStoreError, SessionDetail } from "@vitest-agent/sdk";
-import { DataReader, DataStore } from "@vitest-agent/sdk";
+import type { SessionDetail } from "@vitest-agent/engine";
+import { DataReader, DataStore } from "@vitest-agent/engine";
+import type { DataStoreError } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 
 export interface ResolveSessionForRecordingInput {

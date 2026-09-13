@@ -1,4 +1,4 @@
-import { DataStore, HistoryTracker, OutputRenderer } from "@vitest-agent/sdk";
+import { DataStore, HistoryTracker, OutputRenderer } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { ReporterLive } from "../src/layers/ReporterLive.js";

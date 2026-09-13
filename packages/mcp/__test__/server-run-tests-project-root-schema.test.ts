@@ -11,8 +11,8 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/sdk";
-import { DataStoreTestLayer } from "@vitest-agent/sdk/testing";
+import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { McpContext } from "../src/context.js";

@@ -1,4 +1,4 @@
-import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/sdk";
+import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Layer, ManagedRuntime } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
 import type { McpContext } from "../src/context.js";
@@ -28,7 +28,7 @@ const seedSession = async (chatId: string) => {
 	await caller.inventory({ kind: "session" }); // best-effort warm-up
 	// Seed the session row directly through DataStore via the runtime.
 	const { Effect } = await import("effect");
-	const { DataStore } = await import("@vitest-agent/sdk");
+	const { DataStore } = await import("@vitest-agent/engine");
 	await testRuntime.runPromise(
 		Effect.gen(function* () {
 			const store = yield* DataStore;

@@ -1,5 +1,6 @@
-import type { DataReader } from "@vitest-agent/sdk";
-import { DataStore, TurnPayload } from "@vitest-agent/sdk";
+import type { DataReader } from "@vitest-agent/engine";
+import { DataStore } from "@vitest-agent/engine";
+import { TurnPayload } from "@vitest-agent/sdk";
 import { Effect, Schema } from "effect";
 import { resolveSessionForRecording } from "./resolve-session-for-recording.js";
 

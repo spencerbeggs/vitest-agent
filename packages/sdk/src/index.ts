@@ -1,10 +1,10 @@
 /**
  * @vitest-agent/sdk
  *
- * Shared library for the vitest-agent package family. Carries
- * everything both runtime packages (reporter, mcp, cli) need: Effect
- * schemas, SQLite migrations and data layer, output pipeline services
- * and formatters, and supporting utilities.
+ * Platform-free core of the vitest-agent package family: Effect
+ * schemas, the reporter and dispatcher contracts, errors, formatters,
+ * and pure utilities. The services, Live layers, SQLite data layer,
+ * migrations and platform resolution live in `@vitest-agent/engine`.
  *
  * @packageDocumentation
  */
@@ -29,38 +29,6 @@ export * from "./formatters/markdown.js";
 export * from "./formatters/silent.js";
 export * from "./formatters/terminal.js";
 export * from "./formatters/types.js";
-// Layers
-export * from "./layers/ConfigLive.js";
-export * from "./layers/DataReaderLive.js";
-export * from "./layers/DataStoreLive.js";
-export * from "./layers/DetailResolverLive.js";
-export * from "./layers/DiscoveryRegistryLive.js";
-export * from "./layers/EnvironmentDetectorLive.js";
-export * from "./layers/EnvironmentDetectorTest.js";
-export * from "./layers/ExecutorResolverLive.js";
-export * from "./layers/FormatSelectorLive.js";
-export * from "./layers/HistoryTrackerLive.js";
-export * from "./layers/HistoryTrackerTest.js";
-export * from "./layers/LoggerLive.js";
-export * from "./layers/OutputPipelineLive.js";
-export * from "./layers/OutputRendererLive.js";
-export * from "./layers/PathResolutionLive.js";
-export * from "./layers/PerClientSessionMapLive.js";
-export * from "./layers/ProjectDiscoveryLive.js";
-export * from "./layers/ProjectDiscoveryTest.js";
-export * from "./layers/ProjectIdentityLive.js";
-export * from "./layers/RunContextLive.js";
-// 2.0 RC: shared markdown generators (consumed by CLI + MCP).
-export type { FormatTriageOptions } from "./lib/format-triage.js";
-export { formatTriageEffect } from "./lib/format-triage.js";
-export type { FormatWrapupOptions, WrapupKind } from "./lib/format-wrapup.js";
-export { formatWrapupEffect } from "./lib/format-wrapup.js";
-// Migrations
-export { default as migration0001 } from "./migrations/0001_initial.js";
-export { default as migration0002 } from "./migrations/0002_test_artifacts.js";
-export { PROJECT_MIGRATIONS } from "./migrations/index.js";
-export { default as registryMigration0001 } from "./migrations/registry_0001_initial.js";
-export { default as sessionMapMigration0001 } from "./migrations/session_map_0001_initial.js";
 // Schemas
 export * from "./schemas/Agent.js";
 export * from "./schemas/AgentReport.js";
@@ -86,24 +54,6 @@ export * from "./schemas/Transport.js";
 export * from "./schemas/Trends.js";
 // 2.0 turn schemas
 export * from "./schemas/turns/index.js";
-// Services
-export * from "./services/Config.js";
-export * from "./services/DataReader.js";
-export * from "./services/DataStore.js";
-export * from "./services/DetailResolver.js";
-export * from "./services/DiscoveryRegistry.js";
-export * from "./services/EnvironmentDetector.js";
-export * from "./services/ExecutorResolver.js";
-export * from "./services/FormatSelector.js";
-export * from "./services/HistoryTracker.js";
-export * from "./services/idempotency.js";
-export * from "./services/OutputRenderer.js";
-export * from "./services/PerClientSessionMap.js";
-export * from "./services/ProjectDiscovery.js";
-export * from "./services/ProjectIdentity.js";
-export * from "./services/RunContext.js";
-// SQL helpers (assemblers public; raw row schemas are internal)
-export * from "./sql/assemblers.js";
 // Utilities
 export * from "./utils/ansi.js";
 export * from "./utils/build-report.js";
@@ -116,8 +66,6 @@ export * from "./utils/console-leaks.js";
 export * from "./utils/detect-non-default-discover-strategy.js";
 export * from "./utils/detect-pm.js";
 export { isTimeoutError } from "./utils/detect-timeout.js";
-export * from "./utils/ensure-migrated.js";
-export * from "./utils/failure-signature.js";
 export * from "./utils/format-console.js";
 export * from "./utils/format-fatal-error.js";
 export * from "./utils/format-gfm.js";
@@ -127,9 +75,6 @@ export * from "./utils/hyperlink.js";
 export * from "./utils/match-vitest-command.js";
 export * from "./utils/normalize-workspace-key.js";
 export * from "./utils/probe-host-metadata.js";
-export * from "./utils/resolve-data-path.js";
-export * from "./utils/resolve-project-key-from-cwd.js";
-export * from "./utils/resolve-workspace-key.js";
 export * from "./utils/safe-filename.js";
 export * from "./utils/test-location.js";
 export * from "./utils/validate-coverage-targets-shape.js";

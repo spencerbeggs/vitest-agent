@@ -37,6 +37,7 @@
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
 		"@effected/workspaces": "catalog:effected",
+		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/sidecar": "workspace:*",
 		"effect": "catalog:effect"

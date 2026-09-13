@@ -8,13 +8,8 @@
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import {
-	PathResolutionLive,
-	formatFatalError,
-	resolveDataPath,
-	resolveLogFile,
-	resolveLogLevel,
-} from "@vitest-agent/sdk";
+import { PathResolutionLive, resolveDataPath, resolveLogFile, resolveLogLevel } from "@vitest-agent/engine";
+import { formatFatalError } from "@vitest-agent/sdk";
 import { Cause, Console, Effect } from "effect";
 import { Command } from "effect/unstable/cli";
 import { agentCommand } from "./commands/agent.js";

@@ -26,7 +26,7 @@ import {
 	PerClientSessionMapWriter,
 	RunContextService,
 	deriveIdempotencyKey,
-} from "@vitest-agent/sdk";
+} from "@vitest-agent/engine";
 import { Effect, Option } from "effect";
 
 /**

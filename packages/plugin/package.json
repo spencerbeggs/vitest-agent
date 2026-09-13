@@ -35,6 +35,7 @@
 		"@effect/sql-sqlite-node": "catalog:effect",
 		"@effected/workspaces": "catalog:effected",
 		"@vitest-agent/cli": "workspace:*",
+		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/mcp": "workspace:*",
 		"@vitest-agent/reporter": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",

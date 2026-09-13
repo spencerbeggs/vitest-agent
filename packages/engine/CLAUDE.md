@@ -6,9 +6,14 @@ the platform-free core (schemas, contracts, pure utilities); this package holds 
 touches a filesystem, a process, or SQLite. Both `@vitest-agent/cli` and `@vitest-agent/mcp`
 import it.
 
-Currently a scaffold — this task only stands up the package shape (build,
-typecheck, test discovery, docs-model slot); a later task moves the
-actual services/layers/migrations code over from `@vitest-agent/sdk`.
+Layout (`src/`): `services/` (Context tags), `layers/` (Live/Test layers),
+`sql/` (row shapes + assemblers), `migrations/` (`PROJECT_MIGRATIONS` and the
+registry / session-map sets), `lib/` (`formatTriageEffect` / `formatWrapupEffect`),
+`utils/` (`ensureMigrated`, `resolveDataPath`, `resolveProjectKeyFromCwd`,
+`resolveWorkspaceKey`, `computeFailureSignature`), and `testing/` (the
+`@vitest-agent/engine/testing` subpath: `makeTestLayer`, `DataStoreTestLayer`,
+preset factories). Core types come in only through `import … from "@vitest-agent/sdk"`
+— never by relative path across the package boundary.
 
 **Rule: no `process` reads anywhere under `src/`.** No allowlist —
 enforced by a boundary test added later. Platform reads go through

@@ -12,7 +12,7 @@
  * Vitest spawn is verified by manual smoke run).
  */
 
-import { DataStore } from "@vitest-agent/sdk";
+import { DataStore } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { describe, expect } from "vitest";
 import type { McpContext } from "../../src/context.js";

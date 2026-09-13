@@ -6,7 +6,7 @@
  */
 
 import * as fs from "node:fs";
-import { EnvironmentDetectorTest } from "@vitest-agent/sdk";
+import { EnvironmentDetectorTest } from "@vitest-agent/engine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VitestPluginContext } from "vitest/node";
 import { AgentPlugin } from "../src/plugin.js";

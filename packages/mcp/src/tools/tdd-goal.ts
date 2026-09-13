@@ -8,7 +8,8 @@
  * the shared helper.
  */
 
-import { DataReader, DataStore, GoalDetail, GoalRow } from "@vitest-agent/sdk";
+import { DataReader, DataStore } from "@vitest-agent/engine";
+import { GoalDetail, GoalRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";

@@ -9,8 +9,8 @@
  * @packageDocumentation
  */
 
-import type { NoteInput } from "@vitest-agent/sdk";
-import { DataReader, DataStore } from "@vitest-agent/sdk";
+import type { NoteInput } from "@vitest-agent/engine";
+import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 

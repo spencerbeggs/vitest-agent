@@ -1,8 +1,8 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
-import type { DataReader, DataStore } from "@vitest-agent/sdk";
-import { DataReaderLive, DataReader as DataReaderTag, DataStoreLive, migration0001 } from "@vitest-agent/sdk";
+import type { DataReader, DataStore } from "@vitest-agent/engine";
+import { DataReaderLive, DataReader as DataReaderTag, DataStoreLive, migration0001 } from "@vitest-agent/engine";
 import { Effect, Layer } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect, it } from "vitest";

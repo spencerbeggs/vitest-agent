@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DataReader, DataStore } from "@vitest-agent/sdk";
+import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
 import { McpLive } from "../src/layers/McpLive.js";

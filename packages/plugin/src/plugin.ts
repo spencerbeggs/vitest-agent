@@ -2,6 +2,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { EnvironmentDetector, EnvironmentDetectorLive, resolveLogLevel } from "@vitest-agent/engine";
 import type {
 	AgentPluginOptions,
 	ConsoleMode,
@@ -17,14 +18,11 @@ import {
 	AgentConsoleMode,
 	CiConsoleMode,
 	CoverageLevel,
-	EnvironmentDetector,
-	EnvironmentDetectorLive,
 	HumanConsoleMode,
 	SRC_DIR,
 	TEST_DIR,
 	formatFatalError,
 	isTestFileName,
-	resolveLogLevel,
 } from "@vitest-agent/sdk";
 import type { Layer } from "effect";
 import { Effect, Schema } from "effect";

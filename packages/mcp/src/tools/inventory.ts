@@ -11,7 +11,7 @@
  * @packageDocumentation
  */
 
-import { DataReader } from "@vitest-agent/sdk";
+import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";

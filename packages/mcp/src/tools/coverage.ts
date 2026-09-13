@@ -4,8 +4,9 @@
  * @packageDocumentation
  */
 
+import { DataReader } from "@vitest-agent/engine";
 import type { FileCoverageReport } from "@vitest-agent/sdk";
-import { CoverageReport, DataReader } from "@vitest-agent/sdk";
+import { CoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 

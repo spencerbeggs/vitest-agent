@@ -1,4 +1,4 @@
-import { DataReader, DataStore } from "@vitest-agent/sdk";
+import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect } from "effect";
 
 export interface RecordSessionStartInput {

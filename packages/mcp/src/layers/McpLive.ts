@@ -8,7 +8,7 @@ import {
 	OutputPipelineLive,
 	PROJECT_MIGRATIONS,
 	ProjectDiscoveryLive,
-} from "@vitest-agent/sdk";
+} from "@vitest-agent/engine";
 import type { LogLevel } from "effect";
 import { Layer } from "effect";
 

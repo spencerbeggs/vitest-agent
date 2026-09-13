@@ -9,7 +9,8 @@
  * @packageDocumentation
  */
 
-import { DataReader, DataStore, DataStoreError } from "@vitest-agent/sdk";
+import { DataReader, DataStore } from "@vitest-agent/engine";
+import { DataStoreError } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 

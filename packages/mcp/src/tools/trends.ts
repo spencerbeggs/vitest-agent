@@ -9,7 +9,8 @@
  * @packageDocumentation
  */
 
-import { DataReader, TrendRecord } from "@vitest-agent/sdk";
+import { DataReader } from "@vitest-agent/engine";
+import { TrendRecord } from "@vitest-agent/sdk";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
 import { publicProcedure } from "../context.js";
 

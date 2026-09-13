@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/sdk";
+import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import type { McpContext } from "../src/context.js";

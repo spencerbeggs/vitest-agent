@@ -32,12 +32,8 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { findWorkspaceRootSync, getWorkspacePackagesSync } from "@effected/workspaces";
 import { nodeSyncOps } from "@effected/workspaces/node-sync";
-import {
-	classifyTestPath,
-	detectNonDefaultDiscoverStrategy,
-	findOwningWorkspace,
-	resolveProjectKeyFromCwd,
-} from "@vitest-agent/sdk";
+import { resolveProjectKeyFromCwd } from "@vitest-agent/engine";
+import { classifyTestPath, detectNonDefaultDiscoverStrategy, findOwningWorkspace } from "@vitest-agent/sdk";
 import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 import { Cause, Effect, Option } from "effect";

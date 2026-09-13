@@ -11,7 +11,8 @@
  * @packageDocumentation
  */
 
-import { DataReader, DataStore, GoalDetail } from "@vitest-agent/sdk";
+import { DataReader, DataStore } from "@vitest-agent/engine";
+import { GoalDetail } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
 import { idempotentProcedure } from "../middleware/idempotency.js";
 

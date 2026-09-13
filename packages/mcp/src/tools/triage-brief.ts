@@ -9,7 +9,7 @@
  * @packageDocumentation
  */
 
-import { formatTriageEffect } from "@vitest-agent/sdk";
+import { formatTriageEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 

@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-import { formatWrapupEffect } from "@vitest-agent/sdk";
+import { formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
 import { publicProcedure } from "../context.js";
 

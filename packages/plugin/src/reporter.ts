@@ -2,27 +2,13 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { NodeServices } from "@effect/platform-node";
-import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
 import type {
-	AgentReport,
-	AgentReporterOptions,
-	ConsoleMode,
-	CoverageBaselines,
-	OutputFormat,
-	ResolvedReporterConfig,
-	ResolvedThresholds,
-	RunEvent,
 	TestAnnotationInput,
 	TestArtifactInput,
 	TestAttachmentInput,
-	TestClassification,
 	TestErrorInput,
 	TestOutcome,
-	Transport,
-	VitestAgentReporter,
-	VitestAgentReporterFactory,
-	VitestTestModule,
-} from "@vitest-agent/sdk";
+} from "@vitest-agent/engine";
 import {
 	DataReader,
 	DataStore,
@@ -33,17 +19,35 @@ import {
 	HistoryTracker,
 	OutputPipelineLive,
 	PathResolutionLive,
-	buildAgentReport,
-	coerceErrorField,
-	computeTrend,
 	ensureMigrated,
-	formatFatalError,
 	historyKey,
-	isTimeoutError,
-	probeHostMetadataFromEnv,
 	resolveDataPath,
 	resolveLogFile,
 	resolveLogLevel,
+} from "@vitest-agent/engine";
+import { DefaultVitestAgentReporter } from "@vitest-agent/reporter";
+import type {
+	AgentReport,
+	AgentReporterOptions,
+	ConsoleMode,
+	CoverageBaselines,
+	OutputFormat,
+	ResolvedReporterConfig,
+	ResolvedThresholds,
+	RunEvent,
+	TestClassification,
+	Transport,
+	VitestAgentReporter,
+	VitestAgentReporterFactory,
+	VitestTestModule,
+} from "@vitest-agent/sdk";
+import {
+	buildAgentReport,
+	coerceErrorField,
+	computeTrend,
+	formatFatalError,
+	isTimeoutError,
+	probeHostMetadataFromEnv,
 } from "@vitest-agent/sdk";
 import type { LogLevel } from "effect";
 import { Effect, Option, PubSub } from "effect";

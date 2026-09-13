@@ -4,7 +4,7 @@
  * executors (agent, ci) and OFF for a human at a terminal.
  */
 
-import { EnvironmentDetectorTest } from "@vitest-agent/sdk";
+import { EnvironmentDetectorTest } from "@vitest-agent/engine";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { VitestPluginContext } from "vitest/node";
 import { AgentPlugin } from "../src/plugin.js";

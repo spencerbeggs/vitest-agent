@@ -9,7 +9,7 @@
  * and that the structured payload round-trips the InventoryResult schema.
  */
 
-import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/sdk";
+import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { McpContext } from "../src/context.js";

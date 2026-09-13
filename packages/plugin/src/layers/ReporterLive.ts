@@ -8,7 +8,7 @@ import {
 	LoggerLive,
 	OutputPipelineLive,
 	PROJECT_MIGRATIONS,
-} from "@vitest-agent/sdk";
+} from "@vitest-agent/engine";
 import type { LogLevel } from "effect";
 import { Layer } from "effect";
 import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";

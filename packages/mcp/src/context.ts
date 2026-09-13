@@ -1,5 +1,5 @@
 import { initTRPC } from "@trpc/server";
-import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/sdk";
+import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/engine";
 import type { ManagedRuntime } from "effect";
 import { MutableRef } from "effect";
 

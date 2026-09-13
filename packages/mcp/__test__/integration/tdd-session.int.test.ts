@@ -1,4 +1,4 @@
-import { DataStore } from "@vitest-agent/sdk";
+import { DataStore } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { SqlClient } from "effect/unstable/sql/SqlClient";
 import { describe, expect } from "vitest";

@@ -8,8 +8,9 @@
  * @packageDocumentation
  */
 
-import type { ArtifactKind, ArtifactSuite, ChangeKind, RunInvocationMethod } from "@vitest-agent/sdk";
-import { DataReader, DataStore } from "@vitest-agent/sdk";
+import type { ChangeKind, RunInvocationMethod } from "@vitest-agent/engine";
+import { DataReader, DataStore } from "@vitest-agent/engine";
+import type { ArtifactKind, ArtifactSuite } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { recordSessionEnd, recordSessionStart } from "../lib/record-session.js";
