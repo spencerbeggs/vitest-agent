@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/engine",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"private": true,
 	"description": "Shared services, layers, SQLite data layer, migrations and platform resolution for the vitest-agent CLI and MCP server.",
 	"keywords": ["vitest", "agent", "shared", "effect", "sqlite"],

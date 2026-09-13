@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/sdk",
-	"version": "3.1.2",
+	"version": "4.0.0",
 	"private": true,
 	"description": "Platform-free core for the vitest-agent package family: Effect Schema definitions, reporter and dispatcher contracts, errors, formatters, and pure utilities.",
 	"keywords": ["vitest", "agent", "shared", "effect", "sqlite"],

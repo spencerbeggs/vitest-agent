@@ -1,5 +1,23 @@
 # @vitest-agent/sidecar-linux-x64
 
+## 2.1.20
+
+### Bug Fixes
+
+- The SEA entry point now passes `process.cwd()`, `process.env`, and a `readFileSync` wrapper into the pure `dispatch` from `@vitest-agent/sdk/dispatch`, matching the sdk's new explicit I/O contract. The binary's CLI surface is unchanged. [#420][#420]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 3.1.2 | 4.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#420]: https://github.com/spencerbeggs/vitest-agent/pull/420
+
 ## 2.1.19
 
 ### Dependencies
