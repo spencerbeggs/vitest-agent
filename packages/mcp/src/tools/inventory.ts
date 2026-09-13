@@ -13,6 +13,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
 
@@ -243,26 +245,39 @@ export const InventoryAsMarkdown = InventoryResult.pipe(
 const ProjectVariant = Schema.Struct({ kind: Schema.Literal("project") });
 const ModuleVariant = Schema.Struct({
 	kind: Schema.Literal("module"),
-	project: Schema.optional(Schema.String),
+	project: Schema.optionalKey(Schema.String),
 });
 const SuiteVariant = Schema.Struct({
 	kind: Schema.Literal("suite"),
-	project: Schema.optional(Schema.String),
-	module: Schema.optional(Schema.String),
+	project: Schema.optionalKey(Schema.String),
+	module: Schema.optionalKey(Schema.String),
 });
 const SessionVariant = Schema.Struct({
 	kind: Schema.Literal("session"),
-	id: Schema.optional(Schema.Number),
-	project: Schema.optional(Schema.String),
-	agentKind: Schema.optional(Schema.Literals(["main", "subagent"])),
-	limit: Schema.optional(Schema.Number),
+	id: Schema.optionalKey(Schema.Finite),
+	project: Schema.optionalKey(Schema.String),
+	agentKind: Schema.optionalKey(Schema.Literals(["main", "subagent"])),
+	limit: Schema.optionalKey(Schema.Finite),
 });
 const TagVariant = Schema.Struct({
 	kind: Schema.Literal("tag"),
-	project: Schema.optional(Schema.String),
+	project: Schema.optionalKey(Schema.String),
 });
 
-const InventoryInput = Schema.Union([ProjectVariant, ModuleVariant, SuiteVariant, SessionVariant, TagVariant]);
+/**
+ * The `inventory` tool's parameters — a union discriminated on `kind`.
+ * The served JSON Schema is a `oneOf` over the variants with
+ * `x-discriminator: "kind"`.
+ *
+ * @public
+ */
+export const InventoryInput = Schema.Union([ProjectVariant, ModuleVariant, SuiteVariant, SessionVariant, TagVariant]);
+/**
+ * The decoded {@link InventoryInput}.
+ *
+ * @public
+ */
+export type InventoryInputType = Schema.Schema.Type<typeof InventoryInput>;
 
 /**
  * Single source of truth for the `inventory` tool's `kind` discriminant,
@@ -279,126 +294,151 @@ type _AssertInventoryKinds = InventoryKindInput extends (typeof INVENTORY_KINDS)
 const _assertInventoryKinds: _AssertInventoryKinds = true;
 void _assertInventoryKinds;
 
-export const inventory = publicProcedure
-	.input(Schema.toStandardSchemaV1(InventoryInput))
-	.query(async ({ ctx, input }): Promise<InventoryResultType> => {
-		return ctx.runtime.runPromise(
-			Match.value(input).pipe(
-				Match.discriminatorsExhaustive("kind")({
-					project: () =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const projects = yield* reader.getRunsByProject();
+/**
+ * Handler for {@link inventoryTool}.
+ *
+ * @public
+ */
+export const handleInventory = (input: InventoryInputType): Effect.Effect<InventoryResultType, never, DataReader> =>
+	Match.value(input)
+		.pipe(
+			Match.discriminatorsExhaustive("kind")({
+				project: () =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const projects = yield* reader.getRunsByProject();
+						return {
+							inventoryKind: "project" as const,
+							count: projects.length,
+							projects: projects.map((p) => ({
+								project: p.project,
+								lastRun: p.lastRun,
+								lastResult: p.lastResult,
+								total: p.total,
+								passed: p.passed,
+								failed: p.failed,
+								skipped: p.skipped,
+							})),
+						};
+					}),
+				module: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const targets = yield* resolveProjectTargets(variant.project, () => reader.getRunsByProject());
+						const grouped = yield* collectProjectRows(targets, (project) => reader.listModules(project));
+						return {
+							inventoryKind: "module" as const,
+							count: grouped.total,
+							groups: grouped.groups.map((group) => ({ project: group.project, modules: group.rows })),
+						};
+					}),
+				suite: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						const opts: { module?: string } = {};
+						if (variant.module !== undefined) opts.module = variant.module;
+						const targets = yield* resolveProjectTargets(variant.project, () => reader.getRunsByProject());
+						const grouped = yield* collectProjectRows(targets, (project) => reader.listSuites(project, opts));
+						return {
+							inventoryKind: "suite" as const,
+							count: grouped.total,
+							groups: grouped.groups.map((group) => ({ project: group.project, suites: group.rows })),
+						};
+					}),
+				session: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						if (variant.id !== undefined) {
+							const opt = yield* reader.getSessionById(variant.id);
+							return Option.isNone(opt)
+								? { inventoryKind: "session_detail" as const, found: false as const, id: variant.id }
+								: { inventoryKind: "session_detail" as const, found: true as const, session: opt.value };
+						}
+						const rows = yield* reader.listSessions({
+							...(variant.project !== undefined && { project: variant.project }),
+							...(variant.agentKind !== undefined && { agentKind: variant.agentKind }),
+							...(variant.limit !== undefined && { limit: variant.limit }),
+						});
+						return { inventoryKind: "session_list" as const, count: rows.length, sessions: rows };
+					}),
+				tag: (variant) =>
+					Effect.gen(function* () {
+						const reader = yield* DataReader;
+						if (variant.project !== undefined) {
+							const rows = yield* reader.listTagInventory({ project: variant.project });
 							return {
-								inventoryKind: "project" as const,
-								count: projects.length,
-								projects: projects.map((p) => ({
-									project: p.project,
-									lastRun: p.lastRun,
-									lastResult: p.lastResult,
-									total: p.total,
-									passed: p.passed,
-									failed: p.failed,
-									skipped: p.skipped,
-								})),
-							};
-						}),
-					module: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const targets = yield* resolveProjectTargets(variant.project, () => reader.getRunsByProject());
-							const grouped = yield* collectProjectRows(targets, (project) => reader.listModules(project));
-							return {
-								inventoryKind: "module" as const,
-								count: grouped.total,
-								groups: grouped.groups.map((group) => ({ project: group.project, modules: group.rows })),
-							};
-						}),
-					suite: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							const opts: { module?: string } = {};
-							if (variant.module !== undefined) opts.module = variant.module;
-							const targets = yield* resolveProjectTargets(variant.project, () => reader.getRunsByProject());
-							const grouped = yield* collectProjectRows(targets, (project) => reader.listSuites(project, opts));
-							return {
-								inventoryKind: "suite" as const,
-								count: grouped.total,
-								groups: grouped.groups.map((group) => ({ project: group.project, suites: group.rows })),
-							};
-						}),
-					session: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							if (variant.id !== undefined) {
-								const opt = yield* reader.getSessionById(variant.id);
-								return Option.isNone(opt)
-									? { inventoryKind: "session_detail" as const, found: false as const, id: variant.id }
-									: { inventoryKind: "session_detail" as const, found: true as const, session: opt.value };
-							}
-							const rows = yield* reader.listSessions({
-								...(variant.project !== undefined && { project: variant.project }),
-								...(variant.agentKind !== undefined && { agentKind: variant.agentKind }),
-								...(variant.limit !== undefined && { limit: variant.limit }),
-							});
-							return { inventoryKind: "session_list" as const, count: rows.length, sessions: rows };
-						}),
-					tag: (variant) =>
-						Effect.gen(function* () {
-							const reader = yield* DataReader;
-							if (variant.project !== undefined) {
-								const rows = yield* reader.listTagInventory({ project: variant.project });
-								return {
-									inventoryKind: "tag_scoped" as const,
-									project: variant.project,
-									count: rows.length,
-									tags: rows.map((r) => ({
-										tag: r.tag,
-										moduleCount: r.moduleCount,
-										testCount: r.testCount,
-									})),
-								};
-							}
-							// Unscoped: pivot the flat (tag, project) rows into one row per tag
-							// with an inline byProject breakdown and aggregated counts.
-							const rows = yield* reader.listTagInventory();
-							const byTag = new Map<
-								string,
-								{
-									moduleCount: number;
-									testCount: number;
-									byProject: Array<{ project: string; moduleCount: number; testCount: number }>;
-								}
-							>();
-							for (const r of rows) {
-								let entry = byTag.get(r.tag);
-								if (entry === undefined) {
-									entry = { moduleCount: 0, testCount: 0, byProject: [] };
-									byTag.set(r.tag, entry);
-								}
-								entry.moduleCount += r.moduleCount;
-								entry.testCount += r.testCount;
-								entry.byProject.push({
-									project: r.project,
+								inventoryKind: "tag_scoped" as const,
+								project: variant.project,
+								count: rows.length,
+								tags: rows.map((r) => ({
+									tag: r.tag,
 									moduleCount: r.moduleCount,
 									testCount: r.testCount,
-								});
-							}
-							const tags = Array.from(byTag.entries())
-								.sort(([a], [b]) => a.localeCompare(b))
-								.map(([tag, e]) => ({
-									tag,
-									moduleCount: e.moduleCount,
-									testCount: e.testCount,
-									byProject: e.byProject,
-								}));
-							return {
-								inventoryKind: "tag_unscoped" as const,
-								count: tags.length,
-								tags,
+								})),
 							};
-						}),
-				}),
-			),
-		);
-	});
+						}
+						// Unscoped: pivot the flat (tag, project) rows into one row per tag
+						// with an inline byProject breakdown and aggregated counts.
+						const rows = yield* reader.listTagInventory();
+						const byTag = new Map<
+							string,
+							{
+								moduleCount: number;
+								testCount: number;
+								byProject: Array<{ project: string; moduleCount: number; testCount: number }>;
+							}
+						>();
+						for (const r of rows) {
+							let entry = byTag.get(r.tag);
+							if (entry === undefined) {
+								entry = { moduleCount: 0, testCount: 0, byProject: [] };
+								byTag.set(r.tag, entry);
+							}
+							entry.moduleCount += r.moduleCount;
+							entry.testCount += r.testCount;
+							entry.byProject.push({
+								project: r.project,
+								moduleCount: r.moduleCount,
+								testCount: r.testCount,
+							});
+						}
+						const tags = Array.from(byTag.entries())
+							.sort(([a], [b]) => a.localeCompare(b))
+							.map(([tag, e]) => ({
+								tag,
+								moduleCount: e.moduleCount,
+								testCount: e.testCount,
+								byProject: e.byProject,
+							}));
+						return {
+							inventoryKind: "tag_unscoped" as const,
+							count: tags.length,
+							tags,
+						};
+					}),
+			}),
+		)
+		.pipe(Effect.orDie);
+
+export const inventory = publicProcedure
+	.input(Schema.toStandardSchemaV1(InventoryInput))
+	.query(({ ctx, input }): Promise<InventoryResultType> => ctx.runtime.runPromise(handleInventory(input)));
+
+/**
+ * The Effect-native `inventory` tool.
+ *
+ * @public
+ */
+export const inventoryTool = Tool.make("inventory", {
+	description:
+		"Use to discover what exists in the workspace, with a kind discriminator: project / module / suite / session / tag. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list, tag_scoped, tag_unscoped) so callers can branch on the response shape without parsing markdown.",
+	parameters: InventoryInput,
+	success: InventoryResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Inventory")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatInventoryMarkdown(encoded as InventoryResultType));

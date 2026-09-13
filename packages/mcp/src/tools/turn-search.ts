@@ -58,14 +58,14 @@ export const TurnSearchAsMarkdown = TurnSearchResult.pipe(
  * @public
  */
 export const TurnSearchInput = Schema.Struct({
-	sessionId: Schema.optionalKey(Schema.Number).annotate({ description: "Filter to a specific session id" }),
+	sessionId: Schema.optionalKey(Schema.Finite).annotate({ description: "Filter to a specific session id" }),
 	since: Schema.optionalKey(Schema.String).annotate({
 		description: "ISO 8601 cutoff — return turns after this timestamp",
 	}),
 	type: Schema.optionalKey(
 		Schema.Literals(["user_prompt", "tool_call", "tool_result", "file_edit", "hook_fire", "note", "hypothesis"]),
 	).annotate({ description: "Filter by turn type" }),
-	limit: Schema.optionalKey(Schema.Number).annotate({ description: "Max turns to return (default 100)" }),
+	limit: Schema.optionalKey(Schema.Finite).annotate({ description: "Max turns to return (default 100)" }),
 });
 /**
  * The decoded {@link TurnSearchInput}.

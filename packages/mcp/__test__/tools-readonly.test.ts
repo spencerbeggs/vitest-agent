@@ -11,11 +11,14 @@ import { describe, expect, it } from "vitest";
 import type { HarnessOptions, McpHarness, McpToolDescriptor } from "./utils/harness.js";
 import { makeHarness } from "./utils/harness.js";
 import {
+	SEED_CHAT_ID,
 	SEED_COMMIT_SHA,
 	SEED_ERROR_FULL_NAME,
 	SEED_ERROR_PROJECT,
+	SEED_MODULE,
 	SEED_PROJECT,
 	SEED_SETTINGS_HASH,
+	SEED_SIGNATURE_HASH,
 	SEED_SOURCE_FILE,
 	seedReadonlyFixture,
 } from "./utils/seed.js";
@@ -52,10 +55,25 @@ const READONLY_TOOLS = [
 	"configure",
 	"commit_changes",
 	"turn_search",
+	"failure_signature_get",
+	"acceptance_metrics",
+	"triage_brief",
+	"wrapup_prompt",
+	"inventory",
+	"test",
 ] as const;
 
 /** Result schemas that are a single `Schema.Struct` — these list an `outputSchema`. */
-const STRUCT_RESULT_TOOLS = ["test_history", "test_errors", "settings_list", "commit_changes", "turn_search"] as const;
+const STRUCT_RESULT_TOOLS = [
+	"test_history",
+	"test_errors",
+	"settings_list",
+	"commit_changes",
+	"turn_search",
+	"acceptance_metrics",
+	"triage_brief",
+	"wrapup_prompt",
+] as const;
 /** Result schemas that are a `Schema.Union` — no `outputSchema` (a `oneOf` root is not `type: object`). */
 const UNION_RESULT_TOOLS = [
 	"test_status",
@@ -65,6 +83,9 @@ const UNION_RESULT_TOOLS = [
 	"file_coverage",
 	"cache_health",
 	"configure",
+	"failure_signature_get",
+	"inventory",
+	"test",
 ] as const;
 
 describe("read-only tools: tools/list", () => {
@@ -370,5 +391,233 @@ describe("turn_search", () => {
 	it("rejects an unknown turn type", async () => {
 		const result = await call("turn_search", { type: "bogus" });
 		expect(result.isError).toBe(true);
+	});
+});
+
+describe("failure_signature_get", () => {
+	it("returns found=true with the matching signatureHash so callers preserve it under clipping", async () => {
+		const result = await call("failure_signature_get", { hash: SEED_SIGNATURE_HASH }, SEEDED);
+		expect(result.structuredContent?.found).toBe(true);
+		expect(result.structuredContent?.signatureHash).toBe(SEED_SIGNATURE_HASH);
+		expect(result.structuredContent?.occurrenceCount).toBe(1);
+		expect(text(result)).toContain(`# Failure Signature \`${SEED_SIGNATURE_HASH}\``);
+	});
+
+	it("returns found=false with the requested hash when nothing matches", async () => {
+		const result = await call("failure_signature_get", { hash: "0000000000000000" });
+		expect(result.structuredContent).toEqual({ found: false, requestedHash: "0000000000000000" });
+		expect(text(result)).toBe("No failure signature found with hash=0000000000000000.");
+	});
+
+	it("rejects a missing hash", async () => {
+		const result = await call("failure_signature_get", {});
+		expect(result.isError).toBe(true);
+	});
+});
+
+describe("acceptance_metrics", () => {
+	it("returns the four metric buckets and the numbered markdown", async () => {
+		const result = await call("acceptance_metrics", {});
+		expect(Object.keys(result.structuredContent ?? {}).sort()).toEqual([
+			"antiPatternDetectionRate",
+			"complianceHookResponsiveness",
+			"orientationUsefulness",
+			"phaseEvidenceIntegrity",
+		]);
+		const bucket = result.structuredContent?.phaseEvidenceIntegrity as { total: number; ratio: number };
+		expect(bucket.total).toBe(0);
+		expect(text(result)).toContain("# Acceptance metrics");
+		expect(text(result)).toContain("1. Phase-evidence integrity: no data — target ≥80%");
+	});
+});
+
+describe("triage_brief", () => {
+	it("renders either the cold-start hint or a real triage brief on an empty DB", async () => {
+		const result = await call("triage_brief", {});
+		expect(typeof result.structuredContent?.hasContent).toBe("boolean");
+		expect(result.structuredContent?.markdown).toMatch(/No orientation signal|orientation triage|Recent Test Runs/i);
+		expect(text(result)).toBe(result.structuredContent?.markdown);
+	});
+
+	it("includes content when test runs are seeded and renders markdown as the text channel", async () => {
+		const result = await call("triage_brief", { project: SEED_PROJECT }, SEEDED);
+		expect(result.structuredContent?.hasContent).toBe(true);
+		const markdown = result.structuredContent?.markdown as string;
+		expect(markdown.length).toBeGreaterThan(0);
+		expect(text(result)).toBe(markdown);
+	});
+});
+
+describe("wrapup_prompt", () => {
+	it("returns hasContent=false for an unknown session", async () => {
+		const result = await call("wrapup_prompt", {});
+		expect(result.structuredContent?.hasContent).toBe(false);
+		expect(result.structuredContent?.kind).toBe("session_end");
+		expect(result.structuredContent?.markdown).toMatch(/Nothing to wrap up|no recent activity/i);
+		expect(text(result)).toBe(result.structuredContent?.markdown);
+	});
+
+	it("emits a failure-prompt nudge for the user_prompt_nudge variant", async () => {
+		const result = await call("wrapup_prompt", {
+			kind: "user_prompt_nudge",
+			userPromptHint: "fix the broken test in foo.test.ts",
+		});
+		expect(result.structuredContent?.kind).toBe("user_prompt_nudge");
+		expect(text(result)).toContain("test_history");
+		expect(text(result)).toContain("failure_signature_get");
+	});
+
+	it("rejects an unknown kind", async () => {
+		const result = await call("wrapup_prompt", { kind: "bogus" });
+		expect(result.isError).toBe(true);
+	});
+});
+
+describe("inventory", () => {
+	it("serves a oneOf discriminated on kind", async () => {
+		const tools = await listTools();
+		const inventory = tools.find((t) => t.name === "inventory");
+		expect(inventory?.inputSchema["x-discriminator"]).toBe("kind");
+		expect(Array.isArray(inventory?.inputSchema.oneOf)).toBe(true);
+	});
+
+	it("project returns the inventoryKind discriminant", async () => {
+		const result = await call("inventory", { kind: "project" }, SEEDED);
+		expect(result.structuredContent?.inventoryKind).toBe("project");
+		expect(result.structuredContent?.count).toBe(2);
+		expect(text(result)).toContain("## Projects");
+	});
+
+	it("module returns the inventoryKind discriminant", async () => {
+		const result = await call("inventory", { kind: "module", project: SEED_PROJECT }, SEEDED);
+		expect(result.structuredContent?.inventoryKind).toBe("module");
+		expect(result.structuredContent?.count).toBe(1);
+		expect(text(result)).toContain(`| ${SEED_MODULE} |`);
+	});
+
+	it("suite returns the inventoryKind discriminant", async () => {
+		const result = await call("inventory", { kind: "suite", project: SEED_PROJECT }, SEEDED);
+		expect(result.structuredContent?.inventoryKind).toBe("suite");
+		expect(text(result)).toContain("## Suites");
+	});
+
+	it("session lists the seeded session and looks one up by id", async () => {
+		const list = await call("inventory", { kind: "session" }, SEEDED);
+		expect(list.structuredContent?.inventoryKind).toBe("session_list");
+		const sessions = list.structuredContent?.sessions as Array<{ id: number; chatId: string }>;
+		expect(sessions.map((s) => s.chatId)).toEqual([SEED_CHAT_ID]);
+		const missing = await call("inventory", { kind: "session", id: 9999 }, SEEDED);
+		expect(missing.structuredContent).toEqual({ inventoryKind: "session_detail", found: false, id: 9999 });
+		expect(text(missing)).toBe("No session with id=9999.");
+	});
+
+	it("tag unscoped returns tag_unscoped with count 0 when no tags are recorded", async () => {
+		const result = await call("inventory", { kind: "tag" }, SEEDED);
+		expect(result.structuredContent).toEqual({ inventoryKind: "tag_unscoped", count: 0, tags: [] });
+		expect(text(result)).toBe("No tags recorded. Run run_tests({}) to populate.");
+	});
+
+	it("rejects an unknown kind and a key that belongs to another variant", async () => {
+		const unknownKind = await call("inventory", { kind: "bogus" });
+		expect(unknownKind.isError).toBe(true);
+		const foreignKey = await call("inventory", { kind: "project", module: "x" });
+		expect(foreignKey.isError).toBe(true);
+		expect(text(foreignKey)).toContain("Unrecognized parameter(s): module");
+	});
+});
+
+describe("test", () => {
+	it("serves a oneOf discriminated on action", async () => {
+		const tools = await listTools();
+		const test = tools.find((t) => t.name === "test");
+		expect(test?.inputSchema["x-discriminator"]).toBe("action");
+	});
+
+	it("list returns a structured groups envelope", async () => {
+		const result = await call("test", { action: "list", project: SEED_PROJECT }, SEEDED);
+		expect(result.structuredContent?.action).toBe("list");
+		expect(result.structuredContent?.count).toBe(2);
+		expect(text(result)).toContain("utils > adds numbers");
+	});
+
+	it("get returns the structured test row for a known test", async () => {
+		const result = await call(
+			"test",
+			{ action: "get", fullName: "utils > adds numbers", project: SEED_PROJECT },
+			SEEDED,
+		);
+		expect(result.structuredContent?.action).toBe("get");
+		expect(result.structuredContent?.found).toBe(true);
+		const row = result.structuredContent?.test as { fullName: string; state: string; module: string };
+		expect(row).toMatchObject({ fullName: "utils > adds numbers", state: "passed", module: SEED_MODULE });
+	});
+
+	it("get returns found=false for an unknown test", async () => {
+		const result = await call("test", { action: "get", fullName: "nonexistent > test", project: SEED_PROJECT }, SEEDED);
+		expect(result.structuredContent?.action).toBe("get");
+		expect(result.structuredContent?.found).toBe(false);
+	});
+
+	it("for_file returns count=0 and an empty testFiles[] for an unknown file", async () => {
+		const result = await call("test", { action: "for_file", filePath: "nonexistent.ts" });
+		expect(result.structuredContent).toEqual({
+			action: "for_file",
+			filePath: "nonexistent.ts",
+			count: 0,
+			testFiles: [],
+		});
+		expect(text(result)).toContain("No test modules found covering `nonexistent.ts`.");
+	});
+
+	it("for_tag returns an empty grouped envelope when no test carries the tag", async () => {
+		const result = await call("test", { action: "for_tag", tag: "unit" }, SEEDED);
+		expect(result.structuredContent).toMatchObject({ action: "for_tag", tag: "unit", count: 0, groups: [] });
+	});
+
+	it("annotations returns an empty, counted payload for a test that recorded nothing", async () => {
+		const result = await call(
+			"test",
+			{ action: "annotations", fullName: "utils > adds numbers", project: SEED_PROJECT },
+			SEEDED,
+		);
+		expect(result.structuredContent).toEqual({
+			action: "annotations",
+			project: SEED_PROJECT,
+			fullName: "utils > adds numbers",
+			count: 0,
+			annotations: [],
+		});
+	});
+
+	it("annotations returns the recorded annotation descriptors", async () => {
+		const result = await call(
+			"test",
+			{ action: "annotations", fullName: SEED_ERROR_FULL_NAME, project: SEED_ERROR_PROJECT },
+			SEEDED,
+		);
+		expect(result.structuredContent?.count).toBe(1);
+		const rows = result.structuredContent?.annotations as Array<{ type: string; message: string }>;
+		expect(rows[0]).toMatchObject({ type: "issues", message: "flaky under load" });
+	});
+
+	it("artifacts returns an empty, counted payload for a test with none", async () => {
+		const result = await call(
+			"test",
+			{ action: "artifacts", fullName: "utils > adds numbers", project: SEED_PROJECT, maxBytes: 0 },
+			SEEDED,
+		);
+		expect(result.structuredContent).toMatchObject({ action: "artifacts", count: 0, artifacts: [] });
+	});
+
+	it("rejects a negative maxBytes, an unknown action, a missing required key and a foreign key", async () => {
+		const negative = await call("test", { action: "artifacts", fullName: "x", maxBytes: -1 });
+		expect(negative.isError).toBe(true);
+		const unknownAction = await call("test", { action: "bogus" });
+		expect(unknownAction.isError).toBe(true);
+		const missing = await call("test", { action: "get" });
+		expect(missing.isError).toBe(true);
+		const foreign = await call("test", { action: "for_file", filePath: "a.ts", tag: "x" });
+		expect(foreign.isError).toBe(true);
+		expect(text(foreign)).toContain("Unrecognized parameter(s): tag");
 	});
 });

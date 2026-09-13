@@ -6,20 +6,26 @@
  */
 
 import { Toolkit } from "effect/unstable/ai";
+import { acceptanceMetricsTool, handleAcceptanceMetrics } from "./tools/acceptance-metrics.js";
 import { cacheHealthTool, handleCacheHealth } from "./tools/cache-health.js";
 import { commitChangesTool, handleCommitChanges } from "./tools/commit-changes.js";
 import { configureTool, handleConfigure } from "./tools/configure.js";
 import { handleTestCoverage, testCoverageTool } from "./tools/coverage.js";
 import { handleTestErrors, testErrorsTool } from "./tools/errors.js";
+import { failureSignatureGetTool, handleFailureSignatureGet } from "./tools/failure-signature-get.js";
 import { fileCoverageTool, handleFileCoverage } from "./tools/file-coverage.js";
 import { handleHelp, helpTool } from "./tools/help.js";
 import { handleTestHistory, testHistoryTool } from "./tools/history.js";
+import { handleInventory, inventoryTool } from "./tools/inventory.js";
 import { handleTestOverview, testOverviewTool } from "./tools/overview.js";
 import { handlePing, pingTool } from "./tools/ping.js";
 import { handleSettingsList, settingsListTool } from "./tools/settings-list.js";
 import { handleTestStatus, testStatusTool } from "./tools/status.js";
+import { handleTest, testTool } from "./tools/test.js";
 import { handleTestTrends, testTrendsTool } from "./tools/trends.js";
+import { handleTriageBrief, triageBriefTool } from "./tools/triage-brief.js";
 import { handleTurnSearch, turnSearchTool } from "./tools/turn-search.js";
+import { handleWrapupPrompt, wrapupPromptTool } from "./tools/wrapup-prompt.js";
 
 /**
  * Every tool the server registers.
@@ -41,6 +47,12 @@ export const Kit = Toolkit.make(
 	configureTool,
 	commitChangesTool,
 	turnSearchTool,
+	failureSignatureGetTool,
+	acceptanceMetricsTool,
+	triageBriefTool,
+	wrapupPromptTool,
+	inventoryTool,
+	testTool,
 );
 
 /**
@@ -63,6 +75,12 @@ export const toolHandlers = {
 	configure: handleConfigure,
 	commit_changes: handleCommitChanges,
 	turn_search: handleTurnSearch,
+	failure_signature_get: handleFailureSignatureGet,
+	acceptance_metrics: handleAcceptanceMetrics,
+	triage_brief: handleTriageBrief,
+	wrapup_prompt: handleWrapupPrompt,
+	inventory: handleInventory,
+	test: handleTest,
 } satisfies Toolkit.HandlersFrom<typeof Kit.tools>;
 
 /**

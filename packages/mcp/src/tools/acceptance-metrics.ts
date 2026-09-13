@@ -11,6 +11,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const totalAnnotation = { description: "Sample size — number of observations the metric ratio is computed over." };
@@ -91,12 +93,36 @@ export const AcceptanceMetricsAsMarkdown = AcceptanceMetricsResult.pipe(
 	}),
 );
 
-export const acceptanceMetrics = publicProcedure.input(Schema.toStandardSchemaV1(Schema.Struct({}))).query(
-	async ({ ctx }): Promise<AcceptanceMetricsResultType> =>
-		ctx.runtime.runPromise(
-			Effect.gen(function* () {
-				const reader = yield* DataReader;
-				return yield* reader.computeAcceptanceMetrics();
-			}),
-		),
-);
+/**
+ * Handler for {@link acceptanceMetricsTool}.
+ *
+ * @public
+ */
+export const handleAcceptanceMetrics = (): Effect.Effect<AcceptanceMetricsResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		return yield* reader.computeAcceptanceMetrics();
+	}).pipe(Effect.orDie);
+
+export const acceptanceMetrics = publicProcedure
+	.input(Schema.toStandardSchemaV1(Schema.Struct({})))
+	.query(({ ctx }): Promise<AcceptanceMetricsResultType> => ctx.runtime.runPromise(handleAcceptanceMetrics()));
+
+/**
+ * The Effect-native `acceptance_metrics` tool. No parameters (the default
+ * `Tool.EmptyParams` serves as a strict empty object).
+ *
+ * @public
+ */
+export const acceptanceMetricsTool = Tool.make("acceptance_metrics", {
+	description:
+		"Use when you need the four spec Annex A acceptance metrics computed from the current database. Returns markdown in content[] and a typed JSON object in structuredContent (per-metric { total, ratio, ... }).",
+	success: AcceptanceMetricsResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Acceptance metrics")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatAcceptanceMetricsMarkdown(encoded as AcceptanceMetricsResultType));

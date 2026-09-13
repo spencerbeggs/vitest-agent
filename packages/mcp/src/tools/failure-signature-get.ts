@@ -6,6 +6,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Tool } from "effect/unstable/ai";
+import { RenderText } from "../annotations.js";
 import { publicProcedure } from "../context.js";
 
 const RecentError = Schema.Struct({
@@ -68,16 +70,58 @@ export const FailureSignatureGetAsMarkdown = FailureSignatureGetResult.pipe(
 	}),
 );
 
+/**
+ * The `failure_signature_get` tool's parameters.
+ *
+ * @public
+ */
+export const FailureSignatureGetInput = Schema.Struct({
+	hash: Schema.String.annotate({ description: "16-char failure signature hash" }),
+});
+/**
+ * The decoded {@link FailureSignatureGetInput}.
+ *
+ * @public
+ */
+export type FailureSignatureGetInputType = Schema.Schema.Type<typeof FailureSignatureGetInput>;
+
+/**
+ * Handler for {@link failureSignatureGetTool}.
+ *
+ * @public
+ */
+export const handleFailureSignatureGet = (
+	input: FailureSignatureGetInputType,
+): Effect.Effect<FailureSignatureGetResultType, never, DataReader> =>
+	Effect.gen(function* () {
+		const reader = yield* DataReader;
+		const opt = yield* reader.getFailureSignatureByHash(input.hash);
+		if (Option.isNone(opt)) return { found: false as const, requestedHash: input.hash };
+		return { found: true as const, ...opt.value };
+	}).pipe(Effect.orDie);
+
 export const failureSignatureGet = publicProcedure
-	.input(Schema.toStandardSchemaV1(Schema.Struct({ hash: Schema.String })))
+	.input(Schema.toStandardSchemaV1(FailureSignatureGetInput))
 	.query(
-		async ({ ctx, input }): Promise<FailureSignatureGetResultType> =>
-			ctx.runtime.runPromise(
-				Effect.gen(function* () {
-					const reader = yield* DataReader;
-					const opt = yield* reader.getFailureSignatureByHash(input.hash);
-					if (Option.isNone(opt)) return { found: false as const, requestedHash: input.hash };
-					return { found: true as const, ...opt.value };
-				}),
-			),
+		({ ctx, input }): Promise<FailureSignatureGetResultType> =>
+			ctx.runtime.runPromise(handleFailureSignatureGet(input)),
 	);
+
+/**
+ * The Effect-native `failure_signature_get` tool.
+ *
+ * @public
+ */
+export const failureSignatureGetTool = Tool.make("failure_signature_get", {
+	description:
+		"Use when you have a failure-signature hash and need its first-seen date and occurrence history. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, signatureHash?, firstSeenAt?, occurrenceCount?, recentErrors?[] } or absent variant).",
+	parameters: FailureSignatureGetInput,
+	success: FailureSignatureGetResult,
+	dependencies: [DataReader],
+})
+	.annotate(Tool.Title, "Failure signature")
+	.annotate(Tool.Readonly, true)
+	.annotate(Tool.Destructive, false)
+	.annotate(Tool.OpenWorld, false)
+	.annotate(Tool.Idempotent, true)
+	.annotate(RenderText, (encoded) => formatFailureSignatureMarkdown(encoded as FailureSignatureGetResultType));

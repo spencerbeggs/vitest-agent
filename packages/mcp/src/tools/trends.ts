@@ -128,7 +128,7 @@ export const TestTrendsAsMarkdown = TestTrendsResult.pipe(
  */
 export const TestTrendsInput = Schema.Struct({
 	project: Schema.String.annotate({ description: "Project name (required)" }),
-	limit: Schema.optionalKey(Schema.Number).annotate({ description: "Max number of trend entries to return" }),
+	limit: Schema.optionalKey(Schema.Finite).annotate({ description: "Max number of trend entries to return" }),
 });
 /**
  * The decoded {@link TestTrendsInput}.

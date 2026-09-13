@@ -1203,7 +1203,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 			outputSchema: effectToZodSchema(TriageBriefResult) as never,
 		},
 		async (args) => {
-			const data = await caller.triage_brief({ project: args.project, maxLines: args.maxLines });
+			const data = await caller.triage_brief({
+				...(args.project !== undefined && { project: args.project }),
+				...(args.maxLines !== undefined && { maxLines: args.maxLines }),
+			});
 			return structuredResult(data.markdown, data);
 		},
 	);
@@ -1227,10 +1230,10 @@ export function buildMcpServer(ctx: McpContext): McpServer {
 		},
 		async (args) => {
 			const data = await caller.wrapup_prompt({
-				sessionId: args.sessionId,
-				chatId: args.chatId,
-				kind: args.kind,
-				userPromptHint: args.userPromptHint,
+				...(args.sessionId !== undefined && { sessionId: args.sessionId }),
+				...(args.chatId !== undefined && { chatId: args.chatId }),
+				...(args.kind !== undefined && { kind: args.kind }),
+				...(args.userPromptHint !== undefined && { userPromptHint: args.userPromptHint }),
 			});
 			return structuredResult(data.markdown, data);
 		},

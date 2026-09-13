@@ -52,22 +52,24 @@ describe("served input schemas are strict at every object level", () => {
 		expect(tools.length).toBeGreaterThan(0);
 		for (const tool of tools) {
 			const root = tool.inputSchema;
+			// MCP's ToolJsonSchema requires `type: "object"` at the root even for a `oneOf`.
+			expect(root.type, `${tool.name} root type`).toBe("object");
 			if (Array.isArray(root.oneOf)) {
-				expect(root.type, `${tool.name} oneOf root has no type`).toBeUndefined();
+				expect(root.properties, `${tool.name} oneOf root has no properties`).toBeUndefined();
 				expect(root.additionalProperties, `${tool.name} oneOf root has no additionalProperties`).toBeUndefined();
 				expect(typeof root["x-discriminator"], `${tool.name} x-discriminator`).toBe("string");
 				expect(root.oneOf.length, `${tool.name} oneOf members`).toBeGreaterThan(0);
 				for (const [index, member] of root.oneOf.entries()) {
 					expect(isObject(member) && member.type, `${tool.name} oneOf[${index}] is an object schema`).toBe("object");
 				}
-			} else {
-				expect(root.type, `${tool.name} root type`).toBe("object");
 			}
 			const objects: Array<{ path: string; node: JsonObject }> = [];
 			collectObjectNodes(root, `${tool.name}.inputSchema`, objects);
 			const expectedMinimum = Array.isArray(root.oneOf) ? root.oneOf.length : 1;
 			expect(objects.length, `${tool.name} object nodes`).toBeGreaterThanOrEqual(expectedMinimum);
 			for (const { path, node } of objects) {
+				// The exempt node: a oneOf root is a dispatcher, not a shape.
+				if (node === root && Array.isArray(root.oneOf)) continue;
 				expect(node.additionalProperties, `${path} additionalProperties`).toBe(false);
 			}
 		}
