@@ -354,6 +354,7 @@ const liveRegion = (
 			<Box flexDirection="column">
 				<Text bold>Unhandled errors:</Text>
 				{state.unhandledErrors.map((err, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: append-only ordered output, never reordered, and identical errors are legitimate
 					<UnhandledErrorItem key={`unhandled:${i}:${err.message}`} error={err} />
 				))}
 			</Box>

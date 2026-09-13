@@ -34,6 +34,7 @@ export const SuggestedActions: FC<SuggestedActionsProps> = ({ actions }) => {
 		<Box flexDirection="column">
 			<Text bold>Actions</Text>
 			{actions.map((action, idx) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static ordered output, never reordered, and duplicate titles are legitimate
 				<Box key={`${action.severity}-${idx}-${action.title}`} flexDirection="column">
 					<Box>
 						<Text color={SEVERITY_COLOR[action.severity]} bold>

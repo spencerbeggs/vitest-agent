@@ -46,6 +46,7 @@ export const FailuresSection: FC<FailuresSectionProps> = ({ failures, limit }) =
 		<Box flexDirection="column">
 			<Text bold>Failures ({failures.length}):</Text>
 			{shown.map((f, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static ordered output, never reordered, and duplicate failures are legitimate
 				<Box key={`${f.modulePath}:${f.testName}:${i}`} flexDirection="column">
 					<Text>
 						{"  "}

@@ -21,6 +21,7 @@ export const renderAgentStringAsInk = (agentString: string): ReactElement => {
 	return (
 		<Box flexDirection="column">
 			{lines.map((line, idx) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static ordered output, never reordered, and identical lines are legitimate
 				<Text key={`${idx}-${line}`}>{colorize(line)}</Text>
 			))}
 		</Box>
