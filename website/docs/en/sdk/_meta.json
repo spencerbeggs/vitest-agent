@@ -9,16 +9,6 @@
 		"label": "Overview"
 	},
 	{
-		"type": "file",
-		"name": "database-architecture",
-		"label": "Database architecture"
-	},
-	{
-		"type": "file",
-		"name": "data-access",
-		"label": "Programmatic data access"
-	},
-	{
 		"type": "dir",
 		"name": "api",
 		"label": "API Reference"

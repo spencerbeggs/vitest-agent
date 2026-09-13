@@ -7,13 +7,15 @@ description: The vitest-agent CLI bin. Manages the local SQLite database, runs h
 
 The `vitest-agent` CLI bin. Manages the local SQLite database, runs health diagnostics, and provides the hook-plumbing subcommands used by the Claude Code plugin's session and Bash hooks. Reads cached test data from SQLite — never runs tests or calls AI providers.
 
-This package is a regular dependency of `@vitest-agent/plugin` and installs with it automatically. Install it directly only if you want the `vitest-agent` bin on its own.
+This package is a regular dependency of `@vitest-agent/plugin`, and the plugin declares the `vitest-agent` bin itself as a four-line shim over this package's `./main` entry — so installing the plugin links the bin on every package manager. Install `@vitest-agent/cli` directly only if you want the bin without the plugin.
 
 ## Features
 
 - **`doctor`** — five-point health diagnostic covering manifest assembly, latest-run integrity, and staleness
 - **`db`** — `path`, `prune`, `reset`, and `query` subcommands for database lifecycle management
 - **`agent` namespace** — `triage`, `wrapup`, `record`, `register-agent`, `end-agent`, `inject-env`, and `sidecar-path` for hook-driven plumbing
+- **`--version`** — prints the installed package version
+- **`./main` entry** — `main()` is the assembled program that owns the process; the bin is a shim over it, and so are the plugin's carrier bins
 
 ## Install
 
@@ -21,6 +23,13 @@ This package is a regular dependency of `@vitest-agent/plugin` and installs with
 npm install --save-dev @vitest-agent/cli
 # or
 pnpm add -D @vitest-agent/cli
+```
+
+## Version
+
+```bash
+vitest-agent --version
+# 3.x.y — the real published version of @vitest-agent/cli
 ```
 
 ## Commands
@@ -82,6 +91,21 @@ vitest-agent agent record test-case-turns --chat-id <uuid>
 ```
 
 `inject-env` is the fastest subcommand — it is on the critical path of every Bash tool call when the Claude Code plugin is active. It reads `VITEST_AGENT_*` from env and the `package.json#scripts` from cwd, then rewrites any Vitest invocation with the canonical env prefix. The per-platform sidecar binary (`@vitest-agent/sidecar`) runs the same logic at native speed.
+
+## The `./main` entry
+
+The bin script is four lines: it imports `main` from `./main.js` and calls it. `main()` resolves the project directory (`resolveProjectDir` from `@vitest-agent/engine`), resolves `dbPath`, provides the engine's `PlatformLive` layer, and hands the command tree to `NodeRuntime.runMain`. Every `process` read the CLI performs lives there.
+
+That module is published as the `@vitest-agent/cli/main` subpath so another package can ship the same bin. `@vitest-agent/plugin` does exactly that — its `vitest-agent` bin is:
+
+```ts
+#!/usr/bin/env node
+import { main } from "@vitest-agent/cli/main";
+
+void main();
+```
+
+The programmatic barrel (`@vitest-agent/cli`) never imports `main`, so a library consumer's import graph does not pull in the process-owning module.
 
 ## The `db path` idiom
 

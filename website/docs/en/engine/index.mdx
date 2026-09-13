@@ -1,0 +1,150 @@
+---
+title: "@vitest-agent/engine"
+description: The platform half of the vitest-agent ecosystem. Carries the Effect services and live layers, the SQLite data layer and migrations, PlatformLive, project-directory and XDG path resolution, the hook programs, session recovery, and the testing utilities.
+---
+
+# @vitest-agent/engine
+
+The platform half of the vitest-agent ecosystem. Everything that touches a file system, a SQLite file, or an environment map lives here: the Effect services and their live layers, the SQLite client and migrator, the numbered migrations, `PlatformLive`, project-directory and XDG path resolution, the hook programs the Claude Code plugin drives, and boot-time session recovery. `@vitest-agent/cli`, `@vitest-agent/mcp`, and `@vitest-agent/plugin` all build on it; [`@vitest-agent/sdk`](/sdk) stays the platform-free core underneath.
+
+Install `@vitest-agent/plugin` for normal use; install `@vitest-agent/engine` directly only when building tooling on the shared services or the data layer.
+
+## Features
+
+- **Effect services and live layers** — `DataStore`, `DataReader`, `Config`, `ProjectIdentity`, `ProjectDiscovery`, `EnvironmentDetector`, `HistoryTracker`, `OutputRenderer`, and friends, each a `Context.Service` with a `*Live` layer (and `*Test` layers where a deterministic stand-in matters)
+- **SQLite data layer** — the client and migrator behind `DataStore` / `DataReader`, the ordered `PROJECT_MIGRATIONS` chain, and `ensureMigrated` for safe multi-worker setups
+- **`PlatformLive`** — the single layer both front ends provide; takes `{ dbPath, env, logLevel?, logFile? }` and yields every platform service the CLI and MCP server need
+- **Platform resolution** — `resolveProjectDir({ env, cwd })` and `resolveDataPath(projectDir)` turn an environment map and a working directory into the right `data.db`
+- **Hook programs** — `registerAgentEffect`, `endAgentEffect`, `recordSessionStart` / `recordSessionEnd`, `recordTurnEffect`, `recordTddArtifactEffect`, `recordRunWorkspaceChangesEffect`, and session recovery via `recoverSessionContextFromSessionEnv`
+- **Test utilities** — `makeTestLayer`, `DataStoreTestLayer`, and five preset factories on the `@vitest-agent/engine/testing` sub-path
+
+## Install
+
+```bash
+npm install @vitest-agent/engine
+# or
+pnpm add @vitest-agent/engine
+```
+
+## Quick start
+
+The main export provides the Effect services and live layers. Use the testing sub-path to seed in-memory state in unit tests:
+
+```ts with-api
+import { Effect } from "effect";
+import { DataReader } from "@vitest-agent/engine";
+import { singlePassingRun } from "@vitest-agent/engine/testing";
+
+// Seed an in-memory DB with a single passing test run
+const layer = singlePassingRun(":memory:");
+
+const run = await Effect.runPromise(
+  Effect.provide(
+    Effect.flatMap(DataReader, (r) => r.getLatestRun("default", null)),
+    layer,
+  ),
+);
+// run is the seeded row
+```
+
+## Two entry points
+
+| Entry | Exports | When to use |
+|-------|---------|-------------|
+| `@vitest-agent/engine` | Services, live layers, `PlatformLive`, migrations, path resolution, hook programs | Any process that reads or writes `data.db` |
+| `@vitest-agent/engine/testing` | `makeTestLayer`, `DataStoreTestLayer`, five preset factories | Unit tests for code that talks to the data layer |
+
+## `PlatformLive`
+
+`PlatformLive` is how a front end stands up the whole platform in one call. The CLI's `main()` and the MCP server's `main()` both resolve a `dbPath`, then provide this one layer:
+
+```ts with-api
+import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { PathResolutionLive, PlatformLive, resolveDataPath, resolveProjectDir } from "@vitest-agent/engine";
+import { Effect } from "effect";
+
+const env = process.env;
+const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
+
+// `app` is whatever Effect you want to run against the data layer
+declare const app: Effect.Effect<void, never, never>;
+
+const program = resolveDataPath(projectDir).pipe(
+  Effect.flatMap((dbPath) => app.pipe(Effect.provide(PlatformLive({ dbPath, env })))),
+  Effect.provide(PathResolutionLive(projectDir)),
+  Effect.provide(NodeServices.layer),
+);
+
+NodeRuntime.runMain(program);
+```
+
+`resolveProjectDir` checks `VITEST_AGENT_PROJECT_DIR`, then `VITEST_AGENT_REPORTER_PROJECT_DIR`, then `CLAUDE_PROJECT_DIR`, and finally falls back to `cwd`. The engine never reads `process.env` or `process.cwd()` on its own — the front end passes them in, which is what keeps the layer testable with a fixture env.
+
+## Effect services
+
+The core data services are `Context.Service` classes with live and test layer implementations:
+
+```ts with-api
+import { DataReader, DataStore } from "@vitest-agent/engine";
+import { Effect } from "effect";
+
+// DataStore: all SQLite writes
+// DataReader: all SQLite reads, assembles domain types from row data
+
+const effect = Effect.flatMap(DataReader, (reader) =>
+  reader.getLatestRun("my-project", null)
+);
+```
+
+Live layers take the resolved `dbPath` as input. Test layers use `:memory:` for isolation:
+
+```ts with-api
+import { makeTestLayer } from "@vitest-agent/engine/testing";
+
+const testLayer = makeTestLayer(":memory:");
+// Provides DataStore + DataReader backed by a fresh in-memory SQLite
+```
+
+See [Programmatic data access](/engine/data-access) for the full read/write recipes and [Database architecture](/engine/database-architecture) for the table inventory.
+
+## XDG path resolution
+
+`resolveDataPath(projectDir)` derives the `dbPath` from workspace identity, never from file-system layout, using an ordered chain:
+
+1. Programmatic `cacheDir` option
+2. `cacheDir` in `vitest-agent.config.toml`
+3. `projectKey` in `vitest-agent.config.toml`
+4. The root `package.json` — `repository.url` canonicalized to `host__path`, else the normalized `name`
+5. The `cwd` basename as the final fallback, so identity lookup never throws
+
+Steps 2 and 3 read the config file through the `VitestAgentConfigFile` service and step 4 walks the file system, which is why the example above provides `PathResolutionLive(projectDir)` and `NodeServices.layer` around it. The CLI's `vitest-agent db path` prints the resolved value.
+
+## Testing utilities
+
+Five preset factories seed representative database states without writing fixtures manually:
+
+```ts with-api
+import {
+  empty,
+  singlePassingRun,
+  withFailures,
+  flaky,
+  withTddTask,
+} from "@vitest-agent/engine/testing";
+
+// empty(dbPath)          — migrated DB, no rows
+// singlePassingRun(p)    — one run, all tests pass
+// withFailures(p)        — one run, some tests fail
+// flaky(p)               — multiple runs with flaky test pattern
+// withTddTask(p)         — a seeded TDD task with goals and behaviors
+```
+
+Each factory returns an Effect `Layer` you provide directly in your test. Before the engine split these lived at `@vitest-agent/sdk/testing`; see [Upgrading to the engine split](/guide/upgrade-engine-split) if you are moving imports.
+
+## Learn more
+
+- [Database architecture](/engine/database-architecture)
+- [Programmatic data access](/engine/data-access)
+- [Architecture overview](/guide/architecture)
+- [API reference](/engine/api)
+- [All packages](/packages)

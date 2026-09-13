@@ -26,7 +26,7 @@ The `optionalDependencies` pattern follows the same model used by native package
 
 ## Versioning
 
-`@vitest-agent/sidecar` and its four per-platform sub-packages version **independently** of the six lockstep packages (`@vitest-agent/plugin`, `@vitest-agent/reporter`, `@vitest-agent/cli`, `@vitest-agent/mcp`, `@vitest-agent/ui`, `@vitest-agent/sdk`). A sidecar release does not require a lockstep bump, and a lockstep release does not require a sidecar bump — they are coordinated only when the `inject-env` logic changes in `@vitest-agent/sdk/dispatch`.
+`@vitest-agent/sidecar` and its four per-platform sub-packages version **independently**, as does every other `@vitest-agent/*` package. A sidecar release does not require a bump anywhere else, and a release of another package does not require a sidecar bump — they are coordinated only when the `inject-env` logic changes in `@vitest-agent/sdk/dispatch`.
 
 ## How the binary reaches a consumer
 

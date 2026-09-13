@@ -5,7 +5,7 @@ description: The Vitest plugin that turns your test suite into a live data sourc
 
 # @vitest-agent/plugin
 
-The Vitest plugin that turns your test suite into a live data source for LLM coding agents. Drop `AgentPlugin` into `vitest.config.ts` and it handles persistence, failure classification, coverage policy enforcement, project discovery, and a configurable reporter chain — the CLI and MCP server ship as dependencies and wire automatically.
+The Vitest plugin that turns your test suite into a live data source for LLM coding agents. Drop `AgentPlugin` into `vitest.config.ts` and it handles persistence, failure classification, coverage policy enforcement, project discovery, and a configurable reporter chain — the CLI and MCP server ship as dependencies, and the plugin itself declares their bins so they are linked the moment you install it.
 
 ## Features
 
@@ -15,6 +15,7 @@ The Vitest plugin that turns your test suite into a live data source for LLM cod
 - **Failure classification** — persists per-test errors and classifies tests as `stable`, `new-failure`, `persistent`, `flaky`, or `recovered` across runs
 - **Custom reporters** — pass any `VitestAgentReporterFactory` as the `reporter` option; the default wires `DefaultVitestAgentReporter` automatically
 - **`onRunEvent` tap** — optional read-only callback receiving every `RunEvent` in parallel with the renderer
+- **Carrier bins** — declares `vitest-agent` and `vitest-agent-mcp` as shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main`, so both bins land in `node_modules/.bin/` under npm, pnpm, yarn, and bun
 
 ## Install
 
@@ -25,6 +26,26 @@ pnpm add -D @vitest-agent/plugin
 ```
 
 `@vitest-agent/cli` and `@vitest-agent/mcp` are regular dependencies of the plugin and install with it on every package manager. You rarely need to install them by hand.
+
+### The bins come with the plugin
+
+Package managers only link bins for packages you depend on directly — a transitive dependency's bin does not reliably reach `node_modules/.bin/`. To make the tooling work with a single install, `@vitest-agent/plugin` is the **carrier** for both bins. Its `package.json` declares `vitest-agent` and `vitest-agent-mcp`, each a four-line shim that imports `main` from the front end's `./main` subpath and calls it:
+
+```ts
+#!/usr/bin/env node
+import { main } from "@vitest-agent/mcp/main";
+
+void main();
+```
+
+Install the plugin and both bins are linked, under npm, pnpm, yarn, and bun — no `publicHoistPattern`, no package-manager plugin, no `npx` download step, no manual link:
+
+```bash
+npx vitest-agent doctor
+npx vitest-agent-mcp
+```
+
+The Claude Code plugin's MCP loader relies on this: it execs `node_modules/.bin/vitest-agent-mcp` from your project directly.
 
 ## Quick start
 

@@ -1,22 +1,25 @@
 ---
 title: "@vitest-agent/sdk"
-description: The no-internal-deps base for the vitest-agent ecosystem. Carries Effect Schemas, the SQLite data layer, reporter and dispatcher contracts, XDG path resolution, and testing utilities.
+description: The platform-free core of the vitest-agent ecosystem. Carries the Effect Schemas, the public reporter and dispatcher contracts, tagged errors, pure formatters and utilities, the pure dispatch entry, and the published JSON schemas.
 ---
 
 # @vitest-agent/sdk
 
-The no-internal-deps base for the vitest-agent ecosystem. Carries the Effect Schemas, SQLite migrations and data layer, services and live layers, formatters, XDG path resolution, the public reporter and dispatcher contract types, and testing utilities. Every other vitest-agent package depends on this one — changes here ripple to all five runtimes.
+The platform-free core of the vitest-agent ecosystem. Carries the Effect Schemas for every domain type, the public reporter and dispatcher contract types, the tagged error classes, the pure formatters and utilities, and the `dispatch` entry the sidecar binary bundles. It has no internal dependencies and no `node:` imports — nothing in this package reads a file, opens a database, or looks at `process`. Every other vitest-agent package depends on it.
 
-Install `@vitest-agent/plugin` for normal use; install `@vitest-agent/sdk` directly only when building tooling on the shared schemas or data layer.
+The platform half — services, live layers, SQLite, migrations, path resolution, hook programs, and the testing utilities — lives in [`@vitest-agent/engine`](/engine).
+
+Install `@vitest-agent/plugin` for normal use; install `@vitest-agent/sdk` directly only when building tooling on the shared schemas, contracts, or formatters.
 
 ## Features
 
-- **Effect Schemas** — all domain types (`RunEvent`, `RenderState`, `CoverageTargets`, `TurnPayload`, identity types) defined with Effect Schema; runtime validation and TypeScript types from one source
-- **SQLite data layer** — `DataStore` and `DataReader` Effect services with live and `:memory:` test layers; `ensureMigrated` for safe multi-project setups
-- **XDG path resolution** — deterministic `dbPath` derivation from workspace identity with a five-source fallback chain
+- **Effect Schemas** — all domain types (`RunEvent`, `RenderState`, `AgentReport`, `CoverageTargets`, `TurnPayload`, `ChannelEvent`, identity types) defined with Effect Schema; runtime validation and TypeScript types from one source
 - **Reporter and dispatcher contracts** — `VitestAgentReporterFactory`, `ReporterKit`, `ResolvedReporterConfig`, `DispatchInputs`, and the types consumed by every other package
+- **Tagged errors** — `DataStoreError`, `PathResolutionError`, `ProjectIdentityNotResolvableError`, the TDD error family, and friends, so a consumer can match on `_tag` without importing the engine
+- **Pure formatters** — terminal, GFM, JSON, markdown, CI-annotation, and silent formatters that take a `FormatterContext` and return strings
+- **Pure utilities** — `classifyTest`, `computeTrend`, `relativePath`, `classifyTestPath`, `normalizeWorkspaceKey`, and the other helpers that need no I/O
 - **Sidecar dispatch core** — `dispatch`, `injectEnv`, and `exitCodeForTag` on the `@vitest-agent/sdk/dispatch` sub-path for a minimal SEA bundle
-- **Test utilities** — `makeTestLayer`, `DataStoreTestLayer`, and five preset factory functions on the `@vitest-agent/engine/testing` sub-path
+- **Published JSON schemas** — `@vitest-agent/sdk/schemas/*.json` for validating report files outside TypeScript
 
 ## Install
 
@@ -26,82 +29,30 @@ npm install @vitest-agent/sdk
 pnpm add @vitest-agent/sdk
 ```
 
-## Quick start
-
-The main export provides access to the Effect services. Use the testing sub-path to seed in-memory state in unit tests:
-
-```ts with-api
-import { Effect } from "effect";
-import { DataReader } from "@vitest-agent/engine";
-import { singlePassingRun } from "@vitest-agent/engine/testing";
-
-// Seed an in-memory DB with a single passing test run
-const layer = singlePassingRun(":memory:");
-
-const run = await Effect.runPromise(
-  Effect.provide(
-    Effect.flatMap(DataReader, (r) => r.getLatestRun("default", null)),
-    layer,
-  ),
-);
-// run is the seeded row
-```
-
 ## Three entry points
-
-The SDK ships three distinct entry points:
 
 | Entry | Exports | When to use |
 |-------|---------|-------------|
-| `@vitest-agent/sdk` | Main barrel — services, schemas, layers, formatters, contracts, utilities | Everywhere except the SEA bundle |
+| `@vitest-agent/sdk` | Main barrel — schemas, contracts, errors, formatters, utilities | Everywhere except the SEA bundle |
 | `@vitest-agent/sdk/dispatch` | `dispatch`, `injectEnv`, `exitCodeForTag` | The sidecar SEA binary; keeps the bundle minimal (no Effect, no SQLite) |
-| `@vitest-agent/engine/testing` | `makeTestLayer`, `DataStoreTestLayer`, five preset factories | Unit tests for packages that write to or read from SQLite |
+| `@vitest-agent/sdk/schemas/*.json` | JSON Schema documents for the report-file envelopes | Validating `run.json` from non-TypeScript tooling |
 
-## Effect services
+The testing utilities that used to ship at `@vitest-agent/sdk/testing` now live at [`@vitest-agent/engine/testing`](/engine#testing-utilities). See [Upgrading to the engine split](/guide/upgrade-engine-split).
 
-The core data services are Effect Context tags with live and test layer implementations:
+## Schemas
 
-```ts with-api
-import { DataStore, DataReader } from "@vitest-agent/engine";
-
-// DataStore: all SQLite writes
-// DataReader: all SQLite reads, assembles domain types from row data
-
-const effect = Effect.flatMap(DataReader, (reader) =>
-  reader.getLatestRun("my-project", null)
-);
-```
-
-Live layers take the resolved `dbPath` as input. Test layers use `:memory:` for isolation:
+Every domain type is an Effect Schema, so the same definition decodes untrusted input at runtime and produces the TypeScript type:
 
 ```ts with-api
-import { makeTestLayer } from "@vitest-agent/engine/testing";
+import { AgentReport, RunEvent } from "@vitest-agent/sdk";
+import { Schema } from "effect";
 
-const testLayer = makeTestLayer(":memory:");
-// Provides DataStore + DataReader backed by a fresh in-memory SQLite
+// Decode a report envelope read from disk or received over the wire
+const decodeReport = Schema.decodeUnknownEffect(AgentReport);
+
+// The TypeScript type is derived from the same schema
+type Event = Schema.Schema.Type<typeof RunEvent>;
 ```
-
-## Testing utilities
-
-Five preset factories seed representative database states without writing fixtures manually:
-
-```ts with-api
-import {
-  empty,
-  singlePassingRun,
-  withFailures,
-  flaky,
-  withTddTask,
-} from "@vitest-agent/engine/testing";
-
-// empty(dbPath)          — migrated DB, no rows
-// singlePassingRun(p)    — one run, all tests pass
-// withFailures(p)        — one run, some tests fail
-// flaky(p)               — multiple runs with flaky test pattern
-// withTddTask(p)         — a seeded TDD task with goals and behaviors
-```
-
-Each factory returns an Effect `Layer` you provide directly in your test.
 
 ## Reporter and dispatcher contracts
 
@@ -116,23 +67,49 @@ import type { VitestAgentReporterFactory, ReporterKit, ReporterRenderInput, Rend
 // RenderedOutput: { target: "stdout" | "github-summary" | "file"; content: string }
 ```
 
-## XDG path resolution
+See [Building a custom reporter](/reporter/custom-reporter) for the worked example.
 
-`resolveDataPath` derives the `dbPath` from workspace identity using a five-source fallback chain:
+## Formatters and `FormatterContext`
 
-1. Programmatic `cacheDir` option
-2. `cacheDir` in `vitest-agent.config.toml`
-3. `projectKey` in `vitest-agent.config.toml`
-4. Root `package.json#name` (normalized)
-5. Fails loudly — no silent fallback
+Formatters are pure functions over an `AgentReport` and a `FormatterContext`. The context carries everything the formatter would otherwise have to discover from the process — including the project root, which is why `cwd` is a required field:
 
 ```ts with-api
-import { resolveDataPath } from "@vitest-agent/engine";
-// resolveDataPath(cwd) → Effect<string, WorkspaceRootNotFoundError>
+import { GfmFormatter } from "@vitest-agent/sdk";
+import type { AgentReport, FormatterContext } from "@vitest-agent/sdk";
+
+const context: FormatterContext = {
+  detail: "standard",
+  cwd: "/abs/path/to/project", // required: formatters never read process.cwd()
+  noColor: true,
+  coverageConsoleLimit: 10,
+};
+
+declare const reports: ReadonlyArray<AgentReport>;
+const outputs = GfmFormatter.render(reports, context);
+// outputs: ReadonlyArray<RenderedOutput>
+```
+
+The same rule applies to `relativePath(filePath, cwd)` — pass the root explicitly.
+
+## The pure `dispatch` entry
+
+`@vitest-agent/sdk/dispatch` is the sidecar's whole runtime. It is deliberately I/O-free: the caller hands it a `DispatchIo` object and gets back captured output and an exit code, so the same code runs inside the SEA binary, the JS CLI fallback, and a unit test with a fake file system:
+
+```ts with-api
+import { dispatch } from "@vitest-agent/sdk/dispatch";
+import { readFileSync } from "node:fs";
+
+const result = await dispatch(["inject-env", "--", "pnpm vitest run"], {
+  cwd: process.cwd(),
+  env: process.env,
+  readFile: (path) => readFileSync(path, "utf8"),
+});
+// result: { stdout, stderr, code }
 ```
 
 ## Learn more
 
+- [@vitest-agent/engine](/engine) — the platform half: services, SQLite, path resolution
 - [Architecture overview](/guide/architecture)
 - [API reference](/sdk/api)
 - [All packages](/packages)

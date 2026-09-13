@@ -59,7 +59,7 @@ await Effect.runPromise(
 ```
 
 :::tip
-Use `resolveDataPath(cwd)` from `@vitest-agent/sdk` to derive the correct `dbPath` from your workspace identity instead of hard-coding a path. It returns an `Effect<string, WorkspaceRootNotFoundError>`.
+Use `resolveDataPath(projectDir)` from `@vitest-agent/engine` to derive the correct `dbPath` from your workspace identity instead of hard-coding a path. If you need more than the two data services, `PlatformLive({ dbPath, env })` stands up the whole platform in one layer — it is what the CLI and MCP server provide. See the [engine overview](/engine#platformlive).
 :::
 
 ### Error handling
@@ -216,7 +216,7 @@ const buildLayer = (cwd: string) =>
 
 ## Related
 
-- [@vitest-agent/sdk overview](/sdk)
-- [Database architecture](/sdk/database-architecture)
-- [API reference](/sdk/api)
+- [@vitest-agent/engine overview](/engine)
+- [Database architecture](/engine/database-architecture)
+- [API reference](/engine/api)
 - [CLI commands](/cli/commands)

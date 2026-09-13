@@ -104,5 +104,10 @@
 		"type": "file",
 		"name": "upgrade-vitest-5",
 		"label": "Upgrading to Vitest 5"
+	},
+	{
+		"type": "file",
+		"name": "upgrade-engine-split",
+		"label": "Upgrading to the engine split"
 	}
 ]

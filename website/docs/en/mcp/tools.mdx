@@ -1,11 +1,11 @@
 ---
 title: MCP tools
-description: Complete catalog of the 29 action-keyed MCP tools exposed by @vitest-agent/mcp, grouped by family and purpose.
+description: Complete catalog of the 30 action-keyed MCP tools exposed by @vitest-agent/mcp, grouped by family and purpose.
 ---
 
 # MCP tools
 
-The `@vitest-agent/mcp` server exposes 29 tools over stdio. Per-CRUD families collapse into a single tool that dispatches on an `action` (or `kind`) discriminator. Every tool emits both a markdown `content[]` response for human-readable display and a typed `structuredContent` payload per MCP 2025-06-18.
+The `@vitest-agent/mcp` server exposes 30 tools over stdio. Per-CRUD families collapse into a single tool that dispatches on an `action` (or `kind`) discriminator. Every tool emits both a markdown `content[]` response for human-readable display and a typed `structuredContent` payload per MCP 2025-06-18. Tool inputs and outputs are Effect `Schema` values end to end; the served JSON Schema is generated from them.
 
 ## Input validation
 
@@ -17,9 +17,11 @@ Unrecognized parameter(s): test. Accepted params: project, testName, modulePath,
 
 This matters most for `run_tests`, where a silently dropped scope param used to mean the whole workspace ran instead of the one file the caller asked for.
 
+Types are strict on the wire as well. A parameter typed `number` in the tables below must arrive as a JSON number — `"limit": "5"` or `"timeout": "120"` (a string) is rejected with an `InvalidParams` error rather than coerced. Send `"limit": 5`.
+
 ## Unexpected failures
 
-A resolver that throws where the tool itself has no domain-specific handling returns a structured envelope rather than a bare error string, with `isError: true` set on the result:
+A handler that fails where the tool itself has no domain-specific handling returns a structured envelope rather than a bare error string, with `isError: true` set on the result:
 
 ```json
 {
@@ -304,7 +306,7 @@ Interpretive wrap-up nudge. Injected automatically by the Stop, SessionEnd, PreC
 
 ## Hypotheses
 
-Hypothesis writes go through the tRPC idempotency middleware, so duplicate calls from a retrying agent replay the cached response instead of double-writing.
+Hypothesis writes are wrapped in the `withIdempotency` combinator, so duplicate calls from a retrying agent replay the cached response (marked `_idempotentReplay: true`) instead of double-writing.
 
 ### `hypothesis`
 
@@ -395,6 +397,16 @@ Behavior CRUD under a goal. Behaviors follow the same closed status lifecycle as
 | `dependsOnBehaviorIds` | `number[]` | No | `create` / `update`: IDs of behaviors this one depends on (must belong to the same goal) |
 
 `create` is idempotent on `(goalId, behavior)` and returns the full `BehaviorRow`. `update` replaces the full dependency set in one transaction when `dependsOnBehaviorIds` is provided.
+
+### `tdd_progress_push`
+
+Publish a TDD orchestrator progress event to the main agent. The payload is validated against the `ChannelEvent` union from `@vitest-agent/sdk`, enriched server-side with the goal and session coordinates a stale orchestrator context cannot be trusted to supply, and emitted as a standard MCP `notifications/message` frame with `logger: "vitest-agent/channel"`. There is no custom notification method — a client that subscribes to logging notifications receives it.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `payload` | `string` | Yes | Pre-stringified `ChannelEvent` JSON |
+
+Always returns `{ ok: true }`. The push is best-effort and never reports delivery.
 
 ### `tdd_artifact_list`
 

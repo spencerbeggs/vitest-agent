@@ -8,7 +8,7 @@
 	{
 		"text": "Packages",
 		"link": "/packages",
-		"activeMatch": "^/(packages|plugin|sdk|mcp|cli|reporter|ui|sidecar)(/(.*)?)?$",
+		"activeMatch": "^/(packages|plugin|sdk|engine|mcp|cli|reporter|ui|sidecar)(/(.*)?)?$",
 		"position": "right",
 		"items": [
 			{
@@ -20,6 +20,11 @@
 				"text": "@vitest-agent/sdk",
 				"link": "/sdk",
 				"activeMatch": "^/sdk(/.*)?$"
+			},
+			{
+				"text": "@vitest-agent/engine",
+				"link": "/engine",
+				"activeMatch": "^/engine(/.*)?$"
 			},
 			{
 				"text": "@vitest-agent/mcp",

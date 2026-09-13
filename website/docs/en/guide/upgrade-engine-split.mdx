@@ -1,0 +1,149 @@
+---
+title: Upgrading to the engine split
+description: What changes when @vitest-agent/sdk splits into a platform-free core and @vitest-agent/engine — the moved ./testing subpath, the pure dispatch signature, FormatterContext.cwd, the Effect-native MCP server, and the ./main entries on the CLI and MCP bins.
+---
+
+# Upgrading to the engine split
+
+`@vitest-agent/sdk` 4.0, `@vitest-agent/mcp` 4.0, and `@vitest-agent/cli` 3.0
+ship together with a new package, `@vitest-agent/engine`. The runtime
+behavior of `AgentPlugin` is unchanged, and a project that only depends on
+`@vitest-agent/plugin` and runs `vitest` needs no code changes — update the
+plugin and you are done. The breaking changes land on the programmatic
+surfaces below.
+
+## Update your dependencies
+
+import { PackageManagerTabs } from '@rspress/core/theme';
+
+<PackageManagerTabs command="add -D @vitest-agent/plugin@latest" />
+
+The plugin pulls `@vitest-agent/engine`, `@vitest-agent/cli`, and
+`@vitest-agent/mcp` at the matching versions. Add `@vitest-agent/engine`
+directly only if you import from it in your own tooling.
+
+## `@vitest-agent/sdk` 4.0
+
+The SDK is now the **platform-free core**: schemas, contracts, errors, pure
+formatters and utilities, the `./dispatch` entry, and `./schemas/*.json`.
+Nothing in it reads a file, opens a database, or looks at `process`.
+Everything platform-dependent moved to [`@vitest-agent/engine`](/engine).
+
+### `./testing` moved to `@vitest-agent/engine/testing`
+
+`makeTestLayer`, `DataStoreTestLayer`, and the five preset factories
+(`empty`, `singlePassingRun`, `withFailures`, `flaky`, `withTddTask`) are
+unchanged in shape, only in address:
+
+```ts
+// Before
+import { makeTestLayer, singlePassingRun } from "@vitest-agent/sdk/testing";
+
+// After
+import { makeTestLayer, singlePassingRun } from "@vitest-agent/engine/testing";
+```
+
+The same move applies to the services and live layers those helpers provide
+— `DataStore`, `DataReader`, `DataStoreLive`, `DataReaderLive`,
+`ensureMigrated`, `resolveDataPath`, and the rest now import from
+`@vitest-agent/engine`. See [Programmatic data access](/engine/data-access).
+
+### `dispatch(argv, io)` takes an explicit `io`
+
+The sidecar dispatch core no longer touches `process` or `node:fs`. Pass the
+working directory, environment, and a synchronous file reader in:
+
+```ts
+// Before
+import { dispatch } from "@vitest-agent/sdk/dispatch";
+const result = await dispatch(argv);
+
+// After
+import { readFileSync } from "node:fs";
+import { dispatch } from "@vitest-agent/sdk/dispatch";
+
+const result = await dispatch(argv, {
+  cwd: process.cwd(),
+  env: process.env,
+  readFile: (path) => readFileSync(path, "utf8"),
+});
+```
+
+`readFile` may throw on a miss; `dispatch` and `injectEnv` catch it.
+
+### `FormatterContext.cwd` is required
+
+Formatters strip the project root from absolute paths and resolve relative
+paths back against it for `file://` links. They used to read `process.cwd()`
+for that; now the caller supplies it:
+
+```ts
+const context: FormatterContext = {
+  detail: "standard",
+  cwd: projectRoot, // new, required
+  noColor: false,
+  coverageConsoleLimit: 10,
+};
+```
+
+The standalone helper follows the same rule: `relativePath(filePath)` is now
+`relativePath(filePath, cwd)`.
+
+## `@vitest-agent/mcp` 4.0
+
+The server is rebuilt on Effect's native `McpServer` (`effect/unstable/ai`).
+The tool names, `action` / `kind` values, and strict unknown-key rejection
+are the same as before; what a client or an embedder sees change is:
+
+- **Dependencies removed.** `@modelcontextprotocol/sdk`, `@trpc/server`, and
+  `zod` are gone. `buildMcpServer`, `appRouter`, and `McpContext` no longer
+  exist; the programmatic surface is `ServerLayer({ version })`, the `Kit`
+  toolkit, `toolHandlers`, `PromptsLayer`, `registerStrictToolkit`, and
+  `McpSession`. Tool inputs and outputs are Effect `Schema` values end to end.
+- **Numeric params are strict on the wire.** A parameter typed `number`
+  (`limit`, `timeout`, `goalId`, …) must be sent as a JSON number.
+  `"limit": "5"` is rejected with `InvalidParams`; send `"limit": 5`.
+- **`tdd_progress_push` uses a standard notification.** The progress event
+  is published as `notifications/message` with
+  `logger: "vitest-agent/channel"` instead of a custom notification method.
+  A client that subscribes to logging notifications receives it unchanged.
+- **Prompt titles are not advertised.** `prompts/list` carries `name` and
+  `description` only; a client that renders titles falls back to the name.
+- **Process behavior.** Every log line goes to stderr (stdout is the wire),
+  and the server exits 0 when the client closes stdin cleanly.
+
+See the [MCP tool catalog](/mcp/tools) and
+[Integrating non-Claude-Code agents](/mcp/integrating).
+
+## `@vitest-agent/cli` 3.0
+
+- **`./main` entry.** `main()` — the assembled program that owns the process
+  — is published as `@vitest-agent/cli/main`, and the bin is a four-line shim
+  over it. The programmatic barrel (`@vitest-agent/cli`) does not export
+  `main`, so importing the barrel never pulls in the process-owning module.
+  `@vitest-agent/mcp/main` is the same shape for the MCP server.
+- **`--version` reports the real version.** `vitest-agent --version` prints
+  the published package version instead of a placeholder.
+- **Project-directory resolution** now goes through the engine's
+  `resolveProjectDir`: `VITEST_AGENT_PROJECT_DIR`, then
+  `VITEST_AGENT_REPORTER_PROJECT_DIR`, then `CLAUDE_PROJECT_DIR`, then
+  `cwd` — the same order the MCP server uses, so both land on the same
+  `data.db`.
+
+## `@vitest-agent/plugin` carries the bins
+
+Not a breaking change, but worth knowing: the plugin now declares the
+`vitest-agent` and `vitest-agent-mcp` bins itself, as shims over the two
+`./main` entries. Installing `@vitest-agent/plugin` alone links both bins
+into `node_modules/.bin/` under npm, pnpm, yarn, and bun. If you had a
+`publicHoistPattern`, a pnpm plugin, or an explicit `@vitest-agent/cli` /
+`@vitest-agent/mcp` devDependency purely to get the bins, you can remove it.
+The Claude Code companion's MCP loader now execs
+`node_modules/.bin/vitest-agent-mcp` directly and only falls back to
+`npx --yes @vitest-agent/mcp` when it is missing.
+
+## Related
+
+- [@vitest-agent/sdk](/sdk) and [@vitest-agent/engine](/engine)
+- [Packages overview](/packages)
+- [Upgrading to Vitest 5](/guide/upgrade-vitest-5)

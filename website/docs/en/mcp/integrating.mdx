@@ -13,30 +13,42 @@ The server communicates over stdin/stdout using the JSON-RPC transport defined b
 
 ### Manual start
 
-Launch the server directly:
+With `@vitest-agent/plugin` installed, the `vitest-agent-mcp` bin is already linked into your project's `node_modules/.bin/` — the plugin declares it as a shim over `@vitest-agent/mcp/main`, so this works under npm, pnpm, yarn, and bun alike:
 
 ```bash
-npx @vitest-agent/mcp
+npx vitest-agent-mcp
+# or
+pnpm exec vitest-agent-mcp
 ```
 
-Or with pnpm:
+Without the plugin, run the package standalone:
 
 ```bash
-pnpm exec @vitest-agent/mcp
+npx --yes @vitest-agent/mcp
 ```
 
 ### Wiring into a `.mcp.json` config
+
+Point the host at the linked bin:
 
 ```json
 {
   "mcpServers": {
     "vitest-agent": {
-      "command": "npx",
-      "args": ["@vitest-agent/mcp"]
+      "command": "./node_modules/.bin/vitest-agent-mcp",
+      "args": []
     }
   }
 }
 ```
+
+### Process behavior
+
+- **stdout is the JSON-RPC wire.** Every log line the server emits goes to stderr, so a host can capture stderr for diagnostics without corrupting the protocol stream.
+- **Clean shutdown on stdin close.** When the host closes the server's stdin, the server exits 0. There is no signal handshake to implement.
+- **Failures do not kill the session.** A tool handler that throws returns a structured `UnexpectedToolError` envelope; a stray unhandled rejection after the transport connects is logged and survived. If `dbPath` cannot be resolved at boot, the server writes a diagnostic to stderr and exits 1 instead of starting.
+- **Numeric params are strict.** Send JSON numbers for `limit`, `timeout`, and other numeric parameters — string forms are rejected. See [Input validation](/mcp/tools#input-validation).
+- **Progress events are logging notifications.** `tdd_progress_push` publishes a standard `notifications/message` frame with `logger: "vitest-agent/channel"`. A host that wants to display orchestrator progress subscribes to logging notifications; no custom method is involved.
 
 The server reads the SQLite database from the same XDG-derived path that `AgentPlugin` writes to. The default location is:
 
@@ -58,7 +70,7 @@ When `AgentPlugin` records a test run it needs to know which agent triggered it.
 
 ### The canonical path (Claude Code)
 
-When Claude Code is the host, the SessionStart hook runs `vitest-agent agent register-agent` and writes the canonical attribution variables to `CLAUDE_ENV_FILE`. Claude Code then auto-sources that file into Bash tool subprocesses and the MCP server child process. At boot the MCP server calls `sessionContextFromEnv(process.env)` and populates its `SessionContextRef`. When `run_tests` fires a Vitest invocation it injects the attribution from the ref into the child process's environment.
+When Claude Code is the host, the SessionStart hook runs `vitest-agent agent register-agent` and writes the canonical attribution variables to `CLAUDE_ENV_FILE`. Claude Code then auto-sources that file into Bash tool subprocesses and the MCP server child process. At boot the MCP server calls `sessionContextFromEnv(process.env)` and populates its `McpSession` context; if that boot-time read comes up empty (a fresh-launch race, or a `/reload-plugins` restart), the first tool call that needs it recovers the context lazily from the session-env file the SessionStart hook wrote. When `run_tests` fires a Vitest invocation it injects the attribution from that context into the child process's environment.
 
 This happens automatically when the Claude Code plugin is active. No manual configuration is needed.
 
@@ -99,9 +111,12 @@ The `agentType` value must begin with a recognized host-kind prefix followed by 
 
 The server resolves the project directory (used to locate the database) from these sources in priority order:
 
-1. `VITEST_AGENT_REPORTER_PROJECT_DIR` — set by the Claude Code plugin loader
-2. `CLAUDE_PROJECT_DIR` — set by Claude Code for hook scripts and MCP subprocesses
-3. `process.cwd()` — fallback for direct invocation outside Claude Code
+1. `VITEST_AGENT_PROJECT_DIR` — the explicit override, shared with the CLI hook scripts
+2. `VITEST_AGENT_REPORTER_PROJECT_DIR` — set by the Claude Code plugin loader
+3. `CLAUDE_PROJECT_DIR` — set by Claude Code for hook scripts and MCP subprocesses
+4. `process.cwd()` — fallback for direct invocation outside Claude Code
+
+This is the engine's `resolveProjectDir`, the same resolver the CLI uses, so a hook-driven CLI call and the MCP server always land on the same `data.db`.
 
 For non-Claude-Code hosts, set `VITEST_AGENT_REPORTER_PROJECT_DIR` to the absolute path of your project root, or ensure the server is started from that directory.
 

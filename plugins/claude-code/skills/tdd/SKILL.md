@@ -26,11 +26,11 @@ If you are the main agent, complete these steps before spawning:
 
 Do not attempt TDD yourself — the tdd-task agent carries the required MCP tools and skill context for evidence-based phase transitions.
 
-### Channel-event handling (main agent)
+### Progress observation (main agent)
 
-When Claude Code is started with `--dangerously-load-development-channels server:mcp` (dev) or `--channels` (once approved), the orchestrator's progress events arrive as `<channel source="mcp">` tags carrying a JSON payload. Parse the `type` field.
+The orchestrator subagent calls `tdd_progress_push` at every milestone below (unchanged), and every event is persisted server-side regardless of what the main agent observes. The MCP server is Effect-native and cannot emit the custom `notifications/claude/channel` method Claude Code's channel feature listens for — no `<channel source="mcp">` tag is ever delivered to the main agent. Do not wait for one and do not gate any behavior on receiving it.
 
-**Primary path: narrate progress in plain text.** The Task-panel tools (`TaskCreate`/`TaskUpdate`) are frequently absent from a given session's tool set — treat text narration as the norm, not a fallback. As each channel event arrives, tell the user what's happening in a short sentence keyed to the event class:
+**Primary path: read the subagent's plain-text narration.** The Task-panel tools (`TaskCreate`/`TaskUpdate`) are frequently absent from a given session's tool set — treat text narration as the norm, not a fallback. As the subagent narrates each milestone, relay it to the user in a short sentence keyed to the event class:
 
 - **Goals discovered** (`goals_ready`, `goal_added`) — name the goals (or the new one) so the user knows the decomposition.
 - **A goal or behavior starts** (`goal_started`, `behavior_started`, `behavior_added`) — say which goal/behavior is now active, using the `[G<n>.B<m>] <behavior>` label so the user can track it across events.
@@ -40,9 +40,7 @@ When Claude Code is started with `--dangerously-load-development-channels server
 - **Blocked** (`blocked`) — surface `reason` and `failureSignatureHash` prominently; this is the one event class worth calling out even mid-narration.
 - **Session complete** (`session_complete`) — summarize the outcome (`succeeded` / `blocked` / `abandoned`) and the goals covered.
 
-`tdd_progress_push` events are persisted server-side regardless of whether any panel renders — they remain inspectable at any time via `tdd_task (action: get)`, so narration is a convenience for the user watching live, not the record of truth.
-
-If no `<channel>` events arrive (channels not active or not enabled), wait for the background completion notification. You can check progress at any time with `tdd_task (action: get)(id)` via the MCP tool — it returns the full goal+behavior tree so you can rebuild the shape from a single read. (`tdd_task (action: resume)(id)` returns only a short status summary; reach for `tdd_task (action: get)` when you need the tree.)
+**Secondary path: poll `tdd_task (action: get)(id)`** whenever you need the current phase/goals state — for example when the subagent's narration is quiet for a stretch, or before reporting status to the user. It returns the full goal+behavior tree so you can rebuild the shape from a single read. (`tdd_task (action: resume)(id)` returns only a short status summary; reach for `tdd_task (action: get)` when you need the tree.) Between narration and polling, wait for the background completion notification to know the dispatch has finished.
 
 ### Optional: mirror into a task panel (only when the host session has the Task tools — often it doesn't)
 

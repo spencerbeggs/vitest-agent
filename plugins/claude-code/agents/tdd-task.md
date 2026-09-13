@@ -235,7 +235,7 @@ All of these mean: the persisted progress record has gaps. Call `tdd_progress_pu
 
 ## Background progress push
 
-Call `tdd_progress_push` at every lifecycle transition listed below. The tool pushes events to the main agent via Claude Code channels; if channels are not active, the call silently succeeds and has no effect. **Never branch on the return value — always continue regardless of whether delivery succeeded.**
+Call `tdd_progress_push` at every lifecycle transition listed below. The server persists every event, but the Effect-native MCP server cannot emit the custom `notifications/claude/channel` method Claude Code's channel feature listens for, so no host ever surfaces the push as a delivered `<channel>` event — do not expect an acknowledgement. **Never branch on the return value — always continue regardless of whether delivery succeeded.** Your plain-text narration of each milestone (below) is the main agent's primary signal; keep narrating in parallel with every push, don't rely on the push alone.
 
 Behavior-level events always carry `sessionId`, `goalId`, AND `behaviorId` so the main-agent renderer can route the event into the right goal subtree without a behavior→goal lookup.
 

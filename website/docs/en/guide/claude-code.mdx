@@ -35,9 +35,11 @@ This adds the following to your `.claude/settings.json`:
 
 :::note
 `@vitest-agent/plugin` must already be installed as a project dependency. The
-marketplace plugin's MCP loader detects your package manager and spawns
-`@vitest-agent/mcp` from your project's `node_modules`. If the MCP bin is
-missing, the loader prints install instructions and exits.
+plugin declares the `vitest-agent-mcp` bin, so the marketplace plugin's MCP
+loader finds it at `node_modules/.bin/vitest-agent-mcp` and execs it directly.
+If that bin is missing, the loader prints a package-manager-specific install
+line to stderr and falls back to `npx --yes @vitest-agent/mcp`, which
+downloads the server — slower, and without your project's pinned version.
 :::
 
 ## What it adds
@@ -45,11 +47,15 @@ missing, the loader prints install instructions and exits.
 **MCP server (auto-registered)**
 
 The plugin registers the `vitest-agent` MCP server automatically. Claude Code
-spawns it via a zero-dependency shell loader that detects your package manager
-and exec-replaces itself with the MCP bin — no wrapper process remains.
+spawns it via a zero-dependency shell loader that prefers your project's own
+`node_modules/.bin/vitest-agent-mcp` and exec-replaces itself with it — no
+wrapper process remains. Only when that bin is absent does it detect your
+package manager, print the matching install line, and fall back to
+`npx --yes @vitest-agent/mcp`.
 
-The server exposes 29 action-keyed tools covering test queries, TDD lifecycle
-management, notes, hypotheses, agent registration, and workspace history.
+The server exposes 30 action-keyed tools covering test queries, TDD lifecycle
+management, notes, hypotheses, agent registration, orchestrator progress
+events, and workspace history, plus six framing prompts.
 
 **Lifecycle hooks**
 

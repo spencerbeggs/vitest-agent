@@ -1,21 +1,22 @@
 ---
 title: "@vitest-agent/mcp"
-description: The vitest-agent MCP server bin. Exposes 29 action-keyed tools over stdio giving LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more.
+description: The vitest-agent MCP server bin, built on Effect's native McpServer. Exposes 30 action-keyed tools and six prompts over stdio giving LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more.
 ---
 
 # @vitest-agent/mcp
 
-The `@vitest-agent/mcp` MCP server bin. Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces six framing-only prompts.
+The `vitest-agent-mcp` MCP server bin, built on Effect's native `McpServer` (`effect/unstable/ai`). Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces six framing-only prompts.
 
-This package is a regular dependency of `@vitest-agent/plugin` and installs with it automatically. Install it directly only if you run the MCP server standalone.
+This package is a regular dependency of `@vitest-agent/plugin`, and the plugin declares the `vitest-agent-mcp` bin itself as a shim over this package's `./main` entry — so installing the plugin links the bin on every package manager. Install `@vitest-agent/mcp` directly only if you run the MCP server standalone.
 
 ## Features
 
-- **29 action-keyed tools** — per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`, and more
+- **30 action-keyed tools** — per-CRUD families collapse into single tools dispatching on an `action` discriminator; covers `test_status`, `test_overview`, `test_coverage`, `test_errors`, `run_tests`, `note`, `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`, `tdd_progress_push`, and more
 - **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, and `wrapup`
-- **Idempotency middleware** — `tdd_task`, `tdd_goal`, `tdd_behavior`, and `hypothesis` create-actions are idempotent on derived keys
-- **Strict tool inputs** — an unknown key is rejected with an error naming it and listing the accepted params, so a mistyped scope param fails loudly instead of running wider than intended
-- **Session-surviving error handling** — a resolver that throws returns a structured `UnexpectedToolError` envelope, and a stray unhandled rejection after the transport connects is logged to stderr rather than killing the server
+- **Idempotent writes** — `tdd_task`, `tdd_goal`, `tdd_behavior`, and `hypothesis` create-actions are idempotent on derived keys; a replay carries `_idempotentReplay: true`
+- **Strict tool inputs** — an unknown key is rejected with an error naming it and listing the accepted params, so a mistyped scope param fails loudly instead of running wider than intended; numeric params are strict on the wire too, so send `"limit": 5`, not `"limit": "5"`
+- **Session-surviving error handling** — a handler that dies returns a structured `UnexpectedToolError` envelope, every log line goes to stderr (stdout is the JSON-RPC wire), and a stray unhandled rejection after the transport connects is logged rather than killing the server mid-session
+- **Effect Schema end to end** — tool inputs, outputs, and prompt arguments are Effect `Schema` values; the served JSON Schema is generated from them. No MCP SDK, no tRPC, no zod
 
 ## Install
 
@@ -27,13 +28,17 @@ pnpm add -D @vitest-agent/mcp
 
 ## Quick start
 
-Start the MCP server over stdio:
+Start the MCP server over stdio. With `@vitest-agent/plugin` installed the bin is already linked:
 
 ```bash
-npx @vitest-agent/mcp
+npx vitest-agent-mcp
+# or, standalone without the plugin
+npx --yes @vitest-agent/mcp
 ```
 
-The server reads the SQLite database written by `AgentPlugin` via the same XDG-derived path, so a single test run populates data for all tools.
+The server reads the SQLite database written by `AgentPlugin` via the same XDG-derived path, so a single test run populates data for all tools. It logs only to stderr — stdout is the JSON-RPC wire — and exits 0 when the client closes stdin cleanly.
+
+For embedding, `ServerLayer({ version })` is the whole server as an Effect `Layer` over any `Stdio` implementation, and the `Kit` toolkit, `toolHandlers`, `PromptsLayer`, `registerStrictToolkit`, and `McpSession` are exported from the programmatic barrel. The process-owning `main()` lives on the `@vitest-agent/mcp/main` subpath.
 
 ## Tool surface
 
@@ -60,6 +65,7 @@ Tools are organized into families. Each family is a single MCP tool that dispatc
 | `tdd_task` | `start`, `end`, `get`, `resume` |
 | `tdd_goal` | `create`, `list`, `get`, `update` |
 | `tdd_behavior` | `create`, `list`, `get`, `update` |
+| `tdd_progress_push` | Publish an orchestrator progress event to the main agent |
 | `inventory` | `project`, `module`, `suite`, `session` |
 | `test` | `list`, `get`, `for_file` |
 | `register_agent` | Register an agent session with the data store |
@@ -97,6 +103,10 @@ Unknown keys are rejected rather than dropped, so a misspelled param cannot wide
 
 A run with no `projectRoot` anchors at the directory of the vitest config found by walking up from the server's working directory — still the wrong tree once you are working in a git worktree, since the walk starts where the server booted. Pass `projectRoot` to run against a different checkout of the same repository; it is validated and used verbatim, and the resolved value comes back on every `ok` and `no-match` result. See the [MCP tool reference](/mcp/tools) for the anchoring and validation rules.
 
+## Progress notifications
+
+`tdd_progress_push` is how the TDD orchestrator reports progress to the main agent. The tool validates the payload against the `ChannelEvent` schema, enriches it server-side with the tree coordinates, and publishes it as a standard MCP `notifications/message` frame with `logger: "vitest-agent/channel"`. Clients that subscribe to logging notifications receive it; there is no custom notification method to register. The tool always returns `{ ok: true }` — delivery is best-effort.
+
 ## Framing prompts
 
 Six prompts orient agents toward the right tool sequence without pre-fetching data:
@@ -109,6 +119,8 @@ Six prompts orient agents toward the right tool sequence without pre-fetching da
 | `explain-failure` | Explain a specific failure in context |
 | `tdd-resume` | Resume a TDD task after an interruption |
 | `wrapup` | End-of-session review nudge |
+
+Prompts are listed by name and description only; the protocol library does not advertise a separate `title` field, so a client that shows titles falls back to the name.
 
 ## Claude Code plugin integration
 
