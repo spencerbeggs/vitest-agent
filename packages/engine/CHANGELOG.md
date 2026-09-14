@@ -1,5 +1,22 @@
 # @vitest-agent/engine
 
+## 0.1.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/config-file | dependency | updated | ^0.9.0 | ^0.10.0 |
+| @effected/xdg | dependency | updated | ^0.5.1 | ^0.5.2 |
+
+[#443][#443]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#443]: https://github.com/spencerbeggs/vitest-agent/pull/443
+
 ## 0.1.0
 
 ### Features

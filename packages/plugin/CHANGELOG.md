@@ -1,5 +1,15 @@
 # @vitest-agent/plugin
 
+## 4.0.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 3.0.0 | 3.0.1 |
+| @vitest-agent/engine | dependency | updated | 0.1.0 | 0.1.1 |
+| @vitest-agent/mcp | dependency | updated | 4.0.0 | 4.0.1 |
+
 ## 4.0.0
 
 ### Breaking Changes

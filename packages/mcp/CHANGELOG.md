@@ -1,5 +1,13 @@
 # @vitest-agent/mcp
 
+## 4.0.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 0.1.0 | 0.1.1 |
+
 ## 4.0.0
 
 ### Breaking Changes

@@ -1,5 +1,13 @@
 # @vitest-agent/cli
 
+## 3.0.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 0.1.0 | 0.1.1 |
+
 ## 3.0.0
 
 ### Breaking Changes
