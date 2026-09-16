@@ -84,7 +84,7 @@ const seedFixtureEffect = Effect.gen(function* () {
 				{ contentType: "text/plain", body: "hello", bodyEncoding: "utf-8", byteSize: 5 },
 				// 6 decoded bytes, 8 characters on the wire.
 				{ contentType: "application/octet-stream", body: "AAAAAAAA", bodyEncoding: "base64", byteSize: 6 },
-				// 2 UTF-16 code units, 8 utf-8 bytes on the wire.
+				// 4 UTF-16 code units (two surrogate pairs), 8 utf-8 bytes on the wire.
 				{ contentType: "text/plain", body: "\u{1F600}\u{1F600}", bodyEncoding: "utf-8", byteSize: 8 },
 			],
 		},
@@ -309,18 +309,21 @@ describe("inline attachment bodies are gated behind maxBytes", () => {
 	});
 
 	it("charges a multibyte utf-8 body its byte length, not its UTF-16 code-unit count", async () => {
-		// "hello" (5) fits and the base64 body (8) does not, leaving 2 of a
-		// 7-byte budget. Two emoji are 2 UTF-16 code units — they would fit
-		// under String.length accounting — but 8 utf-8 bytes, so they must not.
+		// "hello" (5) and the base64 body (8) spend 13 of a 17-byte budget. The
+		// two emoji are 4 UTF-16 code units but 8 utf-8 bytes: String.length
+		// accounting fits them in the remaining 4, byte accounting does not.
+		// (An inclusion assertion can never catch under-charging; only this
+		// exclusion can.)
 		const result = await caller("test", {
 			action: "artifacts",
 			fullName: FULL_NAME,
 			project: PROJECT,
-			maxBytes: 7,
+			maxBytes: 5 + 8 + 4,
 		});
 		if (result.action !== "artifacts") throw new Error("expected the artifacts variant");
 		const attachments = result.artifacts[0]?.attachments ?? [];
 		expect(attachments[2]?.body).toBe("hello");
+		expect(attachments[3]?.body).toBe("AAAAAAAA");
 		expect(attachments[4]?.body).toBeUndefined();
 
 		// With room for exactly the bytes, it is included.
