@@ -357,19 +357,15 @@ function findConfigInDir(dir: string): string | null {
 	return null;
 }
 
-function dirHasVitestOrViteConfig(dir: string): boolean {
-	return findConfigInDir(dir) !== null;
-}
-
 /**
- * Walk UP from `startDir` looking for the vitest/vite config file, returning
- * its absolute path. Same walk and same git-root bound as
- * `resolveConfigAnchoredRoot`; returns `null` when no config is found in
- * range or when anything about the walk throws.
- *
- * @internal exported for tests
+ * The one walk both anchoring helpers share: step UP from `startDir`
+ * until a vitest/vite config file is found, returning its absolute path.
+ * Bounded at the git root (inclusive — the directory containing `.git`
+ * is still examined before the walk stops) and at the filesystem root.
+ * Returns `null` when no config is found in range or when anything about
+ * the walk throws.
  */
-export function resolveAnchoredConfigFile(startDir: string): string | null {
+function walkUpToConfigFile(startDir: string): string | null {
 	try {
 		let dir = resolve(startDir);
 		for (;;) {
@@ -386,28 +382,26 @@ export function resolveAnchoredConfigFile(startDir: string): string | null {
 }
 
 /**
+ * Walk UP from `startDir` looking for the vitest/vite config file, returning
+ * its absolute path, or `null` when none is found in range.
+ *
+ * @internal exported for tests
+ */
+export function resolveAnchoredConfigFile(startDir: string): string | null {
+	return walkUpToConfigFile(startDir);
+}
+
+/**
  * Walk UP from `startDir` looking for the vitest/vite config Vitest would
- * load anyway, returning the directory that holds it. Bounded at the git
- * root (inclusive — the directory containing `.git` is still examined
- * before the walk stops). Returns `startDir` unchanged when no config is
- * found in range, or when anything about the walk throws. See the
- * issue #259 comment above `validateProjectRoot` for the full rationale.
+ * load anyway, returning the directory that holds it. Returns `startDir`
+ * unchanged when no config is found in range. See the issue #259 comment
+ * above `validateProjectRoot` for the full rationale.
  *
  * @internal exported for tests
  */
 export function resolveConfigAnchoredRoot(startDir: string): string {
-	try {
-		let dir = resolve(startDir);
-		for (;;) {
-			if (dirHasVitestOrViteConfig(dir)) return dir;
-			if (existsSync(join(dir, ".git"))) return startDir;
-			const parent = dirname(dir);
-			if (parent === dir) return startDir;
-			dir = parent;
-		}
-	} catch {
-		return startDir;
-	}
+	const found = walkUpToConfigFile(startDir);
+	return found === null ? startDir : dirname(found);
 }
 
 /**
