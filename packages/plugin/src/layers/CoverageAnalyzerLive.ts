@@ -1,10 +1,11 @@
-import { relative, sep } from "node:path";
+import { relative } from "node:path";
 import { GlobPattern } from "@effected/glob";
 import type { CoverageReport, FileCoverageReport, MetricThresholds, ResolvedThresholds } from "@vitest-agent/sdk";
 import { compressLines } from "@vitest-agent/sdk";
 import { Effect, Layer, Option, Result } from "effect";
 import type { CoverageOptions } from "../services/CoverageAnalyzer.js";
 import { CoverageAnalyzer } from "../services/CoverageAnalyzer.js";
+import { toPosixPath } from "../utils/to-posix-path.js";
 
 // --- Istanbul duck-type interfaces (local, not Effect Schemas) ---
 
@@ -163,17 +164,20 @@ function processCoverageInternal(
 		lines: summary.lines.pct,
 	};
 
-	const testedFileSet = testedFiles ? new Set(testedFiles) : undefined;
+	// Both sides of the membership test are posix-normalized: `moduleId`
+	// is always forward-slash (Vitest `slash()`es test file paths at glob
+	// time) while the v8 provider keys the coverage map with native
+	// separators, so on Windows `C:/repo/src/a.ts` must still find
+	// `C:\repo\src\a.ts`. Neither side alone is authoritative.
+	const testedFileSet = testedFiles ? new Set(testedFiles.map(toPosixPath)) : undefined;
 	const lowCoverage: FileCoverageReport[] = [];
 	const belowTarget: FileCoverageReport[] = [];
 
 	// Coverage providers key the map by absolute path; glob patterns are
 	// root-relative (see `CoverageOptions.root`). Globs match on the
-	// relative, posix-separated form; the report and the `testedFiles`
-	// membership test use the original key.
+	// relative, posix-separated form; the report uses the original key.
 	const { root } = options;
-	const matchKey = (filePath: string): string =>
-		root === undefined ? filePath : relative(root, filePath).split(sep).join("/");
+	const matchKey = (filePath: string): string => toPosixPath(root === undefined ? filePath : relative(root, filePath));
 
 	for (const filePath of coverageMap.files()) {
 		const matchPath = matchKey(filePath);
@@ -194,7 +198,7 @@ function processCoverageInternal(
 		if (isBareZero && !includeBareZero) continue;
 
 		// For scoped processing, only flag threshold violations for in-scope files
-		if (scoped && !testedFileSet?.has(filePath)) {
+		if (scoped && !testedFileSet?.has(toPosixPath(filePath))) {
 			// Out-of-scope files are never flagged, even if below threshold
 			continue;
 		}

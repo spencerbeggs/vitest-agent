@@ -32,8 +32,9 @@ export interface CoverageOptions {
 	 * matched verbatim. Reported `file` fields keep the map's original key.
 	 *
 	 * `root` does NOT apply to `processScoped`'s `testedFiles`: those are
-	 * compared against the raw map key, so callers pass the same shape the
-	 * provider uses (absolute paths in production).
+	 * compared against the map key with only separators normalized, so
+	 * callers pass the same shape the provider uses (absolute paths in
+	 * production; forward or back slashes both work).
 	 */
 	readonly root?: string;
 }

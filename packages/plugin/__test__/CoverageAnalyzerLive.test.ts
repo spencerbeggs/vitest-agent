@@ -820,6 +820,40 @@ describe("root-relative matching (production shape)", () => {
 		expect(report.scopedFiles).toEqual(["/repo/src/index.ts"]);
 	});
 
+	it("normalizes separators on both sides of the scoped membership test (Windows v8 keys)", async () => {
+		// On Windows `moduleId` is forward-slash (Vitest slashes test paths)
+		// while the v8 provider keys the coverage map with backslashes.
+		const windowsKeys = {
+			"C:\\repo\\src\\index.ts": {
+				summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+				uncoveredLines: [1],
+			},
+			"C:\\repo\\lib\\other.ts": {
+				summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+				uncoveredLines: [1],
+			},
+		};
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.processScoped(
+					mockCoverageMap(windowsKeys),
+					{
+						thresholds: {
+							global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+							perFile: false,
+							patterns: [],
+						},
+						includeBareZero: false,
+					},
+					["C:/repo/src/index.ts"],
+				),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		// Flagged, and reported under the provider's original key.
+		expect(report.lowCoverageFiles).toEqual(["C:\\repo\\src\\index.ts"]);
+	});
+
 	it("does not relativize testedFiles: a root-relative entry never matches an absolute key", async () => {
 		const result = await run(
 			Effect.flatMap(CoverageAnalyzer, (ca) =>
