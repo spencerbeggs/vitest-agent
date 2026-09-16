@@ -1,7 +1,10 @@
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { Writable } from "node:stream";
-import { Schema } from "effect";
+import type { DataReader } from "@vitest-agent/engine";
+import { DataStore } from "@vitest-agent/engine";
+import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
+import { Deferred, Effect, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { RunTestsResultType, TagFilterType } from "../src/tools/run-tests.js";
 import {
@@ -12,10 +15,42 @@ import {
 	formatReportJson,
 	formatReportMarkdown,
 	formatRunTestsMarkdown,
+	makeBestEffortFork,
 	makeCoverageDirOverride,
 	sanitizeTestArgs,
 	withStdioCaptured,
 } from "../src/tools/run-tests.js";
+
+describe("makeBestEffortFork (issue #330)", () => {
+	const services = () =>
+		Effect.runPromise(Effect.context<DataReader | DataStore>().pipe(Effect.provide(DataStoreTestLayer)));
+
+	it("runs the forked effect against the provided services", async () => {
+		const done = await Effect.runPromise(Deferred.make<boolean>());
+		const runFork = makeBestEffortFork(await services());
+		runFork(
+			Effect.gen(function* () {
+				yield* DataStore;
+				yield* Deferred.succeed(done, true);
+			}),
+		);
+		expect(await Effect.runPromise(Deferred.await(done))).toBe(true);
+	});
+
+	it("swallows a failing effect: returns void and never rejects", async () => {
+		const runFork = makeBestEffortFork(await services());
+		const rejections: unknown[] = [];
+		const onRejection = (reason: unknown) => rejections.push(reason);
+		process.on("unhandledRejection", onRejection);
+		try {
+			expect(runFork(Effect.fail(new Error("association failed")))).toBeUndefined();
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		} finally {
+			process.off("unhandledRejection", onRejection);
+		}
+		expect(rejections).toEqual([]);
+	});
+});
 
 describe("makeCoverageDirOverride", () => {
 	it("returns a fresh tmpdir-namespaced reportsDirectory per invocation (issues #159/#191)", () => {

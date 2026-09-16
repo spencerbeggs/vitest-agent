@@ -832,7 +832,23 @@ interface RunTestsContext {
 	readonly currentSessionId: CurrentSessionIdRef;
 	readonly sessionContext: SessionContextRef;
 	readonly runPromise: <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>) => Promise<A>;
+	/** Fire-and-forget: fork the effect against the DB services and ignore its outcome. */
+	readonly runFork: <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>) => void;
 }
+
+/**
+ * Build the best-effort runner for a `RunTestsContext`: forks the effect
+ * as a fiber on the provided services with its outcome ignored, so a
+ * failure never surfaces as a promise rejection and never touches the
+ * tool result (issue #330).
+ *
+ * @internal
+ */
+export const makeBestEffortFork =
+	(services: Context.Context<DataReader | DataStore>) =>
+	<A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>): void => {
+		Effect.runFork(Effect.provideContext(effect.pipe(Effect.ignore), services));
+	};
 
 /**
  * The run body, promise-shaped because it drives Vitest's promise API and
@@ -1088,14 +1104,12 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		// session-scoped queries reflect this run. Never blocks the result.
 		const chatId = ctx.currentSessionId.get();
 		if (chatId !== null) {
-			ctx
-				.runPromise(
-					Effect.gen(function* () {
-						const store = yield* DataStore;
-						yield* store.associateLatestRunWithSession({ chatId, invocationMethod: "mcp" });
-					}),
-				)
-				.catch(() => undefined);
+			ctx.runFork(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.associateLatestRunWithSession({ chatId, invocationMethod: "mcp" });
+				}),
+			);
 		}
 
 		// Issue #160: a filtered call (files/project/tags) only exercises
@@ -1182,6 +1196,7 @@ export const handleRunTests = (
 			currentSessionId: session.currentSessionId,
 			sessionContext: session.sessionContext,
 			runPromise: (effect) => Effect.runPromise(Effect.provideContext(effect, services)),
+			runFork: makeBestEffortFork(services),
 		};
 		return yield* Semaphore.withPermit(
 			runTestsSemaphore,
