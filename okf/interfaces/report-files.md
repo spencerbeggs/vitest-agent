@@ -81,11 +81,11 @@ ISO-8601 instant.
 ## The versioning promise
 
 A contract change to `run.json`'s shape bumps `schemaVersion`, the
-document's `$id` URL, and its filename together — see
+document's `$id` URL, and its committed path (`schemas/<version>/run.json`)
+together — see
 [Interface: published-json-schemas](published-json-schemas.md) for how
-that document is generated and published, and
-[Runbook: release](../runbooks/release.md) for the release-gate sequence
-this depends on. A reader pins to the `schemaVersion` it understands
+that document is generated, drift-checked, and served from GitHub raw
+without any release-ordering step. A reader pins to the `schemaVersion` it understands
 rather than assuming the shape is stable across major versions of the
 family; the envelope's whole purpose is to let that reader detect drift
 without importing `@vitest-agent/sdk` at all.

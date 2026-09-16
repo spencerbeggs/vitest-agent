@@ -30,8 +30,8 @@
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:prod": "node savvy.build.ts --target prod",
 		"prepare": "turbo run build:dev",
-		"schemas:check": "tsx scripts/generate-schemas.ts --check",
-		"schemas:generate": "tsx scripts/generate-schemas.ts",
+		"schema:build": "schemastore build lib/configs/schemastore.config.ts",
+		"schema:check": "schemastore check lib/configs/schemastore.config.ts",
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -42,9 +42,9 @@
 	"devDependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effected/schemastore": "catalog:effected",
-		"@savvy-web/bundler": "^2.3.8",
+		"@effected/schemastore-cli": "catalog:effected",
+		"@savvy-web/bundler": "^2.3.9",
 		"@types/node": "catalog:build",
-		"tsx": "catalog:build",
 		"typescript": "catalog:build"
 	},
 	"engines": {
