@@ -18,7 +18,7 @@ import {
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
-import type { Context } from "effect";
+import type { Context, Fiber } from "effect";
 import { Data, Effect, Schema, SchemaGetter, Semaphore } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
@@ -832,17 +832,18 @@ interface RunTestsContext {
 
 /**
  * Build the best-effort runner for a `RunTestsContext`: forks the effect
- * as a fiber on the provided services with its outcome ignored, so a
- * failure never surfaces as a promise rejection and never touches the
- * tool result (issue #330).
+ * as a fiber on the provided services with its expected failure channel
+ * ignored (`Effect.ignore`), so a typed failure never touches the tool
+ * result (issue #330). Defects and interrupts are NOT absorbed — a bug in
+ * the forked effect still surfaces through the runtime's fiber logging
+ * rather than being hidden. Returns the fiber so a test can await its exit.
  *
  * @internal
  */
 export const makeBestEffortFork =
 	(services: Context.Context<DataReader | DataStore>) =>
-	<A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>): void => {
+	<A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>): Fiber.Fiber<void> =>
 		Effect.runFork(Effect.provideContext(effect.pipe(Effect.ignore), services));
-	};
 
 /**
  * The run body, promise-shaped because it drives Vitest's promise API and

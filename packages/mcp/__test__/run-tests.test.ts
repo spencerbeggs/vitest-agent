@@ -4,7 +4,7 @@ import { Writable } from "node:stream";
 import type { DataReader } from "@vitest-agent/engine";
 import { DataStore } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
-import { Deferred, Effect, Schema } from "effect";
+import { Effect, Exit, Fiber, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { RunTestsResultType, TagFilterType } from "../src/tools/run-tests.js";
 import {
@@ -26,29 +26,31 @@ describe("makeBestEffortFork (issue #330)", () => {
 		Effect.runPromise(Effect.context<DataReader | DataStore>().pipe(Effect.provide(DataStoreTestLayer)));
 
 	it("runs the forked effect against the provided services", async () => {
-		const done = await Effect.runPromise(Deferred.make<boolean>());
 		const runFork = makeBestEffortFork(await services());
-		runFork(
+		let sawStore = false;
+		const fiber = runFork(
 			Effect.gen(function* () {
 				yield* DataStore;
-				yield* Deferred.succeed(done, true);
+				sawStore = true;
 			}),
 		);
-		expect(await Effect.runPromise(Deferred.await(done))).toBe(true);
+		const exit = await Effect.runPromise(Fiber.await(fiber));
+		expect(Exit.isSuccess(exit)).toBe(true);
+		expect(sawStore).toBe(true);
 	});
 
-	it("swallows a failing effect: returns void and never rejects", async () => {
+	it("absorbs a typed failure: the fiber exits successfully instead of failing", async () => {
 		const runFork = makeBestEffortFork(await services());
-		const rejections: unknown[] = [];
-		const onRejection = (reason: unknown) => rejections.push(reason);
-		process.on("unhandledRejection", onRejection);
-		try {
-			expect(runFork(Effect.fail(new Error("association failed")))).toBeUndefined();
-			await new Promise((resolve) => setTimeout(resolve, 10));
-		} finally {
-			process.off("unhandledRejection", onRejection);
-		}
-		expect(rejections).toEqual([]);
+		const fiber = runFork(Effect.fail(new Error("association failed")));
+		const exit = await Effect.runPromise(Fiber.await(fiber));
+		expect(Exit.isSuccess(exit)).toBe(true);
+	});
+
+	it("does not absorb a defect: a bug in the forked effect still fails the fiber", async () => {
+		const runFork = makeBestEffortFork(await services());
+		const fiber = runFork(Effect.die(new Error("bug")));
+		const exit = await Effect.runPromise(Fiber.await(fiber));
+		expect(Exit.isFailure(exit)).toBe(true);
 	});
 });
 
