@@ -9,8 +9,8 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 4d77b35d213dbf74fff62dfc72bdd89392e49eaabf5baa542b77d1914ba347ba
+  at: 2026-09-16T17:26:02Z
+  body_sha256: a9494cb6d6fb401a1e38b8076e5453a2184edb0a000b44ee974d60b09b936035
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -67,10 +67,9 @@ handler is a compile error — `packages/mcp/src/toolkit.ts:80-111`), and
 `registerStrictToolkit(Kit)` provided with `ToolsLayer` and
 `PromptsLayer`, all provided by `McpServer.layerStdio` and
 `Layer.succeed(Logger.LogToStderr, true)`. Handlers require
-`DataReader | DataStore | ProjectDiscovery | OutputRenderer |
-McpSession`; `McpSession` is a service carrying `{ cwd,
-currentSessionId, sessionContext }` that replaces the tRPC-era context
-object.
+`DataReader | DataStore | ProjectDiscovery | McpSession`; `McpSession`
+is a service carrying `{ cwd, currentSessionId, sessionContext }` that
+replaces the tRPC-era context object.
 
 **A local strict registrar over `McpServer.addTool`, not
 `McpServer.toolkit`.** `McpServer.toolkit` decodes arguments with

@@ -11,8 +11,8 @@
  * captures both.
  */
 
-import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/engine";
-import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import type { DataReader, DataStore, ProjectDiscovery } from "@vitest-agent/engine";
+import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import type { Cause, Context, Scope } from "effect";
 import { Console, Deferred, Effect, Layer, Logger, Queue, References, Sink, Stdio, Stream } from "effect";
@@ -38,7 +38,7 @@ export interface McpToolDescriptor {
 }
 
 /** The services the harness builds for the server (and hands to `seed` / `services`). */
-export type HarnessServices = McpSession | DataReader | DataStore | ProjectDiscovery | OutputRenderer;
+export type HarnessServices = McpSession | DataReader | DataStore | ProjectDiscovery;
 
 export interface McpHarness {
 	/** The built service context: run a seeding effect against the SAME in-memory store the server reads. */
@@ -133,7 +133,6 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		const ServicesLayer = Layer.mergeAll(
 			options.session ?? McpSession.layerTest({ cwd: process.cwd() }),
 			DataStoreTestLayer,
-			OutputPipelineLive(process.env),
 			ProjectDiscoveryTest.layer([]),
 		);
 		// Built once here so a `seed` (or a test, via `services`) talks to the

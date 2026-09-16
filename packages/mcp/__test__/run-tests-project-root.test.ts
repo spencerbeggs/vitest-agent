@@ -34,7 +34,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -68,7 +68,7 @@ function fakeVitest() {
 	};
 }
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, ProjectDiscoveryTest.layer([]));
 
 describe("run_tests projectRoot validation", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Layer.Success<typeof TestLayer>, Layer.Error<typeof TestLayer>>;

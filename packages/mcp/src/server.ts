@@ -1,6 +1,6 @@
 // The assembled Effect-native MCP server over stdio.
 
-import type { DataReader, DataStore, OutputRenderer, ProjectDiscovery } from "@vitest-agent/engine";
+import type { DataReader, DataStore, ProjectDiscovery } from "@vitest-agent/engine";
 import type { Stdio } from "effect";
 import { Layer, Logger } from "effect";
 import { McpProtocol, McpServer } from "effect/unstable/ai";
@@ -44,11 +44,7 @@ const DESCRIPTION =
  */
 export const ServerLayer = (
 	options: ServerLayerOptions,
-): Layer.Layer<
-	never,
-	never,
-	PlatformServices | McpSession | DataReader | DataStore | ProjectDiscovery | OutputRenderer
-> =>
+): Layer.Layer<never, never, PlatformServices | McpSession | DataReader | DataStore | ProjectDiscovery> =>
 	Layer.mergeAll(registerStrictToolkit(Kit).pipe(Layer.provide(ToolsLayer)), PromptsLayer).pipe(
 		Layer.provide(
 			McpServer.layerStdio({
