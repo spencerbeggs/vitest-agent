@@ -55,23 +55,6 @@ export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 		},
 	},
 	{
-		procedurePath: "_legacy_hypothesis_validate",
-		deriveKey: (input) => {
-			if (
-				input !== null &&
-				typeof input === "object" &&
-				"id" in input &&
-				"outcome" in input &&
-				typeof (input as Record<string, unknown>).id === "number" &&
-				typeof (input as Record<string, unknown>).outcome === "string"
-			) {
-				const i = input as { id: number; outcome: string };
-				return `${i.id}:${i.outcome}`;
-			}
-			return null;
-		},
-	},
-	{
 		// `tdd_task action=start` accepts either `sessionId` (sessions.id)
 		// or `chatId` (host chat id). Both forms must produce a stable
 		// key — without that, an orchestrator retry that uses the same
