@@ -697,7 +697,7 @@ describe("pattern globbing (issue #381)", () => {
 		const report = Option.getOrThrow(result);
 		// Files the pattern matches use its 50% thresholds and pass at 55%;
 		// only files outside the pattern fall back to the 80% global and fail.
-		expect(report.lowCoverageFiles.sort()).toEqual(expectedLow);
+		expect([...report.lowCoverageFiles].sort()).toEqual(expectedLow);
 	});
 
 	it("keeps * and ? from crossing a directory separator", async () => {
@@ -714,7 +714,7 @@ describe("pattern globbing (issue #381)", () => {
 			),
 		);
 		const report = Option.getOrThrow(result);
-		expect(report.lowCoverageFiles.sort()).toEqual(["lib/other.ts", "src/lib/deep/file.ts"]);
+		expect([...report.lowCoverageFiles].sort()).toEqual(["lib/other.ts", "src/lib/deep/file.ts"]);
 	});
 });
 
