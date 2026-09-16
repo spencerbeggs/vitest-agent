@@ -1306,6 +1306,176 @@ describe("AgentReporter", () => {
 			expect(row.scoped).toBe(1);
 		});
 
+		it("persists scoped=true when vitest.config.cliOptions.project is set (CLI --project, issue #401)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			// A CLI `--project` run: equal spec counts, no filenamePattern — only
+			// config.cliOptions.project distinguishes this from a full run.
+			const mockVitest = {
+				config: { cliOptions: { project: ["@x/y"] } },
+				version: "test",
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			reporter._vitest = mockVitest;
+			reporter.onTestRunStart(new Array(10).fill({}));
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(1);
+		});
+
+		it("persists scoped=true when vitest.config.cliOptions.tagsFilter is set (CLI --tags-filter, issue #401)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			const mockVitest = {
+				config: { cliOptions: { tagsFilter: ["int"] } },
+				version: "test",
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			reporter._vitest = mockVitest;
+			reporter.onTestRunStart(new Array(10).fill({}));
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(1);
+		});
+
+		it("persists scoped=false when vitest.config.ts has its own testNamePattern (config-file-only, issue #401 regression)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			// Vitest copies the RESOLVED testNamePattern into configOverride at
+			// startup (`Vitest._setServer`), before any reporter's onInit runs — so
+			// a project-level `vitest.config.ts` `testNamePattern` shows up here
+			// too, not just a CLI `-t`. cliOptions.testNamePattern (the raw
+			// pre-resolution CLI value) is empty, proving this pattern came from
+			// the config file, not a flag. onInit must snapshot this as the
+			// "initial" value so it's indistinguishable from "current" at
+			// onTestRunEnd, and the run must NOT be scoped.
+			const mockVitest = {
+				config: { cliOptions: {} },
+				configOverride: { testNamePattern: /alpha/ },
+				version: "test",
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			await reporter.onInit(mockVitest);
+			reporter.onTestRunStart(new Array(10).fill({}));
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(0);
+		});
+
+		it("persists scoped=true when -t/--testNamePattern is a CLI flag present at onInit (review follow-up to issue #401)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			// Equal spec counts, no filenamePattern — cliOptions.testNamePattern
+			// being set (the raw pre-resolution CLI value) is what distinguishes
+			// a real -t flag from a config-file-only pattern; both are present
+			// at onInit, so the initial===current snapshot-diff branch defers to
+			// `cli`.
+			const mockVitest = {
+				config: { cliOptions: { testNamePattern: "foo" } },
+				configOverride: { testNamePattern: /foo/ },
+				version: "test",
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			await reporter.onInit(mockVitest);
+			reporter.onTestRunStart(new Array(10).fill({}));
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(1);
+		});
+
+		it("persists scoped=true when a watch-mode testNamePattern change lands after onInit but before onTestRunEnd", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			// No pattern at onInit (no config-file pattern, no CLI flag) — then
+			// `Vitest.changeNamePattern` (watch-mode `t` keypress) mutates the
+			// SAME configOverride object before the run ends. The `current`
+			// snapshot at onTestRunEnd must differ from `initial` and, being
+			// truthy, mark the run scoped even though cliOptions never changes.
+			const mockVitest: {
+				config: { cliOptions: Record<string, unknown> };
+				configOverride: { testNamePattern?: RegExp };
+				version: string;
+				globTestSpecifications: () => Promise<unknown[]>;
+			} = {
+				config: { cliOptions: {} },
+				configOverride: {},
+				version: "test",
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			await reporter.onInit(mockVitest);
+			reporter.onTestRunStart(new Array(10).fill({}));
+			mockVitest.configOverride.testNamePattern = /bar/;
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(1);
+		});
+
+		it("persists scoped=false when only config.cliOptions.testNamePattern is an empty string (-t '', review follow-up to issue #401)", async () => {
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+			});
+			// -t "" resolves to "no filter" in Vitest itself (a falsy pattern is
+			// never copied into configOverride), so cliOptions carrying the raw
+			// empty string must NOT make the run partial.
+			const mockVitest = {
+				config: { cliOptions: { testNamePattern: "" } },
+				version: "test",
+				globTestSpecifications: async () => new Array(10).fill({}),
+			};
+			reporter._vitest = mockVitest;
+			reporter.onTestRunStart(new Array(10).fill({}));
+
+			await reporter.onTestRunEnd([makeTestModule({ tests: [makeTestCase()] })], [], "passed");
+
+			const dbPath = path.join(tmpDir, "data.db");
+			const db = new DatabaseSync(dbPath, { readOnly: true });
+			const row = db.prepare("SELECT scoped FROM test_runs LIMIT 1").get() as { scoped: number };
+			db.close();
+
+			expect(row.scoped).toBe(0);
+		});
+
 		it("degrades to not-partial (via the spec-count channel) when globTestSpecifications throws", async () => {
 			const reporter = new AgentReporter({
 				cacheDir: tmpDir,
