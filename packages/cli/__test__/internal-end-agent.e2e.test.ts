@@ -1,10 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-const BIN = resolve(__dirname, "..", "dist", "dev", "pkg", "bin", "vitest-agent.js");
+import { BinExitError, runBin } from "./utils/run-bin.js";
 
 interface RegisterAgentResult {
 	readonly agentId: string;
@@ -36,10 +34,8 @@ const env = () => ({
 });
 
 const register = (hostSessionId: string, transcriptPath: string): RegisterAgentResult => {
-	const stdout = execFileSync(
-		"node",
+	const { stdout } = runBin(
 		[
-			BIN,
 			"agent",
 			"register-agent",
 			"--host-kind=claude-code",
@@ -48,19 +44,18 @@ const register = (hostSessionId: string, transcriptPath: string): RegisterAgentR
 			`--transcript-path=${transcriptPath}`,
 			`--cwd=${workspaceDir}`,
 		],
-		{ env: env() },
+		env(),
 	);
-	return JSON.parse(stdout.toString().trim()) as RegisterAgentResult;
+	return JSON.parse(stdout.trim()) as RegisterAgentResult;
 };
 
 const end = (agentId: string, hostSessionId?: string): void => {
-	const args = [BIN, "agent", "end-agent", `--agent-id=${agentId}`, `--cwd=${workspaceDir}`];
+	const args = ["agent", "end-agent", `--agent-id=${agentId}`, `--cwd=${workspaceDir}`];
 	if (hostSessionId !== undefined) args.push(`--host-session-id=${hostSessionId}`);
-	// Pipe stderr to a buffer instead of inheriting the parent's stderr —
-	// the failure-path test deliberately triggers "5 AgentNotFoundError:"
-	// which would otherwise leak past Vitest's capture and clutter the
-	// developer's terminal during a routine `pnpm test` run.
-	execFileSync("node", args, { env: env(), stdio: ["ignore", "ignore", "pipe"] });
+	// `runBin` pipes stderr instead of inheriting it — the failure-path
+	// test deliberately triggers "AgentNotFoundError", which would
+	// otherwise leak past Vitest's capture into the developer's terminal.
+	runBin(args, env());
 };
 
 describe("vitest-agent agent end-agent", () => {
@@ -69,8 +64,9 @@ describe("vitest-agent agent end-agent", () => {
 		expect(() => end(reg.agentId)).not.toThrow();
 	});
 
-	it("exits non-zero when the agentId is unknown", () => {
-		expect(() => end("00000000-0000-0000-0000-000000000000")).toThrow();
+	it("exits non-zero when the agentId is unknown, surfacing the child's stderr", () => {
+		expect(() => end("00000000-0000-0000-0000-000000000000")).toThrow(BinExitError);
+		expect(() => end("00000000-0000-0000-0000-000000000000")).toThrow(/AgentNotFoundError/);
 	});
 
 	it("with --host-session-id, also closes the session map row (subsequent register-agent generates a fresh main_agent_id for the same project_dir)", () => {

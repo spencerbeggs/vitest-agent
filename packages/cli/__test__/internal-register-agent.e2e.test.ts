@@ -11,13 +11,11 @@
  * via a setup helper if needed.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-const BIN = resolve(__dirname, "..", "dist", "dev", "pkg", "bin", "vitest-agent.js");
+import { runBin } from "./utils/run-bin.js";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -51,10 +49,8 @@ interface RegisterAgentResult {
 }
 
 const runRegister = (args: { hostSessionId: string; transcriptPath: string }): RegisterAgentResult => {
-	const stdout = execFileSync(
-		"node",
+	const { stdout } = runBin(
 		[
-			BIN,
 			"agent",
 			"register-agent",
 			"--host-kind=claude-code",
@@ -64,14 +60,12 @@ const runRegister = (args: { hostSessionId: string; transcriptPath: string }): R
 			`--cwd=${workspaceDir}`,
 		],
 		{
-			env: {
-				...process.env,
-				XDG_DATA_HOME: xdgDataDir,
-				CLAUDE_PLUGIN_DATA: pluginDataDir,
-			},
+			...process.env,
+			XDG_DATA_HOME: xdgDataDir,
+			CLAUDE_PLUGIN_DATA: pluginDataDir,
 		},
 	);
-	return JSON.parse(stdout.toString().trim()) as RegisterAgentResult;
+	return JSON.parse(stdout.trim()) as RegisterAgentResult;
 };
 
 describe("vitest-agent agent register-agent", () => {
