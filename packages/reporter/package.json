@@ -32,7 +32,6 @@
 	},
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
-		"@effect/sql-sqlite-node": "catalog:effect",
 		"@vitest-agent/sdk": "workspace:*",
 		"@vitest-agent/ui": "workspace:*",
 		"effect": "catalog:effect",
