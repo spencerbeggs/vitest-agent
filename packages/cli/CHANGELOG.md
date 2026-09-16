@@ -1,5 +1,15 @@
 # @vitest-agent/cli
 
+## 3.0.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 0.1.1 | 0.1.2 |
+| @vitest-agent/sdk | dependency | updated | 4.0.0 | 5.0.0 |
+| @vitest-agent/sidecar | dependency | updated | 2.1.20 | 2.1.21 |
+
 ## 3.0.1
 
 ### Dependencies
