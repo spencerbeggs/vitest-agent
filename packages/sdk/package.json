@@ -43,7 +43,7 @@
 		"@effect/platform-node": "catalog:effect",
 		"@effected/schemastore": "catalog:effected",
 		"@effected/schemastore-cli": "catalog:effected",
-		"@savvy-web/bundler": "^2.3.9",
+		"@savvy-web/bundler": "^2.3.10",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
