@@ -387,7 +387,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const { vitest, project } = ctx;
 				log("configureVitest called | project:", project?.name ?? "(root)");
 
-				// `@vitest-agent/plugin` 3.x is Vitest-5-only by design (no
+				// `@vitest-agent/plugin` is Vitest-5-only by design (no
 				// `experimental_` fallback, no silent degradation — commit
 				// f5d5332 deliberately removed the old `typeof` guard here).
 				// `defineCacheKeyGenerator` only exists on the Vitest 5
@@ -574,11 +574,11 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// fires once per project, but `coverage.reportsDirectory` is
 				// root-level config shared by every project in the run.
 				//
-				// Timing note (verified against the installed vitest@4.1.11 —
-				// `cli-api.CnMVyzaz.js`): `configureVitest` hooks run inside
-				// `Vitest.setServer`, which completes well before
+				// Timing note (vitest@5.0.0, `.repos/vitest/packages/vitest/src/
+				// node/core.ts`): `configureVitest` hooks run inside
+				// `Vitest._attachProjectServers`, which completes well before
 				// `Vitest.initCoverageProvider` is ever invoked (that call is lazy,
-				// triggered from `createCoverageProvider` / `start` / `collect`).
+				// triggered from `start` / `collect` / `mergeReports`).
 				// Mutating `vitest.config.coverage.reportsDirectory` here is
 				// therefore always early enough for the coverage provider to pick
 				// it up. Cleanup cannot happen inside the reporter's

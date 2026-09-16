@@ -317,15 +317,15 @@ export async function resolveGitCommonDir(dir: string): Promise<string | null> {
 
 export type ProjectRootValidation = { ok: true; root: string } | { ok: false; message: string };
 
-// Issue #259, restated for Vitest 5: `findConfigFile(root)`
-// (vitest@5.0.0: `node/config/resolveConfig.ts`) probes ONLY the given
-// `root` for `vitest.config.*` / `vite.config.*` and returns `false`
-// otherwise. There is no ancestor walk any more. Under Vitest 4 a `root`
-// pointing at a monorepo package subtree still found the repo-root
-// config (and then mis-resolved that config's relative `globalSetup`
-// against the subtree — the original #259 bug). Under Vitest 5 it finds
-// NOTHING: the run boots on pure defaults, never loads `AgentPlugin`,
-// writes no DB rows, and still reports success.
+// Issue #259 under Vitest 5: `findConfigFile(root)` (vitest@5.0.0,
+// `node/config/resolveConfig.ts`) probes ONLY the given `root` for
+// `vitest.config.*` / `vite.config.*` and returns `false` otherwise —
+// there is no ancestor walk. A `root` pointing at a monorepo package
+// subtree therefore finds NOTHING: the run boots on pure defaults, never
+// loads `AgentPlugin`, writes no DB rows, and still reports success.
+// (History: Vitest 4 did walk up, found the repo-root config, and then
+// mis-resolved its relative `globalSetup` against the subtree — the
+// original #259 bug. Both failure modes have the same cure below.)
 //
 // `resolveConfigAnchoredRoot` walks UP from `startDir` looking for the
 // config, returning the directory that holds it, so the default (no
@@ -333,7 +333,7 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // carries the config. `resolveAnchoredConfigFile` returns the config
 // PATH from that same walk, so the explicit-`projectRoot` path — which
 // must keep using the caller's root verbatim — can pass `config:`
-// alongside it and get the same config Vitest 4 would have found. An
+// alongside it and get the config the anchored walk found. An
 // explicit `projectRoot` plus the anchored `config:` still resolves that
 // config's relative `setupFiles` / `globalSetup` against the SUPPLIED
 // root, not the config's own directory, so callers should pass the

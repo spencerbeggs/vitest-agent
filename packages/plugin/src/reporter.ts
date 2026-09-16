@@ -955,8 +955,8 @@ export class AgentReporter {
 	}
 
 	/**
-	 * Read the owning Vitest project name off a `TestModule`. Vitest 4.x
-	 * attaches `project` to every module; an empty name (the unnamed
+	 * Read the owning Vitest project name off a `TestModule`. Vitest 5
+	 * attaches `project` to every module (`reported-tasks.ts`); an empty name (the unnamed
 	 * default project) collapses to `undefined` so the renderer treats it
 	 * as a single anonymous project.
 	 *
