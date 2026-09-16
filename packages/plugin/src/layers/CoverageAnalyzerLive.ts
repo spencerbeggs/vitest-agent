@@ -167,9 +167,10 @@ function processCoverageInternal(
 	const lowCoverage: FileCoverageReport[] = [];
 	const belowTarget: FileCoverageReport[] = [];
 
-	// Coverage providers key the map by absolute path; patterns and
-	// `testedFiles` are root-relative (see `CoverageOptions.root`). Match
-	// on the relative, posix-separated form; report the original key.
+	// Coverage providers key the map by absolute path; glob patterns are
+	// root-relative (see `CoverageOptions.root`). Globs match on the
+	// relative, posix-separated form; the report and the `testedFiles`
+	// membership test use the original key.
 	const { root } = options;
 	const matchKey = (filePath: string): string =>
 		root === undefined ? filePath : relative(root, filePath).split(sep).join("/");
@@ -193,7 +194,7 @@ function processCoverageInternal(
 		if (isBareZero && !includeBareZero) continue;
 
 		// For scoped processing, only flag threshold violations for in-scope files
-		if (scoped && !testedFileSet?.has(matchPath)) {
+		if (scoped && !testedFileSet?.has(filePath)) {
 			// Out-of-scope files are never flagged, even if below threshold
 			continue;
 		}

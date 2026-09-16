@@ -794,7 +794,33 @@ describe("root-relative matching (production shape)", () => {
 		expect([...report.lowCoverageFiles].sort()).toEqual(["/repo/lib/other.ts", "/repo/src/index.ts"]);
 	});
 
-	it("intersects root-relative testedFiles with absolute coverage keys on a scoped run", async () => {
+	it("intersects testedFiles with the raw coverage key on a scoped run, independent of root", async () => {
+		// `testedFiles` come from the absolute `TestModule.moduleId`, so the
+		// membership test is absolute-to-absolute and never depends on which
+		// project's root `relativeModuleId` happened to be relative to.
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.processScoped(
+					mockCoverageMap(absolute),
+					{
+						root: ROOT,
+						thresholds: {
+							global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+							perFile: false,
+							patterns: [],
+						},
+						includeBareZero: false,
+					},
+					["/repo/src/index.ts"],
+				),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		expect(report.lowCoverageFiles).toEqual(["/repo/src/index.ts"]);
+		expect(report.scopedFiles).toEqual(["/repo/src/index.ts"]);
+	});
+
+	it("does not relativize testedFiles: a root-relative entry never matches an absolute key", async () => {
 		const result = await run(
 			Effect.flatMap(CoverageAnalyzer, (ca) =>
 				ca.processScoped(
@@ -813,7 +839,7 @@ describe("root-relative matching (production shape)", () => {
 			),
 		);
 		const report = Option.getOrThrow(result);
-		expect(report.lowCoverageFiles).toEqual(["/repo/src/index.ts"]);
+		expect(report.lowCoverageFiles).toEqual([]);
 	});
 });
 

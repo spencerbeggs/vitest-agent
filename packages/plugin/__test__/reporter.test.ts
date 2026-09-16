@@ -1094,6 +1094,87 @@ describe("AgentReporter", () => {
 			expect(row.scoped).toBe(1);
 		});
 
+		it("scopes a partial run's gaps to the absolute source files derived from moduleId, with a root-relative pattern", async () => {
+			// Production shape: the coverage provider keys files by ABSOLUTE
+			// path, `moduleId` is absolute, and threshold patterns are relative
+			// to the config root. The tested file's pattern threshold is 50%
+			// (passes at 55%); the untested sibling is out of scope and must
+			// not be flagged even though it is below every threshold.
+			const events: RunEvent[] = [];
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				coverageThresholds: {
+					global: { lines: 80 },
+					patterns: [["src/**/*.ts", { lines: 50 }]],
+				} as Record<string, unknown>,
+				onRunEvent: (e) => events.push(e),
+			});
+			reporter._vitest = { config: { root: "/abs" }, version: "test", filenamePattern: ["src/foo.test.ts"] };
+			const low = { statements: { pct: 55 }, branches: { pct: 55 }, functions: { pct: 55 }, lines: { pct: 55 } };
+			const mockCoverage = {
+				getCoverageSummary: () => low,
+				files: () => ["/abs/src/foo.ts", "/abs/src/other.ts"],
+				fileCoverageFor: () => ({ toSummary: () => low, getUncoveredLines: () => [1] }),
+			};
+			reporter.onTestRunStart([]);
+			reporter.onCoverage(mockCoverage);
+
+			await reporter.onTestRunEnd(
+				[
+					makeTestModule({
+						moduleId: "/abs/src/foo.test.ts",
+						relativeModuleId: "src/foo.test.ts",
+						tests: [makeTestCase()],
+					}),
+				],
+				[],
+				"passed",
+			);
+
+			const coverageReady = events.find((e) => e._tag === "CoverageReady");
+			expect(coverageReady).toMatchObject({ scoped: true, scopedFiles: 1, gaps: [] });
+		});
+
+		it("flags a scoped file that misses its pattern threshold, keyed by absolute path", async () => {
+			const events: RunEvent[] = [];
+			const reporter = new AgentReporter({
+				cacheDir: tmpDir,
+				consoleMode: "silent",
+				coverageThresholds: {
+					global: { lines: 10 },
+					patterns: [["src/**/*.ts", { lines: 90 }]],
+				} as Record<string, unknown>,
+				onRunEvent: (e) => events.push(e),
+			});
+			reporter._vitest = { config: { root: "/abs" }, version: "test", filenamePattern: ["src/foo.test.ts"] };
+			const low = { statements: { pct: 55 }, branches: { pct: 55 }, functions: { pct: 55 }, lines: { pct: 55 } };
+			const mockCoverage = {
+				getCoverageSummary: () => low,
+				files: () => ["/abs/src/foo.ts", "/abs/src/other.ts"],
+				fileCoverageFor: () => ({ toSummary: () => low, getUncoveredLines: () => [1] }),
+			};
+			reporter.onTestRunStart([]);
+			reporter.onCoverage(mockCoverage);
+
+			await reporter.onTestRunEnd(
+				[
+					makeTestModule({
+						moduleId: "/abs/src/foo.test.ts",
+						relativeModuleId: "src/foo.test.ts",
+						tests: [makeTestCase()],
+					}),
+				],
+				[],
+				"passed",
+			);
+
+			const coverageReady = events.find((e) => e._tag === "CoverageReady");
+			if (coverageReady?._tag !== "CoverageReady") throw new Error("expected a CoverageReady event");
+			expect(coverageReady).toMatchObject({ scoped: true, scopedFiles: 1 });
+			expect(coverageReady.gaps.map((g) => g.file)).toEqual(["/abs/src/foo.ts"]);
+		});
+
 		it("does not emit ThresholdViolation events on a partial run even when a metric is below threshold", async () => {
 			const events: RunEvent[] = [];
 			const reporter = new AgentReporter({

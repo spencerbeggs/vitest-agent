@@ -1617,14 +1617,14 @@ export class AgentReporter {
 		// Convention-derived source files exercised by the executed test
 		// modules — mirrors the test->source mapping already used for
 		// `writeSourceMap` below. Used to scope threshold-worthy files on a
-		// partial run (issue #160).
+		// partial run (issue #160). Built from the ABSOLUTE `moduleId`, not
+		// `relativeModuleId`: coverage providers key the map by absolute
+		// path, and `relativeModuleId` is relative to the owning PROJECT's
+		// root (not the root config's), so a per-package project would never
+		// intersect. Absolute-to-absolute needs no root at all.
 		const testedFiles = isPartial
 			? Array.from(
-					new Set(
-						modules.map((m) =>
-							m.relativeModuleId.replace(/\.test\.([^.]+)$/, ".$1").replace(/\.spec\.([^.]+)$/, ".$1"),
-						),
-					),
+					new Set(modules.map((m) => m.moduleId.replace(/\.test\.([^.]+)$/, ".$1").replace(/\.spec\.([^.]+)$/, ".$1"))),
 				)
 			: undefined;
 
