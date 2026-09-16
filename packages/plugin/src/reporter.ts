@@ -56,6 +56,7 @@ import { CoverageAnalyzer } from "./services/CoverageAnalyzer.js";
 import { buildReporterKit, normalizeReporters } from "./utils/build-reporter-kit.js";
 import { captureEnvVars } from "./utils/capture-env.js";
 import { captureSettings, hashSettings } from "./utils/capture-settings.js";
+import type { CliScopeFilters } from "./utils/is-partial-run.js";
 import { isPartialRun } from "./utils/is-partial-run.js";
 import { processFailure } from "./utils/process-failure.js";
 import type { ReportWriter } from "./utils/report-writer.js";
@@ -639,6 +640,22 @@ export class AgentReporter {
 	 * @internal
 	 */
 	private neutralizedThresholdSnapshot: Map<string, unknown> = new Map();
+	/**
+	 * Snapshot of `vitest.configOverride.testNamePattern` taken once, at
+	 * `onInit`. Vitest's own startup copy of the RESOLVED `testNamePattern`
+	 * (merging `vitest.config.ts`'s `test.testNamePattern` with any `-t`
+	 * flag) into `configOverride` runs before any reporter's `onInit`
+	 * (Vitest 5.0 `Vitest._setServer`), so this snapshot always observes it.
+	 * Compared against the same field read again at `onTestRunEnd` — a
+	 * difference means a watch-mode `t` keypress (`Vitest.changeNamePattern`)
+	 * ran in between; no difference means the pattern, if any, was already
+	 * baked into the resolved config (issue #401 regression: a project-level
+	 * `testNamePattern` must not make every run partial). See
+	 * `hasTestNameFilter` in `utils/is-partial-run.ts` for the decision rule.
+	 *
+	 * @internal
+	 */
+	private initialTestNamePattern: RegExp | undefined;
 
 	constructor(options: AgentReporterConstructorOptions = {}) {
 		// logLevel and logFile read from VITEST_REPORTER_LOG_LEVEL /
@@ -754,6 +771,11 @@ export class AgentReporter {
 	 */
 	async onInit(vitest: unknown): Promise<void> {
 		this._vitest = vitest;
+		// Snapshot the resolved testNamePattern before any watch-mode filtering
+		// can occur — see `initialTestNamePattern`'s doc comment.
+		this.initialTestNamePattern = (
+			vitest as { configOverride?: { testNamePattern?: RegExp } } | null
+		)?.configOverride?.testNamePattern;
 		if (this.options.reportScope !== undefined) {
 			// Fail here, before any rendering, rather than mid-routing on the
 			// first report-targeted output. `assertReportCapable` only reads
@@ -1540,6 +1562,30 @@ export class AgentReporter {
 		const vitestForPartialCheck = stashedVitest as {
 			filenamePattern?: ReadonlyArray<string>;
 			globTestSpecifications?: () => Promise<ReadonlyArray<unknown>>;
+			// Vitest 5 stores the raw CLI/programmatic run-scoping options
+			// (`--project`, `--tags-filter`, `--changed`, `--related`,
+			// `--shard`) on `config.cliOptions` — see Vitest 5.0's
+			// `resolveConfig`, which captures the options object
+			// `startVitest(mode, filters, options)` receives verbatim. This is
+			// also how MCP `run_tests`' programmatic filters arrive (issue
+			// #401). `Vitest.changeProjectName` and `Vitest.matchesProjectFilter`
+			// are the watch-mode/project-filter counterparts that also
+			// read/write `config.cliOptions`. `config.cliOptions.testNamePattern`
+			// (read below into a SEPARATE inline type, not `CliScopeFilters` —
+			// it is not a `hasCliScopeFilter` signal) is the raw pre-resolution
+			// CLI value, `undefined` for a config-file-only pattern; combined
+			// with the `initial`/`current` snapshot-diff below it disambiguates
+			// a CLI `-t` from a permanent `vitest.config.ts` `testNamePattern`.
+			config?: { cliOptions?: CliScopeFilters & { testNamePattern?: string | RegExp } };
+			// Vitest copies the RESOLVED `testNamePattern` here at startup —
+			// BEFORE any reporter's `onInit` runs — merging `vitest.config.ts`'s
+			// `test.testNamePattern` with any `-t` flag (Vitest 5.0
+			// `Vitest._setServer`). `Vitest.changeNamePattern` (watch-mode `t`
+			// keypress filtering) also writes the resolved `RegExp | undefined`
+			// here, AFTER onInit. Reading it alone can't tell a config-file
+			// pattern from a live filter — see `initialTestNamePattern` and
+			// `hasTestNameFilter` for the snapshot-diff rule that does.
+			configOverride?: { testNamePattern?: RegExp | undefined };
 		} | null;
 		// Best-effort spec-count signal (issue #160 gap 2): a tags-only
 		// `run_tests` filter sets neither `filenamePattern` nor
@@ -1561,6 +1607,12 @@ export class AgentReporter {
 			startedSpecCount,
 			totalSpecCount,
 			projectFilter: opts.projectFilter,
+			cliFilters: vitestForPartialCheck?.config?.cliOptions,
+			testNamePattern: {
+				cli: vitestForPartialCheck?.config?.cliOptions?.testNamePattern,
+				initial: this.initialTestNamePattern,
+				current: vitestForPartialCheck?.configOverride?.testNamePattern,
+			},
 		});
 		// Convention-derived source files exercised by the executed test
 		// modules — mirrors the test->source mapping already used for
