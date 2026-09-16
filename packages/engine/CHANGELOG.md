@@ -1,5 +1,23 @@
 # @vitest-agent/engine
 
+## 0.1.3
+
+### Bug Fixes
+
+- Fixed `DataStore.recordIdempotentResponse` inserting with `ON CONFLICT DO NOTHING`, which left a corrupt cached row in place forever — a corrupt row now gets replaced by the handler's fresh result on retry instead of causing every subsequent call to re-execute the write tool [#460][#460]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 5.0.0 | 5.0.1 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#460]: https://github.com/spencerbeggs/vitest-agent/pull/460
+
 ## 0.1.2
 
 ### Dependencies
