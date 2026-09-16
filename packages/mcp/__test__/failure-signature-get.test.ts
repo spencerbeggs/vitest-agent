@@ -1,10 +1,10 @@
-import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import { DataStore, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { describe, expect, it } from "vitest";
 import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, ProjectDiscoveryTest.layer([]));
 
 function createTestCaller() {
 	const runtime = ManagedRuntime.make(TestLayer);

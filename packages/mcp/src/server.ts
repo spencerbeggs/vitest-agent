@@ -44,11 +44,7 @@ const DESCRIPTION =
  */
 export const ServerLayer = (
 	options: ServerLayerOptions,
-): Layer.Layer<
-	never,
-	never,
-	PlatformServices | McpSession | DataReader | DataStore | ProjectDiscovery
-> =>
+): Layer.Layer<never, never, PlatformServices | McpSession | DataReader | DataStore | ProjectDiscovery> =>
 	Layer.mergeAll(registerStrictToolkit(Kit).pipe(Layer.provide(ToolsLayer)), PromptsLayer).pipe(
 		Layer.provide(
 			McpServer.layerStdio({

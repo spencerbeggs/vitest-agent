@@ -12,7 +12,7 @@
  * does not work here — issue #303).
  */
 
-import { OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import { Layer, ManagedRuntime } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +21,7 @@ import { makeCaller } from "./utils/caller.js";
 
 const createVitestMock = vi.fn();
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, ProjectDiscoveryTest.layer([]));
 
 describe("run_tests timeout classification (issue #320)", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Layer.Success<typeof TestLayer>, Layer.Error<typeof TestLayer>>;

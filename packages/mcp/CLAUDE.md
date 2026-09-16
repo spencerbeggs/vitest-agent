@@ -114,7 +114,7 @@ src/
   JSON Schema is generated from them. There is no second schema language
   to keep in sync.
 - **Tool output conventions:** meta, read-only and discovery tools render
-  markdown through `RenderText` / `OutputRenderer`; `run_tests` returns the
+  markdown through the `RenderText` annotation; `run_tests` returns the
   typed report plus a markdown headline; `note` `list` / `search` return
   markdown, the other actions JSON. `structuredContent` is always the
   encoded `success` value — an undeclared result key is STRIPPED by the

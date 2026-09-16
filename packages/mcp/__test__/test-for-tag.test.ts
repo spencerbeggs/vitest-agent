@@ -5,7 +5,7 @@
  * when project is omitted; returns a single group when project is supplied.
  */
 
-import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import { DataStore, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TestResultType } from "../src/tools/test.js";
@@ -13,7 +13,7 @@ import { TestResult, formatTestMarkdown } from "../src/tools/test.js";
 import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 
 const caller = makeCaller(testRuntime);

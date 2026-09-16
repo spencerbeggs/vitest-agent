@@ -2,4 +2,6 @@
 "@vitest-agent/mcp": patch
 ---
 
-Remove the unreachable legacy hypothesis idempotency key spec.
+## Bug Fixes
+
+* Removed the unreachable legacy hypothesis idempotency key spec

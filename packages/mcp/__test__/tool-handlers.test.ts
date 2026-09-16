@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DataStore, OutputPipelineLive, ProjectDiscoveryTest } from "@vitest-agent/engine";
+import { DataStore, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { McpSession } from "../src/session.js";
@@ -32,7 +32,7 @@ vi.mock("node:fs", async (importOriginal) => {
 	};
 });
 
-const TestLayer = Layer.mergeAll(DataStoreTestLayer, OutputPipelineLive(process.env), ProjectDiscoveryTest.layer([]));
+const TestLayer = Layer.mergeAll(DataStoreTestLayer, ProjectDiscoveryTest.layer([]));
 const testRuntime = ManagedRuntime.make(TestLayer);
 /** The Effect-native caller (default `McpSession.layerTest()`: cwd = process.cwd(), no recovered context). */
 const call = makeCaller(testRuntime);
