@@ -1,7 +1,7 @@
 ---
 type: Runbook
 title: Release a package (or the Claude Code plugin)
-description: The changeset-to-publish pipeline for the independently versioned vitest-agent family, including the two ordering gates (engine before plugin, the schema URL live before sdk) that a release must satisfy.
+description: The changeset-to-publish pipeline for the independently versioned vitest-agent family, including the one ordering gate (engine before plugin) that a release must satisfy.
 resource: ../../.github/workflows/release.yml
 tags: [release, ci]
 generated:
@@ -19,10 +19,6 @@ sources:
     resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
-  - id: run-report-file-schema-url
-    resource: ../../packages/sdk/src/schemas/RunReportFile.ts
-  - id: website-public-schemas
-    resource: ../../website/docs/public/schemas
 ---
 
 # Release a package (or the Claude Code plugin)
@@ -67,23 +63,18 @@ naming a package whose changes are ready to ship.
    nothing to pin to. `packages/plugin/__test__/bins-packed-install.e2e.test.ts`
    states this explicitly as the release gate its own tarball-override
    harness works around for local testing.[^bins-packed-install-e2e]
-5. **Gate: the website must serve the published JSON Schema URL before
-   sdk's release lands.** `@vitest-agent/sdk` exports
-   `RUN_REPORT_FILE_SCHEMA_URL`, a `vitest-agent.dev` URL whose path
-   matches the committed document under
-   `website/docs/public/schemas/`.[^run-report-file-schema-url][^website-public-schemas]
-   If a version of sdk carrying a new or changed schema URL publishes
-   before the corresponding docs deploy serves that path, a consumer's
-   editor or validator resolving the schema `$id` gets a 404. See
-   [Interface: published-json-schemas](../interfaces/published-json-schemas.md)
-   for the generation pipeline that keeps the two copies (the npm package
-   and the website's public copy) from drifting.
-6. **npm publish with provenance.** Each publishable package (all eight
+5. **npm publish with provenance.** Each publishable package (all eight
    under `packages/`, plus the four `sidecar-*` platform packages)
    publishes to npm with provenance attestations as part of the same
    release run; `@vitest-agent/claude-code-plugin` is tag-and-version-only
-   and skips this step.[^changeset-config]
-7. **Docs deploy fires off the plugin's GitHub Release.**
+   and skips this step.[^changeset-config] The published `run.json` JSON
+   Schema imposes no ordering here: its `$id` is a GitHub raw URL of the
+   committed `schemas/5.0/run.json`, live the moment the file is on
+   `main`, and `schemastore check` plus the sdk's schema-drift e2e test
+   hold the document and `RUN_REPORT_FILE_SCHEMA_URL` together before
+   merge (see
+   [Interface: published-json-schemas](../interfaces/published-json-schemas.md)).
+6. **Docs deploy fires off the plugin's GitHub Release.**
    `deploy-docs.yml` triggers on `release: types: [published]`, but only
    runs its job when the release name contains the literal substring
    `@vitest-agent/plugin`[^deploy-docs-workflow] — a release batch that
@@ -91,7 +82,7 @@ naming a package whose changes are ready to ship.
    once, keyed on the one package name no other package's name
    contains. A `workflow_dispatch` also deploys, for a manual redeploy or
    the first test deployment.[^deploy-docs-workflow]
-8. **The Claude Code plugin's release is tag-only.** A
+7. **The Claude Code plugin's release is tag-only.** A
    `@vitest-agent/claude-code-plugin@<version>` tag and GitHub Release are
    produced by the same batch (step 3) with no npm publish step — the
    package carries no `publishConfig` and no build output, by design (see
@@ -124,5 +115,3 @@ from that same commit.
 [^changeset-config]: `../../.changeset/config.json:1-27`
 [^bins-packed-install-e2e]: `../../packages/plugin/__test__/bins-packed-install.e2e.test.ts`
 [^plugin-package-json]: `../../packages/plugin/package.json`
-[^run-report-file-schema-url]: `../../packages/sdk/src/schemas/RunReportFile.ts:21`
-[^website-public-schemas]: `../../website/docs/public/schemas`

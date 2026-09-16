@@ -1,5 +1,13 @@
 # @vitest-agent/engine
 
+## 0.1.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 4.0.0 | 5.0.0 |
+
 ## 0.1.1
 
 ### Dependencies

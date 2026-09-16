@@ -552,8 +552,36 @@ nothing in the run touched. **Detection:** `onTestRunStart` stores
 `specifications.length` as `startedSpecCount`; `onTestRunEnd` globs the
 project-wide total (best-effort — a missing method or throw makes the
 counts equal, degrading to "not partial"). Both counts, Vitest's
-`filenamePattern`, and the reporter's own `projectFilter` feed the pure
-`isPartialRun`. **Routing:** a partial run derives tested source files by
+`filenamePattern`, the reporter's own `projectFilter`, the stashed Vitest
+instance's `config.cliOptions` (as `cliFilters`), and a three-way
+`testNamePattern` input (decided by `hasTestNameFilter`) feed the pure `isPartialRun`; any one signal
+makes the run partial. The spec-count comparison cannot catch
+a CLI `--project` run — `globTestSpecifications()` applies the same
+project filter, so started equals total — which is why the `cliFilters`
+signal exists (issue #401): the pure `hasCliScopeFilter` helper reports
+partial when `project`, `tagsFilter`, `related`, or `shard` is non-empty
+or `changed` is truthy. `config.cliOptions` is the raw options object
+`startVitest(mode, filters, options)` captures, so it carries real CLI
+flags and the programmatic filters MCP `run_tests` passes but not
+settings baked into `vitest.config.ts` — deliberately, since a permanent
+config-file `tagsFilter` is the project's own scope, not a partial run.
+`testNamePattern` is not part of `CliScopeFilters`: it arrives as
+`{ cli, initial, current }` — `cli` is `config.cliOptions.testNamePattern`
+(the raw pre-resolution string; `undefined` when the pattern comes only
+from `vitest.config.ts`), `initial` is the `configOverride.testNamePattern`
+value `AgentReporter.onInit` snapshots at startup (Vitest's `_setServer`
+copies the resolved pattern — config file merged with `-t` — into
+`configOverride` before reporters are created), and `current` is
+`configOverride.testNamePattern` at `onTestRunEnd`. When `current` differs
+from `initial` (compared by RegExp source, not identity), the run is
+partial iff `current` is truthy — a watch-mode `t` filter applied through
+`Vitest.changeNamePattern` is partial, a cleared one is full; otherwise
+the run is partial iff `cli` is truthy — `-t foo` is partial, while
+`-t ""`, no flag, or a config-file-only pattern is full. Neither source
+alone suffices: bare `cliOptions` would count `-t ""` and never see a
+watch-mode change, and bare `configOverride` would make every run partial
+for a project whose config file sets a pattern.
+**Routing:** a partial run derives tested source files by
 the `*.test.ts → *.ts` convention, routes coverage through
 `CoverageAnalyzer.processScoped`, writes `test_runs.scoped` from
 `isPartial`, and emits no `ThresholdViolation`; baseline, trend,

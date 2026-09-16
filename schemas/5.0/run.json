@@ -1,6 +1,6 @@
 {
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"$id": "https://vitest-agent.dev/schemas/run-report-file-1.0.0.json",
+	"$id": "https://raw.githubusercontent.com/spencerbeggs/vitest-agent/main/schemas/5.0/run.json",
 	"$ref": "#/$defs/RunReportFile",
 	"$defs": {
 		"IsoInstant": {

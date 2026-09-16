@@ -1,6 +1,6 @@
 {
 	"name": "@vitest-agent/reporter",
-	"version": "3.0.4",
+	"version": "3.0.5",
 	"private": true,
 	"description": "Named VitestAgentReporterFactory implementations for the vitest-agent ecosystem.",
 	"keywords": ["vitest", "reporter", "llm", "ai", "agent", "testing", "coverage", "markdown", "github-actions"],
@@ -40,7 +40,7 @@
 		"react": "catalog:build"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.3.8",
+		"@savvy-web/bundler": "^2.3.9",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",

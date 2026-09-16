@@ -111,7 +111,7 @@ describe("default reporter report files", () => {
 
 		const require_ = createRequire(import.meta.url);
 		const schema = JSON.parse(
-			readFileSync(require_.resolve("@vitest-agent/sdk/schemas/run-report-file-1.0.0.json"), "utf-8"),
+			readFileSync(require_.resolve("@vitest-agent/sdk/schemas/5.0/run.json"), "utf-8"),
 		) as Record<string, unknown>;
 
 		// A plain strict ajv, with no vocabulary declared: the published

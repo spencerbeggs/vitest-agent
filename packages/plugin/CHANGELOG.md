@@ -1,5 +1,33 @@
 # @vitest-agent/plugin
 
+## 4.0.3
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| magic-string | dependency | updated | ^1.3.1 | ^1.4.1 |
+
+[#454][#454]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#454]: https://github.com/spencerbeggs/vitest-agent/pull/454
+
+## 4.0.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 3.0.1 | 3.0.2 |
+| @vitest-agent/engine | dependency | updated | 0.1.1 | 0.1.2 |
+| @vitest-agent/mcp | dependency | updated | 4.0.1 | 4.0.2 |
+| @vitest-agent/reporter | dependency | updated | 3.0.4 | 3.0.5 |
+| @vitest-agent/sdk | dependency | updated | 4.0.0 | 5.0.0 |
+
 ## 4.0.1
 
 ### Dependencies
