@@ -18,7 +18,7 @@ are not inside blob output.
 
 ```json
 {
-  "$schema": "https://vitest-agent.dev/schemas/run-report-file-1.0.0.json",
+  "$schema": "https://raw.githubusercontent.com/spencerbeggs/vitest-agent/main/schemas/5.0/run.json",
   "schemaVersion": 1,
   "generatedAt": "2026-09-07T00:00:00.000Z",
   "reports": []
@@ -26,10 +26,10 @@ are not inside blob output.
 ```
 
 `reports` holds one `AgentReport` per Vitest project. The `$schema` key
-points at the published Draft-07 JSON Schema; the same document ships
-inside `@vitest-agent/sdk` under `schemas/run-report-file-1.0.0.json`
-(resolvable via the package's `./schemas/*.json` export) for offline
-validation.
+points at the published Draft-07 JSON Schema, served raw from this
+repository's `schemas/5.0/run.json`; the same document ships inside
+`@vitest-agent/sdk` under `schemas/5.0/run.json` (resolvable via the
+package's `./schemas/*.json` export) for offline validation.
 
 `summary.md` starts with a `## vitest-agent` heading and a `### Totals`
 table — Project, Passed, Failed, Timed out, Skipped, Duration — followed

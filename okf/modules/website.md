@@ -24,8 +24,6 @@ sources:
     resource: ../../packages/sdk/savvy.build.ts
   - id: sdk-turbo-json
     resource: ../../packages/sdk/turbo.json
-  - id: generate-schemas
-    resource: ../../packages/sdk/scripts/generate-schemas.ts
 generated:
   by: okfit/claude-code
   at: 2026-09-14T02:24:39Z
@@ -63,14 +61,11 @@ ecosystem map orienting a reader across the package family. Per-directory
 single-locale (English) under `docs/en/` today, with the directory shape
 leaving room for more.
 
-`website/docs/public/schemas/` is a second static tree the site serves
-verbatim — the generated JSON Schema documents whose `$id` URLs point at
-`https://vitest-agent.dev/schemas/…`, written by
-`packages/sdk/scripts/generate-schemas.ts` as a second target alongside the
-sdk's own copy[^generate-schemas]. It is generated but **committed, not
-gitignored**, because the deploy has to serve it directly. See [Published
-JSON Schema Documents](../interfaces/published-json-schemas.md) for the
-schema contract itself.
+The site does not host the family's JSON Schema documents: `run.json`'s
+`$id` is a GitHub raw URL of the committed repo-root `schemas/5.0/run.json`,
+so no docs deploy is on the path to publishing one. See [Published JSON
+Schema Documents](../interfaces/published-json-schemas.md) for the schema
+contract itself.
 
 ## API reference generation
 
@@ -117,18 +112,6 @@ swaps its local `link:` dependency for the published version, a CI runner
 cannot resolve the plugin — so the first dispatch or release deploy
 requires that swap to have already landed on `main`.
 
-## The schema-URL release gate
-
-The generated JSON Schema documents under `website/docs/public/schemas/`
-carry `$id` URLs that resolve against the deployed site
-(`https://vitest-agent.dev/schemas/…`). A consumer decoding an
-`@vitest-agent/sdk` report against its published `$schema` needs that URL
-to already be live — so a docs deploy that serves a new or changed schema
-must land **before** the `@vitest-agent/sdk` version that references it
-publishes to npm, not after. See [Release](../runbooks/release.md) for the
-ordering this gate imposes across the family's independent per-package
-release cadence.
-
 ## Choices absorbed here
 
 **Why a static site keyed on the plugin's Release rather than its own.**
@@ -154,4 +137,3 @@ deterministically.
 [^deploy-workflow]: `.github/workflows/deploy-docs.yml`
 [^sdk-build-config]: `packages/sdk/savvy.build.ts:7`
 [^sdk-turbo-json]: `packages/sdk/turbo.json:5`
-[^generate-schemas]: `packages/sdk/scripts/generate-schemas.ts`

@@ -11,14 +11,19 @@ import { Schema } from "effect";
 import { AgentReport } from "./AgentReport.js";
 
 /**
- * Canonical `$schema` URL for `RunReportFile` version 1.
+ * Canonical `$schema` URL for `RunReportFile` — the `schemas/5.0/run.json`
+ * document GitHub serves raw from this repository.
  *
  * Written as the first key of `run.json` so an editor or a JSON Schema
  * validator can resolve the contract without knowing about vitest-agent.
+ * The same value is derived in `lib/configs/run-report-schema.ts` from
+ * `HostedSchema.github` (this module cannot import `@effected/*`); the drift
+ * test pins the two together.
  *
  * @public
  */
-export const RUN_REPORT_FILE_SCHEMA_URL = "https://vitest-agent.dev/schemas/run-report-file-1.0.0.json";
+export const RUN_REPORT_FILE_SCHEMA_URL =
+	"https://raw.githubusercontent.com/spencerbeggs/vitest-agent/main/schemas/5.0/run.json";
 
 /**
  * ISO-8601 instant, the shape `Date.prototype.toISOString` produces.

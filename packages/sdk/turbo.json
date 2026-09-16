@@ -2,8 +2,16 @@
 	"$schema": "https://turborepo.com/schema.v2.json",
 	"extends": ["//"],
 	"tasks": {
+		"build:dev": {
+			"dependsOn": ["$TURBO_EXTENDS$", "schema:build"],
+			"inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/schemas/**"]
+		},
 		"build:prod": {
+			"inputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/schemas/**"],
 			"outputs": ["$TURBO_EXTENDS$", "../../website/lib/models/sdk"]
+		},
+		"schema:build": {
+			"outputs": ["$TURBO_EXTENDS$", "$TURBO_ROOT$/schemas/*/run.json"]
 		}
 	}
 }

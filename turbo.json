@@ -61,6 +61,37 @@
 			"outputLogs": "full",
 			"outputs": ["dist/prod/**"]
 		},
+		"schema:build": {
+			"cache": true,
+			"dependsOn": [],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/pnpm-workspace.yaml",
+				"$TURBO_ROOT$/pnpm-lock.yaml",
+				"$TURBO_ROOT$/tsconfig.json",
+				"$TURBO_ROOT$/.changeset/**",
+				"!$TURBO_ROOT$/__test__/**",
+				"!$TURBO_ROOT$/docs/**",
+				"README.md",
+				"LICENSE",
+				"package.json",
+				"tsconfig.json",
+				"*.ts",
+				"*.mts",
+				"*.cts",
+				"lib/**/*",
+				"src/**/*",
+				"!__test__/**/*",
+				"!CHANGELOG.md",
+				"!CLAUDE.md",
+				"!CLAUDE.local.md"
+			],
+			"outputLogs": "errors-only"
+		},
+		"schema:check": {
+			"cache": false
+		},
 		"types:check": {
 			"cache": true,
 			"dependsOn": ["^build:dev"],

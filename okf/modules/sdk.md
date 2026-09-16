@@ -27,8 +27,12 @@ sources:
     resource: ../../packages/sdk/src/utils/build-report.ts
   - id: sdk-reporter-contract
     resource: ../../packages/sdk/src/contracts/reporter.ts
-  - id: sdk-schemas-dir
-    resource: ../../packages/sdk/schemas
+  - id: published-schemas-dir
+    resource: ../../schemas
+  - id: sdk-schemastore-config
+    resource: ../../packages/sdk/lib/configs/schemastore.config.ts
+  - id: sdk-build-config
+    resource: ../../packages/sdk/savvy.build.ts
   - id: sdk-dispatch-barrel
     resource: ../../packages/sdk/src/dispatch.ts
   - id: sdk-version
@@ -52,8 +56,8 @@ runtime dependencies are `effect` (v4, `catalog:effect`) and
 
 The package kept the `@vitest-agent/sdk` name through the engine/sdk split
 on purpose: it is the package that ships `./schemas/*.json` and
-`RUN_REPORT_FILE_SCHEMA_URL`, so the published `$id` URLs and every
-consumer's `from "@vitest-agent/sdk"` schema import stay valid.
+`RUN_REPORT_FILE_SCHEMA_URL`, so every consumer's
+`from "@vitest-agent/sdk"` schema import stays valid.
 
 ## Boundary
 
@@ -85,7 +89,8 @@ Entry points, from `package.json` `exports`:[^sdk-package-json]
 - `.` (`src/index.ts`) — the main barrel: contracts, schemas, errors,
   formatters, and utilities.
 - `./dispatch` (`src/dispatch.ts`) — the pure sidecar dispatch core (below).
-- `./schemas/*.json` — the published JSON Schema documents.
+- `./schemas/*.json` — the published JSON Schema documents, copied from
+  the repo-root `schemas/` tree at build time.
 
 There is no `./testing` subpath in this package; that moved to
 `@vitest-agent/engine/testing` with the engine split.
@@ -327,16 +332,21 @@ summary, and both `@vitest-agent/ui` dispatch entry points.
 
 ### Published JSON Schema documents (`schemas/`)
 
-`packages/sdk/schemas/` holds the generated, committed JSON Schema
-document this package publishes today:
-`run-report-file-1.0.0.json`.[^sdk-schemas-dir] The generator
-(`scripts/generate-schemas.ts`) builds one `SchemaTarget` per output
-through `@effected/schemastore`'s `SchemaPipeline`; the same document is
-emitted both into this package's `schemas/` directory (shipped to npm) and
-into the website's public schemas directory (what the `$id` URL resolves
-to once the docs site deploys), as two generated targets from one source
-rather than a hand-copy. `package.json`'s `"./schemas/*.json"` export lets
-a consumer resolve the document offline. See
+The repo-root `schemas/` tree holds the generated, committed JSON Schema
+document this package publishes today: `schemas/5.0/run.json`, whose
+`$id` is the GitHub raw URL of that committed file
+(`RUN_REPORT_FILE_SCHEMA_URL`).[^published-schemas-dir]
+`@effected/schemastore-cli` generates it (`schema:build` / `schema:check`
+scripts, `schemastore build` / `schemastore check`) from
+`lib/configs/schemastore.config.ts`, whose hosted identity sits in
+`lib/configs/run-report-schema.ts`; both live under `lib/` rather than
+`src/` because `src/` may not import `@effected/*` (see Boundary
+above).[^sdk-schemastore-config] Turbo runs `schema:build` before this
+package's `build:dev`, and `savvy.build.ts` copies the repo-root `schemas/`
+tree into every emitted package directory after the bundler runs, which is
+what `package.json`'s `"./schemas/*.json"` export resolves
+offline.[^sdk-build-config] `__test__/schema-drift.e2e.test.ts` spawns
+`schemastore check` and pins the URL constant to the config's `$id`. See
 [Interface: published-json-schemas](../interfaces/published-json-schemas.md).
 
 ### Dispatch subpath (`./dispatch`)
@@ -423,6 +433,8 @@ under Boundary.
 [^sdk-coerce-error-text]: `../../packages/sdk/src/utils/coerce-error-text.ts`
 [^sdk-build-report]: `../../packages/sdk/src/utils/build-report.ts`
 [^sdk-reporter-contract]: `../../packages/sdk/src/contracts/reporter.ts`
-[^sdk-schemas-dir]: `../../packages/sdk/schemas`
+[^published-schemas-dir]: `../../schemas`
+[^sdk-schemastore-config]: `../../packages/sdk/lib/configs/schemastore.config.ts`
+[^sdk-build-config]: `../../packages/sdk/savvy.build.ts:17-36`
 [^sdk-dispatch-barrel]: `../../packages/sdk/src/dispatch.ts`
 [^sdk-version]: `../../packages/sdk/src/version.ts`

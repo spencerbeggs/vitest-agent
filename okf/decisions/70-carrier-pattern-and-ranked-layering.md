@@ -89,7 +89,7 @@ the carrier's test tree because the carrier already depends on
 everything and root-level tests are not discovered by the classifier.
 
 **`@vitest-agent/sdk` keeps its name and becomes the core.** The package
-that ships `./schemas/*.json` and the published schema `$id` URLs had to
+that ships `./schemas/*.json` and `RUN_REPORT_FILE_SCHEMA_URL` had to
 keep its npm name so every consumer's `from "@vitest-agent/sdk"` schema
 import stayed valid — the *name* stays with the pure half and the
 platform half is the new package. The core keeps the pure schemas,

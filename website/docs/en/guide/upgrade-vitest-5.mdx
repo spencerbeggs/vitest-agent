@@ -52,10 +52,10 @@ explicitly.
 
 `run.json` is a versioned public contract, so its first key is a
 `$schema` pointing at the published Draft-07 JSON Schema —
-[`https://vitest-agent.dev/schemas/run-report-file-1.0.0.json`](https://vitest-agent.dev/schemas/run-report-file-1.0.0.json)
+[`https://raw.githubusercontent.com/spencerbeggs/vitest-agent/main/schemas/5.0/run.json`](https://raw.githubusercontent.com/spencerbeggs/vitest-agent/main/schemas/5.0/run.json)
 — which editors, CI steps and agents can validate the file against. The
-same document ships inside `@vitest-agent/sdk` under `schemas/` for
-offline validation.
+same document ships inside `@vitest-agent/sdk` under `schemas/5.0/run.json`
+for offline validation.
 
 ## The `github-actions` reporter now writes a job summary
 

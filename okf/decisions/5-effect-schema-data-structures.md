@@ -81,9 +81,10 @@ alongside the tRPC routing layer.
 generator.** Would decouple the runtime validation from the compile-time
 type, reintroducing exactly the "two definitions of the same shape"
 problem Effect Schema's `typeof Schema.Type` derivation exists to close.
-The published JSON Schema documents (`packages/sdk/schemas/*.json`) are
-instead generated FROM the Effect Schema definitions via
-`@effected/schemastore`, not maintained as a separate artifact.
+The published JSON Schema documents (the repo-root `schemas/` tree,
+shipped as `@vitest-agent/sdk/schemas/*.json`) are instead generated FROM
+the Effect Schema definitions by `@effected/schemastore-cli`, not
+maintained as a separate artifact.
 
 **Vitest's or a coverage provider's own duck-typed shapes, promoted to
 schemas.** Rejected specifically for external library data the SDK only

@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { cpSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { build } from "@savvy-web/bundler";
 
@@ -15,12 +15,13 @@ await build({
 });
 
 /*
- * The published JSON Schema documents under `schemas/` are generated assets,
+ * The published JSON Schema documents under the repo-root `schemas/` (what
+ * `RUN_REPORT_FILE_SCHEMA_URL` resolves to on GitHub) are generated assets,
  * not source modules, so the bundler's exports graph never sees them. Copy
  * them into every emitted package directory so `run.json`'s `$schema` URL has
- * an offline counterpart inside the installed package.
+ * an offline counterpart inside the installed package (`./schemas/*.json`).
  */
-const publishedSchemasDir = join(import.meta.dirname, "schemas");
+const publishedSchemasDir = join(import.meta.dirname, "..", "..", "schemas");
 const packageDirs = [
 	join(import.meta.dirname, "dist", "dev", "pkg"),
 	...(existsSync(join(import.meta.dirname, "dist", "prod"))
@@ -32,9 +33,5 @@ const packageDirs = [
 
 for (const packageDir of packageDirs) {
 	if (!existsSync(packageDir)) continue;
-	const target = join(packageDir, "schemas");
-	mkdirSync(target, { recursive: true });
-	for (const file of readdirSync(publishedSchemasDir)) {
-		if (file.endsWith(".json")) copyFileSync(join(publishedSchemasDir, file), join(target, file));
-	}
+	cpSync(publishedSchemasDir, join(packageDir, "schemas"), { recursive: true });
 }
