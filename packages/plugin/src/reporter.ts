@@ -955,8 +955,8 @@ export class AgentReporter {
 	}
 
 	/**
-	 * Read the owning Vitest project name off a `TestModule`. Vitest 4.x
-	 * attaches `project` to every module; an empty name (the unnamed
+	 * Read the owning Vitest project name off a `TestModule`. Vitest 5
+	 * attaches `project` to every module (`reported-tasks.ts`); an empty name (the unnamed
 	 * default project) collapses to `undefined` so the renderer treats it
 	 * as a single anonymous project.
 	 *
@@ -1617,14 +1617,14 @@ export class AgentReporter {
 		// Convention-derived source files exercised by the executed test
 		// modules — mirrors the test->source mapping already used for
 		// `writeSourceMap` below. Used to scope threshold-worthy files on a
-		// partial run (issue #160).
+		// partial run (issue #160). Built from the ABSOLUTE `moduleId`, not
+		// `relativeModuleId`: coverage providers key the map by absolute
+		// path, and `relativeModuleId` is relative to the owning PROJECT's
+		// root (not the root config's), so a per-package project would never
+		// intersect. Absolute-to-absolute needs no root at all.
 		const testedFiles = isPartial
 			? Array.from(
-					new Set(
-						modules.map((m) =>
-							m.relativeModuleId.replace(/\.test\.([^.]+)$/, ".$1").replace(/\.spec\.([^.]+)$/, ".$1"),
-						),
-					),
+					new Set(modules.map((m) => m.moduleId.replace(/\.test\.([^.]+)$/, ".$1").replace(/\.spec\.([^.]+)$/, ".$1"))),
 				)
 			: undefined;
 
@@ -1929,6 +1929,7 @@ export class AgentReporter {
 			}
 			const primaryProject = Array.from(projectModuleCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
 			const isFirstProject = !opts.projectFilter || opts.projectFilter === primaryProject;
+			const coverageRoot = typeof vitestConfig.root === "string" ? vitestConfig.root : undefined;
 			const coverageOpts = {
 				thresholds: opts.coverageThresholds,
 				includeBareZero: opts.includeBareZero,
@@ -1937,6 +1938,9 @@ export class AgentReporter {
 				// Issue #160 gap 1: thread the real spec-count total onto a
 				// scoped run's CoverageReport so the note can render "N of M".
 				...(isPartial ? { totalFiles: totalSpecCount } : {}),
+				// Coverage-map keys are absolute; the glob patterns are
+				// root-relative. The analyzer relativizes keys for globbing only.
+				...(coverageRoot !== undefined ? { root: coverageRoot } : {}),
 			} as const;
 			const coverageResult =
 				stashedCoverage && isFirstProject

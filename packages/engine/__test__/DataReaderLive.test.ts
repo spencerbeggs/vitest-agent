@@ -2328,7 +2328,7 @@ describe("DataReaderLive", () => {
 			expect(Option.isNone(result)).toBe(true);
 		});
 
-		it("recordIdempotentResponse on a duplicate key is a no-op (ON CONFLICT DO NOTHING)", async () => {
+		it("recordIdempotentResponse on a duplicate key replaces the row (upsert, issue #423)", async () => {
 			const result = await run(
 				Effect.gen(function* () {
 					const ds = yield* DataStore;
@@ -2351,7 +2351,7 @@ describe("DataReaderLive", () => {
 			expect(Option.isSome(result)).toBe(true);
 			if (Option.isSome(result)) {
 				const parsed = JSON.parse(result.value);
-				expect(parsed.second).toBeUndefined();
+				expect(parsed.second).toBe(true);
 			}
 		});
 	});

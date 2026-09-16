@@ -1,8 +1,11 @@
+import { relative } from "node:path";
+import { GlobPattern } from "@effected/glob";
 import type { CoverageReport, FileCoverageReport, MetricThresholds, ResolvedThresholds } from "@vitest-agent/sdk";
 import { compressLines } from "@vitest-agent/sdk";
-import { Effect, Layer, Option } from "effect";
+import { Effect, Layer, Option, Result } from "effect";
 import type { CoverageOptions } from "../services/CoverageAnalyzer.js";
 import { CoverageAnalyzer } from "../services/CoverageAnalyzer.js";
+import { toPosixPath } from "../utils/to-posix-path.js";
 
 // --- Istanbul duck-type interfaces (local, not Effect Schemas) ---
 
@@ -53,18 +56,30 @@ function isIstanbulCoverageMap(value: unknown): value is IstanbulCoverageMap {
 }
 
 /**
- * Match a file path against a glob pattern using basic matching.
- * Supports `*` (any segment chars) and `**` (any path segments).
+ * Compiled matchers keyed by pattern source. Threshold patterns are a
+ * small, fixed set per run and `processCoverageInternal` matches every
+ * file against every pattern, so compile once and reuse.
+ */
+const globCache = new Map<string, GlobPattern | null>();
+
+/**
+ * Match a file path against a coverage-threshold glob with the same
+ * semantics Vitest applies to `coverage.thresholds` keys (picomatch under
+ * default options): `**` spans zero or more directories, `*` and `?`
+ * never cross a slash, brace groups expand, character classes and
+ * extglobs work, and dotfiles are not matched by wildcards (issue #381).
+ * `@effected/glob` is minimatch-based and agrees with picomatch on every
+ * shape a threshold key realistically takes. A pattern that fails to
+ * compile (guard trip on an absurd input) matches nothing.
  */
 function matchGlob(filePath: string, pattern: string): boolean {
-	// Convert glob to regex: ** matches any path, * matches non-slash chars
-	const regexStr = pattern
-		.replace(/[.+^${}()|[\]\\]/g, "\\$&") // escape regex special chars (except * and ?)
-		.replace(/\*\*/g, "\0") // placeholder for **
-		.replace(/\*/g, "[^/]*") // * matches non-slash
-		.replace(/\0/g, ".*") // ** matches anything
-		.replace(/\?/g, "[^/]"); // ? matches single non-slash
-	return new RegExp(`^${regexStr}$`).test(filePath);
+	let compiled = globCache.get(pattern);
+	if (compiled === undefined) {
+		const result = GlobPattern.compileResult(pattern);
+		compiled = Result.isSuccess(result) ? result.success : null;
+		globCache.set(pattern, compiled);
+	}
+	return compiled?.matches(filePath) ?? false;
 }
 
 /**
@@ -149,11 +164,23 @@ function processCoverageInternal(
 		lines: summary.lines.pct,
 	};
 
-	const testedFileSet = testedFiles ? new Set(testedFiles) : undefined;
+	// Both sides of the membership test are posix-normalized: `moduleId`
+	// is always forward-slash (Vitest `slash()`es test file paths at glob
+	// time) while the v8 provider keys the coverage map with native
+	// separators, so on Windows `C:/repo/src/a.ts` must still find
+	// `C:\repo\src\a.ts`. Neither side alone is authoritative.
+	const testedFileSet = testedFiles ? new Set(testedFiles.map(toPosixPath)) : undefined;
 	const lowCoverage: FileCoverageReport[] = [];
 	const belowTarget: FileCoverageReport[] = [];
 
+	// Coverage providers key the map by absolute path; glob patterns are
+	// root-relative (see `CoverageOptions.root`). Globs match on the
+	// relative, posix-separated form; the report uses the original key.
+	const { root } = options;
+	const matchKey = (filePath: string): string => toPosixPath(root === undefined ? filePath : relative(root, filePath));
+
 	for (const filePath of coverageMap.files()) {
+		const matchPath = matchKey(filePath);
 		const fileCoverage = coverageMap.fileCoverageFor(filePath);
 		const fileSummary = fileCoverage.toSummary();
 
@@ -171,7 +198,7 @@ function processCoverageInternal(
 		if (isBareZero && !includeBareZero) continue;
 
 		// For scoped processing, only flag threshold violations for in-scope files
-		if (scoped && !testedFileSet?.has(filePath)) {
+		if (scoped && !testedFileSet?.has(toPosixPath(filePath))) {
 			// Out-of-scope files are never flagged, even if below threshold
 			continue;
 		}
@@ -180,8 +207,8 @@ function processCoverageInternal(
 		// letting an object-valued `perFile` (Vitest 5) override the metric set
 		// used for the per-file check.
 		const effectiveThresholds =
-			resolveEffectivePerFileThresholds(filePath, options.thresholds) ??
-			resolveEffectiveThresholds(filePath, options.thresholds);
+			resolveEffectivePerFileThresholds(matchPath, options.thresholds) ??
+			resolveEffectiveThresholds(matchPath, options.thresholds);
 		const isBelowThreshold = isBelowMetricThresholds(fileStats, effectiveThresholds);
 
 		if (isBareZero || isBelowThreshold) {
@@ -196,7 +223,7 @@ function processCoverageInternal(
 
 		// Check if the file is above threshold but below target
 		if (options.targets) {
-			const effectiveTargets = resolveEffectiveThresholds(filePath, options.targets);
+			const effectiveTargets = resolveEffectiveThresholds(matchPath, options.targets);
 			const isBelowTargetMetrics = isBelowMetricThresholds(fileStats, effectiveTargets);
 			if (isBelowTargetMetrics) {
 				const uncoveredLines = compressLines(fileCoverage.getUncoveredLines());

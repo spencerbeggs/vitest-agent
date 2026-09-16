@@ -24,7 +24,7 @@
 
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveAnchoredConfigFile, resolveConfigAnchoredRoot } from "../src/tools/run-tests.js";
 
@@ -164,6 +164,18 @@ describe("resolveAnchoredConfigFile", () => {
 		const nested = join(dir, "packages", "foo");
 		mkdirSync(nested, { recursive: true });
 		expect(resolveAnchoredConfigFile(nested)).toBeNull();
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it("agrees with resolveConfigAnchoredRoot: the root is the directory holding the file (issue #384)", () => {
+		const dir = realpathSync(mkdtempSync(join(tmpdir(), "va-anchored-config-")));
+		mkdirSync(join(dir, ".git"), { recursive: true });
+		writeFileSync(join(dir, "vite.config.mjs"), "export default {};\n");
+		const nested = join(dir, "packages", "foo", "src");
+		mkdirSync(nested, { recursive: true });
+		const file = resolveAnchoredConfigFile(nested);
+		expect(file).toBe(join(dir, "vite.config.mjs"));
+		expect(resolveConfigAnchoredRoot(nested)).toBe(dirname(file as string));
 		rmSync(dir, { recursive: true, force: true });
 	});
 });

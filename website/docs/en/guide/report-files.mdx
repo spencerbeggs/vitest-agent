@@ -63,6 +63,20 @@ Add `**/.vitest` to `.gitignore` — see [Upgrading to Vitest
 5](/guide/upgrade-vitest-5#ignore-the-new-vitest-directory) for why one
 line covers attachments, blob, json, junit, and html output together.
 
+Coverage output is the one thing Vitest still writes elsewhere by default
+(`./coverage`). Point it under the same directory so the one ignore line
+and the one CI upload path below cover coverage too:
+
+```ts title="vitest.config.ts"
+export default defineConfig({
+  test: {
+    coverage: {
+      reportsDirectory: ".vitest/coverage",
+    },
+  },
+});
+```
+
 ## Uploading in CI
 
 One `actions/upload-artifact` step with `path: .vitest/` captures the

@@ -23,6 +23,20 @@ export interface CoverageOptions {
 	 * "N of M test files" instead of just "N".
 	 */
 	readonly totalFiles?: number;
+	/**
+	 * The Vitest config root. When set, every coverage-map key is matched
+	 * against threshold / target glob patterns as `relative(root, key)` —
+	 * the shape Vitest's own threshold evaluator globs on. The v8 and
+	 * istanbul providers key the map by ABSOLUTE path, so without this a
+	 * relative pattern like `src/**\/*.ts` never matches. Absent, keys are
+	 * matched verbatim. Reported `file` fields keep the map's original key.
+	 *
+	 * `root` does NOT apply to `processScoped`'s `testedFiles`: those are
+	 * compared against the map key with only separators normalized, so
+	 * callers pass the same shape the provider uses (absolute paths in
+	 * production; forward or back slashes both work).
+	 */
+	readonly root?: string;
 }
 
 /**

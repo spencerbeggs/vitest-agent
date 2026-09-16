@@ -24,6 +24,15 @@ export interface IdempotencyKeySpec {
 }
 
 /**
+ * Narrow a raw tool payload to the action-shaped object every consolidated
+ * spec keys on: a non-null object carrying an `action` key. Anything else
+ * (including a legacy non-action payload) yields `null`, which every spec
+ * maps to "not idempotent".
+ */
+const asActionInput = (input: unknown): Record<string, unknown> | null =>
+	input !== null && typeof input === "object" && "action" in input ? (input as Record<string, unknown>) : null;
+
+/**
  * Registered idempotency specs for mutation tools.
  *
  * `hypothesis validate` is covered (key: `validate:${id}:${outcome}`).
@@ -38,8 +47,8 @@ export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 	{
 		procedurePath: "hypothesis",
 		deriveKey: (input) => {
-			if (input === null || typeof input !== "object" || !("action" in input)) return null;
-			const i = input as Record<string, unknown>;
+			const i = asActionInput(input);
+			if (i === null) return null;
 			// `record` is intentionally NOT idempotent. A hypothesis is an
 			// append-only observation whose binding session is resolved
 			// server-side (and so is absent from the input), leaving no safe
@@ -71,8 +80,8 @@ export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 		// keying so existing tests and old-style tool calls still work.
 		procedurePath: "tdd_task",
 		deriveKey: (input) => {
-			if (input === null || typeof input !== "object" || !("action" in input)) return null;
-			const i = input as Record<string, unknown>;
+			const i = asActionInput(input);
+			if (i === null) return null;
 			if (i.action === "start" && typeof i.goal === "string") {
 				if (typeof i.runId === "string") {
 					if (typeof i.sessionId === "number") return `start:sid:${i.sessionId}:run:${i.runId}`;
@@ -90,8 +99,8 @@ export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 	{
 		procedurePath: "tdd_goal",
 		deriveKey: (input) => {
-			if (input === null || typeof input !== "object" || !("action" in input)) return null;
-			const i = input as Record<string, unknown>;
+			const i = asActionInput(input);
+			if (i === null) return null;
 			if (i.action === "create" && typeof i.tddTaskId === "number" && typeof i.goal === "string") {
 				return `create:${i.tddTaskId}:${i.goal}`;
 			}
@@ -101,8 +110,8 @@ export const idempotencyKeys: ReadonlyArray<IdempotencyKeySpec> = [
 	{
 		procedurePath: "tdd_behavior",
 		deriveKey: (input) => {
-			if (input === null || typeof input !== "object" || !("action" in input)) return null;
-			const i = input as Record<string, unknown>;
+			const i = asActionInput(input);
+			if (i === null) return null;
 			if (i.action === "create" && typeof i.goalId === "number" && typeof i.behavior === "string") {
 				return `create:${i.goalId}:${i.behavior}`;
 			}

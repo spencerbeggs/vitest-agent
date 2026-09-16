@@ -1,7 +1,10 @@
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { Writable } from "node:stream";
-import { Schema } from "effect";
+import type { DataReader } from "@vitest-agent/engine";
+import { DataStore } from "@vitest-agent/engine";
+import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
+import { Effect, Exit, Fiber, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { RunTestsResultType, TagFilterType } from "../src/tools/run-tests.js";
 import {
@@ -12,10 +15,44 @@ import {
 	formatReportJson,
 	formatReportMarkdown,
 	formatRunTestsMarkdown,
+	makeBestEffortFork,
 	makeCoverageDirOverride,
 	sanitizeTestArgs,
 	withStdioCaptured,
 } from "../src/tools/run-tests.js";
+
+describe("makeBestEffortFork (issue #330)", () => {
+	const services = () =>
+		Effect.runPromise(Effect.context<DataReader | DataStore>().pipe(Effect.provide(DataStoreTestLayer)));
+
+	it("runs the forked effect against the provided services", async () => {
+		const runFork = makeBestEffortFork(await services());
+		let sawStore = false;
+		const fiber = runFork(
+			Effect.gen(function* () {
+				yield* DataStore;
+				sawStore = true;
+			}),
+		);
+		const exit = await Effect.runPromise(Fiber.await(fiber));
+		expect(Exit.isSuccess(exit)).toBe(true);
+		expect(sawStore).toBe(true);
+	});
+
+	it("absorbs a typed failure: the fiber exits successfully instead of failing", async () => {
+		const runFork = makeBestEffortFork(await services());
+		const fiber = runFork(Effect.fail(new Error("association failed")));
+		const exit = await Effect.runPromise(Fiber.await(fiber));
+		expect(Exit.isSuccess(exit)).toBe(true);
+	});
+
+	it("does not absorb a defect: a bug in the forked effect still fails the fiber", async () => {
+		const runFork = makeBestEffortFork(await services());
+		const fiber = runFork(Effect.die(new Error("bug")));
+		const exit = await Effect.runPromise(Fiber.await(fiber));
+		expect(Exit.isFailure(exit)).toBe(true);
+	});
+});
 
 describe("makeCoverageDirOverride", () => {
 	it("returns a fresh tmpdir-namespaced reportsDirectory per invocation (issues #159/#191)", () => {

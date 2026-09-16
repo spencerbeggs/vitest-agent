@@ -116,12 +116,20 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
  *   the dedicated `ci-annotations` reporter is opt-in until the GHA
  *   annotations writer ships).
  *
+ * An invalid `VITEST_AGENT_CONSOLE` value is ignored with a diagnostic
+ * line sent to `report` (default: `process.stderr`). `configureVitest`
+ * passes the per-Vitest-instance dedupe sink so the line prints once per
+ * run rather than once per project (issue #459).
+ *
  * @internal
  */
 export function resolveConsoleMode(
 	options: AgentPluginConstructorOptions,
 	executor: Executor,
 	_env: Environment,
+	report: (line: string) => void = (line) => {
+		process.stderr.write(line);
+	},
 ): ConsoleMode {
 	const override = process.env.VITEST_AGENT_CONSOLE;
 	if (override !== undefined && override !== "") {
@@ -138,7 +146,7 @@ export function resolveConsoleMode(
 				: executor === "agent"
 					? AgentConsoleMode.literals
 					: CiConsoleMode.literals;
-		process.stderr.write(
+		report(
 			`[vitest-agent:plugin] ignoring invalid VITEST_AGENT_CONSOLE="${override}" for ${executor} executor; accepted for ${executor}: ${accepted.join(" | ")}\n`,
 		);
 	}
@@ -379,7 +387,7 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				const { vitest, project } = ctx;
 				log("configureVitest called | project:", project?.name ?? "(root)");
 
-				// `@vitest-agent/plugin` 3.x is Vitest-5-only by design (no
+				// `@vitest-agent/plugin` is Vitest-5-only by design (no
 				// `experimental_` fallback, no silent degradation — commit
 				// f5d5332 deliberately removed the old `typeof` guard here).
 				// `defineCacheKeyGenerator` only exists on the Vitest 5
@@ -426,7 +434,20 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 							? undefined
 							: (reportOption?.scope ?? "vitest-agent");
 				if (reportScope !== undefined) assertFlatScope(reportScope);
-				const consoleMode = resolveConsoleMode(options, executor, env);
+				// Dedupe per Vitest instance (issues #400, #459): configureVitest
+				// fires once per project against identical root-level config, so
+				// without this guard an N-project run prints N copies of every line.
+				let reportedDiagnostics = reportedConfigDiagnosticsByVitest.get(vitest);
+				if (!reportedDiagnostics) {
+					reportedDiagnostics = new Set<string>();
+					reportedConfigDiagnosticsByVitest.set(vitest, reportedDiagnostics);
+				}
+				const reportOnce = (line: string) => {
+					if (reportedDiagnostics.has(line)) return;
+					reportedDiagnostics.add(line);
+					process.stderr.write(line);
+				};
+				const consoleMode = resolveConsoleMode(options, executor, env, reportOnce);
 				const format = resolveFormat(consoleMode);
 				// `mcp` is auto-derived from the detected executor — the agent
 				// slot is the only one that owns the MCP attribution path.
@@ -498,31 +519,15 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					),
 				);
 
-				// Dedupe per Vitest instance (issue #400): configureVitest fires once
-				// per project against identical root-level config, so without this
-				// guard an N-project run prints N copies of every line.
-				let reportedDiagnostics = reportedConfigDiagnosticsByVitest.get(vitest);
-				if (!reportedDiagnostics) {
-					reportedDiagnostics = new Set<string>();
-					reportedConfigDiagnosticsByVitest.set(vitest, reportedDiagnostics);
-				}
-
 				for (const w of validation.warnings) {
-					const line =
+					reportOnce(
 						`[vitest-agent:plugin] warning ${w.code}: ${w.message}` +
-						(w.remediation ? `\n  ${w.remediation}` : "") +
-						"\n";
-					if (!reportedDiagnostics.has(line)) {
-						reportedDiagnostics.add(line);
-						process.stderr.write(line);
-					}
+							(w.remediation ? `\n  ${w.remediation}` : "") +
+							"\n",
+					);
 				}
 				for (const i of validation.info) {
-					const line = `[vitest-agent:plugin] info ${i.code}: ${i.message}\n`;
-					if (!reportedDiagnostics.has(line)) {
-						reportedDiagnostics.add(line);
-						process.stderr.write(line);
-					}
+					reportOnce(`[vitest-agent:plugin] info ${i.code}: ${i.message}\n`);
 				}
 				if (validation.errors.length > 0) {
 					const body = validation.errors
@@ -569,11 +574,11 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				// fires once per project, but `coverage.reportsDirectory` is
 				// root-level config shared by every project in the run.
 				//
-				// Timing note (verified against the installed vitest@4.1.11 —
-				// `cli-api.CnMVyzaz.js`): `configureVitest` hooks run inside
-				// `Vitest.setServer`, which completes well before
+				// Timing note (vitest@5.0.0, `.repos/vitest/packages/vitest/src/
+				// node/core.ts`): `configureVitest` hooks run inside
+				// `Vitest._attachProjectServers`, which completes well before
 				// `Vitest.initCoverageProvider` is ever invoked (that call is lazy,
-				// triggered from `createCoverageProvider` / `start` / `collect`).
+				// triggered from `start` / `collect` / `mergeReports`).
 				// Mutating `vitest.config.coverage.reportsDirectory` here is
 				// therefore always early enough for the coverage provider to pick
 				// it up. Cleanup cannot happen inside the reporter's

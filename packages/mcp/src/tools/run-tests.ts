@@ -18,7 +18,7 @@ import {
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
-import type { Context } from "effect";
+import type { Context, Fiber } from "effect";
 import { Data, Effect, Schema, SchemaGetter, Semaphore } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { RenderText } from "../annotations.js";
@@ -317,15 +317,15 @@ export async function resolveGitCommonDir(dir: string): Promise<string | null> {
 
 export type ProjectRootValidation = { ok: true; root: string } | { ok: false; message: string };
 
-// Issue #259, restated for Vitest 5: `findConfigFile(root)`
-// (vitest@5.0.0: `node/config/resolveConfig.ts`) probes ONLY the given
-// `root` for `vitest.config.*` / `vite.config.*` and returns `false`
-// otherwise. There is no ancestor walk any more. Under Vitest 4 a `root`
-// pointing at a monorepo package subtree still found the repo-root
-// config (and then mis-resolved that config's relative `globalSetup`
-// against the subtree — the original #259 bug). Under Vitest 5 it finds
-// NOTHING: the run boots on pure defaults, never loads `AgentPlugin`,
-// writes no DB rows, and still reports success.
+// Issue #259 under Vitest 5: `findConfigFile(root)` (vitest@5.0.0,
+// `node/config/resolveConfig.ts`) probes ONLY the given `root` for
+// `vitest.config.*` / `vite.config.*` and returns `false` otherwise —
+// there is no ancestor walk. A `root` pointing at a monorepo package
+// subtree therefore finds NOTHING: the run boots on pure defaults, never
+// loads `AgentPlugin`, writes no DB rows, and still reports success.
+// (History: Vitest 4 did walk up, found the repo-root config, and then
+// mis-resolved its relative `globalSetup` against the subtree — the
+// original #259 bug. Both failure modes have the same cure below.)
 //
 // `resolveConfigAnchoredRoot` walks UP from `startDir` looking for the
 // config, returning the directory that holds it, so the default (no
@@ -333,7 +333,7 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // carries the config. `resolveAnchoredConfigFile` returns the config
 // PATH from that same walk, so the explicit-`projectRoot` path — which
 // must keep using the caller's root verbatim — can pass `config:`
-// alongside it and get the same config Vitest 4 would have found. An
+// alongside it and get the config the anchored walk found. An
 // explicit `projectRoot` plus the anchored `config:` still resolves that
 // config's relative `setupFiles` / `globalSetup` against the SUPPLIED
 // root, not the config's own directory, so callers should pass the
@@ -357,19 +357,15 @@ function findConfigInDir(dir: string): string | null {
 	return null;
 }
 
-function dirHasVitestOrViteConfig(dir: string): boolean {
-	return findConfigInDir(dir) !== null;
-}
-
 /**
- * Walk UP from `startDir` looking for the vitest/vite config file, returning
- * its absolute path. Same walk and same git-root bound as
- * `resolveConfigAnchoredRoot`; returns `null` when no config is found in
- * range or when anything about the walk throws.
- *
- * @internal exported for tests
+ * The one walk both anchoring helpers share: step UP from `startDir`
+ * until a vitest/vite config file is found, returning its absolute path.
+ * Bounded at the git root (inclusive — the directory containing `.git`
+ * is still examined before the walk stops) and at the filesystem root.
+ * Returns `null` when no config is found in range or when anything about
+ * the walk throws.
  */
-export function resolveAnchoredConfigFile(startDir: string): string | null {
+function walkUpToConfigFile(startDir: string): string | null {
 	try {
 		let dir = resolve(startDir);
 		for (;;) {
@@ -386,28 +382,26 @@ export function resolveAnchoredConfigFile(startDir: string): string | null {
 }
 
 /**
+ * Walk UP from `startDir` looking for the vitest/vite config file, returning
+ * its absolute path, or `null` when none is found in range.
+ *
+ * @internal exported for tests
+ */
+export function resolveAnchoredConfigFile(startDir: string): string | null {
+	return walkUpToConfigFile(startDir);
+}
+
+/**
  * Walk UP from `startDir` looking for the vitest/vite config Vitest would
- * load anyway, returning the directory that holds it. Bounded at the git
- * root (inclusive — the directory containing `.git` is still examined
- * before the walk stops). Returns `startDir` unchanged when no config is
- * found in range, or when anything about the walk throws. See the
- * issue #259 comment above `validateProjectRoot` for the full rationale.
+ * load anyway, returning the directory that holds it. Returns `startDir`
+ * unchanged when no config is found in range. See the issue #259 comment
+ * above `validateProjectRoot` for the full rationale.
  *
  * @internal exported for tests
  */
 export function resolveConfigAnchoredRoot(startDir: string): string {
-	try {
-		let dir = resolve(startDir);
-		for (;;) {
-			if (dirHasVitestOrViteConfig(dir)) return dir;
-			if (existsSync(join(dir, ".git"))) return startDir;
-			const parent = dirname(dir);
-			if (parent === dir) return startDir;
-			dir = parent;
-		}
-	} catch {
-		return startDir;
-	}
+	const found = walkUpToConfigFile(startDir);
+	return found === null ? startDir : dirname(found);
 }
 
 /**
@@ -832,7 +826,24 @@ interface RunTestsContext {
 	readonly currentSessionId: CurrentSessionIdRef;
 	readonly sessionContext: SessionContextRef;
 	readonly runPromise: <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>) => Promise<A>;
+	/** Fire-and-forget: fork the effect against the DB services and ignore its outcome. */
+	readonly runFork: <A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>) => void;
 }
+
+/**
+ * Build the best-effort runner for a `RunTestsContext`: forks the effect
+ * as a fiber on the provided services with its expected failure channel
+ * ignored (`Effect.ignore`), so a typed failure never touches the tool
+ * result (issue #330). Defects and interrupts are NOT absorbed — a bug in
+ * the forked effect still surfaces through the runtime's fiber logging
+ * rather than being hidden. Returns the fiber so a test can await its exit.
+ *
+ * @internal
+ */
+export const makeBestEffortFork =
+	(services: Context.Context<DataReader | DataStore>) =>
+	<A, E>(effect: Effect.Effect<A, E, DataReader | DataStore>): Fiber.Fiber<void> =>
+		Effect.runFork(Effect.provideContext(effect.pipe(Effect.ignore), services));
 
 /**
  * The run body, promise-shaped because it drives Vitest's promise API and
@@ -1088,14 +1099,12 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		// session-scoped queries reflect this run. Never blocks the result.
 		const chatId = ctx.currentSessionId.get();
 		if (chatId !== null) {
-			ctx
-				.runPromise(
-					Effect.gen(function* () {
-						const store = yield* DataStore;
-						yield* store.associateLatestRunWithSession({ chatId, invocationMethod: "mcp" });
-					}),
-				)
-				.catch(() => undefined);
+			ctx.runFork(
+				Effect.gen(function* () {
+					const store = yield* DataStore;
+					yield* store.associateLatestRunWithSession({ chatId, invocationMethod: "mcp" });
+				}),
+			);
 		}
 
 		// Issue #160: a filtered call (files/project/tags) only exercises
@@ -1182,6 +1191,7 @@ export const handleRunTests = (
 			currentSessionId: session.currentSessionId,
 			sessionContext: session.sessionContext,
 			runPromise: (effect) => Effect.runPromise(Effect.provideContext(effect, services)),
+			runFork: makeBestEffortFork(services),
 		};
 		return yield* Semaphore.withPermit(
 			runTestsSemaphore,

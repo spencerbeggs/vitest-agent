@@ -43,6 +43,23 @@ describe("idempotency key derivation (registry)", () => {
 		});
 	});
 
+	describe("malformed input is not idempotent on any consolidated path (issue #338)", () => {
+		it.each(["hypothesis", "tdd_task", "tdd_goal", "tdd_behavior"])(
+			"%s: null, primitives, arrays and action-less objects derive null",
+			(path) => {
+				const { deriveKey } = spec(path);
+				expect(deriveKey(null)).toBeNull();
+				expect(deriveKey(undefined)).toBeNull();
+				expect(deriveKey("validate")).toBeNull();
+				expect(deriveKey(42)).toBeNull();
+				expect(deriveKey([{ action: "create" }])).toBeNull();
+				expect(
+					deriveKey({ id: 7, outcome: "confirmed", tddTaskId: 1, goalId: 1, goal: "g", behavior: "b" }),
+				).toBeNull();
+			},
+		);
+	});
+
 	describe("tdd_task (consolidated)", () => {
 		const { deriveKey } = spec("tdd_task");
 
@@ -216,7 +233,7 @@ describe("withIdempotency", () => {
 		expect(result).toEqual({ id: 303, outcome: "confirmed" });
 	});
 
-	it("corrupt cached row: treated as a miss, the handler runs and its fresh result is returned", async () => {
+	it("corrupt cached row: treated as a miss once, the fresh result replaces the row and the next call replays (issue #423)", async () => {
 		let calls = 0;
 		const handler = withIdempotency("hypothesis", (params: ValidateParams) =>
 			Effect.sync(() => {
@@ -242,10 +259,10 @@ describe("withIdempotency", () => {
 			}).pipe(Effect.provide(DataStoreTestLayer)),
 		);
 
-		expect(calls).toBe(2);
+		expect(calls).toBe(1);
 		expect(first).toEqual({ id: 404, outcome: "confirmed" });
-		expect(second).toEqual({ id: 404, outcome: "confirmed" });
 		expect(first).not.toHaveProperty("_idempotentReplay");
+		expect(second).toEqual({ id: 404, outcome: "confirmed", _idempotentReplay: true });
 	});
 
 	it("non-object cached payload passes through unchanged (no marker merge)", async () => {

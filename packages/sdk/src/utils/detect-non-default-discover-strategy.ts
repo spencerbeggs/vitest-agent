@@ -8,10 +8,32 @@
  * safe direction.
  */
 function stripComments(source: string): string {
-	// Unrolled block-comment matcher: linear in the input length, unlike the
-	// lazy `[\s\S]*?` form, which restarts its scan from every `/*` on an
-	// unterminated comment and goes quadratic (CodeQL js/polynomial-redos).
-	return source.replace(/\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\//g, "").replace(/\/\/.*$/gm, "");
+	// A single forward pass, no regex: CodeQL (js/polynomial-redos) flags
+	// even the unrolled block-comment regex on inputs with many `)/**`
+	// repetitions, and the scanner is trivially linear in the input length.
+	let out = "";
+	let i = 0;
+	const n = source.length;
+	while (i < n) {
+		const c = source[i];
+		const next = source[i + 1];
+		if (c === "/" && next === "*") {
+			// Block comment: skip to the closing `*/`, or to the end of the
+			// input when it is unterminated.
+			const close = source.indexOf("*/", i + 2);
+			i = close === -1 ? n : close + 2;
+			continue;
+		}
+		if (c === "/" && next === "/") {
+			// Line comment: skip to (not past) the newline.
+			const eol = source.indexOf("\n", i + 2);
+			i = eol === -1 ? n : eol;
+			continue;
+		}
+		out += c;
+		i++;
+	}
+	return out;
 }
 
 const DISCOVER_STRATEGY_OPTION_RE = /\bdiscoverStrategy\s*:/;

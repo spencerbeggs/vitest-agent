@@ -143,7 +143,9 @@ src/
   `safe-mcp-vitest-agent-ops.txt` (omit destructive tools so they prompt;
   consider `pre-tool-use/tdd-restricted.sh` if the TDD orchestrator must
   not call it); extend `served-schema-strict.test.ts`'s case list; update
-  `tools/help.ts`. Wrap a write handler in `withIdempotency("<name>", handler)`
+  `tools/help.ts` — `help-drift.test.ts` pins the `help` text to the served
+  toolkit and prompt layer, so a new tool or prompt that `help` does not
+  mention fails that test until it does. Wrap a write handler in `withIdempotency("<name>", handler)`
   and register its key in `idempotency.ts` when a replay must be safe. For
   tools surfacing the five TDD tagged errors use `_tdd-error-envelope.ts`.
 - Adding a prompt: create `prompts/<slug>.ts` exporting a pure factory, then

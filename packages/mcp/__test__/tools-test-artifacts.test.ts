@@ -82,6 +82,10 @@ const seedFixtureEffect = Effect.gen(function* () {
 				{ contentType: "image/png", path: ".vitest/attachments/s.png", byteSize: 2048 },
 				{ contentType: "text/plain", body: big, bodyEncoding: "utf-8", byteSize: big.length },
 				{ contentType: "text/plain", body: "hello", bodyEncoding: "utf-8", byteSize: 5 },
+				// 6 decoded bytes, 8 characters on the wire.
+				{ contentType: "application/octet-stream", body: "AAAAAAAA", bodyEncoding: "base64", byteSize: 6 },
+				// 4 UTF-16 code units (two surrogate pairs), 8 utf-8 bytes on the wire.
+				{ contentType: "text/plain", body: "\u{1F600}\u{1F600}", bodyEncoding: "utf-8", byteSize: 8 },
 			],
 		},
 	]);
@@ -197,7 +201,7 @@ describe("test({ action: 'artifacts' })", () => {
 		const artifact = result.artifacts[0];
 		expect(artifact?.type).toBe("my-pkg:trace");
 		expect(artifact?.data).toBe(JSON.stringify({ spans: 2 }));
-		expect(artifact?.attachments).toHaveLength(3);
+		expect(artifact?.attachments).toHaveLength(5);
 		expect(artifact?.attachments[0]?.path).toBe(".vitest/attachments/s.png");
 		expect(artifact?.attachments[0]?.byteSize).toBe(2048);
 		expect(artifact?.attachments[0]?.body).toBeUndefined();
@@ -282,6 +286,55 @@ describe("inline attachment bodies are gated behind maxBytes", () => {
 		expect(attachments[1]?.body).toBeUndefined();
 		expect(attachments[2]?.body).toBe("hello");
 		expect(attachments[2]?.bodyEncoding).toBe("utf-8");
+		expect(attachments[3]?.body).toBe("AAAAAAAA");
+		expect(attachments[3]?.bodyEncoding).toBe("base64");
+	});
+
+	it("charges a base64 body its encoded wire length, not its decoded byteSize (issue #393)", async () => {
+		// "hello" costs 5; the base64 body decodes to 6 bytes but is 8
+		// characters on the wire. A budget of 12 covers 5 + 6 under the old
+		// decoded-size accounting and must NOT cover 5 + 8.
+		const result = await caller("test", {
+			action: "artifacts",
+			fullName: FULL_NAME,
+			project: PROJECT,
+			maxBytes: 12,
+		});
+		if (result.action !== "artifacts") throw new Error("expected the artifacts variant");
+		const attachments = result.artifacts[0]?.attachments ?? [];
+		expect(attachments[2]?.body).toBe("hello");
+		expect(attachments[3]?.body).toBeUndefined();
+		expect(attachments[3]?.bodyEncoding).toBeUndefined();
+		expect(attachments[3]?.byteSize).toBe(6);
+	});
+
+	it("charges a multibyte utf-8 body its byte length, not its UTF-16 code-unit count", async () => {
+		// "hello" (5) and the base64 body (8) spend 13 of a 17-byte budget. The
+		// two emoji are 4 UTF-16 code units but 8 utf-8 bytes: String.length
+		// accounting fits them in the remaining 4, byte accounting does not.
+		// (An inclusion assertion can never catch under-charging; only this
+		// exclusion can.)
+		const result = await caller("test", {
+			action: "artifacts",
+			fullName: FULL_NAME,
+			project: PROJECT,
+			maxBytes: 5 + 8 + 4,
+		});
+		if (result.action !== "artifacts") throw new Error("expected the artifacts variant");
+		const attachments = result.artifacts[0]?.attachments ?? [];
+		expect(attachments[2]?.body).toBe("hello");
+		expect(attachments[3]?.body).toBe("AAAAAAAA");
+		expect(attachments[4]?.body).toBeUndefined();
+
+		// With room for exactly the bytes, it is included.
+		const roomy = await caller("test", {
+			action: "artifacts",
+			fullName: FULL_NAME,
+			project: PROJECT,
+			maxBytes: 5 + 8 + 8,
+		});
+		if (roomy.action !== "artifacts") throw new Error("expected the artifacts variant");
+		expect(roomy.artifacts[0]?.attachments[4]?.body).toBe("\u{1F600}\u{1F600}");
 	});
 });
 

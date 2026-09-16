@@ -657,12 +657,227 @@ describe("CoverageAnalyzerTest", () => {
 	});
 });
 
+describe("pattern globbing (issue #381)", () => {
+	// Vitest evaluates thresholds through picomatch, where `**/` spans zero or
+	// more directories. A top-level file and a nested file must both match the
+	// same `src/**/*.ts` pattern, or the analyzer disagrees with Vitest's
+	// native threshold result for files at the top of the globbed directory.
+	const files = {
+		"src/index.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"src/lib/deep/file.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"lib/other.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"src/view.tsx": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"src/.hidden.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+	};
+
+	// `expectedLow` lists the files the pattern does NOT match — they fall
+	// back to the 80% global thresholds and are flagged at 55%.
+	it.each([
+		["src/**/*.ts", ["lib/other.ts", "src/.hidden.ts", "src/view.tsx"]],
+		["src/**", ["lib/other.ts", "src/.hidden.ts"]],
+		["**/*.ts", ["src/.hidden.ts", "src/view.tsx"]],
+		// Brace groups expand, as in Vitest's own threshold keys.
+		["src/**/*.{ts,tsx}", ["lib/other.ts", "src/.hidden.ts"]],
+		// Character classes and extglobs work.
+		["src/[iv]*.ts?(x)", ["lib/other.ts", "src/.hidden.ts", "src/lib/deep/file.ts"]],
+		// A malformed pattern matches nothing rather than throwing.
+		["src/[", ["lib/other.ts", "src/.hidden.ts", "src/index.ts", "src/lib/deep/file.ts", "src/view.tsx"]],
+	])("pattern %s matches like Vitest's picomatch threshold matcher", async (pattern, expectedLow) => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(mockCoverageMap(files), {
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [[pattern, { lines: 50, functions: 50, branches: 50, statements: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		// Files the pattern matches use its 50% thresholds and pass at 55%;
+		// only files outside the pattern fall back to the 80% global and fail.
+		expect([...report.lowCoverageFiles].sort()).toEqual(expectedLow);
+	});
+
+	it("keeps * and ? from crossing a directory separator", async () => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(mockCoverageMap(files), {
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [["src/*.ts", { lines: 50, functions: 50, branches: 50, statements: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		expect([...report.lowCoverageFiles].sort()).toEqual([
+			"lib/other.ts",
+			"src/.hidden.ts",
+			"src/lib/deep/file.ts",
+			"src/view.tsx",
+		]);
+	});
+});
+
+describe("root-relative matching (production shape)", () => {
+	// The v8 / istanbul providers key the coverage map by ABSOLUTE path,
+	// while threshold patterns and `testedFiles` (from
+	// `TestModule.relativeModuleId`) are root-relative. With `root` set the
+	// analyzer matches on `relative(root, key)`; the tests elsewhere in this
+	// file that pass relative keys without `root` exercise the verbatim path.
+	const ROOT = "/repo";
+	const absolute = {
+		"/repo/src/index.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"/repo/lib/other.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+	};
+
+	it("matches a relative glob pattern against absolute coverage keys", async () => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(mockCoverageMap(absolute), {
+					root: ROOT,
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [["src/**/*.ts", { lines: 50, functions: 50, branches: 50, statements: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		// src/index.ts takes the pattern's 50% and passes; lib/other.ts falls
+		// to the 80% global. The reported `file` keeps the absolute key.
+		expect(report.lowCoverageFiles).toEqual(["/repo/lib/other.ts"]);
+	});
+
+	it("without root, a relative pattern never matches an absolute key (the pre-fix production behaviour)", async () => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(mockCoverageMap(absolute), {
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [["src/**/*.ts", { lines: 50, functions: 50, branches: 50, statements: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		expect([...report.lowCoverageFiles].sort()).toEqual(["/repo/lib/other.ts", "/repo/src/index.ts"]);
+	});
+
+	it("intersects testedFiles with the raw coverage key on a scoped run, independent of root", async () => {
+		// `testedFiles` come from the absolute `TestModule.moduleId`, so the
+		// membership test is absolute-to-absolute and never depends on which
+		// project's root `relativeModuleId` happened to be relative to.
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.processScoped(
+					mockCoverageMap(absolute),
+					{
+						root: ROOT,
+						thresholds: {
+							global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+							perFile: false,
+							patterns: [],
+						},
+						includeBareZero: false,
+					},
+					["/repo/src/index.ts"],
+				),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		expect(report.lowCoverageFiles).toEqual(["/repo/src/index.ts"]);
+		expect(report.scopedFiles).toEqual(["/repo/src/index.ts"]);
+	});
+
+	it("normalizes separators on both sides of the scoped membership test (Windows v8 keys)", async () => {
+		// On Windows `moduleId` is forward-slash (Vitest slashes test paths)
+		// while the v8 provider keys the coverage map with backslashes.
+		const windowsKeys = {
+			"C:\\repo\\src\\index.ts": {
+				summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+				uncoveredLines: [1],
+			},
+			"C:\\repo\\lib\\other.ts": {
+				summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+				uncoveredLines: [1],
+			},
+		};
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.processScoped(
+					mockCoverageMap(windowsKeys),
+					{
+						thresholds: {
+							global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+							perFile: false,
+							patterns: [],
+						},
+						includeBareZero: false,
+					},
+					["C:/repo/src/index.ts"],
+				),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		// Flagged, and reported under the provider's original key.
+		expect(report.lowCoverageFiles).toEqual(["C:\\repo\\src\\index.ts"]);
+	});
+
+	it("does not relativize testedFiles: a root-relative entry never matches an absolute key", async () => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.processScoped(
+					mockCoverageMap(absolute),
+					{
+						root: ROOT,
+						thresholds: {
+							global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+							perFile: false,
+							patterns: [],
+						},
+						includeBareZero: false,
+					},
+					["src/index.ts"],
+				),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		expect(report.lowCoverageFiles).toEqual([]);
+	});
+});
+
 describe("per-pattern perFile", () => {
-	// NOTE: the pattern is `/repo/src/*.ts`, not `/repo/src/**/*.ts`. The local
-	// `matchGlob` lowers `**/` to `.*/`, which requires at least one intervening
-	// directory, so a `**` pattern would not match `/repo/src/a.ts` and these
-	// cases would silently fall back to the global thresholds instead of
-	// exercising the pattern's own `perFile`.
 	it("uses an object-valued pattern perFile as the per-file threshold set", async () => {
 		// A file at 80% lines: above the pattern's aggregate 90% requirement is
 		// false, but the pattern's own perFile object only requires 70% lines,
