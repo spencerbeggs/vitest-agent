@@ -216,7 +216,7 @@ describe("withIdempotency", () => {
 		expect(result).toEqual({ id: 303, outcome: "confirmed" });
 	});
 
-	it("corrupt cached row: treated as a miss, the handler runs and its fresh result is returned", async () => {
+	it("corrupt cached row: treated as a miss once, the fresh result replaces the row and the next call replays (issue #423)", async () => {
 		let calls = 0;
 		const handler = withIdempotency("hypothesis", (params: ValidateParams) =>
 			Effect.sync(() => {
@@ -242,10 +242,10 @@ describe("withIdempotency", () => {
 			}).pipe(Effect.provide(DataStoreTestLayer)),
 		);
 
-		expect(calls).toBe(2);
+		expect(calls).toBe(1);
 		expect(first).toEqual({ id: 404, outcome: "confirmed" });
-		expect(second).toEqual({ id: 404, outcome: "confirmed" });
 		expect(first).not.toHaveProperty("_idempotentReplay");
+		expect(second).toEqual({ id: 404, outcome: "confirmed", _idempotentReplay: true });
 	});
 
 	it("non-object cached payload passes through unchanged (no marker merge)", async () => {

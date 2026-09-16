@@ -1669,12 +1669,16 @@ export const DataStoreLive: Layer.Layer<DataStore, never, SqlClient> = Layer.eff
 				),
 			);
 
+		// Upsert, not insert-or-ignore: `withIdempotency` treats a row whose
+		// result_json fails to parse as a miss and re-runs the handler, and
+		// the re-run's result must replace the corrupt row or every retry
+		// re-executes the write tool (issue #423).
 		const recordIdempotentResponse = (input: IdempotentResponseInput): Effect.Effect<void, DataStoreError> =>
 			Effect.gen(function* () {
 				yield* Effect.logDebug("recordIdempotentResponse").pipe(
 					Effect.annotateLogs({ procedurePath: input.procedurePath, key: input.key }),
 				);
-				yield* sql`INSERT INTO mcp_idempotent_responses (procedure_path, key, result_json, created_at) VALUES (${input.procedurePath}, ${input.key}, ${input.resultJson}, ${input.createdAt}) ON CONFLICT(procedure_path, key) DO NOTHING`;
+				yield* sql`INSERT INTO mcp_idempotent_responses (procedure_path, key, result_json, created_at) VALUES (${input.procedurePath}, ${input.key}, ${input.resultJson}, ${input.createdAt}) ON CONFLICT(procedure_path, key) DO UPDATE SET result_json = excluded.result_json, created_at = excluded.created_at`;
 			}).pipe(
 				Effect.annotateLogs("service", "DataStore"),
 				Effect.mapError(
