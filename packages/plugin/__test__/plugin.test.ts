@@ -721,5 +721,22 @@ describe("AgentPlugin", () => {
 			// fresh on `second` (1 configureVitest call) = 8 total.
 			expect(warningLines).toHaveLength(8);
 		});
+
+		it("writes the invalid VITEST_AGENT_CONSOLE warning once per Vitest instance, not once per project (issue #459)", async () => {
+			vi.stubEnv("VITEST_AGENT_CONSOLE", "bogus");
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			const vitest = mockVitest(["default"]);
+
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/sdk");
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/plugin");
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/mcp");
+
+			const lines = stderrWrite.mock.calls
+				.map((call) => call[0] as string)
+				.filter((line) => line.includes("ignoring invalid VITEST_AGENT_CONSOLE"));
+
+			expect(lines).toHaveLength(1);
+			expect(lines[0]).toContain('VITEST_AGENT_CONSOLE="bogus"');
+		});
 	});
 });
