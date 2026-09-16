@@ -43,6 +43,23 @@ describe("idempotency key derivation (registry)", () => {
 		});
 	});
 
+	describe("malformed input is not idempotent on any consolidated path (issue #338)", () => {
+		it.each(["hypothesis", "tdd_task", "tdd_goal", "tdd_behavior"])(
+			"%s: null, primitives, arrays and action-less objects derive null",
+			(path) => {
+				const { deriveKey } = spec(path);
+				expect(deriveKey(null)).toBeNull();
+				expect(deriveKey(undefined)).toBeNull();
+				expect(deriveKey("validate")).toBeNull();
+				expect(deriveKey(42)).toBeNull();
+				expect(deriveKey([{ action: "create" }])).toBeNull();
+				expect(
+					deriveKey({ id: 7, outcome: "confirmed", tddTaskId: 1, goalId: 1, goal: "g", behavior: "b" }),
+				).toBeNull();
+			},
+		);
+	});
+
 	describe("tdd_task (consolidated)", () => {
 		const { deriveKey } = spec("tdd_task");
 
