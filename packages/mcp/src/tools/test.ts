@@ -94,10 +94,11 @@ const AttachmentDescriptor = Schema.Struct({
  * per attachment, so a test with many attachments could still flood an
  * agent's context; `maxBytes` (default 0) is the total byte budget for
  * every body in one response. Attachments are walked in order and each
- * body is charged its recorded `byteSize` (falling back to the stored
- * string's length when the row carries none). A body that would take
- * the running total past the budget is dropped along with its
- * `bodyEncoding`; the descriptor half — `contentType`, `path`,
+ * body is charged the length of the string that will actually be placed
+ * in the response — NOT its recorded `byteSize`, which is the decoded
+ * size and undercounts a base64 body by a quarter (issue #393). A body
+ * that would take the running total past the budget is dropped along
+ * with its `bodyEncoding`; the descriptor half — `contentType`, `path`,
  * `byteSize` — always survives.
  */
 const applyBodyBudget = <A extends { readonly attachments: ReadonlyArray<PersistedAttachment> }>(
@@ -110,7 +111,7 @@ const applyBodyBudget = <A extends { readonly attachments: ReadonlyArray<Persist
 		attachments: row.attachments.map((attachment) => {
 			const { body, bodyEncoding, ...descriptor } = attachment;
 			if (body === undefined) return descriptor;
-			const cost = attachment.byteSize ?? body.length;
+			const cost = body.length;
 			if (spent + cost > maxBytes) return descriptor;
 			spent += cost;
 			return { ...descriptor, body, ...(bodyEncoding !== undefined && { bodyEncoding }) };

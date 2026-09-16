@@ -82,6 +82,8 @@ const seedFixtureEffect = Effect.gen(function* () {
 				{ contentType: "image/png", path: ".vitest/attachments/s.png", byteSize: 2048 },
 				{ contentType: "text/plain", body: big, bodyEncoding: "utf-8", byteSize: big.length },
 				{ contentType: "text/plain", body: "hello", bodyEncoding: "utf-8", byteSize: 5 },
+				// 6 decoded bytes, 8 characters on the wire.
+				{ contentType: "application/octet-stream", body: "AAAAAAAA", bodyEncoding: "base64", byteSize: 6 },
 			],
 		},
 	]);
@@ -197,7 +199,7 @@ describe("test({ action: 'artifacts' })", () => {
 		const artifact = result.artifacts[0];
 		expect(artifact?.type).toBe("my-pkg:trace");
 		expect(artifact?.data).toBe(JSON.stringify({ spans: 2 }));
-		expect(artifact?.attachments).toHaveLength(3);
+		expect(artifact?.attachments).toHaveLength(4);
 		expect(artifact?.attachments[0]?.path).toBe(".vitest/attachments/s.png");
 		expect(artifact?.attachments[0]?.byteSize).toBe(2048);
 		expect(artifact?.attachments[0]?.body).toBeUndefined();
@@ -282,6 +284,26 @@ describe("inline attachment bodies are gated behind maxBytes", () => {
 		expect(attachments[1]?.body).toBeUndefined();
 		expect(attachments[2]?.body).toBe("hello");
 		expect(attachments[2]?.bodyEncoding).toBe("utf-8");
+		expect(attachments[3]?.body).toBe("AAAAAAAA");
+		expect(attachments[3]?.bodyEncoding).toBe("base64");
+	});
+
+	it("charges a base64 body its encoded wire length, not its decoded byteSize (issue #393)", async () => {
+		// "hello" costs 5; the base64 body decodes to 6 bytes but is 8
+		// characters on the wire. A budget of 12 covers 5 + 6 under the old
+		// decoded-size accounting and must NOT cover 5 + 8.
+		const result = await caller("test", {
+			action: "artifacts",
+			fullName: FULL_NAME,
+			project: PROJECT,
+			maxBytes: 12,
+		});
+		if (result.action !== "artifacts") throw new Error("expected the artifacts variant");
+		const attachments = result.artifacts[0]?.attachments ?? [];
+		expect(attachments[2]?.body).toBe("hello");
+		expect(attachments[3]?.body).toBeUndefined();
+		expect(attachments[3]?.bodyEncoding).toBeUndefined();
+		expect(attachments[3]?.byteSize).toBe(6);
 	});
 });
 
