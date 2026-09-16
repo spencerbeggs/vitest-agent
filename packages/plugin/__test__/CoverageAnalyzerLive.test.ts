@@ -675,13 +675,29 @@ describe("pattern globbing (issue #381)", () => {
 			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
 			uncoveredLines: [1],
 		},
+		"src/view.tsx": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"src/.hidden.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
 	};
 
+	// `expectedLow` lists the files the pattern does NOT match — they fall
+	// back to the 80% global thresholds and are flagged at 55%.
 	it.each([
-		["src/**/*.ts", ["lib/other.ts"]],
-		["src/**", ["lib/other.ts"]],
-		["**/*.ts", []],
-	])("pattern %s matches top-level and nested files alike", async (pattern, expectedLow) => {
+		["src/**/*.ts", ["lib/other.ts", "src/.hidden.ts", "src/view.tsx"]],
+		["src/**", ["lib/other.ts", "src/.hidden.ts"]],
+		["**/*.ts", ["src/.hidden.ts", "src/view.tsx"]],
+		// Brace groups expand, as in Vitest's own threshold keys.
+		["src/**/*.{ts,tsx}", ["lib/other.ts", "src/.hidden.ts"]],
+		// Character classes and extglobs work.
+		["src/[iv]*.ts?(x)", ["lib/other.ts", "src/.hidden.ts", "src/lib/deep/file.ts"]],
+		// A malformed pattern matches nothing rather than throwing.
+		["src/[", ["lib/other.ts", "src/.hidden.ts", "src/index.ts", "src/lib/deep/file.ts", "src/view.tsx"]],
+	])("pattern %s matches like Vitest's picomatch threshold matcher", async (pattern, expectedLow) => {
 		const result = await run(
 			Effect.flatMap(CoverageAnalyzer, (ca) =>
 				ca.process(mockCoverageMap(files), {
@@ -714,7 +730,12 @@ describe("pattern globbing (issue #381)", () => {
 			),
 		);
 		const report = Option.getOrThrow(result);
-		expect([...report.lowCoverageFiles].sort()).toEqual(["lib/other.ts", "src/lib/deep/file.ts"]);
+		expect([...report.lowCoverageFiles].sort()).toEqual([
+			"lib/other.ts",
+			"src/.hidden.ts",
+			"src/lib/deep/file.ts",
+			"src/view.tsx",
+		]);
 	});
 });
 

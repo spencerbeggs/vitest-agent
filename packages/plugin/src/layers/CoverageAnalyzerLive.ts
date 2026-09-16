@@ -1,6 +1,7 @@
+import { GlobPattern } from "@effected/glob";
 import type { CoverageReport, FileCoverageReport, MetricThresholds, ResolvedThresholds } from "@vitest-agent/sdk";
 import { compressLines } from "@vitest-agent/sdk";
-import { Effect, Layer, Option } from "effect";
+import { Effect, Layer, Option, Result } from "effect";
 import type { CoverageOptions } from "../services/CoverageAnalyzer.js";
 import { CoverageAnalyzer } from "../services/CoverageAnalyzer.js";
 
@@ -53,34 +54,30 @@ function isIstanbulCoverageMap(value: unknown): value is IstanbulCoverageMap {
 }
 
 /**
- * Match a file path against a glob pattern using basic matching.
- * Supports `*` (any segment chars) and `**` (any path segments).
+ * Compiled matchers keyed by pattern source. Threshold patterns are a
+ * small, fixed set per run and `processCoverageInternal` matches every
+ * file against every pattern, so compile once and reuse.
+ */
+const globCache = new Map<string, GlobPattern | null>();
+
+/**
+ * Match a file path against a coverage-threshold glob with the same
+ * semantics Vitest applies to `coverage.thresholds` keys (picomatch under
+ * default options): `**` spans zero or more directories, `*` and `?`
+ * never cross a slash, brace groups expand, character classes and
+ * extglobs work, and dotfiles are not matched by wildcards (issue #381).
+ * `@effected/glob` is minimatch-based and agrees with picomatch on every
+ * shape a threshold key realistically takes. A pattern that fails to
+ * compile (guard trip on an absurd input) matches nothing.
  */
 function matchGlob(filePath: string, pattern: string): boolean {
-	// Convert glob to regex the way picomatch (Vitest's threshold matcher)
-	// reads it: a `**/` segment or a trailing `/**` spans ZERO or more
-	// directories, so `src/**/*.ts` matches `src/index.ts` as well as
-	// `src/lib/deep/file.ts` (issue #381). `*` and `?` never cross a slash.
-	let regexStr = "";
-	for (let i = 0; i < pattern.length; i++) {
-		if (pattern.startsWith("**/", i)) {
-			regexStr += "(?:.*/)?";
-			i += 2;
-		} else if (pattern.startsWith("/**", i) && i + 3 === pattern.length) {
-			regexStr += "(?:/.*)?";
-			i += 2;
-		} else if (pattern.startsWith("**", i)) {
-			regexStr += ".*";
-			i += 1;
-		} else if (pattern[i] === "*") {
-			regexStr += "[^/]*";
-		} else if (pattern[i] === "?") {
-			regexStr += "[^/]";
-		} else {
-			regexStr += pattern[i].replace(/[.+^${}()|[\]\\]/, "\\$&");
-		}
+	let compiled = globCache.get(pattern);
+	if (compiled === undefined) {
+		const result = GlobPattern.compileResult(pattern);
+		compiled = Result.isSuccess(result) ? result.success : null;
+		globCache.set(pattern, compiled);
 	}
-	return new RegExp(`^${regexStr}$`).test(filePath);
+	return compiled?.matches(filePath) ?? false;
 }
 
 /**

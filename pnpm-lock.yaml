@@ -89,6 +89,9 @@ catalogs:
     '@effected/config-file':
       specifier: ^0.10.0
       version: 0.10.0
+    '@effected/glob':
+      specifier: ^0.6.0
+      version: 0.6.0
     '@effected/jsonc':
       specifier: ^0.11.0
       version: 0.11.0
@@ -282,6 +285,9 @@ importers:
       '@effect/platform-node':
         specifier: catalog:effect
         version: 4.0.0-rc.115(effect@4.0.0-rc.115)(redis@6.2.1)
+      '@effected/glob':
+        specifier: catalog:effected
+        version: 0.6.0(effect@4.0.0-rc.115)
       '@effected/workspaces':
         specifier: catalog:effected
         version: 0.22.0(@effected/jsonc@0.11.0(effect@4.0.0-rc.115))(effect@4.0.0-rc.115)
