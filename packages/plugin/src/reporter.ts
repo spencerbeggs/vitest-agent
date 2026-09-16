@@ -1929,6 +1929,7 @@ export class AgentReporter {
 			}
 			const primaryProject = Array.from(projectModuleCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
 			const isFirstProject = !opts.projectFilter || opts.projectFilter === primaryProject;
+			const coverageRoot = typeof vitestConfig.root === "string" ? vitestConfig.root : undefined;
 			const coverageOpts = {
 				thresholds: opts.coverageThresholds,
 				includeBareZero: opts.includeBareZero,
@@ -1937,6 +1938,9 @@ export class AgentReporter {
 				// Issue #160 gap 1: thread the real spec-count total onto a
 				// scoped run's CoverageReport so the note can render "N of M".
 				...(isPartial ? { totalFiles: totalSpecCount } : {}),
+				// Coverage-map keys are absolute; patterns and `testedFiles`
+				// are root-relative. The analyzer relativizes against this.
+				...(coverageRoot !== undefined ? { root: coverageRoot } : {}),
 			} as const;
 			const coverageResult =
 				stashedCoverage && isFirstProject

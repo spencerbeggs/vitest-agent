@@ -1,3 +1,4 @@
+import { relative, sep } from "node:path";
 import { GlobPattern } from "@effected/glob";
 import type { CoverageReport, FileCoverageReport, MetricThresholds, ResolvedThresholds } from "@vitest-agent/sdk";
 import { compressLines } from "@vitest-agent/sdk";
@@ -166,7 +167,15 @@ function processCoverageInternal(
 	const lowCoverage: FileCoverageReport[] = [];
 	const belowTarget: FileCoverageReport[] = [];
 
+	// Coverage providers key the map by absolute path; patterns and
+	// `testedFiles` are root-relative (see `CoverageOptions.root`). Match
+	// on the relative, posix-separated form; report the original key.
+	const { root } = options;
+	const matchKey = (filePath: string): string =>
+		root === undefined ? filePath : relative(root, filePath).split(sep).join("/");
+
 	for (const filePath of coverageMap.files()) {
+		const matchPath = matchKey(filePath);
 		const fileCoverage = coverageMap.fileCoverageFor(filePath);
 		const fileSummary = fileCoverage.toSummary();
 
@@ -184,7 +193,7 @@ function processCoverageInternal(
 		if (isBareZero && !includeBareZero) continue;
 
 		// For scoped processing, only flag threshold violations for in-scope files
-		if (scoped && !testedFileSet?.has(filePath)) {
+		if (scoped && !testedFileSet?.has(matchPath)) {
 			// Out-of-scope files are never flagged, even if below threshold
 			continue;
 		}
@@ -193,8 +202,8 @@ function processCoverageInternal(
 		// letting an object-valued `perFile` (Vitest 5) override the metric set
 		// used for the per-file check.
 		const effectiveThresholds =
-			resolveEffectivePerFileThresholds(filePath, options.thresholds) ??
-			resolveEffectiveThresholds(filePath, options.thresholds);
+			resolveEffectivePerFileThresholds(matchPath, options.thresholds) ??
+			resolveEffectiveThresholds(matchPath, options.thresholds);
 		const isBelowThreshold = isBelowMetricThresholds(fileStats, effectiveThresholds);
 
 		if (isBareZero || isBelowThreshold) {
@@ -209,7 +218,7 @@ function processCoverageInternal(
 
 		// Check if the file is above threshold but below target
 		if (options.targets) {
-			const effectiveTargets = resolveEffectiveThresholds(filePath, options.targets);
+			const effectiveTargets = resolveEffectiveThresholds(matchPath, options.targets);
 			const isBelowTargetMetrics = isBelowMetricThresholds(fileStats, effectiveTargets);
 			if (isBelowTargetMetrics) {
 				const uncoveredLines = compressLines(fileCoverage.getUncoveredLines());

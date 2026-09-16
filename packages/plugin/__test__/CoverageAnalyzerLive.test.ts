@@ -739,6 +739,84 @@ describe("pattern globbing (issue #381)", () => {
 	});
 });
 
+describe("root-relative matching (production shape)", () => {
+	// The v8 / istanbul providers key the coverage map by ABSOLUTE path,
+	// while threshold patterns and `testedFiles` (from
+	// `TestModule.relativeModuleId`) are root-relative. With `root` set the
+	// analyzer matches on `relative(root, key)`; the tests elsewhere in this
+	// file that pass relative keys without `root` exercise the verbatim path.
+	const ROOT = "/repo";
+	const absolute = {
+		"/repo/src/index.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"/repo/lib/other.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+	};
+
+	it("matches a relative glob pattern against absolute coverage keys", async () => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(mockCoverageMap(absolute), {
+					root: ROOT,
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [["src/**/*.ts", { lines: 50, functions: 50, branches: 50, statements: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		// src/index.ts takes the pattern's 50% and passes; lib/other.ts falls
+		// to the 80% global. The reported `file` keeps the absolute key.
+		expect(report.lowCoverageFiles).toEqual(["/repo/lib/other.ts"]);
+	});
+
+	it("without root, a relative pattern never matches an absolute key (the pre-fix production behaviour)", async () => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(mockCoverageMap(absolute), {
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [["src/**/*.ts", { lines: 50, functions: 50, branches: 50, statements: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		expect([...report.lowCoverageFiles].sort()).toEqual(["/repo/lib/other.ts", "/repo/src/index.ts"]);
+	});
+
+	it("intersects root-relative testedFiles with absolute coverage keys on a scoped run", async () => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.processScoped(
+					mockCoverageMap(absolute),
+					{
+						root: ROOT,
+						thresholds: {
+							global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+							perFile: false,
+							patterns: [],
+						},
+						includeBareZero: false,
+					},
+					["src/index.ts"],
+				),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		expect(report.lowCoverageFiles).toEqual(["/repo/src/index.ts"]);
+	});
+});
+
 describe("per-pattern perFile", () => {
 	it("uses an object-valued pattern perFile as the per-file threshold set", async () => {
 		// A file at 80% lines: above the pattern's aggregate 90% requirement is
