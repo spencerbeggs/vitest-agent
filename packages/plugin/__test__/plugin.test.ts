@@ -677,4 +677,49 @@ describe("AgentPlugin", () => {
 			expect(generator({ id: "/repo/packages/plugin/__test__/plugin.test.ts" })).toMatch(/^vitest-agent:tags:/);
 		});
 	});
+
+	describe("ConfigValidation diagnostic dedupe (issue #400)", () => {
+		it("writes each distinct ConfigValidation warning line exactly once across multiple projects on one Vitest instance", async () => {
+			const plugin = AgentPlugin(
+				{ coverageTargets: { lines: 80, functions: 80, branches: 80, statements: 80 } },
+				EnvironmentDetectorTest.layer("terminal"),
+			);
+			const vitest = mockVitest(["default"]);
+
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/sdk");
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/plugin");
+			await callConfigureVitestForProject(plugin, vitest, "@vitest-agent/mcp");
+
+			const warningLines = stderrWrite.mock.calls
+				.map((call) => call[0] as string)
+				.filter((line) => line.includes("TARGET_WITHOUT_THRESHOLD"));
+
+			// Four metrics (lines/functions/branches/statements) each produce one
+			// distinct warning line; with three projects sharing one Vitest
+			// instance, deduped output is 4 lines total, not 12.
+			expect(warningLines).toHaveLength(4);
+			expect(new Set(warningLines).size).toBe(4);
+		});
+
+		it("reports ConfigValidation diagnostics again for a different Vitest instance in the same process", async () => {
+			const plugin = AgentPlugin(
+				{ coverageTargets: { lines: 80, functions: 80, branches: 80, statements: 80 } },
+				EnvironmentDetectorTest.layer("terminal"),
+			);
+			const first = mockVitest(["default"]);
+			const second = mockVitest(["default"]);
+
+			await callConfigureVitestForProject(plugin, first, "@vitest-agent/sdk");
+			await callConfigureVitestForProject(plugin, first, "@vitest-agent/plugin");
+			await callConfigureVitestForProject(plugin, second, "@vitest-agent/sdk");
+
+			const warningLines = stderrWrite.mock.calls
+				.map((call) => call[0] as string)
+				.filter((line) => line.includes("TARGET_WITHOUT_THRESHOLD"));
+
+			// 4 metrics deduped on `first` (2 configureVitest calls) + 4 metrics
+			// fresh on `second` (1 configureVitest call) = 8 total.
+			expect(warningLines).toHaveLength(8);
+		});
+	});
 });
