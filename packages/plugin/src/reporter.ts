@@ -1938,8 +1938,8 @@ export class AgentReporter {
 				// Issue #160 gap 1: thread the real spec-count total onto a
 				// scoped run's CoverageReport so the note can render "N of M".
 				...(isPartial ? { totalFiles: totalSpecCount } : {}),
-				// Coverage-map keys are absolute; patterns and `testedFiles`
-				// are root-relative. The analyzer relativizes against this.
+				// Coverage-map keys are absolute; the glob patterns are
+				// root-relative. The analyzer relativizes keys for globbing only.
 				...(coverageRoot !== undefined ? { root: coverageRoot } : {}),
 			} as const;
 			const coverageResult =
