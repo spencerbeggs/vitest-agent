@@ -38,8 +38,10 @@ This adds the following to your `.claude/settings.json`:
 plugin declares the `vitest-agent-mcp` bin, so the marketplace plugin's MCP
 loader finds it at `node_modules/.bin/vitest-agent-mcp` and execs it directly.
 If that bin is missing, the loader prints a package-manager-specific install
-line to stderr and falls back to `npx --yes @vitest-agent/mcp`, which
-downloads the server — slower, and without your project's pinned version.
+line to stderr and falls back to `npx --yes @vitest-agent/mcp@4`, which
+downloads the server — slower, and without your project's pinned version
+(the fallback pins only the major, so it never pulls a release the hooks
+were not written for).
 :::
 
 ## What it adds
@@ -51,7 +53,7 @@ spawns it via a zero-dependency shell loader that prefers your project's own
 `node_modules/.bin/vitest-agent-mcp` and exec-replaces itself with it — no
 wrapper process remains. Only when that bin is absent does it detect your
 package manager, print the matching install line, and fall back to
-`npx --yes @vitest-agent/mcp`.
+`npx --yes @vitest-agent/mcp@4`.
 
 The server exposes 30 action-keyed tools covering test queries, TDD lifecycle
 management, notes, hypotheses, agent registration, orchestrator progress

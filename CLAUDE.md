@@ -90,7 +90,8 @@ Six primary capabilities:
    distributed via the Claude marketplace as `vitest-agent@spencerbeggs`. Ships an
    MCP loader (`bin/start-mcp.sh`: execs the project's own
    `node_modules/.bin/vitest-agent-mcp`, else prints a PM-specific install
-   line on stderr and falls back to `npx --yes @vitest-agent/mcp`), lifecycle
+   line on stderr and falls back to `npx --yes @vitest-agent/mcp@4`, pinned to
+   the major the hooks were written for), lifecycle
    hooks that resolve the CLI via `detect_vitest_agent_bin`
    (`VITEST_AGENT_CLI_CMD` override → relative `node_modules/.bin/vitest-agent`
    → `<pm> exec vitest-agent`), the `tdd-task` subagent (`context:fork`),

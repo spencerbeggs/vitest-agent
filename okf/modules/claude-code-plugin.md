@@ -135,8 +135,9 @@ forward signals or buffer stdio, so a closed session pipe ends the server
 via EOF with no orphan processes. Only when the local bin is missing does
 the loader detect the package manager — the `packageManager` field first,
 then a lockfile — solely to word an install line printed to **stderr**,
-then falls back to `exec npx --yes @vitest-agent/mcp "$@"` as a registry
-fetch. The MCP server itself is never bundled with the plugin; bundling was
+then falls back to `exec npx --yes @vitest-agent/mcp@4 "$@"` as a registry
+fetch, pinned to the major so an unpinned fetch can never pull a future
+major the hooks were not written for. The MCP server itself is never bundled with the plugin; bundling was
 rejected because the engine's data layer binds a platform-specific SQLite
 driver that must match the consumer's own Node version, so the server has
 to resolve from the consumer's `node_modules` at spawn time.
