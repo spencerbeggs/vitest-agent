@@ -1,5 +1,21 @@
 # @vitest-agent/reporter
 
+## 3.0.6
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/sql-sqlite-node | dependency | removed | 4.0.0-rc.115 | — |
+| @vitest-agent/sdk | dependency | updated | 5.0.0 | 5.0.1 |
+| @vitest-agent/ui | dependency | updated | 2.4.5 | 2.4.6 |
+
+- Dropped the unused `@effect/sql-sqlite-node` runtime dependency. The reporter only renders and never touches SQLite, so it no longer declares the engine's driver.
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 3.0.5
 
 ### Dependencies

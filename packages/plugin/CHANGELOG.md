@@ -1,5 +1,56 @@
 # @vitest-agent/plugin
 
+## 4.0.4
+
+### Bug Fixes
+
+- Fixed `coverageTargets` glob matching to agree with Vitest's own picomatch-based threshold matcher — a `**` segment now matches zero directories (`src/**/*.ts` matches `src/index.ts`), and brace groups, character classes, and extglobs are honoured, so a glob-scoped coverage target no longer silently skips top-level files or, for a pattern like `src/**/*.{ts,tsx}`, every file under it
+- Fixed the coverage analyzer to match glob patterns against paths relative to the Vitest config root, and a partial run's scoped file set to be built from each test module's absolute path — coverage providers key files by absolute path, so a relative glob key never matched in a real run and the scoped threshold check (issue #160) never flagged anything [#460][#460]
+
+* Fixes `ConfigValidation` printing identical diagnostics once per project in a multi-project Vitest run (issue #400).
+
+* `configureVitest` fires once per project against root-level `ConfigValidation` config that is identical across every project, so an N-project run previously printed N copies of every warning/info line
+
+* Each distinct diagnostic line (code + message + remediation) is now written to stderr at most once per Vitest instance, tracked via a module-scoped `WeakMap` keyed on the Vitest instance, matching the existing per-instance guard pattern used for the aggregating reporter and cache-key generator
+
+* A different Vitest run in the same process still reports its own diagnostics from a fresh state; errors still throw exactly as before [#458][#458]
+
+- Fixes `isPartialRun` missing CLI run-scoping filters, which caused Vitest's native coverage thresholds to be enforced against the whole-workspace denominator on a scoped run (spurious exit 1).
+
+- `isPartialRun` now treats any recognized CLI/programmatic scope filter as a partial run: --project, --tags-filter, --changed, --related, --shard, and -t/--testNamePattern
+
+- The reporter now reads --project, --tags-filter, --changed, --related, and --shard from the stashed Vitest instance's config.cliOptions, so a plain `vitest run --project name` run is correctly detected as partial
+
+- A per-run test-name filter (CLI -t or a watch-mode t change) is partial, while a testNamePattern set in vitest.config.ts is the project's own scope and stays a full run [#457][#457]
+
+* Fixed the invalid `VITEST_AGENT_CONSOLE` warning printing once per project instead of once per Vitest run — `resolveConsoleMode` now writes through the same per-instance dedupe sink already used for `ConfigValidation` diagnostics, so an N-project run prints the line once [#460][#460]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/sql-sqlite-node | dependency | removed | 4.0.0-rc.115 | — |
+| @vitest-agent/cli | dependency | updated | 3.0.2 | 3.0.3 |
+| @vitest-agent/engine | dependency | updated | 0.1.2 | 0.1.3 |
+| @vitest-agent/mcp | dependency | updated | 4.0.2 | 4.0.3 |
+| @vitest-agent/reporter | dependency | updated | 3.0.5 | 3.0.6 |
+| @vitest-agent/sdk | dependency | updated | 5.0.0 | 5.0.1 |
+| @effected/glob | dependency | added | — | ^0.6.0 |
+
+[#460][#460]
+
+- Dropped the unused `@effect/sql-sqlite-node` runtime dependency. The SQLite stack lives in `@vitest-agent/engine` since the carrier split and nothing in the plugin imports it.
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#457]: https://github.com/spencerbeggs/vitest-agent/pull/457
+
+[#458]: https://github.com/spencerbeggs/vitest-agent/pull/458
+
+[#460]: https://github.com/spencerbeggs/vitest-agent/pull/460
+
 ## 4.0.3
 
 ### Dependencies

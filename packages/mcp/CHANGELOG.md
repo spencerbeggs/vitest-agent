@@ -1,5 +1,32 @@
 # @vitest-agent/mcp
 
+## 4.0.3
+
+### Bug Fixes
+
+- Removed the unreachable legacy hypothesis idempotency key spec [#450][#450]
+
+* Fixed the `test` tool's attachment budgeting to charge each inline body its actual utf-8 byte length on the wire instead of its decoded `byteSize` — a base64-encoded body was undercounted by about a third, letting responses overrun `maxBytes` [#460][#460]
+
+- `ServerLayer` no longer requires the engine's `OutputRenderer` service — no tool or prompt ever used it, so embedders and test harnesses no longer have to provide an output-pipeline layer for nothing [#451][#451]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 0.1.2 | 0.1.3 |
+| @vitest-agent/sdk | dependency | updated | 5.0.0 | 5.0.1 |
+
+### Thanks
+
+Thanks to [@antoleod](https://github.com/antoleod) and [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#450]: https://github.com/spencerbeggs/vitest-agent/pull/450
+
+[#451]: https://github.com/spencerbeggs/vitest-agent/pull/451
+
+[#460]: https://github.com/spencerbeggs/vitest-agent/pull/460
+
 ## 4.0.2
 
 ### Dependencies

@@ -1,5 +1,17 @@
 # @vitest-agent/sdk
 
+## 5.0.1
+
+### Bug Fixes
+
+- Replaced the regex-based comment stripper in `detectNonDefaultDiscoverStrategy` with a single-pass scanner, closing the CodeQL polynomial-ReDoS finding on config sources containing many `)/**` repetitions [#460][#460]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#460]: https://github.com/spencerbeggs/vitest-agent/pull/460
+
 ## 5.0.0
 
 ### Breaking Changes
