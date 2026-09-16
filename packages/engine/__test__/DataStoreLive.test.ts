@@ -9,6 +9,7 @@ import migration0001 from "../src/migrations/0001_initial.js";
 
 import { DataReader } from "../src/services/DataReader.js";
 import { DataStore } from "../src/services/DataStore.js";
+import { flaky, singlePassingRun, withFailures } from "../src/testing/index.js";
 import { makeTestLayer } from "../src/testing/layers.js";
 
 const SqliteLayer = sqliteClientLayer({ filename: ":memory:" });
@@ -3091,11 +3092,20 @@ describe("DataStoreLive", () => {
 });
 
 describe("test-layer preset fixtures", () => {
-	it("record the current Vitest major in their settings rows", async () => {
-		const { readFileSync } = await import("node:fs");
-		const { fileURLToPath } = await import("node:url");
-		const source = readFileSync(fileURLToPath(new URL("../src/testing/index.ts", import.meta.url)), "utf8");
-		expect(source).not.toContain('vitestVersion: "4.1.5"');
-		expect(source.match(/vitestVersion: "5\.0\.0"/g)).toHaveLength(3);
+	// Behavioural, not a source grep (issue #388): open each seeding preset
+	// and read the settings row it wrote.
+	it.each([
+		["singlePassingRun", singlePassingRun],
+		["withFailures", withFailures],
+		["flaky", flaky],
+	])("%s records the current Vitest major in its settings row", async (_name, preset) => {
+		const versions = await Effect.runPromise(
+			Effect.gen(function* () {
+				const sql = yield* SqlClient;
+				const rows = yield* sql<{ vitest_version: string }>`SELECT vitest_version FROM settings`;
+				return rows.map((r) => r.vitest_version);
+			}).pipe(Effect.provide(preset(":memory:"))),
+		);
+		expect(versions).toEqual(["5.0.0"]);
 	});
 });
