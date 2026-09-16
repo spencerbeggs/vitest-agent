@@ -225,6 +225,21 @@ const cacheKeyGeneratorByVitest = new WeakSet<object>();
 const coverageDirDecidedByVitest = new WeakSet<object>();
 
 /**
+ * Per-Vitest-instance memory of which `ConfigValidation` diagnostic lines
+ * have already been written to stderr (issue #400). `configureVitest` fires
+ * once per project, but `ConfigValidation` runs against root-level Vitest
+ * config that is identical across every project in the run — without this
+ * guard, an N-project run prints N identical copies of every warning/info
+ * line. Keyed on the vitest instance (like its `WeakSet` siblings above) so
+ * a different Vitest run in the same process gets a fresh, empty `Set` and
+ * reports again; the dedupe key is the fully rendered line (code + message
+ * + remediation), matching what actually reaches stderr.
+ *
+ * @internal
+ */
+const reportedConfigDiagnosticsByVitest = new WeakMap<object, Set<string>>();
+
+/**
  * The version of this package, inlined at build time from
  * `package.json#version` via rslib-builder's `__PACKAGE_VERSION__` substitution.
  * Re-exported from the package barrel as the public symbol; defined here so
@@ -483,15 +498,31 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 					),
 				);
 
+				// Dedupe per Vitest instance (issue #400): configureVitest fires once
+				// per project against identical root-level config, so without this
+				// guard an N-project run prints N copies of every line.
+				let reportedDiagnostics = reportedConfigDiagnosticsByVitest.get(vitest);
+				if (!reportedDiagnostics) {
+					reportedDiagnostics = new Set<string>();
+					reportedConfigDiagnosticsByVitest.set(vitest, reportedDiagnostics);
+				}
+
 				for (const w of validation.warnings) {
-					process.stderr.write(
+					const line =
 						`[vitest-agent:plugin] warning ${w.code}: ${w.message}` +
-							(w.remediation ? `\n  ${w.remediation}` : "") +
-							"\n",
-					);
+						(w.remediation ? `\n  ${w.remediation}` : "") +
+						"\n";
+					if (!reportedDiagnostics.has(line)) {
+						reportedDiagnostics.add(line);
+						process.stderr.write(line);
+					}
 				}
 				for (const i of validation.info) {
-					process.stderr.write(`[vitest-agent:plugin] info ${i.code}: ${i.message}\n`);
+					const line = `[vitest-agent:plugin] info ${i.code}: ${i.message}\n`;
+					if (!reportedDiagnostics.has(line)) {
+						reportedDiagnostics.add(line);
+						process.stderr.write(line);
+					}
 				}
 				if (validation.errors.length > 0) {
 					const body = validation.errors
