@@ -57,13 +57,29 @@ function isIstanbulCoverageMap(value: unknown): value is IstanbulCoverageMap {
  * Supports `*` (any segment chars) and `**` (any path segments).
  */
 function matchGlob(filePath: string, pattern: string): boolean {
-	// Convert glob to regex: ** matches any path, * matches non-slash chars
-	const regexStr = pattern
-		.replace(/[.+^${}()|[\]\\]/g, "\\$&") // escape regex special chars (except * and ?)
-		.replace(/\*\*/g, "\0") // placeholder for **
-		.replace(/\*/g, "[^/]*") // * matches non-slash
-		.replace(/\0/g, ".*") // ** matches anything
-		.replace(/\?/g, "[^/]"); // ? matches single non-slash
+	// Convert glob to regex the way picomatch (Vitest's threshold matcher)
+	// reads it: a `**/` segment or a trailing `/**` spans ZERO or more
+	// directories, so `src/**/*.ts` matches `src/index.ts` as well as
+	// `src/lib/deep/file.ts` (issue #381). `*` and `?` never cross a slash.
+	let regexStr = "";
+	for (let i = 0; i < pattern.length; i++) {
+		if (pattern.startsWith("**/", i)) {
+			regexStr += "(?:.*/)?";
+			i += 2;
+		} else if (pattern.startsWith("/**", i) && i + 3 === pattern.length) {
+			regexStr += "(?:/.*)?";
+			i += 2;
+		} else if (pattern.startsWith("**", i)) {
+			regexStr += ".*";
+			i += 1;
+		} else if (pattern[i] === "*") {
+			regexStr += "[^/]*";
+		} else if (pattern[i] === "?") {
+			regexStr += "[^/]";
+		} else {
+			regexStr += pattern[i].replace(/[.+^${}()|[\]\\]/, "\\$&");
+		}
+	}
 	return new RegExp(`^${regexStr}$`).test(filePath);
 }
 

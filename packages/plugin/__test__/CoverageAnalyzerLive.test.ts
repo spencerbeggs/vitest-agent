@@ -657,12 +657,68 @@ describe("CoverageAnalyzerTest", () => {
 	});
 });
 
+describe("pattern globbing (issue #381)", () => {
+	// Vitest evaluates thresholds through picomatch, where `**/` spans zero or
+	// more directories. A top-level file and a nested file must both match the
+	// same `src/**/*.ts` pattern, or the analyzer disagrees with Vitest's
+	// native threshold result for files at the top of the globbed directory.
+	const files = {
+		"src/index.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"src/lib/deep/file.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+		"lib/other.ts": {
+			summary: { statements: 55, branches: 55, functions: 55, lines: 55 },
+			uncoveredLines: [1],
+		},
+	};
+
+	it.each([
+		["src/**/*.ts", ["lib/other.ts"]],
+		["src/**", ["lib/other.ts"]],
+		["**/*.ts", []],
+	])("pattern %s matches top-level and nested files alike", async (pattern, expectedLow) => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(mockCoverageMap(files), {
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [[pattern, { lines: 50, functions: 50, branches: 50, statements: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		// Files the pattern matches use its 50% thresholds and pass at 55%;
+		// only files outside the pattern fall back to the 80% global and fail.
+		expect(report.lowCoverageFiles.sort()).toEqual(expectedLow);
+	});
+
+	it("keeps * and ? from crossing a directory separator", async () => {
+		const result = await run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(mockCoverageMap(files), {
+					thresholds: {
+						global: { lines: 80, functions: 80, branches: 80, statements: 80 },
+						perFile: false,
+						patterns: [["src/*.ts", { lines: 50, functions: 50, branches: 50, statements: 50 }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+		const report = Option.getOrThrow(result);
+		expect(report.lowCoverageFiles.sort()).toEqual(["lib/other.ts", "src/lib/deep/file.ts"]);
+	});
+});
+
 describe("per-pattern perFile", () => {
-	// NOTE: the pattern is `/repo/src/*.ts`, not `/repo/src/**/*.ts`. The local
-	// `matchGlob` lowers `**/` to `.*/`, which requires at least one intervening
-	// directory, so a `**` pattern would not match `/repo/src/a.ts` and these
-	// cases would silently fall back to the global thresholds instead of
-	// exercising the pattern's own `perFile`.
 	it("uses an object-valued pattern perFile as the per-file threshold set", async () => {
 		// A file at 80% lines: above the pattern's aggregate 90% requirement is
 		// false, but the pattern's own perFile object only requires 70% lines,
