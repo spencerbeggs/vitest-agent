@@ -35,6 +35,7 @@
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
 		"@effected/config-file": "catalog:effected",
+		"@effected/glob": "catalog:effected",
 		"@effected/jsonc": "catalog:effected",
 		"@effected/toml": "catalog:effected",
 		"@effected/walker": "catalog:effected",
@@ -47,7 +48,7 @@
 	},
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",
-		"@savvy-web/bundler": "^2.3.10",
+		"@savvy-web/bundler": "^2.4.1",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
