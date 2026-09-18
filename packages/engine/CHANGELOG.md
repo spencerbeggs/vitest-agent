@@ -1,5 +1,21 @@
 # @vitest-agent/engine
 
+## 0.2.0
+
+### Bug Fixes
+
+- fixes pnpm 12 closure issues
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 5.0.1 | 5.1.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 0.1.3
 
 ### Bug Fixes

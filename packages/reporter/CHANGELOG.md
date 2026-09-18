@@ -1,5 +1,22 @@
 # @vitest-agent/reporter
 
+## 3.1.0
+
+### Bug Fixes
+
+- fixes pnpm 12 closure issues
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 5.0.1 | 5.1.0 |
+| @vitest-agent/ui | dependency | updated | 2.4.6 | 2.5.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 3.0.6
 
 ### Dependencies

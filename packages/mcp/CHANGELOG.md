@@ -1,5 +1,22 @@
 # @vitest-agent/mcp
 
+## 4.1.0
+
+### Bug Fixes
+
+- fixes pnpm 12 closure issues
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 0.1.3 | 0.2.0 |
+| @vitest-agent/sdk | dependency | updated | 5.0.1 | 5.1.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 4.0.3
 
 ### Bug Fixes
