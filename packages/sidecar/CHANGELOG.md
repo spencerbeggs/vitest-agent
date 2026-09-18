@@ -1,5 +1,15 @@
 # @vitest-agent/sidecar
 
+## 2.2.0
+
+### Bug Fixes
+
+- fixes pnpm 12 closure issues
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
 ## 2.1.22
 
 ### Maintenance
