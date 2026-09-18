@@ -78,45 +78,19 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   `src/` imports `@vitest-agent/mcp`, `plugin`, `reporter`, or `ui`. Keep
   `lib/` pure — thread `env` / `cwd` in from a command.
 
-## When working in this package
+## Working here
 
-- This package depends on `@vitest-agent/sidecar` (not the reverse). `resolveSidecarBinaryPath` is imported from `@vitest-agent/sidecar` to back the `agent sidecar-path` subcommand. The per-platform sidecar children no longer import the CLI — they bundle `dispatch` from `@vitest-agent/sdk/dispatch`. The old `cli → sidecar → sidecar-<platform> → cli` cycle is gone.
-- Adding a subcommand: create or extend the `commands/<group>.ts`
-  `effect/unstable/cli` glue and wire it into the relevant parent's
-  `withSubcommands` (`db`, `agent`, or the root in `main.ts`). Only add
-  a `lib/format-<name>.ts` + `.test.ts` pair when the command produces
-  non-trivial structured output worth testing as a pure function;
-  plain-text utility commands do not need a formatter.
-- `record test-case-turns --chat-id <id>` is the canonical
-  pattern for subcommands that call multiple `DataStore`/`DataReader`
-  methods and return JSON to stdout (not markdown). It calls
-  `DataStore.backfillTestCaseTurns(chatId)` then
-  `DataReader.getLatestTestCaseForSession(chatId)` and outputs
-  `{ "updated": N, "latestTestCaseId": <id|null> }`. Follow this
-  pattern for any subcommand that needs to both mutate and read back
-  a result.
-- Need a new `DataReader` query: add it to `@vitest-agent/engine`'s `DataReader`
-  service, then consume it from the command body. Don't reach into
-  SQLite directly from the CLI — except `db query`, which opens
-  `data.db` read-only by design.
-- `db reset` is human-only: it refuses with exit code 4 when
-  `VITEST_AGENT_AGENT_ID` is set, exit code 5 when stdout is not a TTY
-  and `--yes` was not passed, and otherwise prompts `Wipe <path>?
-  [y/N]:` on a TTY. It deletes `data.db` plus its `-shm` / `-wal`
-  companions and is idempotent (a missing DB is success).
-- `db query <sql>` opens the connection with the SqliteClient
-  read-only flag so SQLite enforces no-write; mutation attempts and
-  syntax errors surface as driver errors on stderr with exit code 3.
-  Empty / whitespace-only SQL exits 2. Do not add parse-time SQL
-  validation — engine enforcement is the contract.
-- `db path` returns the resolved XDG path even when no DB has been
-  written yet -- the path is a function of identity, not artifact
-  presence. The pre-2.0 `node_modules/.vite/...` probing is gone.
-- Adding a flag: `effect/unstable/cli` validates types at the `Command` layer
-  but the lib function should still accept a typed options object.
-  Keep the lib function callable without `effect/unstable/cli` for testing.
-- Per-call layer construction is fine here (CLI is short-lived); only
-  MCP uses `ManagedRuntime`.
+Load the operational detail on demand instead of holding it in context:
+
+- [`context/conventions.md`](context/conventions.md) — deeper
+  conventions and the step-by-step recipes: adding a subcommand or
+  flag, the `record test-case-turns` mutate-and-read pattern, adding a
+  `DataReader` query, and the `db` subcommand contracts (reset / query
+  / path).
+- [`context/agent-namespace.md`](context/agent-namespace.md) — the
+  `agent` namespace reference: sidecar subcommands, `check-test-path`
+  exit-code contract, barrel/sidecar data paths, and the agent-facing
+  ID flags.
 
 ## Design references
 
@@ -133,21 +107,3 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 - [`../../okf/models/sqlite-schema.md`](../../okf/models/sqlite-schema.md)
   Load when adding a new `DataReader` query or working with output
   formatter types.
-
-## The `agent` namespace
-
-`commands/agent.ts` is a discoverable parent — its `--help` opens with the warning header "Commands intended for agents and hook scripts — humans typically don't invoke these directly." It composes the hook-driven utilities `triage`, `wrapup`, and `record`, four sidecar subcommands, and the standalone `check-test-path` classifier:
-
-- `agent register-agent` — composes projectKey resolution, RunContext git capture, PerClientSessionMapWriter, and DataStore.registerAgent end-to-end. Emits JSON to stdout with `agentId`, `conversationId`, `mainAgentId`, `idempotencyKey`, `idempotencyHit`. Also backfills `sessions.conversation_id` for the session row `record session-start` inserted earlier (the one NULL → value transition the immutability trigger allows). Hook scripts parse via `jq -r '.agentId'`.
-- `agent end-agent` — sets `agents.ended_at` and optionally `session_map.ended_at` when `--host-session-id` is passed. SubagentStop omits the latter.
-- `agent inject-env` — pure pattern matcher. Reads `VITEST_AGENT_*` from env and `package.json#scripts` from cwd; rewrites the command with the env prefix on Vitest match, returns the original on no-match.
-- `agent sidecar-path` — calls `resolveSidecarBinaryPath()` from `@vitest-agent/sidecar` and prints the absolute path of the installed platform binary to stdout (exit 0), or exits non-zero when no platform binary is resolvable. The SessionStart hook captures this path and exports it as `VITEST_AGENT_SIDECAR_BIN`.
-- `agent check-test-path <path>` — NOT a sidecar subcommand: it shares neither their exit-code taxonomy (where `1` means registration conflict) nor their stderr shape. Classifies a path via `classifyTestPath` from `@vitest-agent/sdk`. `<path>` is resolved to an absolute path relative to `VITEST_AGENT_PROJECT_DIR`/cwd when not already absolute, and it is only ever the file being classified — the workspace root is always resolved via `findWorkspaceRootSync` from `VITEST_AGENT_PROJECT_DIR`/cwd itself, never from `<path>`. Exits `1` with empty stdout whenever no verdict is rendered — no containing workspace, a workspace vitest/vite config that is unreadable or carries a non-default `DiscoverStrategy` marker (`detectNonDefaultDiscoverStrategy` from the SDK; the default-layout rule cannot speak for a custom strategy, issue #230), a `NON_DISCOVERABLE_DIRS` segment in the relative path, or a nested `package.json` between the owning package root and the file (a filesystem probe local to this command, since `classifyTestPath` is pure) — so hook callers fail open; on success prints `{ verdict, workspace, suggestedPath }` JSON to stdout. Powers the PreToolUse hook `plugins/claude-code/hooks/pre-tool-use/test-location.sh`.
-
-The sidecar subcommand bodies (`registerAgentEffect`, `endAgentEffect`) live in `@vitest-agent/engine`'s `programs/register-agent.ts` / `programs/end-agent.ts`; the record bodies in `programs/record-*.ts`. `record turn` / `record tdd-artifact` pass `process.cwd()` when `--cwd` is absent — the engine programs take `cwd` as a required ambient input and never read `process` themselves.
-
-**Barrel exports.** `src/index.ts` exports only `CURRENT_CLI_VERSION`. It deliberately does NOT re-export `dispatch`, `injectEnv`, or `exitCodeForTag` — those ship from the `@vitest-agent/sdk/dispatch` entry point — nor the sidecar layer / hook programs, which ship from `@vitest-agent/engine`. `commands/agent.ts` imports `exitCodeForTag` / `injectEnv` from `@vitest-agent/sdk/dispatch`, and the per-platform `@vitest-agent/sidecar-<platform>` SEAs import `dispatch` from there too. The dependency direction is one-way: `@vitest-agent/cli` depends on `@vitest-agent/sidecar` (to call `resolveSidecarBinaryPath` for the `agent sidecar-path` subcommand), not the reverse.
-
-**Sidecar data paths** come from the engine's `resolveHookPaths` — `@effected/xdg` over the injected env (`XDG_DATA_HOME`, falling back to `~/.local/share`) plus the normalized `projectKey` (no workspace discovery), so it works in non-pnpm-workspace project shapes. `SidecarPlatformLive` opens three SQLite scopes — per-project `data.db`, per-client `sessions.db`, registry `registry.db` — each with its own `SqlClient`.
-
-**CLI flags for agent-facing IDs.** `record` subcommands take `--chat-id` (host chat UUID) and `--parent-chat-id`. `record tdd-artifact` alternatively accepts `--tdd-task-id <int>`, which bypasses session resolution entirely and writes the artifact under that task's current phase (the `tdd-artifact.sh` hook forwards `VITEST_AGENT_TDD_TASK_ID` this way); one of `--chat-id` / `--tdd-task-id` is required. The `wrapup` command takes `--chat-id` (host chat UUID) or `--row-id` (internal integer FK, mostly for debugging).
