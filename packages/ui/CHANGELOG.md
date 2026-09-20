@@ -1,5 +1,26 @@
 # @vitest-agent/ui
 
+## 2.5.1
+
+### Bug Fixes
+
+- `forEachRenderState` and `renderStateStream` pass the initial render state to `Stream.scan` as a thunk, as Effect rc.116 requires. [#476][#476]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 5.1.0 | 5.1.1 |
+| effect | dependency | updated | 4.0.0-rc.115 | 4.0.0-rc.116 |
+
+[#476][#476]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#476]: https://github.com/spencerbeggs/vitest-agent/pull/476
+
 ## 2.5.0
 
 ### Bug Fixes
