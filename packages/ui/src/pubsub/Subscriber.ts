@@ -73,7 +73,10 @@ export const forEachRenderState = <R, E>(
 		Effect.gen(function* () {
 			const channel = yield* RunEventChannel;
 			const stream = Stream.fromPubSub(channel);
-			yield* stream.pipe(Stream.scan(initial, reduceRenderState), Stream.runForEach(onState));
+			yield* stream.pipe(
+				Stream.scan(() => initial, reduceRenderState),
+				Stream.runForEach(onState),
+			);
 		}),
 	);
 
@@ -94,7 +97,7 @@ export const renderStateStream = (
 	Effect.gen(function* () {
 		const channel = yield* RunEventChannel;
 		const stream = Stream.fromPubSub(channel);
-		return stream.pipe(Stream.scan(initial, reduceRenderState));
+		return stream.pipe(Stream.scan(() => initial, reduceRenderState));
 	});
 
 /**

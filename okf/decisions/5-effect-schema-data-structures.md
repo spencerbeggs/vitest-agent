@@ -8,8 +8,8 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 0018f1f030c32657b20ef498fd6625639de3682cf4f9f2559c4c507301e68d10
+  at: 2026-09-20T01:39:48Z
+  body_sha256: 7f59e675ccb68fa4b1e231307a8cc90597e35b812531ca22b91def0a9fed4a00
 sources:
   - id: sdk-schemas-agent-report
     resource: ../../packages/sdk/src/schemas/AgentReport.ts
@@ -53,7 +53,7 @@ sitting beside it. JSON encoding and decoding go through the v4 effectful
 codecs, `Schema.decodeUnknownEffect` and `Schema.encodeUnknownEffect`,
 rather than a hand-rolled parser or a second validation library: the MCP
 server's `registerStrictToolkit` decodes a tool's served JSON Schema with
-exactly this codec (`Schema.decodeUnknownEffect(McpSchema.ToolJsonSchema)`)
+exactly this codec (`Schema.decodeUnknownEffect(McpSchema.ToolJson)`)
 and treats a decode failure as a defect via `Effect.orDie`, because a tool
 whose own schema fails to decode is a programming error, not a runtime
 condition a caller can recover from.[^mcp-register-toolkit]
@@ -115,5 +115,5 @@ for the generated-JSON-Schema contract this decision feeds.
 
 [^sdk-schemas-agent-report]: `../../packages/sdk/src/schemas/AgentReport.ts`
 [^sdk-schemas-run-report-file]: `../../packages/sdk/src/schemas/RunReportFile.ts`
-[^mcp-register-toolkit]: `../../packages/mcp/src/register-toolkit.ts:328`
+[^mcp-register-toolkit]: `../../packages/mcp/src/register-toolkit.ts:468`
 [^mcp-package-json]: `../../packages/mcp/package.json`

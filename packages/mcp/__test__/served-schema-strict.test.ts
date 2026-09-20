@@ -86,7 +86,7 @@ describe("served input schemas are strict at every object level", () => {
 		expect(tools.length).toBeGreaterThan(0);
 		for (const tool of tools) {
 			const root = tool.inputSchema;
-			// MCP's ToolJsonSchema requires `type: "object"` at the root even for a `oneOf`.
+			// MCP's `ToolJson` input schema requires `type: "object"` at the root even for a `oneOf`.
 			expect(root.type, `${tool.name} root type`).toBe("object");
 			if (Array.isArray(root.oneOf)) {
 				expect(root.properties, `${tool.name} oneOf root has no properties`).toBeUndefined();

@@ -45,6 +45,12 @@ export interface McpHarness {
 	readonly services: Context.Context<HarnessServices>;
 	/** `initialize` + `notifications/initialized`; returns the initialize response. */
 	readonly initialize: (protocolVersion?: string) => Effect.Effect<JsonRpcMessage>;
+	/**
+	 * `server/discover` on the stateless `2026-07-28` protocol: no handshake,
+	 * no session. Returns the discover response. Only meaningful under
+	 * `stateless: true` (every request then carries the protocol `_meta`).
+	 */
+	readonly discover: Effect.Effect<JsonRpcMessage>;
 	readonly sendRequest: (method: string, params?: unknown, id?: string | number) => Effect.Effect<JsonRpcMessage>;
 	readonly sendNotification: (method: string, params?: unknown) => Effect.Effect<void>;
 	readonly listTools: Effect.Effect<ReadonlyArray<McpToolDescriptor>>;
@@ -75,6 +81,14 @@ export interface HarnessOptions {
 	readonly seed?: Effect.Effect<void, never, HarnessServices> | undefined;
 	/** The `McpSession` the server sees; defaults to `McpSession.layerTest({ cwd: process.cwd() })` (no recovered context). */
 	readonly session?: Layer.Layer<McpSession> | undefined;
+	/**
+	 * Speak the stateless `2026-07-28` protocol (SEP-2575): every request and
+	 * notification carries `params._meta` with the protocol version, the
+	 * client capabilities and the client info, merged over any `_meta` the
+	 * caller passed (the protocol fields win). Shape copied from Effect's own
+	 * `McpStdioHarness.withRequestMetadata`.
+	 */
+	readonly stateless?: boolean | undefined;
 }
 
 const isJsonRpcMessage = (value: unknown): value is JsonRpcMessage =>
@@ -86,6 +100,17 @@ const isResponse = (message: JsonRpcMessage): message is JsonRpcMessage & { read
 const requestKey = (id: string | number) => `${typeof id}:${id}`;
 
 const DEFAULT_PROTOCOL = "2025-11-25";
+
+/** The stateless protocol revision and the per-request `_meta` it requires. */
+export const STATELESS_PROTOCOL = "2026-07-28";
+const STATELESS_CLIENT_INFO = { name: "vitest-agent-test", version: "0.0.0" };
+const STATELESS_REQUEST_META = {
+	"io.modelcontextprotocol/protocolVersion": STATELESS_PROTOCOL,
+	"io.modelcontextprotocol/clientCapabilities": {},
+	"io.modelcontextprotocol/clientInfo": STATELESS_CLIENT_INFO,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
 export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarness, never, Scope.Scope> =>
 	Effect.gen(function* () {
@@ -187,14 +212,24 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		}).pipe(Effect.forkScoped);
 
 		const sendRaw = (message: unknown) => Queue.offer(stdin, encoder.encode(`${JSON.stringify(message)}\n`));
+		const stateless = options.stateless === true;
+		const withRequestMetadata = (params: unknown): unknown =>
+			stateless
+				? {
+						...(isRecord(params) ? params : {}),
+						_meta: { ...(isRecord(params) && isRecord(params._meta) ? params._meta : {}), ...STATELESS_REQUEST_META },
+					}
+				: params;
+		const paramsField = (params: unknown) =>
+			params === undefined && !stateless ? {} : { params: withRequestMetadata(params) };
 		const sendNotification = (method: string, params?: unknown): Effect.Effect<void> =>
-			sendRaw({ jsonrpc: "2.0", method, ...(params === undefined ? {} : { params }) }).pipe(Effect.asVoid);
+			sendRaw({ jsonrpc: "2.0", method, ...paramsField(params) }).pipe(Effect.asVoid);
 		const sendRequest = (method: string, params?: unknown, id: string | number = nextRequestId++) =>
 			Effect.gen(function* () {
 				const responseQueue = yield* Queue.unbounded<JsonRpcMessage>();
 				const key = requestKey(id);
 				responseQueues.set(key, responseQueue);
-				yield* sendRaw({ jsonrpc: "2.0", id, method, ...(params === undefined ? {} : { params }) });
+				yield* sendRaw({ jsonrpc: "2.0", id, method, ...paramsField(params) });
 				return yield* Queue.take(responseQueue).pipe(Effect.ensuring(Effect.sync(() => responseQueues.delete(key))));
 			});
 
@@ -208,6 +243,8 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 				yield* sendNotification("notifications/initialized");
 				return response;
 			});
+
+		const discover = sendRequest("server/discover", {});
 
 		const unwrapResult = (message: JsonRpcMessage): Effect.Effect<unknown> =>
 			message.error === undefined
@@ -224,6 +261,7 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		return {
 			services,
 			initialize,
+			discover,
 			sendRequest,
 			sendNotification,
 			listTools,

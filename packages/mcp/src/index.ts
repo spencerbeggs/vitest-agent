@@ -23,7 +23,7 @@ export { withIdempotency } from "./idempotency.js";
 export { PromptsLayer } from "./prompts/layer.js";
 export { registerStrictToolkit } from "./register-toolkit.js";
 export type { PlatformServices, ServerLayerOptions } from "./server.js";
-export { ServerLayer } from "./server.js";
+export { SERVER_INSTRUCTIONS, ServerLayer } from "./server.js";
 export type { CurrentSessionIdRef, McpSessionOptions, SessionContext, SessionContextRef } from "./session.js";
 export { McpSession, createCurrentSessionIdRef, createSessionContextRef, sessionContextFromEnv } from "./session.js";
 export { Kit, ToolsLayer, toolHandlers } from "./toolkit.js";
