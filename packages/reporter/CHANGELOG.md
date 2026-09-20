@@ -1,5 +1,24 @@
 # @vitest-agent/reporter
 
+## 3.1.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.115 | 4.0.0-rc.116 |
+| @vitest-agent/sdk | dependency | updated | 5.1.0 | 5.1.1 |
+| @vitest-agent/ui | dependency | updated | 2.5.0 | 2.5.1 |
+| effect | dependency | updated | 4.0.0-rc.115 | 4.0.0-rc.116 |
+
+[#476][#476]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#476]: https://github.com/spencerbeggs/vitest-agent/pull/476
+
 ## 3.1.0
 
 ### Bug Fixes

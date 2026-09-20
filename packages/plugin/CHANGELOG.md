@@ -1,5 +1,33 @@
 # @vitest-agent/plugin
 
+## 4.1.2
+
+### Bug Fixes
+
+- `ReporterLive` declares its return type explicitly, so the published declaration names `MigrationError` through `effect/unstable/sql/Migrator` instead of `@effect/sql-sqlite-node/SqliteMigrator`, a package `@vitest-agent/plugin` does not depend on and a consumer's typecheck could not resolve. [#476][#476]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.115 | 4.0.0-rc.116 |
+| @effected/glob | dependency | updated | ^0.6.1 | ^0.7.0 |
+| @effected/workspaces | dependency | updated | ^0.22.1 | ^0.23.0 |
+| @vitest-agent/cli | dependency | updated | 3.1.1 | 3.1.2 |
+| @vitest-agent/engine | dependency | updated | 0.2.1 | 0.2.2 |
+| @vitest-agent/mcp | dependency | updated | 4.1.1 | 4.2.0 |
+| @vitest-agent/reporter | dependency | updated | 3.1.0 | 3.1.1 |
+| @vitest-agent/sdk | dependency | updated | 5.1.0 | 5.1.1 |
+| effect | dependency | updated | 4.0.0-rc.115 | 4.0.0-rc.116 |
+
+[#476][#476]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#476]: https://github.com/spencerbeggs/vitest-agent/pull/476
+
 ## 4.1.1
 
 ### Dependencies
