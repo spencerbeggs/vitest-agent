@@ -31,7 +31,7 @@
 		"types:check": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.4.5",
+		"@savvy-web/bundler": "^2.4.6",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-v8": "catalog:test",
 		"typescript": "catalog:build",
