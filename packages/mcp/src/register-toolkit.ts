@@ -1,10 +1,10 @@
 // Strict toolkit registration for the Effect-native MCP server.
 //
 // `McpServer.toolkit` decodes tool arguments with Effect's default
-// `onExcessProperty: "ignore"`, so an unknown key is silently stripped —
-// a misspelled filter runs a *wider* query while reporting success
-// (issues #200 / #243). This module registers each tool over the public
-// `McpServer.McpServer.addTool` instead and:
+// `onExcessProperty: "ignore"` unless a tool is annotated `Tool.Strict`, so
+// an unknown key is silently stripped — a misspelled filter runs a *wider*
+// query while reporting success (issues #200 / #243). This module registers
+// each tool over the public `McpServer.McpServer.addTool` instead and:
 //
 // 1. serves the tool's JSON Schema with `additionalProperties: false` on
 //    every object node (and a top-level `action` / `kind` union rewritten
@@ -14,21 +14,62 @@
 //    params, at every object level;
 // 3. renders the dual channel — `structuredContent` = the encoded result,
 //    `content[0].text` = the tool's `RenderText` markdown or the JSON;
-// 4. maps a declared, `Error`-shaped failure to `{ isError: true,
-//    content: [{ text: error.message }] }` exactly as Effect's own
-//    `registerToolkit` does, and every OTHER failure or defect to the
-//    `UnexpectedToolError` envelope as `structuredContent` with
-//    `isError: true`, so an in-boundary crash comes back in the same
-//    structured shape as every other tool error;
+// 4. maps a declared failure exactly as Effect's own `registerToolkit`
+//    does (an `Error`-shaped one to `{ isError: true, content: [{ text:
+//    error.message }] }`, any other to its encoded JSON as text), and every
+//    OTHER failure or defect to the `UnexpectedToolError` envelope as
+//    `structuredContent` with `isError: true`, so an in-boundary crash
+//    comes back in the same structured shape as every other tool error;
 // 5. inlines a `$ref` root (what an `identifier` annotation produces)
 //    before the object checks, so identified schemas register and list.
 //
-// Adapted from Effect's own `registerToolkit`
-// (`effect/unstable/ai/McpServer.ts`, rc.115).
+// `registerStrictToolkitEffect` is a line-for-line port of Effect's
+// `registerToolkit` (`effect/unstable/ai/McpServer.ts`, rc.116). Baseline
+// for the next rc bump — the places it knowingly deviates, to re-check
+// against the new source:
+//
+//  (i)   the raw payload is walked against the served schema BEFORE
+//        `built.handle` (`collectUnknownKeys` → `InvalidParams`), for every
+//        tool, strict or not — the every-level unknown-key contract above.
+//        `Tool.Strict` is still mirrored verbatim (strict decode options,
+//        `onExcessProperty: "error"` on the served input document, a die
+//        for a strict dynamic tool), but under this contract it is
+//        subsumed: a lenient tool rejects excess keys exactly like a
+//        strict one, and every served input schema carries
+//        `additionalProperties: false`.
+//  (ii)  the served input schema goes through `strictifyJsonSchema` (every
+//        object node closed, discriminated unions rewritten to an object
+//        root) rather than rc.116's `toolInputJsonSchema`; the top-level
+//        `$ref` hoist that rc.116 does through the internal
+//        `resolveTopLevelReference` is `inlineRootRefs` here.
+//  (iii) the success branch renders the `RenderText` annotation as
+//        `content[0].text` instead of `JSON.stringify(encodedResult)`
+//        (upstream: Effect-TS/effect#8316, a `Tool.ContentRenderer`
+//        annotation; if it lands, (iii) is met natively).
+//  (iv)  an internal failure or defect renders the `UnexpectedToolError`
+//        envelope (`structuredContent` + JSON text) instead of rc.116's
+//        scrubbed "Tool execution failed due to an internal server error."
+//        text; it is still logged at error level and reported through
+//        `ErrorReporter` first, as upstream does.
+//  (v)   `outputSchema` is served only when the success JSON Schema, after
+//        `inlineRootRefs`, is object-rooted — rc.116 relaxed
+//        `McpSchema.ToolOutputJson` to any JSON object and serves every
+//        document verbatim, but `@modelcontextprotocol/sdk`'s `ToolSchema`
+//        still requires `outputSchema.type === "object"`, so an
+//        `anyOf`-rooted document would break `tools/list` in strict
+//        clients (upstream: Effect-TS/effect#8315).
+//  (vi)  `structuredContent` is omitted when the encoded result is not a
+//        JSON object (MCP models it as an object); rc.116 passes the
+//        encoded result through as-is.
+//
+// Not a deviation any more: rc.116 stopped logging DECLARED failures (only
+// the internal branch goes through `Effect.logError` + `ErrorReporter`),
+// and this port follows it — no shipped tool declares a `failure` schema.
 
-import { Cause, Context, Effect, Layer, Option, Result, Schema, Sink, Stream } from "effect";
-import type { Toolkit } from "effect/unstable/ai";
-import { AiError, McpSchema, McpServer, Tool } from "effect/unstable/ai";
+import type { SchemaAST } from "effect";
+import { Cause, Context, Effect, ErrorReporter, Layer, Option, References, Result, Schema, Stream } from "effect";
+import { AiError, McpSchema, McpServer, Tool, Toolkit } from "effect/unstable/ai";
+import { HttpServerRequest } from "effect/unstable/http";
 import { RenderText } from "./annotations.js";
 import { buildUnexpectedToolErrorEnvelope } from "./utils/tool-error-envelope.js";
 
@@ -285,8 +326,37 @@ const formatUnknownKeys = (levels: ReadonlyArray<UnknownKeysAtLevel>): string =>
 const toStructuredContent = (value: unknown): Schema.JsonObject | undefined =>
 	isPlainObject(value) ? (value as Schema.JsonObject) : undefined;
 
-const declaredFailureResult = (message: string): McpSchema.CallToolResult =>
+const toolErrorResult = (message: string): McpSchema.CallToolResult =>
 	new McpSchema.CallToolResult({ isError: true, content: [{ type: "text", text: message }] });
+
+const toolResultContent = (encoded: unknown): McpSchema.CallToolResult["content"] =>
+	encoded === undefined ? [] : [{ type: "text", text: JSON.stringify(encoded) }];
+
+// Request services must come from the invocation, including when a handler is registered during a request.
+const omitRequestServices = Context.omit(
+	McpSchema.McpRequestContext,
+	McpSchema.McpServerClient,
+	HttpServerRequest.HttpServerRequest,
+	References.CurrentLogLevel,
+);
+
+const isParameterValidationError = (
+	error: unknown,
+): error is AiError.AiError & { readonly reason: AiError.ToolParameterValidationError } =>
+	AiError.isAiError(error) && error.reason._tag === "ToolParameterValidationError";
+
+/**
+ * The input JSON Schema document as rc.116's `toolInputJsonSchema` builds it
+ * (`Schema.toJsonSchemaDocument` with `onExcessProperty` following the
+ * tool's strict mode, definitions attached as `$defs`); the top-level `$ref`
+ * hoist happens in `inlineRootRefs` via `strictifyJsonSchema`.
+ */
+const toolInputJsonSchema = (schema: Schema.Constraint, strict: boolean): JsonObject => {
+	const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: strict ? "error" : "ignore" });
+	return Object.keys(document.definitions).length === 0
+		? (document.schema as JsonObject)
+		: ({ ...document.schema, $defs: document.definitions } as JsonObject);
+};
 
 const envelopeResult = (toolName: string, err: unknown): McpSchema.CallToolResult => {
 	const envelope = buildUnexpectedToolErrorEnvelope(toolName, err);
@@ -299,7 +369,9 @@ const envelopeResult = (toolName: string, err: unknown): McpSchema.CallToolResul
 
 /**
  * Register every tool of `toolkit` with the ambient `McpServer` under the
- * strict contract described in the module docs.
+ * strict contract described in the module docs. A port of rc.116's
+ * `McpServer.registerToolkit`; the deviations are enumerated in the module
+ * header.
  *
  * @internal
  */
@@ -308,30 +380,96 @@ export const registerStrictToolkitEffect: <Tools extends Record<string, Tool.Any
 ) => Effect.Effect<
 	void,
 	never,
-	McpServer.McpServer | Tool.HandlersFor<Tools> | Exclude<Tool.HandlerServices<Tools>, McpSchema.McpServerClient>
+	McpServer.McpServer | Tool.HandlersFor<Tools> | Exclude<Tool.HandlerServices<Tools>, McpSchema.McpRequestContext>
 > = Effect.fnUntraced(function* <Tools extends Record<string, Tool.Any>>(toolkit: Toolkit.Toolkit<Tools>) {
 	const registry = yield* McpServer.McpServer;
-	const built = yield* toolkit as unknown as Effect.Effect<
-		Toolkit.WithHandler<Tools>,
-		never,
-		Exclude<Tool.HandlersFor<Tools>, McpSchema.McpServerClient>
-	>;
-	const services = yield* Effect.context<never>();
-	for (const tool of Object.values(built.tools)) {
+	const built = yield* (
+		toolkit as unknown as Effect.Effect<
+			Toolkit.WithHandler<Tools>,
+			never,
+			Exclude<Tool.HandlersFor<Tools>, McpSchema.McpRequestContext>
+		>
+	).pipe(
+		Effect.updateContext((context: Context.Context<Exclude<Tool.HandlersFor<Tools>, McpSchema.McpRequestContext>>) => {
+			// Toolkit handlers also retain the context in which their layer was built.
+			const services = new Map(context.mapUnsafe);
+			for (const tool of Object.values(toolkit.tools)) {
+				const handler = services.get(tool.id) as Tool.Handler<string> | undefined;
+				if (handler !== undefined) {
+					services.set(tool.id, { ...handler, context: omitRequestServices(handler.context) });
+				}
+			}
+			return Context.makeUnsafe(services);
+		}),
+	);
+	const services = omitRequestServices(yield* Effect.context<never>());
+	const reportCause = (cause: Cause.Cause<unknown>) => Effect.provideContext(ErrorReporter.report(cause), services);
+	const registrations: Array<Parameters<typeof registry.addTool>[0]> = [];
+	for (const tool of Object.values(built.tools) as ReadonlyArray<Tool.Any>) {
+		// Interruption propagates; anything else is logged, reported and — deviation
+		// (iv) — rendered as the `UnexpectedToolError` envelope rather than scrubbed.
+		const internalToolError = (cause: Cause.Cause<unknown>) => {
+			const failure = Cause.findFail(cause);
+			return Result.isFailure(failure) && !Cause.hasDies(cause)
+				? Effect.failCause(failure.failure)
+				: Effect.logError(`tool ${tool.name} failed`, cause).pipe(
+						Effect.andThen(reportCause(cause)),
+						Effect.as(
+							envelopeResult(tool.name, Result.isSuccess(failure) ? failure.success.error : Cause.squash(cause)),
+						),
+					);
+		};
+		const strict = Tool.getStrictMode(tool) === true;
+		const rawJsonSchema = Tool.isDynamic(tool) ? tool.jsonSchema : undefined;
+		if (strict && rawJsonSchema !== undefined) {
+			return yield* Effect.die(
+				`McpServer cannot strictly validate the raw JSON Schema for tool '${tool.name}'; use an Effect Schema instead`,
+			);
+		}
+		const decodeOptions: SchemaAST.ParseOptions | undefined = strict ? { onExcessProperty: "error" } : undefined;
 		const annotations = tool.annotations;
 		const render = Context.get(annotations, RenderText);
-		const isDeclaredFailure = Schema.is(tool.failureSchema);
 		const toolMeta = Context.getOrUndefined(annotations, Tool.Meta);
+		const isDeclaredFailure = Schema.is(tool.failureSchema);
+		const encodeFailure = Schema.encodeUnknownEffect(tool.failureSchema) as (
+			error: unknown,
+		) => Effect.Effect<unknown, Schema.SchemaError, Tool.HandlerServices<Tools[keyof Tools]>>;
+		const declaredFailureResult = (error: unknown) =>
+			error instanceof Error
+				? Effect.succeed(toolErrorResult(error.message))
+				: Effect.map(
+						encodeFailure(error),
+						(encoded) => new McpSchema.CallToolResult({ isError: true, content: toolResultContent(encoded) }),
+					);
+		const handleCause = (cause: Cause.Cause<unknown>) => {
+			const failure = Cause.findFail(cause);
+			if (Result.isSuccess(failure)) {
+				const error = failure.success.error;
+				const origin = Context.get(Cause.reasonAnnotations(failure.success), Toolkit.FailureOrigin);
+				if (origin === "parameters" && isParameterValidationError(error)) {
+					return Effect.fail(new McpSchema.InvalidParams({ message: error.reason.message }));
+				}
+				if (origin === "handler" && isDeclaredFailure(error)) {
+					return Effect.catchCause(declaredFailureResult(error), internalToolError);
+				}
+			}
+			return internalToolError(cause);
+		};
+		// Deviation (v): the output document is served only when object-rooted.
 		const outputJsonSchema = inlineRootRefs(Tool.getJsonSchemaFromSchema(tool.successSchema) as JsonObject);
 		const outputSchema =
 			outputJsonSchema.type === "object"
-				? yield* Schema.decodeUnknownEffect(McpSchema.ToolJsonSchema)(outputJsonSchema).pipe(Effect.orDie)
+				? yield* Schema.decodeUnknownEffect(McpSchema.ToolOutputJson)(outputJsonSchema).pipe(Effect.orDie)
 				: undefined;
-		const servedInput = strictifyJsonSchema(Tool.getJsonSchema(tool) as JsonObject);
-		const inputSchema = yield* Schema.decodeUnknownEffect(McpSchema.ToolJsonSchema)(servedInput).pipe(Effect.orDie);
+		// Deviation (ii): the served input schema is closed at every level.
+		const servedInput = strictifyJsonSchema(
+			(rawJsonSchema ?? toolInputJsonSchema(tool.parametersSchema, strict)) as JsonObject,
+		);
+		const inputSchema = yield* Schema.decodeUnknownEffect(McpSchema.ToolJson)(servedInput).pipe(Effect.orDie);
+		const description = Tool.getDescription(tool);
 		const mcpTool = new McpSchema.Tool({
 			name: tool.name,
-			description: Tool.getDescription(tool),
+			...(description === undefined ? {} : { description }),
 			inputSchema,
 			...(outputSchema === undefined ? {} : { outputSchema }),
 			annotations: {
@@ -344,52 +482,57 @@ export const registerStrictToolkitEffect: <Tools extends Record<string, Tool.Any
 				idempotentHint: Context.get(annotations, Tool.Idempotent),
 				openWorldHint: Context.get(annotations, Tool.OpenWorld),
 			},
-			_meta: toolMeta,
+			...(toolMeta === undefined ? {} : { _meta: toolMeta as Schema.JsonObject }),
 		});
-		yield* registry.addTool({
+		registrations.push({
 			tool: mcpTool,
 			annotations,
 			handle(payload: unknown) {
 				const raw = payload ?? {};
+				// Deviation (i): the every-level unknown-key walk, before decoding.
 				const unknownKeys = collectUnknownKeys(raw, servedInput);
 				if (unknownKeys.length > 0) {
 					return Effect.fail(new McpSchema.InvalidParams({ message: formatUnknownKeys(unknownKeys) }));
 				}
-				return built.handle(tool.name as keyof Tools, raw as never).pipe(
+				return built.handle(tool.name as keyof Tools, raw as never, undefined, decodeOptions).pipe(
 					Stream.unwrap,
-					Stream.run(Sink.last()),
+					Stream.runLast,
 					Effect.flatMap(Effect.fromOption),
-					Effect.map((result) => {
-						const encoded: unknown = result.encodedResult;
-						const text = render?.(encoded) ?? JSON.stringify(encoded);
-						return new McpSchema.CallToolResult({
-							isError: false,
-							structuredContent: toStructuredContent(encoded),
-							content: encoded === undefined ? [] : [{ type: "text", text }],
-						});
-					}),
+					Effect.flatMap((result) =>
+						// Declared failures return their encoded payload; anything else is classified by origin.
+						result.isFailure && result.failureOrigin !== "handler"
+							? Effect.failCause(
+									Cause.annotate(
+										Cause.fail(result.result),
+										Context.make(Toolkit.FailureOrigin, result.failureOrigin ?? "result"),
+									),
+								)
+							: Effect.succeed(
+									new McpSchema.CallToolResult({
+										isError: result.isFailure,
+										// Deviation (vi): a non-object encoded result carries no structuredContent.
+										structuredContent: result.isFailure ? undefined : toStructuredContent(result.encodedResult),
+										// Deviation (iii): the RenderText channel.
+										content:
+											result.isFailure || result.encodedResult === undefined
+												? toolResultContent(result.encodedResult)
+												: [
+														{
+															type: "text",
+															text: render?.(result.encodedResult) ?? JSON.stringify(result.encodedResult),
+														},
+													],
+									}),
+								),
+					),
+					Effect.catchCause(handleCause),
 					Effect.provideContext(services as Context.Context<Tool.HandlerServices<Tools[keyof Tools]>>),
-					Effect.catchCause((cause) => {
-						const failure = Cause.findError(cause);
-						if (Result.isFailure(failure) && !Cause.hasDies(cause)) {
-							// Interruption only: let it propagate untouched.
-							return Effect.failCause(failure.failure);
-						}
-						const err: unknown = Result.isSuccess(failure) ? failure.success : Cause.squash(cause);
-						if (AiError.isAiError(err) && err.reason._tag === "ToolParameterValidationError") {
-							return Effect.fail(new McpSchema.InvalidParams({ message: err.reason.message }));
-						}
-						const logged = Effect.logError(`tool ${tool.name} failed`, cause);
-						if (isDeclaredFailure(err) && err instanceof Error) {
-							// Upstream parity: a declared, Error-shaped failure ships its
-							// message as text with no structuredContent.
-							return Effect.as(logged, declaredFailureResult(err.message));
-						}
-						return Effect.as(logged, envelopeResult(tool.name, err));
-					}),
 				);
 			},
 		});
+	}
+	for (const registration of registrations) {
+		yield* registry.addTool(registration);
 	}
 });
 
@@ -407,5 +550,5 @@ export const registerStrictToolkit = <Tools extends Record<string, Tool.Any>>(
 ): Layer.Layer<
 	never,
 	never,
-	Tool.HandlersFor<Tools> | Exclude<Tool.HandlerServices<Tools>, McpSchema.McpServerClient>
+	Tool.HandlersFor<Tools> | Exclude<Tool.HandlerServices<Tools>, McpSchema.McpRequestContext>
 > => Layer.effectDiscard(registerStrictToolkitEffect(toolkit)).pipe(Layer.provide(McpServer.McpServer.layer));

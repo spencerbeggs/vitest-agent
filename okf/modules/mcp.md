@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: b5081c173622c4e4a5f1720b806a146ad9511987ba072dd42a649a140336b626
+  at: 2026-09-20T01:39:48Z
+  body_sha256: 16528a1ad7422545acab4c14d3d0ca4261dc6fe71d7818cffd47cf31eaf64fc6
 ---
 
 # @vitest-agent/mcp
@@ -71,8 +71,8 @@ contract with one comment-stripping scanner over every `.ts` file under
 ## Public surface
 
 Two entry points: `.` (the side-effect-free programmatic barrel —
-`ServerLayer`, `Kit` / `toolHandlers` / `ToolsLayer`,
-`registerStrictToolkit`, `McpSession` and its ref helpers, `PromptsLayer`,
+`ServerLayer` / `SERVER_INSTRUCTIONS`, `Kit` / `toolHandlers` /
+`ToolsLayer`, `registerStrictToolkit`, `McpSession` and its ref helpers, `PromptsLayer`,
 `withIdempotency` / `idempotencyKeys`, `RenderText`, the `PingResult` /
 `HelpResult` schemas, and `CURRENT_MCP_VERSION`) and `./main` (the assembled
 program that owns the process, published so the plugin's carrier bin can
@@ -86,7 +86,7 @@ consumer's import graph never pulls in the process-owning module.
 - `src/main.ts` — the assembled program that owns the process: crash guards,
   `projectDir` / `dbPath` resolution, boot-time session recovery,
   `PlatformLive` (engine), `NodeStdio`, `NodeRuntime.runMain`.
-- `src/server.ts` — `ServerLayer({ version })`[^server-ts].
+- `src/server.ts` — `ServerLayer({ version })` and `SERVER_INSTRUCTIONS`[^server-ts].
 - `src/toolkit.ts` — `Kit = Toolkit.make(<30 tools>)`, `toolHandlers`, and
   `ToolsLayer = Kit.toLayer(toolHandlers)`.
 - `src/register-toolkit.ts` — `registerStrictToolkit(kit)`, the strict
@@ -146,21 +146,47 @@ within a fraction of a second of stdin EOF.
 `ServerLayer({ version })` is `Layer.mergeAll(registerStrictToolkit(Kit).pipe(
 Layer.provide(ToolsLayer)), PromptsLayer)` provided with
 `McpServer.layerStdio({ name: "vitest-agent", version, description,
-protocols })` and `Layer.succeed(Logger.LogToStderr, true)`, then
-`Layer.orDie`[^server-ts]. Three facts are load-bearing:
+instructions, protocols })` and `Layer.succeed(Logger.LogToStderr, true)`,
+then `Layer.orDie`[^server-ts]. Three facts are load-bearing:
 
-- **`protocols` is newest-first** — `[v2025_11_25, v2025_06_18,
-  v2025_03_26]` — because the registry falls back to `protocols[0]` for a
-  client offering an unknown version.
+- **`protocols` order is load-bearing** — `[v2026_07_28, v2025_11_25,
+  v2025_06_18]`. `2026-07-28` is the stateless revision (SEP-2575): no
+  `initialize`, no session; a client discovers with `server/discover` and
+  every request carries `params._meta["io.modelcontextprotocol/protocolVersion"]`,
+  and every result (including `tools/call`) comes back wrapped in the
+  stateless frame (`_meta["io.modelcontextprotocol/serverInfo"]`,
+  `resultType: "complete"`, …). rc.116's runtime
+  (`effect/unstable/ai/internal/mcpRuntime.ts`) routes a request carrying
+  that `_meta` to its adapter, matches `initialize` against the stateful
+  adapters only, and sends anything else with no session to
+  `protocols[0]`, so the stateless adapter is listed first. The two
+  stateful adapters must stay: every shipping client (Claude Code's
+  default stdio session, Copilot, Cursor, the Inspector) opens with
+  `initialize`, which a server offering only `2026-07-28` answers with
+  `METHOD_NOT_FOUND`. Measured with Claude Code 2.1.278: the default and
+  `MCP_PROTOCOL_NEGOTIATION=legacy` open `initialize` on `2025-11-25`;
+  `MCP_PROTOCOL_NEGOTIATION=auto` opens `server/discover` then
+  `subscriptions/listen` on `2026-07-28`. `server/discover` advertises
+  every listed adapter in `supportedVersions`
+  (`["2026-07-28", "2025-11-25", "2025-06-18"]`). At most one stateless
+  adapter is allowed — a second fails the layer with
+  `Cause.IllegalArgumentError`, which is why the error channel is
+  `orDie`d: `protocols` is a static literal, so a failure there is an
+  implementer-time defect.
 - **`Logger.LogToStderr` is set here and again in `main.ts`.** Effect's
   default logger writes to stdout unless this reference is true, and
   stdout is the JSON-RPC wire; every tool defect is logged by the strict
   registrar and the stdio protocol logs stdin errors, so this is
   mandatory, not cosmetic.
-- **`serverInfo.description` is the at-initialize orientation hook.**
-  `instructions` cannot be set through `layerStdio` at the pinned Effect
-  version, so the description is a one-line pointer to the `help` tool,
-  which remains the full orientation surface.
+- **`instructions` is the agent-facing orientation.** `server.ts` exports
+  `SERVER_INSTRUCTIONS` — what the server is for, call `help` first, the
+  strict-input rule, the `structuredContent` / `content[0].text` dual
+  channel, and how an expected domain error (an `ok: false`
+  success-shaped envelope) differs from an `isError` result — and passes
+  it as `instructions`, a first-class `McpServer.layerStdio` option since
+  rc.116. It surfaces in both the `initialize` result and the
+  `server/discover` result. `serverInfo.description` is just the one-line
+  human summary.
 
 `registerStrictToolkit` and every `McpServer.prompt` each `Layer.provide`
 the static `McpServer.layer`, the same memoized pattern `McpServer.toolkit`
@@ -172,17 +198,29 @@ Every served `inputSchema` is strict, at every object level. Tools are
 registered through `registerStrictToolkit(kit)`, never `McpServer.toolkit`:
 Effect's toolkit decodes arguments with the default `onExcessProperty:
 "ignore"`, which strips a misspelled filter and runs a *wider* query while
-reporting success. The module is adapted from Effect's own
-`registerToolkit` over the public `McpServer.McpServer.addTool`, and per
-tool it strictifies the served JSON Schema (`additionalProperties: false`
-on every object node, `$ref` roots inlined, a top-level `action` / `kind`
-union rewritten to `oneOf` + `x-discriminator`), walks the raw payload
-against that schema *before* decoding and fails `InvalidParams` naming the
-unknown key's path and the accepted params at that level, renders the dual
-channel (`structuredContent` = the encoded `success` value,
-`content[0].text` = `RenderText` markdown or JSON), and maps every
-unexpected failure or defect to the `UnexpectedToolError` envelope rather
-than propagating a bare error. See
+reporting success. `registerStrictToolkitEffect` is a line-for-line port
+of rc.116's `McpServer.registerToolkit` over the public
+`McpServer.McpServer.addTool`, with six enumerated deviations listed in
+the file header and re-checked on every rc bump (the pre-decode
+unknown-key walk; `strictifyJsonSchema` / `inlineRootRefs` on the served
+input; `RenderText` as `content[0].text`; the `UnexpectedToolError`
+envelope for internal failures instead of rc.116's scrubbed text;
+`outputSchema` served only when object-rooted, because
+`@modelcontextprotocol/sdk`'s `ToolSchema` still requires
+`outputSchema.type === "object"`; and no `structuredContent` for a
+non-object encoded result). Input schemas decode through
+`McpSchema.ToolJson` (object root required) and output schemas through
+`McpSchema.ToolOutputJson`; `addTool`'s handler requirement is
+`McpSchema.McpRequestContext`. Per tool it strictifies the served JSON
+Schema (`additionalProperties: false` on every object node, `$ref` roots
+inlined, a top-level `action` / `kind` union rewritten to `oneOf` +
+`x-discriminator`), walks the raw payload against that schema *before*
+decoding and fails `InvalidParams` naming the unknown key's path and the
+accepted params at that level, renders the dual channel
+(`structuredContent` = the encoded `success` value, `content[0].text` =
+`RenderText` markdown or JSON), and maps every unexpected failure or
+defect to the `UnexpectedToolError` envelope rather than propagating a
+bare error. See
 [Strict MCP Tool Inputs](../decisions/50-strict-mcp-tool-inputs.md) and
 [Strict Tool Inputs](../invariants/strict-tool-inputs.md) for the
 enforcement mechanism and the regression guard.
@@ -493,9 +531,17 @@ See [Framing-Only MCP Prompts](../decisions/35-framing-only-mcp-prompts.md).
 `Stdio.layerTest` queues — no child process — so a test sees the exact
 served schemas and wire results: `initialize`, `listTools`, `callTool`,
 `sendRequest` (for `prompts/list`, `prompts/get`), `sendNotification`,
-`seed` (populates the same in-memory store the server reads), `session`
-(pins an `McpSession`), `extraLayers`, and `stderrSoFar` /
-`consoleLogSoFar` / `rawStdoutSoFar`. The test `Stdio` must be provided
+`discover` (`server/discover`), `seed` (populates the same in-memory store
+the server reads), `session` (pins an `McpSession`), `extraLayers`,
+`stateless: true` (speaks `2026-07-28`: the protocol `_meta` is injected
+on every request), and `stderrSoFar` / `consoleLogSoFar` /
+`rawStdoutSoFar`. `server-protocols.test.ts` pins `server/discover`
+(`supportedVersions`, instructions identity, `serverInfo` under `_meta`),
+`tools/list` with no handshake, a revision × outcome matrix
+(`2026-07-28` / `2025-11-25` / `2025-06-18` × success / declared failure /
+invalid params — invalid params is a JSON-RPC `-32602` on `2025-06-18`
+and an `isError` result on the two newer revisions), and a
+strict-plus-lenient fixture. The test `Stdio` must be provided
 *innermost* because the test data-store layer carries the real Node
 platform services, whose real process `Stdio` would otherwise win the
 merge and leave the server listening on the vitest worker's own stdin.
@@ -542,7 +588,7 @@ first caller whose cwd is not the repo root, and when the system truly
 cannot tell what the caller meant it reports what it used rather than
 guessing.
 
-[^server-ts]: `../../packages/mcp/src/server.ts:45`
+[^server-ts]: `../../packages/mcp/src/server.ts:71`
 [^main-ts]: `../../packages/mcp/src/main.ts:94`
 [^session-ts]: `../../packages/mcp/src/session.ts:133`
 [^boundaries-test]: `../../packages/mcp/__test__/boundaries.test.ts:31`

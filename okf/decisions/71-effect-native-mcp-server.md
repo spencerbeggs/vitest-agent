@@ -9,8 +9,8 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T17:26:02Z
-  body_sha256: a9494cb6d6fb401a1e38b8076e5453a2184edb0a000b44ee974d60b09b936035
+  at: 2026-09-20T01:39:48Z
+  body_sha256: fa5129459559f7d86bd4a8c3e19efa579b941eb0026ac1c2e5e9d9e09856b256
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -63,7 +63,7 @@ handler is a compile error — `packages/mcp/src/toolkit.ts:80-111`), and
 `ToolsLayer = Kit.toLayer(toolHandlers)`
 (`packages/mcp/src/toolkit.ts:118`). `server.ts` exports
 `ServerLayer({ version })`
-(`packages/mcp/src/server.ts:45-67`), merging
+(`packages/mcp/src/server.ts:71-90`), merging
 `registerStrictToolkit(Kit)` provided with `ToolsLayer` and
 `PromptsLayer`, all provided by `McpServer.layerStdio` and
 `Layer.succeed(Logger.LogToStderr, true)`. Handlers require
@@ -75,28 +75,42 @@ replaces the tRPC-era context object.
 `McpServer.toolkit`.** `McpServer.toolkit` decodes arguments with
 Effect's default `onExcessProperty: "ignore"`, which strips unknown keys
 — exactly the silent-widening class [Decision 50](50-strict-mcp-tool-inputs.md) exists to forbid.
-`register-toolkit.ts` therefore adapts Effect's own `registerToolkit`
-over the public `addTool` and: walks the raw payload against the served
-JSON Schema before decoding and fails with `McpSchema.InvalidParams`
-naming the unrecognized key(s) and the accepted params, qualified at
-every object level, array element, and the union branch the discriminant
-selects (`packages/mcp/src/register-toolkit.ts:272-380`); inlines `$ref`
-roots and `$ref` union members, since a bare `$ref` root fails
-`ToolJsonSchema`'s `type: "object"` requirement and would `orDie` at
-registration (`packages/mcp/src/register-toolkit.ts:86-111`); sets
-`additionalProperties: false` on every object node recursively
-(`packages/mcp/src/register-toolkit.ts:112-162`); rewrites a top-level
-`action` / `kind` union from `anyOf` to `oneOf` plus
-`x-discriminator` (`packages/mcp/src/register-toolkit.ts:156-162`);
-emits the dual channel — `structuredContent` is the encoded result,
-`content[0].text` is the tool's `RenderText` markdown or the JSON
-(`packages/mcp/src/register-toolkit.ts:366-367`); maps a declared,
-`Error`-shaped failure to `{ isError: true, content: [{ text: message
-}] }` with no `structuredContent`, upstream parity
-(`packages/mcp/src/register-toolkit.ts:289`), and every other failure or
-defect to the `UnexpectedToolError` envelope as `structuredContent` with
-`isError: true` (`packages/mcp/src/register-toolkit.ts:294-295`), after
-logging. Interrupt-only causes propagate untouched.
+`register-toolkit.ts`'s `registerStrictToolkitEffect` is therefore a
+line-for-line port of rc.116's `McpServer.registerToolkit` over the
+public `addTool`, with six deviations enumerated in the file header and
+re-checked on every rc bump: (i) `collectUnknownKeys` walks the raw
+payload against the served JSON Schema before decoding and fails with
+`McpSchema.InvalidParams` naming the unrecognized key(s) and the accepted
+params, qualified at every object level, array element, and the union
+branch the discriminant selects — `Tool.Strict` is mirrored (strict
+decode options, `onExcessProperty: "error"` on the served document, a
+die for a strict dynamic tool) but subsumed by the always-strict
+contract; (ii) the served input schema goes through `strictifyJsonSchema`
+(`additionalProperties: false` on every object node, a top-level
+`action` / `kind` union rewritten from `anyOf` to `oneOf` plus
+`x-discriminator`) and `inlineRootRefs` (a bare `$ref` root or `$ref`
+union member is inlined, since a `$ref` root fails `McpSchema.ToolJson`'s
+object-root requirement and would `orDie` at registration); (iii) the
+success branch renders the `RenderText` markdown as `content[0].text`
+instead of the JSON (upstream Effect-TS/effect#8316); (iv) an internal
+failure or defect renders the `UnexpectedToolError` envelope as
+`structuredContent` with `isError: true` instead of rc.116's scrubbed
+"Tool execution failed due to an internal server error." text, still
+logged and `ErrorReporter.report`ed first; (v) `outputSchema` is served
+only when the success document is object-rooted after the `$ref` hoist,
+because `@modelcontextprotocol/sdk`'s `ToolSchema` requires
+`outputSchema.type === "object"` even though rc.116's
+`McpSchema.ToolOutputJson` accepts any JSON object (upstream
+Effect-TS/effect#8315); (vi) a non-object encoded result carries no
+`structuredContent`. A declared `Error`-shaped failure maps to `{
+isError: true, content: [{ text: message }] }` with no
+`structuredContent`, upstream parity, and is no longer logged (rc.116
+logs only the internal branch; no shipped tool declares a `failure`
+schema). Interrupt-only causes propagate untouched. Input schemas decode
+through `McpSchema.ToolJson` and output schemas through
+`McpSchema.ToolOutputJson` (`McpSchema.ToolJsonSchema` no longer
+exists); `addTool`'s handler requirement is `McpSchema.McpRequestContext`
+rather than the legacy `McpServerClient`.
 
 **Domain envelopes stay success-shaped.** `{ ok: false, error: { _tag,
 …, remediation } }` is a member of each tool's `success` union, the same
@@ -116,13 +130,39 @@ persists best-effort. A read failure or a corrupt row are both treated
 as a miss, since the combinator's error channel is `never` and the worst
 case tolerated is a duplicate write.
 
-**Protocols.** `protocols` is `[v2025_11_25, v2025_06_18,
-v2025_03_26]`, newest first, because the registry falls back to
-`protocols[0]` for a client offering an unknown version
-(`packages/mcp/src/server.ts:58`).
+**Protocols.** `protocols` is `[v2026_07_28, v2025_11_25,
+v2025_06_18]` (`ServerLayer` in `packages/mcp/src/server.ts`;
+`v2025_03_26` was dropped). `2026-07-28` is the stateless revision
+(SEP-2575): no `initialize`, no session; a client discovers with
+`server/discover` and every request carries
+`params._meta["io.modelcontextprotocol/protocolVersion"]`, and every
+result, `tools/call` included, is wrapped in the stateless frame. rc.116's
+runtime (`effect/unstable/ai/internal/mcpRuntime.ts`) routes a request
+carrying that `_meta` to its adapter, matches `initialize` against the
+stateful adapters only, and sends anything else with no session to
+`protocols[0]`, so the stateless adapter is listed first; at most one
+stateless adapter is allowed (a second fails the layer with
+`Cause.IllegalArgumentError`, hence `Layer.orDie`). The stateful adapters
+must stay because every shipping client (Claude Code's default stdio
+session, Copilot, Cursor, the Inspector) opens with `initialize`, which
+a server offering only `2026-07-28` answers with `METHOD_NOT_FOUND`;
+measured with Claude Code 2.1.278, the default and
+`MCP_PROTOCOL_NEGOTIATION=legacy` open `initialize` on `2025-11-25`, and
+`MCP_PROTOCOL_NEGOTIATION=auto` opens `server/discover` then
+`subscriptions/listen` on `2026-07-28`. `server/discover` advertises
+every listed adapter in `supportedVersions`.
+
+**Instructions.** `instructions` is a first-class `McpServer.layerStdio`
+option in rc.116: `server.ts` exports `SERVER_INSTRUCTIONS` (what the
+server is for, call `help` first, the strict-input rule, the
+`structuredContent` / `content[0].text` dual channel, and how an
+expected domain error — an `ok: false` success-shaped envelope — differs
+from an `isError` result) and passes it as `instructions`, which
+surfaces in both the `initialize` result and the `server/discover`
+result. `serverInfo.description` is just the one-line human summary.
 
 **Process contract.** `Layer.succeed(Logger.LogToStderr, true)` is
-provided inside `ServerLayer` (`packages/mcp/src/server.ts:65`) and
+provided inside `ServerLayer` (`packages/mcp/src/server.ts:88`) and
 again on the launched effect in `main.ts`
 (`packages/mcp/src/main.ts:173`), because Effect's default logger writes
 to stdout and stdout is the JSON-RPC wire. `main.ts` registers the crash
@@ -155,12 +195,12 @@ What was gained by writing a local strict registrar instead: one schema
 language end to end (Effect Schema for tool inputs, outputs and prompt
 arguments), no MCP SDK / tRPC / zod dependencies, and unknown-key
 rejection at every object level. What was sacrificed:
-`register-toolkit.ts` is ~300 lines adapted from Effect's own
-`registerToolkit` and must be tracked against `McpServer.ts` across
-future release-candidate bumps. This was judged acceptable because the
-alternative was carrying a second schema language forever, and the
-adaptation carries its own unit test coverage
-(`served-schema-strict.test.ts`).
+`register-toolkit.ts` is a line-for-line port of Effect's own
+`registerToolkit` with six enumerated deviations that must be re-checked
+against `McpServer.ts` on every release-candidate bump. This was judged
+acceptable because the alternative was carrying a second schema language
+forever, and the port carries its own unit test coverage
+(`served-schema-strict.test.ts`, `server-protocols.test.ts`).
 
 **tRPC for MCP routing.** tRPC bought type-safe procedures, a
 `createCallerFactory` for transport-free tests, and middleware, but it
@@ -195,11 +235,8 @@ deliberately preserves a `Union([Finite, FiniteFromString])`. Effect's
 stdio protocol also interrupts an in-flight `tools/call` when stdin
 closes immediately after it, which real MCP clients do not trigger in
 practice since they keep stdin open, and `McpSession` today is unused by
-the majority of read-only tools. `instructions` cannot be set through
-`McpServer.layerStdio` at the pinned release candidate, so
-`serverInfo.description` carries a one-line pointer and the `help` tool
-remains the orientation surface; `McpServer.prompt` has no `title`
-option either, so the six prompts lost their titles on the wire.
+the majority of read-only tools. `McpServer.prompt` has no `title`
+option, so the six prompts lost their titles on the wire.
 
 ## Related
 

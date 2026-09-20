@@ -11,17 +11,22 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: b77c4e9baa8df70136d7d8cddb01f106dcec9954b6db03d05b262107474f9933
+  at: 2026-09-20T01:39:48Z
+  body_sha256: 24ba3b29cd6a005d3985bc6bfed114822bff5100ff97e3c82dc70efff57e49c2
 ---
 
 # MCP tool and prompt surface
 
 ## Contract, from the consumer's side
 
-A client connects over stdio, negotiates one of three protocol versions
-(newest-first: `2025-11-25`, `2025-06-18`, `2025-03-26`), and sees 30 tools
-plus six prompts. Every served `inputSchema` is strict at every object
+A client connects over stdio, speaks one of three protocol revisions —
+the stateless `2026-07-28` (no `initialize`; `server/discover` plus a
+per-request protocol `_meta`, every result wrapped in the stateless frame)
+or the stateful `2025-11-25` / `2025-06-18` (opened with `initialize`) —
+receives the same `instructions` orientation on either handshake, and sees
+30 tools plus six prompts. Invalid params surface as a JSON-RPC `-32602`
+error on `2025-06-18` and as an `isError` result on the two newer
+revisions. Every served `inputSchema` is strict at every object
 level: an unknown key anywhere in the payload — including inside a nested
 object, an array element, or the branch an `action` / `kind` discriminator
 selects — fails with `InvalidParams` naming the key's path and that level's
