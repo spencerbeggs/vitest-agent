@@ -1,5 +1,13 @@
 # @vitest-agent/plugin
 
+## 4.1.5
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/mcp | dependency | updated | 4.2.2 | 4.3.0 |
+
 ## 4.1.4
 
 ### Dependencies
