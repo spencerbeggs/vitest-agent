@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 368185c2a703b295ff1abbcf33d2c752e9438ede75e78aa266d8a36e13010ac6
+  at: 2026-09-16T17:10:37Z
+  body_sha256: 74be8ef4c85c540a72e2dc69922331ca167b4db9339cd56bc543c500c83e91af
 ---
 
 # @vitest-agent/plugin

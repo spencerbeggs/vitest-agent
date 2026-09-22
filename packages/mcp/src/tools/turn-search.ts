@@ -1,9 +1,8 @@
 // `turn_search` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Schema, SchemaGetter } from "effect";
+import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const TurnRow = Schema.Struct({
 	id: Schema.Finite.annotate({ description: "Numeric primary key of this turn row." }),
@@ -38,24 +37,6 @@ export const TurnSearchResult = Schema.Struct({
  * @public
  */
 export type TurnSearchResultType = Schema.Schema.Type<typeof TurnSearchResult>;
-
-export const formatTurnSearchMarkdown = (data: TurnSearchResultType): string => {
-	if (data.turns.length === 0) return "No turns matched.";
-	const lines: string[] = ["# Turns", ""];
-	for (const t of data.turns) {
-		lines.push(`- session=${t.sessionId} turn=${t.turnNo} type=${t.type} at=${t.occurredAt}`);
-	}
-	return lines.join("\n");
-};
-
-export const TurnSearchAsMarkdown = TurnSearchResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatTurnSearchMarkdown(data)),
-		encode: SchemaGetter.forbidden(
-			() => "TurnSearchAsMarkdown is one-way: markdown cannot be parsed back to TurnSearchResult.",
-		),
-	}),
-);
 
 /**
  * The `turn_search` tool's parameters.
@@ -103,7 +84,7 @@ export const handleTurnSearch = (input: TurnSearchInputType): Effect.Effect<Turn
  */
 export const turnSearchTool = Tool.make("turn_search", {
 	description:
-		"Use when you need to find past turns across sessions by type, time, or session. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, turns[] }).",
+		"Use when you need to find past turns across sessions by type, time, or session. Returns a typed JSON object in structuredContent ({ count, turns[] }).",
 	parameters: TurnSearchInput,
 	success: TurnSearchResult,
 	dependencies: [DataReader],
@@ -112,5 +93,4 @@ export const turnSearchTool = Tool.make("turn_search", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatTurnSearchMarkdown(encoded as TurnSearchResultType));
+	.annotate(Tool.Idempotent, true);

@@ -1,15 +1,13 @@
 // Consolidated `note` MCP tool — Schema-driven implementation.
 //
-// Every action now returns a structured object; the boundary in
-// server.ts renders markdown for `list` / `search` callers via the
-// exported `formatNoteListMarkdown` helper. The mutation actions
-// (`create`, `update`, `delete`, `get`) carry their previous shapes.
+// Every action returns a structured object discriminated on
+// `action`. The mutation actions (`create`, `update`, `delete`,
+// `get`) carry their previous shapes.
 
 import type { NoteInput } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const NoteScope = Schema.Literals(["global", "project", "module", "suite", "test", "note"]);
 
@@ -98,46 +96,6 @@ export const NoteResult = Schema.Union([
  * @public
  */
 export type NoteResultType = Schema.Schema.Type<typeof NoteResult>;
-type NoteRowType = Schema.Schema.Type<typeof NoteRowSchema>;
-
-const renderNoteTable = (notes: ReadonlyArray<NoteRowType>): string => {
-	const lines: string[] = ["| ID | Title | Scope | Project | Created |", "| --- | --- | --- | --- | --- |"];
-	for (const n of notes) {
-		const proj = n.project ?? "—";
-		const created = n.createdAt.split("T")[0];
-		lines.push(`| ${n.id} | ${n.title} | ${n.scope} | ${proj} | ${created} |`);
-	}
-	return lines.join("\n");
-};
-
-/**
- * Markdown rendering used at the boundary for note list/search
- * results. Mutations (create/get/update/delete) get JSON-stringify
- * via `structuredJsonResult` instead of a markdown view.
- */
-export const formatNoteListMarkdown = (data: NoteResultType): string => {
-	if (data.action === "list") {
-		if (data.notes.length === 0) {
-			return 'No notes found. Use note({ action: "create", ... }) to add notes.';
-		}
-		return ["## Notes", "", renderNoteTable(data.notes)].join("\n");
-	}
-	if (data.action === "search") {
-		if (data.notes.length === 0) return "No notes matched.";
-		return [`## Notes matching "${data.query}"`, "", renderNoteTable(data.notes)].join("\n");
-	}
-	// Non-list/search actions never reach this formatter; return JSON
-	// for safety so the boundary cannot accidentally lose data.
-	return JSON.stringify(data, null, 2);
-};
-
-/**
- * The text channel: list/search render markdown; the mutation actions
- * (create/get/update/delete) render the pretty-printed JSON, exactly as
- * the old `structuredJsonResult` boundary did.
- */
-const renderNoteText = (data: NoteResultType): string =>
-	data.action === "list" || data.action === "search" ? formatNoteListMarkdown(data) : JSON.stringify(data, null, 2);
 
 const CreateVariant = Schema.Struct({
 	action: Schema.Literal("create").annotate({ description: "CRUD discriminator" }),
@@ -296,7 +254,7 @@ export const handleNote = (input: NoteParamsType): Effect.Effect<NoteResultType,
  */
 export const noteTool = Tool.make("note", {
 	description:
-		"Use to manage notes, with a CRUD action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`); list/search additionally render markdown in the text channel.",
+		"Use to manage notes, with a CRUD action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`).",
 	parameters: NoteParams,
 	success: NoteResult,
 	dependencies: [DataReader, DataStore],
@@ -305,5 +263,4 @@ export const noteTool = Tool.make("note", {
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, true)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, false)
-	.annotate(RenderText, (encoded) => renderNoteText(encoded as NoteResultType));
+	.annotate(Tool.Idempotent, false);

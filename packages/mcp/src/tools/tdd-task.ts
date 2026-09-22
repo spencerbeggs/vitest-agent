@@ -3,15 +3,12 @@
 // `start` and `end` mutate; `get` and `resume` read. Every action
 // now returns a structured payload — `get` carries the full nested
 // `TddTaskDetail` tree plus the `currentPhase` lookup, and `resume`
-// carries a compact summary discriminated by `phaseAvailable`. The
-// boundary in server.ts uses `formatTddTaskMarkdown` to render
-// `get` / `resume` text.
+// carries a compact summary discriminated by `phaseAvailable`.
 
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail } from "@vitest-agent/sdk";
-import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
+import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 
 const TddPhaseRow = Schema.Struct({
@@ -111,79 +108,6 @@ export const TddTaskResult = Schema.Union([
 		"Discriminate on `action`. `get` and `resume` further discriminate on `found`. `get` carries the full nested task tree.",
 });
 export type TddTaskResultType = Schema.Schema.Type<typeof TddTaskResult>;
-
-export const formatTddTaskMarkdown = (data: TddTaskResultType): string => {
-	if (data.action === "start" || data.action === "end") return JSON.stringify(data, null, 2);
-	if (data.action === "get") {
-		if (!data.found) return `No TDD task with tddTaskId=${data.tddTaskId}.`;
-		const s = data.task;
-		const currentPhaseLine =
-			data.currentPhase === null
-				? "- current phase: (none — no open phase)"
-				: `- current phase: ${data.currentPhase.phase} [phaseId=${data.currentPhase.id}]${data.currentPhase.behaviorId !== null ? ` behaviorId=${data.currentPhase.behaviorId}` : ""}`;
-		const lines: string[] = [
-			`# TDD Task ${s.tddTaskId}`,
-			"",
-			`- goal: ${s.goal}`,
-			`- run_id: ${s.runId ?? "(none — run_id not recorded)"}`,
-			`- sessionId: ${s.sessionId}`,
-			`- started: ${s.startedAt}`,
-			`- ended: ${s.endedAt ?? "still open"}`,
-			`- outcome: ${s.outcome ?? "pending"}`,
-			currentPhaseLine,
-		];
-		if (s.phases.length > 0) {
-			lines.push("", "## Phases", "");
-			for (const p of s.phases) {
-				const duration = p.endedAt ? ` -> ${p.endedAt}` : " (current)";
-				lines.push(`- **${p.phase}** [id=${p.id}] ${p.startedAt}${duration}`);
-				if (p.transitionReason !== null) lines.push(`  - reason: ${p.transitionReason}`);
-			}
-		}
-		if (s.artifacts.length > 0) {
-			lines.push("", "## Artifacts", "");
-			for (const a of s.artifacts) {
-				lines.push(
-					`- **${a.artifactKind}** [id=${a.id}, phase=${a.phaseId}] at=${a.recordedAt}${a.testRunId !== null ? ` run=${a.testRunId}` : ""}`,
-				);
-			}
-		}
-		if (s.goals.length > 0) {
-			lines.push("", "## Goals and Behaviors", "");
-			for (const g of s.goals) {
-				lines.push(`### Goal ${g.ordinal + 1}: ${g.goal} [${g.status}]`);
-				if (g.behaviors.length > 0) {
-					lines.push("");
-					for (const b of g.behaviors) lines.push(`- **${b.behavior}** [${b.status}]`);
-				}
-				lines.push("");
-			}
-		}
-		return lines.join("\n");
-	}
-	// resume
-	if (!data.found) return `No TDD task with tddTaskId=${data.tddTaskId}.`;
-	const lines: string[] = [`# TDD task #${data.tddTaskId}: ${data.goal}`, "", `**Status:** ${data.status}`];
-	if (data.currentPhase !== null) {
-		lines.push(`**Current phase:** ${data.currentPhase.phase} (started ${data.currentPhase.startedAt})`);
-	} else {
-		lines.push("**Current phase:** none (TDD cycle not yet entered)");
-	}
-	lines.push("", `**Phases recorded:** ${data.phasesRecorded}`);
-	if (data.artifactsRecorded > 0) lines.push(`**Artifacts:** ${data.artifactsRecorded}`);
-	lines.push(
-		"",
-		`Use \`tdd_task({ action: "get", tddTaskId: ${data.tddTaskId} })\` for the full detail tree, or call \`tdd_phase_transition_request\` to advance.`,
-	);
-	return lines.join("\n");
-};
-
-export const TddTaskAsMarkdown = TddTaskResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatTddTaskMarkdown(data)),
-		encode: SchemaGetter.forbidden(() => "TddTaskAsMarkdown is one-way."),
-	}),
-);
 
 const StartVariant = Schema.Struct({
 	action: Schema.Literal("start").annotate({ description: "Lifecycle discriminator" }),
@@ -363,7 +287,7 @@ export const handleTddTask = (
  */
 export const tddTaskTool = Tool.make("tdd_task", {
 	description:
-		"Use to manage a TDD task lifecycle, with an action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns markdown details; action='resume' (tddTaskId) returns a compact digest.",
+		"Use to manage a TDD task lifecycle, with an action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns the full task detail; action='resume' (tddTaskId) returns a compact digest.",
 	parameters: TddTaskInput,
 	success: TddTaskResult,
 	dependencies: [DataReader, DataStore],
@@ -372,5 +296,4 @@ export const tddTaskTool = Tool.make("tdd_task", {
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatTddTaskMarkdown(encoded as TddTaskResultType));
+	.annotate(Tool.Idempotent, true);

@@ -105,14 +105,13 @@ describe("ServerLayer over stdio", () => {
 		expect(JSON.parse(result.content[0]?.text ?? "null")).toEqual({ message: "pong" });
 	});
 
-	it("tools/call help {} renders the help text via RenderText and carries helpText", async () => {
+	it("tools/call help {} carries helpText in structuredContent and the same object as JSON text", async () => {
 		const result = (await withHarness((h) =>
 			h.initialize().pipe(Effect.andThen(h.callTool("help", {}))),
 		)) as CallToolResult;
 		expect(result.isError).toBe(false);
-		expect(typeof result.structuredContent?.helpText).toBe("string");
-		expect(result.content[0]?.text).toBe(result.structuredContent?.helpText);
-		expect(result.content[0]?.text).toContain("# vitest-agent MCP Tools");
+		expect(result.structuredContent?.helpText).toContain("# vitest-agent MCP Tools");
+		expect(JSON.parse(result.content[0]?.text ?? "null")).toEqual(result.structuredContent);
 	});
 
 	it("tools/call ping { bogus: 1 } on 2025-11-25 is an isError result naming the key", async () => {

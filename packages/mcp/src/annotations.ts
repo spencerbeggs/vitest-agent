@@ -1,18 +1,16 @@
-// Tool annotations specific to the vitest-agent MCP server, read by
-// `registerStrictToolkit` alongside Effect's built-in `Tool.Readonly` /
-// `Tool.Destructive` / `Tool.Idempotent` / `Tool.OpenWorld` keys.
+// Tool annotations specific to the vitest-agent MCP server.
 
 import { Context } from "effect";
 
 /**
- * Renders a tool's encoded result as the human-readable `content[0].text`
- * channel (markdown, typically). Returning `undefined` — or leaving the
- * annotation unset — falls back to `JSON.stringify(encoded)`.
+ * Formerly rendered a tool's encoded result as a markdown `content[0].text`
+ * channel. The server no longer reads it: every successful result carries
+ * the typed object in `structuredContent` and its JSON in `content[0].text`,
+ * because Claude Code forwards only `structuredContent` to the model.
+ * Attaching it is a no-op.
  *
- * Attach with `tool.annotate(RenderText, (encoded) => ...)`; the renderer
- * receives the wire-encoded result (the same value that becomes
- * `structuredContent`), never the decoded domain value.
- *
+ * @deprecated Nothing reads this annotation any more; remove the
+ * `.annotate(RenderText, ...)` call. It will be removed in the next major.
  * @public
  */
 export const RenderText = Context.Reference<((result: unknown) => string | undefined) | undefined>(

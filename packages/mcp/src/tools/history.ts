@@ -6,9 +6,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { HistoryRecord } from "@vitest-agent/sdk";
-import { Effect, Schema, SchemaGetter } from "effect";
+import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const FlakyTestRow = Schema.Struct({
 	fullName: Schema.String.annotate({ description: "Full hierarchical test name (`describe > it`)." }),
@@ -84,70 +83,6 @@ export const TestHistoryResult = Schema.Struct({
  * @public
  */
 export type TestHistoryResultType = Schema.Schema.Type<typeof TestHistoryResult>;
-
-export const formatTestHistoryMarkdown = (data: TestHistoryResultType): string => {
-	if (!data.hasData) return `No history data available for project \`${data.project}\`. Run tests first.`;
-
-	const lines: string[] = [`# Test History: ${data.project}`, ""];
-
-	if (data.flaky.length > 0) {
-		lines.push("## Flaky Tests", "", "Tests with mixed pass/fail results across recent runs:", "");
-		for (const test of data.flaky) {
-			const total = test.passCount + test.failCount;
-			const passRate = total > 0 ? ((test.passCount / total) * 100).toFixed(0) : "0";
-			lines.push(
-				`### ⚠️ ${test.fullName}`,
-				"",
-				`- Module: \`${test.modulePath}\``,
-				`- Pass rate: ${passRate}% (${test.passCount}/${total})`,
-				`- Last state: ${test.lastState}`,
-				`- Last run: ${new Date(test.lastTimestamp).toLocaleString()}`,
-				"",
-			);
-		}
-	}
-
-	if (data.persistent.length > 0) {
-		lines.push("## Persistent Failures", "", "Tests that have failed in consecutive runs:", "");
-		for (const failure of data.persistent) {
-			lines.push(
-				`### ❌ ${failure.fullName}`,
-				"",
-				`- Module: \`${failure.modulePath}\``,
-				`- Consecutive failures: ${failure.consecutiveFailures}`,
-				`- First failed: ${new Date(failure.firstFailedAt).toLocaleString()}`,
-				`- Last failed: ${new Date(failure.lastFailedAt).toLocaleString()}`,
-			);
-			if (failure.lastErrorMessage !== null) lines.push(`- Last error: ${failure.lastErrorMessage}`);
-			lines.push("");
-		}
-	}
-
-	if (data.recovered.length > 0) {
-		lines.push("## Recovered Tests", "", "Tests that previously failed but are now passing:", "");
-		for (const test of data.recovered) {
-			const runViz = test.recentRuns.map((s) => (s === "passed" ? "P" : "F")).join("");
-			lines.push(`- ✅ **${test.fullName}** (${test.modulePath}) — recent runs: \`${runViz}\``);
-		}
-		lines.push("");
-	}
-
-	if (data.flaky.length === 0 && data.persistent.length === 0 && data.recovered.length === 0) {
-		lines.push("✅ No flaky, persistent, or recently recovered tests.", "");
-	}
-
-	lines.push(`_History updated: ${data.history.updatedAt}_`);
-	return lines.join("\n");
-};
-
-export const TestHistoryAsMarkdown = TestHistoryResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatTestHistoryMarkdown(data)),
-		encode: SchemaGetter.forbidden(
-			() => "TestHistoryAsMarkdown is one-way: markdown cannot be parsed back to TestHistoryResult.",
-		),
-	}),
-);
 
 /**
  * The `test_history` tool's parameters.
@@ -257,7 +192,7 @@ export const handleTestHistory = (
  */
 export const testHistoryTool = Tool.make("test_history", {
 	description:
-		"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns markdown in content[] and a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[]). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
+		"Use when failures recur and you need flaky, persistent, and recovered test classifications. Returns a typed JSON object in structuredContent (project, hasData, history, flaky[], persistent[], recovered[]). Optional testName/modulePath narrow to a single test; limit caps runs kept per test (default 20) — omit all three only when you actually need the whole project's history.",
 	parameters: TestHistoryInput,
 	success: TestHistoryResult,
 	dependencies: [DataReader],
@@ -266,5 +201,4 @@ export const testHistoryTool = Tool.make("test_history", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatTestHistoryMarkdown(encoded as TestHistoryResultType));
+	.annotate(Tool.Idempotent, true);

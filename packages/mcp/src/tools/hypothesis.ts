@@ -1,15 +1,12 @@
 // Consolidated `hypothesis` MCP tool — Schema-driven implementation.
 //
 // `record` and `validate` are mutations whose result is a small
-// structured envelope. `list` now returns a structured array; the
-// boundary in server.ts renders it as markdown via the exported
-// `formatHypothesisListMarkdown` helper.
+// structured envelope. `list` returns a structured array.
 
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { DataStoreError } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 import { McpSession } from "../session.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 
@@ -57,23 +54,8 @@ export const HypothesisResult = Schema.Union([HypothesisRecordOk, HypothesisVali
 });
 export type HypothesisResultType = Schema.Schema.Type<typeof HypothesisResult>;
 
-export const formatHypothesisListMarkdown = (data: HypothesisResultType): string => {
-	if (data.action !== "list") return JSON.stringify(data, null, 2);
-	if (data.hypotheses.length === 0) return "No hypotheses matched.";
-	const lines: string[] = ["# Hypotheses", ""];
-	for (const h of data.hypotheses) {
-		const status = h.validationOutcome ?? "open";
-		lines.push(`- [${status}] id=${h.id} session=${h.sessionId}: ${h.content.slice(0, 120)}`);
-	}
-	return lines.join("\n");
-};
-
 /** Number-or-numeric-string id: LLM orchestrators routinely stringify numeric tool inputs. */
 const CoercibleId = Schema.Union([Schema.Finite, Schema.FiniteFromString]);
-
-/** The text channel: `list` renders markdown; `record` / `validate` render the pretty-printed JSON. */
-const renderHypothesisText = (data: HypothesisResultType): string =>
-	data.action === "list" ? formatHypothesisListMarkdown(data) : JSON.stringify(data, null, 2);
 
 const RecordVariant = Schema.Struct({
 	action: Schema.Literal("record").annotate({ description: "CRUD discriminator" }),
@@ -278,7 +260,7 @@ export const handleHypothesis = (
  */
 export const hypothesisTool = Tool.make("hypothesis", {
 	description:
-		"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (content, tddTaskId?, optional citation ids) writes a hypothesis — the binding session is resolved server-side from the recovered host context (active TDD subagent, else main session); pass tddTaskId (returned by tdd_task action='start') to bind deterministically to that task's session, and do not pass sessionId when recording; action='validate' (id, outcome, validatedAt?) records a validation outcome — validatedAt is optional and defaults server-side to now when omitted, or is honored verbatim when supplied; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses as markdown.",
+		"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (content, tddTaskId?, optional citation ids) writes a hypothesis — the binding session is resolved server-side from the recovered host context (active TDD subagent, else main session); pass tddTaskId (returned by tdd_task action='start') to bind deterministically to that task's session, and do not pass sessionId when recording; action='validate' (id, outcome, validatedAt?) records a validation outcome — validatedAt is optional and defaults server-side to now when omitted, or is honored verbatim when supplied; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses.",
 	parameters: HypothesisInput,
 	success: HypothesisResult,
 	dependencies: [DataReader, DataStore, McpSession],
@@ -287,5 +269,4 @@ export const hypothesisTool = Tool.make("hypothesis", {
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, false)
-	.annotate(RenderText, (encoded) => renderHypothesisText(encoded as HypothesisResultType));
+	.annotate(Tool.Idempotent, false);

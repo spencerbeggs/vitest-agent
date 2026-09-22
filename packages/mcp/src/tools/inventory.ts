@@ -1,16 +1,13 @@
 // Consolidated `inventory` MCP tool — Schema-driven implementation.
 //
-// Each `kind` produces a structured result that the boundary in
-// server.ts can render as markdown via the exported
-// `formatInventoryMarkdown` helper. The structured payload uses an
+// Each `kind` produces a structured result. The payload uses an
 // `inventoryKind` discriminant (named separately from the input
 // `kind` because `session` collapses to two output shapes — one for
 // single-id lookup and one for list).
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Match, Option, Schema, SchemaGetter } from "effect";
+import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
 
 const ProjectRunSummary = Schema.Struct({
@@ -149,103 +146,6 @@ export const InventoryResult = Schema.Union([
  * @public
  */
 export type InventoryResultType = Schema.Schema.Type<typeof InventoryResult>;
-
-export const formatInventoryMarkdown = (data: InventoryResultType): string => {
-	if (data.inventoryKind === "project") {
-		if (data.count === 0) return "No projects found. Run tests first.";
-		const lines: string[] = [
-			"## Projects",
-			"",
-			"| Project | Last Run | Result | Total | Passed | Failed | Skipped |",
-			"| --- | --- | --- | --- | --- | --- | --- |",
-		];
-		for (const p of data.projects) {
-			const lastRun = p.lastRun ? p.lastRun.split("T")[0] : "—";
-			const result = p.lastResult ?? "—";
-			lines.push(`| ${p.project} | ${lastRun} | ${result} | ${p.total} | ${p.passed} | ${p.failed} | ${p.skipped} |`);
-		}
-		return lines.join("\n");
-	}
-	if (data.inventoryKind === "module") {
-		if (data.count === 0) {
-			return "No modules found. Run run_tests({}) to execute tests and populate the database.";
-		}
-		const lines: string[] = ["## Modules", ""];
-		for (const g of data.groups) {
-			lines.push(`### ${g.project}`, "", "| ID | File | State | Tests | Duration |", "| --- | --- | --- | --- | --- |");
-			for (const m of g.modules) {
-				const duration = m.duration !== null ? `${m.duration}ms` : "—";
-				lines.push(`| ${m.id} | ${m.file} | ${m.state} | ${m.testCount} | ${duration} |`);
-			}
-			lines.push("");
-		}
-		return lines.join("\n").trimEnd();
-	}
-	if (data.inventoryKind === "suite") {
-		if (data.count === 0) return "No suites found. Run run_tests({}) to execute tests and populate the database.";
-		const lines: string[] = ["## Suites", ""];
-		for (const g of data.groups) {
-			lines.push(`### ${g.project}`, "", "| ID | Name | Module | State | Tests |", "| --- | --- | --- | --- | --- |");
-			for (const s of g.suites) {
-				lines.push(`| ${s.id} | ${s.name} | ${s.module} | ${s.state} | ${s.testCount} |`);
-			}
-			lines.push("");
-		}
-		return lines.join("\n").trimEnd();
-	}
-	if (data.inventoryKind === "session_detail") {
-		if (!data.found) return `No session with id=${data.id}.`;
-		const s = data.session;
-		const lines: string[] = [
-			`# Session ${s.id}`,
-			"",
-			`- chatId: \`${s.chatId}\``,
-			`- project: ${s.project}`,
-			`- agentKind: ${s.agentKind}${s.agentType !== null ? ` (${s.agentType})` : ""}`,
-			`- started: ${s.startedAt}`,
-			`- ended: ${s.endedAt ?? "still open"}`,
-			`- triageWasNonEmpty: ${s.triageWasNonEmpty}`,
-		];
-		if (s.parentSessionId !== null) lines.push(`- parentSessionId: ${s.parentSessionId}`);
-		return lines.join("\n");
-	}
-	if (data.inventoryKind === "tag_scoped") {
-		if (data.count === 0) {
-			return `No tags recorded for project \`${data.project}\`. Run run_tests({}) to populate.`;
-		}
-		const lines: string[] = [`## Tags — ${data.project}`, "", "| Tag | Modules | Tests |", "| --- | --- | --- |"];
-		for (const t of data.tags) {
-			lines.push(`| ${t.tag} | ${t.moduleCount} | ${t.testCount} |`);
-		}
-		return lines.join("\n");
-	}
-	if (data.inventoryKind === "tag_unscoped") {
-		if (data.count === 0) {
-			return "No tags recorded. Run run_tests({}) to populate.";
-		}
-		const lines: string[] = ["## Tags", "", "| Tag | Modules | Tests | Projects |", "| --- | --- | --- | --- |"];
-		for (const t of data.tags) {
-			const projectsBreakdown = t.byProject.map((p) => `${p.project} (${p.testCount})`).join(", ");
-			lines.push(`| ${t.tag} | ${t.moduleCount} | ${t.testCount} | ${projectsBreakdown} |`);
-		}
-		return lines.join("\n");
-	}
-	// session_list
-	if (data.count === 0) return "No sessions recorded yet.";
-	const lines: string[] = ["# Sessions", ""];
-	for (const s of data.sessions) {
-		const ended = s.endedAt ? `ended ${s.endedAt}` : "open";
-		lines.push(`- **${s.chatId}** [${s.agentKind}] project=${s.project} started=${s.startedAt} ${ended}`);
-	}
-	return lines.join("\n");
-};
-
-export const InventoryAsMarkdown = InventoryResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatInventoryMarkdown(data)),
-		encode: SchemaGetter.forbidden(() => "InventoryAsMarkdown is one-way."),
-	}),
-);
 
 const ProjectVariant = Schema.Struct({ kind: Schema.Literal("project") });
 const ModuleVariant = Schema.Struct({
@@ -444,5 +344,4 @@ export const inventoryTool = Tool.make("inventory", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatInventoryMarkdown(encoded as InventoryResultType));
+	.annotate(Tool.Idempotent, true);

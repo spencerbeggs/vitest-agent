@@ -3,18 +3,12 @@
 // The Effect Schema `TestErrorsResult` is the canonical contract for
 // the tool's output. The same Schema:
 //   - types the handler's return value;
-//   - drives `formatTestErrorsMarkdown` (input typed via `Schema.Type`);
-//   - composes into `TestErrorsAsMarkdown`, a one-way
-//     `Schema.decodeTo` whose `decode` direction renders the
-//     markdown the text channel carries (encode is forbidden because
-//     markdown rendering is lossy);
 //   - is the `Tool.make` `success` schema, so the `outputSchema` served
 //     to MCP stays in lockstep with what the handler actually emits.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Schema, SchemaGetter } from "effect";
+import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 /** One annotation attached to a failing test, surfaced with its error. */
 export const TestErrorAnnotation = Schema.Struct({
@@ -109,100 +103,6 @@ export const TestErrorsResult = Schema.Struct({
 export type TestErrorsResultType = Schema.Schema.Type<typeof TestErrorsResult>;
 type TestErrorAnnotationType = Schema.Schema.Type<typeof TestErrorAnnotation>;
 
-const TRUNCATION_LIMIT = 500;
-const truncate = (s: string): { value: string; truncated: boolean } =>
-	s.length <= TRUNCATION_LIMIT
-		? { value: s, truncated: false }
-		: { value: s.slice(0, TRUNCATION_LIMIT), truncated: true };
-
-/**
- * Pure markdown renderer. Exposed so the formatter tests can exercise
- * it without rebuilding a `Schema.encode` runtime.
- */
-export const formatTestErrorsMarkdown = (data: TestErrorsResultType): string => {
-	if (data.errors.length === 0) return `No errors found for project \`${data.project}\`.`;
-
-	const lines: string[] = [`# Test Errors — ${data.project}`, ""];
-
-	for (const error of data.errors) {
-		const name = error.name ?? "(unnamed)";
-		const idTokens = `[testErrorId=${error.id}${error.topStackFrameId !== null ? ` topStackFrameId=${error.topStackFrameId}` : ""}]`;
-		lines.push(`## ${name} ${idTokens}`);
-		lines.push("");
-		lines.push(`**Scope:** ${error.scope}`);
-		if (error.testFullName !== null) lines.push(`**Test:** ${error.testFullName}`);
-		if (error.moduleFile !== null) lines.push(`**File:** \`${error.moduleFile}\``);
-		if (error.annotations.length > 0) {
-			lines.push("**Annotations:**");
-			for (const annotation of error.annotations) {
-				lines.push(`- [${annotation.type}] ${annotation.message}`);
-			}
-		}
-		lines.push("");
-		lines.push("**Cite-able IDs (for `hypothesis (action: record)`):**");
-		lines.push(`- citedTestErrorId: ${error.id}`);
-		if (error.topStackFrameId !== null) {
-			lines.push(`- citedStackFrameId: ${error.topStackFrameId}`);
-		} else {
-			lines.push("- citedStackFrameId: (none — no stack frames recorded for this error)");
-		}
-		lines.push("");
-		lines.push("**Message:**");
-		lines.push(`> ${error.message.split("\n").join("\n> ")}`);
-
-		if (error.diff !== null) {
-			lines.push("");
-			lines.push("**Diff:**");
-			lines.push("```diff");
-			const t = truncate(error.diff);
-			lines.push(t.value);
-			if (t.truncated) lines.push("... (truncated)");
-			lines.push("```");
-		}
-
-		if (error.stack !== null && error.diff === null) {
-			lines.push("");
-			lines.push("**Stack:**");
-			lines.push("```");
-			const t = truncate(error.stack);
-			lines.push(t.value);
-			if (t.truncated) lines.push("... (truncated)");
-			lines.push("```");
-		}
-
-		lines.push("");
-	}
-
-	return lines.join("\n");
-};
-
-/**
- * One-way codec: structured `TestErrorsResult` → markdown text.
- *
- * `Schema.decodeTo`'s `decode` direction goes
- * `From.Type → To.Encoded`; in this transform `From = TestErrorsResult`
- * and `To = Schema.String`, so the resulting schema is
- * `Schema<string, TestErrorsResultType>` — its parsed Type is the
- * markdown string and its Encoded form is the structured row. That
- * means `Schema.decode(TestErrorsAsMarkdown)(data)` produces markdown
- * (the rendering direction) and `Schema.encode(...)` would attempt
- * the lossy reverse, which is forbidden here.
- *
- * Boundary callers should use
- * `Schema.decodeSync(TestErrorsAsMarkdown)(data)` to render. Test
- * suites can drive the same path without mocking anything — the
- * transform IS the rendering contract.
- */
-export const TestErrorsAsMarkdown = TestErrorsResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatTestErrorsMarkdown(data)),
-		encode: SchemaGetter.forbidden(
-			() =>
-				"TestErrorsAsMarkdown is one-way: markdown cannot be parsed back to TestErrorsResult. Consume the procedure's structured output (or MCP structuredContent) directly.",
-		),
-	}),
-);
-
 /**
  * The `test_errors` tool's parameters.
  *
@@ -267,7 +167,7 @@ export const handleTestErrors = (input: TestErrorsInputType): Effect.Effect<Test
  */
 export const testErrorsTool = Tool.make("test_errors", {
 	description:
-		"Use when a test fails and you need error detail, diffs, and the cite-able test_errors.id / stack_frames.id values needed by hypothesis (action: record). Returns both a markdown rendering (in content[].text) and a typed JSON object (in structuredContent) — agents should prefer structuredContent.errors[].",
+		"Use when a test fails and you need error detail, diffs, and the cite-able test_errors.id / stack_frames.id values needed by hypothesis (action: record). Returns a typed JSON object in structuredContent; read structuredContent.errors[].",
 	parameters: TestErrorsInput,
 	success: TestErrorsResult,
 	dependencies: [DataReader],
@@ -276,5 +176,4 @@ export const testErrorsTool = Tool.make("test_errors", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatTestErrorsMarkdown(encoded as TestErrorsResultType));
+	.annotate(Tool.Idempotent, true);

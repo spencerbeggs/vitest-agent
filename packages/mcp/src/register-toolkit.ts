@@ -2,50 +2,51 @@
 //
 // `McpServer.toolkit` decodes tool arguments with Effect's default
 // `onExcessProperty: "ignore"` unless a tool is annotated `Tool.Strict`, so
-// an unknown key is silently stripped — a misspelled filter runs a *wider*
-// query while reporting success (issues #200 / #243). This module registers
-// each tool over the public `McpServer.McpServer.addTool` instead and:
+// an unknown key on a lenient tool is silently stripped — a misspelled
+// filter runs a *wider* query while reporting success (issues #200 / #243).
+// Since rc.116 (Effect-TS/effect#8218) a `Tool.Strict` tool is decoded with
+// `onExcessProperty: "error"` and served with `additionalProperties: false`
+// on every object node, but the rejection reads `Expected no excess
+// property at ["key"]`: first key only, and no list of what IS accepted.
+// This module registers each tool over the public
+// `McpServer.McpServer.addTool` instead and:
 //
-// 1. serves the tool's JSON Schema with `additionalProperties: false` on
-//    every object node (and a top-level `action` / `kind` union rewritten
-//    to `oneOf` + `x-discriminator`);
+// 1. treats every tool as strict, whatever its `Tool.Strict` annotation
+//    says: strict decode options, and the input document Effect builds with
+//    `onExcessProperty: "error"`;
 // 2. walks the raw payload against that served schema before decoding and
-//    fails with `InvalidParams` naming the unknown key(s) and the accepted
-//    params, at every object level;
-// 3. renders the dual channel — `structuredContent` = the encoded result,
-//    `content[0].text` = the tool's `RenderText` markdown or the JSON;
+//    fails with `InvalidParams` naming every unknown key and the accepted
+//    params, at every object level (the native strict decode stays behind
+//    it as a backstop);
+// 3. rewrites a top-level `action` / `kind` union to an object root with
+//    `oneOf` + `x-discriminator`, and inlines a `$ref` root (what an
+//    `identifier` annotation produces), so the served schema meets MCP's
+//    object-root requirement;
 // 4. maps a declared failure exactly as Effect's own `registerToolkit`
 //    does (an `Error`-shaped one to `{ isError: true, content: [{ text:
 //    error.message }] }`, any other to its encoded JSON as text), and every
 //    OTHER failure or defect to the `UnexpectedToolError` envelope as
 //    `structuredContent` with `isError: true`, so an in-boundary crash
-//    comes back in the same structured shape as every other tool error;
-// 5. inlines a `$ref` root (what an `identifier` annotation produces)
-//    before the object checks, so identified schemas register and list.
+//    comes back in the same structured shape as every other tool error.
 //
 // `registerStrictToolkitEffect` is a line-for-line port of Effect's
 // `registerToolkit` (`effect/unstable/ai/McpServer.ts`, rc.116). Baseline
 // for the next rc bump — the places it knowingly deviates, to re-check
 // against the new source:
 //
-//  (i)   the raw payload is walked against the served schema BEFORE
-//        `built.handle` (`collectUnknownKeys` → `InvalidParams`), for every
-//        tool, strict or not — the every-level unknown-key contract above.
-//        `Tool.Strict` is still mirrored verbatim (strict decode options,
-//        `onExcessProperty: "error"` on the served input document, a die
-//        for a strict dynamic tool), but under this contract it is
-//        subsumed: a lenient tool rejects excess keys exactly like a
-//        strict one, and every served input schema carries
-//        `additionalProperties: false`.
-//  (ii)  the served input schema goes through `strictifyJsonSchema` (every
-//        object node closed, discriminated unions rewritten to an object
-//        root) rather than rc.116's `toolInputJsonSchema`; the top-level
-//        `$ref` hoist that rc.116 does through the internal
-//        `resolveTopLevelReference` is `inlineRootRefs` here.
-//  (iii) the success branch renders the `RenderText` annotation as
-//        `content[0].text` instead of `JSON.stringify(encodedResult)`
-//        (upstream: Effect-TS/effect#8316, a `Tool.ContentRenderer`
-//        annotation; if it lands, (iii) is met natively).
+//  (i)   every tool is strict, and the raw payload is walked against the
+//        served schema BEFORE `built.handle` (`collectUnknownKeys` →
+//        `InvalidParams`) so the message names every unknown key and the
+//        accepted params. A strict dynamic tool still dies at registration,
+//        as upstream does; this repo ships none.
+//  (ii)  the served input schema is rc.116's `toolInputJsonSchema` output
+//        passed through `objectRootedInputSchema` (the `$ref` hoist that
+//        rc.116 does through the internal `resolveTopLevelReference`, plus
+//        the discriminated-union rewrite).
+//  (iii) retired (#487): the success branch sends `JSON.stringify(encoded)`
+//        as `content[0].text`, as upstream does. Claude Code forwards only
+//        `structuredContent` to the model, so a markdown rendering there
+//        was never read.
 //  (iv)  an internal failure or defect renders the `UnexpectedToolError`
 //        envelope (`structuredContent` + JSON text) instead of rc.116's
 //        scrubbed "Tool execution failed due to an internal server error."
@@ -57,7 +58,7 @@
 //        document verbatim, but `@modelcontextprotocol/sdk`'s `ToolSchema`
 //        still requires `outputSchema.type === "object"`, so an
 //        `anyOf`-rooted document would break `tools/list` in strict
-//        clients (upstream: Effect-TS/effect#8315).
+//        clients (upstream: Effect-TS/effect#8326, released in rc.117).
 //  (vi)  `structuredContent` is omitted when the encoded result is not a
 //        JSON object (MCP models it as an object); rc.116 passes the
 //        encoded result through as-is.
@@ -70,7 +71,6 @@ import type { SchemaAST } from "effect";
 import { Cause, Context, Effect, ErrorReporter, Layer, Option, References, Result, Schema, Stream } from "effect";
 import { AiError, McpSchema, McpServer, Tool, Toolkit } from "effect/unstable/ai";
 import { HttpServerRequest } from "effect/unstable/http";
-import { RenderText } from "./annotations.js";
 import { buildUnexpectedToolErrorEnvelope } from "./utils/tool-error-envelope.js";
 
 type JsonObject = Record<string, unknown>;
@@ -150,60 +150,26 @@ export const inlineRootRefs = (schema: JsonObject): JsonObject => {
 };
 
 /**
- * Deep-copy `schema`, setting `additionalProperties: false` on every
- * object node that declares `properties` (or is a bare object with no
- * combinator), and rewriting a top-level union of discriminated object
- * shapes to `{ type: "object", oneOf, "x-discriminator" }` so the served
- * schema still satisfies MCP's object-root requirement.
+ * Make an input JSON Schema servable as an MCP tool input: inline a `$ref`
+ * root (and `$ref` members of a top-level union), and rewrite a top-level
+ * union of discriminated object shapes to `{ type: "object", oneOf,
+ * "x-discriminator" }` so it satisfies MCP's object-root requirement. The
+ * object nodes themselves are left as Effect emitted them — closed, when the
+ * document was built with `onExcessProperty: "error"`.
  *
  * @internal
  */
-export const strictifyJsonSchema = (schema: JsonObject): JsonObject => {
-	const visit = (node: unknown): unknown => {
-		if (Array.isArray(node)) return node.map(visit);
-		if (!isPlainObject(node)) return node;
-		const out: JsonObject = {};
-		for (const [key, value] of Object.entries(node)) {
-			switch (key) {
-				case "properties":
-				case "$defs":
-				case "definitions":
-					out[key] = isPlainObject(value)
-						? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, visit(v)]))
-						: value;
-					break;
-				case "items":
-				case "prefixItems":
-				case "anyOf":
-				case "oneOf":
-				case "allOf":
-				case "not":
-					out[key] = visit(value);
-					break;
-				case "additionalProperties":
-					out[key] = isPlainObject(value) ? visit(value) : value;
-					break;
-				default:
-					out[key] = value;
-			}
-		}
-		const hasCombinator = Array.isArray(out.anyOf) || Array.isArray(out.oneOf) || Array.isArray(out.allOf);
-		const isObjectNode = out.type === "object" || isPlainObject(out.properties);
-		if (isObjectNode && !hasCombinator && !isPlainObject(out.additionalProperties)) {
-			out.additionalProperties = false;
-		}
-		return out;
-	};
-	const strict = visit(inlineRootRefs(schema)) as JsonObject;
-	const members = strict.anyOf ?? strict.oneOf;
-	if (Array.isArray(members) && strict.type === undefined) {
+export const objectRootedInputSchema = (schema: JsonObject): JsonObject => {
+	const root = inlineRootRefs(schema);
+	const members = root.anyOf ?? root.oneOf;
+	if (Array.isArray(members) && root.type === undefined) {
 		const discriminant = findDiscriminant(members);
 		if (discriminant !== undefined) {
-			const { anyOf: _anyOf, oneOf: _oneOf, ...rest } = strict;
+			const { anyOf: _anyOf, oneOf: _oneOf, ...rest } = root;
 			return { type: "object", ...rest, oneOf: members, "x-discriminator": discriminant };
 		}
 	}
-	return strict;
+	return root;
 };
 
 interface UnknownKeysAtLevel {
@@ -346,16 +312,21 @@ const isParameterValidationError = (
 	AiError.isAiError(error) && error.reason._tag === "ToolParameterValidationError";
 
 /**
- * The input JSON Schema document as rc.116's `toolInputJsonSchema` builds it
- * (`Schema.toJsonSchemaDocument` with `onExcessProperty` following the
- * tool's strict mode, definitions attached as `$defs`); the top-level `$ref`
- * hoist happens in `inlineRootRefs` via `strictifyJsonSchema`.
+ * The input JSON Schema a tool is served with: the document rc.116's
+ * `toolInputJsonSchema` builds for a strict tool (`Schema.toJsonSchemaDocument`
+ * with `onExcessProperty: "error"`, so every object node carries
+ * `additionalProperties: false`; definitions attached as `$defs`), made
+ * object-rooted by {@link objectRootedInputSchema}.
+ *
+ * @internal
  */
-const toolInputJsonSchema = (schema: Schema.Constraint, strict: boolean): JsonObject => {
-	const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: strict ? "error" : "ignore" });
-	return Object.keys(document.definitions).length === 0
-		? (document.schema as JsonObject)
-		: ({ ...document.schema, $defs: document.definitions } as JsonObject);
+export const servedInputJsonSchema = (schema: Schema.Constraint): JsonObject => {
+	const document = Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" });
+	return objectRootedInputSchema(
+		Object.keys(document.definitions).length === 0
+			? (document.schema as JsonObject)
+			: ({ ...document.schema, $defs: document.definitions } as JsonObject),
+	);
 };
 
 const envelopeResult = (toolName: string, err: unknown): McpSchema.CallToolResult => {
@@ -419,16 +390,14 @@ export const registerStrictToolkitEffect: <Tools extends Record<string, Tool.Any
 						),
 					);
 		};
-		const strict = Tool.getStrictMode(tool) === true;
-		const rawJsonSchema = Tool.isDynamic(tool) ? tool.jsonSchema : undefined;
-		if (strict && rawJsonSchema !== undefined) {
+		// Deviation (i): every tool is strict, so a dynamic tool's raw JSON Schema cannot be served.
+		if (Tool.isDynamic(tool)) {
 			return yield* Effect.die(
 				`McpServer cannot strictly validate the raw JSON Schema for tool '${tool.name}'; use an Effect Schema instead`,
 			);
 		}
-		const decodeOptions: SchemaAST.ParseOptions | undefined = strict ? { onExcessProperty: "error" } : undefined;
+		const decodeOptions: SchemaAST.ParseOptions = { onExcessProperty: "error" };
 		const annotations = tool.annotations;
-		const render = Context.get(annotations, RenderText);
 		const toolMeta = Context.getOrUndefined(annotations, Tool.Meta);
 		const isDeclaredFailure = Schema.is(tool.failureSchema);
 		const encodeFailure = Schema.encodeUnknownEffect(tool.failureSchema) as (
@@ -461,10 +430,8 @@ export const registerStrictToolkitEffect: <Tools extends Record<string, Tool.Any
 			outputJsonSchema.type === "object"
 				? yield* Schema.decodeUnknownEffect(McpSchema.ToolOutputJson)(outputJsonSchema).pipe(Effect.orDie)
 				: undefined;
-		// Deviation (ii): the served input schema is closed at every level.
-		const servedInput = strictifyJsonSchema(
-			(rawJsonSchema ?? toolInputJsonSchema(tool.parametersSchema, strict)) as JsonObject,
-		);
+		// Deviation (ii): the served input schema is closed at every level and object-rooted.
+		const servedInput = servedInputJsonSchema(tool.parametersSchema);
 		const inputSchema = yield* Schema.decodeUnknownEffect(McpSchema.ToolJson)(servedInput).pipe(Effect.orDie);
 		const description = Tool.getDescription(tool);
 		const mcpTool = new McpSchema.Tool({
@@ -512,16 +479,7 @@ export const registerStrictToolkitEffect: <Tools extends Record<string, Tool.Any
 										isError: result.isFailure,
 										// Deviation (vi): a non-object encoded result carries no structuredContent.
 										structuredContent: result.isFailure ? undefined : toStructuredContent(result.encodedResult),
-										// Deviation (iii): the RenderText channel.
-										content:
-											result.isFailure || result.encodedResult === undefined
-												? toolResultContent(result.encodedResult)
-												: [
-														{
-															type: "text",
-															text: render?.(result.encodedResult) ?? JSON.stringify(result.encodedResult),
-														},
-													],
+										content: toolResultContent(result.encodedResult),
 									}),
 								),
 					),

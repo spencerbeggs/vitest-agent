@@ -85,11 +85,8 @@ describe("run_tests success through the wire encoder (e2e)", () => {
 		expect(structured.report.consoleLeaks?.total).toBe(2);
 		expect(structured.report.consoleLeaks?.byFile[0]?.file.endsWith("leaky.test.ts")).toBe(true);
 		expect(structured.report.consoleLeaks?.byFile[0]?.sample).toContain("DEBUG cache miss for key abc");
-		const text = result.content[0]?.text ?? "";
-		expect(text.length).toBeGreaterThan(0);
-		expect(text).toContain("Vitest --");
-		expect(text).toContain(`Project root: \`${leakFixtureDir}\``);
-		expect(text).toContain("stray console write");
+		// The text channel mirrors the structured result as JSON (#487).
+		expect(JSON.parse(result.content[0]?.text ?? "")).toEqual(result.structuredContent);
 	});
 
 	it("a project + tag scoped run echoes the structured filter verbatim through the encoder", {

@@ -8,9 +8,8 @@
 // structuredContent supersedes it.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Schema, SchemaGetter } from "effect";
+import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const ArtifactKindSchema = Schema.Literals([
 	"test_written",
@@ -78,36 +77,6 @@ export const TddArtifactListResult = Schema.Struct({
  */
 export type TddArtifactListResultType = Schema.Schema.Type<typeof TddArtifactListResult>;
 
-const describeFilters = (filters: Schema.Schema.Type<typeof ArtifactFilters>): string => {
-	const parts: string[] = [];
-	if (filters.artifactKind !== undefined) parts.push(`artifactKind=${filters.artifactKind}`);
-	if (filters.phaseId !== undefined) parts.push(`phaseId=${filters.phaseId}`);
-	if (filters.behaviorId !== undefined) parts.push(`behaviorId=${filters.behaviorId}`);
-	return parts.length > 0 ? ` matching ${parts.join(", ")}` : "";
-};
-
-export const formatTddArtifactListMarkdown = (data: TddArtifactListResultType): string => {
-	if (data.count === 0) {
-		return `No artifacts recorded for tdd_task ${data.tddTaskId}${describeFilters(data.filters)}.`;
-	}
-	const lines: string[] = [`# Artifacts for tdd_task ${data.tddTaskId} (newest first, ${data.count} shown)`, ""];
-	for (const r of data.artifacts) {
-		const extras: string[] = [`phase=${r.phaseName} [phaseId=${r.phaseId}]`, `suite=${r.suite}`];
-		if (r.behaviorId !== null) extras.push(`behaviorId=${r.behaviorId}`);
-		if (r.testCaseId !== null) extras.push(`testCaseId=${r.testCaseId}`);
-		if (r.testRunId !== null) extras.push(`testRunId=${r.testRunId}`);
-		lines.push(`- **${r.artifactKind}** [id=${r.id}] at=${r.recordedAt} ${extras.join(" ")}`);
-	}
-	return lines.join("\n");
-};
-
-export const TddArtifactListAsMarkdown = TddArtifactListResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatTddArtifactListMarkdown(data)),
-		encode: SchemaGetter.forbidden(() => "TddArtifactListAsMarkdown is one-way."),
-	}),
-);
-
 /**
  * The `tdd_artifact_list` tool's parameters.
  *
@@ -174,5 +143,4 @@ export const tddArtifactListTool = Tool.make("tdd_artifact_list", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatTddArtifactListMarkdown(encoded as TddArtifactListResultType));
+	.annotate(Tool.Idempotent, true);

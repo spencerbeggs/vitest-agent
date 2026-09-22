@@ -1,9 +1,8 @@
 // `failure_signature_get` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const RecentError = Schema.Struct({
 	runId: Schema.Number,
@@ -47,34 +46,6 @@ export const FailureSignatureGetResult = Schema.Union([SignatureFound, Signature
  */
 export type FailureSignatureGetResultType = Schema.Schema.Type<typeof FailureSignatureGetResult>;
 
-export const formatFailureSignatureMarkdown = (data: FailureSignatureGetResultType): string => {
-	if (!data.found) return `No failure signature found with hash=${data.requestedHash}.`;
-	const lines: string[] = [
-		`# Failure Signature \`${data.signatureHash}\``,
-		"",
-		`**Hash:** ${data.signatureHash}`,
-		"",
-		`- first_seen_at: ${data.firstSeenAt}`,
-		`- last_seen_at: ${data.lastSeenAt ?? "unknown"}`,
-		`- first_seen_run_id: ${data.firstSeenRunId ?? "unknown"}`,
-		`- occurrence_count: ${data.occurrenceCount}`,
-	];
-	if (data.recentErrors.length > 0) {
-		lines.push("", "## Recent Errors", "");
-		for (const e of data.recentErrors) {
-			lines.push(`- run=${e.runId} name=${e.errorName ?? "(none)"}: ${e.message.slice(0, 120)}`);
-		}
-	}
-	return lines.join("\n");
-};
-
-export const FailureSignatureGetAsMarkdown = FailureSignatureGetResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatFailureSignatureMarkdown(data)),
-		encode: SchemaGetter.forbidden(() => "FailureSignatureGetAsMarkdown is one-way."),
-	}),
-);
-
 /**
  * The `failure_signature_get` tool's parameters.
  *
@@ -112,7 +83,7 @@ export const handleFailureSignatureGet = (
  */
 export const failureSignatureGetTool = Tool.make("failure_signature_get", {
 	description:
-		"Use when you have a failure-signature hash and need its first-seen date and occurrence history. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, signatureHash?, firstSeenAt?, occurrenceCount?, recentErrors?[] } or absent variant).",
+		"Use when you have a failure-signature hash and need its first-seen date and occurrence history. Returns a typed JSON object in structuredContent ({ found, signatureHash?, firstSeenAt?, occurrenceCount?, recentErrors?[] } or absent variant).",
 	parameters: FailureSignatureGetInput,
 	success: FailureSignatureGetResult,
 	dependencies: [DataReader],
@@ -121,5 +92,4 @@ export const failureSignatureGetTool = Tool.make("failure_signature_get", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatFailureSignatureMarkdown(encoded as FailureSignatureGetResultType));
+	.annotate(Tool.Idempotent, true);

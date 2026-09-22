@@ -1,9 +1,8 @@
 // `commit_changes` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Schema, SchemaGetter } from "effect";
+import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const FileRow = Schema.Struct({
 	filePath: Schema.String.annotate({ description: "Repo-relative path of the changed file." }),
@@ -57,36 +56,6 @@ export const CommitChangesResult = Schema.Struct({
  */
 export type CommitChangesResultType = Schema.Schema.Type<typeof CommitChangesResult>;
 
-export const formatCommitChangesMarkdown = (data: CommitChangesResultType): string => {
-	if (data.commits.length === 0) {
-		return data.filterSha !== undefined
-			? `No commit recorded with sha ${data.filterSha}.`
-			: "No commits recorded yet. The PostToolUse hook on `git commit` populates this table.";
-	}
-	const lines: string[] = [];
-	for (const e of data.commits) {
-		lines.push(`## ${e.sha.slice(0, 8)} ${e.message ?? "(no message)"}`);
-		if (e.author !== null) lines.push(`- Author: ${e.author}`);
-		if (e.committedAt !== null) lines.push(`- When: ${e.committedAt}`);
-		if (e.branch !== null) lines.push(`- Branch: ${e.branch}`);
-		if (e.files.length > 0) {
-			lines.push("- Changed files:");
-			for (const f of e.files) lines.push(`  - \`${f.filePath}\` (${f.changeKind})`);
-		}
-		lines.push("");
-	}
-	return lines.join("\n").trim();
-};
-
-export const CommitChangesAsMarkdown = CommitChangesResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatCommitChangesMarkdown(data)),
-		encode: SchemaGetter.forbidden(
-			() => "CommitChangesAsMarkdown is one-way: markdown cannot be parsed back to CommitChangesResult.",
-		),
-	}),
-);
-
 /**
  * The `commit_changes` tool's parameters.
  *
@@ -129,7 +98,7 @@ export const handleCommitChanges = (
  */
 export const commitChangesTool = Tool.make("commit_changes", {
 	description:
-		"Use when you need commit metadata and changed files captured by the post-commit hook. Returns up to 20 most-recent when sha is omitted. Returns markdown in content[] and a typed JSON object in structuredContent ({ filterSha?, count, commits[] }).",
+		"Use when you need commit metadata and changed files captured by the post-commit hook. Returns up to 20 most-recent when sha is omitted. Returns a typed JSON object in structuredContent ({ filterSha?, count, commits[] }).",
 	parameters: CommitChangesInput,
 	success: CommitChangesResult,
 	dependencies: [DataReader],
@@ -138,5 +107,4 @@ export const commitChangesTool = Tool.make("commit_changes", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatCommitChangesMarkdown(encoded as CommitChangesResultType));
+	.annotate(Tool.Idempotent, true);

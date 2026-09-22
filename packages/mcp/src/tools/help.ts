@@ -1,6 +1,5 @@
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 /**
  * The `help` tool's success payload.
@@ -14,8 +13,7 @@ export const HelpResult = Schema.Struct({
 }).annotate({
 	identifier: "HelpResult",
 	title: "help result",
-	description:
-		"Static help reference. Read structuredContent.helpText programmatically; the same string lives in content[].text for transcripts.",
+	description: "Static help reference. Read structuredContent.helpText.",
 });
 /**
  * The decoded {@link HelpResult}.
@@ -54,7 +52,7 @@ export const HELP_TEXT = `# vitest-agent MCP Tools
 | \`file_coverage\` | \`filePath\`, \`project?\` | Per-file coverage with uncovered lines and related tests |
 | \`test_history\` | \`project\` | Flaky/persistent/recovered tests |
 | \`test_trends\` | \`project\`, \`limit?\` | Coverage trajectory over time |
-| \`test_errors\` | \`project\`, \`errorName?\`, \`format?\` (\`markdown\` \\| \`xml\`) | Errors with diffs, stacks, each row's \`annotations[]\` (the test annotations the author recorded), and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
+| \`test_errors\` | \`project\`, \`errorName?\` | Errors with diffs, stacks, each row's \`annotations[]\` (the test annotations the author recorded), and the cite-able \`testErrorId\` / \`topStackFrameId\` values needed by \`hypothesis (action: record)\` |
 | \`test\` | \`action\` (\`list\`/\`get\`/\`for_file\`/\`for_tag\`/\`annotations\`/\`artifacts\`), plus per-action params | Consolidated test inspection: list/get/for_file/for_tag/annotations/artifacts |
 
 \`test\` actions:
@@ -181,23 +179,20 @@ Six framing-only prompts (\`prompts/get\`; Claude Code surfaces them as slash co
 `;
 
 /**
- * The Effect-native `help` tool. Renders the help markdown as the text
- * channel via `RenderText` while `structuredContent.helpText` carries the
- * same string for programmatic readers.
+ * The Effect-native `help` tool. `structuredContent.helpText` carries the
+ * markdown reference.
  *
  * @public
  */
 export const helpTool = Tool.make("help", {
-	description:
-		"List all available MCP tools with parameters. Read structuredContent.helpText programmatically; the same markdown lives in content[].text.",
+	description: "List all available MCP tools with parameters. The markdown reference is in structuredContent.helpText.",
 	success: HelpResult,
 })
 	.annotate(Tool.Title, "Help")
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => (encoded as HelpResultType).helpText);
+	.annotate(Tool.Idempotent, true);
 
 /**
  * Handler for {@link helpTool}.

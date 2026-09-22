@@ -11,8 +11,8 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-20T01:39:48Z
-  body_sha256: 24ba3b29cd6a005d3985bc6bfed114822bff5100ff97e3c82dc70efff57e49c2
+  at: 2026-09-22T19:35:29Z
+  body_sha256: 25624a5a2854444d86b6829af0ce6f9b0d47182eab4ba41cf3be9dd58fe4c087
 ---
 
 # MCP tool and prompt surface
@@ -41,8 +41,12 @@ roots are inlined so every top-level schema satisfies `type: "object"`.
 Every tool's result carries two channels: `structuredContent` is the
 result encoded through the tool's declared `success` schema (an undeclared
 key never appears — it is stripped, not merely unused), and
-`content[0].text` is either a markdown rendering (when the tool annotates a
-renderer) or the same JSON. A tool's declared `failure` channel is always
+`content[0].text` is the same encoded object as JSON. No tool sends a
+markdown rendering in the text channel: Claude Code forwards only
+`structuredContent` to the model when a result carries it, so a client
+should read fields from `structuredContent`. A result field that happens
+to hold markdown text — `triage_brief.markdown`, `wrapup_prompt.markdown`,
+`help.helpText` — is data inside that object, not a rendering. A tool's declared `failure` channel is always
 `Schema.Never` — no tool fails through the MCP protocol's own error
 channel. What looks like a domain "error" — a TDD phase-transition denial,
 an `AGENT_ALREADY_REGISTERED` registration conflict, a hard error inside
@@ -62,7 +66,7 @@ The 30 tools group by shape, not by table:
   every family and its discriminator values; a client should call it
   before assuming a shape from this document, since new variants land on
   the discriminant tuples between minors.
-- **Read-only queries** (markdown rendered). `test_status`,
+- **Read-only queries.** `test_status`,
   `test_overview`, `test_coverage`, `file_coverage`, `test_history`,
   `test_trends`, `test_errors`, `cache_health`, `settings_list`,
   `turn_search`, `failure_signature_get`, `acceptance_metrics`,
@@ -72,8 +76,7 @@ The 30 tools group by shape, not by table:
   - `inventory` — `kind: project | module | suite | session | tag`.
   - `test` — `action: list | get | for_file | for_tag | annotations |
     artifacts`.
-  - `note` — `action: create | list | get | update | delete | search`
-    (`list` / `search` render markdown, the rest JSON).
+  - `note` — `action: create | list | get | update | delete | search`.
   - `hypothesis` — `action: record | validate | list`.
   - `tdd_task` — `action: start | end | get | resume` (the underlying
     tables retain the `tdd_tasks` naming).
@@ -123,8 +126,12 @@ messages and fetching nothing from the database: `triage`, `why-flaky`,
 
 Prompt arguments are strings on the wire regardless of the parameter's
 logical type — `wrapup.kind` is served as a string literal enum, not a
-typed discriminant. A prompt cannot carry a `title` at the pinned Effect
-version, so a client should surface prompts by `name`. `tdd-resume`'s
+typed discriminant. Every prompt serves a human-readable `title` for a
+client's menu — `triage` "Triage Recent Failures", `why-flaky` "Diagnose
+a Flaky Test", `regression-since-pass` "Find What Broke a Test",
+`explain-failure` "Explain a Failure Class", `tdd-resume` "Resume TDD
+Work", `wrapup` "Generate a Session Wrapup" — but the `name` is the
+stable key; titles are display text. `tdd-resume`'s
 session default is the only server-side input across all six; every other
 prompt argument, required or not, is exactly what the caller supplied.
 

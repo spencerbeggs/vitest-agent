@@ -1,18 +1,16 @@
 // `acceptance_metrics` MCP tool — Schema-driven implementation.
 //
 // Mirrors `DataReader.AcceptanceMetrics` as an Effect Schema so the
-// structured payload the agent receives, the markdown rendering on
-// the text channel, and the SDK-side `outputSchema` all derive from
-// one canonical contract.
+// structured payload the agent receives and the served
+// `outputSchema` derive from one canonical contract.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Schema, SchemaGetter } from "effect";
+import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const totalAnnotation = { description: "Sample size — number of observations the metric ratio is computed over." };
 const ratioAnnotation = {
-	description: "Compliance ratio in [0, 1]. Multiply by 100 for the percentage form rendered in the markdown view.",
+	description: "Compliance ratio in [0, 1]. Multiply by 100 for the percentage form.",
 };
 
 /**
@@ -76,28 +74,6 @@ export const AcceptanceMetricsResult = Schema.Struct({
  */
 export type AcceptanceMetricsResultType = Schema.Schema.Type<typeof AcceptanceMetricsResult>;
 
-const fmtBucket = (r: { readonly total: number; readonly ratio: number }) =>
-	r.total === 0 ? "no data" : `${(r.ratio * 100).toFixed(1)}% (n=${r.total})`;
-
-export const formatAcceptanceMetricsMarkdown = (m: AcceptanceMetricsResultType): string =>
-	[
-		"# Acceptance metrics",
-		"",
-		`1. Phase-evidence integrity: ${fmtBucket(m.phaseEvidenceIntegrity)} — target ≥80%`,
-		`2. Compliance-hook responsiveness: ${fmtBucket(m.complianceHookResponsiveness)} — target ≥40%`,
-		`3. Orientation usefulness: ${fmtBucket(m.orientationUsefulness)} — target ≥50%`,
-		`4. Anti-pattern detection rate: ${fmtBucket(m.antiPatternDetectionRate)} — target ≥95%`,
-	].join("\n");
-
-export const AcceptanceMetricsAsMarkdown = AcceptanceMetricsResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatAcceptanceMetricsMarkdown(data)),
-		encode: SchemaGetter.forbidden(
-			() => "AcceptanceMetricsAsMarkdown is one-way: markdown cannot be parsed back to AcceptanceMetricsResult.",
-		),
-	}),
-);
-
 /**
  * Handler for {@link acceptanceMetricsTool}.
  *
@@ -117,7 +93,7 @@ export const handleAcceptanceMetrics = (): Effect.Effect<AcceptanceMetricsResult
  */
 export const acceptanceMetricsTool = Tool.make("acceptance_metrics", {
 	description:
-		"Use when you need the four spec Annex A acceptance metrics computed from the current database. Returns markdown in content[] and a typed JSON object in structuredContent (per-metric { total, ratio, ... }).",
+		"Use when you need the four spec Annex A acceptance metrics computed from the current database. Returns a typed JSON object in structuredContent (per-metric { total, ratio, ... }).",
 	success: AcceptanceMetricsResult,
 	dependencies: [DataReader],
 })
@@ -125,5 +101,4 @@ export const acceptanceMetricsTool = Tool.make("acceptance_metrics", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatAcceptanceMetricsMarkdown(encoded as AcceptanceMetricsResultType));
+	.annotate(Tool.Idempotent, true);

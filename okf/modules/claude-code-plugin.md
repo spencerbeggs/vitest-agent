@@ -49,8 +49,8 @@ sources:
     resource: ../../plugins/claude-code/package.json
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: db6320643f539491e734d09eb8791e64dd8515765576dcea1926b78a28f0a719
+  at: 2026-09-16T20:35:27Z
+  body_sha256: 3e818e3cc441d96c69d6618ed158096b548934ef00c0a8c02bdd608e79a565f8
 ---
 
 # vitest-agent (Claude Code plugin)

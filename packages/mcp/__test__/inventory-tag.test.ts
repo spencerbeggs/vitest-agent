@@ -13,7 +13,7 @@ import { DataStore, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { InventoryResultType } from "../src/tools/inventory.js";
-import { InventoryResult, formatInventoryMarkdown } from "../src/tools/inventory.js";
+import { InventoryResult } from "../src/tools/inventory.js";
 import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
@@ -155,63 +155,6 @@ describe("inventory({ kind: 'tag' }) — unscoped", () => {
 		expect(e2eRow).toBeDefined();
 		expect(e2eRow?.byProject.length).toBe(1);
 		expect(e2eRow?.byProject[0].project).toBe("proj-a");
-	});
-});
-
-describe("formatInventoryMarkdown — tag variants", () => {
-	it("renders the scoped table with Modules / Tests columns", () => {
-		const md = formatInventoryMarkdown({
-			inventoryKind: "tag_scoped",
-			project: "proj-x",
-			count: 2,
-			tags: [
-				{ tag: "int", moduleCount: 2, testCount: 5 },
-				{ tag: "e2e", moduleCount: 1, testCount: 2 },
-			],
-		});
-		expect(md).toContain("## Tags — proj-x");
-		expect(md).toContain("| Tag | Modules | Tests |");
-		expect(md).toContain("| int | 2 | 5 |");
-		expect(md).toContain("| e2e | 1 | 2 |");
-	});
-
-	it("renders the unscoped table including the Projects breakdown", () => {
-		const md = formatInventoryMarkdown({
-			inventoryKind: "tag_unscoped",
-			count: 1,
-			tags: [
-				{
-					tag: "int",
-					moduleCount: 2,
-					testCount: 3,
-					byProject: [
-						{ project: "proj-a", moduleCount: 1, testCount: 2 },
-						{ project: "proj-b", moduleCount: 1, testCount: 1 },
-					],
-				},
-			],
-		});
-		expect(md).toContain("## Tags");
-		expect(md).toContain("| Tag | Modules | Tests | Projects |");
-		expect(md).toContain("proj-a (2)");
-		expect(md).toContain("proj-b (1)");
-	});
-
-	it("falls back to the empty message when count is zero", () => {
-		const mdScoped = formatInventoryMarkdown({
-			inventoryKind: "tag_scoped",
-			project: "proj-empty",
-			count: 0,
-			tags: [],
-		});
-		expect(mdScoped).toContain("No tags recorded for project `proj-empty`");
-
-		const mdUnscoped = formatInventoryMarkdown({
-			inventoryKind: "tag_unscoped",
-			count: 0,
-			tags: [],
-		});
-		expect(mdUnscoped).toContain("No tags recorded");
 	});
 });
 

@@ -1,8 +1,8 @@
 /**
  * The write tools (and the two TDD lookups) over the in-process stdio
  * harness: each is listed with the write-side annotation set, and a
- * representative `tools/call` returns the typed `structuredContent` plus
- * the text channel. The idempotently-wrapped tools are called twice and
+ * representative `tools/call` returns the typed `structuredContent`
+ * (mirrored as JSON in `content[0].text`). The idempotently-wrapped tools are called twice and
  * the replay marker asserted on the second response. Assertions mirror
  * the direct-caller tests in `tool-handlers.test.ts` and the retired InMemoryTransport
  * schema suites (`server-hypothesis-schema`, `server-tdd-artifact-list-
@@ -215,13 +215,12 @@ describe("note", () => {
 		expect(gone?.structuredContent).toMatchObject({ action: "get", found: false });
 	});
 
-	it("list returns the cold-start text and count 0 when nothing matches", async () => {
+	it("list returns count 0 and an empty notes[] when nothing matches", async () => {
 		const result = await call("note", { action: "list", scope: "test", testFullName: "nonexistent" });
 		expect(result.structuredContent).toEqual({ action: "list", count: 0, notes: [] });
-		expect(text(result)).toBe('No notes found. Use note({ action: "create", ... }) to add notes.');
 	});
 
-	it("list and search render the markdown table over the created notes", async () => {
+	it("list and search return the created notes", async () => {
 		const [listed, searched, missed] = await session((h) =>
 			Effect.gen(function* () {
 				yield* h.callTool("note", {
@@ -237,12 +236,8 @@ describe("note", () => {
 			}),
 		);
 		expect(listed?.structuredContent?.count).toBe(1);
-		expect(text(listed as CallToolResult)).toContain("## Notes");
-		expect(text(listed as CallToolResult)).toContain("| Table Note |");
 		expect(searched?.structuredContent).toMatchObject({ action: "search", query: "xylophone", count: 1 });
-		expect(text(searched as CallToolResult)).toContain('## Notes matching "xylophone"');
 		expect(missed?.structuredContent).toMatchObject({ action: "search", count: 0 });
-		expect(text(missed as CallToolResult)).toBe("No notes matched.");
 	});
 
 	it("rejects an unknown action, a missing required key, and a key that belongs to another variant", async () => {
@@ -298,7 +293,6 @@ describe("hypothesis", () => {
 		expect(recorded?.structuredContent?.action).toBe("record");
 		expect(recorded?.structuredContent?.id).toBeGreaterThan(0);
 		expect(listed?.structuredContent?.count).toBe(1);
-		expect(text(listed as CallToolResult)).toContain("# Hypotheses");
 	});
 
 	it("record binds to the main session's active subagent child from the recovered context", async () => {
@@ -378,10 +372,9 @@ describe("hypothesis", () => {
 		expect(row?.validatedAt).toBe("2020-01-01T00:00:00.000Z");
 	});
 
-	it("list returns 'No hypotheses matched.' on an empty DB", async () => {
+	it("list returns count 0 and an empty hypotheses[] on an empty DB", async () => {
 		const result = await call("hypothesis", { action: "list" });
 		expect(result.structuredContent).toEqual({ action: "list", count: 0, hypotheses: [] });
-		expect(text(result)).toBe("No hypotheses matched.");
 	});
 });
 
@@ -426,15 +419,13 @@ describe("tdd_task", () => {
 		expect(r1?.structuredContent).toEqual({ action: "end", tddTaskId: expect.any(Number), outcome: "succeeded" });
 		expect(r2?.structuredContent?._idempotentReplay).toBe(true);
 		expect(got?.structuredContent).toMatchObject({ action: "get", found: true, task: { goal: "ending-test" } });
-		expect(text(got as CallToolResult)).toContain("- current phase: spike [phaseId=");
+		expect(got?.structuredContent?.currentPhase).toMatchObject({ phase: "spike" });
 		expect(resumed?.structuredContent).toMatchObject({ action: "resume", found: true, status: "succeeded" });
-		expect(text(resumed as CallToolResult)).toContain("**Status:** succeeded");
 	});
 
 	it("get and resume return found=false for an unknown id", async () => {
 		const got = await call("tdd_task", { action: "get", tddTaskId: 99999 });
 		expect(got.structuredContent).toEqual({ action: "get", found: false, tddTaskId: 99999 });
-		expect(text(got)).toBe("No TDD task with tddTaskId=99999.");
 		const resumed = await call("tdd_task", { action: "resume", tddTaskId: 99999 });
 		expect(resumed.structuredContent).toEqual({ action: "resume", found: false, tddTaskId: 99999 });
 	});
@@ -521,10 +512,6 @@ describe("tdd_task get over a populated tree", () => {
 			},
 			currentPhase: { phase: "red", behaviorId: expect.any(Number) },
 		});
-		const markdown = text(got as CallToolResult);
-		expect(markdown).toContain("## Goals and Behaviors");
-		expect(markdown).toContain("- **returns the sum** [in_progress]");
-		expect(markdown).toContain("## Artifacts");
 	});
 });
 
@@ -736,10 +723,8 @@ describe("tdd_artifact_list", () => {
 		const artifacts = all?.structuredContent?.artifacts as ReadonlyArray<{ artifactKind: string; suite: string }>;
 		expect(artifacts.map((a) => a.artifactKind)).toEqual(["test_failed_run", "test_written"]);
 		expect(artifacts[0]?.suite).toBe("bats");
-		expect(text(all as CallToolResult)).toContain("(newest first, 2 shown)");
 		expect(filtered?.structuredContent).toMatchObject({ count: 1, filters: { artifactKind: "test_failed_run" } });
 		expect(none?.structuredContent).toMatchObject({ count: 0, artifacts: [] });
-		expect(text(none as CallToolResult)).toContain("No artifacts recorded");
 	});
 
 	it("advertises an object outputSchema and rejects an unknown filter", async () => {

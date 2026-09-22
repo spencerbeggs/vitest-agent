@@ -2,7 +2,7 @@
 //
 // Each prompt is a thin wire adapter over a pure factory in this directory
 // (`triagePrompt`, `whyFlakyPrompt`, ...): the factory owns the text and is
-// unit-tested directly; this module owns the names, descriptions, argument
+// unit-tested directly; this module owns the names, titles, descriptions, argument
 // schemas and the mapping to `McpSchema.PromptMessage`. Prompt arguments
 // are strings on the wire (MCP `prompts/get` carries `Record<string,
 // string>`), so every parameter is `Schema.String`-based; `optionalKey`
@@ -51,6 +51,7 @@ const projectArg = Schema.optionalKey(Schema.String.annotate({ description: "Fil
 
 const Triage = McpServer.prompt({
 	name: PROMPT_NAMES[0],
+	title: "Triage Recent Failures",
 	description:
 		"Orient toward a triage workflow over the most recent test run; compose triage_brief, failure_signature_get, hypothesis_record.",
 	parameters: { project: projectArg },
@@ -60,6 +61,7 @@ const Triage = McpServer.prompt({
 
 const WhyFlaky = McpServer.prompt({
 	name: PROMPT_NAMES[1],
+	title: "Diagnose a Flaky Test",
 	description:
 		"Diagnose why a named test is flaky; compose test_history and failure_signature_get with timing/shared-state framing.",
 	parameters: {
@@ -76,6 +78,7 @@ const WhyFlaky = McpServer.prompt({
 
 const RegressionSincePass = McpServer.prompt({
 	name: PROMPT_NAMES[2],
+	title: "Find What Broke a Test",
 	description:
 		"Walk back from the test's most recent passing run to identify the change that broke it; compose test_history, commit_changes, turn_search.",
 	parameters: {
@@ -94,6 +97,7 @@ const RegressionSincePass = McpServer.prompt({
 
 const ExplainFailure = McpServer.prompt({
 	name: PROMPT_NAMES[3],
+	title: "Explain a Failure Class",
 	description: "Synthesize a root-cause explanation from the recurrence history of a failure signature.",
 	parameters: {
 		signature: Schema.String.annotate({ description: "16-char failure signature hex" }),
@@ -103,6 +107,7 @@ const ExplainFailure = McpServer.prompt({
 
 const TddResume = McpServer.prompt({
 	name: PROMPT_NAMES[4],
+	title: "Resume TDD Work",
 	description: "Resume the active TDD task from its current phase; iron-law reminder for evidence-bound transitions.",
 	parameters: {
 		sessionId: Schema.optionalKey(
@@ -119,6 +124,7 @@ const TddResume = McpServer.prompt({
 
 const Wrapup = McpServer.prompt({
 	name: PROMPT_NAMES[5],
+	title: "Generate a Session Wrapup",
 	description: "Surface the same wrapup content the post-hooks emit automatically.",
 	parameters: {
 		kind: Schema.optionalKey(

@@ -4,8 +4,7 @@
  * no handshake) beside the stateful `2025-11-25` / `2025-06-18` ones, the
  * `instructions` every client receives, and a revision x outcome matrix
  * proving the `tools/call` envelope on each revision. Also pins that
- * `Tool.Strict` is mirrored by the port and subsumed by the every-level
- * strict contract.
+ * every tool is strict whatever its `Tool.Strict` annotation says.
  */
 
 import { Effect, Layer, Schema } from "effect";
@@ -168,7 +167,7 @@ describe("tools/call revision x outcome matrix", () => {
 	});
 });
 
-describe("Tool.Strict under the every-level strict contract", () => {
+describe("every tool is strict, with or without Tool.Strict", () => {
 	it("a strict tool and a lenient sibling both reject an excess property and serve additionalProperties: false", async () => {
 		const { tools, strictResult, lenientResult, strictOk, lenientOk } = await withHarness(
 			(h) =>
