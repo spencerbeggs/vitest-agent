@@ -1,5 +1,14 @@
 # Log
 
+## 2026-09-22
+
+* Updated @vitest-agent/mcp
+* Updated Add an MCP tool
+* Updated Effect-Native MCP Server
+* Updated MCP tool and prompt surface
+* Updated Strict MCP Tool Inputs
+* Updated Strict MCP tool inputs — every served input rejects unknown keys
+
 ## 2026-09-20
 
 * Updated Effect Schema Data Structures

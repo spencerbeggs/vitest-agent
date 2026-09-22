@@ -52,8 +52,7 @@ than exist in the project) and neutralizes Vitest's native
 No test failure, no false-positive threshold error.
 
 The `ok` result's `scopedNote` field explains why (e.g. `"Coverage
-thresholds skipped: partial run (1 of 47 test files)"`) and the same text
-is folded into the markdown summary. The structured signal is
+thresholds skipped: partial run (1 of 47 test files)"`). The structured signal is
 `report.coverage.scoped` (and the persisted `test_runs.scoped` column) —
 `true` on a scoped run, `false` on a full run. Baselines and trends do not
 ratchet on a scoped run either, since a subset's totals are not
@@ -101,11 +100,11 @@ without being misread as a leak.
 
 Use `byFile[].file` to locate which files to investigate and `sample` to
 find the call site, without dumping full log content into agent context.
-The markdown summary line surfaces the two buckets separately: the ⚠
-warning only renders when `total > 0` (e.g.
-`⚠ 3 stray console writes across 2 files (see consoleLeaks)`), and a
-distinct non-warning note renders whenever `fromFailingTests` is populated
-(e.g. `2 console writes from failing tests (not counted as leaks)`).
+Read the two buckets from `structuredContent`, not from the result text
+(`content[0].text` is the same object as JSON; there is no summary line to
+scan for). `report.consoleLeaks.total > 0` means real leaks from passing
+tests; `report.consoleLeaks.fromFailingTests` counts output from failing
+tests, which is not a leak.
 
 ### Console-output visibility by surface
 

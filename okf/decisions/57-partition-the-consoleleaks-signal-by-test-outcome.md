@@ -6,8 +6,8 @@ description: run_tests attributes each captured console write to its owning test
 tags: [testing, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 85bae720e526f9168669a264632f5cb25814a3c847a7f0032a793b23a26cbc55
+  at: 2026-09-22T19:49:15Z
+  body_sha256: 9b1e22799d126962bd8def8478df3393d97a019ff51862fb3e1f225f4a505a8d
 ---
 
 # Partition the consoleLeaks Signal by Test Outcome
@@ -16,9 +16,9 @@ generated:
 
 `run_tests` attaches an optional `consoleLeaks` block to each
 `AgentReport` — stray `console.*` output captured per task from
-`vitest.state.getFiles()`, bucketed by file — and the tool's text
-summary prints a warning whenever the block is present
-(`packages/mcp/src/tools/run-tests.ts:694-714`). The signal was meant to
+`vitest.state.getFiles()`, bucketed by file
+(`packages/mcp/src/tools/run-tests.ts:860-863`) — and an agent reads the
+block's presence as a warning. The signal was meant to
 surface debugging output left behind in *passing* tests. In practice
 every red run tripped it: assertion libraries and app code that route
 failure output through a logger write to `console.*` inside the failing
@@ -44,10 +44,15 @@ reports the failing bucket in a new optional
 (`console-leaks.ts:56-57`). The block is still omitted only when there
 is no output at all; a run whose only console output came from failing
 tests yields `{ total: 0, byFile: [], fromFailingTests }` rather than
-nothing (`console-leaks.ts:59-61`). `run_tests`'s markdown summary warns
-only when `total > 0` (`run-tests.ts:700-706`) and prints a separate,
-non-warning `N console writes from failing tests (not counted as leaks)`
-line for the other bucket (`run-tests.ts:708-713`).
+nothing (`console-leaks.ts:59-61`). The agent-facing surface is only
+the structured `report.consoleLeaks` field — `total`, `byFile`,
+`truncated`, and `fromFailingTests` (`packages/sdk/src/schemas/ConsoleLeaks.ts:42-47`,
+attached to `AgentReport` at `packages/sdk/src/schemas/AgentReport.ts:85`)
+— which `run_tests` returns in `structuredContent` and, as the same
+object serialized to JSON, in `content[0].text`
+(`run-tests.ts:860-863`). There is no rendered warning line: an agent
+treats `total > 0` as a leak and reads `fromFailingTests` as the
+non-leak count of writes from failing tests.
 
 **Why partition rather than suppress.** Dropping failing-test output
 entirely would hide a real signal in the other direction: a failing test
