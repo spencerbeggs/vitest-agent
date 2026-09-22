@@ -39,7 +39,7 @@
 		"react": "catalog:build"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.4.8",
+		"@savvy-web/bundler": "^2.4.9",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
