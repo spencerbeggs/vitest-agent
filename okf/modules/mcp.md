@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-20T01:39:48Z
-  body_sha256: 16528a1ad7422545acab4c14d3d0ca4261dc6fe71d7818cffd47cf31eaf64fc6
+  at: 2026-09-22T19:35:29Z
+  body_sha256: 97fb8578fdefcd7e19157035f4f377b4ab088c38f8100ff6e9f8f70c0020cd76
 ---
 
 # @vitest-agent/mcp
@@ -73,7 +73,7 @@ contract with one comment-stripping scanner over every `.ts` file under
 Two entry points: `.` (the side-effect-free programmatic barrel —
 `ServerLayer` / `SERVER_INSTRUCTIONS`, `Kit` / `toolHandlers` /
 `ToolsLayer`, `registerStrictToolkit`, `McpSession` and its ref helpers, `PromptsLayer`,
-`withIdempotency` / `idempotencyKeys`, `RenderText`, the `PingResult` /
+`withIdempotency` / `idempotencyKeys`, the `@deprecated` no-op `RenderText`, the `PingResult` /
 `HelpResult` schemas, and `CURRENT_MCP_VERSION`) and `./main` (the assembled
 program that owns the process, published so the plugin's carrier bin can
 ship the same function). `index.ts` never imports `main.ts`, so a library
@@ -95,8 +95,9 @@ consumer's import graph never pulls in the process-owning module.
   constructors[^session-ts].
 - `src/idempotency.ts` — the `idempotencyKeys` registry and the
   `withIdempotency` combinator.
-- `src/annotations.ts` — `RenderText`, the per-tool markdown renderer
-  annotation the strict registrar reads.
+- `src/annotations.ts` — `RenderText`, a `@deprecated` no-op annotation
+  nothing reads any more (it once rendered a markdown `content[0].text`);
+  kept exported until the next major.
 - `src/tools/` — one file per tool (30) plus the private
   `_tdd-error-envelope.ts` and `_project-groups.ts` — see
   [MCP Tools](../interfaces/mcp-tools.md) for the full tool table.
@@ -197,30 +198,35 @@ uses, so tools and prompts register into one `McpServer`.
 Every served `inputSchema` is strict, at every object level. Tools are
 registered through `registerStrictToolkit(kit)`, never `McpServer.toolkit`:
 Effect's toolkit decodes arguments with the default `onExcessProperty:
-"ignore"`, which strips a misspelled filter and runs a *wider* query while
-reporting success. `registerStrictToolkitEffect` is a line-for-line port
-of rc.116's `McpServer.registerToolkit` over the public
-`McpServer.McpServer.addTool`, with six enumerated deviations listed in
-the file header and re-checked on every rc bump (the pre-decode
-unknown-key walk; `strictifyJsonSchema` / `inlineRootRefs` on the served
-input; `RenderText` as `content[0].text`; the `UnexpectedToolError`
-envelope for internal failures instead of rc.116's scrubbed text;
-`outputSchema` served only when object-rooted, because
+"ignore"` unless a tool is annotated `Tool.Strict`, which strips a
+misspelled filter and runs a *wider* query while reporting success; and
+rc.116's strict path rejects with only the first excess key and no
+accepted-params list. `registerStrictToolkitEffect` is a line-for-line
+port of rc.116's `McpServer.registerToolkit` over the public
+`McpServer.McpServer.addTool`, with its deviations listed in the file
+header and re-checked on every rc bump: every tool treated as strict
+plus the pre-decode unknown-key walk; the served input built by
+`servedInputJsonSchema` (Effect's own strict document, which closes
+every object node) and reshaped only at the root by
+`objectRootedInputSchema` (`$ref` roots inlined, a top-level `action` /
+`kind` union rewritten to `oneOf` + `x-discriminator`); the
+`UnexpectedToolError` envelope for internal failures instead of rc.116's
+scrubbed text; `outputSchema` served only when object-rooted, because
 `@modelcontextprotocol/sdk`'s `ToolSchema` still requires
-`outputSchema.type === "object"`; and no `structuredContent` for a
-non-object encoded result). Input schemas decode through
-`McpSchema.ToolJson` (object root required) and output schemas through
+`outputSchema.type === "object"` (fixed upstream by Effect-TS/effect#8326
+in rc.117, not yet adopted); and no `structuredContent` for a non-object
+encoded result. The former markdown-text deviation is retired: every
+successful result sends the encoded object as `structuredContent` and
+the same object as JSON in `content[0].text`, exactly as upstream does,
+because Claude Code forwards only `structuredContent` to the model when
+a result carries it. Input schemas decode through `McpSchema.ToolJson`
+(object root required) and output schemas through
 `McpSchema.ToolOutputJson`; `addTool`'s handler requirement is
-`McpSchema.McpRequestContext`. Per tool it strictifies the served JSON
-Schema (`additionalProperties: false` on every object node, `$ref` roots
-inlined, a top-level `action` / `kind` union rewritten to `oneOf` +
-`x-discriminator`), walks the raw payload against that schema *before*
-decoding and fails `InvalidParams` naming the unknown key's path and the
-accepted params at that level, renders the dual channel
-(`structuredContent` = the encoded `success` value, `content[0].text` =
-`RenderText` markdown or JSON), and maps every unexpected failure or
-defect to the `UnexpectedToolError` envelope rather than propagating a
-bare error. See
+`McpSchema.McpRequestContext`. The unknown-key walk runs *before*
+decoding and fails `InvalidParams` naming every unknown key's path and
+the accepted params at that level; the native strict decode stays behind
+it as a backstop. Every unexpected failure or defect maps to the
+`UnexpectedToolError` envelope rather than propagating a bare error. See
 [Strict MCP Tool Inputs](../decisions/50-strict-mcp-tool-inputs.md) and
 [Strict Tool Inputs](../invariants/strict-tool-inputs.md) for the
 enforcement mechanism and the regression guard.
@@ -518,7 +524,9 @@ latency and side effects: prompt selection on the client costs zero tool
 roundtrips, and the server never reads the database while assembling a
 prompt response. The six factories are pure and must not call `DataReader`
 / `DataStore`. `PromptsLayer` is `Layer.mergeAll` of six
-`McpServer.prompt(...)` layers; prompt arguments are strings on the wire,
+`McpServer.prompt(...)` layers, each serving a human-readable `title`
+(rc.116's `McpServer.prompt` accepts one; pinned by
+`prompts-layer.test.ts`); prompt arguments are strings on the wire,
 so every parameter is a `Schema.String`-based field wrapped in
 `Schema.optionalKey` when not required. `tdd-resume`'s session id default
 is the one server-side input — it defaults to the recovered

@@ -1,9 +1,8 @@
 // `settings_list` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Schema, SchemaGetter } from "effect";
+import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const SettingsRow = Schema.Struct({
 	hash: Schema.String.annotate({
@@ -34,20 +33,6 @@ export const SettingsListResult = Schema.Struct({
  */
 export type SettingsListResultType = Schema.Schema.Type<typeof SettingsListResult>;
 
-export const formatSettingsListMarkdown = (data: SettingsListResultType): string => {
-	if (data.settings.length === 0) return "No settings found. Run tests first.";
-	const lines: string[] = ["## Settings", "", "| Hash | Timestamp |", "| --- | --- |"];
-	for (const s of data.settings) lines.push(`| ${s.hash} | ${s.capturedAt} |`);
-	return lines.join("\n");
-};
-
-export const SettingsListAsMarkdown = SettingsListResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatSettingsListMarkdown(data)),
-		encode: SchemaGetter.forbidden(() => "SettingsListAsMarkdown is one-way."),
-	}),
-);
-
 /**
  * Handler for {@link settingsListTool}.
  *
@@ -68,7 +53,7 @@ export const handleSettingsList = (): Effect.Effect<SettingsListResultType, neve
  */
 export const settingsListTool = Tool.make("settings_list", {
 	description:
-		"Use when you need every captured settings snapshot and its hash. Returns markdown in content[] and a typed JSON object in structuredContent ({ count, settings[] }).",
+		"Use when you need every captured settings snapshot and its hash. Returns a typed JSON object in structuredContent ({ count, settings[] }).",
 	success: SettingsListResult,
 	dependencies: [DataReader],
 })
@@ -76,5 +61,4 @@ export const settingsListTool = Tool.make("settings_list", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatSettingsListMarkdown(encoded as SettingsListResultType));
+	.annotate(Tool.Idempotent, true);

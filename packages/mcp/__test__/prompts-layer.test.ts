@@ -16,6 +16,7 @@ import { makeHarness } from "./utils/harness.js";
 
 interface PromptDescriptor {
 	readonly name: string;
+	readonly title?: string;
 	readonly description?: string;
 	readonly arguments?: ReadonlyArray<{
 		readonly name: string;
@@ -59,6 +60,19 @@ describe("prompts/list", () => {
 			["explain-failure", "regression-since-pass", "tdd-resume", "triage", "why-flaky", "wrapup"].sort(),
 		);
 		for (const prompt of prompts) expect(prompt.description, prompt.name).toBeTruthy();
+	});
+
+	it("serves a human-readable title for each prompt", async () => {
+		const prompts = await listPrompts();
+		const titles = Object.fromEntries(prompts.map((p) => [p.name, p.title]));
+		expect(titles).toStrictEqual({
+			triage: "Triage Recent Failures",
+			"why-flaky": "Diagnose a Flaky Test",
+			"regression-since-pass": "Find What Broke a Test",
+			"explain-failure": "Explain a Failure Class",
+			"tdd-resume": "Resume TDD Work",
+			wrapup: "Generate a Session Wrapup",
+		});
 	});
 
 	it("declares each prompt's arguments with the pre-port required flags", async () => {

@@ -5,7 +5,7 @@ description: Complete catalog of the 30 action-keyed MCP tools exposed by @vites
 
 # MCP tools
 
-The `@vitest-agent/mcp` server exposes 30 tools over stdio. Per-CRUD families collapse into a single tool that dispatches on an `action` (or `kind`) discriminator. Every tool emits both a markdown `content[]` response for human-readable display and a typed `structuredContent` payload per MCP 2025-06-18. Tool inputs and outputs are Effect `Schema` values end to end; the served JSON Schema is generated from them.
+The `@vitest-agent/mcp` server exposes 30 tools over stdio. Per-CRUD families collapse into a single tool that dispatches on an `action` (or `kind`) discriminator. Every tool returns its typed result as `structuredContent`, and `content[0].text` carries the same result serialized as JSON, which is the form the MCP spec recommends for clients that read only `content`. Tool inputs and outputs are Effect `Schema` values end to end; the served JSON Schema is generated from them.
 
 ## Input validation
 
@@ -53,7 +53,7 @@ No parameters.
 
 ## Read-only test queries
 
-These tools query the SQLite database written by `AgentPlugin` and return markdown for human consumption plus a typed `structuredContent` payload.
+These tools query the SQLite database written by `AgentPlugin` and return a typed `structuredContent` payload.
 
 ### `test_status`
 
@@ -208,7 +208,7 @@ Execute Vitest for specific files or patterns. Returns a `RunTestsResult` discri
 
 With `projectRoot` omitted, the run anchors at the directory holding the vitest config (or a vite config, as a fallback) that Vitest would load anyway, found by walking up from the server's boot directory and bounded at the git root. Anchoring keeps the Vitest root and the config's own directory from disagreeing, which is what a server booted inside a package subtree of a monorepo needs. The walk still starts where the server booted, so from a git worktree it lands in the wrong tree: the run happens in whichever checkout the server started in, and its results come back looking like yours — a false green. Pass `projectRoot` to name the tree you mean. A supplied path is used verbatim once validated, with no anchoring applied.
 
-The supplied path is validated, never trusted. It must exist, be a directory, and belong to the same repository as `ctx.cwd`, compared through `git rev-parse --git-common-dir` (identical across a repo and every worktree cut from it). A path in a different repository or a path that does not exist returns `{ kind: "error" }` whose message names both paths, rather than falling back to `ctx.cwd`. The markdown output carries a `Project root:` line on both the `ok` and `no-match` results.
+The supplied path is validated, never trusted. It must exist, be a directory, and belong to the same repository as `ctx.cwd`, compared through `git rev-parse --git-common-dir` (identical across a repo and every worktree cut from it). A path in a different repository or a path that does not exist returns `{ kind: "error" }` whose message names both paths, rather than falling back to `ctx.cwd`. Both the `ok` and `no-match` results carry the resolved `projectRoot`.
 
 ```json
 {
@@ -269,8 +269,6 @@ Single action-keyed tool for all note operations. Dispatches on the `action` dis
 | `pinned` | `boolean` | No | Pin the note |
 | `id` | `number` | `get`, `update`, `delete` | Note ID |
 | `query` | `string` | `search` | Search query |
-
-`list` and `search` return markdown. `create`, `get`, `update`, and `delete` return JSON.
 
 #### Note scopes
 

@@ -7,7 +7,6 @@
 import { DataReader, formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 /**
  * The `wrapup_prompt` tool's success payload.
@@ -78,14 +77,13 @@ export const handleWrapupPrompt = (
 	});
 
 /**
- * The Effect-native `wrapup_prompt` tool. The text channel is the
- * pre-rendered `markdown` field itself.
+ * The Effect-native `wrapup_prompt` tool.
  *
  * @public
  */
 export const wrapupPromptTool = Tool.make("wrapup_prompt", {
 	description:
-		"Use when a session is ending and you need a tailored wrap-up prompt (Stop / SessionEnd / PreCompact / TDD handoff / UserPromptSubmit nudge variants). Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, kind, markdown }).",
+		"Use when a session is ending and you need a tailored wrap-up prompt (Stop / SessionEnd / PreCompact / TDD handoff / UserPromptSubmit nudge variants). Returns a typed envelope in structuredContent ({ hasContent, kind, markdown }).",
 	parameters: WrapupPromptInput,
 	success: WrapupPromptResult,
 	dependencies: [DataReader],
@@ -94,5 +92,4 @@ export const wrapupPromptTool = Tool.make("wrapup_prompt", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => (encoded as WrapupPromptResultType).markdown);
+	.annotate(Tool.Idempotent, true);

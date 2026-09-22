@@ -8,8 +8,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: c44f2d064eccd67dc62cb3f6b40e9bb41ac1e8c5d195cf753445802f653a0541
+  at: 2026-09-16T01:24:14Z
+  body_sha256: 210039ba7dce93053005b03c1c7fb2d2c5ac9fdc2ca1f2e30c672c2084235e5d
 sources:
   - id: run-report-file-schema
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts

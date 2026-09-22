@@ -9,7 +9,6 @@ import { DataReader } from "@vitest-agent/engine";
 import { ChannelEvent } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { McpServer, Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 /**
  * The `tdd_progress_push` tool's parameters.
@@ -131,5 +130,4 @@ export const tddProgressPushTool = Tool.make("tdd_progress_push", {
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, false)
-	.annotate(RenderText, (encoded) => JSON.stringify(encoded, null, 2));
+	.annotate(Tool.Idempotent, false);

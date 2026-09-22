@@ -9,7 +9,6 @@ import {
 
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 /**
  * Lookback window for the missing_artifact_evidence cross-session
@@ -444,5 +443,4 @@ export const tddPhaseTransitionRequestTool = Tool.make("tdd_phase_transition_req
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => JSON.stringify(encoded, null, 2));
+	.annotate(Tool.Idempotent, true);

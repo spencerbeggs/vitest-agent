@@ -131,12 +131,13 @@ case "$tool_name" in
 		#
 		# Claude Code surfaces MCP tool results with `tool_response`
 		# as an array of `{ type, text }` content blocks, NOT a
-		# `tool_response.content[]` object. `formatReportMarkdown`
-		# emits `## ✅ Vitest -- ...` on success and
-		# `## ❌ Vitest -- N failed, ...` on failure. `formatReportJson`
-		# emits `{"report": {"reason": "passed"|"failed"|...}, ...}`.
-		# Classify by markdown header first, fall back to JSON
-		# `.report.reason`. If neither matches (timeout / run-failed
+		# `tool_response.content[]` object. Since @vitest-agent/mcp
+		# retired its markdown channel (#487) the text block is the
+		# result JSON, `{"kind": "ok", "report": {"reason":
+		# "passed"|"failed"|...}, ...}`; older servers sent a markdown
+		# headline (`## ✅ Vitest -- ...` / `## ❌ Vitest -- N failed,
+		# ...`). Classify by that header first so both keep working,
+		# then by JSON `.report.reason`. If neither matches (timeout / run-failed
 		# / unrecognized shape), skip the artifact write rather than
 		# guess — silent misclassification breaks evidence-based
 		# phase transitions far more than a missing artifact does.

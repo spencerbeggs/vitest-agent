@@ -9,7 +9,7 @@ import { DataStore, ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TestResultType } from "../src/tools/test.js";
-import { TestResult, formatTestMarkdown } from "../src/tools/test.js";
+import { TestResult } from "../src/tools/test.js";
 import { makeCaller } from "./utils/caller.js";
 import { DataStoreTestLayer } from "./utils/layers.js";
 
@@ -142,60 +142,6 @@ describe("test({ action: 'for_tag' }) — project scoped", () => {
 		if (result.action !== "for_tag") return;
 		expect(result.count).toBe(0);
 		expect(result.groups).toEqual([]);
-	});
-});
-
-describe("formatTestMarkdown — for_tag", () => {
-	it("renders a per-project table when groups are non-empty", () => {
-		const md = formatTestMarkdown({
-			action: "for_tag",
-			tag: "int",
-			count: 3,
-			groups: [
-				{
-					project: "proj-alpha",
-					tests: [
-						{
-							id: 1,
-							fullName: "alpha > int a1",
-							state: "passed",
-							duration: 5,
-							module: "src/alpha.test.ts",
-							classification: null,
-						},
-					],
-				},
-				{
-					project: "proj-beta",
-					tests: [
-						{
-							id: 2,
-							fullName: "beta > int b1",
-							state: "passed",
-							duration: 3,
-							module: "src/beta.test.ts",
-							classification: null,
-						},
-					],
-				},
-			],
-		});
-		expect(md).toContain("# Tests tagged `int`");
-		expect(md).toContain("Found 3 tests across 2 projects");
-		expect(md).toContain("### proj-alpha");
-		expect(md).toContain("### proj-beta");
-		expect(md).toContain("alpha > int a1");
-	});
-
-	it("falls back to the empty message when no tests match", () => {
-		const md = formatTestMarkdown({
-			action: "for_tag",
-			tag: "missing",
-			count: 0,
-			groups: [],
-		});
-		expect(md).toContain("No tests found tagged `missing`");
-		expect(md).toContain('inventory({ kind: "tag" })');
 	});
 });
 

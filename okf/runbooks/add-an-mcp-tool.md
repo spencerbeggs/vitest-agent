@@ -6,8 +6,8 @@ resource: ../../packages/mcp/src/toolkit.ts
 tags: [mcp, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 3b08f641cd338dd4ad6040355388a5dbc947596a6934599f4de8627390e684f5
+  at: 2026-09-22T19:35:29Z
+  body_sha256: 2818ad30e753f3b875a282ef9dad37a9dcbcac291defd6d392a23142f84a3824
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -100,8 +100,8 @@ tool's discriminant covers it.
 
 `pnpm vitest run packages/mcp` passes, including the extended
 `served-schema-strict.test.ts` (and `served-enum-drift.test.ts` for an
-action-keyed tool); the new tool appears in the `help` tool's markdown
-output; and `packages/mcp/__test__/utils/harness.ts`'s `listTools` returns
+action-keyed tool); the new tool appears in the markdown reference the
+`help` tool returns in `structuredContent.helpText`; and `packages/mcp/__test__/utils/harness.ts`'s `listTools` returns
 it with a strict `inputSchema`.
 
 ## Related

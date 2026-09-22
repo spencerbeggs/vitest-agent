@@ -15,8 +15,8 @@ sources:
     resource: ../../packages/mcp/__test__/register-toolkit.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: ffde8455a70db07e418ad433d3e383a8765625b50dcda90f9212ebdd5e664641
+  at: 2026-09-22T19:35:29Z
+  body_sha256: f7cc0235d57ecb9c616cb5f08bfbf7797076dc71910b05541a9fb9d2b942cf57
 ---
 
 # Strict MCP tool inputs — every served input rejects unknown keys
@@ -38,38 +38,51 @@ ship without also reaching the served schema[^served-enum-drift-test].
 ## Mechanism
 
 Every tool registers through `registerStrictToolkit`
-(`packages/mcp/src/register-toolkit.ts:405`), never Effect's own
-`McpServer.toolkit`, whose default `onExcessProperty: "ignore"` decode
-option would strip an unknown key before a handler ever saw it. The
-registrar does four things per tool:
+(`packages/mcp/src/register-toolkit.ts:506`), never Effect's own
+`McpServer.toolkit`. Since rc.116 (Effect-TS/effect#8218) `McpServer`
+honours `Tool.Strict` — `onExcessProperty: "error"` decode and a served
+document closed at every object node — but only for tools annotated
+strict, and its rejection reads `Expected no excess property at ["key"]`:
+the first key only, with no list of what is accepted. The registrar
+therefore treats every tool as strict whatever its annotation says, and
+does four things per tool:
 
-1. **Serves a strictified schema.** `strictifyJsonSchema`
-   (`register-toolkit.ts:120`) walks each tool's generated JSON Schema and
-   sets `additionalProperties: false` on every object node — one that
-   declares `properties` or is a bare object with no combinator —
-   recursing through `properties`, `items`, `prefixItems`, `oneOf` /
-   `anyOf` / `allOf`, and `$defs`. `inlineRootRefs`
-   (`register-toolkit.ts:101`) inlines a `$ref` root first (what Effect
-   emits for any schema carrying an `identifier` annotation), since a
-   `$ref` root fails MCP's `type: "object"` requirement and would `orDie`
-   at registration otherwise. A top-level union whose members share a
-   literal `action` / `kind` discriminant is rewritten from `anyOf` to
-   `type: "object"` + `oneOf` + `x-discriminator"`; the synthesized union
-   root itself carries no `additionalProperties: false`, since it
-   declares no `properties` of its own.
+1. **Serves Effect's strict document.** `servedInputJsonSchema`
+   (`register-toolkit.ts:323`) builds the input with
+   `Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })`
+   — the same document rc.116 serves for a `Tool.Strict` tool, with
+   `additionalProperties: false` on every object node emitted by Effect
+   itself — and passes it through `objectRootedInputSchema`
+   (`register-toolkit.ts:162`), which only reshapes the root: it inlines
+   a `$ref` root and `$ref` union members through `inlineRootRefs`
+   (`register-toolkit.ts:142`), since a `$ref` root (what Effect emits for
+   any schema carrying an `identifier` annotation) fails MCP's
+   `type: "object"` requirement and would `orDie` at registration, and it
+   rewrites a top-level union whose members share a literal `action` /
+   `kind` discriminant from `anyOf` to `type: "object"` + `oneOf` +
+   `x-discriminator`. The object nodes are left exactly as Effect emitted
+   them; the registrar no longer adds `additionalProperties` itself. A
+   dynamic tool (a raw JSON Schema rather than an Effect Schema) dies at
+   registration, as upstream does for a strict dynamic tool; none ships.
 2. **Walks the raw payload before decoding.** `collectUnknownKeys`
-   (`register-toolkit.ts:197`) resolves `$ref`s, selects the union branch
+   (`register-toolkit.ts:204`) resolves `$ref`s, selects the union branch
    by the discriminant value present in the payload, and recurses through
-   the same node shapes `strictifyJsonSchema` handles, collecting every
-   level that carries a key its schema does not declare. A hit fails
-   `McpSchema.InvalidParams` with a message built by `formatUnknownKeys`
-   (`register-toolkit.ts:277`): `Unrecognized parameter(s): <keys>.
-   Accepted params: <list>` — each echoed key truncated to 200 characters.
-   This walk runs before the tool's own Effect Schema decode, so a
-   rejected call never reaches a `DataReader` / `DataStore` call.
-3. **Renders the dual response channel.** `structuredContent` is the
-   result encoded through the tool's `success` schema; `content[0].text`
-   is the tool's `RenderText` markdown when annotated, else the raw JSON.
+   `properties`, `items`, `prefixItems`, `oneOf` / `anyOf` / `allOf`,
+   collecting every level that carries a key its schema does not declare.
+   A hit fails `McpSchema.InvalidParams` with a message built by
+   `formatUnknownKeys` (`register-toolkit.ts:279`): `Unrecognized
+   parameter(s): <keys>. Accepted params: <list>` — every unknown key,
+   path-qualified, each echoed key truncated to 200 characters. The walk
+   exists solely to produce that message; the native strict decode stays
+   behind it as a backstop. It runs before the tool's own Effect Schema
+   decode, so a rejected call never reaches a `DataReader` / `DataStore`
+   call.
+3. **Sends one result, two channels.** `structuredContent` is the result
+   encoded through the tool's `success` schema; `content[0].text` is the
+   same encoded object as JSON, exactly as upstream sends it. No tool
+   renders a markdown text channel — Claude Code forwards only
+   `structuredContent` to the model when a result carries it, so a
+   rendering there was never read.
 4. **Maps failures.** A declared, `Error`-shaped failure becomes
    `{ isError: true, content: [{ text: message }] }` with no
    `structuredContent`; every other failure or defect is logged and
@@ -81,8 +94,8 @@ each consolidated tool (`test`, `inventory`, `note`, `hypothesis`,
 `tdd_task`, `tdd_goal`, `tdd_behavior`) exports its literal tuple
 (`TEST_ACTIONS`, `INVENTORY_KINDS`, and so on) immediately after its
 `Schema.Union`, pinned to the union's own discriminant type by a two-way
-conditional-type assertion at compile time. `strictifyJsonSchema` derives
-the served `oneOf` + `x-discriminator` from that same union's generated
+conditional-type assertion at compile time. `objectRootedInputSchema`
+derives the served `oneOf` + `x-discriminator` from that same union's generated
 JSON Schema — the tuple is never independently re-typed into the served
 schema — and `served-enum-drift.test.ts` asserts the served `oneOf`
 members match the tuple at runtime[^served-enum-drift-test].
@@ -101,9 +114,11 @@ level[^register-toolkit-test].
 ## What a refactor would have to break
 
 A new tool that registers through `McpServer.toolkit` directly, rather
-than through `registerStrictToolkit`, would serve a schema with the
-library default `onExcessProperty: "ignore"` — no `additionalProperties:
-false` anywhere — and `served-schema-strict.test.ts`'s sweep over every
+than through `registerStrictToolkit`, would — unless annotated
+`Tool.Strict` — serve a schema with the library default
+`onExcessProperty: "ignore"`, with no `additionalProperties: false`
+anywhere, and even when annotated would reject with upstream's
+first-key-only message; either way `served-schema-strict.test.ts`'s sweep over every
 served schema would fail the moment that tool's schema is walked, since
 the guard test also asserts the case list covers every entry in
 `tools/list`, so a new tool cannot silently opt out by never appearing in
@@ -113,8 +128,8 @@ two-way conditional assertion only catches a mismatch between the tuple
 and the union, not a member added to only one of them incompletely) but
 fail `served-enum-drift.test.ts`'s runtime comparison against the served
 `oneOf`, since the served schema is generated straight from the union.
-And editing `strictifyJsonSchema` or `collectUnknownKeys` to skip a node
-type — for example, to stop recursing into `prefixItems` — would surface
+And building the served document without `onExcessProperty: "error"`,
+or editing `collectUnknownKeys` to skip a node type — for example, to stop recursing into `prefixItems` — would surface
 as a `served-schema-strict.test.ts` failure on any tool whose schema
 actually uses that shape, rather than as a silent gap, because the sweep
 walks every served schema's every node rather than sampling.

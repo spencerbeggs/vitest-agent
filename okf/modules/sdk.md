@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 2fa783eb1240081622841d10343c7630f7c6a89e3827da86e1a58991e6982f5e
+  at: 2026-09-22T19:49:15Z
+  body_sha256: a4fa9974a0d2a737f939cc06c9e9bc8203be37d73dbdecbdc1f84a59883a6177
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -328,7 +328,8 @@ receive terminal escape codes.
 `"(N test files)"` when the total is unknown). It is the single source of
 that sentence across every surface that needs it: the terminal formatter's
 coverage section, the console/markdown formatter, the MCP `run_tests`
-summary, and both `@vitest-agent/ui` dispatch entry points.
+result's structured `scopedNote` field, and both `@vitest-agent/ui`
+dispatch entry points.
 
 ### Published JSON Schema documents (`schemas/`)
 

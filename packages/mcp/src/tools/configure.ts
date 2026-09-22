@@ -1,9 +1,8 @@
 // `configure` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const SettingsRowSchema = Schema.Struct({
 	hash: Schema.String.annotate({
@@ -67,49 +66,6 @@ export const ConfigureResult = Schema.Union([SettingsFound, SettingsAbsent]).ann
  */
 export type ConfigureResultType = Schema.Schema.Type<typeof ConfigureResult>;
 
-const formatSettings = (s: Schema.Schema.Type<typeof SettingsRowSchema>): string => {
-	const lines: string[] = [`# Settings — \`${s.hash}\``, ""];
-	lines.push(`**Captured:** ${s.capturedAt}`);
-	if (s.project !== null) lines.push(`**Project:** ${s.project}`);
-	if (s.environment !== null) lines.push(`**Environment:** ${s.environment}`);
-	if (s.pool !== null) lines.push(`**Pool:** ${s.pool}`);
-	if (s.shard !== null) lines.push(`**Shard:** ${s.shard}`);
-	lines.push("", "## Coverage", `- **Enabled:** ${s.coverageEnabled ? "yes" : "no"}`);
-	if (s.coverageProvider !== null) lines.push(`- **Provider:** ${s.coverageProvider}`);
-	if (s.coverageThresholds !== null) lines.push(`- **Thresholds:** \`${s.coverageThresholds}\``);
-	if (s.coverageTargets !== null) lines.push(`- **Targets:** \`${s.coverageTargets}\``);
-	if (s.reporters !== null) lines.push("", "## Reporters", `\`${s.reporters}\``);
-	const envKeys = Object.keys(s.envVars);
-	if (envKeys.length > 0) {
-		lines.push("", "## Environment Variables");
-		for (const key of envKeys) lines.push(`- \`${key}\`: \`${s.envVars[key]}\``);
-	}
-	return lines.join("\n");
-};
-
-export const formatConfigureMarkdown = (data: ConfigureResultType): string => {
-	if (data.found) return formatSettings(data.settings);
-	if (data.source === "latest") {
-		return [
-			"# Configure",
-			"",
-			"No settings captured yet. Run tests first.",
-			"",
-			"Configuration is written automatically by `AgentPlugin` when tests run.",
-		].join("\n");
-	}
-	return `No settings found for hash \`${data.requestedHash ?? "(unknown)"}\`.`;
-};
-
-export const ConfigureAsMarkdown = ConfigureResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatConfigureMarkdown(data)),
-		encode: SchemaGetter.forbidden(
-			() => "ConfigureAsMarkdown is one-way: markdown cannot be parsed back to ConfigureResult.",
-		),
-	}),
-);
-
 /**
  * The `configure` tool's parameters.
  *
@@ -158,7 +114,7 @@ export const handleConfigure = (input: ConfigureInputType): Effect.Effect<Config
  */
 export const configureTool = Tool.make("configure", {
 	description:
-		"Use when you need the captured Vitest settings for a test run. Returns markdown in content[] and a typed JSON object in structuredContent ({ found, source, settings?, requestedHash? }).",
+		"Use when you need the captured Vitest settings for a test run. Returns a typed JSON object in structuredContent ({ found, source, settings?, requestedHash? }).",
 	parameters: ConfigureInput,
 	success: ConfigureResult,
 	dependencies: [DataReader],
@@ -167,5 +123,4 @@ export const configureTool = Tool.make("configure", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatConfigureMarkdown(encoded as ConfigureResultType));
+	.annotate(Tool.Idempotent, true);

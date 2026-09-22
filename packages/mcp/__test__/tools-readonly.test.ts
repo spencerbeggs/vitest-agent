@@ -1,8 +1,8 @@
 /**
  * The 18 read-only tools over the in-process stdio harness: each is
  * listed with the read-only annotation set, and a representative
- * `tools/call` returns the typed `structuredContent` plus the markdown
- * (or JSON) text channel. Assertions mirror the direct-caller tests in
+ * `tools/call` returns the typed `structuredContent` (mirrored as JSON in
+ * `content[0].text`). Assertions mirror the direct-caller tests in
  * `tool-handlers.test.ts` and the per-tool suites they replace.
  */
 
@@ -120,22 +120,19 @@ describe("read-only tools: tools/list", () => {
 });
 
 describe("test_status", () => {
-	it("returns dataAvailable=false with the cold-start text on an empty DB", async () => {
+	it("returns dataAvailable=false on an empty DB", async () => {
 		const result = await call("test_status", {});
 		expect(result.isError).toBe(false);
 		expect(result.structuredContent).toEqual({ dataAvailable: false, reason: "no_manifest" });
-		expect(text(result)).toBe("No test data available. Run tests first.");
 	});
 
-	it("returns the per-project entries and the markdown after seeding", async () => {
+	it("returns the per-project entries after seeding", async () => {
 		const result = await call("test_status", { project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent?.dataAvailable).toBe(true);
 		expect(result.structuredContent?.projectFilter).toBe(SEED_PROJECT);
 		const entries = result.structuredContent?.entries as Array<{ project: string; lastResult: string }>;
 		expect(entries.map((e) => e.project)).toEqual([SEED_PROJECT]);
 		expect(entries[0]?.lastResult).toBe("passed");
-		expect(text(result)).toContain("# Test Status");
-		expect(text(result)).toContain(`**${SEED_PROJECT}**`);
 	});
 
 	it("reports project_filter_empty for an unknown project", async () => {
@@ -145,7 +142,6 @@ describe("test_status", () => {
 			reason: "project_filter_empty",
 			projectFilter: "nope",
 		});
-		expect(text(result)).toBe("No test data found for project `nope`. Run tests first.");
 	});
 });
 
@@ -153,17 +149,14 @@ describe("test_overview", () => {
 	it("returns dataAvailable=false on an empty DB", async () => {
 		const result = await call("test_overview", {});
 		expect(result.structuredContent).toEqual({ dataAvailable: false, reason: "no_runs" });
-		expect(text(result)).toBe("No test data available. Run tests first.");
 	});
 
-	it("returns the run metrics and the markdown tables after seeding", async () => {
+	it("returns the run metrics after seeding", async () => {
 		const result = await call("test_overview", { project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent?.dataAvailable).toBe(true);
 		const runs = result.structuredContent?.runs as Array<{ project: string; total: number; passed: number }>;
 		expect(runs).toHaveLength(1);
 		expect(runs[0]).toMatchObject({ project: SEED_PROJECT, total: 5, passed: 5, failed: 0, skipped: 0 });
-		expect(text(result)).toContain("# Test Overview");
-		expect(text(result)).toContain("| Total | 5 |");
 	});
 });
 
@@ -171,7 +164,6 @@ describe("test_coverage", () => {
 	it("returns dataAvailable=false when no coverage exists", async () => {
 		const result = await call("test_coverage", {});
 		expect(result.structuredContent).toEqual({ dataAvailable: false, project: "default" });
-		expect(text(result)).toBe("No coverage data available. Run tests with coverage enabled.");
 	});
 
 	it("returns the coverage report after seeding", async () => {
@@ -180,8 +172,6 @@ describe("test_coverage", () => {
 		expect(result.structuredContent?.project).toBe(SEED_PROJECT);
 		const coverage = result.structuredContent?.coverage as { totals: { statements: number } };
 		expect(coverage.totals.statements).toBeGreaterThanOrEqual(0);
-		expect(text(result)).toContain("# Coverage Report");
-		expect(text(result)).toContain("## Totals");
 	});
 });
 
@@ -193,7 +183,6 @@ describe("test_history", () => {
 		expect(result.structuredContent).toHaveProperty("flaky");
 		expect(result.structuredContent).toHaveProperty("persistent");
 		expect(result.structuredContent).toHaveProperty("recovered");
-		expect(text(result)).toMatch(/^# Test History: default|^No history data available for project `default`/);
 	});
 
 	it("rejects a non-positive or fractional limit instead of silently returning empty history", async () => {
@@ -278,17 +267,14 @@ describe("test_trends", () => {
 	it("returns dataAvailable=false for a project with no trend entries", async () => {
 		const result = await call("test_trends", { project: "nope" });
 		expect(result.structuredContent).toEqual({ dataAvailable: false, project: "nope" });
-		expect(text(result)).toContain("No trend data available for project `nope`");
 	});
 
-	it("returns the trend record and the markdown after seeding", async () => {
+	it("returns the trend record after seeding", async () => {
 		const result = await call("test_trends", { project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent?.dataAvailable).toBe(true);
 		const trends = result.structuredContent?.trends as { entries: Array<{ direction: string }> };
 		expect(trends.entries).toHaveLength(1);
 		expect(trends.entries[0]?.direction).toBe("improving");
-		expect(text(result)).toContain(`# Coverage Trends: ${SEED_PROJECT}`);
-		expect(text(result)).toContain("## Latest Coverage");
 	});
 });
 
@@ -296,7 +282,6 @@ describe("test_errors", () => {
 	it("returns an empty, counted payload for a project with no errors", async () => {
 		const result = await call("test_errors", { project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent).toEqual({ project: SEED_PROJECT, count: 0, errors: [] });
-		expect(text(result)).toBe(`No errors found for project \`${SEED_PROJECT}\`.`);
 	});
 
 	it("returns each error row with its annotations and the cite-able ids", async () => {
@@ -315,9 +300,6 @@ describe("test_errors", () => {
 			{ type: "issues", message: "flaky under load", location: { file: "src/failing.test.ts", line: 4, column: 1 } },
 		]);
 		expect(moduleScoped?.annotations).toEqual([]);
-		expect(text(result)).toContain(`# Test Errors — ${SEED_ERROR_PROJECT}`);
-		expect(text(result)).toContain(`citedTestErrorId: ${testScoped?.id}`);
-		expect(text(result)).toContain("- [issues] flaky under load");
 	});
 
 	it("echoes the errorName filter", async () => {
@@ -331,14 +313,12 @@ describe("file_coverage", () => {
 	it("returns dataAvailable=false when no coverage exists", async () => {
 		const result = await call("file_coverage", { filePath: SEED_SOURCE_FILE });
 		expect(result.structuredContent).toEqual({ dataAvailable: false, filePath: SEED_SOURCE_FILE });
-		expect(text(result)).toBe("No coverage data available. Run tests with coverage enabled.");
 	});
 
 	it("returns dataAvailable=true for the tracked project", async () => {
 		const result = await call("file_coverage", { filePath: SEED_SOURCE_FILE, project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent?.dataAvailable).toBe(true);
 		expect(result.structuredContent?.filePath).toBe(SEED_SOURCE_FILE);
-		expect(text(result)).toContain(`# Coverage: \`${SEED_SOURCE_FILE}\``);
 	});
 
 	it("returns matched=false for an unknown file", async () => {
@@ -346,7 +326,6 @@ describe("file_coverage", () => {
 		expect(result.structuredContent?.dataAvailable).toBe(true);
 		expect(result.structuredContent?.matched).toBe(false);
 		expect(result.structuredContent?.filePath).toBe("nonexistent.ts");
-		expect(text(result)).toContain("This file is not in the low-coverage list.");
 	});
 
 	it("rejects a missing filePath", async () => {
@@ -356,10 +335,9 @@ describe("file_coverage", () => {
 });
 
 describe("settings_list", () => {
-	it("returns count=0 and the cold-start text on an empty DB", async () => {
+	it("returns count=0 on an empty DB", async () => {
 		const result = await call("settings_list", {});
 		expect(result.structuredContent).toEqual({ count: 0, settings: [] });
-		expect(text(result)).toBe("No settings found. Run tests first.");
 	});
 
 	it("returns count and the captured settings rows after seeding", async () => {
@@ -367,8 +345,6 @@ describe("settings_list", () => {
 		expect(result.structuredContent?.count).toBeGreaterThan(0);
 		const settings = result.structuredContent?.settings as Array<{ hash: string }>;
 		expect(settings[0]?.hash.length).toBeGreaterThan(0);
-		expect(text(result)).toContain("## Settings");
-		expect(text(result)).toContain(`| ${SEED_SETTINGS_HASH} |`);
 	});
 
 	it("rejects an unknown parameter", async () => {
@@ -382,7 +358,6 @@ describe("cache_health", () => {
 	it("returns manifestPresent=false on an empty DB", async () => {
 		const result = await call("cache_health", {});
 		expect(result.structuredContent).toEqual({ manifestPresent: false });
-		expect(text(result)).toContain("**Manifest:** not found");
 	});
 
 	it("returns the manifest, ageMs and stale after seeding", async () => {
@@ -392,8 +367,6 @@ describe("cache_health", () => {
 		expect(typeof result.structuredContent?.stale).toBe("boolean");
 		const manifest = result.structuredContent?.manifest as { projects: Array<{ project: string }> };
 		expect(manifest.projects.map((p) => p.project)).toEqual(expect.arrayContaining([SEED_PROJECT]));
-		expect(text(result)).toContain("# Cache Health");
-		expect(text(result)).toContain("**Manifest:** present");
 	});
 });
 
@@ -401,7 +374,6 @@ describe("configure", () => {
 	it("returns found=false with source=latest on an empty DB", async () => {
 		const result = await call("configure", {});
 		expect(result.structuredContent).toEqual({ found: false, source: "latest" });
-		expect(text(result)).toContain("No settings captured yet. Run tests first.");
 	});
 
 	it("returns the latest settings when no hash is provided", async () => {
@@ -410,13 +382,11 @@ describe("configure", () => {
 		expect(result.structuredContent?.source).toBe("latest");
 		const settings = result.structuredContent?.settings as { hash: string } | undefined;
 		expect(settings?.hash).toBe(SEED_SETTINGS_HASH);
-		expect(text(result)).toContain(`# Settings — \`${SEED_SETTINGS_HASH}\``);
 	});
 
 	it("echoes the requested hash when it matches nothing", async () => {
 		const result = await call("configure", { settingsHash: "nope" }, SEEDED);
 		expect(result.structuredContent).toEqual({ found: false, source: "requested", requestedHash: "nope" });
-		expect(text(result)).toBe("No settings found for hash `nope`.");
 	});
 });
 
@@ -424,7 +394,6 @@ describe("commit_changes", () => {
 	it("returns count=0 and an empty commits[] on an empty DB", async () => {
 		const result = await call("commit_changes", {});
 		expect(result.structuredContent).toEqual({ count: 0, commits: [] });
-		expect(text(result)).toContain("No commits recorded yet.");
 	});
 
 	it("returns the recorded commit by sha and echoes filterSha", async () => {
@@ -433,15 +402,13 @@ describe("commit_changes", () => {
 		expect(result.structuredContent?.count).toBe(1);
 		const commits = result.structuredContent?.commits as Array<{ sha: string; message: string | null }>;
 		expect(commits[0]).toMatchObject({ sha: SEED_COMMIT_SHA, message: "feat: seed commit" });
-		expect(text(result)).toContain(`## ${SEED_COMMIT_SHA.slice(0, 8)} feat: seed commit`);
 	});
 });
 
 describe("turn_search", () => {
-	it("returns count=0 and 'No turns matched.' on an empty DB", async () => {
+	it("returns count=0 and an empty turns[] on an empty DB", async () => {
 		const result = await call("turn_search", {});
 		expect(result.structuredContent).toEqual({ count: 0, turns: [] });
-		expect(text(result)).toBe("No turns matched.");
 	});
 
 	it("returns the seeded turn filtered by type", async () => {
@@ -449,8 +416,6 @@ describe("turn_search", () => {
 		expect(result.structuredContent?.count).toBe(1);
 		const turns = result.structuredContent?.turns as Array<{ type: string; turnNo: number }>;
 		expect(turns[0]?.type).toBe("user_prompt");
-		expect(text(result)).toContain("# Turns");
-		expect(text(result)).toContain("type=user_prompt");
 	});
 
 	it("rejects an unknown turn type", async () => {
@@ -465,13 +430,11 @@ describe("failure_signature_get", () => {
 		expect(result.structuredContent?.found).toBe(true);
 		expect(result.structuredContent?.signatureHash).toBe(SEED_SIGNATURE_HASH);
 		expect(result.structuredContent?.occurrenceCount).toBe(1);
-		expect(text(result)).toContain(`# Failure Signature \`${SEED_SIGNATURE_HASH}\``);
 	});
 
 	it("returns found=false with the requested hash when nothing matches", async () => {
 		const result = await call("failure_signature_get", { hash: "0000000000000000" });
 		expect(result.structuredContent).toEqual({ found: false, requestedHash: "0000000000000000" });
-		expect(text(result)).toBe("No failure signature found with hash=0000000000000000.");
 	});
 
 	it("rejects a missing hash", async () => {
@@ -481,7 +444,7 @@ describe("failure_signature_get", () => {
 });
 
 describe("acceptance_metrics", () => {
-	it("returns the four metric buckets and the numbered markdown", async () => {
+	it("returns the four metric buckets", async () => {
 		const result = await call("acceptance_metrics", {});
 		expect(Object.keys(result.structuredContent ?? {}).sort()).toEqual([
 			"antiPatternDetectionRate",
@@ -491,25 +454,23 @@ describe("acceptance_metrics", () => {
 		]);
 		const bucket = result.structuredContent?.phaseEvidenceIntegrity as { total: number; ratio: number };
 		expect(bucket.total).toBe(0);
-		expect(text(result)).toContain("# Acceptance metrics");
-		expect(text(result)).toContain("1. Phase-evidence integrity: no data — target ≥80%");
 	});
 });
 
 describe("triage_brief", () => {
-	it("renders either the cold-start hint or a real triage brief on an empty DB", async () => {
+	it("returns either the cold-start hint or a real triage brief on an empty DB", async () => {
 		const result = await call("triage_brief", {});
 		expect(typeof result.structuredContent?.hasContent).toBe("boolean");
 		expect(result.structuredContent?.markdown).toMatch(/No orientation signal|orientation triage|Recent Test Runs/i);
-		expect(text(result)).toBe(result.structuredContent?.markdown);
+		expect(JSON.parse(text(result))).toEqual(result.structuredContent);
 	});
 
-	it("includes content when test runs are seeded and renders markdown as the text channel", async () => {
+	it("includes content when test runs are seeded and mirrors the envelope as JSON text", async () => {
 		const result = await call("triage_brief", { project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent?.hasContent).toBe(true);
 		const markdown = result.structuredContent?.markdown as string;
 		expect(markdown.length).toBeGreaterThan(0);
-		expect(text(result)).toBe(markdown);
+		expect(JSON.parse(text(result))).toEqual(result.structuredContent);
 	});
 });
 
@@ -519,7 +480,7 @@ describe("wrapup_prompt", () => {
 		expect(result.structuredContent?.hasContent).toBe(false);
 		expect(result.structuredContent?.kind).toBe("session_end");
 		expect(result.structuredContent?.markdown).toMatch(/Nothing to wrap up|no recent activity/i);
-		expect(text(result)).toBe(result.structuredContent?.markdown);
+		expect(JSON.parse(text(result))).toEqual(result.structuredContent);
 	});
 
 	it("emits a failure-prompt nudge for the user_prompt_nudge variant", async () => {
@@ -528,8 +489,9 @@ describe("wrapup_prompt", () => {
 			userPromptHint: "fix the broken test in foo.test.ts",
 		});
 		expect(result.structuredContent?.kind).toBe("user_prompt_nudge");
-		expect(text(result)).toContain("test_history");
-		expect(text(result)).toContain("failure_signature_get");
+		const markdown = result.structuredContent?.markdown as string;
+		expect(markdown).toContain("test_history");
+		expect(markdown).toContain("failure_signature_get");
 	});
 
 	it("rejects an unknown kind", async () => {
@@ -550,20 +512,17 @@ describe("inventory", () => {
 		const result = await call("inventory", { kind: "project" }, SEEDED);
 		expect(result.structuredContent?.inventoryKind).toBe("project");
 		expect(result.structuredContent?.count).toBe(2);
-		expect(text(result)).toContain("## Projects");
 	});
 
 	it("module returns the inventoryKind discriminant", async () => {
 		const result = await call("inventory", { kind: "module", project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent?.inventoryKind).toBe("module");
 		expect(result.structuredContent?.count).toBe(1);
-		expect(text(result)).toContain(`| ${SEED_MODULE} |`);
 	});
 
 	it("suite returns the inventoryKind discriminant", async () => {
 		const result = await call("inventory", { kind: "suite", project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent?.inventoryKind).toBe("suite");
-		expect(text(result)).toContain("## Suites");
 	});
 
 	it("session lists the seeded session and looks one up by id", async () => {
@@ -573,13 +532,11 @@ describe("inventory", () => {
 		expect(sessions.map((s) => s.chatId)).toEqual([SEED_CHAT_ID]);
 		const missing = await call("inventory", { kind: "session", id: 9999 }, SEEDED);
 		expect(missing.structuredContent).toEqual({ inventoryKind: "session_detail", found: false, id: 9999 });
-		expect(text(missing)).toBe("No session with id=9999.");
 	});
 
 	it("tag unscoped returns tag_unscoped with count 0 when no tags are recorded", async () => {
 		const result = await call("inventory", { kind: "tag" }, SEEDED);
 		expect(result.structuredContent).toEqual({ inventoryKind: "tag_unscoped", count: 0, tags: [] });
-		expect(text(result)).toBe("No tags recorded. Run run_tests({}) to populate.");
 	});
 
 	it("rejects an unknown kind and a key that belongs to another variant", async () => {
@@ -602,7 +559,7 @@ describe("test", () => {
 		const result = await call("test", { action: "list", project: SEED_PROJECT }, SEEDED);
 		expect(result.structuredContent?.action).toBe("list");
 		expect(result.structuredContent?.count).toBe(2);
-		expect(text(result)).toContain("utils > adds numbers");
+		expect(JSON.stringify(result.structuredContent)).toContain("utils > adds numbers");
 	});
 
 	it("get returns the structured test row for a known test", async () => {
@@ -666,8 +623,6 @@ describe("test", () => {
 			ambiguous: true,
 			candidateModules: [FIRST_MODULE, SECOND_MODULE],
 		});
-		expect(text(ambiguous)).toContain(FIRST_MODULE);
-		expect(text(ambiguous)).toContain(SECOND_MODULE);
 
 		const second = await call(
 			"test",
@@ -698,7 +653,6 @@ describe("test", () => {
 			count: 0,
 			testFiles: [],
 		});
-		expect(text(result)).toContain("No test modules found covering `nonexistent.ts`.");
 	});
 
 	it("for_tag returns an empty grouped envelope when no test carries the tag", async () => {

@@ -1,9 +1,8 @@
 // `test_overview` MCP tool — Schema-driven implementation.
 
 import { DataReader } from "@vitest-agent/engine";
-import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const ProjectRunSummary = Schema.Struct({
 	project: Schema.String,
@@ -43,56 +42,6 @@ export const TestOverviewResult = Schema.Union([OverviewAvailable, OverviewAbsen
  * @public
  */
 export type TestOverviewResultType = Schema.Schema.Type<typeof TestOverviewResult>;
-
-const iconForResult = (r: string | null): string => {
-	if (r === "passed") return "✅";
-	if (r === "failed") return "❌";
-	if (r === "interrupted") return "⚠️";
-	return "⬜";
-};
-
-export const formatTestOverviewMarkdown = (data: TestOverviewResultType): string => {
-	if (!data.dataAvailable) {
-		if (data.reason === "project_filter_empty") {
-			return `No test data found for project \`${data.projectFilter ?? "(unknown)"}\`. Run tests first.`;
-		}
-		return "No test data available. Run tests first.";
-	}
-	const lines: string[] = ["# Test Overview", ""];
-	type RunRow = Schema.Schema.Type<typeof ProjectRunSummary>;
-	const projectGroups = new Map<string, Array<RunRow>>();
-	for (const run of data.runs) {
-		const group = projectGroups.get(run.project) ?? [];
-		group.push(run);
-		projectGroups.set(run.project, group);
-	}
-	for (const [projectName, projectRuns] of projectGroups) {
-		lines.push(`## ${projectName}`, "");
-		for (const run of projectRuns) {
-			const lastRun = run.lastRun ? new Date(run.lastRun).toLocaleString() : "never";
-			lines.push(
-				`### ${iconForResult(run.lastResult)} ${run.project}`,
-				"",
-				"| Metric | Count |",
-				"| --- | --- |",
-				`| Total | ${run.total} |`,
-				`| Passed | ${run.passed} |`,
-				`| Failed | ${run.failed} |`,
-				`| Skipped | ${run.skipped} |`,
-				`| Last run | ${lastRun} |`,
-				"",
-			);
-		}
-	}
-	return lines.join("\n");
-};
-
-export const TestOverviewAsMarkdown = TestOverviewResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatTestOverviewMarkdown(data)),
-		encode: SchemaGetter.forbidden(() => "TestOverviewAsMarkdown is one-way."),
-	}),
-);
 
 /**
  * The `test_overview` tool's parameters.
@@ -153,7 +102,7 @@ export const handleTestOverview = (
  */
 export const testOverviewTool = Tool.make("test_overview", {
 	description:
-		"Use when you want a summary of the test landscape with per-project run metrics. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, projectFilter?, runs[] } or absent variant).",
+		"Use when you want a summary of the test landscape with per-project run metrics. Returns a typed JSON object in structuredContent ({ dataAvailable, projectFilter?, runs[] } or absent variant).",
 	parameters: TestOverviewInput,
 	success: TestOverviewResult,
 	dependencies: [DataReader],
@@ -162,5 +111,4 @@ export const testOverviewTool = Tool.make("test_overview", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatTestOverviewMarkdown(encoded as TestOverviewResultType));
+	.annotate(Tool.Idempotent, true);

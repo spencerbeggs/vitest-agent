@@ -42,7 +42,7 @@ export const SERVER_INSTRUCTIONS = [
 	"vitest-agent serves the test landscape of one Vitest project to LLM coding agents: run results, failure detail and history, coverage, flakiness, and the TDD lifecycle (tasks, goals, behaviors, phase transitions, hypotheses, notes).",
 	"Call the help tool first for the full tool reference; triage_brief orients on the current landscape; run_tests executes Vitest and persists the run so every query tool reads it back.",
 	"Every input is strict at every object level: an unknown key is rejected with a message naming the unrecognized key(s) and the accepted params, so fix the call rather than retrying it.",
-	"Every successful result carries the typed object in structuredContent and a text rendering (markdown where the tool renders one, otherwise the same JSON) in content[0].text; read structuredContent when you need fields.",
+	"Every successful result carries the typed object in structuredContent, and content[0].text holds the same object as JSON; read structuredContent when you need fields.",
 	"An expected domain error is NOT an isError result: it is a normal result whose structuredContent has ok: false and an error object. tdd_goal and tdd_behavior put _tag, the failing ids and a remediation naming the tool to call next in that object; register_agent puts a code and a message in it, plus existingAgentId or expectedPrefix when the code calls for one.",
 	"An isError result means the call itself failed: invalid params (bare text in content[0].text, no structuredContent) or an unexpected crash inside the tool (structuredContent is an UnexpectedToolError envelope with ok: false and a remediation). Read the message and fix the call.",
 ].join("\n");

@@ -9,8 +9,8 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: dffbe5ca673b461ec7a17c9731cb7cfc929f98621e5ea312ca50d551efd454e6
+  at: 2026-09-16T01:24:14Z
+  body_sha256: c25eda99bbfe675dd64a76de5f23311b00cbeee2c83cdfcd89eb79efedb1a47e
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json

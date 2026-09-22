@@ -2,9 +2,8 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { CoverageTotals, FileCoverageReport } from "@vitest-agent/sdk";
-import { Effect, Option, Schema, SchemaGetter } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 const CoverageGlobalThresholds = Schema.Struct({
 	statements: Schema.optional(Schema.Number),
@@ -53,66 +52,6 @@ export const FileCoverageResult = Schema.Union([FileCoverageMatched, FileCoverag
  * @public
  */
 export type FileCoverageResultType = Schema.Schema.Type<typeof FileCoverageResult>;
-
-export const formatFileCoverageMarkdown = (data: FileCoverageResultType): string => {
-	if (!data.dataAvailable) return "No coverage data available. Run tests with coverage enabled.";
-
-	const lines: string[] = [`# Coverage: \`${data.filePath}\``, ""];
-	const metrics = ["statements", "branches", "functions", "lines"] as const;
-
-	if (data.matched) {
-		lines.push("## Metrics", "", "| Metric | Value | Threshold |", "| --- | --- | --- |");
-		for (const metric of metrics) {
-			const value = data.report.summary[metric];
-			const threshold = data.globalThresholds[metric];
-			const thresholdStr = threshold !== undefined ? `${threshold}%` : "—";
-			const icon = threshold !== undefined && value < threshold ? "❌" : "✅";
-			lines.push(`| ${metric} | ${icon} ${value.toFixed(2)}% | ${thresholdStr} |`);
-		}
-		if (data.report.uncoveredLines) {
-			lines.push("", "## Uncovered Lines", "", `\`${data.report.uncoveredLines}\``);
-		}
-		lines.push(
-			"",
-			"## Next steps",
-			"",
-			'- Use test({ action: "for_file" }) to find tests covering this file',
-			"- Write tests targeting the uncovered lines",
-		);
-	} else {
-		lines.push(
-			"This file is not in the low-coverage list.",
-			"",
-			"Possible reasons:",
-			"- File meets all coverage thresholds",
-			"- File was not included in the coverage run",
-			"- File path does not match any tracked source file",
-			"",
-			"## Project Coverage Totals",
-			"",
-			"| Metric | Value |",
-			"| --- | --- |",
-			`| statements | ${data.totals.statements.toFixed(2)}% |`,
-			`| branches | ${data.totals.branches.toFixed(2)}% |`,
-			`| functions | ${data.totals.functions.toFixed(2)}% |`,
-			`| lines | ${data.totals.lines.toFixed(2)}% |`,
-		);
-	}
-
-	if (data.relatedTestFiles.length > 0) {
-		lines.push("", "## Tests Covering This File", "");
-		for (const tf of data.relatedTestFiles) lines.push(`- \`${tf}\``);
-	}
-
-	return lines.join("\n");
-};
-
-export const FileCoverageAsMarkdown = FileCoverageResult.pipe(
-	Schema.decodeTo(Schema.String, {
-		decode: SchemaGetter.transform((data) => formatFileCoverageMarkdown(data)),
-		encode: SchemaGetter.forbidden(() => "FileCoverageAsMarkdown is one-way."),
-	}),
-);
 
 /**
  * The `file_coverage` tool's parameters.
@@ -177,7 +116,7 @@ export const handleFileCoverage = (
  */
 export const fileCoverageTool = Tool.make("file_coverage", {
 	description:
-		"Use when you need coverage for one source file: per-metric values, uncovered lines, and related tests. Returns markdown in content[] and a typed JSON object in structuredContent ({ dataAvailable, matched?, filePath, report?, totals?, relatedTestFiles[] }).",
+		"Use when you need coverage for one source file: per-metric values, uncovered lines, and related tests. Returns a typed JSON object in structuredContent ({ dataAvailable, matched?, filePath, report?, totals?, relatedTestFiles[] }).",
 	parameters: FileCoverageInput,
 	success: FileCoverageResult,
 	dependencies: [DataReader],
@@ -186,5 +125,4 @@ export const fileCoverageTool = Tool.make("file_coverage", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => formatFileCoverageMarkdown(encoded as FileCoverageResultType));
+	.annotate(Tool.Idempotent, true);

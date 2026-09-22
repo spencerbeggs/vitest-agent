@@ -6,8 +6,8 @@ description: Why a scoped Vitest run is detected via five independent signals an
 tags: [architecture, testing]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 2b47bd0a877d3fa708e8bbe61ef63a667fad9e698481153c7cbd5cbe03f94ec7
+  at: 2026-09-16T17:10:37Z
+  body_sha256: df252b32081b5bf782733198a2658c8066f5a07f356feede6ddc066e172fa83e
 ---
 
 # Detect Partial Runs and Neutralise the Native Threshold Check

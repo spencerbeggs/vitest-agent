@@ -9,8 +9,8 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-20T01:39:48Z
-  body_sha256: fa5129459559f7d86bd4a8c3e19efa579b941eb0026ac1c2e5e9d9e09856b256
+  at: 2026-09-22T19:35:29Z
+  body_sha256: 62cd6a49787ea7326f25ea4f9e3808c67b4369808db3e68870375e6d05a1c77a
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -54,10 +54,14 @@ and `zod` are gone from the dependency graph.
 
 **Shape.** One file per tool under `src/tools/` exports the Effect
 Schema `parameters` / `success`, the discriminant tuple where
-applicable, the markdown formatter, the `handle<Name>` `Effect`, and the
-`Tool.make` value (annotated `Tool.Title` / `Readonly` / `Destructive` /
-`OpenWorld` / `Idempotent` and, for a markdown text channel,
-`RenderText`). `toolkit.ts` gathers `Kit`, the `toolHandlers` record
+applicable, the `handle<Name>` `Effect`, and the `Tool.make` value
+(annotated `Tool.Title` / `Readonly` / `Destructive` / `OpenWorld` /
+`Idempotent`). No tool renders a markdown text channel: every successful
+result's `content[0].text` is the encoded result as JSON, the same object
+as `structuredContent`, because Claude Code forwards only
+`structuredContent` to the model when a result carries it. The former
+`RenderText` annotation survives in `src/annotations.ts` as a
+`@deprecated` no-op nothing reads, removed at the next major. `toolkit.ts` gathers `Kit`, the `toolHandlers` record
 (`satisfies Toolkit.HandlersFrom<typeof Kit.tools>`, so a tool without a
 handler is a compile error — `packages/mcp/src/toolkit.ts:80-111`), and
 `ToolsLayer = Kit.toLayer(toolHandlers)`
@@ -73,26 +77,32 @@ replaces the tRPC-era context object.
 
 **A local strict registrar over `McpServer.addTool`, not
 `McpServer.toolkit`.** `McpServer.toolkit` decodes arguments with
-Effect's default `onExcessProperty: "ignore"`, which strips unknown keys
-— exactly the silent-widening class [Decision 50](50-strict-mcp-tool-inputs.md) exists to forbid.
+Effect's default `onExcessProperty: "ignore"` unless a tool is annotated
+`Tool.Strict`, which strips unknown keys — exactly the silent-widening
+class [Decision 50](50-strict-mcp-tool-inputs.md) exists to forbid — and
+rc.116's strict path (Effect-TS/effect#8218) rejects with the first
+excess key only and no accepted-params list.
 `register-toolkit.ts`'s `registerStrictToolkitEffect` is therefore a
 line-for-line port of rc.116's `McpServer.registerToolkit` over the
-public `addTool`, with six deviations enumerated in the file header and
-re-checked on every rc bump: (i) `collectUnknownKeys` walks the raw
-payload against the served JSON Schema before decoding and fails with
-`McpSchema.InvalidParams` naming the unrecognized key(s) and the accepted
-params, qualified at every object level, array element, and the union
-branch the discriminant selects — `Tool.Strict` is mirrored (strict
-decode options, `onExcessProperty: "error"` on the served document, a
-die for a strict dynamic tool) but subsumed by the always-strict
-contract; (ii) the served input schema goes through `strictifyJsonSchema`
-(`additionalProperties: false` on every object node, a top-level
-`action` / `kind` union rewritten from `anyOf` to `oneOf` plus
-`x-discriminator`) and `inlineRootRefs` (a bare `$ref` root or `$ref`
-union member is inlined, since a `$ref` root fails `McpSchema.ToolJson`'s
-object-root requirement and would `orDie` at registration); (iii) the
-success branch renders the `RenderText` markdown as `content[0].text`
-instead of the JSON (upstream Effect-TS/effect#8316); (iv) an internal
+public `addTool`, with the deviations enumerated in the file header and
+re-checked on every rc bump: (i) every tool is treated as strict
+whatever its `Tool.Strict` annotation (strict decode options, a die at
+registration for a dynamic tool, as upstream does for a strict one), and
+`collectUnknownKeys` walks the raw payload against the served JSON
+Schema before decoding and fails with `McpSchema.InvalidParams` naming
+every unrecognized key and the accepted params, qualified at every
+object level, array element, and the union branch the discriminant
+selects — the native strict decode stays behind it as a backstop;
+(ii) the served input schema is Effect's own strict document
+(`servedInputJsonSchema`: `Schema.toJsonSchemaDocument` with
+`onExcessProperty: "error"`, which closes every object node) passed
+through `objectRootedInputSchema`, which only inlines a bare `$ref` root
+or `$ref` union member (a `$ref` root fails `McpSchema.ToolJson`'s
+object-root requirement and would `orDie` at registration) and rewrites
+a top-level `action` / `kind` union from `anyOf` to `oneOf` plus
+`x-discriminator` — the registrar adds no `additionalProperties` of its
+own; (iii) is retired: the success branch sends the encoded result as
+JSON in `content[0].text`, as upstream does (Effect-TS/effect#8316); (iv) an internal
 failure or defect renders the `UnexpectedToolError` envelope as
 `structuredContent` with `isError: true` instead of rc.116's scrubbed
 "Tool execution failed due to an internal server error." text, still
@@ -100,8 +110,8 @@ logged and `ErrorReporter.report`ed first; (v) `outputSchema` is served
 only when the success document is object-rooted after the `$ref` hoist,
 because `@modelcontextprotocol/sdk`'s `ToolSchema` requires
 `outputSchema.type === "object"` even though rc.116's
-`McpSchema.ToolOutputJson` accepts any JSON object (upstream
-Effect-TS/effect#8315); (vi) a non-object encoded result carries no
+`McpSchema.ToolOutputJson` accepts any JSON object — fixed upstream by
+Effect-TS/effect#8326 in rc.117, not yet adopted; (vi) a non-object encoded result carries no
 `structuredContent`. A declared `Error`-shaped failure maps to `{
 isError: true, content: [{ text: message }] }` with no
 `structuredContent`, upstream parity, and is no longer logged (rc.116
@@ -196,7 +206,7 @@ language end to end (Effect Schema for tool inputs, outputs and prompt
 arguments), no MCP SDK / tRPC / zod dependencies, and unknown-key
 rejection at every object level. What was sacrificed:
 `register-toolkit.ts` is a line-for-line port of Effect's own
-`registerToolkit` with six enumerated deviations that must be re-checked
+`registerToolkit` with enumerated deviations that must be re-checked
 against `McpServer.ts` on every release-candidate bump. This was judged
 acceptable because the alternative was carrying a second schema language
 forever, and the port carries its own unit test coverage
@@ -235,8 +245,13 @@ deliberately preserves a `Union([Finite, FiniteFromString])`. Effect's
 stdio protocol also interrupts an in-flight `tools/call` when stdin
 closes immediately after it, which real MCP clients do not trigger in
 practice since they keep stdin open, and `McpSession` today is unused by
-the majority of read-only tools. `McpServer.prompt` has no `title`
-option, so the six prompts lost their titles on the wire.
+the majority of read-only tools. The six prompts serve a `title` again
+since rc.116's `McpServer.prompt` accepts one (`prompts/layer.ts`,
+pinned by `prompts-layer.test.ts`). Retiring the markdown text channel
+left `RenderText` a deprecated no-op export rather than a removal, so the
+change ships as a minor; fields that hold markdown as data
+(`triage_brief.markdown`, `wrapup_prompt.markdown`, `help.helpText`) are
+unaffected.
 
 ## Related
 

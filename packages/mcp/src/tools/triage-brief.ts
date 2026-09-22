@@ -8,7 +8,6 @@
 import { DataReader, formatTriageEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { RenderText } from "../annotations.js";
 
 /**
  * The `triage_brief` tool's success payload.
@@ -67,14 +66,13 @@ export const handleTriageBrief = (
 	});
 
 /**
- * The Effect-native `triage_brief` tool. The text channel is the
- * pre-rendered `markdown` field itself.
+ * The Effect-native `triage_brief` tool.
  *
  * @public
  */
 export const triageBriefTool = Tool.make("triage_brief", {
 	description:
-		"Use when you need to orient on the current test landscape: failing tests, flaky tests, open TDD sessions, and suggested next actions. Returns markdown in content[] and a typed envelope in structuredContent ({ hasContent, markdown }).",
+		"Use when you need to orient on the current test landscape: failing tests, flaky tests, open TDD sessions, and suggested next actions. Returns a typed envelope in structuredContent ({ hasContent, markdown }).",
 	parameters: TriageBriefInput,
 	success: TriageBriefResult,
 	dependencies: [DataReader],
@@ -83,5 +81,4 @@ export const triageBriefTool = Tool.make("triage_brief", {
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)
 	.annotate(Tool.OpenWorld, false)
-	.annotate(Tool.Idempotent, true)
-	.annotate(RenderText, (encoded) => (encoded as TriageBriefResultType).markdown);
+	.annotate(Tool.Idempotent, true);

@@ -6,8 +6,8 @@ resource: ../../.github/workflows/release.yml
 tags: [release, ci]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: c23dda493e793a89d11e7253bf59f7df98cebe627594fd093a17023d33041e8d
+  at: 2026-09-16T01:24:14Z
+  body_sha256: aded13f62fe7dfc5b10b223cbea68c7f0341907c40c7baffd740b4b7508475b4
 sources:
   - id: release-workflow
     resource: ../../.github/workflows/release.yml

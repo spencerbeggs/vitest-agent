@@ -29,8 +29,8 @@ src/
   idempotency.ts      -- idempotencyKeys registry (hypothesis, tdd_task,
                          tdd_goal, tdd_behavior) + the withIdempotency
                          combinator write handlers wrap themselves in
-  annotations.ts      -- RenderText: the per-tool markdown renderer
-                         annotation the strict registrar reads
+  annotations.ts      -- RenderText: deprecated no-op (#487); nothing
+                         reads it, removed at the next major
   tools/              -- one file per tool: the parameters / success
                          Schemas, the `Tool.make` value, and the
                          `handle<Name>` Effect. Per-CRUD families
@@ -59,7 +59,7 @@ src/
 | ---- | ------- |
 | `main.ts` | Registers the `unhandledRejection` / `uncaughtException` guards FIRST, then dynamically imports everything else (see Conventions). `resolveProjectDir` precedence: `VITEST_AGENT_PROJECT_DIR` -> `VITEST_AGENT_REPORTER_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> cwd. Builds `McpSession.layer` from `sessionContextFromEnv(process.env)` plus the engine's lazy `recoverSessionContextFromSessionEnv` thunk, provides `PlatformLive({ dbPath, env, ... })` and `NodeStdio.layer`, and launches under `NodeRuntime.runMain` with a teardown that maps an interrupts-only exit (stdin EOF) to 0. Carries the env-gated crash injector `VITEST_AGENT_MCP_TEST_INJECT_CRASH` for the spawned-bin e2e suite |
 | `server.ts` | `ServerLayer({ version })` and `SERVER_INSTRUCTIONS`. `protocols` is `[v2026_07_28, v2025_11_25, v2025_06_18]`: the stateless `2026-07-28` adapter (SEP-2575: `server/discover`, per-request `_meta`, no session) first, then the two newest stateful ones — every shipping client still opens with `initialize`, which only a stateful adapter answers. `instructions` (agent orientation, surfaced in both `initialize` and `server/discover`) is `SERVER_INSTRUCTIONS`; `serverInfo.description` is the one-line human summary |
-| `register-toolkit.ts` | The strict contract: serves `additionalProperties: false` on every object node (a top-level `action` / `kind` union becomes `oneOf` + `x-discriminator`), inlines `$ref` roots, walks the raw payload against the served schema BEFORE decoding and fails `InvalidParams` naming the unknown key(s) and the accepted params at every level, renders the dual channel (`structuredContent` = encoded result, `content[0].text` = `RenderText` markdown or JSON), maps a declared `Error`-shaped failure to `isError` text (upstream parity) and every other failure or defect to the `UnexpectedToolError` envelope. A line-for-line port of rc.116's `McpServer.registerToolkit`; the six deviations are enumerated in the file header and re-checked on every rc bump |
+| `register-toolkit.ts` | The strict contract: treats every tool as `Tool.Strict` (native `onExcessProperty: "error"` decode and a served document with `additionalProperties: false` on every object node, from rc.116), makes the served schema object-rooted (a top-level `action` / `kind` union becomes `oneOf` + `x-discriminator`; `$ref` roots are inlined), walks the raw payload against the served schema BEFORE decoding and fails `InvalidParams` naming every unknown key and the accepted params at every level (upstream's message names only the first key and no accepted params), sends `structuredContent` = encoded result and `content[0].text` = the same result as JSON, maps a declared `Error`-shaped failure to `isError` text (upstream parity) and every other failure or defect to the `UnexpectedToolError` envelope. A line-for-line port of rc.116's `McpServer.registerToolkit`; the deviations are enumerated in the file header and re-checked on every rc bump |
 | `toolkit.ts` | `Kit` is the single source of truth for the served tool list; `toolHandlers` must satisfy `Toolkit.HandlersFrom<typeof Kit.tools>`, so a tool without a handler (or vice versa) is a compile error |
 | `session.ts` | `McpSession` is the one per-process service tool handlers read for `cwd` and the host session; `layerTest({ cwd, ... })` requires an explicit `cwd` because this module is process-free (the boundary test enforces it) |
 | `prompts/layer.ts` | Prompt arguments are strings on the wire, so every parameter is `Schema.String`-based with `optionalKey` for the non-required ones; `wrapup.kind` is `Schema.Literals(WRAPUP_KINDS)`. `tdd-resume` reads `McpSession` to default `sessionId` to the recovered chat id |
@@ -113,11 +113,11 @@ src/
   (`success`) and prompt arguments are Effect `Schema` values; the served
   JSON Schema is generated from them. There is no second schema language
   to keep in sync.
-- **Tool output conventions:** meta, read-only and discovery tools render
-  markdown through the `RenderText` annotation; `run_tests` returns the
-  typed report plus a markdown headline; `note` `list` / `search` return
-  markdown, the other actions JSON. `structuredContent` is always the
-  encoded `success` value — an undeclared result key is STRIPPED by the
+- **Tool output conventions:** `structuredContent` is always the encoded
+  `success` value and `content[0].text` is the same value as JSON — no
+  markdown channel (#487: Claude Code forwards only `structuredContent` to
+  the model). Put anything the agent must read in a declared result field.
+  The encoded `success` value is what ships — an undeclared result key is STRIPPED by the
   encoder, so a marker like `_idempotentReplay` must be declared on the
   success schema.
 - **One toolkit, one allowlist.** New tools register in `toolkit.ts`
@@ -137,8 +137,8 @@ src/
 - Adding a tool: create `tools/<name>.ts` with the parameters / success
   Schemas, the `Tool.make("<name>", { description, parameters, success,
   dependencies })` value (annotate `Tool.Title`, `Tool.Readonly`,
-  `Tool.Destructive`, `Tool.OpenWorld`, `Tool.Idempotent`, and `RenderText`
-  for a markdown text channel) and the `handle<Name>` Effect; add both to
+  `Tool.Destructive`, `Tool.OpenWorld`, `Tool.Idempotent`; `Tool.Strict` is
+  implied by the registrar) and the `handle<Name>` Effect; add both to
   `toolkit.ts`; add the name to the plugin's
   `safe-mcp-vitest-agent-ops.txt` (omit destructive tools so they prompt;
   consider `pre-tool-use/tdd-restricted.sh` if the TDD orchestrator must
@@ -178,12 +178,14 @@ src/
   and `test` tool (`action: list|get|for_file|for_tag|annotations|artifacts`)
   enumerate every project from `getRunsByProject()` when `project` is
   unspecified. Don't default to a literal `"default"`.
-- `test_coverage` renders two distinct bars from `getCoverage`: the enforced
-  Vitest `thresholds` (build-blocking) and, when present, the aspirational
-  `coverageTargets`.
-- `run_tests` returns `scopedNote` (nullable) alongside the report and
-  appends it to the markdown for a partial run, so an agent never reads
-  scoped coverage as whole-project coverage.
+- `test_coverage` passes `getCoverage` through unchanged: the enforced
+  Vitest `thresholds` (build-blocking) and the aspirational
+  `coverageTargets` are distinct fields (`thresholds` / `lowCoverage` vs
+  `targets` / `belowTarget`; the split is pinned in the engine's
+  `DataReaderLive.test.ts`).
+- `run_tests` returns `scopedNote` (nullable) alongside the report for a
+  partial run, so an agent never reads scoped coverage as whole-project
+  coverage.
 - Narrowing history: push `testName` / `modulePath` / `limit` into
   `DataReader.getHistory` (and `getFlaky` / `getPersistentFailures`) instead
   of fetching a project and filtering in the tool. `fullName` is not
