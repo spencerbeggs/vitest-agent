@@ -5,7 +5,7 @@ packages:
   - website
 autoInstallPeers: true
 configDependencies:
-  "@effected/pnpm-plugin-effect": 0.9.1+sha512-jiEMQ4dvKdCe7bRjq9WdhEHjSSXkQLdT8D0+QhLBBm7tyiyHP6q+4rfMG7YngtLH7l2hgPdA8XhtxC1Cojqf1w==
+  "@effected/pnpm-plugin-effect": 0.9.2+sha512-RPQ9lfy6jbBabzOTCHz2CBF1iSUQR/ftFr3pWtxp0iIsJj6W8zHTJEafwGvAGZkEATg7v+odIUUax536VGEPrA==
   "@savvy-web/pnpm-plugin-silk": 0.42.0+sha512-2KQ/+3C+ciQ+1I/Vpfr+875Guta0YtCPNodeZkB2kegaraItEGwaYxIx8OocWglaoCbYC44acTJhQwxIRWhNdw==
 linkWorkspacePackages: deep
 verifyDepsBeforeRun: false
