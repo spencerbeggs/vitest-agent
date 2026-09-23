@@ -37,7 +37,7 @@
 		"types:check": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"@okfit/plugin": "^0.4.5",
+		"@okfit/plugin": "^0.5.0",
 		"@savvy-web/silk": "^4.2.6",
 		"@vitest-agent/plugin": "workspace:*"
 	},
@@ -53,7 +53,7 @@
 		"runtime": [
 			{
 				"name": "node",
-				"version": "26.9.0",
+				"version": "26.10.0",
 				"onFail": "ignore"
 			}
 		]
