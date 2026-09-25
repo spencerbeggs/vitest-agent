@@ -6,8 +6,8 @@ description: Every served MCP tool input rejects unknown keys at every object le
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 381bed5c54d4063e8a7f7ea570f4ffb2b5b1c79eacaea28c1a78a5c6ffcefe85
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 0cd430f43861209fa93e10427ce0389cef36928322aaf628f29d3c7ccfba5082
 ---
 
 # Strict MCP Tool Inputs
@@ -49,7 +49,8 @@ reaches a `DataReader` / `DataStore` call. Since [Decision
 72](72-adopt-the-effected-front-end-kit.md) the registrar is
 `@effected/mcp`'s `McpToolkit.layer`, and the seven action-keyed tools,
 registered as `Tool.dynamic`, run the same walk and strict decode
-inside their handler through `decodeStrictUnion`.
+inside their handler through `McpToolkit.unionHandler` ([Decision
+73](73-adoption-helpers-live-in-the-kit.md)).
 
 Its retired zod-mechanics predecessor — a hand-synced `z.strictObject`
 registration per tool — is superseded by this schema-walk approach;
@@ -81,8 +82,8 @@ for the enforcement contract this decision produces.
   `McpToolkit.layer` registers, never `McpServer.toolkit` directly, or it
   loses strict-input enforcement silently (or, if annotated
   `Tool.Strict`, keeps only upstream's first-key-only message). A new
-  union-parameter tool goes through `strictUnionTool` +
-  `decodeStrictUnion`.
+  union-parameter tool goes through `McpToolkit.unionTool` +
+  `McpToolkit.unionHandler`.
 - `RunTestsOk` echoes the resolved filter set on a required
   `scope: { project, files, tags }` field as the success-path
   counterpart to rejection: one field distinguishes "ran exactly what I

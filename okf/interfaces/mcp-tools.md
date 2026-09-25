@@ -11,8 +11,8 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 346918776024e34ba0313fd4c4b63d4d428e069ec48facd293f019886fe90fb4
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 1dd2812566289d5637e4c661a4f129d17947e2a1ca06a7588e81cbd4692ca7bd
 ---
 
 # MCP tool and prompt surface
@@ -25,9 +25,9 @@ per-request protocol `_meta`, every result wrapped in the stateless frame)
 or the stateful `2025-11-25` / `2025-06-18` (opened with `initialize`) —
 receives the same `instructions` orientation on either handshake, and sees
 30 tools plus six prompts. Invalid params surface as an `isError` result
-on the two newer revisions. On `2025-06-18` they are a JSON-RPC `-32602`
-error for most tools, but an `isError` result for the seven action-keyed
-tools, whose parameter validation is a declared tool failure. Every served `inputSchema` is strict at every object
+on the two newer revisions and as a JSON-RPC `-32602` error on
+`2025-06-18`, for every tool alike — the seven action-keyed tools included
+(they answered `isError` there before `@effected/mcp` 0.2.0). Every served `inputSchema` is strict at every object
 level: an unknown key anywhere in the payload — including inside a nested
 object, an array element, or the branch an `action` / `kind` discriminator
 selects — fails with `InvalidParams` naming the key's path and that level's
@@ -238,9 +238,11 @@ the progress-push resolution of `goalId` / `sessionId`).
 - `tools/register-agent.ts` — agent registration.
 - `tools/triage-brief.ts`, `tools/wrapup-prompt.ts` — triage / wrapup.
 - `tools/run-tests.ts` — the mutation tool.
-- `tools/_tdd-error-envelope.ts`, `tools/_tool-refusal.ts`,
-  `tools/_union-schema.ts`, `tools/_project-groups.ts` — private shared
-  helpers, not served tools.
+- `tools/_tdd-error-envelope.ts`, `tools/_project-groups.ts` — private
+  shared helpers, not served tools. The union-tool, object-rooted-output
+  and refusal helpers are `@effected/mcp`'s (`McpToolkit.unionTool` /
+  `unionHandler`, `ToolOutputSchema.objectRooted`, `ToolRefusal`); see
+  [Decision 73](../decisions/73-adoption-helpers-live-in-the-kit.md).
 - `prompts/layer.ts` plus `prompts/triage.ts`, `prompts/why-flaky.ts`,
   `prompts/regression-since-pass.ts`, `prompts/explain-failure.ts`,
   `prompts/tdd-resume.ts`, `prompts/wrapup.ts` — the six prompts.

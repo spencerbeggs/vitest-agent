@@ -11,7 +11,6 @@ The MCP server now runs on `@effected/mcp`'s `McpToolkit` and `McpStdio` transpo
 * The `UnexpectedToolError` envelope is gone. An undeclared tool failure now surfaces the kit's scrubbed message, `Tool execution failed due to an internal server error.`, instead of the previous error shape.
 * `tdd_goal`, `tdd_behavior`, and `tdd_phase_transition_request` remediation objects rename `humanHint` to `hint`, matching the engine's `Remediation` shape. `suggestedTool` and `suggestedArgs` are now optional on that schema.
 * The `registerStrictToolkit` export is removed.
-* On the 2025-06-18 MCP protocol version, the seven action-keyed union tools (`tdd_task`, `tdd_goal`, `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) now answer invalid params with an `isError` tool result instead of a JSON-RPC `-32602` error.
 
 Agents and clients that pattern-matched on the old `UnexpectedToolError` shape or on `humanHint` need to update; everything else keeps working unmodified.
 
@@ -25,3 +24,5 @@ Agents and clients that pattern-matched on the old `UnexpectedToolError` shape o
 * Unknown-key validation messages now end with a period.
 * Server instructions now tell agents to read `structuredContent` only.
 * `main(options?)` accepts an options object and threads a `distribution` value through server startup.
+* Invalid params to the seven action-keyed tools answer JSON-RPC `-32602` on the 2025-06-18 protocol, exactly like every other tool, via `@effected/mcp`'s `McpToolkit.unionTool`.
+* Crash guards run through `@effected/mcp/guard`: an uncaught exception before the stdio transport connects exits 1 without serving, and after connect it is logged and the server keeps serving.

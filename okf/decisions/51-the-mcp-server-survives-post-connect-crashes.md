@@ -6,8 +6,8 @@ description: unhandledRejection and uncaughtException guards keep the MCP proces
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 664ad07983fea8eaa264b3959b2ff01644a5a197a46b5e0d10964b44e176f153
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 830ad34bb1abd4fd0692a7b94cc1f7262c0ae6993ed363dd0fe03969d2c47b7f
 ---
 
 # The MCP Server Survives Post-Connect Crashes
@@ -23,19 +23,15 @@ error the agent can act on.
 
 ## Decision
 
-`packages/mcp/src/main.ts` registers `unhandledRejection`
-(`main.ts:99-101`) and `uncaughtException` (`main.ts:106-115`) handlers
-at module scope, before any async work, so they also cover `dbPath`
-resolution and runtime construction. A module-level `transportConnected`
-flag (`main.ts:27`) starts `false` and flips to `true` once
-`server.connect(transport)` resolves (`main.ts:184`).
-`unhandledRejection` logs to stderr and continues unconditionally.
-`uncaughtException` logs to stderr, then exits only when the transport
-has not connected yet — the policy is isolated in the pure
-`shouldExitOnUncaughtException(transportConnected)` predicate
-(`packages/mcp/src/utils/crash-guards.ts:26-27`, returning
-`!transportConnected`) so it is testable and stated in exactly one
-place.
+`packages/mcp/src/main.ts` runs the server through `McpGuard.run` from
+`@effected/mcp/guard`, which registers the `unhandledRejection` and
+`uncaughtException` handlers before `load` imports the server graph, so
+they also cover `dbPath` resolution and layer construction. The policy is
+one declarative value, `{ onUncaught: "exitBeforeConnect", onRejection:
+"log" }`: an unhandled rejection is logged to stderr and the server
+continues unconditionally; an uncaught exception is logged and exits 1
+only while the server is not yet serving. The guard owns the "serving"
+signal itself, so `main.ts` keeps no connected flag of its own.
 
 **Trade-off accepted.** Surviving an `uncaughtException` contradicts
 Node's own "do not resume normal operation" guidance, which exists
@@ -81,11 +77,16 @@ own await chain.
   ahead of any dynamic import of the server graph, so a throw during
   module evaluation is still reported on stderr instead of crashing
   silently with no diagnostic at all.
-- `shouldExitOnUncaughtException` is the one place this policy is
-  stated; changing the exit condition means changing this one pure
-  function, not hunting through `main.ts`'s event handlers.
+- The `policy` passed to `McpGuard.run` is the one place this policy is
+  stated; changing the exit condition means changing that value, not
+  hunting through `main.ts`'s event handlers.
+- `bin-crash-resilience.e2e.test.ts` proves both halves against the built
+  bin: an injected post-connect crash of either kind is logged and `ping`
+  still answers, and an injected pre-load `uncaughtException` exits 1
+  without ever serving or opening `data.db`.
 
 ## Related
 
 - [Decision 50 — Strict MCP Tool Inputs](./50-strict-mcp-tool-inputs.md)
 - [Decision 71 — Effect-Native MCP Server](./71-effect-native-mcp-server.md)
+- [Decision 73 — Adoption helpers live in the kit](./73-adoption-helpers-live-in-the-kit.md)

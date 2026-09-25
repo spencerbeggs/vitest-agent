@@ -5,15 +5,12 @@
 // `TddTaskDetail` tree plus the `currentPhase` lookup, and `resume`
 // carries a compact summary discriminated by `phaseAvailable`.
 
-import { ToolFailure } from "@effected/mcp";
+import { McpToolkit, ToolFailure, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
-import type { ToolRefusal } from "./_tool-refusal.js";
-import { refuse } from "./_tool-refusal.js";
-import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const TddPhaseRow = Schema.Struct({
 	id: Schema.Number,
@@ -98,7 +95,7 @@ const TddTaskResumeMissing = Schema.Struct({
 	tddTaskId: Schema.Number,
 }).annotate({ identifier: "TddTaskResumeMissing" });
 
-export const TddTaskResult = objectRootedUnion(
+export const TddTaskResult = ToolOutputSchema.objectRooted(
 	Schema.Union([
 		TddTaskStartOk,
 		TddTaskEndOk,
@@ -195,7 +192,7 @@ export const handleTddTask = (
 						if (variant.sessionId !== undefined) {
 							if (Option.isNone(yield* reader.getSessionById(variant.sessionId))) {
 								return yield* Effect.fail(
-									refuse(`Unknown sessionId ${variant.sessionId}.`, {
+									ToolRefusal.refuse(`Unknown sessionId ${variant.sessionId}.`, {
 										hint: "Pass chatId (the host chat UUID) instead, or a sessionId that exists.",
 									}),
 								);
@@ -205,15 +202,18 @@ export const handleTddTask = (
 							const opt = yield* reader.getSessionByChatId(variant.chatId);
 							if (Option.isNone(opt)) {
 								return yield* Effect.fail(
-									refuse(`Unknown chatId ${ToolFailure.truncate(variant.chatId)}: no session is recorded for it.`, {
-										hint: "The plugin's SessionStart hook records the session (vitest-agent agent record session-start); check that it ran for this chat, or pass a sessionId that exists.",
-									}),
+									ToolRefusal.refuse(
+										`Unknown chatId ${ToolFailure.truncate(variant.chatId)}: no session is recorded for it.`,
+										{
+											hint: "The plugin's SessionStart hook records the session (vitest-agent agent record session-start); check that it ran for this chat, or pass a sessionId that exists.",
+										},
+									),
 								);
 							}
 							sessionId = opt.value.id;
 						} else {
 							return yield* Effect.fail(
-								refuse("tdd_task action='start' needs a session.", {
+								ToolRefusal.refuse("tdd_task action='start' needs a session.", {
 									hint: "Pass sessionId (sessions.id) or chatId (the host chat UUID).",
 									suggestedTool: "tdd_task",
 									suggestedArgs: { action: "start" },
@@ -222,7 +222,7 @@ export const handleTddTask = (
 						}
 						if (variant.runId !== undefined && variant.runId.trim().length === 0) {
 							return yield* Effect.fail(
-								refuse("tdd_task action='start': runId must not be blank.", {
+								ToolRefusal.refuse("tdd_task action='start': runId must not be blank.", {
 									hint: "Omit runId, or pass a non-empty dispatch id.",
 									suggestedTool: "tdd_task",
 									suggestedArgs: { action: "start" },
@@ -313,11 +313,12 @@ export const handleTddTask = (
  *
  * @public
  */
-export const tddTaskTool = strictUnionTool("tdd_task", {
+export const tddTaskTool = McpToolkit.unionTool("tdd_task", {
 	description:
 		"Use to manage a TDD task lifecycle, with an action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns the full task detail; action='resume' (tddTaskId) returns a compact digest.",
 	parameters: TddTaskInput,
 	success: TddTaskResult,
+	failure: ToolRefusal,
 })
 	.addDependency(DataReader)
 	.addDependency(DataStore)

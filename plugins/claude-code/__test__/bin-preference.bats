@@ -35,7 +35,27 @@ echo "npx $*" >> "$CAPTURE"
 exit 0
 STUB
 	chmod +x "${STUBS}/npx"
-	export PATH="${STUBS}:${PATH}"
+	# Drop any inherited PATH entry that already provides `vitest-agent` (a repo
+	# checkout's node_modules/.bin, a global install) so the PATH rung only ever
+	# sees what a test stubs into $STUBS.
+	local clean="" dir
+	local IFS=:
+	for dir in $PATH; do
+		if [ ! -x "${dir}/vitest-agent" ]; then
+			clean="${clean:+${clean}:}${dir}"
+			continue
+		fi
+		# A global install shares its dir with tools the suite needs (nvm:
+		# node; Homebrew: jq), so link those into $STUBS before dropping the
+		# dir. Link only names no test writes a stub for: `cat >` through a
+		# symlink would overwrite the real binary.
+		for tool in node jq; do
+			if [ -x "${dir}/${tool}" ] && [ ! -e "${STUBS}/${tool}" ]; then
+				ln -s "${dir}/${tool}" "${STUBS}/${tool}"
+			fi
+		done
+	done
+	export PATH="${STUBS}:${clean}"
 	unset VITEST_AGENT_CLI_CMD
 }
 

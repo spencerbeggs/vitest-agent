@@ -7,18 +7,18 @@ resource: ../../packages/mcp/src/server.ts
 sources:
   - id: server-ts
     resource: ../../packages/mcp/src/server.ts
-  - id: union-schema
-    resource: ../../packages/mcp/src/tools/_union-schema.ts
+  - id: toolkit-ts
+    resource: ../../packages/mcp/src/toolkit.ts
   - id: served-schema-strict-test
     resource: ../../packages/mcp/__test__/served-schema-strict.test.ts
   - id: served-enum-drift-test
     resource: ../../packages/mcp/__test__/served-enum-drift.test.ts
-  - id: union-schema-test
-    resource: ../../packages/mcp/__test__/union-schema.test.ts
+  - id: union-tools-wire-test
+    resource: ../../packages/mcp/__test__/union-tools-wire.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 7bd620d9ef8061631ac3a3ecb985fca82c314b48fc76170f8b3c5fe20f5dff74
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 4064b902ba4c2f9ff52d52deb26ffa136af8522cccc8c07607b93c1b3d83ae16
 ---
 
 # Strict MCP tool inputs — every served input rejects unknown keys
@@ -54,19 +54,18 @@ Tools reach the server by two routes, and both are strict.
 2. **The seven action-keyed tools** (`inventory`, `test`, `note`,
    `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`) are
    `Tool.dynamic`, because core dies at registration on a union
-   `parameters` schema. `strictUnionTool` serves Effect's strict
-   document for the union, reshaped by `ToolInputSchema.objectRooted` to
-   `type: "object"` + `oneOf` + `x-discriminator`. Core never re-decodes a
-   dynamic tool, so `decodeStrictUnion` wraps each handler instead. It
-   runs `ToolInputSchema.unknownKeys` against the served schema,
-   selecting the union branch by the discriminant present, then decodes
-   with `onExcessProperty: "error"`. Either rejection fails with the
-   tool's declared `InvalidParams`[^union-schema].
+   `parameters` schema. `McpToolkit.unionTool` (`@effected/mcp`) serves
+   Effect's strict document for the union, reshaped to `type: "object"` +
+   `oneOf` + `x-discriminator`. Core never re-decodes a dynamic tool, so
+   `McpToolkit.unionHandler` wraps each handler in
+   `toolkit.ts`[^toolkit-ts]. It runs the same unknown-key walk against
+   the served schema, selecting the union branch by the discriminant
+   present, then decodes with `onExcessProperty: "error"`.
 
 Both routes reject before the handler runs, so a rejected call never
-reaches a `DataReader` / `DataStore` call. The one wire difference is on
-`2025-06-18`: a `Tool.make` rejection is a JSON-RPC `-32602` error, and
-a union-tool rejection is an `isError` result.
+reaches a `DataReader` / `DataStore` call, and both answer on the same
+wire surface: a JSON-RPC `-32602` error on `2025-06-18`, an `isError`
+result on the newer revisions.
 
 The served discriminant literals follow the same single-source rule.
 Each consolidated tool exports its literal tuple (`TEST_ACTIONS`,
@@ -85,9 +84,9 @@ calls every tool but `run_tests` twice: once with a bogus extra key,
 expecting a rejection that names it, and once with only its documented
 params, expecting none. A guard test checks the case list equals the
 full `tools/list` result minus `run_tests`[^served-schema-strict-test].
-`union-schema.test.ts` covers `unionInputJsonSchema` and
-`decodeStrictUnion` directly, including nested unknown keys and a key
-from a sibling branch[^union-schema-test].
+`union-tools-wire.test.ts` pins a union tool's served input document
+byte for byte against the pre-kit pipeline and its invalid-params answer
+on each revision[^union-tools-wire-test].
 
 ## What a refactor would have to break
 
@@ -98,7 +97,7 @@ Three changes would break this property, and each fails a test:
   `Tool.Strict`. `served-schema-strict.test.ts` covers every entry in
   `tools/list`, so the new tool cannot opt out by being left out of the
   table.
-- **A `Tool.dynamic` tool whose handler skips `decodeStrictUnion`.** It
+- **A `Tool.dynamic` tool whose handler skips `McpToolkit.unionHandler`.** It
   would pass the served-schema walk, because the served document is
   still strict. It would fail the bogus-key call in the `it.each`
   table.
@@ -112,12 +111,14 @@ for why unknown-key rejection is a rule for every level and every tool,
 Discriminants](../decisions/60-single-source-served-mcp-discriminants.md)
 for why the discriminant tuple lives with the union, [Decision 72: Adopt
 the Effected Front-End Kit](../decisions/72-adopt-the-effected-front-end-kit.md)
-for why the union tools are `Tool.dynamic` and not flat structs, and
+for why the union tools are `Tool.dynamic` and not flat structs,
+[Decision 73](../decisions/73-adoption-helpers-live-in-the-kit.md) for
+why their helpers live in `@effected/mcp`, and
 [Interface: MCP tools](../interfaces/mcp-tools.md) for the tool surface
 this contract applies to.
 
 [^server-ts]: `../../packages/mcp/src/server.ts`
-[^union-schema]: `../../packages/mcp/src/tools/_union-schema.ts`
+[^toolkit-ts]: `../../packages/mcp/src/toolkit.ts`
 [^served-schema-strict-test]: `../../packages/mcp/__test__/served-schema-strict.test.ts`
 [^served-enum-drift-test]: `../../packages/mcp/__test__/served-enum-drift.test.ts`
-[^union-schema-test]: `../../packages/mcp/__test__/union-schema.test.ts`
+[^union-tools-wire-test]: `../../packages/mcp/__test__/union-tools-wire.test.ts`

@@ -116,12 +116,7 @@ export const makeHarness = (options: HarnessOptions = {}): Effect.Effect<McpHarn
 		const kit = yield* KitHarness.make(server, { protocol, clientInfo: CLIENT_INFO });
 
 		const initialize = (protocolVersion?: string): Effect.Effect<JsonRpcMessage> =>
-			(protocolVersion === undefined || protocolVersion === protocol.protocolVersion
-				? kit.initialize
-				: kit
-						.request("initialize", { protocolVersion, capabilities: {}, clientInfo: CLIENT_INFO })
-						.pipe(Effect.tap(() => kit.notify("notifications/initialized")))
-			).pipe(Effect.orDie);
+			(protocolVersion === undefined ? kit.initialize : kit.initializeWith(protocolVersion)).pipe(Effect.orDie);
 
 		const callTool = (name: string, args?: unknown): Effect.Effect<unknown> =>
 			kit.callTool(name, args).pipe(

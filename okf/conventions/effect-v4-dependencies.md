@@ -15,12 +15,12 @@ sources:
     resource: ../../packages/cli/src/main.ts
   - id: cli-db-unstable-sql
     resource: ../../packages/cli/src/commands/db.ts
-  - id: mcp-union-schema-unstable-ai
-    resource: ../../packages/mcp/src/tools/_union-schema.ts
+  - id: mcp-tdd-goal-unstable-ai
+    resource: ../../packages/mcp/src/tools/tdd-goal.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 5ff1574ae01b8d281bc61952bbd8b47f4e1cec87c98fe3f672ff8280c8b08fb9
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 6928410ddfc1de84a70eb843931286af21383ff1c70d0670f2d4a860360a760d
 ---
 
 # Reach for effect/unstable/*, not a v3 @effect/* package
@@ -67,10 +67,9 @@ packages.
 `"effect/unstable/cli"`[^cli-main-unstable-cli] to build the CLI's
 command tree; `packages/cli/src/commands/db.ts` imports `SqlClient`
 from `"effect/unstable/sql/SqlClient"`[^cli-db-unstable-sql] for the
-`db query` command; `packages/mcp/src/tools/_union-schema.ts` imports
-`McpSchema` and `Tool` from
-`"effect/unstable/ai"`[^mcp-union-schema-unstable-ai] to register the
-action-keyed tools on Effect's own `McpServer` rather than the MCP SDK. Every one of these is a subpath of the single
+`db query` command; `packages/mcp/src/tools/tdd-goal.ts` imports `Tool`
+from `"effect/unstable/ai"`[^mcp-tdd-goal-unstable-ai] to declare a tool
+served by Effect's own `McpServer` rather than the MCP SDK. Every one of these is a subpath of the single
 `effect` package pinned via `catalog:effect` — none is a separate
 package requiring its own catalog entry or version pin.
 
@@ -82,4 +81,4 @@ convention is downstream of.
 [^cli-package-json]: ../../packages/cli/package.json
 [^cli-main-unstable-cli]: ../../packages/cli/src/main.ts
 [^cli-db-unstable-sql]: ../../packages/cli/src/commands/db.ts
-[^mcp-union-schema-unstable-ai]: ../../packages/mcp/src/tools/_union-schema.ts
+[^mcp-tdd-goal-unstable-ai]: ../../packages/mcp/src/tools/tdd-goal.ts

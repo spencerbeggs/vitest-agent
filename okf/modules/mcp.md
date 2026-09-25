@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 7c734e6388200d1b4734d102811021353e22127d9fec0bf0d09997a098978341
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 17d0ff614677db0babac54eea53c14c23e83a83def74e117419394c2f81f331c
 ---
 
 # @vitest-agent/mcp
@@ -104,32 +104,34 @@ consumer's import graph never pulls in the process-owning module.
 - `src/annotations.ts` — `RenderText`, a `@deprecated` no-op annotation
   nothing reads any more; kept exported until the next major.
 - `src/tools/` — one file per tool (30) plus the private helpers
-  `_union-schema.ts` (`strictUnionTool`, `decodeStrictUnion`,
-  `objectRootedUnion`), `_tool-refusal.ts` (`ToolRefusal`, `refuse`),
-  `_tdd-error-envelope.ts` and `_project-groups.ts` — see
+  `_tdd-error-envelope.ts` and `_project-groups.ts`; the union-tool,
+  object-rooted-output and refusal helpers come from `@effected/mcp`
+  (`McpToolkit.unionTool` / `unionHandler`, `ToolOutputSchema.objectRooted`,
+  `ToolRefusal`) — see
   [MCP Tools](../interfaces/mcp-tools.md) for the full tool table.
 - `src/prompts/` — `layer.ts` (`PromptsLayer`) plus one pure factory per
   prompt.
-- `src/utils/` — `crash-guards.ts`, `safe-format-fatal-error.ts`,
-  `replay-marker.ts`.
+- `src/utils/` — `safe-format-fatal-error.ts`, `replay-marker.ts`.
 - `src/version.ts` — `CURRENT_MCP_VERSION`.
 
 ## Process boundary and server bootstrap (`main.ts`)
 
-`main.ts` carries exactly one static import — the dependency-free
-`utils/crash-guards.ts` — and registers the `unhandledRejection` /
-`uncaughtException` process handlers before anything else is
-evaluated[^main-ts]. Every other module (`effect`, `@effect/platform-node`,
-`@vitest-agent/engine`, `./session.js`, `./server.js`, `./version.js`) is
-`await import(...)`ed inside a `try` after the guards, so a throw during
-evaluation of the server graph is still reported on stderr instead of
-crashing silently — this is the one sanctioned dynamic-import site in the
-family. Anything that rejects during startup — an import, `dbPath`
-resolution, the layer graph — is caught and exits 1 with
-`vitest-agent-mcp: startup failed: …`; left to the `unhandledRejection`
-guard the event loop would drain to exit 0 with no server listening.
+`main.ts` carries one runtime static import — `McpGuard` from the
+dependency-free `@effected/mcp/guard` — and `main(options)` is
+`McpGuard.run({ label: "vitest-agent-mcp", host: process, policy: {
+onUncaught: "exitBeforeConnect", onRejection: "log" }, injectCrash, load
+})`[^main-ts]. The guard registers the `unhandledRejection` /
+`uncaughtException` process handlers before it calls `load`, and `load`
+`await import(...)`s every other module (`effect`, `@effect/platform-node`,
+`@vitest-agent/engine`, `./session.js`, `./server.js`, `./version.js`), so a
+throw during evaluation of the server graph is still reported on stderr
+instead of crashing silently — this is the one sanctioned dynamic-import
+site in the family. A `load` rejection — an import, `dbPath` resolution —
+exits 1 with `vitest-agent-mcp: startup failed: …` whatever the policy;
+left to the `unhandledRejection` guard the event loop would drain to exit
+0 with no server listening.
 
-Boot order after the guards[^main-ts]: resolve `projectDir` via
+Boot order inside `load`[^main-ts]: resolve `projectDir` via
 `resolveProjectDir({ env, cwd: process.cwd() })` (precedence
 `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` →
 `CLAUDE_PROJECT_DIR` → cwd), resolve `dbPath` via `resolveDataPath` under
@@ -140,14 +142,13 @@ build `Main = ServerLayer({ version }).pipe(Layer.provide(Session),
 Layer.provide(PlatformLive(...)), Layer.provide(<CurrentDistribution>),
 Layer.provide(NodeStdio.layer))` — `CurrentDistribution` (from
 `@effected/engine`) carries the launching carrier's identity for `ping`,
-`none` on a direct install — derive a `Connected` layer that flips
-`transportConnected = true` strictly after `Main`'s stdio protocol is
-reading stdin (`Layer.provide` builds its dependency to completion before
-the dependent, unlike the concurrent `Layer.mergeAll`), and launch under
-`NodeRuntime.runMain(McpStdio.launch(Connected), { teardown:
-McpStdio.teardown })`. `McpStdio.launch` provides `LogToStderr` around the
-whole launch and reports a launch failure on stderr itself (so it never
-lands on the wire), and `McpStdio.teardown` maps stdin EOF — an
+`none` on a direct install — and return `{ layer: Main, runMain:
+NodeRuntime.runMain, format: safeFormatFatalError }`. The guard launches
+`Main` under `runMain(McpStdio.launch(...), { teardown: McpStdio.teardown
+})` and itself tracks when the server is serving, which is what
+`exitBeforeConnect` keys off. `McpStdio.launch` provides `LogToStderr`
+around the whole launch and reports a launch failure on stderr itself (so
+it never lands on the wire), and `McpStdio.teardown` maps stdin EOF — an
 interrupt-only exit, the ordinary end of every session — to exit 0
 instead of 130. No `process.exit` call is needed on that path: with
 SQLite and the protocol scoped under `Main`, the process exits within a
@@ -211,16 +212,18 @@ registers through `McpServer.toolkit` (Effect's default decode is
 - **The seven action-keyed tools** (`inventory`, `test`, `note`,
   `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`) are
   `Tool.dynamic`, because core dies at registration on a union
-  `parameters` schema. `strictUnionTool` serves Effect's strict document
-  for the union, reshaped by `ToolInputSchema.objectRooted` to `type:
-  "object"` + `oneOf` + `x-discriminator`; the served input schemas are
-  byte-identical to the pre-kit ones. Core never re-decodes a dynamic
-  tool, so `decodeStrictUnion` runs the same unknown-key walk and an
-  `onExcessProperty: "error"` decode inside the handler, failing the
-  tool's declared `InvalidParams`.
+  `parameters` schema. `McpToolkit.unionTool` serves Effect's strict
+  document for the union, reshaped to `type: "object"` + `oneOf` +
+  `x-discriminator`; the served input schemas are byte-identical to the
+  pre-kit ones (pinned by `union-tools-wire.test.ts`). Core never
+  re-decodes a dynamic tool, so `McpToolkit.unionHandler` runs the same
+  unknown-key walk and an `onExcessProperty: "error"` decode inside the
+  handler; invalid params therefore answer exactly as they do for a
+  `Tool.make` tool (JSON-RPC `-32602` on `2025-06-18`, an `isError` result
+  on the newer revisions).
 
 Every tool serves an object-rooted `outputSchema`: a success union is
-wrapped in `objectRootedUnion`, which adds `type: "object"` beside its
+wrapped in `ToolOutputSchema.objectRooted` (`@effected/mcp`), which adds `type: "object"` beside its
 `anyOf` (issue 489).
 
 **Failures.** Every successful result carries the encoded object in
@@ -232,8 +235,8 @@ sent as `isError` with its message as the only text and no
 scrubbed text, `Tool execution failed due to an internal server error.`,
 with the cause logged on stderr. A failure the agent must act on
 therefore belongs either in the success shape (`ok: false` / `kind:
-"error"`) or in a declared `ToolRefusal` built with `refuse(reason,
-remediation)`: `ToolFailure.message` folds the `@effected/engine`
+"error"`) or in a declared `ToolRefusal` (`@effected/mcp`) built with
+`ToolRefusal.refuse(reason, remediation)`: `ToolFailure.message` folds the `@effected/engine`
 `Remediation` into the message. `hypothesis` (unknown `tddTaskId` /
 `sessionId` / hypothesis id, no session) and `tdd_task` `start` (unknown
 `sessionId` / `chatId`, neither supplied, blank `runId`) refuse this way.
@@ -343,11 +346,16 @@ initialized client, not a bespoke channel method.
 ## Crash resilience
 
 Two independent layers address two different failure modes, and neither
-substitutes for the other. **Process-level guards (`main.ts`)** register
-`unhandledRejection` (log to stderr, stay alive) and `uncaughtException`
-(log; exit 1 only while `shouldExitOnUncaughtException(transportConnected)`
-says no client session exists yet — `packages/mcp/src/utils/crash-guards.ts`)
-before any other module is evaluated. Under Node, an unhandled promise
+substitutes for the other. **Process-level guards (`main.ts`)** are `McpGuard.run`'s,
+registered before any other module is evaluated, under the policy `{
+onUncaught: "exitBeforeConnect", onRejection: "log" }`: an unhandled
+rejection is logged to stderr and the server stays alive; an uncaught
+exception is logged and exits 1 only while the server is not yet serving.
+The test-only `VITEST_AGENT_MCP_TEST_INJECT_CRASH` (`<at>:<kind>`, `at` =
+`load` or `connected`, a bare `<kind>` meaning `connected`) maps to the
+guard's `injectCrash`, whose stderr message is prefixed `[injected]`;
+`bin-crash-resilience.e2e.test.ts` proves both the post-connect survival
+and the pre-connect exit against the built bin. Under Node, an unhandled promise
 rejection anywhere outside a tool call's own await chain otherwise kills
 the process, silently deregistering every tool mid-session with no recovery
 path. Surviving after connect is acceptable because this process holds no
@@ -355,7 +363,7 @@ long-lived mutable state outside SQLite's own transactions — every
 `DataStore` / `DataReader` call is self-contained — so a throw that escapes
 even the per-call catch at the tool-call boundary cannot leave the *next* call's
 bookkeeping half-mutated. **The crash handler must not itself be
-crashable**: the handlers go through `safeFormatFatalError`, which
+crashable**: the guard formats through `safeFormatFatalError`, which
 try/catches the core's `formatFatalError` and falls back to a constant,
 because that formatter introspects the value it is handed and every
 introspection point is hijackable by a `Proxy` trap that throws — and a
@@ -364,7 +372,8 @@ throw inside an `uncaughtException` handler is fatal with no second chance.
 throw or defect *inside* a tool call is caught by core's
 `registerToolkit` (reached through `McpToolkit.layer`) and returned as the
 scrubbed `isError` text, with the cause logged on stderr. See
-[The MCP Server Survives Post-Connect Crashes](../decisions/51-the-mcp-server-survives-post-connect-crashes.md).
+[The MCP Server Survives Post-Connect Crashes](../decisions/51-the-mcp-server-survives-post-connect-crashes.md)
+and [Decision 73](../decisions/73-adoption-helpers-live-in-the-kit.md).
 
 ## Hypothesis session binding
 
@@ -568,8 +577,9 @@ params to a `Tool.make` tool is a JSON-RPC `-32602` on `2025-06-18` and an
 `isError` result on the two newer revisions), and a strict-plus-lenient
 fixture. `served-schema-strict.test.ts` runs `McpToolAudit` (object-rooted
 `outputSchema`, title and hints on every tool) over the listing, and
-`union-schema.test.ts` covers `strictUnionTool`'s schema and
-`decodeStrictUnion`. `__test__/utils/mcp-process.ts` spawns the built bin
+`union-tools-wire.test.ts` pins, through the real `test` tool, that a
+union tool's served input document is byte-identical to the pre-kit
+pipeline's and that a bad call gets each revision's invalid-params answer. `__test__/utils/mcp-process.ts` spawns the built bin
 through `@effected/mcp/testing`'s `McpProcess` for the e2e suites.
 `__test__/utils/caller.ts`'s `makeCaller(runtime, session?)` decodes params
 through a tool's schema and invokes `toolHandlers[name]` directly for

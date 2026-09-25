@@ -9,13 +9,13 @@
  */
 
 import { Remediation } from "@effected/engine";
+import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail, GoalRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
-import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const GoalStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]);
 
@@ -72,7 +72,7 @@ const TddGoalListOk = Schema.Struct({
 	goals: Schema.Array(GoalDetail).annotate({ description: "All goals for the TDD task, with their behaviors." }),
 }).annotate({ identifier: "TddGoalListOk" });
 
-export const TddGoalResult = objectRootedUnion(
+export const TddGoalResult = ToolOutputSchema.objectRooted(
 	Schema.Union([
 		TddGoalCreateOk,
 		TddGoalUpdateOk,
@@ -219,11 +219,12 @@ export const handleTddGoal = (
  *
  * @public
  */
-export const tddGoalTool = strictUnionTool("tdd_goal", {
+export const tddGoalTool = McpToolkit.unionTool("tdd_goal", {
 	description:
 		"Use to manage TDD goals, with a CRUD action discriminator: action='create' (tddTaskId, goal) is idempotent on (tddTaskId, goal); action='update' (id, goal?, status?) edits text and/or lifecycle status; action='delete' (id) hard-deletes (prefer status:'abandoned'); action='get' (id) reads with nested behaviors; action='list' (tddTaskId) returns all goals for a TDD task.",
 	parameters: TddGoalInput,
 	success: TddGoalResult,
+	failure: ToolRefusal,
 })
 	.addDependency(DataReader)
 	.addDependency(DataStore)

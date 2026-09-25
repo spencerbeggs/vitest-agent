@@ -9,15 +9,13 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 86d0944afbb616173694b8ae2b9f5dce0be5e830eb7eb2a0537897bf420f9cf7
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 6f52566d10dc6ab693727c770e01494ceda93bcdef43ba371488786b8be41949
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
-  - id: mcp-union-schema-ts
-    resource: ../../packages/mcp/src/tools/_union-schema.ts
   - id: mcp-main-ts
     resource: ../../packages/mcp/src/main.ts
   - id: mcp-idempotency-ts
@@ -146,15 +144,15 @@ result. `serverInfo.description` is just the one-line human summary.
 **Process contract.** `McpStdio.layer` provides `Logger.LogToStderr` to
 everything it provides, and `McpStdio.launch` provides it around the whole
 launch, because Effect's default logger writes to stdout and stdout is
-the JSON-RPC wire. `main.ts` registers the crash guards before any static
-import of the server graph, resolves `projectDir` / `dbPath`, builds
+the JSON-RPC wire. `main.ts` hands the process to `@effected/mcp/guard`'s
+`McpGuard.run`, which registers the crash guards before its `load` step
+imports the server graph; `load` resolves `projectDir` / `dbPath`, builds
 `McpSession.layer` from `sessionContextFromEnv(env)` plus the engine's
-lazy recover thunk, and launches under `NodeRuntime.runMain` with
-`McpStdio.teardown`, which maps stdin EOF (an interrupt-only exit) to 0
-instead of 130. `transportConnected` is set from a `Layer.effectDiscard`
-provided *by* the composed `Main` layer, because `Layer.provide` builds
-its dependency to completion before the dependent runs, which
-`Layer.mergeAll`'s concurrency would not guarantee.
+lazy recover thunk, and returns the layer for the guard to launch under
+`NodeRuntime.runMain` with `McpStdio.teardown`, which maps stdin EOF (an
+interrupt-only exit) to 0 instead of 130. The guard tracks when the server
+is serving itself (see [Decision
+51](51-the-mcp-server-survives-post-connect-crashes.md)).
 
 **`tdd_progress_push` changed its wire method.** Effect's server cannot
 emit a custom method the previous server used; the tool keeps its
@@ -192,8 +190,9 @@ layers in one server. Effect's own `McpServer` takes Effect Schemas
 directly at every surface, so that seam and the SDK dependency it
 required are both gone; the `anyOf` → `oneOf` plus `x-discriminator`
 rewrite that form needed now comes from `@effected/mcp`'s
-`ToolInputSchema.objectRooted`, applied to the union tools in
-`tools/_union-schema.ts`.
+`ToolInputSchema.objectRooted`, applied to the union tools by
+`McpToolkit.unionTool` ([Decision
+73](73-adoption-helpers-live-in-the-kit.md)).
 
 ## Consequences
 
@@ -223,3 +222,4 @@ unaffected.
 - [Decision 50: Strict MCP Tool Inputs](50-strict-mcp-tool-inputs.md)
 - [Decision 35: Framing-Only MCP Prompts](35-framing-only-mcp-prompts.md)
 - [Decision 72: Adopt the Effected Front-End Kit](72-adopt-the-effected-front-end-kit.md)
+- [Decision 73: Adoption Helpers Live in the Kit](73-adoption-helpers-live-in-the-kit.md)

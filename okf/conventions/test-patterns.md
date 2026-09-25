@@ -41,8 +41,8 @@ sources:
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 1ccd8f653cf45dee63b71dd2417b3f49b40cae5501dd15be50cf8fba89a6aa28
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 96bdb58c7a0ec0a78a8bf595da80b38f0e5587af5d4901c02d58942c0193762d
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -96,11 +96,13 @@ that a handler was registered, never that the process survives it. Spawn the
 `makeScratchProject` and `makeEnv`, with `XDG_DATA_HOME` pointed at a
 scratch directory), drive it over raw JSON-RPC on stdio, and
 trigger the crash through an env-gated, fires-once injection hook
-(`VITEST_AGENT_MCP_TEST_INJECT_CRASH`) scheduled for the event-loop turn
-right after the transport connects, so ordering stays
-deterministic[^mcp-process]. Assert on the thing that matters: the injected
-error kind appears on stderr before a subsequent `ping` is sent, and `ping`
-still answers over the same transport. The hook must stay env-gated so it can
+(`VITEST_AGENT_MCP_TEST_INJECT_CRASH`, `<at>:<kind>` with `at` = `load` or
+`connected`), which `main.ts` maps to `McpGuard`'s `injectCrash` so the
+kit schedules it at a deterministic point[^mcp-process]. Assert on the thing
+that matters: for a `connected` crash, the `[injected] <kind>` line appears
+on stderr before a subsequent `ping` is sent, and `ping` still answers over
+the same transport; for `load:uncaughtException`, the process exits 1
+without ever serving. The hook must stay env-gated so it can
 never fire in a normal install, and the file must carry the `.e2e.test.ts`
 suffix — a plain `.test.ts` classifies as `unit` and gets a 5 s timeout, which
 a real spawn plus handshake routinely exceeds.
@@ -136,9 +138,10 @@ Every `packages/{sdk,engine,cli,mcp}/__test__/boundaries.test.ts` runs
 `src/`, with per-rule `allowRules` for the files a rule waives. Each suite
 first asserts `SourceBoundary.verifyFixtures()` returns nothing, as a
 positive control that the scanner still flags what it must. It also checks
-the scan read a non-zero number of files, and that the
-`process.env.__PACKAGE_VERSION__` token appears only in
-`version.ts`[^boundaries-scanner]. `packages/plugin/__test__/workspace-layering.test.ts`
+the scan read a non-zero number of files, and confines the
+`process.env.__PACKAGE_VERSION__` token to `version.ts` with a
+`forbidTokens` rule waived there by `allowRules`, asserting the waiver
+still matches[^boundaries-scanner]. `packages/plugin/__test__/workspace-layering.test.ts`
 holds the live package graph to the root `layers.json` through
 `WorkspaceLayering`, and asserts the graph is acyclic across every
 dependency field. A synthetic upward edge and a synthetic `cli -> mcp`

@@ -8,6 +8,7 @@ import { dirname, join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
@@ -23,7 +24,6 @@ import { Data, Effect, Schema, Semaphore } from "effect";
 import { Tool } from "effect/unstable/ai";
 import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
 import { McpSession } from "../session.js";
-import { objectRootedUnion } from "./_union-schema.js";
 
 const TagFilter = Schema.Struct({
 	all: Schema.optionalKey(Schema.Array(Schema.String)).annotate({ description: "Require every listed tag" }),
@@ -113,7 +113,7 @@ const RunTestsNoMatch = Schema.Struct({
  *
  * @public
  */
-export const RunTestsResult = objectRootedUnion(
+export const RunTestsResult = ToolOutputSchema.objectRooted(
 	Schema.Union([RunTestsOk, RunTestsTimeout, RunTestsError, RunTestsNoMatch]),
 ).annotate({
 	identifier: "RunTestsResult",

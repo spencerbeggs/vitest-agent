@@ -6,8 +6,8 @@ resource: ../../packages/mcp/src/toolkit.ts
 tags: [mcp, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 23e1ee0bbdd01f97fc47ceb956294c660e25fab62daf66b2314e491fd6787802
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 01d18db34db150ea02345ca98aa54de4c65ce44585694a42dce39791e2469db1
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -15,10 +15,10 @@ sources:
     resource: ../../packages/mcp/src/tools/ping.ts
   - id: server
     resource: ../../packages/mcp/src/server.ts
-  - id: union-schema
-    resource: ../../packages/mcp/src/tools/_union-schema.ts
-  - id: tool-refusal
-    resource: ../../packages/mcp/src/tools/_tool-refusal.ts
+  - id: tdd-goal-tool
+    resource: ../../packages/mcp/src/tools/tdd-goal.ts
+  - id: tdd-task-tool
+    resource: ../../packages/mcp/src/tools/tdd-task.ts
   - id: idempotency
     resource: ../../packages/mcp/src/idempotency.ts
   - id: harness
@@ -53,12 +53,14 @@ tool's discriminant covers it.
    `Schema.Literal("pong")` success payload, all five
    annotations).[^ping-tool] Export the `handle<Name>` Effect alongside
    the tool value. A success union must be wrapped in
-   `objectRootedUnion(Schema.Union([...]))` before `.annotate({ identifier })`
-   so its `outputSchema` is served. A failure the agent can fix belongs in
-   the success shape (`ok: false` / `kind: "error"`) or in a declared
-   `ToolRefusal` built with `refuse(reason, remediation)`, never a
-   defect: a defect reaches the agent only as a generic internal-error
-   message.[^tool-refusal]
+   `ToolOutputSchema.objectRooted(Schema.Union([...]))` (`@effected/mcp`)
+   before `.annotate({ identifier })` so its `outputSchema` is served. A
+   failure the agent can fix belongs in the success shape (`ok: false` /
+   `kind: "error"`) or in `@effected/mcp`'s `ToolRefusal` — declared as the
+   tool's `failure` and raised with `ToolRefusal.refuse(reason,
+   remediation)` — never a defect: a defect reaches the agent only as a
+   generic internal-error message. `tdd-task.ts` is the worked
+   example.[^tdd-task-tool]
 2. **If the tool is action-keyed** (a CRUD family collapsing into one
    tool, the pattern `tdd_task`, `tdd_goal`, `tdd_behavior`, `note`,
    `hypothesis`, `inventory`, and `test` already follow), export the
@@ -67,9 +69,10 @@ tool's discriminant covers it.
    `Match.discriminatorsExhaustive` inside the handler, so a served enum
    and the handler's branch coverage cannot drift from each other. A
    union `parameters` schema cannot be a `Tool.make`: build the tool with
-   `strictUnionTool("<name>", { description, parameters, success })`
-   (declare services with `.addDependency`) and wrap its handler in
-   `decodeStrictUnion(tool, Input, handler)` in `toolHandlers`.[^union-schema]
+   `McpToolkit.unionTool("<name>", { description, parameters, success,
+   failure })` (declare services with `.addDependency`) and wrap its
+   handler in `McpToolkit.unionHandler(tool, handler)` in `toolHandlers`;
+   `tdd-goal.ts` is the worked example.[^tdd-goal-tool]
 3. **Add the tool to `Kit` and its handler to `toolHandlers` in
    `toolkit.ts`.** `Kit = Toolkit.make(...)` is the single source of truth
    for the served tool list; `toolHandlers` is checked with `satisfies
@@ -126,12 +129,13 @@ it with a strict `inputSchema`.
 - [Module: mcp](../modules/mcp.md)
 - [Convention: test-patterns](../conventions/test-patterns.md)
 - [Decision 60 — Single-Source Served MCP Discriminants](../decisions/60-single-source-served-mcp-discriminants.md)
+- [Decision 73 — Adoption helpers live in the kit](../decisions/73-adoption-helpers-live-in-the-kit.md)
 
 [^toolkit]: `../../packages/mcp/src/toolkit.ts`
 [^ping-tool]: `../../packages/mcp/src/tools/ping.ts`
 [^server]: `../../packages/mcp/src/server.ts`
-[^union-schema]: `../../packages/mcp/src/tools/_union-schema.ts`
-[^tool-refusal]: `../../packages/mcp/src/tools/_tool-refusal.ts`
+[^tdd-goal-tool]: `../../packages/mcp/src/tools/tdd-goal.ts`
+[^tdd-task-tool]: `../../packages/mcp/src/tools/tdd-task.ts`
 [^idempotency]: `../../packages/mcp/src/idempotency.ts:37`
 [^harness]: `../../packages/mcp/__test__/utils/harness.ts`
 [^served-schema-strict-test]: `../../packages/mcp/__test__/served-schema-strict.test.ts:1-9,44-60`

@@ -1,10 +1,10 @@
 // `test_coverage` MCP tool — Schema-driven implementation.
 
+import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader } from "@vitest-agent/engine";
 import { CoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { objectRootedUnion } from "./_union-schema.js";
 
 const CoverageAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true),
@@ -22,7 +22,9 @@ const CoverageAbsent = Schema.Struct({
  *
  * @public
  */
-export const TestCoverageResult = objectRootedUnion(Schema.Union([CoverageAvailable, CoverageAbsent])).annotate({
+export const TestCoverageResult = ToolOutputSchema.objectRooted(
+	Schema.Union([CoverageAvailable, CoverageAbsent]),
+).annotate({
 	identifier: "TestCoverageResult",
 	title: "test_coverage result",
 	description: "Per-project coverage report. Discriminate on `dataAvailable` for cold-start handling.",

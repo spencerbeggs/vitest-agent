@@ -9,8 +9,8 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 816ddca17bede689a5508f1d7972c8dc55f6debaa43479a0a758e32b542af754
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 617305e01e4774e607f4c6f7cad7af2b2b92752b73541312144af0e6273525c7
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -118,7 +118,8 @@ only through narrow allowlists (`bin.ts`, `main.ts`, `version.ts`, plus
 `commands/**` for cli and `tools/run-tests.ts` for mcp) and never import
 each other. The single exemption everywhere is the exact token
 `process.env.__PACKAGE_VERSION__`, a compile-time literal the bundler
-substitutes, which may appear only in each package's `version.ts`.
+substitutes, which a `forbidTokens` rule confines to each package's
+`version.ts`.
 
 **`./dispatch` stays in sdk and is pure.** `dispatch(argv, io)` takes
 `io = { cwd, env, readFile }`, so the four sidecar bins and the CLI's
@@ -135,11 +136,9 @@ subpath; `src/index.ts` is a side-effect-free barrel that never imports
 process-owning module. `src/version.ts` holds `CURRENT_<PKG>_VERSION`.
 `packages/mcp/src/main.ts` follows the contract with a documented
 deviation: it carries no static imports of the server graph at all (only
-the dependency-free `./utils/crash-guards.js`), because the crash guards
-(`process.on("unhandledRejection", ...)`,
-`process.on("uncaughtException", ...)`) must register before anything
-that could throw during module evaluation
-(`packages/mcp/src/main.ts:94-121`).
+the dependency-free `@effected/mcp/guard`), because the crash guards
+`McpGuard.run` registers must exist before anything that could throw
+during module evaluation (`packages/mcp/src/main.ts`).
 
 **The carrier.** `@vitest-agent/plugin` declares both bins itself as
 thin shims: `bin.vitest-agent` points at
@@ -161,7 +160,8 @@ bins, `@vitest-agent/cli`'s own `vitest-agent` bin may win the `.bin`
 slot and shadow the carrier's same-named shim. Both call the same
 `main()`, so only the `via @vitest-agent/plugin <version>` suffix on
 `--version` differs; under pnpm's isolated layout the carrier's shim is
-the only candidate.
+the only candidate. Keeping the front ends' own bins is deliberate — see
+[Decision 73](73-adoption-helpers-live-in-the-kit.md).
 
 **Packed-install e2e per package manager.**
 `packages/plugin/__test__/bins-packed-install.e2e.test.ts` runs
@@ -174,7 +174,11 @@ and `vitest-agent-mcp` exist and are executable, that `vitest-agent
 --version` exits 0 with a semver, that under pnpm it names the carrier
 and `@vitest-agent/cli` is not linked at the consumer's top level, and that
 `vitest-agent-mcp` passes `@effected/mcp/testing`'s
-`McpProbe.initialize` with empty stderr and exit 0. This test needs `pnpm run build` (prod) and network, and is the proof
+`McpProbe.initialize` with empty stderr and exit 0. The run passes
+`allowSharedBins: true` and, under every manager, also runs the carrier's
+own bins through its `bin` map (`consumer.runCarrierBin` /
+`carrierCommand`), so the shim and its suffix are proven even where a
+front end holds the `.bin` slot. This test needs `pnpm run build` (prod) and network, and is the proof
 this pattern relies on rather than the dev workspace's own linked
 `node_modules/.bin` — the release gate that follows from it is that
 `@vitest-agent/engine` must publish before `@vitest-agent/plugin`, since
@@ -241,4 +245,5 @@ issues rather than folded into this decision.
 - [`@vitest-agent/plugin`](../modules/plugin.md)
 - [Front-End Entry Contract](../conventions/front-end-entry-contract.md)
 - [Decision 72: Adopt the Effected Front-End Kit](72-adopt-the-effected-front-end-kit.md)
+- [Decision 73: Adoption Helpers Live in the Kit](73-adoption-helpers-live-in-the-kit.md)
 - [XDG Fallback Split](../gotchas/xdg-fallback-split.md)

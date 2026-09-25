@@ -18,6 +18,9 @@
  * @packageDocumentation
  */
 
+// The refusal the `hypothesis` / `tdd_task` handlers fail with is the kit's;
+// re-exported so an embedder's `catchTag("ToolRefusal", ...)` imports it from here.
+export { ToolRefusal } from "@effected/mcp";
 export { RenderText } from "./annotations.js";
 export { withIdempotency } from "./idempotency.js";
 export { PromptsLayer } from "./prompts/layer.js";
@@ -29,7 +32,6 @@ export { Kit, ToolsLayer, toolHandlers } from "./toolkit.js";
 // `parseSessionEnvExports` / `recoverSessionContextFromSessionEnv` moved
 // to `@vitest-agent/engine` (#412); import them from there.
 export type { Remediation, TddErrorEnvelope } from "./tools/_tdd-error-envelope.js";
-export { ToolRefusal } from "./tools/_tool-refusal.js";
 export type { AcceptanceMetricsResultType } from "./tools/acceptance-metrics.js";
 export { AcceptanceMetricsResult } from "./tools/acceptance-metrics.js";
 export type { CacheHealthResultType } from "./tools/cache-health.js";
