@@ -29,6 +29,12 @@
  * - `vitest-agent-mcp` passes `McpProbe.initialize` (`@effected/mcp/testing`)
  *   spawned through `consumer.command`: no JSON-RPC error, empty stderr,
  *   exit 0.
+ * - The carrier's OWN bins run under every manager, whoever won the `.bin`
+ *   slot: `consumer.runCarrierBin("vitest-agent", ["--version"])` names the
+ *   carrier, and `vitest-agent-mcp` passes `McpProbe.initialize` through
+ *   `consumer.carrierCommand` (both resolve through the carrier's own `bin`
+ *   map). That keeps the shim path proven under npm and bun too, where a
+ *   front end's bin can take the slot.
  *
  * Every bin runs with `XDG_DATA_HOME` inside `result.scratch`, so the
  * developer's real data directory is never touched and the data is removed
@@ -117,8 +123,8 @@ const RUN_BUDGET = PackedInstall.timeoutBudget({
 	installTimeout: INSTALL_TIMEOUT,
 	packTimeout: PACK_TIMEOUT,
 	packages: PACKED,
-	// Two bin runs per consumer, each capped at BIN_TIMEOUT.
-	perConsumer: "2 minutes",
+	// Four bin runs per consumer (slot + carrier, CLI + MCP), each capped at BIN_TIMEOUT.
+	perConsumer: "4 minutes",
 });
 const TEST_TIMEOUT_MS = Duration.toMillis(RUN_BUDGET) + 60_000;
 
@@ -150,10 +156,25 @@ describe.skipIf(!RUNNABLE)(SUITE_NAME, () => {
 					const probe = yield* McpProbe.initialize(consumer.command("vitest-agent-mcp", [], { env })).pipe(
 						Effect.timeout(BIN_TIMEOUT),
 					);
+					const carrierVersion = yield* consumer.runCarrierBin("vitest-agent", ["--version"], {
+						env,
+						timeout: BIN_TIMEOUT,
+					});
+					const carrierProbe = yield* McpProbe.initialize(
+						yield* consumer.carrierCommand("vitest-agent-mcp", [], { env }),
+					).pipe(Effect.timeout(BIN_TIMEOUT));
 					const cliLinkedAtTopLevel = yield* fs.exists(
 						join(consumer.directory, "node_modules", "@vitest-agent", "cli", "package.json"),
 					);
-					outcomes.push({ manager: consumer.manager, provenance, version, probe, cliLinkedAtTopLevel });
+					outcomes.push({
+						manager: consumer.manager,
+						provenance,
+						version,
+						probe,
+						carrierVersion,
+						carrierProbe,
+						cliLinkedAtTopLevel,
+					});
 				}
 				return { packed: Object.keys(result.tarballs), consumers: result.consumers.length, outcomes };
 			}).pipe(Effect.scoped, Effect.timeout(RUN_BUDGET), Effect.provide(Live));
@@ -164,7 +185,15 @@ describe.skipIf(!RUNNABLE)(SUITE_NAME, () => {
 			expect(consumers).toBeGreaterThan(0);
 
 			const suffix = ` via ${CARRIER} ${pluginVersion}`;
-			for (const { manager, provenance, version, probe, cliLinkedAtTopLevel } of outcomes) {
+			for (const {
+				manager,
+				provenance,
+				version,
+				probe,
+				carrierVersion,
+				carrierProbe,
+				cliLinkedAtTopLevel,
+			} of outcomes) {
 				expect(version.exitCode, `${manager}: vitest-agent --version\n${version.stderr}`).toBe(0);
 				expect(version.stdout, manager).toMatch(/\d+\.\d+\.\d+/);
 				if (manager === "pnpm") {
@@ -187,6 +216,13 @@ describe.skipIf(!RUNNABLE)(SUITE_NAME, () => {
 				expect(probe.response.error, `${manager}: initialize answered an error`).toBeUndefined();
 				expect(probe.stderr, `${manager}: vitest-agent-mcp stderr`).toBe("");
 				expect(probe.exitCode, `${manager}: vitest-agent-mcp exit code`).toBe(0);
+				// The carrier's own bins, resolved through its `bin` map regardless of
+				// who holds the `.bin` slot: the shim path is proven under every manager.
+				expect(carrierVersion.exitCode, `${manager}: carrier vitest-agent --version\n${carrierVersion.stderr}`).toBe(0);
+				expect(carrierVersion.stdout, `${manager}: the carrier's own bin names the carrier`).toContain(suffix);
+				expect(carrierProbe.response.error, `${manager}: carrier vitest-agent-mcp initialize error`).toBeUndefined();
+				expect(carrierProbe.stderr, `${manager}: carrier vitest-agent-mcp stderr`).toBe("");
+				expect(carrierProbe.exitCode, `${manager}: carrier vitest-agent-mcp exit code`).toBe(0);
 			}
 		},
 		TEST_TIMEOUT_MS,
