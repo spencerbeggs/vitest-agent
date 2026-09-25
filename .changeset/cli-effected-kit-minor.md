@@ -11,4 +11,5 @@
 ## Breaking Changes
 
 * Usage and parse errors now exit with code `64` instead of `1`, matching the BSD `sysexits.h` convention (`EX_USAGE`).
+* On a usage error, the help text and the error now both go to stderr and stdout stays empty, so callers that parse stdout (such as the Claude Code hooks piping into `jq`) never receive help text. An explicit `--help` still prints to stdout.
 * Platform-level failures are now reported as a single stderr line instead of a multi-line dump.
