@@ -18,6 +18,9 @@
  * @packageDocumentation
  */
 
+// The refusal the `hypothesis` / `tdd_task` handlers fail with is the kit's;
+// re-exported so an embedder's `catchTag("ToolRefusal", ...)` imports it from here.
+export { ToolRefusal } from "@effected/mcp";
 export { RenderText } from "./annotations.js";
 export { withIdempotency } from "./idempotency.js";
 export { PromptsLayer } from "./prompts/layer.js";
