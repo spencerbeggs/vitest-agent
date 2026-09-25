@@ -1,31 +1,27 @@
-/**
- * `agent` subcommand namespace.
- *
- * Commands intended for agents and hook scripts — humans typically do
- * not invoke these directly. The group composes the hook-driven
- * utilities (triage, wrapup, record) with the sidecar invocations
- * called by plugins/claude-code/hooks/*.sh scripts (register-agent, end-agent,
- * inject-env).
- *
- * The sidecar subcommands return plain text on stdout that the bash
- * hooks parse, and structured error info on stderr in the shape
- * `<exit_code> <error_tag>: <message>`.
- *
- * Exit codes follow the contract documented in the agent-agnostic
- * taxonomy plan:
- *   0 = success
- *   1 = registration conflict
- *   2 = sidecar timeout
- *   3 = database error
- *   4 = project identity not resolvable
- *   5 = other unexpected defect
- *
- * `check-test-path` is not part of that family and does not share the
- * taxonomy: it exits 1, with nothing on stdout, to mean "no verdict was
- * rendered — fail open."
- *
- * @packageDocumentation
- */
+// `agent` subcommand namespace.
+//
+// Commands intended for agents and hook scripts — humans typically do
+// not invoke these directly. The group composes the hook-driven
+// utilities (triage, wrapup, record) with the sidecar invocations
+// called by plugins/claude-code/hooks/*.sh scripts (register-agent, end-agent,
+// inject-env).
+//
+// The sidecar subcommands return plain text on stdout that the bash
+// hooks parse, and structured error info on stderr in the shape
+// `<exit_code> <error_tag>: <message>`.
+//
+// Exit codes follow the contract documented in the agent-agnostic
+// taxonomy plan:
+//   0 = success
+//   1 = registration conflict
+//   2 = sidecar timeout
+//   3 = database error
+//   4 = project identity not resolvable
+//   5 = other unexpected defect
+//
+// `check-test-path` is not part of that family and does not share the
+// taxonomy: it exits 1, with nothing on stdout, to mean "no verdict was
+// rendered — fail open."
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";

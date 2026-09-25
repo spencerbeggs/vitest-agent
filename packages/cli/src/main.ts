@@ -81,7 +81,7 @@ const renderFailure = (error: unknown): string => {
  * - Outside the platform, `CliRuntime.main`'s default `CliLogger` is
  *   outermost and sends every level to stderr. It is what renders reported
  *   failures (a layer-build failure, a typed command failure, a defect)
- *   through {@link renderFailure}.
+ *   through `renderFailure`.
  * - Help goes to stdout and parse errors to stderr, both via the
  *   `CliOutput` formatter (`versionFormatterLayer`), as `Command.runWith`
  *   renders them.

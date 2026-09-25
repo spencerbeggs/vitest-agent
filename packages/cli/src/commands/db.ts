@@ -1,8 +1,4 @@
-/**
- * CLI db command -- manage the vitest-agent database.
- *
- * @packageDocumentation
- */
+// CLI db command -- manage the vitest-agent database.
 
 import * as readline from "node:readline";
 import * as NodeServices from "@effect/platform-node/NodeServices";

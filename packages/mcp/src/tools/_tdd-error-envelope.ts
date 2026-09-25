@@ -33,7 +33,7 @@ export type { Remediation };
  *
  * Instead of letting the five tagged TDD errors propagate as transport errors,
  * `catchTddErrorsAsEnvelope` maps them to this shape so the agent receives a normal
- * tool response with `ok: false` and a {@link Remediation} describing the next step.
+ * tool response with `ok: false` and a `Remediation` describing the next step.
  *
  * @public
  */
