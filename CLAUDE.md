@@ -85,11 +85,14 @@ Six primary capabilities:
    `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) that dispatch
    on an `action` / `kind` discriminator; also `register_agent` and
    `tdd_artifact_list`. Every served input is strict at every object level
-   (`McpToolkit.layer`, or `decodeStrictUnion` for a union tool, rejects
-   unknown keys naming the accepted params). Agents read `structuredContent`
+   (`McpToolkit.layer`, or `McpToolkit.unionHandler` for a union tool,
+   rejects unknown keys naming the accepted params). Agents read `structuredContent`
    only; an internal failure is a scrubbed `isError` text, and a failure the
    agent can fix is a success-shape `ok: false` or a declared `ToolRefusal`.
-   See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
+   See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md)
+   and [Decision 73](okf/decisions/73-adoption-helpers-live-in-the-kit.md)
+   (union tools, `ToolRefusal`, and the `McpGuard` crash guards all come
+   from `@effected/mcp`).
    `tdd_progress_push` rides the standard `notifications/message` frame
    (logger `vitest-agent/channel`), not a custom channel method.
 6. **Claude Code plugin** -- file-based plugin at `plugins/claude-code/`
@@ -297,7 +300,8 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
   `commands/**` or `tools/run-tests.ts`) and never import each other; mcp
   also keeps stdout clean (no `console` stdout, stdout writes only in
   `tools/run-tests.ts`); the token `process.env.__PACKAGE_VERSION__` may
-  appear only in each package's `version.ts`. Details: [Invariant: package
+  appear only in each package's `version.ts` (a `forbidTokens` rule waived
+  for `version.ts`). Details: [Invariant: package
   boundaries](okf/invariants/package-boundaries.md), [Invariant: ranked
   layering](okf/invariants/ranked-layering.md), [Decision
   70](okf/decisions/70-carrier-pattern-and-ranked-layering.md), and

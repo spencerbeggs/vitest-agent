@@ -17,8 +17,8 @@ sources:
     title: The one sanctioned dynamic-import call site
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 32c8e54cbc140368784a4d835096a96a8be84594e60014894fba7aa94e7afe22
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 249cf2a713167bde61e6998ee59a1543ca40a51495c1c782bc73e8de4164cca9
 ---
 
 # Import style — extensions, protocol, type-only, and static-only
@@ -74,13 +74,13 @@ Every import in this codebase is a static `import` declaration. Dynamic
 `await import(...)` is not a house pattern to reach for casually — the
 one sanctioned exception is `packages/mcp/src/main.ts`, where the whole
 server graph (the engine's platform layers, the session module, the
-server layer, and the version constant) is loaded through eight
-sequential `await import(...)` calls inside `main`'s `try`
-block[^mcp-main-dynamic-imports]. That file's own header comment states
-why: the process-level `unhandledRejection` / `uncaughtException`
-guards, and the dependency-free `shouldExitOnUncaughtException` helper,
-must be registered and evaluated *before* the server graph is
-evaluated at all, so a throw during module evaluation of that graph is
+server layer, and the version constant) is loaded through sequential
+`await import(...)` calls inside the `load` callback it hands to
+`@effected/mcp/guard`'s `McpGuard.run`[^mcp-main-dynamic-imports]. That
+file's own header comment states why: the process-level
+`unhandledRejection` / `uncaughtException` guards, which `McpGuard`
+(itself free of static runtime imports) registers before calling `load`,
+must exist *before* the server graph is evaluated at all, so a throw during module evaluation of that graph is
 still reported to stderr instead of crashing the process silently. A
 static import at the top of the module would evaluate the whole graph
 during module load — before the guards exist — and defeat the design.

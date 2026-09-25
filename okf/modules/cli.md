@@ -32,8 +32,8 @@ sources:
     resource: ../../packages/cli/src/lib/version-formatter.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 51e504fb46ef3cb298caa96a978837d7b296ecbe8ceccb67ef2960516ba3c871
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 0fa4bd0099a7f38fa4a6fb379f6ad3b5464becc4274d17f440b374a8050bae08
 ---
 
 # @vitest-agent/cli
@@ -67,8 +67,8 @@ front ends never import each other, enforced by
 `packages/cli/__test__/boundaries.test.ts`[^boundaries-test], which runs
 `@effected/workspaces/testing`'s `SourceBoundary.scan`. The same test
 allows `process` references only in `main.ts` and `commands/**` (`bin.ts`
-reads nothing; the version token is exempt), asserts the `process.env.__PACKAGE_VERSION__` token appears
-only in `version.ts`, and forbids importing `@vitest-agent/mcp`,
+reads nothing; the version token is exempt), confines the `process.env.__PACKAGE_VERSION__` token to `version.ts`
+with a `forbidTokens` rule, and forbids importing `@vitest-agent/mcp`,
 `@vitest-agent/plugin`, `@vitest-agent/reporter`, or `@vitest-agent/ui`
 anywhere under `src/`. See
 [Package Boundaries](../invariants/package-boundaries.md) for the invariant
@@ -113,10 +113,12 @@ Follows the
   agentCommand])`)[^main-ts]. Because the platform is inside failure
   reporting, a failure resolving the data path, opening SQLite or
   running migrations prints one line on stderr instead of a runtime
-  report. `renderFailure` prints a tagged failure as `vitest-agent:
-  <Tag>: <message>` and anything else as `vitest-agent:
-  ${formatFatalError(error)}`. Exit codes are the kit's: `0` success,
-  `64` usage error, `1` any other reported failure; a command's own
+  report. `renderFailure` keys off the kit's `details.isDefect`: a typed
+  failure prints as `vitest-agent: <Tag>: <message>` and a defect as
+  `vitest-agent: ${formatFatalError(error)}`. `helpOnUsageError:
+  "stderr"` sends help plus the parse errors to stderr on a usage error,
+  leaving stdout empty; an explicit `--help` prints on stdout. Exit codes
+  are the kit's: `0` success, `64` usage error, `1` any other reported failure; a command's own
   `process.exit` code still wins. `main(options?)` takes an optional
   `distribution` and provides it as `@effected/engine`'s
   `CurrentDistribution` outermost, so the `--version` formatter

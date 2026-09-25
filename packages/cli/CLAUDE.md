@@ -68,8 +68,12 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   does not write to the DB. Keep this property -- mutations belong in
   the reporter (during a test run) or the MCP server (`note_*`).
 - **`CliRuntime.main` under `NodeRuntime.runMain` for the entry.** Failure
-  rendering and exit codes are the kit's; `renderFailure` prints a tagged
-  failure as one line and a defect through `formatFatalError`. Keep the
+  rendering and exit codes are the kit's; `renderFailure` keys off the
+  kit's `details.isDefect`: a typed failure is one line, a defect goes
+  through `formatFatalError`. `helpOnUsageError: "stderr"` puts help plus
+  the parse errors on stderr on a usage error (stdout empty, exit 64 —
+  hooks pipe `agent *` stdout into jq); an explicit `--help` stays on
+  stdout. Keep the
   platform layer inside `CliRuntime.main`'s `platform` (so its failures
   are reported, not dumped by `runMain`), and don't swap to
   `Effect.runPromise` at the top level.

@@ -8,15 +8,15 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 684cb8e0c4087c429472624e051f45e1478c03fd86ed4180264fc8ef133d2cc8
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 4c18dbe4db85fe5b92c32bec66c1d06ae93f25944ee4e860995501d3a6837f4d
 sources:
   - id: sdk-schemas-agent-report
     resource: ../../packages/sdk/src/schemas/AgentReport.ts
   - id: sdk-schemas-run-report-file
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
-  - id: mcp-union-schema
-    resource: ../../packages/mcp/src/tools/_union-schema.ts
+  - id: mcp-toolkit
+    resource: ../../packages/mcp/src/toolkit.ts
   - id: mcp-package-json
     resource: ../../packages/mcp/package.json
 ---
@@ -54,9 +54,10 @@ codecs, `Schema.decodeUnknownEffect` and `Schema.encodeUnknownEffect`,
 rather than a hand-rolled parser or a second validation library: the MCP
 server's action-keyed tools decode their raw payload with exactly this
 codec (`Schema.decodeUnknownEffect(parameters)` with
-`onExcessProperty: "error"` inside `decodeStrictUnion`), mapping a
-decode failure to `McpSchema.InvalidParams` because a malformed call is
-the caller's to fix.[^mcp-union-schema]
+`onExcessProperty: "error"`, run by `@effected/mcp`'s
+`McpToolkit.unionHandler`), mapping a decode failure to
+`McpSchema.InvalidParams` because a malformed call is the caller's to
+fix.[^mcp-toolkit]
 
 The MCP server's tool inputs, outputs, and prompt arguments are Effect
 Schemas served through Effect's own `McpServer` (`effect/unstable/ai`).
@@ -115,5 +116,5 @@ for the generated-JSON-Schema contract this decision feeds.
 
 [^sdk-schemas-agent-report]: `../../packages/sdk/src/schemas/AgentReport.ts`
 [^sdk-schemas-run-report-file]: `../../packages/sdk/src/schemas/RunReportFile.ts`
-[^mcp-union-schema]: `../../packages/mcp/src/tools/_union-schema.ts`
+[^mcp-toolkit]: `../../packages/mcp/src/toolkit.ts`
 [^mcp-package-json]: `../../packages/mcp/package.json`

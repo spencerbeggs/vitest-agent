@@ -23,8 +23,8 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 83a86cda85ddfbad231ded2b8c49c23ff10f2e624c7eb6e3490049b56c7f776d
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 9921d1fdd577d43f5d0faa9918dc27e41160a25cf503c195e4ea6669455dfcd7
 ---
 
 # The `vitest-agent` CLI command tree
@@ -101,7 +101,9 @@ a consumer must not assume the values transfer between commands:
 **Process-level codes**, from `@effected/cli`'s `CliRuntime.main`, apply
 to every command before any family below: `0` success (a bare `--help`
 included), `64` a usage error (a parse error, an unknown subcommand or
-flag), `1` any other reported failure — a failure resolving the data
+flag; help and the parse errors go to stderr and stdout stays empty, so
+a hook piping stdout into `jq` sees nothing — an explicit `--help` prints
+on stdout), `1` any other reported failure — a failure resolving the data
 path, opening SQLite or running migrations prints one
 `vitest-agent: <Tag>: <message>` line on stderr and exits `1`. A command
 that calls `process.exit` with its own code, as the families below do,

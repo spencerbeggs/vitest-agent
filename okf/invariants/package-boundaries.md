@@ -15,8 +15,8 @@ sources:
     resource: ../../packages/mcp/__test__/boundaries.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 6a4ab4d163621c1f62f9187ac2df1560700a482442936f89d8a46c4b74510e60
+  at: 2026-09-25T23:18:00Z
+  body_sha256: 803357f0451328cebde21ad258e8a37dabf0422418ad9b5b96a6da9d6963e709
 ---
 
 # Package boundaries — process reads and forbidden imports
@@ -52,9 +52,10 @@ variations on one mechanism, not four implementations.
   `@modelcontextprotocol/sdk`, `@trpc/server`, or `zod`[^mcp-boundaries].
 
 Across all four, the literal token `process.env.__PACKAGE_VERSION__` is
-exempt from the `process` rule everywhere, so each test separately pins
-where it may appear: the list of files containing it must equal exactly
-`["version.ts"]`.
+exempt from the `process` rule everywhere, so each test confines it with
+a `{ forbidTokens: [token] }` rule waived only for the root `version.ts`
+(`allowRules: { forbidTokens: ["version.ts"] }`), and asserts the waived
+uses are non-empty and all in `version.ts`.
 
 ## Mechanism
 
