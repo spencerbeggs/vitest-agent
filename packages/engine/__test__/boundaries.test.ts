@@ -1,12 +1,16 @@
 import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import { SourceBoundary } from "@effected/workspaces/testing";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { VERSION_TOKEN, importSpecifiers, referencesProcess, walkTs } from "./utils/boundaries.js";
 
 const SRC_ROOT = join(import.meta.dirname, "..", "src");
-const rel = (file: string): string => relative(SRC_ROOT, file);
 
-const FORBIDDEN_PACKAGES = [
+/** The build-time version define; `SourceBoundary` exempts it anywhere, so its placement is pinned below. */
+const VERSION_TOKEN = "process.env.__PACKAGE_VERSION__";
+
+const FRONT_ENDS = [
 	"@vitest-agent/cli",
 	"@vitest-agent/mcp",
 	"@vitest-agent/plugin",
@@ -15,22 +19,23 @@ const FORBIDDEN_PACKAGES = [
 ];
 
 describe("@vitest-agent/engine never reads process and never imports a front end", () => {
-	const files = walkTs(SRC_ROOT);
-
-	it("no file under src/ reads process — there is no allowlist (version token exempt, only in version.ts)", () => {
-		const offenders = files.filter((f) => referencesProcess(readFileSync(f, "utf8")));
-		expect(offenders.map(rel)).toEqual([]);
-		const tokenUsers = files.filter((f) => readFileSync(f, "utf8").includes(VERSION_TOKEN)).map(rel);
-		expect(tokenUsers).toEqual(["version.ts"]);
-	});
-
-	it("no file under src/ imports @vitest-agent/cli, mcp, plugin, reporter or ui", () => {
-		const forbidden = (s: string) => FORBIDDEN_PACKAGES.some((pkg) => s === pkg || s.startsWith(`${pkg}/`));
-		const offenders = files.flatMap((f) =>
-			importSpecifiers(readFileSync(f, "utf8"))
-				.filter(forbidden)
-				.map((s) => `${rel(f)}: ${s}`),
+	// Not covered by a source scan: `std-env` (a runtime dependency) reads
+	// `process.env` at module load, so the engine's import graph is not
+	// process-free even though its own source is.
+	it("no file under src/ reads process (no allowlist) or imports @vitest-agent/cli, mcp, plugin, reporter or ui", async () => {
+		// Positive control: the scanner still flags and spares what its shipped fixtures say it must.
+		expect(SourceBoundary.verifyFixtures()).toEqual([]);
+		const scan = await Effect.runPromise(
+			SourceBoundary.scan({
+				root: SRC_ROOT,
+				rules: ["process", "node:process", { forbidImports: FRONT_ENDS }],
+			}).pipe(Effect.provide(NodeServices.layer)),
 		);
-		expect(offenders).toEqual([]);
+		// Non-vacuity: a typo'd root would otherwise report a spotless boundary.
+		expect(scan.files.length).toBeGreaterThan(0);
+		expect(scan.violations).toEqual([]);
+
+		const tokenUsers = scan.files.filter((file) => readFileSync(join(SRC_ROOT, file), "utf8").includes(VERSION_TOKEN));
+		expect(tokenUsers).toEqual(["version.ts"]);
 	});
 });

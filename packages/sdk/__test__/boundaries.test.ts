@@ -1,30 +1,44 @@
 import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { builtinModules } from "node:module";
+import { join } from "node:path";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import { SourceBoundary } from "@effected/workspaces/testing";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { VERSION_TOKEN, importSpecifiers, referencesProcess, walkTs } from "./utils/boundaries.js";
 
 const SRC_ROOT = join(import.meta.dirname, "..", "src");
-const rel = (file: string): string => relative(SRC_ROOT, file);
+
+/** The build-time version define; `SourceBoundary` exempts it anywhere, so its placement is pinned below. */
+const VERSION_TOKEN = "process.env.__PACKAGE_VERSION__";
 
 describe("@vitest-agent/sdk is a platform-free core", () => {
-	const files = walkTs(SRC_ROOT);
-	it("no file under src/ references process (version token exempt, only in version.ts)", () => {
-		const offenders = files.filter((f) => referencesProcess(readFileSync(f, "utf8")));
-		expect(offenders.map(rel)).toEqual([]);
-		const tokenUsers = files.filter((f) => readFileSync(f, "utf8").includes(VERSION_TOKEN)).map(rel);
-		expect(tokenUsers).toEqual(["version.ts"]);
-	});
-	it("no file under src/ imports node:*, @effect/platform-node, @effect/sql-sqlite-node or @effected/*", () => {
-		const forbidden = (s: string) =>
-			s.startsWith("node:") ||
-			s.startsWith("@effect/platform-node") ||
-			s.startsWith("@effect/sql-sqlite-node") ||
-			s.startsWith("@effected/");
-		const offenders = files.flatMap((f) =>
-			importSpecifiers(readFileSync(f, "utf8"))
-				.filter(forbidden)
-				.map((s) => `${rel(f)}: ${s}`),
+	it("no file under src/ reads process or imports node built-ins, @effect/platform-node, @effect/sql-sqlite-node or @effected/*", async () => {
+		// Positive control: the scanner still flags and spares what its shipped fixtures say it must.
+		expect(SourceBoundary.verifyFixtures()).toEqual([]);
+		const scan = await Effect.runPromise(
+			SourceBoundary.scan({
+				root: SRC_ROOT,
+				rules: [
+					"process",
+					"node:process",
+					{
+						// `node:*` alone misses a bare built-in such as `"fs"`; spread Node's own list.
+						forbidImports: [
+							"node:*",
+							...builtinModules,
+							"@effect/platform-node",
+							"@effect/sql-sqlite-node",
+							"@effected/*",
+						],
+					},
+				],
+			}).pipe(Effect.provide(NodeServices.layer)),
 		);
-		expect(offenders).toEqual([]);
+		// Non-vacuity: a typo'd root would otherwise report a spotless boundary.
+		expect(scan.files.length).toBeGreaterThan(0);
+		expect(scan.violations).toEqual([]);
+
+		const tokenUsers = scan.files.filter((file) => readFileSync(join(SRC_ROOT, file), "utf8").includes(VERSION_TOKEN));
+		expect(tokenUsers).toEqual(["version.ts"]);
 	});
 });

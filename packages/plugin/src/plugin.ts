@@ -247,15 +247,8 @@ const coverageDirDecidedByVitest = new WeakSet<object>();
  */
 const reportedConfigDiagnosticsByVitest = new WeakMap<object, Set<string>>();
 
-/**
- * The version of this package, inlined at build time from
- * `package.json#version` via rslib-builder's `__PACKAGE_VERSION__` substitution.
- * Re-exported from the package barrel as the public symbol; defined here so
- * consumers can introspect the running plugin version without a circular import.
- *
- * @public
- */
-export const CURRENT_PLUGIN_VERSION: string = process.env.__PACKAGE_VERSION__ ?? "0.0.0";
+// Defined in `version.ts` so the bin shim can read it without the plugin graph.
+export { CURRENT_PLUGIN_VERSION } from "./version.js";
 
 // Both halves of the layout rule come from @vitest-agent/sdk's test-location
 // module rather than being re-spelled here: `isTestFileName` for the extension
