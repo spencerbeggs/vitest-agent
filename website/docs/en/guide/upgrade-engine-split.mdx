@@ -115,6 +115,13 @@ are the same as before; what a client or an embedder sees change is:
 See the [MCP tool catalog](/mcp/tools) and
 [Integrating non-Claude-Code agents](/mcp/integrating).
 
+:::note
+`@vitest-agent/mcp` 5.0 later removed `registerStrictToolkit`, the
+`UnexpectedToolError` envelope, and the `humanHint` remediation field, and
+moved the Claude Code loader's fallback to `@vitest-agent/mcp@5`. See
+[Upgrading to MCP 5](/guide/upgrade-mcp-5).
+:::
+
 ## `@vitest-agent/cli` 3.0
 
 - **`./main` entry.** `main()` — the assembled program that owns the process
@@ -147,3 +154,4 @@ The Claude Code companion's MCP loader now execs
 - [@vitest-agent/sdk](/sdk) and [@vitest-agent/engine](/engine)
 - [Packages overview](/packages)
 - [Upgrading to Vitest 5](/guide/upgrade-vitest-5)
+- [Upgrading to MCP 5](/guide/upgrade-mcp-5)

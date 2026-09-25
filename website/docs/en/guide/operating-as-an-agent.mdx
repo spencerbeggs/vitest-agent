@@ -47,7 +47,7 @@ cost trial-and-error.
     `test_status`, `test_history`, and trends will not reflect that run.
 12. **Some "leaks" are guardrail tests** that assert on their own output — do not
     silence them.
-13. **An unexpected tool failure is not the end of the session.** A resolver that throws where the tool has no domain-specific handling returns `{ ok: false, error: { _tag: "UnexpectedToolError", tool, message, remediation } }`, and the server logs the detail to stderr and keeps the stdio transport open. Retry the call; the rest of the tool surface stays available.
+13. **Read `structuredContent`, and tell the three failure shapes apart.** Every successful result carries its typed object in `structuredContent` — that is the only field Claude Code forwards. An `ok: false` result is an expected domain error whose `remediation.hint` (plus optional `suggestedTool` / `suggestedArgs`) says what to do next. An `isError` result whose text ends `Try <tool>.` is a refused call you can fix — follow the named tool. An `isError` result reading `Tool execution failed due to an internal server error.` is an unexpected failure: the server logged the detail to stderr and keeps the transport open, so the rest of the tool surface stays available — report it rather than retrying the same call unchanged.
 
 ## Environment variables
 

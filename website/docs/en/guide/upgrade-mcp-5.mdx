@@ -1,0 +1,105 @@
+---
+title: Upgrading to MCP 5
+description: What changes in @vitest-agent/mcp 5.0 — the removed UnexpectedToolError envelope, declared refusals that name the fix, remediation hint in place of humanHint, outputSchema on every tool, ping's distribution field, and the removed registerStrictToolkit export.
+---
+
+# Upgrading to MCP 5
+
+`@vitest-agent/mcp` 5.0 moves the server onto the `@effected/mcp` front-end
+kit. Tool names, `action` / `kind` values, input schemas, and strict
+unknown-key rejection are unchanged. What changes is how failures reach the
+caller, one field name in remediations, and one programmatic export. A
+project that only depends on `@vitest-agent/plugin` updates the plugin and
+is done; the breaking changes matter to agents and hosts that parse error
+results, and to code that embeds the server.
+
+## Update your dependencies
+
+import { PackageManagerTabs } from '@rspress/core/theme';
+
+<PackageManagerTabs command="add -D @vitest-agent/plugin@latest" />
+
+The plugin pulls the matching `@vitest-agent/mcp` and `@vitest-agent/cli`.
+The Claude Code companion's MCP loader now falls back to
+`npx --yes @vitest-agent/mcp@5` when your project's
+`node_modules/.bin/vitest-agent-mcp` is missing.
+
+## Unexpected failures return generic text
+
+The `UnexpectedToolError` envelope is gone. A handler that fails where the
+tool has no declared error now returns an `isError` result whose only text
+is:
+
+```text
+Tool execution failed due to an internal server error.
+```
+
+It carries no `structuredContent` and no remediation. The detail is logged
+to stderr, as before, and the transport stays open. Treat it as a failure to
+report, not a call to retry unchanged.
+
+## Fixable failures are declared refusals
+
+A call the agent can correct — an unknown id, a missing session — is now
+refused with an `isError` result whose text names the fix: the problem, the
+remediation's hint, and usually a closing `Try <tool>.` naming the tool to
+call next. Expected domain errors that already came back as normal results
+(`ok: false` from `tdd_goal`, `tdd_behavior`, and `register_agent`;
+`accepted: false` from `tdd_phase_transition_request`) keep that shape. See
+[Errors and refusals](/mcp/tools#errors-and-refusals) for all three cases.
+
+## `humanHint` is now `hint`
+
+Every `remediation` object uses `@effected/engine`'s shape:
+
+```json
+{ "hint": "…", "suggestedTool": "tdd_goal", "suggestedArgs": { "action": "list" } }
+```
+
+`hint` replaces `humanHint` and is always present; `suggestedTool` and
+`suggestedArgs` are optional. Rename any client code that reads
+`remediation.humanHint`.
+
+## Read `structuredContent` only
+
+Every tool now serves an object-rooted `outputSchema`, and every successful
+result carries its typed object in `structuredContent`. Read that field; do
+not parse the text content as a second channel. Claude Code forwards only
+`structuredContent` to the model.
+
+## `ping` reports the distribution
+
+`ping` returns `{ message: "pong", distribution }`. `distribution` is the
+package that shipped the bin (`{ name, version }`, such as
+`@vitest-agent/plugin`), or `null` when `@vitest-agent/mcp` was launched
+directly. It is packaging provenance, not a version to compare.
+
+## `registerStrictToolkit` is removed
+
+Tool registration goes through `@effected/mcp`'s `McpToolkit`, which is
+strict by default, so the hand-rolled `registerStrictToolkit` export is
+gone. `ServerLayer({ version })`, `Kit`, `toolHandlers`, `PromptsLayer`, and
+`McpSession` remain; the barrel also exports `ToolRefusal`, the declared
+error behind refusals.
+
+## Related CLI and plugin changes
+
+These ship alongside MCP 5 and are not breaking for most projects:
+
+- **Usage errors exit `64`.** An unknown command or flag in the
+  `vitest-agent` CLI exits `64` with the parse error on stderr. See
+  [Exit codes](/cli/commands#exit-codes).
+- **`--version` names the carrier.** Run through the plugin's bin,
+  `vitest-agent --version` prints
+  `vitest-agent X.Y.Z via @vitest-agent/plugin A.B.C`.
+- **Hooks resolve the CLI without a package manager.** The Claude Code
+  companion's hooks try `VITEST_AGENT_CLI_CMD`, then
+  `node_modules/.bin/vitest-agent`, then `PATH`, and no longer fall back to
+  `pnpm exec` or `npx`. See [Claude Code companion](/guide/claude-code).
+
+## Related
+
+- [MCP tool catalog](/mcp/tools)
+- [Integrating non-Claude-Code agents](/mcp/integrating)
+- [Upgrading to the engine split](/guide/upgrade-engine-split)
+- [API reference](/mcp/api)
