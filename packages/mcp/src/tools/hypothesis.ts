@@ -3,14 +3,12 @@
 // `record` and `validate` are mutations whose result is a small
 // structured envelope. `list` returns a structured array.
 
+import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { McpSession } from "../session.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
-import type { ToolRefusal } from "./_tool-refusal.js";
-import { refuse } from "./_tool-refusal.js";
-import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const HypothesisRowSchema = Schema.Struct({
 	id: Schema.Number,
@@ -48,7 +46,7 @@ const HypothesisListOk = Schema.Struct({
 	hypotheses: Schema.Array(HypothesisRowSchema),
 });
 
-export const HypothesisResult = objectRootedUnion(
+export const HypothesisResult = ToolOutputSchema.objectRooted(
 	Schema.Union([HypothesisRecordOk, HypothesisValidateOk, HypothesisListOk]),
 ).annotate({
 	identifier: "HypothesisResult",
@@ -196,11 +194,14 @@ export const handleHypothesis = (
 							const bound = yield* reader.getSessionByTddTaskId(variant.tddTaskId);
 							if (Option.isNone(bound)) {
 								return yield* Effect.fail(
-									refuse(`Unknown tddTaskId ${variant.tddTaskId}: no session to attribute the hypothesis to.`, {
-										hint: "Pass the tddTaskId returned by tdd_task action='start' (tdd_task action='get' confirms it exists).",
-										suggestedTool: "tdd_task",
-										suggestedArgs: { action: "get", tddTaskId: variant.tddTaskId },
-									}),
+									ToolRefusal.refuse(
+										`Unknown tddTaskId ${variant.tddTaskId}: no session to attribute the hypothesis to.`,
+										{
+											hint: "Pass the tddTaskId returned by tdd_task action='start' (tdd_task action='get' confirms it exists).",
+											suggestedTool: "tdd_task",
+											suggestedArgs: { action: "get", tddTaskId: variant.tddTaskId },
+										},
+									),
 								);
 							}
 							resolvedSessionId = bound.value.id;
@@ -216,11 +217,14 @@ export const handleHypothesis = (
 							}
 							if (resolvedSessionId === undefined) {
 								return yield* Effect.fail(
-									refuse("No session to attribute the hypothesis to: no host session context was recovered.", {
-										hint: "Pass tddTaskId (the id returned by tdd_task action='start') to bind this hypothesis to your task's session; do not retry with a raw sessionId, and never pass tddTaskId under a sessionId key.",
-										suggestedTool: "tdd_task",
-										suggestedArgs: { action: "start" },
-									}),
+									ToolRefusal.refuse(
+										"No session to attribute the hypothesis to: no host session context was recovered.",
+										{
+											hint: "Pass tddTaskId (the id returned by tdd_task action='start') to bind this hypothesis to your task's session; do not retry with a raw sessionId, and never pass tddTaskId under a sessionId key.",
+											suggestedTool: "tdd_task",
+											suggestedArgs: { action: "start" },
+										},
+									),
 								);
 							}
 							// Only the caller-supplied fallback can name a missing row.
@@ -229,7 +233,7 @@ export const handleHypothesis = (
 								Option.isNone(yield* reader.getSessionById(resolvedSessionId))
 							) {
 								return yield* Effect.fail(
-									refuse(`Unknown sessionId ${resolvedSessionId}.`, {
+									ToolRefusal.refuse(`Unknown sessionId ${resolvedSessionId}.`, {
 										hint: "Pass tddTaskId (the id returned by tdd_task action='start') instead of a raw sessionId.",
 										suggestedTool: "tdd_task",
 										suggestedArgs: { action: "start" },
@@ -263,7 +267,7 @@ export const handleHypothesis = (
 									(error) => error.reason.startsWith("unknown hypothesis id"),
 									() =>
 										Effect.fail(
-											refuse(`Unknown hypothesis id ${variant.id}.`, {
+											ToolRefusal.refuse(`Unknown hypothesis id ${variant.id}.`, {
 												hint: "Use the id hypothesis action='record' returned, or find it with hypothesis action='list'.",
 												suggestedTool: "hypothesis",
 												suggestedArgs: { action: "list" },
@@ -292,11 +296,12 @@ export const handleHypothesis = (
  *
  * @public
  */
-export const hypothesisTool = strictUnionTool("hypothesis", {
+export const hypothesisTool = McpToolkit.unionTool("hypothesis", {
 	description:
 		"Use to manage debugging hypotheses, with a CRUD action discriminator: action='record' (content, tddTaskId?, optional citation ids) writes a hypothesis — the binding session is resolved server-side from the recovered host context (active TDD subagent, else main session); pass tddTaskId (returned by tdd_task action='start') to bind deterministically to that task's session, and do not pass sessionId when recording; action='validate' (id, outcome, validatedAt?) records a validation outcome — validatedAt is optional and defaults server-side to now when omitted, or is honored verbatim when supplied; action='list' (sessionId?, outcome?, limit?) returns matching hypotheses.",
 	parameters: HypothesisInput,
 	success: HypothesisResult,
+	failure: ToolRefusal,
 })
 	.addDependency(DataReader)
 	.addDependency(DataStore)

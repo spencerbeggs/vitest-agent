@@ -1,9 +1,9 @@
 // The Effect-native tool surface: one `Toolkit` gathering every tool, the
 // handler record, and the handlers layer `McpToolkit.layer` requires.
 
+import { McpToolkit } from "@effected/mcp";
 import { Toolkit } from "effect/unstable/ai";
 import { withIdempotency } from "./idempotency.js";
-import { decodeStrictUnion } from "./tools/_union-schema.js";
 import { acceptanceMetricsTool, handleAcceptanceMetrics } from "./tools/acceptance-metrics.js";
 import { cacheHealthTool, handleCacheHealth } from "./tools/cache-health.js";
 import { commitChangesTool, handleCommitChanges } from "./tools/commit-changes.js";
@@ -14,9 +14,9 @@ import { failureSignatureGetTool, handleFailureSignatureGet } from "./tools/fail
 import { fileCoverageTool, handleFileCoverage } from "./tools/file-coverage.js";
 import { handleHelp, helpTool } from "./tools/help.js";
 import { handleTestHistory, testHistoryTool } from "./tools/history.js";
-import { HypothesisInput, handleHypothesis, hypothesisTool } from "./tools/hypothesis.js";
-import { InventoryInput, handleInventory, inventoryTool } from "./tools/inventory.js";
-import { NoteParams, handleNote, noteTool } from "./tools/note.js";
+import { handleHypothesis, hypothesisTool } from "./tools/hypothesis.js";
+import { handleInventory, inventoryTool } from "./tools/inventory.js";
+import { handleNote, noteTool } from "./tools/note.js";
 import { handleTestOverview, testOverviewTool } from "./tools/overview.js";
 import { handlePing, pingTool } from "./tools/ping.js";
 import { handleRegisterAgent, registerAgentTool } from "./tools/register-agent.js";
@@ -24,12 +24,12 @@ import { handleRunTests, runTestsTool } from "./tools/run-tests.js";
 import { handleSettingsList, settingsListTool } from "./tools/settings-list.js";
 import { handleTestStatus, testStatusTool } from "./tools/status.js";
 import { handleTddArtifactList, tddArtifactListTool } from "./tools/tdd-artifact.js";
-import { TddBehaviorInput, handleTddBehavior, tddBehaviorTool } from "./tools/tdd-behavior.js";
-import { TddGoalInput, handleTddGoal, tddGoalTool } from "./tools/tdd-goal.js";
+import { handleTddBehavior, tddBehaviorTool } from "./tools/tdd-behavior.js";
+import { handleTddGoal, tddGoalTool } from "./tools/tdd-goal.js";
 import { handlePhaseTransitionRequest, tddPhaseTransitionRequestTool } from "./tools/tdd-phase-transition-request.js";
 import { handleTddProgressPush, tddProgressPushTool } from "./tools/tdd-progress-push.js";
-import { TddTaskInput, handleTddTask, tddTaskTool } from "./tools/tdd-task.js";
-import { TestInput, handleTest, testTool } from "./tools/test.js";
+import { handleTddTask, tddTaskTool } from "./tools/tdd-task.js";
+import { handleTest, testTool } from "./tools/test.js";
 import { handleTestTrends, testTrendsTool } from "./tools/trends.js";
 import { handleTriageBrief, triageBriefTool } from "./tools/triage-brief.js";
 import { handleTurnSearch, turnSearchTool } from "./tools/turn-search.js";
@@ -77,7 +77,7 @@ export const Kit = Toolkit.make(
  * The handler for each tool in {@link Kit}, keyed by tool name. The seven
  * action-keyed tools are `Tool.dynamic` (a union root cannot be a `Tool.make`
  * parameters schema), so their handlers take the raw payload and decode it
- * through `decodeStrictUnion`.
+ * through `McpToolkit.unionHandler`.
  *
  * @public
  */
@@ -100,19 +100,15 @@ export const toolHandlers = {
 	acceptance_metrics: handleAcceptanceMetrics,
 	triage_brief: handleTriageBrief,
 	wrapup_prompt: handleWrapupPrompt,
-	inventory: decodeStrictUnion(inventoryTool, InventoryInput, handleInventory),
-	test: decodeStrictUnion(testTool, TestInput, handleTest),
+	inventory: McpToolkit.unionHandler(inventoryTool, handleInventory),
+	test: McpToolkit.unionHandler(testTool, handleTest),
 	register_agent: handleRegisterAgent,
-	note: decodeStrictUnion(noteTool, NoteParams, handleNote),
-	hypothesis: decodeStrictUnion(hypothesisTool, HypothesisInput, withIdempotency("hypothesis", handleHypothesis)),
-	tdd_task: decodeStrictUnion(tddTaskTool, TddTaskInput, withIdempotency("tdd_task", handleTddTask)),
+	note: McpToolkit.unionHandler(noteTool, handleNote),
+	hypothesis: McpToolkit.unionHandler(hypothesisTool, withIdempotency("hypothesis", handleHypothesis)),
+	tdd_task: McpToolkit.unionHandler(tddTaskTool, withIdempotency("tdd_task", handleTddTask)),
 	tdd_phase_transition_request: handlePhaseTransitionRequest,
-	tdd_goal: decodeStrictUnion(tddGoalTool, TddGoalInput, withIdempotency("tdd_goal", handleTddGoal)),
-	tdd_behavior: decodeStrictUnion(
-		tddBehaviorTool,
-		TddBehaviorInput,
-		withIdempotency("tdd_behavior", handleTddBehavior),
-	),
+	tdd_goal: McpToolkit.unionHandler(tddGoalTool, withIdempotency("tdd_goal", handleTddGoal)),
+	tdd_behavior: McpToolkit.unionHandler(tddBehaviorTool, withIdempotency("tdd_behavior", handleTddBehavior)),
 	tdd_artifact_list: handleTddArtifactList,
 	tdd_progress_push: handleTddProgressPush,
 	run_tests: handleRunTests,

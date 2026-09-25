@@ -2,14 +2,17 @@
  * Subprocess resilience regression for issue #191, sub-item A.
  *
  * `main.ts` registers `unhandledRejection` / `uncaughtException` guards
- * before any of the server graph is imported. Under Node >=15 an unhandled
+ * through `McpGuard.run` (`@effected/mcp/guard`) before any of the server
+ * graph is imported, with policy `{ onUncaught: "exitBeforeConnect",
+ * onRejection: "log" }`. Under Node >=15 an unhandled
  * rejection anywhere in the process crashes it by default, closing the
  * stdio transport and silently deregistering every tool mid session. These
  * cases spawn the *real built* bin (a crash in the test's own process is
  * exactly what must NOT happen here) with the env-gated
- * `VITEST_AGENT_MCP_TEST_INJECT_CRASH` hook, which fires once after the
- * transport is connected, then prove `ping` still answers and the crash was
- * reported on stderr.
+ * `VITEST_AGENT_MCP_TEST_INJECT_CRASH` hook (the guard's
+ * `injectCrashAfterConnect`), which fires once on a `setTimeout(0)` after the
+ * whole server layer has built, then prove `ping` still answers and the
+ * crash was reported on stderr with the guard's `[injected]` message.
  */
 
 import { rmSync } from "node:fs";
@@ -43,12 +46,15 @@ const survives = (kind: "unhandledRejection" | "uncaughtException"): Promise<voi
 			Effect.gen(function* () {
 				const server = yield* spawnMcp(makeEnv(scratch, { VITEST_AGENT_MCP_TEST_INJECT_CRASH: kind }));
 				yield* server.handshake();
-				// The injected crash fires on the setImmediate after the transport
-				// connects. Wait for its stderr line BEFORE probing liveness, so the
+				// The injected crash fires on a setTimeout(0) once the server is
+				// serving. Wait for its stderr line BEFORE probing liveness, so the
 				// case proves the server survived the crash rather than merely that
 				// the crash happened at some point.
-				const crashed = yield* waitForStderr(server, kind);
-				expect(crashed, `expected stderr to report ${kind} before ping`).toContain(kind);
+				const crashed = yield* waitForStderr(server, `[injected] ${kind}`);
+				expect(crashed, `expected stderr to report ${kind} before ping`).toContain(
+					kind === "uncaughtException" ? "vitest-agent-mcp: uncaughtException" : "vitest-agent-mcp: unhandledRejection",
+				);
+				expect(crashed).toContain(`[injected] ${kind}`);
 				yield* server.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "ping", arguments: {} } });
 				const { response: pong } = (yield* server.readUntilResponse(2)) as unknown as {
 					readonly response: {

@@ -6,11 +6,11 @@
 // computed `ageMs` so agents can branch on freshness without parsing
 // prose.
 
+import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifest } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { objectRootedUnion } from "./_union-schema.js";
 
 const ManifestPresent = Schema.Struct({
 	manifestPresent: Schema.Literal(true).annotate({
@@ -38,7 +38,9 @@ const ManifestAbsent = Schema.Struct({
  *
  * @public
  */
-export const CacheHealthResult = objectRootedUnion(Schema.Union([ManifestPresent, ManifestAbsent])).annotate({
+export const CacheHealthResult = ToolOutputSchema.objectRooted(
+	Schema.Union([ManifestPresent, ManifestAbsent]),
+).annotate({
 	identifier: "CacheHealthResult",
 	title: "cache_health result",
 	description: "Cache health snapshot. Discriminate on `manifestPresent` to see whether the manifest exists.",

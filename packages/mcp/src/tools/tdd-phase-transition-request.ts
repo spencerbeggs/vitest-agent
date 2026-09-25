@@ -1,4 +1,5 @@
 import { Remediation } from "@effected/engine";
+import { ToolOutputSchema } from "@effected/mcp";
 import type { CitedArtifactRow } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { ArtifactKind, Phase } from "@vitest-agent/sdk";
@@ -10,7 +11,6 @@ import {
 
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { objectRootedUnion } from "./_union-schema.js";
 
 /**
  * Lookback window for the missing_artifact_evidence cross-session
@@ -97,7 +97,7 @@ const PhaseTransitionDenied = Schema.Struct({
  *
  * @public
  */
-export const PhaseTransitionResult = objectRootedUnion(
+export const PhaseTransitionResult = ToolOutputSchema.objectRooted(
 	Schema.Union([PhaseTransitionAccepted, PhaseTransitionDenied]),
 ).annotate({
 	identifier: "PhaseTransitionResult",

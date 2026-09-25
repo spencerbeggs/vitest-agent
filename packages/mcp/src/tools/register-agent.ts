@@ -27,10 +27,10 @@
  * outcome.
  */
 
+import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader, DataStore, deriveIdempotencyKey } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { objectRootedUnion } from "./_union-schema.js";
 
 /**
  * The `register_agent` tool's parameters.
@@ -108,7 +108,7 @@ const RegisterAgentFailure = Schema.Struct({
  *
  * @public
  */
-export const RegisterAgentResult = objectRootedUnion(
+export const RegisterAgentResult = ToolOutputSchema.objectRooted(
 	Schema.Union([RegisterAgentSuccess, RegisterAgentFailure]),
 ).annotate({
 	identifier: "RegisterAgentResult",

@@ -1,10 +1,10 @@
 // `file_coverage` MCP tool — Schema-driven implementation.
 
+import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader } from "@vitest-agent/engine";
 import { CoverageTotals, FileCoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-import { objectRootedUnion } from "./_union-schema.js";
 
 const CoverageGlobalThresholds = Schema.Struct({
 	statements: Schema.optional(Schema.Number),
@@ -40,7 +40,7 @@ const FileCoverageAbsent = Schema.Struct({
  *
  * @public
  */
-export const FileCoverageResult = objectRootedUnion(
+export const FileCoverageResult = ToolOutputSchema.objectRooted(
 	Schema.Union([FileCoverageMatched, FileCoverageNoMatch, FileCoverageAbsent]),
 ).annotate({
 	identifier: "FileCoverageResult",
