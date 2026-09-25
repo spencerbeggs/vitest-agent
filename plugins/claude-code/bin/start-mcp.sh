@@ -76,7 +76,7 @@ PM="$(detect_pm)"
 	printf 'Install it with:\n'
 	install_line "$PM"
 	printf '\n'
-	printf 'Falling back to `npx --yes @vitest-agent/mcp@4`, which will download it.\n'
+	printf 'Falling back to `npx --yes @vitest-agent/mcp@5`, which will download it.\n'
 } >&2
 
-exec npx --yes @vitest-agent/mcp@4 "$@"
+exec npx --yes @vitest-agent/mcp@5 "$@"

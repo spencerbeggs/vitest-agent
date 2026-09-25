@@ -46,7 +46,7 @@ The plugin registers the `vitest-agent` MCP server automatically via the `mcpSer
 
 This means `@vitest-agent/plugin` must be installed as a dependency of your project for the plugin's MCP server to start. The `@vitest-agent/mcp` and `@vitest-agent/cli` packages are regular dependencies of the plugin and install with it. If the MCP bin is missing, the loader prints PM-specific install instructions and exits non-zero. See [Prerequisites](#prerequisites) below.
 
-The server exposes 30 action-keyed tools and six framing-only prompts for common workflows. Every tool returns a typed `structuredContent` payload, with the same object as JSON in `content[0].text`. Use the `help` tool for the full tool list with parameters.
+The server exposes 30 action-keyed tools and six framing-only prompts for common workflows. Every tool returns a typed `structuredContent` payload — read that field, not the result text; Claude Code forwards only `structuredContent` to the model when present. Use the `help` tool for the full tool list with parameters.
 
 | Category | Tools |
 | --- | --- |

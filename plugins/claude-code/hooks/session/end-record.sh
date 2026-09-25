@@ -4,7 +4,7 @@
 # Why a shim + worker split: the host runs SessionEnd hooks under
 # `signal: AbortSignal.timeout(budget)` and, on an interactive interrupt
 # (Ctrl+C), aborts the in-flight hook unconditionally. Our persistence
-# does several serial `<pm> exec vitest-agent` spawns that can outlast
+# does several serial `vitest-agent` CLI spawns that can outlast
 # that window on a cold cache, so the host would kill the hook mid-run
 # and print "SessionEnd hook [...] failed: Hook cancelled" — and leave
 # rows half-written. (Verified against the Claude Code binary: an aborted

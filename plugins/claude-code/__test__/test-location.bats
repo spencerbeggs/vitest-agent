@@ -20,9 +20,8 @@ teardown() {
 
 # Point the hook at a fake CLI emitting $1 on stdout and exiting $2.
 #
-# The override env var is what makes this testable. Stubbing `vitest-agent` on
-# PATH would not work: the hook resolves the CLI through detect-pm.sh, and
-# `pnpm exec vitest-agent` ignores PATH order and finds the real binary.
+# The override env var is what makes this testable and is also the highest-
+# priority rung of detect_vitest_agent_bin (hooks/lib/detect-pm.sh).
 _stub_cli() {
 	cat >"$STUB_DIR/vitest-agent" <<EOF
 #!/bin/bash
@@ -158,25 +157,22 @@ _run_hook() {
 }
 
 # Every case above stubs VITEST_AGENT_CLI_CMD directly, which never
-# exercises the production cli_cmd-resolution branch (no override set, PM
-# detected from cwd via detect-pm.sh). That branch has crashed twice with an
-# unbound-variable error under set -u — once on $pm_exec, once on hook_debug's
-# missing second argument — with neither caught by the suite above. These two
-# tests drive that branch for real: no VITEST_AGENT_CLI_CMD, a stub `npx` on
-# PATH standing in for the resolved package-manager exec, and a cwd with no
-# package.json/lockfile so detect_pm_exec deterministically falls back to
-# "npx --no-install".
+# exercises the production resolution branch (no override set, no local
+# node_modules/.bin/vitest-agent, and no `vitest-agent` on PATH either —
+# detect_vitest_agent_bin returns 1 with no output). That branch has crashed
+# before with an unbound-variable error under set -u — once on $pm_exec
+# (removed along with the package-manager-dispatch rung), once on
+# hook_debug's missing second argument — with neither caught by the suite
+# above. These two tests drive that branch for real: no VITEST_AGENT_CLI_CMD,
+# no `vitest-agent` on PATH, and a cwd with no node_modules/.bin/vitest-agent
+# so detect_vitest_agent_bin deterministically fails and the hook must fail
+# open via emit_noop.
 _stub_pm_failure() {
 	bin_dir="$STUB_DIR/bin"
 	mkdir -p "$bin_dir"
-	cat >"$bin_dir/npx" <<'EOF'
-#!/bin/bash
-exit 1
-EOF
-	chmod +x "$bin_dir/npx"
 }
 
-@test "fails open when resolving the CLI via the package manager and the resolved command fails" {
+@test "fails open when the CLI cannot be resolved at all" {
 	unset VITEST_AGENT_CLI_CMD
 	_stub_pm_failure
 	old_path="$PATH"

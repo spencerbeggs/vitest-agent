@@ -24,8 +24,7 @@ if echo "$COMMAND" | grep -qE '(^|/|npx[[:space:]]+|pnpm[[:space:]]+(exec[[:spac
   # Associate the latest test run with the current Claude Code session.
   # Best-effort: errors are silently ignored so the hook never blocks on
   # a DB failure. The association enables session-scoped test-run queries.
-  if [ -n "$CC_SESSION_ID" ] && [ -n "$CWD" ]; then
-    cli=$(detect_vitest_agent_bin "$CWD")
+  if [ -n "$CC_SESSION_ID" ] && [ -n "$CWD" ] && cli=$(detect_vitest_agent_bin "$CWD"); then
     # `record test-case-turns` prints a JSON result object; discard both
     # streams so nothing but this hook's own encoder reaches stdout.
     (cd "$CWD" && $cli agent record run-trigger \

@@ -67,7 +67,7 @@ cwd=$(echo "$hook_json" | jq -r '.cwd // ""' 2>/dev/null || echo "")
 [ -n "$cwd" ] || cwd="${CLAUDE_PROJECT_DIR:-.}"
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-cli_cmd=$(detect_vitest_agent_bin "$cwd")
+cli_cmd=$(detect_vitest_agent_bin "$cwd") || { emit_noop; exit 0; }
 
 # Unquoted on purpose — cli_cmd may carry a subcommand (e.g. "pnpm exec
 # vitest-agent") and must word-split, matching the $cli usage in

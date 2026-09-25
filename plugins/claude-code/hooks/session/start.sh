@@ -31,7 +31,7 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-cli=$(detect_vitest_agent_bin "$PROJECT_DIR")
+cli=$(detect_vitest_agent_bin "$PROJECT_DIR") || { emit_noop; exit 0; }
 
 # 1. Generate the triage brief.
 triage_md=$(cd "$PROJECT_DIR" && $cli agent triage --format markdown 2>/dev/null || echo "")
