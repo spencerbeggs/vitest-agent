@@ -123,8 +123,9 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 - Adding a flag: `effect/unstable/cli` validates types at the `Command` layer
   but the lib function should still accept a typed options object.
   Keep the lib function callable without `effect/unstable/cli` for testing.
-- Per-call layer construction is fine here (CLI is short-lived); only
-  MCP uses `ManagedRuntime`.
+- Per-call layer construction is fine here (CLI is short-lived). The
+  MCP server, by contrast, builds its layers once for the life of the
+  process (`McpStdio.launch` over `Layer.launch`).
 
 ## Design references
 
