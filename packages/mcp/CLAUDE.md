@@ -239,6 +239,10 @@ src/
   [`../../okf/decisions/71-effect-native-mcp-server.md`](../../okf/decisions/71-effect-native-mcp-server.md)
   Load for rationale on the framing-only prompts and the Effect-native
   server rebuild (no MCP SDK, tRPC, or zod).
+- [`../../okf/decisions/72-adopt-the-effected-front-end-kit.md`](../../okf/decisions/72-adopt-the-effected-front-end-kit.md)
+  Load for why the server runs on `@effected/mcp` (`McpToolkit` +
+  `McpStdio`), why the union tools are `Tool.dynamic`, and the failure
+  shapes (`ToolRefusal`, scrubbed internal errors).
 
 ## Action-keyed tool surface
 

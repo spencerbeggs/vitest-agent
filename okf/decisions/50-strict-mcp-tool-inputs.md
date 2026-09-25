@@ -6,8 +6,8 @@ description: Every served MCP tool input rejects unknown keys at every object le
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-22T19:35:29Z
-  body_sha256: 7f38b700c54fa82da2d4025e4c38933e94e2de38b4557f269269019930c43031
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 381bed5c54d4063e8a7f7ea570f4ffb2b5b1c79eacaea28c1a78a5c6ffcefe85
 ---
 
 # Strict MCP Tool Inputs
@@ -16,8 +16,7 @@ generated:
 
 Effect's `McpServer.toolkit` decodes tool arguments with the library
 default `onExcessProperty: "ignore"`, so an unknown key is silently
-stripped before the handler ever sees the payload
-(`packages/mcp/src/register-toolkit.ts:1-6`). Two failure modes share
+stripped before the handler ever sees the payload. Two failure modes share
 that root cause. A caller that misspells a filter parameter gets a
 successful result computed from a wider filter set than it asked for —
 `run_tests` would run the entire workspace and report green while the
@@ -34,32 +33,23 @@ inside nested objects, inside array elements, and inside the union
 branch a discriminant selects, with an error naming both the offending
 key(s) — path-qualified — and the accepted params at that level.
 
-The mechanism lives entirely in `registerStrictToolkit`
-(`packages/mcp/src/register-toolkit.ts:506`), which every tool
-registers through instead of Effect's own `McpServer.toolkit`, and which
-treats every tool as strict regardless of its `Tool.Strict` annotation.
-The served input is the document Effect itself builds for a strict tool
-— `servedInputJsonSchema` (`register-toolkit.ts:323`) calls
-`Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })`, so
-Effect emits `additionalProperties: false` on every object node — passed
-through `objectRootedInputSchema` (`register-toolkit.ts:162`), which
-inlines a `$ref` root (what Effect emits for any schema carrying an
-`identifier` annotation) via `inlineRootRefs` and rewrites a top-level
-union of discriminated object shapes (an `action` / `kind` field shared
-by every member, detected by `findDiscriminant`) into
-`{ type: "object", oneOf, "x-discriminator" }` so the served schema
-satisfies MCP's object-root requirement.
-
-Before decoding, `collectUnknownKeys` (`register-toolkit.ts:204`) walks
-the raw payload against that served (strict) schema, recursing through
-`properties`, `oneOf` / `anyOf` (via `selectMember`), `allOf` (merged),
-`items`, and `prefixItems`, and collects every level that carries a key
-the schema does not declare. The registrar's `addTool` handler runs this
-walk first and fails with `McpSchema.InvalidParams` (`formatUnknownKeys`,
-`register-toolkit.ts:279`) naming every unknown key and the accepted
-params, before the built toolkit's own handler is ever invoked — a
-rejected call never reaches a `DataReader` / `DataStore` call. Effect's
-native strict decode runs behind the walk as a backstop.
+Every tool registers through a registrar that treats it as strict
+regardless of its `Tool.Strict` annotation, never through Effect's own
+`McpServer.toolkit`. The served input is the document Effect itself
+builds for a strict tool (`Schema.toJsonSchemaDocument` with
+`onExcessProperty: "error"`, so every object node carries
+`additionalProperties: false`), made object-rooted; a top-level union of
+discriminated object shapes is served as `{ type: "object", oneOf,
+"x-discriminator" }`. Before decoding, the raw payload is walked against
+that served schema — through properties, the union branch the
+discriminant selects, `allOf`, `items` and `prefixItems` — and any level
+carrying an undeclared key fails with `McpSchema.InvalidParams` naming
+every unknown key and the accepted params, so a rejected call never
+reaches a `DataReader` / `DataStore` call. Since [Decision
+72](72-adopt-the-effected-front-end-kit.md) the registrar is
+`@effected/mcp`'s `McpToolkit.layer`, and the seven action-keyed tools,
+registered as `Tool.dynamic`, run the same walk and strict decode
+inside their handler through `decodeStrictUnion`.
 
 Its retired zod-mechanics predecessor — a hand-synced `z.strictObject`
 registration per tool — is superseded by this schema-walk approach;
@@ -74,8 +64,8 @@ for the enforcement contract this decision produces.
   rejection is a promise, not a maybe.
 - **Relying on Effect's own decode to reject excess properties:**
   unavailable when this rule was adopted — `McpServer.toolkit` decoded
-  with `onExcessProperty: "ignore"` unconditionally. rc.116
-  (Effect-TS/effect#8218) made it honour `Tool.Strict`, which now
+  with `onExcessProperty: "ignore"` unconditionally. Effect-TS/effect#8218
+  made it honour `Tool.Strict`, which now
   supplies the served closed document and a backstop decode, but its
   rejection names only the first excess key and none of the accepted
   params (`Expected no excess property at ["key"]`), and
@@ -87,10 +77,12 @@ for the enforcement contract this decision produces.
 - A misspelled or forgotten parameter now fails loudly with the
   offending key and the accepted set named, instead of silently running
   a wider query and reporting success.
-- Every new tool must register through `registerStrictToolkit`
-  (`packages/mcp/src/toolkit.ts`), never `McpServer.toolkit` directly,
-  or it loses strict-input enforcement silently (or, if annotated
-  `Tool.Strict`, keeps only upstream's first-key-only message).
+- Every new tool must join `Kit` in `packages/mcp/src/toolkit.ts`, which
+  `McpToolkit.layer` registers, never `McpServer.toolkit` directly, or it
+  loses strict-input enforcement silently (or, if annotated
+  `Tool.Strict`, keeps only upstream's first-key-only message). A new
+  union-parameter tool goes through `strictUnionTool` +
+  `decodeStrictUnion`.
 - `RunTestsOk` echoes the resolved filter set on a required
   `scope: { project, files, tags }` field as the success-path
   counterpart to rejection: one field distinguishes "ran exactly what I

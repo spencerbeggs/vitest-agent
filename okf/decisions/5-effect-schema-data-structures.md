@@ -8,15 +8,15 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-20T01:39:48Z
-  body_sha256: 7f59e675ccb68fa4b1e231307a8cc90597e35b812531ca22b91def0a9fed4a00
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 684cb8e0c4087c429472624e051f45e1478c03fd86ed4180264fc8ef133d2cc8
 sources:
   - id: sdk-schemas-agent-report
     resource: ../../packages/sdk/src/schemas/AgentReport.ts
   - id: sdk-schemas-run-report-file
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
-  - id: mcp-register-toolkit
-    resource: ../../packages/mcp/src/register-toolkit.ts
+  - id: mcp-union-schema
+    resource: ../../packages/mcp/src/tools/_union-schema.ts
   - id: mcp-package-json
     resource: ../../packages/mcp/package.json
 ---
@@ -52,11 +52,11 @@ in the family has a same-named `export type Foo = typeof Foo.Type`
 sitting beside it. JSON encoding and decoding go through the v4 effectful
 codecs, `Schema.decodeUnknownEffect` and `Schema.encodeUnknownEffect`,
 rather than a hand-rolled parser or a second validation library: the MCP
-server's `registerStrictToolkit` decodes a tool's served JSON Schema with
-exactly this codec (`Schema.decodeUnknownEffect(McpSchema.ToolJson)`)
-and treats a decode failure as a defect via `Effect.orDie`, because a tool
-whose own schema fails to decode is a programming error, not a runtime
-condition a caller can recover from.[^mcp-register-toolkit]
+server's action-keyed tools decode their raw payload with exactly this
+codec (`Schema.decodeUnknownEffect(parameters)` with
+`onExcessProperty: "error"` inside `decodeStrictUnion`), mapping a
+decode failure to `McpSchema.InvalidParams` because a malformed call is
+the caller's to fix.[^mcp-union-schema]
 
 The MCP server's tool inputs, outputs, and prompt arguments are Effect
 Schemas served through Effect's own `McpServer` (`effect/unstable/ai`).
@@ -115,5 +115,5 @@ for the generated-JSON-Schema contract this decision feeds.
 
 [^sdk-schemas-agent-report]: `../../packages/sdk/src/schemas/AgentReport.ts`
 [^sdk-schemas-run-report-file]: `../../packages/sdk/src/schemas/RunReportFile.ts`
-[^mcp-register-toolkit]: `../../packages/mcp/src/register-toolkit.ts:468`
+[^mcp-union-schema]: `../../packages/mcp/src/tools/_union-schema.ts`
 [^mcp-package-json]: `../../packages/mcp/package.json`

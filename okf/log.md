@@ -8,6 +8,7 @@
 * Updated MCP tool and prompt surface
 * Updated Strict MCP Tool Inputs
 * Updated Strict MCP tool inputs — every served input rejects unknown keys
+* Updated @vitest-agent/sdk
 
 ## 2026-09-20
 

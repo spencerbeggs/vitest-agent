@@ -25,11 +25,14 @@ sources:
     resource: ../../packages/engine/src/utils/ensure-migrated.ts
     title: ensureMigrated's globalThis migration-promise cache
   - id: boundaries-scanner
-    resource: ../../packages/sdk/__test__/utils/boundaries.ts
-    title: Shared comment-stripping boundary scanner
+    resource: ../../packages/sdk/__test__/boundaries.test.ts
+    title: A boundary suite over SourceBoundary.scan
+  - id: layers-json
+    resource: ../../layers.json
+    title: The committed layer policy
   - id: workspace-layering-test
     resource: ../../packages/plugin/__test__/workspace-layering.test.ts
-    title: The rank / DAG layering guardrail
+    title: The layers.json / DAG layering guardrail
   - id: memfs-walker
     resource: ../../packages/plugin/__test__/utils/memfs-walker.ts
     title: withMemfsWalker — the WalkerFileSystem adapter over a memfs volume
@@ -38,8 +41,8 @@ sources:
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: cce9e25b133873713acdd58f0cfe2968d78daf3cadeb185770c8d777fc208fef
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 1ccd8f653cf45dee63b71dd2417b3f49b40cae5501dd15be50cf8fba89a6aa28
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -59,24 +62,27 @@ a fresh `SqliteLayer` / `MigratorLayer` pair in a test file.
 
 ## Pattern 2 — Drive the real MCP server layer over `Stdio.layerTest`, never a spawned process, for wire-level assertions
 
-`packages/mcp/__test__/utils/harness.ts` builds the actual `ServerLayer` over
-`Stdio.layerTest` queues and speaks JSON-RPC to it: `initialize`, `listTools`,
-`callTool`, `sendRequest` (for `prompts/list` / `prompts/get`),
-`sendNotification`, `seed` (populate the in-memory store the server reads),
-and `session` (pin a fixture `McpSession`)[^mcp-harness]. Because the harness
+`packages/mcp/__test__/utils/harness.ts` wraps `@effected/mcp/testing`'s
+`McpHarness` around the actual `ServerLayer` over `Stdio.layerTest` queues and
+speaks JSON-RPC to it: `initialize`, `discover` (the stateless `2026-07-28`
+revision), `listTools`, `callTool`, `sendRequest` (for `prompts/list` /
+`prompts/get`), `stderrSoFar`, the `seed` option (populate the in-memory store
+the server reads), and the `session` option (pin a fixture
+`McpSession`)[^mcp-harness]. The kit harness dies a wait the moment stdout
+carries a line that is not JSON-RPC. Because the harness
 serves the one real schema a wire client gets, a test cannot pass while
 exercising a served-schema bug (a field the handler accepts that the schema
-never declared) — there is no second schema to drift from the first. Provide
-the test `Stdio` innermost in the layer merge: `DataStoreTestLayer` carries
-`NodeServices.layer`, whose real process `Stdio` would otherwise win the
-merge and leave the server listening on the Vitest worker's own stdin.
+never declared) — there is no second schema to drift from the first. The kit
+harness supplies the queue-backed `Stdio` itself; never provide
+`NodeServices.layer`'s real process `Stdio` alongside it, or the server
+listens on the Vitest worker's own stdin.
 
 Use `packages/mcp/__test__/utils/caller.ts`'s `makeCaller(runtime, session?)`
 instead when the assertion is about a tool handler's own logic: it decodes
 params through the tool's `parameters` schema and invokes `toolHandlers[name]`
 directly, giving full result-type narrowing with no wire
 encoding[^mcp-caller]. Reach for the harness when the served schema, the
-strict registrar, the dual channel, or a notification frame is the subject
+strict registration, a revision's error surface, or a notification frame is the subject
 under test; reach for the caller when the handler's own logic is.
 
 ## Pattern 2b — Spawn the built bin to prove a crash guard survives, and name that file `.e2e.test.ts`
@@ -86,8 +92,9 @@ exercised in-process: a real uncaught throw inside the Vitest worker is not
 something a test can safely trigger, and stubbing `process.on` proves only
 that a handler was registered, never that the process survives it. Spawn the
 **built** bin as a real child instead (`packages/mcp/__test__/utils/mcp-process.ts`'s
-`spawnMcp`, `makeScratchProject`, and `handshake`, with `XDG_DATA_HOME`
-pointed at a scratch directory), drive it over raw JSON-RPC on stdio, and
+`spawnMcp` over `@effected/mcp/testing`'s `McpProcess`, plus
+`makeScratchProject` and `makeEnv`, with `XDG_DATA_HOME` pointed at a
+scratch directory), drive it over raw JSON-RPC on stdio, and
 trigger the crash through an env-gated, fires-once injection hook
 (`VITEST_AGENT_MCP_TEST_INJECT_CRASH`) scheduled for the event-loop turn
 right after the transport connects, so ordering stays
@@ -124,16 +131,21 @@ error.
 
 Two structural suites run as ordinary unit tests and guard the family's
 layering contract for every package, not just the one under active edit.
-Every `packages/{sdk,engine,cli,mcp}/__test__/boundaries.test.ts` runs over a
-shared comment-stripping scanner (`__test__/utils/boundaries.ts`: `walkTs`,
-`referencesProcess`, `importSpecifiers`), built regex-literal aware because an
-unguarded scanner once let a regex containing `/*` swallow the rest of a
-file[^boundaries-scanner]. `packages/plugin/__test__/workspace-layering.test.ts`
-reads every workspace manifest and asserts that every dependency edge points
-to a strictly lower rank, that `cli` and `mcp` never depend on each other,
-and that the graph's topological sort consumes every node[^workspace-layering-test] —
-adding a workspace package means adding it to `LAYER_RANKS` in that suite's
-`utils/workspace-graph.ts`, not merely wiring its `package.json`.
+Every `packages/{sdk,engine,cli,mcp}/__test__/boundaries.test.ts` runs
+`@effected/workspaces/testing`'s `SourceBoundary.scan` over its package's
+`src/`, with per-rule `allowRules` for the files a rule waives. Each suite
+first asserts `SourceBoundary.verifyFixtures()` returns nothing, as a
+positive control that the scanner still flags what it must. It also checks
+the scan read a non-zero number of files, and that the
+`process.env.__PACKAGE_VERSION__` token appears only in
+`version.ts`[^boundaries-scanner]. `packages/plugin/__test__/workspace-layering.test.ts`
+holds the live package graph to the root `layers.json` through
+`WorkspaceLayering`, and asserts the graph is acyclic across every
+dependency field. A synthetic upward edge and a synthetic `cli -> mcp`
+edge serve as its positive control[^workspace-layering-test]. Adding a
+workspace package means adding an entry to `layers.json` (a layer,
+`tooling`, or an `unconstrained` glob, by package name)[^layers-json],
+not merely wiring its `package.json`.
 
 ## Pattern 5 — Test CLI and engine-program logic as plain pure functions, not through the command tree
 
@@ -192,13 +204,14 @@ never a deeper mock aimed at the same unreachable boundary.
 - [coverage-targets convention](./coverage-targets.md) is the threshold policy
   these patterns are written against.
 
-[^engine-testing]: ../../packages/engine/src/testing/layers.ts
-[^mcp-harness]: ../../packages/mcp/**test**/utils/harness.ts
-[^mcp-caller]: ../../packages/mcp/**test**/utils/caller.ts
-[^mcp-process]: ../../packages/mcp/**test**/utils/mcp-process.ts
-[^build-report]: ../../packages/sdk/src/utils/build-report.ts
-[^ensure-migrated]: ../../packages/engine/src/utils/ensure-migrated.ts
-[^boundaries-scanner]: ../../packages/sdk/**test**/utils/boundaries.ts
-[^workspace-layering-test]: ../../packages/plugin/**test**/workspace-layering.test.ts
-[^memfs-walker]: ../../packages/plugin/**test**/utils/memfs-walker.ts
-[^vitest-loader]: ../../packages/mcp/**test**/resolve-vitest-node-entry.test.ts
+[^engine-testing]: `../../packages/engine/src/testing/layers.ts`
+[^mcp-harness]: `../../packages/mcp/__test__/utils/harness.ts`
+[^mcp-caller]: `../../packages/mcp/__test__/utils/caller.ts`
+[^mcp-process]: `../../packages/mcp/__test__/utils/mcp-process.ts`
+[^build-report]: `../../packages/sdk/src/utils/build-report.ts`
+[^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts`
+[^boundaries-scanner]: `../../packages/sdk/__test__/boundaries.test.ts`
+[^workspace-layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
+[^layers-json]: `../../layers.json`
+[^memfs-walker]: `../../packages/plugin/__test__/utils/memfs-walker.ts`
+[^vitest-loader]: `../../packages/mcp/__test__/resolve-vitest-node-entry.test.ts`

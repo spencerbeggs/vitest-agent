@@ -6,8 +6,8 @@ description: Why each consolidated MCP tool's action/kind literal tuple lives ne
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 31801269dd9e177fb447ecd183315b6a4b62ef540f3d597e2f44dcafd0e50704
+  at: 2026-09-25T17:01:39Z
+  body_sha256: f09f34afcf59ada0f74d79a57e0d79fd0c6923641e0fca109413a58d7a3d2969
 ---
 
 # Single-Source Served MCP Discriminants
@@ -20,7 +20,7 @@ When every tool input was declared twice — an Effect `Schema.Union` in `tools/
 
 The discriminant tuple lives with the union. Each consolidated tool core exports its literal tuple immediately after its `Schema.Union` — `TEST_ACTIONS` (`packages/mcp/src/tools/test.ts:458`), `INVENTORY_KINDS` (`packages/mcp/src/tools/inventory.ts:295`), `NOTE_ACTIONS` (`packages/mcp/src/tools/note.ts:213`), `HYPOTHESIS_ACTIONS` (`packages/mcp/src/tools/hypothesis.ts:161`), `TDD_TASK_ACTIONS` (`packages/mcp/src/tools/tdd-task.ts:236`), `TDD_GOAL_ACTIONS` (`packages/mcp/src/tools/tdd-goal.ts:145`), and `TDD_BEHAVIOR_ACTIONS` (`packages/mcp/src/tools/tdd-behavior.ts:168`) — and a two-way conditional-type assertion (`Action extends Tuple[number]` and `Tuple[number] extends Action`, e.g. `packages/mcp/src/tools/test.ts:461-464`) pins the tuple to the union's `action`/`kind` type at compile time.
 
-The served enum is no longer a projection anyone writes by hand: `registerStrictToolkit` (`packages/mcp/src/register-toolkit.ts`) derives the served `oneOf` plus `x-discriminator` from the union's own generated JSON Schema (`packages/mcp/src/register-toolkit.ts:103-162`), so the Effect `Schema.Union` is the single source on both sides of the wire.
+The served enum is no longer a projection anyone writes by hand: `unionInputJsonSchema` (`packages/mcp/src/tools/_union-schema.ts`) generates the union's strict JSON Schema and `@effected/mcp`'s `ToolInputSchema.objectRooted` reshapes it into the served `oneOf` plus `x-discriminator`, so the Effect `Schema.Union` is the single source on both sides of the wire.
 
 ## Alternatives rejected
 

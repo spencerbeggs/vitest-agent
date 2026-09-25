@@ -11,8 +11,8 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-22T19:35:29Z
-  body_sha256: 25624a5a2854444d86b6829af0ce6f9b0d47182eab4ba41cf3be9dd58fe4c087
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 346918776024e34ba0313fd4c4b63d4d428e069ec48facd293f019886fe90fb4
 ---
 
 # MCP tool and prompt surface
@@ -24,9 +24,10 @@ the stateless `2026-07-28` (no `initialize`; `server/discover` plus a
 per-request protocol `_meta`, every result wrapped in the stateless frame)
 or the stateful `2025-11-25` / `2025-06-18` (opened with `initialize`) —
 receives the same `instructions` orientation on either handshake, and sees
-30 tools plus six prompts. Invalid params surface as a JSON-RPC `-32602`
-error on `2025-06-18` and as an `isError` result on the two newer
-revisions. Every served `inputSchema` is strict at every object
+30 tools plus six prompts. Invalid params surface as an `isError` result
+on the two newer revisions. On `2025-06-18` they are a JSON-RPC `-32602`
+error for most tools, but an `isError` result for the seven action-keyed
+tools, whose parameter validation is a declared tool failure. Every served `inputSchema` is strict at every object
 level: an unknown key anywhere in the payload — including inside a nested
 object, an array element, or the branch an `action` / `kind` discriminator
 selects — fails with `InvalidParams` naming the key's path and that level's
@@ -38,25 +39,38 @@ Schema always sets `additionalProperties: false`, a top-level `action` /
 `kind` union is always a `oneOf` with an `x-discriminator`, and `$ref`
 roots are inlined so every top-level schema satisfies `type: "object"`.
 
-Every tool's result carries two channels: `structuredContent` is the
-result encoded through the tool's declared `success` schema (an undeclared
-key never appears — it is stripped, not merely unused), and
-`content[0].text` is the same encoded object as JSON. No tool sends a
-markdown rendering in the text channel: Claude Code forwards only
-`structuredContent` to the model when a result carries it, so a client
-should read fields from `structuredContent`. A result field that happens
-to hold markdown text — `triage_brief.markdown`, `wrapup_prompt.markdown`,
-`help.helpText` — is data inside that object, not a rendering. A tool's declared `failure` channel is always
-`Schema.Never` — no tool fails through the MCP protocol's own error
-channel. What looks like a domain "error" — a TDD phase-transition denial,
-an `AGENT_ALREADY_REGISTERED` registration conflict, a hard error inside
-the five tagged TDD error types — is a member of the `success` union
-instead, typically `{ ok: false, error: {...} }` or `{ accepted: false,
-denialReason, remediation }`, so a client's tool-result handling never
-special-cases a domain-level "no." An unexpected server-side defect is the
-one thing that surfaces as `isError: true`, with a structured
-`UnexpectedToolError` envelope (`{ _tag: "UnexpectedToolError", tool,
-message, remediation }`) even then — never a bare error string.
+Every successful result carries the result in `structuredContent`,
+encoded through the tool's declared `success` schema (an undeclared key
+never appears — it is stripped, not merely unused). Every tool serves an
+object-rooted `outputSchema`, so a client can validate it. Read every
+field from `structuredContent`: Claude Code forwards only
+`structuredContent` to the model when a result carries it, and the
+server's `instructions` say the same. A result field that happens to hold
+markdown text — `triage_brief.markdown`, `wrapup_prompt.markdown`,
+`help.helpText` — is data inside that object, not a rendering.
+
+A domain "no" is not an error. A TDD phase-transition denial, an
+`AGENT_ALREADY_REGISTERED` registration conflict, one of the five tagged
+TDD errors, or a `run_tests` argument refused as unsafe is a member of the
+`success` union, typically `{ ok: false, error: {...} }`, `{ accepted:
+false, denialReason, remediation }`, or `{ kind: "error", message }`.
+A client's tool-result handling never special-cases one of these.
+
+An `isError: true` result carries no `structuredContent`, and its text is
+one of three things:
+
+- **Invalid params.** The text names the unknown key(s) and the accepted
+  params. Fix the call.
+- **A refusal the caller can fix.** For example, `hypothesis` or
+  `tdd_task` `start` given an unknown id. The text states the reason and
+  folds in the remediation, often ending `Try <tool>.` Fix the call.
+- **An internal failure.** The fixed text `Tool execution failed due to an
+  internal server error.` The server logged the detail on stderr. Report
+  it; do not retry unchanged.
+
+`ping` returns `{ message: "pong", distribution }`: the `{ name, version }`
+of the carrier package that launched the bin (`@vitest-agent/plugin`), or
+`null` when `@vitest-agent/mcp` was launched directly.
 
 ## Tool families
 
@@ -161,16 +175,19 @@ response with a fixed remediation shape:
     "_tag": "<TddErrorTag>",
     "...": "error-specific fields",
     "remediation": {
+      "hint": "<prose>",
       "suggestedTool": "<tool name>",
-      "suggestedArgs": { "...": "..." },
-      "humanHint": "<prose>"
+      "suggestedArgs": { "...": "..." }
     }
   }
 }
 ```
 
+The remediation is `@effected/engine`'s `Remediation`: `hint` is
+required, `suggestedTool` and `suggestedArgs` are optional.
 `tdd_phase_transition_request` uses the sibling shape `{ accepted: false,
-denialReason, remediation }` for the same reason: a denial is data about
+denialReason, remediation }`, with the same remediation shape, for the
+same reason: a denial is data about
 what to try next, not a protocol-level failure. A client integrating
 against this surface should treat `remediation.suggestedTool` /
 `suggestedArgs` as machine-actionable — re-issuing that exact call is the
@@ -179,8 +196,10 @@ surface produces.
 
 ## What stays stable across a minor
 
-- The `Schema.Never` failure channel and the `UnexpectedToolError` /
-  domain-error-in-success-channel split.
+- The split between a domain error in the success channel and an
+  `isError` result carrying text only (invalid params, a declared
+  refusal, or the generic internal-error message).
+- The `{ hint, suggestedTool?, suggestedArgs? }` remediation shape.
 - `additionalProperties: false` at every object level of every served
   input schema, and the unknown-key rejection message format
   (`Unrecognized parameter(s): <path>. Accepted params: <list>`).
@@ -219,8 +238,9 @@ the progress-push resolution of `goalId` / `sessionId`).
 - `tools/register-agent.ts` — agent registration.
 - `tools/triage-brief.ts`, `tools/wrapup-prompt.ts` — triage / wrapup.
 - `tools/run-tests.ts` — the mutation tool.
-- `tools/_tdd-error-envelope.ts`, `tools/_project-groups.ts` — private
-  shared helpers, not served tools.
+- `tools/_tdd-error-envelope.ts`, `tools/_tool-refusal.ts`,
+  `tools/_union-schema.ts`, `tools/_project-groups.ts` — private shared
+  helpers, not served tools.
 - `prompts/layer.ts` plus `prompts/triage.ts`, `prompts/why-flaky.ts`,
   `prompts/regression-since-pass.ts`, `prompts/explain-failure.ts`,
   `prompts/tdd-resume.ts`, `prompts/wrapup.ts` — the six prompts.
@@ -238,3 +258,9 @@ negation axis. `run_tests`'s `no-match` output variant and its `ok`
 variant's `scope` field both echo the filter that was actually used,
 including the composed Vitest tag expression, so a client can tell a
 correctly scoped run from one where a filter silently widened.
+
+## Related
+
+- [Decision 72: Adopt the Effected Front-End Kit](../decisions/72-adopt-the-effected-front-end-kit.md) — why the union tools are `Tool.dynamic`, and why failures are shaped this way
+- [Invariant: Strict Tool Inputs](../invariants/strict-tool-inputs.md)
+- [Module: @vitest-agent/mcp](../modules/mcp.md)

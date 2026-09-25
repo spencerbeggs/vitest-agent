@@ -32,7 +32,7 @@ vitest-agent --version
 # vitest-agent 3.x.y via @vitest-agent/plugin 4.x.y
 ```
 
-The first version is `@vitest-agent/cli`'s own. The ` via …` suffix names the package that shipped the bin you ran — `@vitest-agent/plugin` when you run the bin the plugin links — and is absent when `@vitest-agent/cli` is installed and run directly. It is packaging provenance, not a second version to keep in sync.
+The first version is `@vitest-agent/cli`'s own. The ` via …` suffix names the package that shipped the bin you ran — `@vitest-agent/plugin` when you run the bin the plugin links — and is absent when `@vitest-agent/cli` is installed and run directly. It is packaging provenance, not a second version to keep in sync. Under npm, yarn or bun's flat layout the hoisted `@vitest-agent/cli` bin can be linked in place of the plugin's shim; both run the same program, so the only difference is a missing suffix.
 
 ## Commands
 

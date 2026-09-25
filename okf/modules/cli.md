@@ -28,10 +28,12 @@ sources:
     resource: ../../packages/cli/src/commands/doctor.ts
   - id: boundaries-test
     resource: ../../packages/cli/__test__/boundaries.test.ts
+  - id: version-formatter
+    resource: ../../packages/cli/src/lib/version-formatter.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 61af895fca9ea368418e2523c5b688c9676157201b021e87be39771fe6351a3e
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 51e504fb46ef3cb298caa96a978837d7b296ecbe8ceccb67ef2960516ba3c871
 ---
 
 # @vitest-agent/cli
@@ -62,9 +64,10 @@ Rank 4 in the workspace's ranked layering (see
 dependencies are `@vitest-agent/engine`, `@vitest-agent/sdk`, and
 `@vitest-agent/sidecar`; it never imports `@vitest-agent/mcp` — the two
 front ends never import each other, enforced by
-`packages/cli/__test__/boundaries.test.ts`[^boundaries-test]. The same test
-allows `process` references only in `bin.ts`, `main.ts`, `version.ts`, and
-`commands/**`, asserts the `process.env.__PACKAGE_VERSION__` token appears
+`packages/cli/__test__/boundaries.test.ts`[^boundaries-test], which runs
+`@effected/workspaces/testing`'s `SourceBoundary.scan`. The same test
+allows `process` references only in `main.ts` and `commands/**` (`bin.ts`
+reads nothing; the version token is exempt), asserts the `process.env.__PACKAGE_VERSION__` token appears
 only in `version.ts`, and forbids importing `@vitest-agent/mcp`,
 `@vitest-agent/plugin`, `@vitest-agent/reporter`, or `@vitest-agent/ui`
 anywhere under `src/`. See
@@ -73,8 +76,9 @@ this test enforces across every package, not only this one. `lib/` stays
 process-free: commands thread `env` / `cwd` in.
 
 `@vitest-agent/plugin` declares the CLI as an exact-pinned regular
-`dependency` and ships the `vitest-agent` bin itself as a 4-line shim over
-`@vitest-agent/cli/main` (the carrier), so installing the plugin pulls the
+`dependency` and ships the `vitest-agent` bin itself as a shim over
+`@vitest-agent/cli/main` that passes its own identity as `distribution`
+(the carrier), so installing the plugin pulls the
 CLI along and lands the bin in the consumer's `node_modules/.bin` under
 every package manager; the Claude Code plugin's hook scripts resolve it
 `.bin`-first (see [the Claude Code plugin module](claude-code-plugin.md)).
@@ -101,14 +105,26 @@ Follows the
   sub-package cwd resolves the SAME `data.db` the MCP server
   uses)[^main-ts], then runs `resolveDataPath(projectDir)` under
   `PathResolutionLive(projectDir) + NodeServices.layer` and provides the
-  engine's `PlatformLive({ dbPath, env, logLevel, logFile })` to the
-  `effect/unstable/cli` `Command.run` effect (built from
-  `Command.make("vitest-agent")` +
+  engine's `PlatformLive({ dbPath, env, logLevel, logFile })`, merged with
+  the `--version` formatter layer, as the `platform` of `@effected/cli`'s
+  `CliRuntime.main` around the `effect/unstable/cli` `Command.run` effect
+  (built from `Command.make("vitest-agent")` +
   `Command.withSubcommands([dbCommand, doctorCommand,
-  agentCommand])`[^main-ts]; on v4 `Command.run` takes an options
-  object). A cause carrying a defect prints `vitest-agent:
-  ${formatFatalError(cause)}` to stderr before re-failing;
-  `NodeRuntime.runMain` owns exit codes.
+  agentCommand])`)[^main-ts]. Because the platform is inside failure
+  reporting, a failure resolving the data path, opening SQLite or
+  running migrations prints one line on stderr instead of a runtime
+  report. `renderFailure` prints a tagged failure as `vitest-agent:
+  <Tag>: <message>` and anything else as `vitest-agent:
+  ${formatFatalError(error)}`. Exit codes are the kit's: `0` success,
+  `64` usage error, `1` any other reported failure; a command's own
+  `process.exit` code still wins. `main(options?)` takes an optional
+  `distribution` and provides it as `@effected/engine`'s
+  `CurrentDistribution` outermost, so the `--version` formatter
+  (`lib/version-formatter.ts`, `CliColor.formatterLayer` with only
+  `formatVersion` overridden) prints `vitest-agent <version>` plus
+  `via @vitest-agent/plugin <version>` when the carrier launched
+  it[^version-formatter]. Help and parse-error colour follow `CliColor`
+  (stdout a TTY and `NO_COLOR` unset or empty).
 - `src/index.ts` is a side-effect-free barrel that never imports `main.ts`,
   so a library consumer's import graph never pulls in the process-owning
   module[^index-ts]. It exports only `CURRENT_CLI_VERSION` (from
@@ -349,6 +365,7 @@ That surface later moved wholesale to the MCP server's test-landscape tools
 CLI-first split, leaving the CLI utility-only as described above.
 
 [^boundaries-test]: `../../packages/cli/__test__/boundaries.test.ts`
+[^version-formatter]: `../../packages/cli/src/lib/version-formatter.ts`
 [^main-ts]: `../../packages/cli/src/main.ts:42` (`main`), `../../packages/cli/src/main.ts:57` (`projectDir`), `../../packages/cli/src/main.ts:31` (`rootCommand`)
 [^bin-ts]: `../../packages/cli/src/bin.ts:10`
 [^index-ts]: `../../packages/cli/src/index.ts:21`

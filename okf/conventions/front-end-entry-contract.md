@@ -32,8 +32,8 @@ sources:
     resource: ../../packages/plugin/src/bin/vitest-agent-mcp.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: a00fc1ecd8029fc2f7819146d3e75de610a863afe661cb5be2450a7f30c684eb
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 5fb37d91094363f5dfb477128efdd9d39ea19e80b24011b6ba5b9c04efcd31c7
 ---
 
 # Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
@@ -58,13 +58,21 @@ one of those responsibilities belongs to `main.ts`.
 
 `main.ts` is the assembled program: it resolves the data path, wires the
 engine's platform layers, registers crash guards where relevant, and runs
-under `NodeRuntime.runMain`[^cli-main][^mcp-main]. It is published as the
+under `NodeRuntime.runMain` — the CLI through `@effected/cli`'s
+`CliRuntime.main`, the MCP server through `@effected/mcp`'s
+`McpStdio.launch`[^cli-main][^mcp-main]. Each `main` takes an optional
+`{ distribution }`: the package whose bin launched it, provided as
+`@effected/engine`'s `CurrentDistribution`. A direct install passes
+nothing. It is published as the
 package's `./main` subpath specifically so a consumer other than the
 shebang shim — namely the carrier — can invoke the identical assembled
 program. `packages/plugin/src/bin/vitest-agent.ts` and
 `vitest-agent-mcp.ts` are the two call sites that do exactly that: each
-is a four-line shim importing `main` from `@vitest-agent/cli/main` or
-`@vitest-agent/mcp/main` and invoking it[^plugin-bin-cli][^plugin-bin-mcp].
+is a shim of a few lines importing `main` from `@vitest-agent/cli/main` or
+`@vitest-agent/mcp/main` and invoking it with
+`{ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } }`,
+the version read from the plugin's own `src/version.ts`[^plugin-bin-cli][^plugin-bin-mcp].
+The CLI's `--version` and the MCP `ping` tool surface that identity.
 This is why the carrier does not need its own copy of process-ownership
 logic — pnpm links only a direct dependency's declared bins, so the
 carrier's `bin.vitest-agent` / `bin.vitest-agent-mcp` fields point at
@@ -80,8 +88,8 @@ side effect of importing the barrel.
 `packages/cli/src/index.ts` and `packages/mcp/src/index.ts` re-export
 only programmatic surface — for the CLI, just
 `CURRENT_CLI_VERSION`[^cli-index]; for the MCP server, the supporting
-pieces (`ServerLayer`, `McpSession`, `Kit`, `registerStrictToolkit`,
-and so on) that a custom integration might want without spawning the
+pieces (`ServerLayer`, `SERVER_INSTRUCTIONS`, `McpSession`, `Kit`,
+`ToolsLayer`, `ToolRefusal`, and so on) that a custom integration might want without spawning the
 bin[^mcp-index]. Neither barrel imports `./main.js`.
 
 ## `CURRENT_<PKG>_VERSION` lives in `version.ts`, and only there
@@ -118,7 +126,7 @@ See [Invariant: Package boundaries](../invariants/package-boundaries.md)
 for the general boundary-test mechanism this contract rides on, and
 [Glossary: Carrier](../glossary/carrier.md) for the plugin's bin-declaring
 role. [Decision 70](../decisions/70-carrier-pattern-and-ranked-layering.md)
-records why the carrier ships four-line shims instead of any hoisting
+records why the carrier ships thin shims instead of any hoisting
 mechanism.
 
 [^cli-bin]: ../../packages/cli/src/bin.ts

@@ -8,8 +8,8 @@ tags:
   - mcp
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 8f9fdcd5ce077b27e994e6bc57155dc190ccacc8418c2b6024e4a931b6f98273
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 5be10e8b3f6e729401ac007391a73e45254c53ee9ce453779146e7d916e14506
 sources:
   - id: validate-phase-transition
     resource: ../../packages/sdk/src/utils/validate-phase-transition.ts
@@ -37,7 +37,8 @@ artifact, and the requested behavior id) and returns a discriminated
 `PhaseTransitionResult` — either `{ accepted: true, phase }` or
 `{ accepted: false, phase, denialReason, remediation }`, where
 `DenialReason` is a closed string-literal union and `Remediation` carries a
-`suggestedTool`, `suggestedArgs`, and a `humanHint`.[^validate-phase-transition]
+`suggestedTool`, `suggestedArgs`, and a `humanHint` (served on the wire as
+`hint`, `@effected/engine`'s `Remediation` shape).[^validate-phase-transition]
 No I/O and no async: the MCP tool `tdd_phase_transition_request` loads the
 binding context (cited artifact details, session info) through `DataReader`
 Effect calls and passes the resolved plain data in, so the orchestrator can

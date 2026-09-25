@@ -9,8 +9,8 @@ tags: [dx]
 stale_after: "2027-03-12T00:00:00Z"
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 611fb033ccfa7ec26d2d00b2bf662f3b5ced8887bced8fb4c252e3272e3ab291
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 064d2610234484d510ca425e8e8e2f19e2b132c5588ae2598ef48c8c5e00ea7b
 sources:
   - id: end-record
     resource: ../../plugins/claude-code/hooks/session/end-record.sh
@@ -27,9 +27,9 @@ itself, not from this repository. The host runs every `SessionEnd` hook
 under `signal: AbortSignal.timeout(budget)` and, on an interactive
 interrupt, aborts any hook still in flight unconditionally; an aborted
 hook returns `ABORT_ERR`, which the host renders as "Hook cancelled". The
-plugin's own persistence work — several serial `<pm> exec vitest-agent`
-spawns — can outlast that budget on a cold package-manager cache, so the
-abort would otherwise land mid-write and leave rows half-written.
+plugin's own persistence work — several serial `vitest-agent` CLI
+spawns — can outlast that budget, so the abort would otherwise land
+mid-write and leave rows half-written.
 
 The mitigation lives entirely in
 `plugins/claude-code/hooks/session/end-record.sh`[^end-record]: on a true

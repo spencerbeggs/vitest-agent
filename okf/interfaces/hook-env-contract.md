@@ -30,8 +30,8 @@ sources:
     resource: ../../plugins/claude-code/hooks/session/end-record-worker.sh
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: c536dd84b489801bac5aa629e82e3c6813522dc03bd11e14c5fc189e07cd808c
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 10a2def6fe210a43d23993edfd968abeea0a58953ba3c68ac90c176a5894b092
 ---
 
 # Claude Code hook environment contract
@@ -138,12 +138,19 @@ order[^detect-pm-sh]:
    `$cwd/node_modules/.bin/vitest-agent` is executable — the carrier's bin,
    present whenever `@vitest-agent/plugin` is installed. This rung
    deliberately returns a relative path, not an absolute one: call sites
-   expand the result unquoted (required so rungs 1 and 3, which are
-   multi-word, still split correctly), so an absolute path containing a
+   expand the result unquoted (required so rung 1, which may be
+   multi-word, still splits correctly), so an absolute path containing a
    space would word-split and the bin would silently never run. Every call
    site therefore wraps the invocation in a load-bearing `cd "$cwd" &&`.
-3. `$(detect_pm_exec "$cwd") vitest-agent` — the package-manager dispatch,
-   as the last rung.
+3. `vitest-agent` on `PATH`.
+4. Otherwise the function returns `1` and prints nothing. Every call site
+   must handle that by emitting its own no-op output and exiting `0`, so a
+   missing CLI never blocks a tool call.
+
+Hooks never dispatch through a package manager (`<pm> exec`) and never
+fall back to `npx`: a hook fires far more often than the MCP server
+starts, and a silent download or a dispatch that depends on which
+package manager is installed is not acceptable on that path.
 
 A consumer adding a new hook that needs the CLI must route through this
 function rather than hard-coding a path or a package-manager command —
@@ -202,7 +209,8 @@ files are swept at session end.
 - The eight canonical exports are present in both write-target files by
   the time any post-`SessionStart` hook or tool call runs, with
   `VITEST_AGENT_SIDECAR_BIN` being the one exception that may be absent.
-- `detect_vitest_agent_bin`'s three-rung order never changes without every
+- `detect_vitest_agent_bin`'s order (override, local `.bin`, `PATH`, fail
+  open) never changes without every
   call site being updated in the same change — a hook must not special-case
   its own resolution.
 - The allowlist grants tool-name-level auto-permission only; action-level
@@ -218,7 +226,7 @@ module](../modules/claude-code-plugin.md) for how the rest of the plugin
 consumes it.
 
 [^session-start-sh]: `plugins/claude-code/hooks/session/start.sh:118` (canonical exports), `plugins/claude-code/hooks/session/start.sh:161` (sidecar-path resolution)
-[^detect-pm-sh]: `plugins/claude-code/hooks/lib/detect-pm.sh:79` (`detect_vitest_agent_bin`)
+[^detect-pm-sh]: `plugins/claude-code/hooks/lib/detect-pm.sh:37` (`detect_vitest_agent_bin`)
 [^source-session-env-sh]: `plugins/claude-code/hooks/lib/source-session-env.sh:28` (`source_session_env`)
 [^allowlist]: `plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`
 [^pre-tool-use-mcp-sh]: `plugins/claude-code/hooks/pre-tool-use/mcp.sh`
