@@ -35,6 +35,9 @@ sources:
     resource: ../../packages/plugin/__test__/workspace-layering.test.ts
   - id: packed-install-e2e
     resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-25T18:39:41Z
 ---
 
 # Adopt the Effected Front-End Kit
