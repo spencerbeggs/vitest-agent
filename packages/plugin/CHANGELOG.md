@@ -1,5 +1,34 @@
 # @vitest-agent/plugin
 
+## 5.0.0
+
+### Breaking Changes
+
+- As the carrier that ships the `vitest-agent-mcp` bin, `@vitest-agent/plugin` carries the `@vitest-agent/mcp` wire break through to consumers: the `UnexpectedToolError` envelope is gone (undeclared tool failures now surface a scrubbed internal-error message), and the `tdd_goal`/`tdd_behavior`/`tdd_phase_transition_request` remediation field is renamed `humanHint` → `hint`. See the `@vitest-agent/mcp` changelog for the full list.
+
+### Features
+
+- Added a `CURRENT_PLUGIN_VERSION` module, and threaded the carrier's own identity through both the `vitest-agent` and `vitest-agent-mcp` bin shims so each front end can report it was launched via the carrier. [#502][#502]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.26.0 | ^0.27.0 |
+| @vitest-agent/cli | dependency | updated | 3.1.6 | 3.2.0 |
+| @vitest-agent/engine | dependency | updated | 0.2.6 | 0.2.7 |
+| @vitest-agent/mcp | dependency | updated | 4.3.2 | 5.0.0 |
+
+[#503][#503]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#502]: https://github.com/spencerbeggs/vitest-agent/pull/502
+
+[#503]: https://github.com/spencerbeggs/vitest-agent/pull/503
+
 ## 4.1.7
 
 ### Dependencies
