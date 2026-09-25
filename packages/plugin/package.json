@@ -47,6 +47,7 @@
 		"magic-string": "^1.4.2"
 	},
 	"devDependencies": {
+		"@effected/mcp": "catalog:effected",
 		"@effected/memfs": "catalog:effected",
 		"@savvy-web/bundler": "^2.4.11",
 		"@types/node": "catalog:build",

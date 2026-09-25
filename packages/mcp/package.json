@@ -37,11 +37,14 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
+		"@effected/engine": "catalog:effected",
+		"@effected/mcp": "catalog:effected",
 		"@vitest-agent/engine": "workspace:*",
 		"@vitest-agent/sdk": "workspace:*",
 		"effect": "catalog:effect"
 	},
 	"devDependencies": {
+		"@effected/workspaces": "catalog:effected",
 		"@savvy-web/bundler": "^2.4.11",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-v8": "catalog:test",
