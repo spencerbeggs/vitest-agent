@@ -124,15 +124,19 @@ describe.skipIf(!PROD_BUILD_PRESENT || process.platform === "win32")(SUITE_NAME,
 			for (const { manager, version, probe, cliLinkedAtTopLevel } of outcomes) {
 				expect(version.exitCode, `${manager}: vitest-agent --version\n${version.stderr}`).toBe(0);
 				expect(version.stdout, manager).toMatch(/\d+\.\d+\.\d+/);
-				expect(version.stdout, `${manager}: --version names the carrier`).toContain(
-					`via @vitest-agent/plugin ${pluginVersion}`,
-				);
 				if (manager === "pnpm") {
 					// Isolated layout: only the consumer's direct dependency (the
 					// carrier) is linked at the top level, so the bin that ran is the
 					// carrier's shim, not a hoisted @vitest-agent/cli one.
 					expect(cliLinkedAtTopLevel, "pnpm: @vitest-agent/cli must not be linked at the top level").toBe(false);
+					expect(version.stdout, "pnpm: --version names the carrier").toContain(
+						`via @vitest-agent/plugin ${pluginVersion}`,
+					);
 				}
+				// Flat layouts (npm/yarn/bun) may link the hoisted @vitest-agent/cli
+				// mirror bin over the carrier's shim — the kit's documented
+				// "mirror-bin wart". Both call the same main(), so only the carrier
+				// suffix differs; pnpm's isolated install above is the proof.
 				expect(probe.response.error, `${manager}: initialize answered an error`).toBeUndefined();
 				expect(probe.stderr, `${manager}: vitest-agent-mcp stderr`).toBe("");
 				expect(probe.exitCode, `${manager}: vitest-agent-mcp exit code`).toBe(0);
