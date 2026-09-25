@@ -807,7 +807,7 @@ describe("MCP tool handlers (direct caller)", () => {
 					tddTaskId: 987654,
 					content: "this should never be written.",
 				}),
-			).rejects.toThrow(/unknown tddTaskId 987654/);
+			).rejects.toThrow(/Unknown tddTaskId 987654/);
 		});
 
 		it("hypothesis_record accepts a stringified tddTaskId and binds to the same session as the numeric form", async () => {
@@ -2017,11 +2017,13 @@ describe("MCP tool handlers (direct caller)", () => {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "green",
-			})) as { accepted: boolean; denialReason?: string; remediation?: { humanHint: string } };
+			})) as { accepted: boolean; denialReason?: string; remediation?: { hint: string } };
 			expect(r.accepted).toBe(false);
 			expect(r.denialReason).toBe("missing_artifact_evidence");
-			expect(r.remediation?.humanHint).toMatch(/test_failed_run/);
-			expect(r.remediation?.humanHint).not.toMatch(/different session of this conversation/);
+			expect(r.remediation?.hint).toMatch(/test_failed_run/);
+			expect(r.remediation?.hint).not.toMatch(/different session of this conversation/);
+			// The SDK validator's `humanHint` is mapped to @effected/engine's `hint`.
+			expect(r.remediation).not.toHaveProperty("humanHint");
 		});
 
 		it("appends a cross-session diagnostic sentence when other sessions of the same conversation recorded artifacts recently (issue #144)", async () => {
@@ -2085,11 +2087,11 @@ describe("MCP tool handlers (direct caller)", () => {
 				tddTaskId: tddId,
 				goalId,
 				requestedPhase: "green",
-			})) as { accepted: boolean; denialReason?: string; remediation?: { humanHint: string } };
+			})) as { accepted: boolean; denialReason?: string; remediation?: { hint: string } };
 			expect(r.accepted).toBe(false);
 			expect(r.denialReason).toBe("missing_artifact_evidence");
-			expect(r.remediation?.humanHint).toMatch(/different session of this conversation/);
-			expect(r.remediation?.humanHint).toMatch(/VITEST_AGENT_TDD_TASK_ID/);
+			expect(r.remediation?.hint).toMatch(/different session of this conversation/);
+			expect(r.remediation?.hint).toMatch(/VITEST_AGENT_TDD_TASK_ID/);
 		});
 
 		it("auto-resolves the failing run for the REQUESTED behavior on red→green, not the newest across behaviors (issue #115)", async () => {
@@ -2355,11 +2357,11 @@ describe("MCP tool handlers (direct caller)", () => {
 		it("returns error envelope for tdd_goal_create against unknown session", async () => {
 			const r = (await call("tdd_goal", { action: "create", tddTaskId: 99999, goal: "G" })) as {
 				ok: false;
-				error: { _tag: string; remediation: { humanHint: string } };
+				error: { _tag: string; remediation: { hint: string } };
 			};
 			expect(r.ok).toBe(false);
 			expect(r.error._tag).toBe("TddTaskNotFoundError");
-			expect(r.error.remediation.humanHint).toContain("tdd_task");
+			expect(r.error.remediation.hint).toContain("tdd_task");
 		});
 
 		it("supports tdd_goal_get, tdd_goal_update, tdd_goal_list lifecycle", async () => {

@@ -397,6 +397,10 @@ part of this family — see its own section above for what its exit codes mean:
 | `4` | Project identity not resolvable |
 | `5` | Other unexpected defect |
 
+A usage error — an unknown command, an unknown or malformed flag, a missing
+argument — exits `64` (`EX_USAGE`) on every command, before any command runs,
+with the parse error on stderr.
+
 `db reset` uses codes `4` and `5` for its own guards (agent context blocked and
 non-TTY without `--yes`), independent of the sidecar taxonomy. `db query` uses
 code `2` for empty SQL and code `3` for driver errors. `doctor` exits `1` when

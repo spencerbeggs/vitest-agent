@@ -7,7 +7,9 @@
 # `vitest-agent agent sidecar-path`), NOT `command -v vitest-agent-sidecar`.
 # When VITEST_AGENT_SIDECAR_BIN is non-empty and executable, the hook
 # invokes it directly.  When it is absent or empty, the hook falls back to
-# `$pm_exec vitest-agent agent inject-env ...`.
+# the JS CLI resolved via detect_vitest_agent_bin (override, then
+# node_modules/.bin/vitest-agent, then PATH) running
+# `vitest-agent agent inject-env ...`.
 #
 # Stub strategy:
 #   Two separate capture files live in BATS_TMPDIR —
@@ -67,8 +69,8 @@ setup() {
 
     # -----------------------------------------------------------------------
     # Fake vitest-agent (JS CLI path).
-    # Reached via: pnpm exec vitest-agent agent inject-env ...
-    # The fake pnpm strips "exec" so argv[0] == "vitest-agent".
+    # Reached via the VITEST_AGENT_CLI_CMD override (set below), which is
+    # the highest-priority rung of detect_vitest_agent_bin.
     # Captures argv to BATS_JSCLI_CAPTURE and emits CANNED_REWRITE so the
     # hook sees a real rewrite from the JS path too.
     # -----------------------------------------------------------------------

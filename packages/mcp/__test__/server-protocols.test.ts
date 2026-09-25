@@ -1,16 +1,17 @@
 /**
- * The protocol surface of `ServerLayer` after the rc.116 bump: the
- * stateless `2026-07-28` adapter (`server/discover`, per-request `_meta`,
- * no handshake) beside the stateful `2025-11-25` / `2025-06-18` ones, the
+ * The protocol surface of `ServerLayer`: the stateless `2026-07-28` adapter
+ * (`server/discover`, per-request `_meta`, no handshake) beside the stateful
+ * `2025-11-25` / `2025-06-18` ones (`McpStdio.protocols`), the
  * `instructions` every client receives, and a revision x outcome matrix
- * proving the `tools/call` envelope on each revision. Also pins that
- * every tool is strict whatever its `Tool.Strict` annotation says.
+ * proving the `tools/call` result on each revision. Also pins that every
+ * `Tool.make` tool is strict whatever its `Tool.Strict` annotation says
+ * (`McpToolkit.layer`'s `strict: "all"` default).
  */
 
+import { McpStdio, McpToolkit } from "@effected/mcp";
 import { Effect, Layer, Schema } from "effect";
-import { Tool, Toolkit } from "effect/unstable/ai";
+import { McpProtocol, Tool, Toolkit } from "effect/unstable/ai";
 import { describe, expect, it } from "vitest";
-import { registerStrictToolkit } from "../src/register-toolkit.js";
 import { SERVER_INSTRUCTIONS } from "../src/server.js";
 import type { JsonRpcMessage, McpHarness } from "./utils/harness.js";
 import { STATELESS_PROTOCOL, makeHarness } from "./utils/harness.js";
@@ -32,7 +33,7 @@ const lenientTool = Tool.make("lenient_fixture", {
 	success: Schema.Struct({ echoed: Schema.String }),
 });
 const FixtureKit = Toolkit.make(failingTool, strictTool, lenientTool);
-const FixtureLayer = registerStrictToolkit(FixtureKit).pipe(
+const FixtureLayer = McpToolkit.layer(FixtureKit).pipe(
 	Layer.provide(
 		FixtureKit.toLayer({
 			fails: () => Effect.fail(new DeclaredFailure({ message: "declared boom" })),
@@ -94,7 +95,7 @@ describe("server/discover on 2026-07-28 (stateless)", () => {
 	});
 
 	it("initialize on 2025-06-18 also carries the instructions", async () => {
-		const response = await withHarness((h) => h.initialize("2025-06-18"));
+		const response = await withHarness((h) => h.initialize(), { protocol: McpProtocol.v2025_06_18 });
 		const body = response.result as { protocolVersion: string; instructions?: string };
 		expect(body.protocolVersion).toBe("2025-06-18");
 		expect(body.instructions).toBe(SERVER_INSTRUCTIONS);
@@ -109,20 +110,23 @@ describe("tools/call revision x outcome matrix", () => {
 		readonly open: (h: McpHarness) => Effect.Effect<unknown>;
 	}> = [
 		{ version: STATELESS_PROTOCOL, options: { stateless: true, extraLayers: [FixtureLayer] }, open: (h) => h.discover },
-		{ version: "2025-11-25", options: { extraLayers: [FixtureLayer] }, open: (h) => h.initialize("2025-11-25") },
-		{ version: "2025-06-18", options: { extraLayers: [FixtureLayer] }, open: (h) => h.initialize("2025-06-18") },
+		{ version: "2025-11-25", options: { extraLayers: [FixtureLayer] }, open: (h) => h.initialize() },
+		{
+			version: "2025-06-18",
+			options: { protocol: McpProtocol.v2025_06_18, extraLayers: [FixtureLayer] },
+			open: (h) => h.initialize(),
+		},
 	];
 
 	for (const { version, options, open } of revisions) {
 		describe(version, () => {
-			it("success: structuredContent + JSON text", async () => {
+			it("success: structuredContent carries the typed result", async () => {
 				const result = (await withHarness(
 					(h) => open(h).pipe(Effect.andThen(h.callTool("ping", {}))),
 					options,
 				)) as CallToolResult;
 				expect(result.isError).toBe(false);
-				expect(result.structuredContent?.message).toBe("pong");
-				expect(JSON.parse(result.content[0]?.text ?? "null")).toEqual({ message: "pong" });
+				expect(result.structuredContent).toEqual({ message: "pong", distribution: null });
 			});
 
 			it("declared failure: isError with the message as text and no structuredContent", async () => {
@@ -164,6 +168,12 @@ describe("tools/call revision x outcome matrix", () => {
 		expect(result.resultType).toBe("complete");
 		expect(result._meta["io.modelcontextprotocol/serverInfo"]).toMatchObject({ name: "vitest-agent" });
 		expect(result.structuredContent?.message).toBe("pong");
+	});
+});
+
+describe("McpStdio.protocols", () => {
+	it("serves the stateless revision first, then the two newest stateful ones", () => {
+		expect(McpStdio.protocols.map((adapter) => adapter.protocolVersion)).toEqual(EXPECTED_VERSIONS);
 	});
 });
 

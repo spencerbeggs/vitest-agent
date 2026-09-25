@@ -23,8 +23,8 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 2df7ef510d2038cd88e1b8dacf1a698ef4660ac3b4a9dc00e6442ffc77a9161f
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 83a86cda85ddfbad231ded2b8c49c23ff10f2e624c7eb6e3490049b56c7f776d
 ---
 
 # The `vitest-agent` CLI command tree
@@ -70,7 +70,12 @@ vitest-agent
     └── check-test-path <path>
 ```
 
-Root-level `--version` prints `CURRENT_CLI_VERSION`[^main-ts]. The top-level
+Root-level `--version` prints `vitest-agent <CURRENT_CLI_VERSION>` (no
+`v` prefix). When the bin was launched through the carrier's shim it
+appends `via @vitest-agent/plugin <plugin version>`; that suffix is
+provenance, not a version to compare, and it may be absent under npm,
+yarn or bun, where the hoisted `@vitest-agent/cli` bin can take the
+`.bin` slot[^main-ts]. The top-level
 tree is exactly three children: `doctor`, `db`, `agent` — a consumer should
 not expect a fourth top-level command to appear without a major.
 
@@ -92,6 +97,15 @@ a consumer must not assume the values transfer between commands:
   [the CLI module](../modules/cli.md) "Choices absorbed here".
 
 ## Exit-code contract
+
+**Process-level codes**, from `@effected/cli`'s `CliRuntime.main`, apply
+to every command before any family below: `0` success (a bare `--help`
+included), `64` a usage error (a parse error, an unknown subcommand or
+flag), `1` any other reported failure — a failure resolving the data
+path, opening SQLite or running migrations prints one
+`vitest-agent: <Tag>: <message>` line on stderr and exits `1`. A command
+that calls `process.exit` with its own code, as the families below do,
+keeps that code[^main-ts].
 
 Two disjoint exit-code taxonomies exist under `agent`, and a hook consumer
 must know which family a subcommand belongs to before interpreting a
@@ -155,7 +169,8 @@ after still printing the full formatted report.
 **Stable within a minor/patch** (a hook script may rely on these without
 watching the changelog): the three top-level command names (`doctor`, `db`,
 `agent`); the `agent` subcommand names and the `record` action names listed
-in the tree above; the two exit-code taxonomies described above and which
+in the tree above; the process-level `0` / `64` / `1` codes and the two
+exit-code taxonomies described above and which
 subcommands belong to which; the JSON key names in every documented stdout
 payload; `--chat-id` / `--parent-chat-id` / `--tdd-task-id` as the
 agent-facing id flags across `record` and `wrapup`; `db reset`'s
@@ -183,4 +198,4 @@ the 2.0 shape and live behind the MCP server's tools instead; see
 [^record-ts]: `../../packages/cli/src/commands/record.ts:303` (`recordCommand`), `../../packages/cli/src/commands/record.ts:204` (`test-case-turns` stdout shape)
 [^triage-ts]: `../../packages/cli/src/commands/triage.ts:19`
 [^wrapup-ts]: `../../packages/cli/src/commands/wrapup.ts:25`
-[^main-ts]: `../../packages/cli/src/main.ts:59`
+[^main-ts]: `../../packages/cli/src/main.ts`

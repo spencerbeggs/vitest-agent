@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
-import { handshake, makeEnv, makeScratchProject, readResponse, spawnMcp } from "./utils/mcp-process.js";
+import { makeEnv, makeScratchProject, spawnMcp } from "./utils/mcp-process.js";
 
 const scratch = makeScratchProject("server-lifecycle-e2e");
 const ENV = makeEnv(scratch);
@@ -32,13 +32,13 @@ describe("server lifecycle", () => {
 			Effect.scoped(
 				Effect.gen(function* () {
 					const server = yield* spawnMcp(ENV);
-					const initialized = (yield* handshake(server)) as {
+					const initialized = (yield* server.handshake()) as {
 						readonly result: { readonly protocolVersion: string; readonly serverInfo: { readonly name: string } };
 					};
 					expect(initialized.result.serverInfo.name).toBe("vitest-agent");
 					expect(initialized.result.protocolVersion).toBe("2025-11-25");
 					yield* server.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-					const listed = (yield* readResponse(server, 2)) as {
+					const listed = (yield* server.readUntilResponse(2)).response as {
 						readonly result: { readonly tools: ReadonlyArray<{ readonly name: string }> };
 					};
 					expect(listed.result.tools.length).toBeGreaterThanOrEqual(2);
@@ -54,9 +54,9 @@ describe("server lifecycle", () => {
 			Effect.scoped(
 				Effect.gen(function* () {
 					const server = yield* spawnMcp(ENV);
-					yield* handshake(server);
+					yield* server.handshake();
 					yield* server.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "ping", arguments: {} } });
-					const pong = (yield* readResponse(server, 2)) as {
+					const pong = (yield* server.readUntilResponse(2)).response as {
 						readonly result: { readonly structuredContent: { readonly message: string } };
 					};
 					expect(pong.result.structuredContent.message).toBe("pong");
@@ -94,7 +94,7 @@ describe("server lifecycle", () => {
 			Effect.scoped(
 				Effect.gen(function* () {
 					const server = yield* spawnMcp(ENV);
-					yield* handshake(server);
+					yield* server.handshake();
 					yield* server.closeStdin;
 					const code = yield* server.exitCode.pipe(
 						Effect.timeoutOrElse({ duration: "2 seconds", orElse: () => Effect.fail("did not exit" as const) }),

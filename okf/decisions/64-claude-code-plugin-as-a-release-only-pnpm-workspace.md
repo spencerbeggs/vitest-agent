@@ -8,8 +8,8 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 851318417e83a4ae9f7563e5ea0c58869a303fc4b560ec4f4ec70b25ec8bdc01
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 66e26c2730ee5ab4fdac1f9c7cc6127af8ac9f5b6ca044504bbc52bbf3af2fdf
 sources:
   - id: pnpm-workspace-yaml
     resource: ../../pnpm-workspace.yaml
@@ -63,10 +63,11 @@ its own release cadence required giving it a package to version — a
 private, script-free tracking package is the minimal shape that satisfies
 that requirement without implying the tree has a build output or a
 dependency graph of its own. `packages/plugin/__test__/workspace-layering.test.ts`
-reads every workspace manifest including `plugins/*` and asserts a
-declared rank and a strictly-lower-rank dependency edge for each, which is
-what makes `@vitest-agent/claude-code-plugin` an ordinary graph node rather
-than a special case the layering rule has to carve out.[^workspace-layering-test]
+holds every workspace package, `plugins/*` included, to the root
+`layers.json`, which classifies `@vitest-agent/claude-code-plugin` as
+`tooling`: a package any layer may depend on that never depends on a
+layer. That makes it an ordinary node in the checked graph rather than
+a special case the layering rule has to carve out.[^workspace-layering-test]
 
 ## Alternatives rejected
 
@@ -109,4 +110,4 @@ at before it became a workspace member.
 [^claude-code-plugin-package-json]: `../../plugins/claude-code/package.json:1-5`
 [^changeset-config]: `../../.changeset/config.json:8-26`
 [^claude-plugin-manifest]: `../../plugins/claude-code/.claude-plugin/plugin.json:1-9`
-[^workspace-layering-test]: `../../packages/plugin/__test__/utils/workspace-graph.ts:47`
+[^workspace-layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`

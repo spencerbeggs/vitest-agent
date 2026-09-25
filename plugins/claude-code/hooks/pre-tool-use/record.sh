@@ -21,7 +21,7 @@ fi
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-cli=$(detect_vitest_agent_bin "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd") || { emit_noop; exit 0; }
 
 payload=$(jq -nc \
 	--arg tn "$tool_name" \

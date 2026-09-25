@@ -7,8 +7,8 @@ resource: ../..
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 4676b72e71e7f110f097efabf1a7530738881c8039c235cfdb8b69c8aaebe730
+  at: 2026-09-25T17:01:39Z
+  body_sha256: f1e71434f2471c6808989e7c92b8b5d46014988ea050a6d197f9031778da17fb
 tags:
   - architecture
   - dx
@@ -54,14 +54,17 @@ config-dependencies (`@effected/pnpm-plugin-effect`,
 
 ## Layering
 
-Every workspace package carries a declared rank, and every dependency edge
-between workspace packages must point to a strictly lower rank — enforced
-by `packages/plugin/__test__/workspace-layering.test.ts`, which reads every
-workspace manifest's `dependencies` / `devDependencies` / `peerDependencies`
-/ `optionalDependencies` via
-`packages/plugin/__test__/utils/workspace-graph.ts` and fails on any
-violation, on a cycle, or on an edge between the two front ends
-(`@vitest-agent/cli` and `@vitest-agent/mcp` never depend on each other).
+Every workspace package is classified in the committed root `layers.json`
+— in one of five layers (top first), as `tooling`
+(`@vitest-agent/claude-code-plugin`), or as `unconstrained` (the private
+root, `docs`, `playground`) — and every runtime dependency edge
+(`dependencies` / `optionalDependencies` / `peerDependencies`) must point
+to a strictly lower layer, never within one. That rules out an edge
+between the two front ends, `@vitest-agent/cli` and `@vitest-agent/mcp`.
+`packages/plugin/__test__/workspace-layering.test.ts` enforces it through
+`@effected/workspaces/testing`'s `WorkspaceLayering`, and separately fails
+on a dependency cycle in any field, `devDependencies` included. A new
+workspace package needs an entry in `layers.json`, by package name.
 See [Invariant ranked-layering](../invariants/ranked-layering.md) for the
 full rank table and enforcement detail.
 

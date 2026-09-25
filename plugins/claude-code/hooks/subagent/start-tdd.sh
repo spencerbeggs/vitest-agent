@@ -45,7 +45,7 @@ subagent_session_key="${chat_id}-subagent-$(date +%s)-$$"
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-cli=$(detect_vitest_agent_bin "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd") || { emit_noop; exit 0; }
 
 project=$(jq -r '.name // "unknown"' < "$cwd/package.json" 2>/dev/null || echo "unknown")
 started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

@@ -1,13 +1,9 @@
-/**
- * CLI wrapup command -- emits the W5 wrap-up prompt for a session.
- *
- * Drives the four interpretive hooks (Stop / SessionEnd / PreCompact /
- * UserPromptSubmit). Hooks invoke the bin with --kind set; humans on
- * the terminal can also run it on demand with --chat-id (host chat UUID)
- * or --row-id (internal integer FK, mostly for debugging).
- *
- * @packageDocumentation
- */
+// CLI wrapup command -- emits the W5 wrap-up prompt for a session.
+//
+// Drives the four interpretive hooks (Stop / SessionEnd / PreCompact /
+// UserPromptSubmit). Hooks invoke the bin with --kind set; humans on
+// the terminal can also run it on demand with --chat-id (host chat UUID)
+// or --row-id (internal integer FK, mostly for debugging).
 
 import { formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";

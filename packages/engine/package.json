@@ -35,6 +35,7 @@
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
 		"@effected/config-file": "catalog:effected",
+		"@effected/engine": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/jsonc": "catalog:effected",
 		"@effected/toml": "catalog:effected",

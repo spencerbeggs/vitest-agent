@@ -4,6 +4,7 @@ import { DataReader } from "@vitest-agent/engine";
 import { CoverageTotals, FileCoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
+import { objectRootedUnion } from "./_union-schema.js";
 
 const CoverageGlobalThresholds = Schema.Struct({
 	statements: Schema.optional(Schema.Number),
@@ -39,13 +40,13 @@ const FileCoverageAbsent = Schema.Struct({
  *
  * @public
  */
-export const FileCoverageResult = Schema.Union([FileCoverageMatched, FileCoverageNoMatch, FileCoverageAbsent]).annotate(
-	{
-		identifier: "FileCoverageResult",
-		title: "file_coverage result",
-		description: "Per-file coverage with related tests. Discriminate on `dataAvailable` then on `matched`.",
-	},
-);
+export const FileCoverageResult = objectRootedUnion(
+	Schema.Union([FileCoverageMatched, FileCoverageNoMatch, FileCoverageAbsent]),
+).annotate({
+	identifier: "FileCoverageResult",
+	title: "file_coverage result",
+	description: "Per-file coverage with related tests. Discriminate on `dataAvailable` then on `matched`.",
+});
 /**
  * The decoded {@link FileCoverageResult}.
  *

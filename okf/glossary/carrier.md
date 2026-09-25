@@ -7,8 +7,8 @@ description: >-
 tags: [dx, architecture, release]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 05d610d7d2976196ab49f2bf2cd63cf2dc1a7b6de0ee3d7a09d699f82ee1ec0c
+  at: 2026-09-25T17:01:39Z
+  body_sha256: d870d215d3377887f0a49a3796abcade8e14338023eb2534a414fec5ade9a7de
 sources:
   - id: plugin-manifest
     resource: ../../packages/plugin/package.json
@@ -29,12 +29,15 @@ the only package in the family that declares either family binary.
 
 `@vitest-agent/plugin`'s manifest declares both bins directly —
 `vitest-agent` and `vitest-agent-mcp`
-(`packages/plugin/package.json:2-5`) — pointing at four-line shims:
+— pointing at shims of a few lines that pass the carrier's own identity
+down as `distribution`:
 
 ```ts
 // packages/plugin/src/bin/vitest-agent.ts
 import { main } from "@vitest-agent/cli/main";
-main();
+import { CURRENT_PLUGIN_VERSION } from "../version.js";
+
+main({ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } });
 ```
 
 and the equivalent for `vitest-agent-mcp` over `@vitest-agent/mcp/main`

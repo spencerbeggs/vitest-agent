@@ -23,6 +23,7 @@ import { Data, Effect, Schema, Semaphore } from "effect";
 import { Tool } from "effect/unstable/ai";
 import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
 import { McpSession } from "../session.js";
+import { objectRootedUnion } from "./_union-schema.js";
 
 const TagFilter = Schema.Struct({
 	all: Schema.optionalKey(Schema.Array(Schema.String)).annotate({ description: "Require every listed tag" }),
@@ -112,7 +113,9 @@ const RunTestsNoMatch = Schema.Struct({
  *
  * @public
  */
-export const RunTestsResult = Schema.Union([RunTestsOk, RunTestsTimeout, RunTestsError, RunTestsNoMatch]).annotate({
+export const RunTestsResult = objectRootedUnion(
+	Schema.Union([RunTestsOk, RunTestsTimeout, RunTestsError, RunTestsNoMatch]),
+).annotate({
 	identifier: "RunTestsResult",
 	title: "run_tests result",
 	description:
@@ -643,16 +646,25 @@ export const makeBestEffortFork =
  * `{ kind: "error" }` envelope, so it never rejects.
  */
 const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Promise<RunTestsResultType> => {
-	const files = input.files ? sanitizeTestArgs(input.files) : [];
-	const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
-	// Sanitize tag values too — they ride into Vitest's tag-expression
-	// compiler unmodified, so shell-metachar injections must be
-	// rejected the same way file/project arguments are.
+	let files: string[];
+	let project: string | undefined;
 	const tagsInput = input.tags;
-	if (tagsInput) {
-		if (tagsInput.all) sanitizeTestArgs(tagsInput.all);
-		if (tagsInput.any) sanitizeTestArgs(tagsInput.any);
-		if (tagsInput.none) sanitizeTestArgs(tagsInput.none);
+	try {
+		files = input.files ? sanitizeTestArgs(input.files) : [];
+		project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
+		// Sanitize tag values too — they ride into Vitest's tag-expression
+		// compiler unmodified, so shell-metachar injections must be
+		// rejected the same way file/project arguments are.
+		if (tagsInput) {
+			if (tagsInput.all) sanitizeTestArgs(tagsInput.all);
+			if (tagsInput.any) sanitizeTestArgs(tagsInput.any);
+			if (tagsInput.none) sanitizeTestArgs(tagsInput.none);
+		}
+	} catch (err) {
+		// A refused argument is the caller's to fix: return it as the tool's
+		// error result (a thrown defect would reach the agent only as core's
+		// scrubbed internal-error text).
+		return { kind: "error" as const, message: err instanceof Error ? err.message : String(err) };
 	}
 	const resolvedExpression = composeTagExpression(tagsInput ?? null);
 	const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;

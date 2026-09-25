@@ -109,5 +109,10 @@
 		"type": "file",
 		"name": "upgrade-engine-split",
 		"label": "Upgrading to the engine split"
+	},
+	{
+		"type": "file",
+		"name": "upgrade-mcp-5",
+		"label": "Upgrading to MCP 5"
 	}
 ]

@@ -5,7 +5,7 @@ description: Complete catalog of the 30 action-keyed MCP tools exposed by @vites
 
 # MCP tools
 
-The `@vitest-agent/mcp` server exposes 30 tools over stdio. Per-CRUD families collapse into a single tool that dispatches on an `action` (or `kind`) discriminator. Every tool returns its typed result as `structuredContent`, and `content[0].text` carries the same result serialized as JSON, which is the form the MCP spec recommends for clients that read only `content`. Tool inputs and outputs are Effect `Schema` values end to end; the served JSON Schema is generated from them.
+The `@vitest-agent/mcp` server exposes 30 tools over stdio. Per-CRUD families collapse into a single tool that dispatches on an `action` (or `kind`) discriminator. Every tool serves an object-rooted `outputSchema`, and every successful result carries its typed object in `structuredContent` — read `structuredContent` for every field. Claude Code forwards only `structuredContent` to the model, so treat it as the one result channel rather than parsing text content. Tool inputs and outputs are Effect `Schema` values end to end; the served JSON Schemas are generated from them.
 
 ## Input validation
 
@@ -19,23 +19,33 @@ This matters most for `run_tests`, where a silently dropped scope param used to 
 
 Types are strict on the wire as well. A parameter typed `number` in the tables below must arrive as a JSON number — `"limit": "5"` or `"timeout": "120"` (a string) is rejected with an `InvalidParams` error rather than coerced. Send `"limit": 5`.
 
-## Unexpected failures
+## Errors and refusals
 
-A handler that fails where the tool itself has no domain-specific handling returns a structured envelope rather than a bare error string, with `isError: true` set on the result:
+A tool call can end three ways besides success, and each means something different to the caller:
 
-```json
-{
-  "ok": false,
-  "error": {
-    "_tag": "UnexpectedToolError",
-    "tool": "test_status",
-    "message": "<the thrown message>",
-    "remediation": { "suggestedTool": "test_status", "suggestedArgs": {}, "humanHint": "…" }
+- **Expected domain error — a normal result, not `isError`.** The result's `structuredContent` has `ok: false` and an `error` object. `tdd_goal` and `tdd_behavior` put the `_tag`, the failing ids, and a `remediation` in it; `register_agent` puts a `code` and `message` in it (plus `existingAgentId` or `expectedPrefix` when the code calls for one). A remediation has this shape:
+
+  ```json
+  {
+    "hint": "No tdd_session_goals row with id=42. Call tdd_goal({ action: \"list\", tddTaskId }) to find the correct goal id.",
+    "suggestedTool": "tdd_goal",
+    "suggestedArgs": { "action": "list" }
   }
-}
-```
+  ```
 
-The server logs the same detail to stderr and keeps the stdio transport open. A stray unhandled rejection or exception raised outside any tool call is logged and survived the same way once the transport is connected, so a background failure cannot deregister the whole tool surface mid-session.
+  `hint` is always present; `suggestedTool` and `suggestedArgs` are optional.
+
+- **Refused call — `isError: true`, and the text names the fix.** Invalid params (see [Input validation](#input-validation)) and calls the agent can correct itself — an unknown id, a missing session — come back as an `isError` result with no `structuredContent`. The text is the problem, then the remediation's hint, then the tool to call next:
+
+  ```text
+  Unknown tddTaskId 987654: no session to attribute the hypothesis to. Pass the tddTaskId returned by tdd_task action='start' (tdd_task action='get' confirms it exists). Try tdd_task.
+  ```
+
+  Fix the call rather than retrying it unchanged.
+
+- **Unexpected failure — `isError: true` with a generic message.** A handler that fails where the tool has no declared error returns the text `Tool execution failed due to an internal server error.` and no `structuredContent`. The server logs the detail to stderr. Report the failure rather than retrying the same call.
+
+The server keeps the stdio transport open through all three. A stray unhandled rejection or exception raised outside any tool call is logged and survived the same way once the transport is connected, so a background failure cannot deregister the whole tool surface mid-session.
 
 ## Meta
 
@@ -47,7 +57,7 @@ No parameters.
 
 ### `ping`
 
-Health check. Returns `{ pong: true }`.
+Health check. Returns `{ message: "pong", distribution }`, where `distribution` is the package that shipped the bin (`{ name, version }`, for example `@vitest-agent/plugin`), or `null` when `@vitest-agent/mcp` was launched directly. It is packaging provenance, not a version to compare against.
 
 No parameters.
 

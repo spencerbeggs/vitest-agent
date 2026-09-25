@@ -8,8 +8,8 @@ tags:
   - mcp
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: ffadb16b4a70c247785e76ae04863d01fcab0f2e0070a9b0a073a9c9ddf4e758
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 2e2268977dd6e76e1b763dace4cd894b7967ee4b2a81a151224a6ceb7c9a6487
 sources:
   - id: plugin-start-mcp-sh
     resource: ../../plugins/claude-code/bin/start-mcp.sh
@@ -51,7 +51,8 @@ direct child over stdio. It is a zero-dependency POSIX shell script
    `pnpm-lock.yaml`, `bun.lock`, `bun.lockb`, `yarn.lock`,
    `package-lock.json`, defaulting to npm) **only** to pick which install
    command to print on stderr, then `exec npx --yes
-   @vitest-agent/mcp@4 "$@"` as a network fallback.
+   @vitest-agent/mcp@5 "$@"` as a network fallback, pinned to the
+   major the hooks were written for.
 
 `start-mcp.mjs` mirrors the same preference order for debugging
 (`accessSync(localBin, X_OK)` then a direct spawn, else the same
@@ -86,8 +87,11 @@ resolved root through explicitly.
 **The hooks use the same `.bin`-first preference.**
 `plugins/claude-code/hooks/lib/detect-pm.sh`'s `detect_vitest_agent_bin`
 returns `$VITEST_AGENT_CLI_CMD` when set, else the relative
-`node_modules/.bin/vitest-agent` when present, else `<pm exec>
-vitest-agent`; the relative form (not an absolute path) exists so an
+`node_modules/.bin/vitest-agent` when present, else `vitest-agent` on
+`PATH`, else fails with no output so the call site emits its own no-op
+and exits 0 — hooks never dispatch through a package manager and never
+fall back to `npx`, because a hook fires far more often than the server
+starts; the relative form (not an absolute path) exists so an
 unquoted `$cli` expansion still survives a `cwd` containing spaces, given
 the call site's load-bearing `cd "$cwd" &&` before the expansion.
 
@@ -115,7 +119,7 @@ the call site's load-bearing `cd "$cwd" &&` before the expansion.
   would fall through to the `npx` network fallback every time.
   `bin-preference.bats` exercises both the loader and the hooks' helper
   against this contract.
-- The `npx --yes @vitest-agent/mcp@4` fallback fetches the published
+- The `npx --yes @vitest-agent/mcp@5` fallback fetches the published
   package from the registry on every invocation when the local bin is
   missing — acceptable UX for a consumer who has not yet installed the
   plugin, but it means this very repository's own dogfood setup depends on

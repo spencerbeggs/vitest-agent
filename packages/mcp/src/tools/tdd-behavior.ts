@@ -8,12 +8,14 @@
  * `list_by_tdd_task`).
  */
 
+import { Remediation } from "@effected/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { BehaviorDetail, BehaviorRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
+import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const BehaviorStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]);
 
@@ -24,12 +26,8 @@ const TddBehaviorErrorEnvelope = Schema.Struct({
 			_tag: Schema.String.annotate({
 				description: "Tagged error name (e.g. BehaviorNotFoundError, GoalNotFoundError).",
 			}),
-			remediation: Schema.Struct({
-				suggestedTool: Schema.String,
-				suggestedArgs: Schema.Record(Schema.String, Schema.Unknown),
-				humanHint: Schema.String,
-			}).annotate({
-				description: "Suggested next action: the tool to call, its arguments, and a plain-language hint.",
+			remediation: Remediation.annotate({
+				description: "Suggested next action: a plain-language hint, the tool to call, and its arguments.",
 			}),
 		}),
 		[Schema.Record(Schema.String, Schema.Unknown)],
@@ -81,16 +79,18 @@ const TddBehaviorListByTddTaskOk = Schema.Struct({
 	behaviors: Schema.Array(BehaviorRow),
 });
 
-export const TddBehaviorResult = Schema.Union([
-	TddBehaviorCreateOk,
-	TddBehaviorUpdateOk,
-	TddBehaviorDeleteOk,
-	TddBehaviorGetFound,
-	TddBehaviorGetMissing,
-	TddBehaviorListByGoalOk,
-	TddBehaviorListByTddTaskOk,
-	TddBehaviorErrorEnvelope,
-]).annotate({
+export const TddBehaviorResult = objectRootedUnion(
+	Schema.Union([
+		TddBehaviorCreateOk,
+		TddBehaviorUpdateOk,
+		TddBehaviorDeleteOk,
+		TddBehaviorGetFound,
+		TddBehaviorGetMissing,
+		TddBehaviorListByGoalOk,
+		TddBehaviorListByTddTaskOk,
+		TddBehaviorErrorEnvelope,
+	]),
+).annotate({
 	identifier: "TddBehaviorResult",
 	title: "tdd_behavior result",
 	description: "Discriminate on `action` (or `ok=false` for the tagged-error envelope).",
@@ -273,13 +273,14 @@ export const handleTddBehavior = (
  *
  * @public
  */
-export const tddBehaviorTool = Tool.make("tdd_behavior", {
+export const tddBehaviorTool = strictUnionTool("tdd_behavior", {
 	description:
 		"Use to manage TDD behaviors, with a CRUD action discriminator: action='create' (goalId, behavior, suggestedTestName?, dependsOnBehaviorIds?) is idempotent on (goalId, behavior); action='update' (id, ...patch) edits; action='delete' (id) hard-deletes; action='get' (id) reads; action='list_by_goal' (goalId) lists one goal's behaviors; action='list_by_tdd_task' (tddTaskId) lists across all goals.",
 	parameters: TddBehaviorInput,
 	success: TddBehaviorResult,
-	dependencies: [DataReader, DataStore],
 })
+	.addDependency(DataReader)
+	.addDependency(DataStore)
 	.annotate(Tool.Title, "TDD behavior")
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, true)

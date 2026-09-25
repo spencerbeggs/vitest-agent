@@ -115,11 +115,12 @@ fi
 if [ -n "$sidecar_bin" ]; then
 	rewritten=$("$sidecar_bin" inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) \
 		|| rewritten="$command_raw"
-else
-	cli=$(detect_vitest_agent_bin "$PROJECT_DIR")
+elif cli=$(detect_vitest_agent_bin "$PROJECT_DIR"); then
 	# shellcheck disable=SC2086
 	rewritten=$(cd "$PROJECT_DIR" && $cli agent inject-env --command "$command_raw" --cwd "$PROJECT_DIR" 2>/dev/null) \
 		|| rewritten="$command_raw"
+else
+	rewritten="$command_raw"
 fi
 
 if [ -z "$rewritten" ] || [ "$rewritten" = "$command_raw" ]; then

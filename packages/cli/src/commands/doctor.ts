@@ -1,8 +1,4 @@
-/**
- * CLI doctor command -- diagnose database health.
- *
- * @packageDocumentation
- */
+// CLI doctor command -- diagnose database health.
 
 import { DataReader, resolveDataPath } from "@vitest-agent/engine";
 import { Effect, Option } from "effect";

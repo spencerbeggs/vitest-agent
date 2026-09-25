@@ -49,8 +49,8 @@ sources:
     resource: ../../plugins/claude-code/package.json
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T20:35:27Z
-  body_sha256: 3e818e3cc441d96c69d6618ed158096b548934ef00c0a8c02bdd608e79a565f8
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 26fc85fa0facb587900020380f52e11c52511e6be81b83bc88fec0cf66f8c966
 ---
 
 # vitest-agent (Claude Code plugin)
@@ -135,7 +135,7 @@ forward signals or buffer stdio, so a closed session pipe ends the server
 via EOF with no orphan processes. Only when the local bin is missing does
 the loader detect the package manager — the `packageManager` field first,
 then a lockfile — solely to word an install line printed to **stderr**,
-then falls back to `exec npx --yes @vitest-agent/mcp@4 "$@"` as a registry
+then falls back to `exec npx --yes @vitest-agent/mcp@5 "$@"` as a registry
 fetch, pinned to the major so an unpinned fetch can never pull a future
 major the hooks were not written for. The MCP server itself is never bundled with the plugin; bundling was
 rejected because the engine's data layer binds a platform-specific SQLite
@@ -146,12 +146,15 @@ Every hook that shells out to the CLI resolves it the same way through
 `detect_vitest_agent_bin` in `hooks/lib/detect-pm.sh`[^detect-pm-sh]: (1)
 `$VITEST_AGENT_CLI_CMD` verbatim when set — an operator/test override; (2)
 the **relative** `node_modules/.bin/vitest-agent` when
-`$cwd/node_modules/.bin/vitest-agent` is executable; (3) the
-package-manager dispatch as the last rung. Rung 2 is deliberately relative:
-call sites expand `$cli` unquoted, which is required for the multi-word
-rungs 1 and 3, so an absolute path containing a space would word-split and
-silently never run — every call therefore sits behind a load-bearing
-`cd "$cwd" &&`.
+`$cwd/node_modules/.bin/vitest-agent` is executable; (3) `vitest-agent`
+on `PATH`; (4) otherwise it returns `1` with no output, and every call
+site falls back to its own no-op emission and exits `0`, so a missing CLI
+never blocks a tool call. Hooks never dispatch through a package manager
+and never fall back to `npx`: a hook fires far more often than the server
+starts. Rung 2 is deliberately relative: call sites expand `$cli`
+unquoted, which is required for a multi-word rung-1 override, so an
+absolute path containing a space would word-split and silently never
+run — every call therefore sits behind a load-bearing `cd "$cwd" &&`.
 
 ## Hook architecture
 
@@ -519,7 +522,7 @@ D23](../decisions/d23-fence-hook-stdout-at-the-library-not-the-call-site.md).
 [^plugin-manifest]: `plugins/claude-code/.claude-plugin/plugin.json`
 [^package-json]: `plugins/claude-code/package.json`
 [^start-mcp-sh]: `plugins/claude-code/bin/start-mcp.sh`
-[^detect-pm-sh]: `plugins/claude-code/hooks/lib/detect-pm.sh:79` (`detect_vitest_agent_bin`)
+[^detect-pm-sh]: `plugins/claude-code/hooks/lib/detect-pm.sh:37` (`detect_vitest_agent_bin`)
 [^hook-output-sh]: `plugins/claude-code/hooks/lib/hook-output.sh:55` (stdout fence), `plugins/claude-code/hooks/lib/hook-output.sh:62` (`emit_noop`)
 [^match-tdd-agent-sh]: `plugins/claude-code/hooks/lib/match-tdd-agent.sh`
 [^session-start-sh]: `plugins/claude-code/hooks/session/start.sh:118` (canonical exports), `plugins/claude-code/hooks/session/start.sh:161` (sidecar-path resolution)

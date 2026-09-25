@@ -22,7 +22,9 @@ src/
                          | HistoryTracker | output pipeline | Sqlite | Node)
   project-dir.ts      -- resolveProjectDir({ env, cwd }): VITEST_AGENT_PROJECT_DIR
                          -> VITEST_AGENT_REPORTER_PROJECT_DIR -> CLAUDE_PROJECT_DIR
-                         -> cwd; both front ends call it
+                         -> cwd, via @effected/engine's LaunchContext.projectDir
+                         (values trimmed; blank or unsubstituted `${...}` =
+                         unset); both front ends call it
   version.ts          -- CURRENT_ENGINE_VERSION (the one sanctioned
                          process.env.__PACKAGE_VERSION__ read)
   services/           -- 14 Context.Service tags (DataStore, DataReader,
@@ -59,7 +61,8 @@ src/
 ## Rules
 
 - **No `process` reads anywhere under `src/`, no allowlist.** Enforced by
-  `__test__/boundaries.test.ts` (comments stripped before scanning). The one
+  `__test__/boundaries.test.ts` (`SourceBoundary.scan` from
+  `@effected/workspaces/testing`; comments blanked before scanning). The one
   exemption is the literal token `process.env.__PACKAGE_VERSION__`, allowed
   only in `src/version.ts`. Every ambient input a program needs (`env`,
   `cwd`, `homeDir`) is a parameter the front end passes from its `main.ts`

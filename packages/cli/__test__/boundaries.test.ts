@@ -1,45 +1,46 @@
 import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import { SourceBoundary } from "@effected/workspaces/testing";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { VERSION_TOKEN, importSpecifiers, referencesProcess, walkTs } from "./utils/boundaries.js";
 
 const SRC_ROOT = join(import.meta.dirname, "..", "src");
-const rel = (file: string): string => relative(SRC_ROOT, file);
+
+/** The build-time version define; `SourceBoundary` exempts it anywhere, so its placement is pinned below. */
+const VERSION_TOKEN = "process.env.__PACKAGE_VERSION__";
 
 const FORBIDDEN_PACKAGES = ["@vitest-agent/mcp", "@vitest-agent/plugin", "@vitest-agent/reporter", "@vitest-agent/ui"];
 
 /**
- * Files allowed to reference the global `process` object: the bin shim, the
- * assembled program that owns the process, the build-time version literal,
- * and the thin `effect/unstable/cli` command wrappers that read
- * `process.env` / `process.cwd()` to thread ambient input into the engine's
- * pure programs. Everything else under `src/` must be process-free.
+ * Files allowed to reference the global `process` object: the assembled
+ * program that owns the process, and the thin `effect/unstable/cli` command
+ * wrappers that read `process.env` / `process.cwd()` to thread ambient input
+ * into the engine's pure programs. `bin.ts` and `version.ts` need no entry
+ * (the shim reads nothing; the version define is exempt). The waiver is
+ * per-rule, so these files are still checked for forbidden imports.
  */
-const isAllowlisted = (relPath: string): boolean =>
-	relPath === "bin.ts" || relPath === "main.ts" || relPath === "version.ts" || relPath.startsWith(`commands${"/"}`);
+const PROCESS_ALLOWLIST = ["main.ts", "commands/**"];
 
 describe("@vitest-agent/cli process boundary and forbidden imports", () => {
-	const files = walkTs(SRC_ROOT);
-
-	it("no file under src/ reads process outside the allowlist (bin.ts, main.ts, version.ts, commands/**)", () => {
-		const offenders = files.filter((f) => {
-			const relPath = rel(f);
-			if (isAllowlisted(relPath)) return false;
-			return referencesProcess(readFileSync(f, "utf8"));
-		});
-		expect(offenders.map(rel)).toEqual([]);
-
-		const tokenUsers = files.filter((f) => readFileSync(f, "utf8").includes(VERSION_TOKEN)).map(rel);
-		expect(tokenUsers).toEqual(["version.ts"]);
-	});
-
-	it("no file under src/ imports @vitest-agent/mcp, plugin, reporter, or ui", () => {
-		const forbidden = (s: string) => FORBIDDEN_PACKAGES.some((pkg) => s === pkg || s.startsWith(`${pkg}/`));
-		const offenders = files.flatMap((f) =>
-			importSpecifiers(readFileSync(f, "utf8"))
-				.filter(forbidden)
-				.map((s) => `${rel(f)}: ${s}`),
+	it("process is read only on the allowlist (main.ts, commands/**) and nothing imports mcp, plugin, reporter or ui", async () => {
+		// Positive control: the scanner still flags and spares what its shipped fixtures say it must.
+		expect(SourceBoundary.verifyFixtures()).toEqual([]);
+		const scan = await Effect.runPromise(
+			SourceBoundary.scan({
+				root: SRC_ROOT,
+				rules: ["process", "node:process", { forbidImports: FORBIDDEN_PACKAGES }],
+				allowRules: { process: PROCESS_ALLOWLIST, "node:process": PROCESS_ALLOWLIST },
+			}).pipe(Effect.provide(NodeServices.layer)),
 		);
-		expect(offenders).toEqual([]);
+		// Non-vacuity: a typo'd root would otherwise report a spotless boundary.
+		expect(scan.files.length).toBeGreaterThan(0);
+		expect(scan.violations).toEqual([]);
+		// The waiver is live: main.ts really does read process, so an empty
+		// `waived` would mean the allowlist no longer matches anything.
+		expect(scan.waived.some((offence) => offence.file === "main.ts")).toBe(true);
+
+		const tokenUsers = scan.files.filter((file) => readFileSync(join(SRC_ROOT, file), "utf8").includes(VERSION_TOKEN));
+		expect(tokenUsers).toEqual(["version.ts"]);
 	});
 });

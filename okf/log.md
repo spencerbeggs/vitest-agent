@@ -1,5 +1,37 @@
 # Log
 
+## 2026-09-25
+
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/mcp
+* Updated @vitest-agent/plugin
+* Updated Add an MCP tool
+* Added Adopt the Effected Front-End Kit
+* Updated An interactive exit can print "Hook cancelled" even though SessionEnd succeeded
+* Updated Carrier
+* Updated Carrier Pattern and Ranked Layering
+* Updated Claude Code Plugin as a Release-Only pnpm Workspace
+* Updated Claude Code hook environment contract
+* Updated Effect Schema Data Structures
+* Updated Effect-Native MCP Server
+* Updated Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
+* Updated MCP tool and prompt surface
+* Updated Package boundaries — process reads and forbidden imports
+* Updated Partition the consoleLeaks Signal by Test Outcome
+* Updated Plugin MCP Loader Execs the Consumer's node_modules/.bin
+* Updated Ranked layering — every workspace edge points strictly downward
+* Updated Reach for effect/unstable/*, not a v3 @effect/* package
+* Updated Single-Source Served MCP Discriminants
+* Updated Strict MCP Tool Inputs
+* Updated Strict MCP tool inputs — every served input rejects unknown keys
+* Updated TDD Phase-Transition Evidence Binding
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated The MCP Server Survives Post-Connect Crashes
+* Updated The `vitest-agent` CLI command tree
+* Updated vitest-agent (Claude Code plugin)
+* Updated workspace
+
 ## 2026-09-22
 
 * Updated @vitest-agent/mcp
@@ -8,6 +40,7 @@
 * Updated MCP tool and prompt surface
 * Updated Strict MCP Tool Inputs
 * Updated Strict MCP tool inputs — every served input rejects unknown keys
+* Updated @vitest-agent/sdk
 
 ## 2026-09-20
 

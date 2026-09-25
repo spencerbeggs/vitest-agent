@@ -10,6 +10,7 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
+import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const TestRowSchema = Schema.Struct({
 	id: Schema.Number,
@@ -158,15 +159,17 @@ const TestArtifactsResult = Schema.Struct({
  *
  * @public
  */
-export const TestResult = Schema.Union([
-	TestListResult,
-	TestGetFound,
-	TestGetMissing,
-	TestForFileResult,
-	TestForTagResult,
-	TestAnnotationsResult,
-	TestArtifactsResult,
-]).annotate({
+export const TestResult = objectRootedUnion(
+	Schema.Union([
+		TestListResult,
+		TestGetFound,
+		TestGetMissing,
+		TestForFileResult,
+		TestForTagResult,
+		TestAnnotationsResult,
+		TestArtifactsResult,
+	]),
+).annotate({
 	identifier: "TestResult",
 	title: "test result",
 	description:
@@ -426,13 +429,13 @@ export const handleTest = (input: TestInputType): Effect.Effect<TestResultType, 
  *
  * @public
  */
-export const testTool = Tool.make("test", {
+export const testTool = strictUnionTool("test", {
 	description:
 		"Use to inspect tests, with an action discriminator: action='list' (project?, state?, module?, limit?) returns matching tests; action='get' (fullName, project?, modulePath?) returns details + errors + run history — a fullName that exists in more than one module returns found=false with ambiguous=true and candidateModules[], so pass modulePath to disambiguate; action='for_file' (filePath) returns test modules covering a source file; action='for_tag' (tag, project?) returns tests carrying a tag, grouped by project; action='annotations' (fullName, project?, modulePath?) returns the test annotations the author recorded via context.annotate; action='artifacts' (fullName, project?, modulePath?) returns the test artifacts recorded for the test — both return attachment descriptors (contentType, path, byteSize) and omit inline bodies unless maxBytes (a non-negative integer byte budget for the whole response, default 0) is passed, and neither has anything to do with TDD artifacts (see tdd_artifact_list). structuredContent carries the typed payload (discriminate on `action`, then on `found` for get).",
 	parameters: TestInput,
 	success: TestResult,
-	dependencies: [DataReader],
 })
+	.addDependency(DataReader)
 	.annotate(Tool.Title, "Test")
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)

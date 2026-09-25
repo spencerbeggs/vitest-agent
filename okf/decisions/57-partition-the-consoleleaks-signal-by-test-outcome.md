@@ -6,8 +6,8 @@ description: run_tests attributes each captured console write to its owning test
 tags: [testing, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-22T19:49:15Z
-  body_sha256: 9b1e22799d126962bd8def8478df3393d97a019ff51862fb3e1f225f4a505a8d
+  at: 2026-09-25T17:01:39Z
+  body_sha256: fc3ab49c948f25725a23875730e0b0730e4d1f7c516eec23a9f6aad3fadef41c
 ---
 
 # Partition the consoleLeaks Signal by Test Outcome
@@ -48,9 +48,7 @@ nothing (`console-leaks.ts:59-61`). The agent-facing surface is only
 the structured `report.consoleLeaks` field — `total`, `byFile`,
 `truncated`, and `fromFailingTests` (`packages/sdk/src/schemas/ConsoleLeaks.ts:42-47`,
 attached to `AgentReport` at `packages/sdk/src/schemas/AgentReport.ts:85`)
-— which `run_tests` returns in `structuredContent` and, as the same
-object serialized to JSON, in `content[0].text`
-(`run-tests.ts:860-863`). There is no rendered warning line: an agent
+— which `run_tests` returns in `structuredContent`. There is no rendered warning line: an agent
 treats `total > 0` as a leak and reads `fromFailingTests` as the
 non-leak count of writes from failing tests.
 

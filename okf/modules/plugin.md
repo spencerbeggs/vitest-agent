@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T17:10:37Z
-  body_sha256: 74be8ef4c85c540a72e2dc69922331ca167b4db9339cd56bc543c500c83e91af
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 2c1d6ee492c5c94b2d9239cf80ca762d70bc5f719dbe5ef9c029202cf2fd7bb2
 ---
 
 # @vitest-agent/plugin
@@ -85,28 +85,40 @@ implementing `VitestAgentReporterFactory` and passing it as `reporter`.
 
 ## The carrier bins
 
-The plugin declares both bins itself as four-line shims under
-`packages/plugin/src/bin/`:
+The plugin declares both bins itself as shims under
+`packages/plugin/src/bin/`, each passing the carrier's identity to the
+front end's `main` as `distribution`:
 
 ```ts
 // src/bin/vitest-agent.ts
 #!/usr/bin/env node
 import { main } from "@vitest-agent/cli/main";
-main();
+import { CURRENT_PLUGIN_VERSION } from "../version.js";
+
+main({ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } });
 
 // src/bin/vitest-agent-mcp.ts
 #!/usr/bin/env node
 import { main } from "@vitest-agent/mcp/main";
-void main();
+import { CURRENT_PLUGIN_VERSION } from "../version.js";
+
+void main({ distribution: { name: "@vitest-agent/plugin", version: CURRENT_PLUGIN_VERSION } });
 ```
+
+`CURRENT_PLUGIN_VERSION` lives in its own `src/version.ts` so a shim can
+read it without importing the plugin graph; `plugin.ts` re-exports it.
+The identity surfaces as `via @vitest-agent/plugin <version>` on
+`vitest-agent --version` and as `distribution` on the MCP `ping` tool.
 
 pnpm links only direct-dependency bins, which is why the shims live here
 rather than behind a `publicHoistPattern` or a pnpm plugin: the root
 `package.json` lists only `@vitest-agent/plugin` as a workspace
 devDependency, and `pnpm-workspace.yaml` carries no hoist pattern. Under
 npm, yarn (node-modules linker), and bun — which hoist transitive bins —
-`@vitest-agent/cli`'s own `vitest-agent` bin wins the `.bin` slot and
-shadows the carrier's shim, which is the same program either way. See
+`@vitest-agent/cli`'s own `vitest-agent` bin may win the `.bin` slot and
+shadow the carrier's shim. It is the same program, so only the `via
+@vitest-agent/plugin` suffix on `--version` is lost; the packed-install
+e2e asserts that suffix under pnpm only. See
 [Carrier Pattern and Ranked Layering](../decisions/70-carrier-pattern-and-ranked-layering.md).
 
 ## Workspace-layering and packed-install tests
@@ -115,25 +127,26 @@ Two guardrails live in this package's test tree because the carrier is the
 top of the graph and root-level tests are not discovered
 (`classifyTestPath`).
 
-`__test__/workspace-layering.test.ts` reads every workspace manifest
-(`__test__/utils/workspace-graph.ts`'s `readWorkspaceGraph(rootDir)` over
-`packages/*`, `plugins/*`, `website`, `playground`, and the root) and
-asserts every package has a declared rank, every dependency edge points to
-a strictly lower rank, the two front ends never depend on each other, and
-a topological sort consumes every node[^layering-test]. See
-[Ranked Layering](../invariants/ranked-layering.md).
+`__test__/workspace-layering.test.ts` holds the live package graph to the
+root `layers.json` through `@effected/workspaces/testing`'s
+`WorkspaceLayering`, asserts the graph is acyclic across every dependency
+field, and checks a synthetic upward edge and a synthetic `cli -> mcp` edge
+as a positive control[^layering-test]. A new workspace package needs an
+entry in `layers.json`. See [Ranked
+Layering](../invariants/ranked-layering.md).
 
 `__test__/bins-packed-install.e2e.test.ts` proves the carrier's promise
-outside the workspace: it packs every family package from
-`dist/prod/npm/pkg` with `npm pack`, writes a scratch consumer
-`package.json` depending on the plugin tarball with tarball overrides for
-the rest, installs under npm, pnpm, yarn (berry via corepack,
-`nodeLinker: node-modules`), and bun with `XDG_DATA_HOME` pointed inside
-the scratch dir, and asserts per manager that `node_modules/.bin/vitest-agent`
-and `vitest-agent-mcp` are executable, that `--version` exits 0 with a
-semver, and that the MCP bin answers a JSON-RPC `initialize` with empty
-stderr and exit 0. Network is required; `KEEP_PACKED_INSTALL=1` keeps the
-scratch tree for inspection.
+outside the workspace through `PackedInstall.run`, which packs the plugin
+and its runtime workspace closure from each package's `dist/prod/npm/pkg`
+and installs the carrier tarball into a scratch consumer under npm, pnpm,
+yarn and bun, with `XDG_DATA_HOME` pointed inside the scratch dir. Per
+manager it asserts that `node_modules/.bin/vitest-agent` and
+`vitest-agent-mcp` are executable, that `--version` exits 0 with a
+semver, that under pnpm it names the carrier and `@vitest-agent/cli` is not
+linked at the consumer's top level, and that the MCP bin passes `McpProbe.initialize`
+with empty stderr and exit 0. Every manager is required under CI; locally
+a missing one is skipped and logged. The suite skips without a prod build
+and on Windows, and needs network.
 
 ## AgentPlugin
 

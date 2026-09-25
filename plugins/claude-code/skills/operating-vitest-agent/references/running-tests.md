@@ -100,9 +100,9 @@ without being misread as a leak.
 
 Use `byFile[].file` to locate which files to investigate and `sample` to
 find the call site, without dumping full log content into agent context.
-Read the two buckets from `structuredContent`, not from the result text
-(`content[0].text` is the same object as JSON; there is no summary line to
-scan for). `report.consoleLeaks.total > 0` means real leaks from passing
+Read the two buckets from `structuredContent` — Claude Code forwards only
+`structuredContent` to the model when present, so there is no result text to
+fall back to. `report.consoleLeaks.total > 0` means real leaks from passing
 tests; `report.consoleLeaks.fromFailingTests` counts output from failing
 tests, which is not a leak.
 

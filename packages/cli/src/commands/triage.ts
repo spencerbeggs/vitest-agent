@@ -1,12 +1,8 @@
-/**
- * CLI triage command -- emits the W3 orientation triage brief.
- *
- * Calls the shared formatTriageEffect generator, which the MCP
- * triage_brief tool also uses. The plugin's SessionStart hook runs
- * this and pipes the result into Claude Code's additionalContext.
- *
- * @packageDocumentation
- */
+// CLI triage command -- emits the W3 orientation triage brief.
+//
+// Calls the shared formatTriageEffect generator, which the MCP
+// triage_brief tool also uses. The plugin's SessionStart hook runs
+// this and pipes the result into Claude Code's additionalContext.
 
 import { formatTriageEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";

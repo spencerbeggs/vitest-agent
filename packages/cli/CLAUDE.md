@@ -8,10 +8,12 @@ The `effect/unstable/cli`-based bin (`vitest-agent`) for utility functions, data
 src/
   bin.ts              -- shebang shim: `import { main } from "./main.js"; main();`
   main.ts             -- OWNS the process (published at `./main`):
+                         main({ distribution? }) ->
                          resolveLogLevel/resolveLogFile(process.env),
                          resolveProjectDir({ env, cwd: process.cwd() }),
                          resolveDataPath -> PlatformLive({ dbPath, env, logLevel,
-                         logFile }) -> Command.run(rootCommand, { version }) ->
+                         logFile }) as CliRuntime.main's `platform` around
+                         Command.run(rootCommand, { version }) ->
                          NodeRuntime.runMain; withSubcommands is exactly
                          db / doctor / agent
   index.ts            -- side-effect-free barrel: exports only
@@ -28,6 +30,8 @@ src/
                        -- subcommand bodies composed under `agent`
   lib/                -- pure formatting functions (where tests live)
     format-doctor.ts format-db-query.ts
+    version-formatter.ts -- CliColor.formatterLayer with formatVersion
+                            overridden (the `via <carrier>` suffix)
 ```
 
 There is no `layers/` and no `lib/internal-*.ts` / `record-*.ts` /
@@ -41,7 +45,7 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 
 | File | Purpose |
 | ---- | ------- |
-| `main.ts` | The assembled program. `resolveProjectDir` (engine) honors `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → cwd so hook-driven invocations from a sub-package cwd resolve the SAME `data.db` the MCP server uses. v4 `Command.run` takes no `name` (it comes from `Command.make`) and reads argv from the Stdio service. `--version` prints `CURRENT_CLI_VERSION` (pinned by `__test__/bin/version.e2e.test.ts`) |
+| `main.ts` | The assembled program. `resolveProjectDir` (engine) honors `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → cwd so hook-driven invocations from a sub-package cwd resolve the SAME `data.db` the MCP server uses. v4 `Command.run` takes no `name` (it comes from `Command.make`) and reads argv from the Stdio service. Runs through `@effected/cli`'s `CliRuntime.main` with the platform layer inside failure reporting: exit `0` success, `64` usage/parse error, `1` any other reported failure (a platform build failure is one `vitest-agent: <Tag>: <message>` line on stderr). `--version` prints `vitest-agent <CURRENT_CLI_VERSION>` plus `via @vitest-agent/plugin <version>` when the carrier's shim passed `distribution` (provided as `CurrentDistribution` outermost, so the formatter layer reads it at build time) |
 | `commands/db.ts` | `db` parent with four subcommands. `db path` prints the deterministic XDG path (no probing); `db prune --keep-recent N` drops old sessions' turn history (default N=30); `db reset` wipes the DB (human-only, agent-blocked); `db query <sql>` runs read-only SQL |
 | `commands/doctor.ts` | 5-point health diagnostic (manifest assembly, latest-run integrity, staleness check). Keeps `--format markdown\|json` |
 | `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand`, the sidecar subcommands `register-agent`, `end-agent`, `inject-env`, `sidecar-path`, and — outside that family, with its own exit-code contract — `check-test-path`. The sidecar subcommands call `resolveHookPaths({ env: process.env, projectKey })` then provide `SidecarPlatformLive(paths, process.env)`; `inject-env` passes a `readFileSync` wrapper into the pure `injectEnv` |
@@ -63,18 +67,22 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 - **Read-only by default.** The CLI reads data via `DataReader`; it
   does not write to the DB. Keep this property -- mutations belong in
   the reporter (during a test run) or the MCP server (`note_*`).
-- **`NodeRuntime.runMain` for the entry.** Defects print
-  `formatFatalError(cause)` to stderr. Don't swap to `Effect.runPromise`
-  at the top level; `runMain` handles signals and exit codes correctly
-  for a CLI process.
+- **`CliRuntime.main` under `NodeRuntime.runMain` for the entry.** Failure
+  rendering and exit codes are the kit's; `renderFailure` prints a tagged
+  failure as one line and a defect through `formatFatalError`. Keep the
+  platform layer inside `CliRuntime.main`'s `platform` (so its failures
+  are reported, not dumped by `runMain`), and don't swap to
+  `Effect.runPromise` at the top level.
 - **Bin name vs package name.** Package `@vitest-agent/cli` publishes
   the bin `vitest-agent` (no `-cli` suffix). The plugin's "Next steps"
   output references this short name. The plugin carrier declares the same
   bin name over `@vitest-agent/cli/main`; under npm / yarn / bun the hoisted
-  cli bin wins the `.bin` slot, under pnpm the carrier's shim does — same
-  program either way.
-- **Boundary (`__test__/boundaries.test.ts`).** `process` may be referenced
-  only in `bin.ts`, `main.ts`, `version.ts`, and `commands/**`; nothing under
+  cli bin may win the `.bin` slot (same program, minus the `via
+  @vitest-agent/plugin` `--version` suffix), under pnpm the carrier's shim
+  does.
+- **Boundary (`__test__/boundaries.test.ts`, `SourceBoundary.scan`).**
+  `process` may be read only in `main.ts` and `commands/**` (the version
+  token is exempt and pinned to `version.ts`); nothing under
   `src/` imports `@vitest-agent/mcp`, `plugin`, `reporter`, or `ui`. Keep
   `lib/` pure — thread `env` / `cwd` in from a command.
 
@@ -115,8 +123,9 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 - Adding a flag: `effect/unstable/cli` validates types at the `Command` layer
   but the lib function should still accept a typed options object.
   Keep the lib function callable without `effect/unstable/cli` for testing.
-- Per-call layer construction is fine here (CLI is short-lived); only
-  MCP uses `ManagedRuntime`.
+- Per-call layer construction is fine here (CLI is short-lived). The
+  MCP server, by contrast, builds its layers once for the life of the
+  process (`McpStdio.launch` over `Layer.launch`).
 
 ## Design references
 
@@ -127,6 +136,9 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   Load when tracing the CLI's stable command/flag/exit-code contract, or
   the plugin record hooks → CLI → DataStore path (including the
   `record test-case-turns` mutate-and-read path).
+- [`../../okf/decisions/72-adopt-the-effected-front-end-kit.md`](../../okf/decisions/72-adopt-the-effected-front-end-kit.md)
+  Load for why `main.ts` runs on `@effected/cli`'s `CliRuntime.main` (exit
+  codes, failure rendering, the carrier `--version` suffix).
 - [`../../okf/limitations/spawn-sync-e2e-gap.md`](../../okf/limitations/spawn-sync-e2e-gap.md)
   Load when working on the `agent record session-start/turn/session-end`
   path.

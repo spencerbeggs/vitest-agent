@@ -3,6 +3,7 @@
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
+import { objectRootedUnion } from "./_union-schema.js";
 
 const ProjectRunSummary = Schema.Struct({
 	project: Schema.String,
@@ -31,7 +32,7 @@ const OverviewAbsent = Schema.Struct({
  *
  * @public
  */
-export const TestOverviewResult = Schema.Union([OverviewAvailable, OverviewAbsent]).annotate({
+export const TestOverviewResult = objectRootedUnion(Schema.Union([OverviewAvailable, OverviewAbsent])).annotate({
 	identifier: "TestOverviewResult",
 	title: "test_overview result",
 	description: "Per-project run metrics. Discriminate on `dataAvailable` for cold-start handling.",

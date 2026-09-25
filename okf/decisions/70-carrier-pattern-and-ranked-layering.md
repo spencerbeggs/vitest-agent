@@ -9,8 +9,8 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T01:24:14Z
-  body_sha256: c25eda99bbfe675dd64a76de5f23311b00cbeee2c83cdfcd89eb79efedb1a47e
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 816ddca17bede689a5508f1d7972c8dc55f6debaa43479a0a758e32b542af754
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -18,8 +18,8 @@ sources:
     resource: ../../packages/plugin/src/bin
   - id: workspace-layering-test
     resource: ../../packages/plugin/__test__/workspace-layering.test.ts
-  - id: workspace-graph-util
-    resource: ../../packages/plugin/__test__/utils/workspace-graph.ts
+  - id: layers-json
+    resource: ../../layers.json
   - id: bins-packed-install-e2e
     resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
 ---
@@ -73,18 +73,19 @@ rank; `cli` and `mcp` never import each other.
 | 5 | `@vitest-agent/plugin` (carrier) | cli, mcp, reporter, engine, sdk |
 | — | root `vitest-agent` (dev) | plugin only |
 
-`packages/plugin/__test__/workspace-layering.test.ts` reads every
-workspace manifest with `__test__/utils/workspace-graph.ts`'s
-`readWorkspaceGraph` and asserts, against the `LAYER_RANKS` table
-(`packages/plugin/__test__/utils/workspace-graph.ts:47`): every package
-has a declared rank (`packages/plugin/__test__/workspace-layering.test.ts:9`),
-every `dependencies` / `devDependencies` / `peerDependencies` /
-`optionalDependencies` edge points to a strictly lower rank
-(`packages/plugin/__test__/workspace-layering.test.ts:14`), the two front
-ends never depend on each other
-(`packages/plugin/__test__/workspace-layering.test.ts:21`), and a
-topological sort consumes every node
-(`packages/plugin/__test__/workspace-layering.test.ts:28`). It lives in
+The ranks are committed in the root `layers.json` (top layer first, plus
+a `tooling` entry for the Claude Code plugin tracking package and an
+`unconstrained` list for the private root, `docs` and `playground`), and
+`packages/plugin/__test__/workspace-layering.test.ts` holds the live
+package graph to it through `@effected/workspaces/testing`'s
+`WorkspaceLayering`. Every package must be classified, and every
+`dependencies` / `optionalDependencies` / `peerDependencies` edge must
+point to a strictly lower layer, never within one, so the two front ends
+cannot depend on each other. A separate assertion keeps the graph
+acyclic across all four fields. This replaced a hand-maintained rank
+table in the test tree — see [Decision
+72](72-adopt-the-effected-front-end-kit.md) and [Invariant: Ranked
+Layering](../invariants/ranked-layering.md). It lives in
 the carrier's test tree because the carrier already depends on
 everything and root-level tests are not discovered by the classifier.
 
@@ -108,8 +109,8 @@ server's session-env recovery moved into engine programs, so both front
 ends are now thin command and transport wrappers.
 
 **Boundary tests, one per package.** Each of sdk, engine, cli and mcp
-carries `__test__/boundaries.test.ts` over a shared comment-stripping
-scanner: sdk may not import `node:*`, `@effect/platform-node`,
+carries `__test__/boundaries.test.ts` over `@effected/workspaces/testing`'s
+`SourceBoundary.scan`: sdk may not import `node:*`, `@effect/platform-node`,
 `@effect/sql-sqlite-node` or any `@effected/*` package, and may not
 reference `process.`; engine may not reference `process.` anywhere, with
 no allowlist, and may not import a front end; cli and mcp read `process`
@@ -141,13 +142,13 @@ that could throw during module evaluation
 (`packages/mcp/src/main.ts:94-121`).
 
 **The carrier.** `@vitest-agent/plugin` declares both bins itself as
-four-line shims: `bin.vitest-agent` points at
+thin shims: `bin.vitest-agent` points at
 `src/bin/vitest-agent.ts`, which imports `main` from
-`@vitest-agent/cli/main` and calls it
-(`packages/plugin/src/bin/vitest-agent.ts:1-4`); `bin.vitest-agent-mcp`
-points at `src/bin/vitest-agent-mcp.ts`, which imports `main` from
-`@vitest-agent/mcp/main` and calls it with `void`
-(`packages/plugin/src/bin/vitest-agent-mcp.ts:1-4`), matching the
+`@vitest-agent/cli/main` and calls it with the carrier's identity as
+`distribution` (`packages/plugin/src/bin/vitest-agent.ts`);
+`bin.vitest-agent-mcp` points at `src/bin/vitest-agent-mcp.ts`, which
+does the same for `@vitest-agent/mcp/main` with `void`
+(`packages/plugin/src/bin/vitest-agent-mcp.ts`), matching the
 `bin` field in `packages/plugin/package.json:27-30`. A consumer installs
 only the plugin, and because the plugin is a *direct* dependency its bins
 land in `node_modules/.bin` under every package manager — including
@@ -156,26 +157,24 @@ devDependencies shrank to the plugin (plus the lint/build toolchain); the
 `publicHoistPattern` entry and the direct cli/mcp root devDeps are gone.
 
 Under npm, yarn (node-modules linker) and bun, which hoist transitive
-bins, `@vitest-agent/cli`'s own `vitest-agent` bin wins the `.bin` slot
-and shadows the carrier's same-named shim. Both call the same `main()`
-today, so this is harmless — but if the shim and the cli bin ever
-diverge, those consumers silently get the cli's.
+bins, `@vitest-agent/cli`'s own `vitest-agent` bin may win the `.bin`
+slot and shadow the carrier's same-named shim. Both call the same
+`main()`, so only the `via @vitest-agent/plugin <version>` suffix on
+`--version` differs; under pnpm's isolated layout the carrier's shim is
+the only candidate.
 
 **Packed-install e2e per package manager.**
-`packages/plugin/__test__/bins-packed-install.e2e.test.ts` packs every
-family package with `npm pack`, writes a consumer `package.json` that
-depends on the plugin tarball with tarball overrides for the rest, and
-installs it under npm, pnpm, yarn (berry, node-modules linker) and bun.
-It asserts, per manager, that `node_modules/.bin/vitest-agent` and
-`vitest-agent-mcp` exist and are executable
-(`packages/plugin/__test__/bins-packed-install.e2e.test.ts:367-387`),
-that `vitest-agent --version` exits 0 with a semver on stdout
-(`packages/plugin/__test__/bins-packed-install.e2e.test.ts:374-379`), and
-that `vitest-agent-mcp` answers a JSON-RPC `initialize` on stdout with
-empty stderr and exit 0. A guard test asserts every `@vitest-agent/*`
-name any packed manifest references has a tarball
-(`packages/plugin/__test__/bins-packed-install.e2e.test.ts:340-343`).
-This test needs `pnpm run build` (prod) and network, and is the proof
+`packages/plugin/__test__/bins-packed-install.e2e.test.ts` runs
+`@effected/workspaces/testing`'s `PackedInstall.run`, which packs the
+plugin and its runtime workspace closure from each package's
+`dist/prod/npm/pkg` and installs the carrier tarball into a scratch
+consumer under npm, pnpm, yarn and bun, with the closure overridden to
+its tarballs. Per manager it asserts that `node_modules/.bin/vitest-agent`
+and `vitest-agent-mcp` exist and are executable, that `vitest-agent
+--version` exits 0 with a semver, that under pnpm it names the carrier
+and `@vitest-agent/cli` is not linked at the consumer's top level, and that
+`vitest-agent-mcp` passes `@effected/mcp/testing`'s
+`McpProbe.initialize` with empty stderr and exit 0. This test needs `pnpm run build` (prod) and network, and is the proof
 this pattern relies on rather than the dev workspace's own linked
 `node_modules/.bin` — the release gate that follows from it is that
 `@vitest-agent/engine` must publish before `@vitest-agent/plugin`, since
@@ -241,4 +240,5 @@ issues rather than folded into this decision.
 - [Carrier](../glossary/carrier.md)
 - [`@vitest-agent/plugin`](../modules/plugin.md)
 - [Front-End Entry Contract](../conventions/front-end-entry-contract.md)
+- [Decision 72: Adopt the Effected Front-End Kit](72-adopt-the-effected-front-end-kit.md)
 - [XDG Fallback Split](../gotchas/xdg-fallback-split.md)

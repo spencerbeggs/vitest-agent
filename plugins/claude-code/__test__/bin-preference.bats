@@ -3,9 +3,12 @@
 #
 # `@vitest-agent/plugin` declares the `vitest-agent` / `vitest-agent-mcp`
 # bins itself so a consumer that depends only on the plugin gets them linked
-# into node_modules/.bin. The plugin's loaders and hooks therefore prefer
-# that linked bin and only fall back to a package-manager dispatch (hooks)
-# or `npx --yes` (MCP loader) when it is absent.
+# into node_modules/.bin. The plugin's MCP loader (bin/start-mcp.sh) prefers
+# that linked bin and only falls back to a major-pinned `npx --yes` when it
+# is absent. Hooks resolve the CLI through detect_vitest_agent_bin
+# (hooks/lib/detect-pm.sh) instead: override env var, then the linked bin,
+# then `vitest-agent` on PATH, then fail closed with no output — hooks never
+# dispatch through a package manager and never fall back to `npx`.
 #
 # Every case runs against a throwaway project directory so the repo's own
 # node_modules/.bin never leaks into the assertions.
@@ -78,12 +81,12 @@ STUB
 	touch "${PROJECT}/pnpm-lock.yaml"
 	run --separate-stderr env CLAUDE_PROJECT_DIR="$PROJECT" sh "$LOADER_SH" --noop=1
 	[ "$status" -eq 0 ]
-	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@4 --noop=1" ]
+	[ "$(cat "$CAPTURE")" = "npx --yes @vitest-agent/mcp@5 --noop=1" ]
 	[ -z "$output" ]
 	[[ "$stderr" == *"vitest-agent-mcp is not installed"* ]]
 	[[ "$stderr" == *"Detected package manager: pnpm"* ]]
 	[[ "$stderr" == *"  pnpm add -D @vitest-agent/plugin"* ]]
-	[[ "$stderr" == *"Falling back to \`npx --yes @vitest-agent/mcp@4\`"* ]]
+	[[ "$stderr" == *"Falling back to \`npx --yes @vitest-agent/mcp@5\`"* ]]
 }
 
 @test "start-mcp.sh install line follows the packageManager field over a lockfile (no jq)" {
@@ -152,18 +155,46 @@ STUB
 	[ "$output" = "node_modules/.bin/vitest-agent" ]
 }
 
-@test "detect_vitest_agent_bin falls back to the package-manager exec prefix" {
-	touch "${PROJECT}/pnpm-lock.yaml"
+@test "detect_vitest_agent_bin falls back to vitest-agent on PATH" {
+	cat > "${STUBS}/vitest-agent" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+	chmod +x "${STUBS}/vitest-agent"
 	run bash -c ". '$DETECT_PM'; detect_vitest_agent_bin '$PROJECT'"
 	[ "$status" -eq 0 ]
-	[ "$output" = "pnpm exec vitest-agent" ]
+	[ "$output" = "vitest-agent" ]
 }
 
-@test "detect_vitest_agent_bin ignores a non-executable node_modules/.bin/vitest-agent" {
+@test "detect_vitest_agent_bin ignores a non-executable node_modules/.bin/vitest-agent and falls through to PATH" {
 	touch "${PROJECT}/node_modules/.bin/vitest-agent"
+	cat > "${STUBS}/vitest-agent" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+	chmod +x "${STUBS}/vitest-agent"
 	run bash -c ". '$DETECT_PM'; detect_vitest_agent_bin '$PROJECT'"
 	[ "$status" -eq 0 ]
-	[ "$output" = "npx --no-install vitest-agent" ]
+	[ "$output" = "vitest-agent" ]
+}
+
+@test "detect_vitest_agent_bin fails (non-zero, no output) when no override, no local bin, and nothing on PATH" {
+	run bash -c ". '$DETECT_PM'; detect_vitest_agent_bin '$PROJECT'"
+	[ "$status" -ne 0 ]
+	[ -z "$output" ]
+}
+
+@test "detect_vitest_agent_bin never dispatches through a package manager" {
+	touch "${PROJECT}/pnpm-lock.yaml"
+	cat > "${STUBS}/pnpm" <<'STUB'
+#!/bin/bash
+echo "pnpm $*" >> "$CAPTURE"
+exit 0
+STUB
+	chmod +x "${STUBS}/pnpm"
+	run bash -c ". '$DETECT_PM'; detect_vitest_agent_bin '$PROJECT'"
+	[ "$status" -ne 0 ]
+	[ ! -s "$CAPTURE" ]
 }
 
 @test "detect_vitest_agent_bin honors VITEST_AGENT_CLI_CMD over the local bin" {

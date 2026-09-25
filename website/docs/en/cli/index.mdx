@@ -14,7 +14,7 @@ This package is a regular dependency of `@vitest-agent/plugin`, and the plugin d
 - **`doctor`** — five-point health diagnostic covering manifest assembly, latest-run integrity, and staleness
 - **`db`** — `path`, `prune`, `reset`, and `query` subcommands for database lifecycle management
 - **`agent` namespace** — `triage`, `wrapup`, `record`, `register-agent`, `end-agent`, `inject-env`, and `sidecar-path` for hook-driven plumbing
-- **`--version`** — prints the installed package version
+- **`--version`** — prints `vitest-agent <version>`, plus the carrier that launched it (` via @vitest-agent/plugin <version>`) when run through the plugin's bin
 - **`./main` entry** — `main()` is the assembled program that owns the process; the bin is a shim over it, and so are the plugin's carrier bins
 
 ## Install
@@ -29,8 +29,10 @@ pnpm add -D @vitest-agent/cli
 
 ```bash
 vitest-agent --version
-# 3.x.y — the real published version of @vitest-agent/cli
+# vitest-agent 3.x.y via @vitest-agent/plugin 4.x.y
 ```
+
+The first version is `@vitest-agent/cli`'s own. The ` via …` suffix names the package that shipped the bin you ran — `@vitest-agent/plugin` when you run the bin the plugin links — and is absent when `@vitest-agent/cli` is installed and run directly. It is packaging provenance, not a second version to keep in sync. Under npm, yarn or bun's flat layout the hoisted `@vitest-agent/cli` bin can be linked in place of the plugin's shim; both run the same program, so the only difference is a missing suffix.
 
 ## Commands
 

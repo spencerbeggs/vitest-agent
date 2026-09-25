@@ -46,7 +46,8 @@ Point the host at the linked bin:
 
 - **stdout is the JSON-RPC wire.** Every log line the server emits goes to stderr, so a host can capture stderr for diagnostics without corrupting the protocol stream.
 - **Clean shutdown on stdin close.** When the host closes the server's stdin, the server exits 0. There is no signal handshake to implement.
-- **Failures do not kill the session.** A tool handler that throws returns a structured `UnexpectedToolError` envelope; a stray unhandled rejection after the transport connects is logged and survived. If `dbPath` cannot be resolved at boot, the server writes a diagnostic to stderr and exits 1 instead of starting.
+- **Read `structuredContent`.** Every tool serves an `outputSchema`, and every successful result carries the typed object in `structuredContent`. Hosts that forward only `structuredContent` to the model (Claude Code does) lose nothing.
+- **Failures do not kill the session.** A tool handler that throws returns an `isError` result with the generic text `Tool execution failed due to an internal server error.` and logs the detail to stderr; a call the agent can fix is refused with `isError` text naming the fix (see [Errors and refusals](/mcp/tools#errors-and-refusals)); a stray unhandled rejection after the transport connects is logged and survived. If `dbPath` cannot be resolved at boot, the server writes a diagnostic to stderr and exits 1 instead of starting.
 - **Numeric params are strict.** Send JSON numbers for `limit`, `timeout`, and other numeric parameters — string forms are rejected. See [Input validation](/mcp/tools#input-validation).
 - **Progress events are logging notifications.** `tdd_progress_push` publishes a standard `notifications/message` frame with `logger: "vitest-agent/channel"`. A host that wants to display orchestrator progress subscribes to logging notifications; no custom method is involved.
 

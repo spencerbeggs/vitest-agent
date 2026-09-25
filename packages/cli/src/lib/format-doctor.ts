@@ -1,8 +1,4 @@
-/**
- * Formats doctor check results into markdown for CLI output.
- *
- * @packageDocumentation
- */
+// Formats doctor check results into markdown for CLI output.
 
 export interface CheckResult {
 	name: string;

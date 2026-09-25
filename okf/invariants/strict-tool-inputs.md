@@ -3,20 +3,22 @@ type: Invariant
 title: Strict MCP tool inputs — every served input rejects unknown keys
 description: Every served MCP tool input rejects an unknown key at every object level, nested object, array element, and union branch, naming the accepted params instead of silently widening the query — pinned by served-schema-strict.test.ts.
 tags: [mcp, security]
-resource: ../../packages/mcp/src/register-toolkit.ts
+resource: ../../packages/mcp/src/server.ts
 sources:
-  - id: register-toolkit
-    resource: ../../packages/mcp/src/register-toolkit.ts
+  - id: server-ts
+    resource: ../../packages/mcp/src/server.ts
+  - id: union-schema
+    resource: ../../packages/mcp/src/tools/_union-schema.ts
   - id: served-schema-strict-test
     resource: ../../packages/mcp/__test__/served-schema-strict.test.ts
   - id: served-enum-drift-test
     resource: ../../packages/mcp/__test__/served-enum-drift.test.ts
-  - id: register-toolkit-test
-    resource: ../../packages/mcp/__test__/register-toolkit.test.ts
+  - id: union-schema-test
+    resource: ../../packages/mcp/__test__/union-schema.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-22T19:35:29Z
-  body_sha256: f7cc0235d57ecb9c616cb5f08bfbf7797076dc71910b05541a9fb9d2b942cf57
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 7bd620d9ef8061631ac3a3ecb985fca82c314b48fc76170f8b3c5fe20f5dff74
 ---
 
 # Strict MCP tool inputs — every served input rejects unknown keys
@@ -29,7 +31,7 @@ level, a nested object, an array element, and the union branch a
 discriminant selects — not per tool. The rejection names both the
 offending key(s), path-qualified, and the accepted params at that level,
 so a caller learns what was wrong rather than receiving a result computed
-from a silently widened filter set[^register-toolkit]. The served
+from a silently widened filter set[^server-ts]. The served
 discriminant literals a union-rooted tool exposes (`action`, `kind`) also
 come from one source — the tool core's own exported tuple — never a
 separately hand-maintained enum, so a variant added to the union cannot
@@ -37,115 +39,85 @@ ship without also reaching the served schema[^served-enum-drift-test].
 
 ## Mechanism
 
-Every tool registers through `registerStrictToolkit`
-(`packages/mcp/src/register-toolkit.ts:506`), never Effect's own
-`McpServer.toolkit`. Since rc.116 (Effect-TS/effect#8218) `McpServer`
-honours `Tool.Strict` — `onExcessProperty: "error"` decode and a served
-document closed at every object node — but only for tools annotated
-strict, and its rejection reads `Expected no excess property at ["key"]`:
-the first key only, with no list of what is accepted. The registrar
-therefore treats every tool as strict whatever its annotation says, and
-does four things per tool:
+Tools reach the server by two routes, and both are strict.
 
-1. **Serves Effect's strict document.** `servedInputJsonSchema`
-   (`register-toolkit.ts:323`) builds the input with
-   `Schema.toJsonSchemaDocument(schema, { onExcessProperty: "error" })`
-   — the same document rc.116 serves for a `Tool.Strict` tool, with
-   `additionalProperties: false` on every object node emitted by Effect
-   itself — and passes it through `objectRootedInputSchema`
-   (`register-toolkit.ts:162`), which only reshapes the root: it inlines
-   a `$ref` root and `$ref` union members through `inlineRootRefs`
-   (`register-toolkit.ts:142`), since a `$ref` root (what Effect emits for
-   any schema carrying an `identifier` annotation) fails MCP's
-   `type: "object"` requirement and would `orDie` at registration, and it
-   rewrites a top-level union whose members share a literal `action` /
-   `kind` discriminant from `anyOf` to `type: "object"` + `oneOf` +
-   `x-discriminator`. The object nodes are left exactly as Effect emitted
-   them; the registrar no longer adds `additionalProperties` itself. A
-   dynamic tool (a raw JSON Schema rather than an Effect Schema) dies at
-   registration, as upstream does for a strict dynamic tool; none ships.
-2. **Walks the raw payload before decoding.** `collectUnknownKeys`
-   (`register-toolkit.ts:204`) resolves `$ref`s, selects the union branch
-   by the discriminant value present in the payload, and recurses through
-   `properties`, `items`, `prefixItems`, `oneOf` / `anyOf` / `allOf`,
-   collecting every level that carries a key its schema does not declare.
-   A hit fails `McpSchema.InvalidParams` with a message built by
-   `formatUnknownKeys` (`register-toolkit.ts:279`): `Unrecognized
-   parameter(s): <keys>. Accepted params: <list>` — every unknown key,
-   path-qualified, each echoed key truncated to 200 characters. The walk
-   exists solely to produce that message; the native strict decode stays
-   behind it as a backstop. It runs before the tool's own Effect Schema
-   decode, so a rejected call never reaches a `DataReader` / `DataStore`
-   call.
-3. **Sends one result, two channels.** `structuredContent` is the result
-   encoded through the tool's `success` schema; `content[0].text` is the
-   same encoded object as JSON, exactly as upstream sends it. No tool
-   renders a markdown text channel — Claude Code forwards only
-   `structuredContent` to the model when a result carries it, so a
-   rendering there was never read.
-4. **Maps failures.** A declared, `Error`-shaped failure becomes
-   `{ isError: true, content: [{ text: message }] }` with no
-   `structuredContent`; every other failure or defect is logged and
-   returned as the `UnexpectedToolError` envelope, with
-   `structuredContent` set and `isError: true`.
+1. **`Tool.make` tools (23 of 30)** register through `@effected/mcp`'s
+   `McpToolkit.layer(Kit)` in `ServerLayer`, never Effect's own
+   `McpServer.toolkit`[^server-ts]. `McpToolkit.layer` is strict by
+   default whatever a tool's `Tool.Strict` annotation says: it serves
+   Effect's strict document (`Schema.toJsonSchemaDocument` with
+   `onExcessProperty: "error"`, `additionalProperties: false` on every
+   object node, made object-rooted), and it walks the raw payload
+   against that served schema before decoding. A hit fails
+   `McpSchema.InvalidParams` reading `Unrecognized parameter(s): <keys>.
+   Accepted params: <list>`, with every unknown key path-qualified.
+2. **The seven action-keyed tools** (`inventory`, `test`, `note`,
+   `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`) are
+   `Tool.dynamic`, because core dies at registration on a union
+   `parameters` schema. `strictUnionTool` serves Effect's strict
+   document for the union, reshaped by `ToolInputSchema.objectRooted` to
+   `type: "object"` + `oneOf` + `x-discriminator`. Core never re-decodes a
+   dynamic tool, so `decodeStrictUnion` wraps each handler instead. It
+   runs `ToolInputSchema.unknownKeys` against the served schema,
+   selecting the union branch by the discriminant present, then decodes
+   with `onExcessProperty: "error"`. Either rejection fails with the
+   tool's declared `InvalidParams`[^union-schema].
 
-The served discriminant literals ride the same single-source discipline:
-each consolidated tool (`test`, `inventory`, `note`, `hypothesis`,
-`tdd_task`, `tdd_goal`, `tdd_behavior`) exports its literal tuple
-(`TEST_ACTIONS`, `INVENTORY_KINDS`, and so on) immediately after its
-`Schema.Union`, pinned to the union's own discriminant type by a two-way
-conditional-type assertion at compile time. `objectRootedInputSchema`
-derives the served `oneOf` + `x-discriminator` from that same union's generated
-JSON Schema — the tuple is never independently re-typed into the served
-schema — and `served-enum-drift.test.ts` asserts the served `oneOf`
-members match the tuple at runtime[^served-enum-drift-test].
+Both routes reject before the handler runs, so a rejected call never
+reaches a `DataReader` / `DataStore` call. The one wire difference is on
+`2025-06-18`: a `Tool.make` rejection is a JSON-RPC `-32602` error, and
+a union-tool rejection is an `isError` result.
 
-The regression guard is structural and table-driven at once:
-`served-schema-strict.test.ts` walks every served schema over the
-in-process harness asserting `additionalProperties: false` on every
-object node, and an `it.each` table calls every tool but `run_tests` with
-a bogus extra key (expecting rejection, naming the key) and with only its
-documented params (expecting no rejection), with a guard test that the
-case list equals the full `tools/list` result minus
-`run_tests`[^served-schema-strict-test]. `register-toolkit.test.ts` covers
-the registrar's schema transforms and payload walk directly at the unit
-level[^register-toolkit-test].
+The served discriminant literals follow the same single-source rule.
+Each consolidated tool exports its literal tuple (`TEST_ACTIONS`,
+`INVENTORY_KINDS`, and so on) right after its `Schema.Union`, pinned to
+the union's discriminant type by a two-way conditional-type assertion.
+The served `oneOf` is generated from that same union, so the tuple is
+never typed into the served schema a second time.
+`served-enum-drift.test.ts` asserts the served `oneOf` members match
+the tuple at runtime[^served-enum-drift-test].
+
+The regression guard is structural and table-driven at once.
+`served-schema-strict.test.ts` pins the served tool count, runs
+`McpToolAudit` over the listing, and walks every served schema asserting
+`additionalProperties: false` on every object node. An `it.each` table
+calls every tool but `run_tests` twice: once with a bogus extra key,
+expecting a rejection that names it, and once with only its documented
+params, expecting none. A guard test checks the case list equals the
+full `tools/list` result minus `run_tests`[^served-schema-strict-test].
+`union-schema.test.ts` covers `unionInputJsonSchema` and
+`decodeStrictUnion` directly, including nested unknown keys and a key
+from a sibling branch[^union-schema-test].
 
 ## What a refactor would have to break
 
-A new tool that registers through `McpServer.toolkit` directly, rather
-than through `registerStrictToolkit`, would — unless annotated
-`Tool.Strict` — serve a schema with the library default
-`onExcessProperty: "ignore"`, with no `additionalProperties: false`
-anywhere, and even when annotated would reject with upstream's
-first-key-only message; either way `served-schema-strict.test.ts`'s sweep over every
-served schema would fail the moment that tool's schema is walked, since
-the guard test also asserts the case list covers every entry in
-`tools/list`, so a new tool cannot silently opt out by never appearing in
-the table. A tool core that added a union member without extending its
-exported discriminant tuple would pass its own type-checking (the
-two-way conditional assertion only catches a mismatch between the tuple
-and the union, not a member added to only one of them incompletely) but
-fail `served-enum-drift.test.ts`'s runtime comparison against the served
-`oneOf`, since the served schema is generated straight from the union.
-And building the served document without `onExcessProperty: "error"`,
-or editing `collectUnknownKeys` to skip a node type — for example, to stop recursing into `prefixItems` — would surface
-as a `served-schema-strict.test.ts` failure on any tool whose schema
-actually uses that shape, rather than as a silent gap, because the sweep
-walks every served schema's every node rather than sampling.
+Three changes would break this property, and each fails a test:
+
+- **A tool registered through `McpServer.toolkit`.** It would decode
+  with the library default `onExcessProperty: "ignore"` unless annotated
+  `Tool.Strict`. `served-schema-strict.test.ts` covers every entry in
+  `tools/list`, so the new tool cannot opt out by being left out of the
+  table.
+- **A `Tool.dynamic` tool whose handler skips `decodeStrictUnion`.** It
+  would pass the served-schema walk, because the served document is
+  still strict. It would fail the bogus-key call in the `it.each`
+  table.
+- **A union member added without extending the discriminant tuple.** It
+  would fail `served-enum-drift.test.ts`, because the served schema is
+  generated from the union.
 
 See [Decision 50: Strict MCP Tool Inputs](../decisions/50-strict-mcp-tool-inputs.md)
-for why unknown-key rejection was made a per-level, all-tools rule rather
-than adopted tool by tool, [Decision 60: Single-Source Served MCP
+for why unknown-key rejection is a rule for every level and every tool,
+[Decision 60: Single-Source Served MCP
 Discriminants](../decisions/60-single-source-served-mcp-discriminants.md)
-for why the discriminant tuple lives with the union rather than in the
-registrar, [Decision 71: Effect-Native MCP Server](../decisions/71-effect-native-mcp-server.md)
-for why `registerStrictToolkit` exists as a local adaptation over
-Effect's own `McpServer.addTool` rather than `McpServer.toolkit`, and
+for why the discriminant tuple lives with the union, [Decision 72: Adopt
+the Effected Front-End Kit](../decisions/72-adopt-the-effected-front-end-kit.md)
+for why the union tools are `Tool.dynamic` and not flat structs, and
 [Interface: MCP tools](../interfaces/mcp-tools.md) for the tool surface
 this contract applies to.
 
-[^register-toolkit]: `../../packages/mcp/src/register-toolkit.ts`
+[^server-ts]: `../../packages/mcp/src/server.ts`
+[^union-schema]: `../../packages/mcp/src/tools/_union-schema.ts`
 [^served-schema-strict-test]: `../../packages/mcp/__test__/served-schema-strict.test.ts`
 [^served-enum-drift-test]: `../../packages/mcp/__test__/served-enum-drift.test.ts`
-[^register-toolkit-test]: `../../packages/mcp/__test__/register-toolkit.test.ts`
+[^union-schema-test]: `../../packages/mcp/__test__/union-schema.test.ts`

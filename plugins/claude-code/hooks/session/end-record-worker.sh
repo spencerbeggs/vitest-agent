@@ -40,7 +40,7 @@ hook_debug "$_HOOK" "WORKER chat_id=$chat_id cwd=$cwd reason=$reason mode=$mode"
 
 # shellcheck source=../lib/detect-pm.sh
 . "$(dirname "$0")/../lib/detect-pm.sh"
-cli=$(detect_vitest_agent_bin "$cwd")
+cli=$(detect_vitest_agent_bin "$cwd") || exit 0
 
 ended_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 

@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: a4ccc893d777d3371dfe79a14f97b315c430e7189ba265d35b18d508addddbd4
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 81e5eac9146fb54cca483d337bd117f8f9ff045c24822201f45d7db5976ba924
 ---
 
 # @vitest-agent/engine
@@ -41,9 +41,10 @@ relative path across the package boundary. Consumers are
 `@vitest-agent/ui`, and the sidecar packages never import it.
 
 **No `process` reads anywhere under `src/`, with no allowlist.**
-`packages/engine/__test__/boundaries.test.ts` walks every `.ts` file under
-`src/` through a comment-stripping scanner and asserts no file references
-`process.`[^boundaries-test]. The one exemption is the exact token
+`packages/engine/__test__/boundaries.test.ts` runs
+`@effected/workspaces/testing`'s `SourceBoundary.scan` over every `.ts`
+file under `src/` and asserts no file references
+`process`[^boundaries-test]. The one exemption is the exact token
 `process.env.__PACKAGE_VERSION__`, a compile-time literal the bundler
 substitutes, permitted only in `src/version.ts`; the test asserts that
 token's user list is exactly `["version.ts"]`. The same test forbids
@@ -118,8 +119,10 @@ because only the plugin's lifecycle class consumes istanbul data.
 `resolveProjectDir({ env, cwd }): string`[^project-dir-ts], with precedence
 `VITEST_AGENT_PROJECT_DIR` (the hook-driven override) →
 `VITEST_AGENT_REPORTER_PROJECT_DIR` (the plugin loader's hand-off to the
-spawned MCP server) → `CLAUDE_PROJECT_DIR` → `cwd`. An empty string counts as
-unset. Both front ends call it from `main.ts` so a hook running from a
+spawned MCP server) → `CLAUDE_PROJECT_DIR` → `cwd`. It delegates to
+`@effected/engine`'s `LaunchContext.projectDir`: each value is trimmed,
+and an empty or whitespace-only value, or one a plugin host left as a
+literal unsubstituted `${...}` placeholder, counts as unset. Both front ends call it from `main.ts` so a hook running from a
 sub-package cwd and the MCP server it drives always resolve the same
 `data.db`.
 

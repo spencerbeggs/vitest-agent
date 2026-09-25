@@ -15,7 +15,9 @@ This package is a regular dependency of `@vitest-agent/plugin`, and the plugin d
 - **Six framing prompts** — `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`, `tdd-resume`, and `wrapup`
 - **Idempotent writes** — `tdd_task`, `tdd_goal`, `tdd_behavior`, and `hypothesis` create-actions are idempotent on derived keys; a replay carries `_idempotentReplay: true`
 - **Strict tool inputs** — an unknown key is rejected with an error naming it and listing the accepted params, so a mistyped scope param fails loudly instead of running wider than intended; numeric params are strict on the wire too, so send `"limit": 5`, not `"limit": "5"`
-- **Session-surviving error handling** — a handler that dies returns a structured `UnexpectedToolError` envelope, every log line goes to stderr (stdout is the JSON-RPC wire), and a stray unhandled rejection after the transport connects is logged rather than killing the server mid-session
+- **Typed results** — every tool serves an object-rooted `outputSchema`, and every successful result carries its typed object in `structuredContent`; read that field rather than parsing text content (Claude Code forwards only `structuredContent` to the model)
+- **Actionable refusals** — a call the agent can fix (an unknown id, a missing argument) is refused with `isError` text that names the fix and usually ends `Try <tool>.`; expected domain errors come back as normal `ok: false` results carrying a `remediation` (`hint`, plus optional `suggestedTool` / `suggestedArgs`)
+- **Session-surviving error handling** — a handler that dies returns core's generic `isError` text (`Tool execution failed due to an internal server error.`) with the detail logged to stderr, every log line goes to stderr (stdout is the JSON-RPC wire), and a stray unhandled rejection after the transport connects is logged rather than killing the server mid-session
 - **Effect Schema end to end** — tool inputs, outputs, and prompt arguments are Effect `Schema` values; the served JSON Schema is generated from them. No MCP SDK, no tRPC, no zod
 
 ## Install
@@ -38,7 +40,7 @@ npx --yes @vitest-agent/mcp
 
 The server reads the SQLite database written by `AgentPlugin` via the same XDG-derived path, so a single test run populates data for all tools. It logs only to stderr — stdout is the JSON-RPC wire — and exits 0 when the client closes stdin cleanly.
 
-For embedding, `ServerLayer({ version })` is the whole server as an Effect `Layer` over any `Stdio` implementation, and the `Kit` toolkit, `toolHandlers`, `PromptsLayer`, `registerStrictToolkit`, and `McpSession` are exported from the programmatic barrel. The process-owning `main()` lives on the `@vitest-agent/mcp/main` subpath.
+For embedding, `ServerLayer({ version })` is the whole server as an Effect `Layer` over any `Stdio` implementation, and the `Kit` toolkit, `toolHandlers`, `PromptsLayer`, `McpSession`, and the `ToolRefusal` error are exported from the programmatic barrel. Tools are registered strict-by-default through `@effected/mcp`'s `McpToolkit` and served over its `McpStdio` transport. The process-owning `main()` lives on the `@vitest-agent/mcp/main` subpath.
 
 ## Tool surface
 

@@ -23,7 +23,7 @@ This is a pnpm monorepo. Workspaces are defined in `pnpm-workspace.yaml`:
 
 The eight publishable packages live under `packages/`; four per-platform sub-packages (`@vitest-agent/sidecar-{darwin-arm64,linux-arm64,linux-x64,win32-x64}` under `packages/sidecar-*/`) carry the prebuilt sidecar binaries as `optionalDependencies` of `@vitest-agent/sidecar`. The Claude Code plugin at `plugins/claude-code/` is a workspace member (`plugins/*`) whose private `package.json` exists only so changesets can version it. Root-level configs (`turbo.json`, `biome.json`, etc.) apply to all workspaces; scope commands with `--filter='./packages/<name>'`.
 
-**Layering (the rank rule, issue #412).** Every workspace edge points to a strictly lower rank; `cli` and `mcp` never import each other. Enforced by `packages/plugin/__test__/workspace-layering.test.ts` plus per-package `__test__/boundaries.test.ts` source scans.
+**Layering (the rank rule, issue #412).** Every runtime workspace edge points to a strictly lower rank; `cli` and `mcp` never import each other. The ranks are committed in the root `layers.json` (layers top-first, plus `tooling` and `unconstrained`), enforced by `packages/plugin/__test__/workspace-layering.test.ts` (`WorkspaceLayering` from `@effected/workspaces/testing`) plus per-package `__test__/boundaries.test.ts` source scans.
 
 | Rank | Package(s) | Runtime workspace deps |
 | ---- | ---------- | ---------------------- |
@@ -34,7 +34,7 @@ The eight publishable packages live under `packages/`; four per-platform sub-pac
 | 5 | `plugin` (carrier) | cli, mcp, reporter, engine, sdk |
 | — | root `vitest-agent` (dev) | plugin only |
 
-**The carrier.** `@vitest-agent/plugin` is the one package a consumer installs: it depends on cli/mcp (exact-pinned) and declares `bin.vitest-agent` / `bin.vitest-agent-mcp` itself as four-line shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main`, because pnpm links only direct-dependency bins (proven under npm/pnpm/yarn/bun by `packages/plugin/__test__/bins-packed-install.e2e.test.ts`). No `publicHoistPattern`, pnpm plugin, or manual step is involved — the workspace root devDepends on the plugin only; rationale in [Decision 70 — Carrier Pattern and Ranked Layering](okf/decisions/70-carrier-pattern-and-ranked-layering.md). Users configure `AgentPlugin({ console, coverageTargets, transport?, report? })`; the plugin injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` unless a custom `reporter` is passed.
+**The carrier.** `@vitest-agent/plugin` is the one package a consumer installs: it depends on cli/mcp (exact-pinned) and declares `bin.vitest-agent` / `bin.vitest-agent-mcp` itself as thin shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main` that pass the carrier's identity as `distribution` (surfaced by `vitest-agent --version` and the MCP `ping` tool), because pnpm links only direct-dependency bins (proven under npm/pnpm/yarn/bun by `packages/plugin/__test__/bins-packed-install.e2e.test.ts`). No `publicHoistPattern`, pnpm plugin, or manual step is involved — the workspace root devDepends on the plugin only; rationale in [Decision 70 — Carrier Pattern and Ranked Layering](okf/decisions/70-carrier-pattern-and-ranked-layering.md). Users configure `AgentPlugin({ console, coverageTargets, transport?, report? })`; the plugin injects `DefaultVitestAgentReporter` from `@vitest-agent/reporter` unless a custom `reporter` is passed.
 
 **Legacy naming — watch out.** Pre-2.0 the whole system was one package, `vitest-agent-reporter`; prose that still says it in the whole-system sense means `@vitest-agent/plugin` (the reporter package now owns only rendering and the Ink mount). Likewise, `@vitest-agent/sdk` text older than the #412 split may describe services, layers, migrations, or `./testing` that now live in `@vitest-agent/engine`.
 
@@ -76,25 +76,32 @@ Six primary capabilities:
    `ConfigValidation` catches mismatches between Vitest's native
    `coverage.thresholds` and `coverageTargets`.
 5. **MCP server** -- Effect-native: `effect/unstable/ai`'s `McpServer` over
-   stdio, no MCP SDK, no tRPC, no zod. 30 tools (`Tool.make`, one file per
-   tool in `packages/mcp/src/tools/`) gathered into one `Toolkit` and six
+   stdio through the `@effected/mcp` kit (`McpToolkit` + `McpStdio`), no MCP
+   SDK, no tRPC, no zod. 30 tools (23 `Tool.make`, seven union-parameter
+   `Tool.dynamic`; one file per tool in `packages/mcp/src/tools/`) gathered
+   into one `Toolkit` and six
    framing-only prompts (`McpServer.prompt`). Action-keyed surface:
    per-CRUD families collapse into one tool each (`tdd_task`, `tdd_goal`,
    `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) that dispatch
    on an `action` / `kind` discriminator; also `register_agent` and
    `tdd_artifact_list`. Every served input is strict at every object level
-   (`registerStrictToolkit` rejects unknown keys naming the accepted params).
+   (`McpToolkit.layer`, or `decodeStrictUnion` for a union tool, rejects
+   unknown keys naming the accepted params). Agents read `structuredContent`
+   only; an internal failure is a scrubbed `isError` text, and a failure the
+   agent can fix is a success-shape `ok: false` or a declared `ToolRefusal`.
+   See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
    `tdd_progress_push` rides the standard `notifications/message` frame
    (logger `vitest-agent/channel`), not a custom channel method.
 6. **Claude Code plugin** -- file-based plugin at `plugins/claude-code/`
    distributed via the Claude marketplace as `vitest-agent@spencerbeggs`. Ships an
    MCP loader (`bin/start-mcp.sh`: execs the project's own
    `node_modules/.bin/vitest-agent-mcp`, else prints a PM-specific install
-   line on stderr and falls back to `npx --yes @vitest-agent/mcp@4`, pinned to
+   line on stderr and falls back to `npx --yes @vitest-agent/mcp@5`, pinned to
    the major the hooks were written for), lifecycle
    hooks that resolve the CLI via `detect_vitest_agent_bin`
    (`VITEST_AGENT_CLI_CMD` override → relative `node_modules/.bin/vitest-agent`
-   → `<pm> exec vitest-agent`), the `tdd-task` subagent (`context:fork`),
+   → `vitest-agent` on `PATH` → fail open with a no-op; never a package-manager
+   dispatch or `npx`), the `tdd-task` subagent (`context:fork`),
    `/tdd` slash command, and 15 skills (one TDD workflow skill, nine
    preloaded TDD primitives, one path-triggered test-layout skill, plus
    four standalone reference skills). The plugin is the primary AI
@@ -282,13 +289,16 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
   `CURRENT_<PKG>_VERSION` lives in `src/version.ts`. See [Convention:
   Front-end entry contract](okf/conventions/front-end-entry-contract.md).
 - **Boundary tests** (`packages/{sdk,engine,cli,mcp}/__test__/boundaries.test.ts`):
-  sdk imports no `node:*` / `@effect/platform-node` / `@effect/sql-sqlite-node`
-  / `@effected/*` and never reads `process`; engine never reads `process` with
-  no allowlist and never imports a front end; cli and mcp read `process` only
-  through narrow allowlists (`bin.ts`, `main.ts`, `version.ts`, plus
-  `commands/**` or `tools/run-tests.ts`) and never import each other; the
-  token `process.env.__PACKAGE_VERSION__` may appear only in each package's
-  `version.ts`. Details: [Invariant: ranked
+  all four run `SourceBoundary.scan` from `@effected/workspaces/testing`. sdk
+  imports no `node:*` / Node built-in / `@effect/platform-node` /
+  `@effect/sql-sqlite-node` / `@effected/*` and never reads `process`; engine
+  never reads `process` with no allowlist and never imports a front end; cli
+  and mcp read `process` only through narrow allowlists (`main.ts`, plus
+  `commands/**` or `tools/run-tests.ts`) and never import each other; mcp
+  also keeps stdout clean (no `console` stdout, stdout writes only in
+  `tools/run-tests.ts`); the token `process.env.__PACKAGE_VERSION__` may
+  appear only in each package's `version.ts`. Details: [Invariant: package
+  boundaries](okf/invariants/package-boundaries.md), [Invariant: ranked
   layering](okf/invariants/ranked-layering.md), [Decision
   70](okf/decisions/70-carrier-pattern-and-ranked-layering.md), and
   [`okf/modules/engine.md`](okf/modules/engine.md).
@@ -296,6 +306,7 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
 ### Dependencies
 
 - Effect v4 collapsed the standalone `@effect/*` packages into `effect/unstable/*` namespaces (`effect/unstable/cli`, `effect/unstable/sql`, `effect/unstable/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. See [Convention: Effect v4 dependencies](okf/conventions/effect-v4-dependencies.md).
+- Both front ends run on the `@effected` front-end kit (`catalog:effected`): the CLI on `@effected/cli`'s `CliRuntime.main` (exit `0` / `64` usage / `1` failure), the MCP server on `@effected/mcp`'s `McpToolkit` + `McpStdio`, the carrier identity via `@effected/engine`'s `CurrentDistribution`, and the repo checks (`WorkspaceLayering`, `SourceBoundary`, `PackedInstall`, `McpProbe`) on `@effected/workspaces/testing` and `@effected/mcp/testing`. See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
 
 ### Commits
 
@@ -335,14 +346,17 @@ release workflow: one git tag per package (`@vitest-agent/<pkg>@<version>`) plus
   runs Vitest in-process: a plain `.test.ts` classifies as `unit` (5 s
   timeout) and times out in CI; the `e2e` tag gives 120 s plus retry.
 - **Guardrail suites**: the four `boundaries.test.ts` files and
-  `packages/plugin/__test__/workspace-layering.test.ts` (a new package needs a
-  rank in `__test__/utils/workspace-graph.ts`).
-- **MCP tools**: `packages/mcp/__test__/utils/harness.ts` runs the real
+  `packages/plugin/__test__/workspace-layering.test.ts` (a new package needs an
+  entry in the root `layers.json` — a layer, `tooling`, or an `unconstrained`
+  glob — by package name).
+- **MCP tools**: `packages/mcp/__test__/utils/harness.ts` (over
+  `@effected/mcp/testing`'s `McpHarness`) runs the real
   `ServerLayer` in-process over `Stdio.layerTest` queues (exact served schemas
   and wire results); only crash guards and process lifecycle need the spawned
   bin (`*.e2e.test.ts`).
 - **Packed-install e2e**: `packages/plugin/__test__/bins-packed-install.e2e.test.ts`
-  installs the packed plugin into a scratch consumer under four PMs; needs
+  installs the packed plugin into a scratch consumer under four PMs
+  (`PackedInstall.run` + `McpProbe.initialize`); needs
   `pnpm run build` (prod) and network, skips otherwise.
 - **Engine layers in unit tests**: `makeTestLayer(":memory:")` and the preset
   factories ship from `@vitest-agent/engine/testing`.

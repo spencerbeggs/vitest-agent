@@ -6,8 +6,8 @@ description: unhandledRejection and uncaughtException guards keep the MCP proces
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 7fa0f9fbca3ad2e8586349796322e7cc754d0d0ccb6c177f9ac13a956d168eed
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 664ad07983fea8eaa264b3959b2ff01644a5a197a46b5e0d10964b44e176f153
 ---
 
 # The MCP Server Survives Post-Connect Crashes
@@ -50,9 +50,11 @@ to preserve, so failing fast and loud beats spinning in a
 half-initialized state.
 
 **Scope boundary.** These module-scope guards are not the same layer as
-the catch inside `registerStrictToolkit`'s `handle` callback
-(`packages/mcp/src/register-toolkit.ts:372-389`), which maps a thrown
-or defected tool handler to the `UnexpectedToolError` envelope. A throw
+the catch inside the tool-call boundary of Effect's own
+`registerToolkit` (reached through `@effected/mcp`'s `McpToolkit.layer`),
+which turns a thrown or defected tool handler into a scrubbed
+`isError` result ("Tool execution failed due to an internal server
+error.") and logs the cause on stderr. A throw
 *inside* a tool call is caught at that registration boundary and never
 threatens the process; the module-scope guards in `main.ts` exist for
 whatever escapes that boundary entirely — a throw during layer

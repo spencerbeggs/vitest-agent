@@ -5,19 +5,15 @@
 # bare `wrapup` forms.
 #
 # Strategy:
-#   1. Create a temp bin dir with a fake `pnpm` that strips the `exec`
-#      sub-command and delegates to `vitest-agent` (which is also stubbed).
-#   2. The fake `vitest-agent` stub echoes its full argv to a capture file
-#      so each test can assert the exact subcommand path.
-#   3. Prepend the temp bin dir to PATH so both the hook's `detect_pm_exec`
-#      and subsequent shell calls use the fakes.
-#
-# The stub intercepts the call at the right layer because:
-#   - detect_pm_exec() returns "pnpm exec" for this repo (pnpm-lock.yaml)
-#   - hooks call: $pm_exec vitest-agent agent <sub> ...
-#                 = pnpm exec vitest-agent agent <sub> ...
-#   - our fake pnpm strips "exec" and runs: vitest-agent agent <sub> ...
-#   - our fake vitest-agent writes $* to BATS_ARGV_CAPTURE
+#   Every hook resolves the CLI via `detect_vitest_agent_bin`
+#   (hooks/lib/detect-pm.sh), whose first rung is the `VITEST_AGENT_CLI_CMD`
+#   override — the same seam this suite uses to route every hook at a fake
+#   `vitest-agent` binary that echoes its full argv to a capture file so
+#   each test can assert the exact subcommand path. Hook resolution no
+#   longer has a package-manager-dispatch rung (hooks never `pnpm exec`),
+#   so the override is the only path this suite drives; the fake `pnpm`
+#   stub below is unused by hook resolution but left in place unless a
+#   fixture happens to invoke `pnpm` directly.
 
 HOOKS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../hooks" && pwd)"
 # Repository root, resolved at runtime — never hardcode a developer checkout path.

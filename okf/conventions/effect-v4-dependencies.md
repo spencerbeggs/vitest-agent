@@ -15,12 +15,12 @@ sources:
     resource: ../../packages/cli/src/main.ts
   - id: cli-db-unstable-sql
     resource: ../../packages/cli/src/commands/db.ts
-  - id: mcp-register-toolkit-unstable-ai
-    resource: ../../packages/mcp/src/register-toolkit.ts
+  - id: mcp-union-schema-unstable-ai
+    resource: ../../packages/mcp/src/tools/_union-schema.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: d3a676a791bc85b7ff5e8404f38876eb8dfa18f75c3d0701638b10f3cbf02f6c
+  at: 2026-09-25T17:01:39Z
+  body_sha256: 5ff1574ae01b8d281bc61952bbd8b47f4e1cec87c98fe3f672ff8280c8b08fb9
 ---
 
 # Reach for effect/unstable/*, not a v3 @effect/* package
@@ -67,11 +67,10 @@ packages.
 `"effect/unstable/cli"`[^cli-main-unstable-cli] to build the CLI's
 command tree; `packages/cli/src/commands/db.ts` imports `SqlClient`
 from `"effect/unstable/sql/SqlClient"`[^cli-db-unstable-sql] for the
-`db query` command; `packages/mcp/src/register-toolkit.ts` imports
-`AiError`, `McpSchema`, `McpServer`, and `Tool` from
-`"effect/unstable/ai"`[^mcp-register-toolkit-unstable-ai] to build the
-MCP server's strict tool registration on Effect's own `McpServer`
-rather than the MCP SDK. Every one of these is a subpath of the single
+`db query` command; `packages/mcp/src/tools/_union-schema.ts` imports
+`McpSchema` and `Tool` from
+`"effect/unstable/ai"`[^mcp-union-schema-unstable-ai] to register the
+action-keyed tools on Effect's own `McpServer` rather than the MCP SDK. Every one of these is a subpath of the single
 `effect` package pinned via `catalog:effect` — none is a separate
 package requiring its own catalog entry or version pin.
 
@@ -83,4 +82,4 @@ convention is downstream of.
 [^cli-package-json]: ../../packages/cli/package.json
 [^cli-main-unstable-cli]: ../../packages/cli/src/main.ts
 [^cli-db-unstable-sql]: ../../packages/cli/src/commands/db.ts
-[^mcp-register-toolkit-unstable-ai]: ../../packages/mcp/src/register-toolkit.ts
+[^mcp-union-schema-unstable-ai]: ../../packages/mcp/src/tools/_union-schema.ts
