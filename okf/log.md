@@ -31,6 +31,8 @@
 * Updated The `vitest-agent` CLI command tree
 * Updated vitest-agent (Claude Code plugin)
 * Updated workspace
+* Added Adoption Helpers Live in the Kit
+* Updated Import style — extensions, protocol, type-only, and static-only
 
 ## 2026-09-22
 
