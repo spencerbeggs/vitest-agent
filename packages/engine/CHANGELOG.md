@@ -1,5 +1,26 @@
 # @vitest-agent/engine
 
+## 0.2.7
+
+### Bug Fixes
+
+- `resolveProjectDir` now treats blank/whitespace-only values and unsubstituted `${...}` placeholders in `LaunchContext` as unset, instead of resolving them as a literal directory. [#502][#502]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.26.0 | ^0.27.0 |
+| @effected/engine | dependency | added | — | ^0.1.0 |
+
+[#502][#502]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#502]: https://github.com/spencerbeggs/vitest-agent/pull/502
+
 ## 0.2.6
 
 ### Dependencies

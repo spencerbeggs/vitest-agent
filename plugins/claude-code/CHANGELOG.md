@@ -1,5 +1,22 @@
 # @vitest-agent/claude-code-plugin
 
+## 2.7.0
+
+### Features
+
+- Hook CLI resolution (`detect_vitest_agent_bin`) no longer falls back to `<pm> exec vitest-agent`. The order is now: `VITEST_AGENT_CLI_CMD` override → relative `node_modules/.bin/vitest-agent` → `PATH` → fail open.
+- The MCP loader's `npx` fallback is now pinned to `@vitest-agent/mcp@5`, matching the major version shipped by this release.
+
+### Documentation
+
+- Updated remediation documentation to reflect the engine's `hint` field (renamed from `humanHint`) and added guidance to read `structuredContent` only from MCP tool results. [#502][#502]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#502]: https://github.com/spencerbeggs/vitest-agent/pull/502
+
 ## 2.6.3
 
 ### Bug Fixes
