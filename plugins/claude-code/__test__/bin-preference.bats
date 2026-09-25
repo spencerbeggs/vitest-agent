@@ -35,7 +35,15 @@ echo "npx $*" >> "$CAPTURE"
 exit 0
 STUB
 	chmod +x "${STUBS}/npx"
-	export PATH="${STUBS}:${PATH}"
+	# Drop any inherited PATH entry that already provides `vitest-agent` (a repo
+	# checkout's node_modules/.bin, a global install) so the PATH rung only ever
+	# sees what a test stubs into $STUBS.
+	local clean="" dir
+	local IFS=:
+	for dir in $PATH; do
+		[ -x "${dir}/vitest-agent" ] || clean="${clean:+${clean}:}${dir}"
+	done
+	export PATH="${STUBS}:${clean}"
 	unset VITEST_AGENT_CLI_CMD
 }
 
