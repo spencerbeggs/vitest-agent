@@ -13,6 +13,7 @@
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import type { FailureDetails } from "@effected/cli";
 import { CliRuntime } from "@effected/cli";
 import type { Distribution } from "@effected/engine";
 import { CurrentDistribution } from "@effected/engine";
@@ -52,17 +53,29 @@ export interface MainOptions {
 }
 
 /**
- * One rendering for every failure `CliRuntime.main` reports. A typed
- * (tagged) failure — a `PlatformError`, `SqlError`, `MigrationError` — is
- * one line; anything else is a defect and keeps the issue-report rendering
- * `formatFatalError` gives it. `ShowHelp` and runWith-rendered `UserError`s
- * never reach here (the kit skips them).
+ * The one-line name of a typed failure: its `_tag` when it carries one (a
+ * `PlatformError`, `SqlError`, `MigrationError`), else its `Error` name.
  */
-const renderFailure = (error: unknown): string => {
-	if (error instanceof Error && "_tag" in error && typeof error._tag === "string") {
-		return `vitest-agent: ${error._tag}${error.message ? `: ${error.message}` : ""}`;
+const failureName = (error: unknown): string => {
+	if (typeof error === "object" && error !== null && "_tag" in error && typeof error._tag === "string") {
+		return error._tag;
 	}
-	return `vitest-agent: ${formatFatalError(error)}`;
+	return error instanceof Error ? error.name : "Error";
+};
+
+/**
+ * One rendering for every failure `CliRuntime.main` reports. The kit says
+ * which kind it is (`details.isDefect`, exact: the cause carries no typed
+ * failure): a typed failure from the error channel is one line, a defect
+ * keeps the issue-report rendering `formatFatalError` gives it. `ShowHelp`
+ * and runWith-rendered `UserError`s never reach here (the kit skips them).
+ */
+const renderFailure = (error: unknown, details: FailureDetails): string => {
+	if (details.isDefect) {
+		return `vitest-agent: ${formatFatalError(error)}`;
+	}
+	const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+	return `vitest-agent: ${failureName(error)}${message ? `: ${message}` : ""}`;
 };
 
 /**
@@ -82,9 +95,12 @@ const renderFailure = (error: unknown): string => {
  *   outermost and sends every level to stderr. It is what renders reported
  *   failures (a layer-build failure, a typed command failure, a defect)
  *   through `renderFailure`.
- * - Help goes to stdout and parse errors to stderr, both via the
- *   `CliOutput` formatter (`versionFormatterLayer`), as `Command.runWith`
- *   renders them.
+ * - An explicit `--help` (or a bare group invocation) prints help on
+ *   stdout. A usage error (unknown flag, bad value, unknown subcommand)
+ *   prints help AND the parse errors on stderr (`helpOnUsageError: "stderr"`),
+ *   so stdout stays empty for a jq-piping hook. Both render via
+ *   the `CliOutput` formatter (`versionFormatterLayer`), which must come
+ *   through `platform` for the kit to reroute it.
  *
  * Exit codes are the kit's: `0` success (including bare `--help`), `64` a
  * usage error (parse error, unknown subcommand), `1` any other reported
@@ -125,6 +141,7 @@ export const main = (options: MainOptions = {}): void => {
 	const program = CliRuntime.main(Command.run(rootCommand, { version: CURRENT_CLI_VERSION }), {
 		platform,
 		render: renderFailure,
+		helpOnUsageError: "stderr",
 	}).pipe(
 		// Outermost, so `versionFormatterLayer`'s build-time read of
 		// `CurrentDistribution` sees the carrier's identity rather than the
