@@ -3,6 +3,7 @@
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
+import { objectRootedUnion } from "./_union-schema.js";
 
 const SettingsRowSchema = Schema.Struct({
 	hash: Schema.String.annotate({
@@ -54,7 +55,7 @@ const SettingsAbsent = Schema.Struct({
  *
  * @public
  */
-export const ConfigureResult = Schema.Union([SettingsFound, SettingsAbsent]).annotate({
+export const ConfigureResult = objectRootedUnion(Schema.Union([SettingsFound, SettingsAbsent])).annotate({
 	identifier: "ConfigureResult",
 	title: "configure result",
 	description: "Captured Vitest settings for a run, or an absence record when the lookup found nothing.",

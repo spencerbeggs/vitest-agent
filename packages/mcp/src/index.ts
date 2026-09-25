@@ -3,8 +3,8 @@
  *
  * Model Context Protocol server for vitest-agent, built on Effect's
  * native `McpServer` (`effect/unstable/ai`). Exposes 30 tools (one
- * `Tool.make` per file under `tools/`, assembled in `toolkit.ts` and
- * registered under the strict-input contract by `register-toolkit.ts`)
+ * tool per file under `tools/`, assembled in `toolkit.ts` and registered
+ * strict-by-default through `@effected/mcp`'s `McpToolkit.layer`)
  * plus six framing prompts (`prompts/layer.ts`) over stdio, giving agents
  * structured access to test data, coverage, history, trends, errors,
  * notes and the TDD lifecycle — backed by the SQLite database that the
@@ -21,7 +21,6 @@
 export { RenderText } from "./annotations.js";
 export { withIdempotency } from "./idempotency.js";
 export { PromptsLayer } from "./prompts/layer.js";
-export { registerStrictToolkit } from "./register-toolkit.js";
 export type { PlatformServices, ServerLayerOptions } from "./server.js";
 export { SERVER_INSTRUCTIONS, ServerLayer } from "./server.js";
 export type { CurrentSessionIdRef, McpSessionOptions, SessionContext, SessionContextRef } from "./session.js";

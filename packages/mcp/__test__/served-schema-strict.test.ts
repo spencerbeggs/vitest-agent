@@ -5,12 +5,15 @@
  * rejected rather than silently stripped (issues #200 / #243). A
  * discriminated-union root is served as `oneOf` + `x-discriminator` and
  * has no `additionalProperties` by design; each of its members is an
- * object and must be strict.
+ * object and must be strict. `McpToolAudit` pins the rest of the listing on
+ * both revisions: every tool serves an object-rooted `outputSchema` (issue
+ * #489), a title, and all four hints.
  */
 
+import { McpToolAudit } from "@effected/mcp/testing";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import type { McpToolDescriptor } from "./utils/harness.js";
+import type { HarnessOptions, McpToolDescriptor } from "./utils/harness.js";
 import { makeHarness } from "./utils/harness.js";
 
 type JsonObject = Record<string, unknown>;
@@ -37,10 +40,29 @@ const collectObjectNodes = (node: unknown, path: string, out: Array<{ path: stri
 	}
 };
 
-const listAllTools = (): Promise<ReadonlyArray<McpToolDescriptor>> =>
+const listAllTools = (options?: HarnessOptions): Promise<ReadonlyArray<McpToolDescriptor>> =>
 	Effect.runPromise(
-		Effect.scoped(Effect.flatMap(makeHarness(), (h) => h.initialize().pipe(Effect.andThen(h.listTools)))),
+		Effect.scoped(Effect.flatMap(makeHarness(options), (h) => h.initialize().pipe(Effect.andThen(h.listTools)))),
 	);
+
+describe("McpToolAudit over the served listing", () => {
+	it.each([
+		["2025-11-25", {}],
+		["2026-07-28", { stateless: true }],
+	] as const)("%s: every tool serves an object-rooted outputSchema, a title and all four hints", async (_, options) => {
+		const tools = await listAllTools(options);
+		expect(tools).toHaveLength(30);
+		expect(
+			McpToolAudit.check(tools, {
+				input: "any",
+				requireOutputSchema: true,
+				objectRootedOutput: true,
+				requireTitle: true,
+				requireHints: true,
+			}),
+		).toEqual([]);
+	});
+});
 
 describe("served input schemas are strict at every object level", () => {
 	it("lists exactly the 30 served tools", async () => {

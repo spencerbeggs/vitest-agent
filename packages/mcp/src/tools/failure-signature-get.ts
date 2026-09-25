@@ -3,6 +3,7 @@
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
+import { objectRootedUnion } from "./_union-schema.js";
 
 const RecentError = Schema.Struct({
 	runId: Schema.Number,
@@ -34,7 +35,7 @@ const SignatureMissing = Schema.Struct({
  *
  * @public
  */
-export const FailureSignatureGetResult = Schema.Union([SignatureFound, SignatureMissing]).annotate({
+export const FailureSignatureGetResult = objectRootedUnion(Schema.Union([SignatureFound, SignatureMissing])).annotate({
 	identifier: "FailureSignatureGetResult",
 	title: "failure_signature_get result",
 	description: "Discriminate on `found`. Found rows carry first/last-seen timestamps and recent occurrences.",

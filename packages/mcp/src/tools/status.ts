@@ -4,6 +4,7 @@ import { DataReader } from "@vitest-agent/engine";
 import { CacheManifestEntry } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
+import { objectRootedUnion } from "./_union-schema.js";
 
 const StatusAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true).annotate({
@@ -31,7 +32,7 @@ const StatusAbsent = Schema.Struct({
  *
  * @public
  */
-export const TestStatusResult = Schema.Union([StatusAvailable, StatusAbsent]).annotate({
+export const TestStatusResult = objectRootedUnion(Schema.Union([StatusAvailable, StatusAbsent])).annotate({
 	identifier: "TestStatusResult",
 	title: "test_status result",
 	description: "Per-project last-run summary. Discriminate on `dataAvailable` for cold-start handling.",

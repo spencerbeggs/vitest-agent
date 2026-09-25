@@ -9,6 +9,7 @@ import { DataReader } from "@vitest-agent/engine";
 import { TrendRecord } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
+import { objectRootedUnion } from "./_union-schema.js";
 
 const TrendsAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true).annotate({
@@ -32,7 +33,7 @@ const TrendsAbsent = Schema.Struct({
  *
  * @public
  */
-export const TestTrendsResult = Schema.Union([TrendsAvailable, TrendsAbsent]).annotate({
+export const TestTrendsResult = objectRootedUnion(Schema.Union([TrendsAvailable, TrendsAbsent])).annotate({
 	identifier: "TestTrendsResult",
 	title: "test_trends result",
 	description: "Coverage trend record per project. Discriminate on `dataAvailable` to handle the cold-start case.",

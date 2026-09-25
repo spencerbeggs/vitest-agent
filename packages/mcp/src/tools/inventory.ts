@@ -9,6 +9,7 @@ import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
+import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const ProjectRunSummary = Schema.Struct({
 	project: Schema.String,
@@ -125,16 +126,18 @@ const TagInventoryUnscoped = Schema.Struct({
  *
  * @public
  */
-export const InventoryResult = Schema.Union([
-	ProjectInventory,
-	ModuleInventory,
-	SuiteInventory,
-	SessionDetailFound,
-	SessionDetailMissing,
-	SessionListInventory,
-	TagInventoryScoped,
-	TagInventoryUnscoped,
-]).annotate({
+export const InventoryResult = objectRootedUnion(
+	Schema.Union([
+		ProjectInventory,
+		ModuleInventory,
+		SuiteInventory,
+		SessionDetailFound,
+		SessionDetailMissing,
+		SessionListInventory,
+		TagInventoryScoped,
+		TagInventoryUnscoped,
+	]),
+).annotate({
 	identifier: "InventoryResult",
 	title: "inventory result",
 	description:
@@ -333,13 +336,13 @@ export const handleInventory = (input: InventoryInputType): Effect.Effect<Invent
  *
  * @public
  */
-export const inventoryTool = Tool.make("inventory", {
+export const inventoryTool = strictUnionTool("inventory", {
 	description:
 		"Use to discover what exists in the workspace, with a kind discriminator: project / module / suite / session / tag. structuredContent discriminates on `inventoryKind` (project, module, suite, session_detail, session_list, tag_scoped, tag_unscoped) so callers can branch on the response shape without parsing markdown.",
 	parameters: InventoryInput,
 	success: InventoryResult,
-	dependencies: [DataReader],
 })
+	.addDependency(DataReader)
 	.annotate(Tool.Title, "Inventory")
 	.annotate(Tool.Readonly, true)
 	.annotate(Tool.Destructive, false)

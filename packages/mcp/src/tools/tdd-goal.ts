@@ -8,12 +8,14 @@
  * the shared helper.
  */
 
+import { Remediation } from "@effected/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail, GoalRow } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 import { catchTddErrorsAsEnvelope } from "./_tdd-error-envelope.js";
+import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const GoalStatus = Schema.Literals(["pending", "in_progress", "done", "abandoned"]);
 
@@ -24,12 +26,8 @@ const TddErrorEnvelope = Schema.Struct({
 			_tag: Schema.String.annotate({
 				description: "Tagged error name (e.g. GoalNotFoundError, TddTaskNotFoundError).",
 			}),
-			remediation: Schema.Struct({
-				suggestedTool: Schema.String,
-				suggestedArgs: Schema.Record(Schema.String, Schema.Unknown),
-				humanHint: Schema.String,
-			}).annotate({
-				description: "Suggested next action: the tool to call, its arguments, and a plain-language hint.",
+			remediation: Remediation.annotate({
+				description: "Suggested next action: a plain-language hint, the tool to call, and its arguments.",
 			}),
 		}),
 		[Schema.Record(Schema.String, Schema.Unknown)],
@@ -74,15 +72,17 @@ const TddGoalListOk = Schema.Struct({
 	goals: Schema.Array(GoalDetail).annotate({ description: "All goals for the TDD task, with their behaviors." }),
 }).annotate({ identifier: "TddGoalListOk" });
 
-export const TddGoalResult = Schema.Union([
-	TddGoalCreateOk,
-	TddGoalUpdateOk,
-	TddGoalDeleteOk,
-	TddGoalGetFound,
-	TddGoalGetMissing,
-	TddGoalListOk,
-	TddErrorEnvelope,
-]).annotate({
+export const TddGoalResult = objectRootedUnion(
+	Schema.Union([
+		TddGoalCreateOk,
+		TddGoalUpdateOk,
+		TddGoalDeleteOk,
+		TddGoalGetFound,
+		TddGoalGetMissing,
+		TddGoalListOk,
+		TddErrorEnvelope,
+	]),
+).annotate({
 	identifier: "TddGoalResult",
 	title: "tdd_goal result",
 	description:
@@ -219,13 +219,14 @@ export const handleTddGoal = (
  *
  * @public
  */
-export const tddGoalTool = Tool.make("tdd_goal", {
+export const tddGoalTool = strictUnionTool("tdd_goal", {
 	description:
 		"Use to manage TDD goals, with a CRUD action discriminator: action='create' (tddTaskId, goal) is idempotent on (tddTaskId, goal); action='update' (id, goal?, status?) edits text and/or lifecycle status; action='delete' (id) hard-deletes (prefer status:'abandoned'); action='get' (id) reads with nested behaviors; action='list' (tddTaskId) returns all goals for a TDD task.",
 	parameters: TddGoalInput,
 	success: TddGoalResult,
-	dependencies: [DataReader, DataStore],
 })
+	.addDependency(DataReader)
+	.addDependency(DataStore)
 	.annotate(Tool.Title, "TDD goal")
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, true)

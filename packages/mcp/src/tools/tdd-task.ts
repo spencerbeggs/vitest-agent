@@ -5,11 +5,15 @@
 // `TddTaskDetail` tree plus the `currentPhase` lookup, and `resume`
 // carries a compact summary discriminated by `phaseAvailable`.
 
+import { ToolFailure } from "@effected/mcp";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
+import type { ToolRefusal } from "./_tool-refusal.js";
+import { refuse } from "./_tool-refusal.js";
+import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const TddPhaseRow = Schema.Struct({
 	id: Schema.Number,
@@ -94,14 +98,16 @@ const TddTaskResumeMissing = Schema.Struct({
 	tddTaskId: Schema.Number,
 }).annotate({ identifier: "TddTaskResumeMissing" });
 
-export const TddTaskResult = Schema.Union([
-	TddTaskStartOk,
-	TddTaskEndOk,
-	TddTaskGetFound,
-	TddTaskGetMissing,
-	TddTaskResumeFound,
-	TddTaskResumeMissing,
-]).annotate({
+export const TddTaskResult = objectRootedUnion(
+	Schema.Union([
+		TddTaskStartOk,
+		TddTaskEndOk,
+		TddTaskGetFound,
+		TddTaskGetMissing,
+		TddTaskResumeFound,
+		TddTaskResumeMissing,
+	]),
+).annotate({
 	identifier: "TddTaskResult",
 	title: "tdd_task result",
 	description:
@@ -169,14 +175,15 @@ void _assertTddTaskActions;
 
 /**
  * Handler for {@link tddTaskTool}. A `start` with neither `sessionId` nor
- * `chatId`, an unknown `chatId`, or a blank `runId` fails as a defect (the
- * `UnexpectedToolError` envelope on the wire), as the retired tRPC procedure did.
+ * `chatId`, an unknown `sessionId` or `chatId`, or a blank `runId` fails with a
+ * {@link ToolRefusal} (an `isError` result naming the fix). A store failure is
+ * a defect.
  *
  * @public
  */
 export const handleTddTask = (
 	input: TddTaskInputType,
-): Effect.Effect<TddTaskResultType, never, DataReader | DataStore> =>
+): Effect.Effect<TddTaskResultType, ToolRefusal, DataReader | DataStore> =>
 	Match.value(input)
 		.pipe(
 			Match.discriminatorsExhaustive("action")({
@@ -186,20 +193,41 @@ export const handleTddTask = (
 						const store = yield* DataStore;
 						let sessionId: number;
 						if (variant.sessionId !== undefined) {
+							if (Option.isNone(yield* reader.getSessionById(variant.sessionId))) {
+								return yield* Effect.fail(
+									refuse(`Unknown sessionId ${variant.sessionId}.`, {
+										hint: "Pass chatId (the host chat UUID) instead, or a sessionId that exists.",
+									}),
+								);
+							}
 							sessionId = variant.sessionId;
 						} else if (variant.chatId !== undefined) {
 							const opt = yield* reader.getSessionByChatId(variant.chatId);
 							if (Option.isNone(opt)) {
 								return yield* Effect.fail(
-									new Error(`Unknown chatId: ${variant.chatId}. Run record session-start first.`),
+									refuse(`Unknown chatId ${ToolFailure.truncate(variant.chatId)}: no session is recorded for it.`, {
+										hint: "The plugin's SessionStart hook records the session (vitest-agent agent record session-start); check that it ran for this chat, or pass a sessionId that exists.",
+									}),
 								);
 							}
 							sessionId = opt.value.id;
 						} else {
-							return yield* Effect.fail(new Error("tdd_task action=start: provide sessionId or chatId"));
+							return yield* Effect.fail(
+								refuse("tdd_task action='start' needs a session.", {
+									hint: "Pass sessionId (sessions.id) or chatId (the host chat UUID).",
+									suggestedTool: "tdd_task",
+									suggestedArgs: { action: "start" },
+								}),
+							);
 						}
 						if (variant.runId !== undefined && variant.runId.trim().length === 0) {
-							return yield* Effect.fail(new Error("tdd_task action=start: runId must not be blank"));
+							return yield* Effect.fail(
+								refuse("tdd_task action='start': runId must not be blank.", {
+									hint: "Omit runId, or pass a non-empty dispatch id.",
+									suggestedTool: "tdd_task",
+									suggestedArgs: { action: "start" },
+								}),
+							);
 						}
 						const tddTaskId = yield* store.writeTddTask({
 							sessionId,
@@ -278,20 +306,21 @@ export const handleTddTask = (
 					}),
 			}),
 		)
-		.pipe(Effect.orDie);
+		.pipe(Effect.catchTag("DataStoreError", Effect.die));
 
 /**
  * The Effect-native `tdd_task` tool.
  *
  * @public
  */
-export const tddTaskTool = Tool.make("tdd_task", {
+export const tddTaskTool = strictUnionTool("tdd_task", {
 	description:
 		"Use to manage a TDD task lifecycle, with an action discriminator: action='start' (goal, sessionId|chatId, parentTddTaskId?, startedAt?, runId?) opens a new task; action='end' (tddTaskId, outcome, summaryNoteId?) closes one; action='get' (tddTaskId) returns the full task detail; action='resume' (tddTaskId) returns a compact digest.",
 	parameters: TddTaskInput,
 	success: TddTaskResult,
-	dependencies: [DataReader, DataStore],
 })
+	.addDependency(DataReader)
+	.addDependency(DataStore)
 	.annotate(Tool.Title, "TDD task")
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, false)

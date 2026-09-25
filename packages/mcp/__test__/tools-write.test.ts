@@ -37,6 +37,19 @@ const listTools = (): Promise<ReadonlyArray<McpToolDescriptor>> =>
 
 const text = (result: CallToolResult): string => result.content[0]?.text ?? "";
 
+/**
+ * A declared `ToolRefusal`: `isError` with no `structuredContent`, the reason
+ * and the folded remediation in the text, never core's scrubbed
+ * internal-error sentence.
+ */
+const expectRefusal = (result: CallToolResult, reason: string, remediation: string): void => {
+	expect(result.isError).toBe(true);
+	expect(result.structuredContent).toBeUndefined();
+	expect(text(result)).toContain(reason);
+	expect(text(result)).toContain(remediation);
+	expect(text(result)).not.toContain("internal server error");
+};
+
 /** A typed view of one `structuredContent` field (an absent result reads as `{}`). */
 const field = <T>(result: CallToolResult | undefined, key: string): T =>
 	((result?.structuredContent ?? {}) as Record<string, unknown>)[key] as T;
@@ -312,16 +325,24 @@ describe("hypothesis", () => {
 		expect(listed?.structuredContent?.count).toBe(1);
 	});
 
-	it("record with an unknown tddTaskId returns the UnexpectedToolError envelope as an error result", async () => {
+	it("record with an unknown tddTaskId is refused with a message naming the fix", async () => {
 		const result = await call("hypothesis", { action: "record", tddTaskId: 987654, content: "never written" });
-		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toMatchObject({
-			ok: false,
-			error: { _tag: "UnexpectedToolError", tool: "hypothesis" },
-		});
-		expect(String((result.structuredContent?.error as { message: string } | undefined)?.message)).toContain(
-			"unknown tddTaskId 987654",
-		);
+		expectRefusal(result, "Unknown tddTaskId 987654", "Try tdd_task.");
+	});
+
+	it("record with no recovered session and no tddTaskId is refused, pointing at tdd_task", async () => {
+		const result = await call("hypothesis", { action: "record", content: "never written" });
+		expectRefusal(result, "No session to attribute the hypothesis to", "Pass tddTaskId");
+	});
+
+	it("record with an unknown fallback sessionId is refused rather than failing the insert", async () => {
+		const result = await call("hypothesis", { action: "record", sessionId: 424242, content: "never written" });
+		expectRefusal(result, "Unknown sessionId 424242", "Try tdd_task.");
+	});
+
+	it("validate with an unknown id is refused, pointing at hypothesis list", async () => {
+		const result = await call("hypothesis", { action: "validate", id: 999999, outcome: "refuted" });
+		expectRefusal(result, "Unknown hypothesis id 999999", "Try hypothesis.");
 	});
 
 	it("record rejects a non-numeric string tddTaskId", async () => {
@@ -430,16 +451,29 @@ describe("tdd_task", () => {
 		expect(resumed.structuredContent).toEqual({ action: "resume", found: false, tddTaskId: 99999 });
 	});
 
-	it("start with an unknown chatId returns the UnexpectedToolError envelope", async () => {
+	it("start with an unknown chatId is refused with a message naming the fix", async () => {
 		const result = await call("tdd_task", { action: "start", chatId: "never-seen", goal: "x" });
-		expect(result.isError).toBe(true);
-		expect(result.structuredContent).toMatchObject({
-			ok: false,
-			error: { _tag: "UnexpectedToolError", tool: "tdd_task" },
-		});
-		expect(String((result.structuredContent?.error as { message: string } | undefined)?.message)).toContain(
-			"Unknown chatId",
+		expectRefusal(result, "Unknown chatId never-seen", "SessionStart hook");
+	});
+
+	it("start with an unknown sessionId is refused rather than failing the insert", async () => {
+		const result = await call("tdd_task", { action: "start", sessionId: 424242, goal: "x" });
+		expectRefusal(result, "Unknown sessionId 424242", "Pass chatId");
+	});
+
+	it("start with neither sessionId nor chatId is refused", async () => {
+		const result = await call("tdd_task", { action: "start", goal: "x" });
+		expectRefusal(result, "needs a session", "Try tdd_task.");
+	});
+
+	it("start with a blank runId is refused", async () => {
+		const result = await session((h) =>
+			Effect.gen(function* () {
+				const sessionId = yield* seedSession(h, "cc-blank-run-id");
+				return [yield* h.callTool("tdd_task", { action: "start", sessionId, goal: "x", runId: "  " })];
+			}),
 		);
+		expectRefusal(result[0] as CallToolResult, "runId must not be blank", "Omit runId");
 	});
 
 	it("rejects an unknown action and a foreign key", async () => {
@@ -550,7 +584,9 @@ describe("tdd_goal", () => {
 				remediation: { suggestedTool: "tdd_task", suggestedArgs: { action: "start" } },
 			},
 		});
-		expect(field<{ remediation: { humanHint: string } }>(result, "error").remediation.humanHint).toContain("tdd_task");
+		expect(field<{ remediation: { hint: string } }>(result, "error").remediation.hint).toContain("tdd_task");
+		// One remediation shape: @effected/engine's `hint`, never the pre-5.0 `humanHint`.
+		expect(field<{ remediation: object }>(result, "error").remediation).not.toHaveProperty("humanHint");
 	});
 
 	it("supports the get, update, list lifecycle and the IllegalStatusTransitionError envelope", async () => {
@@ -751,9 +787,7 @@ describe("tdd_progress_push", () => {
 							// A stale sessionId (0) — the server must overwrite it from the goal row.
 							payload: JSON.stringify({ type: "goal_started", sessionId: 0, goalId }),
 						});
-						// The notification is broadcast asynchronously; give the wire a turn.
-						yield* Effect.sleep("50 millis");
-						const frames = (yield* h.rawStdoutSoFar).join("");
+						const frames = JSON.stringify(yield* h.awaitNotification("notifications/message"));
 						return [result as CallToolResult, { frames, tddTaskId, goalId }] as const;
 					}),
 				),
@@ -838,8 +872,8 @@ describe("run_tests (served schema only — the run itself is covered by the e2e
 
 	it("forwards a well-formed nested tags object to the handler, which refuses a shell-metachar tag before starting Vitest", async () => {
 		const result = await call("run_tests", { tags: { any: ["unit; rm -rf /"] } });
-		expect(result.isError).toBe(true);
-		expect(text(result)).not.toContain("Unrecognized parameter");
-		expect(text(result)).toContain("Unsafe argument rejected");
+		expect(result.isError).toBe(false);
+		expect(result.structuredContent?.kind).toBe("error");
+		expect(String(result.structuredContent?.message)).toContain("Unsafe argument rejected");
 	});
 });

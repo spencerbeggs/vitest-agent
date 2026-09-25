@@ -8,6 +8,7 @@ import type { NoteInput } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
+import { objectRootedUnion, strictUnionTool } from "./_union-schema.js";
 
 const NoteScope = Schema.Literals(["global", "project", "module", "suite", "test", "note"]);
 
@@ -77,15 +78,9 @@ const NoteSearchOk = Schema.Struct({
  *
  * @public
  */
-export const NoteResult = Schema.Union([
-	NoteCreateOk,
-	NoteListOk,
-	NoteGetFound,
-	NoteGetMissing,
-	NoteUpdateOk,
-	NoteDeleteOk,
-	NoteSearchOk,
-]).annotate({
+export const NoteResult = objectRootedUnion(
+	Schema.Union([NoteCreateOk, NoteListOk, NoteGetFound, NoteGetMissing, NoteUpdateOk, NoteDeleteOk, NoteSearchOk]),
+).annotate({
 	identifier: "NoteResult",
 	title: "note result",
 	description: "Discriminate on `action`. `get` further discriminates on `found`.",
@@ -252,13 +247,14 @@ export const handleNote = (input: NoteParamsType): Effect.Effect<NoteResultType,
  *
  * @public
  */
-export const noteTool = Tool.make("note", {
+export const noteTool = strictUnionTool("note", {
 	description:
 		"Use to manage notes, with a CRUD action discriminator: action='create' writes a scoped note; action='list' (scope?, project?, testFullName?) returns matching notes; action='get' (id) returns a structured note; action='update' (id, ...patch) edits; action='delete' (id) removes; action='search' (query) does FTS5 across title and content. structuredContent always carries the typed result (discriminate on `action`).",
 	parameters: NoteParams,
 	success: NoteResult,
-	dependencies: [DataReader, DataStore],
 })
+	.addDependency(DataReader)
+	.addDependency(DataStore)
 	.annotate(Tool.Title, "Note")
 	.annotate(Tool.Readonly, false)
 	.annotate(Tool.Destructive, true)

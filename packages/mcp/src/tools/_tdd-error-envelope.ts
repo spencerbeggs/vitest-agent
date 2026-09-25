@@ -8,6 +8,7 @@
  * channel carries the union `Success | ErrorEnvelope`.
  */
 
+import type { Remediation } from "@effected/engine";
 import {
 	BehaviorNotFoundError,
 	GoalNotFoundError,
@@ -18,18 +19,14 @@ import {
 import { Effect } from "effect";
 
 /**
- * Suggested recovery action attached to a TDD error envelope.
- *
- * Tells the agent which tool to call next and provides a human-readable hint
- * explaining the error context and recommended fix.
+ * Suggested recovery action attached to a TDD error envelope:
+ * `@effected/engine`'s `Remediation` (`hint`, plus the `suggestedTool` to call
+ * next and its `suggestedArgs`), the one remediation shape this package
+ * serves.
  *
  * @public
  */
-export interface Remediation {
-	readonly suggestedTool: string;
-	readonly suggestedArgs: Record<string, unknown>;
-	readonly humanHint: string;
-}
+export type { Remediation };
 
 /**
  * Success-shaped envelope returned by TDD CRUD tools when a known TDD error occurs.
@@ -58,7 +55,7 @@ const goalNotFound = (e: GoalNotFoundError): TddErrorEnvelope => ({
 		remediation: {
 			suggestedTool: "tdd_goal",
 			suggestedArgs: { action: "list" },
-			humanHint: `No tdd_session_goals row with id=${e.id}. Call tdd_goal({ action: "list", tddTaskId }) to find the correct goal id.`,
+			hint: `No tdd_session_goals row with id=${e.id}. Call tdd_goal({ action: "list", tddTaskId }) to find the correct goal id.`,
 		},
 	},
 });
@@ -72,7 +69,7 @@ const behaviorNotFound = (e: BehaviorNotFoundError): TddErrorEnvelope => ({
 		remediation: {
 			suggestedTool: "tdd_behavior",
 			suggestedArgs: { action: "list_by_goal" },
-			humanHint: `No tdd_session_behaviors row with id=${e.id}. Call tdd_behavior({ action: "list_by_goal", goalId }) or tdd_behavior({ action: "list_by_tdd_task", tddTaskId }) to find the correct behavior id.`,
+			hint: `No tdd_session_behaviors row with id=${e.id}. Call tdd_behavior({ action: "list_by_goal", goalId }) or tdd_behavior({ action: "list_by_tdd_task", tddTaskId }) to find the correct behavior id.`,
 		},
 	},
 });
@@ -86,7 +83,7 @@ const tddTaskNotFound = (e: TddTaskNotFoundError): TddErrorEnvelope => ({
 		remediation: {
 			suggestedTool: "tdd_task",
 			suggestedArgs: { action: "start" },
-			humanHint: `No tdd_tasks row with id=${e.id}. Call tdd_task({ action: "start" }) to open a TDD task before creating goals or behaviors.`,
+			hint: `No tdd_tasks row with id=${e.id}. Call tdd_task({ action: "start" }) to open a TDD task before creating goals or behaviors.`,
 		},
 	},
 });
@@ -101,7 +98,7 @@ const tddTaskAlreadyEnded = (e: TddTaskAlreadyEndedError): TddErrorEnvelope => (
 		remediation: {
 			suggestedTool: "tdd_task",
 			suggestedArgs: { action: "start" },
-			humanHint: `tdd_tasks row id=${e.id} is already ended (outcome=${e.outcome}). Open a new TDD task if you need to add more goals or behaviors.`,
+			hint: `tdd_tasks row id=${e.id} is already ended (outcome=${e.outcome}). Open a new TDD task if you need to add more goals or behaviors.`,
 		},
 	},
 });
@@ -118,7 +115,7 @@ const illegalStatusTransition = (e: IllegalStatusTransitionError): TddErrorEnvel
 		remediation: {
 			suggestedTool: e.entity === "goal" ? "tdd_goal" : "tdd_behavior",
 			suggestedArgs: { action: "update", id: e.id, status: "abandoned" },
-			humanHint: `Cannot transition ${e.entity} id=${e.id} from ${e.from} to ${e.to}. Use status:'abandoned' to drop work; do not delete unless the entity was created by mistake.`,
+			hint: `Cannot transition ${e.entity} id=${e.id} from ${e.from} to ${e.to}. Use status:'abandoned' to drop work; do not delete unless the entity was created by mistake.`,
 		},
 	},
 });

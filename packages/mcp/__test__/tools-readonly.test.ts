@@ -75,7 +75,7 @@ const STRUCT_RESULT_TOOLS = [
 	"triage_brief",
 	"wrapup_prompt",
 ] as const;
-/** Result schemas that are a `Schema.Union` — no `outputSchema` (a `oneOf` root is not `type: object`). */
+/** Result schemas that are a `Schema.Union` — served object-rooted (`type: "object"` beside the `anyOf`, issue #489). */
 const UNION_RESULT_TOOLS = [
 	"test_status",
 	"test_overview",
@@ -107,14 +107,16 @@ describe("read-only tools: tools/list", () => {
 		}
 	});
 
-	it("advertises an object outputSchema for struct results and none for union results (MCP requires type: object)", async () => {
+	it("advertises an object-rooted outputSchema for struct and union results alike (MCP requires type: object)", async () => {
 		const tools = await listTools();
 		const byName = new Map(tools.map((t) => [t.name, t]));
 		for (const name of STRUCT_RESULT_TOOLS) {
 			expect(byName.get(name)?.outputSchema?.type, `${name} outputSchema`).toBe("object");
 		}
 		for (const name of UNION_RESULT_TOOLS) {
-			expect(byName.get(name)?.outputSchema, `${name} outputSchema`).toBeUndefined();
+			const outputSchema = byName.get(name)?.outputSchema;
+			expect(outputSchema?.type, `${name} outputSchema`).toBe("object");
+			expect(Array.isArray(outputSchema?.anyOf), `${name} outputSchema.anyOf`).toBe(true);
 		}
 	});
 });

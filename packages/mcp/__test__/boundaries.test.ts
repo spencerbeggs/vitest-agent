@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
+import { NodeServices } from "@effect/platform-node";
+import { SourceBoundary } from "@effected/workspaces/testing";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { VERSION_TOKEN, importSpecifiers, referencesProcess, walkTs } from "./utils/boundaries.js";
 
 const SRC_ROOT = join(import.meta.dirname, "..", "src");
-const rel = (file: string): string => relative(SRC_ROOT, file);
 
 /**
  * Packages nothing under `src/` may import: the sibling runtime packages
@@ -22,37 +22,36 @@ const FORBIDDEN_PACKAGES = [
 ];
 
 /**
- * Files allowed to reference the global `process` object: the bin shim, the
- * assembled program that owns the process, the build-time version literal,
- * and `tools/run-tests.ts`, which mutates `process.env.VITEST_AGENT_*` so
- * the in-process Vitest reporter attributes the run to the active agent.
- * Everything else under `src/` must be process-free.
+ * stdout is the JSON-RPC wire, so nothing under `src/` writes to it or logs
+ * through `console.log`. Only two files may read `process`: `main.ts`, the
+ * assembled program that owns the process, and `tools/run-tests.ts`, which
+ * mutates `process.env.VITEST_AGENT_*` so the in-process Vitest reporter
+ * attributes the run to the active agent, and routes the in-process run's
+ * stdout into a per-run sink (the one `stdout-write` waiver). `version.ts`'s
+ * `process.env.__PACKAGE_VERSION__` is a build-time literal and is always
+ * exempt.
  */
-const isAllowlisted = (relPath: string): boolean =>
-	relPath === "bin.ts" || relPath === "main.ts" || relPath === "version.ts" || relPath === `tools${"/"}run-tests.ts`;
+const scan = SourceBoundary.scan({
+	root: SRC_ROOT,
+	rules: ["process", "stdout-write", "console-stdout", { forbidImports: FORBIDDEN_PACKAGES }],
+	allowRules: {
+		process: ["main.ts", "tools/run-tests.ts"],
+		"stdout-write": ["tools/run-tests.ts"],
+	},
+}).pipe(Effect.provide(NodeServices.layer));
 
-describe("@vitest-agent/mcp process boundary and forbidden imports", () => {
-	const files = walkTs(SRC_ROOT);
-
-	it("no file under src/ reads process outside the allowlist (bin.ts, main.ts, version.ts, tools/run-tests.ts)", () => {
-		const offenders = files.filter((f) => {
-			const relPath = rel(f);
-			if (isAllowlisted(relPath)) return false;
-			return referencesProcess(readFileSync(f, "utf8"));
-		});
-		expect(offenders.map(rel)).toEqual([]);
-
-		const tokenUsers = files.filter((f) => readFileSync(f, "utf8").includes(VERSION_TOKEN)).map(rel);
-		expect(tokenUsers).toEqual(["version.ts"]);
+describe("@vitest-agent/mcp source boundaries", () => {
+	it("the scanner still flags and spares its shipped fixtures", () => {
+		expect(SourceBoundary.verifyFixtures()).toEqual([]);
 	});
 
-	it("no file under src/ imports the sibling runtime packages or the retired MCP SDK / tRPC / zod", () => {
-		const forbidden = (s: string) => FORBIDDEN_PACKAGES.some((pkg) => s === pkg || s.startsWith(`${pkg}/`));
-		const offenders = files.flatMap((f) =>
-			importSpecifiers(readFileSync(f, "utf8"))
-				.filter(forbidden)
-				.map((s) => `${rel(f)}: ${s}`),
-		);
-		expect(offenders).toEqual([]);
+	it("src/ keeps stdout clean, reads process only where allowed, and imports no sibling front end", async () => {
+		const result = await Effect.runPromise(scan);
+		expect(result.files.length).toBeGreaterThan(0);
+		expect(result.files).toContain("main.ts");
+		expect(result.violations).toEqual([]);
+		// Every waiver still waives something, and nothing beyond the two files.
+		const waivedFiles = [...new Set(result.waived.map((offence) => `${offence.file} ${offence.rule}`))].sort();
+		expect(waivedFiles).toEqual(["main.ts process", "tools/run-tests.ts process", "tools/run-tests.ts stdout-write"]);
 	});
 });

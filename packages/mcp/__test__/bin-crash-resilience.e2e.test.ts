@@ -15,10 +15,10 @@
 import { rmSync } from "node:fs";
 import { dirname } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import type { McpProcess } from "@effected/mcp/testing";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
-import type { McpProcess } from "./utils/mcp-process.js";
-import { handshake, makeEnv, makeScratchProject, readResponse, spawnMcp } from "./utils/mcp-process.js";
+import { makeEnv, makeScratchProject, spawnMcp } from "./utils/mcp-process.js";
 
 const scratch = makeScratchProject("bin-crash-resilience-e2e");
 
@@ -42,7 +42,7 @@ const survives = (kind: "unhandledRejection" | "uncaughtException"): Promise<voi
 		Effect.scoped(
 			Effect.gen(function* () {
 				const server = yield* spawnMcp(makeEnv(scratch, { VITEST_AGENT_MCP_TEST_INJECT_CRASH: kind }));
-				yield* handshake(server);
+				yield* server.handshake();
 				// The injected crash fires on the setImmediate after the transport
 				// connects. Wait for its stderr line BEFORE probing liveness, so the
 				// case proves the server survived the crash rather than merely that
@@ -50,8 +50,10 @@ const survives = (kind: "unhandledRejection" | "uncaughtException"): Promise<voi
 				const crashed = yield* waitForStderr(server, kind);
 				expect(crashed, `expected stderr to report ${kind} before ping`).toContain(kind);
 				yield* server.send({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "ping", arguments: {} } });
-				const pong = (yield* readResponse(server, 2)) as {
-					readonly result: { readonly isError?: boolean; readonly structuredContent: { readonly message: string } };
+				const { response: pong } = (yield* server.readUntilResponse(2)) as unknown as {
+					readonly response: {
+						readonly result: { readonly isError?: boolean; readonly structuredContent: { readonly message: string } };
+					};
 				};
 				expect(pong.result.isError).not.toBe(true);
 				expect(pong.result.structuredContent.message).toBe("pong");

@@ -62,7 +62,7 @@ describe("run_tests success through the wire encoder (e2e)", () => {
 	}, async () => {
 		const { result, stderr } = await runOnce(leakFixtureDir, { files: ["leaky.test.ts"] });
 		expect(result.isError).toBe(false);
-		expect(stderr).toEqual([]);
+		expect(stderr).toBe("");
 		const structured = result.structuredContent as {
 			kind: string;
 			projectRoot: string;
@@ -94,7 +94,7 @@ describe("run_tests success through the wire encoder (e2e)", () => {
 	}, async () => {
 		const { result, stderr } = await runOnce(scopedFixtureDir, { project: "scope-echo", tags: { none: ["int"] } });
 		expect(result.isError).toBe(false);
-		expect(stderr).toEqual([]);
+		expect(stderr).toBe("");
 		expect(result.structuredContent).toMatchObject({
 			kind: "ok",
 			project: "scope-echo",

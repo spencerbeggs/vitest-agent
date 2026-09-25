@@ -153,7 +153,7 @@ const withReplayMarker = (parsed: unknown): unknown =>
  *    `DataStore.recordIdempotentResponse` best-effort: a persistence
  *    failure (or a cache-lookup failure) never surfaces to the caller, it
  *    is swallowed so a transient DB failure doesn't turn into a tool
- *    error.
+ *    error. A failed `handler` persists nothing, so a retry re-runs it.
  *
  * The combinator reads no ambient state — `path` and `params` are its
  * only inputs beyond the `DataReader` / `DataStore` services it adds to
@@ -162,8 +162,8 @@ const withReplayMarker = (parsed: unknown): unknown =>
  * @public
  */
 export const withIdempotency =
-	<P, R, S>(path: string, handler: (params: P) => Effect.Effect<R, never, S>) =>
-	(params: P): Effect.Effect<R | (R & { _idempotentReplay: true }), never, S | DataReader | DataStore> =>
+	<P, R, E, S>(path: string, handler: (params: P) => Effect.Effect<R, E, S>) =>
+	(params: P): Effect.Effect<R | (R & { _idempotentReplay: true }), E, S | DataReader | DataStore> =>
 		Effect.gen(function* () {
 			const spec = keySpecByPath.get(path);
 			const key = spec === undefined ? null : spec.deriveKey(params);

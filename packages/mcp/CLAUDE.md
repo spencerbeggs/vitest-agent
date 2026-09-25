@@ -1,6 +1,6 @@
 # @vitest-agent/mcp
 
-The Model Context Protocol server (`vitest-agent-mcp` bin) exposing the action-keyed tool surface to LLM agents over stdio. Built on Effect's native `McpServer` (`effect/unstable/ai`): the 30 tools are `Tool.make` values assembled into one `Toolkit`, registered under a strict-input contract, and served alongside six framing-only prompts as a single Effect `Layer` over `McpServer.layerStdio`. There is no MCP SDK, no tRPC and no zod — the wire protocol, JSON Schema generation and input validation all come from `effect`. A regular `dependency` of the plugin package, so every plugin consumer installs it. It stays a separate package for module-boundary clarity and an independent tool-surface release cadence.
+The Model Context Protocol server (`vitest-agent-mcp` bin) exposing the action-keyed tool surface to LLM agents over stdio. Built on Effect's native `McpServer` (`effect/unstable/ai`) through the `@effected/mcp` front-end kit: the 30 tools (23 `Tool.make`, seven union-parameter `Tool.dynamic`) are assembled into one `Toolkit`, registered strict-by-default with `McpToolkit.layer`, and served alongside six framing-only prompts as a single Effect `Layer` over `McpStdio.layer`. There is no MCP SDK, no tRPC and no zod — the wire protocol, JSON Schema generation and input validation all come from `effect`. A regular `dependency` of the plugin package, so every plugin consumer installs it. It stays a separate package for module-boundary clarity and an independent tool-surface release cadence.
 
 ## Layout
 
@@ -8,20 +8,22 @@ The Model Context Protocol server (`vitest-agent-mcp` bin) exposing the action-k
 src/
   bin.ts              -- bin entry: `void main()`, nothing else
   main.ts             -- the assembled program that OWNS the process:
+                         main(options?: MainOptions { distribution? }),
                          crash guards, projectDir / dbPath resolution,
                          boot-time session recovery, PlatformLive (engine),
-                         NodeStdio, NodeRuntime.runMain. Every `process`
+                         CurrentDistribution, NodeStdio, and
+                         NodeRuntime.runMain(McpStdio.launch(...), {
+                         teardown: McpStdio.teardown }). Every `process`
                          read for the server lives here. Published as the
                          `./main` subpath so the plugin can ship the same bin
   index.ts            -- programmatic barrel; never imports main.ts
-  server.ts           -- ServerLayer({ version }): registerStrictToolkit(Kit)
-                         + PromptsLayer over McpServer.layerStdio, with
-                         Logger.LogToStderr forced on (stdout is the wire)
+  server.ts           -- ServerLayer({ version }): McpToolkit.layer(Kit)
+                         + PromptsLayer over McpStdio.layer (LogToStderr,
+                         the stdin guard, McpStdio.protocols)
   toolkit.ts          -- Kit = Toolkit.make(<30 tools>); toolHandlers (the
-                         30-entry handler record, `satisfies HandlersFrom`);
+                         30-entry handler record, `satisfies HandlersFrom`;
+                         the seven union tools wrapped in decodeStrictUnion);
                          ToolsLayer = Kit.toLayer(toolHandlers)
-  register-toolkit.ts -- registerStrictToolkit(kit): the strict registration
-                         contract (see Conventions) over McpServer.addTool
   session.ts          -- McpSession service: { cwd, currentSessionId,
                          sessionContext }; createCurrentSessionIdRef,
                          createSessionContextRef(initial, recover?),
@@ -38,6 +40,9 @@ src/
                          `hypothesis`, `inventory`, `test`) dispatch on an
                          `action` (or `kind`) discriminator via
                          `Match.discriminatorsExhaustive`; plus the private
+                         _union-schema.ts (strictUnionTool,
+                         decodeStrictUnion, objectRootedUnion),
+                         _tool-refusal.ts (ToolRefusal, refuse),
                          _tdd-error-envelope.ts and _project-groups.ts
   prompts/
     layer.ts          -- PromptsLayer = Layer.mergeAll(six McpServer.prompt)
@@ -48,7 +53,6 @@ src/
   utils/
     crash-guards.ts   -- pure shouldExitOnUncaughtException(connected)
     safe-format-fatal-error.ts -- never-throwing fatal formatter for main.ts
-    tool-error-envelope.ts -- buildUnexpectedToolErrorEnvelope(tool, err)
     replay-marker.ts  -- the `_idempotentReplay` marker schema
   version.ts          -- CURRENT_MCP_VERSION (build-time literal)
 ```
@@ -57,9 +61,9 @@ src/
 
 | File | Purpose |
 | ---- | ------- |
-| `main.ts` | Registers the `unhandledRejection` / `uncaughtException` guards FIRST, then dynamically imports everything else (see Conventions). `resolveProjectDir` precedence: `VITEST_AGENT_PROJECT_DIR` -> `VITEST_AGENT_REPORTER_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> cwd. Builds `McpSession.layer` from `sessionContextFromEnv(process.env)` plus the engine's lazy `recoverSessionContextFromSessionEnv` thunk, provides `PlatformLive({ dbPath, env, ... })` and `NodeStdio.layer`, and launches under `NodeRuntime.runMain` with a teardown that maps an interrupts-only exit (stdin EOF) to 0. Carries the env-gated crash injector `VITEST_AGENT_MCP_TEST_INJECT_CRASH` for the spawned-bin e2e suite |
-| `server.ts` | `ServerLayer({ version })` and `SERVER_INSTRUCTIONS`. `protocols` is `[v2026_07_28, v2025_11_25, v2025_06_18]`: the stateless `2026-07-28` adapter (SEP-2575: `server/discover`, per-request `_meta`, no session) first, then the two newest stateful ones — every shipping client still opens with `initialize`, which only a stateful adapter answers. `instructions` (agent orientation, surfaced in both `initialize` and `server/discover`) is `SERVER_INSTRUCTIONS`; `serverInfo.description` is the one-line human summary |
-| `register-toolkit.ts` | The strict contract: treats every tool as `Tool.Strict` (native `onExcessProperty: "error"` decode and a served document with `additionalProperties: false` on every object node, from rc.116), makes the served schema object-rooted (a top-level `action` / `kind` union becomes `oneOf` + `x-discriminator`; `$ref` roots are inlined), walks the raw payload against the served schema BEFORE decoding and fails `InvalidParams` naming every unknown key and the accepted params at every level (upstream's message names only the first key and no accepted params), sends `structuredContent` = encoded result and `content[0].text` = the same result as JSON, maps a declared `Error`-shaped failure to `isError` text (upstream parity) and every other failure or defect to the `UnexpectedToolError` envelope. A line-for-line port of rc.116's `McpServer.registerToolkit`; the deviations are enumerated in the file header and re-checked on every rc bump |
+| `main.ts` | `main(options?: MainOptions)`. Registers the `unhandledRejection` / `uncaughtException` guards FIRST, then dynamically imports everything else (see Conventions). `resolveProjectDir` (engine, over `LaunchContext.projectDir`) precedence: `VITEST_AGENT_PROJECT_DIR` -> `VITEST_AGENT_REPORTER_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> cwd; the optional argv chat-id seed drops a `LaunchContext.isUnsubstituted` placeholder. Builds `McpSession.layer` from `sessionContextFromEnv(process.env)` plus the engine's lazy `recoverSessionContextFromSessionEnv` thunk, provides `PlatformLive({ dbPath, env, ... })`, `CurrentDistribution` (from `options.distribution`; the carrier's shim passes `@vitest-agent/plugin` and its version) and `NodeStdio.layer`, and launches with `NodeRuntime.runMain(McpStdio.launch(Connected), { teardown: McpStdio.teardown })` (launch failures reported on stderr; stdin EOF exits 0). Carries the env-gated crash injector `VITEST_AGENT_MCP_TEST_INJECT_CRASH` for the spawned-bin e2e suite |
+| `server.ts` | `ServerLayer({ version })` and `SERVER_INSTRUCTIONS`. `McpStdio.layer` serves `McpStdio.protocols` (`[v2026_07_28, v2025_11_25, v2025_06_18]`: the stateless adapter first, then the two newest stateful ones — pinned in `server-protocols.test.ts`), provides `LogToStderr`, and answers a malformed stdin line with `-32700` / `-32600` instead of wedging. `instructions` (agent orientation, surfaced in both `initialize` and `server/discover`) is `SERVER_INSTRUCTIONS`; `serverInfo.description` is the one-line human summary |
+| `tools/_union-schema.ts` | A top-level union can be neither a `Tool.make` `parameters` schema (core dies at registration) nor an `outputSchema` root (the stateful revisions drop it). `strictUnionTool` registers a union-parameter tool as `Tool.dynamic` whose raw schema is Effect's strict document for the union made object-rooted by `ToolInputSchema.objectRooted` (`oneOf` + `x-discriminator`, byte-identical to the pre-kit served schema); declare services with `.addDependency`. `decodeStrictUnion(tool, Input, handler)` runs `ToolInputSchema.unknownKeys` then the `onExcessProperty: "error"` decode, failing `McpSchema.InvalidParams` (the tool's declared failure, so an `isError` text result on every revision). `objectRootedUnion(Schema.Union([...]))` adds `type: "object"` beside a success union's `anyOf` — apply it before `.annotate({ identifier })` |
 | `toolkit.ts` | `Kit` is the single source of truth for the served tool list; `toolHandlers` must satisfy `Toolkit.HandlersFrom<typeof Kit.tools>`, so a tool without a handler (or vice versa) is a compile error |
 | `session.ts` | `McpSession` is the one per-process service tool handlers read for `cwd` and the host session; `layerTest({ cwd, ... })` requires an explicit `cwd` because this module is process-free (the boundary test enforces it) |
 | `prompts/layer.ts` | Prompt arguments are strings on the wire, so every parameter is `Schema.String`-based with `optionalKey` for the non-required ones; `wrapup.kind` is `Schema.Literals(WRAPUP_KINDS)`. `tdd-resume` reads `McpSession` to default `sessionId` to the recovered chat id |
@@ -85,38 +89,58 @@ src/
   is the one dependency-free static import. Adding a static import defeats
   the design.
 - **Every served `inputSchema` is strict, at every object level.** Tools are
-  registered through `registerStrictToolkit`, never `McpServer.toolkit`
-  (Effect's default decode is `onExcessProperty: "ignore"`, which strips a
-  misspelled filter and runs a WIDER query — issues #200 / #243). The
-  registrar rejects an unknown key with `Unrecognized parameter(s): …
-  Accepted params: …` naming the level it was found at, including inside
-  nested objects, array elements and the union branch a discriminant
-  selects. `served-schema-strict.test.ts` walks every served schema for
-  `additionalProperties: false` AND calls every tool with a bogus key and
-  with only its documented params.
+  registered through `McpToolkit.layer` (strict `"all"` by default), never
+  `McpServer.toolkit` (Effect's default decode is `onExcessProperty:
+  "ignore"`, which strips a misspelled filter and runs a WIDER query —
+  issues #200 / #243). An unknown key is rejected with `Unrecognized
+  parameter(s): …. Accepted params: ….` naming the level it was found at,
+  including inside nested objects, array elements and the union branch a
+  discriminant selects — by `McpToolkit`'s pre-check for a `Tool.make` tool,
+  by `decodeStrictUnion` for a union (`Tool.dynamic`) tool.
+  `served-schema-strict.test.ts` walks every served schema for
+  `additionalProperties: false`, runs `McpToolAudit` (object-rooted
+  `outputSchema`, title and hints on every tool) on both revisions, AND
+  calls every tool with a bogus key and with only its documented params.
+- **Union shapes go through `tools/_union-schema.ts`.** A new action-keyed
+  tool uses `strictUnionTool` + `decodeStrictUnion`; a new union success
+  schema is wrapped in `objectRootedUnion` so its `outputSchema` is served.
 - **Every log line goes to stderr.** stdout is the JSON-RPC wire.
-  `ServerLayer` provides `Logger.LogToStderr = true` and `main.ts` provides
-  it again on the launched effect (a layer-build failure is reported outside
-  the layer). Never `console.log` in a tool; the harness's
-  `consoleLogSoFar` must stay empty.
+  `McpStdio.layer` provides `LogToStderr` to everything it provides and
+  `McpStdio.launch` provides it around the whole launch (a layer-build
+  failure is reported outside the layer). Never `console.log` in a tool; the
+  harness's `consoleLogSoFar` must stay empty, and `McpHarness` dies the
+  wait on any stdout line that is not JSON-RPC.
 - **The MCP process must survive a stray throw.** Never remove the crash
   guards in `main.ts` or collapse them into a bare `main().catch()`; a
   killed process deregisters every tool mid-session. A handler defect
-  returns the `UnexpectedToolError` envelope rather than propagating.
-- **`process` boundary.** `boundaries.test.ts` allows `process` references
-  only in `bin.ts`, `main.ts`, `version.ts` and `tools/run-tests.ts`, and
-  forbids importing `@vitest-agent/cli`, `@vitest-agent/plugin`,
-  `@vitest-agent/reporter`, `@vitest-agent/ui`, `@modelcontextprotocol/sdk`,
-  `@trpc/server` and `zod` anywhere under `src/`. Ambient input reaches a
+  becomes core's scrubbed `isError` text (`Tool execution failed due to an
+  internal server error.`) with the cause logged on stderr — so a failure
+  the agent must act on belongs in the success shape (`ok: false` /
+  `kind: "error"`) where the tool has one, else a declared `ToolRefusal`
+  (`refuse(reason, remediation)` in `tools/_tool-refusal.ts`, the
+  `@effected/engine` `Remediation` folded into the message by
+  `ToolFailure.message`; the union tools declare it), never a defect.
+  `hypothesis` (unknown `tddTaskId` / `sessionId` / hypothesis id, no
+  session) and `tdd_task` `start` (unknown `sessionId` / `chatId`, neither,
+  blank `runId`) refuse this way; pinned in `tools-write.test.ts`.
+- **Source boundary.** `boundaries.test.ts` runs `SourceBoundary.scan`
+  (`@effected/workspaces/testing`, with `verifyFixtures`): `process` reads
+  only in `main.ts` and `tools/run-tests.ts` (plus the build-time
+  `version.ts` token), `stdout.write` only in `tools/run-tests.ts` (its
+  per-run stdout sink), no `console` stdout methods, and no import of
+  `@vitest-agent/cli`, `@vitest-agent/plugin`, `@vitest-agent/reporter`,
+  `@vitest-agent/ui`, `@modelcontextprotocol/sdk`, `@trpc/server` or `zod`
+  under `src/`; the exact waived set is asserted. Ambient input reaches a
   tool through `McpSession`, not `process.env`.
 - **Effect Schema end to end.** Tool inputs (`parameters`), outputs
   (`success`) and prompt arguments are Effect `Schema` values; the served
   JSON Schema is generated from them. There is no second schema language
   to keep in sync.
 - **Tool output conventions:** `structuredContent` is always the encoded
-  `success` value and `content[0].text` is the same value as JSON — no
-  markdown channel (#487: Claude Code forwards only `structuredContent` to
-  the model). Put anything the agent must read in a declared result field.
+  `success` value — the one channel agents read (Claude Code forwards only
+  `structuredContent` when present, Effect-TS/effect#8316). Core also puts
+  the same JSON in `content[0].text`; never document or rely on it. Put
+  anything the agent must read in a declared result field.
   The encoded `success` value is what ships — an undeclared result key is STRIPPED by the
   encoder, so a marker like `_idempotentReplay` must be declared on the
   success schema.
@@ -136,9 +160,11 @@ src/
 
 - Adding a tool: create `tools/<name>.ts` with the parameters / success
   Schemas, the `Tool.make("<name>", { description, parameters, success,
-  dependencies })` value (annotate `Tool.Title`, `Tool.Readonly`,
-  `Tool.Destructive`, `Tool.OpenWorld`, `Tool.Idempotent`; `Tool.Strict` is
-  implied by the registrar) and the `handle<Name>` Effect; add both to
+  dependencies })` value — or `strictUnionTool(...)` plus `.addDependency`
+  for a union `parameters`, wrapped in `decodeStrictUnion` in `toolkit.ts` —
+  (annotate `Tool.Title`, `Tool.Readonly`, `Tool.Destructive`,
+  `Tool.OpenWorld`, `Tool.Idempotent`; `Tool.Strict` is implied by
+  `McpToolkit.layer`) and the `handle<Name>` Effect; add both to
   `toolkit.ts`; add the name to the plugin's
   `safe-mcp-vitest-agent-ops.txt` (omit destructive tools so they prompt;
   consider `pre-tool-use/tdd-restricted.sh` if the TDD orchestrator must
@@ -152,18 +178,21 @@ src/
   add an `McpServer.prompt({...})` to `prompts/layer.ts` with string-based
   parameters (`Schema.optionalKey` for optional args) and extend
   `prompts-layer.test.ts`'s expected name list.
-- Testing tools: `__test__/utils/harness.ts` builds the REAL `ServerLayer`
-  over `Stdio.layerTest` queues — no child process — so a test sees the
-  exact served schemas and wire results. Use `listTools` / `callTool` /
-  `sendRequest` (`prompts/list`, `prompts/get`), `seed` to populate the
-  same in-memory store the server reads, and `session` to pin an
-  `McpSession` (a fixture `cwd`, a recovered context). For handler-level
+- Testing tools: `__test__/utils/harness.ts` wraps `@effected/mcp/testing`'s
+  `McpHarness` over the REAL `ServerLayer` — no child process — so a test
+  sees the exact served schemas and wire results. Use `listTools` /
+  `callTool` / `sendRequest` (`prompts/list`, `prompts/get`) /
+  `awaitNotification`, `protocol` / `stateless` to pick the revision, `seed`
+  to populate the same in-memory store the server reads, `session` to pin an
+  `McpSession` (a fixture `cwd`, a recovered context), and `distribution` to
+  provide `CurrentDistribution`. For handler-level
   assertions with full type narrowing, `__test__/utils/caller.ts`'s
   `makeCaller(runtime, session?)` decodes params through the tool's schema
   and invokes `toolHandlers[name]` directly (`tool-handlers.test.ts`).
   Crash-guard behavior needs the real spawned bin
   (`bin-crash-resilience.e2e.test.ts`, `server-lifecycle.e2e.test.ts` via
-  `utils/mcp-process.ts`) — rebuild `dist/dev` first.
+  `utils/mcp-process.ts`, over the kit's `McpProcess`) — rebuild `dist/dev`
+  first.
 - Served enums come from the tool cores: every consolidated tool exports
   its discriminant tuple (`TEST_ACTIONS`, `INVENTORY_KINDS`, `NOTE_ACTIONS`,
   `HYPOTHESIS_ACTIONS`, `TDD_TASK_ACTIONS`, `TDD_GOAL_ACTIONS`,
@@ -197,7 +226,7 @@ src/
 ## Design references
 
 - [`../../okf/modules/mcp.md`](../../okf/modules/mcp.md)
-  Load when working on tool implementations, the strict registrar,
+  Load when working on tool implementations, strict registration,
   prompts, or `run_tests` (which runs `createVitest` in-process now, not
   `spawnSync`).
 - [`../../okf/interfaces/mcp-tools.md`](../../okf/interfaces/mcp-tools.md)

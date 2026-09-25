@@ -6,16 +6,32 @@
  * before `NodeRuntime`, the engine platform and `ServerLayer` are ever
  * evaluated, so a throw during module evaluation is still reported on stderr
  * rather than crashing silently. Adding a static import here would defeat
- * that. `bin.ts` is the published bin shim; this module is also published as
- * the `./main` subpath so the carrier (`@vitest-agent/plugin`) can ship its
- * own `vitest-agent-mcp` bin over it.
+ * that; an `import type` is erased at build time and is fine. `bin.ts` is
+ * the published bin shim; this module is also published as the `./main`
+ * subpath so the carrier (`@vitest-agent/plugin`) can ship its own
+ * `vitest-agent-mcp` bin over it, passing its identity as `distribution`.
  *
  * Every `process` read lives here, not in the server layer or the tools.
  *
  * @packageDocumentation
  */
 
+import type { Distribution } from "@effected/engine";
 import { shouldExitOnUncaughtException } from "./utils/crash-guards.js";
+
+/**
+ * Options for {@link main}.
+ *
+ * @public
+ */
+export interface MainOptions {
+	/**
+	 * The package whose bin launched the server — the carrier
+	 * (`@vitest-agent/plugin`) passes its own name and version. Omitted for a
+	 * direct `@vitest-agent/mcp` install. Surfaced as `ping`'s `distribution`.
+	 */
+	readonly distribution?: Distribution | undefined;
+}
 
 /**
  * Whether the stdio transport is live for this process — set once the
@@ -65,18 +81,21 @@ const scheduleTestCrashInjection = (): void => {
 /**
  * Optional first positional argument: an initial Claude Code chat UUID (the
  * host's `chatId`) to seed the MCP server's session association. Claude Code
- * substitutes unknown `${...}` variables to literal text in some surfaces, so
- * a literal substitution is treated as absent rather than seeding garbage.
+ * passes unknown `${...}` variables through as literal text in some surfaces,
+ * so an unsubstituted placeholder is treated as absent rather than seeding
+ * garbage.
  *
  * @param argv - the raw `process.argv`
- * @returns the trimmed seed, or `null` when absent, empty, or a literal `${...}`
+ * @param isUnsubstituted - `LaunchContext.isUnsubstituted`, passed in because
+ *   this module may not statically import the server graph
+ * @returns the trimmed seed, or `null` when absent, empty, or a placeholder
  */
-const resolveInitialSessionId = (argv: ReadonlyArray<string>): string | null => {
-	const first = argv[2];
-	if (first === undefined) return null;
-	const trimmed = first.trim();
-	if (trimmed.length === 0) return null;
-	if (trimmed.startsWith("${") && trimmed.endsWith("}")) return null;
+const resolveInitialSessionId = (
+	argv: ReadonlyArray<string>,
+	isUnsubstituted: (value: string) => boolean,
+): string | null => {
+	const trimmed = argv[2]?.trim();
+	if (trimmed === undefined || trimmed.length === 0 || isUnsubstituted(trimmed)) return null;
 	return trimmed;
 };
 
@@ -84,16 +103,18 @@ const resolveInitialSessionId = (argv: ReadonlyArray<string>): string | null => 
  * Run the vitest-agent MCP server over stdio. Owns the process: registers
  * the crash guards, resolves the project directory and `data.db` path,
  * recovers the host session context, and launches the server layer under
- * `NodeRuntime.runMain`.
+ * `NodeRuntime.runMain` with `McpStdio.launch` / `McpStdio.teardown`.
  *
  * Not re-exported from `index.ts` — a library consumer's import graph must
  * not pull in the process-owning module.
  *
+ * @param options - the launching distribution, when a carrier shipped the bin
  * @public
  */
-export const main = async (): Promise<void> => {
+export const main = async (options: MainOptions = {}): Promise<void> => {
 	// Issue #191, sub-item A. Every throw or rejection *inside* a tool call is
-	// already caught by `registerStrictToolkit`; anything reaching these
+	// already caught by core's `registerToolkit` (a defect becomes a scrubbed
+	// `isError` result, logged on stderr); anything reaching these
 	// handlers originated outside a tool-call boundary and has no in-flight
 	// caller waiting on it, so logging and continuing is safe.
 	process.on("unhandledRejection", (reason) => {
@@ -124,7 +145,9 @@ export const main = async (): Promise<void> => {
 		const NodeRuntime = await import("@effect/platform-node/NodeRuntime");
 		const NodeServices = await import("@effect/platform-node/NodeServices");
 		const NodeStdio = await import("@effect/platform-node/NodeStdio");
-		const { Cause, Effect, Exit, Layer, Logger, Runtime } = await import("effect");
+		const { Effect, Layer, Option } = await import("effect");
+		const { CurrentDistribution, LaunchContext } = await import("@effected/engine");
+		const { McpStdio } = await import("@effected/mcp");
 		const {
 			PathResolutionLive,
 			PlatformLive,
@@ -142,7 +165,7 @@ export const main = async (): Promise<void> => {
 		// `VITEST_AGENT_PROJECT_DIR`, then `VITEST_AGENT_REPORTER_PROJECT_DIR`
 		// (the Claude Code plugin loader), then `CLAUDE_PROJECT_DIR`, then cwd.
 		const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
-		const initialSessionId = resolveInitialSessionId(process.argv);
+		const initialSessionId = resolveInitialSessionId(process.argv, LaunchContext.isUnsubstituted);
 
 		const dbPath = await Effect.runPromise(
 			resolveDataPath(projectDir).pipe(
@@ -167,10 +190,9 @@ export const main = async (): Promise<void> => {
 		const Main = ServerLayer({ version: CURRENT_MCP_VERSION }).pipe(
 			Layer.provide(Session),
 			Layer.provide(PlatformLive({ dbPath, env, logLevel: resolveLogLevel(env), logFile: resolveLogFile(env) })),
+			// Read by `ping`; a direct install leaves the reference at its `none` default.
+			Layer.provide(Layer.succeed(CurrentDistribution, Option.fromNullishOr(options.distribution))),
 			Layer.provide(NodeStdio.layer),
-			// Defense in depth with `ServerLayer`: every log line must land on
-			// stderr, because stdout is the JSON-RPC wire.
-			Layer.provide(Layer.succeed(Logger.LogToStderr, true)),
 		);
 
 		// `Layer.launch(Main)` never resolves, so the "transport connected" flag
@@ -186,19 +208,12 @@ export const main = async (): Promise<void> => {
 			}),
 		).pipe(Layer.provide(Main));
 
-		// `runMain` logs a layer-build failure's cause itself, outside `Main`
-		// where `LogToStderr` is not yet in scope — provide it on the launched
-		// effect too so that report can never land on the JSON-RPC wire.
-		const program = Layer.launch(Connected).pipe(Effect.provideService(Logger.LogToStderr, true));
-
-		NodeRuntime.runMain(program, {
-			// `Runtime.defaultTeardown` reports 130 whenever the main fiber's cause
-			// is interrupts-only — exactly what stdin EOF produces, since the stdio
-			// protocol interrupts the fiber that built it when stdin ends. A client
-			// disconnect is the ordinary end of every session, so map it to 0.
-			teardown: (exit, onExit) =>
-				Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause) ? onExit(0) : Runtime.defaultTeardown(exit, onExit),
-		});
+		// `McpStdio.launch` reports a launch failure on stderr itself (with
+		// `LogToStderr` provided around the whole launch, PlatformLive's build
+		// included) and hides it from `runMain`, whose own report would land on
+		// the wire. `McpStdio.teardown` maps stdin EOF — an interrupt-only exit,
+		// the ordinary end of every session — to 0 instead of 130.
+		NodeRuntime.runMain(McpStdio.launch(Connected), { teardown: McpStdio.teardown });
 	} catch (err) {
 		process.stderr.write(`vitest-agent-mcp: startup failed: ${formatFatal(err)}\n`);
 		process.exit(1);

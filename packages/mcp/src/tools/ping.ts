@@ -2,9 +2,10 @@
 //
 // Trivial liveness probe used to verify hot-patch reload of the MCP
 // server. Returns the canonical `pong` payload so callers can assert
-// a healthy round-trip.
+// a healthy round-trip, plus the carrier the bin was launched through.
 
-import { Effect, Schema } from "effect";
+import { CurrentDistribution, DistributionField } from "@effected/engine";
+import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 
 /**
@@ -16,10 +17,14 @@ export const PingResult = Schema.Struct({
 	message: Schema.Literal("pong").annotate({
 		description: "Constant `pong`. Presence confirms the MCP server responded.",
 	}),
+	distribution: DistributionField.annotate({
+		description:
+			"The package that shipped this bin (`{ name, version }`, e.g. `@vitest-agent/plugin`), or null when `@vitest-agent/mcp` was launched directly. Packaging provenance, not a version to compare.",
+	}),
 }).annotate({
 	identifier: "PingResult",
 	title: "ping result",
-	description: "Liveness probe. Carries no data beyond the constant `pong` discriminant.",
+	description: "Liveness probe: the constant `pong`, plus the distribution the server was launched through.",
 });
 /**
  * The decoded {@link PingResult}.
@@ -36,7 +41,8 @@ export type PingResultType = Schema.Schema.Type<typeof PingResult>;
  * @public
  */
 export const pingTool = Tool.make("ping", {
-	description: "Ping the MCP server — returns 'pong'. Used to verify hot-patch reload.",
+	description:
+		"Ping the MCP server — returns 'pong' and the distribution (carrier package) it was launched through. Used to verify hot-patch reload.",
 	success: PingResult,
 })
 	.annotate(Tool.Title, "Ping")
@@ -50,4 +56,8 @@ export const pingTool = Tool.make("ping", {
  *
  * @public
  */
-export const handlePing = (): Effect.Effect<PingResultType> => Effect.succeed({ message: "pong" as const });
+export const handlePing = (): Effect.Effect<PingResultType> =>
+	Effect.gen(function* () {
+		const distribution = yield* CurrentDistribution;
+		return { message: "pong" as const, distribution: Option.getOrNull(distribution) };
+	});

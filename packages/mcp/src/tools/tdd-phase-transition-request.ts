@@ -1,3 +1,4 @@
+import { Remediation } from "@effected/engine";
 import type { CitedArtifactRow } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { ArtifactKind, Phase } from "@vitest-agent/sdk";
@@ -9,6 +10,7 @@ import {
 
 import { Effect, Option, Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
+import { objectRootedUnion } from "./_union-schema.js";
 
 /**
  * Lookback window for the missing_artifact_evidence cross-session
@@ -55,13 +57,10 @@ const denialReasonLiteral = Schema.Literals([
 	"evidence_test_was_already_failing",
 ]);
 
-const RemediationSchema = Schema.Struct({
-	suggestedTool: Schema.String.annotate({ description: "Next tool the agent should call to make progress." }),
-	suggestedArgs: Schema.Record(Schema.String, Schema.Unknown).annotate({
-		description: "Concrete arguments for `suggestedTool` that fix the underlying issue.",
-	}),
-	humanHint: Schema.String.annotate({ description: "Plain-language explanation of what to do next." }),
-}).annotate({ identifier: "PhaseTransitionRemediation" });
+const RemediationSchema = Remediation.annotate({
+	description:
+		"Suggested next action: `hint` explains what to do, `suggestedTool` is the tool to call next, and `suggestedArgs` its arguments.",
+});
 
 const PhaseTransitionAccepted = Schema.Struct({
 	accepted: Schema.Literal(true).annotate({ description: "Discriminant — `true` when the transition was granted." }),
@@ -98,7 +97,9 @@ const PhaseTransitionDenied = Schema.Struct({
  *
  * @public
  */
-export const PhaseTransitionResult = Schema.Union([PhaseTransitionAccepted, PhaseTransitionDenied]).annotate({
+export const PhaseTransitionResult = objectRootedUnion(
+	Schema.Union([PhaseTransitionAccepted, PhaseTransitionDenied]),
+).annotate({
 	identifier: "PhaseTransitionResult",
 	title: "tdd_phase_transition_request result",
 	description:
@@ -175,7 +176,7 @@ export const handlePhaseTransitionRequest = (
 				remediation: {
 					suggestedTool: "tdd_goal",
 					suggestedArgs: { action: "list", tddTaskId: input.tddTaskId },
-					humanHint: `No tdd_session_goals row with id=${input.goalId}. Call tdd_goal({ action: "list" }) to find the correct goal id.`,
+					hint: `No tdd_session_goals row with id=${input.goalId}. Call tdd_goal({ action: "list" }) to find the correct goal id.`,
 				},
 			};
 		}
@@ -187,7 +188,7 @@ export const handlePhaseTransitionRequest = (
 				remediation: {
 					suggestedTool: "tdd_goal",
 					suggestedArgs: { action: "list", tddTaskId: input.tddTaskId },
-					humanHint:
+					hint:
 						`Goal id=${input.goalId} belongs to TDD task ${goalOpt.value.sessionId}, ` +
 						`not the requested tddTaskId=${input.tddTaskId}. ` +
 						"Pass the tddTaskId of the goal's parent task, or pick a goal that belongs to the active task.",
@@ -202,7 +203,7 @@ export const handlePhaseTransitionRequest = (
 				remediation: {
 					suggestedTool: "tdd_goal_update",
 					suggestedArgs: { id: input.goalId, status: "in_progress" },
-					humanHint:
+					hint:
 						`Goal id=${input.goalId} has status '${goalOpt.value.status}'. ` +
 						"Phase transitions require the goal to be in_progress. " +
 						"Call tdd_goal_update({status:'in_progress'}) before requesting transitions.",
@@ -221,7 +222,7 @@ export const handlePhaseTransitionRequest = (
 					remediation: {
 						suggestedTool: "tdd_behavior_list",
 						suggestedArgs: { scope: "goal", goalId: input.goalId },
-						humanHint: `No tdd_session_behaviors row with id=${input.behaviorId}. Call tdd_behavior_list to find the correct behavior id.`,
+						hint: `No tdd_session_behaviors row with id=${input.behaviorId}. Call tdd_behavior_list to find the correct behavior id.`,
 					},
 				};
 			}
@@ -233,7 +234,7 @@ export const handlePhaseTransitionRequest = (
 					remediation: {
 						suggestedTool: "tdd_behavior_get",
 						suggestedArgs: { id: input.behaviorId },
-						humanHint:
+						hint:
 							`Behavior id=${input.behaviorId} belongs to goal ${behaviorOpt.value.goalId}, ` +
 							`not the requested goalId=${input.goalId}. Pass the goalId of the behavior's parent goal.`,
 					},
@@ -320,7 +321,7 @@ export const handlePhaseTransitionRequest = (
 					remediation: {
 						suggestedTool: "run_tests",
 						suggestedArgs: {},
-						humanHint,
+						hint: humanHint,
 					},
 				};
 			}
@@ -343,7 +344,7 @@ export const handlePhaseTransitionRequest = (
 					remediation: {
 						suggestedTool: "run_tests",
 						suggestedArgs: {},
-						humanHint:
+						hint:
 							`Cited artifact id ${resolvedArtifactId} does not exist. ` +
 							"Artifacts are recorded by hooks observing your tool calls (Decision D7), " +
 							"so run the test (e.g. via the run_tests MCP tool) or make the file edit " +
@@ -384,7 +385,10 @@ export const handlePhaseTransitionRequest = (
 		});
 
 		if (!result.accepted) {
-			return result;
+			// The SDK validator's remediation says `humanHint`; the wire shape is
+			// `@effected/engine`'s `Remediation`, which says `hint`.
+			const { humanHint, ...remediation } = result.remediation;
+			return { ...result, remediation: { ...remediation, hint: humanHint } };
 		}
 
 		// 6. Open the new phase row (which closes the prior one).
