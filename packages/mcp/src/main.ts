@@ -55,6 +55,33 @@ const resolveInitialSessionId = (
 	return trimmed;
 };
 
+/** What {@link parseInjectCrash} yields: the guard's `injectCrash` option. */
+interface InjectCrash {
+	readonly at: "load" | "connected";
+	readonly kind: "uncaughtException" | "unhandledRejection";
+}
+
+const INJECT_AT: ReadonlyArray<InjectCrash["at"]> = ["load", "connected"];
+const INJECT_KIND: ReadonlyArray<InjectCrash["kind"]> = ["uncaughtException", "unhandledRejection"];
+
+/**
+ * Parse the test-only `VITEST_AGENT_MCP_TEST_INJECT_CRASH` value into the
+ * guard's `injectCrash`. Accepts `<at>:<kind>` (`at` is `load` or
+ * `connected`, `kind` is `uncaughtException` or `unhandledRejection`), and a
+ * bare `<kind>` as the legacy spelling of `connected:<kind>`. Anything else,
+ * or no value, is `undefined`: no injection.
+ */
+const parseInjectCrash = (value: string | undefined): InjectCrash | undefined => {
+	if (value === undefined) return undefined;
+	const [first, second, ...rest] = value.split(":");
+	if (rest.length > 0) return undefined;
+	const at = second === undefined ? "connected" : first;
+	const kind = second === undefined ? first : second;
+	const validAt = INJECT_AT.find((candidate) => candidate === at);
+	const validKind = INJECT_KIND.find((candidate) => candidate === kind);
+	return validAt === undefined || validKind === undefined ? undefined : { at: validAt, kind: validKind };
+};
+
 /**
  * Run the vitest-agent MCP server over stdio. Owns the process: registers
  * the crash guards through `McpGuard.run`, resolves the project directory and `data.db` path,
@@ -81,10 +108,9 @@ export const main = (options: MainOptions = {}): Promise<void> =>
 		label: "vitest-agent-mcp",
 		host: process,
 		policy: { onUncaught: "exitBeforeConnect", onRejection: "log" },
-		// Test-only: `bin-crash-resilience.e2e.test.ts` sets it to
-		// `uncaughtException` / `unhandledRejection` to raise one right after
-		// the server is serving. Never set in a normal install.
-		injectCrashAfterConnect: process.env.VITEST_AGENT_MCP_TEST_INJECT_CRASH,
+		// Test-only: `bin-crash-resilience.e2e.test.ts` sets it to raise one
+		// stray crash before `load()` or once serving. Never set in a normal install.
+		injectCrash: parseInjectCrash(process.env.VITEST_AGENT_MCP_TEST_INJECT_CRASH),
 		load: async () => {
 			// No static imports of the server graph above this line.
 			const { safeFormatFatalError } = await import("./utils/safe-format-fatal-error.js");
