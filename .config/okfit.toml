@@ -1,4 +1,4 @@
-#:schema https://raw.githubusercontent.com/spencerbeggs/okfit/main/schemas/config/okfit-1.0.0.json
+#:schema https://raw.githubusercontent.com/spencerbeggs/okfit/main/schemas/1.0/config.json
 
 [bundle]
 path = "okf"
