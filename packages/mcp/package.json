@@ -45,7 +45,7 @@
 	},
 	"devDependencies": {
 		"@effected/workspaces": "catalog:effected",
-		"@savvy-web/bundler": "^2.4.11",
+		"@savvy-web/bundler": "^2.4.12",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-v8": "catalog:test",
 		"typescript": "catalog:build"
