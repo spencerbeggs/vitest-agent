@@ -9,7 +9,7 @@ The sidecar binary is a **Node Single Executable Application (SEA)** that wraps 
 
 ## Why a SEA binary exists
 
-Every Bash tool call fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` environment prefix. The naive implementation shells out to `vitest-agent agent inject-env` through the full JS CLI on every call. The full CLI pays Node module-graph cold-start — loading `effect`, its `effect/unstable/cli` command framework, and their transitive dependencies — on a path that runs in the inner loop of every agent turn.
+Every Bash tool call fires the plugin's `pre-tool-use/bash.sh` hook, which detects Vitest invocations and prepends the canonical `VITEST_AGENT_*` environment prefix. The naive implementation shells out to `vitest-agent agent inject-env` through the full JS CLI on every call. The full CLI pays Node module-graph cold-start — loading `effect`, its `effect/cli` command framework, and their transitive dependencies — on a path that runs in the inner loop of every agent turn.
 
 The SEA binary eliminates that startup cost. It runs the same `injectEnv` logic from `@vitest-agent/sdk/dispatch` with the startup overhead of a precompiled binary rather than a Node module graph load. The qualitative difference is meaningful at agent interaction speed; this is the reason the sidecar exists.
 

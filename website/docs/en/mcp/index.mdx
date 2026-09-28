@@ -5,7 +5,7 @@ description: The vitest-agent MCP server bin, built on Effect's native McpServer
 
 # @vitest-agent/mcp
 
-The `vitest-agent-mcp` MCP server bin, built on Effect's native `McpServer` (`effect/unstable/ai`). Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces six framing-only prompts.
+The `vitest-agent-mcp` MCP server bin, built on Effect's native `McpServer` (`effect/ai`). Exposes action-keyed tools over stdio that give LLM agents structured access to test data, coverage, history, failure signatures, TDD lifecycle state, and more. Also surfaces six framing-only prompts.
 
 This package is a regular dependency of `@vitest-agent/plugin`, and the plugin declares the `vitest-agent-mcp` bin itself as a shim over this package's `./main` entry — so installing the plugin links the bin on every package manager. Install `@vitest-agent/mcp` directly only if you run the MCP server standalone.
 

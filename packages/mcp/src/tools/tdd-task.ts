@@ -9,7 +9,7 @@ import { McpToolkit, ToolFailure, ToolOutputSchema, ToolRefusal } from "@effecte
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { GoalDetail } from "@vitest-agent/sdk";
 import { Effect, Match, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 
 const TddPhaseRow = Schema.Struct({

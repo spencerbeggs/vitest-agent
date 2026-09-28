@@ -2,7 +2,7 @@
 // handler record, and the handlers layer `McpToolkit.layer` requires.
 
 import { McpToolkit } from "@effected/mcp";
-import { Toolkit } from "effect/unstable/ai";
+import { Toolkit } from "effect/ai";
 import { withIdempotency } from "./idempotency.js";
 import { acceptanceMetricsTool, handleAcceptanceMetrics } from "./tools/acceptance-metrics.js";
 import { cacheHealthTool, handleCacheHealth } from "./tools/cache-health.js";

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import { Effect } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import { afterEach, describe, expect, it } from "vitest";
 import { _resetMigrationCacheForTesting, ensureMigrated } from "../src/utils/ensure-migrated.js";
 

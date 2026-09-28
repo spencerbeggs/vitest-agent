@@ -39,7 +39,7 @@ import { classifyTestPath, detectNonDefaultDiscoverStrategy, findOwningWorkspace
 import { exitCodeForTag, injectEnv } from "@vitest-agent/sdk/dispatch";
 import { resolveSidecarBinaryPath } from "@vitest-agent/sidecar";
 import { Cause, Effect, Option } from "effect";
-import { Argument, Command, Flag } from "effect/unstable/cli";
+import { Argument, Command, Flag } from "effect/cli";
 import { recordCommand } from "./record.js";
 import { triageCommand } from "./triage.js";
 import { wrapupCommand } from "./wrapup.js";

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { DataStoreError, extractSqlReason } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import type { MapSessionInput, MapSessionOutput, SessionContextRow } from "../services/PerClientSessionMap.js";
 import { PerClientSessionMapReader, PerClientSessionMapWriter } from "../services/PerClientSessionMap.js";
 

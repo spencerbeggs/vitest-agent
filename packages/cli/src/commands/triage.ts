@@ -6,7 +6,7 @@
 
 import { formatTriageEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";
-import { Command, Flag } from "effect/unstable/cli";
+import { Command, Flag } from "effect/cli";
 
 const formatOption = Flag.withDefault(Flag.Literals("format", ["markdown", "json", "silent"]), "markdown");
 const projectOption = Flag.optional(Flag.String("project"));

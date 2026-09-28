@@ -1,6 +1,6 @@
 import { probeHostMetadataFromEnv } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { AgentContext, RunContext, RunContextService } from "../services/RunContext.js";
 
 type Spawner = (typeof ChildProcessSpawner.ChildProcessSpawner)["Service"];

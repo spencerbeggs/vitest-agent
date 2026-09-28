@@ -72,14 +72,14 @@ vitest-agent/
 │   ├── cli/                    # @vitest-agent/cli (CLI bin)
 │   │   └── src/
 │   │       ├── bin.ts              # Shebang shim over main.ts
-│   │       ├── main.ts             # effect/unstable/cli entry point (exported at ./main)
+│   │       ├── main.ts             # effect/cli entry point (exported at ./main)
 │   │       ├── commands/           # Thin command wrappers (doctor, db, agent)
 │   │       └── lib/                # Testable formatting logic
 │   ├── mcp/                    # @vitest-agent/mcp (MCP server bin)
 │   │   └── src/
 │   │       ├── bin.ts              # Shebang shim over main.ts
 │   │       ├── main.ts             # Process owner (exported at ./main)
-│   │       ├── server.ts           # Effect-native ServerLayer (effect/unstable/ai McpServer)
+│   │       ├── server.ts           # Effect-native ServerLayer (effect/ai McpServer)
 │   │       ├── toolkit.ts          # Toolkit gathering the 30 Tool.make definitions
 │   │       ├── prompts/            # Six framing-only prompts
 │   │       └── tools/              # One file per MCP tool

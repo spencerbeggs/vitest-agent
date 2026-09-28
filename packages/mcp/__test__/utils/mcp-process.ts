@@ -12,8 +12,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { McpProcess } from "@effected/mcp/testing";
 import type { Effect, PlatformError, Scope } from "effect";
-import type { ChildProcessSpawner } from "effect/unstable/process";
-import { ChildProcess } from "effect/unstable/process";
+import type { ChildProcessSpawner } from "effect/process";
+import { ChildProcess } from "effect/process";
 
 /** The built dev bin, resolved from this file's own location, never from cwd. */
 export const MCP_BIN: string = resolve(

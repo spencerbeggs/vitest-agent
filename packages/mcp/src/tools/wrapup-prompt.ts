@@ -6,7 +6,7 @@
 
 import { DataReader, formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 /**
  * The `wrapup_prompt` tool's success payload.

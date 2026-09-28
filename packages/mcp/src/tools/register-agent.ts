@@ -30,7 +30,7 @@
 import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader, DataStore, deriveIdempotencyKey } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 /**
  * The `register_agent` tool's parameters.

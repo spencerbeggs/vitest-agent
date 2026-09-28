@@ -9,7 +9,7 @@ import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader } from "@vitest-agent/engine";
 import { TrendRecord } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const TrendsAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true).annotate({

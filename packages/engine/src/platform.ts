@@ -4,9 +4,9 @@ import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { Effect, LogLevel } from "effect";
 import { Layer } from "effect";
-import type { MigrationError } from "effect/unstable/sql/Migrator";
-import type { SqlClient } from "effect/unstable/sql/SqlClient";
-import type { SqlError } from "effect/unstable/sql/SqlError";
+import type { MigrationError } from "effect/sql/Migrator";
+import type { SqlClient } from "effect/sql/SqlClient";
+import type { SqlError } from "effect/sql/SqlError";
 import { DataReaderLive } from "./layers/DataReaderLive.js";
 import { DataStoreLive } from "./layers/DataStoreLive.js";
 import { HistoryTrackerLive } from "./layers/HistoryTrackerLive.js";

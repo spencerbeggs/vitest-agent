@@ -10,7 +10,7 @@
 
 import { McpStdio, McpToolkit } from "@effected/mcp";
 import { Effect, Layer, Schema } from "effect";
-import { McpProtocol, Tool, Toolkit } from "effect/unstable/ai";
+import { McpProtocol, Tool, Toolkit } from "effect/ai";
 import { describe, expect, it } from "vitest";
 import { SERVER_INSTRUCTIONS } from "../src/server.js";
 import type { JsonRpcMessage, McpHarness } from "./utils/harness.js";
@@ -148,12 +148,14 @@ describe("tools/call revision x outcome matrix", () => {
 					// Pre-2025-11-25 revisions carry invalid params as a JSON-RPC -32602 error.
 					expect(response.result).toBeUndefined();
 					expect(jsonError(response).code).toBe(-32602);
-					expect(jsonError(response).message).toContain("Unrecognized parameter(s): bogus");
+					expect(jsonError(response).message).toContain(`at ["bogus"]`);
+					expect(jsonError(response).message).toContain("This tool accepts no params.");
 				} else {
 					const result = response.result as CallToolResult;
 					expect(result.isError).toBe(true);
 					expect(result.structuredContent).toBeUndefined();
-					expect(result.content[0]?.text).toContain("Unrecognized parameter(s): bogus");
+					expect(result.content[0]?.text).toContain(`at ["bogus"]`);
+					expect(result.content[0]?.text).toContain("This tool accepts no params.");
 				}
 			});
 		});
@@ -199,8 +201,8 @@ describe("every tool is strict, with or without Tool.Strict", () => {
 		}
 		for (const result of [strictResult, lenientResult]) {
 			expect(result.isError).toBe(true);
-			expect(result.content[0]?.text).toContain("Unrecognized parameter(s): extra");
-			expect(result.content[0]?.text).toContain("Accepted params: name");
+			expect(result.content[0]?.text).toContain(`at ["extra"]`);
+			expect(result.content[0]?.text).toContain("Accepted params at the root: name.");
 		}
 		expect(strictOk.structuredContent).toEqual({ echoed: "a" });
 		expect(lenientOk.structuredContent).toEqual({ echoed: "a" });

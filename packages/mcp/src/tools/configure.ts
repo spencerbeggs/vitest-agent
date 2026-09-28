@@ -3,7 +3,7 @@
 import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const SettingsRowSchema = Schema.Struct({
 	hash: Schema.String.annotate({

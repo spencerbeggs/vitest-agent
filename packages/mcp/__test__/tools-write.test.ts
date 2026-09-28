@@ -187,7 +187,7 @@ describe("register_agent", () => {
 		const result = await call("register_agent", { chatId: "x", agentType: "claude-code-main", sessionId: "nope" });
 		expect(result.isError).toBe(true);
 		expect(text(result)).toContain("sessionId");
-		expect(text(result)).toContain("Accepted params");
+		expect(text(result)).toContain("Accepted params at the root:");
 	});
 });
 
@@ -261,7 +261,7 @@ describe("note", () => {
 		const foreign = await call("note", { action: "get", id: 1, query: "x" });
 		expect(foreign.isError).toBe(true);
 		expect(text(foreign)).toContain("query");
-		expect(text(foreign)).toContain("Accepted params");
+		expect(text(foreign)).toContain("Accepted params at the root:");
 	});
 });
 
@@ -480,7 +480,8 @@ describe("tdd_task", () => {
 		expect((await call("tdd_task", { action: "pause", tddTaskId: 1 })).isError).toBe(true);
 		const foreign = await call("tdd_task", { action: "get", tddTaskId: 1, goal: "x" });
 		expect(foreign.isError).toBe(true);
-		expect(text(foreign)).toContain("Accepted params");
+		expect(text(foreign)).toContain(`at ["goal"]`);
+		expect(text(foreign)).toContain("Accepted params at the root:");
 	});
 });
 
@@ -724,7 +725,7 @@ describe("tdd_phase_transition_request", () => {
 			phase: "x",
 		});
 		expect(unknown.isError).toBe(true);
-		expect(text(unknown)).toContain("Accepted params");
+		expect(text(unknown)).toContain("Accepted params at the root:");
 	});
 });
 
@@ -814,7 +815,7 @@ describe("tdd_progress_push", () => {
 		expect((await call("tdd_progress_push", {})).isError).toBe(true);
 		const unknown = await call("tdd_progress_push", { payload: "{}", event: "{}" });
 		expect(unknown.isError).toBe(true);
-		expect(text(unknown)).toContain("Accepted params");
+		expect(text(unknown)).toContain("Accepted params at the root:");
 	});
 });
 
@@ -847,15 +848,14 @@ describe("run_tests (served schema only — the run itself is covered by the e2e
 		const result = await call("run_tests", { testFiles: ["x.test.ts"] });
 		expect(result.isError).toBe(true);
 		expect(text(result)).toContain("testFiles");
-		expect(text(result)).toContain("Accepted params");
-		expect(text(result)).toContain("files");
+		expect(text(result)).toMatch(/Accepted params at the root: .*\bfiles\b/);
 	});
 
 	it("rejects an unknown key nested inside tags, and inside _sessionContext, instead of emptying the filter", async () => {
 		const tags = await call("run_tests", { tags: { anyy: ["unit"] } });
 		expect(tags.isError).toBe(true);
 		expect(text(tags)).toContain("anyy");
-		expect(text(tags)).toContain("Accepted params");
+		expect(text(tags)).toMatch(/Accepted params at \["tags"\]: .*\bany\b/);
 		expect(text(tags)).toContain("any");
 		const sessionContext = await call("run_tests", {
 			_sessionContext: { chat_id: "x", conversationId: "y", mainAgentId: "z" },

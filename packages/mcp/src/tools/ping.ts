@@ -6,7 +6,7 @@
 
 import { CurrentDistribution, DistributionField } from "@effected/engine";
 import { Effect, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 /**
  * The `ping` tool's success payload.

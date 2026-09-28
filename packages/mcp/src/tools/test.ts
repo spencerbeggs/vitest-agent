@@ -9,7 +9,7 @@ import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
 import type { PersistedAttachment } from "@vitest-agent/engine";
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 import { collectProjectRows, resolveProjectTargets } from "./_project-groups.js";
 
 const TestRowSchema = Schema.Struct({

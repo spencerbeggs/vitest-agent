@@ -1,6 +1,6 @@
 import { DataStoreError, extractSqlReason } from "@vitest-agent/sdk";
 import { Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import type { KnownProject, KnownProjectInput } from "../services/DiscoveryRegistry.js";
 import { DiscoveryRegistry } from "../services/DiscoveryRegistry.js";
 

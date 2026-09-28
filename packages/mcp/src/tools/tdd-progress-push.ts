@@ -8,7 +8,7 @@
 import { DataReader } from "@vitest-agent/engine";
 import { ChannelEvent } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
-import { McpServer, Tool } from "effect/unstable/ai";
+import { McpServer, Tool } from "effect/ai";
 
 /**
  * The `tdd_progress_push` tool's parameters.

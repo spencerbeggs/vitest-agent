@@ -6,7 +6,7 @@
 import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 import { McpSession } from "../session.js";
 import { IdempotentReplayMarker } from "../utils/replay-marker.js";
 

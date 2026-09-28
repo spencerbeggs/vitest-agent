@@ -5,7 +5,7 @@ import type { DataReader, DataStore, ProjectDiscovery } from "@vitest-agent/engi
 import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { makeTestLayer } from "@vitest-agent/engine/testing";
 import { Layer, ManagedRuntime } from "effect";
-import type { SqlClient } from "effect/unstable/sql/SqlClient";
+import type { SqlClient } from "effect/sql/SqlClient";
 import { test as base } from "vitest";
 
 // Superset of the tool handlers' requirements — adds SqlClient so tests can

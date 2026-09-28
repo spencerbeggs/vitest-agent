@@ -6,8 +6,8 @@ bounds: ../modules/cli.md
 tags: [testing, ci]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: bf9004e64bd0987c9c0469a18d5d6c5a9eb89fe55683ff3d62d7762783ca8dd7
+  at: 2026-09-28T18:57:48Z
+  body_sha256: d708be4a22d81799e34fba2afc8aa010e97d3f962735dae666ba088f718c1809
 sources:
   - id: record-command
     resource: ../../packages/cli/src/commands/record.ts
@@ -18,7 +18,7 @@ sources:
 # The record hook subcommands have no built-and-spawned end-to-end test
 
 `agent record`'s `session-start`, `session-end`, and `turn` subcommands
-are thin `effect/unstable/cli` wrappers around `recordSessionStart`,
+are thin `effect/cli` wrappers around `recordSessionStart`,
 `recordSessionEnd`, and `recordTurnEffect` from
 `@vitest-agent/engine`.[^record-command] Those three functions are
 exercised at the program level, against an in-memory `SqliteClient`, by
@@ -54,7 +54,7 @@ scripts under `plugins/claude-code/hooks/` are these subcommands'
 real-world callers, and they already exercise the built bin end-to-end
 during normal Claude Code sessions — a more realistic integration
 surface than a synthetic spawn test would add. The dominant risk —
-`effect/unstable/cli`'s command tree silently breaking — is the same
+`effect/cli`'s command tree silently breaking — is the same
 risk `help-surface.e2e.test.ts` and `version.e2e.test.ts` already guard
 against for the bin as a whole.
 

@@ -2,7 +2,7 @@
  * @vitest-agent/mcp
  *
  * Model Context Protocol server for vitest-agent, built on Effect's
- * native `McpServer` (`effect/unstable/ai`). Exposes 30 tools (one
+ * native `McpServer` (`effect/ai`). Exposes 30 tools (one
  * tool per file under `tools/`, assembled in `toolkit.ts` and registered
  * strict-by-default through `@effected/mcp`'s `McpToolkit.layer`)
  * plus six framing prompts (`prompts/layer.ts`) over stdio, giving agents

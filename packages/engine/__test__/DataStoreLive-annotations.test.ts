@@ -2,7 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import { Effect, Layer } from "effect";
-import type { SqlClient } from "effect/unstable/sql/SqlClient";
+import type { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { DataReaderLive } from "../src/layers/DataReaderLive.js";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";

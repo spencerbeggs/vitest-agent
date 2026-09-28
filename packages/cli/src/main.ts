@@ -27,7 +27,7 @@ import {
 } from "@vitest-agent/engine";
 import { formatFatalError } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
-import { Command } from "effect/unstable/cli";
+import { Command } from "effect/cli";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";

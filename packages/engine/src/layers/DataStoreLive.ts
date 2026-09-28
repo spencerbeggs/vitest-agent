@@ -24,7 +24,7 @@ import {
 	extractSqlReason,
 } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import type {
 	CreateBehaviorInput,
 	CreateGoalInput,
