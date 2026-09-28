@@ -49,7 +49,7 @@
 	},
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",
-		"@savvy-web/bundler": "^2.4.13",
+		"@savvy-web/bundler": "^2.4.15",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
