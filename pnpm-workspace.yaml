@@ -5,8 +5,8 @@ packages:
   - website
 autoInstallPeers: true
 configDependencies:
-  "@effected/pnpm-plugin-effect": 0.12.0+sha512-XIOCLMgWv35d/A/dKVrnqKNlfL2JIv42VhcMnvCOu00wcNJ8r1Sn4rADBqssdIU+ZKUkGOMubsDHOs1g+XUSZQ==
-  "@savvy-web/pnpm-plugin-silk": 0.44.0
+  "@effected/pnpm-plugin-effect": 0.12.1
+  "@savvy-web/pnpm-plugin-silk": 0.44.1
 linkWorkspacePackages: deep
 overrides:
   "@effect/platform-node@4.0.0-rc.117>@effect/platform-node-shared": 4.0.0-rc.117
