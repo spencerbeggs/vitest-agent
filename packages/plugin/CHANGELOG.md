@@ -1,5 +1,33 @@
 # @vitest-agent/plugin
 
+## 5.0.2
+
+### Bug Fixes
+
+- Fixes runtime incompatibility with `effect` `4.0.0-rc.118` and the current `@effected` kit. Published `5.0.1` pins `effect`/`@effect/platform-node` to `4.0.0-rc.117` and older `@effected` package ranges; installed next to a consumer on `rc.118` this fails at import time. This release moves the dependency range to `4.0.0-rc.118` and the matching `@effected/*` ranges, and renames the `effect/unstable/sql/*` imports used for the reporter layer's return type to their `effect/sql/*` equivalents. No public API changes. [#514][#514]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.117 | 4.0.0-rc.118 |
+| @effected/glob | dependency | updated | ^0.8.0 | ^0.9.0 |
+| @effected/workspaces | dependency | updated | ^0.28.0 | ^0.30.0 |
+| @vitest-agent/cli | dependency | updated | 3.2.1 | 3.2.2 |
+| @vitest-agent/engine | dependency | updated | 0.2.8 | 0.2.9 |
+| @vitest-agent/mcp | dependency | updated | 5.0.1 | 5.1.0 |
+| @vitest-agent/reporter | dependency | updated | 3.1.2 | 3.1.3 |
+| @vitest-agent/sdk | dependency | updated | 5.1.2 | 5.1.3 |
+| effect | dependency | updated | 4.0.0-rc.117 | 4.0.0-rc.118 |
+
+[#514][#514]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#514]: https://github.com/spencerbeggs/vitest-agent/pull/514
+
 ## 5.0.1
 
 ### Dependencies
