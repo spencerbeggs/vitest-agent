@@ -5,8 +5,8 @@ description: What this project is, its boundaries, and its non-goals.
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: a32f7f5f7cffb07b97c35d36ceac724971cb93c31eab25747eac8844f07c282d
+  at: 2026-09-28T18:57:48Z
+  body_sha256: 6e1e579cf47a9ef77c4c0acf2d76444a0d1e38973a746c5d806c155102bf86a7
 ---
 
 # vitest-agent
@@ -46,7 +46,7 @@ bins to resolve in `node_modules/.bin` under any package manager
    vs. UI-only reporting modes on Vitest's native `coverage.enabled`. Rendering
    is pluggable via the `VitestAgentReporterFactory` contract ([Interface
    reporter-contract](interfaces/reporter-contract.md)).
-2. **`vitest-agent` CLI.** An `effect/unstable/cli`-based utility bin
+2. **`vitest-agent` CLI.** An `effect/cli`-based utility bin
    (`packages/cli/src/commands/`) with a three-command tree: `doctor`, `db`
    (`path` / `prune` / `reset` / `query`), and `agent` — hook-driven plumbing
    (`triage`, `wrapup`, `record`, `register-agent`, `end-agent`, `inject-env`,
@@ -64,7 +64,7 @@ bins to resolve in `node_modules/.bin` under any package manager
    trend tracking. `ConfigValidation` catches mismatches between Vitest's
    native `coverage.thresholds` and `coverageTargets`.
 5. **MCP server.** An Effect-native server (`packages/mcp/src/toolkit.ts`)
-   built on `effect/unstable/ai`'s `McpServer` over stdio — no MCP SDK, no
+   built on `effect/ai`'s `McpServer` over stdio — no MCP SDK, no
    tRPC, no zod (`packages/mcp/package.json` declares neither dependency). One
    file per tool under `packages/mcp/src/tools/`, gathered into a single
    `Toolkit` (`Toolkit.make`, `packages/mcp/src/toolkit.ts:42`) and registered

@@ -21,7 +21,7 @@ import {
 } from "@vitest-agent/sdk";
 import type { Context, Fiber } from "effect";
 import { Data, Effect, Schema, Semaphore } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
 import { McpSession } from "../session.js";
 

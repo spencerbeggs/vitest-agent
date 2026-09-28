@@ -3,7 +3,7 @@ import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient
 import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { Agent, IdempotencyHit } from "@vitest-agent/sdk";
 import { Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { DataStoreLive } from "../src/layers/DataStoreLive.js";
 import migration0001 from "../src/migrations/0001_initial.js";

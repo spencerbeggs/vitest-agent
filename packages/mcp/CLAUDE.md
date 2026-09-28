@@ -1,6 +1,6 @@
 # @vitest-agent/mcp
 
-The Model Context Protocol server (`vitest-agent-mcp` bin) exposing the action-keyed tool surface to LLM agents over stdio. Built on Effect's native `McpServer` (`effect/unstable/ai`) through the `@effected/mcp` front-end kit: the 30 tools (23 `Tool.make`, seven union-parameter `Tool.dynamic`) are assembled into one `Toolkit`, registered strict-by-default with `McpToolkit.layer`, and served alongside six framing-only prompts as a single Effect `Layer` over `McpStdio.layer`. There is no MCP SDK, no tRPC and no zod — the wire protocol, JSON Schema generation and input validation all come from `effect`. A regular `dependency` of the plugin package, so every plugin consumer installs it. It stays a separate package for module-boundary clarity and an independent tool-surface release cadence.
+The Model Context Protocol server (`vitest-agent-mcp` bin) exposing the action-keyed tool surface to LLM agents over stdio. Built on Effect's native `McpServer` (`effect/ai`) through the `@effected/mcp` front-end kit: the 30 tools (23 `Tool.make`, seven union-parameter `Tool.dynamic`) are assembled into one `Toolkit`, registered strict-by-default with `McpToolkit.layer`, and served alongside six framing-only prompts as a single Effect `Layer` over `McpStdio.layer`. There is no MCP SDK, no tRPC and no zod — the wire protocol, JSON Schema generation and input validation all come from `effect`. A regular `dependency` of the plugin package, so every plugin consumer installs it. It stays a separate package for module-boundary clarity and an independent tool-surface release cadence.
 
 ## Layout
 
@@ -90,11 +90,12 @@ src/
   registered through `McpToolkit.layer` (strict `"all"` by default), never
   `McpServer.toolkit` (Effect's default decode is `onExcessProperty:
   "ignore"`, which strips a misspelled filter and runs a WIDER query —
-  issues #200 / #243). An unknown key is rejected with `Unrecognized
-  parameter(s): …. Accepted params: ….` naming the level it was found at,
+  issues #200 / #243). An unknown key is rejected with core's `Expected no excess property at
+  […]` plus an `Accepted params at <path>: ….` line for the level it was found at,
   including inside nested objects, array elements and the union branch a
-  discriminant selects — by `McpToolkit`'s pre-check for a `Tool.make` tool,
-  by the same decorator re-decoding the union for a `McpToolkit.unionTool`.
+  discriminant selects. Core decodes with every error in one report;
+  `McpToolkit.layer` (and `unionHandler` for a `McpToolkit.unionTool`)
+  appends the accepted-params lines after that decode, patching nothing in core.
   `served-schema-strict.test.ts` walks every served schema for
   `additionalProperties: false`, runs `McpToolAudit` (object-rooted
   `outputSchema`, title and hints on every tool) on both revisions, AND

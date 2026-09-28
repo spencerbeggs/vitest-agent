@@ -2,7 +2,7 @@
 //
 // Hook scripts in plugins/claude-code/hooks/ shell out to these subcommands. The
 // record-turn and record-session libs (in ../lib) implement the actual
-// write effects; commands here are thin `effect/unstable/cli` wrappers.
+// write effects; commands here are thin `effect/cli` wrappers.
 
 import type { ChangeKind, RunInvocationMethod } from "@vitest-agent/engine";
 import {
@@ -16,7 +16,7 @@ import {
 } from "@vitest-agent/engine";
 import type { ArtifactKind, ArtifactSuite } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
-import { Argument, Command, Flag } from "effect/unstable/cli";
+import { Argument, Command, Flag } from "effect/cli";
 
 const chatId = Flag.String("chat-id").pipe(
 	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),

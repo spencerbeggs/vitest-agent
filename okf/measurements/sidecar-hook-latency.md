@@ -11,8 +11,8 @@ sources:
     resource: ../../scripts/bench-sidecar.sh
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 6e1ba876ea3bac8ba8fe8403c8a34fd9756589dcb22c14e28b1d6f0690749d9c
+  at: 2026-09-28T18:57:48Z
+  body_sha256: 9a0a35bfd10954940631b784d0cd16eae97d0877701367c828543775318eea7e
 ---
 
 # Sidecar hook latency
@@ -32,7 +32,7 @@ defines them:
   native `vitest-agent-sidecar` SEA binary on `PATH`.
 - **`layer2-jsfallback`** — the same subagent case with no binary on `PATH`,
   so the JS CLI (`vitest-agent agent inject-env`) runs instead, paying full
-  Node cold-start plus the `effect` / `effect/unstable/cli` module-graph
+  Node cold-start plus the `effect` / `effect/cli` module-graph
   load.
 
 The **baseline** this fix replaced is the unconditional shell-out every Bash

@@ -8,7 +8,7 @@ import { McpToolkit, ToolOutputSchema, ToolRefusal } from "@effected/mcp";
 import type { NoteInput } from "@vitest-agent/engine";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import { Effect, Match, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const NoteScope = Schema.Literals(["global", "project", "module", "suite", "test", "note"]);
 

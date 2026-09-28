@@ -11,8 +11,8 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 1dd2812566289d5637e4c661a4f129d17947e2a1ca06a7588e81cbd4692ca7bd
+  at: 2026-09-28T18:57:48Z
+  body_sha256: 5883bde5cbe94575b8dd398b1d95a28b601b92efd359f0360346591a8fbf8208
 ---
 
 # MCP tool and prompt surface
@@ -201,8 +201,11 @@ surface produces.
   refusal, or the generic internal-error message).
 - The `{ hint, suggestedTool?, suggestedArgs? }` remediation shape.
 - `additionalProperties: false` at every object level of every served
-  input schema, and the unknown-key rejection message format
-  (`Unrecognized parameter(s): <path>. Accepted params: <list>`).
+  input schema, and what the unknown-key rejection carries: each unknown
+  key's path-qualified location (`Expected no excess property` / `at
+  ["testFiles"]`) and one `Accepted params at the root: <list>.` or
+  `Accepted params at ["tags"]: <list>.` line per level that had an
+  unknown key (`This tool accepts no params.` for a zero-param tool).
 - The `notifications/message` / `vitest-agent/channel` wire method for
   progress push.
 - The six prompt names and their required-argument sets.

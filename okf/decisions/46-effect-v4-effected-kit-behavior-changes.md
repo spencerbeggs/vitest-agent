@@ -6,8 +6,8 @@ description: The family runs on Effect v4 and the granular @effected/* kit direc
 tags: [effect, compat, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 4fbf645496b8366eb8df61a16d939cba1d15aaaf2df7e187fbcfcfa64e2c36de
+  at: 2026-09-28T18:57:48Z
+  body_sha256: 714219443c2d94dc433cab27bd5ac12dbc28a86c776be60e5d1e73be107e2ec7
 ---
 
 # Effect v4 + effected Kit Behavior Changes
@@ -17,7 +17,7 @@ generated:
 The whole family migrated off Effect v3 onto Effect v4 (the `catalog:effect`
 pin) and adopted the granular `@effected/*` packages **directly**, not
 through a higher-level app/store control-plane package. The data layer
-stays direct on `@effect/sql-sqlite-node` plus `effect/unstable/sql` — that
+stays direct on `@effect/sql-sqlite-node` plus `effect/sql` — that
 alternative control-plane shape was considered and not taken; the shipped
 implementation is direct-on-kit throughout.
 
@@ -27,10 +27,11 @@ Adopt Effect v4 core plus the granular `@effected/*` kit, and pin the
 following v3→v4 behavior changes as known, deliberate consequences rather
 than latent bugs:
 
-- **The CLI, SQL, and platform surfaces moved into core.** `effect/unstable/cli`
+- **The CLI, SQL, and platform surfaces moved into core.** `effect/cli`
   supplies `Command`, `Flag` (formerly Options), `Argument` (formerly Args),
   `Primitive`, `Prompt`, and `CliError` (formerly ValidationError);
-  `effect/unstable/sql` supplies `SqlClient`, `SqlError`, and `Statement`.
+  `effect/sql` supplies `SqlClient`, `SqlError`, and `Statement`. Both lived
+  under `effect/unstable/*` until `4.0.0-rc.118` promoted them.
   `@effect/sql-sqlite-node` stays a separate v4 driver but now runs on
   Node's built-in `node:sqlite` (`DatabaseSync`) — better-sqlite3 was
   removed entirely. `@effect/platform-node`'s `NodeContext` became
@@ -82,7 +83,7 @@ than latent bugs:
   control plane; the shipped implementation went direct-on-kit instead —
   `@effected/xdg`, `@effected/config-file`, and `@effected/workspaces`
   used individually, with the data layer staying direct on
-  `@effect/sql-sqlite-node` and `effect/unstable/sql` rather than behind an
+  `@effect/sql-sqlite-node` and `effect/sql` rather than behind an
   additional abstraction layer.
 - **Accepting `.git` as a workspace-root boundary to preserve v3 behavior:**
   not pursued — `@effected/workspaces` draws the boundary at a workspace

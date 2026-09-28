@@ -27,7 +27,7 @@
 // actually point at `tdd_tasks(id)` (a TDD task, not a session row).
 
 import { Effect } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 
 /** @internal */
 const migration = Effect.gen(function* () {

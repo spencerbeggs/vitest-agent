@@ -10,7 +10,7 @@ import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader } from "@vitest-agent/engine";
 import { CacheManifest } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const ManifestPresent = Schema.Struct({
 	manifestPresent: Schema.Literal(true).annotate({

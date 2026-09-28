@@ -11,7 +11,7 @@ import {
 } from "@vitest-agent/engine";
 import type { FileSystem } from "effect";
 import { Effect, Layer, Option } from "effect";
-import type { SqlClient } from "effect/unstable/sql/SqlClient";
+import type { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import {
 	dispatchRecordTddArtifactEffect,

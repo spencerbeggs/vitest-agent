@@ -4,7 +4,7 @@ import { ToolOutputSchema } from "@effected/mcp";
 import { DataReader } from "@vitest-agent/engine";
 import { CoverageReport } from "@vitest-agent/sdk";
 import { Effect, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const CoverageAvailable = Schema.Struct({
 	dataAvailable: Schema.Literal(true),

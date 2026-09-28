@@ -8,7 +8,7 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 /** One annotation attached to a failing test, surfaced with its error. */
 export const TestErrorAnnotation = Schema.Struct({

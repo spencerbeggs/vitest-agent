@@ -41,8 +41,8 @@ sources:
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 96bdb58c7a0ec0a78a8bf595da80b38f0e5587af5d4901c02d58942c0193762d
+  at: 2026-09-28T18:57:48Z
+  body_sha256: 92df5050356a8439df5ee1dcbc26d9ee94e188e7773880eae3a684505ced949b
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -152,7 +152,7 @@ not merely wiring its `package.json`.
 
 ## Pattern 5 — Test CLI and engine-program logic as plain pure functions, not through the command tree
 
-CLI commands are thin wrappers over `effect/unstable/cli` `Command`
+CLI commands are thin wrappers over `effect/cli` `Command`
 definitions and are not exercised directly. The testable logic — formatting,
 program bodies — lives in plain functions (`packages/cli/src/lib/format-*.ts`,
 `packages/engine/src/programs/*.ts`) that take a domain input

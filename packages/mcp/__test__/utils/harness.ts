@@ -20,7 +20,7 @@ import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
 import type { Scope } from "effect";
 import { Context, Effect, Layer, Option, Stdio } from "effect";
-import { McpProtocol } from "effect/unstable/ai";
+import { McpProtocol } from "effect/ai";
 import { ServerLayer } from "../../src/server.js";
 import { McpSession } from "../../src/session.js";
 

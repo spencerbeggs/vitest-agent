@@ -14,7 +14,7 @@
 // requires that service.
 
 import { Effect, Layer, Schema } from "effect";
-import { McpSchema, McpServer } from "effect/unstable/ai";
+import { McpSchema, McpServer } from "effect/ai";
 import type { McpSession as McpSessionService } from "../session.js";
 import { McpSession } from "../session.js";
 import { explainFailurePrompt } from "./explain-failure.js";

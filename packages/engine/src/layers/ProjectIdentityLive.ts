@@ -2,7 +2,7 @@ import { WorkspaceDiscovery } from "@effected/workspaces";
 import type { ProjectIdentityCandidate } from "@vitest-agent/sdk";
 import { ProjectIdentityNotResolvableError, VitestAgentConfig } from "@vitest-agent/sdk";
 import { Effect, FileSystem, Layer, Option } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { VitestAgentConfigFile } from "../services/Config.js";
 import type { ProjectIdentityCandidates, ResolvedIdentity } from "../services/ProjectIdentity.js";
 import { ProjectIdentity, resolveProjectIdentityFromCandidates } from "../services/ProjectIdentity.js";

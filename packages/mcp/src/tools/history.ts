@@ -7,7 +7,7 @@
 import { DataReader } from "@vitest-agent/engine";
 import { HistoryRecord } from "@vitest-agent/sdk";
 import { Effect, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const FlakyTestRow = Schema.Struct({
 	fullName: Schema.String.annotate({ description: "Full hierarchical test name (`describe > it`)." }),

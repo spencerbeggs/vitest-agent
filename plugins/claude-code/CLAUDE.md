@@ -77,7 +77,7 @@ Claude Code spawns `bin/start-mcp.sh` (POSIX `sh`, `set -eu`) as a direct child 
 
 `start-mcp.mjs` keeps the same `.bin`-first preference but falls back to the PM dispatch instead of `npx --yes`; it stays alive as a wrapper and is not the active loader unless `plugin.json` is changed. Both are covered by `__test__/bin-preference.bats`.
 
-The MCP server is Effect-native (`effect/unstable/ai` `McpServer`); every log line goes to stderr, stdout is the JSON-RPC wire. When CC closes the pipe the server exits 0 on stdin EOF; a startup failure (for example an unwritable data dir) writes `vitest-agent-mcp: startup failed: …` to stderr and exits 1. No orphan processes.
+The MCP server is Effect-native (`effect/ai` `McpServer`); every log line goes to stderr, stdout is the JSON-RPC wire. When CC closes the pipe the server exits 0 on stdin EOF; a startup failure (for example an unwritable data dir) writes `vitest-agent-mcp: startup failed: …` to stderr and exits 1. No orphan processes.
 
 In the dogfood workspace the root devDepends on `@vitest-agent/plugin` only; that single dependency is what links both `node_modules/.bin/vitest-agent` and `.bin/vitest-agent-mcp` (no `publicHoistPattern`, no root cli/mcp devDeps).
 

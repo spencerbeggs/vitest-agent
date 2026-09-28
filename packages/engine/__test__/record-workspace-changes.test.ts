@@ -4,7 +4,7 @@ import * as SqliteMigrator from "@effect/sql-sqlite-node/SqliteMigrator";
 import type { DataReader, DataStore } from "@vitest-agent/engine";
 import { DataReaderLive, DataReader as DataReaderTag, DataStoreLive, migration0001 } from "@vitest-agent/engine";
 import { Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { recordRunWorkspaceChangesEffect } from "../src/programs/record-workspace-changes.js";
 

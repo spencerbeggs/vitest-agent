@@ -205,7 +205,7 @@ describe("every served tool rejects unknown keys at call time", () => {
 		// (isError may still be true for domain reasons, e.g. register_agent's
 		// SESSION_NOT_FOUND, but never for schema shape).
 		const text = textOf(result);
-		expect(text, `${label} rejected its own valid params`).not.toContain("Unrecognized parameter(s)");
+		expect(text, `${label} rejected its own valid params`).not.toContain("Invalid parameters");
 		expect(text, `${label} failed schema decoding`).not.toMatch(/Expected .* actual|is missing|Missing key/);
 	});
 });

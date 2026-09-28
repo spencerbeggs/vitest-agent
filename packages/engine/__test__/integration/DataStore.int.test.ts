@@ -1,6 +1,6 @@
 import { DataStore } from "@vitest-agent/engine";
 import { Effect } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect } from "vitest";
 import { test } from "./utils/fixtures.js";
 
