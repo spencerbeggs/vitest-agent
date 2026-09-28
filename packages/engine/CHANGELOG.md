@@ -1,5 +1,37 @@
 # @vitest-agent/engine
 
+## 0.2.9
+
+### Bug Fixes
+
+- Fixes runtime incompatibility with `effect` `4.0.0-rc.118` and the current `@effected` kit. Published `0.2.8` pins `effect`/`@effect/platform-node`/`@effect/sql-sqlite-node` to `4.0.0-rc.117` and older `@effected` package ranges; installed next to a consumer on `rc.118` this fails at import time. This release moves the dependency range to `4.0.0-rc.118` and the matching `@effected/*` ranges, and renames every `effect/unstable/*` import (including inside the SQLite migrations) to its `effect/*` equivalent to match. No public API or schema changes. [#514][#514]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.117 | 4.0.0-rc.118 |
+| @effect/sql-sqlite-node | dependency | updated | 4.0.0-rc.117 | 4.0.0-rc.118 |
+| @effected/config-file | dependency | updated | ^0.12.0 | ^0.13.0 |
+| @effected/engine | dependency | updated | ^0.1.0 | ^0.2.0 |
+| @effected/glob | dependency | updated | ^0.8.0 | ^0.9.0 |
+| @effected/jsonc | dependency | updated | ^0.13.0 | ^0.14.0 |
+| @effected/toml | dependency | updated | ^0.9.0 | ^0.10.0 |
+| @effected/walker | dependency | updated | ^0.12.0 | ^0.13.0 |
+| @effected/workspaces | dependency | updated | ^0.28.0 | ^0.30.0 |
+| @effected/xdg | dependency | updated | ^0.7.0 | ^0.8.0 |
+| @effected/yaml | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @vitest-agent/sdk | dependency | updated | 5.1.2 | 5.1.3 |
+| effect | dependency | updated | 4.0.0-rc.117 | 4.0.0-rc.118 |
+
+[#514][#514]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#514]: https://github.com/spencerbeggs/vitest-agent/pull/514
+
 ## 0.2.8
 
 ### Dependencies

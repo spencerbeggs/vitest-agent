@@ -1,6 +1,6 @@
 import type { LogLevel } from "effect";
 import { Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import { LoggerLive } from "../layers/LoggerLive.js";
 import { NodePlatformLayer, makeSqliteStack } from "../platform.js";
 

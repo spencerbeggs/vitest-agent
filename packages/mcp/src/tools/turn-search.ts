@@ -2,7 +2,7 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const TurnRow = Schema.Struct({
 	id: Schema.Finite.annotate({ description: "Numeric primary key of this turn row." }),

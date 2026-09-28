@@ -352,7 +352,8 @@ describe("settings_list", () => {
 	it("rejects an unknown parameter", async () => {
 		const result = await call("settings_list", { bogus: 1 });
 		expect(result.isError).toBe(true);
-		expect(text(result)).toContain("Unrecognized parameter(s): bogus");
+		expect(text(result)).toContain(`at ["bogus"]`);
+		expect(text(result)).toContain("This tool accepts no params.");
 	});
 });
 
@@ -546,7 +547,8 @@ describe("inventory", () => {
 		expect(unknownKind.isError).toBe(true);
 		const foreignKey = await call("inventory", { kind: "project", module: "x" });
 		expect(foreignKey.isError).toBe(true);
-		expect(text(foreignKey)).toContain("Unrecognized parameter(s): module");
+		expect(text(foreignKey)).toContain(`at ["module"]`);
+		expect(text(foreignKey)).toContain("Accepted params at the root:");
 	});
 });
 
@@ -706,6 +708,7 @@ describe("test", () => {
 		expect(missing.isError).toBe(true);
 		const foreign = await call("test", { action: "for_file", filePath: "a.ts", tag: "x" });
 		expect(foreign.isError).toBe(true);
-		expect(text(foreign)).toContain("Unrecognized parameter(s): tag");
+		expect(text(foreign)).toContain(`at ["tag"]`);
+		expect(text(foreign)).toContain("Accepted params at the root:");
 	});
 });

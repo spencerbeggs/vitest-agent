@@ -7,7 +7,7 @@
 
 import { McpToolkit } from "@effected/mcp";
 import { Effect, Layer, Schema } from "effect";
-import { McpProtocol, Tool, Toolkit } from "effect/unstable/ai";
+import { McpProtocol, Tool, Toolkit } from "effect/ai";
 import { describe, expect, it } from "vitest";
 import type { JsonRpcMessage, McpHarness } from "./utils/harness.js";
 import { makeHarness } from "./utils/harness.js";
@@ -125,7 +125,8 @@ describe("ServerLayer over stdio", () => {
 			h.initialize().pipe(Effect.andThen(h.callTool("ping", { bogus: 1 }))),
 		)) as CallToolResult;
 		expect(result.isError).toBe(true);
-		expect(result.content[0]?.text).toContain("Unrecognized parameter(s): bogus");
+		expect(result.content[0]?.text).toContain(`at ["bogus"]`);
+		expect(result.content[0]?.text).toContain("This tool accepts no params.");
 	});
 
 	it("tools/call ping { bogus: 1 } on 2025-06-18 is a JSON-RPC -32602 error with the same message", async () => {
@@ -136,7 +137,8 @@ describe("ServerLayer over stdio", () => {
 		);
 		expect(response.result).toBeUndefined();
 		expect(jsonError(response).code).toBe(-32602);
-		expect(jsonError(response).message).toContain("Unrecognized parameter(s): bogus");
+		expect(jsonError(response).message).toContain(`at ["bogus"]`);
+		expect(jsonError(response).message).toContain("This tool accepts no params.");
 	});
 
 	it("a handler that dies returns core's scrubbed isError text and logs the defect on stderr", async () => {

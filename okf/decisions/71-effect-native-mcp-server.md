@@ -9,8 +9,8 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 6f52566d10dc6ab693727c770e01494ceda93bcdef43ba371488786b8be41949
+  at: 2026-09-28T18:57:48Z
+  body_sha256: 2db79f82ce50cb30842c1cb282ce0af7ca35c8026910bb94726e979b9d49766b
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -51,7 +51,7 @@ go together.
 > needed at all; Decision 72 owns how it is done now.
 
 `@vitest-agent/mcp` is rebuilt on Effect's own `McpServer`
-(`effect/unstable/ai`): the tools in `Kit = Toolkit.make(...)`
+(`effect/ai`): the tools in `Kit = Toolkit.make(...)`
 (`packages/mcp/src/toolkit.ts`) are `Tool.make` values (seven of them `Tool.dynamic`), the six
 prompts are `McpServer.prompt` layers, the server is one `Layer` over
 `McpStdio.layer` (from `@effected/mcp`, over Effect's stdio protocol), and `@modelcontextprotocol/sdk`, `@trpc/server`
@@ -119,7 +119,7 @@ v2025_06_18]` (`v2025_03_26` was dropped). `2026-07-28` is the stateless revisio
 `server/discover` and every request carries
 `params._meta["io.modelcontextprotocol/protocolVersion"]`, and every
 result, `tools/call` included, is wrapped in the stateless frame. Effect's
-runtime (`effect/unstable/ai/internal/mcpRuntime.ts`) routes a request
+runtime (`effect/ai/internal/mcpRuntime.ts`) routes a request
 carrying that `_meta` to its adapter, matches `initialize` against the
 stateful adapters only, and sends anything else with no session to
 `protocols[0]`, so the stateless adapter is listed first; at most one

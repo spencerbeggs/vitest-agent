@@ -11,7 +11,7 @@
 import { ToolInputSchema } from "@effected/mcp";
 import type { JsonSchema } from "effect";
 import { Effect, Schema } from "effect";
-import { McpProtocol, Tool } from "effect/unstable/ai";
+import { McpProtocol, Tool } from "effect/ai";
 import { describe, expect, it } from "vitest";
 import { Kit } from "../src/toolkit.js";
 import type { JsonRpcMessage, McpHarness } from "./utils/harness.js";
@@ -78,13 +78,15 @@ describe("union-parameter tools", () => {
 		it("naming an unknown top-level key", async () => {
 			const error = jsonError(await callOn0618({ action: "list", bogus: 1 }));
 			expect(error.code).toBe(-32602);
-			expect(error.message).toContain("Unrecognized parameter(s): bogus.");
+			expect(error.message).toContain(`at ["bogus"]`);
+			expect(error.message).toContain("Accepted params at the root:");
 		});
 
 		it("naming a key that belongs to a sibling branch", async () => {
 			const error = jsonError(await callOn0618({ action: "list", fullName: "x" }));
 			expect(error.code).toBe(-32602);
-			expect(error.message).toContain("Unrecognized parameter(s): fullName.");
+			expect(error.message).toContain(`at ["fullName"]`);
+			expect(error.message).toContain("Accepted params at the root:");
 		});
 
 		it("naming the tool for an unknown discriminant or a wrong value type", async () => {
@@ -102,6 +104,7 @@ describe("union-parameter tools", () => {
 		)) as CallToolResult;
 		expect(result.isError).toBe(true);
 		expect(result.structuredContent).toBeUndefined();
-		expect(result.content[0]?.text).toContain("Unrecognized parameter(s): bogus.");
+		expect(result.content[0]?.text).toContain(`at ["bogus"]`);
+		expect(result.content[0]?.text).toContain("Accepted params at the root:");
 	});
 });

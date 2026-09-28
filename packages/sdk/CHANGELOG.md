@@ -1,5 +1,25 @@
 # @vitest-agent/sdk
 
+## 5.1.3
+
+### Bug Fixes
+
+- Keeps the `generatedAt` ISO-8601 `pattern` in the published run-report JSON Schema under `effect` `4.0.0-rc.118`. That release omits a pattern from generated JSON Schema unless its RegExp carries the `u` flag, which would have silently widened the published contract to any string. The pattern now carries the flag, and the emitted `schemas/5.0/run.json` is unchanged. [#514][#514]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| effect | dependency | updated | 4.0.0-rc.117 | 4.0.0-rc.118 |
+
+[#514][#514]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#514]: https://github.com/spencerbeggs/vitest-agent/pull/514
+
 ## 5.1.2
 
 ### Dependencies

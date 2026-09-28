@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect";
-import { SqlClient } from "effect/unstable/sql/SqlClient";
+import { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { PlatformLive } from "../src/platform.js";
 import { DataReader } from "../src/services/DataReader.js";

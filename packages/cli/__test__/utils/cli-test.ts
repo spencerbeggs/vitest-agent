@@ -8,7 +8,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { RunResult, Sandbox } from "@effected/cli/testing";
 import { CliTest } from "@effected/cli/testing";
 import { Effect } from "effect";
-import type { ChildProcessSpawner } from "effect/unstable/process";
+import type { ChildProcessSpawner } from "effect/process";
 
 /** The built dev output; `main.js` is the `./main` subpath the carrier imports. */
 export const DIST = resolve(__dirname, "..", "..", "dist", "dev", "pkg");

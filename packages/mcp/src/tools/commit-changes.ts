@@ -2,7 +2,7 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const FileRow = Schema.Struct({
 	filePath: Schema.String.annotate({ description: "Repo-relative path of the changed file." }),

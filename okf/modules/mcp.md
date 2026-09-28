@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 17d0ff614677db0babac54eea53c14c23e83a83def74e117419394c2f81f331c
+  at: 2026-09-28T18:57:48Z
+  body_sha256: 90da025a09cd3b489acb508050e9ec757e7c14acec2a4795072d89a3d3a6d762
 ---
 
 # @vitest-agent/mcp
@@ -25,7 +25,7 @@ generated:
 `@vitest-agent/mcp` is the Model Context Protocol server exposing the
 action-keyed tool surface to LLM agents over stdio (the `vitest-agent-mcp`
 bin). It is built on Effect's native `McpServer`
-(`effect/unstable/ai`) through the `@effected/mcp` front-end kit[^server-ts]:
+(`effect/ai`) through the `@effected/mcp` front-end kit[^server-ts]:
 the 30 tools (23 `Tool.make`, seven union-parameter `Tool.dynamic`) are
 assembled into one `Toolkit`, registered strict-by-default with
 `McpToolkit.layer`, and served alongside six framing-only prompts as a
@@ -205,10 +205,11 @@ registers through `McpServer.toolkit` (Effect's default decode is
 
 - **The 23 `Tool.make` tools** go through `McpToolkit.layer(Kit)`, strict
   `"all"` by default whatever a tool's `Tool.Strict` annotation says. It
-  serves Effect's strict document made object-rooted, and walks the raw
-  payload against the served schema before decoding. An unknown key fails
-  `InvalidParams` naming every unknown key's path and the accepted params
-  at that level.
+  serves Effect's strict document made object-rooted, and core decodes
+  with `onExcessProperty: "error"` and `errors: "all"`, so every excess
+  key, missing key, and wrong type lands in one `InvalidParams`, each at
+  its path. The kit appends one `Accepted params at <path>: …` line per
+  level that had an unknown key.
 - **The seven action-keyed tools** (`inventory`, `test`, `note`,
   `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`) are
   `Tool.dynamic`, because core dies at registration on a union
@@ -216,9 +217,10 @@ registers through `McpServer.toolkit` (Effect's default decode is
   document for the union, reshaped to `type: "object"` + `oneOf` +
   `x-discriminator`; the served input schemas are byte-identical to the
   pre-kit ones (pinned by `union-tools-wire.test.ts`). Core never
-  re-decodes a dynamic tool, so `McpToolkit.unionHandler` runs the same
-  unknown-key walk and an `onExcessProperty: "error"` decode inside the
-  handler; invalid params therefore answer exactly as they do for a
+  re-decodes a dynamic tool, so `McpToolkit.unionHandler` decodes the
+  matched branch with `onExcessProperty: "error"` and `errors: "all"`
+  inside the handler and appends the same accepted-params lines; invalid
+  params therefore answer exactly as they do for a
   `Tool.make` tool (JSON-RPC `-32602` on `2025-06-18`, an `isError` result
   on the newer revisions).
 

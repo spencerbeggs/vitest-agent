@@ -2,7 +2,7 @@
 
 import { DataReader, resolveDataPath } from "@vitest-agent/engine";
 import { Effect, Option } from "effect";
-import { Command, Flag } from "effect/unstable/cli";
+import { Command, Flag } from "effect/cli";
 import type { CheckResult } from "../lib/format-doctor.js";
 import { formatDoctor } from "../lib/format-doctor.js";
 

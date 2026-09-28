@@ -10,7 +10,7 @@ import {
 } from "@vitest-agent/sdk";
 
 import { Effect, Option, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 /**
  * Lookback window for the missing_artifact_evidence cross-session

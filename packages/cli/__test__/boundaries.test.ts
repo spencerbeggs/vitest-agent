@@ -17,7 +17,7 @@ const FORBIDDEN_PACKAGES = ["@vitest-agent/mcp", "@vitest-agent/plugin", "@vites
 
 /**
  * Files allowed to reference the global `process` object: the assembled
- * program that owns the process, and the thin `effect/unstable/cli` command
+ * program that owns the process, and the thin `effect/cli` command
  * wrappers that read `process.env` / `process.cwd()` to thread ambient input
  * into the engine's pure programs. `bin.ts` and `version.ts` need no entry
  * (the shim reads nothing; the version define is exempt). The waiver is

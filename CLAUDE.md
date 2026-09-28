@@ -56,7 +56,7 @@ Six primary capabilities:
    service for coverage-config diagnostics, Full and UI-only modes gated by
    Vitest's native `coverage.enabled`, and pluggable rendering via
    `VitestAgentReporterFactory`.
-2. **`vitest-agent` CLI** -- `effect/unstable/cli`-based utility-only bin with a
+2. **`vitest-agent` CLI** -- `effect/cli`-based utility-only bin with a
    three-command tree: `doctor`, `db` (`path` / `prune` / `reset` /
    `query`), and `agent` -- a namespace for hook-driven plumbing
    (`triage`, `wrapup`, `record`, `register-agent`, `end-agent`,
@@ -75,7 +75,7 @@ Six primary capabilities:
    `coverage.thresholds.autoUpdate`, and per-project trend tracking.
    `ConfigValidation` catches mismatches between Vitest's native
    `coverage.thresholds` and `coverageTargets`.
-5. **MCP server** -- Effect-native: `effect/unstable/ai`'s `McpServer` over
+5. **MCP server** -- Effect-native: `effect/ai`'s `McpServer` over
    stdio through the `@effected/mcp` kit (`McpToolkit` + `McpStdio`), no MCP
    SDK, no tRPC, no zod. 30 tools (23 `Tool.make`, seven union-parameter
    `Tool.dynamic`; one file per tool in `packages/mcp/src/tools/`) gathered
@@ -309,7 +309,7 @@ Biome (`biome.json`, extends `@savvy-web/silk/biome`) lints and formats; commitl
 
 ### Dependencies
 
-- Effect v4 collapsed the standalone `@effect/*` packages into `effect/unstable/*` namespaces (`effect/unstable/cli`, `effect/unstable/sql`, `effect/unstable/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. See [Convention: Effect v4 dependencies](okf/conventions/effect-v4-dependencies.md).
+- Effect v4 collapsed the standalone `@effect/*` packages into `effect/*` namespaces (`effect/cli`, `effect/sql`, `effect/ai`). The only separate `@effect/*` packages left are `@effect/platform-node` and `@effect/sql-sqlite-node`. All pin `catalog:effect` (v4); `catalog:silk` is the v3 catalog. See [Convention: Effect v4 dependencies](okf/conventions/effect-v4-dependencies.md).
 - Both front ends run on the `@effected` front-end kit (`catalog:effected`): the CLI on `@effected/cli`'s `CliRuntime.main` (exit `0` / `64` usage / `1` failure), the MCP server on `@effected/mcp`'s `McpToolkit` + `McpStdio`, the carrier identity via `@effected/engine`'s `CurrentDistribution`, and the repo checks (`WorkspaceLayering`, `SourceBoundary`, `PackedInstall`, `McpProbe`) on `@effected/workspaces/testing` and `@effected/mcp/testing`. See [Decision 72](okf/decisions/72-adopt-the-effected-front-end-kit.md).
 
 ### Commits

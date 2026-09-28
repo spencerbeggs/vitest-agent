@@ -32,8 +32,8 @@ sources:
     resource: ../../packages/cli/src/lib/version-formatter.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 0fa4bd0099a7f38fa4a6fb379f6ad3b5464becc4274d17f440b374a8050bae08
+  at: 2026-09-28T18:57:48Z
+  body_sha256: 62f55106295eda2c55b7e1d4e1f058cb3d26dd6e84f2e4dd411c676e1a0b776b
 ---
 
 # @vitest-agent/cli
@@ -83,7 +83,7 @@ CLI along and lands the bin in the consumer's `node_modules/.bin` under
 every package manager; the Claude Code plugin's hook scripts resolve it
 `.bin`-first (see [the Claude Code plugin module](claude-code-plugin.md)).
 The CLI stays a separate package for module-boundary reasons — the
-`effect/unstable/cli` surface is its own concern — and it is a thin command
+`effect/cli` surface is its own concern — and it is a thin command
 layer: every hook program it wraps lives in the engine's `programs/`
 directory (see [the engine module](engine.md)).
 
@@ -107,7 +107,7 @@ Follows the
   `PathResolutionLive(projectDir) + NodeServices.layer` and provides the
   engine's `PlatformLive({ dbPath, env, logLevel, logFile })`, merged with
   the `--version` formatter layer, as the `platform` of `@effected/cli`'s
-  `CliRuntime.main` around the `effect/unstable/cli` `Command.run` effect
+  `CliRuntime.main` around the `effect/cli` `Command.run` effect
   (built from `Command.make("vitest-agent")` +
   `Command.withSubcommands([dbCommand, doctorCommand,
   agentCommand])`)[^main-ts]. Because the platform is inside failure
@@ -189,7 +189,7 @@ column name (`[]` when empty). Schema introspection works out of the box via
 `packages/cli/src/commands/agent.ts`. The `agent` parent is a discoverable
 namespace: its `Command.withDescription` carries a warning header —
 *"Commands intended for agents and hook scripts — humans typically don't
-invoke these directly."* — that `effect/unstable/cli`'s help formatter
+invoke these directly."* — that `effect/cli`'s help formatter
 renders above the subcommand list[^agent-ts]. The group composes eight
 subcommands: `triage` (SessionStart hook, emits the W3 orientation brief),
 `wrapup` (Stop / SessionEnd / PreCompact / UserPromptSubmit hooks, emits the

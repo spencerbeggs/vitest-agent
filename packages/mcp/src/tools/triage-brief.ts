@@ -7,7 +7,7 @@
 
 import { DataReader, formatTriageEffect } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 /**
  * The `triage_brief` tool's success payload.

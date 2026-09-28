@@ -30,9 +30,11 @@ export const RUN_REPORT_FILE_SCHEMA_URL =
  * `Date.parse` alone is too permissive — it accepts `"Sep 7 2026"` and
  * other locale spellings a JSON Schema validator would reject — so the
  * pattern is checked first and the parse only rules out impossible
- * component values such as month 13.
+ * component values such as month 13. The `u` flag marks the pattern exact:
+ * without it effect treats a RegExp as approximate and omits it from the
+ * emitted JSON Schema.
  */
-const ISO_8601_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const ISO_8601_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u;
 
 const ISO_8601_MESSAGE = "generatedAt must be an ISO-8601 instant, e.g. 2026-09-07T23:45:57.308Z.";
 

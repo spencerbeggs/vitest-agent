@@ -12,8 +12,12 @@ The `@vitest-agent/mcp` server exposes 30 tools over stdio. Per-CRUD families co
 Every served tool input is strict: a key that is not in the table for that tool is rejected, not stripped. The validation error names the offending key and lists the accepted params, so a caller can self-correct without re-reading the tool description:
 
 ```text
-Unrecognized parameter(s): test. Accepted params: project, testName, modulePath, limit
+Invalid parameters for tool 'run_tests': Expected no excess property
+  at ["testFiles"]
+Accepted params at the root: files, project, projectRoot, tags, passWithNoTests, timeout, _sessionContext.
 ```
+
+A tool that takes no parameters says `This tool accepts no params.` instead.
 
 This matters most for `run_tests`, where a silently dropped scope param used to mean the whole workspace ran instead of the one file the caller asked for.
 

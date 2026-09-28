@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 /**
  * The `help` tool's success payload.

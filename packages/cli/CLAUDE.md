@@ -1,6 +1,6 @@
 # @vitest-agent/cli
 
-The `effect/unstable/cli`-based bin (`vitest-agent`) for utility functions, database management, and hook plumbing. For 2.0 the CLI is utility-only — MCP is the data path for test-landscape queries. The top-level tree is exactly three commands: `doctor`, `db`, and `agent`. Reads cached test data from SQLite via `DataReader`; never runs tests or calls AI providers. Rank 4 in the workspace layering: depends on `@vitest-agent/engine`, `@vitest-agent/sdk`, and `@vitest-agent/sidecar`; never on `@vitest-agent/mcp`. An exact-pinned regular dependency of the plugin package, which also re-ships this bin through its carrier shim (`packages/plugin/src/bin/vitest-agent.ts` → `@vitest-agent/cli/main`).
+The `effect/cli`-based bin (`vitest-agent`) for utility functions, database management, and hook plumbing. For 2.0 the CLI is utility-only — MCP is the data path for test-landscape queries. The top-level tree is exactly three commands: `doctor`, `db`, and `agent`. Reads cached test data from SQLite via `DataReader`; never runs tests or calls AI providers. Rank 4 in the workspace layering: depends on `@vitest-agent/engine`, `@vitest-agent/sdk`, and `@vitest-agent/sidecar`; never on `@vitest-agent/mcp`. An exact-pinned regular dependency of the plugin package, which also re-ships this bin through its carrier shim (`packages/plugin/src/bin/vitest-agent.ts` → `@vitest-agent/cli/main`).
 
 ## Layout
 
@@ -19,7 +19,7 @@ src/
   index.ts            -- side-effect-free barrel: exports only
                          CURRENT_CLI_VERSION; never imports main.ts
   version.ts          -- CURRENT_CLI_VERSION (the one process.env.__PACKAGE_VERSION__ read)
-  commands/           -- thin effect/unstable/cli Command wrappers; the only
+  commands/           -- thin effect/cli Command wrappers; the only
                          non-entry files allowed to read `process`
     doctor.ts          -- top-level `doctor` diagnostic
     db.ts              -- `db` parent: path / prune / reset / query
@@ -54,8 +54,8 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 
 ## Conventions
 
-- **`effect/unstable/cli` command pattern.** Each command in `commands/` is an
-  `effect/unstable/cli` `Command.make(...)`. Commands with non-trivial output
+- **`effect/cli` command pattern.** Each command in `commands/` is an
+  `effect/cli` `Command.make(...)`. Commands with non-trivial output
   delegate to a pure function in `lib/`; utility commands emit plain
   stdout text inline. Tests live next to the lib functions, not the
   commands (commands are too thin to test meaningfully).
@@ -94,7 +94,7 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 
 - This package depends on `@vitest-agent/sidecar` (not the reverse). `resolveSidecarBinaryPath` is imported from `@vitest-agent/sidecar` to back the `agent sidecar-path` subcommand. The per-platform sidecar children no longer import the CLI — they bundle `dispatch` from `@vitest-agent/sdk/dispatch`. The old `cli → sidecar → sidecar-<platform> → cli` cycle is gone.
 - Adding a subcommand: create or extend the `commands/<group>.ts`
-  `effect/unstable/cli` glue and wire it into the relevant parent's
+  `effect/cli` glue and wire it into the relevant parent's
   `withSubcommands` (`db`, `agent`, or the root in `main.ts`). Only add
   a `lib/format-<name>.ts` + `.test.ts` pair when the command produces
   non-trivial structured output worth testing as a pure function;
@@ -124,9 +124,9 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 - `db path` returns the resolved XDG path even when no DB has been
   written yet -- the path is a function of identity, not artifact
   presence. The pre-2.0 `node_modules/.vite/...` probing is gone.
-- Adding a flag: `effect/unstable/cli` validates types at the `Command` layer
+- Adding a flag: `effect/cli` validates types at the `Command` layer
   but the lib function should still accept a typed options object.
-  Keep the lib function callable without `effect/unstable/cli` for testing.
+  Keep the lib function callable without `effect/cli` for testing.
 - Per-call layer construction is fine here (CLI is short-lived). The
   MCP server, by contrast, builds its layers once for the life of the
   process (`McpStdio.launch` over `Layer.launch`).

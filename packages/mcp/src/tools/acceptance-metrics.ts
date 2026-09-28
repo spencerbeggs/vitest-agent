@@ -6,7 +6,7 @@
 
 import { DataReader } from "@vitest-agent/engine";
 import { Effect, Schema } from "effect";
-import { Tool } from "effect/unstable/ai";
+import { Tool } from "effect/ai";
 
 const totalAnnotation = { description: "Sample size — number of observations the metric ratio is computed over." };
 const ratioAnnotation = {

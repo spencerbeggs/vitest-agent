@@ -7,7 +7,7 @@
 
 import { formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";
-import { Command, Flag } from "effect/unstable/cli";
+import { Command, Flag } from "effect/cli";
 
 const rowIdOption = Flag.optional(Flag.Int("row-id"));
 const chatIdOption = Flag.optional(Flag.String("chat-id"));

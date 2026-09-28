@@ -17,8 +17,8 @@ sources:
     resource: ../../packages/mcp/__test__/union-tools-wire.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 4064b902ba4c2f9ff52d52deb26ffa136af8522cccc8c07607b93c1b3d83ae16
+  at: 2026-09-28T18:57:48Z
+  body_sha256: c7f7169e2d51fc1f87acc3416d0c836d76fa2ef5c26ab45efbf11cf356c4ad6e
 ---
 
 # Strict MCP tool inputs — every served input rejects unknown keys
@@ -47,10 +47,15 @@ Tools reach the server by two routes, and both are strict.
    default whatever a tool's `Tool.Strict` annotation says: it serves
    Effect's strict document (`Schema.toJsonSchemaDocument` with
    `onExcessProperty: "error"`, `additionalProperties: false` on every
-   object node, made object-rooted), and it walks the raw payload
-   against that served schema before decoding. A hit fails
-   `McpSchema.InvalidParams` reading `Unrecognized parameter(s): <keys>.
-   Accepted params: <list>`, with every unknown key path-qualified.
+   object node, made object-rooted), and core decodes the payload with
+   `onExcessProperty: "error"` and `errors: "all"`, so excess keys,
+   missing keys, and wrong types arrive together in one
+   `McpSchema.InvalidParams`. Each excess key reads `Expected no excess
+   property` followed by its path-qualified location (`at ["testFiles"]`).
+   `McpToolkit.layer` then appends one line per object level that had an
+   unknown key: `Accepted params at the root: <list>.` or `Accepted params
+   at ["tags"]: <list>.` A zero-param tool reads `Expected never`, the
+   location, and `This tool accepts no params.`
 2. **The seven action-keyed tools** (`inventory`, `test`, `note`,
    `hypothesis`, `tdd_task`, `tdd_goal`, `tdd_behavior`) are
    `Tool.dynamic`, because core dies at registration on a union
@@ -58,9 +63,10 @@ Tools reach the server by two routes, and both are strict.
    Effect's strict document for the union, reshaped to `type: "object"` +
    `oneOf` + `x-discriminator`. Core never re-decodes a dynamic tool, so
    `McpToolkit.unionHandler` wraps each handler in
-   `toolkit.ts`[^toolkit-ts]. It runs the same unknown-key walk against
-   the served schema, selecting the union branch by the discriminant
-   present, then decodes with `onExcessProperty: "error"`.
+   `toolkit.ts`[^toolkit-ts]. It decodes the matched union branch with
+   `onExcessProperty: "error"` and `errors: "all"` before the handler
+   runs, and appends the same `Accepted params at <path>: …` lines, so a
+   union tool's rejection reads exactly like a `Tool.make` tool's.
 
 Both routes reject before the handler runs, so a rejected call never
 reaches a `DataReader` / `DataStore` call, and both answer on the same
