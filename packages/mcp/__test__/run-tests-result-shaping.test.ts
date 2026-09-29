@@ -16,11 +16,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProjectDiscoveryTest } from "@vitest-agent/engine";
 import { DataStoreTestLayer } from "@vitest-agent/engine/testing";
+import type { AgentReport } from "@vitest-agent/sdk";
 import { formatScopedCoverageNote } from "@vitest-agent/sdk";
-import { Layer, ManagedRuntime } from "effect";
+import { Layer, ManagedRuntime, Result } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpSession } from "../src/session.js";
-import { vitestLoader } from "../src/tools/run-tests.js";
+import type { RunScope } from "../src/tools/run-tests.js";
+import { deriveRunScope, isNoMatch, toNoMatch, toOkPayload, vitestLoader } from "../src/tools/run-tests.js";
 import type { ToolParams } from "./utils/caller.js";
 import { makeCaller as makeToolCaller } from "./utils/caller.js";
 
@@ -185,6 +187,130 @@ describe("run_tests result shaping (issue #336 characterization)", () => {
 			expect(result.kind).toBe("ok");
 			if (result.kind !== "ok") return;
 			expect(result.discoveryLastScannedAt).toBe("2026-09-29T00:00:00.000Z");
+		});
+	});
+});
+
+describe("run_tests pure shaping helpers (issue #336)", () => {
+	const scopeOf = (input: Parameters<typeof deriveRunScope>[0]): RunScope => {
+		const derived = deriveRunScope(input);
+		if (Result.isFailure(derived)) throw new Error(`unexpected refusal: ${derived.failure}`);
+		return derived.success;
+	};
+
+	describe("deriveRunScope", () => {
+		it("derives an unfiltered scope from an empty input", () => {
+			expect(scopeOf({})).toEqual({
+				files: [],
+				project: undefined,
+				tags: undefined,
+				resolvedExpression: null,
+				hasFilter: false,
+			});
+		});
+
+		it.each([
+			["files", { files: ["a.test.ts"] }],
+			["project", { project: "p" }],
+			["tags", { tags: { any: ["unit"] } }],
+		])("counts %s alone as a filter", (_label, input) => {
+			expect(scopeOf(input).hasFilter).toBe(true);
+		});
+
+		it("does not count an all-empty tag filter, but keeps it verbatim", () => {
+			const tags = { all: [], none: [] };
+			const scope = scopeOf({ tags });
+			expect(scope.hasFilter).toBe(false);
+			expect(scope.resolvedExpression).toBeNull();
+			expect(scope.tags).toBe(tags);
+		});
+
+		it("composes the tag expression", () => {
+			expect(scopeOf({ tags: { all: ["int"], none: ["slow"] } }).resolvedExpression).toBe("int and not slow");
+		});
+
+		it.each([
+			["file", { files: ["ok.ts", "x;y"] }, "x;y"],
+			["project", { project: "a&b" }, "a&b"],
+			["all tag", { tags: { all: ["$x"] } }, "$x"],
+			["any tag", { tags: { any: ["<x>"] } }, "<x>"],
+			["none tag", { tags: { none: ["#x"] } }, "#x"],
+		])("refuses an unsafe %s with the tool's message", (_label, input, bad) => {
+			const derived = deriveRunScope(input);
+			expect(Result.isFailure(derived)).toBe(true);
+			if (!Result.isFailure(derived)) return;
+			expect(derived.failure).toBe(`Unsafe argument rejected: ${bad}`);
+		});
+	});
+
+	describe("isNoMatch", () => {
+		const filtered = scopeOf({ files: ["a.test.ts"] });
+		it("is true only for a filtered run with no modules and no unhandled errors", () => {
+			expect(isNoMatch(filtered, 0, 0)).toBe(true);
+		});
+		it("is false for an unfiltered empty run", () => {
+			expect(isNoMatch(scopeOf({}), 0, 0)).toBe(false);
+		});
+		it("is false when a module was collected", () => {
+			expect(isNoMatch(filtered, 1, 0)).toBe(false);
+		});
+		it("is false when an unhandled error was raised", () => {
+			expect(isNoMatch(filtered, 0, 1)).toBe(false);
+		});
+	});
+
+	it("toNoMatch echoes the resolved filter and root, nulling absent fields", () => {
+		expect(toNoMatch(scopeOf({ files: ["a.test.ts"] }), "/repo")).toEqual({
+			kind: "no-match",
+			projectRoot: "/repo",
+			filter: { project: null, files: ["a.test.ts"], tags: null, resolvedExpression: null },
+		});
+	});
+
+	describe("toOkPayload", () => {
+		const report = { reason: "passed" } as unknown as AgentReport;
+
+		it("omits the top-level project and defaults classifications and scan time when absent", () => {
+			const payload = toOkPayload({
+				scope: scopeOf({}),
+				projectRoot: "/repo",
+				report,
+				classifications: undefined,
+				discoveryLastScannedAt: undefined,
+				scopedNote: null,
+			});
+			expect(payload).toEqual({
+				kind: "ok",
+				projectRoot: "/repo",
+				scope: { project: null, files: [], tags: null },
+				report,
+				classifications: {},
+				discoveryLastScannedAt: null,
+				scopedNote: null,
+			});
+			expect("project" in payload).toBe(false);
+		});
+
+		it("echoes project, scope, classifications, scan time and scoped note", () => {
+			const tags = { any: ["unit"] };
+			const payload = toOkPayload({
+				scope: scopeOf({ files: ["a.test.ts"], project: "p", tags }),
+				projectRoot: "/repo",
+				report,
+				classifications: new Map([["t", "flaky"]]),
+				discoveryLastScannedAt: "2026-09-29T00:00:00.000Z",
+				scopedNote: "note",
+			});
+			expect(payload).toEqual({
+				kind: "ok",
+				project: "p",
+				projectRoot: "/repo",
+				scope: { project: "p", files: ["a.test.ts"], tags },
+				report,
+				classifications: { t: "flaky" },
+				discoveryLastScannedAt: "2026-09-29T00:00:00.000Z",
+				scopedNote: "note",
+			});
 		});
 	});
 });

@@ -20,7 +20,7 @@ import {
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
 import type { Context, Fiber } from "effect";
-import { Data, Effect, Schema, Semaphore } from "effect";
+import { Data, Effect, Result, Schema, Semaphore } from "effect";
 import { Tool } from "effect/ai";
 import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
 import { McpSession } from "../session.js";
@@ -636,6 +636,117 @@ export const RunTestsInput = Schema.Struct({
  */
 export type RunTestsInputType = Schema.Schema.Type<typeof RunTestsInput>;
 
+/**
+ * The filter set a `run_tests` call resolves from its input alone: the
+ * sanitized `files` / `project`, the caller's `tags` verbatim, the Vitest
+ * tag expression composed from them, and whether any filter applies.
+ *
+ * @internal exported for tests
+ */
+export interface RunScope {
+	readonly files: string[];
+	readonly project: string | undefined;
+	readonly tags: TagFilterType | undefined;
+	readonly resolvedExpression: string | null;
+	readonly hasFilter: boolean;
+}
+
+type RunTestsOkType = Extract<RunTestsResultType, { kind: "ok" }>;
+type RunTestsNoMatchType = Extract<RunTestsResultType, { kind: "no-match" }>;
+
+/**
+ * Derive the run's {@link RunScope} from its input. Every file, project and
+ * tag value passes through `sanitizeTestArgs` (tag values ride into Vitest's
+ * tag-expression compiler unmodified, so shell metacharacters are rejected
+ * the same way); a refused argument fails with the message the tool returns
+ * as its `{ kind: "error" }` result. An all-empty tag filter composes to no
+ * expression and so is not a filter.
+ *
+ * @internal exported for tests
+ */
+export function deriveRunScope(
+	input: Pick<RunTestsInputType, "files" | "project" | "tags">,
+): Result.Result<RunScope, string> {
+	const tags = input.tags;
+	try {
+		const files = input.files ? sanitizeTestArgs(input.files) : [];
+		const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
+		if (tags) {
+			if (tags.all) sanitizeTestArgs(tags.all);
+			if (tags.any) sanitizeTestArgs(tags.any);
+			if (tags.none) sanitizeTestArgs(tags.none);
+		}
+		const resolvedExpression = composeTagExpression(tags ?? null);
+		const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
+		return Result.succeed({ files, project, tags, resolvedExpression, hasFilter });
+	} catch (err) {
+		return Result.fail(err instanceof Error ? err.message : String(err));
+	}
+}
+
+/**
+ * Whether a finished run is `no-match`: a filter was supplied, no test
+ * module was collected, and no unhandled error was raised. Filter-driven,
+ * not result-driven — an unfiltered empty run is `ok`, and the
+ * `passWithNoTests` policy never reshapes the discriminator.
+ *
+ * @internal exported for tests
+ */
+export function isNoMatch(scope: RunScope, testModuleCount: number, unhandledErrorCount: number): boolean {
+	return scope.hasFilter && testModuleCount === 0 && unhandledErrorCount === 0;
+}
+
+/**
+ * Shape the `no-match` result, echoing the resolved filter verbatim.
+ *
+ * @internal exported for tests
+ */
+export function toNoMatch(scope: RunScope, projectRoot: string): RunTestsNoMatchType {
+	return {
+		kind: "no-match" as const,
+		projectRoot,
+		filter: {
+			project: scope.project ?? null,
+			files: scope.files,
+			tags: scope.tags ?? null,
+			resolvedExpression: scope.resolvedExpression,
+		},
+	};
+}
+
+/**
+ * Shape the `ok` result from a finished run's plain values. `project` is
+ * echoed at the top level only when supplied; `scope` always echoes the
+ * resolved filter set; absent classifications and scan time become `{}` and
+ * `null`.
+ *
+ * @internal exported for tests
+ */
+export function toOkPayload(args: {
+	readonly scope: RunScope;
+	readonly projectRoot: string;
+	readonly report: AgentReport;
+	readonly classifications: ReadonlyMap<string, string> | undefined;
+	readonly discoveryLastScannedAt: string | undefined;
+	readonly scopedNote: string | null;
+}): RunTestsOkType {
+	const { scope } = args;
+	return {
+		kind: "ok" as const,
+		...(scope.project !== undefined && { project: scope.project }),
+		projectRoot: args.projectRoot,
+		scope: {
+			project: scope.project ?? null,
+			files: scope.files,
+			tags: scope.tags ?? null,
+		},
+		report: args.report,
+		classifications: args.classifications ? Object.fromEntries(args.classifications) : {},
+		discoveryLastScannedAt: args.discoveryLastScannedAt ?? null,
+		scopedNote: args.scopedNote,
+	};
+}
+
 /** What the promise-shaped run body reads from the Effect world: the session and a way to run DB effects. */
 interface RunTestsContext {
 	readonly cwd: string;
@@ -667,28 +778,15 @@ export const makeBestEffortFork =
  * `{ kind: "error" }` envelope, so it never rejects.
  */
 const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Promise<RunTestsResultType> => {
-	let files: string[];
-	let project: string | undefined;
-	const tagsInput = input.tags;
-	try {
-		files = input.files ? sanitizeTestArgs(input.files) : [];
-		project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
-		// Sanitize tag values too — they ride into Vitest's tag-expression
-		// compiler unmodified, so shell-metachar injections must be
-		// rejected the same way file/project arguments are.
-		if (tagsInput) {
-			if (tagsInput.all) sanitizeTestArgs(tagsInput.all);
-			if (tagsInput.any) sanitizeTestArgs(tagsInput.any);
-			if (tagsInput.none) sanitizeTestArgs(tagsInput.none);
-		}
-	} catch (err) {
-		// A refused argument is the caller's to fix: return it as the tool's
-		// error result (a thrown defect would reach the agent only as core's
-		// scrubbed internal-error text).
-		return { kind: "error" as const, message: err instanceof Error ? err.message : String(err) };
+	// A refused argument is the caller's to fix: return it as the tool's
+	// error result (a thrown defect would reach the agent only as core's
+	// scrubbed internal-error text).
+	const derived = deriveRunScope(input);
+	if (Result.isFailure(derived)) {
+		return { kind: "error" as const, message: derived.failure };
 	}
-	const resolvedExpression = composeTagExpression(tagsInput ?? null);
-	const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
+	const scope = derived.success;
+	const { files, project, resolvedExpression, hasFilter } = scope;
 
 	// Issue #252: validate (never trust) an explicit projectRoot
 	// before it can influence anything below. A rejection returns
@@ -892,17 +990,8 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		// an empty report. The `passWithNoTests` policy controls
 		// pass/fail classification only — it never reshapes the
 		// discriminator.
-		if (hasFilter && result.testModules.length === 0 && unhandledErrors.length === 0) {
-			return {
-				kind: "no-match" as const,
-				projectRoot: resolvedRoot,
-				filter: {
-					project: project ?? null,
-					files,
-					tags: tagsInput ?? null,
-					resolvedExpression,
-				},
-			};
+		if (isNoMatch(scope, result.testModules.length, unhandledErrors.length)) {
+			return toNoMatch(scope, resolvedRoot);
 		}
 
 		const preliminaryReason =
@@ -974,20 +1063,14 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 			scopedNote = formatScopedCoverageNote(testedFileCount, totalFileCount);
 		}
 
-		return {
-			kind: "ok" as const,
-			...(project !== undefined && { project }),
+		return toOkPayload({
+			scope,
 			projectRoot: resolvedRoot,
-			scope: {
-				project: project ?? null,
-				files,
-				tags: tagsInput ?? null,
-			},
 			report,
-			classifications: classifications ? Object.fromEntries(classifications) : {},
-			discoveryLastScannedAt: readDiscoveryLastScannedAt() ?? null,
+			classifications,
+			discoveryLastScannedAt: readDiscoveryLastScannedAt(),
 			scopedNote,
-		};
+		});
 	} catch (err) {
 		// Exception-safe error extraction: a hostile thrown value (a
 		// throwing `message` getter or `toString`) must still produce
