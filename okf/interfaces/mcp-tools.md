@@ -11,8 +11,8 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: 5883bde5cbe94575b8dd398b1d95a28b601b92efd359f0360346591a8fbf8208
+  at: 2026-09-29T05:49:24Z
+  body_sha256: a94b70124b6193466d6e3f9012c21ea59a1e92979e6f8fdaaeef69fcd8e02a98
 ---
 
 # MCP tool and prompt surface
@@ -114,7 +114,12 @@ The 30 tools group by shape, not by table:
   outputs are byte-identical across the two front ends.
 - **Mutation.** `run_tests` — the one tool on the `process` allowlist
   (mutates `process.env.VITEST_AGENT_*` so the in-process reporter
-  attributes the run) and the one that blocks the server for its duration.
+  attributes the run, and points `process.cwd()` at the resolved
+  `projectRoot` until the run ends) and the one that blocks the server for
+  its duration. A call the caller must fix — an unsafe argument, a refused
+  or config-less `projectRoot`, or a `vitest/node` entry that vanished
+  under the long-lived server (restart it) — returns `{ kind: "error" }`
+  with a message naming the problem.
   See [Module: @vitest-agent/mcp](../modules/mcp.md) for the root
   resolution, timeout, coverage-directory, and tag-filter mechanics behind
   its input/output shape.

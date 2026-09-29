@@ -1,5 +1,13 @@
 # Log
 
+## 2026-09-29
+
+* Updated @vitest-agent/engine
+* Updated Deterministic XDG Path Resolution
+* Added Reporter and MCP history looks wiped after an upgrade but sits orphaned under ~/.vitest-agent
+* Updated Reset the local vitest-agent database
+* Updated XDG data-root fallback splits between the reporter and the hook routes
+
 ## 2026-09-28
 
 * Updated @vitest-agent/cli

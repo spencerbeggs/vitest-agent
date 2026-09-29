@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: 90da025a09cd3b489acb508050e9ec757e7c14acec2a4795072d89a3d3a6d762
+  at: 2026-09-29T05:49:24Z
+  body_sha256: 1932d4c140331529d97975a39105ff9027ac590a468556d6fce0588f58bfe714
 ---
 
 # @vitest-agent/mcp
@@ -62,8 +62,9 @@ positive control[^boundaries-test]:
   build-time literal is exempt, and its user list is pinned to exactly
   `["version.ts"]`. `run-tests.ts` is on the allowlist because it
   mutates `process.env.VITEST_AGENT_*` on the in-process Vitest run so the
-  reporter attributes it to the active agent — see *`run_tests` boot
-  context* below. Every other tool reaches ambient input through
+  reporter attributes it to the active agent, and points `process.cwd()`
+  at the validated project root for the run's duration — see *MCP boot
+  context recovery* and *`run_tests` root handling* below. Every other tool reaches ambient input through
   `McpSession`, never `process.env`; `McpSession.layerTest({ cwd, … })`
   requires an explicit `cwd` for the same reason.
 - **stdout stays clean.** stdout is the JSON-RPC wire, so no file may
@@ -462,22 +463,83 @@ observe the caller's cwd from inside one MCP call, so a missing trust
 signal must mean *cannot tell*, never a default to either interpretation.
 
 When `projectRoot` is omitted, the tool anchors the root at the directory
-of the config Vitest would load anyway (`resolveConfigAnchoredRoot`,
-`vitest.config.*` before `vite.config.*`, first hit wins, bounded at the
-git root) rather than passing `McpSession.cwd` straight through as
-Vitest's `root` — Vitest finds the config file by walking up from `root`
-but resolves that config's relative `globalSetup` / `setupFiles` downward
-from the resolved root, so those two independent inputs previously
-diverged when the server booted inside a monorepo subtree. An explicit,
-validated `projectRoot` is used verbatim, with no anchoring applied — a
+of the config Vitest would load anyway (`resolveConfigAnchoredRoot`)
+rather than passing `McpSession.cwd` straight through as Vitest's `root`
+— Vitest finds the config file by walking up from `root` but resolves
+that config's relative `globalSetup` / `setupFiles` downward from the
+resolved root, so those two independent inputs previously diverged when
+the server booted inside a monorepo subtree. An explicit, validated
+`projectRoot` is used verbatim as `root`, with no anchoring applied — a
 caller whose config uses relative setup paths should pass the directory
-holding the config. `run_tests` then resolves `vitest/node` through a
-`createRequire` anchored at the run's validated project root rather than
-the bare specifier, because `vitest` is a peer dependency and pnpm
-routinely materializes more than one physical copy of the same version;
-driving the wrong copy split vitest's module-level `SnapshotClient`
-singleton and made every snapshot assertion fail while every other
-assertion passed.
+holding the config. Because Vitest 5 probes only `root` for a config,
+the explicit path still runs the same walk (`resolveAnchoredConfigFile`)
+and passes the config it finds alongside the verbatim root; finding none
+in range returns `{ kind: "error" }` rather than an `ok` run that loaded
+no plugin and wrote no rows.
+
+Both helpers share one walk over injected core `FileSystem` / `Path` and
+the `@effected/git` `Git` service. The bound is the git work-tree root
+from `Git.repoRoot` (`git rev-parse --show-toplevel`, which a linked
+worktree answers with its own root); any failure there — not a
+repository, or a failed `git` spawn — means no bound, and the walk runs to
+the filesystem root. Git prints a symlink-resolved path while
+`Walker.ascend` compares its `stopAt` lexically, so `lexicalGitCeiling`
+maps the physical root onto the walk's chain — the first ancestor whose
+realpath equals the root's realpath, found with `Walker.findRoot`,
+falling back to the raw root — so a symlinked start such as a macOS
+`/var` tmpdir cannot let the bound fail open. `Walker.ascend(start, {
+stopAt })` then builds the chain (inclusive of the git root itself;
+capped at 256 levels), and `Walker.findUpward` probes `vitest.config.*`
+before `vite.config.*`, each across `ts` / `mts` / `cts` / `js` / `mjs` /
+`cjs`; the nearest directory with any candidate wins. Both helpers return
+Effects that never fail: an unreadable candidate reads as absent, and a
+defect yields `null` (or `startDir` for `resolveConfigAnchoredRoot`). The
+promise-shaped run body provides `NodeFileSystem`, `NodePath`, and
+`Git.layer` over `NodeChildProcessSpawner.layer` at the call site
+(`runOnNodePlatform`), so the bound spawns one `git` process per
+`run_tests` call without a `projectRoot` and per explicit-root config
+lookup. The tests stub git with `Git.layerTest` over `@effected/memfs`
+volumes that declare their own layouts — covering a linked-worktree
+bound, a no-repository control, a symlinked root, and a walk that dies —
+plus one smoke test on the real tree. Same-repository validation of an
+explicit `projectRoot` is separate and unchanged: `resolveGitCommonDir`
+still runs `git rev-parse --git-common-dir` directly.
+
+`run_tests` then resolves `vitest/node` through a `createRequire` anchored
+at the run's validated project root rather than the bare specifier,
+because `vitest` is a peer dependency and pnpm routinely materializes more
+than one physical copy of the same version; driving the wrong copy split
+vitest's module-level `SnapshotClient` singleton and made every snapshot
+assertion fail while every other assertion passed. The server is
+long-lived, so a lockfile regenerated mid-session (a dependency install or
+branch switch) can rename vitest's pnpm store directory out from under
+that resolved entry; before any env write or temp-dir side effect,
+`staleInstallMessage` checks that the resolved `file:` entry still exists
+and otherwise returns `{ kind: "error" }` naming the missing path and the
+remedy — restart the MCP server (`/mcp` in Claude Code) or the session
+(issue 461).
+
+`root` alone does not steer everything a run reads: a consumer config
+that calls `AgentPlugin.discover()` with no arguments locates the
+workspace through `process.cwd()`, as do the reporter's database path,
+module info, and run-script lock, and inside this long-lived server that
+is the boot checkout — so a sibling-worktree `projectRoot` silently
+collected the main checkout's tests. For the run's duration the body
+therefore `process.chdir`s to the validated root and restores the
+previous cwd in a nested `finally` on every exit path (issue 512); this is
+safe because the body runs under the one-permit `runTestsSemaphore` and
+every other tool reads its cwd from `McpSession`.
+
+`runTestsBody` keeps that lifecycle — argument sanitization, root
+validation, the explicit-root config guard, the stale-entry guard, the env
+writes, the chdir, and the nested `finally` that restores cwd and cleans
+up — while the result shaping is pure: `deriveRunScope(input)` sanitizes
+`files` / `project` / tag values, composes the tag expression, and
+computes `hasFilter`, returning a `Result` whose failure is the message the
+tool returns as `{ kind: "error" }`; `isNoMatch(scope, testModuleCount,
+unhandledErrorCount)` is the filter-driven `no-match` discriminator; and
+`toNoMatch` / `toOkPayload` build the two result variants. All four are
+`@internal`, exported for `run-tests-result-shaping.test.ts`.
 
 `run_tests` blocks the long-lived stdio server for the run's duration —
 acceptable because agents wait for results before proceeding — bounded by
