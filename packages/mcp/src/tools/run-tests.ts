@@ -365,10 +365,7 @@ const walkUpToConfigFile = (startDir: string): Effect.Effect<string | null, neve
 		const path = yield* Path.Path;
 		const start = path.resolve(startDir);
 		const git = yield* Git;
-		const gitRoot = yield* git.repoRoot(start).pipe(Effect.option);
-		const dirs = Option.isSome(gitRoot)
-			? yield* Walker.ascendWithin(start, gitRoot.value)
-			: yield* Walker.ascend(start);
+		const dirs = yield* Walker.ascendWithin(start, yield* Effect.option(git.repoRoot(start)));
 		const found = yield* Walker.findUpward(dirs, (dir) =>
 			VITEST_CONFIG_PREFIXES.flatMap((prefix) =>
 				VITEST_CONFIG_EXTENSIONS.map((ext) => path.join(dir, `${prefix}${ext}`)),
