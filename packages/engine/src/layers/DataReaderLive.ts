@@ -985,33 +985,46 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				return runs.length === 0 ? null : runs[0].id;
 			});
 
-		const attachmentsFor = (column: "annotation_id" | "artifact_id", ownerId: number) =>
+		/**
+		 * Load the attachments of every owner in `ownerIds` with a single query,
+		 * grouped by owner id. Per-owner order follows `attachments.id`. An empty
+		 * owner list issues no query.
+		 */
+		const attachmentsForMany = (column: "annotation_id" | "artifact_id", ownerIds: ReadonlyArray<number>) =>
 			Effect.gen(function* () {
+				const grouped = new Map<number, Array<PersistedAttachment>>();
+				if (ownerIds.length === 0) return grouped;
+				interface AttachmentDbRow {
+					owner_id: number;
+					content_type: string | null;
+					path: string | null;
+					body: string | null;
+					body_encoding: string | null;
+					byte_size: number | null;
+				}
 				const rows =
 					column === "annotation_id"
-						? yield* sql<{
-								content_type: string | null;
-								path: string | null;
-								body: string | null;
-								body_encoding: string | null;
-								byte_size: number | null;
-							}>`SELECT content_type, path, body, body_encoding, byte_size FROM attachments WHERE annotation_id = ${ownerId} ORDER BY id`
-						: yield* sql<{
-								content_type: string | null;
-								path: string | null;
-								body: string | null;
-								body_encoding: string | null;
-								byte_size: number | null;
-							}>`SELECT content_type, path, body, body_encoding, byte_size FROM attachments WHERE artifact_id = ${ownerId} ORDER BY id`;
-				return rows.map(
-					(r): PersistedAttachment => ({
+						? yield* sql<AttachmentDbRow>`SELECT annotation_id AS owner_id, content_type, path, body, body_encoding, byte_size FROM attachments WHERE annotation_id IN ${sql.in(ownerIds)} ORDER BY id`
+						: yield* sql<AttachmentDbRow>`SELECT artifact_id AS owner_id, content_type, path, body, body_encoding, byte_size FROM attachments WHERE artifact_id IN ${sql.in(ownerIds)} ORDER BY id`;
+				for (const r of rows) {
+					const attachment: PersistedAttachment = {
 						...(r.content_type !== null && { contentType: r.content_type }),
 						...(r.path !== null && { path: r.path }),
 						...(r.body !== null && { body: r.body }),
 						...(r.body_encoding !== null && { bodyEncoding: r.body_encoding as "base64" | "utf-8" }),
 						byteSize: r.byte_size,
-					}),
-				);
+					};
+					const list = grouped.get(r.owner_id);
+					if (list === undefined) grouped.set(r.owner_id, [attachment]);
+					else list.push(attachment);
+				}
+				return grouped;
+			});
+
+		const attachmentsFor = (column: "annotation_id" | "artifact_id", ownerId: number) =>
+			Effect.gen(function* () {
+				const grouped = yield* attachmentsForMany(column, [ownerId]);
+				return grouped.get(ownerId) ?? [];
 			});
 
 		const getAnnotationsForTest = (
@@ -1039,9 +1052,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					WHERE tm.run_id = ${runId} AND tc.full_name = ${fullName}
 						AND (${modulePath} IS NULL OR tm.relative_module_id = ${modulePath})
 					ORDER BY ta.id`;
+				const attachmentsByOwner = yield* attachmentsForMany(
+					"annotation_id",
+					rows.map((r) => r.id),
+				);
 				const out: Array<TestAnnotationRow> = [];
 				for (const r of rows) {
-					const attachments = yield* attachmentsFor("annotation_id", r.id);
+					const attachments = attachmentsByOwner.get(r.id) ?? [];
 					out.push({
 						id: r.id,
 						type: r.type,
