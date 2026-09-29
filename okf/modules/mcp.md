@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T06:04:11Z
-  body_sha256: 32855426c2205474c67a9f6ae4f65061ad9175b7854c576ea3e62677a5d4219e
+  at: 2026-09-29T06:13:02Z
+  body_sha256: 86347d4d258541951d3cb5c379690045a76fdc09e6d43d68a77577635842dfc0
 ---
 
 # @vitest-agent/mcp
@@ -488,13 +488,14 @@ the `@effected/git` `Git` service. The bound is the git work-tree root
 from `Git.repoRoot` (`git rev-parse --show-toplevel`, which a linked
 worktree answers with its own root). Git prints that root
 symlink-resolved while the walk's chain is lexical, so the chain comes
-from `Walker.ascendWithin(start, root)`, which stops at the nearest
-ancestor whose realpath equals the root, inclusive of the root itself — a
-lexical stop would match nothing under a symlinked start such as a macOS
-`/var` tmpdir and let the bound fail open. Any `repoRoot` failure (not a
-repository, or no usable `git`) means no bound: the chain is plain
-`Walker.ascend(start)`, run to the filesystem root. Both chains are
-capped at 256 levels. `Walker.findUpward` then probes `vitest.config.*`
+from one call, `Walker.ascendWithin(start, ceiling)`, whose ceiling is
+the `Option` of `repoRoot` (`Effect.option`). With `Some(root)` it stops
+at the nearest ancestor whose realpath equals the root, inclusive of the
+root itself — a lexical stop would match nothing under a symlinked start
+such as a macOS `/var` tmpdir and let the bound fail open. Any `repoRoot`
+failure (not a repository, or no usable `git`) yields `None`, and
+`ascendWithin` then returns exactly `Walker.ascend(start)`'s chain, run
+to the filesystem root. The chain is capped at 256 levels. `Walker.findUpward` then probes `vitest.config.*`
 before `vite.config.*`, each across `ts` / `mts` / `cts` / `js` / `mjs` /
 `cjs`; the nearest directory with any candidate wins. Both helpers return
 Effects that never fail: an unreadable candidate reads as absent, and a
