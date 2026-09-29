@@ -11,8 +11,8 @@ tags:
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T05:49:24Z
-  body_sha256: a94b70124b6193466d6e3f9012c21ea59a1e92979e6f8fdaaeef69fcd8e02a98
+  at: 2026-09-29T06:04:11Z
+  body_sha256: 1a5ec5c3edb678188dd4d55c938564294c1291c9bedab83669173524e67f1d49
 ---
 
 # MCP tool and prompt surface
@@ -119,7 +119,11 @@ The 30 tools group by shape, not by table:
   its duration. A call the caller must fix — an unsafe argument, a refused
   or config-less `projectRoot`, or a `vitest/node` entry that vanished
   under the long-lived server (restart it) — returns `{ kind: "error" }`
-  with a message naming the problem.
+  with a message naming the problem. The same-repository check on
+  `projectRoot` runs `git rev-parse --path-format=absolute
+  --git-common-dir`, so passing `projectRoot` needs git 2.31 or newer on
+  `PATH`; with an older git the check cannot confirm the repository and
+  the root is refused.
   See [Module: @vitest-agent/mcp](../modules/mcp.md) for the root
   resolution, timeout, coverage-directory, and tag-filter mechanics behind
   its input/output shape.

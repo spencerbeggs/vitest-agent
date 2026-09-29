@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T05:49:24Z
-  body_sha256: 1932d4c140331529d97975a39105ff9027ac590a468556d6fce0588f58bfe714
+  at: 2026-09-29T06:04:11Z
+  body_sha256: 32855426c2205474c67a9f6ae4f65061ad9175b7854c576ea3e62677a5d4219e
 ---
 
 # @vitest-agent/mcp
@@ -452,10 +452,16 @@ green when an agent working in a git worktree called `run_tests` and the
 server silently ran a different tree. `run_tests` accepts an optional,
 validated `projectRoot` that overrides `McpSession.cwd` for one call: the
 path must resolve to an existing directory sharing a git common directory
-with `McpSession.cwd` (`git rev-parse --git-common-dir`, identical across a
-repository and every attached worktree, unlike `--show-toplevel`), with
-both candidates routed through `realpath` so a macOS tmpdir behind a
-symlink still compares equal. The resolved root is always echoed on
+with `McpSession.cwd`. The check compares the two with `===`, each read
+through the `@effected/git` `Git.commonDir` method (`git rev-parse
+--path-format=absolute --git-common-dir`), which is identical across a
+repository, its subdirectories, every attached worktree, and any
+symlinked path to them, unlike `--show-toplevel`; git prints it absolute
+and symlink-resolved, so a macOS tmpdir behind a symlink still compares
+equal. A private `gitCommonDir` helper maps any failure to `null`, and
+`null` on either side means *cannot confirm same repository*, so the
+root is refused. `--path-format` sets the floor for passing `projectRoot` at
+git 2.31. The resolved root is always echoed on
 `RunTestsOk` and `RunTestsNoMatch` as a required `projectRoot` field, so
 even a caller that never passes the param can see which tree answered.
 Detect-and-refuse is deliberately not implemented: the server cannot
@@ -480,30 +486,28 @@ no plugin and wrote no rows.
 Both helpers share one walk over injected core `FileSystem` / `Path` and
 the `@effected/git` `Git` service. The bound is the git work-tree root
 from `Git.repoRoot` (`git rev-parse --show-toplevel`, which a linked
-worktree answers with its own root); any failure there — not a
-repository, or a failed `git` spawn — means no bound, and the walk runs to
-the filesystem root. Git prints a symlink-resolved path while
-`Walker.ascend` compares its `stopAt` lexically, so `lexicalGitCeiling`
-maps the physical root onto the walk's chain — the first ancestor whose
-realpath equals the root's realpath, found with `Walker.findRoot`,
-falling back to the raw root — so a symlinked start such as a macOS
-`/var` tmpdir cannot let the bound fail open. `Walker.ascend(start, {
-stopAt })` then builds the chain (inclusive of the git root itself;
-capped at 256 levels), and `Walker.findUpward` probes `vitest.config.*`
+worktree answers with its own root). Git prints that root
+symlink-resolved while the walk's chain is lexical, so the chain comes
+from `Walker.ascendWithin(start, root)`, which stops at the nearest
+ancestor whose realpath equals the root, inclusive of the root itself — a
+lexical stop would match nothing under a symlinked start such as a macOS
+`/var` tmpdir and let the bound fail open. Any `repoRoot` failure (not a
+repository, or no usable `git`) means no bound: the chain is plain
+`Walker.ascend(start)`, run to the filesystem root. Both chains are
+capped at 256 levels. `Walker.findUpward` then probes `vitest.config.*`
 before `vite.config.*`, each across `ts` / `mts` / `cts` / `js` / `mjs` /
 `cjs`; the nearest directory with any candidate wins. Both helpers return
 Effects that never fail: an unreadable candidate reads as absent, and a
 defect yields `null` (or `startDir` for `resolveConfigAnchoredRoot`). The
 promise-shaped run body provides `NodeFileSystem`, `NodePath`, and
 `Git.layer` over `NodeChildProcessSpawner.layer` at the call site
-(`runOnNodePlatform`), so the bound spawns one `git` process per
-`run_tests` call without a `projectRoot` and per explicit-root config
-lookup. The tests stub git with `Git.layerTest` over `@effected/memfs`
+(`runOnNodePlatform`), the same bridge the `projectRoot` check runs
+through, so `git` is spawned per `run_tests` call without a
+`projectRoot`, and per explicit-root config lookup and same-repository
+check. The tests stub git with `Git.layerTest` over `@effected/memfs`
 volumes that declare their own layouts — covering a linked-worktree
 bound, a no-repository control, a symlinked root, and a walk that dies —
-plus one smoke test on the real tree. Same-repository validation of an
-explicit `projectRoot` is separate and unchanged: `resolveGitCommonDir`
-still runs `git rev-parse --git-common-dir` directly.
+plus one smoke test on the real tree.
 
 `run_tests` then resolves `vitest/node` through a `createRequire` anchored
 at the run's validated project root rather than the bare specifier,
