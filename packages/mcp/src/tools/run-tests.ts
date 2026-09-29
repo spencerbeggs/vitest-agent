@@ -756,8 +756,20 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 
 	let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
 	let covOverride: ReturnType<typeof makeCoverageDirOverride> | undefined;
+	// Issue #512: `root` alone does not steer everything. A consumer
+	// config that calls `AgentPlugin.discover()` with no args locates
+	// the workspace via `process.cwd()` (and the reporter's dbPath,
+	// module info and runScript lock read it too), which inside this
+	// long-lived server is the BOOT checkout — so a sibling-worktree
+	// `projectRoot` silently collected the main checkout's tests. Point
+	// cwd at the validated root for the duration of the run and restore
+	// it in the `finally` below on every exit path. Safe because this
+	// body runs under the one-permit `runTestsSemaphore` and every
+	// other tool reads its cwd from McpSession, not `process.cwd()`.
+	const previousCwd = process.cwd();
 
 	try {
+		process.chdir(resolvedRoot);
 		// Assigned inside the try (not before it) so a throwing
 		// mkdtempSync — e.g. a full or read-only tmpdir — is caught
 		// by the surrounding catch and returns the tool's normal
@@ -962,6 +974,11 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		try {
 			await vitest?.close();
 		} finally {
+			try {
+				process.chdir(previousCwd);
+			} catch {
+				// previous cwd vanished; nothing sane to restore to
+			}
 			nullStream.destroy();
 			if (covOverride !== undefined) {
 				try {
