@@ -1021,12 +1021,6 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 				return grouped;
 			});
 
-		const attachmentsFor = (column: "annotation_id" | "artifact_id", ownerId: number) =>
-			Effect.gen(function* () {
-				const grouped = yield* attachmentsForMany(column, [ownerId]);
-				return grouped.get(ownerId) ?? [];
-			});
-
 		const getAnnotationsForTest = (
 			project: string,
 			fullName: string,
@@ -1105,9 +1099,13 @@ export const DataReaderLive: Layer.Layer<DataReader, never, SqlClient> = Layer.e
 					WHERE tm.run_id = ${runId} AND tc.full_name = ${fullName}
 						AND (${modulePath} IS NULL OR tm.relative_module_id = ${modulePath})
 					ORDER BY ta.id`;
+				const attachmentsByOwner = yield* attachmentsForMany(
+					"artifact_id",
+					rows.map((r) => r.id),
+				);
 				const out: Array<TestArtifactRow> = [];
 				for (const r of rows) {
-					const attachments = yield* attachmentsFor("artifact_id", r.id);
+					const attachments = attachmentsByOwner.get(r.id) ?? [];
 					out.push({
 						id: r.id,
 						type: r.type,

@@ -107,6 +107,25 @@ describe("DataReaderLive attachments batching", () => {
 		expect(rows.map((r) => r.attachments.map((a) => a.body))).toEqual([[], ["b1"], ["b2", "b3", "b4"], ["b5"]]);
 	});
 
+	it("should query attachments once per call when reading artifacts with several owners", async () => {
+		const rows = await run(
+			Effect.gen(function* () {
+				const { project, runId, testCaseId } = yield* seed;
+				const store = yield* DataStore;
+				yield* store.writeArtifacts(runId, [
+					{ testCaseId, type: "t:a", attachments: [att(1), att(2)] },
+					{ testCaseId, type: "t:b", attachments: [] },
+					{ testCaseId, type: "t:c", attachments: [att(3)] },
+				]);
+				const reader = yield* DataReader;
+				statements.length = 0;
+				return yield* reader.getArtifactsForTest(project, "works");
+			}),
+		);
+		expect(attachmentQueries()).toHaveLength(1);
+		expect(rows.map((r) => r.attachments.map((a) => a.body))).toEqual([["b1", "b2"], [], ["b3"]]);
+	});
+
 	it("should issue no attachments query when the test has no annotations", async () => {
 		await run(
 			Effect.gen(function* () {
