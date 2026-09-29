@@ -84,6 +84,29 @@ export const parseSessionEnvExports = (content: string): Record<string, string> 
 };
 
 /**
+ * The synchronous filesystem reads {@link recoverSessionContextFromSessionEnv}
+ * performs. Each member throws on a missing or unreadable path, exactly as
+ * the `node:fs` call it stands in for; recovery treats a throw as "skip".
+ *
+ * @public
+ */
+export interface SessionEnvFileSystem {
+	/** Entry names directly under `path` (`readdirSync`). */
+	readonly readDirectory: (path: string) => ReadonlyArray<string>;
+	/** The UTF-8 text of the file at `path` (`readFileSync(path, "utf8")`). */
+	readonly readFile: (path: string) => string;
+	/** Modification time of the file at `path`, in epoch milliseconds (`statSync(path).mtimeMs`). */
+	readonly mtimeMs: (path: string) => number;
+}
+
+/** The default {@link SessionEnvFileSystem}: the real disk through `node:fs`. */
+const nodeSessionEnvFileSystem: SessionEnvFileSystem = {
+	readDirectory: (path) => readdirSync(path),
+	readFile: (path) => readFileSync(path, "utf8"),
+	mtimeMs: (path) => statSync(path).mtimeMs,
+};
+
+/**
  * Recover a {@link SessionContext} from the newest session-env hook file
  * whose `VITEST_AGENT_PROJECT_DIR` matches `projectDir`.
  *
@@ -96,18 +119,22 @@ export const parseSessionEnvExports = (content: string): Record<string, string> 
  *
  * @param opts - `projectDir` to match against; `homeDir` is the caller's
  *   home directory (ambient input — the MCP bin passes `os.homedir()`),
- *   under which `.claude/session-env` is read
+ *   under which `.claude/session-env` is read; `fileSystem` replaces the
+ *   `node:fs` reads (tests pass an in-memory volume) and defaults to the
+ *   real disk
  * @public
  */
 export const recoverSessionContextFromSessionEnv = (opts: {
 	readonly projectDir: string;
 	readonly homeDir: string;
+	readonly fileSystem?: SessionEnvFileSystem;
 }): SessionContext | null => {
+	const fs = opts.fileSystem ?? nodeSessionEnvFileSystem;
 	const root = join(opts.homeDir, ".claude", "session-env");
 	const wantDir = resolve(opts.projectDir);
-	let entries: string[];
+	let entries: ReadonlyArray<string>;
 	try {
-		entries = readdirSync(root);
+		entries = fs.readDirectory(root);
 	} catch {
 		return null;
 	}
@@ -115,8 +142,8 @@ export const recoverSessionContextFromSessionEnv = (opts: {
 	for (const entry of entries) {
 		const file = join(root, entry, "vitest-agent-hook.sh");
 		try {
-			const st = statSync(file);
-			const env = parseSessionEnvExports(readFileSync(file, "utf8"));
+			const mtimeMs = fs.mtimeMs(file);
+			const env = parseSessionEnvExports(fs.readFile(file));
 			const chatId = env.VITEST_AGENT_CHAT_ID;
 			const conversationId = env.VITEST_AGENT_CONVERSATION_ID;
 			const mainAgentId = env.VITEST_AGENT_MAIN_AGENT_ID ?? env.VITEST_AGENT_AGENT_ID;
@@ -133,8 +160,8 @@ export const recoverSessionContextFromSessionEnv = (opts: {
 			) {
 				continue;
 			}
-			if (best === null || st.mtimeMs > best.mtimeMs) {
-				best = { mtimeMs: st.mtimeMs, ctx: { chatId, conversationId, mainAgentId } };
+			if (best === null || mtimeMs > best.mtimeMs) {
+				best = { mtimeMs, ctx: { chatId, conversationId, mainAgentId } };
 			}
 		} catch {
 			// Missing or unreadable hook file in this session dir — skip.

@@ -3,7 +3,7 @@ import { AppDirs } from "@effected/xdg";
 import { VitestAgentConfig, normalizeWorkspaceKey } from "@vitest-agent/sdk";
 import { Effect, FileSystem } from "effect";
 import { VitestAgentConfigFile } from "../services/Config.js";
-import { resolveProjectKeyFromCwd } from "./resolve-project-key-from-cwd.js";
+import { resolveProjectKeyFromCwdEffect } from "./resolve-project-key-from-cwd.js";
 
 /**
  * Filename of the SQLite database that stores all reporter data.
@@ -79,7 +79,9 @@ export const resolveDataPath = (projectDir: string, options: ResolveDataPathOpti
 		const dataRoot = yield* appDirs.ensureData;
 
 		// 3. Config file projectKey overrides cwd-derived projectKey.
-		const key = loaded.projectKey ? normalizeWorkspaceKey(loaded.projectKey) : resolveProjectKeyFromCwd(projectDir);
+		const key = loaded.projectKey
+			? normalizeWorkspaceKey(loaded.projectKey)
+			: yield* resolveProjectKeyFromCwdEffect(projectDir);
 
 		const dir = join(dataRoot, key);
 		yield* fs.makeDirectory(dir, { recursive: true });

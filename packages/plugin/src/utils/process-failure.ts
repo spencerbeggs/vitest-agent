@@ -68,9 +68,11 @@ const parseFramesFromStackString = (stack: string): RawFrame[] => {
 	return frames;
 };
 
-const readSourceSafe = (filePath: string): string | null => {
+const readSourceNode = (filePath: string): string => readFileSync(filePath, "utf-8");
+
+const readSourceSafe = (filePath: string, readSource: (path: string) => string): string | null => {
 	try {
-		return readFileSync(filePath, "utf-8");
+		return readSource(filePath);
 	} catch {
 		return null;
 	}
@@ -83,10 +85,17 @@ const readSourceSafe = (filePath: string): string | null => {
  * Returns `null` for the signature when no usable top frame is found
  * (error has no stack, or every frame is in framework code). Frames may
  * still be populated even when the signature is null.
+ *
+ * @param error - The Vitest error to process.
+ * @param options - Optional overrides. `readSource` reads the top frame's
+ *   source file as UTF-8 text for function-boundary detection; it defaults to
+ *   `node:fs`'s `readFileSync`, and a throw is treated as an unreadable file
+ *   (the signature falls back to the raw-line bucket).
  * @public
  */
 export const processFailure = (
 	error: VitestErrorLike,
+	options?: { readonly readSource?: (path: string) => string },
 ): { frames: ReadonlyArray<StackFrameInput>; signatureHash: string | null } => {
 	// Prefer Vitest's parsed `stacks` (already source-mapped). Fall back to
 	// regex over the raw `stack` string.
@@ -114,7 +123,7 @@ export const processFailure = (
 		// Vitest's parsed `stacks` and the regex-parsed fallback both produce
 		// line numbers in the source's coordinate system at this point.
 		const lineForBoundary = topFrame.line;
-		const source = readSourceSafe(topFrame.filePath);
+		const source = readSourceSafe(topFrame.filePath, options?.readSource ?? readSourceNode);
 		const boundary = source !== null ? findFunctionBoundary(source, lineForBoundary) : null;
 		if (boundary !== null) {
 			topBoundaryLine = boundary.line;

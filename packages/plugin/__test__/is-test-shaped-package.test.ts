@@ -1,62 +1,55 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { MemoryFileSystemSeedEntry } from "@effected/memfs";
+import { MemoryFileSystem } from "@effected/memfs";
+import { describe, expect, it } from "vitest";
 import { isTestShapedPackage } from "../src/utils/is-test-shaped-package.js";
+import { rootedSeed, withMemfsWalker } from "./utils/memfs-walker.js";
 
-let tmpDir: string;
+// Every case runs against a seeded `@effected/memfs` volume through the
+// `WalkerFileSystem` port — no temporary directory, nothing on disk.
+// `isTestShapedPackage` keeps no cache, so a fixed root is safe to share.
+const PKG = "/pkg";
 
-beforeEach(async () => {
-	tmpDir = await mkdtemp(join(tmpdir(), "vitest-agent-test-shaped-"));
-});
-
-afterEach(async () => {
-	await rm(tmpDir, { recursive: true, force: true });
-});
+/** Seeds `files` (relative to the package root) and asks whether it is test-shaped. */
+const shapedIn = (files: Readonly<Record<string, MemoryFileSystemSeedEntry>>): Promise<boolean> =>
+	withMemfsWalker(rootedSeed(PKG, files), (fs) => isTestShapedPackage(PKG, fs));
 
 // Re-authored inside the active red phase window (D2 evidence binding).
 describe("isTestShapedPackage()", () => {
 	it("returns false for a package with neither a __test__/ directory nor src/ test files", async () => {
 		// Given: a package with only a non-test src file
-		await mkdir(join(tmpDir, "src"), { recursive: true });
-		await writeFile(join(tmpDir, "src", "index.ts"), "export const x = 1;");
-
 		// When/Then
-		expect(await isTestShapedPackage(tmpDir)).toBe(false);
+		expect(await shapedIn({ "src/index.ts": "export const x = 1;" })).toBe(false);
 	});
 
 	it("returns true for a package with an empty __test__/ directory (naming mismatch case)", async () => {
 		// Given: a __test__/ dir exists but holds no files matching the Vitest OR
 		// bats naming convention
-		await mkdir(join(tmpDir, "__test__"), { recursive: true });
-		await writeFile(join(tmpDir, "__test__", "helper.ts"), "");
-
 		// When/Then: neither a Vitest test nor a bats test was found, so
 		// directory existence alone is the signal — this is exactly the
 		// "forgot the .test. suffix" mistake the warning exists to catch.
-		expect(await isTestShapedPackage(tmpDir)).toBe(true);
+		expect(await shapedIn({ "__test__/helper.ts": "" })).toBe(true);
 	});
 
 	it("returns true for a package with a fully empty __test__/ directory", async () => {
-		await mkdir(join(tmpDir, "__test__"), { recursive: true });
-		expect(await isTestShapedPackage(tmpDir)).toBe(true);
+		expect(await shapedIn({ __test__: MemoryFileSystem.directory() })).toBe(true);
 	});
 
 	it("returns false for a package with co-located src/ test files (a real Vitest test was found)", async () => {
-		await mkdir(join(tmpDir, "src"), { recursive: true });
-		await writeFile(join(tmpDir, "src", "foo.test.ts"), "");
-		expect(await isTestShapedPackage(tmpDir)).toBe(false);
+		expect(await shapedIn({ "src/foo.test.ts": "" })).toBe(false);
 	});
 
 	it("returns false for a __test__/ directory containing only .bats files (bats runs them, not Vitest)", async () => {
-		await mkdir(join(tmpDir, "__test__"), { recursive: true });
-		await writeFile(join(tmpDir, "__test__", "some.bats"), "#!/usr/bin/env bats\n");
-		expect(await isTestShapedPackage(tmpDir)).toBe(false);
+		// Given: the real layout this fixes — .bats suites plus their fixtures
+		expect(
+			await shapedIn({
+				"__test__/agent-skill-registration.bats": "#!/usr/bin/env bats\n",
+				"__test__/session-start-orientation.bats": "#!/usr/bin/env bats\n",
+				"__test__/fixtures/some-fixture.json": "{}",
+			}),
+		).toBe(false);
 	});
 
 	it("returns false for a nested .bats file under __test__/ (recursive bats search)", async () => {
-		await mkdir(join(tmpDir, "__test__", "sub"), { recursive: true });
-		await writeFile(join(tmpDir, "__test__", "sub", "nested.bats"), "#!/usr/bin/env bats\n");
-		expect(await isTestShapedPackage(tmpDir)).toBe(false);
+		expect(await shapedIn({ "__test__/sub/nested.bats": "#!/usr/bin/env bats\n" })).toBe(false);
 	});
 });

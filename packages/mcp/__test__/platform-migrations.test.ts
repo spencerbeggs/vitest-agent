@@ -1,19 +1,13 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { DataReader, DataStore, PlatformLive } from "@vitest-agent/engine";
 import { Effect } from "effect";
-import { afterAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 // Regression: the MCP server's runtime layer (the engine's `PlatformLive`, provided by `main.ts`) must register every project-database migration, not
 // just `0001_initial`. Reading artifacts touches `test_artifacts.data`, a
 // column added by `0002_test_artifacts`; a layer stuck on `0001` fails the
 // query with `no such column: ta.data`.
-const dir = mkdtempSync(join(tmpdir(), "vitest-agent-mcp-live-"));
-
-afterAll(() => {
-	rmSync(dir, { recursive: true, force: true });
-});
+// A fresh `:memory:` database is as fresh as a new file for this purpose
+// (`PlatformOptions.dbPath` accepts it, and the layer creates no directory).
 
 describe("PlatformLive migrations (MCP server layer)", () => {
 	it("reads artifacts on a fresh database opened through the layer alone", async () => {
@@ -39,9 +33,7 @@ describe("PlatformLive migrations (MCP server layer)", () => {
 			return yield* reader.getArtifactsForTest("pkg", "does not exist");
 		});
 
-		const rows = await Effect.runPromise(
-			Effect.provide(program, PlatformLive({ dbPath: join(dir, "data.db"), env: {} })),
-		);
+		const rows = await Effect.runPromise(Effect.provide(program, PlatformLive({ dbPath: ":memory:", env: {} })));
 
 		expect(rows).toStrictEqual([]);
 	});

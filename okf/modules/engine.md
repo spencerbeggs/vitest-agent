@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T05:22:58Z
-  body_sha256: c0502c2f2d35b6d570ebe4e179980939482a05775028aa4b6073ca500f4c1a5c
+  at: 2026-09-29T20:39:27Z
+  body_sha256: 8337185d4b4a61202390220cac9da97352d45b41d38e99e4fbb921123aeedb22
 ---
 
 # @vitest-agent/engine
@@ -77,9 +77,15 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
 - `src/sql/` — row shapes and row-to-domain assemblers.
 - `src/migrations/` — `PROJECT_MIGRATIONS` plus the registry and
   session-map migration sets.
-- `src/programs/` — the hook-driven program bodies.
+- `src/programs/` — the hook-driven program bodies, including
+  `session-env.ts`'s `recoverSessionContextFromSessionEnv({ projectDir,
+  homeDir, fileSystem? })`, whose optional `SessionEnvFileSystem` port
+  defaults to `node:fs` so tests can recover from a virtual volume.
 - `src/utils/` — `resolveDataPath`, `ensureMigrated`,
-  `resolveProjectKeyFromCwd`, `resolveWorkspaceKey`, `computeFailureSignature`.
+  `resolveProjectKeyFromCwd` and its `FileSystem`-backed twin
+  `resolveProjectKeyFromCwdEffect` (the one `resolveDataPath` calls, so
+  path resolution reads only through the `FileSystem` service),
+  `resolveWorkspaceKey`, `computeFailureSignature`.
 - `src/testing/` — `makeTestLayer`, `DataStoreTestLayer`, five preset
   factories.
 

@@ -10,8 +10,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 4dd3e9fd275268039188c3e44fea7b73620410341387bea156778a1af6840e66
+  at: 2026-09-29T20:39:27Z
+  body_sha256: 5b671e23be81f8819c58c192bbfcee39f3735ab7b8f41de97cab53fd0611120b
 sources:
   - id: config-live
     resource: ../../packages/engine/src/layers/ConfigLive.ts
@@ -75,18 +75,22 @@ these fields take effect, in this order:[^resolve-data-path]
 3. The TOML file's `projectKey`, normalized, as the XDG data-directory
    key segment — used only when neither `cacheDir` source applied.
 4. The workspace-name-derived key, computed by
-   `resolveProjectKeyFromCwd(projectDir)`: it walks upward from
-   `projectDir` to the nearest `package.json`, prefers a canonicalized
+   `resolveProjectKeyFromCwdEffect(projectDir)` (the `FileSystem`-backed
+   form of the synchronous `resolveProjectKeyFromCwd`; same rules): it
+   walks upward from `projectDir` to the nearest `package.json`, prefers
+   a canonicalized
    `repository` URL (`host__path` form) when present, and otherwise
    falls back to the normalized `name` field.[^resolve-project-key-from-cwd]
 
 ## Fail-loud vs. fallback: a live discrepancy
 
-`resolveProjectKeyFromCwd` — the function `resolveDataPath` actually
-calls at precedence level 4 — never fails: when no `package.json` is
-reachable, or it is malformed, it falls back to the `cwd`'s final path
-segment, and to the literal string `"anonymous-project"` when even that
-is empty.[^resolve-project-key-from-cwd] A separate resolver,
+`resolveProjectKeyFromCwdEffect` — the function `resolveDataPath` actually
+calls at precedence level 4, with error type `never` — never fails, and
+neither does its synchronous twin `resolveProjectKeyFromCwd`: when
+no `package.json` is reachable, or it is malformed, it falls back to
+the `cwd`'s final path segment, and to the literal string
+`"anonymous-project"` when even that is
+empty.[^resolve-project-key-from-cwd] A separate resolver,
 `resolveWorkspaceKey` (`packages/engine/src/utils/resolve-workspace-key.ts`),
 fails with `WorkspaceRootNotFoundError` when `projectDir` sits in no
 discoverable workspace at all — but as of this writing nothing in the

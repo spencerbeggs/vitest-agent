@@ -1,38 +1,28 @@
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import type { MemoryFileSystemSeed } from "@effected/memfs";
+import { MemoryFileSystem } from "@effected/memfs";
+import { Effect } from "effect";
+import { describe, expect, it } from "vitest";
+import type { SessionEnvFileSystem } from "../src/programs/session-env.js";
 import { parseSessionEnvExports, recoverSessionContextFromSessionEnv } from "../src/programs/session-env.js";
 
-const roots: string[] = [];
+/** The fake home every volume case reads `.claude/session-env` under. */
+const HOME = "/home/user";
+const ROOT = join(HOME, ".claude", "session-env");
 
-/**
- * A fake home directory. The recovery program reads
- * `<homeDir>/.claude/session-env`, so the returned `home` is what the
- * program takes and `root` is where the session dirs are written.
- */
-function makeRoot(): { home: string; root: string } {
-	const home = mkdtempSync(join(tmpdir(), "vitest-agent-session-env-"));
-	roots.push(home);
-	const root = join(home, ".claude", "session-env");
-	mkdirSync(root, { recursive: true });
-	return { home, root };
+interface SessionDirOptions {
+	readonly projectDir: string;
+	readonly conversationId?: string;
+	readonly mainAgentId?: string;
+	/** Epoch milliseconds for the hook file's mtime. */
+	readonly mtime?: number;
+	readonly omit?: readonly string[];
 }
 
-function writeSessionDir(
-	root: string,
-	chatId: string,
-	opts: {
-		projectDir: string;
-		conversationId?: string;
-		mainAgentId?: string;
-		mtime?: Date;
-		omit?: readonly string[];
-	},
-): void {
-	const dir = join(root, chatId);
-	mkdirSync(dir, { recursive: true });
-	const lines: string[] = [];
+/** The `export KEY=value` body the SessionStart hook writes for `chatId`. */
+function hookFileBody(chatId: string, opts: SessionDirOptions): string {
 	const vars: Record<string, string> = {
 		VITEST_AGENT_CHAT_ID: chatId,
 		VITEST_AGENT_CONVERSATION_ID: opts.conversationId ?? `conv-${chatId}`,
@@ -40,22 +30,39 @@ function writeSessionDir(
 		VITEST_AGENT_AGENT_ID: opts.mainAgentId ?? `agent-${chatId}`,
 		VITEST_AGENT_PROJECT_DIR: opts.projectDir,
 	};
-	for (const [k, v] of Object.entries(vars)) {
-		if (opts.omit?.includes(k) === true) continue;
-		lines.push(`export ${k}=${v}`);
-	}
-	const file = join(dir, "vitest-agent-hook.sh");
-	writeFileSync(file, `${lines.join("\n")}\n`);
-	if (opts.mtime !== undefined) {
-		utimesSync(file, opts.mtime, opts.mtime);
-	}
+	const lines = Object.entries(vars)
+		.filter(([k]) => opts.omit?.includes(k) !== true)
+		.map(([k, v]) => `export ${k}=${v}`);
+	return `${lines.join("\n")}\n`;
 }
 
-afterAll(() => {
-	for (const root of roots) {
-		rmSync(root, { recursive: true, force: true });
-	}
-});
+/** Seed entry for one session dir's hook file under {@link ROOT}. */
+function sessionDir(chatId: string, opts: SessionDirOptions): MemoryFileSystemSeed {
+	return {
+		[join(ROOT, chatId, "vitest-agent-hook.sh")]: MemoryFileSystem.file(
+			hookFileBody(chatId, opts),
+			opts.mtime === undefined ? undefined : { mtime: opts.mtime },
+		),
+	};
+}
+
+/** A {@link SessionEnvFileSystem} over an in-memory volume seeded with `seed`. */
+function volumeFs(seed: MemoryFileSystemSeed): SessionEnvFileSystem {
+	const { volume } = Effect.runSync(MemoryFileSystem.makeInspectableWith(seed));
+	const sync = MemoryFileSystem.syncFileSystem(volume);
+	return {
+		readDirectory: sync.readDirectory,
+		readFile: sync.readFile,
+		mtimeMs: (path) => {
+			const mtime = volume.mtime(path);
+			if (mtime === undefined) throw new Error(`ENOENT: no such file, stat '${path}'`);
+			return mtime;
+		},
+	};
+}
+
+const recover = (projectDir: string, seed: MemoryFileSystemSeed) =>
+	recoverSessionContextFromSessionEnv({ projectDir, homeDir: HOME, fileSystem: volumeFs(seed) });
 
 describe("parseSessionEnvExports", () => {
 	it("parses bare export lines and ignores non-export lines", () => {
@@ -87,19 +94,14 @@ describe("parseSessionEnvExports", () => {
 
 describe("recoverSessionContextFromSessionEnv", () => {
 	it("returns null when the session-env root does not exist", () => {
-		expect(
-			recoverSessionContextFromSessionEnv({
-				projectDir: "/tmp/none",
-				homeDir: join(tmpdir(), "vitest-agent-does-not-exist"),
-			}),
-		).toBeNull();
+		expect(recover("/tmp/none", { [HOME]: MemoryFileSystem.directory() })).toBeNull();
 	});
 
 	it("recovers the context for the matching project dir", () => {
-		const { home, root } = makeRoot();
-		writeSessionDir(root, "chat-match", { projectDir: "/tmp/project-a" });
-		writeSessionDir(root, "chat-other", { projectDir: "/tmp/project-b" });
-		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home });
+		const ctx = recover("/tmp/project-a", {
+			...sessionDir("chat-match", { projectDir: "/tmp/project-a" }),
+			...sessionDir("chat-other", { projectDir: "/tmp/project-b" }),
+		});
 		expect(ctx).toEqual({
 			chatId: "chat-match",
 			conversationId: "conv-chat-match",
@@ -108,29 +110,70 @@ describe("recoverSessionContextFromSessionEnv", () => {
 	});
 
 	it("picks the newest-mtime session dir when several match the project", () => {
-		const { home, root } = makeRoot();
-		writeSessionDir(root, "chat-old", { projectDir: "/tmp/project-a", mtime: new Date("2026-07-01T00:00:00Z") });
-		writeSessionDir(root, "chat-new", { projectDir: "/tmp/project-a", mtime: new Date("2026-07-02T00:00:00Z") });
-		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home });
-		expect(ctx?.chatId).toBe("chat-new");
+		// Seeded newest-first so a first-match (entry-order) pick would name the wrong dir either way.
+		const newestFirst = recover("/tmp/project-a", {
+			...sessionDir("chat-new", { projectDir: "/tmp/project-a", mtime: Date.parse("2026-07-02T00:00:00Z") }),
+			...sessionDir("chat-old", { projectDir: "/tmp/project-a", mtime: Date.parse("2026-07-01T00:00:00Z") }),
+		});
+		const oldestFirst = recover("/tmp/project-a", {
+			...sessionDir("chat-old", { projectDir: "/tmp/project-a", mtime: Date.parse("2026-07-01T00:00:00Z") }),
+			...sessionDir("chat-new", { projectDir: "/tmp/project-a", mtime: Date.parse("2026-07-02T00:00:00Z") }),
+		});
+		expect(newestFirst?.chatId).toBe("chat-new");
+		expect(oldestFirst?.chatId).toBe("chat-new");
 	});
 
 	it("skips session dirs missing required UUID exports", () => {
-		const { home, root } = makeRoot();
-		writeSessionDir(root, "chat-incomplete", {
+		const seed = sessionDir("chat-incomplete", {
 			projectDir: "/tmp/project-a",
 			omit: ["VITEST_AGENT_CONVERSATION_ID"],
 		});
-		expect(recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home })).toBeNull();
+		expect(recover("/tmp/project-a", seed)).toBeNull();
+	});
+
+	it("skips a session dir with no hook file and still recovers a sibling", () => {
+		const ctx = recover("/tmp/project-a", {
+			[join(ROOT, "chat-empty")]: MemoryFileSystem.directory(),
+			...sessionDir("chat-ok", { projectDir: "/tmp/project-a" }),
+		});
+		expect(ctx?.chatId).toBe("chat-ok");
 	});
 
 	it("falls back to VITEST_AGENT_AGENT_ID when MAIN_AGENT_ID is absent", () => {
-		const { home, root } = makeRoot();
-		writeSessionDir(root, "chat-agent-only", {
-			projectDir: "/tmp/project-a",
-			omit: ["VITEST_AGENT_MAIN_AGENT_ID"],
-		});
-		const ctx = recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home });
+		const ctx = recover(
+			"/tmp/project-a",
+			sessionDir("chat-agent-only", { projectDir: "/tmp/project-a", omit: ["VITEST_AGENT_MAIN_AGENT_ID"] }),
+		);
 		expect(ctx?.mainAgentId).toBe("agent-chat-agent-only");
+	});
+});
+
+// Real-disk smoke for the default `node:fs` port the MCP bin uses: readdir,
+// stat mtime, and read all go through node, and the newest mtime wins.
+describe("recoverSessionContextFromSessionEnv (node:fs default)", () => {
+	it("recovers the newest matching session from a real home dir", () => {
+		const home = mkdtempSync(join(tmpdir(), "vitest-agent-session-env-"));
+		try {
+			const writeHook = (chatId: string, projectDir: string, mtime: Date) => {
+				const dir = join(home, ".claude", "session-env", chatId);
+				mkdirSync(dir, { recursive: true });
+				const file = join(dir, "vitest-agent-hook.sh");
+				writeFileSync(file, hookFileBody(chatId, { projectDir }));
+				utimesSync(file, mtime, mtime);
+			};
+			writeHook("chat-new", "/tmp/project-a", new Date("2026-07-02T00:00:00Z"));
+			writeHook("chat-old", "/tmp/project-a", new Date("2026-07-01T00:00:00Z"));
+			writeHook("chat-other", "/tmp/project-b", new Date("2026-07-03T00:00:00Z"));
+			expect(recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: home })).toEqual({
+				chatId: "chat-new",
+				conversationId: "conv-chat-new",
+				mainAgentId: "agent-chat-new",
+			});
+			expect(
+				recoverSessionContextFromSessionEnv({ projectDir: "/tmp/project-a", homeDir: join(home, "missing") }),
+			).toBeNull();
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
 	});
 });

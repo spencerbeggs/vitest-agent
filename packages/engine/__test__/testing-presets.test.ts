@@ -1,24 +1,13 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { DataReader } from "@vitest-agent/engine";
 import { empty, flaky, singlePassingRun, withFailures, withTddTask } from "@vitest-agent/engine/testing";
 import { Effect, ManagedRuntime } from "effect";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 describe("vitest-agent-sdk/testing preset factories", () => {
-	let tmpDir: string;
-
-	beforeEach(() => {
-		tmpDir = mkdtempSync(join(tmpdir(), "va-preset-"));
-	});
-
-	afterEach(() => {
-		rmSync(tmpDir, { recursive: true, force: true });
-	});
-
+	// Each preset seeds a fresh database per runtime; nothing reopens the file,
+	// so an in-memory database exercises the same seeding.
 	it("empty: DB has no test runs", async () => {
-		const rt = ManagedRuntime.make(empty(join(tmpDir, "data.db")));
+		const rt = ManagedRuntime.make(empty(":memory:"));
 		try {
 			const runs = await rt.runPromise(
 				Effect.gen(function* () {
@@ -33,7 +22,7 @@ describe("vitest-agent-sdk/testing preset factories", () => {
 	});
 
 	it("singlePassingRun: one run with 3 passing tests", async () => {
-		const rt = ManagedRuntime.make(singlePassingRun(join(tmpDir, "data.db")));
+		const rt = ManagedRuntime.make(singlePassingRun(":memory:"));
 		try {
 			const runs = await rt.runPromise(
 				Effect.gen(function* () {
@@ -53,7 +42,7 @@ describe("vitest-agent-sdk/testing preset factories", () => {
 	});
 
 	it("withFailures: one run with 2 failing and 2 passing tests", async () => {
-		const rt = ManagedRuntime.make(withFailures(join(tmpDir, "data.db")));
+		const rt = ManagedRuntime.make(withFailures(":memory:"));
 		try {
 			const runs = await rt.runPromise(
 				Effect.gen(function* () {
@@ -72,7 +61,7 @@ describe("vitest-agent-sdk/testing preset factories", () => {
 	});
 
 	it("flaky: two runs with mixed outcomes and a flaky test detected", async () => {
-		const rt = ManagedRuntime.make(flaky(join(tmpDir, "data.db")));
+		const rt = ManagedRuntime.make(flaky(":memory:"));
 		try {
 			const { runs, flakyTests } = await rt.runPromise(
 				Effect.gen(function* () {
@@ -103,7 +92,7 @@ describe("vitest-agent-sdk/testing preset factories", () => {
 	});
 
 	it("withTddTask: TDD session has 1 goal and 2 behaviors", async () => {
-		const rt = ManagedRuntime.make(withTddTask(join(tmpDir, "data.db")));
+		const rt = ManagedRuntime.make(withTddTask(":memory:"));
 		try {
 			const { sessions, goals, behaviors } = await rt.runPromise(
 				Effect.gen(function* () {
