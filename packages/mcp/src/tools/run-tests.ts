@@ -550,8 +550,11 @@ export const vitestLoader = {
 // race: caller B's env assignment can land between A's assignment and
 // A's worker spawn, attributing A's results to B's agent. A single-
 // permit semaphore keeps that env-write + worker-spawn pair atomic from
-// the perspective of any other run_tests call in this process.
-const runTestsSemaphore = Effect.runSync(Semaphore.make(1));
+// the perspective of any other run_tests call in this process. The
+// permit must outlive request cancellation: see `handleRunTests`.
+//
+// @internal exported for the cancellation test's permit probe only.
+export const runTestsSemaphore = Effect.runSync(Semaphore.make(1));
 
 /**
  * Coerce unknown Vitest unhandled errors into VitestModuleError shape.
@@ -894,9 +897,24 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 	// `projectRoot` silently collected the main checkout's tests. Point
 	// cwd at the validated root for the duration of the run and restore
 	// it in the `finally` below on every exit path. Safe because this
-	// body runs under the one-permit `runTestsSemaphore` and every
-	// other tool reads its cwd from McpSession, not `process.cwd()`.
-	const previousCwd = process.cwd();
+	// body runs under the one-permit `runTestsSemaphore`, whose permit
+	// `handleRunTests` holds UNINTERRUPTIBLY until this promise settles
+	// (a client cancel interrupts the request fiber, which would
+	// otherwise release the permit mid-run and let a second call capture
+	// this run's root as its `previousCwd`), and every other tool reads
+	// its cwd from McpSession, not `process.cwd()`.
+	//
+	// Captured defensively: `process.cwd()` throws ENOENT when the
+	// server's cwd was deleted (e.g. a removed worktree). That must not
+	// turn every call into an internal error — the run itself does not
+	// need the old cwd (root is explicit and we chdir to it), so proceed
+	// and skip the restore; there is nothing valid to restore to.
+	let previousCwd: string | undefined;
+	try {
+		previousCwd = process.cwd();
+	} catch {
+		previousCwd = undefined;
+	}
 
 	try {
 		process.chdir(resolvedRoot);
@@ -1090,7 +1108,7 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 			await vitest?.close();
 		} finally {
 			try {
-				process.chdir(previousCwd);
+				if (previousCwd !== undefined) process.chdir(previousCwd);
 			} catch {
 				// previous cwd vanished; nothing sane to restore to
 			}
@@ -1131,7 +1149,14 @@ export const handleRunTests = (
 		};
 		return yield* Semaphore.withPermit(
 			runTestsSemaphore,
-			Effect.promise(() => runTestsBody(input, ctx)),
+			// Uninterruptible on purpose: the McpServer maps a client
+			// `notifications/cancelled` to an interrupt of this request
+			// fiber, and an interruptible `Effect.promise` would release
+			// the permit while `runTestsBody` keeps running with its
+			// process-global `chdir` / env writes. Holding the permit
+			// until the body settles means a cancelled call merely drops
+			// its response; the next call waits for the real run to end.
+			Effect.uninterruptible(Effect.promise(() => runTestsBody(input, ctx))),
 		);
 	});
 
