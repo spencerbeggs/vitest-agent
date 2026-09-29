@@ -12,6 +12,7 @@ import { RunReportFile } from "../../src/schemas/RunReportFile.js";
 import { RunReportSchemaHost } from "./run-report-schema.js";
 
 export default defineConfig({
+	name: "vitest-agent",
 	outputDir: "../../../../schemas",
 	schemas: {
 		[RunReportSchemaHost.name]: {
