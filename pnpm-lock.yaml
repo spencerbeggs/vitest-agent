@@ -240,6 +240,9 @@ catalogs:
     '@effected/engine':
       specifier: ^0.2.0
       version: 0.2.0
+    '@effected/git':
+      specifier: ^0.18.1
+      version: 0.18.1
     '@effected/glob':
       specifier: ^0.9.0
       version: 0.9.0
@@ -429,6 +432,9 @@ importers:
       '@effected/engine':
         specifier: catalog:effected
         version: 0.2.0(effect@4.0.0-rc.118)
+      '@effected/git':
+        specifier: catalog:effected
+        version: 0.18.1(effect@4.0.0-rc.118)
       '@effected/mcp':
         specifier: catalog:effected
         version: 0.3.0(@effected/engine@0.2.0(effect@4.0.0-rc.118))(effect@4.0.0-rc.118)

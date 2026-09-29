@@ -38,6 +38,7 @@
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
 		"@effected/engine": "catalog:effected",
+		"@effected/git": "catalog:effected",
 		"@effected/mcp": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@vitest-agent/engine": "workspace:*",

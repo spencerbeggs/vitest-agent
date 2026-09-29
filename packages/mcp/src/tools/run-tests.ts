@@ -8,7 +8,8 @@ import { join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { NodeFileSystem, NodePath } from "@effect/platform-node";
+import { NodeChildProcessSpawner, NodeFileSystem, NodePath } from "@effect/platform-node";
+import { Git } from "@effected/git";
 import { ToolOutputSchema } from "@effected/mcp";
 import { Walker } from "@effected/walker";
 import { DataReader, DataStore } from "@vitest-agent/engine";
@@ -345,36 +346,66 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // paths.
 // Candidate filenames are checked per-directory in the order Vitest
 // itself prefers: `vitest.config.*` before `vite.config.*`, across
-// ts/mts/cts/js/mjs/cjs. The walk is bounded at the git root (a
-// worktree's `.git` is a FILE, not a directory — `FileSystem.exists`
-// accepts either) so an unrelated `vite.config.ts` sitting above the repo
+// ts/mts/cts/js/mjs/cjs. The walk is bounded at the git work-tree root
+// (`git rev-parse --show-toplevel`, which a linked worktree answers with
+// its own root) so an unrelated `vite.config.ts` sitting above the repo
 // can't silently capture the root. Neither helper ever fails.
 //
-// Issue #384: both helpers run on `@effected/walker` over an injected
-// `FileSystem` / `Path`, so tests drive them through an in-memory volume;
-// the promise-shaped run body provides the Node platform via
-// `runOnNodePlatform`.
+// Issue #384: both helpers run on `@effected/walker` and `@effected/git`
+// over injected `FileSystem` / `Path` / `Git` services, so tests drive them
+// through an in-memory volume and a `Git` double; the promise-shaped run
+// body provides the Node platform via `runOnNodePlatform`.
 const VITEST_CONFIG_PREFIXES = ["vitest.config.", "vite.config."] as const;
 const VITEST_CONFIG_EXTENSIONS = ["ts", "mts", "cts", "js", "mjs", "cjs"] as const;
+
+/** What the config walk reads: the filesystem, path ops, and git. */
+type ConfigWalkServices = FileSystem.FileSystem | Path.Path | Git;
+
+/**
+ * The lexical ancestor of `start` (inclusive) that IS the git work-tree
+ * root, or `none` outside a repository.
+ *
+ * `Walker.ascend`'s chain is lexical, but git reports the work-tree root
+ * as a physical path (`/private/var/...` for a `/var/...` tmpdir on
+ * macOS). Handing that straight to `stopAt` would match nothing and let
+ * the walk run past the repository — the bound failing OPEN. So the
+ * ceiling is the lexical ancestor whose realpath equals the root's; when
+ * none maps (not expected), the physical root is used as-is.
+ */
+const lexicalGitCeiling = (start: string): Effect.Effect<Option.Option<string>, never, ConfigWalkServices> =>
+	Effect.gen(function* () {
+		const git = yield* Git;
+		const fs = yield* FileSystem.FileSystem;
+		// Any failure (NotARepositoryError, a git spawn failure) means "no git
+		// bound": the walk then runs to the filesystem root, as it always has
+		// outside a repository.
+		const gitRoot = yield* git.repoRoot(start).pipe(Effect.option);
+		if (Option.isNone(gitRoot)) return Option.none();
+		const physicalRoot = yield* fs.realPath(gitRoot.value).pipe(Effect.orElseSucceed(() => gitRoot.value));
+		const chain = yield* Walker.ascend(start);
+		const lexical = yield* Walker.findRoot(chain, (dir) =>
+			Effect.map(fs.realPath(dir), (real) => real === physicalRoot),
+		);
+		return Option.some(Option.getOrElse(lexical, () => gitRoot.value));
+	});
 
 /**
  * The one walk both anchoring helpers share: step UP from `startDir`
  * until a vitest/vite config file is found, returning its absolute path.
- * Bounded at the git root (inclusive — the directory containing `.git`
- * is still examined before the walk stops) and at the filesystem root.
- * Yields `null` when no config is found in range. An unreadable entry
- * reads as absent (the walker absorbs per-candidate failures), and a
- * defect anywhere in the walk also yields `null`, so the helper never
- * fails — the contract the synchronous `existsSync` walk had.
+ * Bounded at the git work-tree root (inclusive — `Walker.ascend`'s
+ * `stopAt` keeps the ceiling in the chain, so the root is still examined)
+ * and at the filesystem root. Yields `null` when no config is found in
+ * range. An unreadable entry reads as absent (the walker absorbs
+ * per-candidate failures), and a defect anywhere in the walk also yields
+ * `null`, so the helper never fails.
  */
-const walkUpToConfigFile = (startDir: string): Effect.Effect<string | null, never, FileSystem.FileSystem | Path.Path> =>
+const walkUpToConfigFile = (startDir: string): Effect.Effect<string | null, never, ConfigWalkServices> =>
 	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
-		const chain = yield* Walker.ascend(path.resolve(startDir));
-		const gitRoot = yield* Walker.findRoot(chain, (dir) => fs.exists(path.join(dir, ".git")));
-		const bounded = Option.isSome(gitRoot) ? chain.slice(0, chain.indexOf(gitRoot.value) + 1) : chain;
-		const found = yield* Walker.findUpward(bounded, (dir) =>
+		const start = path.resolve(startDir);
+		const ceiling = yield* lexicalGitCeiling(start);
+		const dirs = yield* Walker.ascend(start, Option.isSome(ceiling) ? { stopAt: ceiling.value } : {});
+		const found = yield* Walker.findUpward(dirs, (dir) =>
 			VITEST_CONFIG_PREFIXES.flatMap((prefix) =>
 				VITEST_CONFIG_EXTENSIONS.map((ext) => path.join(dir, `${prefix}${ext}`)),
 			),
@@ -388,9 +419,8 @@ const walkUpToConfigFile = (startDir: string): Effect.Effect<string | null, neve
  *
  * @internal exported for tests
  */
-export const resolveAnchoredConfigFile = (
-	startDir: string,
-): Effect.Effect<string | null, never, FileSystem.FileSystem | Path.Path> => walkUpToConfigFile(startDir);
+export const resolveAnchoredConfigFile = (startDir: string): Effect.Effect<string | null, never, ConfigWalkServices> =>
+	walkUpToConfigFile(startDir);
 
 /**
  * Walk UP from `startDir` looking for the vitest/vite config Vitest would
@@ -400,9 +430,7 @@ export const resolveAnchoredConfigFile = (
  *
  * @internal exported for tests
  */
-export const resolveConfigAnchoredRoot = (
-	startDir: string,
-): Effect.Effect<string, never, FileSystem.FileSystem | Path.Path> =>
+export const resolveConfigAnchoredRoot = (startDir: string): Effect.Effect<string, never, ConfigWalkServices> =>
 	Effect.gen(function* () {
 		const found = yield* walkUpToConfigFile(startDir);
 		if (found === null) return startDir;
@@ -410,11 +438,13 @@ export const resolveConfigAnchoredRoot = (
 		return path.dirname(found);
 	});
 
+const NodeFsPath = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+
 /** The Node platform the promise-shaped run body walks the real disk with; bound once so it memoizes. */
-const NodeWalkPlatform = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+const NodeWalkPlatform = Git.layer.pipe(Layer.provide(NodeChildProcessSpawner.layer), Layer.provideMerge(NodeFsPath));
 
 /** Run a never-failing platform walk against the real disk. */
-const runOnNodePlatform = <A>(effect: Effect.Effect<A, never, FileSystem.FileSystem | Path.Path>): Promise<A> =>
+const runOnNodePlatform = <A>(effect: Effect.Effect<A, never, ConfigWalkServices>): Promise<A> =>
 	Effect.runPromise(Effect.provide(effect, NodeWalkPlatform));
 
 /**
