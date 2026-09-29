@@ -1,5 +1,25 @@
 # @vitest-agent/plugin
 
+## 5.1.0
+
+### Features
+
+- `processFailure` accepts an optional second argument, `{ readSource }`, to supply the function that reads the top frame's source file. It defaults to reading from disk, and a throw is treated as an unreadable file. [#527][#527]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 3.2.4 | 3.2.5 |
+| @vitest-agent/engine | dependency | updated | 0.2.11 | 0.3.0 |
+| @vitest-agent/mcp | dependency | updated | 5.1.2 | 5.1.3 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#527]: https://github.com/spencerbeggs/vitest-agent/pull/527
+
 ## 5.0.4
 
 ### Dependencies

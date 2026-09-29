@@ -1,5 +1,18 @@
 # @vitest-agent/engine
 
+## 0.3.0
+
+### Features
+
+- Added `resolveProjectKeyFromCwdEffect(cwd)`, an Effect form of `resolveProjectKeyFromCwd` that reads `package.json` through the ambient `FileSystem` service. It follows the same rules and never fails.
+- Added the `SessionEnvFileSystem` interface and an optional `fileSystem` option on `recoverSessionContextFromSessionEnv`, so session-env recovery can read from a source other than the real disk. The default is unchanged. [#527][#527]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#527]: https://github.com/spencerbeggs/vitest-agent/pull/527
+
 ## 0.2.11
 
 ### Bug Fixes
