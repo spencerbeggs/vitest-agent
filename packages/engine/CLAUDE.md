@@ -91,13 +91,16 @@ src/
   program's types are `RegisterAgentProgramInput` / `-Output` (the bare names
   belong to `DataStore`).
 
-## Known discrepancy
+## XDG fallback
 
-With `XDG_DATA_HOME` unset, `resolveDataPath` (via `PathResolutionLive`'s
-bare `AppDirs.layer({ namespace })`) resolves under `~/.vitest-agent/<key>/`
-while `resolveHookPaths` passes `fallbackDir: ".local/share/vitest-agent"` and
-resolves under `~/.local/share/vitest-agent/<key>/`. Pre-existing, preserved
-on purpose (aligning it moves real installs' data), tracked as a follow-up.
+`PathResolutionLive` (reporter/MCP) and `resolveHookPaths` (hook/sidecar)
+both pass `DATA_FALLBACK_DIR` from `layers/PathResolutionLive.ts` to
+`AppDirs`, so with `XDG_DATA_HOME` unset both resolve under
+`~/.local/share/vitest-agent/<key>/` (pinned by
+`__test__/xdg-fallback-alignment.test.ts`). Any new `AppDirs.layer` must pass
+it too. Legacy `~/.vitest-agent/<key>/data.db` files are not migrated;
+`~/.vitest-agent/sessions.db` (the session map) is unrelated and still lives
+there.
 
 ## When working in this package
 
@@ -124,7 +127,7 @@ on purpose (aligning it moves real installs' data), tracked as a follow-up.
 - [`../../okf/models/sqlite-schema.md`](../../okf/models/sqlite-schema.md)
   Load when touching SQLite tables or the row assemblers.
 - [`../../okf/interfaces/config-toml.md`](../../okf/interfaces/config-toml.md),
-  [`../../okf/gotchas/xdg-fallback-split.md`](../../okf/gotchas/xdg-fallback-split.md)
+  [`../../okf/gotchas/legacy-reporter-data-root.md`](../../okf/gotchas/legacy-reporter-data-root.md)
   Load when touching `resolveDataPath`, hook paths, or workspace-key
   normalization.
 - [`../../okf/decisions/28-process-level-migration-coordination-via-globalthis-cache.md`](../../okf/decisions/28-process-level-migration-coordination-via-globalthis-cache.md),

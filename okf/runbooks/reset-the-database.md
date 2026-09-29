@@ -6,8 +6,8 @@ resource: ../../packages/cli/src/commands/db.ts
 tags: [dx, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 060f4627da93c9bffc2b82c515eeebb3d3d98348783558dd4ffb4011e5601691
+  at: 2026-09-29T05:22:58Z
+  body_sha256: 7c0200d4944a1bcd43b8631c3f3060649b9ff1db346f45a005ec7dd06a1706b6
 sources:
   - id: db-ts
     resource: ../../packages/cli/src/commands/db.ts
@@ -80,7 +80,7 @@ version with no I/O error.
 ## Related
 
 - [Interface: cli](../interfaces/cli.md)
-- [Gotcha: xdg-fallback-split](../gotchas/xdg-fallback-split.md)
+- [Gotcha: legacy reporter data root](../gotchas/legacy-reporter-data-root.md)
 - [Module: engine](../modules/engine.md)
 - [Runbook: Add a migration](add-a-migration.md)
 

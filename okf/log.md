@@ -1,5 +1,19 @@
 # Log
 
+## 2026-09-28
+
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/mcp
+* Updated Effect v4 + effected Kit Behavior Changes
+* Updated Effect-Native MCP Server
+* Updated MCP tool and prompt surface
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated Sidecar hook latency
+* Updated Strict MCP tool inputs — every served input rejects unknown keys
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Updated The record hook subcommands have no built-and-spawned end-to-end test
+* Updated vitest-agent
+
 ## 2026-09-25
 
 * Updated @vitest-agent/cli

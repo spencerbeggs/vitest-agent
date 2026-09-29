@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 81e5eac9146fb54cca483d337bd117f8f9ff045c24822201f45d7db5976ba924
+  at: 2026-09-29T05:22:58Z
+  body_sha256: c0502c2f2d35b6d570ebe4e179980939482a05775028aa4b6073ca500f4c1a5c
 ---
 
 # @vitest-agent/engine
@@ -271,12 +271,14 @@ so `@org/pkg` collapses to `@org__pkg`, replaces any character outside
 in one shot; callers still supply `FileSystem` and `Path`, typically via
 `NodeServices.layer`.
 
-`hook-paths.ts` builds its own `AppDirs.layer` with a `fallbackDir` of
-`.local/share/vitest-agent`, while `PathResolutionLive` passes no
-`fallbackDir` at all[^hook-paths]. With `XDG_DATA_HOME` unset this is a real
-observable split between the reporter/MCP data path and the hook-driven
-sidecar path; see [XDG Fallback Split](../gotchas/xdg-fallback-split.md) for
-what it looks like from the outside rather than restating it here.
+`hook-paths.ts` builds its own `AppDirs.layer` from the caller's env map,
+but both it and `PathResolutionLive` pass the one exported
+`DATA_FALLBACK_DIR` (`.local/share/vitest-agent`)[^hook-paths], so with
+`XDG_DATA_HOME` unset the reporter/MCP data path and the hook-driven sidecar
+path agree on `~/.local/share/vitest-agent/<workspaceKey>/`. Databases older
+reporter/MCP versions wrote under `~/.vitest-agent/<workspaceKey>/` are left
+in place and not read; see
+[Gotcha: legacy reporter data root](../gotchas/legacy-reporter-data-root.md).
 
 ## TOML config
 
@@ -438,6 +440,6 @@ against a target that no longer applies.
 [^migration-behavior-id]: `../../packages/engine/src/migrations/0001_initial.ts:743`
 [^resolve-data-path]: `../../packages/engine/src/utils/resolve-data-path.ts:38`
 [^path-resolution-live]: `../../packages/engine/src/layers/PathResolutionLive.ts:11`
-[^hook-paths]: `../../packages/engine/src/programs/hook-paths.ts:58`
+[^hook-paths]: `../../packages/engine/src/programs/hook-paths.ts:108`
 [^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:7`
 [^migrations-index]: `../../packages/engine/src/migrations/index.ts:20`

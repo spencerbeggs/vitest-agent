@@ -7,8 +7,8 @@ tags:
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 1a91d8035f8d17731f560558829917ccd7b9f82b00ed4311f59aba06a687bc4e
+  at: 2026-09-29T05:22:58Z
+  body_sha256: 258deecb29030d04ef3a872a20c340818c3db19f8500238f1a5ae705ba44ebba
 sources:
   - id: engine-resolve-data-path
     resource: ../../packages/engine/src/utils/resolve-data-path.ts
@@ -56,22 +56,23 @@ directory that prefers a canonicalized `repository.url`
 (`host__path`) and falls back to the normalized `name`
 (`packages/engine/src/utils/resolve-project-key-from-cwd.ts:33-59`). The
 XDG data root itself comes from `@effected/xdg`'s `AppDirs.layer({
-namespace: "vitest-agent" }).pipe(Layer.provide(Xdg.layer))`
-(`packages/engine/src/layers/PathResolutionLive.ts:19`), which defaults to
-`~/.vitest-agent` when `XDG_DATA_HOME` is unset — `AppDirs`' own fallback,
-not the `~/.local/share/vitest-agent` path documented as the spec default.
+namespace: APP_NAMESPACE, fallbackDir: DATA_FALLBACK_DIR })`
+(`packages/engine/src/layers/PathResolutionLive.ts:29-31`), where
+`DATA_FALLBACK_DIR` is `.local/share/vitest-agent`
+(`packages/engine/src/layers/PathResolutionLive.ts:21`), so with
+`XDG_DATA_HOME` unset the root is `~/.local/share/vitest-agent` — the XDG
+spec default — rather than `AppDirs`' own `~/.vitest-agent` fallback.
 
 **A separate route exists for the sidecar-family hooks.**
-`resolveHookPaths` (`packages/engine/src/programs/hook-paths.ts:164-185`)
-builds its own `AppDirs` layer with an explicit
-`fallbackDir: ".local/share/vitest-agent"`
-(`packages/engine/src/programs/hook-paths.ts:58,111-116`) so that, with
-`XDG_DATA_HOME` unset, the hook/sidecar route lands at
-`~/.local/share/vitest-agent/<projectKey>/` — the XDG spec default the
-sidecar has always used — while the reporter/MCP route above lands at
-`~/.vitest-agent/<projectKey>/`. This is a live, acknowledged split between
-the two routes, not a bug scheduled for a specific fix; see
-[xdg-fallback-split](../gotchas/xdg-fallback-split.md).
+`resolveHookPaths` (`packages/engine/src/programs/hook-paths.ts`) builds its
+own `AppDirs` layer from the caller's env map, passing the same imported
+`DATA_FALLBACK_DIR` (`packages/engine/src/programs/hook-paths.ts:30,108`), so
+both routes land at `~/.local/share/vitest-agent/<projectKey>/` when
+`XDG_DATA_HOME` is unset; `packages/engine/__test__/xdg-fallback-alignment.test.ts`
+pins the agreement. Reporter/MCP databases written under
+`~/.vitest-agent/<projectKey>/` before the routes were aligned are not
+migrated; see
+[legacy-reporter-data-root](../gotchas/legacy-reporter-data-root.md).
 
 **Identity resolution also diverges by route, and only one route fails
 loud.** The hook/sidecar route's `ProjectIdentity` service candidates
@@ -103,7 +104,7 @@ fallback.
 (worktrees) of the same repository share history under a name-keyed path,
 where a path hash would diverge them; the database follows project identity
 across a disk move rather than filesystem coordinates; `ls
-~/.local/share/vitest-agent/` (or `~/.vitest-agent/`) shows readable package
+~/.local/share/vitest-agent/` shows readable package
 names rather than opaque hashes, useful for manual inspection and
 debugging; and a fork that renames its `package.json` `name` gets its own
 database while a fork that keeps the same name shares one — overridable
@@ -140,11 +141,10 @@ integrates directly with Effect Schema decoding.
   error — a behavior at odds with this decision's original "fail loud on
   missing identity" intent, which only the hook/sidecar route actually
   implements today.
-- Any new hook or reporter code path that needs the data directory must
-  choose explicitly between the reporter/MCP `AppDirs` default
-  (`~/.vitest-agent`) and the hook/sidecar `fallbackDir` override
-  (`~/.local/share/vitest-agent`) — reusing the wrong one silently produces
-  a database at the wrong path for that caller.
+- Any new hook or reporter code path that builds its own `AppDirs` layer
+  must pass `fallbackDir: DATA_FALLBACK_DIR`; a bare `AppDirs.layer({
+  namespace })` silently falls back to `~/.vitest-agent` and opens a
+  database the other routes never see.
 
 ## Drift reported
 
@@ -162,4 +162,5 @@ assumed.
 
 ## Related
 
-- [xdg-fallback-split](../gotchas/xdg-fallback-split.md)
+- [legacy-reporter-data-root](../gotchas/legacy-reporter-data-root.md)
+- [xdg-fallback-split](../gotchas/xdg-fallback-split.md) (deprecated)
