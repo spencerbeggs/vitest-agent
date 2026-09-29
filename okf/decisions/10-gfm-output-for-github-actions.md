@@ -2,14 +2,14 @@
 type: Decision
 title: GFM Output for GitHub Actions
 description: The plugin auto-detects GitHub Actions and always writes a GFM step-summary block, including a per-project totals table, because Vitest's own job summary is disabled.
-status: draft
+status: stable
 tags:
   - architecture
   - ci
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: fee7463ff511b2bbfd5ab129d692cf86961cd14541e6b63995e797a2421dff43
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 411e2143ed4911121dc25c46e35ba38fe5e82dac7b63cad85c6e88ef74c76684
 sources:
   - id: plugin-plugin-ts
     resource: ../../packages/plugin/src/plugin.ts
@@ -19,6 +19,9 @@ sources:
     resource: ../../packages/plugin/src/utils/build-reporter-kit.ts
   - id: reporter-default-reporter
     resource: ../../packages/reporter/src/defaultReporter.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # GFM Output for GitHub Actions
@@ -123,7 +126,7 @@ need that normalization logic revisited. See
 [Module: reporter](../modules/reporter.md) for where
 `buildSummaryMarkdown` and `summarizeProject` live.
 
-[^plugin-plugin-ts]: `../../packages/plugin/src/plugin.ts:460` (reporter normalization gate), `../../packages/plugin/src/plugin.ts:471` (`githubActions` derivation)
-[^plugin-build-reporter-kit]: `../../packages/plugin/src/utils/build-reporter-kit.ts:75`
-[^plugin-ensure-github-reporter]: `../../packages/plugin/src/utils/ensure-github-reporter.ts:26`
-[^reporter-default-reporter]: `../../packages/reporter/src/defaultReporter.ts:307` (`renderTotalsSection`), `../../packages/reporter/src/defaultReporter.ts:353` (`buildSummaryMarkdown`)
+[^plugin-plugin-ts]: `../../packages/plugin/src/plugin.ts` (reporter normalization gate), `../../packages/plugin/src/plugin.ts` (`githubActions` derivation)
+[^plugin-build-reporter-kit]: `../../packages/plugin/src/utils/build-reporter-kit.ts`
+[^plugin-ensure-github-reporter]: `../../packages/plugin/src/utils/ensure-github-reporter.ts`
+[^reporter-default-reporter]: `../../packages/reporter/src/defaultReporter.ts` (`renderTotalsSection`), `../../packages/reporter/src/defaultReporter.ts` (`buildSummaryMarkdown`)

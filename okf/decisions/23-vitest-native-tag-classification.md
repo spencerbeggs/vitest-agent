@@ -2,14 +2,14 @@
 type: Decision
 title: Vitest-Native Tag Classification
 description: Test-kind (unit/int/e2e) classification rides Vitest's native tag system via a file-task transform prelude, instead of per-kind project splitting or a colon-suffixed project name.
-status: draft
+status: stable
 tags:
   - architecture
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: b113a553cc39603ce25b5a3cceb98cea28ce58870fb3c85eeda899cf78bbd0d6
+  at: 2026-09-29T20:39:41Z
+  body_sha256: b4f02f1b1d0c1e13bb984d91ea114efb54a47f3aa3dfbfdd262109efd4a96354
 sources:
   - id: plugin-discover-strategy
     resource: ../../packages/plugin/src/utils/discover-strategy.ts
@@ -25,6 +25,9 @@ sources:
     resource: ../../packages/sdk/src/contracts/dispatcher.ts
   - id: sdk-format-terminal
     resource: ../../packages/sdk/src/utils/format-terminal.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Vitest-Native Tag Classification
@@ -45,38 +48,38 @@ once Vitest's native tag system could express the same queries.
 `discoverProjects()` (`packages/plugin/src/utils/discover-projects.ts`) emits
 exactly one Vitest project per workspace package, keyed by package name. Test
 kind is derived separately, by filename suffix, through
-`DiscoverStrategy.classify` (`packages/plugin/src/utils/discover-strategy.ts:137,173-179`):
+`DiscoverStrategy.classify` (`packages/plugin/src/utils/discover-strategy.ts`):
 the `DefaultDiscoverStrategy` registers three tags —
 `Tag.make("unit")`, `Tag.make("int", { timeout: 60_000 })`, and
 `Tag.make("e2e", { timeout: 120_000, retry: process.env.CI ? 2 : 0 })`
-(`packages/plugin/src/utils/discover-strategy.ts:213-219`) — and classifies a
+(`packages/plugin/src/utils/discover-strategy.ts`) — and classifies a
 module by matching `.e2e.(test|spec).*` or `.int.(test|spec).*` against its
-path (`packages/plugin/src/utils/discover-strategy.ts:221-222`).
+path (`packages/plugin/src/utils/discover-strategy.ts`).
 
 The plugin turns those classifications into real Vitest tags at collection
 time rather than at config time. Its Vite `transform` hook
-(`packages/plugin/src/utils/inject-tags.ts:46-49`) prepends a guarded prelude
+(`packages/plugin/src/utils/inject-tags.ts`) prepends a guarded prelude
 per matched file that calls the runner's public
 `TestRunner.getCurrentSuite()` static and unions the classified tags array
-onto the file task's `tags` (`packages/plugin/src/utils/inject-tags.ts:23-30`).
+onto the file task's `tags` (`packages/plugin/src/utils/inject-tags.ts`).
 Vitest's runner unions parent tags into every suite and test registered
 under that file task, so every declaration form inherits them — including
 wrapper testers such as `@effect/vitest`'s `it.effect`, which a retired
 per-call AST rewrite had corrupted (issue #133); a prelude that only touches
 the file-level task sidesteps per-call rewriting entirely.
 
-`AgentPlugin.discover()` (`packages/plugin/src/plugin.ts:853,868`) returns
+`AgentPlugin.discover()` (`packages/plugin/src/plugin.ts`) returns
 `{ projects, tags }` so the tag list a `DiscoverStrategy` declares flows
 straight into `defineConfig({ test: { projects, tags } })` — the tags a
 strategy registers are exactly the tags Vitest itself knows about for
 filtering.
 
 Storage keeps one `project` column, holding only the package name
-(`packages/engine/src/migrations/0001_initial.ts:84`) — no `subProject`
+(`packages/engine/src/migrations/0001_initial.ts`) — no `subProject`
 companion. Per-tag pass/fail/skip aggregates are computed by the plugin
 reporter and attached to `AgentReport.tagCounts`
-(`packages/sdk/src/contracts/dispatcher.ts:44`) for terminal rendering
-(`packages/sdk/src/utils/format-terminal.ts:102-130`). Filtering at the
+(`packages/sdk/src/contracts/dispatcher.ts`) for terminal rendering
+(`packages/sdk/src/utils/format-terminal.ts`). Filtering at the
 command line uses Vitest's own tag-expression syntax (e.g. `--tags-filter
 "int"`) rather than a bespoke `subProject` filter parameter.
 

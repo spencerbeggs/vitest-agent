@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Fail Open on Non-Default Discovery via Lexical Config Detection
 description: Why the test-location hook's classifier bails out to "no verdict" rather than deny when it cannot rule out a consumer's non-default DiscoverStrategy, and why that check is a lexical regex scan rather than a config load.
 tags: [architecture, testing, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 8d05500ea7521bae6ed23c46782cf58ee98af9d075ff6564f6adc2eb5f2db4d9
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 8511bbc31fa6b7991695fa220ab71570079af33b422a02a13613f10fd8bff232
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Fail Open on Non-Default Discovery via Lexical Config Detection
@@ -18,9 +21,9 @@ generated:
 
 ## Decision
 
-`check-test-path` (`packages/cli/src/commands/agent.ts:296-329`) refuses to render a verdict when it cannot rule out a non-default strategy. It locates the workspace's first `vitest.config.*`/`vitest.workspace.*`/`vite.config.*` candidate (`packages/cli/src/commands/agent.ts:258-271`), reads its source text via `readWorkspaceVitestConfigSource` (`packages/cli/src/commands/agent.ts:283-294`), and runs the pure `detectNonDefaultDiscoverStrategy(source)` from `@vitest-agent/sdk` (`packages/sdk/src/utils/detect-non-default-discover-strategy.ts:36-44`) over it: after a best-effort comment strip (`packages/sdk/src/utils/detect-non-default-discover-strategy.ts:10-15`), it looks for a `discoverStrategy:` option, a `.addProject(` call, or a class `extends DefaultDiscoverStrategy`/`implements DiscoverStrategy`. Any marker — or no readable config at all — exits 1 with no stdout (`packages/cli/src/commands/agent.ts:311`), and the hook's existing "CLI failed → `emit_noop`" path turns that into a silent allow. A missing or unreadable config is treated exactly like a detected marker: no verdict beats a confidently wrong one.
+`check-test-path` (`packages/cli/src/commands/agent.ts`) refuses to render a verdict when it cannot rule out a non-default strategy. It locates the workspace's first `vitest.config.*`/`vitest.workspace.*`/`vite.config.*` candidate (`packages/cli/src/commands/agent.ts`), reads its source text via `readWorkspaceVitestConfigSource` (`packages/cli/src/commands/agent.ts`), and runs the pure `detectNonDefaultDiscoverStrategy(source)` from `@vitest-agent/sdk` (`packages/sdk/src/utils/detect-non-default-discover-strategy.ts`) over it: after a best-effort comment strip (`packages/sdk/src/utils/detect-non-default-discover-strategy.ts`), it looks for a `discoverStrategy:` option, a `.addProject(` call, or a class `extends DefaultDiscoverStrategy`/`implements DiscoverStrategy`. Any marker — or no readable config at all — exits 1 with no stdout (`packages/cli/src/commands/agent.ts`), and the hook's existing "CLI failed → `emit_noop`" path turns that into a silent allow. A missing or unreadable config is treated exactly like a detected marker: no verdict beats a confidently wrong one.
 
-Two complements sit on the plugin side: the hook honours `VITEST_AGENT_TEST_LOCATION_HOOK=off|0|false` as a total opt-out, checked before stdin is read so no CLI is spawned (`plugins/claude-code/hooks/pre-tool-use/test-location.sh:28-35`); and the deny/advisory wording says "Under the default discovery layout …" and names the opt-out, so a consumer the detector misses still gets a truthful message and a way out.
+Two complements sit on the plugin side: the hook honours `VITEST_AGENT_TEST_LOCATION_HOOK=off|0|false` as a total opt-out, checked before stdin is read so no CLI is spawned (`plugins/claude-code/hooks/pre-tool-use/test-location.sh`); and the deny/advisory wording says "Under the default discovery layout …" and names the opt-out, so a consumer the detector misses still gets a truthful message and a way out.
 
 ## Alternatives rejected
 

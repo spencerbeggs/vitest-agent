@@ -2,14 +2,14 @@
 type: Decision
 title: Drop Vitest 4, Require vitest 5
 description: The plugin, reporter, and MCP packages peer on vitest ^5.0.0 only, with no dual-range support, because several Vitest 5 behaviors the family relies on are actively wrong under 4.
-status: draft
+status: stable
 tags:
   - architecture
   - compat
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 21b2a96b2487421b3350f6e6e9878b94db937ca19a240e3a8194e713b575f515
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 9390d125d051d903540ac953894fee4af68f5fccdf7f870b7797084b48c5c1af
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -21,6 +21,9 @@ sources:
     resource: ../../packages/plugin/src/utils/tag.ts
   - id: plugin-plugin-ts
     resource: ../../packages/plugin/src/plugin.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Drop Vitest 4, Require vitest 5
@@ -91,8 +94,8 @@ confused with it when reading either codebase.
 - [Module: plugin](../modules/plugin.md)
 - [Module: mcp](../modules/mcp.md)
 
-[^plugin-package-json]: `../../packages/plugin/package.json:62`
-[^reporter-package-json]: `../../packages/reporter/package.json:56`
-[^mcp-package-json]: `../../packages/mcp/package.json:51`
-[^plugin-plugin-ts]: `../../packages/plugin/src/plugin.ts:29`
-[^plugin-tag-ts]: `../../packages/plugin/src/utils/tag.ts:1,7`
+[^plugin-package-json]: `../../packages/plugin/package.json`
+[^reporter-package-json]: `../../packages/reporter/package.json`
+[^mcp-package-json]: `../../packages/mcp/package.json`
+[^plugin-plugin-ts]: `../../packages/plugin/src/plugin.ts`
+[^plugin-tag-ts]: `../../packages/plugin/src/utils/tag.ts`

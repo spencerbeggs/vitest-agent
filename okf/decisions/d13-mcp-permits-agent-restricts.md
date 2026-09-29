@@ -9,8 +9,8 @@ tags:
   - security
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 728dadb93849f6575ef5c9fa892ac52f3ce4d9a0708a61021cfb2694e734e9a7
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 1f8b0ac8a1762b2b9791c250e290213fc75c9ee01a4d69f0e9d4be8bb08ea36a
 sources:
   - id: tdd-restricted-hook
     resource: ../../plugins/claude-code/hooks/pre-tool-use/tdd-restricted.sh
@@ -59,7 +59,9 @@ and hook layer, in three parts:
    action; a main-agent call to `tdd_goal`/`tdd_behavior` with
    `action: "delete"` therefore falls through to Claude Code's standard
    permission prompt, so a human sees a confirmation dialog before any
-   cascade.[^safe-mcp-allowlist]
+   cascade. The current allowlist auto-allows both tool names, so this
+   leg is not in force today; the open code fix is tracked as
+   spencerbeggs/vitest-agent issue #526.[^safe-mcp-allowlist]
 
 The split exists because the MCP server has no agent identity — it sees
 stdio bytes, not "main agent" versus "orchestrator subagent". That identity
@@ -108,7 +110,7 @@ destructive TDD operations.
 - [Module: claude-code-plugin](../modules/claude-code-plugin.md)
 - [Decision: Three-Tier Objective→Goal→Behavior Hierarchy](d12-three-tier-objective-goal-behavior-hierarchy.md)
 
-[^tdd-restricted-hook]: `../../plugins/claude-code/hooks/pre-tool-use/tdd-restricted.sh:38-59`
-[^match-tdd-agent]: `../../plugins/claude-code/hooks/lib/match-tdd-agent.sh:10-15`
-[^safe-mcp-allowlist]: `../../plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt:1-66`
-[^tdd-task-agent]: `../../plugins/claude-code/agents/tdd-task.md:3-40`
+[^tdd-restricted-hook]: `../../plugins/claude-code/hooks/pre-tool-use/tdd-restricted.sh`
+[^match-tdd-agent]: `../../plugins/claude-code/hooks/lib/match-tdd-agent.sh`
+[^safe-mcp-allowlist]: `../../plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`
+[^tdd-task-agent]: `../../plugins/claude-code/agents/tdd-task.md`

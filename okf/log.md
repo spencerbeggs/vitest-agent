@@ -7,6 +7,9 @@
 * Added Reporter and MCP history looks wiped after an upgrade but sits orphaned under ~/.vitest-agent
 * Updated Reset the local vitest-agent database
 * Updated XDG data-root fallback splits between the reporter and the hook routes
+* Updated @vitest-agent/mcp
+* Updated Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
+* Updated MCP tool and prompt surface
 
 ## 2026-09-28
 

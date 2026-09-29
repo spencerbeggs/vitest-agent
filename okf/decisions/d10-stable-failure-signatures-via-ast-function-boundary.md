@@ -2,19 +2,22 @@
 type: Decision
 title: Stable Failure Signatures via AST Function Boundary
 description: A failure signature hashes the error name, a type-tag-normalized assertion shape, and the AST-derived start line of the smallest enclosing function, so it survives reformatting, comment edits, and literal-value churn while still distinguishing structurally different failures.
-status: draft
+status: stable
 tags:
   - architecture
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 41ebb27aa73a39f4ab47d656a689e0310ab9fb61252359771d575e175e18a7ae
+  at: 2026-09-29T20:39:41Z
+  body_sha256: f2678b476d369fca8d2807b271f63723b723e56aba033413e75c6b17a7a24043
 sources:
   - id: failure-signature
     resource: ../../packages/engine/src/utils/failure-signature.ts
   - id: function-boundary
     resource: ../../packages/sdk/src/utils/function-boundary.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Stable Failure Signatures via AST Function Boundary
@@ -89,5 +92,5 @@ not a bug to work around.
 - [Module: engine](../modules/engine.md)
 - [Module: sdk](../modules/sdk.md)
 
-[^failure-signature]: `../../packages/engine/src/utils/failure-signature.ts:35-45`
-[^function-boundary]: `../../packages/sdk/src/utils/function-boundary.ts:53-105`
+[^failure-signature]: `../../packages/engine/src/utils/failure-signature.ts`
+[^function-boundary]: `../../packages/sdk/src/utils/function-boundary.ts`

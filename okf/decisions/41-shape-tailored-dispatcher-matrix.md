@@ -2,12 +2,15 @@
 type: Decision
 title: Shape-Tailored Dispatcher Matrix
 description: A 4×3 (RunShape × RunOutcome) dispatcher matrix picks one of twelve cell renderers off a single PubSub event stream, replacing a per-format-flag pipeline and appending an MCP tool-pointer footer to every cell.
-status: draft
+status: stable
 tags: [architecture, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 1dd7ba5b3b10d05aab4dcaab77f3d484b1fa220cb9026f0dcbb5af0d300198c4
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 8d7c2bb2cec9b85a62a23e6615600f54f72546c53636cd85b5ea035634785bab
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Shape-Tailored Dispatcher Matrix
@@ -28,33 +31,33 @@ kind of run it is rendering.
 The plugin publishes events on one live stream that every consumer reads.
 `AgentReporter` owns an Effect `PubSub<RunEvent>` channel
 (`this.runEvents = Effect.runSync(PubSub.unbounded<RunEvent>())`,
-`packages/plugin/src/reporter.ts:657`), threaded onto
-`ReporterKit.runEvents` (`packages/plugin/src/reporter.ts:822`), and
+`packages/plugin/src/reporter.ts`), threaded onto
+`ReporterKit.runEvents` (`packages/plugin/src/reporter.ts`), and
 publishes one event per Vitest callback
 (`Effect.runSync(PubSub.publish(this.runEvents, event))`,
-`packages/plugin/src/reporter.ts:858`). `DefaultVitestAgentReporter`
+`packages/plugin/src/reporter.ts`). `DefaultVitestAgentReporter`
 subscribes to that channel as one downstream consumer; the user-facing
-`onRunEvent` tap (`packages/plugin/src/reporter.ts:254,573,862-867`) is a
+`onRunEvent` tap (`packages/plugin/src/reporter.ts`) is a
 parallel read-only tee fired for every console mode after the event is
 published — not gated by console mode — and a throwing tap is caught and
 logged to stderr rather than aborting the run. A `wantsRunEvents()` gate
-(`packages/plugin/src/reporter.ts:845-846`) skips event construction
+(`packages/plugin/src/reporter.ts`) skips event construction
 entirely when nothing will consume the stream (no `onRunEvent`, console
 mode is not `"stream"`, and no custom reporter is registered). Live and
 batch ingestion both reduce onto the same `RenderState` shape.
 
 Output shape is selected by classifying `(RunShape, RunOutcome)`, not by a
 format flag. `classifyRunShape`
-(`packages/ui/src/dispatcher/classify.ts:30`) reduces the state plus
+(`packages/ui/src/dispatcher/classify.ts`) reduces the state plus
 per-project summaries into one of four shapes — `workspace` when more than
 one project ran, `single-test` when the sole module has exactly one test,
 `single-file` when it has more than one, `single-project` otherwise.
-`classifyRunOutcome` reduces to one of three outcomes —
+`classifyOutcome` reduces to one of three outcomes —
 `all-pass`/`some-fail`/`threshold-violation`, with failures and timeouts
 both winning over threshold violations. `dispatcherTable`
-(`packages/ui/src/dispatcher/dispatch.ts:38-59`) is the resulting 4×3 table
+(`packages/ui/src/dispatcher/dispatch.ts`) is the resulting 4×3 table
 of `Cell` renderers, and `dispatch(inputs, opts)`
-(`packages/ui/src/dispatcher/dispatch.ts:69-74`) does a total lookup with no
+(`packages/ui/src/dispatcher/dispatch.ts`) does a total lookup with no
 default fallback — `single-test × threshold-violation` is a documented
 no-op cell rather than a special case in the dispatcher itself. Each `Cell`
 exposes two halves on one object: `agent(inputs, opts): string` for
@@ -62,16 +65,16 @@ token-economy stdout and an `ink(inputs, opts): ReactElement` half for the
 live mount.
 
 Each dispatcher cell appends an L1 MCP tool-pointer footer via
-`buildFooter` (`packages/ui/src/dispatcher/footer.ts:63`): an all-pass
+`buildFooter` (`packages/ui/src/dispatcher/footer.ts`): an all-pass
 outcome with coverage gaps points at `file_coverage`
-(`packages/ui/src/dispatcher/footer.ts:68-70`); `some-fail` with a
+(`packages/ui/src/dispatcher/footer.ts`); `some-fail` with a
 `new-failure`/`persistent` dominant classification points at `test_errors`
 plus `failure_signature_get`
-(`packages/ui/src/dispatcher/footer.ts:71-74`); a `flaky` dominant
+(`packages/ui/src/dispatcher/footer.ts`); a `flaky` dominant
 classification points at `failure_signature_get` alone; a
 `threshold-violation` outcome points at `test_coverage`
-(`packages/ui/src/dispatcher/footer.ts:76-78`). `dominantClassification`
-(`packages/ui/src/dispatcher/footer.ts:41`) picks the most actionable
+(`packages/ui/src/dispatcher/footer.ts`). `dominantClassification`
+(`packages/ui/src/dispatcher/footer.ts`) picks the most actionable
 classification from the failure list in priority order `new-failure →
 persistent → flaky → recovered → stable`. This is the L1 layer of the
 "agents don't auto-use MCP tools without a pointer" mitigation.

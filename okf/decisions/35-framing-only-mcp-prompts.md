@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Framing-Only MCP Prompts
 description: The MCP server's six McpServer.prompt registrations return orienting messages toward tool composition rather than pre-fetching tool data server-side.
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 310cd3cb0773456081c49671e7d827474a536cd01c7231c94fb6eea108faf808
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 07209568f0ffd24a9ea4a6b68e8c72ed40c40da8d973574e6e38f9c7eb367377
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Framing-Only MCP Prompts
@@ -26,19 +29,19 @@ the decision recorded here.
 
 The MCP server exposes six framing-only prompts alongside the toolkit:
 `triage`, `why-flaky`, `regression-since-pass`, `explain-failure`,
-`tdd-resume`, `wrapup` (`packages/mcp/src/prompts/layer.ts:36-42`, the
+`tdd-resume`, `wrapup` (`packages/mcp/src/prompts/layer.ts`, the
 `PROMPT_NAMES` tuple). Each is registered with `McpServer.prompt` and
 takes an Effect-Schema-validated, string-based argument set, returning
 user-role messages that orient the agent toward the right tool
 composition — no tool data is pre-fetched on the server. For example,
-`Triage` (`packages/mcp/src/prompts/layer.ts:52-59`) takes an optional
+`Triage` (`packages/mcp/src/prompts/layer.ts`) takes an optional
 `project` string and returns messages built by the pure `triagePrompt`
 factory.
 
 `PromptsLayer` is `Layer.mergeAll` of the six `McpServer.prompt` layers
-(`packages/mcp/src/prompts/layer.ts:1-42`), merged with the strict
+(`packages/mcp/src/prompts/layer.ts`), merged with the strict
 toolkit registration inside `ServerLayer`
-(`packages/mcp/src/server.ts:52`) so tools and prompts register into the
+(`packages/mcp/src/server.ts`) so tools and prompts register into the
 same `McpServer` instance (see
 [Decision 71](./71-effect-native-mcp-server.md)). Each prompt module
 (`triage.ts`, `why-flaky.ts`, `regression-since-pass.ts`,
@@ -46,15 +49,15 @@ same `McpServer` instance (see
 independently unit-tested factory that owns the message text, separate
 from `layer.ts`, which owns the names, descriptions, argument schemas,
 and the mapping to `McpSchema.PromptMessage`
-(`packages/mcp/src/prompts/layer.ts:1-9`). Prompt arguments are strings
+(`packages/mcp/src/prompts/layer.ts`). Prompt arguments are strings
 on the wire (MCP `prompts/get` carries `Record<string, string>`), so
 every parameter is `Schema.String`-based; `Schema.optionalKey` marks the
 ones `prompts/list` advertises as not required
-(`packages/mcp/src/prompts/layer.ts:50`).
+(`packages/mcp/src/prompts/layer.ts`).
 
 `tdd-resume` is the one prompt with a server-side default: its factory
 takes an optional `sessionId`
-(`packages/mcp/src/prompts/tdd-resume.ts:5`) and, when the client omits
+(`packages/mcp/src/prompts/tdd-resume.ts`) and, when the client omits
 it, the text names the chat id the server recovered for this process from
 `McpSession` — which is why `PromptsLayer` requires that service.
 
@@ -71,7 +74,7 @@ the prompt schema, so a bad argument shows up at prompt selection as an
 MCP protocol error rather than several turns later inside a tool call.
 
 **Why `McpServer.prompt` rather than a tool per prompt.** Prompts are
-templated message emitters, and `effect/unstable/ai`'s prompt registration
+templated message emitters, and `effect/ai`'s prompt registration
 understands argument schemas natively; forcing them through the strict
 toolkit would mean inventing a tool-per-prompt convention on top of a
 surface designed for request/response tools. The one server-side input

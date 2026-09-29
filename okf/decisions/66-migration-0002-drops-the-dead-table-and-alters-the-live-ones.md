@@ -2,13 +2,13 @@
 type: Decision
 title: Migration 0002 Drops the Dead Table and ALTERs the Live Ones
 description: 0002_test_artifacts.ts drops and recreates the never-written test_annotations table while widening test_artifacts and attachments with ALTER TABLE, because the post-2.0 ALTER-only rule protects data that a released version could actually have written.
-status: draft
+status: stable
 tags:
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: f39fcc460e50080db1675d7e9e75eb642e371705c0383a6b759d37d5c0a69be6
+  at: 2026-09-29T20:39:41Z
+  body_sha256: d0bfc7dc5a174ee393368f2850e39b2a63bbfd5fb8f579fd171eae9404964397
 sources:
   - id: migration-0002
     resource: ../../packages/engine/src/migrations/0002_test_artifacts.ts
@@ -22,6 +22,9 @@ sources:
     resource: ../../packages/engine/src/testing/layers.ts
   - id: migration-0002-test
     resource: ../../packages/engine/__test__/migration-0002.test.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Migration 0002 Drops the Dead Table and ALTERs the Live Ones
@@ -96,9 +99,9 @@ that suite.[^migration-0002-test]
 - [Runbook: add-a-migration](../runbooks/add-a-migration.md)
 - [Decision 68 — Cap Inline Attachment Bodies on Stored Bytes](./68-cap-inline-attachment-bodies-on-stored-bytes.md)
 
-[^migration-0002]: `../../packages/engine/src/migrations/0002_test_artifacts.ts:29-58`
-[^migrations-index]: `../../packages/engine/src/migrations/index.ts:20-23`
-[^engine-platform]: `../../packages/engine/src/platform.ts:69`
-[^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:33`
-[^testing-layers]: `../../packages/engine/src/testing/layers.ts:7`
+[^migration-0002]: `../../packages/engine/src/migrations/0002_test_artifacts.ts`
+[^migrations-index]: `../../packages/engine/src/migrations/index.ts`
+[^engine-platform]: `../../packages/engine/src/platform.ts`
+[^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts`
+[^testing-layers]: `../../packages/engine/src/testing/layers.ts`
 [^migration-0002-test]: `../../packages/engine/__test__/migration-0002.test.ts`

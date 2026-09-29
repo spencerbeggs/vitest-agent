@@ -2,14 +2,14 @@
 type: Decision
 title: Output Pipeline Architecture
 description: The output pipeline is five chained, independently testable Effect services rather than one function, so any stage's automatic selection can be short-circuited by an explicit override.
-status: draft
+status: stable
 tags:
   - architecture
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 7aaa40ab405ca21302568fc85287dfe02c6c7fa5b1b663f39c16294812390e47
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 5e30615e0158a9e919b48508a8c09f458e0288fb86d52745171dcc0c2b4645e7
 sources:
   - id: engine-environment-detector
     resource: ../../packages/engine/src/services/EnvironmentDetector.ts
@@ -23,6 +23,9 @@ sources:
     resource: ../../packages/engine/src/services/OutputRenderer.ts
   - id: engine-output-pipeline-live
     resource: ../../packages/engine/src/layers/OutputPipelineLive.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Output Pipeline Architecture
@@ -115,9 +118,9 @@ why this pipeline is Effect services rather than plain functions in the
 first place, and [Module: engine](../modules/engine.md) for the full
 service and layer inventory.
 
-[^engine-environment-detector]: `../../packages/engine/src/services/EnvironmentDetector.ts:5`
-[^engine-executor-resolver]: `../../packages/engine/src/services/ExecutorResolver.ts:5`
-[^engine-format-selector]: `../../packages/engine/src/services/FormatSelector.ts:5`
-[^engine-detail-resolver]: `../../packages/engine/src/services/DetailResolver.ts:11`
-[^engine-output-renderer]: `../../packages/engine/src/services/OutputRenderer.ts:5`
-[^engine-output-pipeline-live]: `../../packages/engine/src/layers/OutputPipelineLive.ts:16`
+[^engine-environment-detector]: `../../packages/engine/src/services/EnvironmentDetector.ts`
+[^engine-executor-resolver]: `../../packages/engine/src/services/ExecutorResolver.ts`
+[^engine-format-selector]: `../../packages/engine/src/services/FormatSelector.ts`
+[^engine-detail-resolver]: `../../packages/engine/src/services/DetailResolver.ts`
+[^engine-output-renderer]: `../../packages/engine/src/services/OutputRenderer.ts`
+[^engine-output-pipeline-live]: `../../packages/engine/src/layers/OutputPipelineLive.ts`

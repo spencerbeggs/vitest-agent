@@ -2,19 +2,22 @@
 type: Decision
 title: Explicit suite Marker for bats Run-Level Artifacts
 description: tdd_artifacts.suite is a stored, CHECK-constrained column distinguishing vitest from bats runs, because a bats test has no test_case_id and inferring "bats" from a null test_case_id would also accept the vitest run-level evidence the phase-transition gate exists to reject.
-status: draft
+status: stable
 tags:
   - tdd
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: d539461a90ffd34fc0b1bf35fa1d761d3496066094fac68849f00dd9ce91ca6c
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 8c6a5c3d0ec0a96c763faea5fc4c63b6502efa3b43b8be1f8f94202ba14a7a38
 sources:
   - id: migration-0001-suite-column
     resource: ../../packages/engine/src/migrations/0001_initial.ts
   - id: hooks-tdd-artifact
     resource: ../../plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Explicit suite Marker for bats Run-Level Artifacts
@@ -38,7 +41,7 @@ rule exists to reject.
 
 `tdd_artifacts` gains an explicit
 `suite TEXT NOT NULL DEFAULT 'vitest' CHECK (suite IN ('vitest', 'bats'))`
-column (`packages/engine/src/migrations/0001_initial.ts:782`). The
+column (`packages/engine/src/migrations/0001_initial.ts`). The
 marker is threaded end to end: the write-side input defaults to
 `"vitest"` when omitted; the validator's read path and
 `listTddArtifactsForTask` (and therefore the `tdd_artifact_list` MCP

@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Persist Thresholds, Targets and Baselines as Three Facets
 description: coverage_baselines gains a kind discriminator so the enforced threshold, the aspirational target, and the ratcheting baseline never collide in one row.
 tags: [testing, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 064c406fe5e1951ad185b6408b582012c59942ea48b4f866d8551fef07e78a4d
+  at: 2026-09-29T20:39:41Z
+  body_sha256: e8381d28ec37578d7805d618fdbf13933cbaa8dbe5cd276a8438a695d7c5e1eb
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Persist Thresholds, Targets and Baselines as Three Facets
@@ -33,20 +36,20 @@ spend a cycle "fixing" coverage that was never going to fail the build.
 Persist all three facets distinctly and never let one stand in for
 another. `coverage_baselines` carries a `kind` column
 (`'baseline' | 'threshold' | 'target'`, default `'baseline'`,
-`packages/engine/src/migrations/0001_initial.ts:398-400`) and the
+`packages/engine/src/migrations/0001_initial.ts`) and the
 uniqueness key is `(project, kind, metric, pattern)`
-(`0001_initial.ts:407`).
+(`0001_initial.ts`).
 
-`DataStore.writeBaselines` (`packages/engine/src/layers/DataStoreLive.ts:388-427`)
+`DataStore.writeBaselines` (`packages/engine/src/layers/DataStoreLive.ts`)
 writes only `kind='baseline'` rows and is never touched by the other two
 facets. A shared upsert, `writeCoveragePolicy`
-(`DataStoreLive.ts:436-479`), backs the new `writeThresholds` /
-`writeTargets` methods (`DataStoreLive.ts:481-486`,
-`packages/engine/src/services/DataStore.ts:507-516`): unlike the
+(`DataStoreLive.ts`), backs the new `writeThresholds` /
+`writeTargets` methods (`DataStoreLive.ts`,
+`packages/engine/src/services/DataStore.ts`): unlike the
 cumulative baseline, a threshold/target write is authoritative for the
 *current* configured bar, so it deletes every existing row of that
 `kind` before re-inserting, all inside one transaction
-(`DataStoreLive.ts:456`), so a metric or pattern dropped from config
+(`DataStoreLive.ts`), so a metric or pattern dropped from config
 can't linger as a stale enforced row and a crash mid-write can't leave
 the kind partially populated. The reporter writes the resolved
 thresholds and targets at the end of every full run whenever each is
@@ -55,19 +58,19 @@ configured, independent of the baseline `autoUpdate` gate — the question
 on.
 
 A private `getCoveragePolicy(kind, project)` reader
-(`packages/engine/src/layers/DataReaderLive.ts:460-508`) returns
+(`packages/engine/src/layers/DataReaderLive.ts`) returns
 `Option.none()` when a kind was never persisted for that project, and
-`getCoverage` (`DataReaderLive.ts:811-864`) assembles `thresholds`
+`getCoverage` (`DataReaderLive.ts`) assembles `thresholds`
 (`global: {}` when absent — no baseline fallback), an optional
 `targets`, and `baselines` from three separate reads
-(`DataReaderLive.ts:811-813`). `lowCoverage` and `belowTarget` are split
+(`DataReaderLive.ts`). `lowCoverage` and `belowTarget` are split
 on the persisted `file_coverage.tier`: `lowCoverage` is
 `tier === 'below_threshold'`, `belowTarget` is
-`tier === 'below_target'` (`DataReaderLive.ts:840-845`). `test_coverage`
+`tier === 'below_target'` (`DataReaderLive.ts`). `test_coverage`
 renders separate Enforced-threshold and Target columns and separate
 Coverage Gaps / Coverage Improvements Needed sections
 (surfaced through `CoverageReport.thresholds` / `.targets` /
-`.lowCoverage` / `.belowTarget`, `packages/sdk/src/schemas/Coverage.ts:59-62`).
+`.lowCoverage` / `.belowTarget`, `packages/sdk/src/schemas/Coverage.ts`).
 Per the repository's single-pre-2.0-migration policy this schema change
 landed as an in-place edit to `0001_initial.ts` rather than a new
 migration file.

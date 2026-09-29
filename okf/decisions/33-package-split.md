@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Package Split
 description: Eight ranked workspaces under packages/ split platform-free core from platform services and front ends, with the plugin as carrier depending on cli, mcp, reporter, and engine.
 tags: [architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: d3824e5a1c6d96a7b42b6b04c49c54830f0d73181a74b70892c57668dd6485e7
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 5df4befdd3a69fa384128231fe1fdd1b439c3d9376ea0849b690d525b153ef3b
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Package Split
@@ -42,26 +45,26 @@ Eight workspaces live under `packages/`:
 
 `@vitest-agent/plugin`'s `dependencies` list `@vitest-agent/cli`,
 `@vitest-agent/engine`, `@vitest-agent/mcp`, `@vitest-agent/reporter` and
-`@vitest-agent/sdk` (`packages/plugin/package.json:41-45`) and no `ui`
+`@vitest-agent/sdk` (`packages/plugin/package.json`) and no `ui`
 entry — the plugin imports the default reporter from
 `@vitest-agent/reporter` and touches no JSX itself.
 `@vitest-agent/reporter`'s `dependencies` carry `ink` and `react` as full
-runtime dependencies (`packages/reporter/package.json:36-40`), while
+runtime dependencies (`packages/reporter/package.json`), while
 `@vitest-agent/ui` keeps the same two packages as `peerDependencies`
-(`packages/ui/package.json:47-49`). `@vitest-agent/sdk`'s `exports` map
+(`packages/ui/package.json`). `@vitest-agent/sdk`'s `exports` map
 publishes a dedicated pure `./dispatch` entry
-(`packages/sdk/package.json:24-27`) backed by `src/dispatch.ts`, which
+(`packages/sdk/package.json`) backed by `src/dispatch.ts`, which
 re-exports `dispatch`, `injectEnv`, and `exitCodeForTag`
-(`packages/sdk/src/dispatch.ts:25-27`) — the sidecar dispatch core the
+(`packages/sdk/src/dispatch.ts`) — the sidecar dispatch core the
 per-platform `sidecar-*` children depend on, so there is no workspace
 dependency cycle back through the CLI. `@vitest-agent/cli`'s
 `dependencies` list `@vitest-agent/sidecar` alongside engine and sdk
-(`packages/cli/package.json:41-43`); `@vitest-agent/sidecar`'s
+(`packages/cli/package.json`); `@vitest-agent/sidecar`'s
 `optionalDependencies` list the four platform children
-(`packages/sidecar/package.json:41-44`).
+(`packages/sidecar/package.json`).
 
 The root `package.json` lists only `@vitest-agent/plugin` as a workspace
-devDependency (`package.json:42`), and `pnpm-workspace.yaml` carries no
+devDependency (`package.json`), and `pnpm-workspace.yaml` carries no
 `publicHoistPattern` — the carrier declares the two bins directly
 (Decision 70), so nothing needs hoisting for either the dogfood hooks or a
 published consumer.
@@ -78,8 +81,8 @@ without pulling in a data layer. The engine boundary is "what does more
 than one front end need": services, layers, migrations, the one platform
 assembly, and the hook programs both the CLI commands and the MCP tools
 wrap. The CLI/MCP split is a module-boundary decision: the
-`effect/unstable/cli` surface is the CLI's own concern and the
-`effect/unstable/ai` `McpServer` surface is the MCP server's own concern,
+`effect/cli` surface is the CLI's own concern and the
+`effect/ai` `McpServer` surface is the MCP server's own concern,
 so each keeps its dependency surface in its own package and neither
 imports the other.
 
@@ -96,7 +99,7 @@ the default manifest transform rewrites the source `workspace:*` protocol
 to the exact current version at publish. The changesets ripple is
 unchanged: a cli/mcp release pushes the plugin's `workspace:*` dependency
 range out of bounds and auto-PATCH-bumps the plugin via
-`updateInternalDependencies: "patch"` (`.changeset/config.json:27`),
+`updateInternalDependencies: "patch"` (`.changeset/config.json`),
 re-pinning the exact version (see Decision 36).
 
 ## Alternatives rejected

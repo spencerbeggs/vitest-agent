@@ -1,6 +1,7 @@
 ---
 type: Decision
-status: draft
+status: stable
+supersedes: 72-adopt-the-effected-front-end-kit.md
 title: Adoption Helpers Live in the Kit
 description: "The union-tool, refusal, crash-guard, CLI help-routing, version-token and packed-install helpers vitest-agent hand-rolled while adopting the effected kit now come from @effected/mcp 0.2.0, @effected/cli 0.9.0 and @effected/workspaces 0.27.0; the front ends deliberately keep their own bins, so the packed-install e2e opts into allowSharedBins."
 tags:
@@ -10,8 +11,8 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: f89a45f053758c1df2c61593474a0b525cc8064254d1b35fc8082697821f76d3
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 2762710cae19fc2cd93bdeb37e80b8468064719ad034f1d2bfb3a5d13be24eb2
 sources:
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
@@ -35,6 +36,9 @@ sources:
     resource: conversation with the repository owner
     author: human:spencer
     last_modified: 2026-09-25T00:00:00Z
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Adoption Helpers Live in the Kit
@@ -50,7 +54,10 @@ connected flag, a tag-sniffing CLI failure renderer, hand-kept scans for
 the build-time version token, and a packed-install e2e that sized its
 own timeout. A dogfood loop with effected upstreamed each of these, and
 they shipped in `@effected/mcp` 0.2.0, `@effected/cli` 0.9.0 and
-`@effected/workspaces` 0.27.0.
+`@effected/workspaces` 0.27.0. This Decision supersedes Decision 72: the
+kit adoption 72 made still stands, but the local helpers it describes
+are deleted and its union-tool `isError` consequence is reversed, as the
+Decision and Consequences below record.
 
 ## Decision
 

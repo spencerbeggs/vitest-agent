@@ -2,19 +2,22 @@
 type: Decision
 title: Fence Hook Stdout at the Library, Not the Call Site
 description: hook-output.sh redirects real hook stdout to fd 3 at source time so a call site that forgets to redirect a spawned CLI's stdout cannot corrupt the single JSON object Claude Code parses from fd 1, making the whole failure class unrepresentable instead of relying on per-call-site discipline.
-status: draft
+status: stable
 tags:
   - dx
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 6717a173e74b583cdd4e316ab43041bd27a73fc1fbd6c4fc3ff3923112acca86
+  at: 2026-09-29T20:39:41Z
+  body_sha256: c36a586d77655babc05570320764557f9f8c5e6244d058c0fc7b1466850b69d2
 sources:
   - id: hooks-hook-output
     resource: ../../plugins/claude-code/hooks/lib/hook-output.sh
   - id: hooks-test-run
     resource: ../../plugins/claude-code/hooks/post-tool-use/test-run.sh
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Fence Hook Stdout at the Library, Not the Call Site
@@ -38,14 +41,14 @@ is discarded, permission decision included.
 `hooks/lib/hook-output.sh` moves the real hook stdout off fd 1 at source
 time: `exec 3>&1 1>&2`, guarded by `_VITEST_AGENT_HOOK_STDOUT_FENCED` so a
 re-source cannot redirect twice
-(`plugins/claude-code/hooks/lib/hook-output.sh:40-55`). Every emitter —
+(`plugins/claude-code/hooks/lib/hook-output.sh`). Every emitter —
 `emit_noop`, `emit_allow`, `emit_deny`, `emit_additional_context`,
 `emit_system_message`, and the `emit_raw` escape hatch for a payload
 shape none of those cover — writes explicitly to `>&3`. Stray stdout from
 the sourcing script or any child process it spawns now lands on stderr:
 visible for debugging, invisible to the host's JSON parser. Call-site
 redirects still exist on the two `record` calls in `test-run.sh` to keep
-the logs quiet (`plugins/claude-code/hooks/post-tool-use/test-run.sh:31-35`),
+the logs quiet (`plugins/claude-code/hooks/post-tool-use/test-run.sh`),
 but correctness no longer rests on them being present.
 
 **Why a fence over per-call-site discipline.** The alternative is a

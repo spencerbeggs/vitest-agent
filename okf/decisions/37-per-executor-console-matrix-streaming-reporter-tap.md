@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Per-Executor Console Matrix + Streaming Reporter Tap
 description: AgentPluginOptions.console resolves one ConsoleMode per executor slot, driving stdout ownership and an optional live Ink mount fed by a RunEvent PubSub channel and read-only onRunEvent tap.
 tags: [architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 0dccd2b82aa0c9952722e208976d9de62f84c78bd5298c7baa1611e3c11e898f
+  at: 2026-09-29T20:39:41Z
+  body_sha256: ed1d364474ca53c09d4639d1750481815ccd4879334803d4f76e6aeec7d48aa1
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Per-Executor Console Matrix + Streaming Reporter Tap
@@ -28,13 +31,13 @@ without changing it.
 
 The plugin resolves console behavior through a per-executor matrix:
 `AgentPluginOptions.console: { human?, agent?, ci? }`
-(`packages/sdk/src/schemas/Options.ts:22-24`). Each slot accepts only the
+(`packages/sdk/src/schemas/Options.ts`). Each slot accepts only the
 modes valid for that executor —
 `HumanConsoleMode` is `passthrough | silent | stream | agent`,
 `AgentConsoleMode` is `passthrough | silent | agent`, and
 `CiConsoleMode` is `passthrough | silent | ci-annotations`
-(`packages/sdk/src/schemas/Common.ts:71-89`). `resolveConsoleMode`
-(`packages/plugin/src/plugin.ts:121-151`) auto-detects the executor via
+(`packages/sdk/src/schemas/Common.ts`). `resolveConsoleMode`
+(`packages/plugin/src/plugin.ts`) auto-detects the executor via
 `EnvironmentDetector`, looks up the matching slot with a per-executor
 default (`passthrough` for `human` and `ci`, `agent` for `agent`), and
 also honors a `VITEST_AGENT_CONSOLE` environment-variable override
@@ -47,20 +50,20 @@ Two derived behaviors fall out of the resolved mode:
 
 1. **Stdout ownership.** `ownsStdout` treats any non-`passthrough` value
    as needing exclusive stdout access
-   (`packages/plugin/src/plugin.ts:163-165`); the plugin strips Vitest's
+   (`packages/plugin/src/plugin.ts`); the plugin strips Vitest's
    built-in console reporters and zeroes `coverage.reporter`
-   (`packages/plugin/src/plugin.ts:446`) so it owns stdout for the run.
+   (`packages/plugin/src/plugin.ts`) so it owns stdout for the run.
 2. **Live mount activation.** When `consoleMode === "stream"`, a live Ink
    mount paints during the run. The plugin does not instantiate that
    mount itself — it publishes `RunEvent`s onto a `PubSub` channel
    threaded onto `ReporterKit.runEvents`
-   (`packages/sdk/src/contracts/reporter.ts:131`), and
+   (`packages/sdk/src/contracts/reporter.ts`), and
    `DefaultVitestAgentReporter` subscribes to it and owns the mount
    lifecycle. The plugin invokes the reporter factory at run start
-   (`onInit` → `initReporters`, `packages/plugin/src/reporter.ts:755,786,830`)
+   (`onInit` → `initReporters`, `packages/plugin/src/reporter.ts`)
    so a live-painting reporter can subscribe before the first event. The
    user-supplied `onRunEvent` callback is a separate read-only stream tee
-   (`packages/plugin/src/reporter.ts:846,858-868`), forwarded whenever the
+   (`packages/plugin/src/reporter.ts`), forwarded whenever the
    reporter wants run events at all — not gated to `stream` mode alone.
 
 The `human`-slot value is named `stream`, describing the user-visible
@@ -68,10 +71,10 @@ behavior rather than the rendering library: it renders a
 progressively-drawn, colored, animated view of the agent's run-shape
 data. The internal `RunEvent` surface is complete — every Vitest reporter
 hook `AgentReporter` implements fires a matching `RunEvent`
-(`packages/plugin/src/reporter.ts:858`, `emit`) — and a wall-clock
+(`packages/plugin/src/reporter.ts`, `emit`) — and a wall-clock
 animation clock in `createLiveInk` drives the spinner glyph and the
 ticking elapsed column via a fixed-cadence `setInterval`
-(`packages/reporter/src/LiveInkRenderer.tsx:140,205`), with the spinner
+(`packages/reporter/src/LiveInkRenderer.tsx`), with the spinner
 frame index derived from wall-clock time rather than an event count.
 
 **Why a per-executor matrix beats a single `mode` enum.** Humans, agents,

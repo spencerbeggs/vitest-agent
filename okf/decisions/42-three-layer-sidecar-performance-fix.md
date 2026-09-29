@@ -2,12 +2,15 @@
 type: Decision
 title: Three-Layer Sidecar Performance Fix
 description: A bash regex prefilter, a main-agent-identity skip, and a native SEA binary on the residual path replace an unconditional JS CLI shell-out on every Bash tool call, avoiding a daemon's socket and lifecycle cost.
-status: draft
+status: stable
 tags: [architecture, performance, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 4785586d5ce40469696f15d6a145e01879d3e03025d583b33f6c4d3025a6f652
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 57eda87bd806483281eca521e1076add9ddb05b9a48f8a97eda5750d3ae5c0bd
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Three-Layer Sidecar Performance Fix
@@ -18,7 +21,7 @@ The PreToolUse Bash hook (`plugins/claude-code/hooks/pre-tool-use/bash.sh`)
 fires on every Bash tool call. A naive implementation would unconditionally
 shell out to the JS CLI's `inject-env` subcommand to detect a Vitest
 invocation and rewrite its env-var prefix, paying a full Node cold start —
-the `effect` / `effect/unstable/cli` / `@effect/sql-sqlite-node` module
+the `effect` / `effect/cli` / `@effect/sql-sqlite-node` module
 graph — on the inner loop of agent latency. Most of that work is wasted:
 the large majority of Bash calls cannot invoke Vitest at all, and
 main-agent Vitest invocations already carry correct attribution through
@@ -31,17 +34,17 @@ rewrite.
 Three layers, each cheaper than the one before it, filter down to the
 residual case that needs a real rewrite. Layer 0 is a POSIX-ERE regex
 matched against the raw command with bash's built-in `[[ =~ ]]`
-(`SIDECAR_PREFILTER_RE`, `plugins/claude-code/hooks/pre-tool-use/bash.sh:76-80`)
+(`SIDECAR_PREFILTER_RE`, `plugins/claude-code/hooks/pre-tool-use/bash.sh`)
 — no fork, no subprocess. A non-match emits a no-op and exits immediately.
 Layer 1 compares `VITEST_AGENT_AGENT_ID` against
 `VITEST_AGENT_MAIN_AGENT_ID` after sourcing the session-env file
-(`plugins/claude-code/hooks/pre-tool-use/bash.sh:96-101`) and skips the
+(`plugins/claude-code/hooks/pre-tool-use/bash.sh`) and skips the
 sidecar entirely when the active actor is the main agent; it falls through
 (does not skip) when either var is unset, since paying the sidecar cost is
 safer than silently dropping attribution. Layers 0 and 1 together eliminate
 the sidecar call from the large majority of Bash calls. Layer 2 is the
 `@vitest-agent/sidecar` binary
-(`plugins/claude-code/hooks/pre-tool-use/bash.sh:111-123`) invoked directly
+(`plugins/claude-code/hooks/pre-tool-use/bash.sh`) invoked directly
 when `VITEST_AGENT_SIDECAR_BIN` is set and executable; the hook falls back
 to the JS CLI (`cli agent inject-env`) when the binary is absent or
 non-executable, with byte-identical output either way.
@@ -55,15 +58,15 @@ nothing to clean up.
 
 Layer 2's binary is built with `@savvy-web/bundler`'s `exe` mode
 (`exe: { fileName: "vitest-agent-sidecar" }`,
-`packages/sidecar-darwin-arm64/savvy.build.ts:5`), which drives Node's
+`packages/sidecar-darwin-arm64/savvy.build.ts`), which drives Node's
 Single Executable Application generation from a single-file bundle. The
 parent `@vitest-agent/sidecar` package carries no `bin` of its own and
-cross-builds nothing (`packages/sidecar/savvy.build.ts:1-15`) — each of the
+cross-builds nothing (`packages/sidecar/savvy.build.ts`) — each of the
 four `sidecar-<platform>` child packages compiles its own binary from its
 own `src/bin.ts` and declares it as its own `bin`; the parent only declares
 the four children as `optionalDependencies` and exposes the pure
 `resolveSidecarBinaryPath` helper
-(`packages/sidecar/src/resolve-sidecar-binary-path.ts:38`) from its
+(`packages/sidecar/src/resolve-sidecar-binary-path.ts`) from its
 programmatic `.` export.
 
 The binary handles `inject-env` only; `register-agent` stays on the JS
@@ -75,18 +78,18 @@ tolerable there in a way a per-Bash-call cold start is not.
 
 The binary ships per-platform via four `optionalDependencies` sub-packages
 declaring matching `os`/`cpu` fields (`SUPPORTED_PLATFORMS`,
-`packages/sidecar/src/resolve-sidecar-binary-path.ts:29-34` — darwin-arm64,
+`packages/sidecar/src/resolve-sidecar-binary-path.ts` — darwin-arm64,
 linux-arm64, linux-x64, win32-x64; darwin-x64 is intentionally not
 shipped). The binary is not discoverable via `command -v` because
 pnpm/npm only hoist direct-dependency bins, never transitive
 optional-dependency bins, into `node_modules/.bin/`. Instead,
 `resolveSidecarBinaryPath()`
-(`packages/sidecar/src/resolve-sidecar-binary-path.ts:38`) resolves the
+(`packages/sidecar/src/resolve-sidecar-binary-path.ts`) resolves the
 absolute path via `createRequire(import.meta.url)`-backed resolution
 anchored inside the sidecar package, the `optionalDependencies` owner. The
 SessionStart hook calls `vitest-agent agent sidecar-path`
-(`packages/cli/src/commands/agent.ts:208`) once per session
-(`plugins/claude-code/hooks/session/start.sh:156-166`), captures the
+(`packages/cli/src/commands/agent.ts`) once per session
+(`plugins/claude-code/hooks/session/start.sh`), captures the
 absolute path from stdout, and exports it as `VITEST_AGENT_SIDECAR_BIN`.
 Layer 2 reads this env var directly instead of probing `PATH`. When the var
 is absent or the binary non-executable — an unsupported platform, or a

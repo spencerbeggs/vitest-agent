@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Independent Per-Package Release
 description: Changesets carries no fixed or linked grouping across @vitest-agent/* packages, so each releases and tags independently with patch ripples only through dependency-range bumps.
 tags: [architecture, release]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: fce3beda11c37859523ff8e0759481136a49011f329a3251f4ac2d1d13b01cc3
+  at: 2026-09-29T20:39:41Z
+  body_sha256: d86c85edd480855ffc0697a17bc2449be8d556dabfe820866f4ef6733c8526ec
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Independent Per-Package Release
@@ -27,16 +30,16 @@ grouping and the runtime drift check were removed together.
 
 Every `@vitest-agent/*` package versions independently.
 `.changeset/config.json` carries no `fixed` or `linked` grouping
-(`.changeset/config.json:1-27`); `updateInternalDependencies` is set to
-`"patch"` (`.changeset/config.json:27`), so a release of one package never
+(`.changeset/config.json`); `updateInternalDependencies` is set to
+`"patch"` (`.changeset/config.json`), so a release of one package never
 forces a version bump on an unrelated sibling.
 
 Each runtime package still exports a `CURRENT_<PKG>_VERSION` constant,
 inlined from `process.env.__PACKAGE_VERSION__` at build time —
-`CURRENT_SDK_VERSION` (`packages/sdk/src/version.ts:13`),
-`CURRENT_ENGINE_VERSION` (`packages/engine/src/version.ts:2`),
-`CURRENT_CLI_VERSION` (`packages/cli/src/version.ts:9`), and
-`CURRENT_MCP_VERSION` (`packages/mcp/src/version.ts:9`), with matching
+`CURRENT_SDK_VERSION` (`packages/sdk/src/version.ts`),
+`CURRENT_ENGINE_VERSION` (`packages/engine/src/version.ts`),
+`CURRENT_CLI_VERSION` (`packages/cli/src/version.ts`), and
+`CURRENT_MCP_VERSION` (`packages/mcp/src/version.ts`), with matching
 constants in `plugin` and `reporter`. These remain part of the public API
 — a consumer or a package's own test can read its release version — but
 nothing compares them across packages at init any more.
@@ -59,12 +62,12 @@ package's own changelog body, its own provenance assets (npm tarball,
 SBOM, API report, meta), and a per-package publish summary. The docs
 deploy workflow keys its trigger on the plugin Release name containing
 `@vitest-agent/plugin`
-(`.github/workflows/deploy-docs.yml:8,35`) — unchanged by this decision.
+(`.github/workflows/deploy-docs.yml`) — unchanged by this decision.
 `@vitest-agent/claude-code-plugin` releases through the same scheme minus
 the npm publish step (`privatePackages: { tag: true, version: true }`,
-`.changeset/config.json:23-26`), with `versionFiles` mapping its version
+`.changeset/config.json`), with `versionFiles` mapping its version
 bump onto `plugins/claude-code/.claude-plugin/plugin.json`'s `$.version`
-field (`.changeset/config.json:9-16`).
+field (`.changeset/config.json`).
 
 **Why independent (vs lockstep).** The lockstep form bumped all six
 runtime packages on the smallest change to any one and asserted exact

@@ -2,12 +2,15 @@
 type: Decision
 title: Unified DiscoverStrategy + DiscoverBuilder
 description: DiscoverStrategy collapses project detection and tag classification into one extensible contract, and AgentPlugin.discover() returns an immutable thenable DiscoverBuilder with an addProject escape hatch.
-status: draft
+status: stable
 tags: [architecture, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 091b4882d52018d5312a0e5dcb9d3a9d033b245fdc9ee603701fcf2fc998e836
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 1a2cff02d7bce9e875135930b69861074f1caaadb6ba127fdd7a430c022f53b9
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Unified DiscoverStrategy + DiscoverBuilder
@@ -24,57 +27,57 @@ jobs.
 
 ## Decision
 
-`DiscoverStrategy` (`packages/plugin/src/utils/discover-strategy.ts:126`) is
+`DiscoverStrategy` (`packages/plugin/src/utils/discover-strategy.ts`) is
 an abstract base with two required members, `buildProject(input:
 DiscoverInput): Promise<TestProjectInlineConfiguration | null>`
-(`packages/plugin/src/utils/discover-strategy.ts:136`) and `classify(ctx):
-ReadonlyArray<string>` (`packages/plugin/src/utils/discover-strategy.ts:137`),
+(`packages/plugin/src/utils/discover-strategy.ts`) and `classify(ctx):
+ReadonlyArray<string>` (`packages/plugin/src/utils/discover-strategy.ts`),
 plus `extend(options): DiscoverStrategy`
-(`packages/plugin/src/utils/discover-strategy.ts:138`). `DiscoverStrategy.create({
+(`packages/plugin/src/utils/discover-strategy.ts`). `DiscoverStrategy.create({
 tags, classify, buildProject })`
-(`packages/plugin/src/utils/discover-strategy.ts:140`) builds a
+(`packages/plugin/src/utils/discover-strategy.ts`) builds a
 `ConcreteDiscoverStrategy` from a single classify layer and a single
 build-project layer; `.extend({ additionalTags?, buildProject?, classify?
-})` (`packages/plugin/src/utils/discover-strategy.ts:194`) appends another
+})` (`packages/plugin/src/utils/discover-strategy.ts`) appends another
 immutable layer rather than mutating the existing one — each extension
 `classify` layer receives the parent layer's tag list plus the inherited
 tag names (`ClassifyContext.inherited`,
-`packages/plugin/src/utils/discover-strategy.ts:70`), and each extension
+`packages/plugin/src/utils/discover-strategy.ts`), and each extension
 `buildProject` layer receives the prior layer's
 `TestProjectInlineConfiguration | null` result
-(`packages/plugin/src/utils/discover-strategy.ts:184-192`) so it can augment
+(`packages/plugin/src/utils/discover-strategy.ts`) so it can augment
 or wholesale replace it. `DefaultDiscoverStrategy`
-(`packages/plugin/src/utils/discover-strategy.ts:232`) is the built-in
+(`packages/plugin/src/utils/discover-strategy.ts`) is the built-in
 unit/int/e2e-by-filename-suffix strategy the plugin uses when no strategy
 is supplied.
 
 A `null` return from `buildProject` is the one "skip this package" signal
 the scanner recognizes. `DefaultDiscoverStrategy.buildProject`
-(`packages/plugin/src/utils/discover-strategy.ts:245`) returns `null` when
+(`packages/plugin/src/utils/discover-strategy.ts`) returns `null` when
 neither `src/` nor `__test__/` contains test files, folding what used to be
 three separate special cases (root package, missing `src/`, missing test
 files) into one predicate a custom strategy can override outright.
 
-`AgentPlugin.discover()` (`packages/plugin/src/plugin.ts:868`) returns a
-`DiscoverBuilder` (`packages/plugin/src/plugin.ts:749`) — a
+`AgentPlugin.discover()` (`packages/plugin/src/plugin.ts`) returns a
+`DiscoverBuilder` (`packages/plugin/src/plugin.ts`) — a
 `PromiseLike<DiscoverResult>` with `.addProject(input): DiscoverBuilder`
-(`packages/plugin/src/plugin.ts:750`) — rather than a plain `Promise`.
-`makeDiscoverBuilder` (`packages/plugin/src/plugin.ts:764`) is immutable:
+(`packages/plugin/src/plugin.ts`) — rather than a plain `Promise`.
+`makeDiscoverBuilder` (`packages/plugin/src/plugin.ts`) is immutable:
 each `.addProject()` call returns a new builder carrying the accumulated
-entries (`packages/plugin/src/plugin.ts:766-773`), and calling `.then()`
+entries (`packages/plugin/src/plugin.ts`), and calling `.then()`
 (or awaiting) triggers `discoverProjects(options)`
-(`packages/plugin/src/plugin.ts:779`). `.addProject` is the documented
+(`packages/plugin/src/plugin.ts`). `.addProject` is the documented
 escape hatch for folders holding tests that are not workspace packages —
 the alternative of a parallel options field or a discovery callback would
 both fight the scanner's caching model, since neither can be
 fingerprinted the way a no-arg call can.
 
-`discoverProjects` (`packages/plugin/src/utils/discover-projects.ts:220`)
+`discoverProjects` (`packages/plugin/src/utils/discover-projects.ts`)
 caches results in a process-level `Map` keyed by workspace root
-(`packages/plugin/src/utils/discover-projects.ts:133`), but only on the
+(`packages/plugin/src/utils/discover-projects.ts`), but only on the
 no-arg, no-added-entries call path — an explicit strategy or any
 `.addProject()` chain always bypasses the cache
-(`packages/plugin/src/plugin.ts:240`, comment: "can't fingerprint
+(`packages/plugin/src/utils/discover-projects.ts`, comment: "can't fingerprint
 DiscoverStrategy instances"). An added-entry name or normalized absolute
 path colliding with an existing workspace package, or an added entry whose
 `buildProject` returns `null`, both throw on resolution rather than
@@ -96,8 +99,8 @@ primitives without subclassing and without reimplementing
 
 The plugin option carrying the strategy is
 `AgentPluginConstructorOptions.discoverStrategy`
-(`packages/plugin/src/plugin.ts:100`); passing `false` disables the Vite
-transform hook entirely (`packages/plugin/src/plugin.ts:327-328`).
+(`packages/plugin/src/plugin.ts`); passing `false` disables the Vite
+transform hook entirely (`packages/plugin/src/plugin.ts`).
 
 ## Alternatives rejected
 

@@ -8,8 +8,8 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 1ead15aa4f0758a67d09d05c6c32eab4b549a5272fbcc6a0e60d0058a25b09d3
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 0eed4292e47dd98ce8b380d6b6d27dbbdaa184a324b7c9b804401ccbf567f597
 sources:
   - id: migration-0001-phases-cascade
     resource: ../../packages/engine/src/migrations/0001_initial.ts
@@ -29,9 +29,9 @@ assume `behavior_id` is meaningful when it is present.
 
 `tdd_phases.behavior_id` is declared
 `REFERENCES tdd_session_behaviors(id) ON DELETE CASCADE`
-(`packages/engine/src/migrations/0001_initial.ts:743`), and
+(`packages/engine/src/migrations/0001_initial.ts`), and
 `tdd_artifacts.behavior_id` carries the same
-`ON DELETE CASCADE` (`packages/engine/src/migrations/0001_initial.ts:771`).
+`ON DELETE CASCADE` (`packages/engine/src/migrations/0001_initial.ts`).
 Deleting a behavior therefore erases its entire phase ledger and,
 transitively, every artifact recorded against those phases.
 

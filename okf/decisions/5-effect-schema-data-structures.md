@@ -2,14 +2,14 @@
 type: Decision
 title: Effect Schema Data Structures
 description: Effect Schema is the family's only schema language; TypeScript types derive from it and JSON codecs run through its effectful decode/encode.
-status: draft
+status: stable
 tags:
   - architecture
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 4c18dbe4db85fe5b92c32bec66c1d06ae93f25944ee4e860995501d3a6837f4d
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 5f94590677413d4e924281ff0c38dcf500a21b349ceeb81f802af1c41741ddde
 sources:
   - id: sdk-schemas-agent-report
     resource: ../../packages/sdk/src/schemas/AgentReport.ts
@@ -19,6 +19,9 @@ sources:
     resource: ../../packages/mcp/src/toolkit.ts
   - id: mcp-package-json
     resource: ../../packages/mcp/package.json
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Effect Schema Data Structures
@@ -30,8 +33,8 @@ serializable to and from JSON, and the same shapes have to be usable from
 three different runtimes (the Vitest reporter, the CLI, and the MCP
 server) without three separate definitions drifting apart. Before the
 Effect-native MCP server (see
-[Decision 71](../decisions/71-effect-native-mcp-server.md), not yet
-migrated into this bundle), MCP tool inputs were validated with zod for a
+[Decision 71](../decisions/71-effect-native-mcp-server.md)), MCP tool
+inputs were validated with zod for a
 tRPC routing layer; that dependency and that routing layer are gone.
 
 ## Decision
@@ -60,7 +63,7 @@ codec (`Schema.decodeUnknownEffect(parameters)` with
 fix.[^mcp-toolkit]
 
 The MCP server's tool inputs, outputs, and prompt arguments are Effect
-Schemas served through Effect's own `McpServer` (`effect/unstable/ai`).
+Schemas served through Effect's own `McpServer` (`effect/ai`).
 There is no separate request-validation library anywhere in the family:
 `packages/mcp/package.json`'s dependency list has no `zod` and no tRPC
 package.[^mcp-package-json] Schemas compose with Effect services directly

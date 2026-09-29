@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Per-Process Coverage Directory for Plain-CLI Agent Runs
 description: Why an agent-executor plain-CLI vitest run gets its coverage.reportsDirectory rewritten to a fresh per-process temp directory, and why that rewrite and its cleanup are guarded and scoped to only the agent executor.
 tags: [architecture, testing, performance]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 5eb175d4a5e2aaf2e149be1568f8015d5183fbb104ee29aa145734e5d2459b94
+  at: 2026-09-29T20:39:41Z
+  body_sha256: fe9c8025ee424172444771b7359af9225803759d0d5325f86cbbd1a512e1c745
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Per-Process Coverage Directory for Plain-CLI Agent Runs
@@ -18,11 +21,11 @@ An earlier decision isolated `coverage.reportsDirectory` for MCP `run_tests` cal
 
 ## Decision
 
-A pure decision function, `resolveCoverageDirIsolation({ executor, coverageEnabled, env, configured })` (`packages/plugin/src/utils/resolve-coverage-dir-isolation.ts:63-80`), returns one of three outcomes, and `configureVitest` acts on it once per Vitest run (guarded by a `WeakSet` keyed on the Vitest instance, since `configureVitest` fires per project while `coverage.reportsDirectory` is root-level config — `packages/plugin/src/plugin.ts:225`, `packages/plugin/src/plugin.ts:561`):
+A pure decision function, `resolveCoverageDirIsolation({ executor, coverageEnabled, env, configured })` (`packages/plugin/src/utils/resolve-coverage-dir-isolation.ts`), returns one of three outcomes, and `configureVitest` acts on it once per Vitest run (guarded by a `WeakSet` keyed on the Vitest instance, since `configureVitest` fires per project while `coverage.reportsDirectory` is root-level config — `packages/plugin/src/plugin.ts`):
 
-- `keep` — leave the configured directory alone. Returned whenever coverage is disabled (UI-only mode), whenever the executor is not `agent`, and when `VITEST_AGENT_COVERAGE_DIR_ISOLATION` is one of `off`/`0`/`false` (`packages/plugin/src/utils/resolve-coverage-dir-isolation.ts:66-72`).
-- `explicit` — use `VITEST_AGENT_COVERAGE_DIR=<path>` verbatim; no `mkdtemp`, no cleanup (`packages/plugin/src/utils/resolve-coverage-dir-isolation.ts:74-77`). The escape hatch for an agent that wants the on-disk report somewhere it can read.
-- `isolate` — the default for the `agent` executor with coverage on: rewrite `coverage.reportsDirectory` to a fresh `mkdtempSync`-produced directory and register a best-effort `rmSync` in `vitest.onClose()` (`packages/plugin/src/utils/resolve-coverage-dir-isolation.ts:79`).
+- `keep` — leave the configured directory alone. Returned whenever coverage is disabled (UI-only mode), whenever the executor is not `agent`, and when `VITEST_AGENT_COVERAGE_DIR_ISOLATION` is one of `off`/`0`/`false` (`packages/plugin/src/utils/resolve-coverage-dir-isolation.ts`).
+- `explicit` — use `VITEST_AGENT_COVERAGE_DIR=<path>` verbatim; no `mkdtemp`, no cleanup (`packages/plugin/src/utils/resolve-coverage-dir-isolation.ts`). The escape hatch for an agent that wants the on-disk report somewhere it can read.
+- `isolate` — the default for the `agent` executor with coverage on: rewrite `coverage.reportsDirectory` to a fresh `mkdtempSync`-produced directory and register a best-effort `rmSync` in `vitest.onClose()` (`packages/plugin/src/utils/resolve-coverage-dir-isolation.ts`).
 
 Only the `agent` executor is ever relocated — a human's `./coverage` output and CI's configured directory are exactly what those executors expect to find on disk, so they are never touched.
 

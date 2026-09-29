@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Carrier Pattern and Ranked Layering
 description: "Restructures the workspace into a rank-ordered dependency graph (sdk at rank 1 through the plugin carrier at rank 5) and has the carrier declare both bins directly so pnpm's direct-dependency-only bin linking works without hoisting tricks."
 tags:
@@ -9,8 +9,8 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 617305e01e4774e607f4c6f7cad7af2b2b92752b73541312144af0e6273525c7
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 70c7bfd99a1f74eca0bfe53ea7718cd3be11f12073f4a853a87315eacd9e4eb3
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -22,6 +22,9 @@ sources:
     resource: ../../layers.json
   - id: bins-packed-install-e2e
     resource: ../../packages/plugin/__test__/bins-packed-install.e2e.test.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Carrier Pattern and Ranked Layering
@@ -114,8 +117,8 @@ carries `__test__/boundaries.test.ts` over `@effected/workspaces/testing`'s
 `@effect/sql-sqlite-node` or any `@effected/*` package, and may not
 reference `process.`; engine may not reference `process.` anywhere, with
 no allowlist, and may not import a front end; cli and mcp read `process`
-only through narrow allowlists (`bin.ts`, `main.ts`, `version.ts`, plus
-`commands/**` for cli and `tools/run-tests.ts` for mcp) and never import
+only through narrow allowlists (`main.ts`, plus `commands/**` for cli and
+`tools/run-tests.ts` for mcp) and never import
 each other. The single exemption everywhere is the exact token
 `process.env.__PACKAGE_VERSION__`, a compile-time literal the bundler
 substitutes, which a `forbidTokens` rule confines to each package's
@@ -148,7 +151,7 @@ thin shims: `bin.vitest-agent` points at
 `bin.vitest-agent-mcp` points at `src/bin/vitest-agent-mcp.ts`, which
 does the same for `@vitest-agent/mcp/main` with `void`
 (`packages/plugin/src/bin/vitest-agent-mcp.ts`), matching the
-`bin` field in `packages/plugin/package.json:27-30`. A consumer installs
+`bin` field in `packages/plugin/package.json`. A consumer installs
 only the plugin, and because the plugin is a *direct* dependency its bins
 land in `node_modules/.bin` under every package manager — including
 pnpm, which links direct-dependency bins only. The root `package.json`
