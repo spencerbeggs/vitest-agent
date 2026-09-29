@@ -1,14 +1,15 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { realpath, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { Writable } from "node:stream";
-import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { NodeChildProcessSpawner, NodeFileSystem, NodePath } from "@effect/platform-node";
+import { Git } from "@effected/git";
 import { ToolOutputSchema } from "@effected/mcp";
+import { Walker } from "@effected/walker";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
@@ -19,8 +20,8 @@ import {
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
-import type { Context, Fiber } from "effect";
-import { Data, Effect, Schema, Semaphore } from "effect";
+import type { Context, Fiber, FileSystem } from "effect";
+import { Data, Effect, Layer, Option, Path, Result, Schema, Semaphore } from "effect";
 import { Tool } from "effect/ai";
 import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
 import { McpSession } from "../session.js";
@@ -286,36 +287,22 @@ export function sanitizeTestArgs(args: readonly string[]): string[] {
 	return result;
 }
 
-const execFileAsync = promisify(execFile);
-
 /**
- * Resolve the git common directory for `dir` (`git rev-parse
- * --git-common-dir`) — identical across a repository and every worktree
- * attached to it, which is what makes it the right "same repository"
- * comparison (a plain `--show-toplevel` differs per worktree). Returns
- * `null` when `dir` is not inside a git repository or the command fails
- * for any other reason; callers treat `null` as "cannot confirm same
- * repository", never as a silent pass.
- *
- * @internal exported for tests
+ * The git common directory for `dir` (`Git.commonDir`: `git rev-parse
+ * --path-format=absolute --git-common-dir`) — identical across a
+ * repository, its subdirectories, every linked worktree and any symlinked
+ * path to them, which is what makes it the right "same repository"
+ * comparison (`--show-toplevel` differs per worktree). Yields `null` when
+ * `dir` is not inside a git repository or the command fails for any other
+ * reason; callers treat `null` as "cannot confirm same repository", never
+ * as a silent pass.
  */
-export async function resolveGitCommonDir(dir: string): Promise<string | null> {
-	try {
-		const { stdout } = await execFileAsync("git", ["rev-parse", "--git-common-dir"], { cwd: dir });
-		const trimmed = stdout.trim();
-		if (trimmed.length === 0) return null;
-		// `--git-common-dir` may print a path relative to `dir` (e.g. `.git`
-		// for a plain repo) or an absolute, symlink-resolved path (e.g. from
-		// inside a linked worktree, where git prints the realpath). Run both
-		// shapes through `realpath` so a repo whose tmpdir sits behind a
-		// symlink (macOS `/var/folders` -> `/private/var/folders`) compares
-		// equal regardless of which form git chose to print.
-		const candidate = resolve(dir, trimmed);
-		return await realpath(candidate);
-	} catch {
-		return null;
-	}
-}
+const gitCommonDir = (dir: string): Effect.Effect<string | null, never, Git> =>
+	Effect.flatMap(Git, (git) => git.commonDir(dir)).pipe(
+		Effect.option,
+		Effect.map(Option.getOrNull),
+		Effect.catchDefect(() => Effect.succeed(null)),
+	);
 
 export type ProjectRootValidation = { ok: true; root: string } | { ok: false; message: string };
 
@@ -343,68 +330,83 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // paths.
 // Candidate filenames are checked per-directory in the order Vitest
 // itself prefers: `vitest.config.*` before `vite.config.*`, across
-// ts/mts/cts/js/mjs/cjs. The walk is bounded at the git root (a
-// worktree's `.git` is a FILE, not a directory — `existsSync` accepts
-// either) so an unrelated `vite.config.ts` sitting above the repo can't
-// silently capture the root. Neither helper ever throws.
+// ts/mts/cts/js/mjs/cjs. The walk is bounded at the git work-tree root
+// (`git rev-parse --show-toplevel`, which a linked worktree answers with
+// its own root) so an unrelated `vite.config.ts` sitting above the repo
+// can't silently capture the root. Neither helper ever fails.
+//
+// Issue #384: both helpers run on `@effected/walker` and `@effected/git`
+// over injected `FileSystem` / `Path` / `Git` services, so tests drive them
+// through an in-memory volume and a `Git` double; the promise-shaped run
+// body provides the Node platform via `runOnNodePlatform`.
+const VITEST_CONFIG_PREFIXES = ["vitest.config.", "vite.config."] as const;
 const VITEST_CONFIG_EXTENSIONS = ["ts", "mts", "cts", "js", "mjs", "cjs"] as const;
 
-function findConfigInDir(dir: string): string | null {
-	for (const prefix of ["vitest.config.", "vite.config."]) {
-		for (const ext of VITEST_CONFIG_EXTENSIONS) {
-			const candidate = join(dir, `${prefix}${ext}`);
-			if (existsSync(candidate)) return candidate;
-		}
-	}
-	return null;
-}
+/** What the config walk reads: the filesystem, path ops, and git. */
+type ConfigWalkServices = FileSystem.FileSystem | Path.Path | Git;
 
 /**
  * The one walk both anchoring helpers share: step UP from `startDir`
  * until a vitest/vite config file is found, returning its absolute path.
- * Bounded at the git root (inclusive — the directory containing `.git`
- * is still examined before the walk stops) and at the filesystem root.
- * Returns `null` when no config is found in range or when anything about
- * the walk throws.
+ * Bounded at the git work-tree root (inclusive, so the root is still
+ * examined) and at the filesystem root. `Git.repoRoot` answers a PHYSICAL
+ * path (`/private/var/...` for a `/var/...` tmpdir on macOS) while the chain
+ * is lexical, so the bound is `Walker.ascendWithin`, which stops on a
+ * realpath match; a lexical `stopAt` would match nothing there and let the
+ * walk run past the repository. Any `repoRoot` failure (not a repository,
+ * git missing) means no git bound: the walk runs to the filesystem root, as
+ * it always has outside a repository. Yields `null` when no config is found in
+ * range. An unreadable entry reads as absent (the walker absorbs
+ * per-candidate failures), and a defect anywhere in the walk also yields
+ * `null`, so the helper never fails.
  */
-function walkUpToConfigFile(startDir: string): string | null {
-	try {
-		let dir = resolve(startDir);
-		for (;;) {
-			const found = findConfigInDir(dir);
-			if (found !== null) return found;
-			if (existsSync(join(dir, ".git"))) return null;
-			const parent = dirname(dir);
-			if (parent === dir) return null;
-			dir = parent;
-		}
-	} catch {
-		return null;
-	}
-}
+const walkUpToConfigFile = (startDir: string): Effect.Effect<string | null, never, ConfigWalkServices> =>
+	Effect.gen(function* () {
+		const path = yield* Path.Path;
+		const start = path.resolve(startDir);
+		const git = yield* Git;
+		const dirs = yield* Walker.ascendWithin(start, yield* Effect.option(git.repoRoot(start)));
+		const found = yield* Walker.findUpward(dirs, (dir) =>
+			VITEST_CONFIG_PREFIXES.flatMap((prefix) =>
+				VITEST_CONFIG_EXTENSIONS.map((ext) => path.join(dir, `${prefix}${ext}`)),
+			),
+		);
+		return Option.getOrNull(found);
+	}).pipe(Effect.catchDefect(() => Effect.succeed(null)));
 
 /**
- * Walk UP from `startDir` looking for the vitest/vite config file, returning
+ * Walk UP from `startDir` looking for the vitest/vite config file, yielding
  * its absolute path, or `null` when none is found in range.
  *
  * @internal exported for tests
  */
-export function resolveAnchoredConfigFile(startDir: string): string | null {
-	return walkUpToConfigFile(startDir);
-}
+export const resolveAnchoredConfigFile = (startDir: string): Effect.Effect<string | null, never, ConfigWalkServices> =>
+	walkUpToConfigFile(startDir);
 
 /**
  * Walk UP from `startDir` looking for the vitest/vite config Vitest would
- * load anyway, returning the directory that holds it. Returns `startDir`
+ * load anyway, yielding the directory that holds it. Yields `startDir`
  * unchanged when no config is found in range. See the issue #259 comment
  * above `validateProjectRoot` for the full rationale.
  *
  * @internal exported for tests
  */
-export function resolveConfigAnchoredRoot(startDir: string): string {
-	const found = walkUpToConfigFile(startDir);
-	return found === null ? startDir : dirname(found);
-}
+export const resolveConfigAnchoredRoot = (startDir: string): Effect.Effect<string, never, ConfigWalkServices> =>
+	Effect.gen(function* () {
+		const found = yield* walkUpToConfigFile(startDir);
+		if (found === null) return startDir;
+		const path = yield* Path.Path;
+		return path.dirname(found);
+	});
+
+const NodeFsPath = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+
+/** The Node platform the promise-shaped run body walks the real disk with; bound once so it memoizes. */
+const NodeWalkPlatform = Git.layer.pipe(Layer.provide(NodeChildProcessSpawner.layer), Layer.provideMerge(NodeFsPath));
+
+/** Run a never-failing platform walk against the real disk. */
+const runOnNodePlatform = <A>(effect: Effect.Effect<A, never, ConfigWalkServices>): Promise<A> =>
+	Effect.runPromise(Effect.provide(effect, NodeWalkPlatform));
 
 /**
  * Validate an optional caller-supplied `projectRoot` against `ctxCwd`
@@ -430,7 +432,7 @@ export async function validateProjectRoot(
 	ctxCwd: string,
 ): Promise<ProjectRootValidation> {
 	if (projectRoot === undefined) {
-		return { ok: true, root: resolveConfigAnchoredRoot(ctxCwd) };
+		return { ok: true, root: await runOnNodePlatform(resolveConfigAnchoredRoot(ctxCwd)) };
 	}
 	// Resolve a relative `projectRoot` against `ctxCwd`, not the MCP
 	// server's `process.cwd()`. Single-argument `resolve` would use the
@@ -453,10 +455,9 @@ export async function validateProjectRoot(
 			message: `projectRoot "${resolvedRoot}" is not a directory (ctx.cwd is "${ctxCwd}").`,
 		};
 	}
-	const [rootCommonDir, cwdCommonDir] = await Promise.all([
-		resolveGitCommonDir(resolvedRoot),
-		resolveGitCommonDir(ctxCwd),
-	]);
+	const [rootCommonDir, cwdCommonDir] = await runOnNodePlatform(
+		Effect.all([gitCommonDir(resolvedRoot), gitCommonDir(ctxCwd)], { concurrency: 2 }),
+	);
 	if (rootCommonDir === null || cwdCommonDir === null || rootCommonDir !== cwdCommonDir) {
 		return {
 			ok: false,
@@ -506,6 +507,26 @@ export function resolveVitestNodeEntry(root: string): string {
 }
 
 /**
+ * Issue #461: the MCP server is long-lived. When the lockfile is regenerated
+ * mid-session (dep bump, branch switch), pnpm can rename vitest's `.pnpm`
+ * store directory (peer-hash change), so the entry resolved for this process
+ * no longer exists and every run would otherwise fail opaquely inside the fork
+ * pool ("Worker forks emitted error", total: 0). Returns an actionable message
+ * when `entry` is a `file://` URL whose path is missing on disk, else `null`.
+ * The bare `"vitest/node"` fallback is not a path and is never checked. The
+ * check is on the exact path that will be imported, because Node's require
+ * resolution caches can hand back a stale path in a long-lived process.
+ *
+ * @internal exported for tests
+ */
+export function staleInstallMessage(entry: string): string | null {
+	if (!entry.startsWith("file:")) return null;
+	const path = fileURLToPath(entry);
+	if (existsSync(path)) return null;
+	return `The resolved vitest entry "${path}" no longer exists on disk. The install changed since this vitest-agent MCP server loaded it (for example the lockfile was regenerated by a dependency install or branch switch). Restart the vitest-agent MCP server (in Claude Code: /mcp) or restart the session, then retry.`;
+}
+
+/**
  * Indirection seam around `import(<vitest/node entry>)`. vitest's own
  * vite-node externalizes "vitest"/"vitest/node" for every importer, and
  * `vi.mock("vitest/node", ...)` only special-cases AST-literal
@@ -518,6 +539,7 @@ export function resolveVitestNodeEntry(root: string): string {
  * @internal exported for tests
  */
 export const vitestLoader = {
+	resolveEntry: (root: string): string => resolveVitestNodeEntry(root),
 	load: (entry: string): Promise<{ createVitest: typeof import("vitest/node")["createVitest"] }> => import(entry),
 };
 
@@ -528,8 +550,11 @@ export const vitestLoader = {
 // race: caller B's env assignment can land between A's assignment and
 // A's worker spawn, attributing A's results to B's agent. A single-
 // permit semaphore keeps that env-write + worker-spawn pair atomic from
-// the perspective of any other run_tests call in this process.
-const runTestsSemaphore = Effect.runSync(Semaphore.make(1));
+// the perspective of any other run_tests call in this process. The
+// permit must outlive request cancellation: see `handleRunTests`.
+//
+// @internal exported for the cancellation test's permit probe only.
+export const runTestsSemaphore = Effect.runSync(Semaphore.make(1));
 
 /**
  * Coerce unknown Vitest unhandled errors into VitestModuleError shape.
@@ -587,7 +612,7 @@ export const RunTestsInput = Schema.Struct({
 	// `RunTestsNoMatch`, whether or not this was supplied.
 	projectRoot: Schema.optionalKey(Schema.String).annotate({
 		description:
-			"Explicit Vitest root for this call, used verbatim. Omit it to get the config-anchored default (walk up from the server's boot dir for a vitest/vite config, bounded at the git root). Prefer an absolute path; a relative path is resolved against ctx.cwd, not the server process's cwd. Validated: must be an existing directory in the same git repository as ctx.cwd (same git-common-dir, e.g. a sibling worktree). Rejected with { kind: 'error' } naming both paths otherwise.",
+			"Explicit Vitest root for this call, used verbatim. Omit it to get the config-anchored default (walk up from the server's boot dir for a vitest/vite config, bounded at the git root). Prefer an absolute path; a relative path is resolved against ctx.cwd, not the server process's cwd. Validated: must be an existing directory in the same git repository as ctx.cwd (same git-common-dir, compared via `git rev-parse --path-format=absolute --git-common-dir`, which requires git 2.31 or newer; e.g. a sibling worktree). Rejected with { kind: 'error' } naming both paths otherwise.",
 	}),
 	tags: Schema.optionalKey(TagFilter).annotate({
 		description: "Structured tag filter; all/any/none AND together with each other and with project/files",
@@ -614,6 +639,117 @@ export const RunTestsInput = Schema.Struct({
  * @public
  */
 export type RunTestsInputType = Schema.Schema.Type<typeof RunTestsInput>;
+
+/**
+ * The filter set a `run_tests` call resolves from its input alone: the
+ * sanitized `files` / `project`, the caller's `tags` verbatim, the Vitest
+ * tag expression composed from them, and whether any filter applies.
+ *
+ * @internal exported for tests
+ */
+export interface RunScope {
+	readonly files: string[];
+	readonly project: string | undefined;
+	readonly tags: TagFilterType | undefined;
+	readonly resolvedExpression: string | null;
+	readonly hasFilter: boolean;
+}
+
+type RunTestsOkType = Extract<RunTestsResultType, { kind: "ok" }>;
+type RunTestsNoMatchType = Extract<RunTestsResultType, { kind: "no-match" }>;
+
+/**
+ * Derive the run's {@link RunScope} from its input. Every file, project and
+ * tag value passes through `sanitizeTestArgs` (tag values ride into Vitest's
+ * tag-expression compiler unmodified, so shell metacharacters are rejected
+ * the same way); a refused argument fails with the message the tool returns
+ * as its `{ kind: "error" }` result. An all-empty tag filter composes to no
+ * expression and so is not a filter.
+ *
+ * @internal exported for tests
+ */
+export function deriveRunScope(
+	input: Pick<RunTestsInputType, "files" | "project" | "tags">,
+): Result.Result<RunScope, string> {
+	const tags = input.tags;
+	try {
+		const files = input.files ? sanitizeTestArgs(input.files) : [];
+		const project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
+		if (tags) {
+			if (tags.all) sanitizeTestArgs(tags.all);
+			if (tags.any) sanitizeTestArgs(tags.any);
+			if (tags.none) sanitizeTestArgs(tags.none);
+		}
+		const resolvedExpression = composeTagExpression(tags ?? null);
+		const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
+		return Result.succeed({ files, project, tags, resolvedExpression, hasFilter });
+	} catch (err) {
+		return Result.fail(err instanceof Error ? err.message : String(err));
+	}
+}
+
+/**
+ * Whether a finished run is `no-match`: a filter was supplied, no test
+ * module was collected, and no unhandled error was raised. Filter-driven,
+ * not result-driven — an unfiltered empty run is `ok`, and the
+ * `passWithNoTests` policy never reshapes the discriminator.
+ *
+ * @internal exported for tests
+ */
+export function isNoMatch(scope: RunScope, testModuleCount: number, unhandledErrorCount: number): boolean {
+	return scope.hasFilter && testModuleCount === 0 && unhandledErrorCount === 0;
+}
+
+/**
+ * Shape the `no-match` result, echoing the resolved filter verbatim.
+ *
+ * @internal exported for tests
+ */
+export function toNoMatch(scope: RunScope, projectRoot: string): RunTestsNoMatchType {
+	return {
+		kind: "no-match" as const,
+		projectRoot,
+		filter: {
+			project: scope.project ?? null,
+			files: scope.files,
+			tags: scope.tags ?? null,
+			resolvedExpression: scope.resolvedExpression,
+		},
+	};
+}
+
+/**
+ * Shape the `ok` result from a finished run's plain values. `project` is
+ * echoed at the top level only when supplied; `scope` always echoes the
+ * resolved filter set; absent classifications and scan time become `{}` and
+ * `null`.
+ *
+ * @internal exported for tests
+ */
+export function toOkPayload(args: {
+	readonly scope: RunScope;
+	readonly projectRoot: string;
+	readonly report: AgentReport;
+	readonly classifications: ReadonlyMap<string, string> | undefined;
+	readonly discoveryLastScannedAt: string | undefined;
+	readonly scopedNote: string | null;
+}): RunTestsOkType {
+	const { scope } = args;
+	return {
+		kind: "ok" as const,
+		...(scope.project !== undefined && { project: scope.project }),
+		projectRoot: args.projectRoot,
+		scope: {
+			project: scope.project ?? null,
+			files: scope.files,
+			tags: scope.tags ?? null,
+		},
+		report: args.report,
+		classifications: args.classifications ? Object.fromEntries(args.classifications) : {},
+		discoveryLastScannedAt: args.discoveryLastScannedAt ?? null,
+		scopedNote: args.scopedNote,
+	};
+}
 
 /** What the promise-shaped run body reads from the Effect world: the session and a way to run DB effects. */
 interface RunTestsContext {
@@ -646,28 +782,15 @@ export const makeBestEffortFork =
  * `{ kind: "error" }` envelope, so it never rejects.
  */
 const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Promise<RunTestsResultType> => {
-	let files: string[];
-	let project: string | undefined;
-	const tagsInput = input.tags;
-	try {
-		files = input.files ? sanitizeTestArgs(input.files) : [];
-		project = input.project ? sanitizeTestArgs([input.project])[0] : undefined;
-		// Sanitize tag values too — they ride into Vitest's tag-expression
-		// compiler unmodified, so shell-metachar injections must be
-		// rejected the same way file/project arguments are.
-		if (tagsInput) {
-			if (tagsInput.all) sanitizeTestArgs(tagsInput.all);
-			if (tagsInput.any) sanitizeTestArgs(tagsInput.any);
-			if (tagsInput.none) sanitizeTestArgs(tagsInput.none);
-		}
-	} catch (err) {
-		// A refused argument is the caller's to fix: return it as the tool's
-		// error result (a thrown defect would reach the agent only as core's
-		// scrubbed internal-error text).
-		return { kind: "error" as const, message: err instanceof Error ? err.message : String(err) };
+	// A refused argument is the caller's to fix: return it as the tool's
+	// error result (a thrown defect would reach the agent only as core's
+	// scrubbed internal-error text).
+	const derived = deriveRunScope(input);
+	if (Result.isFailure(derived)) {
+		return { kind: "error" as const, message: derived.failure };
 	}
-	const resolvedExpression = composeTagExpression(tagsInput ?? null);
-	const hasFilter = files.length > 0 || project !== undefined || resolvedExpression !== null;
+	const scope = derived.success;
+	const { files, project, resolvedExpression, hasFilter } = scope;
 
 	// Issue #252: validate (never trust) an explicit projectRoot
 	// before it can influence anything below. A rejection returns
@@ -689,7 +812,7 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 	// rows, and still returns `kind: "ok"`.
 	let anchoredConfig: string | undefined;
 	if (input.projectRoot !== undefined) {
-		const found = resolveAnchoredConfigFile(resolvedRoot);
+		const found = await runOnNodePlatform(resolveAnchoredConfigFile(resolvedRoot));
 		if (found === null) {
 			return {
 				kind: "error" as const,
@@ -697,6 +820,16 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 			};
 		}
 		anchoredConfig = found;
+	}
+
+	// Issue #461: fail fast with an actionable error when the resolved
+	// vitest entry vanished under this long-lived server (see
+	// `staleInstallMessage`). Checked once and reused for the load below;
+	// placed before any env writes or temp-dir side effects.
+	const vitestEntry = vitestLoader.resolveEntry(resolvedRoot);
+	const staleMessage = staleInstallMessage(vitestEntry);
+	if (staleMessage !== null) {
+		return { kind: "error" as const, message: staleMessage };
 	}
 
 	const timeoutMs = (input.timeout ?? 120) * 1000;
@@ -752,12 +885,39 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 	// module. `vitestLoader` is a plain mutable object so tests can
 	// substitute `.load` directly (property mutation on a shared
 	// object reference, no `vi.mock` needed).
-	const { createVitest } = await vitestLoader.load(resolveVitestNodeEntry(resolvedRoot));
+	const { createVitest } = await vitestLoader.load(vitestEntry);
 
 	let vitest: Awaited<ReturnType<typeof createVitest>> | undefined;
 	let covOverride: ReturnType<typeof makeCoverageDirOverride> | undefined;
+	// Issue #512: `root` alone does not steer everything. A consumer
+	// config that calls `AgentPlugin.discover()` with no args locates
+	// the workspace via `process.cwd()` (and the reporter's dbPath,
+	// module info and runScript lock read it too), which inside this
+	// long-lived server is the BOOT checkout — so a sibling-worktree
+	// `projectRoot` silently collected the main checkout's tests. Point
+	// cwd at the validated root for the duration of the run and restore
+	// it in the `finally` below on every exit path. Safe because this
+	// body runs under the one-permit `runTestsSemaphore`, whose permit
+	// `handleRunTests` holds UNINTERRUPTIBLY until this promise settles
+	// (a client cancel interrupts the request fiber, which would
+	// otherwise release the permit mid-run and let a second call capture
+	// this run's root as its `previousCwd`), and every other tool reads
+	// its cwd from McpSession, not `process.cwd()`.
+	//
+	// Captured defensively: `process.cwd()` throws ENOENT when the
+	// server's cwd was deleted (e.g. a removed worktree). That must not
+	// turn every call into an internal error — the run itself does not
+	// need the old cwd (root is explicit and we chdir to it), so proceed
+	// and skip the restore; there is nothing valid to restore to.
+	let previousCwd: string | undefined;
+	try {
+		previousCwd = process.cwd();
+	} catch {
+		previousCwd = undefined;
+	}
 
 	try {
+		process.chdir(resolvedRoot);
 		// Assigned inside the try (not before it) so a throwing
 		// mkdtempSync — e.g. a full or read-only tmpdir — is caught
 		// by the surrounding catch and returns the tool's normal
@@ -849,17 +1009,8 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		// an empty report. The `passWithNoTests` policy controls
 		// pass/fail classification only — it never reshapes the
 		// discriminator.
-		if (hasFilter && result.testModules.length === 0 && unhandledErrors.length === 0) {
-			return {
-				kind: "no-match" as const,
-				projectRoot: resolvedRoot,
-				filter: {
-					project: project ?? null,
-					files,
-					tags: tagsInput ?? null,
-					resolvedExpression,
-				},
-			};
+		if (isNoMatch(scope, result.testModules.length, unhandledErrors.length)) {
+			return toNoMatch(scope, resolvedRoot);
 		}
 
 		const preliminaryReason =
@@ -931,20 +1082,14 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 			scopedNote = formatScopedCoverageNote(testedFileCount, totalFileCount);
 		}
 
-		return {
-			kind: "ok" as const,
-			...(project !== undefined && { project }),
+		return toOkPayload({
+			scope,
 			projectRoot: resolvedRoot,
-			scope: {
-				project: project ?? null,
-				files,
-				tags: tagsInput ?? null,
-			},
 			report,
-			classifications: classifications ? Object.fromEntries(classifications) : {},
-			discoveryLastScannedAt: readDiscoveryLastScannedAt() ?? null,
+			classifications,
+			discoveryLastScannedAt: readDiscoveryLastScannedAt(),
 			scopedNote,
-		};
+		});
 	} catch (err) {
 		// Exception-safe error extraction: a hostile thrown value (a
 		// throwing `message` getter or `toString`) must still produce
@@ -962,6 +1107,11 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 		try {
 			await vitest?.close();
 		} finally {
+			try {
+				if (previousCwd !== undefined) process.chdir(previousCwd);
+			} catch {
+				// previous cwd vanished; nothing sane to restore to
+			}
 			nullStream.destroy();
 			if (covOverride !== undefined) {
 				try {
@@ -999,7 +1149,14 @@ export const handleRunTests = (
 		};
 		return yield* Semaphore.withPermit(
 			runTestsSemaphore,
-			Effect.promise(() => runTestsBody(input, ctx)),
+			// Uninterruptible on purpose: the McpServer maps a client
+			// `notifications/cancelled` to an interrupt of this request
+			// fiber, and an interruptible `Effect.promise` would release
+			// the permit while `runTestsBody` keeps running with its
+			// process-global `chdir` / env writes. Holding the permit
+			// until the body settles means a cancelled call merely drops
+			// its response; the next call waits for the real run to end.
+			Effect.uninterruptible(Effect.promise(() => runTestsBody(input, ctx))),
 		);
 	});
 
@@ -1010,7 +1167,7 @@ export const handleRunTests = (
  */
 export const runTestsTool = Tool.make("run_tests", {
 	description:
-		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --git-common-dir`, which is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. The legacy format=json arg is dropped — structuredContent supersedes it.',
+		'Use to run Vitest tests, with optional file, project, and tag filters. structuredContent carries the typed AgentReport plus per-test classifications (discriminate on `kind`: ok, timeout, error, no-match). Unknown parameters are rejected — accepted keys are files, project, tags, passWithNoTests, timeout, projectRoot. When projectRoot is omitted, the server anchors the Vitest root at the directory of the vitest (or vite) config Vitest would load anyway, walking up from its boot dir and stopping at the git root — so a server booted inside a package subtree still resolves the root config\'s relative globalSetup/setupFiles correctly. projectRoot overrides that for this call and is used verbatim, but only after validation: it must be an existing directory belonging to the same git repository as ctx.cwd (checked via `git rev-parse --path-format=absolute --git-common-dir`, which needs git 2.31 or newer and is identical across a repo and all its worktrees, including a sibling worktree checked out from the same repo). A path in a different repository, or a non-existent path, is rejected with `{ kind: "error" }` naming both paths — never a silent fallback to ctx.cwd. The resolved root actually used is always echoed back on success. The legacy format=json arg is dropped — structuredContent supersedes it.',
 	parameters: RunTestsInput,
 	success: RunTestsResult,
 	dependencies: [McpSession, DataReader, DataStore],

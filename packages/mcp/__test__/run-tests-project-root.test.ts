@@ -22,16 +22,19 @@
  * mutant that fakes the git-common-dir comparison cannot pass.
  *
  * Issue #259: an unsupplied `projectRoot` no longer echoes `ctx.cwd`
- * verbatim — it anchors at `resolveConfigAnchoredRoot(ctx.cwd)` (see the
- * dedicated `resolve-config-anchored-root.test.ts` for the helper's own
- * unit coverage). The two `issue #259:`-prefixed cases below cover the
+ * verbatim — it anchors at `resolveConfigAnchoredRoot(ctx.cwd)`. The
+ * config-layout guard cases (precedence, git / worktree bounds, no config)
+ * live in `resolve-config-anchored-root.test.ts` over an `@effected/memfs`
+ * volume (issue #389); this file keeps only the handler wiring, on real temp
+ * git repos because `git rev-parse` cannot run against a virtual volume.
+ * The two `issue #259:`-prefixed cases below cover the
  * integration seam this file owns: an explicit, validated `projectRoot`
  * is returned VERBATIM (no anchoring — explicit is explicit), while
  * `undefined` is anchored.
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProjectDiscoveryTest } from "@vitest-agent/engine";
@@ -335,5 +338,50 @@ describe("run_tests projectRoot validation", () => {
 		expect(result.kind).toBe("no-match");
 		if (result.kind !== "no-match") return;
 		expect(result.projectRoot).toBe(worktree);
+	});
+
+	describe("issue #512: process.cwd() follows the validated projectRoot", () => {
+		const setupWorktree = () => {
+			const main = join(tmpRoot, "main");
+			execFileSync("mkdir", [main]);
+			initGitRepo(main);
+			const worktree = join(tmpRoot, "main-wt");
+			execFileSync("git", ["worktree", "add", worktree], { cwd: main });
+			writeFileSync(join(worktree, "vitest.config.ts"), "export default {};\n");
+			return { main, worktree };
+		};
+
+		it("should run createVitest with process.cwd() at the projectRoot and restore it after a successful run", async () => {
+			const { main, worktree } = setupWorktree();
+			const before = process.cwd();
+			let cwdDuringCreate: string | undefined;
+			createVitestMock.mockImplementation(async () => {
+				cwdDuringCreate = process.cwd();
+				return fakeVitest();
+			});
+
+			const result = await makeCaller(main).run_tests({ projectRoot: worktree });
+
+			expect(result.kind).toBe("ok");
+			// realpath: macOS tmpdir is a /var -> /private/var symlink.
+			expect(cwdDuringCreate).toBe(realpathSync(worktree));
+			expect(process.cwd()).toBe(before);
+		});
+
+		it("should restore process.cwd() when createVitest throws", async () => {
+			const { main, worktree } = setupWorktree();
+			const before = process.cwd();
+			let cwdDuringCreate: string | undefined;
+			createVitestMock.mockImplementation(async () => {
+				cwdDuringCreate = process.cwd();
+				throw new Error("boom");
+			});
+
+			const result = await makeCaller(main).run_tests({ projectRoot: worktree });
+
+			expect(result.kind).toBe("error");
+			expect(cwdDuringCreate).toBe(realpathSync(worktree));
+			expect(process.cwd()).toBe(before);
+		});
 	});
 });

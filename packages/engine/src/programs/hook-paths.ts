@@ -27,7 +27,7 @@ import { AppDirs, Xdg } from "@effected/xdg";
 import { ProjectIdentityNotResolvableError } from "@vitest-agent/sdk";
 import { ConfigProvider, Effect, FileSystem, Layer, Path } from "effect";
 import type { PlatformError } from "effect/PlatformError";
-import { APP_NAMESPACE } from "../layers/PathResolutionLive.js";
+import { APP_NAMESPACE, DATA_FALLBACK_DIR } from "../layers/PathResolutionLive.js";
 
 /**
  * Filename of the per-project test-data SQLite database.
@@ -49,13 +49,6 @@ export const SESSIONS_DB_FILENAME = "sessions.db";
  * @public
  */
 export const REGISTRY_DB_FILENAME = "registry.db";
-
-/**
- * Where the XDG data root lands when `XDG_DATA_HOME` is unset:
- * `$HOME/.local/share/vitest-agent` — the XDG spec default the sidecar has
- * always used. (`AppDirs` alone would fall back to `$HOME/.vitest-agent`.)
- */
-const HOOK_DATA_FALLBACK_DIR = `.local/share/${APP_NAMESPACE}`;
 
 /** Directory under the home dir that holds the per-client `sessions.db` fallback. */
 const SESSION_MAP_HOME_DIR = `.${APP_NAMESPACE}`;
@@ -112,7 +105,7 @@ const hookAppDirs = (env: HookEnv) => {
 	const home = nonEmpty(env.HOME) ?? nonEmpty(env.USERPROFILE);
 	const provider = ConfigProvider.fromEnvRecord({ ...env, ...(home !== undefined && { HOME: home }) });
 	const XdgLive = Xdg.layer.pipe(Layer.provide(ConfigProvider.layer(provider)));
-	return AppDirs.layer({ namespace: APP_NAMESPACE, fallbackDir: HOOK_DATA_FALLBACK_DIR }).pipe(Layer.provide(XdgLive));
+	return AppDirs.layer({ namespace: APP_NAMESPACE, fallbackDir: DATA_FALLBACK_DIR }).pipe(Layer.provide(XdgLive));
 };
 
 /**

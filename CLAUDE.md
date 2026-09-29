@@ -165,8 +165,6 @@ $XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db
 filesystem safety (`@org/pkg` -> `@org__pkg`). The documented fallback when
 `XDG_DATA_HOME` is unset is `~/.local/share/vitest-agent/<workspaceKey>/data.db`.
 
-Known discrepancy (pre-existing, tracked as a follow-up): with `XDG_DATA_HOME` unset the reporter/MCP route (`resolveDataPath`) currently lands at `~/.vitest-agent/<workspaceKey>/` via `@effected/xdg`'s fallback while the hook/sidecar route (`resolveHookPaths`) uses `~/.local/share/vitest-agent/<workspaceKey>/`.
-
 Resolution precedence (highest first):
 
 1. Programmatic `reporterOptions.cacheDir` option.
@@ -175,10 +173,11 @@ Resolution precedence (highest first):
 4. Normalized workspace `name` (default).
 
 See [Interface: `vitest-agent.config.toml`](okf/interfaces/config-toml.md) for
-the field contract and [Gotcha: XDG fallback path
-split](okf/gotchas/xdg-fallback-split.md) for what actually happens today
-when no identity is resolvable — it is not a thrown
-`WorkspaceRootNotFoundError`.
+the field contract and for what actually happens today when no identity is
+resolvable — it is not a thrown `WorkspaceRootNotFoundError`. A
+`~/.vitest-agent/<workspaceKey>/data.db` left by older reporter/MCP versions
+is orphaned, not read: see [Gotcha: legacy reporter data
+root](okf/gotchas/legacy-reporter-data-root.md).
 
 ## Cross-package versioning
 

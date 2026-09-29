@@ -32,8 +32,8 @@ sources:
     resource: ../../packages/plugin/src/bin/vitest-agent-mcp.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 5fb37d91094363f5dfb477128efdd9d39ea19e80b24011b6ba5b9c04efcd31c7
+  at: 2026-09-29T05:49:24Z
+  body_sha256: a17a34ea48537e8ca8c07910e196a735bf9f86faace68475559c5c69d48fce1b
 ---
 
 # Front-end entry contract — bin.ts / main.ts / index.ts / version.ts
@@ -116,7 +116,8 @@ that legitimately touches ambient input (the CLI's `commands/**`, which
 read `process.env` / `process.cwd()` to thread input into the engine's
 pure programs; the MCP server's `tools/run-tests.ts`, which mutates
 `process.env.VITEST_AGENT_*` so the in-process Vitest reporter
-attributes a run) — every other file under `src/` must be free of
+attributes a run and changes `process.cwd()` to the run's root for its
+duration) — every other file under `src/` must be free of
 `process` references entirely[^cli-boundaries-test][^mcp-boundaries-test].
 A new file that reads `process` outside this allowlist, or a version
 token that leaks outside `version.ts`, fails this test rather than
