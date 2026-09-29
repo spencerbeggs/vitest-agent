@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Rendering Never Depends on Persistence
 description: A test run's results are always rendered, even when the database write that would have persisted them fails.
 tags: [architecture, observability]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: b83cdc982d477db15e00e520656f7c715076ebc97e8a498d98f7a4b41e659e43
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 2f5e251ad0f8636e6bcf1c11e15dd51a98110c3f18d76bbb3aa15e1affd242ba
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Rendering Never Depends on Persistence
@@ -29,54 +32,54 @@ Split the handler into a persist phase and a render phase that runs
 unconditionally.
 
 - **Fallback reports are built first, outside any Effect**
-  (`packages/plugin/src/reporter.ts:1780-1808`), using the same
+  (`packages/plugin/src/reporter.ts`), using the same
   per-project grouping the persist program uses. They are pure
   `buildAgentReport` output — no DB read, no classifier — so they exist
   before persistence is even attempted.
 - **Migration failure is no longer fatal.** It records a `persistDisabled`
   reason and skips the persist program instead of returning early
-  (`packages/plugin/src/reporter.ts:1817-1826`). The two earlier DB-path
+  (`packages/plugin/src/reporter.ts`). The two earlier DB-path
   steps take the same route: a rejecting `ensureDbPath()` — an unreadable
   cache dir or unresolvable workspace identity — leaves `dbPath` undefined
   and records the same kind of reason
-  (`packages/plugin/src/reporter.ts:1640-1646`); both used to `return`.
+  (`packages/plugin/src/reporter.ts`); both used to `return`.
   `onInit`'s own `ensureDbPath()` call is best-effort for the same reason
-  (`packages/plugin/src/reporter.ts:764-769`): Vitest awaits `onInit`, so
+  (`packages/plugin/src/reporter.ts`): Vitest awaits `onInit`, so
   rejecting there would kill the run before a single test executed.
-- **The persist program** (`packages/plugin/src/reporter.ts:1830`) keeps
+- **The persist program** (`packages/plugin/src/reporter.ts`) keeps
   every DB-dependent concern and returns a `PersistResult` (`{ reports,
   classifications, trendSummary? }`).
 - **The render program always runs**
-  (`packages/plugin/src/reporter.ts:2513-2580`), provided
+  (`packages/plugin/src/reporter.ts`), provided
   `OutputPipelineLive` plus `NodeServices.layer` and nothing else — the
   same DB-free wiring the UI-only branch already uses
-  (`packages/plugin/src/reporter.ts:1747`). Its input is the
+  (`packages/plugin/src/reporter.ts`). Its input is the
   `PersistResult`, or one synthesized from the fallback reports with empty
   classifications and no trend when persistence was disabled or failed
-  (`packages/plugin/src/reporter.ts:2504-2507`).
+  (`packages/plugin/src/reporter.ts`).
 - **Failure is reported, not hidden.** After rendering, a disabled or
   failed persist phase writes one stderr line: `persistence failed —
   results above were rendered but NOT recorded: <reason>`
-  (`packages/plugin/src/reporter.ts:2593-2598`). Degrading silently would
+  (`packages/plugin/src/reporter.ts`). Degrading silently would
   be worse than crashing — an agent would bank on history that was never
   written.
 - **Untrusted error text is coerced at every boundary.** The crashes that
   motivated the split came from values typed as `string` that were not.
-  `coerceErrorText` (`packages/sdk/src/utils/coerce-error-text.ts:19`) is
+  `coerceErrorText` (`packages/sdk/src/utils/coerce-error-text.ts`) is
   applied wherever such a value meets a typed sink. Its companion,
   `coerceErrorField(source, key)`
-  (`packages/sdk/src/utils/coerce-error-text.ts:48`), guards the property
+  (`packages/sdk/src/utils/coerce-error-text.ts`), guards the property
   *read* itself — `coerceErrorField(e, "message")` evaluates a live getter
   at the call site rather than reaching the helper's own exception
   handling after the throw already escaped, so a throwing getter yields a
   placeholder string instead of propagating. `buildAgentReport`'s error
-  mapping (`packages/sdk/src/utils/build-report.ts:178-195`) reads every
+  mapping (`packages/sdk/src/utils/build-report.ts`) reads every
   field of a raw Vitest error object through `coerceErrorField` rather
   than a raw property access or an object spread (`{ ...e }` invokes every
   enumerable getter). The formatters on the failure path —
-  `extractSqlReason` (`packages/sdk/src/errors/DataStoreError.ts:42`),
+  `extractSqlReason` (`packages/sdk/src/errors/DataStoreError.ts`),
   `stringifyFailureValue`
-  (`packages/plugin/src/utils/stringify-failure-value.ts:23`), and the
+  (`packages/plugin/src/utils/stringify-failure-value.ts`), and the
   fatal-error formatter the reporter calls at every persist-disable site —
   are exception-safe for the same reason: a throwing `message` getter,
   Effect's `ConfigError` being the canonical case, would otherwise escape

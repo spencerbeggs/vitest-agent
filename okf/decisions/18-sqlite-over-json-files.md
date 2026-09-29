@@ -2,14 +2,14 @@
 type: Decision
 title: SQLite over JSON Files
 description: The data layer is one normalized SQLite database per cache directory, not per-run JSON files, for atomicity, concurrent access, and cross-project queries.
-status: draft
+status: stable
 tags:
   - architecture
   - performance
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 9a9f1e4fadbbe503710c36114e9b636bdd49b39b8b14c6453ce3168ceefb62c5
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 80a55ef55f9a30adf04b6ff6f94e08e8e8dd8aa3240d9064bf8ccdd15e07f1cb
 sources:
   - id: engine-platform
     resource: ../../packages/engine/src/platform.ts
@@ -19,6 +19,9 @@ sources:
     resource: ../../packages/engine/src/migrations/index.ts
   - id: engine-package-json
     resource: ../../packages/engine/package.json
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # SQLite over JSON Files
@@ -63,7 +66,7 @@ database's migration set — every consumer that calls
 same schema.[^engine-migrations-index]
 
 On Effect v4 the SQL core (`SqlClient`, `SqlError`, `Statement`) lives in
-`effect/unstable/sql`, and the driver, `@effect/sql-sqlite-node`, now runs
+`effect/sql`, and the driver, `@effect/sql-sqlite-node`, now runs
 on Node's built-in `node:sqlite` (`DatabaseSync`) rather than a native
 `better-sqlite3` binding — the engine's dependency list carries
 `@effect/sql-sqlite-node` and no native SQLite addon at
@@ -114,7 +117,7 @@ inventory this schema produces, and
 [Runbook: add-a-migration](../runbooks/add-a-migration.md) for the
 step-by-step append-only procedure.
 
-[^engine-platform]: `../../packages/engine/src/platform.ts:69` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:123` (`PlatformLive`)
-[^engine-migration-0001]: `../../packages/engine/src/migrations/0001_initial.ts:36`
-[^engine-migrations-index]: `../../packages/engine/src/migrations/index.ts:20`
-[^engine-package-json]: `../../packages/engine/package.json:36`
+[^engine-platform]: `../../packages/engine/src/platform.ts` (`makeSqliteStack`), `../../packages/engine/src/platform.ts` (`PlatformLive`)
+[^engine-migration-0001]: `../../packages/engine/src/migrations/0001_initial.ts`
+[^engine-migrations-index]: `../../packages/engine/src/migrations/index.ts`
+[^engine-package-json]: `../../packages/engine/package.json`

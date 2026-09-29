@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Effect v4 + effected Kit Behavior Changes
 description: The family runs on Effect v4 and the granular @effected/* kit directly, with several v3-to-v4 behavior changes pinned deliberately.
 tags: [effect, compat, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: 714219443c2d94dc433cab27bd5ac12dbc28a86c776be60e5d1e73be107e2ec7
+  at: 2026-09-29T20:39:41Z
+  body_sha256: f86293e9703063c0d1d5d5e0e2df21e07928f1471f0d81d50026cdb0f0d50fcb
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Effect v4 + effected Kit Behavior Changes
@@ -60,16 +63,18 @@ than latent bugs:
   recognizes only `pnpm-workspace.yaml` or a `workspaces` field as a root
   marker; a bare-`.git` single-package consumer repo with no workspace
   manifest now fails discovery where the v3 `workspaces-effect` accepted
-  it. This is a known open item, deferred rather than resolved: a
-  single-package consumer must currently set `projectKey` in
-  `vitest-agent.config.toml` (or otherwise supply workspace identity) until
-  the boundary policy is decided. See [Decision 31 — Deterministic XDG Path
-  Resolution](./31-deterministic-xdg-path-resolution.md) for the
-  identity-resolution precedence this interacts with.
+  it. This is a known open item, deferred rather than resolved: until the
+  boundary policy is decided, `AgentPlugin.discover()` throws for such a
+  repository, so a single-package consumer declares its Vitest projects
+  without `discover()`. Data-path identity is unaffected, because
+  `resolveDataPath` keys on the nearest `package.json` rather than a
+  workspace root. See [Decision 31 — Deterministic XDG Path
+  Resolution](./31-deterministic-xdg-path-resolution.md) for that
+  identity-resolution precedence.
 - **`node:sqlite` double-wraps driver errors.** The v4 `node:sqlite` driver
   nests two `cause` wrappers, so the real message sits at
   `cause.cause.message` rather than on the top-level `SqlError`.
-  `extractSqlReason` (`packages/sdk/src/errors/DataStoreError.ts:42`) walks
+  `extractSqlReason` (`packages/sdk/src/errors/DataStoreError.ts`) walks
   the full `cause` chain, with cycle guards, to the deepest useful message.
 - **`Schema.withDecodingDefaultKey` is decode-only.** The default applies on
   `decode` but is `undefined` on the constructor / passthrough path, so
@@ -97,9 +102,10 @@ than latent bugs:
   migration is stale by construction; new code must be checked against the
   v4 module a symbol now lives in rather than written from memory.
 - A single-package (non-monorepo) consumer without a `pnpm-workspace.yaml`
-  or `workspaces` field cannot rely on `.git` presence for identity
-  resolution and must set `projectKey` explicitly until the workspace-root
-  boundary policy is revisited.
+  or `workspaces` field cannot rely on `.git` presence for workspace
+  discovery and must declare its Vitest projects without
+  `AgentPlugin.discover()` until the workspace-root boundary policy is
+  revisited.
 - Any code path that reads a `SqlError`'s message directly, rather than
   through `extractSqlReason`, risks surfacing an unhelpful wrapper message
   instead of the real `node:sqlite` failure text.

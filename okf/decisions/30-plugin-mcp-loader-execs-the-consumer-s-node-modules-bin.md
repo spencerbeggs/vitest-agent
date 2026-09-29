@@ -2,14 +2,14 @@
 type: Decision
 title: Plugin MCP Loader Execs the Consumer's node_modules/.bin
 description: The plugin's zero-deps shell loader execs the consumer's own linked vitest-agent-mcp bin directly, bypassing per-package-manager dispatch entirely, and falls back to npx only when that bin is absent.
-status: draft
+status: stable
 tags:
   - architecture
   - mcp
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 2e2268977dd6e76e1b763dace4cd894b7967ee4b2a81a151224a6ceb7c9a6487
+  at: 2026-09-29T20:39:41Z
+  body_sha256: f49ed453a0cb379a3dbabefcce40a41523836219d3791a39296f1e7948fa1d4b
 sources:
   - id: plugin-start-mcp-sh
     resource: ../../plugins/claude-code/bin/start-mcp.sh
@@ -17,6 +17,9 @@ sources:
     resource: ../../packages/engine/src/project-dir.ts
   - id: plugin-detect-pm-sh
     resource: ../../plugins/claude-code/hooks/lib/detect-pm.sh
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Plugin MCP Loader Execs the Consumer's node_modules/.bin
@@ -78,7 +81,7 @@ and whose exit path is a separate failure mode.
 
 **`VITEST_AGENT_REPORTER_PROJECT_DIR` env passthrough**: the spawned MCP
 server reads this variable as the second rung of `resolveProjectDir`
-(`packages/engine/src/project-dir.ts:6-8`) — after the hook-driven
+(`packages/engine/src/project-dir.ts`) — after the hook-driven
 `VITEST_AGENT_PROJECT_DIR`, before `CLAUDE_PROJECT_DIR` and `cwd`. Claude
 Code sets `CLAUDE_PROJECT_DIR` for hook scripts but does not reliably
 propagate it to MCP server subprocesses, so the loader passes its own

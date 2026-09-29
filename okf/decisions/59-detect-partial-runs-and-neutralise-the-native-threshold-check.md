@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Detect Partial Runs and Neutralise the Native Threshold Check
 description: Why a scoped Vitest run is detected via five independent signals and Vitest's native coverage-threshold check is neutralised and restored around it.
 tags: [architecture, testing]
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T17:10:37Z
-  body_sha256: df252b32081b5bf782733198a2658c8066f5a07f356feede6ddc066e172fa83e
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 478e9931595b33b99d4178f22665ebe0e183a2b902a9d86f1e866261994b2b78
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Detect Partial Runs and Neutralise the Native Threshold Check
@@ -22,9 +25,9 @@ A pure `isPartialRun({ filenamePattern, startedSpecCount, totalSpecCount, projec
 
 `config.cliOptions` is the raw options object `startVitest(mode, filters, options)` captures (Vitest 5 `resolveConfig`), so it carries real CLI flags and the programmatic filters MCP `run_tests` passes, but not settings baked into `vitest.config.ts`. That boundary is deliberate: a permanent `tagsFilter` in the config file is the project's own scope, not a partial run, and must not disable threshold enforcement. `testNamePattern` is not part of `CliScopeFilters` because no single field carries the answer. `config.cliOptions.testNamePattern` is the raw pre-resolution string (`-t ""` would count) and is never updated by a watch-mode `t` keystroke, which goes through `Vitest.changeNamePattern` into `configOverride.testNamePattern`. But `configOverride` is not CLI-only either: Vitest's `_setServer` copies the resolved pattern — `vitest.config.ts`'s `test.testNamePattern` merged with `-t` — into `configOverride` at startup, before reporters are created and `onInit` fires, so a project with a config-file pattern would have every run marked partial. The rule therefore diffs against a snapshot: `AgentReporter.onInit` records `configOverride.testNamePattern` as `initial`, and at `onTestRunEnd` `isPartialRun` receives `{ cli: config.cliOptions.testNamePattern, initial, current: configOverride.testNamePattern }`. If `current` differs from `initial` (compared by RegExp source, not identity), the run is partial iff `current` is truthy — a watch-mode filter applied is partial, a filter cleared is full. Otherwise the run is partial iff `cli` is truthy — `-t foo` is partial; `-t ""`, no flag, or a config-file-only pattern (where `cliOptions.testNamePattern` is `undefined`) is full.
 
-`AgentReporter` calls `isPartialRun` in `onTestRunEnd` (`packages/plugin/src/reporter.ts:1559`). A partial run routes coverage through `CoverageAnalyzer.processScoped` (`packages/plugin/src/reporter.ts:1892`), persists `scoped` honestly, emits no `ThresholdViolation`, skips the baseline/trend/threshold/target writes, and every renderer prints a "Coverage thresholds skipped: partial run" note through one shared formatter so a pass/fail verdict against a denominator that does not apply is never shown. Full-run output is byte-identical.
+`AgentReporter` calls `isPartialRun` in `onTestRunEnd` (`packages/plugin/src/reporter.ts`). A partial run routes coverage through `CoverageAnalyzer.processScoped` (`packages/plugin/src/reporter.ts`), persists `scoped` honestly, emits no `ThresholdViolation`, skips the baseline/trend/threshold/target writes, and every renderer prints a "Coverage thresholds skipped: partial run" note through one shared formatter so a pass/fail verdict against a denominator that does not apply is never shown. Full-run output is byte-identical.
 
-On a partial run the reporter deletes the metric keys (`lines`/`functions`/`branches`/`statements`) and every glob-pattern entry from `vitest.coverageProvider.options.thresholds` in place (`packages/plugin/src/reporter.ts:1592-1616`), keeping `perFile`, `autoUpdate`, and Vitest's internal `100` shorthand. `checkThresholds` reads that same object at report time, so with no metric keys left it has nothing to enforce. The deletion is not fire-and-forget: in `run` mode every `vitest.start` re-initialises the provider, but in watch mode the provider is created once and scoped reruns go through `rerunFiles` without re-initialising it, so a deleted key would stay gone for the rest of the session — one scoped rerun would silently disable thresholds for every subsequent full rerun. The reporter therefore snapshots every deleted key's original value into `neutralizedThresholdSnapshot` (`packages/plugin/src/reporter.ts:641`) as it deletes, and the next `onTestRunStart` unconditionally re-adds each snapshotted key onto the same provider-options object when it is still absent, then clears the map (`packages/plugin/src/reporter.ts:903-922`). A legitimately re-initialised provider (`run` mode) already carries its own fresh values and is left alone.
+On a partial run the reporter deletes the metric keys (`lines`/`functions`/`branches`/`statements`) and every glob-pattern entry from `vitest.coverageProvider.options.thresholds` in place (`packages/plugin/src/reporter.ts`), keeping `perFile`, `autoUpdate`, and Vitest's internal `100` shorthand. `checkThresholds` reads that same object at report time, so with no metric keys left it has nothing to enforce. The deletion is not fire-and-forget: in `run` mode every `vitest.start` re-initialises the provider, but in watch mode the provider is created once and scoped reruns go through `rerunFiles` without re-initialising it, so a deleted key would stay gone for the rest of the session — one scoped rerun would silently disable thresholds for every subsequent full rerun. The reporter therefore snapshots every deleted key's original value into `neutralizedThresholdSnapshot` (`packages/plugin/src/reporter.ts`) as it deletes, and the next `onTestRunStart` unconditionally re-adds each snapshotted key onto the same provider-options object when it is still absent, then clears the map (`packages/plugin/src/reporter.ts`). A legitimately re-initialised provider (`run` mode) already carries its own fresh values and is left alone.
 
 ## Alternatives rejected
 

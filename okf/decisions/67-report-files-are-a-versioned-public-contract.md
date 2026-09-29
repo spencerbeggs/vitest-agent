@@ -2,14 +2,14 @@
 type: Decision
 title: Report Files Are a Versioned Public Contract
 description: The run.json envelope Vitest 5's createReport writes carries its own schemaVersion independent of any package version, published as a JSON Schema document, because it is read by code with no dependency on @vitest-agent/sdk.
-status: draft
+status: stable
 tags:
   - architecture
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-16T01:24:14Z
-  body_sha256: 210039ba7dce93053005b03c1c7fb2d2c5ac9fdc2ca1f2e30c672c2084235e5d
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 231f4e4b91de928092f97b1b53a8d871794914e181253fa5d799beae9ce7e189
 sources:
   - id: run-report-file-schema
     resource: ../../packages/sdk/src/schemas/RunReportFile.ts
@@ -27,6 +27,9 @@ sources:
     resource: ../../packages/plugin/src/plugin.ts
   - id: rendered-output-type
     resource: ../../packages/sdk/src/formatters/types.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Report Files Are a Versioned Public Contract
@@ -125,11 +128,11 @@ build output.
 - [Interface: report-files](../interfaces/report-files.md)
 - [Module: plugin](../modules/plugin.md)
 
-[^run-report-file-schema]: `../../packages/sdk/src/schemas/RunReportFile.ts:25-26,58-62`
+[^run-report-file-schema]: `../../packages/sdk/src/schemas/RunReportFile.ts`
 [^schemastore-config]: `../../packages/sdk/lib/configs/schemastore.config.ts`
 [^run-report-schema-host]: `../../packages/sdk/lib/configs/run-report-schema.ts`
 [^published-schema-doc]: `../../schemas/5.0/run.json`
 [^schema-drift-e2e]: `../../packages/sdk/__test__/schema-drift.e2e.test.ts`
-[^rendered-output-type]: `../../packages/sdk/src/formatters/types.ts:17-24`
-[^report-writer]: `../../packages/plugin/src/utils/report-writer.ts:43-46,54-60,74-80,83-112`
-[^plugin-report-option]: `../../packages/plugin/src/plugin.ts:400-410`
+[^rendered-output-type]: `../../packages/sdk/src/formatters/types.ts`
+[^report-writer]: `../../packages/plugin/src/utils/report-writer.ts`
+[^plugin-report-option]: `../../packages/plugin/src/plugin.ts`

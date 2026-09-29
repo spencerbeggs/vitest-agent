@@ -2,14 +2,14 @@
 type: Decision
 title: Effect Services over Plain Functions
 description: Every I/O concern shared across the reporter, CLI, and MCP server is an Effect Context.Service with swappable Live/Test layers, not a plain function.
-status: draft
+status: stable
 tags:
   - architecture
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: f251c33d69360b91b67caee39ac57a4608f1ee02db5b4fd1ac111e19bcb4d830
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 844a65e4aa85984cfd1a763400d99a3117982a7e19601f7670d0db6790815739
 sources:
   - id: engine-data-store
     resource: ../../packages/engine/src/services/DataStore.ts
@@ -23,6 +23,9 @@ sources:
     resource: ../../packages/engine/src/platform.ts
   - id: plugin-reporter
     resource: ../../packages/plugin/src/reporter.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Effect Services over Plain Functions
@@ -124,9 +127,9 @@ inventory this decision produced, and
 [Decision 22](../decisions/22-output-pipeline-architecture.md) for the
 output pipeline's own rationale in detail.
 
-[^engine-data-store]: `../../packages/engine/src/services/DataStore.ts:449`
-[^engine-data-reader]: `../../packages/engine/src/services/DataReader.ts:363`
-[^engine-output-pipeline-live]: `../../packages/engine/src/layers/OutputPipelineLive.ts:16`
-[^engine-environment-detector]: `../../packages/engine/src/services/EnvironmentDetector.ts:5`
-[^engine-platform]: `../../packages/engine/src/platform.ts:123`
-[^plugin-reporter]: `../../packages/plugin/src/reporter.ts:2496`
+[^engine-data-store]: `../../packages/engine/src/services/DataStore.ts`
+[^engine-data-reader]: `../../packages/engine/src/services/DataReader.ts`
+[^engine-output-pipeline-live]: `../../packages/engine/src/layers/OutputPipelineLive.ts`
+[^engine-environment-detector]: `../../packages/engine/src/services/EnvironmentDetector.ts`
+[^engine-platform]: `../../packages/engine/src/platform.ts`
+[^plugin-reporter]: `../../packages/plugin/src/reporter.ts`

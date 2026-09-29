@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Partition the consoleLeaks Signal by Test Outcome
 description: run_tests attributes each captured console write to its owning test's pass/fail state so a red run's own failure logging stops masquerading as a console leak.
 tags: [testing, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: fc3ab49c948f25725a23875730e0b0730e4d1f7c516eec23a9f6aad3fadef41c
+  at: 2026-09-29T20:39:41Z
+  body_sha256: e3238568351ca9e564666f305a82f7da017273e34c7ccb82e0f269f953666e46
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Partition the consoleLeaks Signal by Test Outcome
@@ -17,7 +20,7 @@ generated:
 `run_tests` attaches an optional `consoleLeaks` block to each
 `AgentReport` — stray `console.*` output captured per task from
 `vitest.state.getFiles()`, bucketed by file
-(`packages/mcp/src/tools/run-tests.ts:860-863`) — and an agent reads the
+(`packages/mcp/src/tools/run-tests.ts`) — and an agent reads the
 block's presence as a warning. The signal was meant to
 surface debugging output left behind in *passing* tests. In practice
 every red run tripped it: assertion libraries and app code that route
@@ -31,23 +34,23 @@ ignored it on the runs where it mattered.
 
 Attribute each captured write to the pass/fail state of the task that
 owns it, and partition the aggregate by that outcome.
-`collectConsoleLeakEntries` (`packages/sdk/src/utils/console-leaks.ts:134-163`)
+`collectConsoleLeakEntries` (`packages/sdk/src/utils/console-leaks.ts`)
 walks the Vitest `File[]` task tree, reading the owning test's
 `result.state` — or, for output with no owning test, the enclosing
 file's own state (a collection or load error) — and marks the entry
-`failed: true` when that state is `"fail"` (`console-leaks.ts:145-153`).
-`buildConsoleLeaks` (`console-leaks.ts:50-101`) splits entries into
-`nonFailing` and `failing` sets (`console-leaks.ts:53-54`), counts only
+`failed: true` when that state is `"fail"` (`console-leaks.ts`).
+`buildConsoleLeaks` (`console-leaks.ts`) splits entries into
+`nonFailing` and `failing` sets (`console-leaks.ts`), counts only
 the non-failing set in `total` / `byFile` — the actionable signal — and
 reports the failing bucket in a new optional
 `fromFailingTests: { total, files }` summary
-(`console-leaks.ts:56-57`). The block is still omitted only when there
+(`console-leaks.ts`). The block is still omitted only when there
 is no output at all; a run whose only console output came from failing
 tests yields `{ total: 0, byFile: [], fromFailingTests }` rather than
-nothing (`console-leaks.ts:59-61`). The agent-facing surface is only
+nothing (`console-leaks.ts`). The agent-facing surface is only
 the structured `report.consoleLeaks` field — `total`, `byFile`,
-`truncated`, and `fromFailingTests` (`packages/sdk/src/schemas/ConsoleLeaks.ts:42-47`,
-attached to `AgentReport` at `packages/sdk/src/schemas/AgentReport.ts:85`)
+`truncated`, and `fromFailingTests` (`packages/sdk/src/schemas/ConsoleLeaks.ts`,
+attached to `AgentReport` at `packages/sdk/src/schemas/AgentReport.ts`)
 — which `run_tests` returns in `structuredContent`. There is no rendered warning line: an agent
 treats `total > 0` as a leak and reads `fromFailingTests` as the
 non-leak count of writes from failing tests.

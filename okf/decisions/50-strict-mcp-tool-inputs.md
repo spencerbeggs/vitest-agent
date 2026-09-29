@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Strict MCP Tool Inputs
 description: Every served MCP tool input rejects unknown keys at every object level instead of silently widening the query.
 tags: [architecture, mcp]
@@ -8,6 +8,9 @@ generated:
   by: okfit/claude-code
   at: 2026-09-25T23:18:00Z
   body_sha256: 0cd430f43861209fa93e10427ce0389cef36928322aaf628f29d3c7ccfba5082
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Strict MCP Tool Inputs

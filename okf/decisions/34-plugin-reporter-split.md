@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Plugin/Reporter Split
 description: The plugin owns lifecycle, persistence, and coverage analysis while @vitest-agent/reporter ships a small synchronous render contract so a custom reporter is one factory function.
 tags: [architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 75f7a92e6ef953156a0531f503d0a39908edb72ef4405244f7d7989663144248
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 8e3b37a75567848084f6f0d5459bdd50965f8e6e174f73197f8fc3e693032585
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Plugin/Reporter Split
@@ -27,20 +30,20 @@ function instead of a Vitest `Reporter` subclass.
 `@vitest-agent/plugin` (`packages/plugin/`) owns the Vitest plugin, the
 internal `AgentReporter` Vitest-API class, `CoverageAnalyzer`,
 `ReporterLive`, and reporter-side utilities. `AgentReporter.onInit`
-(`packages/plugin/src/reporter.ts:755`) stores the Vitest instance and
-calls `initReporters()` (`packages/plugin/src/reporter.ts:786`), which
+(`packages/plugin/src/reporter.ts`) stores the Vitest instance and
+calls `initReporters()` (`packages/plugin/src/reporter.ts`), which
 builds a `ReporterKit` and invokes the user-supplied factory
-(`opts.reporter(kit)`, `packages/plugin/src/reporter.ts:830`) before any
+(`opts.reporter(kit)`, `packages/plugin/src/reporter.ts`) before any
 streaming hook fires — so a reporter that paints live can subscribe to the
 run-event channel before the first event. `onTestRunEnd` calls `render`
 on each resolved reporter and concatenates the `RenderedOutput[]` results
-(`packages/plugin/src/reporter.ts:1737,2570`), then routes by target.
+(`packages/plugin/src/reporter.ts`), then routes by target.
 
 `@vitest-agent/reporter` (`packages/reporter/`) is the default reporter
 package and the reference package for custom-reporter authors. It ships
 `DefaultVitestAgentReporter` — the preassembled `VitestAgentReporterFactory`
 the plugin wires as its built-in default
-(`packages/plugin/src/reporter.ts:708`) — and re-exports the factory
+(`packages/plugin/src/reporter.ts`) — and re-exports the factory
 contract types from `@vitest-agent/sdk` plus the `buildDispatchInputs` /
 `resolveCellOptions` dispatch helpers (`packages/reporter/src/index.ts`)
 so a custom-reporter author gets a real worked example and everything
@@ -50,11 +53,11 @@ shape-tailored dispatcher matrix (see
 pipeline.
 
 The contract types live in `@vitest-agent/sdk`
-(`packages/sdk/src/contracts/reporter.ts`): `ResolvedReporterConfig` (line
-31), `ReporterKit` (line 108), `ReporterRenderInput` (line 145),
+(`packages/sdk/src/contracts/reporter.ts`): `ResolvedReporterConfig`,
+`ReporterKit`, `ReporterRenderInput`,
 `VitestAgentReporter` — a single synchronous `render(input, kit)` method
-returning `RenderedOutput[]` (line 180) — and `VitestAgentReporterFactory`
-(line 203), typed to return one reporter or a `ReadonlyArray` of reporters.
+returning `RenderedOutput[]` — and `VitestAgentReporterFactory`,
+typed to return one reporter or a `ReadonlyArray` of reporters.
 
 **Why "reporter as renderer-only" beats "reporter as Vitest-lifecycle
 handler".** The Vitest `Reporter` API is a low-level surface that needs
@@ -94,9 +97,9 @@ run-event channel and hands it to the reporter (see
 
 The Claude Code plugin manifest at
 `plugins/claude-code/.claude-plugin/plugin.json` declares the plugin name
-`vitest-agent` (line 16) — a separate identity from the npm packages.
+`vitest-agent` — a separate identity from the npm packages.
 Hook scripts resolve and call the CLI bin `vitest-agent`
-(`plugins/claude-code/hooks/lib/detect-pm.sh:11,58-65`).
+(`plugins/claude-code/hooks/lib/detect-pm.sh`).
 
 ## Alternatives rejected
 

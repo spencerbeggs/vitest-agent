@@ -36,13 +36,19 @@ sources:
   - id: memfs-walker
     resource: ../../packages/plugin/__test__/utils/memfs-walker.ts
     title: withMemfsWalker — the WalkerFileSystem adapter over a memfs volume
+  - id: memfs-workspace
+    resource: ../../packages/plugin/__test__/utils/memfs-workspace.ts
+    title: makeMemfsWorkspace and uniqueRoot — a whole discovery scenario over one volume
+  - id: memfs-sync
+    resource: ../../packages/plugin/__test__/utils/memfs-sync.ts
+    title: makeMemfsSync — the volume's node-shaped sync port
   - id: vitest-loader
     resource: ../../packages/mcp/__test__/resolve-vitest-node-entry.test.ts
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: 92df5050356a8439df5ee1dcbc26d9ee94e188e7773880eae3a684505ced949b
+  at: 2026-09-29T20:39:27Z
+  body_sha256: ba1b7e80eed2d68fdddc4c7385c4a423fc03cc5aa5692513640cc7442c68909c
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -181,6 +187,38 @@ symlink loops, an unreadable directory, an exact modification time no
 `utimes` call would reliably produce — cheap and deterministic instead of
 flaky.
 
+A seam that is neither an Effect `FileSystem` nor the walker port — a
+production function doing synchronous `node:fs` reads — gets an optional
+narrow port parameter whose default binds the real disk:
+`buildModuleInfo(filePath, fs?)`, `processFailure(error, { readSource? })`,
+and `recoverSessionContextFromSessionEnv({ projectDir, homeDir, fileSystem?
+})`. Shape the port as the `node:fs` sync subset the function already calls
+so `MemoryFileSystem.syncFileSystem(volume)` satisfies it structurally, and
+prefer an Effect variant over a port where the caller already holds a
+`FileSystem` (`resolveDataPath` reads the project key through
+`resolveProjectKeyFromCwdEffect`, so the whole path resolution runs on a
+memfs layer).
+
+Use the shared helpers under `packages/plugin/__test__/utils/` rather than
+seeding a volume by hand: `memfs-walker.ts` (`memfsWalkerFs`,
+`withMemfsWalker`, `seedMemfsWalker`, and `rootedSeed` for writing a tree as
+paths relative to a root)[^memfs-walker]; `memfs-workspace.ts`
+(`makeMemfsWorkspace`, which presents one seeded volume through both ports
+`discoverProjects` reads plus a `write` for mutating the tree between calls,
+and `uniqueRoot`)[^memfs-workspace]; and `memfs-sync.ts` (`makeMemfsSync`,
+the volume's node-shaped sync port for the narrow sync seams
+above)[^memfs-sync]. Give every test its own virtual root from `uniqueRoot()`:
+`discoverProjects` keeps a process-level result cache keyed by workspace root,
+and `buildModuleInfo` caches by directory, so two tests seeding the same tree
+at the same path share a cache entry — a real `mkdtemp` was unique for free, a
+virtual root is unique only on purpose.
+
+Keep exactly one real-disk smoke case per seam: a single test that calls the
+function with no port argument against a real temporary directory, so the
+default `node:fs` binding is exercised at least once. Every other case for
+that seam runs on a volume. Likewise, back an SQLite test with `":memory:"`
+unless file persistence is itself what the test asserts.
+
 ## Pattern 7 — Reach for a mutable loader object when `vi.mock` cannot reach the import
 
 Some imports are unmockable by construction: `vitest/node` is imported
@@ -217,4 +255,6 @@ never a deeper mock aimed at the same unreachable boundary.
 [^workspace-layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
 [^layers-json]: `../../layers.json`
 [^memfs-walker]: `../../packages/plugin/__test__/utils/memfs-walker.ts`
+[^memfs-workspace]: `../../packages/plugin/__test__/utils/memfs-workspace.ts`
+[^memfs-sync]: `../../packages/plugin/__test__/utils/memfs-sync.ts`
 [^vitest-loader]: `../../packages/mcp/__test__/resolve-vitest-node-entry.test.ts`

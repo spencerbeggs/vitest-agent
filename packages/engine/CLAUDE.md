@@ -47,11 +47,13 @@ src/
                          record-workspace-changes.ts,
                          resolve-session-for-recording.ts, session-env.ts
                          (SessionContext, parseSessionEnvExports,
-                         recoverSessionContextFromSessionEnv({ projectDir, homeDir })),
+                         recoverSessionContextFromSessionEnv({ projectDir, homeDir,
+                         fileSystem? })),
                          platform-sidecar.ts (SidecarPlatformLive(paths, env))
   lib/                -- formatTriageEffect / formatWrapupEffect (CLI + MCP)
   utils/              -- resolveDataPath, ensureMigrated,
-                         resolveProjectKeyFromCwd, resolveWorkspaceKey,
+                         resolveProjectKeyFromCwd (+ FileSystem-backed
+                         resolveProjectKeyFromCwdEffect), resolveWorkspaceKey,
                          computeFailureSignature (node:crypto)
   testing/            -- the @vitest-agent/engine/testing subpath:
                          makeTestLayer(filename), DataStoreTestLayer

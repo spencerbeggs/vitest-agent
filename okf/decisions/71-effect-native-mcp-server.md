@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Effect-Native MCP Server
 description: "Rebuilds @vitest-agent/mcp on Effect's own McpServer with strict registration, removing the MCP SDK, tRPC and zod, and serving every tool from one Effect Schema per tool instead of two hand-synced schema languages."
 tags:
@@ -9,8 +9,8 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: 2db79f82ce50cb30842c1cb282ce0af7ca35c8026910bb94726e979b9d49766b
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 2b8662630f866c51a19f835f30a2bd727574a2ff5a2982e5c109da91ad2e68e3
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
@@ -20,6 +20,9 @@ sources:
     resource: ../../packages/mcp/src/main.ts
   - id: mcp-idempotency-ts
     resource: ../../packages/mcp/src/idempotency.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Effect-Native MCP Server
@@ -104,9 +107,9 @@ strips undeclared result keys, so a replay marker like
 to survive encoding.
 
 **Idempotency is a combinator, not middleware.** `withIdempotency(path,
-handler)` in `packages/mcp/src/idempotency.ts:172` replaces the tRPC
+handler)` in `packages/mcp/src/idempotency.ts` replaces the tRPC
 middleware: it derives the key from the `idempotencyKeys` registry
-(`packages/mcp/src/idempotency.ts:37`), looks up a persisted response via
+(`packages/mcp/src/idempotency.ts`), looks up a persisted response via
 `DataReader.findIdempotentResponse`, replays it with
 `_idempotentReplay: true` on a hit, and otherwise runs the handler and
 persists best-effort. A read failure or a corrupt row are both treated

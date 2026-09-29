@@ -2,14 +2,14 @@
 type: Decision
 title: Claude Code Plugin as a Release-Only pnpm Workspace
 description: The Claude Code plugin lives at plugins/claude-code/ as an ordinary pnpm workspace member versioned through a private, script-free tracking package, so a hook or agent-prompt change no longer forces a npm publish of the Vitest plugin.
-status: draft
+status: stable
 tags:
   - architecture
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 66e26c2730ee5ab4fdac1f9c7cc6127af8ac9f5b6ca044504bbc52bbf3af2fdf
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 6c0c149f19ad797dbb45c7fe75eb9f1c2d758b4e4f5ad69d59491cbb378bb54d
 sources:
   - id: pnpm-workspace-yaml
     resource: ../../pnpm-workspace.yaml
@@ -21,6 +21,9 @@ sources:
     resource: ../../plugins/claude-code/.claude-plugin/plugin.json
   - id: workspace-layering-test
     resource: ../../packages/plugin/__test__/workspace-layering.test.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Claude Code Plugin as a Release-Only pnpm Workspace
@@ -106,8 +109,8 @@ at before it became a workspace member.
 
 - [Module: claude-code-plugin](../modules/claude-code-plugin.md)
 
-[^pnpm-workspace-yaml]: `../../pnpm-workspace.yaml:4`
-[^claude-code-plugin-package-json]: `../../plugins/claude-code/package.json:1-5`
-[^changeset-config]: `../../.changeset/config.json:8-26`
-[^claude-plugin-manifest]: `../../plugins/claude-code/.claude-plugin/plugin.json:1-9`
+[^pnpm-workspace-yaml]: `../../pnpm-workspace.yaml`
+[^claude-code-plugin-package-json]: `../../plugins/claude-code/package.json`
+[^changeset-config]: `../../.changeset/config.json`
+[^claude-plugin-manifest]: `../../plugins/claude-code/.claude-plugin/plugin.json`
 [^workspace-layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`

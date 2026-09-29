@@ -1,4 +1,4 @@
-import type { MemoryFileSystemSeed, MemoryFileSystemVolume } from "@effected/memfs";
+import type { MemoryFileSystemSeed, MemoryFileSystemSeedEntry, MemoryFileSystemVolume } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
 import { Effect } from "effect";
 import type { WalkerEntry, WalkerEntryStat, WalkerFileSystem } from "../../src/utils/walker-fs.js";
@@ -64,3 +64,25 @@ export const withMemfsWalker = <A>(seed: MemoryFileSystemSeed, f: (fs: WalkerFil
 			return yield* Effect.promise(() => f(memfsWalkerFs(volume)));
 		}),
 	);
+
+/**
+ * Re-keys `files` (paths relative to `root`) as an absolute seed under `root`,
+ * so a test can describe a tree the way it reads — `"src/foo.test.ts"` — and
+ * still hand `root` to the code under test.
+ */
+export const rootedSeed = (
+	root: string,
+	files: Readonly<Record<string, MemoryFileSystemSeedEntry>>,
+): Record<string, MemoryFileSystemSeedEntry> => {
+	const seed: Record<string, MemoryFileSystemSeedEntry> = {};
+	for (const [rel, entry] of Object.entries(files)) seed[rel === "" ? root : `${root}/${rel}`] = entry;
+	return seed;
+};
+
+/**
+ * Seeds a volume and returns just its walker adapter — for call sites that
+ * carry the port as a value (e.g. `DiscoverInput.fs`) rather than scoping it
+ * to a callback the way {@link withMemfsWalker} does.
+ */
+export const seedMemfsWalker = (seed: MemoryFileSystemSeed): Promise<WalkerFileSystem> =>
+	Effect.runPromise(Effect.map(MemoryFileSystem.makeInspectableWith(seed), ({ volume }) => memfsWalkerFs(volume)));

@@ -2,20 +2,23 @@
 type: Decision
 title: Sidecar CLI over mcp_tool Hooks
 description: register_agent and its peers cannot be called via Claude Code's mcp_tool hook event, because its input field only substitutes ${path} values from the triggering event's own payload; hooks instead shell out to a CLI sidecar that generates and writes the needed values in one process.
-status: draft
+status: stable
 tags:
   - architecture
   - tdd
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 9e8735bd7133c4c47504f4416441e6b8af0e348f5229bce668a2d2f3dc6d1e42
+  at: 2026-09-29T20:39:41Z
+  body_sha256: a1c9d4bcdff139f61cee7a1cdeeecf7ec7002d3204de4c32ad73fed44c6c6b4b
 sources:
   - id: cli-agent-register-agent
     resource: ../../packages/cli/src/commands/agent.ts
   - id: engine-register-agent-program
     resource: ../../packages/engine/src/programs/register-agent.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Sidecar CLI over mcp_tool Hooks
@@ -37,12 +40,12 @@ event's declarative input template, so that hook type cannot drive
 
 Every hook that needs to call `register_agent` (or its peers) shells out
 to `vitest-agent agent register-agent`
-(`packages/cli/src/commands/agent.ts:97-118`), a subcommand of the
+(`packages/cli/src/commands/agent.ts`), a subcommand of the
 `agent` namespace on the existing `@vitest-agent/cli` package — no
 separate distribution, no separate release. The subcommand runs Node,
 computes `clientNonce` and captures git context via the Effect-side
 `RunContext` service inside `registerAgentEffect`
-(`packages/engine/src/programs/register-agent.ts:93,139,152-154`), and
+(`packages/engine/src/programs/register-agent.ts`), and
 writes through to both the per-project `data.db` and the per-client
 session map in a single process. Because the sidecar is a real process
 rather than a declarative hook input, it can compute exactly the values

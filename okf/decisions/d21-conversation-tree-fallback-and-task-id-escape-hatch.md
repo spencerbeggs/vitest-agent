@@ -2,14 +2,14 @@
 type: Decision
 title: Conversation-Tree Fallback and Task-Id Escape Hatch
 description: A named teammate session has no parent_session_id link back to the task-opening session, so the parent walk that resolves which open TDD task a hook-recorded artifact belongs to silently misses it; a conversation-scoped fallback plus an explicit --tdd-task-id override close the gap without letting the agent choose where its own evidence lands.
-status: draft
+status: stable
 tags:
   - tdd
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 6130df1d8e08d463b8e40c927103bcb3b023985884d70324fb193a8210ea9ce7
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 5d27a6a479c285966265a161d272a15e41c153d8940fcca3b9f89de55ccddc7c
 sources:
   - id: engine-record-tdd-artifact
     resource: ../../packages/engine/src/programs/record-tdd-artifact.ts
@@ -23,6 +23,9 @@ sources:
     resource: ../../packages/engine/src/migrations/0001_initial.ts
   - id: hooks-tdd-artifact
     resource: ../../plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Conversation-Tree Fallback and Task-Id Escape Hatch
@@ -53,14 +56,14 @@ Three layers, in order of how automatic they are.
 
 **1. Conversation-tree fallback (automatic).**
 `DataReader.listTddTasksForSession` gains a `walkConversation` option
-(`packages/engine/src/services/DataReader.ts:491-514`). After the parent
+(`packages/engine/src/services/DataReader.ts`). After the parent
 walk, when the session's own `conversation_id` is non-null, the lookup
 also includes every other session sharing that `conversation_id`; rows
 are ordered so a task owned by an `agent_kind = 'main'` session sorts
 first, then by `started_at DESC`
-(`packages/engine/src/layers/DataReaderLive.ts:2402-2483`). `record
+(`packages/engine/src/layers/DataReaderLive.ts`). `record
 tdd-artifact` passes `{ walkParents: true, walkConversation: true }`
-(`packages/engine/src/programs/record-tdd-artifact.ts:144-151`). A null
+(`packages/engine/src/programs/record-tdd-artifact.ts`). A null
 `conversation_id` never triggers the fallback, so two unrelated sessions
 can never be joined by accident. The conversation is the right join key
 because it is exactly what a named-teammate dispatch and its dispatcher
@@ -70,20 +73,20 @@ still share when the parent-session link is absent.
 tdd-artifact --tdd-task-id <id>` bypasses `chat_id` → session → task
 resolution entirely and writes under that task's current open phase,
 failing loudly when the task is unknown or already ended
-(`packages/engine/src/programs/record-tdd-artifact.ts:173-309`,
+(`packages/engine/src/programs/record-tdd-artifact.ts`,
 `recordTddArtifactByTaskIdEffect` selected by
 `dispatchRecordTddArtifactEffect` whenever the flag is present). The
 `post-tool-use/tdd-artifact.sh` hook forwards
 `VITEST_AGENT_TDD_TASK_ID` as this flag
-(`plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh:54-55`). This
+(`plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh`). This
 exists for the shape layer 1 cannot fix — `conversation_id` unpopulated
 on one of the two sessions — and the agent-facing docs frame it as a
 diagnosed-split override, not a default.
 
 **3. Diagnostic on the denial.** When the gate finds no artifact,
 `countRecentArtifactsInOtherSessionsOfConversation`
-(`packages/engine/src/services/DataReader.ts:527`,
-`packages/engine/src/layers/DataReaderLive.ts:2484-2489`) counts
+(`packages/engine/src/services/DataReader.ts`,
+`packages/engine/src/layers/DataReaderLive.ts`) counts
 artifacts recorded in the last ten minutes under other sessions of the
 task's conversation; a non-zero count is appended to the denial's human
 hint together with the two remedies above. The bare "no artifact found"
@@ -99,11 +102,11 @@ trigger forbade any subsequent update. Three changes closed that: the
 trigger's `WHEN` clause gained
 `OLD.conversation_id IS NOT NULL AND ...`, permitting exactly one
 null-to-value transition while still aborting any value-to-different-value
-change (`packages/engine/src/migrations/0001_initial.ts:857-874`);
+change (`packages/engine/src/migrations/0001_initial.ts`);
 `DataStore` gained `setSessionConversationIdIfNull`, an
 `UPDATE ... WHERE conversation_id IS NULL` that is idempotent and
-race-safe (`packages/engine/src/services/DataStore.ts:549`,
-`packages/engine/src/layers/DataStoreLive.ts:629-634`); and
+race-safe (`packages/engine/src/services/DataStore.ts`,
+`packages/engine/src/layers/DataStoreLive.ts`); and
 `registerAgentEffect` passes `conversationId` on a fresh session insert
 and runs the backstop update unconditionally otherwise.
 `register-agent` is the only fix point because it is the only

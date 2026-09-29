@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: draft
+status: deprecated
 title: Adopt the Effected Front-End Kit
 description: "Moves the CLI, the MCP server, the workspace-layering check, the source-boundary scans and the packed-install e2e off hand-rolled local ports and onto @effected/cli, @effected/mcp, @effected/engine and @effected/workspaces/testing; the seven action-keyed MCP tools register as Tool.dynamic with raw object-rooted schemas."
 tags:
@@ -10,17 +10,19 @@ tags:
   - deps
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 810d77cca291a4fdde544c3cf7a7229456628283b36d5b01d7891426d88fc6ff
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 829d3ab3f5d7cd3dc5ff6ae154cbdd26b2b8b96f8d5c7db992a7aeb58d5b7b69
 sources:
   - id: mcp-server-ts
     resource: ../../packages/mcp/src/server.ts
   - id: mcp-toolkit-ts
     resource: ../../packages/mcp/src/toolkit.ts
   - id: mcp-union-schema-ts
-    resource: ../../packages/mcp/src/tools/_union-schema.ts
+    resource: npm:@effected/mcp
+    title: McpToolkit.unionTool and McpToolkit.unionHandler, which replaced the local tools/_union-schema.ts (Decision 73)
   - id: mcp-tool-refusal-ts
-    resource: ../../packages/mcp/src/tools/_tool-refusal.ts
+    resource: npm:@effected/mcp
+    title: ToolRefusal, which replaced the local tools/_tool-refusal.ts (Decision 73)
   - id: mcp-server-protocols-test
     resource: ../../packages/mcp/__test__/server-protocols.test.ts
   - id: cli-main-ts
@@ -41,6 +43,10 @@ verified:
 ---
 
 # Adopt the Effected Front-End Kit
+
+> **Superseded by [Decision 73](73-adoption-helpers-live-in-the-kit.md).**
+> The local union-tool and refusal helpers described below were replaced
+> by the kit's, and the union-tool `isError` consequence was reversed.
 
 ## Context
 
@@ -152,8 +158,8 @@ re-decodes a dynamic tool.
 - [Invariant: Ranked Layering](../invariants/ranked-layering.md)
 
 [^mcp-server-ts]: `../../packages/mcp/src/server.ts`
-[^mcp-tool-refusal-ts]: `../../packages/mcp/src/tools/_tool-refusal.ts`
-[^mcp-union-schema-ts]: `../../packages/mcp/src/tools/_union-schema.ts`
+[^mcp-tool-refusal-ts]: `npm:@effected/mcp` (`ToolRefusal`; the local `tools/_tool-refusal.ts` was removed by Decision 73)
+[^mcp-union-schema-ts]: `npm:@effected/mcp` (`McpToolkit.unionTool` / `unionHandler`; the local `tools/_union-schema.ts` was removed by Decision 73)
 [^cli-main-ts]: `../../packages/cli/src/main.ts`
 [^cli-version-formatter]: `../../packages/cli/src/lib/version-formatter.ts`
 [^engine-project-dir]: `../../packages/engine/src/project-dir.ts`

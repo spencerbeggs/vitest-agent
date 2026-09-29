@@ -2,19 +2,22 @@
 type: Decision
 title: Three-Tier Objective→Goal→Behavior Hierarchy
 description: The TDD ledger stores an objective's goals and each goal's behaviors as first-class rows with their own identity and status lifecycle, decomposed by LLM reasoning through the tdd_goal and tdd_behavior tools rather than by server-side text splitting.
-status: draft
+status: stable
 tags:
   - tdd
   - mcp
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: a6dcdfb2c23513ec5cb8540c261e07feb44f5c8e06b42ef6386997263e84f074
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 998bf975f943981f4b7236ff135c4a0896315a51cbde1387f3cf5f1dbe8def5d
 sources:
   - id: tdd-goal
     resource: ../../packages/mcp/src/tools/tdd-goal.ts
   - id: tdd-behavior
     resource: ../../packages/mcp/src/tools/tdd-behavior.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Three-Tier Objective→Goal→Behavior Hierarchy
@@ -81,5 +84,5 @@ derived one.
 - [Decision: TDD Phase-Transition Evidence Binding](d11-tdd-phase-transition-evidence-binding.md)
 - [Decision: Junction Table for Behavior Dependencies](d14-junction-table-for-behavior-dependencies.md)
 
-[^tdd-goal]: `../../packages/mcp/src/tools/tdd-goal.ts:41-224`
-[^tdd-behavior]: `../../packages/mcp/src/tools/tdd-behavior.ts:41-189`
+[^tdd-goal]: `../../packages/mcp/src/tools/tdd-goal.ts`
+[^tdd-behavior]: `../../packages/mcp/src/tools/tdd-behavior.ts`

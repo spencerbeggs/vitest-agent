@@ -2,14 +2,14 @@
 type: Decision
 title: Single Pre-2.0 Migration, Incremental After
 description: 0001_initial.ts is frozen post-2.0; every schema change ships as a new registered migration file that ALTERs and backfills a table holding data, and only drops a table with zero readers and zero writers.
-status: draft
+status: stable
 tags:
   - architecture
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: b4388d8ce665fc0b4bc6243ac7459d89d4ca091ef9bfb58a065bf05bc7e687b8
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 11c368f8e3a35afb48e5d63ef4f8c0064f8354dafa69983bed4cef78250f714b
 sources:
   - id: migration-0001
     resource: ../../packages/engine/src/migrations/0001_initial.ts
@@ -19,6 +19,9 @@ sources:
     resource: ../../packages/engine/src/migrations/index.ts
   - id: platform
     resource: ../../packages/engine/src/platform.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Single Pre-2.0 Migration, Incremental After
@@ -43,7 +46,7 @@ imports each migration module and lists it under its filename-derived
 key.[^migrations-index] `makeSqliteStack` defaults its `migrations` parameter
 to `PROJECT_MIGRATIONS` and passes it to `SqliteMigrator.fromRecord`, so
 registering a migration there is what makes it reach `PlatformLive`,
-`ensureMigrated`, the sdk testing layer, and `ReporterLive` in one
+`ensureMigrated`, the engine's `./testing` layers, and `ReporterLive` in one
 step — every process that opens a project database runs the same migration
 set without a second registration point.[^platform]
 
@@ -99,7 +102,7 @@ convenient exception at a time.
 - [Convention: Schema Migrations](../conventions/schema-migrations.md)
 - [Runbook: Add a Migration](../runbooks/add-a-migration.md)
 
-[^migration-0001]: `../../packages/engine/src/migrations/0001_initial.ts:33-90`
-[^migration-0002]: `../../packages/engine/src/migrations/0002_test_artifacts.ts:1-57`
-[^migrations-index]: `../../packages/engine/src/migrations/index.ts:1-23`
-[^platform]: `../../packages/engine/src/platform.ts:16-72`
+[^migration-0001]: `../../packages/engine/src/migrations/0001_initial.ts`
+[^migration-0002]: `../../packages/engine/src/migrations/0002_test_artifacts.ts`
+[^migrations-index]: `../../packages/engine/src/migrations/index.ts`
+[^platform]: `../../packages/engine/src/platform.ts`

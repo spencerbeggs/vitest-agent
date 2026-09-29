@@ -1,19 +1,14 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { ManagedRuntime } from "effect";
 import { test as base } from "vitest";
 import { makeTestLayer } from "../../utils/layers.js";
 
 export const test = base
+	// One in-memory database per file: the file-scoped runtime holds the single
+	// SQLite connection for the whole file, so every test in it shares state
+	// exactly as it did against a tmpdir file. Nothing reopens the database.
 	// biome-ignore lint/correctness/noEmptyPattern: Vitest file-scoped fixture requires a destructuring parameter
-	.extend("tmpDir", { scope: "file" }, async ({}, { onCleanup }) => {
-		const dir = mkdtempSync(join(tmpdir(), "va-sdk-int-"));
-		onCleanup(() => rmSync(dir, { recursive: true, force: true }));
-		return dir;
-	})
-	.extend("runtime", { scope: "file" }, async ({ tmpDir }, { onCleanup }) => {
-		const rt = ManagedRuntime.make(makeTestLayer(join(tmpDir, "data.db")));
+	.extend("runtime", { scope: "file" }, async ({}, { onCleanup }) => {
+		const rt = ManagedRuntime.make(makeTestLayer(":memory:"));
 		onCleanup(() => rt.dispose());
 		return rt;
 	});

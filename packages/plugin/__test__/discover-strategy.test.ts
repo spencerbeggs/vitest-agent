@@ -1,26 +1,18 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { join } from "node:path";
+import type { MemoryFileSystemSeedEntry } from "@effected/memfs";
+import { MemoryFileSystem } from "@effected/memfs";
+import { describe, expect, it } from "vitest";
 import type { ClassifyContext, DiscoverInput, ModuleInfo } from "../src/utils/discover-strategy.js";
 import { DefaultDiscoverStrategy, DiscoverStrategy } from "../src/utils/discover-strategy.js";
 import { Tag } from "../src/utils/tag.js";
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(HERE, "fixtures");
+import { rootedSeed, seedMemfsWalker } from "./utils/memfs-walker.js";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
+// Package trees are seeded into an `@effected/memfs` volume and handed to the
+// strategy through `DiscoverInput.fs` — nothing touches disk.
+// `buildProject` keeps no cache, so a fixed package path is safe to share.
 
-let tmpDir: string;
-
-beforeEach(async () => {
-	tmpDir = await mkdtemp(join(tmpdir(), "vitest-agent-discover-strategy-"));
-});
-
-afterEach(async () => {
-	await rm(tmpDir, { recursive: true, force: true });
-});
+const PKG = "/ws/packages/test-pkg";
 
 function makeModuleInfo(filename: string): ModuleInfo {
 	return {
@@ -35,11 +27,22 @@ function makeModuleInfo(filename: string): ModuleInfo {
 function makeDiscoverInput(overrides?: Partial<DiscoverInput>): DiscoverInput {
 	return {
 		name: "test-pkg",
-		path: tmpDir,
+		path: PKG,
 		relativePath: "packages/test-pkg",
-		workspaceRoot: join(tmpDir, ".."),
+		workspaceRoot: "/ws",
 		...overrides,
 	};
+}
+
+/**
+ * A {@link DiscoverInput} whose `fs` is a volume seeded with `files` (paths
+ * relative to the package root).
+ */
+async function seededInput(
+	files: Readonly<Record<string, MemoryFileSystemSeedEntry>>,
+	overrides?: Partial<DiscoverInput>,
+): Promise<DiscoverInput> {
+	return makeDiscoverInput({ fs: await seedMemfsWalker(rootedSeed(PKG, files)), ...overrides });
 }
 
 // ── Goal 13: DiscoverStrategy abstract class ──────────────────────────────────
@@ -206,7 +209,7 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: calling buildProject on an empty dir
-		const result = await strategy.buildProject(makeDiscoverInput());
+		const result = await strategy.buildProject(await seededInput({ "": MemoryFileSystem.directory() }));
 
 		// Then: returns null
 		expect(result).toBeNull();
@@ -214,12 +217,11 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 
 	it("should return config with src glob only, and still exclude non-discoverable dirs, for a src-only package", async () => {
 		// Given: a package with only src/foo.test.ts
-		await mkdir(join(tmpDir, "src"), { recursive: true });
-		await writeFile(join(tmpDir, "src", "foo.test.ts"), "");
+		const input = await seededInput({ "src/foo.test.ts": "" });
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: calling buildProject
-		const result = await strategy.buildProject(makeDiscoverInput());
+		const result = await strategy.buildProject(input);
 
 		// Then: include covers src/ only
 		expect(result).not.toBeNull();
@@ -235,39 +237,35 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		// defaults cover only node_modules and .git.
 		const exclude = result?.test?.exclude as string[] | undefined;
 		expect(exclude).toBeDefined();
-		expect(exclude?.some((p) => p === join(tmpDir, "src", "**", "dist", "**"))).toBe(true);
+		expect(exclude?.some((p) => p === join(PKG, "src", "**", "dist", "**"))).toBe(true);
 		expect(exclude?.some((p) => p.includes("node_modules"))).toBe(true);
 	});
 
 	it("should bound every non-discoverable dir under both include roots (PR 228 review)", async () => {
 		// Given: a package with tests under both roots
-		await mkdir(join(tmpDir, "src"), { recursive: true });
-		await writeFile(join(tmpDir, "src", "foo.test.ts"), "");
-		await mkdir(join(tmpDir, "__test__"), { recursive: true });
-		await writeFile(join(tmpDir, "__test__", "bar.test.ts"), "");
+		const input = await seededInput({ "src/foo.test.ts": "", "__test__/bar.test.ts": "" });
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: calling buildProject
-		const result = await strategy.buildProject(makeDiscoverInput());
+		const result = await strategy.buildProject(input);
 
 		// Then: each non-discoverable dir is bounded under BOTH roots by exact path,
 		// so the emitted glob agrees with what findTestFiles would have walked
 		const exclude = (result?.test?.exclude ?? []) as string[];
 		for (const root of ["src", "__test__"]) {
 			for (const dir of ["node_modules", ".git", "dist"]) {
-				expect(exclude).toContain(join(tmpDir, root, "**", dir, "**"));
+				expect(exclude).toContain(join(PKG, root, "**", dir, "**"));
 			}
 		}
 	});
 
 	it("should return config with __test__ glob and exclude helper subdirs for __test__-only package", async () => {
 		// Given: a package with only __test__/foo.test.ts
-		await mkdir(join(tmpDir, "__test__"), { recursive: true });
-		await writeFile(join(tmpDir, "__test__", "foo.test.ts"), "");
+		const input = await seededInput({ "__test__/foo.test.ts": "" });
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: calling buildProject
-		const result = await strategy.buildProject(makeDiscoverInput());
+		const result = await strategy.buildProject(input);
 
 		// Then: include covers __test__/, exclude lists three helper subdirs
 		expect(result).not.toBeNull();
@@ -281,9 +279,9 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		// from it — so a same-named suite directory nested deeper (e.g.
 		// __test__/unit/utils/, the mirror of src/utils/) is not excluded
 		// (issue #251).
-		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "utils", "**"))).toBe(true);
-		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "fixtures", "**"))).toBe(true);
-		expect(exclude?.some((p) => p === join(tmpDir, "__test__", "snapshots", "**"))).toBe(true);
+		expect(exclude?.some((p) => p === join(PKG, "__test__", "utils", "**"))).toBe(true);
+		expect(exclude?.some((p) => p === join(PKG, "__test__", "fixtures", "**"))).toBe(true);
+		expect(exclude?.some((p) => p === join(PKG, "__test__", "snapshots", "**"))).toBe(true);
 		// A custom `test.exclude` REPLACES Vitest's defaults rather than merging,
 		// so it must re-state `**/node_modules/**` and `**/.git/**` — otherwise
 		// the broad `__test__/**` include glob re-walks into nested
@@ -294,32 +292,30 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 
 	it("does not emit the any-depth helper-dir exclude glob for any TEST_HELPER_DIRS entry (regression guard, issue #251)", async () => {
 		// Given: a package with only __test__/foo.test.ts
-		await mkdir(join(tmpDir, "__test__"), { recursive: true });
-		await writeFile(join(tmpDir, "__test__", "foo.test.ts"), "");
+		const input = await seededInput({ "__test__/foo.test.ts": "" });
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: calling buildProject
-		const result = await strategy.buildProject(makeDiscoverInput());
+		const result = await strategy.buildProject(input);
 
 		// Then: none of the helper-dir excludes use the old any-depth "**" form
 		// that matched the helper dir name at ANY depth under __test__/, sweeping
 		// a legitimate __test__/unit/utils/ suite out of discovery silently.
+		// Positive control: the project exists, so the loop below is not vacuous.
+		expect(result).not.toBeNull();
 		const exclude = (result?.test?.exclude ?? []) as string[];
 		for (const dir of ["fixtures", "snapshots", "utils"]) {
-			expect(exclude).not.toContain(join(tmpDir, "__test__", "**", dir, "**"));
+			expect(exclude).not.toContain(join(PKG, "__test__", "**", dir, "**"));
 		}
 	});
 
 	it("should return config covering both src and __test__ globs for hybrid package", async () => {
 		// Given: a package with both src/foo.test.ts and __test__/bar.test.ts
-		await mkdir(join(tmpDir, "src"), { recursive: true });
-		await mkdir(join(tmpDir, "__test__"), { recursive: true });
-		await writeFile(join(tmpDir, "src", "foo.test.ts"), "");
-		await writeFile(join(tmpDir, "__test__", "bar.test.ts"), "");
+		const input = await seededInput({ "src/foo.test.ts": "", "__test__/bar.test.ts": "" });
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: calling buildProject
-		const result = await strategy.buildProject(makeDiscoverInput());
+		const result = await strategy.buildProject(input);
 
 		// Then: both globs are present
 		expect(result).not.toBeNull();
@@ -332,13 +328,11 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		for (const ext of ["ts", "tsx", "js", "jsx"]) {
 			it(`should detect vitest.setup.${ext} and thread into setupFiles`, async () => {
 				// Given: a package with a test file and a setup file
-				await mkdir(join(tmpDir, "src"), { recursive: true });
-				await writeFile(join(tmpDir, "src", "foo.test.ts"), "");
-				await writeFile(join(tmpDir, `vitest.setup.${ext}`), "");
+				const input = await seededInput({ "src/foo.test.ts": "", [`vitest.setup.${ext}`]: "" });
 				const strategy = new DefaultDiscoverStrategy();
 
 				// When: calling buildProject
-				const result = await strategy.buildProject(makeDiscoverInput());
+				const result = await strategy.buildProject(input);
 
 				// Then: setupFiles contains an absolute path ending with the setup filename
 				expect(result).not.toBeNull();
@@ -350,15 +344,20 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 	});
 
 	it("does not discover tests in nested non-src __test__ directories (issue #227)", async () => {
-		// Given: a fixture package whose only tests live under lib/scripts/__test__/
+		// Given: a package whose only tests live under lib/scripts/__test__/
 		// — not src/, not the package-root __test__/. That is an invalid location.
+		// (The shape of the checked-in `fixtures/nested-test-dir-project`.)
+		const input = await seededInput(
+			{
+				"package.json": JSON.stringify({ name: "nested-test-dir-project", private: true, type: "module" }),
+				"lib/scripts/__test__/sample.test.ts": "",
+			},
+			{ name: "nested-test-dir-project" },
+		);
 		const strategy = new DefaultDiscoverStrategy();
 
-		// When: calling buildProject against the fixture path
-		const project = await strategy.buildProject({
-			name: "nested-test-dir-project",
-			path: join(FIXTURES, "nested-test-dir-project"),
-		} as DiscoverInput);
+		// When: calling buildProject against that package
+		const project = await strategy.buildProject(input);
 
 		// Then: nothing is discoverable, so the package is skipped entirely
 		expect(project).toBeNull();
@@ -366,21 +365,18 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 
 	it("emits only anchored include globs (issue #227)", async () => {
 		// Given: a package with both a src/ test and a root __test__/ test
-		await mkdir(join(tmpDir, "src"), { recursive: true });
-		await writeFile(join(tmpDir, "src", "foo.test.ts"), "");
-		await mkdir(join(tmpDir, "__test__"), { recursive: true });
-		await writeFile(join(tmpDir, "__test__", "bar.test.ts"), "");
+		const input = await seededInput({ "src/foo.test.ts": "", "__test__/bar.test.ts": "" });
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: calling buildProject
-		const project = await strategy.buildProject(makeDiscoverInput());
+		const project = await strategy.buildProject(input);
 
 		// Then: no include glob is unanchored — an unanchored glob escapes the
 		// package and, for the root workspace, globs the entire repo
 		const include = (project?.test?.include ?? []) as string[];
 		expect(include.length).toBeGreaterThan(0);
 		expect(include.every((g) => !g.includes("**/__test__"))).toBe(true);
-		expect(include.some((g) => g === join(tmpDir, "src", "**", "*.{test,spec}.{ts,tsx,js,jsx}"))).toBe(true);
-		expect(include.some((g) => g === join(tmpDir, "__test__", "**", "*.{test,spec}.{ts,tsx,js,jsx}"))).toBe(true);
+		expect(include.some((g) => g === join(PKG, "src", "**", "*.{test,spec}.{ts,tsx,js,jsx}"))).toBe(true);
+		expect(include.some((g) => g === join(PKG, "__test__", "**", "*.{test,spec}.{ts,tsx,js,jsx}"))).toBe(true);
 	});
 });

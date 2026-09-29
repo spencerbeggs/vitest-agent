@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: Single-Source Served MCP Discriminants
 description: Why each consolidated MCP tool's action/kind literal tuple lives next to its Effect Schema union instead of a hand-synced projection, and how a compile-time assertion and a runtime test pin them together.
 tags: [architecture, mcp]
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: f8271486da70fbc209adf67e8289058030f5ff10ad902279d752310a57066c43
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 1d2e20f0cd44414827cc8d5f026555a421e6e0c47a4a5fc3204b3df7e6baedc1
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Single-Source Served MCP Discriminants
@@ -18,7 +21,7 @@ When every tool input was declared twice — an Effect `Schema.Union` in `tools/
 
 ## Decision
 
-The discriminant tuple lives with the union. Each consolidated tool core exports its literal tuple immediately after its `Schema.Union` — `TEST_ACTIONS` (`packages/mcp/src/tools/test.ts:458`), `INVENTORY_KINDS` (`packages/mcp/src/tools/inventory.ts:295`), `NOTE_ACTIONS` (`packages/mcp/src/tools/note.ts:213`), `HYPOTHESIS_ACTIONS` (`packages/mcp/src/tools/hypothesis.ts:161`), `TDD_TASK_ACTIONS` (`packages/mcp/src/tools/tdd-task.ts:236`), `TDD_GOAL_ACTIONS` (`packages/mcp/src/tools/tdd-goal.ts:145`), and `TDD_BEHAVIOR_ACTIONS` (`packages/mcp/src/tools/tdd-behavior.ts:168`) — and a two-way conditional-type assertion (`Action extends Tuple[number]` and `Tuple[number] extends Action`, e.g. `packages/mcp/src/tools/test.ts:461-464`) pins the tuple to the union's `action`/`kind` type at compile time.
+The discriminant tuple lives with the union. Each consolidated tool core exports its literal tuple immediately after its `Schema.Union` — `TEST_ACTIONS` (`packages/mcp/src/tools/test.ts`), `INVENTORY_KINDS` (`packages/mcp/src/tools/inventory.ts`), `NOTE_ACTIONS` (`packages/mcp/src/tools/note.ts`), `HYPOTHESIS_ACTIONS` (`packages/mcp/src/tools/hypothesis.ts`), `TDD_TASK_ACTIONS` (`packages/mcp/src/tools/tdd-task.ts`), `TDD_GOAL_ACTIONS` (`packages/mcp/src/tools/tdd-goal.ts`), and `TDD_BEHAVIOR_ACTIONS` (`packages/mcp/src/tools/tdd-behavior.ts`) — and a two-way conditional-type assertion (`Action extends Tuple[number]` and `Tuple[number] extends Action`, e.g. `packages/mcp/src/tools/test.ts`) pins the tuple to the union's `action`/`kind` type at compile time.
 
 The served enum is no longer a projection anyone writes by hand: `@effected/mcp`'s `McpToolkit.unionTool` generates the union's strict JSON Schema and reshapes it into the served `oneOf` plus `x-discriminator` ([Decision 73](73-adoption-helpers-live-in-the-kit.md)), so the Effect `Schema.Union` is the single source on both sides of the wire.
 

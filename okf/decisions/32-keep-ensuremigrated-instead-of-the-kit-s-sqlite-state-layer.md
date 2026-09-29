@@ -2,17 +2,20 @@
 type: Decision
 title: Keep ensureMigrated Instead of the Kit's SQLite-State Layer
 description: The data layer stays a direct hand-composed stack on ensureMigrated and @effect/sql-sqlite-node rather than adopting @effected/xdg's bundled SQLite-state layer or the broader @effected/store or @effected/app abstractions.
-status: draft
+status: stable
 tags:
   - architecture
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 0791ac118aedc91cbd51c81955134ca93332b914551c3a477fd156e139194d8d
+  at: 2026-09-29T20:39:41Z
+  body_sha256: f6174deafc9a89a108251ea893e489f08de3d51eb419d74a35af69c5f497bf8a
 sources:
   - id: engine-ensure-migrated
     resource: ../../packages/engine/src/utils/ensure-migrated.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Keep ensureMigrated Instead of the Kit's SQLite-State Layer
@@ -29,10 +32,10 @@ implementation did not take that path.
 ## Decision
 
 This project keeps `ensureMigrated`
-(`packages/engine/src/utils/ensure-migrated.ts:28`) and its existing
+(`packages/engine/src/utils/ensure-migrated.ts`) and its existing
 migrator setup, and more broadly keeps the whole data layer in direct
 composition on `@effect/sql-sqlite-node` (`makeSqliteStack`, called from
-`ensureMigrated` at `packages/engine/src/utils/ensure-migrated.ts:33`)
+`ensureMigrated` at `packages/engine/src/utils/ensure-migrated.ts`)
 rather than adopting a bundled kit abstraction for it.
 
 Reasons:
@@ -83,7 +86,7 @@ re-litigating that fix.
   layer do not automatically benefit this project — any future adoption
   would need this decision revisited, not assumed.
 - `ensureMigrated`'s `globalThis`-keyed cache
-  (`packages/engine/src/utils/ensure-migrated.ts:7,12`) remains the one
+  (`packages/engine/src/utils/ensure-migrated.ts`) remains the one
   place that owns migration-run coordination; any new call site that
   constructs a `SqliteClient`/migrator pair outside `ensureMigrated` against
   a shared `dbPath` bypasses that coordination and can reintroduce the race

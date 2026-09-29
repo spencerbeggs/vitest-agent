@@ -8,10 +8,31 @@ interface PackageInfo {
 	readonly packagePath: string;
 }
 
+/**
+ * The two synchronous filesystem reads the `package.json` walk needs.
+ *
+ * @remarks
+ * Shaped as the `node:fs` sync subset (`existsSync`, `readFileSync(p, "utf8")`)
+ * so `@effected/memfs`'s `MemoryFileSystem.syncFileSystem(volume)` satisfies
+ * it structurally. `readFile` returns UTF-8 text and may throw on a miss; the
+ * walk treats a throw like a malformed manifest and keeps climbing.
+ *
+ * @internal
+ */
+export interface BuildModuleInfoFs {
+	readonly exists: (path: string) => boolean;
+	readonly readFile: (path: string) => string;
+}
+
+const nodeBuildModuleInfoFs: BuildModuleInfoFs = {
+	exists: (path) => existsSync(path),
+	readFile: (path) => readFileSync(path, "utf8"),
+};
+
 const NOT_FOUND: PackageInfo = { packageName: "", packagePath: "" };
 const cache = new Map<string, PackageInfo>();
 
-const resolvePackageInfo = (filePath: string): PackageInfo => {
+const resolvePackageInfo = (filePath: string, fs: BuildModuleInfoFs): PackageInfo => {
 	let dir = dirname(filePath);
 	const visited: string[] = [];
 
@@ -25,9 +46,9 @@ const resolvePackageInfo = (filePath: string): PackageInfo => {
 		visited.push(dir);
 
 		const pkgJsonPath = `${dir}/package.json`;
-		if (existsSync(pkgJsonPath)) {
+		if (fs.exists(pkgJsonPath)) {
 			try {
-				const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as { name?: unknown };
+				const pkg = JSON.parse(fs.readFile(pkgJsonPath)) as { name?: unknown };
 				const result: PackageInfo = {
 					packageName: typeof pkg.name === "string" ? pkg.name : "",
 					packagePath: dir,
@@ -35,7 +56,7 @@ const resolvePackageInfo = (filePath: string): PackageInfo => {
 				for (const v of visited) cache.set(v, result);
 				return result;
 			} catch {
-				// Malformed JSON — treat as if no package.json and continue walking up.
+				// Malformed JSON or an unreadable file — treat as if no package.json and continue walking up.
 			}
 		}
 
@@ -57,11 +78,17 @@ const resolvePackageInfo = (filePath: string): PackageInfo => {
  *
  * Query strings (Vite virtual module suffixes like `?v=1234`) are stripped
  * before the walk so the cache key is always a clean filesystem path.
+ *
+ * @param filePath - Module id, optionally carrying a Vite query suffix.
+ * @param fs - Filesystem the `package.json` walk reads through. Defaults to
+ *   `node:fs`; tests pass a virtual volume. The cache is shared across ports
+ *   and keyed only by directory, so a test injecting a volume should use
+ *   roots no other caller walks, or call {@link clearBuildModuleInfoCache}.
  */
-export const buildModuleInfo = (filePath: string): ModuleInfo => {
+export const buildModuleInfo = (filePath: string, fs: BuildModuleInfoFs = nodeBuildModuleInfoFs): ModuleInfo => {
 	const queryIndex = filePath.indexOf("?");
 	const cleanId = queryIndex === -1 ? filePath : filePath.slice(0, queryIndex);
-	const { packageName, packagePath } = resolvePackageInfo(cleanId);
+	const { packageName, packagePath } = resolvePackageInfo(cleanId, fs);
 	return {
 		path: cleanId,
 		// Canonical forward-slash form so downstream classifiers and the

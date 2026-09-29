@@ -788,9 +788,14 @@ export interface DiscoverBuilder extends PromiseLike<DiscoverResult> {
  * `strategy` is provided AND `additionalEntries` is empty. Any `.addProject()`
  * chain or explicit strategy bypasses the cache.
  *
+ * Every option — including the `fs` / `syncOps` filesystem ports that
+ * `AgentPlugin.discover` never sets — is forwarded unchanged to
+ * `discoverProjects`, so tests can drive the builder over a virtual volume.
+ * Exported for tests only; not part of the package barrel.
+ *
  * @internal
  */
-function makeDiscoverBuilder(options: DiscoverProjectsOptions): DiscoverBuilder {
+export function makeDiscoverBuilder(options: DiscoverProjectsOptions): DiscoverBuilder {
 	return {
 		addProject(input: AddProjectInput): DiscoverBuilder {
 			// Immutable: return a fresh builder with the entry appended.

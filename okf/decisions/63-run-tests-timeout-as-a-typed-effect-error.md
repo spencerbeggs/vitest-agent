@@ -1,13 +1,16 @@
 ---
 type: Decision
-status: draft
+status: stable
 title: run_tests Timeout as a Typed Effect Error
 description: Why the MCP run_tests tool models its Vitest-start timeout through Effect's typed TimeoutError channel instead of a Promise.race against a string-sentinel rejection.
 tags: [architecture, mcp, effect]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 15d54996fcf8387dfbb938c374c0f65ab075361e941e2408e905a16db83c3891
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 76811ff3a5512c2ba852e5eef87510e4af71002df4ff1d8d68b9d8a57d4ad915
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # run_tests Timeout as a Typed Effect Error
@@ -18,9 +21,9 @@ generated:
 
 ## Decision
 
-The start call is wrapped in `Effect.tryPromise` and piped through `Effect.timeout(timeoutMs)`, `Effect.map` (→ `outcome: "ok"`), `Effect.catchTag("TimeoutError", …)` (→ `outcome: "timeout"`), and `Effect.catchTag("VitestStartFailure", …)` (→ `outcome: "failed", cause`) (`packages/mcp/src/tools/run-tests.ts:1003-1019`). The result is a success-channel discriminated outcome, so classification happens entirely inside Effect combinators rather than the tool's `catch` block inspecting a message: `timeout` returns `{ kind: "timeout", timeoutSeconds }` (`packages/mcp/src/tools/run-tests.ts:1020-1021`), `failed` rethrows the original cause into the existing `{ kind: "error" }` envelope (`packages/mcp/src/tools/run-tests.ts:1023-1024`), and an error whose message is literally `VITEST_TIMEOUT` now yields `{ kind: "error" }` like any other failure.
+The start call is wrapped in `Effect.tryPromise` and piped through `Effect.timeout(timeoutMs)`, `Effect.map` (→ `outcome: "ok"`), `Effect.catchTag("TimeoutError", …)` (→ `outcome: "timeout"`), and `Effect.catchTag("VitestStartFailure", …)` (→ `outcome: "failed", cause`) (`packages/mcp/src/tools/run-tests.ts`). The result is a success-channel discriminated outcome, so classification happens entirely inside Effect combinators rather than the tool's `catch` block inspecting a message: `timeout` returns `{ kind: "timeout", timeoutSeconds }` (`packages/mcp/src/tools/run-tests.ts`), `failed` rethrows the original cause into the existing `{ kind: "error" }` envelope (`packages/mcp/src/tools/run-tests.ts`), and an error whose message is literally `VITEST_TIMEOUT` now yields `{ kind: "error" }` like any other failure.
 
-Two Effect v4 facts this relies on: `Effect.timeout` fails with `Cause.TimeoutError`, whose `_tag` is `"TimeoutError"`, so `Effect.catchTag("TimeoutError", …)` recovers from exactly that failure and nothing else; and the rejection is wrapped in a tagged `VitestStartFailure` error rather than left `unknown`, because an `unknown` member would collapse `Effect.catchTag`'s tag parameter to `never` (`packages/mcp/src/tools/run-tests.ts:1005-1011`). Folding both branches into the success channel — rather than leaving them as promise rejections — also sidesteps `Effect.runPromise`'s lack of a guarantee that a rejection value is the bare error.
+Two Effect v4 facts this relies on: `Effect.timeout` fails with `Cause.TimeoutError`, whose `_tag` is `"TimeoutError"`, so `Effect.catchTag("TimeoutError", …)` recovers from exactly that failure and nothing else; and the rejection is wrapped in a tagged `VitestStartFailure` error rather than left `unknown`, because an `unknown` member would collapse `Effect.catchTag`'s tag parameter to `never` (`packages/mcp/src/tools/run-tests.ts`). Folding both branches into the success channel — rather than leaving them as promise rejections — also sidesteps `Effect.runPromise`'s lack of a guarantee that a rejection value is the bare error.
 
 ## Alternatives rejected
 

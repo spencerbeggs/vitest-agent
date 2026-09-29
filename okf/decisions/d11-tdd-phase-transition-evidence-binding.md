@@ -2,19 +2,22 @@
 type: Decision
 title: TDD Phase-Transition Evidence Binding
 description: A pure validatePhaseTransition function enforces three D2 binding rules — evidence in the current phase window and session, behavior match, and the cited test wasn't already failing — plus two source-phase guards, so a phase advance requires evidence that is actually current, not merely present.
-status: draft
+status: stable
 tags:
   - tdd
   - mcp
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 5be10e8b3f6e729401ac007391a73e45254c53ee9ce453779146e7d916e14506
+  at: 2026-09-29T20:39:41Z
+  body_sha256: aa13889f45d977af514583c362e0d2b106f758152c573a8925238e3d9c293100
 sources:
   - id: validate-phase-transition
     resource: ../../packages/sdk/src/utils/validate-phase-transition.ts
   - id: tdd-phase-transition-request
     resource: ../../packages/mcp/src/tools/tdd-phase-transition-request.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # TDD Phase-Transition Evidence Binding
@@ -176,5 +179,5 @@ rather than an ad hoc case-by-case policy.
 - [Module: claude-code-plugin](../modules/claude-code-plugin.md)
 - [Gotcha: Phase Transition Not Idempotent](../gotchas/phase-transition-not-idempotent.md)
 
-[^validate-phase-transition]: `../../packages/sdk/src/utils/validate-phase-transition.ts:115-389`
-[^tdd-phase-transition-request]: `../../packages/mcp/src/tools/tdd-phase-transition-request.ts:164-396`
+[^validate-phase-transition]: `../../packages/sdk/src/utils/validate-phase-transition.ts`
+[^tdd-phase-transition-request]: `../../packages/mcp/src/tools/tdd-phase-transition-request.ts`

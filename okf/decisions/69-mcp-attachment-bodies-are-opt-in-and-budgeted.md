@@ -2,19 +2,22 @@
 type: Decision
 title: MCP Attachment Bodies Are Opt-In and Budgeted
 description: The test tool's annotations and artifacts actions return attachment descriptors by default and only include inline bodies when the caller passes a cumulative maxBytes budget, because a per-attachment cap says nothing about the total size of one tool response.
-status: draft
+status: stable
 tags:
   - mcp
   - performance
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 2143d43a9f0527a4f3a4d236d33351039ae29dff1fc4e9340f9b28fa7f1c9ebc
+  at: 2026-09-29T20:39:41Z
+  body_sha256: f12b33cf3495f5103b550d09d141d586ac358125aafce08990a716104fbb3b20
 sources:
   - id: mcp-test-tool
     resource: ../../packages/mcp/src/tools/test.ts
   - id: data-store-cap
     resource: ../../packages/engine/src/services/DataStore.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # MCP Attachment Bodies Are Opt-In and Budgeted
@@ -35,12 +38,18 @@ Both actions return attachment descriptors by default — `contentType`,
 `body` comes back only when the caller passes `maxBytes`, a non-negative
 integer total byte budget for every body in the response, defaulting to
 `0`.[^mcp-test-tool] `applyBodyBudget` walks the attachments in order and
-charges each body its recorded `byteSize` (falling back to the stored
-string's own length when the row predates migration 0002 and carries no
-`byteSize`); a body that would push the running total past the budget is
-dropped along with its `bodyEncoding`, while the descriptor half —
-`contentType`, `path`, `byteSize` — always survives regardless of
-budget.[^mcp-test-tool]
+charges each body the UTF-8 byte length of the string that will actually
+be placed in the response, `Buffer.byteLength(body, "utf-8")`; a body
+that would push the running total past the budget is dropped along with
+its `bodyEncoding`, while the descriptor half — `contentType`, `path`,
+`byteSize` — always survives regardless of budget.[^mcp-test-tool]
+
+The budget meters the response, so it charges what the response carries.
+The recorded `byteSize` is caller-reported, and for a base64 body it is
+the decoded payload size, roughly three quarters of the string that
+actually ships (issue 393); it cannot be trusted to bound a response.
+`String.length` is not used either, because it counts UTF-16 code units
+and undercounts a multibyte UTF-8 body.
 
 ## Alternatives rejected
 
@@ -55,12 +64,14 @@ budget.[^mcp-test-tool]
   descriptor list already tell an agent everything required to decide
   whether fetching bodies is worth the tokens, so paying for bytes should
   be a deliberate second step rather than baked into the default call.
-- **Charge each body its stored string length instead of its recorded
-  `byteSize`.** Rejected for the same reason the persistence-layer cap
-  gates on both bars (Decision 68): a base64 body's stored length is 4/3
-  its real payload size, so charging the stored length rather than the
-  recorded `byteSize` would under-count the true cost against the
-  caller's budget.
+- **Charge each body its recorded `byteSize`.** Rejected because
+  `byteSize` is caller-reported and describes the decoded payload, not
+  the bytes placed in the response. A base64 body's string is roughly
+  4/3 its payload, so charging `byteSize` would under-count every base64
+  body by about a quarter and let a response overrun the caller's
+  budget; a caller that under-reports `byteSize` would widen the gap
+  further. This is the same distrust of a self-reported size that makes
+  the persistence cap check the stored string (Decision 68).
 
 ## Consequences
 
@@ -75,4 +86,4 @@ that wants bodies has to say so explicitly with an explicit budget.
 - [Decision 68 — Cap Inline Attachment Bodies on Stored Bytes](./68-cap-inline-attachment-bodies-on-stored-bytes.md)
 - [Interface: mcp-tools](../interfaces/mcp-tools.md)
 
-[^mcp-test-tool]: `../../packages/mcp/src/tools/test.ts:92-119,400-428`
+[^mcp-test-tool]: `../../packages/mcp/src/tools/test.ts`

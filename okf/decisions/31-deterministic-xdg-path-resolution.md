@@ -2,13 +2,13 @@
 type: Decision
 title: Deterministic XDG Path Resolution
 description: The data path is a deterministic function of workspace identity under XDG's data directory, resolved through one precedence chain for the reporter/MCP route and a second, divergent one for the hook/sidecar route.
-status: draft
+status: stable
 tags:
   - architecture
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T05:22:58Z
-  body_sha256: 258deecb29030d04ef3a872a20c340818c3db19f8500238f1a5ae705ba44ebba
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 16b831e5426420b8a0e5c807cee01ed818930ea6a83f4e3909f705a65338af72
 sources:
   - id: engine-resolve-data-path
     resource: ../../packages/engine/src/utils/resolve-data-path.ts
@@ -24,6 +24,9 @@ sources:
     resource: ../../packages/engine/src/services/ProjectIdentity.ts
   - id: engine-resolve-workspace-key
     resource: ../../packages/engine/src/utils/resolve-workspace-key.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Deterministic XDG Path Resolution
@@ -42,31 +45,32 @@ project; that form is retired.
 
 The data path is a deterministic function of the workspace's identity:
 `$XDG_DATA_HOME/vitest-agent/<workspaceKey>/data.db`.
-`resolveDataPath` (`packages/engine/src/utils/resolve-data-path.ts:59-87`) —
+`resolveDataPath` (`packages/engine/src/utils/resolve-data-path.ts`) —
 used by the reporter and the MCP server — resolves `<workspaceKey>` through
 a precedence chain: (1) a caller-supplied `options.cacheDir` (the plugin's
 programmatic `reporter.cacheDir`), highest precedence
-(`packages/engine/src/utils/resolve-data-path.ts:64-67`); (2) `cacheDir`
+(`packages/engine/src/utils/resolve-data-path.ts`); (2) `cacheDir`
 from `vitest-agent.config.toml`
-(`packages/engine/src/utils/resolve-data-path.ts:73-76`); (3) `projectKey`
+(`packages/engine/src/utils/resolve-data-path.ts`); (3) `projectKey`
 from that same TOML, normalized via `normalizeWorkspaceKey`
-(`packages/engine/src/utils/resolve-data-path.ts:82`); (4) failing those,
-`resolveProjectKeyFromCwd` — a `package.json` read anchored at the caller's
-directory that prefers a canonicalized `repository.url`
+(`packages/engine/src/utils/resolve-data-path.ts`); (4) failing those,
+`resolveProjectKeyFromCwdEffect` — a `package.json` read through the
+ambient `FileSystem` service, walking upward from the caller's directory to
+the nearest `package.json`, that prefers a canonicalized `repository.url`
 (`host__path`) and falls back to the normalized `name`
-(`packages/engine/src/utils/resolve-project-key-from-cwd.ts:33-59`). The
+(`packages/engine/src/utils/resolve-project-key-from-cwd.ts`). The
 XDG data root itself comes from `@effected/xdg`'s `AppDirs.layer({
 namespace: APP_NAMESPACE, fallbackDir: DATA_FALLBACK_DIR })`
-(`packages/engine/src/layers/PathResolutionLive.ts:29-31`), where
+(`packages/engine/src/layers/PathResolutionLive.ts`), where
 `DATA_FALLBACK_DIR` is `.local/share/vitest-agent`
-(`packages/engine/src/layers/PathResolutionLive.ts:21`), so with
+(`packages/engine/src/layers/PathResolutionLive.ts`), so with
 `XDG_DATA_HOME` unset the root is `~/.local/share/vitest-agent` — the XDG
 spec default — rather than `AppDirs`' own `~/.vitest-agent` fallback.
 
 **A separate route exists for the sidecar-family hooks.**
 `resolveHookPaths` (`packages/engine/src/programs/hook-paths.ts`) builds its
 own `AppDirs` layer from the caller's env map, passing the same imported
-`DATA_FALLBACK_DIR` (`packages/engine/src/programs/hook-paths.ts:30,108`), so
+`DATA_FALLBACK_DIR` (`packages/engine/src/programs/hook-paths.ts`), so
 both routes land at `~/.local/share/vitest-agent/<projectKey>/` when
 `XDG_DATA_HOME` is unset; `packages/engine/__test__/xdg-fallback-alignment.test.ts`
 pins the agreement. Reporter/MCP databases written under
@@ -78,17 +82,19 @@ migrated; see
 loud.** The hook/sidecar route's `ProjectIdentity` service candidates
 (explicit → TOML → git remote → `package.json` repository → `package.json`
 name) fail with `ProjectIdentityNotResolvableError` when every candidate is
-empty (`packages/engine/src/layers/ProjectIdentityLive.ts:148`,
-`packages/engine/src/services/ProjectIdentity.ts:124`) — this is the
+empty (`packages/engine/src/layers/ProjectIdentityLive.ts`,
+`packages/engine/src/services/ProjectIdentity.ts`) — this is the
 fail-loud contract this decision was written to guarantee. The
-reporter/MCP route's `resolveProjectKeyFromCwd`, however, never fails: with
-no reachable `package.json` it falls back to the cwd's basename, and with
+reporter/MCP route's `resolveProjectKeyFromCwdEffect`, however, never
+fails — a filesystem error while probing or reading counts as a missing or
+malformed `package.json` — and with no usable `package.json` it falls back
+to the cwd's basename, and with
 no non-empty basename segment at all, to the literal string
-`"anonymous-project"` (`packages/engine/src/utils/resolve-project-key-from-cwd.ts:52-59`).
+`"anonymous-project"` (`packages/engine/src/utils/resolve-project-key-from-cwd.ts`).
 The reporter/MCP route therefore does not raise
 `WorkspaceRootNotFoundError` or any other typed error on missing identity
 today — that error type exists on `resolveWorkspaceKey`
-(`packages/engine/src/utils/resolve-workspace-key.ts:31-47`), which is
+(`packages/engine/src/utils/resolve-workspace-key.ts`), which is
 defined but has no caller in the current tree. The delta from this
 decision's original fail-loud intent for the reporter/MCP route is a real
 drift, reported below.
@@ -153,7 +159,9 @@ described `WorkspaceRootNotFoundError` as the error the reporter/MCP route
 raises on missing identity. In the current tree, `resolveWorkspaceKey` (the
 function that raises `WorkspaceRootNotFoundError`) has no caller, and the
 route actually used by `resolveDataPath` —
-`resolveProjectKeyFromCwd` — never fails, falling back silently to a cwd
+`resolveProjectKeyFromCwdEffect` (the `FileSystem`-service twin of the
+synchronous `resolveProjectKeyFromCwd`, sharing its rules) — never fails,
+falling back silently to a cwd
 basename or `"anonymous-project"`. The fail-loud behavior described survives
 only on the separate hook/sidecar route, via
 `ProjectIdentityNotResolvableError`. This concept documents both routes as

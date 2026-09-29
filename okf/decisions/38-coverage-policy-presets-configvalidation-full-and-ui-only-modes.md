@@ -2,12 +2,15 @@
 type: Decision
 title: Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes
 description: Dual-output coverage-level presets calibrate thresholds and aspirational targets together, coverageMode derives from Vitest's native coverage.enabled, and ConfigValidation runs a fixed rule registry over the resolved config.
-status: draft
+status: stable
 tags: [architecture, testing]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 7d73ae887c1c3c53defced5415f159d6af9a7e6fd1d23cd06420182a065f032c
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 48fa62fb482a7a8be90c44b0c610ef7638390abc6222ba85d1186593bb9904c7
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Coverage Policy — Presets, ConfigValidation, Full and UI-only Modes
@@ -22,20 +25,20 @@ when a user disables coverage outright. Splitting these into separate,
 uncoordinated user inputs would let a threshold preset and a targets preset
 drift out of calibration, and would leave the plugin no principled way to
 decide when to skip the SQLite-backed persistence pipeline. `resolveMode`
-(`packages/plugin/src/layers/ConfigValidationLive.ts:33`) and the
+(`packages/plugin/src/layers/ConfigValidationLive.ts`) and the
 `coverageMode` field threaded through the reporter
-(`packages/plugin/src/reporter.ts:709,1663`) both derive from the same
+(`packages/plugin/src/reporter.ts`) both derive from the same
 Vitest-native signal rather than a plugin-specific flag.
 
 ## Decision
 
 `coverageMode` (`"full" | "ui-only"`) lives on `ResolvedReporterConfig`
-(`packages/sdk/src/contracts/reporter.ts:66`), not on the user-facing
+(`packages/sdk/src/contracts/reporter.ts`), not on the user-facing
 `AgentReporterOptions` schema. The plugin resolves it once in
 `configureVitest` from Vitest's native `coverage.enabled` field
 (`coverageMode = coverageConfig?.enabled === false ? "ui-only" : "full"`,
-`packages/plugin/src/plugin.ts:526`) and threads it through
-`buildReporterKit` (`packages/plugin/src/utils/build-reporter-kit.ts:48,91`)
+`packages/plugin/src/plugin.ts`) and threads it through
+`buildReporterKit` (`packages/plugin/src/utils/build-reporter-kit.ts`)
 onto the resolved kit every reporter and cell reads. Full mode runs the
 whole persistence pipeline; UI-only mode short-circuits it and renders
 health-neutral output. Locking the mode as a resolved fact rather than a
@@ -44,23 +47,23 @@ user input keeps one source of truth and stops a user from declaring
 config.
 
 `AgentPlugin.COVERAGE_LEVELS` and `AgentPlugin.COVERAGE_LEVELS_PER_FILE`
-(`packages/plugin/src/plugin.ts:789,798`) are dual-output preset maps: each
+(`packages/plugin/src/plugin.ts`) are dual-output preset maps: each
 `CoverageLevelName` entry returns `{ thresholds, coverageTargets }`
-(`CoverageLevelPreset`, `packages/plugin/src/plugin.ts:681`) built by
-`buildPreset` (`packages/plugin/src/plugin.ts:708`) so a user passes the
+(`CoverageLevelPreset`, `packages/plugin/src/plugin.ts`) built by
+`buildPreset` (`packages/plugin/src/plugin.ts`) so a user passes the
 matching halves straight into Vitest's `coverage.thresholds` and the
 plugin's `coverageTargets` option from one named constant. The
 `coverageTargets` half always maps to the next preset up
 (`none → basic`, `basic → standard`, `standard → strict`, `strict → full`,
 `full → full`, visible in the `buildPreset` call arguments at
-`packages/plugin/src/plugin.ts:790-796`), so the threshold floor and the
+`packages/plugin/src/plugin.ts`), so the threshold floor and the
 aspirational target floor are calibrated together by default without
 forcing a custom triple. `COVERAGE_LEVELS_PER_FILE` applies `perFile: true`
 to the thresholds half only, because glob-pattern `coverageTargets` entries
 set `perFile` per glob rather than inheriting a top-level flag under
 Vitest 5.
 
-`AgentPlugin.COVERAGE_AUTOUPDATE` (`packages/plugin/src/plugin.ts:827`) ships
+`AgentPlugin.COVERAGE_AUTOUPDATE` (`packages/plugin/src/plugin.ts`) ships
 three plain `(next: number, previous: number) => number` functions
 matching Vitest's native `coverage.thresholds.autoUpdate` contract
 (`boolean | ((newThreshold, previousThreshold) => number)`) directly —
@@ -69,23 +72,23 @@ to 0, and never returns below `previous`. There is no plugin-side wrapping
 or type augmentation; Vitest owns its own ratchet and the plugin does not
 fight it.
 
-`ConfigValidation` (`packages/plugin/src/services/ConfigValidation.ts:57`) is
+`ConfigValidation` (`packages/plugin/src/services/ConfigValidation.ts`) is
 an Effect service — `validate(input: ValidationInput):
 Effect<ValidationResult>` — whose Live layer
 (`packages/plugin/src/layers/ConfigValidationLive.ts`) runs a fixed rule
-registry (`runAllRules`, `packages/plugin/src/layers/ConfigValidationLive.ts:207`)
+registry (`runAllRules`, `packages/plugin/src/layers/ConfigValidationLive.ts`)
 and produces a `ValidationResult` with `errors`, `warnings`, and `info`
 arrays; `ValidationError` and `ValidationWarning` carry an optional `path`
-for pinpointed diagnostics (`packages/plugin/src/services/ConfigValidation.ts:9-31`).
+for pinpointed diagnostics (`packages/plugin/src/services/ConfigValidation.ts`).
 The `MISSING_PROVIDER_PACKAGE` rule
-(`packages/plugin/src/layers/ConfigValidationLive.ts:153`) checks
+(`packages/plugin/src/layers/ConfigValidationLive.ts`) checks
 installability with `createRequire(import.meta.url).resolve(packageName)`
-(`packages/plugin/src/layers/ConfigValidationLive.ts:44-48`) rather than a
+(`packages/plugin/src/layers/ConfigValidationLive.ts`) rather than a
 filesystem scan or a `package.json` lookup, so the rule fires exactly when
 Vitest's own runtime resolution would also fail to load the provider; the
 error's `remediation` field carries the matching install command
 (`npm install --save-dev @vitest/coverage-v8` or
-`@vitest/coverage-istanbul`, `packages/plugin/src/layers/ConfigValidationLive.ts:163-167`).
+`@vitest/coverage-istanbul`, `packages/plugin/src/layers/ConfigValidationLive.ts`).
 The test factory `ConfigValidationTest.layer` (`packages/plugin/src/layers/ConfigValidationTest.ts`)
 lets tests inject pre-built results without spinning up the rule engine.
 
@@ -117,8 +120,8 @@ lets tests inject pre-built results without spinning up the rule engine.
 - A custom reporter or downstream consumer that needs to know whether
   persistence ran reads `ResolvedReporterConfig.coverageMode` rather than
   re-deriving it from `coverage.enabled` itself; the derivation lives in
-  exactly one place (`packages/plugin/src/plugin.ts:526` and its mirror in
-  `packages/plugin/src/layers/ConfigValidationLive.ts:33`).
+  exactly one place (`packages/plugin/src/plugin.ts` and its mirror in
+  `packages/plugin/src/layers/ConfigValidationLive.ts`).
 - Adding a new coverage-level preset means adding one entry to both
   `COVERAGE_LEVELS` and `COVERAGE_LEVELS_PER_FILE` and re-checking the
   "next preset up" mapping stays coherent at the new tier.

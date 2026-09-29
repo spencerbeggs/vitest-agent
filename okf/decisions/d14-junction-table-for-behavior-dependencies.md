@@ -2,17 +2,20 @@
 type: Decision
 title: Junction Table for Behavior Dependencies
 description: Behavior dependencies live in a tdd_behavior_dependencies junction table with FK enforcement and CASCADE, not JSON-in-TEXT, so recursive CTE walks and orphan rejection come for free.
-status: draft
+status: stable
 tags:
   - architecture
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: dc36a126ca5fbbf56cd100b8e2796f8a11306ba3b549fb2fdb5953aea7b9e14a
+  at: 2026-09-29T20:39:41Z
+  body_sha256: 50a5ee48a52464b6ee8fbae4f85ce5bbcdfa0b2498f97fbd40dd1b5b40754365
 sources:
   - id: migration-0001-junction-table
     resource: ../../packages/engine/src/migrations/0001_initial.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Junction Table for Behavior Dependencies
@@ -33,7 +36,7 @@ Dependencies live in a dedicated `tdd_behavior_dependencies` junction
 table with composite primary key `(behavior_id, depends_on_id)` and
 `ON DELETE CASCADE` on both endpoints referencing
 `tdd_session_behaviors(id)`
-(`packages/engine/src/migrations/0001_initial.ts:730-737`). A
+(`packages/engine/src/migrations/0001_initial.ts`). A
 `CHECK (behavior_id != depends_on_id)` on the same table forbids
 self-dependencies. A reverse-lookup index,
 `idx_tdd_behavior_dependencies_depends_on`, on `depends_on_id` supports

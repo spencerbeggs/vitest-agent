@@ -2,14 +2,14 @@
 type: Decision
 title: Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size
 description: DataStoreLive persists an attachment body inline only when both the caller-reported byteSize and the actual stored-string length clear a 64 KiB cap, so a caller cannot smuggle an oversized row past a self-reported number.
-status: draft
+status: stable
 tags:
   - architecture
   - performance
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: dc42d3e85356058453f133a79375329f629b24b1521ed7587e91937a7f77c6c2
+  at: 2026-09-29T20:39:41Z
+  body_sha256: f0728091bc00e421b8ce2a5cc7bece55470d43fe813b927f68cb674afc1294e7
 sources:
   - id: data-store-service
     resource: ../../packages/engine/src/services/DataStore.ts
@@ -17,6 +17,9 @@ sources:
     resource: ../../packages/engine/src/layers/DataStoreLive.ts
   - id: migration-0002
     resource: ../../packages/engine/src/migrations/0002_test_artifacts.ts
+verified:
+  - by: human:spencer
+    at: 2026-09-29T00:00:00Z
 ---
 
 # Cap Inline Attachment Bodies on Stored Bytes, Not the Reported Size
@@ -56,10 +59,15 @@ to the `attachments` table by migration
   could smuggle an arbitrarily large string into the row while still
   passing the cap check.
 - **Gate on the stored string's length alone, ignoring the reported
-  size.** Rejected because a base64-encoded body's stored string is 4/3
-  the size of the payload it represents, so gating only on the stored
-  string under-charges exactly the encoding this system is told to expect
-  by default.
+  size.** Rejected as incomplete rather than unsafe. A base64-encoded
+  body's stored string is roughly 4/3 the size of the decoded payload it
+  represents, so the stored length over-charges a base64 body relative to
+  its payload; it never under-charges it. The stored-length check exists
+  because the real risk runs the other way: a caller self-reporting a
+  small `byteSize` for a large stored string. Checking the stored length
+  closes that hole, and taking the maximum with `byteSize` guards the
+  opposite direction, so a body whose reported payload is over the cap
+  is not admitted on the strength of a smaller stored string.
 - **Cap the body length and silently truncate rather than dropping it
   entirely.** Rejected — a truncated body reads as complete to anything
   that decodes it, silently corrupting whatever format the attachment
@@ -84,6 +92,6 @@ bounds.
 - [Decision 66 — Migration 0002 Drops the Dead Table and ALTERs the Live Ones](./66-migration-0002-drops-the-dead-table-and-alters-the-live-ones.md)
 - [DataModel: sqlite-schema](../models/sqlite-schema.md)
 
-[^data-store-service]: `../../packages/engine/src/services/DataStore.ts:201,208,212`
-[^data-store-live]: `../../packages/engine/src/layers/DataStoreLive.ts:284-299`
-[^migration-0002]: `../../packages/engine/src/migrations/0002_test_artifacts.ts:51-57`
+[^data-store-service]: `../../packages/engine/src/services/DataStore.ts`
+[^data-store-live]: `../../packages/engine/src/layers/DataStoreLive.ts`
+[^migration-0002]: `../../packages/engine/src/migrations/0002_test_artifacts.ts`
