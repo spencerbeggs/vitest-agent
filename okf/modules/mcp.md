@@ -14,8 +14,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T06:13:02Z
-  body_sha256: 86347d4d258541951d3cb5c379690045a76fdc09e6d43d68a77577635842dfc0
+  at: 2026-09-29T08:51:11Z
+  body_sha256: 19ac99ca2f70f62015887b6fb6867982a3dc810a951773aa4bd872e4eb1ec049
 ---
 
 # @vitest-agent/mcp
@@ -531,9 +531,24 @@ module info, and run-script lock, and inside this long-lived server that
 is the boot checkout — so a sibling-worktree `projectRoot` silently
 collected the main checkout's tests. For the run's duration the body
 therefore `process.chdir`s to the validated root and restores the
-previous cwd in a nested `finally` on every exit path (issue 512); this is
-safe because the body runs under the one-permit `runTestsSemaphore` and
-every other tool reads its cwd from `McpSession`.
+previous cwd in a nested `finally` on every exit path (issue 512). The
+previous cwd is captured defensively: `process.cwd()` throws when the
+server's own directory was deleted (a removed worktree, say), and the run
+does not need the old value, so it proceeds and skips the restore rather
+than turning every call into an internal error.
+
+This process-global state is safe because every other tool reads its cwd
+from `McpSession`, and because the body runs under the one-permit
+`runTestsSemaphore`, held for the whole run. Effect's `McpServer` turns a
+client `notifications/cancelled` into an interrupt of the request fiber,
+and an interruptible `Effect.promise` inside `Semaphore.withPermit` would
+release the permit on that interrupt while `runTestsBody` kept running —
+letting the next call interleave its own `process.chdir` and
+`VITEST_AGENT_*` env writes, and capture this run's root as its previous
+cwd. The permitted section is therefore
+`Effect.uninterruptible(Effect.promise(() => runTestsBody(...)))`: a
+cancelled call only drops its response, and the next call waits for the
+real run to finish. Waiting for the permit stays cancellable.
 
 `runTestsBody` keeps that lifecycle — argument sanitization, root
 validation, the explicit-root config guard, the stale-entry guard, the env
