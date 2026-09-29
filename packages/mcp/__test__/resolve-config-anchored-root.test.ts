@@ -1,181 +1,155 @@
 /**
- * Issue #259: Vitest resolves the CONFIG FILE by walking UP from `root`, but
- * resolves that config's relative `globalSetup` / `setupFiles` entries
- * DOWNWARD from `resolved.root` (vitest@4.1.11:
- * `resolved.globalSetup = toArray(...).map((file) => resolvePath(file, resolved.root))`).
- * `run_tests` passes the MCP server's boot dir straight through as Vitest's
- * `root`. When that boot dir is a package subtree of a monorepo, Vitest
- * still walks up and loads `<repo>/vitest.config.ts`, but resolves that
- * config's relative `globalSetup: ["vitest.setup.ts"]` against the subtree —
- * producing `<repo>/packages/<pkg>/vitest.setup.ts`, which does not exist.
+ * Issue #259: Vitest 5 probes ONLY the given `root` for a config file, and
+ * resolves that config's relative `globalSetup` / `setupFiles` against the
+ * root. `run_tests` therefore anchors its root at the directory holding the
+ * config Vitest would load anyway: `resolveConfigAnchoredRoot(startDir)`
+ * walks UP from `startDir` for `vitest.config.*` / `vite.config.*` and
+ * yields THAT directory; `resolveAnchoredConfigFile(startDir)` yields the
+ * config path from the same walk (the explicit-`projectRoot` path passes it
+ * as `config:`). Bounded at the git root — a `.git` directory or a linked
+ * worktree's `.git` FILE — so an unrelated config above the repo can't
+ * capture the root; never fails.
  *
- * `resolveConfigAnchoredRoot(startDir)` fixes this by walking UP from
- * `startDir` looking for the config Vitest would load anyway, and returning
- * THAT directory as the root — so root and config-dir can no longer
- * disagree. Bounded at the git root so an unrelated `vite.config.ts` above
- * the repo can't capture the root; never throws — a bad/unreadable path
- * degrades to today's behavior (return `startDir` unchanged).
- *
- * Seam: real tmpdir fixtures via `mkdtempSync` — this helper `stat`s the
- * real filesystem, so memfs will not work. macOS `/tmp` is a symlink to
- * `/private/tmp`; compare through `realpathSync` like
- * `resolve-vitest-node-entry.test.ts` does.
+ * Seam (issues #384 / #389): both helpers run on `@effected/walker` over an
+ * injected `FileSystem` / `Path`, so every guard case below declares its own
+ * layout in an `@effected/memfs` volume instead of leaning on a real tmpdir
+ * (whose ancestors are the host's) or this repository's layout. One smoke
+ * test runs against the real tree, because anchoring to a real config is
+ * the point of the helper.
  */
 
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { NodeFileSystem, NodePath } from "@effect/platform-node";
+import type { MemoryFileSystemSeed } from "@effected/memfs";
+import { MemoryFileSystem } from "@effected/memfs";
+import type { FileSystem } from "effect";
+import { Effect, Layer, Path } from "effect";
+import { describe, expect, it } from "vitest";
 import { resolveAnchoredConfigFile, resolveConfigAnchoredRoot } from "../src/tools/run-tests.js";
 
+/** Run a walk against a volume holding exactly `seed` — nothing outside it exists. */
+const onVolume = <A>(
+	seed: MemoryFileSystemSeed,
+	effect: Effect.Effect<A, never, FileSystem.FileSystem | Path.Path>,
+): Promise<A> =>
+	Effect.runPromise(Effect.provide(effect, Layer.mergeAll(MemoryFileSystem.layerWith(seed), Path.layer)));
+
+const CONFIG = "export default {};\n";
+const dir = MemoryFileSystem.directory();
+
 describe("resolveConfigAnchoredRoot", () => {
-	let tmpRoot: string;
-
-	beforeEach(() => {
-		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), "va-resolve-config-anchored-root-")));
+	it("anchors from a package subtree with no local config up to the ancestor holding vitest.config.ts (issue #259)", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vitest.config.ts": CONFIG, "/repo/packages/foo": dir };
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo/packages/foo"))).toBe("/repo");
 	});
 
-	afterEach(() => {
-		rmSync(tmpRoot, { recursive: true, force: true });
+	it("examines the git root itself before stopping", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vite.config.cjs": CONFIG, "/repo/a/b/c": dir };
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo/a/b/c"))).toBe("/repo");
 	});
 
-	it("anchors from a package subtree with no local config up to the ancestor dir holding vitest.config.ts (issue #259 bug case)", () => {
-		mkdirSync(join(tmpRoot, ".git"));
-		writeFileSync(join(tmpRoot, "vitest.config.ts"), "export default {};\n");
-		const pkgDir = join(tmpRoot, "packages", "foo");
-		mkdirSync(pkgDir, { recursive: true });
-
-		const result = resolveConfigAnchoredRoot(pkgDir);
-
-		expect(result).toBe(tmpRoot);
+	it("returns startDir unchanged when it already holds the config", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vitest.config.ts": CONFIG };
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo"))).toBe("/repo");
 	});
 
-	it("returns the directory unchanged when startDir already holds the vitest config", () => {
-		mkdirSync(join(tmpRoot, ".git"));
-		writeFileSync(join(tmpRoot, "vitest.config.ts"), "export default {};\n");
-
-		const result = resolveConfigAnchoredRoot(tmpRoot);
-
-		expect(result).toBe(tmpRoot);
+	it("prefers the nearest config: a package with its own config keeps its own root", async () => {
+		const seed = {
+			"/repo/.git": dir,
+			"/repo/vitest.config.ts": CONFIG,
+			"/repo/packages/foo/vitest.config.ts": CONFIG,
+		};
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo/packages/foo"))).toBe("/repo/packages/foo");
 	});
 
-	it("prefers the nearest config: a package with its own vitest.config.ts keeps its own root instead of the repo root's", () => {
-		mkdirSync(join(tmpRoot, ".git"));
-		writeFileSync(join(tmpRoot, "vitest.config.ts"), "export default {};\n");
-		const pkgDir = join(tmpRoot, "packages", "foo");
-		mkdirSync(pkgDir, { recursive: true });
-		writeFileSync(join(pkgDir, "vitest.config.ts"), "export default {};\n");
-
-		const result = resolveConfigAnchoredRoot(pkgDir);
-
-		expect(result).toBe(pkgDir);
-		expect(result).not.toBe(tmpRoot);
+	it("bounds the walk at a .git directory: a config above the git root is never returned", async () => {
+		const seed = { "/vitest.config.ts": CONFIG, "/repo/.git": dir, "/repo/packages/foo": dir };
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo/packages/foo"))).toBe("/repo/packages/foo");
 	});
 
-	it("bounds the walk at the git root: a config sitting above the git root is never returned", () => {
-		writeFileSync(join(tmpRoot, "vitest.config.ts"), "export default {};\n");
-		const repoDir = join(tmpRoot, "repo");
-		mkdirSync(join(repoDir, ".git"), { recursive: true });
-		const pkgDir = join(repoDir, "packages", "foo");
-		mkdirSync(pkgDir, { recursive: true });
-
-		const result = resolveConfigAnchoredRoot(pkgDir);
-
-		expect(result).toBe(pkgDir);
+	it("bounds the walk at a worktree's .git FILE the same as a .git directory", async () => {
+		const seed = {
+			"/vitest.config.ts": CONFIG,
+			"/wt/.git": "gitdir: /main/.git/worktrees/wt\n",
+			"/wt/packages/foo": dir,
+		};
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/wt/packages/foo"))).toBe("/wt/packages/foo");
 	});
 
-	it("bounds the walk at a worktree's .git FILE (not directory) the same as a .git directory", () => {
-		writeFileSync(join(tmpRoot, "vitest.config.ts"), "export default {};\n");
-		const repoDir = join(tmpRoot, "repo");
-		mkdirSync(repoDir, { recursive: true });
-		// A linked worktree's `.git` is a FILE containing a `gitdir:` pointer,
-		// not a directory — `existsSync` must accept either shape.
-		writeFileSync(join(repoDir, ".git"), "gitdir: /elsewhere/.git/worktrees/repo\n");
-		const pkgDir = join(repoDir, "packages", "foo");
-		mkdirSync(pkgDir, { recursive: true });
-
-		const result = resolveConfigAnchoredRoot(pkgDir);
-
-		expect(result).toBe(pkgDir);
+	it("walks past a directory with no .git marker to reach an ancestor config", async () => {
+		// Control for the two bound cases above: without the marker, the
+		// same layout DOES reach the config at the volume root.
+		const seed = { "/vitest.config.ts": CONFIG, "/wt/packages/foo": dir };
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/wt/packages/foo"))).toBe("/");
 	});
 
-	it("returns startDir unchanged, without throwing, when no vitest/vite config exists anywhere in range", () => {
-		// No .git marker and no config anywhere under tmpRoot — a genuinely
-		// unrelated tree, distinct from "found nothing before the git
-		// boundary" (behavior 6/7 above).
-		const pkgDir = join(tmpRoot, "packages", "foo");
-		mkdirSync(pkgDir, { recursive: true });
-
-		expect(() => resolveConfigAnchoredRoot(pkgDir)).not.toThrow();
-		expect(resolveConfigAnchoredRoot(pkgDir)).toBe(pkgDir);
+	it("returns startDir unchanged when no config exists anywhere in range", async () => {
+		const seed = { "/repo/packages/foo": dir };
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo/packages/foo"))).toBe("/repo/packages/foo");
 	});
 
-	it("finds a non-.ts vitest config (vitest.config.mjs)", () => {
-		mkdirSync(join(tmpRoot, ".git"));
-		writeFileSync(join(tmpRoot, "vitest.config.mjs"), "export default {};\n");
-		const pkgDir = join(tmpRoot, "packages", "foo");
-		mkdirSync(pkgDir, { recursive: true });
-
-		const result = resolveConfigAnchoredRoot(pkgDir);
-
-		expect(result).toBe(tmpRoot);
+	it("finds a non-.ts vitest config (vitest.config.mjs)", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vitest.config.mjs": CONFIG, "/repo/packages/foo": dir };
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo/packages/foo"))).toBe("/repo");
 	});
 
-	it("falls back to vite.config.ts when no vitest.config.* exists in that directory", () => {
-		mkdirSync(join(tmpRoot, ".git"));
-		writeFileSync(join(tmpRoot, "vite.config.ts"), "export default {};\n");
-		const pkgDir = join(tmpRoot, "packages", "foo");
-		mkdirSync(pkgDir, { recursive: true });
-
-		const result = resolveConfigAnchoredRoot(pkgDir);
-
-		expect(result).toBe(tmpRoot);
+	it("falls back to vite.config.ts when no vitest.config.* exists", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vite.config.ts": CONFIG, "/repo/packages/foo": dir };
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo/packages/foo"))).toBe("/repo");
 	});
 });
 
 describe("resolveAnchoredConfigFile", () => {
-	it("returns the vitest config path when it sits in startDir", () => {
-		const dir = mkdtempSync(join(tmpdir(), "va-anchored-config-"));
-		writeFileSync(join(dir, "vitest.config.ts"), "export default {};\n");
-		expect(resolveAnchoredConfigFile(dir)).toBe(join(dir, "vitest.config.ts"));
-		rmSync(dir, { recursive: true, force: true });
+	it("returns the config path when it sits in startDir", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vitest.config.ts": CONFIG };
+		expect(await onVolume(seed, resolveAnchoredConfigFile("/repo"))).toBe("/repo/vitest.config.ts");
 	});
 
-	it("walks up to an ancestor's config", () => {
-		const dir = mkdtempSync(join(tmpdir(), "va-anchored-config-"));
-		writeFileSync(join(dir, "vitest.config.ts"), "export default {};\n");
-		const nested = join(dir, "packages", "foo");
-		mkdirSync(nested, { recursive: true });
-		expect(resolveAnchoredConfigFile(nested)).toBe(join(dir, "vitest.config.ts"));
-		rmSync(dir, { recursive: true, force: true });
+	it("walks up to an ancestor's config", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vitest.config.ts": CONFIG, "/repo/packages/foo": dir };
+		expect(await onVolume(seed, resolveAnchoredConfigFile("/repo/packages/foo"))).toBe("/repo/vitest.config.ts");
 	});
 
-	it("prefers a vitest config over a vite config in the same directory", () => {
-		const dir = mkdtempSync(join(tmpdir(), "va-anchored-config-"));
-		writeFileSync(join(dir, "vite.config.ts"), "export default {};\n");
-		writeFileSync(join(dir, "vitest.config.ts"), "export default {};\n");
-		expect(resolveAnchoredConfigFile(dir)).toBe(join(dir, "vitest.config.ts"));
-		rmSync(dir, { recursive: true, force: true });
+	it("prefers a vitest config over a vite config in the same directory", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vite.config.ts": CONFIG, "/repo/vitest.config.cjs": CONFIG };
+		expect(await onVolume(seed, resolveAnchoredConfigFile("/repo"))).toBe("/repo/vitest.config.cjs");
 	});
 
-	it("returns null when no config exists within the git boundary", () => {
-		const dir = mkdtempSync(join(tmpdir(), "va-anchored-config-"));
-		mkdirSync(join(dir, ".git"), { recursive: true });
-		const nested = join(dir, "packages", "foo");
-		mkdirSync(nested, { recursive: true });
-		expect(resolveAnchoredConfigFile(nested)).toBeNull();
-		rmSync(dir, { recursive: true, force: true });
+	it("prefers extensions in ts, mts, cts, js, mjs, cjs order", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vitest.config.js": CONFIG, "/repo/vitest.config.mts": CONFIG };
+		expect(await onVolume(seed, resolveAnchoredConfigFile("/repo"))).toBe("/repo/vitest.config.mts");
 	});
 
-	it("agrees with resolveConfigAnchoredRoot: the root is the directory holding the file (issue #384)", () => {
-		const dir = realpathSync(mkdtempSync(join(tmpdir(), "va-anchored-config-")));
-		mkdirSync(join(dir, ".git"), { recursive: true });
-		writeFileSync(join(dir, "vite.config.mjs"), "export default {};\n");
-		const nested = join(dir, "packages", "foo", "src");
-		mkdirSync(nested, { recursive: true });
-		const file = resolveAnchoredConfigFile(nested);
-		expect(file).toBe(join(dir, "vite.config.mjs"));
-		expect(resolveConfigAnchoredRoot(nested)).toBe(dirname(file as string));
-		rmSync(dir, { recursive: true, force: true });
+	it("prefers a nearer vite config over a farther vitest config", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vitest.config.ts": CONFIG, "/repo/pkg/vite.config.ts": CONFIG };
+		expect(await onVolume(seed, resolveAnchoredConfigFile("/repo/pkg"))).toBe("/repo/pkg/vite.config.ts");
+	});
+
+	it("returns null when no config exists within the git boundary", async () => {
+		const seed = { "/vitest.config.ts": CONFIG, "/repo/.git": dir, "/repo/packages/foo": dir };
+		expect(await onVolume(seed, resolveAnchoredConfigFile("/repo/packages/foo"))).toBeNull();
+	});
+
+	it("returns null when no config exists anywhere", async () => {
+		expect(await onVolume({ "/repo/packages/foo": dir }, resolveAnchoredConfigFile("/repo/packages/foo"))).toBeNull();
+	});
+
+	it("agrees with resolveConfigAnchoredRoot: the root is the directory holding the file (issue #384)", async () => {
+		const seed = { "/repo/.git": dir, "/repo/vite.config.mjs": CONFIG, "/repo/packages/foo/src": dir };
+		const file = await onVolume(seed, resolveAnchoredConfigFile("/repo/packages/foo/src"));
+		expect(file).toBe("/repo/vite.config.mjs");
+		expect(await onVolume(seed, resolveConfigAnchoredRoot("/repo/packages/foo/src"))).toBe(dirname(file as string));
+	});
+});
+
+describe("config anchoring against the real tree (smoke)", () => {
+	it("anchors this package's directory at an ancestor that really holds a vitest/vite config", async () => {
+		const packageDir = join(import.meta.dirname, "..");
+		const platform = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+		const file = await Effect.runPromise(Effect.provide(resolveAnchoredConfigFile(packageDir), platform));
+		expect(file).not.toBeNull();
+		expect(existsSync(file as string)).toBe(true);
+		expect(packageDir.startsWith(dirname(file as string))).toBe(true);
 	});
 });

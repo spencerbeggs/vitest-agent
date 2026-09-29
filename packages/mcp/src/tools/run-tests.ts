@@ -4,11 +4,13 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { NodeFileSystem, NodePath } from "@effect/platform-node";
 import { ToolOutputSchema } from "@effected/mcp";
+import { Walker } from "@effected/walker";
 import { DataReader, DataStore } from "@vitest-agent/engine";
 import type { AgentReport, ConsoleLeakTask, VitestModuleError } from "@vitest-agent/sdk";
 import {
@@ -20,7 +22,7 @@ import {
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
 import type { Context, Fiber } from "effect";
-import { Data, Effect, Result, Schema, Semaphore } from "effect";
+import { Data, Effect, FileSystem, Layer, Option, Path, Result, Schema, Semaphore } from "effect";
 import { Tool } from "effect/ai";
 import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
 import { McpSession } from "../session.js";
@@ -344,67 +346,76 @@ export type ProjectRootValidation = { ok: true; root: string } | { ok: false; me
 // Candidate filenames are checked per-directory in the order Vitest
 // itself prefers: `vitest.config.*` before `vite.config.*`, across
 // ts/mts/cts/js/mjs/cjs. The walk is bounded at the git root (a
-// worktree's `.git` is a FILE, not a directory — `existsSync` accepts
-// either) so an unrelated `vite.config.ts` sitting above the repo can't
-// silently capture the root. Neither helper ever throws.
+// worktree's `.git` is a FILE, not a directory — `FileSystem.exists`
+// accepts either) so an unrelated `vite.config.ts` sitting above the repo
+// can't silently capture the root. Neither helper ever fails.
+//
+// Issue #384: both helpers run on `@effected/walker` over an injected
+// `FileSystem` / `Path`, so tests drive them through an in-memory volume;
+// the promise-shaped run body provides the Node platform via
+// `runOnNodePlatform`.
+const VITEST_CONFIG_PREFIXES = ["vitest.config.", "vite.config."] as const;
 const VITEST_CONFIG_EXTENSIONS = ["ts", "mts", "cts", "js", "mjs", "cjs"] as const;
-
-function findConfigInDir(dir: string): string | null {
-	for (const prefix of ["vitest.config.", "vite.config."]) {
-		for (const ext of VITEST_CONFIG_EXTENSIONS) {
-			const candidate = join(dir, `${prefix}${ext}`);
-			if (existsSync(candidate)) return candidate;
-		}
-	}
-	return null;
-}
 
 /**
  * The one walk both anchoring helpers share: step UP from `startDir`
  * until a vitest/vite config file is found, returning its absolute path.
  * Bounded at the git root (inclusive — the directory containing `.git`
  * is still examined before the walk stops) and at the filesystem root.
- * Returns `null` when no config is found in range or when anything about
- * the walk throws.
+ * Yields `null` when no config is found in range. An unreadable entry
+ * reads as absent (the walker absorbs per-candidate failures), and a
+ * defect anywhere in the walk also yields `null`, so the helper never
+ * fails — the contract the synchronous `existsSync` walk had.
  */
-function walkUpToConfigFile(startDir: string): string | null {
-	try {
-		let dir = resolve(startDir);
-		for (;;) {
-			const found = findConfigInDir(dir);
-			if (found !== null) return found;
-			if (existsSync(join(dir, ".git"))) return null;
-			const parent = dirname(dir);
-			if (parent === dir) return null;
-			dir = parent;
-		}
-	} catch {
-		return null;
-	}
-}
+const walkUpToConfigFile = (startDir: string): Effect.Effect<string | null, never, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const chain = yield* Walker.ascend(path.resolve(startDir));
+		const gitRoot = yield* Walker.findRoot(chain, (dir) => fs.exists(path.join(dir, ".git")));
+		const bounded = Option.isSome(gitRoot) ? chain.slice(0, chain.indexOf(gitRoot.value) + 1) : chain;
+		const found = yield* Walker.findUpward(bounded, (dir) =>
+			VITEST_CONFIG_PREFIXES.flatMap((prefix) =>
+				VITEST_CONFIG_EXTENSIONS.map((ext) => path.join(dir, `${prefix}${ext}`)),
+			),
+		);
+		return Option.getOrNull(found);
+	}).pipe(Effect.catchDefect(() => Effect.succeed(null)));
 
 /**
- * Walk UP from `startDir` looking for the vitest/vite config file, returning
+ * Walk UP from `startDir` looking for the vitest/vite config file, yielding
  * its absolute path, or `null` when none is found in range.
  *
  * @internal exported for tests
  */
-export function resolveAnchoredConfigFile(startDir: string): string | null {
-	return walkUpToConfigFile(startDir);
-}
+export const resolveAnchoredConfigFile = (
+	startDir: string,
+): Effect.Effect<string | null, never, FileSystem.FileSystem | Path.Path> => walkUpToConfigFile(startDir);
 
 /**
  * Walk UP from `startDir` looking for the vitest/vite config Vitest would
- * load anyway, returning the directory that holds it. Returns `startDir`
+ * load anyway, yielding the directory that holds it. Yields `startDir`
  * unchanged when no config is found in range. See the issue #259 comment
  * above `validateProjectRoot` for the full rationale.
  *
  * @internal exported for tests
  */
-export function resolveConfigAnchoredRoot(startDir: string): string {
-	const found = walkUpToConfigFile(startDir);
-	return found === null ? startDir : dirname(found);
-}
+export const resolveConfigAnchoredRoot = (
+	startDir: string,
+): Effect.Effect<string, never, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function* () {
+		const found = yield* walkUpToConfigFile(startDir);
+		if (found === null) return startDir;
+		const path = yield* Path.Path;
+		return path.dirname(found);
+	});
+
+/** The Node platform the promise-shaped run body walks the real disk with; bound once so it memoizes. */
+const NodeWalkPlatform = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer);
+
+/** Run a never-failing platform walk against the real disk. */
+const runOnNodePlatform = <A>(effect: Effect.Effect<A, never, FileSystem.FileSystem | Path.Path>): Promise<A> =>
+	Effect.runPromise(Effect.provide(effect, NodeWalkPlatform));
 
 /**
  * Validate an optional caller-supplied `projectRoot` against `ctxCwd`
@@ -430,7 +441,7 @@ export async function validateProjectRoot(
 	ctxCwd: string,
 ): Promise<ProjectRootValidation> {
 	if (projectRoot === undefined) {
-		return { ok: true, root: resolveConfigAnchoredRoot(ctxCwd) };
+		return { ok: true, root: await runOnNodePlatform(resolveConfigAnchoredRoot(ctxCwd)) };
 	}
 	// Resolve a relative `projectRoot` against `ctxCwd`, not the MCP
 	// server's `process.cwd()`. Single-argument `resolve` would use the
@@ -808,7 +819,7 @@ const runTestsBody = async (input: RunTestsInputType, ctx: RunTestsContext): Pro
 	// rows, and still returns `kind: "ok"`.
 	let anchoredConfig: string | undefined;
 	if (input.projectRoot !== undefined) {
-		const found = resolveAnchoredConfigFile(resolvedRoot);
+		const found = await runOnNodePlatform(resolveAnchoredConfigFile(resolvedRoot));
 		if (found === null) {
 			return {
 				kind: "error" as const,
