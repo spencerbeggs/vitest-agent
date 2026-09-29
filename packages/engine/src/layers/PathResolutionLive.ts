@@ -11,12 +11,24 @@ import { ConfigLive } from "./ConfigLive.js";
 export const APP_NAMESPACE = "vitest-agent";
 
 /**
+ * Where the XDG data root lands when `XDG_DATA_HOME` is unset:
+ * `$HOME/.local/share/vitest-agent` — the XDG spec default. `AppDirs` alone
+ * would fall back to `$HOME/.vitest-agent`. Shared by `PathResolutionLive`
+ * (reporter/MCP route) and `resolveHookPaths` (hook/sidecar route) so both
+ * routes land in the same directory.
+ * @public
+ */
+export const DATA_FALLBACK_DIR = `.local/share/${APP_NAMESPACE}`;
+
+/**
  * `AppDirs` over the ambient `Xdg` environment, bound to a `const` so the
  * layer memoizes by reference (calling `AppDirs.layer(...)` inline at two
  * provide sites would resolve two independent services). Requires
  * `FileSystem` + `Path` at the edge.
  */
-const AppDirsLive = AppDirs.layer({ namespace: APP_NAMESPACE }).pipe(Layer.provide(Xdg.layer));
+const AppDirsLive = AppDirs.layer({ namespace: APP_NAMESPACE, fallbackDir: DATA_FALLBACK_DIR }).pipe(
+	Layer.provide(Xdg.layer),
+);
 
 /**
  * Composite layer providing every service `resolveDataPath` requires:
