@@ -1,5 +1,37 @@
 # @vitest-agent/mcp
 
+## 5.1.2
+
+### Bug Fixes
+
+- `run_tests` now runs from the validated `projectRoot` for the duration of the run and restores the previous working directory afterwards, so a `projectRoot` pointing at a git worktree collects and runs that worktree's tests instead of the MCP server's boot checkout. Previously a `vitest.config.ts` calling `AgentPlugin.discover()` with no arguments located the workspace from `process.cwd()`, which inside the long-lived server was the boot checkout (#512). [#521][#521]
+
+* `run_tests` now returns a `kind: "error"` result naming the missing file when the `vitest/node` entry the server resolved no longer exists on disk, and tells you to restart the vitest-agent MCP server (in Claude Code: `/mcp`). This happens when the lockfile is regenerated mid-session and pnpm moves vitest's store directory. Previously every test file failed with `[vitest-pool]: Worker forks emitted error.` and a total of 0, with no hint of the cause (#461). [#521][#521]
+
+### Refactoring
+
+- `run_tests` finds the Vitest config for its root with `@effected/walker`, bounded at the repository root reported by `@effected/git`, instead of a hand-written directory walk. The lookup rules are unchanged: `vitest.config.*` before `vite.config.*`, the nearest directory wins, and the walk stops at the repository root, including in a linked worktree or a symlinked checkout (#384).
+- The same-repository check for an explicit `projectRoot` now uses `@effected/git`'s `commonDir` instead of a hand-written `git rev-parse` call. It still accepts a sibling worktree of the server's repository and refuses a path in any other repository.
+- The logic that derives a run's scope and shapes its `ok` and `no-match` results now lives in pure helpers, separate from the Vitest run lifecycle. Results are unchanged (#336).
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 0.2.10 | 0.2.11 |
+| @effected/git | dependency | added | — | ^0.19.0 |
+| @effected/walker | dependency | added | — | ^0.14.0 |
+
+### Other
+
+- `run_tests` now needs git 2.31 or newer when you pass `projectRoot`, because the repository check uses `git rev-parse --path-format=absolute`. [#521][#521]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#521]: https://github.com/spencerbeggs/vitest-agent/pull/521
+
 ## 5.1.1
 
 ### Dependencies

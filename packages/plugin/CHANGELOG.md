@@ -1,5 +1,24 @@
 # @vitest-agent/plugin
 
+## 5.0.4
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.30.1 | ^0.30.2 |
+| @vitest-agent/cli | dependency | updated | 3.2.3 | 3.2.4 |
+| @vitest-agent/engine | dependency | updated | 0.2.10 | 0.2.11 |
+| @vitest-agent/mcp | dependency | updated | 5.1.1 | 5.1.2 |
+
+[#521][#521]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#521]: https://github.com/spencerbeggs/vitest-agent/pull/521
+
 ## 5.0.3
 
 ### Dependencies

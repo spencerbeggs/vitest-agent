@@ -1,5 +1,34 @@
 # @vitest-agent/engine
 
+## 0.2.11
+
+### Bug Fixes
+
+- With `XDG_DATA_HOME` unset, the reporter and MCP server now store `data.db` under `~/.local/share/vitest-agent/<workspaceKey>/`, the same directory the Claude Code hooks and sidecar use. Previously they fell back to `~/.vitest-agent/<workspaceKey>/`, so the two halves could write to different databases. Closes #422.
+- Upgrade note: an existing `~/.vitest-agent/<workspaceKey>/data.db` is not migrated and is no longer read, so history starts fresh at the new location. Move `data.db` (plus its `-wal` and `-shm` files) by hand to keep it. Users who set `XDG_DATA_HOME` are unaffected.
+- The fallback directory is now exported as `DATA_FALLBACK_DIR` alongside `APP_NAMESPACE`. [#521][#521]
+
+### Performance
+
+- `DataReader` now reads a test's annotation and artifact attachments with one query per call instead of one query per annotation or artifact, so a test that records many annotations no longer multiplies database round trips (#395). [#521][#521]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/config-file | dependency | updated | ^0.13.0 | ^0.13.1 |
+| @effected/walker | dependency | updated | ^0.13.0 | ^0.14.0 |
+| @effected/workspaces | dependency | updated | ^0.30.1 | ^0.30.2 |
+| @effected/xdg | dependency | updated | ^0.8.0 | ^0.8.1 |
+
+[#521][#521]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#521]: https://github.com/spencerbeggs/vitest-agent/pull/521
+
 ## 0.2.10
 
 ### Dependencies
