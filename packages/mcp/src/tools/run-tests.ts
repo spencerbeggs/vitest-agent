@@ -1,13 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { realpath, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Writable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { promisify } from "node:util";
 import { NodeChildProcessSpawner, NodeFileSystem, NodePath } from "@effect/platform-node";
 import { Git } from "@effected/git";
 import { ToolOutputSchema } from "@effected/mcp";
@@ -22,8 +20,8 @@ import {
 	collectConsoleLeakEntries,
 	formatScopedCoverageNote,
 } from "@vitest-agent/sdk";
-import type { Context, Fiber } from "effect";
-import { Data, Effect, FileSystem, Layer, Option, Path, Result, Schema, Semaphore } from "effect";
+import type { Context, Fiber, FileSystem } from "effect";
+import { Data, Effect, Layer, Option, Path, Result, Schema, Semaphore } from "effect";
 import { Tool } from "effect/ai";
 import type { CurrentSessionIdRef, SessionContextRef } from "../session.js";
 import { McpSession } from "../session.js";
@@ -289,36 +287,22 @@ export function sanitizeTestArgs(args: readonly string[]): string[] {
 	return result;
 }
 
-const execFileAsync = promisify(execFile);
-
 /**
- * Resolve the git common directory for `dir` (`git rev-parse
- * --git-common-dir`) — identical across a repository and every worktree
- * attached to it, which is what makes it the right "same repository"
- * comparison (a plain `--show-toplevel` differs per worktree). Returns
- * `null` when `dir` is not inside a git repository or the command fails
- * for any other reason; callers treat `null` as "cannot confirm same
- * repository", never as a silent pass.
- *
- * @internal exported for tests
+ * The git common directory for `dir` (`Git.commonDir`: `git rev-parse
+ * --path-format=absolute --git-common-dir`) — identical across a
+ * repository, its subdirectories, every linked worktree and any symlinked
+ * path to them, which is what makes it the right "same repository"
+ * comparison (`--show-toplevel` differs per worktree). Yields `null` when
+ * `dir` is not inside a git repository or the command fails for any other
+ * reason; callers treat `null` as "cannot confirm same repository", never
+ * as a silent pass.
  */
-export async function resolveGitCommonDir(dir: string): Promise<string | null> {
-	try {
-		const { stdout } = await execFileAsync("git", ["rev-parse", "--git-common-dir"], { cwd: dir });
-		const trimmed = stdout.trim();
-		if (trimmed.length === 0) return null;
-		// `--git-common-dir` may print a path relative to `dir` (e.g. `.git`
-		// for a plain repo) or an absolute, symlink-resolved path (e.g. from
-		// inside a linked worktree, where git prints the realpath). Run both
-		// shapes through `realpath` so a repo whose tmpdir sits behind a
-		// symlink (macOS `/var/folders` -> `/private/var/folders`) compares
-		// equal regardless of which form git chose to print.
-		const candidate = resolve(dir, trimmed);
-		return await realpath(candidate);
-	} catch {
-		return null;
-	}
-}
+const gitCommonDir = (dir: string): Effect.Effect<string | null, never, Git> =>
+	Effect.flatMap(Git, (git) => git.commonDir(dir)).pipe(
+		Effect.option,
+		Effect.map(Option.getOrNull),
+		Effect.catchDefect(() => Effect.succeed(null)),
+	);
 
 export type ProjectRootValidation = { ok: true; root: string } | { ok: false; message: string };
 
@@ -362,39 +346,16 @@ const VITEST_CONFIG_EXTENSIONS = ["ts", "mts", "cts", "js", "mjs", "cjs"] as con
 type ConfigWalkServices = FileSystem.FileSystem | Path.Path | Git;
 
 /**
- * The lexical ancestor of `start` (inclusive) that IS the git work-tree
- * root, or `none` outside a repository.
- *
- * `Walker.ascend`'s chain is lexical, but git reports the work-tree root
- * as a physical path (`/private/var/...` for a `/var/...` tmpdir on
- * macOS). Handing that straight to `stopAt` would match nothing and let
- * the walk run past the repository — the bound failing OPEN. So the
- * ceiling is the lexical ancestor whose realpath equals the root's; when
- * none maps (not expected), the physical root is used as-is.
- */
-const lexicalGitCeiling = (start: string): Effect.Effect<Option.Option<string>, never, ConfigWalkServices> =>
-	Effect.gen(function* () {
-		const git = yield* Git;
-		const fs = yield* FileSystem.FileSystem;
-		// Any failure (NotARepositoryError, a git spawn failure) means "no git
-		// bound": the walk then runs to the filesystem root, as it always has
-		// outside a repository.
-		const gitRoot = yield* git.repoRoot(start).pipe(Effect.option);
-		if (Option.isNone(gitRoot)) return Option.none();
-		const physicalRoot = yield* fs.realPath(gitRoot.value).pipe(Effect.orElseSucceed(() => gitRoot.value));
-		const chain = yield* Walker.ascend(start);
-		const lexical = yield* Walker.findRoot(chain, (dir) =>
-			Effect.map(fs.realPath(dir), (real) => real === physicalRoot),
-		);
-		return Option.some(Option.getOrElse(lexical, () => gitRoot.value));
-	});
-
-/**
  * The one walk both anchoring helpers share: step UP from `startDir`
  * until a vitest/vite config file is found, returning its absolute path.
- * Bounded at the git work-tree root (inclusive — `Walker.ascend`'s
- * `stopAt` keeps the ceiling in the chain, so the root is still examined)
- * and at the filesystem root. Yields `null` when no config is found in
+ * Bounded at the git work-tree root (inclusive, so the root is still
+ * examined) and at the filesystem root. `Git.repoRoot` answers a PHYSICAL
+ * path (`/private/var/...` for a `/var/...` tmpdir on macOS) while the chain
+ * is lexical, so the bound is `Walker.ascendWithin`, which stops on a
+ * realpath match; a lexical `stopAt` would match nothing there and let the
+ * walk run past the repository. Any `repoRoot` failure (not a repository,
+ * git missing) means no git bound: the walk runs to the filesystem root, as
+ * it always has outside a repository. Yields `null` when no config is found in
  * range. An unreadable entry reads as absent (the walker absorbs
  * per-candidate failures), and a defect anywhere in the walk also yields
  * `null`, so the helper never fails.
@@ -403,8 +364,11 @@ const walkUpToConfigFile = (startDir: string): Effect.Effect<string | null, neve
 	Effect.gen(function* () {
 		const path = yield* Path.Path;
 		const start = path.resolve(startDir);
-		const ceiling = yield* lexicalGitCeiling(start);
-		const dirs = yield* Walker.ascend(start, Option.isSome(ceiling) ? { stopAt: ceiling.value } : {});
+		const git = yield* Git;
+		const gitRoot = yield* git.repoRoot(start).pipe(Effect.option);
+		const dirs = Option.isSome(gitRoot)
+			? yield* Walker.ascendWithin(start, gitRoot.value)
+			: yield* Walker.ascend(start);
 		const found = yield* Walker.findUpward(dirs, (dir) =>
 			VITEST_CONFIG_PREFIXES.flatMap((prefix) =>
 				VITEST_CONFIG_EXTENSIONS.map((ext) => path.join(dir, `${prefix}${ext}`)),
@@ -494,10 +458,9 @@ export async function validateProjectRoot(
 			message: `projectRoot "${resolvedRoot}" is not a directory (ctx.cwd is "${ctxCwd}").`,
 		};
 	}
-	const [rootCommonDir, cwdCommonDir] = await Promise.all([
-		resolveGitCommonDir(resolvedRoot),
-		resolveGitCommonDir(ctxCwd),
-	]);
+	const [rootCommonDir, cwdCommonDir] = await runOnNodePlatform(
+		Effect.all([gitCommonDir(resolvedRoot), gitCommonDir(ctxCwd)], { concurrency: 2 }),
+	);
 	if (rootCommonDir === null || cwdCommonDir === null || rootCommonDir !== cwdCommonDir) {
 		return {
 			ok: false,
