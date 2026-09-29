@@ -37,7 +37,7 @@
 		"types:check": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"@okfit/plugin": "^0.5.4",
+		"@okfit/plugin": "^0.5.5",
 		"@savvy-web/silk": "^4.2.13",
 		"@vitest-agent/plugin": "workspace:*"
 	},

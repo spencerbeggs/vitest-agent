@@ -8,7 +8,8 @@ configDependencies:
   "@effected/pnpm-plugin-effect": 0.12.1
   "@savvy-web/pnpm-plugin-silk": 0.44.1
 linkWorkspacePackages: deep
-overrides:
-  "@effect/platform-node@4.0.0-rc.117>@effect/platform-node-shared": 4.0.0-rc.117
-resolvePeersFromWorkspaceRoot: false
-verifyDepsBeforeRun: false
+peerDependencyRules:
+  ignoreMissing:
+    - "@vitest/coverage-istanbul"
+    - "@vitest/coverage-v8"
+    - vitest
