@@ -22,7 +22,7 @@ describe("buildModuleInfo", () => {
 
 	it("should populate packageName and packagePath from the nearest package.json", async () => {
 		// Given: a file inside a directory that has a package.json
-		const vol = await makeMemfsSync({
+		const vol = makeMemfsSync({
 			"package.json": JSON.stringify({ name: "test-pkg" }),
 			"src/foo.ts": "",
 		});
@@ -38,7 +38,7 @@ describe("buildModuleInfo", () => {
 	it("should walk past parent directories that have no package.json to find the nearest one", async () => {
 		// Given: an outer package, and a nested package whose file sits two
 		// manifest-less directories below its package.json
-		const vol = await makeMemfsSync({
+		const vol = makeMemfsSync({
 			"package.json": JSON.stringify({ name: "outer-pkg" }),
 			"packages/inner/package.json": JSON.stringify({ name: "inner-pkg" }),
 			"packages/inner/src/deep/foo.ts": "",
@@ -55,7 +55,7 @@ describe("buildModuleInfo", () => {
 	it("should return empty strings when no package.json is found before filesystem root", async () => {
 		// Given: a volume with no package.json anywhere — deterministic, unlike
 		// the real-disk version which could hit a package.json above os.tmpdir()
-		const vol = await makeMemfsSync({ "no-pkg.ts": "" });
+		const vol = makeMemfsSync({ "no-pkg.ts": "" });
 
 		// When: buildModuleInfo is called on a path with no package.json ancestor
 		const result = buildModuleInfo(vol.at("no-pkg.ts"), vol.fs);
@@ -68,7 +68,7 @@ describe("buildModuleInfo", () => {
 	describe("caching", () => {
 		it("should cache results so a second call for the same package returns without re-reading disk", async () => {
 			// Given: first call populates the cache
-			const vol = await makeMemfsSync({
+			const vol = makeMemfsSync({
 				"package.json": JSON.stringify({ name: "test-pkg" }),
 				"src/foo.ts": "",
 			});
@@ -77,7 +77,7 @@ describe("buildModuleInfo", () => {
 			expect(first.packageName).toBe("test-pkg");
 
 			// When: the package.json is modified and buildModuleInfo is called again
-			await vol.write("package.json", JSON.stringify({ name: "renamed" }));
+			vol.write("package.json", JSON.stringify({ name: "renamed" }));
 			expect(vol.fs.readFile(vol.at("package.json"))).toContain("renamed");
 			const second = buildModuleInfo(filePath, vol.fs);
 
@@ -91,7 +91,7 @@ describe("buildModuleInfo", () => {
 
 		it("should populate a different package's name when called with a file in a different location", async () => {
 			// Given: cache is seeded with test-pkg
-			const vol = await makeMemfsSync({
+			const vol = makeMemfsSync({
 				"a/package.json": JSON.stringify({ name: "test-pkg" }),
 				"a/src/foo.ts": "",
 				"b/package.json": JSON.stringify({ name: "other-pkg" }),
@@ -111,7 +111,7 @@ describe("buildModuleInfo", () => {
 	it("should walk past a malformed package.json to the next valid ancestor", async () => {
 		// Given: a file whose nearest package.json is invalid JSON, under an
 		// outer package with a valid manifest
-		const vol = await makeMemfsSync({
+		const vol = makeMemfsSync({
 			"package.json": JSON.stringify({ name: "outer-pkg" }),
 			"bad/package.json": "{ this is not valid json !!!",
 			"bad/src/foo.ts": "",
@@ -129,7 +129,7 @@ describe("buildModuleInfo", () => {
 	});
 
 	it("should fall back to empty strings when the only package.json is malformed", async () => {
-		const vol = await makeMemfsSync({
+		const vol = makeMemfsSync({
 			"package.json": "{ this is not valid json !!!",
 			"src/foo.ts": "",
 		});
@@ -142,7 +142,7 @@ describe("buildModuleInfo", () => {
 
 	it("should strip query strings from the file path", async () => {
 		// Given: an id with a Vite query string appended
-		const vol = await makeMemfsSync({
+		const vol = makeMemfsSync({
 			"package.json": JSON.stringify({ name: "fields-pkg" }),
 			"src/foo.ts": "",
 		});

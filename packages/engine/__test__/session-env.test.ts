@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { MemoryFileSystemSeed } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
-import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import type { SessionEnvFileSystem } from "../src/programs/session-env.js";
 import { parseSessionEnvExports, recoverSessionContextFromSessionEnv } from "../src/programs/session-env.js";
@@ -48,17 +47,8 @@ function sessionDir(chatId: string, opts: SessionDirOptions): MemoryFileSystemSe
 
 /** A {@link SessionEnvFileSystem} over an in-memory volume seeded with `seed`. */
 function volumeFs(seed: MemoryFileSystemSeed): SessionEnvFileSystem {
-	const { volume } = Effect.runSync(MemoryFileSystem.makeInspectableWith(seed));
-	const sync = MemoryFileSystem.syncFileSystem(volume);
-	return {
-		readDirectory: sync.readDirectory,
-		readFile: sync.readFile,
-		mtimeMs: (path) => {
-			const mtime = volume.mtime(path);
-			if (mtime === undefined) throw new Error(`ENOENT: no such file, stat '${path}'`);
-			return mtime;
-		},
-	};
+	const { sync } = MemoryFileSystem.makeSync(seed);
+	return { readDirectory: sync.readDirectory, readFile: sync.readFile, mtimeMs: (path) => sync.stat(path).mtimeMs };
 }
 
 const recover = (projectDir: string, seed: MemoryFileSystemSeed) =>

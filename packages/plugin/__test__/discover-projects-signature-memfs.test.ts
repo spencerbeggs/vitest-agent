@@ -48,7 +48,7 @@ const seedDeepWorkspace = (): Files => {
  * its own `uniqueRoot()` so no cache entry crosses a test boundary.
  */
 const discoverIn = async (files: Files, root: string, options?: { readonly maxDepth?: number }) =>
-	(await makeMemfsWorkspace(files, root)).discover(options);
+	makeMemfsWorkspace(files, root).discover(options);
 
 describe("discovery cache signature over a virtual volume", () => {
 	it("discovers the seeded package through memfs' sync port", async () => {
