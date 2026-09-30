@@ -1,5 +1,21 @@
 # @vitest-agent/engine
 
+## 0.3.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | ^0.30.2 | ^0.30.3 |
+
+[#537][#537]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#537]: https://github.com/spencerbeggs/vitest-agent/pull/537
+
 ## 0.3.1
 
 ### Dependencies
