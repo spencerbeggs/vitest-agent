@@ -1,5 +1,15 @@
 # @vitest-agent/plugin
 
+## 5.1.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 3.2.5 | 3.2.6 |
+| @vitest-agent/engine | dependency | updated | 0.3.0 | 0.3.1 |
+| @vitest-agent/mcp | dependency | updated | 5.1.3 | 5.1.4 |
+
 ## 5.1.0
 
 ### Features
