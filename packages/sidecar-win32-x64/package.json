@@ -29,7 +29,7 @@
 		"@vitest-agent/sdk": "workspace:*"
 	},
 	"devDependencies": {
-		"@savvy-web/bundler": "^2.4.17",
+		"@savvy-web/bundler": "^2.4.18",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},
