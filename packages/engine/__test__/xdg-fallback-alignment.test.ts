@@ -12,7 +12,8 @@
 
 import { dirname, join } from "node:path";
 import { MemoryFileSystem } from "@effected/memfs";
-import { ConfigProvider, Effect, FileSystem, Layer, Path } from "effect";
+import { CurrentPlatform } from "@effected/xdg";
+import { ConfigProvider, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { PathResolutionLive } from "../src/layers/PathResolutionLive.js";
 import { resolveHookPaths } from "../src/programs/hook-paths.js";
@@ -25,13 +26,13 @@ describe("XDG fallback alignment", () => {
 	it("should resolve resolveDataPath and resolveHookPaths to the same directory under $HOME/.local/share/vitest-agent when XDG_DATA_HOME is unset", async () => {
 		// Given: HOME points at a volume dir and XDG_DATA_HOME is unset
 		const env = { HOME: home };
-		const { fileSystem, volume } = await Effect.runPromise(
-			MemoryFileSystem.makeInspectableWith({
-				[home]: MemoryFileSystem.directory(),
-				[`${cwd}/package.json`]: JSON.stringify({ name: "@org/pkg" }),
-			}),
-		);
-		const Platform = Layer.merge(Layer.succeed(FileSystem.FileSystem, fileSystem), Path.layer);
+		const { layer, volume } = MemoryFileSystem.makeSync({
+			[home]: MemoryFileSystem.directory(),
+			[`${cwd}/package.json`]: JSON.stringify({ name: "@org/pkg" }),
+		});
+		// The volume virtualizes the filesystem, not the platform: pin linux so
+		// `AppDirs` takes the XDG branch on every host.
+		const Platform = Layer.merge(layer, Layer.succeed(CurrentPlatform, "linux"));
 		const EnvLive = ConfigProvider.layer(ConfigProvider.fromEnvRecord(env));
 		const Deps = PathResolutionLive(cwd).pipe(Layer.provide(EnvLive), Layer.provideMerge(Platform));
 

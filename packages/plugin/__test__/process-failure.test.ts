@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { MemoryFileSystem } from "@effected/memfs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { processFailure } from "../src/utils/process-failure.js";
 import type { MemfsSync } from "./utils/memfs-sync.js";
@@ -88,8 +89,8 @@ describe("processFailure - findFunctionBoundary hit (lines 106-107)", () => {
 	let vol: MemfsSync;
 	let sourcePath: string;
 
-	beforeAll(async () => {
-		vol = await makeMemfsSync({ "fixture.ts": FIXTURE_SOURCE });
+	beforeAll(() => {
+		vol = makeMemfsSync({ "fixture.ts": FIXTURE_SOURCE });
 		sourcePath = vol.at("fixture.ts");
 	});
 
@@ -112,11 +113,14 @@ describe("processFailure - findFunctionBoundary hit (lines 106-107)", () => {
 
 		// And the boundary actually feeds the signature: the same failure with an
 		// unreadable source hashes differently (raw-line bucket instead of fb:).
-		const unreadable = processFailure(failureAt(sourcePath, 3), {
-			readSource: () => {
-				throw new Error("EACCES");
+		const { sync: denied } = vol.withFaults({
+			sync: {
+				readFile: (path) => {
+					throw MemoryFileSystem.errno("EACCES", "open", path);
+				},
 			},
 		});
+		const unreadable = processFailure(failureAt(sourcePath, 3), { readSource: denied.readFile });
 		expect(unreadable.signatureHash).not.toBe(result.signatureHash);
 	});
 

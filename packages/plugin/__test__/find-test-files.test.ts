@@ -5,7 +5,7 @@ import type { MemoryFileSystemSeedEntry } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
 import { describe, expect, it } from "vitest";
 import { findTestFiles } from "../src/utils/find-test-files.js";
-import { rootedSeed, withMemfsWalker } from "./utils/memfs-walker.js";
+import { memfsWalkerFs, seedMemfsWalker } from "./utils/memfs-walker.js";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 // Every case but the last runs against a seeded `@effected/memfs` volume
@@ -20,7 +20,7 @@ const findIn = (
 	files: Readonly<Record<string, MemoryFileSystemSeedEntry>>,
 	patterns: ReadonlyArray<string>,
 	dir: string = ROOT,
-): Promise<ReadonlyArray<string>> => withMemfsWalker(rootedSeed(ROOT, files), (fs) => findTestFiles(dir, patterns, fs));
+): Promise<ReadonlyArray<string>> => findTestFiles(dir, patterns, seedMemfsWalker(ROOT, files));
 
 // ── Goal 16, Behavior 29: findTestFiles returns matched absolute paths ─────────
 
@@ -184,13 +184,16 @@ describe("findTestFiles", () => {
 	// followed), so this guards the outcome that matters rather than every
 	// intermediate edit.
 	it("does not follow a symlinked directory into another tree", async () => {
-		const found = await withMemfsWalker(
-			{
-				"/pkg/src/real.test.ts": "test('real', () => {});",
-				"/elsewhere/sneaky.test.ts": "test('sneaky', () => {});",
-				"/pkg/src/linked": MemoryFileSystem.symlink("/elsewhere"),
-			},
-			(fs) => findTestFiles("/pkg", ["src/**/*.test.ts"], fs),
+		const found = await findTestFiles(
+			"/pkg",
+			["src/**/*.test.ts"],
+			memfsWalkerFs(
+				MemoryFileSystem.makeSync({
+					"/pkg/src/real.test.ts": "test('real', () => {});",
+					"/elsewhere/sneaky.test.ts": "test('sneaky', () => {});",
+					"/pkg/src/linked": MemoryFileSystem.symlink("/elsewhere"),
+				}),
+			),
 		);
 
 		expect(found).toEqual(["/pkg/src/real.test.ts"]);
@@ -205,13 +208,16 @@ describe("findTestFiles", () => {
 	// exactly the axis the port exists to keep honest, and invisible to the
 	// directory-branch guard because a link to a *file* is never recursed into.
 	it("does not collect a symlink whose own name matches a test-file glob", async () => {
-		const found = await withMemfsWalker(
-			{
-				"/pkg/src/real.test.ts": "test('real', () => {});",
-				"/real/helper.test.ts": "test('helper', () => {});",
-				"/pkg/src/link.test.ts": MemoryFileSystem.symlink("/real/helper.test.ts"),
-			},
-			(fs) => findTestFiles("/pkg", ["src/**/*.test.ts"], fs),
+		const found = await findTestFiles(
+			"/pkg",
+			["src/**/*.test.ts"],
+			memfsWalkerFs(
+				MemoryFileSystem.makeSync({
+					"/pkg/src/real.test.ts": "test('real', () => {});",
+					"/real/helper.test.ts": "test('helper', () => {});",
+					"/pkg/src/link.test.ts": MemoryFileSystem.symlink("/real/helper.test.ts"),
+				}),
+			),
 		);
 
 		expect(found).toEqual(["/pkg/src/real.test.ts"]);

@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 2c1d6ee492c5c94b2d9239cf80ca762d70bc5f719dbe5ef9c029202cf2fd7bb2
+  at: 2026-09-30T03:49:16Z
+  body_sha256: ca841225f565b98a30bf3f0da4008888cc7127665378f9a49c80a4c28bbedc75
 ---
 
 # @vitest-agent/plugin
@@ -771,11 +771,13 @@ sites to reach past the port) and not shaped like `@effected/workspaces`'s
 need the entry *type* `readdir({ withFileTypes: true })` returns in the
 same syscall — reading names and then stat-ing each one is exactly the
 syscall-doubling the port exists to avoid. The discovery walkers must not
-follow symlinks (a pnpm `node_modules` tree is a farm of links into the
-content-addressed store), so they sit on `@effected/memfs`'s literal
-`Volume` inspection view, while only `getWorkspacePackagesSync` uses the
-resolving `syncFileSystem` port — same package, opposite correct symlink
-answer, one accessor apart.
+recurse through symlinks (a pnpm `node_modules` tree is a farm of links
+into the content-addressed store): `readdir`'s dirents are literal, so a
+link answers `false` to both `isFile` and `isDirectory` and is skipped,
+while `statEntry`'s `stat` follows links. Tests hand the walkers an
+adapter over an `@effected/memfs` handle's `node:fs/promises`-shaped port,
+which makes those same two calls with the same semantics; see [Decision
+74](../decisions/74-walker-test-adapter-sits-on-memfs-promises-port.md).
 
 ### Pattern: Range Compression
 

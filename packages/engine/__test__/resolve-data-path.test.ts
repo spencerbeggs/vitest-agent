@@ -3,7 +3,7 @@ import type { MemoryFileSystemSeed, MemoryFileSystemVolume } from "@effected/mem
 import { MemoryFileSystem } from "@effected/memfs";
 import { AppDirs, ResolvedAppDirs } from "@effected/xdg";
 import { VitestAgentConfig } from "@vitest-agent/sdk";
-import { Effect, FileSystem, Layer, Option } from "effect";
+import { Effect, Layer, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import type { VitestAgentConfigFileService } from "../src/services/Config.js";
 import { VitestAgentConfigFile } from "../src/services/Config.js";
@@ -67,18 +67,17 @@ const run = (
 	projectDir: string,
 	options: { cacheDir?: string },
 	config: VitestAgentConfig,
-): Promise<{ result: string; volume: MemoryFileSystemVolume }> =>
-	Effect.runPromise(
-		Effect.gen(function* () {
-			const { fileSystem, volume } = yield* MemoryFileSystem.makeInspectableWith(seed);
-			const result = yield* resolveDataPath(projectDir, options).pipe(
-				Effect.provide(fakeAppDirs(dataRoot)),
-				Effect.provide(fakeConfigFile(config)),
-				Effect.provide(Layer.succeed(FileSystem.FileSystem, fileSystem)),
-			);
-			return { result, volume };
-		}) as Effect.Effect<{ result: string; volume: MemoryFileSystemVolume }, unknown, never>,
+): Promise<{ result: string; volume: MemoryFileSystemVolume }> => {
+	const { layer, volume } = MemoryFileSystem.makeSync(seed);
+	return Effect.runPromise(
+		resolveDataPath(projectDir, options).pipe(
+			Effect.provide(fakeAppDirs(dataRoot)),
+			Effect.provide(fakeConfigFile(config)),
+			Effect.provide(layer),
+			Effect.map((result) => ({ result, volume })),
+		) as Effect.Effect<{ result: string; volume: MemoryFileSystemVolume }, unknown, never>,
 	);
+};
 
 describe("resolveDataPath", () => {
 	it("uses programmatic options.cacheDir over everything else", async () => {

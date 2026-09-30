@@ -35,20 +35,20 @@ sources:
     title: The layers.json / DAG layering guardrail
   - id: memfs-walker
     resource: ../../packages/plugin/__test__/utils/memfs-walker.ts
-    title: withMemfsWalker — the WalkerFileSystem adapter over a memfs volume
+    title: memfsWalkerFs and seedMemfsWalker — the WalkerFileSystem adapter over a memfs handle's promises port
   - id: memfs-workspace
     resource: ../../packages/plugin/__test__/utils/memfs-workspace.ts
     title: makeMemfsWorkspace and uniqueRoot — a whole discovery scenario over one volume
   - id: memfs-sync
     resource: ../../packages/plugin/__test__/utils/memfs-sync.ts
-    title: makeMemfsSync — the volume's node-shaped sync port
+    title: makeMemfsSync — the handle's node-shaped sync port and withFaults
   - id: vitest-loader
     resource: ../../packages/mcp/__test__/resolve-vitest-node-entry.test.ts
     title: vitestLoader — a mutable holder for an unmockable dynamic import
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:27Z
-  body_sha256: ba1b7e80eed2d68fdddc4c7385c4a423fc03cc5aa5692513640cc7442c68909c
+  at: 2026-09-30T03:49:16Z
+  body_sha256: a5ab8dcf424ba4074d32672cb12591f2671f5e4bad802983d61a8f85cad65161
 ---
 
 # Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
@@ -176,13 +176,17 @@ service, the swap is a layer swap: provide `MemoryFileSystem.layerWith(seed)`
 `NodeFileSystem.layer`, and drop the `writeFileSync` / `rmSync` scaffolding
 entirely. Where the code takes the injected `WalkerFileSystem` port instead
 (`@vitest-agent/plugin`'s discovery walkers), tests pass an adapter over a
-memfs volume — `packages/plugin/__test__/utils/memfs-walker.ts`'s
-`withMemfsWalker`[^memfs-walker] — built on the volume's literal *inspection*
-view rather than its link-resolving `syncFileSystem` port, because the
-walkers must not follow symlinks and the inspection view is honest about
-them. That same adapter answers `mtimeMs` from the volume's own `mtime`,
-which is what makes a discovery cache's signature-invalidation path testable
-without touching a real disk. Seeding a volume also makes the awkward cases —
+memfs handle — `packages/plugin/__test__/utils/memfs-walker.ts`'s
+`memfsWalkerFs`[^memfs-walker] — built on the handle's
+`node:fs/promises`-shaped `promises` port, so it makes the same
+`readdir(dir, { withFileTypes: true })` and `stat` calls `nodeWalkerFs`
+makes on disk: literal dirents (a symlink answers `false` to both `isFile`
+and `isDirectory`) and a `stat` that follows links. See [Decision
+74](../decisions/74-walker-test-adapter-sits-on-memfs-promises-port.md).
+Seed a modification time with `MemoryFileSystem.file(content, { mtime })`
+and the adapter's `mtimeMs` reports it, which is what makes a discovery
+cache's signature-invalidation path testable without touching a real
+disk. Seeding a volume also makes the awkward cases —
 symlink loops, an unreadable directory, an exact modification time no
 `utimes` call would reliably produce — cheap and deterministic instead of
 flaky.
@@ -193,21 +197,29 @@ narrow port parameter whose default binds the real disk:
 `buildModuleInfo(filePath, fs?)`, `processFailure(error, { readSource? })`,
 and `recoverSessionContextFromSessionEnv({ projectDir, homeDir, fileSystem?
 })`. Shape the port as the `node:fs` sync subset the function already calls
-so `MemoryFileSystem.syncFileSystem(volume)` satisfies it structurally, and
+so a `MemoryFileSystem.makeSync(seed)` handle's `sync` port satisfies it
+structurally, and
 prefer an Effect variant over a port where the caller already holds a
 `FileSystem` (`resolveDataPath` reads the project key through
 `resolveProjectKeyFromCwdEffect`, so the whole path resolution runs on a
 memfs layer).
 
 Use the shared helpers under `packages/plugin/__test__/utils/` rather than
-seeding a volume by hand: `memfs-walker.ts` (`memfsWalkerFs`,
-`withMemfsWalker`, `seedMemfsWalker`, and `rootedSeed` for writing a tree as
-paths relative to a root)[^memfs-walker]; `memfs-workspace.ts`
+seeding a volume by hand. All three are synchronous and built on
+`MemoryFileSystem.makeSync(seed, { root })`, so a seed is written as paths
+relative to the root: `memfs-walker.ts` (`memfsWalkerFs` and
+`seedMemfsWalker(root, seed)`)[^memfs-walker]; `memfs-workspace.ts`
 (`makeMemfsWorkspace`, which presents one seeded volume through both ports
 `discoverProjects` reads plus a `write` for mutating the tree between calls,
 and `uniqueRoot`)[^memfs-workspace]; and `memfs-sync.ts` (`makeMemfsSync`,
-the volume's node-shaped sync port for the narrow sync seams
-above)[^memfs-sync]. Give every test its own virtual root from `uniqueRoot()`:
+the handle's node-shaped sync port for the narrow sync seams above, plus
+`withFaults` for faulted ports over the same volume)[^memfs-sync]. Their
+`write(relPath)` resolves against the handle's root. To exercise an
+unreadable path, fault one method through `withFaults({ sync: { readFile }
+})` and throw `MemoryFileSystem.errno("EACCES", "open", path)` rather than
+a bare `Error`. An Effect-`FileSystem` test that also needs the volume
+takes both from one handle: `const { layer, volume } =
+MemoryFileSystem.makeSync(seed)`. Give every test its own virtual root from `uniqueRoot()`:
 `discoverProjects` keeps a process-level result cache keyed by workspace root,
 and `buildModuleInfo` caches by directory, so two tests seeding the same tree
 at the same path share a cache entry — a real `mkdtemp` was unique for free, a

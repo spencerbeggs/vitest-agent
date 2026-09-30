@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { ClassifyContext, DiscoverInput, ModuleInfo } from "../src/utils/discover-strategy.js";
 import { DefaultDiscoverStrategy, DiscoverStrategy } from "../src/utils/discover-strategy.js";
 import { Tag } from "../src/utils/tag.js";
-import { rootedSeed, seedMemfsWalker } from "./utils/memfs-walker.js";
+import { seedMemfsWalker } from "./utils/memfs-walker.js";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 // Package trees are seeded into an `@effected/memfs` volume and handed to the
@@ -42,7 +42,7 @@ async function seededInput(
 	files: Readonly<Record<string, MemoryFileSystemSeedEntry>>,
 	overrides?: Partial<DiscoverInput>,
 ): Promise<DiscoverInput> {
-	return makeDiscoverInput({ fs: await seedMemfsWalker(rootedSeed(PKG, files)), ...overrides });
+	return makeDiscoverInput({ fs: seedMemfsWalker(PKG, files), ...overrides });
 }
 
 // ── Goal 13: DiscoverStrategy abstract class ──────────────────────────────────

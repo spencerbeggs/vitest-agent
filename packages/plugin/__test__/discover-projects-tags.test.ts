@@ -16,11 +16,11 @@ const ROOT_FILES = {
 // An empty workspace for the custom-strategy tests: a strategy that declines
 // every package would fire the declined-package stderr warning (issue #229)
 // for each package it saw and leak it into the run output.
-const makeEmptyWorkspace = (): Promise<MemfsWorkspace> => makeMemfsWorkspace(ROOT_FILES);
+const makeEmptyWorkspace = (): MemfsWorkspace => makeMemfsWorkspace(ROOT_FILES);
 
 // Two packages whose tests span every kind, in both include roots. Every kind
 // landing in ONE project per package is what the no-':'-suffix case pins.
-const makeTwoPackageWorkspace = (): Promise<MemfsWorkspace> =>
+const makeTwoPackageWorkspace = (): MemfsWorkspace =>
 	makeMemfsWorkspace({
 		...ROOT_FILES,
 		"packages/a/package.json": JSON.stringify({ name: "@test/a", version: "0.0.0" }),
@@ -33,14 +33,14 @@ const makeTwoPackageWorkspace = (): Promise<MemfsWorkspace> =>
 
 describe("discoverProjects() + DiscoverStrategy (tags)", () => {
 	it("should return { projects, tags } shape", async () => {
-		const ws = await makeTwoPackageWorkspace();
+		const ws = makeTwoPackageWorkspace();
 		const result = await ws.discover();
 		expect(result).toHaveProperty("projects");
 		expect(result).toHaveProperty("tags");
 	});
 
 	it("should emit one project per workspace package (each with test.name, no ':' suffix)", async () => {
-		const ws = await makeTwoPackageWorkspace();
+		const ws = makeTwoPackageWorkspace();
 		const result = await ws.discover();
 		// Positive control: a seeded workspace always has projects, so the name
 		// checks below can never pass vacuously.
@@ -51,7 +51,7 @@ describe("discoverProjects() + DiscoverStrategy (tags)", () => {
 	});
 
 	it("should surface unit/int/e2e tag definitions from DefaultDiscoverStrategy", async () => {
-		const ws = await makeTwoPackageWorkspace();
+		const ws = makeTwoPackageWorkspace();
 		const result = await ws.discover({ strategy: new DefaultDiscoverStrategy() });
 		const tagNames = result.tags.map((t) => t.name);
 		expect(tagNames).toEqual(["unit", "int", "e2e"]);
@@ -63,7 +63,7 @@ describe("discoverProjects() + DiscoverStrategy (tags)", () => {
 			classify: () => [],
 			buildProject: async () => null,
 		});
-		const ws = await makeEmptyWorkspace();
+		const ws = makeEmptyWorkspace();
 		const result = await ws.discover({ strategy: custom });
 		expect(result.tags).toEqual([]);
 	});
@@ -75,7 +75,7 @@ describe("discoverProjects() + DiscoverStrategy (tags)", () => {
 			classify: () => ["solo"],
 			buildProject: async () => null,
 		});
-		const ws = await makeEmptyWorkspace();
+		const ws = makeEmptyWorkspace();
 		const result = await ws.discover({ strategy });
 		expect(result.tags.map((t) => t.name)).toEqual(["solo"]);
 	});

@@ -63,18 +63,18 @@ function pkgFiles(name: string, opts: PkgOptions = {}): Record<string, string> {
 }
 
 /** A pnpm workspace root holding `extra` files alongside the root manifests. */
-const workspace = (extra: Record<string, string> = {}): Promise<MemfsWorkspace> =>
+const workspace = (extra: Record<string, string> = {}): MemfsWorkspace =>
 	makeMemfsWorkspace({ ...ROOT_FILES, ...extra });
 
 /** A workspace with one package that has a `__test__/` dir but no matching test file. */
-const declinedTestShaped = (name: string): Promise<MemfsWorkspace> =>
+const declinedTestShaped = (name: string): MemfsWorkspace =>
 	workspace({
 		[`packages/${name}/package.json`]: JSON.stringify({ name: `@test/${name}`, version: "0.0.0" }),
 		[`packages/${name}/__test__/helper.ts`]: "",
 	});
 
 /** A workspace with one ordinary package: src/ but no test-named file. */
-const noTestsPkg = (name: string): Promise<MemfsWorkspace> =>
+const noTestsPkg = (name: string): MemfsWorkspace =>
 	workspace({
 		[`packages/${name}/package.json`]: JSON.stringify({ name: `@test/${name}`, version: "0.0.0" }),
 		[`packages/${name}/src/index.ts`]: "export const x = 1;",
@@ -83,7 +83,7 @@ const noTestsPkg = (name: string): Promise<MemfsWorkspace> =>
 describe("discoverProjects()", () => {
 	it("should accept an options-bag { cwd } and behave identically to positional call", async () => {
 		// Given: a package with a unit test
-		const ws = await workspace(pkgFiles("opts-bag", { hasUnit: true }));
+		const ws = workspace(pkgFiles("opts-bag", { hasUnit: true }));
 
 		// When: discoverProjects is called with the options-bag signature
 		const { projects } = await ws.discover();
@@ -95,7 +95,7 @@ describe("discoverProjects()", () => {
 
 	it("should return TestProjectInlineConfiguration objects directly (not VitestProject)", async () => {
 		// Given: a package with a unit test
-		const ws = await workspace(pkgFiles("alpha", { hasUnit: true }));
+		const ws = workspace(pkgFiles("alpha", { hasUnit: true }));
 
 		// When: discoverProjects is called
 		const { projects } = await ws.discover();
@@ -112,7 +112,7 @@ describe("discoverProjects()", () => {
 	});
 
 	it("should use bare package name as test.name for any test kind", async () => {
-		const ws = await workspace(pkgFiles("beta", { hasInt: true }));
+		const ws = workspace(pkgFiles("beta", { hasInt: true }));
 		const { projects } = await ws.discover();
 		expect(projects?.[0].test?.name).toBe("@test/beta");
 	});
@@ -124,7 +124,7 @@ describe("discoverProjects()", () => {
 	});
 
 	it("should wire setupFiles when vitest.setup.ts exists at package root", async () => {
-		const ws = await workspace(pkgFiles("setup-pkg", { hasUnit: true, setupFile: true }));
+		const ws = workspace(pkgFiles("setup-pkg", { hasUnit: true, setupFile: true }));
 		const { projects } = await ws.discover();
 		const p = projects?.[0];
 		expect(p?.test?.setupFiles).toBeDefined();
@@ -133,13 +133,13 @@ describe("discoverProjects()", () => {
 
 	it("should throw when workspace root cannot be found", async () => {
 		// An empty volume: nothing above cwd marks a workspace root.
-		const ws = await makeMemfsWorkspace({});
+		const ws = makeMemfsWorkspace({});
 		await expect(ws.discover({ cwd: `${ws.root}/nested/dir` })).rejects.toThrow(/Could not find workspace root/);
 	});
 
 	describe("__test__/ directory support", () => {
 		it("should include __test__/ glob when __test__/ has test files", async () => {
-			const ws = await workspace(pkgFiles("td-unit", { testDirUnit: true }));
+			const ws = workspace(pkgFiles("td-unit", { testDirUnit: true }));
 			const { projects } = await ws.discover();
 			expect(projects).toHaveLength(1);
 			const include = projects?.[0].test?.include as string[];
@@ -147,7 +147,7 @@ describe("discoverProjects()", () => {
 		});
 
 		it("should include int test files via __test__/ glob", async () => {
-			const ws = await workspace(pkgFiles("td-int", { testDirInt: true }));
+			const ws = workspace(pkgFiles("td-int", { testDirInt: true }));
 			const { projects } = await ws.discover();
 			expect(projects).toHaveLength(1);
 			const include = projects?.[0].test?.include as string[];
@@ -155,7 +155,7 @@ describe("discoverProjects()", () => {
 		});
 
 		it("should include e2e test files via __test__/ glob", async () => {
-			const ws = await workspace(pkgFiles("td-e2e", { testDirE2e: true }));
+			const ws = workspace(pkgFiles("td-e2e", { testDirE2e: true }));
 			const { projects } = await ws.discover();
 			expect(projects).toHaveLength(1);
 			const include = projects?.[0].test?.include as string[];
@@ -163,7 +163,7 @@ describe("discoverProjects()", () => {
 		});
 
 		it("should include patterns for both src/ and __test__/", async () => {
-			const ws = await workspace(pkgFiles("td-both", { hasUnit: true, testDirUnit: true }));
+			const ws = workspace(pkgFiles("td-both", { hasUnit: true, testDirUnit: true }));
 			const { projects } = await ws.discover();
 			const include = projects?.[0].test?.include as string[];
 			expect(include.some((p) => p.includes("src/"))).toBe(true);
@@ -171,7 +171,7 @@ describe("discoverProjects()", () => {
 		});
 
 		it("should exclude utils/ fixtures/ snapshots/ inside __test__/", async () => {
-			const ws = await workspace(pkgFiles("td-excl", { testDirUnit: true }));
+			const ws = workspace(pkgFiles("td-excl", { testDirUnit: true }));
 			const { projects } = await ws.discover();
 			const exclude = projects?.[0].test?.exclude as string[] | undefined;
 			expect(exclude).toBeDefined();
@@ -194,7 +194,7 @@ describe("discoverProjects()", () => {
 			// former `.git`-as-boundary heuristic of workspaces-effect@1.x was
 			// dropped, so the root marker is now the self-referencing workspaces
 			// field. The root package is still enumerated with relativePath ".".
-			const ws = await makeMemfsWorkspace(
+			const ws = makeMemfsWorkspace(
 				{
 					"package.json": JSON.stringify({ name: "single-pkg", version: "0.0.0", workspaces: ["."] }),
 					"src/foo.test.ts": "",
@@ -214,7 +214,7 @@ describe("discoverProjects()", () => {
 
 		it("should return one project for a test-only package with no src/ (validates !isDir(srcDir) skip removal)", async () => {
 			// Given: a package with __test__/ only, no src/
-			const ws = await workspace({
+			const ws = workspace({
 				"packages/test-only/package.json": JSON.stringify({ name: "@test/test-only", version: "0.0.0" }),
 				"packages/test-only/__test__/foo.test.ts": "",
 			});
@@ -249,7 +249,7 @@ describe("discoverProjects()", () => {
 				buildProject: async () => null,
 				classify: () => [],
 			});
-			const ws = await workspace(pkgFiles("some-pkg", { hasUnit: true }));
+			const ws = workspace(pkgFiles("some-pkg", { hasUnit: true }));
 
 			// Declining a test-shaped package fires the issue-#229 stderr warning
 			// by design; capture it so it doesn't leak into the run output.
@@ -268,7 +268,7 @@ describe("discoverProjects()", () => {
 
 		it("should return the same object reference on second no-arg call (process cache)", async () => {
 			// Given: an unchanged workspace. Two calls with no strategy, same cwd.
-			const ws = await workspace(pkgFiles("cached", { hasUnit: true }));
+			const ws = workspace(pkgFiles("cached", { hasUnit: true }));
 			const result1 = await ws.discover();
 			const result2 = await ws.discover();
 
@@ -283,7 +283,7 @@ describe("discoverProjects()", () => {
 				buildProject: async () => null,
 				classify: () => [],
 			});
-			const ws = await workspace(pkgFiles("some-pkg2", { hasUnit: true }));
+			const ws = workspace(pkgFiles("some-pkg2", { hasUnit: true }));
 
 			// Declining a test-shaped package fires the issue-#229 stderr warning
 			// by design; capture it so it doesn't leak into the run output.
@@ -303,13 +303,13 @@ describe("discoverProjects()", () => {
 	describe("cache invalidation via directory signature (issue #100)", () => {
 		it("should reflect a newly-added test file after the test-file set changes following an initial cached call", async () => {
 			// Given: a package with a single src/ unit test, discovered once (populates the process cache)
-			const ws = await workspace(pkgFiles("stale-cache", { hasUnit: true }));
+			const ws = workspace(pkgFiles("stale-cache", { hasUnit: true }));
 			const first = await ws.discover();
 			const firstInclude = first.projects?.[0].test?.include as string[] | undefined;
 			expect(firstInclude?.some((p) => p.includes("__test__/"))).toBe(false);
 
 			// When: a new test file is added under __test__/ after the first (cached) call
-			await ws.write("packages/stale-cache/__test__/extra.test.ts");
+			ws.write("packages/stale-cache/__test__/extra.test.ts");
 			const second = await ws.discover();
 
 			// Then: the second call reflects the new file set instead of the stale first result
@@ -339,7 +339,7 @@ describe("declined-package warning (issue #229)", () => {
 		// Given: a package whose __test__/ dir exists but holds no matching test
 		// files — buildProject declines it (returns null) even though the
 		// directory signals test intent.
-		const ws = await declinedTestShaped("warn-me");
+		const ws = declinedTestShaped("warn-me");
 
 		// When: discoverProjects is called
 		const { projects } = await ws.discover();
@@ -368,7 +368,7 @@ describe("declined-package warning (issue #229)", () => {
 		// Given: the same declined, test-shaped package as above, with a custom
 		// strategy passed explicitly so the process-level result cache never
 		// short-circuits repeated calls into the packages loop.
-		const ws = await declinedTestShaped("warn-once");
+		const ws = declinedTestShaped("warn-once");
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: discoverProjects is called twice in a row
@@ -384,7 +384,7 @@ describe("declined-package warning (issue #229)", () => {
 		// written on opposite sides of the async isTestShapedPackage() probe, so
 		// two overlapping scans can both pass the `has()` guard before either
 		// records the path — the classic check-then-act race.
-		const ws = await declinedTestShaped("warn-concurrent");
+		const ws = declinedTestShaped("warn-concurrent");
 		const strategy = new DefaultDiscoverStrategy();
 
 		// When: two scans run concurrently (the MCP server re-resolves discovery

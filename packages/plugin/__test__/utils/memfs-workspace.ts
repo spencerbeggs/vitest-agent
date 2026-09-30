@@ -1,11 +1,10 @@
 import * as path from "node:path";
-import type { MemoryFileSystemSeedEntry } from "@effected/memfs";
+import type { MemoryFileSystemSeed } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
-import { Effect } from "effect";
 import type { DiscoverProjectsOptions, DiscoverProjectsResult } from "../../src/utils/discover-projects.js";
 import { discoverProjects } from "../../src/utils/discover-projects.js";
 import type { WalkerFileSystem } from "../../src/utils/walker-fs.js";
-import { memfsWalkerFs, rootedSeed } from "./memfs-walker.js";
+import { memfsWalkerFs } from "./memfs-walker.js";
 
 /**
  * A seeded `@effected/memfs` volume presented through both ports discovery
@@ -19,7 +18,7 @@ export interface MemfsWorkspace {
 	readonly fs: WalkerFileSystem;
 	readonly syncOps: NonNullable<DiscoverProjectsOptions["syncOps"]>;
 	/** Writes `content` at `relPath` under `root`, creating parent directories. */
-	readonly write: (relPath: string, content?: string) => Promise<void>;
+	readonly write: (relPath: string, content?: string) => void;
 	/** Runs `discoverProjects` over this volume, `cwd` defaulting to `root`. */
 	readonly discover: (options?: Omit<DiscoverProjectsOptions, "fs" | "syncOps">) => Promise<DiscoverProjectsResult>;
 }
@@ -34,29 +33,18 @@ let rootCounter = 0;
 export const uniqueRoot = (name = "repo"): string => `/ws-${++rootCounter}/${name}`;
 
 /**
- * Seeds a volume from `files` (paths relative to a fresh unique root) and
+ * Seeds a volume from `seed` (paths relative to a fresh unique root) and
  * returns the {@link MemfsWorkspace} over it.
  */
-export const makeMemfsWorkspace = async (
-	files: Readonly<Record<string, MemoryFileSystemSeedEntry>>,
-	root: string = uniqueRoot(),
-): Promise<MemfsWorkspace> => {
-	const { fileSystem, volume } = await Effect.runPromise(MemoryFileSystem.makeInspectableWith(rootedSeed(root, files)));
-	const fs = memfsWalkerFs(volume);
-	const syncOps = { fileSystem: MemoryFileSystem.syncFileSystem(volume), path };
+export const makeMemfsWorkspace = (seed: MemoryFileSystemSeed, root: string = uniqueRoot()): MemfsWorkspace => {
+	const handle = MemoryFileSystem.makeSync(seed, { root });
+	const fs = memfsWalkerFs(handle);
+	const syncOps = { fileSystem: handle.sync, path };
 	return {
 		root,
 		fs,
 		syncOps,
-		write: (relPath, content = "") => {
-			const abs = path.posix.join(root, relPath);
-			return Effect.runPromise(
-				Effect.andThen(
-					fileSystem.makeDirectory(path.posix.dirname(abs), { recursive: true }),
-					fileSystem.writeFileString(abs, content),
-				),
-			);
-		},
+		write: (relPath, content = "") => handle.write(relPath, content),
 		discover: (options) => discoverProjects({ cwd: root, ...options, fs, syncOps }),
 	};
 };

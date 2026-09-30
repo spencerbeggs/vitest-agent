@@ -2,7 +2,7 @@ import type { MemoryFileSystemSeedEntry } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
 import { describe, expect, it } from "vitest";
 import { isTestShapedPackage } from "../src/utils/is-test-shaped-package.js";
-import { rootedSeed, withMemfsWalker } from "./utils/memfs-walker.js";
+import { seedMemfsWalker } from "./utils/memfs-walker.js";
 
 // Every case runs against a seeded `@effected/memfs` volume through the
 // `WalkerFileSystem` port — no temporary directory, nothing on disk.
@@ -11,7 +11,7 @@ const PKG = "/pkg";
 
 /** Seeds `files` (relative to the package root) and asks whether it is test-shaped. */
 const shapedIn = (files: Readonly<Record<string, MemoryFileSystemSeedEntry>>): Promise<boolean> =>
-	withMemfsWalker(rootedSeed(PKG, files), (fs) => isTestShapedPackage(PKG, fs));
+	isTestShapedPackage(PKG, seedMemfsWalker(PKG, files));
 
 // Re-authored inside the active red phase window (D2 evidence binding).
 describe("isTestShapedPackage()", () => {

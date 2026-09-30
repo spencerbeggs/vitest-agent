@@ -46,7 +46,7 @@ const siblingDir = (dir: string, opts: { hasUnit?: boolean } = {}): Record<strin
 	opts.hasUnit ? { [`../${dir}/__test__/index.test.ts`]: "" } : { [`../${dir}`]: MemoryFileSystem.directory() };
 
 /** A pnpm workspace root holding `extra` seed entries. */
-const workspace = (extra: Record<string, MemoryFileSystemSeedEntry> = {}): Promise<MemfsWorkspace> =>
+const workspace = (extra: Record<string, MemoryFileSystemSeedEntry> = {}): MemfsWorkspace =>
 	makeMemfsWorkspace({ ...ROOT_FILES, ...extra });
 
 /** A builder over the workspace's virtual volume, `cwd` at its root. */
@@ -79,7 +79,7 @@ describe("DiscoverBuilder (virtual volume)", () => {
 	// ── Test 2: immutability ───────────────────────────────────────────────────
 	it("should return a new builder from .addProject(), leaving original unchanged", async () => {
 		// Given: a workspace with one package, plus a stand-alone test directory
-		const ws = await workspace({
+		const ws = workspace({
 			...pkgFiles("alpha", { hasUnit: true }),
 			...siblingDir("extra-dir", { hasUnit: true }),
 		});
@@ -105,7 +105,7 @@ describe("DiscoverBuilder (virtual volume)", () => {
 	// ── Test 3: chained adds ───────────────────────────────────────────────────
 	it("should include both entries when .addProject() is chained twice", async () => {
 		// Given: two directories with test files
-		const ws = await workspace({
+		const ws = workspace({
 			...siblingDir("dir-a", { hasUnit: true }),
 			...siblingDir("dir-b", { hasUnit: true }),
 		});
@@ -122,7 +122,7 @@ describe("DiscoverBuilder (virtual volume)", () => {
 	// ── Test 4: null result throws ─────────────────────────────────────────────
 	it("should throw when added entry has no test files under the active strategy", async () => {
 		// Given: a directory with NO test files + a strategy that always declines
-		const ws = await workspace(siblingDir("empty-dir"));
+		const ws = workspace(siblingDir("empty-dir"));
 		const emptyDir = siblingPath(ws, "empty-dir");
 
 		// When: resolving a builder with an added entry that produces null
@@ -139,7 +139,7 @@ describe("DiscoverBuilder (virtual volume)", () => {
 	// ── Test 5: name conflict throws ───────────────────────────────────────────
 	it("should throw when added entry name conflicts with a workspace package", async () => {
 		// Given: a workspace with one package named "@builder-test/alpha"
-		const ws = await workspace({ ...pkgFiles("alpha", { hasUnit: true }), ...siblingDir("dup", { hasUnit: true }) });
+		const ws = workspace({ ...pkgFiles("alpha", { hasUnit: true }), ...siblingDir("dup", { hasUnit: true }) });
 
 		// When: adding a project with the same name as a workspace package
 		await expect(
@@ -153,7 +153,7 @@ describe("DiscoverBuilder (virtual volume)", () => {
 	// ── Test 6: path conflict throws ───────────────────────────────────────────
 	it("should throw when added entry resolved path conflicts with a workspace package path", async () => {
 		// Given: a workspace with one package
-		const ws = await workspace(pkgFiles("gamma", { hasUnit: true }));
+		const ws = workspace(pkgFiles("gamma", { hasUnit: true }));
 
 		// When: adding a project pointing at the same absolute path as an existing package
 		await expect(
@@ -167,7 +167,7 @@ describe("DiscoverBuilder (virtual volume)", () => {
 	// ── Test 7: empty workspace, no addProject ─────────────────────────────────
 	it("should resolve to projects: undefined for empty workspace with no addProject", async () => {
 		// Given: a workspace whose only package has NO test files
-		const ws = await workspace({
+		const ws = workspace({
 			"packages/empty-pkg/package.json": JSON.stringify({ name: "@builder-test/empty-pkg" }),
 			"packages/empty-pkg/src/index.ts": "export const x = 1;",
 		});
@@ -193,7 +193,7 @@ describe("DiscoverBuilder (virtual volume)", () => {
 			classify: () => [],
 			buildProject: async (_input) => oneConfig,
 		});
-		const ws = await workspace(siblingDir("test-only-dir", { hasUnit: true }));
+		const ws = workspace(siblingDir("test-only-dir", { hasUnit: true }));
 
 		// When: empty workspace + one addProject
 		const result = await builderFor(ws, { strategy: customStrategy }).addProject({
