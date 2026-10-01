@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T02:30:42Z
-  body_sha256: 987cb9b3de62db4c072ad3354d8e38d07b75177fcb0290a84576ea3f809104d4
+  at: 2026-10-01T07:18:02Z
+  body_sha256: 828545ee88d94d3a1c6f4319003a7609675efa8917eafce31a8c190c7d1bbe2b
 ---
 
 # @vitest-agent/plugin
@@ -199,19 +199,21 @@ value the executor does not accept is ignored with one stderr line,
 for the <executor> audience (accepts <a>|<b>|…)`, worded by the plugin from
 `readResult`'s structured rejection (no logger involved), written to the
 caller's `report` sink (never stdout) and deduped once per Vitest run
-(issue 459). Each read uses a fresh `ConfigProvider.fromEnv()`, because
-core's default provider snapshots `process.env` once per process.
+(issue 459). `readResult` is given `source: process.env`, a record source
+re-read on every run of the effect, so a change to `process.env` after
+module load is seen (core's default `ConfigProvider` would snapshot it once
+per process).
 
 **Executor from engine.** The plugin maps the detected `Environment` to an
 `Executor` through engine's `ExecutorResolverLive` — the same layer the
 reporter uses — rather than a private copy of the table.
 
 **Diagnostics.** The plugin's own debug lines go through the engine's
-`LoggerLive(level)` (`@effected/cli`'s `CliLog` in diagnostics-only mode),
+`LoggerLive(level, undefined, process.env)` (`@effected/cli`'s `CliLog` in diagnostics-only mode),
 tagged `CliLog.component("vitest-agent:plugin")`, on stderr only and always
 NDJSON — the same shape the engine writes, even for a human at a TTY.
-`CurrentRuntimeEnv.layerFrom(process.env)` rides beside it so `CliLog` can
-neutralize workflow commands under GitHub Actions. They print only when
+Passing `process.env` lets `LoggerLive` neutralize workflow commands
+under GitHub Actions, where the runner parses this stderr. They print only when
 `VITEST_REPORTER_LOG_LEVEL` resolves to `debug`, `trace`, or `all`; at
 `info`, `warning`, or `error` they stay silent. The diagnostics layer is
 built only when that gate passes, so a default run never constructs it.
@@ -291,7 +293,9 @@ persistence failure can never swallow the run's output:
    `try` — `buildAgentReport` walks duck-typed Vitest getters bare, so a
    throwing getter degrades to a `formatFatalError` line on stderr and an
    early return rather than an unhandled rejection with no output at all.
-3. `await ensureMigrated(dbPath)` to serialize migration across reporter
+3. `await ensureMigrated(dbPath, logLevel, logFile, process.env)` (the
+   env so its records are neutralized under GitHub Actions) to serialize
+   migration across reporter
    instances sharing a `dbPath`. A rejection records `persistDisabled` and
    skips straight to the render program.
 4. **Persist program** (`DataStore | DataReader | CoverageAnalyzer |

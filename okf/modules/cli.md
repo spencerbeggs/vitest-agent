@@ -34,8 +34,8 @@ sources:
     resource: ../../packages/cli/src/lib/render-failure.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T02:30:42Z
-  body_sha256: dccc7b438b4150335b400ead753288bd553daab98e54d199b834dfe70afce127
+  at: 2026-10-01T07:18:02Z
+  body_sha256: 1cbf3042cb90e07e362eed15248f5cfd2d8d61ab5ab78483c3fe16347750b5f9
 ---
 
 # @vitest-agent/cli
@@ -120,8 +120,12 @@ Follows the
   gated `Terminal`) plus the kit's colour-decided help formatter, and its
   `env.log` installs `CliLog` as the one logger set: plain lines and
   failure reports on stderr, plus a diagnostics sink silent unless
-  `VITEST_REPORTER_LOG_LEVEL` is set (NDJSON for agent / ci, pretty for a
-  human TTY) and an async NDJSON file under `VITEST_REPORTER_LOG_FILE`.
+  `VITEST_REPORTER_LOG_LEVEL` is set (NDJSON on stderr for every
+  audience: `env.log.format` is pinned to `"json"`, because under `auto`
+  the kit builds the platform before the audience is known and the
+  engine's build-time migration records would print as plain lines inside
+  an agent's NDJSON stream) and an async NDJSON file under
+  `VITEST_REPORTER_LOG_FILE`.
   That is why the platform passes `logger: false`: the engine's
   `LoggerLive` would otherwise replace the `CliLog` set inside the
   program. Because the platform is inside failure
@@ -129,10 +133,14 @@ Follows the
   running migrations prints one line on stderr instead of a runtime
   report. `renderFailure` (`lib/render-failure.ts`) keys off the kit's
   `details.isDefect`: a typed failure from the error channel prints as
-  `vitest-agent: <Tag>: <message>`; a `Cancelled`, a `NotInteractive`,
-  a `SchemaError` and every defect are delegated to the kit's
-  `CliRuntime.defaultRender` with the first line prefixed
-  `vitest-agent:`, so a defect prints its message, a stack trimmed to
+  `vitest-agent: <Tag>: <message>`, the message passed through the kit's
+  `Fmt.sanitize` and folded to one line; a `Cancelled`, a
+  `NotInteractive`, a `SchemaError` and every defect are delegated to
+  the kit's `CliRuntime.defaultRender(error, details, { status: false })`
+  with the first line prefixed `vitest-agent:`, so the prefix replaces
+  the kit's status glyph or `[FAIL]` tag rather than doubling it (and
+  `details.defaultLines`, which always leads with that marker, is never
+  used); a defect prints its message, a stack trimmed to
   the program's own frames, and a closing `Please report at <issues
   URL>` line[^render-failure]. `helpOnUsageError:
   "stderr"` sends help plus the parse errors to stderr on a usage error,

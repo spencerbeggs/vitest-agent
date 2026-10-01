@@ -18,12 +18,10 @@ sources:
     resource: ../../packages/reporter/package.json
   - id: reporter-github-log
     resource: ../../packages/reporter/src/githubLog.ts
-  - id: reporter-render-context
-    resource: ../../packages/reporter/src/renderContext.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T02:30:42Z
-  body_sha256: d6bc3c9da6554f9c051d53c47ded63bd1a52e9d837e5c1625de37390ef4f2a6f
+  at: 2026-10-01T07:18:02Z
+  body_sha256: a34f36ca0a73830a12239610d16655e58005852ae734befee9784e9844101502
 ---
 
 # @vitest-agent/reporter
@@ -97,12 +95,13 @@ a host composing at a different layer.
   name, a path or the db path can no longer inject one[^reporter-github-log].
   Its per-project line counts a timed-out test as `failed`, unlike the step
   summary's totals table — a known inconsistency kept deliberately.
-- `src/renderContext.ts` — `reporterRenderContext`, a hand-built kit
-  `RenderContext` (CI audience, no colour, no links, Unicode glyphs,
-  unbounded width) because the reporter runs inside Vitest with no Effect
-  CLI runtime and the kit ships no pure constructor; the log block sets
-  `neutralizeWorkflowCommands`, the summary files do
-  not[^reporter-render-context].
+
+Both render contexts come from the kit's pure `Render.contextOf` with
+`audience: "ci"` (no colour, no links, unbounded width) and `toDisplayPath`
+as `displayPath`, since the reporter runs inside Vitest with no Effect CLI
+runtime. The log block keeps the `ci` default that neutralizes workflow
+commands; the step summary and `summary.md` are files, so their context
+sets `neutralizeWorkflowCommands: false`[^reporter-default].
 
 ## The default reporter
 
@@ -140,12 +139,21 @@ not a reflection of what the terminal shows[^reporter-default]:
   against the published contract.
 - **`summary.md`** — the same markdown built for the GitHub step summary.
 
-In that markdown the Classifications and Coverage sections are kit `Doc`s
-rendered through `Render.markdown` (the Coverage table capped at ten rows
-with a `(+N more not shown)` overflow line); Totals and Trend stay
-hand-built strings, because the kit IR has no bold inline for the
-`**Total**` row and no single-newline line group for the trend. The output
-is byte-identical to the earlier string path.
+Every section of that markdown is a kit `Doc` rendered through
+`Render.markdown`[^reporter-default]:
+
+- **Totals** — a plain `Doc.table` (`Project`, `Passed`, `Failed`,
+  `Timed out`, `Skipped`, `Duration`), with a `Doc.strong("Total")` row
+  when there is more than one project. It is not a `Doc.countsTable`,
+  which heads its label column with nothing and has no column for a
+  formatted duration.
+- **Classifications** — a kit table.
+- **Coverage** — a table capped at ten rows with a `(+N more not shown)`
+  overflow line; each path cell is a `Doc.file`, shown through the
+  context's `displayPath` and never linked.
+- **Trend** — `Doc.heading` plus `Doc.lines`, so each line but the last
+  ends in a GFM hard break (a trailing `\`) and a strict GFM reader
+  cannot fold them into one paragraph.
 
 Durations in the GFM summary's per-project table go through
 `@vitest-agent/ui`'s `formatDisplayDuration` (the kit's `Fmt.duration`), so
@@ -268,4 +276,3 @@ mutable state of its own.
 [^reporter-live-ink]: `packages/reporter/src/LiveInkRenderer.tsx`
 [^reporter-package-json]: `packages/reporter/package.json`
 [^reporter-github-log]: `packages/reporter/src/githubLog.ts`
-[^reporter-render-context]: `packages/reporter/src/renderContext.ts`

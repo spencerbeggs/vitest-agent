@@ -38,9 +38,12 @@ src/
                          (XDG + config + workspaces; exports APP_NAMESPACE),
                          OutputPipelineLive(env), EnvironmentDetectorLive(env)
                          over @effected/env's CurrentRuntimeEnv.layerFrom(env)
-                         (exhaustive CiName table), LoggerLive(level?, file?)
+                         (exhaustive CiName table), LoggerLive(level?, file?, env?)
                          over @effected/cli's CliLog in diagnostics-only mode
-                         ({ format: "json", plainLogger: false, level }) +
+                         ({ format: "json", plainLogger: false, level, file });
+                         env -> CurrentRuntimeEnv so records are neutralized
+                         under GitHub Actions (PlatformLive passes options.env,
+                         ensureMigrated takes an optional env) +
                          resolveLogLevel(env, option?) / resolveLogFile(env, option?)
   sql/                -- row shapes + row-to-domain assemblers
   migrations/         -- PROJECT_MIGRATIONS record (0001_initial,

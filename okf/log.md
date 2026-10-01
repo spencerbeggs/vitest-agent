@@ -1,5 +1,14 @@
 # Log
 
+## 2026-10-01
+
+* Updated AgentPlugin.discover() / DiscoverStrategy
+* Updated AgentPluginOptions
+* Updated Executor vs. console mode
+* Updated Package boundaries — process reads and forbidden imports
+* Updated Reset the local vitest-agent database
+* Updated Test layout — flat __test__ directories, src co-location, and kind-by-suffix
+
 ## 2026-09-30
 
 * Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems

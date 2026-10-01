@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T02:30:42Z
-  body_sha256: 529bae6aa3993fe10808f35de11f97fe7a60b1f9bbf9399c0637ce34abf3f647
+  at: 2026-10-01T07:18:02Z
+  body_sha256: 2379237c666a054cb8725ef0ff52307cbc03d9cdeea8344aabc10e4986e2d4e3
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -33,6 +33,8 @@ sources:
     resource: ../../packages/ui/src/pubsub/Channel.ts
   - id: ui-theme
     resource: ../../packages/ui/src/theme.ts
+  - id: ui-counts
+    resource: ../../packages/ui/src/counts.ts
 ---
 
 # @vitest-agent/ui
@@ -110,9 +112,13 @@ names the non-status accents: `classification` (`#c98ae0`, the
 stable trend), and `tag` (a non-zero tag count). Because Ink takes colour
 as `<Text>` props rather than ANSI, `inkStyle(token)` resolves a kit token
 or style through the kit's pure `Token.resolve` (the same resolution
-`CliTheme.paint` applies) and maps it onto Ink props; named colours use the
-chalk spelling Ink takes (`blackBright`). `statusGlyph(name, glyphs?)` /
-`statusInkStyle(name)` answer a status's glyph and style; `statusGlyph`
+`CliTheme.paint` applies) and maps it onto Ink props with the kit's
+`inkProps(style, "truecolor")` from `@effected/cli/ui` — every prop at
+truecolor, since these Ink trees are mounted by the reporter rather than a
+kit `CliUi` screen and Ink's own chalk level gates what is drawn; named
+colours use the chalk spelling Ink takes (`blackBright`).
+`statusGlyph(name, glyphs?)` / `statusInkStyle(name)` answer a status's
+glyph and style; `statusGlyph` is the kit's `VitestAgentStatus.glyph` and
 returns the status's ASCII glyph when handed an ASCII `GlyphSet`. Glyph
 sets are never chosen from `process` here: `StreamApp` takes an optional
 `glyphs` prop (`Glyphs.select` options, `{ ascii?, term? }`) and provides
@@ -135,6 +141,16 @@ second (`250ms`), seconds to one decimal under a minute with a trailing
 `.0` dropped (`1.2s`, `1s`), then `1m 5s` and `1h 2m`; a value that rounds
 up to the next unit is written in that unit (`999.6` → `1s`). It is
 display only — persisted durations keep full precision.
+
+Every agent-string totals line — the dispatcher's `formatTotals` and
+`formatWorkspaceTotal`, and `render-agent.ts`'s `Tests:` header with its
+unhandled-errors counter — is one `formatTotalsLine` call
+(`src/counts.ts`)[^ui-counts]: a kit `Doc.counts` block (inline layout,
+an optional suffix such as `across 3 files`) rendered with `Render.plain`
+under `Render.contextOf({ audience: "agent" })`. Its total folds timed-out
+tests in but never the unhandled-error count. `formatFailure` and the
+below-target coverage table stay hand-rolled, because the kit's
+`diffText` and pipe table are not byte-identical to the agent output.
 
 `NO_COLOR` is still read directly by the renderers; moving that decision
 to the kit is later work.
@@ -433,6 +449,9 @@ Five granularities, all under `packages/ui/__test__/`:
    `__test__/snapshots/render-ink/color/` and
    `__test__/snapshots/dispatcher/color/`, so a glyph or colour change
    shows up as a diff; `theme.test.ts` holds the token mirror to the kit.
+   `render-ink/StatusIcon.cliui.test.tsx` mounts a reporter-owned Ink
+   component through the kit's `CliUiTest.render`
+   (`@effected/cli/ui/testing`).
 
 Canonical fixtures in `__test__/utils/events.ts` are shared across the
 first four granularities; `__test__/utils/workspace.ts` carries the
@@ -442,6 +461,7 @@ see [Module: reporter](./reporter.md).
 
 [^ui-src]: `../../packages/ui/src/index.ts`
 [^ui-theme]: `../../packages/ui/src/theme.ts`
+[^ui-counts]: `../../packages/ui/src/counts.ts`
 [^ui-package-json]: `../../packages/ui/package.json`
 [^ui-reducer]: `../../packages/ui/src/reducer.ts`
 [^ui-classify]: `../../packages/ui/src/dispatcher/classify.ts`

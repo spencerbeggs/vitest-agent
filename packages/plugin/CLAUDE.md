@@ -325,9 +325,12 @@ moved to Vitest's native `coverage.thresholds`; `autoUpdate` to
 the XDG path stack and `vitest-agent.config.toml`. `logLevel` /
 `logFile` read from the `VITEST_REPORTER_LOG_LEVEL` /
 `VITEST_REPORTER_LOG_FILE` env vars; the plugin's own debug lines
-(component `vitest-agent:plugin`) go through the engine's `LoggerLive(level)`
-— `CliLog`'s NDJSON diagnostics-only mode, so NDJSON on stderr even for a
-human at a TTY — and print only at `debug`, `trace`, or `all`. The
+(component `vitest-agent:plugin`) go through the engine's
+`LoggerLive(level, undefined, process.env)` — `CliLog`'s NDJSON
+diagnostics-only mode, so NDJSON on stderr even for a human at a TTY, with
+workflow commands neutralized under GitHub Actions — and print only at
+`debug`, `trace`, or `all`. The reporter passes `process.env` to
+`ensureMigrated` for the same reason. The
 `discover-strategy` CI check is the pure
 `RuntimeEnv.fromRecord(process.env).ci`. The plugin declares
 `@effected/cli`, `env`, `glob`, and `walker` as regular dependencies
@@ -338,7 +341,7 @@ The plugin auto-detects the executor (`human`/`agent`/`ci`) via
 single `ConsoleMode` value; the executor comes from engine's
 `ExecutorResolverLive`. A `VITEST_AGENT_CONSOLE` override is read through
 `@effected/env`'s `EnvOverride.readResult` (`readConsoleOverride`,
-case-insensitive); one not valid for the detected executor is ignored
+`source: process.env` so each read sees the current env, case-insensitive); one not valid for the detected executor is ignored
 with one stderr line the plugin words itself from the structured
 rejection — `[vitest-agent:plugin] ignoring VITEST_AGENT_CONSOLE=<v>: not
 accepted for the <audience> audience (accepts a|b)` — whose accepted

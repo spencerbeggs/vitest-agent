@@ -23,8 +23,8 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T02:30:42Z
-  body_sha256: d44bfa1a731b921b96947193f29545e6d689fb267277fa6bec39fed772b08ec7
+  at: 2026-10-01T07:18:02Z
+  body_sha256: 8511edabd917a5b7fd24a3789705a44e0edc759f663deb77deedaf39d527d0b2
 ---
 
 # The `vitest-agent` CLI command tree
@@ -89,10 +89,14 @@ empty)[^main-ts]. With no flag, the environment variable
 `VITEST_AGENT_AUDIENCE` (`human | agent | ci`) overrides the detected
 audience; with neither, `@effected/env` detects it (an agent shell beats
 CI, which beats a human). The audience decides whether the run is
-interactive — see `db reset` below — and how the logging sink renders
-(NDJSON for `agent` / `ci`, pretty for a human at a TTY). Logging stays
-opt-in through `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` and
-writes to stderr only.
+interactive — see `db reset` below. It does not change the diagnostics
+format: with `VITEST_REPORTER_LOG_LEVEL` set, every stderr diagnostics
+record is one NDJSON line for every audience, a human at a TTY included,
+and so are the migrator's build-time records (`Running migration`,
+`Migrations complete`)[^main-ts]. Logging stays opt-in through
+`VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` and writes to
+stderr only. `--help` lists the flag as `--audience choice    Who the
+output is for (choices: human, agent, ci)`.
 
 ## `--format`, scoped not universal
 
@@ -122,8 +126,10 @@ on stdout), `130` a cancelled interactive prompt (Ctrl-C; one
 `vitest-agent: cancelled; nothing written` line on stderr), `1` any other
 reported failure — a failure resolving the data path, opening SQLite or
 running migrations prints one `vitest-agent: <Tag>: <message>` line on
-stderr and exits `1`. A defect (a bug, not a typed failure) also exits
-`1` but prints several stderr lines: `vitest-agent: <message>`, a stack
+stderr and exits `1` (the message has control characters stripped and
+line breaks folded, so it is always one line). A defect (a bug, not a typed failure) also exits
+`1` but prints several stderr lines: `vitest-agent: <message>` (never a
+second status marker such as `[FAIL]` after the prefix), a stack
 trimmed to the program's own frames, and a final `Please report at
 https://github.com/spencerbeggs/vitest-agent/issues` line; a consumer
 should match only the leading `vitest-agent:` of the first line. A command that sets its own code (through the kit's

@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T02:30:42Z
-  body_sha256: 7e464832f79ea9fd300285f8d94f25fdb33d49f133345447ad13160002920a2c
+  at: 2026-10-01T07:18:02Z
+  body_sha256: 452c745079a79c0f596cf5f578d495f849ebab3a9ced52e63c8c9283d4821a33
 ---
 
 # @vitest-agent/engine
@@ -54,7 +54,7 @@ consequence: every ambient input a program needs is a parameter — `env`
 (`env.HOME ?? env.USERPROFILE`). Layers that would otherwise read
 `process.env` at construction are factories instead —
 `EnvironmentDetectorLive(env)`, `RunContextLive(env)`,
-`OutputPipelineLive(env)`, `LoggerLive(logLevel?, logFile?)` with
+`OutputPipelineLive(env)`, `LoggerLive(logLevel?, logFile?, env?)` with
 `resolveLogLevel(env)` / `resolveLogFile(env)`. Environment detection reads
 the injected map only: `EnvironmentDetectorLive` builds its runtime snapshot
 with `CurrentRuntimeEnv.layerFrom(env)`, so no runtime dependency probes
@@ -105,7 +105,7 @@ returning a `Layer.Layer<PlatformServices, MigrationError | SqlError>`
 merging `ProjectDiscoveryLive`, `HistoryTrackerLive`, and
 `OutputPipelineLive(options.env)`, then provide-merging `DataReaderLive`,
 `DataStoreLive`, the migrator layer, the SQLite layer, `NodePlatformLayer`,
-and `LoggerLive(options.logLevel, options.logFile)`[^platform-ts]. `logger`
+and `LoggerLive(options.logLevel, options.logFile, options.env)`[^platform-ts]. `logger`
 defaults to `true`; `logger: false` leaves `LoggerLive` out (and ignores
 `logLevel` / `logFile`) so a logger set the caller already installed
 survives — the CLI passes it because `@effected/cli`'s `CliLog`, installed
@@ -193,7 +193,7 @@ come from `@vitest-agent/sdk`.
 `packages/engine/src/layers/` holds one Live layer per service (the
 env-reading ones are factories: `EnvironmentDetectorLive(env)`,
 `RunContextLive(env)`), plus three composites of its own:
-`LoggerLive(logLevel?, logFile?)`, `OutputPipelineLive(env)` (composing
+`LoggerLive(logLevel?, logFile?, env?)`, `OutputPipelineLive(env)` (composing
 `EnvironmentDetectorLive` + `ExecutorResolverLive` + `FormatSelectorLive` +
 `DetailResolverLive` + `OutputRendererLive` into the pipeline `PlatformLive`
 includes), and `PathResolutionLive(projectDir)` (composing the XDG/config
@@ -322,7 +322,8 @@ contract.
 
 `packages/engine/src/layers/LoggerLive.ts`. A structured logging factory
 over `@effected/cli`'s `CliLog` in its diagnostics-only mode
-(`CliLog.layer({ format: "json", plainLogger: false, level })`)[^logger-live]:
+(one `CliLog.layer({ format: "json", plainLogger: false, level, file })`
+call, `file` undefined when no log file is set)[^logger-live]:
 NDJSON to stderr, configured by `logLevel`/`logFile` options with env-var
 fallback resolved by the pure `resolveLogLevel(env, option?)` /
 `resolveLogFile(env, option?)` helpers the callers run against
@@ -337,7 +338,15 @@ already-resolved level is passed straight to `CliLog`, and with
 record prints once and nothing reads the audience or the terminal — which
 an MCP server must not touch. The file sink's `FileSystem` and `Path` are
 provided internally (Node), so the public type stays `Layer.Layer<never>`.
-The plugin's own debug lines go through this layer too. Effect's native `Logger` integrates directly with
+The optional third argument `env` (the front end passes `process.env`) is
+built into `@effected/env`'s `CurrentRuntimeEnv` for the layer's own build
+context, which `CliLog` captures: under GitHub Actions every stderr record
+is then neutralized (no workflow command at line start, `##[` escaped),
+even one logged from a fiber that carries no `CurrentRuntimeEnv` of its
+own. Without `env`, records are sanitised but not neutralized unless the
+logging fiber provides one. `PlatformLive` passes `options.env`, and
+`ensureMigrated(dbPath, logLevel?, logFile?, env?)` forwards its own
+optional `env`. The plugin's own debug lines go through this layer too. Effect's native `Logger` integrates directly with
 the `Effect.logDebug` calls threaded through every `DataStore`/`DataReader`
 method, so NDJSON output is comprehensive I/O tracing that is also parseable
 by log-aggregation tooling without a bespoke format.
