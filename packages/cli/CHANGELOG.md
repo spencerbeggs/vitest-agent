@@ -1,5 +1,48 @@
 # @vitest-agent/cli
 
+## 4.0.0
+
+### Breaking Changes
+
+- `vitest-agent db reset` exit code `5` now means "not interactive": a non-TTY, `--agent`/`--ci`, or an agent-detected shell. Previously it meant only "stdout is not a TTY". Scripts that run in agent-detected shells and relied on the prompt should pass `--human` to force it.
+- Ctrl-C at the `db reset` prompt exits `130`.
+
+### Features
+
+#### Audience flags
+
+- Global `--audience <human|agent|ci>` plus the `--human`, `--agent`, and `--ci` shorthands, and the `VITEST_AGENT_AUDIENCE` environment variable, select who the output is for. Agents and CI get NDJSON logs; humans get plain logs. `FORCE_COLOR` is honoured. `--human` re-enables interactive prompting inside an agent-detected shell.
+
+### Bug Fixes
+
+- Unexpected failures print a stack trimmed to this package's own frames followed by a "Please report at" line, and no longer print a doubled `[FAIL]` marker. [#539][#539]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effect/sql-sqlite-node | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effected/cli | dependency | updated | ^0.10.0 | ^0.11.0 |
+| @effected/config-file | dependency | updated | ^0.13.1 | ^0.14.0 |
+| @effected/engine | dependency | updated | ^0.2.0 | ^0.3.0 |
+| @effected/walker | dependency | updated | ^0.14.0 | ^0.15.0 |
+| @effected/workspaces | dependency | updated | ^0.30.3 | ^0.31.0 |
+| @vitest-agent/engine | dependency | updated | 0.3.2 | 0.4.0 |
+| @vitest-agent/sdk | dependency | updated | 5.1.3 | 5.2.0 |
+| @vitest-agent/sidecar | dependency | updated | 2.2.3 | 2.2.4 |
+| effect | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effected/env | dependency | added | — | ^0.1.0 |
+| @effected/glob | dependency | added | — | ^0.10.0 |
+
+[#539][#539]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#539]: https://github.com/spencerbeggs/vitest-agent/pull/539
+
 ## 3.2.7
 
 ### Dependencies

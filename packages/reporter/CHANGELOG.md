@@ -1,5 +1,43 @@
 # @vitest-agent/reporter
 
+## 4.0.0
+
+### Breaking Changes
+
+- `_createLiveInk` and its `CreateLiveInkOptions` and `LiveInkRenderer` types are removed. The live view is now internal to `DefaultVitestAgentReporter`. A custom reporter that mounted it should subscribe to `kit.runEvents` and mount `StreamApp` with `reduceRenderState` from `@vitest-agent/ui` through `CliUi.live` from `@effected/cli/ui`, closing the view from the reporter's optional `close()`.
+
+- `@effected/cli`, `@effected/env`, `@effected/glob`, and `@effected/walker` are now peer dependencies.
+
+### Features
+
+- The stream live view runs on the `@effected/cli` live renderer. With `TERM=dumb` it falls back to ASCII and non-interactive output, and when piped the final frame is printed once.
+- The step summary and `summary.md` are rendered through the kit document model. Trend lines now end in GFM hard breaks.
+
+### Bug Fixes
+
+- The `::group::` log block neutralizes workflow commands in project names and paths. [#539][#539]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @vitest-agent/sdk | dependency | updated | 5.1.3 | 5.2.0 |
+| @vitest-agent/ui | dependency | updated | 2.5.3 | 3.0.0 |
+| effect | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effected/cli | peerDependency | added | — | ^0.11.0 |
+| @effected/env | peerDependency | added | — | ^0.1.0 |
+| @effected/glob | peerDependency | added | — | ^0.10.0 |
+| @effected/walker | peerDependency | added | — | ^0.15.0 |
+
+[#539][#539]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#539]: https://github.com/spencerbeggs/vitest-agent/pull/539
+
 ## 3.1.3
 
 ### Dependencies

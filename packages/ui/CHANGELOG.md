@@ -1,5 +1,40 @@
 # @vitest-agent/ui
 
+## 3.0.0
+
+### Breaking Changes
+
+- Removed `GlyphSetContext`, `spinnerFrameForTime`, and the `glyphs` prop on `StreamApp`. Glyphs and colors now come from the shared theme.
+- `SPINNER_FRAMES` is typed `ReadonlyArray<string>`.
+- `@effected/cli`, `@effected/env`, `@effected/glob`, and `@effected/walker` are now peer dependencies.
+
+### Features
+
+- New theme exports built on `@effected/cli`: `VitestAgentStatus`, `VitestAgentTokens`, `inkStyle`, `statusGlyph`, and `statusInkStyle`.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 5.1.3 | 5.2.0 |
+| effect | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effected/cli | peerDependency | added | — | ^0.11.0 |
+| @effected/env | peerDependency | added | — | ^0.1.0 |
+| @effected/glob | peerDependency | added | — | ^0.10.0 |
+| @effected/walker | peerDependency | added | — | ^0.15.0 |
+
+[#539][#539]
+
+### Other
+
+- Rendered output changed: skipped glyphs and pending items are dimmed, regressing trends are yellow, coverage violations show a red `✗`, and durations read like `250ms` and `1m 5s`. [#539][#539]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#539]: https://github.com/spencerbeggs/vitest-agent/pull/539
+
 ## 2.5.3
 
 ### Dependencies

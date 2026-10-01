@@ -1,5 +1,25 @@
 # @vitest-agent/sdk
 
+## 5.2.0
+
+### Features
+
+- `VitestAgentReporter` gains an optional `close?: () => Promise<void>` hook. The plugin calls it once when Vitest closes (not per run, so watch mode keeps one reporter across reruns) and before the run-event channel shuts down, so a custom reporter can drain what it was published and release anything it acquired, such as a live view waiting to commit its last frame. A rejection is logged as a warning rather than failing the run. [#539][#539]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| effect | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+
+[#539][#539]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#539]: https://github.com/spencerbeggs/vitest-agent/pull/539
+
 ## 5.1.3
 
 ### Bug Fixes

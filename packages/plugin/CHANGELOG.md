@@ -1,5 +1,43 @@
 # @vitest-agent/plugin
 
+## 5.2.0
+
+### Features
+
+- Reporters are closed when Vitest closes, so a custom reporter's `close()` hook runs after the last run.
+- `VITEST_AGENT_CONSOLE` values match case-insensitively, and invalid values get clearer diagnostics.
+
+### Bug Fixes
+
+- `CI=false` no longer enables the CI retry rule.
+- Debug log lines are emitted only at the `debug`, `trace`, or `all` log level.
+- `vitest-agent-mcp` no longer crashes with `Cannot find package 'redis'` in packed installs; `@effect/platform-node` is now imported through subpaths. [#539][#539]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effected/glob | dependency | updated | ^0.9.0 | ^0.10.0 |
+| @effected/workspaces | dependency | updated | ^0.30.3 | ^0.31.0 |
+| @vitest-agent/cli | dependency | updated | 3.2.7 | 4.0.0 |
+| @vitest-agent/engine | dependency | updated | 0.3.2 | 0.4.0 |
+| @vitest-agent/mcp | dependency | updated | 5.1.5 | 5.1.6 |
+| @vitest-agent/reporter | dependency | updated | 3.1.3 | 4.0.0 |
+| @vitest-agent/sdk | dependency | updated | 5.1.3 | 5.2.0 |
+| effect | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effected/cli | dependency | added | — | ^0.11.0 |
+| @effected/env | dependency | added | — | ^0.1.0 |
+| @effected/walker | dependency | added | — | ^0.15.0 |
+
+[#539][#539]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#539]: https://github.com/spencerbeggs/vitest-agent/pull/539
+
 ## 5.1.2
 
 ### Dependencies

@@ -1,5 +1,33 @@
 # @vitest-agent/mcp
 
+## 5.1.6
+
+### Bug Fixes
+
+- Fixed a `Cannot find package 'redis'` crash of `vitest-agent-mcp` in packed installs by importing `@effect/platform-node` through subpaths in the `run_tests` tool. [#539][#539]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effect/sql-sqlite-node | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+| @effected/engine | dependency | updated | ^0.2.0 | ^0.3.0 |
+| @effected/git | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/mcp | dependency | updated | ^0.3.0 | ^0.4.0 |
+| @effected/walker | dependency | updated | ^0.14.0 | ^0.15.0 |
+| @vitest-agent/engine | dependency | updated | 0.3.2 | 0.4.0 |
+| @vitest-agent/sdk | dependency | updated | 5.1.3 | 5.2.0 |
+| effect | dependency | updated | 4.0.0-rc.118 | ^4.0.0 |
+
+[#539][#539]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#539]: https://github.com/spencerbeggs/vitest-agent/pull/539
+
 ## 5.1.5
 
 ### Dependencies
