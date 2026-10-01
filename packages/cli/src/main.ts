@@ -11,6 +11,7 @@
  * @packageDocumentation
  */
 
+import { isAbsolute, relative } from "node:path";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { CliAudience, CliRuntime } from "@effected/cli";
@@ -85,11 +86,13 @@ export interface MainOptions {
  *   the engine's `LoggerLive` would otherwise replace this set inside the
  *   program). The platform is built under that logger, so what it logs
  *   while building (the engine's migration records) reaches the same sink.
- *   `format: "json"` is deliberate: under `auto` the kit builds the platform
- *   before the audience is known, so those build-time records would print as
- *   plain lines inside an agent's NDJSON stream.
+ *   `format: "auto"`: NDJSON for an agent or a CI, plain lines for a person.
+ *   `argv` (`process.argv.slice(2)`) lets the build-time records follow the
+ *   audience flags too, so `--agent` with no agent detected is all NDJSON and
+ *   `--human` in an agent shell is all plain, migration records included.
  * - Failures render through `renderFailure` on stderr, first line led by
- *   `vitest-agent: `.
+ *   `vitest-agent: `. `env.displayPath` shows a defect's stack frames
+ *   relative to the project directory (absolute when outside it).
  * - An explicit `--help` (or a bare group invocation) prints help on
  *   stdout. A usage error (unknown flag, bad value, unknown subcommand,
  *   conflicting audience flags) prints help AND the parse errors on stderr
@@ -135,6 +138,13 @@ export const main = (options: MainOptions = {}): void => {
 
 	const distribution = Option.fromNullishOr(options.distribution);
 
+	// Stack-frame paths in a defect report, relative to the project directory;
+	// a path outside it (an installed bin, a global store) stays absolute.
+	const displayPath = (absolute: string): string => {
+		const rel = relative(projectDir, absolute);
+		return rel === "" || rel.startsWith("..") || isAbsolute(rel) ? absolute : rel;
+	};
+
 	const program = CliRuntime.main(CliAudience.run(rootCommand, { version: CURRENT_CLI_VERSION }), {
 		platform,
 		render: renderFailure,
@@ -143,9 +153,12 @@ export const main = (options: MainOptions = {}): void => {
 			audienceEnvVar: AUDIENCE_ENV_VAR,
 			// `--version` names the carrier the bin was launched through.
 			formatter: carrierVersionFormatter(distribution),
+			displayPath,
 			log: {
 				envVar: "VITEST_REPORTER_LOG_LEVEL",
-				format: "json",
+				format: "auto",
+				// The build-time records honour --agent / --human only when handed argv.
+				argv: process.argv.slice(2),
 				file: { envVar: "VITEST_REPORTER_LOG_FILE" },
 			},
 		},

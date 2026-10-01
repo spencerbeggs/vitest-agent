@@ -1,9 +1,8 @@
 /**
- * Dogfood probe (effected interactive-cli-kit round 4): mount a plain Ink
+ * Dogfood probe (effected interactive-cli-kit round 5): mount a plain Ink
  * component, one the reporter mounts itself, through the kit's
- * `CliUiTest.render`. A kit `Screen` is `(control) => ReactElement`, so the
- * component is wrapped in a screen that never resolves; the harness unmounts
- * when the scope closes.
+ * `CliUiTest.view` — a display-only element under the kit's providers, with
+ * no result to wait for; the harness unmounts when the scope closes.
  */
 
 import { Glyphs } from "@effected/cli";
@@ -16,12 +15,12 @@ import { statusGlyph } from "../../src/theme.js";
 
 const run = <A,>(effect: Effect.Effect<A, never, never>): Promise<A> => Effect.runPromise(effect);
 
-describe("StatusIcon through CliUiTest.render", () => {
+describe("StatusIcon through CliUiTest.view", () => {
 	it("draws the Unicode failure glyph in the plain frame", async () => {
 		const plain = await run(
 			Effect.scoped(
 				Effect.gen(function* () {
-					const screen = yield* CliUiTest.render(() => <StatusIcon status="failed" />, { columns: 40 });
+					const screen = yield* CliUiTest.view(<StatusIcon status="failed" />, { columns: 40 });
 					return yield* screen.plainFrame;
 				}),
 			),
@@ -33,7 +32,7 @@ describe("StatusIcon through CliUiTest.render", () => {
 		const plain = await run(
 			Effect.scoped(
 				Effect.gen(function* () {
-					const screen = yield* CliUiTest.render(() => <StatusIcon status="failed" />, { glyphs: "ascii" });
+					const screen = yield* CliUiTest.view(<StatusIcon status="failed" />, { glyphs: "ascii" });
 					return yield* screen.plainFrame;
 				}),
 			),
@@ -48,11 +47,11 @@ describe("StatusIcon through CliUiTest.render", () => {
 		const plain = await run(
 			Effect.scoped(
 				Effect.gen(function* () {
-					const screen = yield* CliUiTest.render(() => (
+					const screen = yield* CliUiTest.view(
 						<GlyphSetContext.Provider value={Glyphs.ascii}>
 							<StatusIcon status="failed" />
-						</GlyphSetContext.Provider>
-					));
+						</GlyphSetContext.Provider>,
+					);
 					return yield* screen.plainFrame;
 				}),
 			),
@@ -64,7 +63,7 @@ describe("StatusIcon through CliUiTest.render", () => {
 		const frames = await run(
 			Effect.scoped(
 				Effect.gen(function* () {
-					const screen = yield* CliUiTest.render(() => <StatusIcon status="failed" />, { color: "truecolor" });
+					const screen = yield* CliUiTest.view(<StatusIcon status="failed" />, { color: "truecolor" });
 					return { styled: yield* screen.frame, raw: yield* screen.rawFrame };
 				}),
 			),
@@ -73,5 +72,19 @@ describe("StatusIcon through CliUiTest.render", () => {
 		// token; the frame falls back to the SGR colour name.
 		expect(frames.styled).toBe(`[fg:red]${statusGlyph("failure")}[/fg]`);
 		expect(frames.raw).toBe(`\u001b[31m${statusGlyph("failure")}\u001b[39m`);
+	});
+
+	it("rerenders a new element in place", async () => {
+		const frames = await run(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const view = yield* CliUiTest.view(<StatusIcon status="failed" />);
+					const before = yield* view.plainFrame;
+					yield* view.rerender(<StatusIcon status="passed" />);
+					return { before, after: yield* view.plainFrame };
+				}),
+			),
+		);
+		expect(frames).toEqual({ before: statusGlyph("failure"), after: statusGlyph("success") });
 	});
 });

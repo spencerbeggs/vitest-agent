@@ -10,7 +10,8 @@
  * @packageDocumentation
  */
 
-import { Fmt } from "@effected/cli";
+import type { Block } from "@effected/cli";
+import { Doc, Fmt, Render } from "@effected/cli";
 import type {
 	FailureRecord,
 	FileCoverageReport,
@@ -90,21 +91,27 @@ export const formatTestName = (test: {
  * Render one failure block — `- <path > suite > name> [classification]`
  * followed by the indented message and diff. Stack traces are omitted
  * by default to keep the agent string compact.
+ *
+ * @remarks
+ * A kit document rendered plain for the agent audience: one compact list
+ * item whose title is verbatim (never wrapped), whose first message line is
+ * a truncated `Doc.line`, and whose diff is `Doc.diffText` with `truncate`.
+ * Each content line is cut to `width - 2` (floor 20) after the item indent.
+ * The kit sanitizes the text, so a tab becomes a space and an escape
+ * sequence is removed.
  */
 export const formatFailure = (f: FailureRecord, width: number): ReadonlyArray<string> => {
 	const suite = f.suitePath.length > 0 ? `${f.suitePath.join(" > ")} > ` : "";
 	const classification = f.classification !== null ? ` [${f.classification}]` : "";
-	const lines: string[] = [`- ${f.modulePath} > ${suite}${f.testName}${classification}`];
+	const parts: Array<Block> = [Doc.verbatim(`${f.modulePath} > ${suite}${f.testName}${classification}`)];
 	if (f.error?.message !== undefined) {
-		const firstLine = f.error.message.split("\n", 1)[0] ?? "";
-		lines.push(`  ${truncate(firstLine, Math.max(20, width - 2))}`);
+		parts.push(Doc.line(f.error.message.split("\n", 1)[0] ?? "", { truncate: true }));
 	}
-	if (f.error?.diff !== undefined) {
-		for (const diffLine of f.error.diff.split("\n")) {
-			lines.push(`  ${truncate(diffLine, Math.max(20, width - 2))}`);
-		}
-	}
-	return lines;
+	if (f.error?.diff !== undefined) parts.push(Doc.diffText(f.error.diff, { truncate: true }));
+	return Render.plain(
+		[Doc.list([Doc.section(undefined, parts)], { compact: true })],
+		Render.contextOf({ audience: "agent", width: Math.max(22, width) }),
+	).split("\n");
 };
 
 /**

@@ -18,8 +18,8 @@
  *   per-event during the run.
  */
 
-import type { InlineInput } from "@effected/cli";
-import { Doc, Render } from "@effected/cli";
+import type { CoreStatusName } from "@effected/cli";
+import { Doc, Render, Status } from "@effected/cli";
 import type {
 	AgentReport,
 	CellOptions,
@@ -45,7 +45,6 @@ import {
 	classifyRunShape,
 	dispatch,
 	dispatcherTable,
-	formatDisplayDuration,
 	reduceRenderStateAll,
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
@@ -300,9 +299,6 @@ const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): 
 	return Render.markdown([Doc.heading(3, "Trend"), Doc.lines(lines)], summaryRenderContext);
 };
 
-/** The shared kit duration (`Fmt.duration` via `@vitest-agent/ui`), so the table matches the console. */
-const formatSummaryDuration = formatDisplayDuration;
-
 /**
  * Per-project pass/fail/timeout/skip/duration table — the unconditional
  * half of the summary body.
@@ -330,41 +326,24 @@ const formatSummaryDuration = formatDisplayDuration;
  */
 const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string => {
 	const rows = reports.map((report) => summarizeProject(report));
-	const cells = (
-		name: InlineInput,
-		passed: number,
-		failed: number,
-		timedOut: number,
-		skipped: number,
-		duration: number,
-	): ReadonlyArray<InlineInput> => [
-		name,
-		String(passed),
-		String(failed),
-		String(timedOut),
-		String(skipped),
-		formatSummaryDuration(duration),
-	];
-	const tableRows = rows.map((r) =>
-		cells(r.name, r.passCount, r.failCount, r.timeoutCount ?? 0, r.skipCount, r.durationMs),
-	);
-	if (rows.length > 1) {
-		const total = rows.reduce(
-			(acc, r) => ({
-				passed: acc.passed + r.passCount,
-				failed: acc.failed + r.failCount,
-				timedOut: acc.timedOut + (r.timeoutCount ?? 0),
-				skipped: acc.skipped + r.skipCount,
-				duration: acc.duration + r.durationMs,
-			}),
-			{ passed: 0, failed: 0, timedOut: 0, skipped: 0, duration: 0 },
-		);
-		tableRows.push(
-			cells(Doc.strong("Total"), total.passed, total.failed, total.timedOut, total.skipped, total.duration),
-		);
-	}
-	const columns = ["Project", "Passed", "Failed", "Timed out", "Skipped", "Duration"].map((header) => ({ header }));
-	return Render.markdown([Doc.heading(3, "Totals"), Doc.table(columns, tableRows)], summaryRenderContext);
+	const counter = (status: CoreStatusName, key: string, label: string, n: number) =>
+		Doc.counter(Status.core, status, { key, label, n, showZero: true });
+	const tableRows = rows.map((r) => ({
+		label: r.name,
+		counters: [
+			counter("success", "passed", "Passed", r.passCount),
+			counter("failure", "failed", "Failed", r.failCount),
+			counter("warning", "timedOut", "Timed out", r.timeoutCount ?? 0),
+			counter("skip", "skipped", "Skipped", r.skipCount),
+		],
+		durationMs: r.durationMs,
+	}));
+	const table = Doc.countsTable(tableRows, {
+		labelHeader: "Project",
+		durationHeader: "Duration",
+		...(rows.length > 1 ? { totalRow: Doc.strong("Total") } : {}),
+	});
+	return Render.markdown([Doc.heading(3, "Totals"), table], summaryRenderContext);
 };
 
 /**

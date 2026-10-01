@@ -10,8 +10,41 @@
  * EMPTY (exit 64) — hooks pipe `agent *` stdout into jq.
  */
 
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runCli } from "../utils/cli-test.js";
+
+/** Non-empty stderr lines. */
+const stderrLines = (stderr: string): ReadonlyArray<string> =>
+	stderr
+		.trimEnd()
+		.split("\n")
+		.filter((line) => line.length > 0);
+
+const isJson = (line: string): boolean => {
+	try {
+		JSON.parse(line);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
+/**
+ * `db path` in a fresh sandbox (fresh XDG, so the migrator runs while the
+ * platform layer builds) at debug level: stderr carries only the build-time
+ * migration records. The sandbox inherits nothing from the host, so the
+ * runner's own CLAUDECODE / AI_AGENT never leak into a case.
+ */
+const runMigratingDbPath = (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
+	runCli([...args, "db", "path"], {
+		setup: (sandbox) => {
+			writeFileSync(join(sandbox.root, "package.json"), JSON.stringify({ name: "log-format-fixture" }));
+			return undefined;
+		},
+		env: { VITEST_REPORTER_LOG_LEVEL: "debug", ...env },
+	});
 
 const REMOVED_COMMANDS = ["status", "overview", "show", "history", "trends", "coverage", "cache", "_internal"];
 
@@ -100,5 +133,40 @@ describe("vitest-agent CLI surface", () => {
 		for (const line of lines) {
 			expect(() => JSON.parse(line)).not.toThrow();
 		}
+	});
+
+	describe("build-time log format follows the audience (format auto + argv)", () => {
+		it("is all NDJSON, migration records included, for an agent detected from the environment", async () => {
+			const result = await runMigratingDbPath([], { AI_AGENT: "claude-code" });
+
+			expect(result.exitCode).toBe(0);
+			const lines = stderrLines(result.stderr);
+			expect(lines.length).toBeGreaterThan(0);
+			expect(lines.every(isJson)).toBe(true);
+			expect(lines.map((line) => (JSON.parse(line) as { readonly message: unknown }).message)).toContain(
+				"Migrations complete",
+			);
+		});
+
+		it("is all NDJSON, migration records included, under --agent with no agent detected", async () => {
+			const result = await runMigratingDbPath(["--agent"]);
+
+			expect(result.exitCode).toBe(0);
+			const lines = stderrLines(result.stderr);
+			expect(lines.length).toBeGreaterThan(0);
+			expect(lines.every(isJson)).toBe(true);
+			expect(lines.map((line) => (JSON.parse(line) as { readonly message: unknown }).message)).toContain(
+				"Migrations complete",
+			);
+		});
+
+		it("carries no NDJSON under --human, even in a detected agent shell", async () => {
+			const result = await runMigratingDbPath(["--human"], { AI_AGENT: "claude-code", CLAUDECODE: "1" });
+
+			expect(result.exitCode).toBe(0);
+			const lines = stderrLines(result.stderr);
+			expect(lines).toContain("Migrations complete");
+			expect(lines.some(isJson)).toBe(false);
+		});
 	});
 });

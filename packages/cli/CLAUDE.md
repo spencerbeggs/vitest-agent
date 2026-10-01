@@ -17,8 +17,10 @@ src/
                          `env` option (audience override VITEST_AGENT_AUDIENCE;
                          `env.formatter` = carrierVersionFormatter; `env.log`
                          = CliLog over VITEST_REPORTER_LOG_LEVEL / _LOG_FILE,
-                         format pinned to "json" so stderr is NDJSON for
-                         every audience, build-time migration records too) ->
+                         format "auto" (NDJSON for agent/CI, plain for a
+                         person) with argv so build-time migration records
+                         honour --agent/--human/--ci; `env.displayPath` =
+                         stack paths relative to the project dir) ->
                          NodeRuntime.runMain; the root carries the shared
                          --audience/--human/--agent/--ci flags and
                          withSubcommands is exactly db / doctor / agent
@@ -42,8 +44,9 @@ src/
     render-failure.ts    -- renderFailure: typed failures as one
                             `vitest-agent: <Tag>: <message>` line; Cancelled,
                             NotInteractive, SchemaError and defects via
-                            CliRuntime.defaultRender with { status: false }
-                            (no doubled [FAIL] marker; defect: trimmed
+                            details.lines({ status: false }) (the run's
+                            colour/links/displayPath, no doubled [FAIL]
+                            marker; defect: trimmed
                             stack + issues link); messages Fmt.sanitize'd
 ```
 
@@ -85,9 +88,9 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   kit's `details.isDefect`: a typed failure is one line (message through
   `Fmt.sanitize`, line breaks folded); a defect (and
   `Cancelled` / `NotInteractive` / `SchemaError`) goes through
-  `CliRuntime.defaultRender(error, details, { status: false })`, prefixed
-  `vitest-agent:` in place of the kit's status marker (never
-  `details.defaultLines`, which leads with `[FAIL]`) — for a defect, a
+  `details.lines({ status: false })` (the run's own report: colour, links,
+  `displayPath`), prefixed `vitest-agent:` in place of the kit's status
+  marker — for a defect, a
   stack trimmed to our own frames plus a `Please report at <issues url>`
   line. `helpOnUsageError: "stderr"` puts help plus
   the parse errors on stderr on a usage error (stdout empty, exit 64 —

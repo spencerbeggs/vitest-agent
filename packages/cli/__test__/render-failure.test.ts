@@ -1,4 +1,5 @@
-import { Cancelled, NotInteractive } from "@effected/cli";
+import type { FailureDetails } from "@effected/cli";
+import { Cancelled, CliRuntime, NotInteractive } from "@effected/cli";
 import { Cause, Data, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { renderFailure } from "../src/lib/render-failure.js";
@@ -7,10 +8,23 @@ class SqlError extends Data.TaggedError("SqlError")<{ readonly message: string }
 
 // `defaultLines` stands in for the run's painted report; renderFailure must never echo it (it leads with `[FAIL]`).
 const DEFAULT_LINES = ["[FAIL] the run's own report"];
-const typed = (error: unknown) =>
-	renderFailure(error, { cause: Cause.fail(error), isDefect: false, defaultLines: DEFAULT_LINES });
-const defect = (error: unknown) =>
-	renderFailure(error, { cause: Cause.die(error), isDefect: true, defaultLines: DEFAULT_LINES });
+
+/**
+ * A `FailureDetails` outside a run. `lines` is the kit's run-less equivalent,
+ * `CliRuntime.defaultRender` (plain, absolute paths), which is what
+ * `details.lines` renders for a plain agent run with the identity `displayPath`.
+ */
+const detailsOf = (error: unknown, cause: Cause.Cause<unknown>, isDefect: boolean): FailureDetails => ({
+	cause,
+	isDefect,
+	defaultLines: DEFAULT_LINES,
+	lines: (options) => {
+		const rendered = CliRuntime.defaultRender(error, { cause, isDefect }, options);
+		return typeof rendered === "string" ? rendered.split("\n") : rendered;
+	},
+});
+const typed = (error: unknown) => renderFailure(error, detailsOf(error, Cause.fail(error), false));
+const defect = (error: unknown) => renderFailure(error, detailsOf(error, Cause.die(error), true));
 
 describe("renderFailure", () => {
 	it("renders a typed failure as the one `vitest-agent: <Tag>: <message>` line", () => {
@@ -37,11 +51,8 @@ describe("renderFailure", () => {
 	it("delegates a SchemaError to the kit's tree of rejected values", () => {
 		const exit = Schema.decodeUnknownExit(Schema.Struct({ n: Schema.Number }))({ n: "x" });
 		if (exit._tag !== "Failure") throw new Error("expected the decode to fail");
-		const lines = renderFailure(Cause.squash(exit.cause), {
-			cause: exit.cause,
-			isDefect: false,
-			defaultLines: DEFAULT_LINES,
-		});
+		const error = Cause.squash(exit.cause);
+		const lines = renderFailure(error, detailsOf(error, exit.cause, false));
 
 		expect(lines[0]).toMatch(/^vitest-agent: /);
 		expect(lines.length).toBeGreaterThan(1);
@@ -68,5 +79,26 @@ describe("renderFailure", () => {
 		expect(lines.some((line) => line.includes("render-failure.test.ts"))).toBe(true);
 		expect(lines.some((line) => line.includes("node:internal"))).toBe(false);
 		expect(lines.at(-1)).toBe("Please report at https://github.com/spencerbeggs/vitest-agent/issues");
+	});
+
+	it("delegates to the run's report without its status, then prefixes its first line", () => {
+		const calls: Array<boolean | undefined> = [];
+		const details: FailureDetails = {
+			cause: Cause.die(new Error("boom")),
+			isDefect: true,
+			defaultLines: DEFAULT_LINES,
+			lines: (options) => {
+				calls.push(options?.status);
+				return ["Error: boom (painted, relative paths)", "stack", "  at main (src/main.ts:1:1)"];
+			},
+		};
+
+		expect(renderFailure(new Error("boom"), details)).toEqual([
+			"vitest-agent: Error: boom (painted, relative paths)",
+			"stack",
+			"  at main (src/main.ts:1:1)",
+			"Please report at https://github.com/spencerbeggs/vitest-agent/issues",
+		]);
+		expect(calls).toEqual([false]);
 	});
 });

@@ -84,13 +84,13 @@ export interface InkTextStyle {
  * Resolves the token through the kit's pure `Token.resolve` and maps the
  * `Style` with the kit's `inkProps`. Our Ink trees are mounted by the
  * reporter, not by a `CliUi` screen, so no colour level reaches this call
- * site: the props are taken at `truecolor` (every prop present) and Ink's
- * own chalk level gates what is actually drawn, exactly as before.
+ * site: `inkProps` with no level emits every prop and Ink's own chalk level
+ * gates what is actually drawn.
  *
  * @param token - a token name or a `Style`
  * @public
  */
-export const inkStyle = (token: TokenName | Style): InkTextStyle => inkProps(Token.resolve(token), "truecolor");
+export const inkStyle = (token: TokenName | Style): InkTextStyle => inkProps(Token.resolve(token));
 
 /**
  * The glyph of a status in a glyph set: its Unicode glyph, or its ASCII

@@ -30,8 +30,9 @@ describe("vitest-agent CLI failure reporting", () => {
 	});
 
 	it("delivers the migrator's build-time debug records to stderr, never stdout", async () => {
-		// Fresh sandbox XDG: the migrator runs while the platform layer builds; with
-		// `format: "json"` those build-time records are NDJSON like the runtime ones.
+		// Fresh sandbox XDG: the migrator runs while the platform layer builds. No
+		// audience is detected in the hermetic sandbox, so under `format: "auto"`
+		// they are plain lines (help-surface pins the NDJSON audiences).
 		const result = await runCli(["db", "path"], {
 			setup: (sandbox) => {
 				writeFileSync(join(sandbox.root, "package.json"), JSON.stringify({ name: "migration-log-fixture" }));
@@ -43,8 +44,7 @@ describe("vitest-agent CLI failure reporting", () => {
 		expect(result.exitCode).toBe(0);
 		expect(result.stdout).not.toContain("Running migration");
 		const lines = result.stderr.trimEnd().split("\n");
-		const messages = lines.map((line) => (JSON.parse(line) as { readonly message: unknown }).message);
-		expect(messages).toContain("Running migration");
-		expect(messages).toContain("Migrations complete");
+		expect(lines).toContain("Running migration");
+		expect(lines).toContain("Migrations complete");
 	});
 });

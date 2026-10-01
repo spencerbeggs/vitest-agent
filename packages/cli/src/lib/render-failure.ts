@@ -1,5 +1,5 @@
 import type { FailureDetails } from "@effected/cli";
-import { Cancelled, CliRuntime, Fmt, NotInteractive } from "@effected/cli";
+import { Cancelled, Fmt, NotInteractive } from "@effected/cli";
 import { Schema } from "effect";
 
 /**
@@ -38,16 +38,14 @@ const oneLine = (text: string): string =>
  * - A typed failure from the error channel (a `PlatformError`, `SqlError`,
  *   `MigrationError`) is the one line we own: `vitest-agent: <Tag>: <message>`,
  *   the message passed through `Fmt.sanitize` (it can carry a path or SQL text).
- * - Everything else is delegated to `CliRuntime.defaultRender` with
- *   `status: false`, so our prefix replaces the kit's status glyph / `[FAIL]`
- *   tag rather than doubling it: `Cancelled` / `NotInteractive` keep their
- *   fixed line (`vitest-agent: cancelled; nothing written`), a `SchemaError` is
- *   a tree, and a defect is its message plus a `stack` of the program's own
- *   frames (Node and Effect internals cleaned out), then the issue link.
- *
- * `details.defaultLines` (the run's own report, painted and path-shortened) is
- * deliberately not used: it always leads with the status marker, so prefixing
- * it would print `vitest-agent: [FAIL] ...`.
+ * - Everything else is delegated to `details.lines({ status: false })`, the
+ *   kit's report for this run (its colour, links, and `displayPath`) with the
+ *   status glyph / `[FAIL]` tag left off, so our prefix replaces the marker
+ *   rather than doubling it: `Cancelled` / `NotInteractive` keep their fixed
+ *   line (`vitest-agent: cancelled; nothing written`), a `SchemaError` is a
+ *   tree, and a defect is its message plus a `stack` of the program's own
+ *   frames (`node_modules`, Node, and Effect frames hidden and counted), then
+ *   the issue link.
  *
  * `ShowHelp` and runWith-rendered `UserError`s never reach here (the kit skips
  * them).
@@ -59,7 +57,6 @@ export const renderFailure = (error: unknown, details: FailureDetails): Readonly
 		const message = oneLine(error instanceof Error ? error.message : typeof error === "string" ? error : "");
 		return [`vitest-agent: ${oneLine(failureName(error))}${message ? `: ${message}` : ""}`];
 	}
-	const rendered = CliRuntime.defaultRender(error, details, { status: false });
-	const [first = failureName(error), ...rest] = typeof rendered === "string" ? rendered.split("\n") : rendered;
+	const [first = failureName(error), ...rest] = details.lines({ status: false });
 	return [`vitest-agent: ${first}`, ...rest, ...(details.isDefect ? [`Please report at ${ISSUE_URL}`] : [])];
 };
