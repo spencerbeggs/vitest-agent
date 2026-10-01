@@ -158,3 +158,34 @@ describe("LoggerLive output (over CliLog)", () => {
 		expect(fileLines).toEqual(stderr.map(String));
 	});
 });
+
+describe("LoggerLive under GitHub Actions (injected env)", () => {
+	// `##[` is read by the runner's legacy parser anywhere in a line; `::cmd::`
+	// only at line start. The record is logged from a fiber that carries no
+	// `CurrentRuntimeEnv`, so only the env `LoggerLive` built in can neutralize it.
+	const injected = "::error::injected ##[error]legacy";
+	const capture = (layer: Layer.Layer<never>) =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				yield* Effect.logWarning(injected);
+				return yield* TestConsole.errorLines;
+			}).pipe(Effect.provide(layer), Effect.provide(TestConsole.layer)),
+		);
+
+	it("writes no workflow command to stderr and escapes ##[ in the NDJSON line", async () => {
+		const stderr = (await capture(LoggerLive("Warn", undefined, { GITHUB_ACTIONS: "true" }))).map(String);
+		expect(stderr).toHaveLength(1);
+		for (const line of stderr) {
+			expect(line.trimStart()).not.toMatch(/^::/);
+			expect(line).not.toContain("##[");
+		}
+		// The escape is JSON-level: the decoded message is the text as logged.
+		expect(messages(stderr)).toEqual([injected]);
+	});
+
+	it("control: without an env the same record keeps ##[ raw", async () => {
+		const stderr = (await capture(LoggerLive("Warn"))).map(String);
+		expect(stderr).toHaveLength(1);
+		expect(stderr[0]).toContain("##[");
+	});
+});

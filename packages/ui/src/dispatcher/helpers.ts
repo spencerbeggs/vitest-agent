@@ -19,6 +19,7 @@ import type {
 	TestRecord,
 	TrendSummary,
 } from "@vitest-agent/sdk";
+import { formatTotalsLine } from "../counts.js";
 import { formatDisplayDuration } from "../format-duration.js";
 import { statusGlyph } from "../theme.js";
 
@@ -44,15 +45,12 @@ export const truncate = (line: string, max: number): string => Fmt.truncate(line
  * test, not a pass (issue #224).
  */
 export const formatTotals = (state: RenderState): string => {
-	const { passCount, failCount, skipCount, timeoutCount, durationMs } = state.totals;
-	const total = passCount + failCount + skipCount + timeoutCount;
-	const parts = [`${passCount}/${total} passed`];
-	if (failCount > 0) parts.push(`${failCount} failed`);
-	if (timeoutCount > 0) parts.push(`${timeoutCount} timed out`);
-	if (skipCount > 0) parts.push(`${skipCount} skipped`);
-	const suffix =
-		state.collectedModules !== undefined && state.collectedModules > 0 ? ` across ${state.collectedModules} files` : "";
-	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})${suffix}`;
+	const modules = state.collectedModules;
+	return formatTotalsLine({
+		label: "Tests",
+		...state.totals,
+		...(modules !== undefined && modules > 0 ? { suffix: `across ${modules} files` } : {}),
+	});
 };
 
 /**
@@ -186,26 +184,18 @@ export const formatProjectsTable = (projects: ReadonlyArray<ProjectSummary>): Re
 /**
  * Format the `Total:` footer for a workspace run.
  */
-export const formatWorkspaceTotal = (projects: ReadonlyArray<ProjectSummary>): string => {
-	let pass = 0;
-	let fail = 0;
-	let skip = 0;
-	let timeout = 0;
-	let durationMs = 0;
-	for (const p of projects) {
-		pass += p.passCount;
-		fail += p.failCount;
-		skip += p.skipCount;
-		timeout += p.timeoutCount ?? 0;
-		durationMs += p.durationMs;
-	}
-	const total = pass + fail + skip + timeout;
-	const parts = [`${pass}/${total} passed`];
-	if (fail > 0) parts.push(`${fail} failed`);
-	if (timeout > 0) parts.push(`${timeout} timed out`);
-	if (skip > 0) parts.push(`${skip} skipped`);
-	return `Total: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
-};
+export const formatWorkspaceTotal = (projects: ReadonlyArray<ProjectSummary>): string =>
+	formatTotalsLine({
+		label: "Total",
+		passCount: sumOf(projects, (p) => p.passCount),
+		failCount: sumOf(projects, (p) => p.failCount),
+		timeoutCount: sumOf(projects, (p) => p.timeoutCount ?? 0),
+		skipCount: sumOf(projects, (p) => p.skipCount),
+		durationMs: sumOf(projects, (p) => p.durationMs),
+	});
+
+const sumOf = (projects: ReadonlyArray<ProjectSummary>, pick: (p: ProjectSummary) => number): number =>
+	projects.reduce((sum, p) => sum + pick(p), 0);
 
 const TABLE_COL_FILE_MIN = 60;
 

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CliLog } from "@effected/cli";
-import { Audience, CurrentRuntimeEnv, EnvOverride } from "@effected/env";
+import { Audience, EnvOverride } from "@effected/env";
 import {
 	EnvironmentDetector,
 	EnvironmentDetectorLive,
@@ -33,7 +33,7 @@ import {
 	formatFatalError,
 	isTestFileName,
 } from "@vitest-agent/sdk";
-import { ConfigProvider, Effect, Layer, Option } from "effect";
+import { Effect, Layer, Option } from "effect";
 import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
@@ -144,13 +144,7 @@ export function resolveConsoleMode(
 	},
 ): ConsoleMode {
 	const { accepted, rejected } = Effect.runSync(
-		readConsoleOverride.pipe(
-			Effect.provideService(Audience, { kind: executor, source: "detected" }),
-			// `readResult` reads through the ambient `Config`, and core's default
-			// ConfigProvider copies process.env once per process; a fresh one
-			// keeps the read at call time.
-			Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromEnv()),
-		),
+		readConsoleOverride.pipe(Effect.provideService(Audience, { kind: executor, source: "detected" })),
 	);
 	if (Option.isSome(rejected)) {
 		const { value, audience, accepts } = rejected.value;
@@ -180,6 +174,10 @@ export function resolveConsoleMode(
  */
 export const readConsoleOverride = EnvOverride.readResult({
 	envVar: "VITEST_AGENT_CONSOLE",
+	// A record source is re-read on every run of this effect, so a change to
+	// `process.env` after module load is seen (core's default ConfigProvider
+	// would snapshot it once per process).
+	source: process.env,
 	accepts: {
 		human: HumanConsoleMode.literals,
 		agent: AgentConsoleMode.literals,
@@ -349,14 +347,12 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 	// `LoggerLive` (`CliLog`'s NDJSON diagnostics-only mode, stderr only, the
 	// same shape the engine writes for VITEST_REPORTER_LOG_LEVEL), tagged
 	// `vitest-agent:plugin`. Gated on resolveLogLevel so a default run never
-	// builds the diagnostics layer. `CurrentRuntimeEnv` rides beside it because
-	// `CliLog` reads it from the logging fiber to neutralize workflow commands
-	// under GitHub Actions, where the runner parses this stderr.
+	// builds the diagnostics layer. Passing `process.env` lets `LoggerLive`
+	// neutralize workflow commands under GitHub Actions, where the runner
+	// parses this stderr.
 	const logLevel = resolveLogLevel(process.env);
 	const shouldLog = logLevel === "Debug" || logLevel === "Trace" || logLevel === "All";
-	const diagnostics = shouldLog
-		? Layer.merge(LoggerLive(logLevel), CurrentRuntimeEnv.layerFrom(process.env))
-		: undefined;
+	const diagnostics = shouldLog ? LoggerLive(logLevel, undefined, process.env) : undefined;
 	const log = diagnostics
 		? (...args: unknown[]) => {
 				// One string, not variadic: CliLog's NDJSON `message` is the raw

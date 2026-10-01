@@ -1,6 +1,6 @@
 import { Audience } from "@effected/env";
 import { AgentConsoleMode, CiConsoleMode, HumanConsoleMode } from "@vitest-agent/sdk";
-import { ConfigProvider, Effect, Option } from "effect";
+import { Effect, Option } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readConsoleOverride, resolveConsoleMode } from "../src/plugin.js";
 
@@ -86,13 +86,19 @@ describe("resolveConsoleMode VITEST_AGENT_CONSOLE override", () => {
 });
 
 describe("readConsoleOverride", () => {
-	const run = (kind: "human" | "agent" | "ci", env: Record<string, string>) =>
-		Effect.runSync(
-			readConsoleOverride.pipe(
-				Effect.provide(Audience.layerTest(kind)),
-				Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env))),
-			),
-		);
+	// The override reads `process.env` itself (a record source, re-read on
+	// every run), so each case sets the live variable rather than providing a
+	// ConfigProvider, which the pinned source would ignore.
+	const original = process.env[ENV];
+	afterEach(() => {
+		if (original === undefined) delete process.env[ENV];
+		else process.env[ENV] = original;
+	});
+	const run = (kind: "human" | "agent" | "ci", env: Record<string, string>) => {
+		delete process.env[ENV];
+		if (env[ENV] !== undefined) process.env[ENV] = env[ENV];
+		return Effect.runSync(readConsoleOverride.pipe(Effect.provide(Audience.layerTest(kind))));
+	};
 
 	it("accepts a literal only for the audience that lists it", () => {
 		expect(run("human", { [ENV]: "stream" }).accepted).toEqual(Option.some("stream"));

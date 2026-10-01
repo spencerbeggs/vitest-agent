@@ -30,7 +30,6 @@ import type {
 	ReporterRenderInput,
 	TestClassification,
 } from "@vitest-agent/sdk";
-import { reporterRenderContext } from "./renderContext.js";
 
 const MAX_NAMED_FILES = 3;
 
@@ -95,7 +94,9 @@ export function renderGithubLog(input: ReporterRenderInput, kit: ReporterKit): R
 		body.push(Doc.paragraph(`db: ${kit.config.dbPath}`));
 	}
 
-	const ctx = reporterRenderContext({ displayPath: toDisplayPath, neutralizeWorkflowCommands: true });
+	// A `ci` context neutralizes workflow commands by default; `Render.githubLog`
+	// neutralizes regardless, since its output is for the Actions runner.
+	const ctx = Render.contextOf({ audience: "ci", displayPath: toDisplayPath });
 	const content = Render.githubLog([Doc.collapsible("vitest-agent", body)], ctx);
 	return { target: "stdout", content, contentType: "text/plain" };
 }

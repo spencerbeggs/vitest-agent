@@ -18,6 +18,7 @@
  *   per-event during the run.
  */
 
+import type { InlineInput } from "@effected/cli";
 import { Doc, Render } from "@effected/cli";
 import type {
 	AgentReport,
@@ -51,7 +52,6 @@ import {
 import { Effect, PubSub } from "effect";
 import { renderGithubLog, toDisplayPath } from "./githubLog.js";
 import { createLiveInk } from "./LiveInkRenderer.js";
-import { reporterRenderContext } from "./renderContext.js";
 
 const countTimeouts = (report: AgentReport): number => {
 	let timeoutCount = 0;
@@ -239,9 +239,14 @@ const MAX_SUMMARY_COVERAGE_ROWS = 10;
 
 /**
  * The step summary and `summary.md` are files, not log lines, so their
- * markdown context does not neutralize workflow commands.
+ * markdown context opts out of the `ci` default that neutralizes workflow
+ * commands.
  */
-const summaryRenderContext = reporterRenderContext({ displayPath: toDisplayPath, neutralizeWorkflowCommands: false });
+const summaryRenderContext = Render.contextOf({
+	audience: "ci",
+	displayPath: toDisplayPath,
+	neutralizeWorkflowCommands: false,
+});
 
 const renderClassificationsSection = (classifications: ReporterRenderInput["classifications"]): string | null => {
 	const counts = new Map<TestClassification, number>();
@@ -265,10 +270,8 @@ const formatCoveragePercent = (totals: FileCoverageReport["summary"]): string =>
 const renderCoverageSection = (reports: ReporterRenderInput["reports"]): string | null => {
 	const belowTarget = reports.flatMap((r) => r.coverage?.belowTarget ?? []);
 	if (belowTarget.length === 0) return null;
-	// The path cell is plain text run through toDisplayPath here: the kit's
-	// `displayPath` applies only to Link targets, and a markdown file link is a
-	// `file://` URL a step-summary reader cannot open (dogfood finding G3).
-	const rows = belowTarget.map((f) => [toDisplayPath(f.file), formatCoveragePercent(f.summary)]);
+	// `Doc.file` shows the path through the context's `displayPath`, unlinked.
+	const rows = belowTarget.map((f) => [Doc.file(f.file), formatCoveragePercent(f.summary)]);
 	return Render.markdown(
 		[
 			Doc.heading(3, "Coverage"),
@@ -282,20 +285,19 @@ const renderCoverageSection = (reports: ReporterRenderInput["reports"]): string 
 	);
 };
 
-/*
- * Kept on the hand-built string path: the trend is consecutive lines joined by
- * single newlines, and the kit IR has no line-group block, only blank-line
- * separated paragraphs or a trailing-backslash hard break (dogfood finding G2).
+/**
+ * The trend as one line per fact. `Doc.lines` joins them with GFM hard breaks
+ * (a trailing `\\`), so a GFM reader cannot collapse them into one paragraph.
  */
 const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): string | null => {
 	if (trendSummary === undefined) return null;
-	const lines = ["### Trend", "", `Direction: ${trendSummary.direction}`, `Run count: ${trendSummary.runCount}`];
+	const lines = [`Direction: ${trendSummary.direction}`, `Run count: ${trendSummary.runCount}`];
 	const firstMetric = trendSummary.firstMetric;
 	if (firstMetric !== undefined) {
 		const targetSuffix = firstMetric.target !== undefined ? ` (target: ${firstMetric.target})` : "";
 		lines.push(`${firstMetric.name}: ${firstMetric.from} → ${firstMetric.to}${targetSuffix}`);
 	}
-	return lines.join("\n");
+	return Render.markdown([Doc.heading(3, "Trend"), Doc.lines(lines)], summaryRenderContext);
 };
 
 /** The shared kit duration (`Fmt.duration` via `@vitest-agent/ui`), so the table matches the console. */
@@ -320,30 +322,32 @@ const formatSummaryDuration = formatDisplayDuration;
  * would show a timed-out test as `Failed: 1` while every console surface
  * says `0 failed, 1 timed out`.
  *
- * Kept on the hand-built string path: the `**Total**` row needs bold, and the
- * kit IR has no strong inline (`Render.markdown` drops tokens and escapes a
- * literal `**`; dogfood finding G1). Its multi-row counts-with-total-row
- * shape has no IR block either (finding G4).
+ * A plain `Doc.table`, not `Doc.countsTable`: the counts table heads its
+ * label column with nothing (this one reads `Project`) and has no column for
+ * a formatted, non-count cell like the duration.
  *
  * @internal
  */
 const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string => {
 	const rows = reports.map((report) => summarizeProject(report));
 	const cells = (
-		name: string,
+		name: InlineInput,
 		passed: number,
 		failed: number,
 		timedOut: number,
 		skipped: number,
 		duration: number,
-	): string => `| ${name} | ${passed} | ${failed} | ${timedOut} | ${skipped} | ${formatSummaryDuration(duration)} |`;
-	const lines = [
-		"### Totals",
-		"",
-		"| Project | Passed | Failed | Timed out | Skipped | Duration |",
-		"| --- | --- | --- | --- | --- | --- |",
-		...rows.map((r) => cells(r.name, r.passCount, r.failCount, r.timeoutCount ?? 0, r.skipCount, r.durationMs)),
+	): ReadonlyArray<InlineInput> => [
+		name,
+		String(passed),
+		String(failed),
+		String(timedOut),
+		String(skipped),
+		formatSummaryDuration(duration),
 	];
+	const tableRows = rows.map((r) =>
+		cells(r.name, r.passCount, r.failCount, r.timeoutCount ?? 0, r.skipCount, r.durationMs),
+	);
 	if (rows.length > 1) {
 		const total = rows.reduce(
 			(acc, r) => ({
@@ -355,9 +359,12 @@ const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string =>
 			}),
 			{ passed: 0, failed: 0, timedOut: 0, skipped: 0, duration: 0 },
 		);
-		lines.push(cells("**Total**", total.passed, total.failed, total.timedOut, total.skipped, total.duration));
+		tableRows.push(
+			cells(Doc.strong("Total"), total.passed, total.failed, total.timedOut, total.skipped, total.duration),
+		);
 	}
-	return lines.join("\n");
+	const columns = ["Project", "Passed", "Failed", "Timed out", "Skipped", "Duration"].map((header) => ({ header }));
+	return Render.markdown([Doc.heading(3, "Totals"), Doc.table(columns, tableRows)], summaryRenderContext);
 };
 
 /**

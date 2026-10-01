@@ -79,12 +79,15 @@ export interface MainOptions {
  * - `env.log` makes `CliLog.layer` the one logger set, outermost: a
  *   `CliLogger` for ordinary lines and failure reports, plus a diagnostics
  *   sink that is silent unless `VITEST_REPORTER_LOG_LEVEL` is set (then
- *   NDJSON for agent / ci, pretty for a human TTY, stderr only), plus an
+ *   NDJSON on stderr for every audience), plus an
  *   async NDJSON file when `VITEST_REPORTER_LOG_FILE` is set. The platform
  *   therefore installs no logger of its own (`PlatformLive`'s `logger: false`:
  *   the engine's `LoggerLive` would otherwise replace this set inside the
  *   program). The platform is built under that logger, so what it logs
  *   while building (the engine's migration records) reaches the same sink.
+ *   `format: "json"` is deliberate: under `auto` the kit builds the platform
+ *   before the audience is known, so those build-time records would print as
+ *   plain lines inside an agent's NDJSON stream.
  * - Failures render through `renderFailure` on stderr, first line led by
  *   `vitest-agent: `.
  * - An explicit `--help` (or a bare group invocation) prints help on
@@ -140,7 +143,11 @@ export const main = (options: MainOptions = {}): void => {
 			audienceEnvVar: AUDIENCE_ENV_VAR,
 			// `--version` names the carrier the bin was launched through.
 			formatter: carrierVersionFormatter(distribution),
-			log: { envVar: "VITEST_REPORTER_LOG_LEVEL", file: { envVar: "VITEST_REPORTER_LOG_FILE" } },
+			log: {
+				envVar: "VITEST_REPORTER_LOG_LEVEL",
+				format: "json",
+				file: { envVar: "VITEST_REPORTER_LOG_FILE" },
+			},
 		},
 	}).pipe(Effect.provideService(CurrentDistribution, distribution));
 

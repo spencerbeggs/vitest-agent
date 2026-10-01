@@ -33,6 +33,6 @@
 
 ### Trend
 
-Direction: regressing
-Run count: 7
+Direction: regressing\
+Run count: 7\
 lines: 88.5 → 82.75 (target: 90)

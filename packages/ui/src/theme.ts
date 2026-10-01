@@ -13,15 +13,16 @@
  * Ink takes colour as `<Text>` props, not ANSI, so {@link inkStyle}
  * resolves a token through the kit's pure `Token.resolve` (the same
  * resolution `CliTheme.paint` and `StreamTheme.style` apply) and maps the
- * resulting `Style` onto Ink's props. Glyphs follow a `GlyphSet` passed in
- * (`Glyphs.select`), never `process`: Unicode unless a caller asks for the
- * ASCII fallback.
+ * resulting `Style` onto Ink's props with the kit's `inkProps`. Glyphs
+ * follow a `GlyphSet` passed in (`Glyphs.select`), never `process`: Unicode
+ * unless a caller asks for the ASCII fallback.
  *
  * @packageDocumentation
  */
 
 import type { CoreStatusName, GlyphSet, Style, TokenName } from "@effected/cli";
 import { Glyphs, Status, Token } from "@effected/cli";
+import { inkProps } from "@effected/cli/ui";
 
 /**
  * The status vocabulary every vitest-agent render path draws from.
@@ -80,35 +81,27 @@ export interface InkTextStyle {
  * Ink `<Text>` props for a semantic token or an explicit style.
  *
  * @remarks
- * The kit spells `NamedColor` the way chalk (and so Ink's `color` prop)
- * does, so a resolved foreground passes straight through.
+ * Resolves the token through the kit's pure `Token.resolve` and maps the
+ * `Style` with the kit's `inkProps`. Our Ink trees are mounted by the
+ * reporter, not by a `CliUi` screen, so no colour level reaches this call
+ * site: the props are taken at `truecolor` (every prop present) and Ink's
+ * own chalk level gates what is actually drawn, exactly as before.
  *
  * @param token - a token name or a `Style`
  * @public
  */
-export const inkStyle = (token: TokenName | Style): InkTextStyle => {
-	const style = Token.resolve(token);
-	return {
-		...(style.fg !== undefined ? { color: style.fg } : {}),
-		...(style.bold === true ? { bold: true } : {}),
-		...(style.dim === true ? { dimColor: true } : {}),
-		...(style.italic === true ? { italic: true } : {}),
-		...(style.underline === true ? { underline: true } : {}),
-	};
-};
+export const inkStyle = (token: TokenName | Style): InkTextStyle => inkProps(Token.resolve(token), "truecolor");
 
 /**
  * The glyph of a status in a glyph set: its Unicode glyph, or its ASCII
- * fallback when `glyphs` is the kit's ASCII set.
+ * fallback when `glyphs` is the kit's ASCII set (the kit's `Status.glyph`).
  *
  * @param name - a status in {@link VitestAgentStatus}
  * @param glyphs - the glyph set, from `Glyphs.select`; Unicode by default
  * @public
  */
-export const statusGlyph = (name: VitestAgentStatusName, glyphs: GlyphSet = Glyphs.unicode): string => {
-	const def = VitestAgentStatus.def(name);
-	return glyphs.kind === "ascii" ? def.ascii : def.glyph;
-};
+export const statusGlyph = (name: VitestAgentStatusName, glyphs: GlyphSet = Glyphs.unicode): string =>
+	VitestAgentStatus.glyph(name, glyphs);
 
 /**
  * Ink `<Text>` props for a status's glyph.

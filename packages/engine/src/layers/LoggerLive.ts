@@ -1,6 +1,7 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodePath from "@effect/platform-node/NodePath";
 import { CliLog } from "@effected/cli";
+import { CurrentRuntimeEnv } from "@effected/env";
 import { Layer, LogLevel, Logger } from "effect";
 
 /**
@@ -15,24 +16,38 @@ import { Layer, LogLevel, Logger } from "effect";
  * NDJSON line (the same shape as the stderr line) to that file; the first
  * write error prints one stderr line and disables the file sink.
  *
+ * When `env` is given, it is built into `CurrentRuntimeEnv` for the layer's
+ * own build context, which `CliLog` captures: under GitHub Actions every
+ * stderr record is neutralized (no workflow command at line start, `##[`
+ * escaped), including records logged from a fiber that carries no
+ * `CurrentRuntimeEnv` of its own. Without `env`, records are sanitised but
+ * not neutralized unless the logging fiber provides one.
+ *
  * @remarks
- * The file sink needs `FileSystem` and `Path`; they are provided here (Node)
- * so the public signature stays `Layer.Layer<never>` for every caller.
+ * The file sink needs `FileSystem` and `Path`. `CliLog` leaves them in `R`
+ * (for `file: undefined` too), but they are provided here (Node) so the
+ * public signature stays `Layer.Layer<never>` for every caller.
  *
  * @param level - the diagnostics level; see {@link resolveLogLevel}
  * @param logFile - a file to append NDJSON lines to; see {@link resolveLogFile}
+ * @param env - the environment map to detect the runtime from (the front end passes `process.env`)
  * @public
  */
-export const LoggerLive = (level?: LogLevel.LogLevel, logFile?: string): Layer.Layer<never> => {
+export const LoggerLive = (
+	level?: LogLevel.LogLevel,
+	logFile?: string,
+	env?: Readonly<Record<string, string | undefined>>,
+): Layer.Layer<never> => {
 	if (!level || level === "None") {
 		return Logger.layer([]);
 	}
-	if (logFile === undefined) {
-		return CliLog.layer({ format: "json", plainLogger: false, level });
-	}
-	return CliLog.layer({ format: "json", plainLogger: false, level, file: { path: logFile } }).pipe(
-		Layer.provide(Layer.merge(NodeFileSystem.layer, NodePath.layer)),
-	);
+	const sink = CliLog.layer({
+		format: "json",
+		plainLogger: false,
+		level,
+		file: logFile === undefined ? undefined : { path: logFile },
+	}).pipe(Layer.provide(Layer.merge(NodeFileSystem.layer, NodePath.layer)));
+	return env === undefined ? sink : sink.pipe(Layer.provide(CurrentRuntimeEnv.layerFrom(env)));
 };
 
 // Map common shorthand names to Effect's LogLevel string values

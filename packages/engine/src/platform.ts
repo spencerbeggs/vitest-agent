@@ -141,5 +141,5 @@ export const PlatformLive = (options: PlatformOptions): Layer.Layer<PlatformServ
 	);
 	return options.logger === false
 		? platform
-		: platform.pipe(Layer.provideMerge(LoggerLive(options.logLevel, options.logFile)));
+		: platform.pipe(Layer.provideMerge(LoggerLive(options.logLevel, options.logFile, options.env)));
 };

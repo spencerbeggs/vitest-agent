@@ -5,8 +5,12 @@ import { renderFailure } from "../src/lib/render-failure.js";
 
 class SqlError extends Data.TaggedError("SqlError")<{ readonly message: string }> {}
 
-const typed = (error: unknown) => renderFailure(error, { cause: Cause.fail(error), isDefect: false });
-const defect = (error: unknown) => renderFailure(error, { cause: Cause.die(error), isDefect: true });
+// `defaultLines` stands in for the run's painted report; renderFailure must never echo it (it leads with `[FAIL]`).
+const DEFAULT_LINES = ["[FAIL] the run's own report"];
+const typed = (error: unknown) =>
+	renderFailure(error, { cause: Cause.fail(error), isDefect: false, defaultLines: DEFAULT_LINES });
+const defect = (error: unknown) =>
+	renderFailure(error, { cause: Cause.die(error), isDefect: true, defaultLines: DEFAULT_LINES });
 
 describe("renderFailure", () => {
 	it("renders a typed failure as the one `vitest-agent: <Tag>: <message>` line", () => {
@@ -33,11 +37,27 @@ describe("renderFailure", () => {
 	it("delegates a SchemaError to the kit's tree of rejected values", () => {
 		const exit = Schema.decodeUnknownExit(Schema.Struct({ n: Schema.Number }))({ n: "x" });
 		if (exit._tag !== "Failure") throw new Error("expected the decode to fail");
-		const lines = renderFailure(Cause.squash(exit.cause), { cause: exit.cause, isDefect: false });
+		const lines = renderFailure(Cause.squash(exit.cause), {
+			cause: exit.cause,
+			isDefect: false,
+			defaultLines: DEFAULT_LINES,
+		});
 
 		expect(lines[0]).toMatch(/^vitest-agent: /);
 		expect(lines.length).toBeGreaterThan(1);
 		expect(lines.slice(1).join("\n")).toContain("n: Expected number");
+	});
+
+	it("sanitizes the message of a typed failure to one control-free line", () => {
+		const error = new SqlError({ message: "bad\u001b[31m red\u0007\nsecond line" });
+		expect(typed(error)).toEqual(["vitest-agent: SqlError: bad red second line"]);
+	});
+
+	it("never doubles the status marker after the prefix", () => {
+		for (const lines of [typed(Cancelled.make({ reason: "interrupt" })), defect(new Error("boom"))]) {
+			expect(lines[0]).not.toMatch(/^vitest-agent: (\[FAIL\]|[✗✖×])/);
+			expect(lines).not.toContain(DEFAULT_LINES[0]);
+		}
 	});
 
 	it("renders a defect as the kit's cleaned stack followed by the issue link", () => {

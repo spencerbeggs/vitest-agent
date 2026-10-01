@@ -23,9 +23,20 @@ const getCache = (): MigrationCache => {
  * most once per dbPath in the current process; concurrent calls share the
  * same in-flight promise. Subsequent calls (after the first resolves) are
  * no-ops.
+ *
+ * @param dbPath - the SQLite file to migrate
+ * @param logLevel - the diagnostics level for the migrator's records; see `LoggerLive`
+ * @param logFile - a file to append NDJSON diagnostics to; see `LoggerLive`
+ * @param env - the environment map `LoggerLive` detects the runtime from, so
+ *   records are neutralized under GitHub Actions (the front end passes `process.env`)
  * @public
  */
-export function ensureMigrated(dbPath: string, logLevel?: LogLevel.LogLevel, logFile?: string): Promise<void> {
+export function ensureMigrated(
+	dbPath: string,
+	logLevel?: LogLevel.LogLevel,
+	logFile?: string,
+	env?: Readonly<Record<string, string | undefined>>,
+): Promise<void> {
 	const cache = getCache();
 	const cached = cache.get(dbPath);
 	if (cached) return cached;
@@ -45,7 +56,7 @@ export function ensureMigrated(dbPath: string, logLevel?: LogLevel.LogLevel, log
 	}).pipe(
 		Effect.provide(MigratorLayer),
 		Effect.provide(Layer.merge(SqliteLayer, NodePlatformLayer)),
-		Effect.provide(LoggerLive(logLevel, logFile)),
+		Effect.provide(LoggerLive(logLevel, logFile, env)),
 	);
 
 	const promise = Effect.runPromise(program);

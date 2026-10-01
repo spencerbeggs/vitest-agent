@@ -1873,7 +1873,7 @@ export class AgentReporter {
 		// contract (issues #195 / #143).
 		if (dbPath !== undefined && persistDisabled === undefined) {
 			try {
-				await ensureMigrated(dbPath, logLevel, logFile);
+				await ensureMigrated(dbPath, logLevel, logFile, process.env);
 			} catch (err) {
 				persistDisabled = formatFatalError(err);
 			}

@@ -18,7 +18,7 @@ import type {
 	ReportError,
 	SuggestedActionRecord,
 } from "@vitest-agent/sdk";
-import { formatDisplayDuration } from "./format-duration.js";
+import { formatTotalsLine } from "./counts.js";
 
 /**
  * Options controlling agent-mode output. All fields optional; defaults
@@ -62,18 +62,8 @@ const severityLabel: Record<ActionSeverity, string> = {
 	blocker: "blocker",
 };
 
-const formatHeader = (state: RenderState): string => {
-	const { passCount, failCount, skipCount, timeoutCount, durationMs } = state.totals;
-	const total = passCount + failCount + skipCount + timeoutCount;
-	const parts = [`${passCount}/${total} passed`];
-	if (failCount > 0) parts.push(`${failCount} failed`);
-	if (timeoutCount > 0) parts.push(`${timeoutCount} timed out`);
-	if (skipCount > 0) parts.push(`${skipCount} skipped`);
-	if (state.unhandledErrors.length > 0) {
-		parts.push(Fmt.plural(state.unhandledErrors.length, "unhandled error"));
-	}
-	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
-};
+const formatHeader = (state: RenderState): string =>
+	formatTotalsLine({ label: "Tests", ...state.totals, unhandledErrors: state.unhandledErrors.length });
 
 const formatModulesSection = (state: RenderState): string | null => {
 	const modules = state.moduleOrder
