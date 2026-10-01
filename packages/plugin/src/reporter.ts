@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
-import { NodeServices } from "@effect/platform-node";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import type {
 	TestAnnotationInput,
 	TestArtifactInput,
