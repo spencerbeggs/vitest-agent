@@ -8,8 +8,8 @@ description: >-
 tags: [dx, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: a8311a67d378357c35f040b6533d4b5e98079685bf4552b158fd90631cc20aab
+  at: 2026-10-01T13:07:49Z
+  body_sha256: d4acd7c90bbdf5e9f5bdfafc029bb711432bcaa11da96e5adc83c537f4dfeb27
 sources:
   - id: agent-reporter-class
     resource: ../../packages/plugin/src/reporter.ts
@@ -57,10 +57,11 @@ suppresses whenever the plugin takes over stdout
 Post-split, `@vitest-agent/reporter` (`packages/reporter/package.json:2`)
 owns only rendering: it ships `DefaultVitestAgentReporter`, a
 `VitestAgentReporterFactory` implementation
-(`packages/reporter/src/defaultReporter.ts:436`), and the Ink live-mount
-lifecycle. It has no Vitest lifecycle hooks of its own — `AgentReporter`
-(sense 2, inside the plugin) is what feeds it a `RunEvent` stream and calls
-its `.render(input, kit)` method.
+(`packages/reporter/src/defaultReporter.ts:436`), and the `stream` live
+view's lifetime (drawn by the kit's `CliUi.live`). It has no Vitest
+lifecycle hooks of its own — `AgentReporter` (sense 2, inside the plugin)
+is what feeds it a `RunEvent` stream, calls its `.render(input, kit)`
+method, and calls its optional `.close()` at Vitest's close.
 
 ## The trap
 

@@ -1,0 +1,1 @@
+{green}✓{/fg} math > adds (4ms)

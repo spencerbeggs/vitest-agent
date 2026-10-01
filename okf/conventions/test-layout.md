@@ -20,8 +20,8 @@ sources:
     title: "`vitest-agent agent check-test-path` subcommand"
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 4d459f9b64f0fa7e62d8ae9d99afa720802e161fa8eeb16c678165fa696dc4cf
+  at: 2026-10-01T00:18:42Z
+  body_sha256: 5ae61f181d25f25f3cfb383a2024018ed15fc2faa4b2cfe25415326dc16acff8
 ---
 
 # Test layout — flat __test__ directories, src co-location, and kind-by-suffix
@@ -79,7 +79,8 @@ a run by kind with Vitest's native tag-expression syntax
 ## Give a subprocess-spawning test the `.e2e.test.ts` suffix, never plain `.test.ts`
 
 The `int` tag carries a 60 s timeout and the `e2e` tag a 120 s timeout plus
-retry in CI (`retry: process.env.CI ? 2 : 0`); the `unit` tag carries neither,
+retry `2` in CI (`@effected/env`'s CI rule, read when the strategy is
+constructed: `CI=false` or `CI=0` does not count); the `unit` tag carries neither,
 so an unsuffixed test falls through to Vitest's own 5 s default
 timeout[^discover-strategy]. A test that spawns a real process — a built CLI
 or MCP bin, a competing-process advisory-lock race — routinely exceeds 5 s

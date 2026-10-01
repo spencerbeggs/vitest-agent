@@ -10,6 +10,8 @@
  * @packageDocumentation
  */
 
+import type { Block } from "@effected/cli";
+import { Doc, Fmt, Render } from "@effected/cli";
 import type {
 	FailureRecord,
 	FileCoverageReport,
@@ -18,28 +20,24 @@ import type {
 	TestRecord,
 	TrendSummary,
 } from "@vitest-agent/sdk";
+import { formatTotalsLine } from "../counts.js";
 import { formatDisplayDuration } from "../format-duration.js";
+import { statusGlyph } from "../theme.js";
 
 export { formatDisplayDuration } from "../format-duration.js";
 
 /**
- * Format a coverage percentage. Uses one decimal place for non-integer
- * values, no decimal for integers, with a trailing percent sign.
+ * Format a coverage percentage given on istanbul's 0–100 scale. One
+ * decimal place for non-integer values, none for integers, with a
+ * trailing percent sign (`Fmt.percent` with `scale: 100`).
  */
-export const formatPercent = (n: number): string => {
-	const rounded = Math.round(n * 10) / 10;
-	return `${rounded}%`;
-};
+export const formatPercent = (n: number): string => Fmt.percent(n, { scale: 100 });
 
 /**
- * Truncate a line to a maximum width with an ellipsis suffix.
+ * Truncate a line to a maximum display width with an ellipsis suffix
+ * (`Fmt.truncate`: grapheme- and East-Asian-width-aware).
  */
-export const truncate = (line: string, max: number): string => {
-	if (line.length <= max) return line;
-	const slice = max - 1;
-	if (slice <= 0) return "…";
-	return `${line.slice(0, slice)}…`;
-};
+export const truncate = (line: string, max: number): string => Fmt.truncate(line, max);
 
 /**
  * Format the `Tests:` header line —
@@ -48,15 +46,12 @@ export const truncate = (line: string, max: number): string => {
  * test, not a pass (issue #224).
  */
 export const formatTotals = (state: RenderState): string => {
-	const { passCount, failCount, skipCount, timeoutCount, durationMs } = state.totals;
-	const total = passCount + failCount + skipCount + timeoutCount;
-	const parts = [`${passCount}/${total} passed`];
-	if (failCount > 0) parts.push(`${failCount} failed`);
-	if (timeoutCount > 0) parts.push(`${timeoutCount} timed out`);
-	if (skipCount > 0) parts.push(`${skipCount} skipped`);
-	const suffix =
-		state.collectedModules !== undefined && state.collectedModules > 0 ? ` across ${state.collectedModules} files` : "";
-	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})${suffix}`;
+	const modules = state.collectedModules;
+	return formatTotalsLine({
+		label: "Tests",
+		...state.totals,
+		...(modules !== undefined && modules > 0 ? { suffix: `across ${modules} files` } : {}),
+	});
 };
 
 /**
@@ -96,21 +91,27 @@ export const formatTestName = (test: {
  * Render one failure block — `- <path > suite > name> [classification]`
  * followed by the indented message and diff. Stack traces are omitted
  * by default to keep the agent string compact.
+ *
+ * @remarks
+ * A kit document rendered plain for the agent audience: one compact list
+ * item whose title is verbatim (never wrapped), whose first message line is
+ * a truncated `Doc.line`, and whose diff is `Doc.diffText` with `truncate`.
+ * Each content line is cut to `width - 2` (floor 20) after the item indent.
+ * The kit sanitizes the text, so a tab becomes a space and an escape
+ * sequence is removed.
  */
 export const formatFailure = (f: FailureRecord, width: number): ReadonlyArray<string> => {
 	const suite = f.suitePath.length > 0 ? `${f.suitePath.join(" > ")} > ` : "";
 	const classification = f.classification !== null ? ` [${f.classification}]` : "";
-	const lines: string[] = [`- ${f.modulePath} > ${suite}${f.testName}${classification}`];
+	const parts: Array<Block> = [Doc.verbatim(`${f.modulePath} > ${suite}${f.testName}${classification}`)];
 	if (f.error?.message !== undefined) {
-		const firstLine = f.error.message.split("\n", 1)[0] ?? "";
-		lines.push(`  ${truncate(firstLine, Math.max(20, width - 2))}`);
+		parts.push(Doc.line(f.error.message.split("\n", 1)[0] ?? "", { truncate: true }));
 	}
-	if (f.error?.diff !== undefined) {
-		for (const diffLine of f.error.diff.split("\n")) {
-			lines.push(`  ${truncate(diffLine, Math.max(20, width - 2))}`);
-		}
-	}
-	return lines;
+	if (f.error?.diff !== undefined) parts.push(Doc.diffText(f.error.diff, { truncate: true }));
+	return Render.plain(
+		[Doc.list([Doc.section(undefined, parts)], { compact: true })],
+		Render.contextOf({ audience: "agent", width: Math.max(22, width) }),
+	).split("\n");
 };
 
 /**
@@ -122,12 +123,12 @@ export const formatCoverageJudgmentLine = (state: RenderState): string | null =>
 	const cov = state.coverage;
 	if (cov === null) return null;
 	if (cov.violations.length === 0) {
-		return "Coverage: ✓ all metrics meet thresholds";
+		return `Coverage: ${statusGlyph("success")} all metrics meet thresholds`;
 	}
+	// A threshold violation is a `failure` (✗); only a target shortfall is a warning.
 	const metrics = cov.violations.map((v) => v.metric).join(", ");
 	const fileCount = countLowCoverageFiles(cov.gaps);
-	const fileNoun = fileCount === 1 ? "file" : "files";
-	return `Coverage: ✗ ${fileCount} ${fileNoun} below minimum thresholds (${metrics})`;
+	return `Coverage: ${statusGlyph("failure")} ${Fmt.plural(fileCount, "file")} below minimum thresholds (${metrics})`;
 };
 
 const countLowCoverageFiles = (gaps: ReadonlyArray<{ readonly file: string }>): number => {
@@ -142,8 +143,7 @@ const countLowCoverageFiles = (gaps: ReadonlyArray<{ readonly file: string }>): 
  */
 export const formatTrendLine = (trend: TrendSummary | null): string | null => {
 	if (trend === null) return null;
-	const runs = trend.runCount === 1 ? "1 run" : `${trend.runCount} runs`;
-	return `Trend: ${trend.direction} (${runs})`;
+	return `Trend: ${trend.direction} (${Fmt.plural(trend.runCount, "run")})`;
 };
 
 /**
@@ -155,7 +155,7 @@ export const formatTrendLine = (trend: TrendSummary | null): string | null => {
 export const formatProjectRow = (project: ProjectSummary, nameWidth: number): string => {
 	const timeoutCount = project.timeoutCount ?? 0;
 	const total = project.passCount + project.failCount + project.skipCount + timeoutCount;
-	const glyph = project.failCount > 0 || timeoutCount > 0 ? "✗" : "✓";
+	const glyph = statusGlyph(project.failCount > 0 || timeoutCount > 0 ? "failure" : "success");
 	const countParts = [`${project.passCount}/${total} passed`];
 	if (project.failCount > 0) countParts.push(`${project.failCount} failed`);
 	if (timeoutCount > 0) countParts.push(`${timeoutCount} timed out`);
@@ -191,26 +191,18 @@ export const formatProjectsTable = (projects: ReadonlyArray<ProjectSummary>): Re
 /**
  * Format the `Total:` footer for a workspace run.
  */
-export const formatWorkspaceTotal = (projects: ReadonlyArray<ProjectSummary>): string => {
-	let pass = 0;
-	let fail = 0;
-	let skip = 0;
-	let timeout = 0;
-	let durationMs = 0;
-	for (const p of projects) {
-		pass += p.passCount;
-		fail += p.failCount;
-		skip += p.skipCount;
-		timeout += p.timeoutCount ?? 0;
-		durationMs += p.durationMs;
-	}
-	const total = pass + fail + skip + timeout;
-	const parts = [`${pass}/${total} passed`];
-	if (fail > 0) parts.push(`${fail} failed`);
-	if (timeout > 0) parts.push(`${timeout} timed out`);
-	if (skip > 0) parts.push(`${skip} skipped`);
-	return `Total: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
-};
+export const formatWorkspaceTotal = (projects: ReadonlyArray<ProjectSummary>): string =>
+	formatTotalsLine({
+		label: "Total",
+		passCount: sumOf(projects, (p) => p.passCount),
+		failCount: sumOf(projects, (p) => p.failCount),
+		timeoutCount: sumOf(projects, (p) => p.timeoutCount ?? 0),
+		skipCount: sumOf(projects, (p) => p.skipCount),
+		durationMs: sumOf(projects, (p) => p.durationMs),
+	});
+
+const sumOf = (projects: ReadonlyArray<ProjectSummary>, pick: (p: ProjectSummary) => number): number =>
+	projects.reduce((sum, p) => sum + pick(p), 0);
 
 const TABLE_COL_FILE_MIN = 60;
 

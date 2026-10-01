@@ -6,8 +6,8 @@ resource: ../../packages/cli/src/commands/db.ts
 tags: [dx, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T05:22:58Z
-  body_sha256: 7c0200d4944a1bcd43b8631c3f3060649b9ff1db346f45a005ec7dd06a1706b6
+  at: 2026-10-01T00:18:42Z
+  body_sha256: b1d01e0329c4dd117d397a1be8f1d183325b26c1eb6fd3fd2c8587f48c47ec36
 sources:
   - id: db-ts
     resource: ../../packages/cli/src/commands/db.ts
@@ -47,13 +47,17 @@ Any of:
      `db reset is human-only; use db prune or run from a human
      terminal` on stderr — this command is deliberately unavailable to an
      agent session.[^db-ts]
-   - **Gate 2 — non-interactive without `--yes`.** If stdout is not a TTY
-     and `--yes` was not passed, it exits `5` with `db reset requires
-     --yes when stdout is not a TTY` on stderr.[^db-ts]
-   - **Gate 3 — interactive confirmation.** If stdout is a TTY and
-     `--yes` was not passed, it prompts `Wipe <dbPath>? [y/N]:`; any
-     answer other than `y`/`Y` prints `aborted` and exits `0` without
-     touching the file.[^db-ts]
+   - **Gate 2 — not interactive without `--yes`.** If the run is not
+     interactive and `--yes` was not passed, it exits `5` with a stderr line
+     beginning `db reset requires --yes when the run is not interactive`. Not
+     interactive means stdin or stdout is not a TTY, or the audience is
+     not human: `--agent` / `--ci`, `VITEST_AGENT_AUDIENCE=agent|ci`, or a
+     shell detected as an agent's. In Claude Code's own terminal a human
+     passes `--yes`, `--human`, or `VITEST_AGENT_AUDIENCE=human`.[^db-ts]
+   - **Gate 3 — interactive confirmation.** Otherwise, without `--yes`,
+     it asks `Wipe <dbPath>?` (default no); declining prints `aborted`
+     and exits `0` without touching the file, and Ctrl-C exits `130`
+     with `vitest-agent: cancelled; nothing written`.[^db-ts]
    - Only past all three gates does it delete `data.db`, then
      `data.db-shm`, then `data.db-wal`, tolerating a missing file at each
      step, and prints `Deleted database at <dbPath>`.[^db-ts]
@@ -84,6 +88,6 @@ version with no I/O error.
 - [Module: engine](../modules/engine.md)
 - [Runbook: Add a migration](add-a-migration.md)
 
-[^db-ts]: `../../packages/cli/src/commands/db.ts:16-114`
+[^db-ts]: `../../packages/cli/src/commands/db.ts:43-94`
 [^doctor-ts]: `../../packages/cli/src/commands/doctor.ts:23-50`
 [^resolve-data-path]: `../../packages/engine/src/utils/resolve-data-path.ts:29-49`

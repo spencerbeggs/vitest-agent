@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Logger } from "effect";
 import { SqlClient } from "effect/sql/SqlClient";
 import { describe, expect, it } from "vitest";
 import { PlatformLive } from "../src/platform.js";
@@ -34,5 +34,33 @@ describe("PlatformLive", () => {
 		expect(result.tracker).toBeDefined();
 		expect(result.renderer).toBeDefined();
 		expect(result.tables).toEqual(["test_artifacts", "test_runs"]);
+	});
+
+	describe("logger option", () => {
+		/**
+		 * Log one line inside `PlatformLive` while an OUTER logger set (standing
+		 * in for a front end's `CliLog`) is installed around it, and return what
+		 * the outer logger saw.
+		 */
+		const outerSees = async (logger: boolean | undefined) => {
+			const seen: Array<unknown> = [];
+			const outer = Logger.layer([Logger.make(({ message }) => void seen.push(message))]);
+			await Effect.runPromise(
+				Effect.logInfo("inside-platform").pipe(
+					Effect.provide(PlatformLive({ dbPath: ":memory:", env: {}, ...(logger === undefined ? {} : { logger }) })),
+					Effect.provide(outer),
+				),
+			);
+			return seen.flat();
+		};
+
+		it("logger: false leaves the caller's logger set in place", async () => {
+			expect(await outerSees(false)).toEqual(["inside-platform"]);
+		});
+
+		it("by default (and with logger: true) LoggerLive replaces the caller's set, silent with no level", async () => {
+			expect(await outerSees(undefined)).toEqual([]);
+			expect(await outerSees(true)).toEqual([]);
+		});
 	});
 });

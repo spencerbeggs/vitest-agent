@@ -30,10 +30,12 @@ sources:
     resource: ../../packages/cli/__test__/boundaries.test.ts
   - id: version-formatter
     resource: ../../packages/cli/src/lib/version-formatter.ts
+  - id: render-failure
+    resource: ../../packages/cli/src/lib/render-failure.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: 62f55106295eda2c55b7e1d4e1f058cb3d26dd6e84f2e4dd411c676e1a0b776b
+  at: 2026-10-01T08:22:45Z
+  body_sha256: 76c8633ce4cbb091d9657b18914fd0253475d43bfa9551817060045b159f4ed0
 ---
 
 # @vitest-agent/cli
@@ -97,36 +99,70 @@ Follows the
 - `src/main.ts` owns the process and is published as the `./main` subpath
   (what the carrier's `packages/plugin/src/bin/vitest-agent.ts`
   imports)[^main-ts]. `main()` reads `process.env` once, resolves
-  `logLevel` / `logFile` through the engine's `resolveLogLevel(env)` /
-  `resolveLogFile(env)`, resolves `projectDir = resolveProjectDir({ env,
+  `projectDir = resolveProjectDir({ env,
   cwd: process.cwd() })` (the engine's four-name precedence —
   `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` →
   `CLAUDE_PROJECT_DIR` → cwd — so a hook-driven invocation from a
   sub-package cwd resolves the SAME `data.db` the MCP server
   uses)[^main-ts], then runs `resolveDataPath(projectDir)` under
   `PathResolutionLive(projectDir) + NodeServices.layer` and provides the
-  engine's `PlatformLive({ dbPath, env, logLevel, logFile })`, merged with
-  the `--version` formatter layer, as the `platform` of `@effected/cli`'s
-  `CliRuntime.main` around the `effect/cli` `Command.run` effect
-  (built from `Command.make("vitest-agent")` +
+  engine's `PlatformLive({ dbPath, env, logger: false })` as the
+  `platform` of `@effected/cli`'s `CliRuntime.main`, around
+  `CliAudience.run` over the root command (built from
+  `Command.make("vitest-agent")` +
+  `Command.withSharedFlags(CliAudience.flags())` +
   `Command.withSubcommands([dbCommand, doctorCommand,
-  agentCommand])`)[^main-ts]. Because the platform is inside failure
+  agentCommand])`)[^main-ts]. The shared flags are `--audience
+  <human|agent|ci>`, `--human`, `--agent`, `--ci`; a conflict or a bad
+  value is a usage error. `CliRuntime.main`'s `env` option builds the
+  `@effected/env` services (`Audience`, with `VITEST_AGENT_AUDIENCE` as
+  the override variable, `TerminalEnv`, `CliTheme`, `CliInteractive`, the
+  gated `Terminal`) plus the kit's colour-decided help formatter, and its
+  `env.log` installs `CliLog` as the one logger set: plain lines and
+  failure reports on stderr, plus a diagnostics sink silent unless
+  `VITEST_REPORTER_LOG_LEVEL` is set (`env.log.format: "auto"`: NDJSON
+  on stderr for an agent or a CI, plain lines for a person; `env.log.argv`
+  is `process.argv.slice(2)` so the engine's build-time migration
+  records, logged before the audience is resolved, still honour
+  `--agent` / `--human` / `--ci` — though a person with stderr piped can
+  get plain build-time lines then NDJSON runtime lines, a kit gap) and an
+  async NDJSON file under `VITEST_REPORTER_LOG_FILE`. `env.displayPath`
+  shows a defect's stack-frame paths relative to the project directory
+  (absolute when outside it).
+  That is why the platform passes `logger: false`: the engine's
+  `LoggerLive` would otherwise replace the `CliLog` set inside the
+  program. Because the platform is inside failure
   reporting, a failure resolving the data path, opening SQLite or
   running migrations prints one line on stderr instead of a runtime
-  report. `renderFailure` keys off the kit's `details.isDefect`: a typed
-  failure prints as `vitest-agent: <Tag>: <message>` and a defect as
-  `vitest-agent: ${formatFatalError(error)}`. `helpOnUsageError:
+  report. `renderFailure` (`lib/render-failure.ts`) keys off the kit's
+  `details.isDefect`: a typed failure from the error channel prints as
+  `vitest-agent: <Tag>: <message>`, the message passed through the kit's
+  `Fmt.sanitize` and folded to one line; a `Cancelled`, a
+  `NotInteractive`, a `SchemaError` and every defect are delegated to
+  the kit's `details.lines({ status: false })` — the run's own report,
+  with its colour, links and `displayPath`, minus the status glyph or
+  `[FAIL]` tag — with the first line prefixed `vitest-agent:`, so the
+  prefix replaces the marker rather than doubling it; a defect prints its
+  message, a stack trimmed to the program's own frames (`node_modules`,
+  Node and Effect frames hidden and counted), and a closing `Please report at <issues
+  URL>` line[^render-failure]. `helpOnUsageError:
   "stderr"` sends help plus the parse errors to stderr on a usage error,
   leaving stdout empty; an explicit `--help` prints on stdout. Exit codes
-  are the kit's: `0` success, `64` usage error, `1` any other reported failure; a command's own
-  `process.exit` code still wins. `main(options?)` takes an optional
-  `distribution` and provides it as `@effected/engine`'s
-  `CurrentDistribution` outermost, so the `--version` formatter
-  (`lib/version-formatter.ts`, `CliColor.formatterLayer` with only
-  `formatVersion` overridden) prints `vitest-agent <version>` plus
-  `via @vitest-agent/plugin <version>` when the carrier launched
-  it[^version-formatter]. Help and parse-error colour follow `CliColor`
-  (stdout a TTY and `NO_COLOR` unset or empty).
+  are the kit's: `0` success, `64` usage error, `130` a cancelled
+  prompt, `1` any other reported failure; a code a command records
+  through `CliExit` (or its own `process.exit`) still wins; a
+  `Cancelled` keeps the kit's fixed `vitest-agent: cancelled; nothing
+  written` line. `main(options?)` takes an optional `distribution`,
+  provides it as `@effected/engine`'s `CurrentDistribution`, and passes
+  `carrierVersionFormatter(distribution)` (`lib/version-formatter.ts`)
+  as `CliRuntime.main`'s `env.formatter`: it replaces only
+  `formatVersion` on the kit's coloured default formatter (the kit still
+  wraps it for help-to-stderr), so `--version` prints `vitest-agent
+  <version>` plus `via @vitest-agent/plugin <version>` when the carrier
+  launched
+  it[^version-formatter]. Colour is the kit's decision through
+  `@effected/env`'s `TerminalEnv`: `NO_COLOR` disables it, `FORCE_COLOR`
+  forces it, and a TTY with no `TERM` is uncoloured.
 - `src/index.ts` is a side-effect-free barrel that never imports `main.ts`,
   so a library consumer's import graph never pulls in the process-owning
   module[^index-ts]. It exports only `CURRENT_CLI_VERSION` (from
@@ -161,11 +197,19 @@ subcommands[^db-ts]:
 
 `db reset` enforces a refusal gate, evaluated in order: (1)
 `VITEST_AGENT_AGENT_ID` set in the environment → refuse, exit code 4
-("agent context"); (2) non-TTY stdout without `--yes` → refuse, exit code 5
-("non-interactive without consent"); (3) TTY without `--yes` → interactive
-`Wipe <path>? [y/N]:` prompt, empty / `n` / `N` aborts with exit 0 and
-`aborted` on stdout; (4) `--yes` skips the prompt unconditionally (still
-subject to gate 1)[^db-ts]. On success it removes `data.db` and the
+("agent context"); (2) not interactive and no `--yes` → refuse, exit
+code 5, where interactive is `@effected/cli`'s `CliInteractive` — a human
+audience with a terminal on both stdin and stdout, so `--agent` / `--ci`,
+`VITEST_AGENT_AUDIENCE=agent|ci`, or a detected agent shell all refuse
+(inside Claude Code a human needs `--yes`, `--human`, or
+`VITEST_AGENT_AUDIENCE=human` — an audience flag recomputes
+`CliInteractive` from the TTY facts, so `--human` at a real terminal in an
+agent-detected shell reaches the prompt); (3) interactive without `--yes` → core
+`Prompt.Confirm` (`Wipe <path>?`, default no); declining exits 0 with
+`aborted` on stdout, Ctrl-C exits 130 with `cancelled; nothing written`;
+(4) `--yes` skips the prompt unconditionally (still subject to gate
+1)[^db-ts]. Codes are recorded through the kit's `CliExit`, not
+`process.exit`. On success it removes `data.db` and the
 `-shm` / `-wal` sidecars via `FileSystem.FileSystem`, each wrapped in
 `Effect.catch(() => Effect.void)` (the v4 rename of `Effect.catchAll`) so a
 missing file is success-equivalent — the operation is idempotent.
@@ -318,8 +362,9 @@ tdd-artifact`, capture the returned `latestTestCaseId`, and pass it as
 ## Platform layers
 
 The CLI composes no layers of its own. `main.ts` provides the engine's
-`PlatformLive({ dbPath, env, logLevel, logFile })` — SQLite + migrator +
-Node platform services + logger with `DataReader`, `DataStore`,
+`PlatformLive({ dbPath, env, logger: false })` — SQLite + migrator +
+Node platform services, with no logger of its own (the kit's `CliLog`
+owns logging), plus `DataReader`, `DataStore`,
 `ProjectDiscovery`, `HistoryTracker` and the output pipeline over them —
 which backs `doctor`, `triage`, `wrapup`, `db` and the `record` group. The
 sidecar subcommands provide the engine's `SidecarPlatformLive(paths, env)` —
@@ -368,9 +413,10 @@ CLI-first split, leaving the CLI utility-only as described above.
 
 [^boundaries-test]: `../../packages/cli/__test__/boundaries.test.ts`
 [^version-formatter]: `../../packages/cli/src/lib/version-formatter.ts`
-[^main-ts]: `../../packages/cli/src/main.ts:42` (`main`), `../../packages/cli/src/main.ts:57` (`projectDir`), `../../packages/cli/src/main.ts:31` (`rootCommand`)
+[^render-failure]: `../../packages/cli/src/lib/render-failure.ts`
+[^main-ts]: `../../packages/cli/src/main.ts:103` (`main`), `../../packages/cli/src/main.ts:116` (`projectDir`), `../../packages/cli/src/main.ts:39` (`rootCommand`)
 [^bin-ts]: `../../packages/cli/src/bin.ts:10`
 [^index-ts]: `../../packages/cli/src/index.ts:21`
-[^db-ts]: `../../packages/cli/src/commands/db.ts:192` (`db` parent), `../../packages/cli/src/commands/db.ts:194` (`dbCommand`), `../../packages/cli/src/commands/db.ts:52` (`reset`), `../../packages/cli/src/commands/db.ts:153` (`query`)
+[^db-ts]: `../../packages/cli/src/commands/db.ts:172` (`db` parent), `../../packages/cli/src/commands/db.ts:174` (`dbCommand`), `../../packages/cli/src/commands/db.ts:49` (`reset`), `../../packages/cli/src/commands/db.ts:138` (`query`)
 [^agent-ts]: `../../packages/cli/src/commands/agent.ts:333` (`agentParent`), `../../packages/cli/src/commands/agent.ts:339` (`agentCommand`), `../../packages/cli/src/commands/agent.ts:296` (`check-test-path`)
 [^record-ts]: `../../packages/cli/src/commands/record.ts:303`

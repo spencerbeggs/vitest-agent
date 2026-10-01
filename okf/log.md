@@ -1,5 +1,25 @@
 # Log
 
+## 2026-10-01
+
+* Updated AgentPlugin.discover() / DiscoverStrategy
+* Updated AgentPluginOptions
+* Updated Executor vs. console mode
+* Updated Package boundaries — process reads and forbidden imports
+* Updated Reset the local vitest-agent database
+* Updated Test layout — flat __test__ directories, src co-location, and kind-by-suffix
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/plugin
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated @vitest-agent/cli
+* Updated Claude Code hook environment contract
+* Updated The `vitest-agent` CLI command tree
+
+## 2026-09-30
+
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Added The Walker Test Adapter Sits on memfs' Promises Port
+
 ## 2026-09-29
 
 * Updated @vitest-agent/engine

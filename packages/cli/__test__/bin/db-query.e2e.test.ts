@@ -26,7 +26,9 @@ interface SpawnResult {
 }
 
 const runBin = (args: string[], opts: { env?: NodeJS.ProcessEnv; cwd?: string } = {}): SpawnResult => {
-	const merged: NodeJS.ProcessEnv = { ...process.env, ...opts.env };
+	// FORCE_COLOR=0: @effected/cli honours FORCE_COLOR (Node precedence), so a host that
+	// sets it (CI runners often do) would colour help and error output on a pipe.
+	const merged: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "0", ...opts.env };
 	for (const key of Object.keys(merged)) {
 		if (merged[key] === undefined) {
 			delete merged[key];

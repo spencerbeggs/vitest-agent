@@ -1,8 +1,9 @@
-import type { FileCoverageReport, ProjectSummary, RenderState } from "@vitest-agent/sdk";
+import type { FailureRecord, FileCoverageReport, ProjectSummary, RenderState } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import {
 	formatBelowTargetTable,
+	formatFailure,
 	formatProjectRow,
 	formatTotals,
 	formatWorkspaceTotal,
@@ -79,5 +80,53 @@ describe("formatBelowTargetTable", () => {
 		const rows = formatBelowTargetTable([fileReport(longPath)], 10);
 		expect(rows.join("\n")).toContain(longPath);
 		expect(rows.join("\n")).not.toContain("…");
+	});
+});
+
+describe("formatFailure", () => {
+	const failure = (overrides: Partial<FailureRecord> = {}): FailureRecord => ({
+		modulePath: "src/a.test.ts",
+		testName: "does it",
+		suitePath: ["suite"],
+		classification: "new-failure",
+		...overrides,
+	});
+
+	it("renders the title, first message line and diff as one compact item", () => {
+		const lines = formatFailure(
+			failure({ error: { message: "expected 1 to be 2\nsecond", diff: "- Expected\n+ Received\n\n- 1\n+ 2" } }),
+			80,
+		);
+		expect(lines).toEqual([
+			"- src/a.test.ts > suite > does it [new-failure]",
+			"  expected 1 to be 2",
+			"  - Expected",
+			"  + Received",
+			"  ",
+			"  - 1",
+			"  + 2",
+		]);
+	});
+
+	it("never wraps a long title, but truncates the message and diff lines to the width", () => {
+		const lines = formatFailure(
+			failure({
+				testName: "t".repeat(100),
+				classification: null,
+				error: { message: "m".repeat(100), diff: `+ ${"b".repeat(100)}` },
+			}),
+			40,
+		);
+		expect(lines[0]).toBe(`- src/a.test.ts > suite > ${"t".repeat(100)}`);
+		expect(lines[1]).toBe(`  ${"m".repeat(37)}…`);
+		expect(lines[2]).toBe(`  + ${"b".repeat(35)}…`);
+	});
+
+	it("keeps a 20-column content floor at a tiny width", () => {
+		expect(formatFailure(failure({ error: { message: "m".repeat(30) } }), 5)[1]).toBe(`  ${"m".repeat(19)}…`);
+	});
+
+	it("strips escape sequences an error message carries", () => {
+		expect(formatFailure(failure({ error: { message: "\u001b[31mred\u001b[39m" } }), 80)[1]).toBe("  red");
 	});
 });

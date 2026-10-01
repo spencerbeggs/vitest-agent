@@ -9,13 +9,21 @@ src/
   bin.ts              -- shebang shim: `import { main } from "./main.js"; main();`
   main.ts             -- OWNS the process (published at `./main`):
                          main({ distribution? }) ->
-                         resolveLogLevel/resolveLogFile(process.env),
                          resolveProjectDir({ env, cwd: process.cwd() }),
-                         resolveDataPath -> PlatformLive({ dbPath, env, logLevel,
-                         logFile }) as CliRuntime.main's `platform` around
-                         Command.run(rootCommand, { version }) ->
-                         NodeRuntime.runMain; withSubcommands is exactly
-                         db / doctor / agent
+                         resolveDataPath -> PlatformLive({ dbPath, env,
+                         logger: false }) as CliRuntime.main's `platform`
+                         around CliAudience.run(rootCommand, { version }),
+                         with `render: renderFailure` and CliRuntime.main's
+                         `env` option (audience override VITEST_AGENT_AUDIENCE;
+                         `env.formatter` = carrierVersionFormatter; `env.log`
+                         = CliLog over VITEST_REPORTER_LOG_LEVEL / _LOG_FILE,
+                         format "auto" (NDJSON for agent/CI, plain for a
+                         person) with argv so build-time migration records
+                         honour --agent/--human/--ci; `env.displayPath` =
+                         stack paths relative to the project dir) ->
+                         NodeRuntime.runMain; the root carries the shared
+                         --audience/--human/--agent/--ci flags and
+                         withSubcommands is exactly db / doctor / agent
   index.ts            -- side-effect-free barrel: exports only
                          CURRENT_CLI_VERSION; never imports main.ts
   version.ts          -- CURRENT_CLI_VERSION (the one process.env.__PACKAGE_VERSION__ read)
@@ -30,8 +38,16 @@ src/
                        -- subcommand bodies composed under `agent`
   lib/                -- pure formatting functions (where tests live)
     format-doctor.ts format-db-query.ts
-    version-formatter.ts -- CliColor.formatterLayer with formatVersion
-                            overridden (the `via <carrier>` suffix)
+    version-formatter.ts -- carrierVersionFormatter(distribution): the
+                            formatVersion override passed as env.formatter
+                            (the `via <carrier>` suffix)
+    render-failure.ts    -- renderFailure: typed failures as one
+                            `vitest-agent: <Tag>: <message>` line; Cancelled,
+                            NotInteractive, SchemaError and defects via
+                            details.lines({ status: false }) (the run's
+                            colour/links/displayPath, no doubled [FAIL]
+                            marker; defect: trimmed
+                            stack + issues link); messages Fmt.sanitize'd
 ```
 
 There is no `layers/` and no `lib/internal-*.ts` / `record-*.ts` /
@@ -45,7 +61,7 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 
 | File | Purpose |
 | ---- | ------- |
-| `main.ts` | The assembled program. `resolveProjectDir` (engine) honors `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → cwd so hook-driven invocations from a sub-package cwd resolve the SAME `data.db` the MCP server uses. v4 `Command.run` takes no `name` (it comes from `Command.make`) and reads argv from the Stdio service. Runs through `@effected/cli`'s `CliRuntime.main` with the platform layer inside failure reporting: exit `0` success, `64` usage/parse error, `1` any other reported failure (a platform build failure is one `vitest-agent: <Tag>: <message>` line on stderr). `--version` prints `vitest-agent <CURRENT_CLI_VERSION>` plus `via @vitest-agent/plugin <version>` when the carrier's shim passed `distribution` (provided as `CurrentDistribution` outermost, so the formatter layer reads it at build time) |
+| `main.ts` | The assembled program. `resolveProjectDir` (engine) honors `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → cwd so hook-driven invocations from a sub-package cwd resolve the SAME `data.db` the MCP server uses. v4 `Command.run` takes no `name` (it comes from `Command.make`) and reads argv from the Stdio service. Runs through `@effected/cli`'s `CliRuntime.main` with the platform layer inside failure reporting: exit `0` success, `64` usage/parse error, `1` any other reported failure (a platform build failure is one `vitest-agent: <Tag>: <message>` line on stderr). `--version` prints `vitest-agent <CURRENT_CLI_VERSION>` plus `via @vitest-agent/plugin <version>` when the carrier's shim passed `distribution` (passed to `carrierVersionFormatter` as `env.formatter`, and provided as `CurrentDistribution`). An audience flag recomputes `CliInteractive` from the TTY facts, so `--human` at a real terminal in an agent-detected shell can prompt |
 | `commands/db.ts` | `db` parent with four subcommands. `db path` prints the deterministic XDG path (no probing); `db prune --keep-recent N` drops old sessions' turn history (default N=30); `db reset` wipes the DB (human-only, agent-blocked); `db query <sql>` runs read-only SQL |
 | `commands/doctor.ts` | 5-point health diagnostic (manifest assembly, latest-run integrity, staleness check). Keeps `--format markdown\|json` |
 | `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand`, the sidecar subcommands `register-agent`, `end-agent`, `inject-env`, `sidecar-path`, and — outside that family, with its own exit-code contract — `check-test-path`. The sidecar subcommands call `resolveHookPaths({ env: process.env, projectKey })` then provide `SidecarPlatformLive(paths, process.env)`; `inject-env` passes a `readFileSync` wrapper into the pure `injectEnv` |
@@ -69,8 +85,14 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   the reporter (during a test run) or the MCP server (`note_*`).
 - **`CliRuntime.main` under `NodeRuntime.runMain` for the entry.** Failure
   rendering and exit codes are the kit's; `renderFailure` keys off the
-  kit's `details.isDefect`: a typed failure is one line, a defect goes
-  through `formatFatalError`. `helpOnUsageError: "stderr"` puts help plus
+  kit's `details.isDefect`: a typed failure is one line (message through
+  `Fmt.sanitize`, line breaks folded); a defect (and
+  `Cancelled` / `NotInteractive` / `SchemaError`) goes through
+  `details.lines({ status: false })` (the run's own report: colour, links,
+  `displayPath`), prefixed `vitest-agent:` in place of the kit's status
+  marker — for a defect, a
+  stack trimmed to our own frames plus a `Please report at <issues url>`
+  line. `helpOnUsageError: "stderr"` puts help plus
   the parse errors on stderr on a usage error (stdout empty, exit 64 —
   hooks pipe `agent *` stdout into jq); an explicit `--help` stays on
   stdout. Keep the
@@ -112,9 +134,12 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   SQLite directly from the CLI — except `db query`, which opens
   `data.db` read-only by design.
 - `db reset` is human-only: it refuses with exit code 4 when
-  `VITEST_AGENT_AGENT_ID` is set, exit code 5 when stdout is not a TTY
-  and `--yes` was not passed, and otherwise prompts `Wipe <path>?
-  [y/N]:` on a TTY. It deletes `data.db` plus its `-shm` / `-wal`
+  `VITEST_AGENT_AGENT_ID` is set, exit code 5 when the run is not
+  interactive (`CliInteractive`: non-TTY stdin or stdout, `--agent` /
+  `--ci`, `VITEST_AGENT_AUDIENCE=agent|ci`, or a detected agent shell)
+  and `--yes` was not passed, and otherwise prompts with core
+  `Prompt.Confirm` (`Wipe <path>?`, default no; Ctrl-C exits 130). Exit
+  codes go through `CliExit.set`, not `process.exit`. It deletes `data.db` plus its `-shm` / `-wal`
   companions and is idempotent (a missing DB is success).
 - `db query <sql>` opens the connection with the SqliteClient
   read-only flag so SQLite enforces no-write; mutation attempts and

@@ -5,8 +5,11 @@
  * the surrounding row can keep its width budget predictable.
  */
 
+import { useGlyphs } from "@effected/cli/ui";
 import { Text } from "ink";
 import type { FC } from "react";
+import type { VitestAgentStatusName } from "../theme.js";
+import { statusGlyph, statusInkStyle } from "../theme.js";
 
 /**
  * The set of named statuses a `StatusIcon` can render.
@@ -34,28 +37,21 @@ export interface StatusIconProps {
 	readonly status: StatusIconKind;
 }
 
-const GLYPH: Record<StatusIconKind, string> = {
-	passed: "✓",
-	failed: "✗",
-	skipped: "↷",
-	pending: "◯",
-	running: "…",
-	queued: "·",
-	finished: "✓",
-	threshold: "⚠",
-	"timed-out": "⧖",
-};
-
-const COLOR: Record<StatusIconKind, string> = {
-	passed: "green",
-	failed: "red",
-	skipped: "gray",
-	pending: "cyan",
-	running: "yellow",
-	queued: "gray",
-	finished: "green",
-	threshold: "yellow",
-	"timed-out": "#e09a4e",
+/**
+ * Each icon kind's status in the shared vocabulary. `finished` is a pass;
+ * `threshold` is a coverage threshold failure, which the kit ranks as a
+ * `failure`, not a warning.
+ */
+const STATUS: Record<StatusIconKind, VitestAgentStatusName> = {
+	passed: "success",
+	failed: "failure",
+	skipped: "skip",
+	pending: "pending",
+	running: "running",
+	queued: "queued",
+	finished: "success",
+	threshold: "failure",
+	"timed-out": "timeout",
 };
 
 /**
@@ -63,4 +59,7 @@ const COLOR: Record<StatusIconKind, string> = {
  *
  * @public
  */
-export const StatusIcon: FC<StatusIconProps> = ({ status }) => <Text color={COLOR[status]}>{GLYPH[status]}</Text>;
+export const StatusIcon: FC<StatusIconProps> = ({ status }) => {
+	const glyphs = useGlyphs();
+	return <Text {...statusInkStyle(STATUS[status])}>{statusGlyph(STATUS[status], glyphs)}</Text>;
+};

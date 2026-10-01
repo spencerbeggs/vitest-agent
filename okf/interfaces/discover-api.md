@@ -10,8 +10,8 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: a2bf2e1b214d22b6c62816e05a3d2b290b927a6d70079f5bf187965c8c6110ff
+  at: 2026-10-01T00:18:42Z
+  body_sha256: f84216a6bf3116c5037ff496e83511730f35a5edd2301b13b74c9c0b1e71b56d
 ---
 
 # AgentPlugin.discover() / DiscoverStrategy
@@ -150,11 +150,13 @@ next.
 
 ## `DefaultDiscoverStrategy`
 
-`packages/plugin/src/utils/discover-strategy.ts:232`. The strategy applied
+`packages/plugin/src/utils/discover-strategy.ts:252`. The strategy applied
 when no override is passed.
 
 - **Tags.** `unit`, `int` (timeout 60 000 ms), `e2e` (timeout 120 000 ms,
-  retry 2 in CI, otherwise 0).
+  retry 2 in CI, otherwise 0). CI is `@effected/env`'s `RuntimeEnv` rule —
+  a truthy `GITHUB_ACTIONS`, or `CI` / `CONTINUOUS_INTEGRATION` set and not
+  `false` / `0` — read when the strategy is constructed, not at module load.
 - **`classify`.** Filename-suffix match: `.e2e.(test|spec).(ts|tsx|js|jsx)`
   → `["e2e"]`, `.int.(test|spec).(ts|tsx|js|jsx)` → `["int"]`, otherwise
   `["unit"]`.

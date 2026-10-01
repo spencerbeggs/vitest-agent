@@ -30,8 +30,8 @@ sources:
     resource: ../../plugins/claude-code/hooks/session/end-record-worker.sh
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 10a2def6fe210a43d23993edfd968abeea0a58953ba3c68ac90c176a5894b092
+  at: 2026-10-01T08:22:45Z
+  body_sha256: fc3c2b252ceaa981221abe4b1c05ee2d6b46c0e00eed8b5bf720491e560178d7
 ---
 
 # Claude Code hook environment contract
@@ -203,6 +203,32 @@ A consumer relying on this pairing must not assume a 1:1 timing guarantee
 under concurrent same-type subagent dispatches — only that the file exists
 between `SubagentStart` and a successful `SubagentStop`, and that stale
 files are swept at session end.
+
+## Operator overrides a hook does not export
+
+These `VITEST_*` variables are read by the family's binaries but never
+written by a hook; a human (or a hook author debugging) sets them:
+
+- `VITEST_AGENT_AUDIENCE` (`human | agent | ci`) overrides the audience the
+  `vitest-agent` CLI detects; the root `--audience` / `--human` / `--agent`
+  / `--ci` flags take precedence over it. Inside a Claude Code session the
+  CLI detects an agent audience, so `db reset`'s confirmation prompt is
+  unreachable without `--yes`, `--human`, or `VITEST_AGENT_AUDIENCE=human`
+  — and `VITEST_AGENT_AGENT_ID`, one of the canonical exports above, blocks
+  `db reset` outright. See [the CLI interface](cli.md).
+- `VITEST_AGENT_CONSOLE` overrides the plugin's console mode for the
+  detected executor, matched case-insensitively; a value that executor does
+  not accept is ignored with one `[vitest-agent:plugin] ignoring
+  VITEST_AGENT_CONSOLE=<value>: …` stderr line per run. See
+  [AgentPluginOptions](agent-plugin-options.md).
+- `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` turn on stderr
+  diagnostics (and an NDJSON file). The `vitest-agent` CLI's records,
+  migration records included, are NDJSON on stderr for an agent or CI
+  audience and plain lines for a person (`--human`). The
+  plugin's own debug records (NDJSON
+  on stderr with component `vitest-agent:plugin`, for a human at a TTY too)
+  need `debug`, `trace`, or `all`; a higher level such as `info` leaves them
+  silent.
 
 ## What a hook may rely on
 

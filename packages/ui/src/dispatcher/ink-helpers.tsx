@@ -3,14 +3,17 @@
  *
  * Most cells re-express their agent-half string in a simple
  * `<Box flexDirection="column">` with one `<Text>` per line plus
- * targeted color coding on glyph characters (✓ green, ✗ red,
- * Trend regressing/improving in matching colors).
+ * targeted styling on status glyphs and line prefixes, all drawn from
+ * the shared `VitestAgentStatus` vocabulary and theme tokens.
  *
  * @packageDocumentation
  */
 
+import type { TokenName } from "@effected/cli";
 import { Box, Text } from "ink";
 import type { ReactElement } from "react";
+import type { VitestAgentStatusName } from "../theme.js";
+import { inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
 
 /**
  * Render an agent-string output as a column of Ink Text rows, applying
@@ -27,48 +30,41 @@ export const renderAgentStringAsInk = (agentString: string): ReactElement => {
 	);
 };
 
-const PASS_GLYPH = "✓";
-const FAIL_GLYPH = "✗";
+const SUCCESS_GLYPH = statusGlyph("success");
+const FAILURE_GLYPH = statusGlyph("failure");
+
+/** Paint the leading status glyph of a line in its vocabulary style. */
+const glyphLine = (line: string, glyph: string, status: VitestAgentStatusName): ReactElement => {
+	const idx = line.indexOf(glyph);
+	return (
+		<>
+			{line.slice(0, idx)}
+			<Text {...statusInkStyle(status)}>{glyph}</Text>
+			{line.slice(idx + glyph.length)}
+		</>
+	);
+};
+
+/**
+ * Whole-line styles keyed on the agent string's line prefixes. A
+ * regressing trend is a `warning`; a coverage threshold failure is a
+ * `failure` (the kit's drift decisions).
+ */
+const LINE_STYLES: ReadonlyArray<readonly [prefix: string, token: TokenName]> = [
+	["Trend: regressing", "warning"],
+	["Trend: improving", "success"],
+	[`Coverage: ${SUCCESS_GLYPH}`, "success"],
+	[`Coverage: ${FAILURE_GLYPH}`, "failure"],
+	["Failures:", "emphasis"],
+	["Use `", "muted"],
+];
 
 const colorize = (line: string): ReactElement | string => {
 	const trimmed = line.trimStart();
-	if (trimmed.startsWith(PASS_GLYPH)) {
-		const idx = line.indexOf(PASS_GLYPH);
-		return (
-			<>
-				{line.slice(0, idx)}
-				<Text color="green">{PASS_GLYPH}</Text>
-				{line.slice(idx + 1)}
-			</>
-		);
-	}
-	if (trimmed.startsWith(FAIL_GLYPH)) {
-		const idx = line.indexOf(FAIL_GLYPH);
-		return (
-			<>
-				{line.slice(0, idx)}
-				<Text color="red">{FAIL_GLYPH}</Text>
-				{line.slice(idx + 1)}
-			</>
-		);
-	}
-	if (line.startsWith("Trend: regressing")) {
-		return <Text color="yellow">{line}</Text>;
-	}
-	if (line.startsWith("Trend: improving")) {
-		return <Text color="green">{line}</Text>;
-	}
-	if (line.startsWith("Coverage: ✓")) {
-		return <Text color="green">{line}</Text>;
-	}
-	if (line.startsWith("Coverage: ✗")) {
-		return <Text color="red">{line}</Text>;
-	}
-	if (line.startsWith("Failures:")) {
-		return <Text bold>{line}</Text>;
-	}
-	if (line.startsWith("Use `")) {
-		return <Text dimColor>{line}</Text>;
+	if (trimmed.startsWith(SUCCESS_GLYPH)) return glyphLine(line, SUCCESS_GLYPH, "success");
+	if (trimmed.startsWith(FAILURE_GLYPH)) return glyphLine(line, FAILURE_GLYPH, "failure");
+	for (const [prefix, token] of LINE_STYLES) {
+		if (line.startsWith(prefix)) return <Text {...inkStyle(token)}>{line}</Text>;
 	}
 	return line;
 };

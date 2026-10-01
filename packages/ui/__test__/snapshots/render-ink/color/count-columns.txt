@@ -1,0 +1,2 @@
+{green}  12✓{/fg}  {red}   2✗{/fg}  {dim}   3↷{/bold|dim}  {#e09a4e}   1⧖{/fg}
+{gray}   0✓{/fg}  {gray}   0✗{/fg}  {gray}   0↷{/fg}  {gray}   0⧖{/fg}

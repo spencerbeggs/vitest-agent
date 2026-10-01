@@ -17,10 +17,12 @@ sources:
     resource: ../../packages/cli/src/commands/db.ts
   - id: mcp-tdd-goal-effect-ai
     resource: ../../packages/mcp/src/tools/tdd-goal.ts
+  - id: mcp-run-tests-platform-node-subpaths
+    resource: ../../packages/mcp/src/tools/run-tests.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: a3112e834621562139bd6b684ac06f6980a28bdbba661640b191ea990f5ff1b7
+  at: 2026-10-01T07:18:02Z
+  body_sha256: 2fdc9a040c6e9d4a255145c66a33af7239913a55ee8b4b0b4d3b683ae5f7a536
 ---
 
 # Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
@@ -49,6 +51,13 @@ alongside `"effect": "catalog:effect"` itself[^cli-package-json]. Every
 other Effect-shaped dependency in this family pins through the same
 catalog entry; `catalog:silk` is a distinct, older v3-era catalog and
 must never be used for an Effect package.
+
+Import `@effect/platform-node` through its module subpaths
+(`@effect/platform-node/NodeFileSystem`, `@effect/platform-node/NodePath`,
+and so on), never the package root[^mcp-run-tests-platform-node-subpaths].
+The root re-exports `NodeRedis`, which imports the optional `redis` peer,
+so a consumer whose package manager skips that peer crashes at startup
+with a missing `redis` module.
 
 ## Where the catalog values come from
 
@@ -85,3 +94,4 @@ convention is downstream of.
 [^cli-main-effect-cli]: ../../packages/cli/src/main.ts
 [^cli-db-effect-sql]: ../../packages/cli/src/commands/db.ts
 [^mcp-tdd-goal-effect-ai]: ../../packages/mcp/src/tools/tdd-goal.ts
+[^mcp-run-tests-platform-node-subpaths]: ../../packages/mcp/src/tools/run-tests.ts

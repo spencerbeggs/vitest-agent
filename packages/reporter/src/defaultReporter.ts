@@ -13,11 +13,15 @@
  * - `agent` → emits the dispatched agent-string for the whole run.
  * - `silent` / `passthrough` / `ci-annotations` → emits nothing; the
  *   visible work happens elsewhere.
- * - `stream` → emits nothing from `render`; the reporter owns a live Ink
- *   mount that subscribes to the kit's run-event channel and paints
- *   per-event during the run.
+ * - `stream` → emits nothing from `render`; the reporter owns a live view
+ *   (the kit's `CliUi.live`, see `liveView.ts`) subscribed to the kit's
+ *   run-event channel, which paints per event during the run and is closed
+ *   through the reporter's `close` at Vitest's close.
  */
 
+import type { CoreStatusName } from "@effected/cli";
+import { Doc, Render, Status } from "@effected/cli";
+import { CliUi, UiProvider } from "@effected/cli/ui";
 import type {
 	AgentReport,
 	CellOptions,
@@ -28,7 +32,6 @@ import type {
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
-	RunEvent,
 	RunOutcome,
 	RunReportFile,
 	RunShape,
@@ -46,9 +49,10 @@ import {
 	reduceRenderStateAll,
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
-import { Effect, PubSub } from "effect";
+import { Effect } from "effect";
+import { createElement } from "react";
 import { renderGithubLog, toDisplayPath } from "./githubLog.js";
-import { createLiveInk } from "./LiveInkRenderer.js";
+import { LiveViewEnv, startLiveView } from "./liveView.js";
 
 const countTimeouts = (report: AgentReport): number => {
 	let timeoutCount = 0;
@@ -191,8 +195,10 @@ export const renderAgentStringForReport = (report: AgentReport): string => {
 
 /**
  * Same as {@link renderAgentStringForReport} but returns the Ink-half
- * rendered to a string via Ink's `renderToString`. ANSI escape
- * sequences are preserved so a terminal renders the colors live.
+ * rendered to a string via Ink's `renderToString`, inside the kit's
+ * `UiProvider` (the components draw the terminal's glyph set, ASCII under
+ * `TERM=dumb`). ANSI escape sequences are preserved so a terminal renders
+ * the colors live.
  * Returns the agent-string fallback when the matched cell has no Ink
  * half.
  *
@@ -222,7 +228,9 @@ export const renderHumanStringForReport = async (
 	if (cell.ink === undefined) {
 		return dispatch(inputs, opts);
 	}
-	return renderToString(cell.ink(inputs, opts), { columns: options.width ?? 80 });
+	const columns = options.width ?? 80;
+	const context = await Effect.runPromise(CliUi.context.pipe(Effect.provide(LiveViewEnv)));
+	return renderToString(createElement(UiProvider, { value: context }, cell.ink(inputs, opts)), { columns });
 };
 
 const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
@@ -234,16 +242,31 @@ const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
 
 const MAX_SUMMARY_COVERAGE_ROWS = 10;
 
+/**
+ * The step summary and `summary.md` are files, not log lines, so their
+ * markdown context opts out of the `ci` default that neutralizes workflow
+ * commands.
+ */
+const summaryRenderContext = Render.contextOf({
+	audience: "ci",
+	displayPath: toDisplayPath,
+	neutralizeWorkflowCommands: false,
+});
+
 const renderClassificationsSection = (classifications: ReporterRenderInput["classifications"]): string | null => {
 	const counts = new Map<TestClassification, number>();
 	for (const classification of classifications.values()) {
 		counts.set(classification, (counts.get(classification) ?? 0) + 1);
 	}
-	const rows = NON_STABLE_SUMMARY_CLASSIFICATIONS.filter((kind) => (counts.get(kind) ?? 0) > 0).map(
-		(kind) => `| ${kind} | ${counts.get(kind)} |`,
-	);
+	const rows = NON_STABLE_SUMMARY_CLASSIFICATIONS.filter((kind) => (counts.get(kind) ?? 0) > 0).map((kind) => [
+		kind,
+		String(counts.get(kind)),
+	]);
 	if (rows.length === 0) return null;
-	return ["### Classifications", "", "| Classification | Count |", "| --- | --- |", ...rows].join("\n");
+	return Render.markdown(
+		[Doc.heading(3, "Classifications"), Doc.table([{ header: "Classification" }, { header: "Count" }], rows)],
+		summaryRenderContext,
+	);
 };
 
 const formatCoveragePercent = (totals: FileCoverageReport["summary"]): string =>
@@ -252,36 +275,35 @@ const formatCoveragePercent = (totals: FileCoverageReport["summary"]): string =>
 const renderCoverageSection = (reports: ReporterRenderInput["reports"]): string | null => {
 	const belowTarget = reports.flatMap((r) => r.coverage?.belowTarget ?? []);
 	if (belowTarget.length === 0) return null;
-	const shown = belowTarget.slice(0, MAX_SUMMARY_COVERAGE_ROWS);
-	const rows = shown.map((f) => `| ${toDisplayPath(f.file)} | ${formatCoveragePercent(f.summary)} |`);
-	const lines = [
-		"### Coverage",
-		"",
-		`${belowTarget.length} file(s) below target.`,
-		"",
-		"| File | Coverage |",
-		"| --- | --- |",
-		...rows,
-	];
-	if (belowTarget.length > MAX_SUMMARY_COVERAGE_ROWS) {
-		lines.push("", `(+${belowTarget.length - MAX_SUMMARY_COVERAGE_ROWS} more not shown)`);
-	}
-	return lines.join("\n");
+	// `Doc.file` shows the path through the context's `displayPath`, unlinked.
+	const rows = belowTarget.map((f) => [Doc.file(f.file), formatCoveragePercent(f.summary)]);
+	return Render.markdown(
+		[
+			Doc.heading(3, "Coverage"),
+			Doc.paragraph(`${belowTarget.length} file(s) below target.`),
+			Doc.table([{ header: "File" }, { header: "Coverage" }], rows, {
+				cap: MAX_SUMMARY_COVERAGE_ROWS,
+				overflow: (hidden) => `(+${hidden} more not shown)`,
+			}),
+		],
+		summaryRenderContext,
+	);
 };
 
+/**
+ * The trend as one line per fact. `Doc.lines` joins them with GFM hard breaks
+ * (a trailing `\\`), so a GFM reader cannot collapse them into one paragraph.
+ */
 const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): string | null => {
 	if (trendSummary === undefined) return null;
-	const lines = ["### Trend", "", `Direction: ${trendSummary.direction}`, `Run count: ${trendSummary.runCount}`];
+	const lines = [`Direction: ${trendSummary.direction}`, `Run count: ${trendSummary.runCount}`];
 	const firstMetric = trendSummary.firstMetric;
 	if (firstMetric !== undefined) {
 		const targetSuffix = firstMetric.target !== undefined ? ` (target: ${firstMetric.target})` : "";
 		lines.push(`${firstMetric.name}: ${firstMetric.from} → ${firstMetric.to}${targetSuffix}`);
 	}
-	return lines.join("\n");
+	return Render.markdown([Doc.heading(3, "Trend"), Doc.lines(lines)], summaryRenderContext);
 };
-
-const formatSummaryDuration = (ms: number): string =>
-	ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
 
 /**
  * Per-project pass/fail/timeout/skip/duration table — the unconditional
@@ -302,39 +324,32 @@ const formatSummaryDuration = (ms: number): string =>
  * would show a timed-out test as `Failed: 1` while every console surface
  * says `0 failed, 1 timed out`.
  *
+ * A plain `Doc.table`, not `Doc.countsTable`: the counts table heads its
+ * label column with nothing (this one reads `Project`) and has no column for
+ * a formatted, non-count cell like the duration.
+ *
  * @internal
  */
 const renderTotalsSection = (reports: ReporterRenderInput["reports"]): string => {
 	const rows = reports.map((report) => summarizeProject(report));
-	const cells = (
-		name: string,
-		passed: number,
-		failed: number,
-		timedOut: number,
-		skipped: number,
-		duration: number,
-	): string => `| ${name} | ${passed} | ${failed} | ${timedOut} | ${skipped} | ${formatSummaryDuration(duration)} |`;
-	const lines = [
-		"### Totals",
-		"",
-		"| Project | Passed | Failed | Timed out | Skipped | Duration |",
-		"| --- | --- | --- | --- | --- | --- |",
-		...rows.map((r) => cells(r.name, r.passCount, r.failCount, r.timeoutCount ?? 0, r.skipCount, r.durationMs)),
-	];
-	if (rows.length > 1) {
-		const total = rows.reduce(
-			(acc, r) => ({
-				passed: acc.passed + r.passCount,
-				failed: acc.failed + r.failCount,
-				timedOut: acc.timedOut + (r.timeoutCount ?? 0),
-				skipped: acc.skipped + r.skipCount,
-				duration: acc.duration + r.durationMs,
-			}),
-			{ passed: 0, failed: 0, timedOut: 0, skipped: 0, duration: 0 },
-		);
-		lines.push(cells("**Total**", total.passed, total.failed, total.timedOut, total.skipped, total.duration));
-	}
-	return lines.join("\n");
+	const counter = (status: CoreStatusName, key: string, label: string, n: number) =>
+		Doc.counter(Status.core, status, { key, label, n, showZero: true });
+	const tableRows = rows.map((r) => ({
+		label: r.name,
+		counters: [
+			counter("success", "passed", "Passed", r.passCount),
+			counter("failure", "failed", "Failed", r.failCount),
+			counter("warning", "timedOut", "Timed out", r.timeoutCount ?? 0),
+			counter("skip", "skipped", "Skipped", r.skipCount),
+		],
+		durationMs: r.durationMs,
+	}));
+	const table = Doc.countsTable(tableRows, {
+		labelHeader: "Project",
+		durationHeader: "Duration",
+		...(rows.length > 1 ? { totalRow: Doc.strong("Total") } : {}),
+	});
+	return Render.markdown([Doc.heading(3, "Totals"), table], summaryRenderContext);
 };
 
 /**
@@ -384,36 +399,6 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
 };
 
 /**
- * Subscribe a live Ink mount to the kit's run-event channel.
- *
- * Called from the factory when `consoleMode` is `stream`. The factory runs
- * at run start — before the plugin publishes the first `RunStarted`
- * event — so the subscription is registered in time. `Effect.runFork`
- * advances the forked fiber up to its first suspension (the
- * `PubSub.take` below); that suspension point is past `PubSub.subscribe`,
- * so the subscription is live before this function returns. The drain
- * loop runs forever: `createLiveInk` handles `RunFinished` (schedules
- * unmount) and a subsequent `RunStarted` (remounts) itself, so the loop
- * stays open across watch-mode reruns and ends only when the process
- * exits.
- *
- * @internal
- */
-const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
-	const live = createLiveInk();
-	Effect.runFork(
-		Effect.scoped(
-			Effect.gen(function* () {
-				const subscription = yield* PubSub.subscribe(channel);
-				yield* Effect.forever(
-					PubSub.take(subscription).pipe(Effect.flatMap((event) => Effect.sync(() => live.event(event)))),
-				);
-			}),
-		),
-	);
-};
-
-/**
  * The default reporter factory.
  *
  * The plugin uses this as its built-in when no user `reporter` option
@@ -421,8 +406,12 @@ const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
  * worked example of the `VitestAgentReporterFactory` contract.
  *
  * The factory is invoked once at run start with the run-start kit. In
- * `consoleMode: "stream"` it subscribes a live Ink mount to the kit's
- * run-event channel and owns that mount's lifecycle end to end.
+ * `consoleMode: "stream"` it starts a live view on the kit's run-event
+ * channel (subscribed before the factory returns, so the first
+ * `RunStarted` is seen) and owns it for the reporter's life: the
+ * reporter's `close`, which the plugin calls at Vitest's close before
+ * shutting the channel down, drains the queued events, waits for the last
+ * frame and closes it.
  *
  * The `render` call (invoked once at run end with the health-aware kit)
  * assembles the reduced state, classifies the shape and outcome, and
@@ -434,10 +423,10 @@ const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
  * @public
  */
 export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => {
-	if (kit.config.consoleMode === "stream" && kit.runEvents !== undefined) {
-		subscribeLiveInk(kit.runEvents);
-	}
+	const live =
+		kit.config.consoleMode === "stream" && kit.runEvents !== undefined ? startLiveView(kit.runEvents) : undefined;
 	return {
+		...(live !== undefined ? { close: live.close } : {}),
 		render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
 			const out: RenderedOutput[] = [];
 			if (shouldRenderForMode(renderKit.config.consoleMode)) {

@@ -1,4 +1,5 @@
 import type { DispatchInputs } from "@vitest-agent/sdk";
+import { statusGlyph } from "../../theme.js";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import { formatDisplayDuration, formatTestName, soleTest } from "../helpers.js";
@@ -8,7 +9,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	const test = soleTest(inputs.state);
 	if (test === undefined) return "";
 	const duration = test.durationMs ?? 0;
-	return `✓ ${formatTestName(test)} (${formatDisplayDuration(duration)})\n${buildFooter(inputs)}`;
+	return `${statusGlyph("success")} ${formatTestName(test)} (${formatDisplayDuration(duration)})\n${buildFooter(inputs)}`;
 };
 
 export const renderSingleTestPass: Cell = {

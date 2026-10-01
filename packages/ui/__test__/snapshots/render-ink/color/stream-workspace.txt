@@ -1,0 +1,11 @@
+{bold}Projects (3):{/bold|dim}
+  {red}✗{/fg} cli {green}  54✓{/fg}  {red}   1✗{/fg}  {dim}   2↷{/bold|dim}  {gray}   0⧖{/fg}{dim}   37.3s{/bold|dim}
+  {#e09a4e}⧖{/fg} sdk {green} 961✓{/fg}  {gray}   0✗{/fg}  {gray}   0↷{/fg}  {#e09a4e}   1⧖{/fg}{dim}   250ms{/bold|dim}
+  {dim}↷{/bold|dim} ui  {gray}   0✓{/fg}  {gray}   0✗{/fg}  {dim}   4↷{/bold|dim}  {gray}   0⧖{/fg}{dim}      1s{/bold|dim}
+  {red}✗{/fg} cli/a.test.ts › injectEnv › rewrites the command{#c98ae0} [persistent]{/fg}
+{dim}      AssertionError: expected x to be y{/bold|dim}
+  {#e09a4e}⧖{/fg} sdk/b.test.ts › waits
+{dim}      Test timed out in 5000ms.{/bold|dim}
+{bold}Coverage:{/bold|dim} {red}✗{/fg} 1 threshold violation
+{bold}Trend:{/bold|dim} {yellow}regressing{/fg}{dim} (5 runs){/bold|dim}
+{bold}Total: {/bold|dim} {green}1015✓{/fg}  {red}   1✗{/fg}  {dim}   6↷{/bold|dim}  {#e09a4e}   1⧖{/fg}{dim}   1m 5s{/bold|dim}

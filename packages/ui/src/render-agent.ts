@@ -9,6 +9,7 @@
  * ordering.
  */
 
+import { Fmt } from "@effected/cli";
 import type {
 	ActionSeverity,
 	FailureRecord,
@@ -17,7 +18,7 @@ import type {
 	ReportError,
 	SuggestedActionRecord,
 } from "@vitest-agent/sdk";
-import { formatDisplayDuration } from "./format-duration.js";
+import { formatTotalsLine } from "./counts.js";
 
 /**
  * Options controlling agent-mode output. All fields optional; defaults
@@ -61,19 +62,8 @@ const severityLabel: Record<ActionSeverity, string> = {
 	blocker: "blocker",
 };
 
-const formatHeader = (state: RenderState): string => {
-	const { passCount, failCount, skipCount, timeoutCount, durationMs } = state.totals;
-	const total = passCount + failCount + skipCount + timeoutCount;
-	const parts = [`${passCount}/${total} passed`];
-	if (failCount > 0) parts.push(`${failCount} failed`);
-	if (timeoutCount > 0) parts.push(`${timeoutCount} timed out`);
-	if (skipCount > 0) parts.push(`${skipCount} skipped`);
-	if (state.unhandledErrors.length > 0) {
-		const noun = state.unhandledErrors.length === 1 ? "unhandled error" : "unhandled errors";
-		parts.push(`${state.unhandledErrors.length} ${noun}`);
-	}
-	return `Tests: ${parts.join(", ")} (${formatDisplayDuration(durationMs)})`;
-};
+const formatHeader = (state: RenderState): string =>
+	formatTotalsLine({ label: "Tests", ...state.totals, unhandledErrors: state.unhandledErrors.length });
 
 const formatModulesSection = (state: RenderState): string | null => {
 	const modules = state.moduleOrder
@@ -97,15 +87,13 @@ const formatModulesSection = (state: RenderState): string | null => {
 
 	if (modules.length === 0) {
 		if (collected === 0) return null;
-		const noun = collected === 1 ? "module" : "modules";
-		return `${collected} ${noun} all-passed.`;
+		return `${Fmt.plural(collected, "module")} all-passed.`;
 	}
 
 	const interestingModules = modules.filter((m) => m.failCount > 0 || m.skipCount > 0);
 
 	if (interestingModules.length === 0) {
-		const noun = collected === 1 ? "module" : "modules";
-		return `${collected} ${noun} all-passed.`;
+		return `${Fmt.plural(collected, "module")} all-passed.`;
 	}
 
 	const lines = ["Modules:"];
@@ -120,12 +108,7 @@ const formatModulesSection = (state: RenderState): string | null => {
 	return lines.join("\n");
 };
 
-const truncate = (line: string, max: number): string => {
-	if (line.length <= max) return line;
-	const slice = max - 1;
-	if (slice <= 0) return "…";
-	return `${line.slice(0, slice)}…`;
-};
+const truncate = (line: string, max: number): string => Fmt.truncate(line, max);
 
 const formatFailure = (f: FailureRecord, width: number, includeStack: boolean): string => {
 	const suite = f.suitePath.length > 0 ? `${f.suitePath.join(" > ")} > ` : "";
@@ -178,10 +161,8 @@ const formatUnhandledErrorsSection = (state: RenderState, width: number, include
 	return lines.join("\n");
 };
 
-const formatPercent = (n: number): string => {
-	const rounded = Math.round(n * 10) / 10;
-	return Number.isInteger(rounded) ? `${rounded}%` : `${rounded}%`;
-};
+/** Coverage metrics arrive on istanbul's 0–100 scale. */
+const formatPercent = (n: number): string => Fmt.percent(n, { scale: 100 });
 
 const formatCoverageSection = (state: RenderState, maxGaps: number): string | null => {
 	const cov = state.coverage;
@@ -213,8 +194,7 @@ const formatCoverageSection = (state: RenderState, maxGaps: number): string | nu
 		}
 		const omitted = cov.gaps.length - topN.length;
 		if (omitted > 0) {
-			const noun = omitted === 1 ? "gap" : "gaps";
-			lines.push(`- (+${omitted} more ${noun})`);
+			lines.push(`- (+${Fmt.plural(omitted, "more gap", "more gaps")})`);
 		}
 	}
 

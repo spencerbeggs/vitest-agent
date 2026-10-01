@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:27Z
-  body_sha256: 8337185d4b4a61202390220cac9da97352d45b41d38e99e4fbb921123aeedb22
+  at: 2026-10-01T07:18:02Z
+  body_sha256: 452c745079a79c0f596cf5f578d495f849ebab3a9ced52e63c8c9283d4821a33
 ---
 
 # @vitest-agent/engine
@@ -54,8 +54,14 @@ consequence: every ambient input a program needs is a parameter — `env`
 (`env.HOME ?? env.USERPROFILE`). Layers that would otherwise read
 `process.env` at construction are factories instead —
 `EnvironmentDetectorLive(env)`, `RunContextLive(env)`,
-`OutputPipelineLive(env)`, `LoggerLive(logLevel?, logFile?)` with
-`resolveLogLevel(env)` / `resolveLogFile(env)`. See
+`OutputPipelineLive(env)`, `LoggerLive(logLevel?, logFile?, env?)` with
+`resolveLogLevel(env)` / `resolveLogFile(env)`. Environment detection reads
+the injected map only: `EnvironmentDetectorLive` builds its runtime snapshot
+with `CurrentRuntimeEnv.layerFrom(env)`, so no runtime dependency probes
+`process.env` on its behalf. The
+engine's import graph is still not process-free (`@effect/platform-node`
+reads `process`), which is why the guard is a source scan rather than a
+graph scan[^boundaries-test]. See
 [Package Boundaries](../invariants/package-boundaries.md) for the invariant
 this test enforces across every package, not only this one.
 
@@ -93,12 +99,18 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
 
 `packages/engine/src/platform.ts`. Replaces what were once per-front-end
 composites and the plugin's inline SQLite assembly. `PlatformLive` is a
-factory taking `PlatformOptions` (`{ dbPath, env, logLevel?, logFile? }`) and
+factory taking `PlatformOptions` (`{ dbPath, env, logLevel?, logFile?,
+logger? }`) and
 returning a `Layer.Layer<PlatformServices, MigrationError | SqlError>`
 merging `ProjectDiscoveryLive`, `HistoryTrackerLive`, and
 `OutputPipelineLive(options.env)`, then provide-merging `DataReaderLive`,
 `DataStoreLive`, the migrator layer, the SQLite layer, `NodePlatformLayer`,
-and `LoggerLive(options.logLevel, options.logFile)`[^platform-ts].
+and `LoggerLive(options.logLevel, options.logFile, options.env)`[^platform-ts]. `logger`
+defaults to `true`; `logger: false` leaves `LoggerLive` out (and ignores
+`logLevel` / `logFile`) so a logger set the caller already installed
+survives — the CLI passes it because `@effected/cli`'s `CliLog`, installed
+by `CliRuntime.main`'s `env.log`, owns its logging, and `LoggerLive` would
+otherwise replace that set inside the program.
 `PlatformServices` is the full union the merge provides — `DataReader |
 DataStore | ProjectDiscovery | HistoryTracker | EnvironmentDetector |
 ExecutorResolver | FormatSelector | DetailResolver | OutputRenderer |
@@ -143,12 +155,23 @@ come from `@vitest-agent/sdk`.
 - **DataStore** / **DataReader** — the write and read sides of the data
   layer; see below.
 - **EnvironmentDetector** — four-environment detection (`agent-shell`,
-  `terminal`, `ci-github`, `ci-generic`); `EnvironmentDetectorLive(env)`
-  takes the env map, and the pure `classifyEnvironment(env, agentShell)` is
-  exported so tests exercise the real branch with the `std-env` agent probe
-  forced on or off.
+  `terminal`, `ci-github`, `ci-generic`), precedence agent shell → GitHub
+  Actions → generic CI → terminal. `EnvironmentDetectorLive(env)` is built on
+  `@effected/env`'s `CurrentRuntimeEnv.layerFrom(env)` (a fresh layer per
+  call, so two detectors over different maps never share a snapshot), so the
+  map drives agent detection as well as CI[^env-detector]. The pure, public
+  `classifyEnvironment(runtime: RuntimeEnv)` maps `@effected/env`'s
+  `Audience.detect` (agent beats CI beats human) onto the four environments,
+  splitting CI into `ci-github` when the runtime's CI vendor is GitHub
+  Actions — an exhaustive table over `@effected/env`'s literal `CiName`, so
+  a new vendor name fails the type check rather than falling through. CI follows `@effected/env`'s is-in-ci rule: `CI` or
+  `CONTINUOUS_INTEGRATION` set, non-empty, and not `false` / `0` (so `CI=1`
+  counts), or a truthy `GITHUB_ACTIONS` even under `CI=false`.
 - **ExecutorResolver** — maps environment to executor role (`human`,
-  `agent`, `ci`).
+  `agent`, `ci`); `ExecutorResolverLive`'s table is typed
+  `Record<Environment, AudienceKind>`, so the executor union cannot drift
+  from `@effected/env`'s audience union. The plugin uses this same layer
+  rather than a private copy of the mapping.
 - **FormatSelector** — selects output format from executor role and any
   explicit override.
 - **DetailResolver** — determines output detail level from executor role and
@@ -170,7 +193,7 @@ come from `@vitest-agent/sdk`.
 `packages/engine/src/layers/` holds one Live layer per service (the
 env-reading ones are factories: `EnvironmentDetectorLive(env)`,
 `RunContextLive(env)`), plus three composites of its own:
-`LoggerLive(logLevel?, logFile?)`, `OutputPipelineLive(env)` (composing
+`LoggerLive(logLevel?, logFile?, env?)`, `OutputPipelineLive(env)` (composing
 `EnvironmentDetectorLive` + `ExecutorResolverLive` + `FormatSelectorLive` +
 `DetailResolverLive` + `OutputRendererLive` into the pipeline `PlatformLive`
 includes), and `PathResolutionLive(projectDir)` (composing the XDG/config
@@ -297,14 +320,33 @@ contract.
 
 ## LoggerLive
 
-`packages/engine/src/layers/LoggerLive.ts`. An Effect-based structured
-logging factory: NDJSON to stderr plus optional file logging via
-`Logger.zip`, five levels (`Debug`, `Info`, `Warning`, `Error`, `None`),
-configured by `logLevel`/`logFile` options with env-var fallback resolved by
-the pure `resolveLogLevel(env, option?)` / `resolveLogFile(env, option?)`
-helpers the front ends call with `process.env`. With no level set the layer
-is `Logger.layer([])` — silent — which is what keeps the MCP server's stderr
-empty on a clean session. Effect's native `Logger` integrates directly with
+`packages/engine/src/layers/LoggerLive.ts`. A structured logging factory
+over `@effected/cli`'s `CliLog` in its diagnostics-only mode
+(one `CliLog.layer({ format: "json", plainLogger: false, level, file })`
+call, `file` undefined when no log file is set)[^logger-live]:
+NDJSON to stderr, configured by `logLevel`/`logFile` options with env-var
+fallback resolved by the pure `resolveLogLevel(env, option?)` /
+`resolveLogFile(env, option?)` helpers the callers run against
+`process.env`. With no level set (or `None`) the layer is `Logger.layer([])`
+— silent — which is what keeps the MCP server's stderr empty on a clean
+session. With `logFile` set, `CliLog`'s file sink appends each record as
+the same NDJSON line stderr gets (annotations nested, not spread to the top
+level); writes are asynchronous and flushed when the scope closes, and the
+first write error prints one stderr line and disables the file sink. The
+already-resolved level is passed straight to `CliLog`, and with
+`plainLogger: false` no plain logger is installed beside the sink, so each
+record prints once and nothing reads the audience or the terminal — which
+an MCP server must not touch. The file sink's `FileSystem` and `Path` are
+provided internally (Node), so the public type stays `Layer.Layer<never>`.
+The optional third argument `env` (the front end passes `process.env`) is
+built into `@effected/env`'s `CurrentRuntimeEnv` for the layer's own build
+context, which `CliLog` captures: under GitHub Actions every stderr record
+is then neutralized (no workflow command at line start, `##[` escaped),
+even one logged from a fiber that carries no `CurrentRuntimeEnv` of its
+own. Without `env`, records are sanitised but not neutralized unless the
+logging fiber provides one. `PlatformLive` passes `options.env`, and
+`ensureMigrated(dbPath, logLevel?, logFile?, env?)` forwards its own
+optional `env`. The plugin's own debug lines go through this layer too. Effect's native `Logger` integrates directly with
 the `Effect.logDebug` calls threaded through every `DataStore`/`DataReader`
 method, so NDJSON output is comprehensive I/O tracing that is also parseable
 by log-aggregation tooling without a bespoke format.
@@ -393,8 +435,9 @@ implementations. This choice is recorded in full as
 
 ### Effect-Based Structured Logging
 
-`LoggerLive` was built on `Logger.structuredLogger` rather than a bespoke
-formatter specifically so NDJSON output integrates directly with the
+`LoggerLive` is built on Effect's native logger (today through
+`@effected/cli`'s `CliLog`) rather than a bespoke formatter specifically so
+NDJSON output integrates directly with the
 `Effect.logDebug` calls already threaded through every service method, and
 so the env-var fallback (`VITEST_REPORTER_LOG_LEVEL`,
 `VITEST_REPORTER_LOG_FILE`) enables logging without a config change — useful
@@ -440,7 +483,9 @@ differs from the prior entry, trend history resets rather than comparing
 against a target that no longer applies.
 
 [^boundaries-test]: `../../packages/engine/__test__/boundaries.test.ts`
-[^platform-ts]: `../../packages/engine/src/platform.ts:56` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:69` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:123` (`PlatformLive`)
+[^platform-ts]: `../../packages/engine/src/platform.ts:56` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:69` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:98` (`logger`), `../../packages/engine/src/platform.ts:132` (`PlatformLive`)
+[^env-detector]: `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:25` (`classifyEnvironment`), `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:49` (`EnvironmentDetectorLive`)
+[^logger-live]: `../../packages/engine/src/layers/LoggerLive.ts:26`
 [^project-dir-ts]: `../../packages/engine/src/project-dir.ts:23`
 [^data-store-live]: `../../packages/engine/src/layers/DataStoreLive.ts:646` (`writeTurn`), `../../packages/engine/src/layers/DataStoreLive.ts:761` (`writeFailureSignature`), `../../packages/engine/src/layers/DataStoreLive.ts:977` (ordinal allocation)
 [^migration-behavior-id]: `../../packages/engine/src/migrations/0001_initial.ts:743`

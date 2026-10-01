@@ -1,13 +1,13 @@
 ---
 type: Limitation
 title: Only stream mode renders progressively; every other console mode paints once at run end
-description: "Agent, passthrough, and ci-annotations console modes assemble their final-frame string and any GitHub Step Summary payload inside onTestRunEnd, after the run finishes; only the stream console mode's live Ink mount paints anything before the run ends."
+description: "Agent, passthrough, and ci-annotations console modes assemble their final-frame string and any GitHub Step Summary payload inside onTestRunEnd, after the run finishes; only the stream console mode's live view paints anything before the run ends."
 bounds: ../modules/reporter.md
 tags: [architecture, observability]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: d68ac9eb7b189337f05c8f8ebe277f5ee7827c0c79f95ad103daab4cea3b1990
+  at: 2026-10-01T13:07:49Z
+  body_sha256: 785bfdde1885619f5305ae750dfc8141bf8fbc5f4f4ff34d655a6272904a2cf5
 sources:
   - id: plugin-reporter
     resource: ../../packages/plugin/src/reporter.ts
@@ -40,10 +40,11 @@ stripped, so there is no interim signal at all until the single
 end-of-run write.
 
 `consoleMode: "stream"` is the one exception: `DefaultVitestAgentReporter`
-subscribes a live Ink mount to the kit's run-event `PubSub` channel at
-run start, and that mount paints as each event arrives — `render()`
-itself emits nothing in `stream` mode, because the mount already painted
-the run.[^default-reporter]
+subscribes a live view (the kit's `CliUi.live`) to the kit's run-event
+`PubSub` channel at run start, and that view paints as each event
+arrives — `render()` itself emits nothing in `stream` mode, because the
+view already painted the run (or, when the run is not interactive,
+prints its final frame once).[^default-reporter]
 
 **Why this is acceptable.** The other console modes are optimized for a
 single final artifact (an agent-consumed markdown block, a CI summary, or
@@ -54,7 +55,7 @@ watching a terminal, and it already renders progressively.
 
 **What a fix would take.** Give `agent` and `ci-annotations` their own
 incremental accumulation over the run-event channel (mirroring the
-`stream` mount's reduce-and-repaint loop) instead of a single terminal
+`stream` live view's reduce-and-repaint loop) instead of a single terminal
 build inside `render()`. That means threading partial-state rendering
 through `DefaultVitestAgentReporter`'s non-`stream` branches and deciding
 how a partial markdown block or partial Step Summary write should look —

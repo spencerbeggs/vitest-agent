@@ -5,12 +5,15 @@
  * controlled XDG_DATA_HOME so each test gets an isolated data.db path.
  * Tests cover:
  *   - Agent-context blocking (VITEST_AGENT_AGENT_ID present) exits 4
- *   - Non-TTY without --yes exits 5
+ *   - Non-interactive (no TTY, or a non-human audience) without --yes exits 5
  *   - Successful deletion with --yes (non-TTY) exits 0, db gone
  *   - Idempotent success when db does not exist exits 0
  *
  * The interactive TTY path (gate 3) cannot be exercised without a pseudo-tty
- * and is not tested here.
+ * and is not tested here. Gate 2 is `@effected/cli`'s `CliInteractive`: a
+ * human audience with a terminal on stdin and stdout. An audience flag
+ * recomputes it, so `--human` under `CLAUDECODE=1` on a pty reaches the
+ * prompt (verified by hand; there is no pty driver in this suite).
  */
 
 import { spawnSync } from "node:child_process";
@@ -29,7 +32,9 @@ interface SpawnResult {
 
 const runBin = (args: string[], opts: { env?: NodeJS.ProcessEnv; cwd?: string } = {}): SpawnResult => {
 	// Merge parent env with overrides; keys set to undefined are explicitly removed.
-	const merged: NodeJS.ProcessEnv = { ...process.env, ...opts.env };
+	// FORCE_COLOR=0: @effected/cli honours FORCE_COLOR (Node precedence), so a host that
+	// sets it (CI runners often do) would colour help and error output on a pipe.
+	const merged: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: "0", ...opts.env };
 	for (const key of Object.keys(merged)) {
 		if (merged[key] === undefined) {
 			delete merged[key];
@@ -92,7 +97,8 @@ describe("vitest-agent db reset", () => {
 
 		// Then: exit 5, stderr contains requires --yes message
 		expect(result.status).toBe(5);
-		expect(result.stderr).toContain("requires --yes when stdout is not a TTY");
+		expect(result.stderr).toContain("requires --yes when the run is not interactive");
+		expect(result.stdout).toBe("");
 	});
 
 	it("should exit 0, print Deleted database at <path>, and remove the db file when --yes is passed", () => {

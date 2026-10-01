@@ -3,14 +3,14 @@
  * lifecycle-aware live renderer that renders the entire run picture in
  * a single dynamic region.
  *
- * Everything lives in the Live region. On a terminal event
- * (`RunFinished` / `RunTimedOut`), the caller (`LiveInkRenderer`) simply
- * calls `instance.unmount()` and lets Ink commit the final frame: Ink's
- * interactive unmount flushes the pending render, redraws the final frame
- * one last time, then leaves it in place so it lands in terminal
- * scrollback as ordinary content. A plain-text `renderToString` write
- * survives only as the degraded fallback when the Ink mount could not
- * attach (a non-TTY stream).
+ * Everything lives in the Live region. The reporter mounts it through the
+ * kit's `CliUi.live`, which commits the final frame at the terminal event
+ * (`RunFinished` / `RunTimedOut`) and, when the run is not interactive,
+ * prints that final frame once as a string.
+ *
+ * Glyphs come from the kit's `useGlyphs()`, so the tree must render inside
+ * the kit's providers: a `CliUi.live` / `CliUi.run` screen, or a
+ * `UiProvider` holding `CliUi.context`'s value.
  *
  * Per-shape granularity:
  *
@@ -26,6 +26,9 @@
  * shapes (`workspace`, `single-project`) render rows without inline errors.
  */
 
+import type { GlyphSet } from "@effected/cli";
+import { Fmt } from "@effected/cli";
+import { useGlyphs } from "@effected/cli/ui";
 import type {
 	FailureRecord,
 	ModuleRecord,
@@ -38,6 +41,8 @@ import { Box, Text } from "ink";
 import type { FC, ReactNode } from "react";
 import { classifyRunShape } from "../dispatcher/classify.js";
 import { formatDisplayDuration } from "../format-duration.js";
+import type { VitestAgentStatusName } from "../theme.js";
+import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
 import { CountColumns, DURATION_CELL_WIDTH } from "./CountColumns.js";
 import { ProjectRow } from "./ProjectRow.js";
 import { StatusIcon } from "./StatusIcon.js";
@@ -54,7 +59,7 @@ import { TrendLine } from "./TrendLine.js";
 export interface StreamAppProps {
 	/** The current reduced render state to display. */
 	readonly state: RenderState;
-	/** Current spinner frame index, derived from wall-clock time. */
+	/** Current spinner frame index (the live view's `frame`: wall-clock ticks of `SPINNER_FRAME_MS`). */
 	readonly frameIndex: number;
 	/** Current wall-clock time in milliseconds; defaults to `Date.now()`. */
 	readonly nowMs?: number;
@@ -199,7 +204,7 @@ const ModuleStreamRow: FC<{
 			glyph = <StatusIcon status="timed-out" />;
 		}
 	} else if (running) {
-		glyph = <Text color="yellow">{frame}</Text>;
+		glyph = <Text {...statusInkStyle("running")}>{frame}</Text>;
 	} else {
 		glyph = <StatusIcon status={moduleIcon(module)} />;
 	}
@@ -261,36 +266,46 @@ const InlineError: FC<{ failure: FailureRecord }> = ({ failure }) => {
 const failureKey = (f: FailureRecord): string => `failure:${f.modulePath}::${f.suitePath.join("/")}::${f.testName}`;
 
 /** A process-level unhandled error, rendered in the aggregate Unhandled errors block. */
-const UnhandledErrorItem: FC<{ error: ReportError }> = ({ error }) => (
-	<Box flexDirection="column">
-		<Text>
-			{"  "}
-			<Text color="red">✗</Text> unhandled error
-		</Text>
-		<Text dimColor>
-			{"      "}
-			{error.message.split("\n", 1)[0] ?? ""}
-		</Text>
-	</Box>
-);
+const UnhandledErrorItem: FC<{ error: ReportError }> = ({ error }) => {
+	const glyphs = useGlyphs();
+	return (
+		<Box flexDirection="column">
+			<Text>
+				{"  "}
+				<Text {...statusInkStyle("failure")}>{statusGlyph("failure", glyphs)}</Text> unhandled error
+			</Text>
+			<Text dimColor>
+				{"      "}
+				{error.message.split("\n", 1)[0] ?? ""}
+			</Text>
+		</Box>
+	);
+};
 
 const testKey = (modulePath: string, t: TestRecord): string =>
 	`test:${modulePath}::${t.suitePath.join("/")}::${t.testName}`;
 
 const failurePath = (f: FailureRecord): string => [f.modulePath, ...f.suitePath, f.testName].join(" › ");
 
+const failureStatus = (f: FailureRecord): VitestAgentStatusName => (f.timedOut === true ? "timeout" : "failure");
+
 /** A failure entry rendered in the Live region. */
-const FailureItem: FC<{ failure: FailureRecord }> = ({ failure }) => (
-	<Box flexDirection="column">
-		<Text>
-			{"  "}
-			<Text color={failure.timedOut === true ? "#e09a4e" : "red"}>{failure.timedOut === true ? "⧖" : "✗"}</Text>{" "}
-			{failurePath(failure)}
-			{failure.classification !== null ? <Text color="#c98ae0"> [{failure.classification}]</Text> : null}
-		</Text>
-		<InlineError failure={failure} />
-	</Box>
-);
+const FailureItem: FC<{ failure: FailureRecord }> = ({ failure }) => {
+	const glyphs = useGlyphs();
+	return (
+		<Box flexDirection="column">
+			<Text>
+				{"  "}
+				<Text {...statusInkStyle(failureStatus(failure))}>{statusGlyph(failureStatus(failure), glyphs)}</Text>{" "}
+				{failurePath(failure)}
+				{failure.classification !== null ? (
+					<Text {...inkStyle(VitestAgentTokens.classification)}> [{failure.classification}]</Text>
+				) : null}
+			</Text>
+			<InlineError failure={failure} />
+		</Box>
+	);
+};
 
 /**
  * The bottom `Total:` rollup line. In the workspace view `labelWidth`
@@ -310,13 +325,19 @@ const TotalsLine: FC<{ totals: RenderState["totals"]; labelWidth?: number | unde
 	</Text>
 );
 
+/**
+ * The coverage judgment. A threshold violation is a `failure` (the kit's
+ * decision: threshold failure is ✗, only a target shortfall is ⚠).
+ */
 const CoverageItem: FC<{ state: RenderState }> = ({ state }) => {
 	if (state.coverage === null) return null;
-	const clean = state.coverage.violations.length === 0;
+	const violations = state.coverage.violations.length;
+	const status: VitestAgentStatusName = violations === 0 ? "success" : "failure";
+	const glyphs = useGlyphs();
 	return (
 		<Text>
-			<Text bold>Coverage:</Text> <Text color={clean ? "green" : "yellow"}>{clean ? "✓" : "⚠"}</Text>{" "}
-			{clean ? "all metrics meet thresholds" : `${state.coverage.violations.length} threshold violation(s)`}
+			<Text bold>Coverage:</Text> <Text {...statusInkStyle(status)}>{statusGlyph(status, glyphs)}</Text>{" "}
+			{violations === 0 ? "all metrics meet thresholds" : Fmt.plural(violations, "threshold violation")}
 		</Text>
 	);
 };
@@ -338,6 +359,7 @@ const liveRegion = (
 	shape: ReturnType<typeof classifyRunShape>,
 	nowMs: number,
 	frame: string,
+	glyphs: GlyphSet,
 ): ReactNode => {
 	const groups = groupByProject(state);
 	const timedOut = state.phase === "timed-out";
@@ -366,11 +388,11 @@ const liveRegion = (
 	if (shape === "single-test") {
 		const sole = ordered[0];
 		if (sole === undefined || sole.tests.length === 0) {
-			return <Text dimColor>discovering tests…</Text>;
+			return <Text dimColor>discovering tests{glyphs.ellipsis}</Text>;
 		}
 		const only = sole.tests[0];
 		if (only === undefined) {
-			return <Text dimColor>discovering tests…</Text>;
+			return <Text dimColor>discovering tests{glyphs.ellipsis}</Text>;
 		}
 		const failure =
 			only.status === "failed" || only.status === "timed-out"
@@ -390,7 +412,7 @@ const liveRegion = (
 
 	// Discovery — `RunStarted` arrived but no module has been observed yet.
 	if (groups.length === 0) {
-		return <Text dimColor>discovering tests…</Text>;
+		return <Text dimColor>discovering tests{glyphs.ellipsis}</Text>;
 	}
 
 	// Failures section — shared across all non-single-test shapes.
@@ -410,8 +432,8 @@ const liveRegion = (
 	const totalsItem = (labelWidth?: number): ReactNode => (
 		<Box flexDirection="column">
 			{finished && timedOut ? (
-				<Text color="#e09a4e" bold>
-					⧖ Run timed out
+				<Text {...statusInkStyle("timeout")} bold>
+					{statusGlyph("timeout", glyphs)} Run timed out
 				</Text>
 			) : null}
 			<TotalsLine totals={state.totals} labelWidth={labelWidth} />
@@ -475,7 +497,12 @@ const liveRegion = (
 			<>
 				<Text bold>Projects ({groups.length}):</Text>
 				{rows}
-				{runningOverflow > 0 ? <Text dimColor> … and {runningOverflow} more running</Text> : null}
+				{runningOverflow > 0 ? (
+					<Text dimColor>
+						{" "}
+						{glyphs.ellipsis} and {runningOverflow} more running
+					</Text>
+				) : null}
 				{failuresSection}
 				{unhandledErrorsSection}
 				{coverageItem}
@@ -531,7 +558,12 @@ const liveRegion = (
 			<>
 				<Text bold>Modules ({ordered.length}):</Text>
 				{rows}
-				{runningOverflow > 0 ? <Text dimColor> … and {runningOverflow} more running</Text> : null}
+				{runningOverflow > 0 ? (
+					<Text dimColor>
+						{" "}
+						{glyphs.ellipsis} and {runningOverflow} more running
+					</Text>
+				) : null}
 				{failuresSection}
 				{unhandledErrorsSection}
 				{coverageItem}
@@ -544,7 +576,7 @@ const liveRegion = (
 	// single-file
 	const sole = ordered[0];
 	if (sole === undefined) {
-		return <Text dimColor>discovering tests…</Text>;
+		return <Text dimColor>discovering tests{glyphs.ellipsis}</Text>;
 	}
 	return (
 		<>
@@ -589,14 +621,15 @@ const liveRegion = (
  */
 export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 	const now = nowMs ?? Date.now();
-	const frame = spinnerFrame(frameIndex);
+	const glyphs = useGlyphs();
+	const frame = spinnerFrame(frameIndex, glyphs);
 
 	// Compute per-project rollups for the classifier. Cheap.
 	const groups = groupByProject(state);
 	const projects: ReadonlyArray<ProjectSummary> = groups.map((g) => buildProjectSummary(g.name, sumCounts(g.modules)));
 	const shape = classifyRunShape(state, projects);
 
-	const liveContent = liveRegion(state, shape, now, frame);
+	const liveContent = liveRegion(state, shape, now, frame, glyphs);
 
 	return <Box flexDirection="column">{liveContent}</Box>;
 };

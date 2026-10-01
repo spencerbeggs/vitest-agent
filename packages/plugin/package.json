@@ -36,7 +36,10 @@
 	},
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
+		"@effected/cli": "catalog:effected",
+		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
+		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/engine": "workspace:*",

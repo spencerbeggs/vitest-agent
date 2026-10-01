@@ -211,7 +211,7 @@ describe("default reporter report files", () => {
 		];
 		const outputs = asSingle(DefaultVitestAgentReporter(kit)).render(makeInput({ reports }), kit);
 		const summary = outputs.find((o) => o.target === "report" && o.filename === "summary.md");
-		expect(summary?.content).toContain("| slow | 0 | 0 | 1 | 0 | 5.0s |");
+		expect(summary?.content).toContain("| slow | 0 | 0 | 1 | 0 | 5s |");
 	});
 
 	it("still emits report files in a non-agent console mode", () => {

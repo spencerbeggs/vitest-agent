@@ -35,6 +35,10 @@
 		"effect": "catalog:effect"
 	},
 	"devDependencies": {
+		"@effected/cli": "catalog:effected",
+		"@effected/env": "catalog:effected",
+		"@effected/glob": "catalog:effected",
+		"@effected/walker": "catalog:effected",
 		"@savvy-web/bundler": "^2.4.18",
 		"@types/node": "catalog:build",
 		"@types/react": "catalog:build",
@@ -45,6 +49,10 @@
 		"vitest": "catalog:test"
 	},
 	"peerDependencies": {
+		"@effected/cli": "catalog:effected",
+		"@effected/env": "catalog:effected",
+		"@effected/glob": "catalog:effected",
+		"@effected/walker": "catalog:effected",
 		"ink": "^7.1.0",
 		"react": "catalog:build:peers"
 	},

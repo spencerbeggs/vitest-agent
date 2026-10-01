@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { MemoryFileSystemSeedEntry } from "@effected/memfs";
 import { MemoryFileSystem } from "@effected/memfs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClassifyContext, DiscoverInput, ModuleInfo } from "../src/utils/discover-strategy.js";
 import { DefaultDiscoverStrategy, DiscoverStrategy } from "../src/utils/discover-strategy.js";
 import { Tag } from "../src/utils/tag.js";
@@ -378,5 +378,40 @@ describe("DefaultDiscoverStrategy.buildProject()", () => {
 		expect(include.every((g) => !g.includes("**/__test__"))).toBe(true);
 		expect(include.some((g) => g === join(PKG, "src", "**", "*.{test,spec}.{ts,tsx,js,jsx}"))).toBe(true);
 		expect(include.some((g) => g === join(PKG, "__test__", "**", "*.{test,spec}.{ts,tsx,js,jsx}"))).toBe(true);
+	});
+});
+
+describe("DefaultDiscoverStrategy e2e retry (RuntimeEnv CI rule)", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	const e2eRetry = (): number | undefined =>
+		new DefaultDiscoverStrategy().tagDefinitions.find((t) => t.name === "e2e")?.retry as number | undefined;
+
+	it.each([
+		{ label: "CI=true", env: { CI: "true", GITHUB_ACTIONS: "" }, retry: 2 },
+		{ label: "CI=1", env: { CI: "1", GITHUB_ACTIONS: "" }, retry: 2 },
+		{
+			label: "CONTINUOUS_INTEGRATION=yes",
+			env: { CI: "", CONTINUOUS_INTEGRATION: "yes", GITHUB_ACTIONS: "" },
+			retry: 2,
+		},
+		{ label: "GITHUB_ACTIONS=true beats CI=false", env: { CI: "false", GITHUB_ACTIONS: "true" }, retry: 2 },
+		{ label: "CI=false (truthy string, not CI)", env: { CI: "false", GITHUB_ACTIONS: "" }, retry: 0 },
+		{ label: "CI=0", env: { CI: "0", GITHUB_ACTIONS: "" }, retry: 0 },
+		{ label: "CI empty", env: { CI: "", CONTINUOUS_INTEGRATION: "", GITHUB_ACTIONS: "" }, retry: 0 },
+	])("$label -> retry $retry", ({ env, retry }) => {
+		for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
+		expect(e2eRetry()).toBe(retry);
+	});
+
+	it("reads the environment when the strategy is constructed, not at module load", () => {
+		vi.stubEnv("GITHUB_ACTIONS", "");
+		vi.stubEnv("CONTINUOUS_INTEGRATION", "");
+		vi.stubEnv("CI", "");
+		expect(e2eRetry()).toBe(0);
+		vi.stubEnv("CI", "true");
+		expect(e2eRetry()).toBe(2);
 	});
 });

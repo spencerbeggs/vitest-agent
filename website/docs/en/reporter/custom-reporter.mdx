@@ -142,7 +142,9 @@ export const liveReporter: VitestAgentReporterFactory = (kit) => {
 
 `kit.runEvents` is optional at the type level so the factory compiles without the plugin (for tests and one-shot replay). Guard for `undefined` before subscribing. The plugin always populates the field in a real run.
 
-`DefaultVitestAgentReporter` uses `kit.runEvents` to drive its Ink live-mount in `consoleMode: "stream"`. See the [API reference](/reporter/api) for the full `RunEvent` union.
+`DefaultVitestAgentReporter` uses `kit.runEvents` to drive its live view in `consoleMode: "stream"`. See the [API reference](/reporter/api) for the full `RunEvent` union.
+
+The factory runs once per Vitest session, and in watch mode the same reporter renders every rerun. If your factory acquires something (a subscription, a scope, a mounted view), return an optional `close(): Promise<void>` beside `render`. The plugin awaits it once, when Vitest closes, and only then shuts `kit.runEvents` down. Drain your subscription inside `close`, because shutting an Effect `PubSub` down drops any events a subscriber has not pulled yet.
 
 ## Returning multiple reporters
 

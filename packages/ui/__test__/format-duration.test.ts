@@ -6,8 +6,8 @@ describe("formatDisplayDuration", () => {
 		expect(formatDisplayDuration(250)).toBe("250ms");
 	});
 
-	it("rounds a sub-second float to one decimal place", () => {
-		expect(formatDisplayDuration(14.87745800000016)).toBe("14.9ms");
+	it("rounds a sub-second float to whole milliseconds", () => {
+		expect(formatDisplayDuration(14.87745800000016)).toBe("15ms");
 	});
 
 	it("drops a trailing .0 when the rounded millisecond value is whole", () => {
@@ -26,11 +26,15 @@ describe("formatDisplayDuration", () => {
 		expect(formatDisplayDuration(2549)).toBe("2.5s");
 	});
 
-	it("keeps the seconds form for large durations", () => {
-		expect(formatDisplayDuration(63210)).toBe("63.2s");
+	it("switches to minutes and whole seconds from one minute", () => {
+		expect(formatDisplayDuration(63210)).toBe("1m 3s");
 	});
 
 	it("stays in the millisecond form just below one second", () => {
-		expect(formatDisplayDuration(999.4)).toBe("999.4ms");
+		expect(formatDisplayDuration(999.4)).toBe("999ms");
+	});
+
+	it("writes a value that rounds up to a second in seconds, never 1000ms", () => {
+		expect(formatDisplayDuration(999.6)).toBe("1s");
 	});
 });

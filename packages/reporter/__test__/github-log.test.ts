@@ -135,6 +135,18 @@ describe("renderGithubLog", () => {
 		expect(output.content).not.toContain(process.cwd());
 	});
 
+	it("neutralizes a workflow command smuggled in through a project name", () => {
+		const output = renderGithubLog(
+			makeInput({ reports: [makeReport({ project: "::warning::pwned ##[error]x" })] }),
+			makeKit(),
+		);
+		const lines = output.content.split("\n");
+		// Only the group markers themselves may start a line with `::`.
+		expect(lines.filter((line) => line.startsWith("::"))).toEqual(["::group::vitest-agent", "::endgroup::"]);
+		expect(output.content).not.toContain("##[");
+		expect(output.content).toContain("pwned");
+	});
+
 	it("falls back to the original file string when the relative path escapes process.cwd()", () => {
 		const outsideFile = "/tmp/definitely-outside-the-repo-root/foo.ts";
 		const reports = [

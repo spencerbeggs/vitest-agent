@@ -15,8 +15,8 @@ sources:
     resource: ../../packages/mcp/__test__/boundaries.test.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 803357f0451328cebde21ad258e8a37dabf0422418ad9b5b96a6da9d6963e709
+  at: 2026-10-01T00:18:42Z
+  body_sha256: eb78e6940a49ad56e41c720d6c82ae395f89659e72a7a7939ca3a11044e7d0af
 ---
 
 # Package boundaries — process reads and forbidden imports
@@ -84,7 +84,8 @@ Because these are textual source scans over every file in `src/`, not a
 lint rule scoped to an entry point, the properties hold for a file the
 moment it is added to the tree — there is no opt-out short of editing the
 allowlist array in the test itself. A refactor that moved a
-platform-bound helper (SQLite, `@effected/xdg`, `std-env`'s `isAgent`)
+platform-bound helper (SQLite, `@effected/xdg`, `@effected/env`'s
+`CurrentRuntimeEnv`)
 into sdk would fail `sdk-boundaries` on the forbidden-import check the
 moment the import statement lands, independent of whether that helper is
 ever called. A refactor that added a `process.cwd()` read to an engine

@@ -30,6 +30,26 @@ below:
 
 Every other command emits plain stdout text with no format option.
 
+## Audience flags
+
+The root command accepts a shared set of audience flags that override the
+detected audience (human, agent, or CI) for that invocation:
+
+| Flag | Effect |
+|------|--------|
+| `--audience <human\|agent\|ci>` | Set the audience explicitly |
+| `--human` | Shorthand for `--audience human` |
+| `--agent` | Shorthand for `--audience agent` |
+| `--ci` | Shorthand for `--audience ci` |
+
+The `VITEST_AGENT_AUDIENCE` environment variable (`human`, `agent`, or `ci`)
+does the same without a flag. Conflicting audience flags or an unrecognized
+value are a usage error: the CLI prints help and the error on stderr and exits
+with code `64`.
+
+The CLI honours `FORCE_COLOR`, and leaves output uncoloured on a TTY with no
+`TERM` set.
+
 ## db
 
 Database lifecycle management. The CLI opens the connection read-only by
@@ -76,14 +96,24 @@ human-only and guards against accidental use in automated contexts:
 
 - Exits with code `4` when `VITEST_AGENT_AGENT_ID` is set (agent context
   blocked).
-- Exits with code `5` when stdout is not a TTY and `--yes` was not passed.
-- Prompts `Wipe <path>? [y/N]:` on a TTY when `--yes` is not passed.
+- Exits with code `5` when the run is not interactive and `--yes` was not
+  passed. A run is not interactive when stdin or stdout is not a TTY, when
+  `--agent` / `--ci` (or `VITEST_AGENT_AUDIENCE=agent|ci`) is in effect, or
+  when the shell is detected as an agent's. To get the prompt from a terminal
+  inside an agent shell such as Claude Code, pass `--human` or set
+  `VITEST_AGENT_AUDIENCE=human`.
+- Prompts for confirmation when the run is interactive and `--yes` is not
+  passed. Pressing Ctrl-C at the prompt exits with code `130` and writes
+  nothing.
 
 The operation is idempotent — a missing database is treated as success.
 
 ```bash
 # Interactive prompt on a TTY
 vitest-agent db reset
+
+# Prompt from a terminal inside an agent shell such as Claude Code
+vitest-agent --human db reset
 
 # Skip the confirmation prompt (CI scripts, onboarding)
 vitest-agent db reset --yes

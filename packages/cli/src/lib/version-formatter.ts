@@ -1,25 +1,29 @@
-import { CliColor } from "@effected/cli";
-import { CurrentDistribution, distributionSuffix } from "@effected/engine";
-import { Effect, Layer } from "effect";
+import type { Distribution } from "@effected/engine";
+import { distributionSuffix } from "@effected/engine";
+import type { Option } from "effect";
+import type { CliOutput } from "effect/cli";
 
 /**
- * The program's one `CliOutput.Formatter` layer: `CliColor.formatterLayer`
- * (the kit's single colour decision — stdout is a TTY and `NO_COLOR` is
- * unset or empty) with only `formatVersion` overridden, so `--version`
+ * The `CliOutput.Formatter` methods `main.ts` replaces through
+ * `CliRuntime.main`'s `env.formatter`: only `formatVersion`, so `--version`
  * prints `vitest-agent <cli version>` plus ` via <name> <version>` when a
- * carrier (`@vitest-agent/plugin`'s bin shim) threaded its identity down.
- * Help and parse-error rendering stay `CliColor`'s own.
+ * carrier (`@vitest-agent/plugin`'s bin shim) passed its identity to `main`.
  *
- * `Layer.unwrap` reads `CurrentDistribution` once, at layer build time, from
- * the ambient context `main.ts` provides — so `main.ts` must provide
- * `CurrentDistribution` OUTSIDE the layer, not inside it.
+ * `env.formatter` is the kit's one way to keep a formatter method of our own:
+ * `main` installs its coloured default formatter inside the platform, which
+ * shadows any formatter the platform sets. Every method left out keeps the
+ * kit's coloured default, and `helpOnUsageError: "stderr"` still wraps the
+ * result, so usage-error help keeps going to stderr.
+ *
+ * `distribution` is the same value `main.ts` provides as `CurrentDistribution`;
+ * it is known when `main` is called, so it is read here directly rather than
+ * from the context when `--version` runs.
  *
  * @internal
  */
-export const versionFormatterLayer = Layer.unwrap(
-	Effect.map(CurrentDistribution, (distribution) =>
-		CliColor.formatterLayer({
-			formatVersion: (name: string, version: string): string => `${name} ${version}${distributionSuffix(distribution)}`,
-		}),
-	),
-);
+export const carrierVersionFormatter = (
+	distribution: Option.Option<Distribution>,
+): Pick<CliOutput.Formatter, "formatVersion"> => {
+	const suffix = distributionSuffix(distribution);
+	return { formatVersion: (name: string, version: string): string => `${name} ${version}${suffix}` };
+};

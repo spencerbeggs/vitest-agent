@@ -22,9 +22,10 @@ const FRONT_ENDS = [
 ];
 
 describe("@vitest-agent/engine never reads process and never imports a front end", () => {
-	// Not covered by a source scan: `std-env` (a runtime dependency) reads
-	// `process.env` at module load, so the engine's import graph is not
-	// process-free even though its own source is.
+	// Not covered by a source scan: the engine's import graph is not
+	// process-free even though its own source is (`@effect/platform-node`
+	// reads `process`). Environment detection (`@effected/env`) reads only the
+	// `ConfigProvider` built from the injected env map.
 	it("no file under src/ reads process (no allowlist) or imports @vitest-agent/cli, mcp, plugin, reporter or ui", async () => {
 		// Positive control: the scanner still flags and spares what its shipped fixtures say it must.
 		expect(SourceBoundary.verifyFixtures()).toEqual([]);

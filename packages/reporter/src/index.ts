@@ -57,12 +57,6 @@ export {
 	renderHumanStringForReport,
 	resolveCellOptions,
 } from "./defaultReporter.js";
-// --- Live Ink mount driver (internal to the default reporter) ---
-export {
-	type CreateLiveInkOptions,
-	type LiveInkRenderer,
-	createLiveInk as _createLiveInk,
-} from "./LiveInkRenderer.js";
 
 // --- Package version constant ---
 /**

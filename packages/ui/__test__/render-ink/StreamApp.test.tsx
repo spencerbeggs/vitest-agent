@@ -1,3 +1,4 @@
+import { Glyphs } from "@effected/cli";
 import type { RunEvent } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { reduceRenderStateAll } from "../../src/reducer.js";
@@ -934,6 +935,49 @@ describe("StreamApp — fixed-column alignment", () => {
 		expect(totalLine).toBeDefined();
 		expect(totalLine?.indexOf("✗")).toBe(cliLine?.indexOf("✗"));
 		expect(totalLine?.indexOf("⧖")).toBe(cliLine?.indexOf("⧖"));
+		cleanup();
+	});
+});
+
+describe("StreamApp — glyph set", () => {
+	const state = run([
+		{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
+		{ _tag: "ModuleStarted", modulePath: "a.test.ts", startedAt: STARTED, projectName: "p" },
+		{
+			_tag: "ModuleFinished",
+			modulePath: "a.test.ts",
+			passCount: 2,
+			failCount: 1,
+			skipCount: 0,
+			timeoutCount: 0,
+			durationMs: 10,
+			projectName: "p",
+		},
+		{
+			_tag: "RunFinished",
+			runId: "r",
+			finishedAt: STARTED,
+			passCount: 2,
+			failCount: 1,
+			skipCount: 0,
+			timeoutCount: 0,
+			durationMs: 10,
+		},
+	]);
+
+	it("draws Unicode glyphs by default", () => {
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		expect(frame).toContain("2✓");
+		expect(frame).toContain("1✗");
+		cleanup();
+	});
+
+	it("draws the kit's ASCII set when the provider holds it, with no Unicode status glyph left", () => {
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80, {
+			glyphs: Glyphs.ascii,
+		});
+		expect(frame).not.toMatch(/[✓✗↷⧖]/);
+		expect(frame).toContain("[FAIL]");
 		cleanup();
 	});
 });

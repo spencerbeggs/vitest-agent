@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 21b8d4f6df10388a41d3b5862ff4796541a9e72c64853626e24ef7e3168b8c27
+  at: 2026-10-01T13:07:49Z
+  body_sha256: 0fb164c73f9b99ccbdff379bd976def57ef78f17d1cc9e90a2af6da459210863
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -31,6 +31,10 @@ sources:
     resource: ../../packages/ui/src/synthesize.ts
   - id: ui-pubsub-channel
     resource: ../../packages/ui/src/pubsub/Channel.ts
+  - id: ui-theme
+    resource: ../../packages/ui/src/theme.ts
+  - id: ui-counts
+    resource: ../../packages/ui/src/counts.ts
 ---
 
 # @vitest-agent/ui
@@ -40,7 +44,7 @@ sources:
 `@vitest-agent/ui` is the pure rendering-primitives library, layer L2 with
 one internal dependency (`@vitest-agent/sdk`).[^ui-package-json] One
 internal event stream feeds a shape-tailored 4 × 3 dispatcher matrix. It
-does not ship a reporter, a live-mount factory, or the dispatch-input
+does not ship a reporter, a live view, or the dispatch-input
 assembly helpers — those live one layer up in `@vitest-agent/reporter` (see
 [Module: reporter](./reporter.md)). What this package exposes are the
 dispatcher primitives, the `RunEvent` reducer, the synthesizers, and the
@@ -52,15 +56,25 @@ package renders *with* React/Ink but does not own the instance. Its one
 consumer today, `@vitest-agent/reporter`, declares them as full
 dependencies and provides the peer.[^ui-package-json]
 
+`@effected/cli` and `@effected/env` are also peer (plus dev) dependencies,
+together with `@effected/walker` and `@effected/glob`, which `@effected/cli`
+itself requires as peers,
+for a different reason: `VitestAgentStatus` is exported from this package
+and its type is the kit's nominal `Status`, so a consumer comparing or
+extending it must resolve the same `@effected/cli` instance rather than a
+private copy. `@vitest-agent/reporter` declares the same four as peers
+(it builds kit `Doc`s itself); the carrier `@vitest-agent/plugin` declares
+all four as regular dependencies.[^ui-package-json]
+
 ## Architecture at a glance
 
 The Vitest reporter lifecycle (managed by `@vitest-agent/plugin`) emits one
 `RunEvent` per callback from `AgentReporter`. Those events publish onto
 `kit.runEvents` (an Effect `PubSub<RunEvent>`) and to any user-supplied
 `onRunEvent` tap. `DefaultVitestAgentReporter` (in
-`@vitest-agent/reporter`) subscribes to the channel, drains it through a
-fiber that feeds the live Ink mount, and folds each event through this
-package's reducer to update `RenderState`, which drives re-renders. At the
+`@vitest-agent/reporter`) subscribes to the channel and, in `stream`
+mode, hands it to the kit's `CliUi.live`, which folds each event through
+this package's reducer to update `RenderState` and redraws `StreamApp`. At the
 end of a run, the same reducer fold runs once more over a synthesized
 event sequence (`synthesizeFromAgentReport`), classified by
 `classifyRunShape`/`classifyOutcome`, and handed to `dispatch`/`dispatchInk`
@@ -78,10 +92,74 @@ internal barrel: the reducer (`reduceRenderState`, `reduceRenderStateAll`),
 the dispatcher (`dispatch`, `dispatchInk`, `dispatcherTable`,
 `classifyRunShape`, `classifyOutcome`, `buildFooter`,
 `dominantClassification`), the agent and Ink render paths, the
-synthesizers, and the PubSub channel.[^ui-src] Internal code imports
+synthesizers, the PubSub channel, the theme (`VitestAgentStatus`,
+`VitestAgentStatusName`, `VitestAgentTokens`, `inkStyle`, `statusGlyph`,
+`statusInkStyle`, `InkTextStyle`), and `formatDisplayDuration`.[^ui-src]
+Internal code imports
 directly from the source file that owns a symbol.
 
 ## Key files
+
+### The theme: one status vocabulary
+
+`src/theme.ts` is the only place a glyph or colour is chosen[^ui-theme].
+`VitestAgentStatus` is `@effected/cli`'s core `Status` vocabulary (success,
+skip, pending, info, warning, failure) extended with the three statuses a
+test run adds: `timeout` (`⧖`, `#e09a4e`, rank 85, just under failure),
+`running` (`…`, rank 35), and `queued` (`·`, rank 25). `VitestAgentTokens`
+names the non-status accents: `classification` (`#c98ae0`, the
+`[flaky]` / `[new-failure]` tag), `zero` (a zero count), `stable` (the
+stable trend), and `tag` (a non-zero tag count). Because Ink takes colour
+as `<Text>` props rather than ANSI, `inkStyle(token)` resolves a kit token
+or style through the kit's pure `Token.resolve` (the same resolution
+`CliTheme.paint` applies) and maps it onto Ink props with the kit's
+`inkProps(style)` from `@effected/cli/ui`, called with no colour level so
+every prop is emitted, since `inkStyle` is a plain helper that reads no
+theme and Ink's own chalk level gates what is drawn; named
+colours use the chalk spelling Ink takes (`blackBright`).
+`statusGlyph(name, glyphs?)` / `statusInkStyle(name)` answer a status's
+glyph and style; `statusGlyph` is the kit's `VitestAgentStatus.glyph` and
+returns the status's ASCII glyph when handed an ASCII `GlyphSet`. Glyph
+sets are never chosen from `process` here: `StreamApp`, `StatusIcon`,
+`CountColumns`, both failure sections and the `…` ellipses read the set
+with the kit's `useGlyphs()` (`@effected/cli/ui`), so the host's
+`CliTheme` decides (ASCII under `TERM=dumb`). Every Ink tree therefore
+renders inside the kit's providers: a `CliUi.live` / `CliUi.run` screen,
+or `<UiProvider value={CliUi.context}>` for a tree mounted any other way
+(`renderToString`, `ink-testing-library`); the hook throws outside one. Every Ink component,
+dispatcher helper, and cell draws from this module; none carries a hex
+literal of its own. The kit's semantics apply by construction: skip (`↷`)
+and pending (`◯`) are dim, a regressing trend is a warning (yellow), and an
+Ink coverage threshold violation is a failure (red `✗`) while a target
+shortfall is a warning.
+
+Text primitives come from the kit's `Fmt` rather than local helpers:
+`truncate`, `percent` (coverage arrives on istanbul's 0–100 scale, so the
+call is `Fmt.percent(n, { scale: 100 })`), `plural` (so `1 threshold violation`, never
+`violation(s)`), and `duration`. `formatDisplayDuration`
+(`src/format-duration.ts`) is `Fmt.duration`: whole milliseconds under a
+second (`250ms`), seconds to one decimal under a minute with a trailing
+`.0` dropped (`1.2s`, `1s`), then `1m 5s` and `1h 2m`; a value that rounds
+up to the next unit is written in that unit (`999.6` → `1s`). It is
+display only — persisted durations keep full precision.
+
+Every agent-string totals line — the dispatcher's `formatTotals` and
+`formatWorkspaceTotal`, and `render-agent.ts`'s `Tests:` header with its
+unhandled-errors counter — is one `formatTotalsLine` call
+(`src/counts.ts`)[^ui-counts]: a kit `Doc.counts` block (inline layout,
+an optional suffix such as `across 3 files`) rendered with `Render.plain`
+under `Render.contextOf({ audience: "agent" })`. Its total folds timed-out
+tests in but never the unhandled-error count. `formatFailure`
+(`dispatcher/helpers.ts`) is a kit document too: one compact `Doc.list`
+item whose title is a `Doc.verbatim` (never wrapped), whose first message
+line is a `Doc.line` with `truncate`, and whose diff is a `Doc.diffText`
+with `truncate`, rendered with `Render.plain` for the agent audience; the
+kit sanitizes the text, so a tab becomes a space. The below-target
+coverage table stays hand-rolled, because the kit's pipe table is not
+byte-identical to the agent output.
+
+`NO_COLOR` is still read directly by the renderers; moving that decision
+to the kit is later work.
 
 ### The RunEvent taxonomy and reducer
 
@@ -222,7 +300,7 @@ entirely rather than printing "0 modules all-passed".
 
 `src/render-ink/` holds the Ink components for `stream` console mode.
 `StreamApp.tsx` is the agent-shaped, lifecycle-aware top-level component
-the reporter mounts: it reads the same `RenderState` the reducer produces,
+the reporter's live view draws through the kit's `CliUi.live`: it reads the same `RenderState` the reducer produces,
 classifies the run shape on every render, and lays state out by shape —
 one row per Vitest project (`workspace`), per module (`single-project`),
 or per test (`single-file`/`single-test`) — rather than as an
@@ -245,36 +323,37 @@ Coverage/Trend when present, and `single-test` is a single leaf line. The
 one shape-independent section is `Unhandled errors:`, rendered by every
 shape whenever `state.unhandledErrors` is non-empty.
 
-A `workspace` frame with a Failures section can exceed a short terminal's
-height, and Ink cannot redraw in place when that happens — `StreamApp`
-renders finished `workspace`/`single-project` rows through Ink's
-`<Static>` region (committed once to scrollback, never redrawn) and keeps
-only the live tail (running rows, the ticking Total) in the dynamic
-region, so a tall frame does not stack stale frames in scrollback.
+`StreamApp` renders the whole run picture in one dynamic region. A
+`workspace` frame with a Failures section can exceed a short terminal's
+height; the kit's live renderer clamps every frame to `rows - 1` so Ink
+can still redraw in place, and commits the final frame to scrollback by
+unmounting at the terminal event. Nothing clamps the width.
 
 Component files worth naming: `CountColumns.tsx` renders the four glyph
 count columns (`✓ ✗ ↷ ⧖`) every aggregate row carries, right-aligned in
-fixed 4-digit cells with zeros dimmed, and exports the fixed
+fixed 4-digit cells with zeros in the `zero` token, and exports the fixed
 `DURATION_CELL_WIDTH` the duration cell after the counts pads to.
 `TagColumns.tsx` renders per-row tag-count cells from a view-level
 `tagUnion(rows)` computed once per frame — a union of one or fewer tags
 collapses to empty and suppresses tag columns entirely for that view. The
-spinner is a hand-rolled Braille frame array (`spinner.ts`, no
-`ink-spinner` dependency) driven by the animation clock in
-`@vitest-agent/reporter`'s live-mount driver, which passes the frame index
-down as a prop.
+spinner (`spinner.ts`, no `ink-spinner` dependency) takes its frames and
+interval from the kit's glyph set — the Braille frames of `Glyphs.unicode`,
+an ASCII fallback in `Glyphs.ascii`; the public `SPINNER_FRAMES` is typed
+`ReadonlyArray<string>` — and its frame index is the kit live view's
+`frame` (ticks of `SPINNER_FRAME_MS`), passed to `StreamApp` as a prop by
+`@vitest-agent/reporter`; it never enters `RenderState`.
 
 ### Package surface: what does not live here
 
 The default reporter (public as `DefaultVitestAgentReporter`), the live
-Ink mount driver, and the dispatch-assembly helpers
+view (`startLiveView`), and the dispatch-assembly helpers
 (`buildDispatchInputs`, `resolveCellOptions`, `renderAgentStringForReport`,
 `renderHumanStringForReport`) live in [Module: reporter](./reporter.md).
 This split (the T6/plugin-reporter split; see the superseding rationale
 under Choices absorbed here) keeps `@vitest-agent/ui` a pure primitives
 library that a future non-reporter consumer — the planned MCP
 triage-dashboard app is the anticipated second consumer today — could
-depend on without pulling in the reporter's Ink lifecycle management.
+depend on without pulling in the reporter's live-view lifetime.
 
 ### PubSub channel and Effect transport
 
@@ -357,7 +436,7 @@ matrix generalizes for the agent-facing render path.
 
 ## Testing strategy
 
-Four granularities, all under `packages/ui/__test__/`:
+Five granularities, all under `packages/ui/__test__/`:
 
 1. **Reducer unit tests** (`reducer.test.ts`) — event-by-event coverage.
 2. **Classifier tests** (`classify.test.ts`) — run-shape derivation and the
@@ -368,14 +447,26 @@ Four granularities, all under `packages/ui/__test__/`:
    `__test__/snapshots/dispatcher/` covering all twelve cells across the
    relevant fixture event sequences.
 4. **Dispatcher and footer tests** (`dispatch.test.ts`, `footer.test.ts`).
+5. **Colour pins** — `render-ink/color.snapshot.test.tsx` and
+   `dispatcher/cells.ink.color.snapshot.test.tsx` render Ink frames with
+   colour and rewrite the ANSI into readable tags
+   (`__test__/utils/ansi-tags.ts`), with goldens under
+   `__test__/snapshots/render-ink/color/` and
+   `__test__/snapshots/dispatcher/color/`, so a glyph or colour change
+   shows up as a diff; `theme.test.ts` holds the token mirror to the kit.
+   `render-ink/StatusIcon.cliui.test.tsx` mounts a reporter-owned Ink
+   component through the kit's `CliUiTest.view`
+   (`@effected/cli/ui/testing`).
 
-Canonical fixtures in `__test__/utils/events.ts` are shared across all
-four granularities; `__test__/utils/workspace.ts` carries the
+Canonical fixtures in `__test__/utils/events.ts` are shared across the
+first four granularities; `__test__/utils/workspace.ts` carries the
 `ProjectSummary[]` fixtures the workspace cells need. The default-reporter
 and live-renderer tests live in `packages/reporter/__test__/` instead —
 see [Module: reporter](./reporter.md).
 
 [^ui-src]: `../../packages/ui/src/index.ts`
+[^ui-theme]: `../../packages/ui/src/theme.ts`
+[^ui-counts]: `../../packages/ui/src/counts.ts`
 [^ui-package-json]: `../../packages/ui/package.json`
 [^ui-reducer]: `../../packages/ui/src/reducer.ts`
 [^ui-classify]: `../../packages/ui/src/dispatcher/classify.ts`

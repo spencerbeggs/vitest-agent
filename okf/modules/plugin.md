@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-30T03:49:16Z
-  body_sha256: ca841225f565b98a30bf3f0da4008888cc7127665378f9a49c80a4c28bbedc75
+  at: 2026-10-01T13:07:49Z
+  body_sha256: c219420ffcec632e08e217023e7dca924d7a7add7d42887c48d6349ffe823615
 ---
 
 # @vitest-agent/plugin
@@ -48,6 +48,10 @@ into consuming repos). The plugin's *source* imports nothing from `cli` or
 re-exposes their bins. The plugin has no direct dependency on
 `@vitest-agent/ui`: it imports `DefaultVitestAgentReporter` from
 `@vitest-agent/reporter` and nothing else; it carries no `react` or `ink`.
+It does declare `@effected/cli`, `@effected/env`, `@effected/glob`, and
+`@effected/walker` as regular dependencies: the reporter and ui take those
+four as peers, and `@effected/cli` itself requires `walker` and `glob` as
+peers, so the carrier is the package that provides them.
 Nothing may depend on the plugin except the workspace root (a
 devDependency, for the dogfood `node_modules/.bin`).
 
@@ -185,13 +189,34 @@ double-counting.
 detected executor, and resolves a single `ConsoleMode` value. Per-slot
 defaults: `human → passthrough`, `agent → agent`, `ci → passthrough`. A
 non-empty `VITEST_AGENT_CONSOLE` override wins over the configured slot,
-but only when legal for the detected executor — the three slots accept
-three different literal unions, so the accepted-values list in the
-rejection warning is introspected from the SDK schema's `.literals` rather
-than hand-listed, so it cannot drift from the schema on the next mode
-addition. The three `Schema.is` guards stay separate rather than
-collapsing into a ternary-produced union, which confuses tsgo on
-annotations-method contravariance.
+but only when legal for the detected executor. The read is
+`@effected/env`'s `EnvOverride.readResult` (the exported `readConsoleOverride`),
+with the executor supplied as the `Audience` and each audience's accepted
+literals taken from the SDK schemas' `.literals`, so the list cannot drift
+on the next mode addition[^plugin-ts]. Matching is case-insensitive. A
+value the executor does not accept is ignored with one stderr line,
+`[vitest-agent:plugin] ignoring VITEST_AGENT_CONSOLE=<value>: not accepted
+for the <executor> audience (accepts <a>|<b>|…)`, worded by the plugin from
+`readResult`'s structured rejection (no logger involved), written to the
+caller's `report` sink (never stdout) and deduped once per Vitest run
+(issue 459). `readResult` is given `source: process.env`, a record source
+re-read on every run of the effect, so a change to `process.env` after
+module load is seen (core's default `ConfigProvider` would snapshot it once
+per process).
+
+**Executor from engine.** The plugin maps the detected `Environment` to an
+`Executor` through engine's `ExecutorResolverLive` — the same layer the
+reporter uses — rather than a private copy of the table.
+
+**Diagnostics.** The plugin's own debug lines go through the engine's
+`LoggerLive(level, undefined, process.env)` (`@effected/cli`'s `CliLog` in diagnostics-only mode),
+tagged `CliLog.component("vitest-agent:plugin")`, on stderr only and always
+NDJSON — the same shape the engine writes, even for a human at a TTY.
+Passing `process.env` lets `LoggerLive` neutralize workflow commands
+under GitHub Actions, where the runner parses this stderr. They print only when
+`VITEST_REPORTER_LOG_LEVEL` resolves to `debug`, `trace`, or `all`; at
+`info`, `warning`, or `error` they stay silent. The diagnostics layer is
+built only when that gate passes, so a default run never constructs it.
 
 **Console-reporter stripping.** Whenever the resolved `consoleMode` owns
 stdout (anything other than `passthrough`), the plugin strips Vitest's
@@ -229,7 +254,13 @@ events onto the channel and hands the channel to the factory.
 `initReporters()`, which resolves a run-start `ReporterKit` (neutral run
 health) and invokes `opts.reporter(kit)` **at run start** so a
 live-painting reporter can subscribe before the first event; the resolved
-reporters are stashed for reuse by `onTestRunEnd`. `onCoverage` stashes
+reporters are stashed for reuse by `onTestRunEnd`. `onInit` also
+registers `vitest.onClose(() => closeReporters())`: once, at Vitest's
+close (never at `onTestRunEnd`, which fires on every watch rerun), it
+awaits every reporter's optional `close()` and only then calls
+`PubSub.shutdown` on the run-event channel, because a shutdown drops
+whatever a subscriber has not pulled yet; a failing `close` or shutdown
+is written to stderr, never thrown. `onCoverage` stashes
 coverage data. `onTestRunEnd` is the load-bearing hook for persistence and
 end-of-run rendering.
 
@@ -268,7 +299,9 @@ persistence failure can never swallow the run's output:
    `try` — `buildAgentReport` walks duck-typed Vitest getters bare, so a
    throwing getter degrades to a `formatFatalError` line on stderr and an
    early return rather than an unhandled rejection with no output at all.
-3. `await ensureMigrated(dbPath)` to serialize migration across reporter
+3. `await ensureMigrated(dbPath, logLevel, logFile, process.env)` (the
+   env so its records are neutralized under GitHub Actions) to serialize
+   migration across reporter
    instances sharing a `dbPath`. A rejection records `persistDisabled` and
    skips straight to the render program.
 4. **Persist program** (`DataStore | DataReader | CoverageAnalyzer |
@@ -798,3 +831,4 @@ See [Coverage Shared Across Projects](../limitations/coverage-shared-across-proj
 and [Vitest 5 Floor](../limitations/vitest-5-floor.md).
 
 [^layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
+[^plugin-ts]: `../../packages/plugin/src/plugin.ts:138` (`resolveConsoleMode`), `../../packages/plugin/src/plugin.ts:181` (`readConsoleOverride`), `../../packages/plugin/src/plugin.ts:345` (`AgentPlugin`, diagnostics)

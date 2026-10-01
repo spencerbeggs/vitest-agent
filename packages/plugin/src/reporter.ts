@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
-import { NodeServices } from "@effect/platform-node";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import type {
 	TestAnnotationInput,
 	TestArtifactInput,
@@ -592,6 +592,13 @@ export class AgentReporter {
 	 */
 	private reporters: ReadonlyArray<VitestAgentReporter> | undefined;
 	/**
+	 * The one close of the run-event channel and the reporters, started at
+	 * Vitest's close (see `closeReporters`). Undefined until then.
+	 *
+	 * @internal
+	 */
+	private closing: Promise<void> | undefined;
+	/**
 	 * Whether the user supplied a custom `reporter` factory. A custom
 	 * reporter may subscribe to the run-event channel in any console mode,
 	 * so the streaming hooks publish events whenever this is true.
@@ -792,6 +799,44 @@ export class AgentReporter {
 			// summary (issues #195 / #143).
 		}
 		await this.initReporters();
+		// The run-event channel and every reporter resolved here live for the
+		// whole Vitest session (watch mode reruns many times), so they are
+		// released at Vitest's own close — never at `onTestRunEnd`.
+		const onClose = (vitest as { onClose?: (fn: () => Promise<void>) => void } | null)?.onClose;
+		if (typeof onClose === "function") {
+			onClose.call(vitest, () => this.closeReporters());
+		}
+	}
+
+	/**
+	 * Close the reporters resolved at `onInit`, then end the run-event
+	 * channel, once, at Vitest's close. Reporters first: a live view folds
+	 * every event still queued in its subscription and commits its last
+	 * frame in `close`, and `PubSub.shutdown` would drop whatever a
+	 * subscriber has not taken yet. The shutdown after is harmless to a
+	 * closed view and ends any other subscriber. A failing close is logged,
+	 * never thrown — Vitest is shutting down.
+	 *
+	 * @internal
+	 */
+	private closeReporters(): Promise<void> {
+		this.closing ??= (async () => {
+			await Promise.all(
+				(this.reporters ?? []).map(async (reporter) => {
+					try {
+						await reporter.close?.();
+					} catch (err) {
+						process.stderr.write(`vitest-agent: reporter close failed: ${formatFatalError(err)}\n`);
+					}
+				}),
+			);
+			try {
+				Effect.runSync(PubSub.shutdown(this.runEvents));
+			} catch (err) {
+				process.stderr.write(`vitest-agent: run-event channel shutdown threw: ${formatFatalError(err)}\n`);
+			}
+		})();
+		return this.closing;
 	}
 
 	/**
@@ -1490,9 +1535,9 @@ export class AgentReporter {
 		// has already seen. The streaming counts are aggregated from the
 		// per-module passes that landed during the run; we cannot wait for
 		// the post-aggregation summary to fire RunFinished without
-		// breaking the live UX. The live Ink mount schedules its own
-		// unmount on next tick once it sees this event (see
-		// LiveInkRenderer.tsx).
+		// breaking the live UX. The live view commits its final frame when
+		// it folds this event (the kit's `CliUi.live`, see the reporter's
+		// liveView.ts).
 		if (this.wantsRunEvents() && this.currentRunId !== null) {
 			let pass = 0;
 			let fail = 0;
@@ -1873,7 +1918,7 @@ export class AgentReporter {
 		// contract (issues #195 / #143).
 		if (dbPath !== undefined && persistDisabled === undefined) {
 			try {
-				await ensureMigrated(dbPath, logLevel, logFile);
+				await ensureMigrated(dbPath, logLevel, logFile, process.env);
 			} catch (err) {
 				persistDisabled = formatFatalError(err);
 			}

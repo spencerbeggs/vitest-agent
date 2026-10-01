@@ -1,6 +1,8 @@
+import { Audience } from "@effected/env";
 import { AgentConsoleMode, CiConsoleMode, HumanConsoleMode } from "@vitest-agent/sdk";
+import { Effect, Option } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveConsoleMode } from "../src/plugin.js";
+import { readConsoleOverride, resolveConsoleMode } from "../src/plugin.js";
 
 const ENV = "VITEST_AGENT_CONSOLE";
 
@@ -18,6 +20,12 @@ describe("resolveConsoleMode VITEST_AGENT_CONSOLE override", () => {
 	it("falls back to per-executor defaults when unset", () => {
 		expect(resolveConsoleMode({}, "human", "terminal")).toBe("passthrough");
 		expect(resolveConsoleMode({}, "agent", "agent-shell")).toBe("agent");
+		expect(resolveConsoleMode({}, "ci", "ci-generic")).toBe("passthrough");
+	});
+
+	it("treats an empty value as unset", () => {
+		process.env[ENV] = "";
+		expect(resolveConsoleMode({ console: { agent: "silent" } }, "agent", "agent-shell")).toBe("silent");
 	});
 
 	it("overrides config when set to a valid mode for the slot", () => {
@@ -31,12 +39,33 @@ describe("resolveConsoleMode VITEST_AGENT_CONSOLE override", () => {
 		expect(resolveConsoleMode({}, "human", "terminal")).toBe("silent");
 	});
 
-	it("warns and ignores a value invalid for the active slot", () => {
-		const warn = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+	it("matches the override case-insensitively and yields the canonical literal", () => {
+		process.env[ENV] = "CI-Annotations";
+		expect(resolveConsoleMode({}, "ci", "ci-github")).toBe("ci-annotations");
+	});
+
+	it("warns on stderr, never stdout, and ignores a value invalid for the active slot", () => {
+		const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+		const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 		process.env[ENV] = "stream"; // not valid for the agent slot
 		expect(resolveConsoleMode({}, "agent", "agent-shell")).toBe("agent");
-		expect(warn).toHaveBeenCalledOnce();
-		expect(String(warn.mock.calls[0][0])).toContain("VITEST_AGENT_CONSOLE");
+		expect(stdout).not.toHaveBeenCalled();
+		expect(stderr).toHaveBeenCalledOnce();
+		const line = String(stderr.mock.calls[0]?.[0]);
+		expect(line).toMatch(/^\[vitest-agent:plugin\] /);
+		expect(line).toContain(`${ENV}=stream`);
+		expect(line.endsWith("\n")).toBe(true);
+	});
+
+	it("routes the warning through the caller's report sink, not the process streams", () => {
+		const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+		const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+		const lines: Array<string> = [];
+		process.env[ENV] = "bogus";
+		resolveConsoleMode({}, "human", "terminal", (line) => lines.push(line));
+		expect(lines).toHaveLength(1);
+		expect(stderr).not.toHaveBeenCalled();
+		expect(stdout).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -44,14 +73,50 @@ describe("resolveConsoleMode VITEST_AGENT_CONSOLE override", () => {
 		{ executor: "agent", env: "agent-shell", literals: AgentConsoleMode.literals } as const,
 		{ executor: "ci", env: "ci-generic", literals: CiConsoleMode.literals } as const,
 	])(
-		"appends the accepted values for the $executor slot when the env override is invalid",
+		"names the accepted values for the $executor slot when the env override is invalid",
 		({ executor, env, literals }) => {
-			const warn = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+			const lines: Array<string> = [];
 			process.env[ENV] = "not-a-real-mode";
-			resolveConsoleMode({}, executor, env);
-			expect(warn).toHaveBeenCalledOnce();
-			const message = String(warn.mock.calls[0][0]);
-			expect(message).toContain(`accepted for ${executor}: ${literals.join(" | ")}`);
+			resolveConsoleMode({}, executor, env, (line) => lines.push(line));
+			expect(lines).toHaveLength(1);
+			expect(lines[0]).toContain(`${executor} audience`);
+			expect(lines[0]).toContain(literals.join("|"));
 		},
 	);
+});
+
+describe("readConsoleOverride", () => {
+	// The override reads `process.env` itself (a record source, re-read on
+	// every run), so each case sets the live variable rather than providing a
+	// ConfigProvider, which the pinned source would ignore.
+	const original = process.env[ENV];
+	afterEach(() => {
+		if (original === undefined) delete process.env[ENV];
+		else process.env[ENV] = original;
+	});
+	const run = (kind: "human" | "agent" | "ci", env: Record<string, string>) => {
+		delete process.env[ENV];
+		if (env[ENV] !== undefined) process.env[ENV] = env[ENV];
+		return Effect.runSync(readConsoleOverride.pipe(Effect.provide(Audience.layerTest(kind))));
+	};
+
+	it("accepts a literal only for the audience that lists it", () => {
+		expect(run("human", { [ENV]: "stream" }).accepted).toEqual(Option.some("stream"));
+		const agent = run("agent", { [ENV]: "stream" });
+		expect(agent.accepted).toEqual(Option.none());
+		expect(agent.rejected).toEqual(
+			Option.some({ value: "stream", audience: "agent", accepts: AgentConsoleMode.literals }),
+		);
+	});
+
+	it("is None on both sides when the variable is absent", () => {
+		const { accepted, rejected } = run("ci", {});
+		expect(accepted).toEqual(Option.none());
+		expect(rejected).toEqual(Option.none());
+	});
+
+	it("accepts ci-annotations only for the ci audience", () => {
+		expect(run("ci", { [ENV]: "ci-annotations" }).accepted).toEqual(Option.some("ci-annotations"));
+		expect(run("human", { [ENV]: "ci-annotations" }).accepted).toEqual(Option.none());
+	});
 });

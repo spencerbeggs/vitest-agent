@@ -179,6 +179,16 @@ export interface ReporterRenderInput {
  */
 export interface VitestAgentReporter {
 	readonly render: (input: ReporterRenderInput, kit: ReporterKit) => ReadonlyArray<RenderedOutput>;
+	/**
+	 * Release what the factory acquired, once, when Vitest closes (never per
+	 * run: watch mode reruns `render` many times on one reporter). The plugin
+	 * calls it before it shuts the {@link ReporterKit.runEvents | run-event
+	 * channel} down, so a subscriber can still drain what was published (a
+	 * shutdown drops what a subscriber has not pulled) and end its own stream;
+	 * a live view waits here for its last frame to commit. Optional; the plugin
+	 * awaits it and treats a rejection as a logged warning.
+	 */
+	readonly close?: () => Promise<void>;
 }
 
 /**

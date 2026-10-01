@@ -57,10 +57,12 @@ hook and recovered automatically. The only variables you might set yourself:
 
 | Variable | Effect |
 | --- | --- |
-| `VITEST_REPORTER_LOG_LEVEL` | Level of the diagnostic logger (separate from the console reporter) |
-| `VITEST_REPORTER_LOG_FILE` | File the diagnostic logger writes to |
+| `VITEST_REPORTER_LOG_LEVEL` | Level of the diagnostic logger (separate from the console reporter). Silent when unset; lines go to stderr as NDJSON. The plugin's `[vitest-agent:plugin]` debug lines appear only at `debug`, `trace`, or `all` |
+| `VITEST_REPORTER_LOG_FILE` | File the diagnostic logger also writes to, one NDJSON line per entry in the same shape as the stderr lines |
 | `NO_COLOR` | Disables ANSI color in rendered output |
-| `VITEST_AGENT_CONSOLE` | Override the resolved console mode for the active executor on a CLI run (`passthrough` is the universally valid value across all executor slots). Useful when investigating a file flagged by `report.consoleLeaks`. A value the detected slot does not accept is ignored, with a stderr warning listing that slot's accepted values. |
+| `FORCE_COLOR` | Forces ANSI color in `vitest-agent` CLI output |
+| `VITEST_AGENT_AUDIENCE` | Override the audience the `vitest-agent` CLI detects (`human`, `agent`, or `ci`). Inside an agent shell, `db reset` refuses to prompt (exit `5`) unless this is `human` or `--yes` is passed |
+| `VITEST_AGENT_CONSOLE` | Override the resolved console mode for the active executor on a CLI run (`passthrough` is the universally valid value across all executor slots). Useful when investigating a file flagged by `report.consoleLeaks`. Matching is case-insensitive. A value the detected slot does not accept is ignored, with a stderr warning listing that slot's accepted values. |
 
 There is no environment variable that toggles coverage — that is configuration.
 
