@@ -30,8 +30,8 @@ sources:
     resource: ../../plugins/claude-code/hooks/session/end-record-worker.sh
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: b1fc51e7240efa73fd2589920a779ae6ac75a607a4c6a3cad45f436c13043f23
+  at: 2026-10-01T02:30:42Z
+  body_sha256: 46f17886815838a23fcc3fcf475f76b93be2b684a74e6cbf042cb98a65f36af1
 ---
 
 # Claude Code hook environment contract
@@ -218,12 +218,14 @@ written by a hook; a human (or a hook author debugging) sets them:
   `db reset` outright. See [the CLI interface](cli.md).
 - `VITEST_AGENT_CONSOLE` overrides the plugin's console mode for the
   detected executor, matched case-insensitively; a value that executor does
-  not accept is ignored with one stderr line per run. See
+  not accept is ignored with one `[vitest-agent:plugin] ignoring
+  VITEST_AGENT_CONSOLE=<value>: …` stderr line per run. See
   [AgentPluginOptions](agent-plugin-options.md).
 - `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` turn on stderr
-  diagnostics (and an NDJSON file). The plugin's own
-  `[vitest-agent:plugin]` debug lines need `debug`, `trace`, or `all`; a
-  higher level such as `info` leaves them silent.
+  diagnostics (and an NDJSON file). The plugin's own debug records (NDJSON
+  on stderr with component `vitest-agent:plugin`, for a human at a TTY too)
+  need `debug`, `trace`, or `all`; a higher level such as `info` leaves them
+  silent.
 
 ## What a hook may rely on
 

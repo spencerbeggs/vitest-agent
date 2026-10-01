@@ -37,9 +37,10 @@ src/
   layers/             -- *Live.ts / *Test.ts per service; PathResolutionLive
                          (XDG + config + workspaces; exports APP_NAMESPACE),
                          OutputPipelineLive(env), EnvironmentDetectorLive(env)
-                         over @effected/env's CurrentRuntimeEnv (a ConfigProvider
-                         from the injected map), LoggerLive(level?, file?) over
-                         @effected/cli's CliLog +
+                         over @effected/env's CurrentRuntimeEnv.layerFrom(env)
+                         (exhaustive CiName table), LoggerLive(level?, file?)
+                         over @effected/cli's CliLog in diagnostics-only mode
+                         ({ format: "json", plainLogger: false, level }) +
                          resolveLogLevel(env, option?) / resolveLogFile(env, option?)
   sql/                -- row shapes + row-to-domain assemblers
   migrations/         -- PROJECT_MIGRATIONS record (0001_initial,

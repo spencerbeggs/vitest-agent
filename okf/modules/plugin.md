@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: 740b266e15c8a9a5d1c83ba64ccbe0acb4893105372feb5f33378c9d1d980b66
+  at: 2026-10-01T02:30:42Z
+  body_sha256: 987cb9b3de62db4c072ad3354d8e38d07b75177fcb0290a84576ea3f809104d4
 ---
 
 # @vitest-agent/plugin
@@ -48,6 +48,10 @@ into consuming repos). The plugin's *source* imports nothing from `cli` or
 re-exposes their bins. The plugin has no direct dependency on
 `@vitest-agent/ui`: it imports `DefaultVitestAgentReporter` from
 `@vitest-agent/reporter` and nothing else; it carries no `react` or `ink`.
+It does declare `@effected/cli`, `@effected/env`, `@effected/glob`, and
+`@effected/walker` as regular dependencies: the reporter and ui take those
+four as peers, and `@effected/cli` itself requires `walker` and `glob` as
+peers, so the carrier is the package that provides them.
 Nothing may depend on the plugin except the workspace root (a
 devDependency, for the dogfood `node_modules/.bin`).
 
@@ -186,13 +190,14 @@ detected executor, and resolves a single `ConsoleMode` value. Per-slot
 defaults: `human → passthrough`, `agent → agent`, `ci → passthrough`. A
 non-empty `VITEST_AGENT_CONSOLE` override wins over the configured slot,
 but only when legal for the detected executor. The read is
-`@effected/env`'s `EnvOverride.read` (the exported `readConsoleOverride`),
+`@effected/env`'s `EnvOverride.readResult` (the exported `readConsoleOverride`),
 with the executor supplied as the `Audience` and each audience's accepted
 literals taken from the SDK schemas' `.literals`, so the list cannot drift
 on the next mode addition[^plugin-ts]. Matching is case-insensitive. A
 value the executor does not accept is ignored with one stderr line,
-`[vitest-agent:plugin] VITEST_AGENT_CONSOLE=<value> is not accepted for the
-<executor> audience (accepts <a>|<b>|…); ignoring it`, routed through the
+`[vitest-agent:plugin] ignoring VITEST_AGENT_CONSOLE=<value>: not accepted
+for the <executor> audience (accepts <a>|<b>|…)`, worded by the plugin from
+`readResult`'s structured rejection (no logger involved), written to the
 caller's `report` sink (never stdout) and deduped once per Vitest run
 (issue 459). Each read uses a fresh `ConfigProvider.fromEnv()`, because
 core's default provider snapshots `process.env` once per process.
@@ -201,9 +206,12 @@ core's default provider snapshots `process.env` once per process.
 `Executor` through engine's `ExecutorResolverLive` — the same layer the
 reporter uses — rather than a private copy of the table.
 
-**Diagnostics.** The plugin's own debug lines go through `@effected/cli`'s
-`CliLog`, tagged `CliLog.component("vitest-agent:plugin")`, on stderr only
-(pretty for a human at a TTY, NDJSON otherwise). They print only when
+**Diagnostics.** The plugin's own debug lines go through the engine's
+`LoggerLive(level)` (`@effected/cli`'s `CliLog` in diagnostics-only mode),
+tagged `CliLog.component("vitest-agent:plugin")`, on stderr only and always
+NDJSON — the same shape the engine writes, even for a human at a TTY.
+`CurrentRuntimeEnv.layerFrom(process.env)` rides beside it so `CliLog` can
+neutralize workflow commands under GitHub Actions. They print only when
 `VITEST_REPORTER_LOG_LEVEL` resolves to `debug`, `trace`, or `all`; at
 `info`, `warning`, or `error` they stay silent. The diagnostics layer is
 built only when that gate passes, so a default run never constructs it.
@@ -813,4 +821,4 @@ See [Coverage Shared Across Projects](../limitations/coverage-shared-across-proj
 and [Vitest 5 Floor](../limitations/vitest-5-floor.md).
 
 [^layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
-[^plugin-ts]: `../../packages/plugin/src/plugin.ts:138` (`resolveConsoleMode`), `../../packages/plugin/src/plugin.ts:174` (`readConsoleOverride`), `../../packages/plugin/src/plugin.ts:351` (`PluginDiagnosticsLive`)
+[^plugin-ts]: `../../packages/plugin/src/plugin.ts:138` (`resolveConsoleMode`), `../../packages/plugin/src/plugin.ts:181` (`readConsoleOverride`), `../../packages/plugin/src/plugin.ts:345` (`AgentPlugin`, diagnostics)

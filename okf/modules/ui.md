@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: 660205b9054b1a462e4abb5827b45e5b560c2442d9a43cc7194e974cc93f7a9e
+  at: 2026-10-01T02:30:42Z
+  body_sha256: 529bae6aa3993fe10808f35de11f97fe7a60b1f9bbf9399c0637ce34abf3f647
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -55,12 +55,14 @@ consumer today, `@vitest-agent/reporter`, declares them as full
 dependencies and provides the peer.[^ui-package-json]
 
 `@effected/cli` and `@effected/env` are also peer (plus dev) dependencies,
+together with `@effected/walker` and `@effected/glob`, which `@effected/cli`
+itself requires as peers,
 for a different reason: `VitestAgentStatus` is exported from this package
 and its type is the kit's nominal `Status`, so a consumer comparing or
 extending it must resolve the same `@effected/cli` instance rather than a
-private copy. `@vitest-agent/reporter` does not declare them; the carrier
-`@vitest-agent/plugin` declares both as regular
-dependencies.[^ui-package-json]
+private copy. `@vitest-agent/reporter` declares the same four as peers
+(it builds kit `Doc`s itself); the carrier `@vitest-agent/plugin` declares
+all four as regular dependencies.[^ui-package-json]
 
 ## Architecture at a glance
 
@@ -106,11 +108,18 @@ test run adds: `timeout` (`⧖`, `#e09a4e`, rank 85, just under failure),
 names the non-status accents: `classification` (`#c98ae0`, the
 `[flaky]` / `[new-failure]` tag), `zero` (a zero count), `stable` (the
 stable trend), and `tag` (a non-zero tag count). Because Ink takes colour
-as `<Text>` props rather than ANSI, `inkStyle(token)` maps a kit token or
-style onto Ink props, and `statusGlyph(name)` / `statusInkStyle(name)`
-answer a status's glyph and style. `TOKEN_STYLES` mirrors the kit's
-`CliTheme` defaults (which the kit does not export), and
-`__test__/theme.test.ts` fails if the mirror drifts. Every Ink component,
+as `<Text>` props rather than ANSI, `inkStyle(token)` resolves a kit token
+or style through the kit's pure `Token.resolve` (the same resolution
+`CliTheme.paint` applies) and maps it onto Ink props; named colours use the
+chalk spelling Ink takes (`blackBright`). `statusGlyph(name, glyphs?)` /
+`statusInkStyle(name)` answer a status's glyph and style; `statusGlyph`
+returns the status's ASCII glyph when handed an ASCII `GlyphSet`. Glyph
+sets are never chosen from `process` here: `StreamApp` takes an optional
+`glyphs` prop (`Glyphs.select` options, `{ ascii?, term? }`) and provides
+the selected set through the public `GlyphSetContext`
+(`render-ink/glyphs.ts`); `StatusIcon`, `CountColumns`, both failure
+sections and the `…` ellipses read it with `useGlyphs()`, and the default
+is the Unicode set. Every Ink component,
 dispatcher helper, and cell draws from this module; none carries a hex
 literal of its own. The kit's semantics apply by construction: skip (`↷`)
 and pending (`◯`) are dim, a regressing trend is a warning (yellow), and an
@@ -118,8 +127,8 @@ Ink coverage threshold violation is a failure (red `✗`) while a target
 shortfall is a warning.
 
 Text primitives come from the kit's `Fmt` rather than local helpers:
-`truncate`, `percent` (coverage arrives on istanbul's 0–100 scale and is
-divided by 100 first), `plural` (so `1 threshold violation`, never
+`truncate`, `percent` (coverage arrives on istanbul's 0–100 scale, so the
+call is `Fmt.percent(n, { scale: 100 })`), `plural` (so `1 threshold violation`, never
 `violation(s)`), and `duration`. `formatDisplayDuration`
 (`src/format-duration.ts`) is `Fmt.duration`: whole milliseconds under a
 second (`250ms`), seconds to one decimal under a minute with a trailing
@@ -306,8 +315,10 @@ fixed 4-digit cells with zeros in the `zero` token, and exports the fixed
 `TagColumns.tsx` renders per-row tag-count cells from a view-level
 `tagUnion(rows)` computed once per frame — a union of one or fewer tags
 collapses to empty and suppresses tag columns entirely for that view. The
-spinner is a hand-rolled Braille frame array (`spinner.ts`, no
-`ink-spinner` dependency) driven by the animation clock in
+spinner (`spinner.ts`, no `ink-spinner` dependency) takes its frames and
+interval from the kit's glyph set — the Braille frames of `Glyphs.unicode`,
+an ASCII fallback in `Glyphs.ascii`; the public `SPINNER_FRAMES` is typed
+`ReadonlyArray<string>` — and is driven by the animation clock in
 `@vitest-agent/reporter`'s live-mount driver, which passes the frame index
 down as a prop.
 

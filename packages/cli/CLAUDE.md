@@ -12,10 +12,11 @@ src/
                          resolveProjectDir({ env, cwd: process.cwd() }),
                          resolveDataPath -> PlatformLive({ dbPath, env,
                          logger: false }) as CliRuntime.main's `platform`
-                         around withCarrierVersion(CliAudience.run(rootCommand,
-                         { version })), with CliRuntime.main's `env` option
-                         (audience override VITEST_AGENT_AUDIENCE; `env.log` =
-                         CliLog over VITEST_REPORTER_LOG_LEVEL / _LOG_FILE) ->
+                         around CliAudience.run(rootCommand, { version }),
+                         with `render: renderFailure` and CliRuntime.main's
+                         `env` option (audience override VITEST_AGENT_AUDIENCE;
+                         `env.formatter` = carrierVersionFormatter; `env.log`
+                         = CliLog over VITEST_REPORTER_LOG_LEVEL / _LOG_FILE) ->
                          NodeRuntime.runMain; the root carries the shared
                          --audience/--human/--agent/--ci flags and
                          withSubcommands is exactly db / doctor / agent
@@ -33,9 +34,14 @@ src/
                        -- subcommand bodies composed under `agent`
   lib/                -- pure formatting functions (where tests live)
     format-doctor.ts format-db-query.ts
-    version-formatter.ts -- withCarrierVersion: overrides only formatVersion
-                            on the ambient CliOutput.Formatter (the
-                            `via <carrier>` suffix)
+    version-formatter.ts -- carrierVersionFormatter(distribution): the
+                            formatVersion override passed as env.formatter
+                            (the `via <carrier>` suffix)
+    render-failure.ts    -- renderFailure: typed failures as one
+                            `vitest-agent: <Tag>: <message>` line; Cancelled,
+                            NotInteractive, SchemaError and defects via
+                            CliRuntime.defaultRender (defect: trimmed stack +
+                            issues link)
 ```
 
 There is no `layers/` and no `lib/internal-*.ts` / `record-*.ts` /
@@ -49,7 +55,7 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 
 | File | Purpose |
 | ---- | ------- |
-| `main.ts` | The assembled program. `resolveProjectDir` (engine) honors `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → cwd so hook-driven invocations from a sub-package cwd resolve the SAME `data.db` the MCP server uses. v4 `Command.run` takes no `name` (it comes from `Command.make`) and reads argv from the Stdio service. Runs through `@effected/cli`'s `CliRuntime.main` with the platform layer inside failure reporting: exit `0` success, `64` usage/parse error, `1` any other reported failure (a platform build failure is one `vitest-agent: <Tag>: <message>` line on stderr). `--version` prints `vitest-agent <CURRENT_CLI_VERSION>` plus `via @vitest-agent/plugin <version>` when the carrier's shim passed `distribution` (provided as `CurrentDistribution` outermost, so the formatter layer reads it at build time) |
+| `main.ts` | The assembled program. `resolveProjectDir` (engine) honors `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` → `CLAUDE_PROJECT_DIR` → cwd so hook-driven invocations from a sub-package cwd resolve the SAME `data.db` the MCP server uses. v4 `Command.run` takes no `name` (it comes from `Command.make`) and reads argv from the Stdio service. Runs through `@effected/cli`'s `CliRuntime.main` with the platform layer inside failure reporting: exit `0` success, `64` usage/parse error, `1` any other reported failure (a platform build failure is one `vitest-agent: <Tag>: <message>` line on stderr). `--version` prints `vitest-agent <CURRENT_CLI_VERSION>` plus `via @vitest-agent/plugin <version>` when the carrier's shim passed `distribution` (passed to `carrierVersionFormatter` as `env.formatter`, and provided as `CurrentDistribution`). An audience flag recomputes `CliInteractive` from the TTY facts, so `--human` at a real terminal in an agent-detected shell can prompt |
 | `commands/db.ts` | `db` parent with four subcommands. `db path` prints the deterministic XDG path (no probing); `db prune --keep-recent N` drops old sessions' turn history (default N=30); `db reset` wipes the DB (human-only, agent-blocked); `db query <sql>` runs read-only SQL |
 | `commands/doctor.ts` | 5-point health diagnostic (manifest assembly, latest-run integrity, staleness check). Keeps `--format markdown\|json` |
 | `commands/agent.ts` | `agent` namespace parent. Carries a `Command.withDescription` warning header ("Commands intended for agents and hook scripts — humans typically don't invoke these directly.") rendered above the subcommand list. Composes `triageCommand`, `wrapupCommand`, `recordCommand`, the sidecar subcommands `register-agent`, `end-agent`, `inject-env`, `sidecar-path`, and — outside that family, with its own exit-code contract — `check-test-path`. The sidecar subcommands call `resolveHookPaths({ env: process.env, projectKey })` then provide `SidecarPlatformLive(paths, process.env)`; `inject-env` passes a `readFileSync` wrapper into the pure `injectEnv` |
@@ -73,8 +79,11 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   the reporter (during a test run) or the MCP server (`note_*`).
 - **`CliRuntime.main` under `NodeRuntime.runMain` for the entry.** Failure
   rendering and exit codes are the kit's; `renderFailure` keys off the
-  kit's `details.isDefect`: a typed failure is one line, a defect goes
-  through `formatFatalError`. `helpOnUsageError: "stderr"` puts help plus
+  kit's `details.isDefect`: a typed failure is one line; a defect (and
+  `Cancelled` / `NotInteractive` / `SchemaError`) goes through
+  `CliRuntime.defaultRender`, prefixed `vitest-agent:` — for a defect, a
+  stack trimmed to our own frames plus a `Please report at <issues url>`
+  line. `helpOnUsageError: "stderr"` puts help plus
   the parse errors on stderr on a usage error (stdout empty, exit 64 —
   hooks pipe `agent *` stdout into jq); an explicit `--help` stays on
   stdout. Keep the

@@ -16,10 +16,14 @@ sources:
     resource: ../../packages/reporter/src/LiveInkRenderer.tsx
   - id: reporter-package-json
     resource: ../../packages/reporter/package.json
+  - id: reporter-github-log
+    resource: ../../packages/reporter/src/githubLog.ts
+  - id: reporter-render-context
+    resource: ../../packages/reporter/src/renderContext.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: 7be362bb3758532c9a1b1bfc35276f03b5cdd3ea9a760296e7c816edbb0f98b9
+  at: 2026-10-01T02:30:42Z
+  body_sha256: d6bc3c9da6554f9c051d53c47ded63bd1a52e9d837e5c1625de37390ef4f2a6f
 ---
 
 # @vitest-agent/reporter
@@ -40,7 +44,13 @@ Depends on `@vitest-agent/sdk` and `@vitest-agent/ui` as workspace
 dependencies, and on `react` + `ink` as full `dependencies` — this package
 owns the concrete React instance, where `@vitest-agent/ui` only declares
 `react`/`ink` as `peerDependencies` because it renders *with* React without
-owning the instance[^reporter-package-json]. It imports no Vitest API: Vitest
+owning the instance[^reporter-package-json]. `@effected/cli`,
+`@effected/env`, `@effected/walker`, and `@effected/glob` are peer (plus dev)
+dependencies, the same library pattern `@vitest-agent/ui` uses: this package
+builds kit `Doc`s and renders them with `Render`, and imports `Glyphs`, so it
+must resolve the same kit instance as ui; `walker` and `glob` are there
+because `@effected/cli` requires them as peers. The carrier
+`@vitest-agent/plugin` provides all four. It imports no Vitest API: Vitest
 lifecycle wiring, the `AgentReporter` class, `ReporterKit` construction, and
 routing of `RenderedOutput[]` all belong to
 [the plugin module](plugin.md), not here. This package's `render(input, kit)`
@@ -81,6 +91,18 @@ a host composing at a different layer.
 - `src/LiveInkRenderer.tsx` — `createLiveInk`, the imperative Ink mount and
   its animation clock. Carries this package's only JSX, so
   `packages/reporter/tsconfig.json` sets `"jsx": "react-jsx"`.
+- `src/githubLog.ts` — `renderGithubLog`, the `::group::vitest-agent` log
+  block, built as a kit `Doc` (a top-level collapsible) and rendered with
+  `Render.githubLog`, which neutralizes workflow commands, so a project
+  name, a path or the db path can no longer inject one[^reporter-github-log].
+  Its per-project line counts a timed-out test as `failed`, unlike the step
+  summary's totals table — a known inconsistency kept deliberately.
+- `src/renderContext.ts` — `reporterRenderContext`, a hand-built kit
+  `RenderContext` (CI audience, no colour, no links, Unicode glyphs,
+  unbounded width) because the reporter runs inside Vitest with no Effect
+  CLI runtime and the kit ships no pure constructor; the log block sets
+  `neutralizeWorkflowCommands`, the summary files do
+  not[^reporter-render-context].
 
 ## The default reporter
 
@@ -88,10 +110,10 @@ a host composing at a different layer.
 stream-mode live mount can subscribe to the run-event channel before the
 first event arrives[^reporter-default]. Two moments matter:
 
-- **At factory invocation** (`packages/reporter/src/defaultReporter.ts:436-439`)
+- **At factory invocation** (`packages/reporter/src/defaultReporter.ts:460`)
   — when `kit.config.consoleMode === "stream"` and `kit.runEvents` is
   defined, the factory subscribes a live Ink mount to the channel.
-- **At `render(input, kit)`** (`:441-487`) — called once at run end with a
+- **At `render(input, kit)`** (`:464`) — called once at run end with a
   second, health-aware `ReporterKit`. For a console mode that owns stdout it
   folds `input.reports` through the synthesizer and reducer, builds
   `DispatchInputs`, and dispatches through the matrix for one `stdout`
@@ -118,6 +140,13 @@ not a reflection of what the terminal shows[^reporter-default]:
   against the published contract.
 - **`summary.md`** — the same markdown built for the GitHub step summary.
 
+In that markdown the Classifications and Coverage sections are kit `Doc`s
+rendered through `Render.markdown` (the Coverage table capped at ten rows
+with a `(+N more not shown)` overflow line); Totals and Trend stay
+hand-built strings, because the kit IR has no bold inline for the
+`**Total**` row and no single-newline line group for the trend. The output
+is byte-identical to the earlier string path.
+
 Durations in the GFM summary's per-project table go through
 `@vitest-agent/ui`'s `formatDisplayDuration` (the kit's `Fmt.duration`), so
 the table and the console print a duration the same way[^reporter-default].
@@ -138,17 +167,21 @@ plugin; this package only names a file and hands over a string. See
 spinner and the ticking elapsed-time column both need[^reporter-live-ink]:
 
 - The clock is a `setInterval` that calls `instance.rerender()` so frames
-  advance between discrete `RunEvent` arrivals (`:205-211`).
+  advance between discrete `RunEvent` arrivals (`:208-216`).
 - It starts in the `RunStarted` branch, not on mount — watch mode mounts
   once and runs many times, so a mount-scoped clock would leave reruns
-  un-animated (`:247-283`).
+  un-animated (`:252-288`).
 - It stops on the terminal event and defensively on teardown, because the
   drain fiber feeding events is never cancelled and the interval must not
   outlive the instance.
-- The spinner frame index derives from `Date.now()` (`:172`), not a
+- The spinner frame index derives from `Date.now()` (`:177`), not a
   monotonic counter, so it stays correct across watch-mode remounts, and is
   passed to `StreamApp` as a prop rather than entering the event-sourced
   `RenderState`.
+- The mount also passes `glyphs: { term: process.env.TERM }` to
+  `StreamApp`, read once per renderer, so `TERM=dumb` gets the kit's ASCII
+  glyphs and spinner frames in the live view; ui itself never reads
+  `process`.
 
 The renderer is event-plus-clock-driven while a run is in progress: discrete
 `RunEvent` arrivals advance state, the clock advances frames between them.
@@ -234,3 +267,5 @@ mutable state of its own.
 [^reporter-default]: `packages/reporter/src/defaultReporter.ts`
 [^reporter-live-ink]: `packages/reporter/src/LiveInkRenderer.tsx`
 [^reporter-package-json]: `packages/reporter/package.json`
+[^reporter-github-log]: `packages/reporter/src/githubLog.ts`
+[^reporter-render-context]: `packages/reporter/src/renderContext.ts`

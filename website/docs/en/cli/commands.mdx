@@ -100,7 +100,8 @@ human-only and guards against accidental use in automated contexts:
   passed. A run is not interactive when stdin or stdout is not a TTY, when
   `--agent` / `--ci` (or `VITEST_AGENT_AUDIENCE=agent|ci`) is in effect, or
   when the shell is detected as an agent's. To get the prompt from a terminal
-  inside an agent shell such as Claude Code, set `VITEST_AGENT_AUDIENCE=human`.
+  inside an agent shell such as Claude Code, pass `--human` or set
+  `VITEST_AGENT_AUDIENCE=human`.
 - Prompts for confirmation when the run is interactive and `--yes` is not
   passed. Pressing Ctrl-C at the prompt exits with code `130` and writes
   nothing.
@@ -110,6 +111,9 @@ The operation is idempotent — a missing database is treated as success.
 ```bash
 # Interactive prompt on a TTY
 vitest-agent db reset
+
+# Prompt from a terminal inside an agent shell such as Claude Code
+vitest-agent --human db reset
 
 # Skip the confirmation prompt (CI scripts, onboarding)
 vitest-agent db reset --yes

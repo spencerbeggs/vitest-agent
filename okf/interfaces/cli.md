@@ -23,8 +23,8 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: e10a525646e5712e3568fe77d52511ccfc7f28b59e8155a9884ba390a35d6b34
+  at: 2026-10-01T02:30:42Z
+  body_sha256: d44bfa1a731b921b96947193f29545e6d689fb267277fa6bec39fed772b08ec7
 ---
 
 # The `vitest-agent` CLI command tree
@@ -122,7 +122,11 @@ on stdout), `130` a cancelled interactive prompt (Ctrl-C; one
 `vitest-agent: cancelled; nothing written` line on stderr), `1` any other
 reported failure — a failure resolving the data path, opening SQLite or
 running migrations prints one `vitest-agent: <Tag>: <message>` line on
-stderr and exits `1`. A command that sets its own code (through the kit's
+stderr and exits `1`. A defect (a bug, not a typed failure) also exits
+`1` but prints several stderr lines: `vitest-agent: <message>`, a stack
+trimmed to the program's own frames, and a final `Please report at
+https://github.com/spencerbeggs/vitest-agent/issues` line; a consumer
+should match only the leading `vitest-agent:` of the first line. A command that sets its own code (through the kit's
 `CliExit` or `process.exit`), as the families below do, keeps that
 code[^main-ts].
 
@@ -147,7 +151,9 @@ means Ctrl-C[^db-ts]. "Not interactive" is `@effected/cli`'s
 human — `--agent` / `--ci`, `VITEST_AGENT_AUDIENCE=agent|ci`, or a shell the
 environment detects as an agent's. Inside Claude Code's terminal a human
 therefore needs `--yes`, `--human`, or `VITEST_AGENT_AUDIENCE=human` to
-reach the prompt.
+reach the prompt: an audience flag or the variable recomputes
+interactivity from the TTY facts, so `--human db reset` at a real
+terminal prompts even though the shell is detected as an agent's.
 
 **`db query`** has its own pair: `2` for empty / whitespace-only SQL, `3`
 for any driver error — a SQL syntax error and a rejected write both surface

@@ -30,10 +30,12 @@ sources:
     resource: ../../packages/cli/__test__/boundaries.test.ts
   - id: version-formatter
     resource: ../../packages/cli/src/lib/version-formatter.ts
+  - id: render-failure
+    resource: ../../packages/cli/src/lib/render-failure.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: 1a1dec6d4964edca874cfa5e2c647515cf18e97b63832818f2397068dace0dab
+  at: 2026-10-01T02:30:42Z
+  body_sha256: dccc7b438b4150335b400ead753288bd553daab98e54d199b834dfe70afce127
 ---
 
 # @vitest-agent/cli
@@ -125,23 +127,28 @@ Follows the
   program. Because the platform is inside failure
   reporting, a failure resolving the data path, opening SQLite or
   running migrations prints one line on stderr instead of a runtime
-  report. `renderFailure` keys off the kit's `details.isDefect`: a typed
-  failure prints as `vitest-agent: <Tag>: <message>` and a defect as
-  `vitest-agent: ${formatFatalError(error)}`. `helpOnUsageError:
+  report. `renderFailure` (`lib/render-failure.ts`) keys off the kit's
+  `details.isDefect`: a typed failure from the error channel prints as
+  `vitest-agent: <Tag>: <message>`; a `Cancelled`, a `NotInteractive`,
+  a `SchemaError` and every defect are delegated to the kit's
+  `CliRuntime.defaultRender` with the first line prefixed
+  `vitest-agent:`, so a defect prints its message, a stack trimmed to
+  the program's own frames, and a closing `Please report at <issues
+  URL>` line[^render-failure]. `helpOnUsageError:
   "stderr"` sends help plus the parse errors to stderr on a usage error,
   leaving stdout empty; an explicit `--help` prints on stdout. Exit codes
   are the kit's: `0` success, `64` usage error, `130` a cancelled
   prompt, `1` any other reported failure; a code a command records
-  through `CliExit` (or its own `process.exit`) still wins; a custom
-  `renderFailure` keeps the kit's `vitest-agent: cancelled; nothing
-  written` line for `Cancelled`. `main(options?)` takes an optional
-  `distribution` and provides it as `@effected/engine`'s
-  `CurrentDistribution` outermost, so `withCarrierVersion`
-  (`lib/version-formatter.ts`, a program wrapper that overrides only
-  `formatVersion` on the ambient `CliOutput.Formatter`, layered with
-  `Object.create` so the kit's help-to-stderr recording formatter
-  survives) prints `vitest-agent <version>` plus `via
-  @vitest-agent/plugin <version>` when the carrier launched
+  through `CliExit` (or its own `process.exit`) still wins; a
+  `Cancelled` keeps the kit's fixed `vitest-agent: cancelled; nothing
+  written` line. `main(options?)` takes an optional `distribution`,
+  provides it as `@effected/engine`'s `CurrentDistribution`, and passes
+  `carrierVersionFormatter(distribution)` (`lib/version-formatter.ts`)
+  as `CliRuntime.main`'s `env.formatter`: it replaces only
+  `formatVersion` on the kit's coloured default formatter (the kit still
+  wraps it for help-to-stderr), so `--version` prints `vitest-agent
+  <version>` plus `via @vitest-agent/plugin <version>` when the carrier
+  launched
   it[^version-formatter]. Colour is the kit's decision through
   `@effected/env`'s `TerminalEnv`: `NO_COLOR` disables it, `FORCE_COLOR`
   forces it, and a TTY with no `TERM` is uncoloured.
@@ -184,7 +191,9 @@ code 5, where interactive is `@effected/cli`'s `CliInteractive` — a human
 audience with a terminal on both stdin and stdout, so `--agent` / `--ci`,
 `VITEST_AGENT_AUDIENCE=agent|ci`, or a detected agent shell all refuse
 (inside Claude Code a human needs `--yes`, `--human`, or
-`VITEST_AGENT_AUDIENCE=human`); (3) interactive without `--yes` → core
+`VITEST_AGENT_AUDIENCE=human` — an audience flag recomputes
+`CliInteractive` from the TTY facts, so `--human` at a real terminal in an
+agent-detected shell reaches the prompt); (3) interactive without `--yes` → core
 `Prompt.Confirm` (`Wipe <path>?`, default no); declining exits 0 with
 `aborted` on stdout, Ctrl-C exits 130 with `cancelled; nothing written`;
 (4) `--yes` skips the prompt unconditionally (still subject to gate
@@ -393,7 +402,8 @@ CLI-first split, leaving the CLI utility-only as described above.
 
 [^boundaries-test]: `../../packages/cli/__test__/boundaries.test.ts`
 [^version-formatter]: `../../packages/cli/src/lib/version-formatter.ts`
-[^main-ts]: `../../packages/cli/src/main.ts:126` (`main`), `../../packages/cli/src/main.ts:139` (`projectDir`), `../../packages/cli/src/main.ts:40` (`rootCommand`)
+[^render-failure]: `../../packages/cli/src/lib/render-failure.ts`
+[^main-ts]: `../../packages/cli/src/main.ts:103` (`main`), `../../packages/cli/src/main.ts:116` (`projectDir`), `../../packages/cli/src/main.ts:39` (`rootCommand`)
 [^bin-ts]: `../../packages/cli/src/bin.ts:10`
 [^index-ts]: `../../packages/cli/src/index.ts:21`
 [^db-ts]: `../../packages/cli/src/commands/db.ts:172` (`db` parent), `../../packages/cli/src/commands/db.ts:174` (`dbCommand`), `../../packages/cli/src/commands/db.ts:49` (`reset`), `../../packages/cli/src/commands/db.ts:138` (`query`)

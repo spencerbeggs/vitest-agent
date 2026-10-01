@@ -11,8 +11,8 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: 7817221b58ca4687592e79ffa7cee72c60e67825b672c9708e124ac71090b76a
+  at: 2026-10-01T02:30:42Z
+  body_sha256: bba1375ad6ac5f5795b9c61b359c4a61eb09e1c8735d97ef02e99df01471bcea
 ---
 
 # AgentPluginOptions
@@ -66,8 +66,9 @@ owns stdout for the run: Vitest's built-in console reporters are stripped
 and `coverage.reporter` is zeroed. `VITEST_AGENT_CONSOLE` overrides the
 configured slot at runtime, but only with a value legal for the *detected*
 executor, matched case-insensitively; an illegal value is ignored with one
-stderr line per run, `[vitest-agent:plugin] VITEST_AGENT_CONSOLE=<value> is
-not accepted for the <executor> audience (accepts <a>|<b>|…); ignoring it`.
+stderr line per run, `[vitest-agent:plugin] ignoring
+VITEST_AGENT_CONSOLE=<value>: not accepted for the <executor> audience
+(accepts <a>|<b>|…)`.
 The wording is diagnostic, not a contract to pattern-match.
 
 ## `coverageTargets` — aspirational goals, not enforcement

@@ -127,7 +127,7 @@ The override is checked against the slot for the executor detected on that run â
 
 ```bash
 VITEST_AGENT_CONSOLE=stream pnpm test
-# VITEST_AGENT_CONSOLE=stream is not accepted for the agent audience (accepts passthrough|silent|agent); ignoring it
+# [vitest-agent:plugin] ignoring VITEST_AGENT_CONSOLE=stream: not accepted for the agent audience (accepts passthrough|silent|agent)
 ```
 
 The run continues with the mode the matrix resolved, so an ignored override never fails a run â€” it just does nothing.
