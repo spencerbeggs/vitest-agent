@@ -10,8 +10,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: fabab17b0531db08cca8464b7389835fcc318ab15bf22e29af40c2041b791bfb
+  at: 2026-10-01T13:07:49Z
+  body_sha256: 65d9fb444dc574d0e646f1283fab25fb692226ae7bb5f476e697bfadd5af63cd
 ---
 
 # RunEvent and RenderState
@@ -23,8 +23,8 @@ generated:
 progress is expressed in, whether the source is a live Vitest reporter
 callback or a replayed persisted `AgentReport`[^run-event]. `RenderState`
 (`packages/sdk/src/schemas/RenderState.ts`) is the accumulated projection a
-pure reducer folds that stream into; every renderer (the Ink live-mount
-tree, the agent-mode markdown string, the dispatcher matrix's cells) reads
+pure reducer folds that stream into; every renderer (the `stream` live
+view's `StreamApp` tree, the agent-mode markdown string, the dispatcher matrix's cells) reads
 `RenderState`, never the raw event sequence. Getting either side wrong
 breaks a renderer either at compile time (the reducer's exhaustiveness
 check) or silently at runtime (a variant with no reducer case renders

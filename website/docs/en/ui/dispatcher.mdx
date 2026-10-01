@@ -118,7 +118,7 @@ const table = dispatcherTable;
 
 The agent string path and the Ink path both read `RenderState` — the same denormalized projection produced by the reducer. There is no separate state shape for live versus report-time rendering: the plugin publishes `RunEvent`s onto the PubSub channel during a run, the reducer folds each event into `RenderState`, and that state feeds the dispatcher regardless of which render path is active.
 
-The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` orchestrates the round-trip: it subscribes to `ReporterKit.runEvents`, folds events as they arrive to drive the Ink live mount, then at run end folds the final sequence via `reduceRenderStateAll` and calls `dispatch` for the agent string. The dispatcher sees identical state in both cases.
+The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` orchestrates the round-trip: it subscribes to `ReporterKit.runEvents`, folds events as they arrive to drive the `stream` live view, then at run end folds the final sequence via `reduceRenderStateAll` and calls `dispatch` for the agent string. The dispatcher sees identical state in both cases.
 
 ## Footer
 

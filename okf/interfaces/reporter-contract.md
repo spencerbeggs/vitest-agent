@@ -11,8 +11,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 45510931e5b14052c1351d6a92a55a5f3b6a0cb1c82cf9a224be68b83c41e63f
+  at: 2026-10-01T13:07:49Z
+  body_sha256: 653f158687f513d4423db9ee514e0ecc53f68c180d07c3920ffb97058f7dab7f
 sources:
   - id: contract-reporter
     resource: ../../packages/sdk/src/contracts/reporter.ts
@@ -34,7 +34,9 @@ runtime to implement.
 
 **`VitestAgentReporterFactory`** — `(kit: ReporterKit) =>
 VitestAgentReporter | ReadonlyArray<VitestAgentReporter>`. The plugin
-calls this once per run with the resolved kit. Returning an array models
+calls this once per Vitest session, at `onInit`, with the resolved
+run-start kit; in watch mode the same reporters are reused for every
+rerun. Returning an array models
 Vitest's own multi-reporter pattern (`reporters: ['default',
 'github-actions']`): each reporter handles one concern and the plugin
 concatenates their `RenderedOutput[]` before routing. Persistence still
@@ -53,6 +55,15 @@ construction-time work reads the factory kit; a reporter that only
 renders reads the `render` kit. A no-op reporter that only wants
 persistence (the MCP/CLI tools still see the data) is one line:
 `() => ({ render: () => [] })`.
+
+**`VitestAgentReporter.close?() => Promise<void>`** — optional. Release
+what the factory acquired (a subscription, a live view's scope). The
+plugin calls it once, at Vitest's close (`vitest.onClose`), never per
+run, awaits every reporter's `close`, and only then shuts the
+`runEvents` channel down. The order is load-bearing: Effect's
+`PubSub.shutdown` drops whatever a subscriber has not pulled yet, so a
+subscriber drains its subscription and ends its own stream inside
+`close`. A rejection is logged to stderr, never thrown.[^contract-reporter]
 
 **`ReporterKit`** — the named-field bag handed to the factory at
 construction time and, in its run-end form, to `render`. Fields a
@@ -136,10 +147,12 @@ write stream or resolves a path itself:
   takes a runtime dependency on either.
 - `render` is guaranteed synchronous and side-effect-free with respect to
   Vitest: no Vitest-API type appears anywhere in the contract.
-- The factory is invoked exactly once per run per `reporter` entry
-  (multiple entries from an array are each invoked once), before the
-  first `RunEvent`, so a live-painting reporter never misses an event by
-  subscribing at construction time.
+- The factory is invoked exactly once per Vitest session per `reporter`
+  entry (multiple entries from an array are each invoked once), before
+  the first `RunEvent`, so a live-painting reporter never misses an event
+  by subscribing at construction time.
+- `close`, when present, runs before the run-event channel is shut down,
+  so everything published is still pullable inside it.
 - Persistence and classification always finish before `render` is
   called; a reporter never has to guard against a still-in-flight
   `DataStore` write when reading `ReporterRenderInput.classifications`.

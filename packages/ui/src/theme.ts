@@ -82,10 +82,9 @@ export interface InkTextStyle {
  *
  * @remarks
  * Resolves the token through the kit's pure `Token.resolve` and maps the
- * `Style` with the kit's `inkProps`. Our Ink trees are mounted by the
- * reporter, not by a `CliUi` screen, so no colour level reaches this call
- * site: `inkProps` with no level emits every prop and Ink's own chalk level
- * gates what is actually drawn.
+ * `Style` with the kit's `inkProps`. No colour level reaches this call
+ * site, so `inkProps` with no level emits every prop and Ink's own chalk
+ * level, set by `CliUi.live` or `CliUi.context`, gates what is drawn.
  *
  * @param token - a token name or a `Style`
  * @public

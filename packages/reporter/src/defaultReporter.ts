@@ -409,8 +409,9 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
  * `consoleMode: "stream"` it starts a live view on the kit's run-event
  * channel (subscribed before the factory returns, so the first
  * `RunStarted` is seen) and owns it for the reporter's life: the
- * reporter's `close`, which the plugin calls at Vitest's close after
- * shutting the channel down, waits for the last frame and closes it.
+ * reporter's `close`, which the plugin calls at Vitest's close before
+ * shutting the channel down, drains the queued events, waits for the last
+ * frame and closes it.
  *
  * The `render` call (invoked once at run end with the health-aware kit)
  * assembles the reduced state, classifies the shape and outcome, and

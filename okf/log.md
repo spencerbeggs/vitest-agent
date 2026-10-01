@@ -11,6 +11,9 @@
 * Updated @vitest-agent/engine
 * Updated @vitest-agent/plugin
 * Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
+* Updated @vitest-agent/cli
+* Updated Claude Code hook environment contract
+* Updated The `vitest-agent` CLI command tree
 
 ## 2026-09-30
 

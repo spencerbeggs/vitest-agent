@@ -4,7 +4,7 @@
 * [@vitest-agent/engine](engine.md) - The platform half of the sdk/engine split: Effect services and Live/Test layers, the SQLite client and migrator stack, XDG path resolution, hook-driven programs, and the one PlatformLive layer both front ends provide.
 * [@vitest-agent/mcp](mcp.md) - The Model Context Protocol server (vitest-agent-mcp bin) exposing the action-keyed tool surface to LLM agents over stdio, built on Effect's native McpServer with no MCP SDK, tRPC, or zod.
 * [@vitest-agent/plugin](plugin.md) - The carrier and the Vitest-API-aware half of the family: AgentPlugin, the internal AgentReporter lifecycle class, CoverageAnalyzer, ConfigValidation, and workspace discovery.
-* [@vitest-agent/reporter](reporter.md) - The default VitestAgentReporterFactory, report files, the stream-mode live Ink mount, and the reference surface for custom-reporter authors.
+* [@vitest-agent/reporter](reporter.md) - The default VitestAgentReporterFactory, report files, the stream-mode live view's lifetime, and the reference surface for custom-reporter authors.
 * [@vitest-agent/sdk](sdk.md) - The platform-free core of the vitest-agent family — schemas, contracts, errors, formatters, and pure utilities.
 * [@vitest-agent/sidecar](sidecar.md) - A detached SEA binary spawned by the Claude Code hooks to remove Node cold-start from the per-Bash-call inject-env hot path, plus its four per-platform optionalDependencies children.
 * [@vitest-agent/ui](ui.md) - The pure rendering-primitives library — the RunEvent reducer, shape-tailored dispatcher matrix, live Ink components, and synthesizers.

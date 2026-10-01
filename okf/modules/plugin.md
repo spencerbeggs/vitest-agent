@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T07:18:02Z
-  body_sha256: 828545ee88d94d3a1c6f4319003a7609675efa8917eafce31a8c190c7d1bbe2b
+  at: 2026-10-01T13:07:49Z
+  body_sha256: c219420ffcec632e08e217023e7dca924d7a7add7d42887c48d6349ffe823615
 ---
 
 # @vitest-agent/plugin
@@ -254,7 +254,13 @@ events onto the channel and hands the channel to the factory.
 `initReporters()`, which resolves a run-start `ReporterKit` (neutral run
 health) and invokes `opts.reporter(kit)` **at run start** so a
 live-painting reporter can subscribe before the first event; the resolved
-reporters are stashed for reuse by `onTestRunEnd`. `onCoverage` stashes
+reporters are stashed for reuse by `onTestRunEnd`. `onInit` also
+registers `vitest.onClose(() => closeReporters())`: once, at Vitest's
+close (never at `onTestRunEnd`, which fires on every watch rerun), it
+awaits every reporter's optional `close()` and only then calls
+`PubSub.shutdown` on the run-event channel, because a shutdown drops
+whatever a subscriber has not pulled yet; a failing `close` or shutdown
+is written to stderr, never thrown. `onCoverage` stashes
 coverage data. `onTestRunEnd` is the load-bearing hook for persistence and
 end-of-run rendering.
 

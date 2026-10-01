@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-22T19:49:15Z
-  body_sha256: a4fa9974a0d2a737f939cc06c9e9bc8203be37d73dbdecbdc1f84a59883a6177
+  at: 2026-10-01T13:07:49Z
+  body_sha256: be02d26482bdc6055f61a081974aae137f43872037c4520043c18dd4fceae014
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -299,7 +299,10 @@ so the two can share them without either taking a runtime dependency on
 the other. `ResolvedReporterConfig` carries a required
 `readonly coverageMode: "full" | "ui-only"` field, which the plugin
 resolves from Vitest's native `coverage.enabled` and threads through
-`buildReporterKit` into every reporter's kit. See
+`buildReporterKit` into every reporter's kit. `VitestAgentReporter`
+carries an optional `close?: () => Promise<void>` beside `render`, which
+the plugin awaits once at Vitest's close, before it shuts the run-event
+channel down. See
 [Interface: reporter-contract](../interfaces/reporter-contract.md) for the
 consumer-facing promise.
 

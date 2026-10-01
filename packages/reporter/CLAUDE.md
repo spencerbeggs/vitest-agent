@@ -28,15 +28,15 @@ __test__/
 ## Conventions
 
 - **No Vitest-API imports.** This package must not import `vitest` or `vitest/node`. Vitest lifecycle belongs in `@vitest-agent/plugin`.
-- **This package owns rendering orchestration.** `DefaultVitestAgentReporter` branches on `consoleMode`, dispatches through the matrix, and drives the Ink mount lifecycle itself. The plugin feeds it a run-event stream and a resolved `ReporterKit` and never touches rendering.
-- **This package owns the React instance.** `react` and `ink` are full `dependencies` here because `@vitest-agent/reporter` is the concrete consumer of `@vitest-agent/ui`'s peer-declared react/ink. JSX builds via the SWC automatic-runtime plugin in `rslib.config.ts` and `"jsx": "react-jsx"` in `tsconfig.json` — keep both in place.
+- **This package owns rendering orchestration.** `DefaultVitestAgentReporter` branches on `consoleMode`, dispatches through the matrix, and owns the live view's lifetime itself (start, `close`). The plugin feeds it a run-event stream and a resolved `ReporterKit`, calls `close` at Vitest's close, and never touches rendering.
+- **This package owns the React instance.** `react` and `ink` are full `dependencies` here because `@vitest-agent/reporter` is the concrete consumer of `@vitest-agent/ui`'s peer-declared react/ink. The package has no `.tsx` source (`liveView.ts` builds `StreamApp` with `createElement`), so `tsconfig.json` sets no `jsx` option; add `"jsx": "react-jsx"` there if JSX is ever reintroduced.
 - **Reference package for custom reporters.** Users who want different output write their own `VitestAgentReporterFactory` and pass it as the `reporter` option to `AgentPlugin()`. They depend on `@vitest-agent/reporter` to pull the contract types, the dispatch helpers, and `DefaultVitestAgentReporter` as a worked example from one package.
 - **Contract types live in the SDK.** `ReporterKit`, `VitestAgentReporterFactory`, `ReporterRenderInput`, and `RenderedOutput` are defined in `packages/sdk/src/contracts/reporter.ts`. This package re-exports them as a convenience; do not redeclare them here.
 - **Dispatcher primitives live in the UI.** The reducer, dispatcher matrix, cells, render paths, and the `RunEventChannel` PubSub live in `@vitest-agent/ui`. `DefaultVitestAgentReporter` consumes them; do not duplicate them here.
 
 ## When working in this package
 
-- Editing `DefaultVitestAgentReporter`: rendering orchestration (mode branching, Ink mount lifecycle, dispatch wiring) belongs here. Reducer or dispatcher-cell changes belong in `@vitest-agent/ui`; contract changes belong in `@vitest-agent/sdk`; plugin lifecycle wiring belongs in `@vitest-agent/plugin`.
+- Editing `DefaultVitestAgentReporter`: rendering orchestration (mode branching, live-view lifetime, dispatch wiring) belongs here. Reducer or dispatcher-cell changes belong in `@vitest-agent/ui`; contract changes belong in `@vitest-agent/sdk`; plugin lifecycle wiring belongs in `@vitest-agent/plugin`.
 - `render(input, kit)` takes two arguments — the second is a health-aware `ReporterKit` resolved at run end. Keep the two-argument signature in sync with the contract in `packages/sdk/src/contracts/reporter.ts`.
 - Adding a re-export: confirm the symbol genuinely belongs in the public custom-reporter surface before adding it. Surface bloat propagates to every downstream consumer.
 - Keep `CURRENT_REPORTER_VERSION` exported — it is public API for version introspection by downstream tooling. The cross-package runtime drift check was removed, so nothing imports it internally anymore, but it stays part of this package's surface.

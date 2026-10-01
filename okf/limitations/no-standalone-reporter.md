@@ -6,8 +6,8 @@ bounds: ../modules/reporter.md
 tags: [architecture, compat]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: b7eb04835ee481043b65af21b66e3e36f94e066bf468302f095f0099abfd7f12
+  at: 2026-10-01T13:07:49Z
+  body_sha256: 21fffef974eba7fcd48fd423926eb39e3609f802d9b8d8ced3283f1339692cf6
 sources:
   - id: reporter-index
     resource: ../../packages/reporter/src/index.ts
@@ -17,7 +17,7 @@ sources:
 
 `@vitest-agent/reporter`'s public surface is exactly the reporter
 *contract* types re-exported from the SDK, `DefaultVitestAgentReporter`
-(a `VitestAgentReporterFactory`), the live-Ink mount driver, and a
+(a `VitestAgentReporterFactory`), the dispatch helpers, and a
 version constant — nothing that implements Vitest's own `Reporter`
 interface.[^reporter-index] The class that actually does (`AgentReporter`,
 which wires every Vitest lifecycle hook, persists to SQLite, and drives
