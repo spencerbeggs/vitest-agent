@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-30T03:49:16Z
-  body_sha256: ca841225f565b98a30bf3f0da4008888cc7127665378f9a49c80a4c28bbedc75
+  at: 2026-10-01T00:18:42Z
+  body_sha256: 740b266e15c8a9a5d1c83ba64ccbe0acb4893105372feb5f33378c9d1d980b66
 ---
 
 # @vitest-agent/plugin
@@ -185,13 +185,28 @@ double-counting.
 detected executor, and resolves a single `ConsoleMode` value. Per-slot
 defaults: `human → passthrough`, `agent → agent`, `ci → passthrough`. A
 non-empty `VITEST_AGENT_CONSOLE` override wins over the configured slot,
-but only when legal for the detected executor — the three slots accept
-three different literal unions, so the accepted-values list in the
-rejection warning is introspected from the SDK schema's `.literals` rather
-than hand-listed, so it cannot drift from the schema on the next mode
-addition. The three `Schema.is` guards stay separate rather than
-collapsing into a ternary-produced union, which confuses tsgo on
-annotations-method contravariance.
+but only when legal for the detected executor. The read is
+`@effected/env`'s `EnvOverride.read` (the exported `readConsoleOverride`),
+with the executor supplied as the `Audience` and each audience's accepted
+literals taken from the SDK schemas' `.literals`, so the list cannot drift
+on the next mode addition[^plugin-ts]. Matching is case-insensitive. A
+value the executor does not accept is ignored with one stderr line,
+`[vitest-agent:plugin] VITEST_AGENT_CONSOLE=<value> is not accepted for the
+<executor> audience (accepts <a>|<b>|…); ignoring it`, routed through the
+caller's `report` sink (never stdout) and deduped once per Vitest run
+(issue 459). Each read uses a fresh `ConfigProvider.fromEnv()`, because
+core's default provider snapshots `process.env` once per process.
+
+**Executor from engine.** The plugin maps the detected `Environment` to an
+`Executor` through engine's `ExecutorResolverLive` — the same layer the
+reporter uses — rather than a private copy of the table.
+
+**Diagnostics.** The plugin's own debug lines go through `@effected/cli`'s
+`CliLog`, tagged `CliLog.component("vitest-agent:plugin")`, on stderr only
+(pretty for a human at a TTY, NDJSON otherwise). They print only when
+`VITEST_REPORTER_LOG_LEVEL` resolves to `debug`, `trace`, or `all`; at
+`info`, `warning`, or `error` they stay silent. The diagnostics layer is
+built only when that gate passes, so a default run never constructs it.
 
 **Console-reporter stripping.** Whenever the resolved `consoleMode` owns
 stdout (anything other than `passthrough`), the plugin strips Vitest's
@@ -798,3 +813,4 @@ See [Coverage Shared Across Projects](../limitations/coverage-shared-across-proj
 and [Vitest 5 Floor](../limitations/vitest-5-floor.md).
 
 [^layering-test]: `../../packages/plugin/__test__/workspace-layering.test.ts`
+[^plugin-ts]: `../../packages/plugin/src/plugin.ts:138` (`resolveConsoleMode`), `../../packages/plugin/src/plugin.ts:174` (`readConsoleOverride`), `../../packages/plugin/src/plugin.ts:351` (`PluginDiagnosticsLive`)

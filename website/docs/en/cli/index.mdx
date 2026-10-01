@@ -14,6 +14,7 @@ This package is a regular dependency of `@vitest-agent/plugin`, and the plugin d
 - **`doctor`** — five-point health diagnostic covering manifest assembly, latest-run integrity, and staleness
 - **`db`** — `path`, `prune`, `reset`, and `query` subcommands for database lifecycle management
 - **`agent` namespace** — `triage`, `wrapup`, `record`, `register-agent`, `end-agent`, `inject-env`, and `sidecar-path` for hook-driven plumbing
+- **Audience flags** — `--audience <human|agent|ci>`, `--human`, `--agent`, `--ci` (or `VITEST_AGENT_AUDIENCE`) override the detected audience; see the [command reference](/cli/commands#audience-flags)
 - **`--version`** — prints `vitest-agent <version>`, plus the carrier that launched it (` via @vitest-agent/plugin <version>`) when run through the plugin's bin
 - **`./main` entry** — `main()` is the assembled program that owns the process; the bin is a shim over it, and so are the plugin's carrier bins
 

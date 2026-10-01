@@ -9,8 +9,8 @@ description: >-
 tags: [dx, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 9b82a5198852ba8a4a063dbbde43d175d0991af0155265cdf49b450108b65738
+  at: 2026-10-01T00:18:42Z
+  body_sha256: e874779c79c1bfca9a8b57f560eda5951e051dca7063d0617bb0a977a0a30b69
 sources:
   - id: executor-schema
     resource: ../../packages/sdk/src/schemas/Common.ts
@@ -29,8 +29,9 @@ sources:
 `Executor` is a closed three-value schema — `"human" | "agent" | "ci"`
 (`packages/sdk/src/schemas/Common.ts:126`). `AgentPlugin.configureVitest`
 detects the environment (`EnvironmentDetector`) and maps it to one of these
-three values through `envToExecutor(env)` (`packages/plugin/src/plugin.ts:254`,
-called at `packages/plugin/src/plugin.ts:402`). Nothing in `AgentPluginOptions`
+three values through `@vitest-agent/engine`'s `ExecutorResolverLive`, whose
+table is typed against `@effected/env`'s `AudienceKind` — an executor is the
+same three-way split as that kit's audience. Nothing in `AgentPluginOptions`
 lets a user set the executor directly — it is always inferred from the
 process environment, never configured.
 
@@ -44,11 +45,11 @@ sets: `HumanConsoleMode` (`"passthrough" | "silent" | "stream" | "agent"`),
 preferences via `AgentPluginOptions.console` — an object with optional
 `human` / `agent` / `ci` keys (`packages/sdk/src/schemas/Options.ts:22-24`,
 `:72`) — and `resolveConsoleMode(options, executor, env)`
-(`packages/plugin/src/plugin.ts:121`) looks up `console.<executor>`,
-validates a `VITEST_AGENT_CONSOLE` env override against the executor's own
-literal set, and falls back to a per-slot default (`human` →
-`"passthrough"`, `agent` → `"agent"`, `ci` → `"passthrough"`;
-`packages/plugin/src/plugin.ts:146-152`).
+(`packages/plugin/src/plugin.ts:138`) validates a `VITEST_AGENT_CONSOLE`
+env override (case-insensitively) against the executor's own literal set,
+then looks up `console.<executor>`, and falls back to a per-slot default
+(`human` → `"passthrough"`, `agent` → `"agent"`, `ci` → `"passthrough"`;
+`packages/plugin/src/plugin.ts:157-163`).
 
 ## The trap
 

@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 21b8d4f6df10388a41d3b5862ff4796541a9e72c64853626e24ef7e3168b8c27
+  at: 2026-10-01T00:18:42Z
+  body_sha256: 660205b9054b1a462e4abb5827b45e5b560c2442d9a43cc7194e974cc93f7a9e
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -31,6 +31,8 @@ sources:
     resource: ../../packages/ui/src/synthesize.ts
   - id: ui-pubsub-channel
     resource: ../../packages/ui/src/pubsub/Channel.ts
+  - id: ui-theme
+    resource: ../../packages/ui/src/theme.ts
 ---
 
 # @vitest-agent/ui
@@ -51,6 +53,14 @@ knows nothing about the reporter lifecycle.
 package renders *with* React/Ink but does not own the instance. Its one
 consumer today, `@vitest-agent/reporter`, declares them as full
 dependencies and provides the peer.[^ui-package-json]
+
+`@effected/cli` and `@effected/env` are also peer (plus dev) dependencies,
+for a different reason: `VitestAgentStatus` is exported from this package
+and its type is the kit's nominal `Status`, so a consumer comparing or
+extending it must resolve the same `@effected/cli` instance rather than a
+private copy. `@vitest-agent/reporter` does not declare them; the carrier
+`@vitest-agent/plugin` declares both as regular
+dependencies.[^ui-package-json]
 
 ## Architecture at a glance
 
@@ -78,10 +88,47 @@ internal barrel: the reducer (`reduceRenderState`, `reduceRenderStateAll`),
 the dispatcher (`dispatch`, `dispatchInk`, `dispatcherTable`,
 `classifyRunShape`, `classifyOutcome`, `buildFooter`,
 `dominantClassification`), the agent and Ink render paths, the
-synthesizers, and the PubSub channel.[^ui-src] Internal code imports
+synthesizers, the PubSub channel, the theme (`VitestAgentStatus`,
+`VitestAgentStatusName`, `VitestAgentTokens`, `inkStyle`, `statusGlyph`,
+`statusInkStyle`, `InkTextStyle`), and `formatDisplayDuration`.[^ui-src]
+Internal code imports
 directly from the source file that owns a symbol.
 
 ## Key files
+
+### The theme: one status vocabulary
+
+`src/theme.ts` is the only place a glyph or colour is chosen[^ui-theme].
+`VitestAgentStatus` is `@effected/cli`'s core `Status` vocabulary (success,
+skip, pending, info, warning, failure) extended with the three statuses a
+test run adds: `timeout` (`⧖`, `#e09a4e`, rank 85, just under failure),
+`running` (`…`, rank 35), and `queued` (`·`, rank 25). `VitestAgentTokens`
+names the non-status accents: `classification` (`#c98ae0`, the
+`[flaky]` / `[new-failure]` tag), `zero` (a zero count), `stable` (the
+stable trend), and `tag` (a non-zero tag count). Because Ink takes colour
+as `<Text>` props rather than ANSI, `inkStyle(token)` maps a kit token or
+style onto Ink props, and `statusGlyph(name)` / `statusInkStyle(name)`
+answer a status's glyph and style. `TOKEN_STYLES` mirrors the kit's
+`CliTheme` defaults (which the kit does not export), and
+`__test__/theme.test.ts` fails if the mirror drifts. Every Ink component,
+dispatcher helper, and cell draws from this module; none carries a hex
+literal of its own. The kit's semantics apply by construction: skip (`↷`)
+and pending (`◯`) are dim, a regressing trend is a warning (yellow), and an
+Ink coverage threshold violation is a failure (red `✗`) while a target
+shortfall is a warning.
+
+Text primitives come from the kit's `Fmt` rather than local helpers:
+`truncate`, `percent` (coverage arrives on istanbul's 0–100 scale and is
+divided by 100 first), `plural` (so `1 threshold violation`, never
+`violation(s)`), and `duration`. `formatDisplayDuration`
+(`src/format-duration.ts`) is `Fmt.duration`: whole milliseconds under a
+second (`250ms`), seconds to one decimal under a minute with a trailing
+`.0` dropped (`1.2s`, `1s`), then `1m 5s` and `1h 2m`; a value that rounds
+up to the next unit is written in that unit (`999.6` → `1s`). It is
+display only — persisted durations keep full precision.
+
+`NO_COLOR` is still read directly by the renderers; moving that decision
+to the kit is later work.
 
 ### The RunEvent taxonomy and reducer
 
@@ -254,7 +301,7 @@ region, so a tall frame does not stack stale frames in scrollback.
 
 Component files worth naming: `CountColumns.tsx` renders the four glyph
 count columns (`✓ ✗ ↷ ⧖`) every aggregate row carries, right-aligned in
-fixed 4-digit cells with zeros dimmed, and exports the fixed
+fixed 4-digit cells with zeros in the `zero` token, and exports the fixed
 `DURATION_CELL_WIDTH` the duration cell after the counts pads to.
 `TagColumns.tsx` renders per-row tag-count cells from a view-level
 `tagUnion(rows)` computed once per frame — a union of one or fewer tags
@@ -357,7 +404,7 @@ matrix generalizes for the agent-facing render path.
 
 ## Testing strategy
 
-Four granularities, all under `packages/ui/__test__/`:
+Five granularities, all under `packages/ui/__test__/`:
 
 1. **Reducer unit tests** (`reducer.test.ts`) — event-by-event coverage.
 2. **Classifier tests** (`classify.test.ts`) — run-shape derivation and the
@@ -368,14 +415,22 @@ Four granularities, all under `packages/ui/__test__/`:
    `__test__/snapshots/dispatcher/` covering all twelve cells across the
    relevant fixture event sequences.
 4. **Dispatcher and footer tests** (`dispatch.test.ts`, `footer.test.ts`).
+5. **Colour pins** — `render-ink/color.snapshot.test.tsx` and
+   `dispatcher/cells.ink.color.snapshot.test.tsx` render Ink frames with
+   colour and rewrite the ANSI into readable tags
+   (`__test__/utils/ansi-tags.ts`), with goldens under
+   `__test__/snapshots/render-ink/color/` and
+   `__test__/snapshots/dispatcher/color/`, so a glyph or colour change
+   shows up as a diff; `theme.test.ts` holds the token mirror to the kit.
 
-Canonical fixtures in `__test__/utils/events.ts` are shared across all
-four granularities; `__test__/utils/workspace.ts` carries the
+Canonical fixtures in `__test__/utils/events.ts` are shared across the
+first four granularities; `__test__/utils/workspace.ts` carries the
 `ProjectSummary[]` fixtures the workspace cells need. The default-reporter
 and live-renderer tests live in `packages/reporter/__test__/` instead —
 see [Module: reporter](./reporter.md).
 
 [^ui-src]: `../../packages/ui/src/index.ts`
+[^ui-theme]: `../../packages/ui/src/theme.ts`
 [^ui-package-json]: `../../packages/ui/package.json`
 [^ui-reducer]: `../../packages/ui/src/reducer.ts`
 [^ui-classify]: `../../packages/ui/src/dispatcher/classify.ts`

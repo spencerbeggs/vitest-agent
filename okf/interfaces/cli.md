@@ -23,8 +23,8 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 9921d1fdd577d43f5d0faa9918dc27e41160a25cf503c195e4ea6669455dfcd7
+  at: 2026-10-01T00:18:42Z
+  body_sha256: e10a525646e5712e3568fe77d52511ccfc7f28b59e8155a9884ba390a35d6b34
 ---
 
 # The `vitest-agent` CLI command tree
@@ -45,7 +45,7 @@ It does not document how a command is implemented — see
 ## The command tree
 
 ```text
-vitest-agent
+vitest-agent                  [--audience human|agent|ci | --human | --agent | --ci]
 ├── doctor                    [--format markdown|json]
 ├── db
 │   ├── path
@@ -79,6 +79,21 @@ yarn or bun, where the hoisted `@vitest-agent/cli` bin can take the
 tree is exactly three children: `doctor`, `db`, `agent` — a consumer should
 not expect a fourth top-level command to appear without a major.
 
+## Audience: `--audience`, `--human`, `--agent`, `--ci`
+
+The root command carries `@effected/cli`'s shared audience flags, so each
+is accepted before or after a subcommand: `--audience <human|agent|ci>` or
+one of the shorthands `--human`, `--agent`, `--ci`. Giving more than one,
+or a value outside the three, is a usage error (exit `64`, stdout
+empty)[^main-ts]. With no flag, the environment variable
+`VITEST_AGENT_AUDIENCE` (`human | agent | ci`) overrides the detected
+audience; with neither, `@effected/env` detects it (an agent shell beats
+CI, which beats a human). The audience decides whether the run is
+interactive — see `db reset` below — and how the logging sink renders
+(NDJSON for `agent` / `ci`, pretty for a human at a TTY). Logging stays
+opt-in through `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` and
+writes to stderr only.
+
 ## `--format`, scoped not universal
 
 Only four commands carry a `--format` flag, and each has its own axis —
@@ -103,11 +118,13 @@ to every command before any family below: `0` success (a bare `--help`
 included), `64` a usage error (a parse error, an unknown subcommand or
 flag; help and the parse errors go to stderr and stdout stays empty, so
 a hook piping stdout into `jq` sees nothing — an explicit `--help` prints
-on stdout), `1` any other reported failure — a failure resolving the data
-path, opening SQLite or running migrations prints one
-`vitest-agent: <Tag>: <message>` line on stderr and exits `1`. A command
-that calls `process.exit` with its own code, as the families below do,
-keeps that code[^main-ts].
+on stdout), `130` a cancelled interactive prompt (Ctrl-C; one
+`vitest-agent: cancelled; nothing written` line on stderr), `1` any other
+reported failure — a failure resolving the data path, opening SQLite or
+running migrations prints one `vitest-agent: <Tag>: <message>` line on
+stderr and exits `1`. A command that sets its own code (through the kit's
+`CliExit` or `process.exit`), as the families below do, keeps that
+code[^main-ts].
 
 Two disjoint exit-code taxonomies exist under `agent`, and a hook consumer
 must know which family a subcommand belongs to before interpreting a
@@ -120,11 +137,17 @@ timeout, `3` database error, `4` project identity not resolvable, `5`
 unexpected defect. Error detail lands on stderr in the shape `<exit_code>
 <error_tag>: <message>`[^agent-ts].
 
-**`db reset`** has its own gate-driven codes, evaluated in order: `0` on
-success or on an aborted interactive prompt (`aborted` on stdout), `4` when
+**`db reset`** has its own gate-driven codes, evaluated in order: `4` when
 `VITEST_AGENT_AGENT_ID` is set in the environment ("agent context" — this is
-the load-bearing agent-block, not a generic failure), `5` when stdout is not
-a TTY and `--yes` was not passed[^db-ts].
+the load-bearing agent-block, not a generic failure); `5` when the run is
+not interactive and `--yes` was not passed; then a `[y/N]` confirmation
+prompt, where `0` means deleted or declined (`aborted` on stdout) and `130`
+means Ctrl-C[^db-ts]. "Not interactive" is `@effected/cli`'s
+`CliInteractive`: stdin or stdout is not a TTY, or the audience is not
+human — `--agent` / `--ci`, `VITEST_AGENT_AUDIENCE=agent|ci`, or a shell the
+environment detects as an agent's. Inside Claude Code's terminal a human
+therefore needs `--yes`, `--human`, or `VITEST_AGENT_AUDIENCE=human` to
+reach the prompt.
 
 **`db query`** has its own pair: `2` for empty / whitespace-only SQL, `3`
 for any driver error — a SQL syntax error and a rejected write both surface
@@ -176,7 +199,9 @@ exit-code taxonomies described above and which
 subcommands belong to which; the JSON key names in every documented stdout
 payload; `--chat-id` / `--parent-chat-id` / `--tdd-task-id` as the
 agent-facing id flags across `record` and `wrapup`; `db reset`'s
-agent-blocking gate (`VITEST_AGENT_AGENT_ID` refusal, TTY/`--yes` prompt).
+agent-blocking gate (`VITEST_AGENT_AGENT_ID` refusal, then the
+interactive-or-`--yes` gate); the four audience flags and
+`VITEST_AGENT_AUDIENCE`.
 
 **A major may change:** adding a new flag to an existing subcommand (always
 additive and optional, so this is typically not a break in practice, but a
@@ -195,7 +220,7 @@ overview, coverage, history, trends) — those never existed on the CLI in
 the 2.0 shape and live behind the MCP server's tools instead; see
 [the MCP tools interface](mcp-tools.md).
 
-[^db-ts]: `../../packages/cli/src/commands/db.ts:192` (`db` parent), `../../packages/cli/src/commands/db.ts:52` (`reset` gates), `../../packages/cli/src/commands/db.ts:153` (`query` exit codes)
+[^db-ts]: `../../packages/cli/src/commands/db.ts:172` (`db` parent), `../../packages/cli/src/commands/db.ts:49` (`reset` gates), `../../packages/cli/src/commands/db.ts:138` (`query` exit codes)
 [^agent-ts]: `../../packages/cli/src/commands/agent.ts:14` (exit-code contract comment), `../../packages/cli/src/commands/agent.ts:97` (`register-agent` stdout shape), `../../packages/cli/src/commands/agent.ts:296` (`check-test-path`)
 [^record-ts]: `../../packages/cli/src/commands/record.ts:303` (`recordCommand`), `../../packages/cli/src/commands/record.ts:204` (`test-case-turns` stdout shape)
 [^triage-ts]: `../../packages/cli/src/commands/triage.ts:19`

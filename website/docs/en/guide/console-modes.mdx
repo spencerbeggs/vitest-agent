@@ -12,11 +12,13 @@ determines how the plugin handles console output for that run.
 
 ## Executor detection
 
-The plugin uses [std-env](https://www.npmjs.com/package/std-env) for
-agent detection. It checks for agent-specific environment variables first,
-then CI variables, and falls back to `"human"` when nothing matches.
+The plugin checks for agent-specific environment variables first, then CI
+variables, and falls back to `"human"` when nothing matches. Precedence is
+agent, then CI, then human.
 
-Agent variables checked include `CLAUDECODE`, `CURSOR_TRACE_ID`, `CLINE_ACTIVE`, `CODEX_SANDBOX`, `GEMINI_CLI`, `AUGMENT_AGENT`, `AI_AGENT`, and others maintained by std-env. CI is detected via `GITHUB_ACTIONS` or `CI`.
+Agent variables checked include `CLAUDECODE`, `GEMINI_CLI`, `CODEX_SANDBOX`, `OPENCODE`, `AUGMENT_AGENT`, `CURSOR_AGENT`, `COPILOT_AGENT`, and a free-form `AI_AGENT`, among others.
+
+CI is detected when `CI` or `CONTINUOUS_INTEGRATION` is set to any value other than `false` or `0` (so `CI=1` counts), or when `GITHUB_ACTIONS` is truthy — GitHub Actions is recognized even with `CI=false`.
 
 ## The console matrix
 
@@ -121,11 +123,11 @@ The override is checked against the slot for the executor detected on that run �
 | `agent` | `passthrough`, `silent`, `agent` |
 | `ci` | `passthrough`, `silent`, `ci-annotations` |
 
-`passthrough` and `silent` are valid everywhere; `stream` is human-only and `ci-annotations` is CI-only. A value outside the detected slot's row is ignored, and the stderr warning names the slot and lists what it accepts:
+`passthrough` and `silent` are valid everywhere; `stream` is human-only and `ci-annotations` is CI-only. Matching is case-insensitive (`PASSTHROUGH` works). A value outside the detected slot's row is ignored, and a single stderr warning per run names the audience and lists what it accepts:
 
 ```bash
 VITEST_AGENT_CONSOLE=stream pnpm test
-# [vitest-agent:plugin] ignoring invalid VITEST_AGENT_CONSOLE="stream" for agent executor; accepted for agent: passthrough | silent | agent
+# VITEST_AGENT_CONSOLE=stream is not accepted for the agent audience (accepts passthrough|silent|agent); ignoring it
 ```
 
 The run continues with the mode the matrix resolved, so an ignored override never fails a run — it just does nothing.

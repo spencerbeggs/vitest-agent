@@ -324,14 +324,18 @@ moved to Vitest's native `coverage.thresholds`; `autoUpdate` to
 `AgentPlugin.COVERAGE_AUTOUPDATE.<preset>`). `cacheDir` resolves through
 the XDG path stack and `vitest-agent.config.toml`. `logLevel` /
 `logFile` read from the `VITEST_REPORTER_LOG_LEVEL` /
-`VITEST_REPORTER_LOG_FILE` env vars.
+`VITEST_REPORTER_LOG_FILE` env vars; the plugin's own
+`[vitest-agent:plugin]` debug lines go through `@effected/cli`'s `CliLog`
+and print only at `debug`, `trace`, or `all`.
 
 The plugin auto-detects the executor (`human`/`agent`/`ci`) via
 `EnvironmentDetector`, looks up the matching slot, and resolves a
-single `ConsoleMode` value. A `VITEST_AGENT_CONSOLE` override that is
-not valid for the detected executor is ignored with a stderr warning
-that lists that executor's accepted literals (read off the schema's
-`.literals`, so the message cannot drift from the schema).
+single `ConsoleMode` value; the executor comes from engine's
+`ExecutorResolverLive`. A `VITEST_AGENT_CONSOLE` override is read through
+`@effected/env`'s `EnvOverride.read` (`readConsoleOverride`,
+case-insensitive); one not valid for the detected executor is ignored
+with one stderr line naming that audience's accepted literals (read off
+the schema's `.literals`, so the message cannot drift from the schema).
 Per-slot defaults:
 
 - `human` → `passthrough` (Vitest's own reporters do visible work)

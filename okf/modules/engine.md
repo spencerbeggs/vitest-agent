@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:27Z
-  body_sha256: 8337185d4b4a61202390220cac9da97352d45b41d38e99e4fbb921123aeedb22
+  at: 2026-10-01T00:18:42Z
+  body_sha256: c26e8d5eaa36bf2b18572da001ca081a39892df9c1388ee76dd3e843e3e59b89
 ---
 
 # @vitest-agent/engine
@@ -55,7 +55,12 @@ consequence: every ambient input a program needs is a parameter — `env`
 `process.env` at construction are factories instead —
 `EnvironmentDetectorLive(env)`, `RunContextLive(env)`,
 `OutputPipelineLive(env)`, `LoggerLive(logLevel?, logFile?)` with
-`resolveLogLevel(env)` / `resolveLogFile(env)`. See
+`resolveLogLevel(env)` / `resolveLogFile(env)`. Environment detection reads
+the injected map only: `EnvironmentDetectorLive` builds a `ConfigProvider`
+from it, so no runtime dependency probes `process.env` on its behalf. The
+engine's import graph is still not process-free (`@effect/platform-node`
+reads `process`), which is why the guard is a source scan rather than a
+graph scan[^boundaries-test]. See
 [Package Boundaries](../invariants/package-boundaries.md) for the invariant
 this test enforces across every package, not only this one.
 
@@ -93,12 +98,18 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
 
 `packages/engine/src/platform.ts`. Replaces what were once per-front-end
 composites and the plugin's inline SQLite assembly. `PlatformLive` is a
-factory taking `PlatformOptions` (`{ dbPath, env, logLevel?, logFile? }`) and
+factory taking `PlatformOptions` (`{ dbPath, env, logLevel?, logFile?,
+logger? }`) and
 returning a `Layer.Layer<PlatformServices, MigrationError | SqlError>`
 merging `ProjectDiscoveryLive`, `HistoryTrackerLive`, and
 `OutputPipelineLive(options.env)`, then provide-merging `DataReaderLive`,
 `DataStoreLive`, the migrator layer, the SQLite layer, `NodePlatformLayer`,
-and `LoggerLive(options.logLevel, options.logFile)`[^platform-ts].
+and `LoggerLive(options.logLevel, options.logFile)`[^platform-ts]. `logger`
+defaults to `true`; `logger: false` leaves `LoggerLive` out (and ignores
+`logLevel` / `logFile`) so a logger set the caller already installed
+survives — the CLI passes it because `@effected/cli`'s `CliLog`, installed
+by `CliRuntime.main`'s `env.log`, owns its logging, and `LoggerLive` would
+otherwise replace that set inside the program.
 `PlatformServices` is the full union the merge provides — `DataReader |
 DataStore | ProjectDiscovery | HistoryTracker | EnvironmentDetector |
 ExecutorResolver | FormatSelector | DetailResolver | OutputRenderer |
@@ -143,12 +154,23 @@ come from `@vitest-agent/sdk`.
 - **DataStore** / **DataReader** — the write and read sides of the data
   layer; see below.
 - **EnvironmentDetector** — four-environment detection (`agent-shell`,
-  `terminal`, `ci-github`, `ci-generic`); `EnvironmentDetectorLive(env)`
-  takes the env map, and the pure `classifyEnvironment(env, agentShell)` is
-  exported so tests exercise the real branch with the `std-env` agent probe
-  forced on or off.
+  `terminal`, `ci-github`, `ci-generic`), precedence agent shell → GitHub
+  Actions → generic CI → terminal. `EnvironmentDetectorLive(env)` is built on
+  `@effected/env`'s `CurrentRuntimeEnv`, read through a `ConfigProvider` made
+  from the injected map (wrapped in `Layer.fresh`, so two detectors over
+  different maps never share a snapshot), so the map drives agent detection
+  as well as CI[^env-detector]. The pure, public
+  `classifyEnvironment(runtime: RuntimeEnv)` maps `@effected/env`'s
+  `Audience.detect` (agent beats CI beats human) onto the four environments,
+  splitting CI into `ci-github` when the runtime's CI vendor is GitHub
+  Actions. CI follows `@effected/env`'s is-in-ci rule: `CI` or
+  `CONTINUOUS_INTEGRATION` set, non-empty, and not `false` / `0` (so `CI=1`
+  counts), or a truthy `GITHUB_ACTIONS` even under `CI=false`.
 - **ExecutorResolver** — maps environment to executor role (`human`,
-  `agent`, `ci`).
+  `agent`, `ci`); `ExecutorResolverLive`'s table is typed
+  `Record<Environment, AudienceKind>`, so the executor union cannot drift
+  from `@effected/env`'s audience union. The plugin uses this same layer
+  rather than a private copy of the mapping.
 - **FormatSelector** — selects output format from executor role and any
   explicit override.
 - **DetailResolver** — determines output detail level from executor role and
@@ -297,14 +319,20 @@ contract.
 
 ## LoggerLive
 
-`packages/engine/src/layers/LoggerLive.ts`. An Effect-based structured
-logging factory: NDJSON to stderr plus optional file logging via
-`Logger.zip`, five levels (`Debug`, `Info`, `Warning`, `Error`, `None`),
-configured by `logLevel`/`logFile` options with env-var fallback resolved by
-the pure `resolveLogLevel(env, option?)` / `resolveLogFile(env, option?)`
-helpers the front ends call with `process.env`. With no level set the layer
-is `Logger.layer([])` — silent — which is what keeps the MCP server's stderr
-empty on a clean session. Effect's native `Logger` integrates directly with
+`packages/engine/src/layers/LoggerLive.ts`. A structured logging factory
+over `@effected/cli`'s `CliLog`[^logger-live]: NDJSON to stderr, format
+pinned to `json`, configured by `logLevel`/`logFile` options with env-var
+fallback resolved by the pure `resolveLogLevel(env, option?)` /
+`resolveLogFile(env, option?)` helpers the callers run against
+`process.env`. With no level set (or `None`) the layer is `Logger.layer([])`
+— silent — which is what keeps the MCP server's stderr empty on a clean
+session. With `logFile` set, `CliLog`'s file sink appends each record as
+the same NDJSON line stderr gets (annotations nested, not spread to the top
+level); writes are asynchronous and flushed when the scope closes, and the
+first write error prints one stderr line and disables the file sink. The
+`Audience` and `TerminalEnv` inputs `CliLog` requires are fixed test
+snapshots, because the live `TerminalEnv` needs `Stdio` and `Terminal`,
+which an MCP server must not touch. Effect's native `Logger` integrates directly with
 the `Effect.logDebug` calls threaded through every `DataStore`/`DataReader`
 method, so NDJSON output is comprehensive I/O tracing that is also parseable
 by log-aggregation tooling without a bespoke format.
@@ -393,8 +421,9 @@ implementations. This choice is recorded in full as
 
 ### Effect-Based Structured Logging
 
-`LoggerLive` was built on `Logger.structuredLogger` rather than a bespoke
-formatter specifically so NDJSON output integrates directly with the
+`LoggerLive` is built on Effect's native logger (today through
+`@effected/cli`'s `CliLog`) rather than a bespoke formatter specifically so
+NDJSON output integrates directly with the
 `Effect.logDebug` calls already threaded through every service method, and
 so the env-var fallback (`VITEST_REPORTER_LOG_LEVEL`,
 `VITEST_REPORTER_LOG_FILE`) enables logging without a config change — useful
@@ -440,7 +469,9 @@ differs from the prior entry, trend history resets rather than comparing
 against a target that no longer applies.
 
 [^boundaries-test]: `../../packages/engine/__test__/boundaries.test.ts`
-[^platform-ts]: `../../packages/engine/src/platform.ts:56` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:69` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:123` (`PlatformLive`)
+[^platform-ts]: `../../packages/engine/src/platform.ts:56` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:69` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:98` (`logger`), `../../packages/engine/src/platform.ts:132` (`PlatformLive`)
+[^env-detector]: `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:19` (`classifyEnvironment`), `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:44` (`EnvironmentDetectorLive`)
+[^logger-live]: `../../packages/engine/src/layers/LoggerLive.ts:45`
 [^project-dir-ts]: `../../packages/engine/src/project-dir.ts:23`
 [^data-store-live]: `../../packages/engine/src/layers/DataStoreLive.ts:646` (`writeTurn`), `../../packages/engine/src/layers/DataStoreLive.ts:761` (`writeFailureSignature`), `../../packages/engine/src/layers/DataStoreLive.ts:977` (ordinal allocation)
 [^migration-behavior-id]: `../../packages/engine/src/migrations/0001_initial.ts:743`

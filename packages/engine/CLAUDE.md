@@ -17,7 +17,9 @@ src/
                          record and utility below, plus CURRENT_ENGINE_VERSION
   platform.ts         -- makeSqliteStack(filename, migrations?) -> { SqliteLayer,
                          MigratorLayer }; NodePlatformLayer (= NodeServices.layer);
-                         PlatformLive({ dbPath, env, logLevel?, logFile? }) -- the
+                         PlatformLive({ dbPath, env, logLevel?, logFile?, logger? })
+                         (logger: false skips LoggerLive for a caller-owned
+                         logger set, as the CLI's CliLog) -- the
                          one merged layer (DataReader | DataStore | ProjectDiscovery
                          | HistoryTracker | output pipeline | Sqlite | Node)
   project-dir.ts      -- resolveProjectDir({ env, cwd }): VITEST_AGENT_PROJECT_DIR
@@ -34,7 +36,10 @@ src/
                          DetailResolver, OutputRenderer, Config) + idempotency.ts
   layers/             -- *Live.ts / *Test.ts per service; PathResolutionLive
                          (XDG + config + workspaces; exports APP_NAMESPACE),
-                         OutputPipelineLive(env), LoggerLive(level?, file?) +
+                         OutputPipelineLive(env), EnvironmentDetectorLive(env)
+                         over @effected/env's CurrentRuntimeEnv (a ConfigProvider
+                         from the injected map), LoggerLive(level?, file?) over
+                         @effected/cli's CliLog +
                          resolveLogLevel(env, option?) / resolveLogFile(env, option?)
   sql/                -- row shapes + row-to-domain assemblers
   migrations/         -- PROJECT_MIGRATIONS record (0001_initial,

@@ -9,13 +9,16 @@ src/
   bin.ts              -- shebang shim: `import { main } from "./main.js"; main();`
   main.ts             -- OWNS the process (published at `./main`):
                          main({ distribution? }) ->
-                         resolveLogLevel/resolveLogFile(process.env),
                          resolveProjectDir({ env, cwd: process.cwd() }),
-                         resolveDataPath -> PlatformLive({ dbPath, env, logLevel,
-                         logFile }) as CliRuntime.main's `platform` around
-                         Command.run(rootCommand, { version }) ->
-                         NodeRuntime.runMain; withSubcommands is exactly
-                         db / doctor / agent
+                         resolveDataPath -> PlatformLive({ dbPath, env,
+                         logger: false }) as CliRuntime.main's `platform`
+                         around withCarrierVersion(CliAudience.run(rootCommand,
+                         { version })), with CliRuntime.main's `env` option
+                         (audience override VITEST_AGENT_AUDIENCE; `env.log` =
+                         CliLog over VITEST_REPORTER_LOG_LEVEL / _LOG_FILE) ->
+                         NodeRuntime.runMain; the root carries the shared
+                         --audience/--human/--agent/--ci flags and
+                         withSubcommands is exactly db / doctor / agent
   index.ts            -- side-effect-free barrel: exports only
                          CURRENT_CLI_VERSION; never imports main.ts
   version.ts          -- CURRENT_CLI_VERSION (the one process.env.__PACKAGE_VERSION__ read)
@@ -30,8 +33,9 @@ src/
                        -- subcommand bodies composed under `agent`
   lib/                -- pure formatting functions (where tests live)
     format-doctor.ts format-db-query.ts
-    version-formatter.ts -- CliColor.formatterLayer with formatVersion
-                            overridden (the `via <carrier>` suffix)
+    version-formatter.ts -- withCarrierVersion: overrides only formatVersion
+                            on the ambient CliOutput.Formatter (the
+                            `via <carrier>` suffix)
 ```
 
 There is no `layers/` and no `lib/internal-*.ts` / `record-*.ts` /
@@ -112,9 +116,12 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   SQLite directly from the CLI — except `db query`, which opens
   `data.db` read-only by design.
 - `db reset` is human-only: it refuses with exit code 4 when
-  `VITEST_AGENT_AGENT_ID` is set, exit code 5 when stdout is not a TTY
-  and `--yes` was not passed, and otherwise prompts `Wipe <path>?
-  [y/N]:` on a TTY. It deletes `data.db` plus its `-shm` / `-wal`
+  `VITEST_AGENT_AGENT_ID` is set, exit code 5 when the run is not
+  interactive (`CliInteractive`: non-TTY stdin or stdout, `--agent` /
+  `--ci`, `VITEST_AGENT_AUDIENCE=agent|ci`, or a detected agent shell)
+  and `--yes` was not passed, and otherwise prompts with core
+  `Prompt.Confirm` (`Wipe <path>?`, default no; Ctrl-C exits 130). Exit
+  codes go through `CliExit.set`, not `process.exit`. It deletes `data.db` plus its `-shm` / `-wal`
   companions and is idempotent (a missing DB is success).
 - `db query <sql>` opens the connection with the SqliteClient
   read-only flag so SQLite enforces no-write; mutation attempts and

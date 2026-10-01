@@ -18,8 +18,8 @@ sources:
     resource: ../../packages/reporter/package.json
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: b8aa925007aac6e12c11d031f94adc4988b3d15bb3c0b07a4b0d6ebc446597fb
+  at: 2026-10-01T00:18:42Z
+  body_sha256: 7be362bb3758532c9a1b1bfc35276f03b5cdd3ea9a760296e7c816edbb0f98b9
 ---
 
 # @vitest-agent/reporter
@@ -117,6 +117,14 @@ not a reflection of what the terminal shows[^reporter-default]:
   built `satisfies RunReportFile` so a shape change fails to typecheck
   against the published contract.
 - **`summary.md`** — the same markdown built for the GitHub step summary.
+
+Durations in the GFM summary's per-project table go through
+`@vitest-agent/ui`'s `formatDisplayDuration` (the kit's `Fmt.duration`), so
+the table and the console print a duration the same way[^reporter-default].
+`__test__/summary.golden.test.ts` pins the GFM step summary, `summary.md`,
+the `::group::` log block, and the agent-mode stdout byte-for-byte under
+`__test__/snapshots/`, so a change to a shared primitive (duration,
+percent, glyph) lands as a reviewed snapshot diff.
 
 Writing, scope resolution, filename validation and flushing all live in the
 plugin; this package only names a file and hands over a string. See

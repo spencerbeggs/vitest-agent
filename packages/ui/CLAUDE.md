@@ -1,6 +1,6 @@
 # @vitest-agent/ui
 
-The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent` taxonomy re-export, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix introduced by the T6 rewrite, an Effect `PubSub` channel for live event transport, and the synthesizers. Declares React and Ink as peer dependencies (it renders *with* react/ink but does not own the instance); `@vitest-agent/reporter` is the concrete consumer that provides them. Dependency flow: `plugin → reporter → ui → sdk`.
+The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent` taxonomy re-export, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix introduced by the T6 rewrite, an Effect `PubSub` channel for live event transport, and the synthesizers. Declares React and Ink as peer dependencies (it renders *with* react/ink but does not own the instance); `@vitest-agent/reporter` is the concrete consumer that provides them. `@effected/cli` and `@effected/env` are peer + dev dependencies too, because the exported `VitestAgentStatus` is typed as the kit's nominal `Status` (the carrier `@vitest-agent/plugin` declares both as regular deps). Dependency flow: `plugin → reporter → ui → sdk`.
 
 ## Layout
 
@@ -11,7 +11,9 @@ src/
   render-agent.ts               -- renderAgent(state, opts): string
   synthesize.ts                 -- synthesizeRunEvents (live modules)
                                    + synthesizeFromAgentReport (DB replay)
-  format-duration.ts            -- shared duration formatter
+  format-duration.ts            -- formatDisplayDuration = @effected/cli Fmt.duration
+  theme.ts                      -- VitestAgentStatus, VitestAgentTokens, inkStyle,
+                                   statusGlyph, statusInkStyle (every glyph + colour)
   dispatcher/                   -- T6 shape-tailored renderer matrix
     classify.ts                 -- classifyRunShape, classifyOutcome
     dispatch.ts                 -- dispatcherTable, dispatch, dispatchInk
@@ -50,6 +52,10 @@ __test__/
   utils/events.ts + workspace.ts                  -- canonical event + workspace fixtures
   snapshots/                                      -- file-based goldens
   utils/render-ink.tsx                            -- stripAnsi + renderInk helper
+  theme.test.ts                                   -- TOKEN_STYLES mirror held to the kit's CliTheme
+  render-ink/color.snapshot.test.tsx              -- colour-tagged Ink frames
+  dispatcher/cells.ink.color.snapshot.test.tsx    -- cell colour twins
+  utils/ansi-tags.ts                              -- ANSI -> readable colour tags for the colour pins
 ```
 
 ## Key files
@@ -57,7 +63,9 @@ __test__/
 | File | Purpose |
 | ---- | ------- |
 | `reducer.ts` | Exhaustive `Match.tagsExhaustive` switch over the `RunEvent` discriminated union. Pure synchronous projection. `reduceRenderStateAll` folds a full sequence for the one-shot path |
-| `render-agent.ts` | Token-economy markdown-flavored final-frame string. Stable for stable inputs (no timestamps in body). Width-aware diff truncation, top-N gap caps. Still used as a primitive inside dispatcher cells |
+| `render-agent.ts` | Token-economy markdown-flavored final-frame string. Stable for stable inputs (no timestamps in body). Width-aware diff truncation, top-N gap caps; truncation, percent and pluralisation come from `@effected/cli`'s `Fmt`. Still used as a primitive inside dispatcher cells |
+| `theme.ts` | The one status vocabulary: `VitestAgentStatus` (the kit's `Status` extended with `timeout` / `running` / `queued`), `VitestAgentTokens` (classification, zero, stable, tag accents), and the Ink bridge (`inkStyle`, `statusGlyph`, `statusInkStyle`) |
+| `format-duration.ts` | `formatDisplayDuration` delegates to `Fmt.duration`: `250ms`, `1.2s`, `1s`, `1m 5s`, `1h 2m`; display only |
 | `synthesize.ts` | Two bridges into the event taxonomy: `synthesizeRunEvents` reads live Vitest module data, `synthesizeFromAgentReport` reads the persisted SDK schema |
 | `dispatcher/classify.ts` | `classifyRunShape(state, projects)` returns one of `single-test`, `single-file`, `single-project`, `workspace`; `classifyOutcome(state)` returns `all-pass`, `some-fail`, `threshold-violation`. Pure |
 | `dispatcher/dispatch.ts` | `dispatcherTable` is the 4 x 3 cell matrix; `dispatch(inputs, opts)` produces the agent string; `dispatchInk(inputs, opts)` returns the Ink element for live and report-time Ink frames |
@@ -72,6 +80,7 @@ __test__/
 - **Effect-fluent**: every transport-level abstraction lives in `effect`'s vocabulary (Schema, PubSub, Layer). The reducer itself is synchronous because it has to be cheap to call from React; everything upstream (publisher, subscriber, channel) is Effect-typed.
 - **Shape-tailored cells**: the dispatcher routes by `(RunShape, RunOutcome)`. Cells receive a fully-built `DispatchInputs` plus `CellOptions` from the SDK contract and never re-derive shape, outcome, project aggregates, trend, or below-target listings. Pre-compute in `buildDispatchInputs`, not inside cells.
 - **Two synthesizers**: one for live Vitest data (`VitestTestModule` duck types), one for the persisted `AgentReport`. They are NOT interchangeable — the live shape carries per-test detail the report schema flattens. CLI replay uses the report path; the plugin's streaming callbacks publish events derived from live modules.
+- **Glyphs and colours come from `theme.ts` only.** No hex literal or named colour in a component, helper, or cell: take a status's glyph and style from `VitestAgentStatus` (`statusGlyph` / `statusInkStyle`) and an accent from `VitestAgentTokens` via `inkStyle`. Duration, percent, truncation, and plurals go through `Fmt` (`formatDisplayDuration` for durations). A colour change shows up in the colour snapshot goldens.
 - **Ink component primitives only.** No `<span style>` or DOM-isms. Use Ink's `<Box>`, `<Text>`, `<Newline>`, `<Spacer>`. Components rely on the automatic JSX runtime (no `import * as React` namespace import) and import only the types they use from `react`.
 - **Snapshot pinning**: per-component snapshots use the helper `__test__/utils/render-ink.tsx` which strips ANSI and pins the width via `<Box width={N}>`. `ink-testing-library` reports a fixed 100-column mock stdout, so explicit width wrapping is load-bearing.
 - **No reporter lifecycle here.** This package is pure rendering primitives. The default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount driver (`_createLiveInk`) live in `@vitest-agent/reporter`. Adding a shipped reporter or factory means editing `@vitest-agent/reporter`, not this package.
@@ -83,7 +92,7 @@ __test__/
 - **Touching `render-agent.ts`**: byte-identical output for byte-identical input. Snapshots in `__test__/snapshots/render-agent/` capture each canonical fixture's expected frame.
 - **Adding or editing a dispatcher cell**: cells live under `dispatcher/cells/` named `<shape>-<outcome>.ts`. Each exports both an agent-string renderer and an Ink-half renderer; both consume the shared helpers in `dispatcher/helpers.ts` / `ink-helpers.tsx`. The cell receives `DispatchInputs` plus `CellOptions` — do not reach for the kit or env directly.
 - **Adding an Ink component**: write a `.tsx` file in `render-ink/`, re-export from `render-ink/index.ts`, and add a snapshot test in `__test__/render-ink/`. Use `renderInk(tree, width)` from the test utils to pin the output width.
-- **`StreamApp` is the human-tuned `stream` renderer**: it mirrors the agent view's structure but is a parallel renderer, not the dispatcher. Its layout is a `Projects (N):` / `Modules (N):` / file-path header, count-column rows, a `FailuresSection`, then Coverage / Trend / Total. Aggregate rows use fixed-width cells so columns align across rows: `CountColumns` renders the four `✓ ✗ ↷ ⧖` glyph counts right-aligned in 4-digit cells (zeros dimmed), the duration cell pads to `DURATION_CELL_WIDTH`, and `TagColumns` renders one `tag:` cell per tag in the view-level union (`tagUnion(rows)`, computed once per frame; a union of ≤1 tag collapses to empty, suppressing tag columns view-wide). In the workspace shape `TotalsLine` takes a `labelWidth` so `Total:` counts align under the project rows. (The dispatcher's agent-string path keeps its own `formatTagCountSuffix` in `dispatcher/helpers.ts` — unrelated.) Leaf rows show one `StatusIcon`; `StatusIcon` carries a `"timed-out"` kind. The spinner frame index and `nowMs` arrive as props — never `RenderState`. See `2026-05-19-stream-mode-states-design.md`.
+- **`StreamApp` is the human-tuned `stream` renderer**: it mirrors the agent view's structure but is a parallel renderer, not the dispatcher. Its layout is a `Projects (N):` / `Modules (N):` / file-path header, count-column rows, a `FailuresSection`, then Coverage / Trend / Total. Aggregate rows use fixed-width cells so columns align across rows: `CountColumns` renders the four `✓ ✗ ↷ ⧖` glyph counts right-aligned in 4-digit cells (zeros in the `zero` token), the duration cell pads to `DURATION_CELL_WIDTH`, and `TagColumns` renders one `tag:` cell per tag in the view-level union (`tagUnion(rows)`, computed once per frame; a union of ≤1 tag collapses to empty, suppressing tag columns view-wide). In the workspace shape `TotalsLine` takes a `labelWidth` so `Total:` counts align under the project rows. (The dispatcher's agent-string path keeps its own `formatTagCountSuffix` in `dispatcher/helpers.ts` — unrelated.) Leaf rows show one `StatusIcon`; `StatusIcon` carries a `"timed-out"` kind. The spinner frame index and `nowMs` arrive as props — never `RenderState`. See `2026-05-19-stream-mode-states-design.md`.
 - **Report honest counts (D48)**: the reducer folds
   `RunFinished.collectedModules` into `RenderState.collectedModules`, and
   both synthesizers populate it. The "N modules all-passed" paths

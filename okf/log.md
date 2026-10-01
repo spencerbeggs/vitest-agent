@@ -1,5 +1,10 @@
 # Log
 
+## 2026-09-30
+
+* Updated Test patterns — layers, in-process MCP, spawned-bin crash injection, and virtual filesystems
+* Added The Walker Test Adapter Sits on memfs' Promises Port
+
 ## 2026-09-29
 
 * Updated @vitest-agent/engine
