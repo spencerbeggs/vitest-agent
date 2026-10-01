@@ -4,15 +4,16 @@
  * `CliUiTest.live` runs `liveViewOptions` (the exact fold, drawing and run
  * predicates `startLiveView` hands `CliUi.live`) on an in-memory terminal,
  * with the view's tick on a `TestClock`. `startLiveView` itself is driven
- * over a real `PubSub` with a fixed, non-interactive environment to pin the
- * reporter-owned lifetime: subscribe first, end at the channel's shutdown,
- * close once.
+ * over a real `PubSub` to pin the reporter-owned lifetime (subscribe first,
+ * `LiveHandle.close` keeps a tail published just before it, close once) and
+ * `TERM=dumb` (a terminal that is not interactive: one final frame, ASCII).
  */
 
 import { Writable } from "node:stream";
 import { CliInteractive, CliTheme, Glyphs } from "@effected/cli";
 import { UiStreams } from "@effected/cli/ui";
 import { CliUiTest } from "@effected/cli/ui/testing";
+import { Audience, TerminalEnv } from "@effected/env";
 import type { RunEvent } from "@vitest-agent/sdk";
 import type { Scope } from "effect";
 import { ConfigProvider, Effect, Layer, PubSub } from "effect";
@@ -174,8 +175,8 @@ describe("live view — LiveViewEnv", () => {
 	});
 });
 
-/** A non-TTY capture stream for `UiStreams`. */
-const capture = (): { stream: NodeJS.WriteStream; output: () => string } => {
+/** A capture stream for `UiStreams`, a TTY or not. */
+const capture = (isTTY = false): { stream: NodeJS.WriteStream; output: () => string } => {
 	const chunks: string[] = [];
 	const writable = new Writable({
 		write(chunk, _encoding, callback) {
@@ -183,25 +184,50 @@ const capture = (): { stream: NodeJS.WriteStream; output: () => string } => {
 			callback();
 		},
 	});
-	Object.assign(writable, { isTTY: false, columns: 80, rows: 24 });
+	Object.assign(writable, { isTTY, columns: 80, rows: 24 });
 	return { stream: writable as unknown as NodeJS.WriteStream, output: () => chunks.join("") };
+};
+
+/** A fixed, non-interactive environment writing to `out`. */
+const pipedEnv = (out: { stream: NodeJS.WriteStream }) =>
+	Layer.mergeAll(
+		CliTheme.layerTest(),
+		Layer.succeed(CliInteractive, false),
+		Layer.succeed(UiStreams, { stdin: process.stdin, stdout: out.stream, stderr: out.stream }),
+	);
+
+/**
+ * A human at a terminal on stdin and stdout, with `TERM` set to `term`: the
+ * kit decides interactivity (`CliInteractive.layer`) and glyphs
+ * (`CliTheme.layer`, `auto`) from it, as `LiveViewEnv` does.
+ */
+const terminalEnv = (out: { stream: NodeJS.WriteStream }, term: string) =>
+	Layer.mergeAll(
+		CliTheme.layer(),
+		CliInteractive.layer,
+		Layer.succeed(UiStreams, { stdin: process.stdin, stdout: out.stream, stderr: out.stream }),
+	).pipe(
+		Layer.provide(
+			Layer.mergeAll(
+				TerminalEnv.layerTest({ stdinIsTerminal: true, stdout: { isTerminal: true }, stderr: { isTerminal: true } }),
+				Audience.layerTest("human"),
+			),
+		),
+		Layer.provide(ConfigProvider.layer(ConfigProvider.fromUnknown({ TERM: term }))),
+	);
+
+const publishAll = (channel: PubSub.PubSub<RunEvent>, events: ReadonlyArray<RunEvent>): void => {
+	for (const event of events) Effect.runSync(PubSub.publish(channel, event));
 };
 
 describe("live view — startLiveView lifetime", () => {
 	it("sees events published before Ink loads, drains them all at close, and closes once", async () => {
 		const out = capture();
-		const env = Layer.mergeAll(
-			CliTheme.layerTest(),
-			Layer.succeed(CliInteractive, false),
-			Layer.succeed(UiStreams, { stdin: process.stdin, stdout: out.stream, stderr: out.stream }),
-		);
 		const channel = Effect.runSync(PubSub.unbounded<RunEvent>());
-		const view = startLiveView(channel, env);
+		const view = startLiveView(channel, pipedEnv(out));
 		// Published synchronously, before the view's async Ink load: the
 		// subscription was taken in startLiveView, so nothing is lost.
-		for (const event of [...runEvents("r1", "adds", "failed"), ...postRunEvents]) {
-			Effect.runSync(PubSub.publish(channel, event));
-		}
+		publishAll(channel, [...runEvents("r1", "adds", "failed"), ...postRunEvents]);
 		// The plugin's order at Vitest's close: the reporter closes first,
 		// then the channel is shut down.
 		await view.close();
@@ -211,5 +237,57 @@ describe("live view — startLiveView lifetime", () => {
 		const state = await Effect.runPromise((await view.handle).state);
 		expect(state.phase).toBe("finished");
 		expect(state.coverage?.violations).toEqual([{ metric: "lines", expected: 80, actual: 70 }]);
+	});
+
+	it("keeps a run's tail published immediately before close in the committed final frame", async () => {
+		const out = capture();
+		const channel = Effect.runSync(PubSub.unbounded<RunEvent>());
+		const view = startLiveView(channel, pipedEnv(out));
+		const events = runEvents("r1", "adds", "failed");
+		// The head of the run, folded by a mounted view.
+		publishAll(channel, events.slice(0, 4));
+		const handle = await view.handle;
+		await expect.poll(() => Effect.runSync(handle.state).phase).toBe("running");
+		expect(out.output()).toBe("");
+		// The tail (TestFinished, ModuleFinished, RunFinished), published and
+		// closed in the same tick: nothing awaited in between.
+		publishAll(channel, events.slice(4));
+		await view.close();
+		Effect.runSync(PubSub.shutdown(channel));
+		const output = out.output();
+		expect(occurrences(output, "adds")).toBe(1);
+		// Only the folded TestFinished carries the failure into the frame.
+		expect(output).toContain("expected 1 to be 2");
+		expect(Effect.runSync(handle.state).phase).toBe("finished");
+	});
+});
+
+describe("live view — TERM=dumb", () => {
+	const run1 = async (term: string): Promise<string> => {
+		const out = capture(true);
+		const channel = Effect.runSync(PubSub.unbounded<RunEvent>());
+		const view = startLiveView(channel, terminalEnv(out, term));
+		await view.handle;
+		publishAll(channel, runEvents("r1", "adds", "failed"));
+		await view.close();
+		return out.output();
+	};
+
+	it("control: a human at a TTY with TERM=xterm draws in place", async () => {
+		const output = await run1("xterm-256color");
+		expect(output).toContain("\u001b[?2026h");
+		// Unicode marks: what the ASCII assertion below must not find.
+		expect(output).toMatch(/[✓✗↷⧖]/);
+	});
+
+	it("prints the final frame once, in ASCII, with no synchronized output or cursor movement", async () => {
+		const output = await run1("dumb");
+		expect(occurrences(output, "adds")).toBe(1);
+		expect(output).toContain("expected 1 to be 2");
+		expect(output).not.toMatch(/[✓✗↷⧖]/);
+		expect(output).not.toContain("\u001b[?2026h");
+		// No cursor-up (`ESC[<n>A`) and no line erase.
+		expect(output).not.toMatch(new RegExp(`${String.fromCharCode(27)}\\[\\d*A`));
+		expect(output).not.toContain("\u001b[2K");
 	});
 });

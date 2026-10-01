@@ -14,14 +14,15 @@
  *
  * Lifetime: one scope per live view, held for the reporter's whole life. The
  * subscription is made in it synchronously, before the factory returns, so
- * the first `RunStarted` is never lost. At Vitest's close the plugin calls
- * {@link LiveRunView.close} before it shuts the channel down: close waits
- * until the view has pulled everything published to its subscription, ends
- * the view's own stream, waits for `done` (the last run committed) and closes
- * the scope. The view never relies on `PubSub.shutdown` to end its stream:
- * shutdown drops whatever a subscriber has not pulled yet (probed on
- * effect 4.0.0-rc.118: publish 7, shutdown, `runCollect` gives `[]`). It is
- * never closed at `onTestRunEnd`, which fires on every watch rerun.
+ * the first `RunStarted` is never lost, and the view takes from it directly
+ * (`events: subscription`). At Vitest's close the plugin calls
+ * {@link LiveRunView.close} before it shuts the channel down: close runs the
+ * kit's `LiveHandle.close` (it folds every message still queued in the
+ * subscription and commits the last run, so a tail published just before the
+ * close is kept), then closes the scope. The view never relies on
+ * `PubSub.shutdown` to end it: shutdown drops whatever a subscriber has not
+ * taken yet. It is never closed at `onTestRunEnd`, which fires on every
+ * watch rerun.
  */
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -32,7 +33,7 @@ import { CliUi } from "@effected/cli/ui";
 import type { RenderState, RunEvent } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
 import { SPINNER_FRAME_MS, StreamApp, reduceRenderState } from "@vitest-agent/ui";
-import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer, PubSub, Scope, Stream } from "effect";
+import { Cause, Deferred, Effect, Exit, Layer, PubSub, Scope } from "effect";
 import { createElement } from "react";
 
 /**
@@ -71,12 +72,6 @@ export const liveViewOptions: Omit<LiveOptions<RunEvent, RenderState>, "events">
 export const LiveViewEnv: Layer.Layer<CliTheme> = CliEnv.layer().pipe(Layer.provide(NodeServices.layer));
 
 /**
- * How long {@link LiveRunView.close} waits for the view to commit its last
- * run once the channel has ended, before closing the scope regardless.
- */
-const CLOSE_GRACE = Duration.seconds(2);
-
-/**
  * A live view bound to a run-event channel for the reporter's lifetime.
  *
  * @internal
@@ -88,10 +83,10 @@ export interface LiveRunView {
 	 */
 	readonly handle: Promise<LiveHandle<RenderState>>;
 	/**
-	 * End the view: wait until it has pulled everything published so far, end
-	 * its stream, wait for it to commit its last run (each wait bounded by a
-	 * short grace), then close the scope. Call it before the channel is shut
-	 * down. Idempotent; never rejects.
+	 * End the view: the kit's `LiveHandle.close` folds every event still queued
+	 * in the subscription and commits the last run, then the scope is closed.
+	 * Call it before the channel is shut down. Idempotent; never rejects (a
+	 * view that died is logged as a warning).
 	 */
 	readonly close: () => Promise<void>;
 }
@@ -113,35 +108,25 @@ export const startLiveView = (
 	const scope = Effect.runSync(Scope.make());
 	const subscription = Effect.runSync(PubSub.subscribe(channel).pipe(Scope.provide(scope)));
 	const mounted = Effect.runSync(Deferred.make<LiveHandle<RenderState>>());
-	const stop = Effect.runSync(Deferred.make<void>());
-	// `interruptWhen`, not `haltWhen`: the stop comes once the subscription
-	// is drained, when the stream is parked in a pull that `haltWhen` would
-	// wait out forever. Nothing is pending then, so nothing is cut.
-	const events = Stream.fromSubscription(subscription).pipe(Stream.interruptWhen(Deferred.await(stop)));
-	const program = CliUi.live({ ...liveViewOptions, events }).pipe(
-		Effect.tap((handle) => Deferred.succeed(mounted, handle)),
+	const program = CliUi.live({ ...liveViewOptions, events: subscription }).pipe(
+		// A mount that dies settles `mounted` too, so `close` never waits on it.
+		Effect.onExit((exit) => Deferred.done(mounted, exit)),
 		Effect.flatMap((handle) => handle.done),
 		Scope.provide(scope),
 		Effect.provide(env),
 	);
-	const fiber = Effect.runFork(program);
+	Effect.runFork(program);
 	let closing: Promise<void> | undefined;
 	return {
 		handle: Effect.runPromise(Deferred.await(mounted)),
 		close: () => {
-			// Drained: `remaining` is 0 once the view's pull has taken every
-			// message (it interrupts if the channel was already shut down).
-			const drained = Effect.gen(function* () {
-				while ((yield* PubSub.remaining(subscription)) > 0) yield* Effect.sleep(Duration.millis(5));
-			}).pipe(Effect.timeoutOption(CLOSE_GRACE), Effect.ignoreCause);
 			closing ??= Effect.runPromise(
-				drained.pipe(
-					Effect.andThen(Deferred.succeed(stop, undefined)),
-					Effect.andThen(Effect.timeoutOption(Fiber.await(fiber), CLOSE_GRACE)),
-					Effect.flatMap((exit) =>
-						exit._tag === "Some" && Exit.isFailure(exit.value) && !Cause.hasInterruptsOnly(exit.value.cause)
-							? Effect.logWarning("vitest-agent: the live view ended with an error", exit.value.cause)
-							: Effect.void,
+				Deferred.await(mounted).pipe(
+					Effect.flatMap((handle) => handle.close),
+					Effect.catchCause((cause) =>
+						Cause.hasInterruptsOnly(cause)
+							? Effect.void
+							: Effect.logWarning("vitest-agent: the live view ended with an error", cause),
 					),
 					Effect.ensuring(Scope.close(scope, Exit.void)),
 				),

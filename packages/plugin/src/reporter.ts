@@ -810,11 +810,12 @@ export class AgentReporter {
 
 	/**
 	 * Close the reporters resolved at `onInit`, then end the run-event
-	 * channel, once, at Vitest's close. Reporters first: a live view drains
-	 * its subscription, ends its own stream and commits its last frame in
-	 * `close`, and `PubSub.shutdown` would drop whatever a subscriber has not
-	 * pulled yet. A failing close is logged, never thrown — Vitest is
-	 * shutting down.
+	 * channel, once, at Vitest's close. Reporters first: a live view folds
+	 * every event still queued in its subscription and commits its last
+	 * frame in `close`, and `PubSub.shutdown` would drop whatever a
+	 * subscriber has not taken yet. The shutdown after is harmless to a
+	 * closed view and ends any other subscriber. A failing close is logged,
+	 * never thrown — Vitest is shutting down.
 	 *
 	 * @internal
 	 */
