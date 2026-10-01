@@ -37,7 +37,7 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effected/cli": "catalog:effected",
-		"@effected/env": "^0.1.0",
+		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",

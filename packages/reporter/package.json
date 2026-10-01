@@ -40,7 +40,7 @@
 	},
 	"devDependencies": {
 		"@effected/cli": "catalog:effected",
-		"@effected/env": "^0.1.0",
+		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@savvy-web/bundler": "^2.4.18",
@@ -55,7 +55,7 @@
 	},
 	"peerDependencies": {
 		"@effected/cli": "catalog:effected",
-		"@effected/env": "^0.1.0",
+		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@vitest/coverage-istanbul": "catalog:test:peers",
