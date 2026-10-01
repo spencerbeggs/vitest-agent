@@ -23,8 +23,8 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T07:18:02Z
-  body_sha256: 8511edabd917a5b7fd24a3789705a44e0edc759f663deb77deedaf39d527d0b2
+  at: 2026-10-01T08:22:45Z
+  body_sha256: 198fc26bb1ea1dbf980972dc664b4f07c70033b0ad420dc961bd55c9f375b3ca
 ---
 
 # The `vitest-agent` CLI command tree
@@ -89,11 +89,14 @@ empty)[^main-ts]. With no flag, the environment variable
 `VITEST_AGENT_AUDIENCE` (`human | agent | ci`) overrides the detected
 audience; with neither, `@effected/env` detects it (an agent shell beats
 CI, which beats a human). The audience decides whether the run is
-interactive — see `db reset` below. It does not change the diagnostics
-format: with `VITEST_REPORTER_LOG_LEVEL` set, every stderr diagnostics
-record is one NDJSON line for every audience, a human at a TTY included,
-and so are the migrator's build-time records (`Running migration`,
-`Migrations complete`)[^main-ts]. Logging stays opt-in through
+interactive — see `db reset` below. It also decides the diagnostics
+format: with `VITEST_REPORTER_LOG_LEVEL` set, an agent or a CI audience
+(detected or flagged) gets one NDJSON line per stderr record, the
+migrator's build-time records (`Running migration`, `Migrations
+complete`) included, and `--human` or a detected person gets plain
+lines[^main-ts]. One edge is the kit's, not a contract: a person with
+stderr piped can see plain build-time lines followed by NDJSON runtime
+lines. Logging stays opt-in through
 `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` and writes to
 stderr only. `--help` lists the flag as `--audience choice    Who the
 output is for (choices: human, agent, ci)`.

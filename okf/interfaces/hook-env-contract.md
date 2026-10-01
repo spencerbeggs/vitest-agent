@@ -30,8 +30,8 @@ sources:
     resource: ../../plugins/claude-code/hooks/session/end-record-worker.sh
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T07:18:02Z
-  body_sha256: 4ae016d80f9a8e5b36b06ce85102e0d499a559c67c3272435d3ff3ba99d26ecd
+  at: 2026-10-01T08:22:45Z
+  body_sha256: fc3c2b252ceaa981221abe4b1c05ee2d6b46c0e00eed8b5bf720491e560178d7
 ---
 
 # Claude Code hook environment contract
@@ -223,7 +223,8 @@ written by a hook; a human (or a hook author debugging) sets them:
   [AgentPluginOptions](agent-plugin-options.md).
 - `VITEST_REPORTER_LOG_LEVEL` / `VITEST_REPORTER_LOG_FILE` turn on stderr
   diagnostics (and an NDJSON file). The `vitest-agent` CLI's records,
-  migration records included, are NDJSON on stderr for every audience. The
+  migration records included, are NDJSON on stderr for an agent or CI
+  audience and plain lines for a person (`--human`). The
   plugin's own debug records (NDJSON
   on stderr with component `vitest-agent:plugin`, for a human at a TTY too)
   need `debug`, `trace`, or `all`; a higher level such as `info` leaves them

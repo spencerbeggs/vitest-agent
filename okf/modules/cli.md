@@ -34,8 +34,8 @@ sources:
     resource: ../../packages/cli/src/lib/render-failure.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T07:18:02Z
-  body_sha256: 1cbf3042cb90e07e362eed15248f5cfd2d8d61ab5ab78483c3fe16347750b5f9
+  at: 2026-10-01T08:22:45Z
+  body_sha256: 76c8633ce4cbb091d9657b18914fd0253475d43bfa9551817060045b159f4ed0
 ---
 
 # @vitest-agent/cli
@@ -120,12 +120,15 @@ Follows the
   gated `Terminal`) plus the kit's colour-decided help formatter, and its
   `env.log` installs `CliLog` as the one logger set: plain lines and
   failure reports on stderr, plus a diagnostics sink silent unless
-  `VITEST_REPORTER_LOG_LEVEL` is set (NDJSON on stderr for every
-  audience: `env.log.format` is pinned to `"json"`, because under `auto`
-  the kit builds the platform before the audience is known and the
-  engine's build-time migration records would print as plain lines inside
-  an agent's NDJSON stream) and an async NDJSON file under
-  `VITEST_REPORTER_LOG_FILE`.
+  `VITEST_REPORTER_LOG_LEVEL` is set (`env.log.format: "auto"`: NDJSON
+  on stderr for an agent or a CI, plain lines for a person; `env.log.argv`
+  is `process.argv.slice(2)` so the engine's build-time migration
+  records, logged before the audience is resolved, still honour
+  `--agent` / `--human` / `--ci` — though a person with stderr piped can
+  get plain build-time lines then NDJSON runtime lines, a kit gap) and an
+  async NDJSON file under `VITEST_REPORTER_LOG_FILE`. `env.displayPath`
+  shows a defect's stack-frame paths relative to the project directory
+  (absolute when outside it).
   That is why the platform passes `logger: false`: the engine's
   `LoggerLive` would otherwise replace the `CliLog` set inside the
   program. Because the platform is inside failure
@@ -136,12 +139,12 @@ Follows the
   `vitest-agent: <Tag>: <message>`, the message passed through the kit's
   `Fmt.sanitize` and folded to one line; a `Cancelled`, a
   `NotInteractive`, a `SchemaError` and every defect are delegated to
-  the kit's `CliRuntime.defaultRender(error, details, { status: false })`
-  with the first line prefixed `vitest-agent:`, so the prefix replaces
-  the kit's status glyph or `[FAIL]` tag rather than doubling it (and
-  `details.defaultLines`, which always leads with that marker, is never
-  used); a defect prints its message, a stack trimmed to
-  the program's own frames, and a closing `Please report at <issues
+  the kit's `details.lines({ status: false })` — the run's own report,
+  with its colour, links and `displayPath`, minus the status glyph or
+  `[FAIL]` tag — with the first line prefixed `vitest-agent:`, so the
+  prefix replaces the marker rather than doubling it; a defect prints its
+  message, a stack trimmed to the program's own frames (`node_modules`,
+  Node and Effect frames hidden and counted), and a closing `Please report at <issues
   URL>` line[^render-failure]. `helpOnUsageError:
   "stderr"` sends help plus the parse errors to stderr on a usage error,
   leaving stdout empty; an explicit `--help` prints on stdout. Exit codes

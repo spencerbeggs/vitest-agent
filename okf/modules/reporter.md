@@ -20,8 +20,8 @@ sources:
     resource: ../../packages/reporter/src/githubLog.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T07:18:02Z
-  body_sha256: a34f36ca0a73830a12239610d16655e58005852ae734befee9784e9844101502
+  at: 2026-10-01T08:22:45Z
+  body_sha256: 9f0e707444249c22f19d87bbe30c4b9b3a15dd284a9f34bb1629b9fdec309172
 ---
 
 # @vitest-agent/reporter
@@ -142,11 +142,10 @@ not a reflection of what the terminal shows[^reporter-default]:
 Every section of that markdown is a kit `Doc` rendered through
 `Render.markdown`[^reporter-default]:
 
-- **Totals** — a plain `Doc.table` (`Project`, `Passed`, `Failed`,
-  `Timed out`, `Skipped`, `Duration`), with a `Doc.strong("Total")` row
-  when there is more than one project. It is not a `Doc.countsTable`,
-  which heads its label column with nothing and has no column for a
-  formatted duration.
+- **Totals** — a `Doc.countsTable` with `labelHeader: "Project"` and
+  `durationHeader: "Duration"`; each row carries four `Doc.counter`s
+  (`Passed`, `Failed`, `Timed out`, `Skipped`, zeros shown), plus a
+  `totalRow: Doc.strong("Total")` when there is more than one project.
 - **Classifications** — a kit table.
 - **Coverage** — a table capped at ten rows with a `(+N more not shown)`
   overflow line; each path cell is a `Doc.file`, shown through the

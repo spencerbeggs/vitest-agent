@@ -8,6 +8,9 @@
 * Updated Package boundaries — process reads and forbidden imports
 * Updated Reset the local vitest-agent database
 * Updated Test layout — flat __test__ directories, src co-location, and kind-by-suffix
+* Updated @vitest-agent/engine
+* Updated @vitest-agent/plugin
+* Updated Reach for effect/cli, effect/sql, and effect/ai, not a v3 @effect/* package
 
 ## 2026-09-30
 

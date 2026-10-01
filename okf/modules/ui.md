@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T07:18:02Z
-  body_sha256: 2379237c666a054cb8725ef0ff52307cbc03d9cdeea8344aabc10e4986e2d4e3
+  at: 2026-10-01T08:22:45Z
+  body_sha256: 6ffafb244d5960fbedba9c8425adb36cecd3dc0644046263fab084008106c018
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -113,9 +113,10 @@ stable trend), and `tag` (a non-zero tag count). Because Ink takes colour
 as `<Text>` props rather than ANSI, `inkStyle(token)` resolves a kit token
 or style through the kit's pure `Token.resolve` (the same resolution
 `CliTheme.paint` applies) and maps it onto Ink props with the kit's
-`inkProps(style, "truecolor")` from `@effected/cli/ui` — every prop at
-truecolor, since these Ink trees are mounted by the reporter rather than a
-kit `CliUi` screen and Ink's own chalk level gates what is drawn; named
+`inkProps(style)` from `@effected/cli/ui`, called with no colour level so
+every prop is emitted, since these Ink trees are mounted by the reporter
+rather than a kit `CliUi` screen and Ink's own chalk level gates what is
+drawn; named
 colours use the chalk spelling Ink takes (`blackBright`).
 `statusGlyph(name, glyphs?)` / `statusInkStyle(name)` answer a status's
 glyph and style; `statusGlyph` is the kit's `VitestAgentStatus.glyph` and
@@ -148,9 +149,14 @@ unhandled-errors counter — is one `formatTotalsLine` call
 (`src/counts.ts`)[^ui-counts]: a kit `Doc.counts` block (inline layout,
 an optional suffix such as `across 3 files`) rendered with `Render.plain`
 under `Render.contextOf({ audience: "agent" })`. Its total folds timed-out
-tests in but never the unhandled-error count. `formatFailure` and the
-below-target coverage table stay hand-rolled, because the kit's
-`diffText` and pipe table are not byte-identical to the agent output.
+tests in but never the unhandled-error count. `formatFailure`
+(`dispatcher/helpers.ts`) is a kit document too: one compact `Doc.list`
+item whose title is a `Doc.verbatim` (never wrapped), whose first message
+line is a `Doc.line` with `truncate`, and whose diff is a `Doc.diffText`
+with `truncate`, rendered with `Render.plain` for the agent audience; the
+kit sanitizes the text, so a tab becomes a space. The below-target
+coverage table stays hand-rolled, because the kit's pipe table is not
+byte-identical to the agent output.
 
 `NO_COLOR` is still read directly by the renderers; moving that decision
 to the kit is later work.
@@ -450,7 +456,7 @@ Five granularities, all under `packages/ui/__test__/`:
    `__test__/snapshots/dispatcher/color/`, so a glyph or colour change
    shows up as a diff; `theme.test.ts` holds the token mirror to the kit.
    `render-ink/StatusIcon.cliui.test.tsx` mounts a reporter-owned Ink
-   component through the kit's `CliUiTest.render`
+   component through the kit's `CliUiTest.view`
    (`@effected/cli/ui/testing`).
 
 Canonical fixtures in `__test__/utils/events.ts` are shared across the
