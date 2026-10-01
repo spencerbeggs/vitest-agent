@@ -34,8 +34,7 @@ src/
     StreamApp.tsx, StatusIcon.tsx, ModuleHeader.tsx, TestRow.tsx,
     ProjectRow.tsx, CountColumns.tsx, TagColumns.tsx, CoverageBlock.tsx,
     TrendLine.tsx, FailureSection.tsx, FailuresSection.tsx,
-    SuggestedActions.tsx, spinner.ts,
-    glyphs.ts                   -- GlyphSetContext (kit GlyphSet via React context)
+    SuggestedActions.tsx, spinner.ts
   pubsub/                       -- Effect PubSub channel
     Channel.ts                  -- RunEventChannel tag + Live layer
     Publisher.ts                -- publish / publishAll helpers
@@ -83,10 +82,10 @@ __test__/
 - **Effect-fluent**: every transport-level abstraction lives in `effect`'s vocabulary (Schema, PubSub, Layer). The reducer itself is synchronous because it has to be cheap to call from React; everything upstream (publisher, subscriber, channel) is Effect-typed.
 - **Shape-tailored cells**: the dispatcher routes by `(RunShape, RunOutcome)`. Cells receive a fully-built `DispatchInputs` plus `CellOptions` from the SDK contract and never re-derive shape, outcome, project aggregates, trend, or below-target listings. Pre-compute in `buildDispatchInputs`, not inside cells.
 - **Two synthesizers**: one for live Vitest data (`VitestTestModule` duck types), one for the persisted `AgentReport`. They are NOT interchangeable — the live shape carries per-test detail the report schema flattens. CLI replay uses the report path; the plugin's streaming callbacks publish events derived from live modules.
-- **Glyphs and colours come from `theme.ts` only.** No hex literal or named colour in a component, helper, or cell: take a status's glyph and style from `VitestAgentStatus` (`statusGlyph` / `statusInkStyle`) and an accent from `VitestAgentTokens` via `inkStyle`. Duration, percent, truncation, and plurals go through `Fmt` (`formatDisplayDuration` for durations). A colour change shows up in the colour snapshot goldens. Glyph sets come from the kit's pure `Glyphs.select`: `StreamApp` takes a `glyphs` prop (`{ ascii?, term? }`) and provides the selected set through `GlyphSetContext`; leaf components read it with `useGlyphs()`. Never read `TERM` or `process` here — the host passes it in.
+- **Glyphs and colours come from `theme.ts` only.** No hex literal or named colour in a component, helper, or cell: take a status's glyph and style from `VitestAgentStatus` (`statusGlyph` / `statusInkStyle`) and an accent from `VitestAgentTokens` via `inkStyle`. Duration, percent, truncation, and plurals go through `Fmt` (`formatDisplayDuration` for durations). A colour change shows up in the colour snapshot goldens. Glyph sets come from the kit's `useGlyphs()` (`@effected/cli/ui`), so every Ink tree must render inside the kit's providers: a `CliUi.live` / `CliUi.run` screen, or `<UiProvider value={yield* CliUi.context}>` for a tree you mount yourself (tests: `renderInk` in `__test__/utils/render-ink.tsx` wraps one; pass `{ glyphs: Glyphs.ascii }` for ASCII). The kit hook throws outside a provider. Never read `TERM` or `process` here — the host's `CliTheme` decides.
 - **Ink component primitives only.** No `<span style>` or DOM-isms. Use Ink's `<Box>`, `<Text>`, `<Newline>`, `<Spacer>`. Components rely on the automatic JSX runtime (no `import * as React` namespace import) and import only the types they use from `react`.
-- **Snapshot pinning**: per-component snapshots use the helper `__test__/utils/render-ink.tsx` which strips ANSI and pins the width via `<Box width={N}>`. `ink-testing-library` reports a fixed 100-column mock stdout, so explicit width wrapping is load-bearing.
-- **No reporter lifecycle here.** This package is pure rendering primitives. The default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount driver (`_createLiveInk`) live in `@vitest-agent/reporter`. Adding a shipped reporter or factory means editing `@vitest-agent/reporter`, not this package.
+- **Snapshot pinning**: per-component snapshots use the helper `__test__/utils/render-ink.tsx` which wraps the tree in the kit's `UiProvider`, strips ANSI and pins the width via `<Box width={N}>`. `ink-testing-library` reports a fixed 100-column mock stdout, so explicit width wrapping is load-bearing.
+- **No reporter lifecycle here.** This package is pure rendering primitives. The default reporter (`DefaultVitestAgentReporter`) and the live view (`startLiveView` over the kit's `CliUi.live`) live in `@vitest-agent/reporter`. Adding a shipped reporter or factory means editing `@vitest-agent/reporter`, not this package.
 
 ## When working in this package
 

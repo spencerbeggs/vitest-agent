@@ -5,11 +5,11 @@
  */
 
 import type { GlyphSet } from "@effected/cli";
+import { useGlyphs } from "@effected/cli/ui";
 import { Text } from "ink";
 import type { FC } from "react";
 import type { VitestAgentStatusName } from "../theme.js";
 import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
-import { useGlyphs } from "./glyphs.js";
 
 /**
  * Props for the `CountColumns` component.

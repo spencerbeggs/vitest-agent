@@ -1,6 +1,6 @@
 import { Glyphs } from "@effected/cli";
 import { describe, expect, it } from "vitest";
-import { SPINNER_FRAMES, SPINNER_FRAME_MS, spinnerFrame, spinnerFrameForTime } from "../../src/render-ink/spinner.js";
+import { SPINNER_FRAMES, SPINNER_FRAME_MS, spinnerFrame } from "../../src/render-ink/spinner.js";
 
 describe("spinnerFrame", () => {
 	it("returns the first frame for index 0", () => {
@@ -18,19 +18,6 @@ describe("spinnerFrame", () => {
 
 	it("truncates a fractional index", () => {
 		expect(spinnerFrame(2.9)).toBe(SPINNER_FRAMES[2]);
-	});
-});
-
-describe("spinnerFrameForTime", () => {
-	it("advances one index per frame interval", () => {
-		const base = spinnerFrameForTime(0);
-		expect(spinnerFrameForTime(SPINNER_FRAME_MS)).toBe(base + 1);
-		expect(spinnerFrameForTime(SPINNER_FRAME_MS * 5)).toBe(base + 5);
-	});
-
-	it("holds the same index within a single frame interval", () => {
-		const intervalStart = SPINNER_FRAME_MS * 12;
-		expect(spinnerFrameForTime(intervalStart)).toBe(spinnerFrameForTime(intervalStart + SPINNER_FRAME_MS - 1));
 	});
 });
 

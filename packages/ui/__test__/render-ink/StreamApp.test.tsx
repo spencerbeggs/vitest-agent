@@ -1,3 +1,4 @@
+import { Glyphs } from "@effected/cli";
 import type { RunEvent } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import { reduceRenderStateAll } from "../../src/reducer.js";
@@ -971,22 +972,12 @@ describe("StreamApp — glyph set", () => {
 		cleanup();
 	});
 
-	it("draws the kit's ASCII fallback when asked, with no Unicode status glyph left", () => {
-		const { frame, cleanup } = renderInk(
-			<StreamApp state={state} frameIndex={0} nowMs={NOW} glyphs={{ ascii: true }} />,
-			80,
-		);
+	it("draws the kit's ASCII set when the provider holds it, with no Unicode status glyph left", () => {
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80, {
+			glyphs: Glyphs.ascii,
+		});
 		expect(frame).not.toMatch(/[✓✗↷⧖]/);
 		expect(frame).toContain("[FAIL]");
-		cleanup();
-	});
-
-	it("selects ASCII for TERM=dumb passed in as a prop", () => {
-		const { frame, cleanup } = renderInk(
-			<StreamApp state={state} frameIndex={0} nowMs={NOW} glyphs={{ term: "dumb" }} />,
-			80,
-		);
-		expect(frame).not.toMatch(/[✓✗↷⧖]/);
 		cleanup();
 	});
 });

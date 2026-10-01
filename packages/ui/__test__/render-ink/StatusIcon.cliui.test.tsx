@@ -9,7 +9,6 @@ import { Glyphs } from "@effected/cli";
 import { CliUiTest } from "@effected/cli/ui/testing";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { GlyphSetContext } from "../../src/render-ink/glyphs.js";
 import { StatusIcon } from "../../src/render-ink/index.js";
 import { statusGlyph } from "../../src/theme.js";
 
@@ -28,7 +27,7 @@ describe("StatusIcon through CliUiTest.view", () => {
 		expect(plain).toBe(statusGlyph("failure"));
 	});
 
-	it("keeps our own glyph context: the harness glyphs option does not reach GlyphSetContext", async () => {
+	it("draws the harness's ASCII set: our components read the kit's useGlyphs", async () => {
 		const plain = await run(
 			Effect.scoped(
 				Effect.gen(function* () {
@@ -37,26 +36,8 @@ describe("StatusIcon through CliUiTest.view", () => {
 				}),
 			),
 		);
-		// Our components read GlyphSetContext, not the kit's useGlyphs, so the
-		// harness's ASCII set is invisible to them until P5 (F8).
-		expect(plain).toBe(statusGlyph("failure"));
-		expect(plain).not.toBe(statusGlyph("failure", Glyphs.ascii));
-	});
-
-	it("draws ASCII when our own GlyphSetContext provider wraps the element", async () => {
-		const plain = await run(
-			Effect.scoped(
-				Effect.gen(function* () {
-					const screen = yield* CliUiTest.view(
-						<GlyphSetContext.Provider value={Glyphs.ascii}>
-							<StatusIcon status="failed" />
-						</GlyphSetContext.Provider>,
-					);
-					return yield* screen.plainFrame;
-				}),
-			),
-		);
 		expect(plain).toBe(statusGlyph("failure", Glyphs.ascii));
+		expect(plain).not.toBe(statusGlyph("failure"));
 	});
 
 	it("styled frame decodes our raw Ink colour props as SGR tags, not theme tokens", async () => {

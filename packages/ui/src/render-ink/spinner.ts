@@ -7,8 +7,8 @@
  * frame clock for the ticking elapsed column, so the timer is shared and
  * only the frame lookup lives here.
  *
- * The frame index is presentation state: it is derived from wall-clock
- * time by `createLiveInk` and passed to `StreamApp` as a prop. It never
+ * The frame index is presentation state: it is the kit live view's
+ * `frame` (wall-clock ticks of `SPINNER_FRAME_MS`), passed to `StreamApp` as a prop. It never
  * enters the event-sourced `RenderState`.
  */
 
@@ -46,14 +46,3 @@ export const spinnerFrame = (index: number, glyphs: GlyphSet = Glyphs.unicode): 
 	const wrapped = ((Math.trunc(index) % count) + count) % count;
 	return frames[wrapped] ?? "";
 };
-
-/**
- * Derive the spinner frame index from a wall-clock timestamp. Using the
- * clock — rather than a monotonic counter — keeps the animation correct
- * across watch-mode remounts with no extra closure state to reset.
- *
- * @param nowMs - current wall-clock time in milliseconds
- * @returns the frame index for the given timestamp
- * @public
- */
-export const spinnerFrameForTime = (nowMs: number): number => Math.floor(nowMs / SPINNER_FRAME_MS);

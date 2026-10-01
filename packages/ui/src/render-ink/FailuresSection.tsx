@@ -8,11 +8,11 @@
  * one indented line — the first line of the error message.
  */
 
+import { useGlyphs } from "@effected/cli/ui";
 import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
-import { useGlyphs } from "./glyphs.js";
 
 /**
  * Props for the `FailuresSection` component.

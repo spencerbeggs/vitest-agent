@@ -1,5 +1,7 @@
+import { UiProvider } from "@effected/cli/ui";
 import type { CellOptions, DispatchInputs, RunOutcome, RunShape } from "@vitest-agent/sdk";
 import { initialRenderState } from "@vitest-agent/sdk";
+import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import { renderSingleFileFail } from "../src/dispatcher/cells/single-file-fail.js";
 import { renderSingleFilePass } from "../src/dispatcher/cells/single-file-pass.js";
@@ -14,6 +16,7 @@ import { renderWorkspaceFail } from "../src/dispatcher/cells/workspace-fail.js";
 import { renderWorkspacePass } from "../src/dispatcher/cells/workspace-pass.js";
 import { renderWorkspaceThreshold } from "../src/dispatcher/cells/workspace-threshold.js";
 import { dispatch, dispatchInk, dispatcherTable } from "../src/dispatcher/dispatch.js";
+import { uiContext } from "./utils/render-ink.js";
 
 const opts: CellOptions = {
 	noColor: true,
@@ -104,7 +107,7 @@ describe("dispatcher — scoped-coverage note (issue #160 gap 1)", () => {
 		const element = dispatchInk(scopedInputs("workspace", "all-pass"), opts);
 		expect(element).not.toBeNull();
 		if (element === null) return;
-		const out = renderToString(element);
+		const out = renderToString(createElement(UiProvider, { value: uiContext }, element));
 		expect(out).toContain("Coverage thresholds skipped: partial run (2 of 47 test files)");
 	});
 

@@ -10,13 +10,12 @@ export { CountColumns, type CountColumnsProps, DURATION_CELL_WIDTH } from "./Cou
 export { CoverageBlock, type CoverageBlockProps } from "./CoverageBlock.js";
 export { FailureSection, type FailureSectionProps } from "./FailureSection.js";
 export { FailuresSection, type FailuresSectionProps } from "./FailuresSection.js";
-export { GlyphSetContext } from "./glyphs.js";
 export { ModuleHeader, type ModuleHeaderProps } from "./ModuleHeader.js";
 export { ProjectRow, type ProjectRowProps } from "./ProjectRow.js";
 export { StatusIcon, type StatusIconKind, type StatusIconProps } from "./StatusIcon.js";
 export { StreamApp, type StreamAppProps } from "./StreamApp.js";
 export { SuggestedActions, type SuggestedActionsProps } from "./SuggestedActions.js";
-export { SPINNER_FRAMES, SPINNER_FRAME_MS, spinnerFrame, spinnerFrameForTime } from "./spinner.js";
+export { SPINNER_FRAMES, SPINNER_FRAME_MS, spinnerFrame } from "./spinner.js";
 export { TagColumns, type TagColumnsProps, tagUnion } from "./TagColumns.js";
 export { TestRow, type TestRowProps } from "./TestRow.js";
 export { TrendLine, type TrendLineProps } from "./TrendLine.js";

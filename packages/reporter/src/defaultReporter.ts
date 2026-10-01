@@ -13,13 +13,15 @@
  * - `agent` → emits the dispatched agent-string for the whole run.
  * - `silent` / `passthrough` / `ci-annotations` → emits nothing; the
  *   visible work happens elsewhere.
- * - `stream` → emits nothing from `render`; the reporter owns a live Ink
- *   mount that subscribes to the kit's run-event channel and paints
- *   per-event during the run.
+ * - `stream` → emits nothing from `render`; the reporter owns a live view
+ *   (the kit's `CliUi.live`, see `liveView.ts`) subscribed to the kit's
+ *   run-event channel, which paints per event during the run and is closed
+ *   through the reporter's `close` at Vitest's close.
  */
 
 import type { CoreStatusName } from "@effected/cli";
 import { Doc, Render, Status } from "@effected/cli";
+import { CliUi, UiProvider } from "@effected/cli/ui";
 import type {
 	AgentReport,
 	CellOptions,
@@ -30,7 +32,6 @@ import type {
 	RenderedOutput,
 	ReporterKit,
 	ReporterRenderInput,
-	RunEvent,
 	RunOutcome,
 	RunReportFile,
 	RunShape,
@@ -48,9 +49,10 @@ import {
 	reduceRenderStateAll,
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
-import { Effect, PubSub } from "effect";
+import { Effect } from "effect";
+import { createElement } from "react";
 import { renderGithubLog, toDisplayPath } from "./githubLog.js";
-import { createLiveInk } from "./LiveInkRenderer.js";
+import { LiveViewEnv, startLiveView } from "./liveView.js";
 
 const countTimeouts = (report: AgentReport): number => {
 	let timeoutCount = 0;
@@ -193,8 +195,10 @@ export const renderAgentStringForReport = (report: AgentReport): string => {
 
 /**
  * Same as {@link renderAgentStringForReport} but returns the Ink-half
- * rendered to a string via Ink's `renderToString`. ANSI escape
- * sequences are preserved so a terminal renders the colors live.
+ * rendered to a string via Ink's `renderToString`, inside the kit's
+ * `UiProvider` (the components draw the terminal's glyph set, ASCII under
+ * `TERM=dumb`). ANSI escape sequences are preserved so a terminal renders
+ * the colors live.
  * Returns the agent-string fallback when the matched cell has no Ink
  * half.
  *
@@ -224,7 +228,9 @@ export const renderHumanStringForReport = async (
 	if (cell.ink === undefined) {
 		return dispatch(inputs, opts);
 	}
-	return renderToString(cell.ink(inputs, opts), { columns: options.width ?? 80 });
+	const columns = options.width ?? 80;
+	const context = await Effect.runPromise(CliUi.context.pipe(Effect.provide(LiveViewEnv)));
+	return renderToString(createElement(UiProvider, { value: context }, cell.ink(inputs, opts)), { columns });
 };
 
 const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
@@ -393,36 +399,6 @@ const renderGithubSummary = (input: ReporterRenderInput): ReadonlyArray<Rendered
 };
 
 /**
- * Subscribe a live Ink mount to the kit's run-event channel.
- *
- * Called from the factory when `consoleMode` is `stream`. The factory runs
- * at run start — before the plugin publishes the first `RunStarted`
- * event — so the subscription is registered in time. `Effect.runFork`
- * advances the forked fiber up to its first suspension (the
- * `PubSub.take` below); that suspension point is past `PubSub.subscribe`,
- * so the subscription is live before this function returns. The drain
- * loop runs forever: `createLiveInk` handles `RunFinished` (schedules
- * unmount) and a subsequent `RunStarted` (remounts) itself, so the loop
- * stays open across watch-mode reruns and ends only when the process
- * exits.
- *
- * @internal
- */
-const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
-	const live = createLiveInk();
-	Effect.runFork(
-		Effect.scoped(
-			Effect.gen(function* () {
-				const subscription = yield* PubSub.subscribe(channel);
-				yield* Effect.forever(
-					PubSub.take(subscription).pipe(Effect.flatMap((event) => Effect.sync(() => live.event(event)))),
-				);
-			}),
-		),
-	);
-};
-
-/**
  * The default reporter factory.
  *
  * The plugin uses this as its built-in when no user `reporter` option
@@ -430,8 +406,11 @@ const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
  * worked example of the `VitestAgentReporterFactory` contract.
  *
  * The factory is invoked once at run start with the run-start kit. In
- * `consoleMode: "stream"` it subscribes a live Ink mount to the kit's
- * run-event channel and owns that mount's lifecycle end to end.
+ * `consoleMode: "stream"` it starts a live view on the kit's run-event
+ * channel (subscribed before the factory returns, so the first
+ * `RunStarted` is seen) and owns it for the reporter's life: the
+ * reporter's `close`, which the plugin calls at Vitest's close after
+ * shutting the channel down, waits for the last frame and closes it.
  *
  * The `render` call (invoked once at run end with the health-aware kit)
  * assembles the reduced state, classifies the shape and outcome, and
@@ -443,10 +422,10 @@ const subscribeLiveInk = (channel: PubSub.PubSub<RunEvent>): void => {
  * @public
  */
 export const DefaultVitestAgentReporter: VitestAgentReporterFactory = (kit: ReporterKit): VitestAgentReporter => {
-	if (kit.config.consoleMode === "stream" && kit.runEvents !== undefined) {
-		subscribeLiveInk(kit.runEvents);
-	}
+	const live =
+		kit.config.consoleMode === "stream" && kit.runEvents !== undefined ? startLiveView(kit.runEvents) : undefined;
 	return {
+		...(live !== undefined ? { close: live.close } : {}),
 		render(input: ReporterRenderInput, renderKit: ReporterKit): ReadonlyArray<RenderedOutput> {
 			const out: RenderedOutput[] = [];
 			if (shouldRenderForMode(renderKit.config.consoleMode)) {

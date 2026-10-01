@@ -5,11 +5,11 @@
  * the surrounding row can keep its width budget predictable.
  */
 
+import { useGlyphs } from "@effected/cli/ui";
 import { Text } from "ink";
 import type { FC } from "react";
 import type { VitestAgentStatusName } from "../theme.js";
 import { statusGlyph, statusInkStyle } from "../theme.js";
-import { useGlyphs } from "./glyphs.js";
 
 /**
  * The set of named statuses a `StatusIcon` can render.

@@ -3,14 +3,14 @@
  * lifecycle-aware live renderer that renders the entire run picture in
  * a single dynamic region.
  *
- * Everything lives in the Live region. On a terminal event
- * (`RunFinished` / `RunTimedOut`), the caller (`LiveInkRenderer`) simply
- * calls `instance.unmount()` and lets Ink commit the final frame: Ink's
- * interactive unmount flushes the pending render, redraws the final frame
- * one last time, then leaves it in place so it lands in terminal
- * scrollback as ordinary content. A plain-text `renderToString` write
- * survives only as the degraded fallback when the Ink mount could not
- * attach (a non-TTY stream).
+ * Everything lives in the Live region. The reporter mounts it through the
+ * kit's `CliUi.live`, which commits the final frame at the terminal event
+ * (`RunFinished` / `RunTimedOut`) and, when the run is not interactive,
+ * prints that final frame once as a string.
+ *
+ * Glyphs come from the kit's `useGlyphs()`, so the tree must render inside
+ * the kit's providers: a `CliUi.live` / `CliUi.run` screen, or a
+ * `UiProvider` holding `CliUi.context`'s value.
  *
  * Per-shape granularity:
  *
@@ -26,8 +26,9 @@
  * shapes (`workspace`, `single-project`) render rows without inline errors.
  */
 
-import type { GlyphSelectOptions, GlyphSet } from "@effected/cli";
-import { Fmt, Glyphs } from "@effected/cli";
+import type { GlyphSet } from "@effected/cli";
+import { Fmt } from "@effected/cli";
+import { useGlyphs } from "@effected/cli/ui";
 import type {
 	FailureRecord,
 	ModuleRecord,
@@ -43,7 +44,6 @@ import { formatDisplayDuration } from "../format-duration.js";
 import type { VitestAgentStatusName } from "../theme.js";
 import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
 import { CountColumns, DURATION_CELL_WIDTH } from "./CountColumns.js";
-import { GlyphSetContext, useGlyphs } from "./glyphs.js";
 import { ProjectRow } from "./ProjectRow.js";
 import { StatusIcon } from "./StatusIcon.js";
 import { spinnerFrame } from "./spinner.js";
@@ -59,16 +59,10 @@ import { TrendLine } from "./TrendLine.js";
 export interface StreamAppProps {
 	/** The current reduced render state to display. */
 	readonly state: RenderState;
-	/** Current spinner frame index, derived from wall-clock time. */
+	/** Current spinner frame index (the live view's `frame`: wall-clock ticks of `SPINNER_FRAME_MS`). */
 	readonly frameIndex: number;
 	/** Current wall-clock time in milliseconds; defaults to `Date.now()`. */
 	readonly nowMs?: number;
-	/**
-	 * How to pick the glyph set, passed to `Glyphs.select`: `ascii: true`
-	 * forces the ASCII fallback, and `auto` reads the `term` the host passes
-	 * in. Unicode when omitted; the component never reads `process`.
-	 */
-	readonly glyphs?: GlyphSelectOptions | undefined;
 }
 
 const ANONYMOUS_PROJECT = "default";
@@ -625,9 +619,9 @@ const liveRegion = (
  *
  * @public
  */
-export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs, glyphs: glyphOptions }) => {
+export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs }) => {
 	const now = nowMs ?? Date.now();
-	const glyphs = Glyphs.select(glyphOptions);
+	const glyphs = useGlyphs();
 	const frame = spinnerFrame(frameIndex, glyphs);
 
 	// Compute per-project rollups for the classifier. Cheap.
@@ -637,9 +631,5 @@ export const StreamApp: FC<StreamAppProps> = ({ state, frameIndex, nowMs, glyphs
 
 	const liveContent = liveRegion(state, shape, now, frame, glyphs);
 
-	return (
-		<GlyphSetContext.Provider value={glyphs}>
-			<Box flexDirection="column">{liveContent}</Box>
-		</GlyphSetContext.Provider>
-	);
+	return <Box flexDirection="column">{liveContent}</Box>;
 };
