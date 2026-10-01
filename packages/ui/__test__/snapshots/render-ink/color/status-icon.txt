@@ -1,0 +1,9 @@
+passed     {green}✓{/fg}
+failed     {red}✗{/fg}
+skipped    {dim}↷{/bold|dim}
+pending    {dim}◯{/bold|dim}
+running    {yellow}…{/fg}
+queued     {gray}·{/fg}
+finished   {green}✓{/fg}
+threshold  {red}✗{/fg}
+timed-out  {#e09a4e}⧖{/fg}

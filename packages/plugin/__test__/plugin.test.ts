@@ -89,6 +89,44 @@ describe("AgentPlugin", () => {
 		expect(typeof plugin.configureVitest).toBe("function");
 	});
 
+	describe("debug diagnostics (CliLog)", () => {
+		const capture = () => {
+			const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+			const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+			const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+			const stderrText = () =>
+				[
+					...stderrWrite.mock.calls.map((c) => String(c[0])),
+					...consoleError.mock.calls.map((c) => c.map(String).join(" ")),
+				].join("\n");
+			const stdoutText = () =>
+				[
+					...stdoutWrite.mock.calls.map((c) => String(c[0])),
+					...consoleLog.mock.calls.map((c) => c.map(String).join(" ")),
+				].join("\n");
+			return { stderrText, stdoutText };
+		};
+
+		it("writes component-tagged debug lines to stderr, never stdout, at VITEST_REPORTER_LOG_LEVEL=debug", async () => {
+			vi.stubEnv("VITEST_REPORTER_LOG_LEVEL", "debug");
+			const { stderrText, stdoutText } = capture();
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			await callConfigureVitest(plugin, mockVitest());
+			expect(stderrText()).toContain("configureVitest called");
+			expect(stderrText()).toContain("vitest-agent:plugin");
+			expect(stdoutText()).not.toContain("configureVitest called");
+		});
+
+		it("stays silent when the level would drop a debug record", async () => {
+			vi.stubEnv("VITEST_REPORTER_LOG_LEVEL", "info");
+			const { stderrText, stdoutText } = capture();
+			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
+			await callConfigureVitest(plugin, mockVitest());
+			expect(stderrText()).not.toContain("configureVitest called");
+			expect(stdoutText()).not.toContain("configureVitest called");
+		});
+	});
+
 	describe("always injects reporter regardless of environment", () => {
 		it("injects in human environment", async () => {
 			const plugin = AgentPlugin({}, EnvironmentDetectorTest.layer("terminal"));
@@ -733,10 +771,11 @@ describe("AgentPlugin", () => {
 
 			const lines = stderrWrite.mock.calls
 				.map((call) => call[0] as string)
-				.filter((line) => line.includes("ignoring invalid VITEST_AGENT_CONSOLE"));
+				.filter((line) => line.includes("VITEST_AGENT_CONSOLE=bogus"));
 
 			expect(lines).toHaveLength(1);
-			expect(lines[0]).toContain('VITEST_AGENT_CONSOLE="bogus"');
+			expect(lines[0]).toMatch(/^\[vitest-agent:plugin\] /);
+			expect(lines[0]).toContain("ignoring it");
 		});
 	});
 });

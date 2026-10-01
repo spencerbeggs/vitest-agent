@@ -1,0 +1,7 @@
+{bold}Modules (3):{/bold|dim}
+  {green}✓{/fg} a.test.ts {green}   3✓{/fg}  {gray}   0✗{/fg}  {gray}   0↷{/fg}  {gray}   0⧖{/fg}{dim}      1s{/bold|dim}
+  {#e09a4e}⧖{/fg} b.test.ts {gray}   0✓{/fg}  {gray}   0✗{/fg}  {gray}   0↷{/fg}  {gray}   0⧖{/fg}{dim}     10s{/bold|dim}
+  {gray}·{/fg} c.test.ts {gray}   0✓{/fg}  {gray}   0✗{/fg}  {gray}   0↷{/fg}  {gray}   0⧖{/fg}{dim}     0ms not started — killed before reaching this module{/bold|dim}
+{bold}Trend:{/bold|dim} {green}improving{/fg}{dim} (2 runs){/bold|dim}
+{bold}{#e09a4e}⧖ Run timed out{/fg}{/bold|dim}
+{bold}Total:{/bold|dim} {green}   3✓{/fg}  {gray}   0✗{/fg}  {gray}   0↷{/fg}  {gray}   0⧖{/fg}{dim}      1s{/bold|dim}

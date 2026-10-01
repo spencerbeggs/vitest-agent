@@ -26,6 +26,7 @@
  * shapes (`workspace`, `single-project`) render rows without inline errors.
  */
 
+import { Fmt } from "@effected/cli";
 import type {
 	FailureRecord,
 	ModuleRecord,
@@ -38,6 +39,8 @@ import { Box, Text } from "ink";
 import type { FC, ReactNode } from "react";
 import { classifyRunShape } from "../dispatcher/classify.js";
 import { formatDisplayDuration } from "../format-duration.js";
+import type { VitestAgentStatusName } from "../theme.js";
+import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
 import { CountColumns, DURATION_CELL_WIDTH } from "./CountColumns.js";
 import { ProjectRow } from "./ProjectRow.js";
 import { StatusIcon } from "./StatusIcon.js";
@@ -199,7 +202,7 @@ const ModuleStreamRow: FC<{
 			glyph = <StatusIcon status="timed-out" />;
 		}
 	} else if (running) {
-		glyph = <Text color="yellow">{frame}</Text>;
+		glyph = <Text {...statusInkStyle("running")}>{frame}</Text>;
 	} else {
 		glyph = <StatusIcon status={moduleIcon(module)} />;
 	}
@@ -265,7 +268,7 @@ const UnhandledErrorItem: FC<{ error: ReportError }> = ({ error }) => (
 	<Box flexDirection="column">
 		<Text>
 			{"  "}
-			<Text color="red">✗</Text> unhandled error
+			<Text {...statusInkStyle("failure")}>{statusGlyph("failure")}</Text> unhandled error
 		</Text>
 		<Text dimColor>
 			{"      "}
@@ -279,14 +282,18 @@ const testKey = (modulePath: string, t: TestRecord): string =>
 
 const failurePath = (f: FailureRecord): string => [f.modulePath, ...f.suitePath, f.testName].join(" › ");
 
+const failureStatus = (f: FailureRecord): VitestAgentStatusName => (f.timedOut === true ? "timeout" : "failure");
+
 /** A failure entry rendered in the Live region. */
 const FailureItem: FC<{ failure: FailureRecord }> = ({ failure }) => (
 	<Box flexDirection="column">
 		<Text>
 			{"  "}
-			<Text color={failure.timedOut === true ? "#e09a4e" : "red"}>{failure.timedOut === true ? "⧖" : "✗"}</Text>{" "}
+			<Text {...statusInkStyle(failureStatus(failure))}>{statusGlyph(failureStatus(failure))}</Text>{" "}
 			{failurePath(failure)}
-			{failure.classification !== null ? <Text color="#c98ae0"> [{failure.classification}]</Text> : null}
+			{failure.classification !== null ? (
+				<Text {...inkStyle(VitestAgentTokens.classification)}> [{failure.classification}]</Text>
+			) : null}
 		</Text>
 		<InlineError failure={failure} />
 	</Box>
@@ -310,13 +317,18 @@ const TotalsLine: FC<{ totals: RenderState["totals"]; labelWidth?: number | unde
 	</Text>
 );
 
+/**
+ * The coverage judgment. A threshold violation is a `failure` (the kit's
+ * decision: threshold failure is ✗, only a target shortfall is ⚠).
+ */
 const CoverageItem: FC<{ state: RenderState }> = ({ state }) => {
 	if (state.coverage === null) return null;
-	const clean = state.coverage.violations.length === 0;
+	const violations = state.coverage.violations.length;
+	const status: VitestAgentStatusName = violations === 0 ? "success" : "failure";
 	return (
 		<Text>
-			<Text bold>Coverage:</Text> <Text color={clean ? "green" : "yellow"}>{clean ? "✓" : "⚠"}</Text>{" "}
-			{clean ? "all metrics meet thresholds" : `${state.coverage.violations.length} threshold violation(s)`}
+			<Text bold>Coverage:</Text> <Text {...statusInkStyle(status)}>{statusGlyph(status)}</Text>{" "}
+			{violations === 0 ? "all metrics meet thresholds" : Fmt.plural(violations, "threshold violation")}
 		</Text>
 	);
 };
@@ -410,8 +422,8 @@ const liveRegion = (
 	const totalsItem = (labelWidth?: number): ReactNode => (
 		<Box flexDirection="column">
 			{finished && timedOut ? (
-				<Text color="#e09a4e" bold>
-					⧖ Run timed out
+				<Text {...statusInkStyle("timeout")} bold>
+					{statusGlyph("timeout")} Run timed out
 				</Text>
 			) : null}
 			<TotalsLine totals={state.totals} labelWidth={labelWidth} />

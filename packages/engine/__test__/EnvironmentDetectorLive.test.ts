@@ -1,64 +1,92 @@
-import { Effect } from "effect";
+import { RuntimeEnv } from "@effected/env";
+import type { Environment } from "@vitest-agent/sdk";
+import { Context, Effect, Layer, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import { EnvironmentDetectorLive, classifyEnvironment } from "../src/layers/EnvironmentDetectorLive.js";
 import { EnvironmentDetector } from "../src/services/EnvironmentDetector.js";
 
 type Env = Record<string, string | undefined>;
 
-const run = <A, E>(effect: Effect.Effect<A, E, EnvironmentDetector>, env: Env = {}) =>
-	Effect.runPromise(Effect.provide(effect, EnvironmentDetectorLive(env)));
-
-const detect = (env: Env) =>
-	run(
-		Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
-		env,
+const probe = (env: Env) =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const detector = yield* EnvironmentDetector;
+			return {
+				environment: yield* detector.detect(),
+				isAgent: yield* detector.isAgent,
+				agentName: yield* detector.agentName,
+			};
+		}).pipe(Effect.provide(EnvironmentDetectorLive(env))),
 	);
 
-describe("EnvironmentDetectorLive", () => {
-	it("returns environment as one of the four types", async () => {
-		const env = await detect({});
-		expect(["agent-shell", "terminal", "ci-github", "ci-generic"]).toContain(env);
+const runtime = (fields: { agent?: string; ci?: string }) =>
+	RuntimeEnv.make({
+		agent: Option.fromNullishOr(fields.agent),
+		ci: Option.fromNullishOr(fields.ci),
+		terminal: Option.none(),
 	});
 
-	it("provides isAgent as boolean", async () => {
-		const result = await run(Effect.flatMap(EnvironmentDetector, (d) => d.isAgent));
-		expect(typeof result).toBe("boolean");
+describe("EnvironmentDetectorLive (reads only the injected env)", () => {
+	it("an empty map is a terminal with no agent, whatever the host process env says", async () => {
+		// This suite itself may run under an agent or in CI; an empty injected
+		// map must still read as a bare terminal.
+		expect(await probe({})).toEqual({ environment: "terminal", isAgent: false, agentName: undefined });
 	});
 
-	it("provides agentName as string or undefined", async () => {
-		const result = await run(Effect.flatMap(EnvironmentDetector, (d) => d.agentName));
-		expect(result === undefined || typeof result === "string").toBe(true);
-	});
-
-	// CI detection reads only the injected env map; `std-env`'s `isAgent` is
-	// process-global and wins first, so the CI branches are exercised through
-	// the pure classifier with the agent probe forced off.
-	describe("CI detection from the injected env (classifyEnvironment, agent off)", () => {
-		it("detects ci-github when GITHUB_ACTIONS=true", () => {
-			expect(classifyEnvironment({ GITHUB_ACTIONS: "true", CI: "true" }, false)).toBe("ci-github");
-		});
-
-		it("detects ci-github when GITHUB_ACTIONS=1", () => {
-			expect(classifyEnvironment({ GITHUB_ACTIONS: "1", CI: "true" }, false)).toBe("ci-github");
-		});
-
-		it("detects ci-generic when CI=true but GITHUB_ACTIONS is absent", () => {
-			expect(classifyEnvironment({ GITHUB_ACTIONS: "", CI: "true" }, false)).toBe("ci-generic");
-		});
-
-		it("detects terminal when neither CI nor GITHUB_ACTIONS is set", () => {
-			expect(classifyEnvironment({ GITHUB_ACTIONS: "", CI: "" }, false)).toBe("terminal");
-		});
-
-		it("agent shell wins over CI", () => {
-			expect(classifyEnvironment({ GITHUB_ACTIONS: "true", CI: "true" }, true)).toBe("agent-shell");
+	it("detects an agent shell from CLAUDECODE in the injected map", async () => {
+		expect(await probe({ CLAUDECODE: "1" })).toEqual({
+			environment: "agent-shell",
+			isAgent: true,
+			agentName: "claude",
 		});
 	});
 
-	it("does not read process.env — a CI process env is invisible when the injected map is empty", async () => {
-		// Whatever the host process env says, an empty map can only yield
-		// "terminal" or "agent-shell" (the std-env agent probe is process-global).
-		const env = await detect({});
-		expect(["terminal", "agent-shell"]).toContain(env);
+	it("names the agent family from AI_AGENT", async () => {
+		const result = await probe({ AI_AGENT: "cursor-agent_1-2" });
+		expect(result.environment).toBe("agent-shell");
+		expect(result.agentName).toBe("cursor");
+	});
+
+	it("an agent inside GitHub Actions is still an agent shell", async () => {
+		expect((await probe({ CLAUDECODE: "1", GITHUB_ACTIONS: "true", CI: "true" })).environment).toBe("agent-shell");
+	});
+
+	it.each([
+		[{ GITHUB_ACTIONS: "true", CI: "true" }, "ci-github"],
+		[{ GITHUB_ACTIONS: "1" }, "ci-github"],
+		[{ GITHUB_ACTIONS: "", CI: "true" }, "ci-generic"],
+		[{ CI: "1" }, "ci-generic"],
+		[{ CONTINUOUS_INTEGRATION: "true" }, "ci-generic"],
+		[{ GITHUB_ACTIONS: "false", CI: "false" }, "terminal"],
+		[{ GITHUB_ACTIONS: "", CI: "" }, "terminal"],
+	] as const)("classifies %j as %s", async (env, expected) => {
+		expect((await probe(env)).environment).toBe(expected);
+	});
+
+	it("two detectors over different maps in one layer graph do not share a snapshot", async () => {
+		// `CurrentRuntimeEnv.layer` is one static (memoized) layer; the detector
+		// wraps it in `Layer.fresh`, so each map is read on its own.
+		class Other extends Context.Service<Other, Environment>()("test/OtherEnvironment") {}
+		const other = Layer.effect(
+			Other,
+			Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
+		).pipe(Layer.provide(EnvironmentDetectorLive({ CI: "true" })));
+		const [agent, ci] = await Effect.runPromise(
+			Effect.all([Effect.flatMap(EnvironmentDetector, (d) => d.detect()), Other]).pipe(
+				Effect.provide(Layer.merge(EnvironmentDetectorLive({ CLAUDECODE: "1" }), other)),
+			),
+		);
+		expect([agent, ci]).toEqual(["agent-shell", "ci-generic"]);
+	});
+});
+
+describe("classifyEnvironment (precedence over a RuntimeEnv snapshot)", () => {
+	it.each([
+		[{ agent: "claude", ci: "github-actions" }, "agent-shell"],
+		[{ ci: "github-actions" }, "ci-github"],
+		[{ ci: "generic" }, "ci-generic"],
+		[{}, "terminal"],
+	] as const)("%j -> %s", (fields, expected) => {
+		expect(classifyEnvironment(runtime(fields))).toBe(expected);
 	});
 });

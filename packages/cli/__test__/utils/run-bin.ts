@@ -40,7 +40,13 @@ export class BinExitError extends Error {
  * stderr — on a non-zero exit or a spawn failure.
  */
 export const runBin = (args: ReadonlyArray<string>, env: NodeJS.ProcessEnv): BinResult => {
-	const child = spawnSync("node", [BIN, ...args], { env, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+	// FORCE_COLOR=0: @effected/cli honours FORCE_COLOR (Node precedence), so an inherited
+	// FORCE_COLOR would colour help and error output on a pipe.
+	const child = spawnSync("node", [BIN, ...args], {
+		env: { ...env, FORCE_COLOR: "0" },
+		encoding: "utf-8",
+		stdio: ["ignore", "pipe", "pipe"],
+	});
 	const result: BinResult = { status: child.status, stdout: child.stdout ?? "", stderr: child.stderr ?? "" };
 	if (child.error) {
 		throw new BinExitError(args, { ...result, stderr: `${result.stderr}\n${child.error.message}` });

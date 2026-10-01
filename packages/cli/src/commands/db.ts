@@ -1,11 +1,10 @@
 // CLI db command -- manage the vitest-agent database.
 
-import * as readline from "node:readline";
-import * as NodeServices from "@effect/platform-node/NodeServices";
 import { layer as sqliteClientLayer } from "@effect/sql-sqlite-node/SqliteClient";
+import { Cancelled, CliExit, CliInteractive } from "@effected/cli";
 import { DataStore, resolveDataPath } from "@vitest-agent/engine";
-import { Effect, FileSystem } from "effect";
-import { Argument, Command, Flag } from "effect/cli";
+import { Console, Effect, FileSystem } from "effect";
+import { Argument, Command, Flag, Prompt } from "effect/cli";
 import { SqlClient } from "effect/sql/SqlClient";
 import { formatDbQuery } from "../lib/format-db-query.js";
 
@@ -50,11 +49,8 @@ const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 		// Gate 1: agent context blocking
 		const agentId = process.env.VITEST_AGENT_AGENT_ID;
 		if (agentId !== undefined && agentId.length > 0) {
-			yield* Effect.sync(() => {
-				process.stderr.write("db reset is human-only; use db prune or run from a human terminal\n");
-				process.exit(4);
-			});
-			return;
+			yield* Console.error("db reset is human-only; use db prune or run from a human terminal");
+			return yield* CliExit.set(4);
 		}
 
 		// Honor the VITEST_AGENT_PROJECT_DIR override before cwd so the `db`
@@ -63,35 +59,25 @@ const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 		// one a sub-package-cwd hook actually writes to.
 		const dbPath = yield* resolveDataPath(process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd());
 
-		// Gate 2: non-TTY without --yes
-		if (!process.stdout.isTTY && !yes) {
-			yield* Effect.sync(() => {
-				process.stderr.write("db reset requires --yes when stdout is not a TTY\n");
-				process.exit(5);
-			});
-			return;
+		// Gate 2: a run that may not prompt a person needs --yes. `CliInteractive`
+		// is the kit's one decision: a human audience (no --agent / --ci /
+		// VITEST_AGENT_AUDIENCE=agent|ci) with a terminal on stdin AND stdout.
+		if (!yes && !(yield* CliInteractive)) {
+			yield* Console.error(
+				"db reset requires --yes when the run is not interactive (stdout or stdin is not a TTY, or the audience is not human)",
+			);
+			return yield* CliExit.set(5);
 		}
 
-		// Gate 3: interactive TTY confirmation prompt (only when TTY and no --yes)
-		if (process.stdout.isTTY && !yes) {
-			const confirmed = yield* Effect.promise<boolean>(() => {
-				return new Promise((resolve) => {
-					const rl = readline.createInterface({
-						input: process.stdin,
-						output: process.stdout,
-					});
-					rl.question(`Wipe ${dbPath}? [y/N]: `, (answer) => {
-						rl.close();
-						resolve(answer === "y" || answer === "Y");
-					});
-				});
-			});
-
+		// Gate 3: interactive confirmation (only when interactive and no --yes).
+		// Core's prompt over the kit's gated `Terminal`; Ctrl-C is `Cancelled`
+		// (exit 130, "cancelled; nothing written").
+		if (!yes) {
+			const confirmed = yield* Prompt.run(Prompt.Confirm({ message: `Wipe ${dbPath}?`, initial: false })).pipe(
+				Effect.catchTag("QuitError", () => Effect.fail(Cancelled.make({ reason: "interrupt" }))),
+			);
 			if (!confirmed) {
-				yield* Effect.sync(() => {
-					process.stdout.write("aborted\n");
-					process.exit(0);
-				});
+				yield* Console.log("aborted");
 				return;
 			}
 		}
@@ -103,10 +89,8 @@ const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 		yield* fs.remove(`${dbPath}-shm`).pipe(Effect.catch(() => Effect.void));
 		yield* fs.remove(`${dbPath}-wal`).pipe(Effect.catch(() => Effect.void));
 
-		yield* Effect.sync(() => {
-			process.stdout.write(`Deleted database at ${dbPath}\n`);
-		});
-	}).pipe(Effect.provide(NodeServices.layer)),
+		yield* Console.log(`Deleted database at ${dbPath}`);
+	}),
 ).pipe(Command.withDescription("Wipe the database (human-only; blocked in agent contexts)"));
 
 // query -----------------------------------------------------------------------

@@ -1,5 +1,9 @@
-import { Layer } from "effect";
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Effect, Layer } from "effect";
+import { TestConsole } from "effect/testing";
+import { afterEach, describe, expect, it } from "vitest";
 import { LoggerLive, resolveLogFile, resolveLogLevel } from "../src/layers/LoggerLive.js";
 
 describe("resolveLogLevel", () => {
@@ -102,5 +106,55 @@ describe("LoggerLive", () => {
 	it("returns a layer without file logging when only level is provided", () => {
 		const layer = LoggerLive("Info");
 		expect(Layer.isLayer(layer)).toBe(true);
+	});
+});
+
+/**
+ * Run a program that logs one record per level under `LoggerLive`, with the
+ * `Console` swapped for `TestConsole` so every stderr/stdout line is captured.
+ */
+const captureUnder = (layer: Layer.Layer<never>) =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			yield* Effect.logDebug("dbg-line");
+			yield* Effect.logInfo("info-line");
+			yield* Effect.logWarning("warn-line");
+			return { stderr: yield* TestConsole.errorLines, stdout: yield* TestConsole.logLines };
+		}).pipe(Effect.provide(layer), Effect.provide(TestConsole.layer)),
+	);
+
+const messages = (lines: ReadonlyArray<unknown>) => lines.map((line) => JSON.parse(String(line)).message);
+
+describe("LoggerLive output (over CliLog)", () => {
+	let dir: string | undefined;
+	afterEach(() => {
+		if (dir) rmSync(dir, { recursive: true, force: true });
+		dir = undefined;
+	});
+
+	it("is silent on stdout and stderr when no level is set", async () => {
+		expect(await captureUnder(LoggerLive())).toEqual({ stderr: [], stdout: [] });
+		expect(await captureUnder(LoggerLive("None"))).toEqual({ stderr: [], stdout: [] });
+	});
+
+	it("writes one NDJSON line per record at or above the level, to stderr only", async () => {
+		const { stderr, stdout } = await captureUnder(LoggerLive("Debug"));
+		expect(stdout).toEqual([]);
+		// Exactly one line each: no second, plain CliLogger copy of the Info+ records.
+		expect(messages(stderr)).toEqual(["dbg-line", "info-line", "warn-line"]);
+	});
+
+	it("filters below the level", async () => {
+		const { stderr } = await captureUnder(LoggerLive("Warn"));
+		expect(messages(stderr)).toEqual(["warn-line"]);
+	});
+
+	it("appends the same NDJSON lines to the log file", async () => {
+		dir = mkdtempSync(join(tmpdir(), "engine-logger-"));
+		const file = join(dir, "nested", "diag.ndjson");
+		const { stderr } = await captureUnder(LoggerLive("Info", file));
+		const fileLines = readFileSync(file, "utf8").trimEnd().split("\n");
+		expect(messages(fileLines)).toEqual(["info-line", "warn-line"]);
+		expect(fileLines).toEqual(stderr.map(String));
 	});
 });

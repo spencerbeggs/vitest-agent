@@ -1,0 +1,10 @@
+{bold}src/math.test.ts{/bold|dim}{dim} — 3 tests{/bold|dim}
+  {green}✓{/fg} math > adds{dim} (12ms){/bold|dim}
+  {red}✗{/fg} math > subtracts{dim} (2ms){/bold|dim}
+{dim}      AssertionError: expected 1 to be 2{/bold|dim}
+{dim}      expected: 2{/bold|dim}
+{dim}      received: 1{/bold|dim}
+  {dim}↷{/bold|dim} math > divides{dim} (0ms){/bold|dim}
+{bold}Coverage:{/bold|dim} {green}✓{/fg} all metrics meet thresholds
+{bold}Trend:{/bold|dim} {gray}stable{/fg}{dim} (1 run){/bold|dim}
+{bold}Total:{/bold|dim} {green}   1✓{/fg}  {red}   1✗{/fg}  {dim}   1↷{/bold|dim}  {gray}   0⧖{/fg}{dim}    15ms{/bold|dim}

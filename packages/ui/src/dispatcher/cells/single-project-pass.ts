@@ -1,3 +1,4 @@
+import { Fmt } from "@effected/cli";
 import type { DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
@@ -27,7 +28,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	const lines =
 		collected === 0
 			? [formatTotals(inputs.state)]
-			: [formatTotals(inputs.state), `${collected} ${collected === 1 ? "module" : "modules"} all-passed.`];
+			: [formatTotals(inputs.state), `${Fmt.plural(collected, "module")} all-passed.`];
 	return `${lines.join("\n\n")}\n${buildFooter(inputs)}`;
 };
 

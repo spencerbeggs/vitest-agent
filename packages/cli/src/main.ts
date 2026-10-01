@@ -14,27 +14,31 @@
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { FailureDetails } from "@effected/cli";
-import { CliRuntime } from "@effected/cli";
+import { Cancelled, CliAudience, CliRuntime } from "@effected/cli";
 import type { Distribution } from "@effected/engine";
 import { CurrentDistribution } from "@effected/engine";
-import {
-	PathResolutionLive,
-	PlatformLive,
-	resolveDataPath,
-	resolveLogFile,
-	resolveLogLevel,
-	resolveProjectDir,
-} from "@vitest-agent/engine";
+import { PathResolutionLive, PlatformLive, resolveDataPath, resolveProjectDir } from "@vitest-agent/engine";
 import { formatFatalError } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
 import { Command } from "effect/cli";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { versionFormatterLayer } from "./lib/version-formatter.js";
+import { withCarrierVersion } from "./lib/version-formatter.js";
 import { CURRENT_CLI_VERSION } from "./version.js";
 
+/**
+ * The environment variable that overrides the detected audience
+ * (`human` | `agent` | `ci`), read by `@effected/env`'s `Audience` through
+ * `Config`. The `VITEST_AGENT_` prefix is the family's runtime-override
+ * namespace (`VITEST_AGENT_CONSOLE`, `VITEST_AGENT_PROJECT_DIR`,
+ * `VITEST_AGENT_CLI_CMD`); the `VITEST_REPORTER_` prefix survives only on the
+ * two legacy logging variables.
+ */
+const AUDIENCE_ENV_VAR = "VITEST_AGENT_AUDIENCE";
+
 const rootCommand = Command.make("vitest-agent").pipe(
+	Command.withSharedFlags(CliAudience.flags()),
 	Command.withSubcommands([dbCommand, doctorCommand, agentCommand]),
 );
 
@@ -71,6 +75,11 @@ const failureName = (error: unknown): string => {
  * and runWith-rendered `UserError`s never reach here (the kit skips them).
  */
 const renderFailure = (error: unknown, details: FailureDetails): string => {
+	// A custom `render` replaces the kit's default rendering wholesale,
+	// including its fixed `Cancelled` line, so keep that line here.
+	if (error instanceof Cancelled) {
+		return "vitest-agent: cancelled; nothing written";
+	}
 	if (details.isDefect) {
 		return `vitest-agent: ${formatFatalError(error)}`;
 	}
@@ -83,35 +92,39 @@ const renderFailure = (error: unknown, details: FailureDetails): string => {
  * re-exported from `index.ts` — a library consumer's import graph must not
  * pull in the process-owning module.
  *
+ * The one `@effected/cli` wiring: the root carries `CliAudience.flags()`
+ * (`--audience <human|agent|ci>`, `--human`, `--agent`, `--ci`), runs through
+ * `CliAudience.run`, and `CliRuntime.main`'s `env` option builds the
+ * `@effected/env` services (`Audience` with the `VITEST_AGENT_AUDIENCE`
+ * override, `TerminalEnv`, `CliTheme`, `CliInteractive`, the gated `Terminal`)
+ * plus the kit's colour-decided help formatter, inside failure reporting.
+ *
  * Output routing (hooks parse `agent *` stdout with jq, so stdout carries
  * only what a command writes as its result):
  *
- * - Inside the platform, the engine's `LoggerLive` (installed by
- *   `PlatformLive`) is the active logger: silent unless
- *   `VITEST_REPORTER_LOG_LEVEL` is set, then NDJSON on stderr (plus
- *   `VITEST_REPORTER_LOG_FILE`). Every `Effect.log*` a command or engine
- *   service emits goes there.
- * - Outside the platform, `CliRuntime.main`'s default `CliLogger` is
- *   outermost and sends every level to stderr. It is what renders reported
- *   failures (a layer-build failure, a typed command failure, a defect)
- *   through `renderFailure`.
+ * - `env.log` makes `CliLog.layer` the one logger set, outermost: a
+ *   `CliLogger` for ordinary lines and failure reports, plus a diagnostics
+ *   sink that is silent unless `VITEST_REPORTER_LOG_LEVEL` is set (then
+ *   NDJSON for agent / ci, pretty for a human TTY, stderr only), plus an
+ *   async NDJSON file when `VITEST_REPORTER_LOG_FILE` is set. The platform
+ *   therefore installs no logger of its own (`PlatformLive`'s `logger: false`:
+ *   the engine's `LoggerLive` would otherwise replace this set inside the
+ *   program).
  * - An explicit `--help` (or a bare group invocation) prints help on
- *   stdout. A usage error (unknown flag, bad value, unknown subcommand)
- *   prints help AND the parse errors on stderr (`helpOnUsageError: "stderr"`),
- *   so stdout stays empty for a jq-piping hook. Both render via
- *   the `CliOutput` formatter (`versionFormatterLayer`), which must come
- *   through `platform` for the kit to reroute it.
+ *   stdout. A usage error (unknown flag, bad value, unknown subcommand,
+ *   conflicting audience flags) prints help AND the parse errors on stderr
+ *   (`helpOnUsageError: "stderr"`), so stdout stays empty for a jq-piping
+ *   hook.
  *
  * Exit codes are the kit's: `0` success (including bare `--help`), `64` a
- * usage error (parse error, unknown subcommand), `1` any other reported
- * failure. Commands that `process.exit` with their own code still do so.
+ * usage error, `130` a cancelled prompt, `1` any other reported failure.
+ * Commands that record their own code through `CliExit` (`db reset`) or
+ * `process.exit` with it still exit with it.
  *
  * @public
  */
 export const main = (options: MainOptions = {}): void => {
 	const env = process.env;
-	const logLevel = resolveLogLevel(env);
-	const logFile = resolveLogFile(env);
 
 	// Resolve the project root used for `data.db` resolution. `resolveProjectDir`
 	// honors `VITEST_AGENT_PROJECT_DIR` (then the MCP server's
@@ -126,26 +139,31 @@ export const main = (options: MainOptions = {}): void => {
 	const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
 
 	const dataLayer = Layer.unwrap(
-		Effect.map(resolveDataPath(projectDir), (dbPath) => PlatformLive({ dbPath, env, logLevel, logFile })),
+		Effect.map(resolveDataPath(projectDir), (dbPath) => PlatformLive({ dbPath, env, logger: false })),
 	);
 
 	// Provided through `CliRuntime.main`'s `platform`, i.e. INSIDE failure
 	// reporting: a failure resolving the data path, opening SQLite, or running
 	// migrations renders as a line on stderr and exits non-zero instead of
-	// escaping to `runMain`'s default report.
-	const platform = Layer.mergeAll(dataLayer, versionFormatterLayer).pipe(
+	// escaping to `runMain`'s default report. It also supplies the `Stdio` and
+	// `Terminal` the env layer reads, and the `FileSystem` / `Path` the log file
+	// sink needs.
+	const platform = dataLayer.pipe(
 		Layer.provideMerge(PathResolutionLive(projectDir)),
 		Layer.provideMerge(NodeServices.layer),
 	);
 
-	const program = CliRuntime.main(Command.run(rootCommand, { version: CURRENT_CLI_VERSION }), {
+	const program = CliRuntime.main(withCarrierVersion(CliAudience.run(rootCommand, { version: CURRENT_CLI_VERSION })), {
 		platform,
 		render: renderFailure,
 		helpOnUsageError: "stderr",
+		env: {
+			audienceEnvVar: AUDIENCE_ENV_VAR,
+			log: { envVar: "VITEST_REPORTER_LOG_LEVEL", file: { envVar: "VITEST_REPORTER_LOG_FILE" } },
+		},
 	}).pipe(
-		// Outermost, so `versionFormatterLayer`'s build-time read of
-		// `CurrentDistribution` sees the carrier's identity rather than the
-		// reference's `Option.none()` default.
+		// Outermost, so `withCarrierVersion` sees the carrier's identity rather
+		// than the reference's `Option.none()` default.
 		Effect.provideService(CurrentDistribution, Option.fromNullishOr(options.distribution)),
 	);
 

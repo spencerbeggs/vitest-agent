@@ -1,0 +1,8 @@
+::group::vitest-agent
+alpha: 4/6 passed, 2 failed, 0 skipped
+beta: 2/3 passed, 0 failed, 1 skipped
+gamma: 9/9 passed, 0 failed, 0 skipped
+coverage: 5 file(s) below target (src/math.ts, src/strings.ts, src/a.ts, +2 more)
+classifications: new-failure: 1, persistent: 1, flaky: 1, recovered: 1
+db: /tmp/vitest-agent/data.db
+::endgroup::

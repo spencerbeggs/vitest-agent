@@ -1,0 +1,3 @@
+{bold}Trend:{/bold|dim} {green}improving{/fg}{dim} (6 runs){/bold|dim}
+{bold}Trend:{/bold|dim} {yellow}regressing{/fg}{dim} (6 runs){/bold|dim}
+{bold}Trend:{/bold|dim} {gray}stable{/fg}{dim} (1 run){/bold|dim}

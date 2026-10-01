@@ -2,9 +2,11 @@
  * Coverage section: per-metric percentage, threshold violations, top-N gaps.
  */
 
+import { Fmt } from "@effected/cli";
 import type { CoverageRenderState } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
+import { inkStyle } from "../theme.js";
 
 /**
  * Props for the `CoverageBlock` component.
@@ -20,10 +22,11 @@ export interface CoverageBlockProps {
 
 const METRIC_ORDER = ["lines", "branches", "functions", "statements"] as const;
 
-const formatPercent = (n: number): string => {
-	const rounded = Math.round(n * 10) / 10;
-	return `${rounded}%`;
-};
+/** Coverage metrics arrive on istanbul's 0–100 scale; `Fmt.percent` takes a 0–1 ratio. */
+const formatPercent = (n: number): string => Fmt.percent(n / 100);
+
+/** A metric below its threshold is a coverage threshold failure: the kit's `failure` token. */
+const FAILURE = inkStyle("failure");
 
 /**
  * Renders the coverage section: per-metric percentages, threshold
@@ -46,16 +49,16 @@ export const CoverageBlock: FC<CoverageBlockProps> = ({ coverage, maxGaps = 3 })
 				return (
 					<Box key={metric}>
 						<Text>{`  ${metric}: `}</Text>
-						{failing ? <Text color="red">{formatPercent(actual)}</Text> : <Text>{formatPercent(actual)}</Text>}
+						{failing ? <Text {...FAILURE}>{formatPercent(actual)}</Text> : <Text>{formatPercent(actual)}</Text>}
 						{threshold !== undefined ? <Text dimColor> (threshold {formatPercent(threshold)})</Text> : null}
 					</Box>
 				);
 			})}
 			{coverage.violations.length > 0 ? (
 				<Box flexDirection="column">
-					<Text color="red">Violations</Text>
+					<Text {...FAILURE}>Violations</Text>
 					{coverage.violations.map((v) => (
-						<Text key={v.metric} color="red">
+						<Text key={v.metric} {...FAILURE}>
 							{`  ${v.metric}: ${formatPercent(v.actual)} < ${formatPercent(v.expected)}`}
 						</Text>
 					))}
@@ -70,9 +73,7 @@ export const CoverageBlock: FC<CoverageBlockProps> = ({ coverage, maxGaps = 3 })
 							{g.uncoveredLines !== undefined ? `: ${g.uncoveredLines}` : ""}
 						</Text>
 					))}
-					{elidedGaps > 0 ? (
-						<Text dimColor>{`  (+${elidedGaps} more ${elidedGaps === 1 ? "gap" : "gaps"})`}</Text>
-					) : null}
+					{elidedGaps > 0 ? <Text dimColor>{`  (+${Fmt.plural(elidedGaps, "more gap", "more gaps")})`}</Text> : null}
 				</Box>
 			) : null}
 		</Box>

@@ -6,6 +6,7 @@
 import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
+import { inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
 
 /**
  * Props for the `FailureSection` component.
@@ -27,27 +28,27 @@ const FailureRow: FC<{ failure: FailureRecord; includeStack: boolean }> = ({ fai
 		<Box flexDirection="column">
 			<Box>
 				<Text>
-					<Text color="red">✗</Text>
+					<Text {...statusInkStyle("failure")}>{statusGlyph("failure")}</Text>
 					{` ${failure.modulePath} > ${suite}${failure.testName}`}
 					{failure.classification !== null ? <Text color="yellow">{classification}</Text> : null}
 				</Text>
 			</Box>
 			{failure.error?.message !== undefined ? (
-				<Text color="red">{`  ${failure.error.message.split("\n", 1)[0] ?? ""}`}</Text>
+				<Text {...inkStyle("failure")}>{`  ${failure.error.message.split("\n", 1)[0] ?? ""}`}</Text>
 			) : null}
 			{failure.error?.diff !== undefined
 				? failure.error.diff.split("\n").map((line, idx) => {
 						const key = `diff-${idx}`;
 						if (line.startsWith("-")) {
 							return (
-								<Text key={key} color="red">
+								<Text key={key} {...inkStyle("failure")}>
 									{`  ${line}`}
 								</Text>
 							);
 						}
 						if (line.startsWith("+")) {
 							return (
-								<Text key={key} color="green">
+								<Text key={key} {...inkStyle("success")}>
 									{`  ${line}`}
 								</Text>
 							);

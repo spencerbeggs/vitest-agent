@@ -40,6 +40,7 @@
 		"@effected/cli": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/engine": "catalog:effected",
+		"@effected/env": "^0.1.0",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
 		"@vitest-agent/engine": "workspace:*",

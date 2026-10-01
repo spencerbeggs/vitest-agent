@@ -2,7 +2,16 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EnvironmentDetector, EnvironmentDetectorLive, resolveLogLevel } from "@vitest-agent/engine";
+import { NodeStdio, NodeTerminal } from "@effect/platform-node";
+import { CliLog } from "@effected/cli";
+import { Audience, CurrentRuntimeEnv, EnvOverride, TerminalEnv } from "@effected/env";
+import {
+	EnvironmentDetector,
+	EnvironmentDetectorLive,
+	ExecutorResolver,
+	ExecutorResolverLive,
+	resolveLogLevel,
+} from "@vitest-agent/engine";
 import type {
 	AgentPluginOptions,
 	ConsoleMode,
@@ -24,8 +33,7 @@ import {
 	formatFatalError,
 	isTestFileName,
 } from "@vitest-agent/sdk";
-import type { Layer } from "effect";
-import { Effect, Schema } from "effect";
+import { ConfigProvider, Effect, Layer, Logger, Option } from "effect";
 import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import type { VitestPluginContext } from "vitest/node";
 import { ConfigValidationLive } from "./layers/ConfigValidationLive.js";
@@ -116,10 +124,14 @@ export interface AgentPluginConstructorOptions extends AgentPluginOptions {
  *   the dedicated `ci-annotations` reporter is opt-in until the GHA
  *   annotations writer ships).
  *
- * An invalid `VITEST_AGENT_CONSOLE` value is ignored with a diagnostic
- * line sent to `report` (default: `process.stderr`). `configureVitest`
- * passes the per-Vitest-instance dedupe sink so the line prints once per
- * run rather than once per project (issue #459).
+ * `VITEST_AGENT_CONSOLE` is read through `@effected/env`'s `EnvOverride`
+ * (case-insensitive, per-audience accepted literals), with the executor as
+ * the `Audience`. A value the executor does not accept is ignored with one
+ * diagnostic line sent to `report` (default: `process.stderr`), never stdout:
+ * `EnvOverride` warns through `Effect.logWarning`, so the read runs under a
+ * replacing logger that forwards into `report`. `configureVitest` passes the
+ * per-Vitest-instance dedupe sink so the line prints once per run rather than
+ * once per project (issue #459).
  *
  * @internal
  */
@@ -131,25 +143,16 @@ export function resolveConsoleMode(
 		process.stderr.write(line);
 	},
 ): ConsoleMode {
-	const override = process.env.VITEST_AGENT_CONSOLE;
-	if (override !== undefined && override !== "") {
-		// Each per-slot Schema.is call is a narrowed Literal check.  Forming a
-		// single ternary-produced union of the three Literal schemas confuses
-		// tsgo (annotations-method contravariance), so the three guards stay
-		// separate.
-		if (executor === "human" && Schema.is(HumanConsoleMode)(override)) return override;
-		if (executor === "agent" && Schema.is(AgentConsoleMode)(override)) return override;
-		if (executor !== "human" && executor !== "agent" && Schema.is(CiConsoleMode)(override)) return override;
-		const accepted =
-			executor === "human"
-				? HumanConsoleMode.literals
-				: executor === "agent"
-					? AgentConsoleMode.literals
-					: CiConsoleMode.literals;
-		report(
-			`[vitest-agent:plugin] ignoring invalid VITEST_AGENT_CONSOLE="${override}" for ${executor} executor; accepted for ${executor}: ${accepted.join(" | ")}\n`,
-		);
-	}
+	const override = Effect.runSync(
+		readConsoleOverride.pipe(
+			Effect.provideService(Audience, { kind: executor, source: "detected" }),
+			// Core's default ConfigProvider copies process.env once per process;
+			// a fresh one keeps the read at call time, as before.
+			Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromEnv()),
+			Effect.provide(Logger.layer([reportLogger(report)])),
+		),
+	);
+	if (Option.isSome(override)) return override.value;
 	const console = options.console;
 	if (executor === "human") {
 		return (console?.human as HumanConsoleMode | undefined) ?? "passthrough";
@@ -159,6 +162,36 @@ export function resolveConsoleMode(
 	}
 	return (console?.ci as CiConsoleMode | undefined) ?? "passthrough";
 }
+
+/**
+ * The `VITEST_AGENT_CONSOLE` override for the current `Audience`: the accepted
+ * literal, or `None` when unset, empty, or not accepted by that audience (which
+ * logs one warning). The result type is the union of every slot's literals,
+ * not the current audience's; the audience check is a runtime one.
+ *
+ * @internal
+ */
+export const readConsoleOverride = EnvOverride.read({
+	envVar: "VITEST_AGENT_CONSOLE",
+	accepts: {
+		human: HumanConsoleMode.literals,
+		agent: AgentConsoleMode.literals,
+		ci: CiConsoleMode.literals,
+	},
+});
+
+/**
+ * A logger that renders each record as one `[vitest-agent:plugin]` line into
+ * `report`. Replaces Effect's default logger, which writes to stdout (the
+ * reporter's stream inside Vitest) with a timestamp and fiber id.
+ *
+ * @internal
+ */
+const reportLogger = (report: (line: string) => void) =>
+	Logger.make(({ message }) => {
+		const text = Array.isArray(message) ? message.map(String).join(" ") : String(message);
+		report(`[vitest-agent:plugin] ${text}\n`);
+	});
 
 /**
  * The plugin owns stdout when the resolved console mode produces visible
@@ -260,20 +293,6 @@ const TEST_FILE_DIR_RE = new RegExp(`/(?:${SRC_DIR}|${TEST_DIR})/`);
 const isTestFile = (id: string): boolean => isTestFileName(id) && TEST_FILE_DIR_RE.test(id);
 
 /**
- * Map a detected {@link Environment} to its {@link Executor}. Inline copy
- * of the `ExecutorResolverLive` mapping so the plugin can compute it
- * synchronously inside `configureVitest` without spinning up an Effect
- * runtime.
- *
- * @internal
- */
-function envToExecutor(env: Environment): Executor {
-	if (env === "agent-shell") return "agent";
-	if (env === "terminal") return "human";
-	return "ci";
-}
-
-/**
  * Minimal Vite `Logger` shape this plugin depends on. Only `warn` is
  * wrapped; every other method is forwarded untouched.
  * @internal
@@ -321,6 +340,25 @@ function installViteSourceMapWarningFilter(resolvedConfig: ResolvedConfigLike): 
 }
 
 /**
+ * The plugin's diagnostics logger set: `CliLog` at `VITEST_REPORTER_LOG_LEVEL`,
+ * stderr only (pretty for a human at a terminal, NDJSON otherwise). The plugin
+ * has no `main`, so it builds the `Audience` and `TerminalEnv` `CliLog` needs
+ * itself; stderr's TTY state is passed explicitly because core `Stdio` reports
+ * only stdout's.
+ *
+ * @internal
+ */
+const PluginDiagnosticsLive = CliLog.layer({ envVar: "VITEST_REPORTER_LOG_LEVEL" }).pipe(
+	Layer.provide(
+		Layer.mergeAll(
+			Audience.layer(),
+			TerminalEnv.layer({ stderrIsTerminal: Effect.sync(() => process.stderr.isTTY === true) }),
+		),
+	),
+	Layer.provide(Layer.mergeAll(CurrentRuntimeEnv.layer, NodeStdio.layer, NodeTerminal.layer)),
+);
+
+/**
  * Vitest plugin that injects `AgentReporter` into the reporter chain.
  *
  * @param options - Plugin configuration options
@@ -332,12 +370,24 @@ function installViteSourceMapWarningFilter(resolvedConfig: ResolvedConfigLike): 
 export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?: Layer.Layer<EnvironmentDetector>) {
 	const layer = _layer ?? EnvironmentDetectorLive(process.env);
 
-	// Plugin's own debug-log helper reads VITEST_REPORTER_LOG_LEVEL via
-	// resolveLogLevel; `logLevel` is no longer a user option.
+	// Plugin's own debug-log helper: debug records through `CliLog`, tagged
+	// `vitest-agent:plugin`, filtered by VITEST_REPORTER_LOG_LEVEL. Gated on
+	// resolveLogLevel so a default run never builds the diagnostics layer;
+	// provided per line (the package's per-call layer convention), which also
+	// releases NodeTerminal's stdin listener each time.
 	const logLevel = resolveLogLevel(process.env);
-	const shouldLog = logLevel !== undefined && logLevel !== "None";
+	const shouldLog = logLevel === "Debug" || logLevel === "Trace" || logLevel === "All";
 	const log = shouldLog
-		? (...args: unknown[]) => process.stderr.write(`[vitest-agent:plugin] ${args.map(String).join(" ")}\n`)
+		? (...args: unknown[]) => {
+				// One string, not variadic: CliLog's NDJSON `message` is the raw
+				// array for a variadic call, a string otherwise.
+				Effect.runSync(
+					Effect.logDebug(args.map(String).join(" ")).pipe(
+						CliLog.component("vitest-agent:plugin"),
+						Effect.provide(PluginDiagnosticsLive),
+					),
+				);
+			}
 		: (..._args: unknown[]) => {};
 
 	const discoverStrategyResolved =
@@ -409,13 +459,15 @@ export function AgentPlugin(options: AgentPluginConstructorOptions = {}, _layer?
 				}
 
 				// Auto-detect the environment, then map to the executor slot.
-				const env: Environment = await Effect.runPromise(
-					Effect.provide(
-						Effect.flatMap(EnvironmentDetector, (d) => d.detect()),
-						layer,
-					),
+				// The Environment -> Executor mapping is engine's
+				// ExecutorResolverLive, the same one the reporter uses.
+				const { env, executor } = await Effect.runPromise(
+					Effect.gen(function* () {
+						const env: Environment = yield* (yield* EnvironmentDetector).detect();
+						const executor = yield* (yield* ExecutorResolver).resolve(env);
+						return { env, executor };
+					}).pipe(Effect.provide(Layer.merge(layer, ExecutorResolverLive))),
 				);
-				const executor = envToExecutor(env);
 				// Report files default on for machine-facing executors and off
 				// for a human at a terminal; `report: false` disables them, and
 				// `report: { scope }` renames the `.vitest/<scope>` directory.

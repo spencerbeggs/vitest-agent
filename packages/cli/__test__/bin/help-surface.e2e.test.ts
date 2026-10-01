@@ -54,4 +54,51 @@ describe("vitest-agent CLI surface", () => {
 		expect(result.stdout).toBe("");
 		expect(result.stderr).not.toBe("");
 	});
+
+	it("should exit 64 with stdout empty on an invalid --audience value", async () => {
+		const result = await runCli(["--audience", "nope", "doctor"]);
+
+		expect(result.exitCode).toBe(64);
+		expect(result.stdout).toBe("");
+		expect(result.stderr).toContain("nope");
+	});
+
+	it("should exit 64 when more than one audience flag is given", async () => {
+		const result = await runCli(["--agent", "--human", "doctor"]);
+
+		expect(result.exitCode).toBe(64);
+		expect(result.stdout).toBe("");
+		expect(result.stderr).toContain("Give at most one of --audience, --human, --agent, --ci");
+	});
+
+	it("should accept one audience flag before or after the subcommand", async () => {
+		for (const args of [
+			["--agent", "db", "path"],
+			["db", "path", "--ci"],
+		]) {
+			const result = await runCli(args);
+
+			expect(result.exitCode).toBe(0);
+			expect(result.stdout).toMatch(/data\.db\n$/);
+			expect(result.stderr).toBe("");
+		}
+	});
+
+	it("should keep diagnostics on stderr as NDJSON and stdout parseable under VITEST_REPORTER_LOG_LEVEL", async () => {
+		const result = await runCli(["--agent", "doctor", "--format", "json"], {
+			env: { VITEST_REPORTER_LOG_LEVEL: "debug" },
+		});
+
+		// stdout is the command's JSON result only
+		expect(() => JSON.parse(result.stdout)).not.toThrow();
+		// stderr carries the engine's debug records, one JSON object per line
+		const lines = result.stderr
+			.trimEnd()
+			.split("\n")
+			.filter((line) => line.length > 0);
+		expect(lines.length).toBeGreaterThan(0);
+		for (const line of lines) {
+			expect(() => JSON.parse(line)).not.toThrow();
+		}
+	});
 });

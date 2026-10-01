@@ -2,8 +2,11 @@
  * The one-line trend signal — `Trend: <direction> (<N> runs)`.
  */
 
+import type { Style, TokenName } from "@effected/cli";
+import { Fmt } from "@effected/cli";
 import { Text } from "ink";
 import type { FC } from "react";
+import { VitestAgentTokens, inkStyle } from "../theme.js";
 
 /**
  * Props for the `TrendLine` component.
@@ -15,10 +18,11 @@ export interface TrendLineProps {
 	readonly trend: { readonly direction: "improving" | "regressing" | "stable"; readonly runCount: number };
 }
 
-const COLOR: Record<TrendLineProps["trend"]["direction"], string> = {
-	improving: "green",
-	regressing: "red",
-	stable: "gray",
+/** A regressing trend is a `warning`, not a failure (the kit's drift decision). */
+const TOKEN: Record<TrendLineProps["trend"]["direction"], TokenName | Style> = {
+	improving: "success",
+	regressing: "warning",
+	stable: VitestAgentTokens.stable,
 };
 
 /**
@@ -27,10 +31,10 @@ const COLOR: Record<TrendLineProps["trend"]["direction"], string> = {
  * @public
  */
 export const TrendLine: FC<TrendLineProps> = ({ trend }) => {
-	const runs = trend.runCount === 1 ? "1 run" : `${trend.runCount} runs`;
+	const runs = Fmt.plural(trend.runCount, "run");
 	return (
 		<Text>
-			<Text bold>Trend:</Text> <Text color={COLOR[trend.direction]}>{trend.direction}</Text>
+			<Text bold>Trend:</Text> <Text {...inkStyle(TOKEN[trend.direction])}>{trend.direction}</Text>
 			<Text dimColor> ({runs})</Text>
 		</Text>
 	);

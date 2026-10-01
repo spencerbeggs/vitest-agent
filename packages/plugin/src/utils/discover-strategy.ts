@@ -1,5 +1,7 @@
 import { join, sep } from "node:path";
+import { CurrentRuntimeEnv } from "@effected/env";
 import { NON_DISCOVERABLE_DIRS, SRC_DIR, TEST_DIR, TEST_FILE_GLOB_SUFFIX, TEST_HELPER_DIRS } from "@vitest-agent/sdk";
+import { ConfigProvider, Effect, Option } from "effect";
 import type { TestProjectInlineConfiguration, TestTagDefinition } from "vitest/config";
 import { configDefaults } from "vitest/config";
 import { findTestFiles } from "./find-test-files.js";
@@ -210,12 +212,30 @@ class ConcreteDiscoverStrategy extends DiscoverStrategy {
 
 // ── DefaultDiscoverStrategy ───────────────────────────────────────────────────
 
-const DEFAULT_TAGS: ReadonlyArray<Tag> = [
+/**
+ * Whether the process runs in CI, by `@effected/env`'s `RuntimeEnv` rule: a
+ * truthy `GITHUB_ACTIONS`, or a `CI` / `CONTINUOUS_INTEGRATION` that is set,
+ * non-empty, and not `false` / `0` (is-in-ci semantics). Read when a strategy is
+ * constructed rather than at module load, so the environment in force when
+ * `AgentPlugin.discover()` runs is the one that decides.
+ */
+const runsInCi = (): boolean =>
+	Effect.runSync(
+		CurrentRuntimeEnv.pipe(
+			Effect.map((env) => Option.isSome(env.ci)),
+			Effect.provide(CurrentRuntimeEnv.layer),
+			// Core's default ConfigProvider copies process.env once per process;
+			// a fresh one reads the environment in force at construction.
+			Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromEnv()),
+		),
+	);
+
+const defaultTags = (inCi: boolean): ReadonlyArray<Tag> => [
 	Tag.make("unit"),
 	Tag.make("int", { timeout: 60_000 }),
 	Tag.make("e2e", {
 		timeout: 120_000,
-		retry: process.env.CI ? 2 : 0,
+		retry: inCi ? 2 : 0,
 	}),
 ];
 
@@ -230,7 +250,7 @@ const INT_RE = /\.int\.(test|spec)\.(ts|tsx|js|jsx)$/;
  * @public
  */
 export class DefaultDiscoverStrategy extends DiscoverStrategy {
-	readonly tags: ReadonlyArray<Tag> = DEFAULT_TAGS;
+	readonly tags: ReadonlyArray<Tag> = defaultTags(runsInCi());
 
 	get tagDefinitions(): ReadonlyArray<TestTagDefinition> {
 		return this.tags.map((t) => t.definition);

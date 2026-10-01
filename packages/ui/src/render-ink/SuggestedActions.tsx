@@ -2,9 +2,12 @@
  * Suggested-actions queue: severity-prefixed action rows with optional tool hint.
  */
 
+import type { Style, TokenName } from "@effected/cli";
+import { Token } from "@effected/cli";
 import type { ActionSeverity, SuggestedActionRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
+import { inkStyle } from "../theme.js";
 
 /**
  * Props for the `SuggestedActions` component.
@@ -16,10 +19,10 @@ export interface SuggestedActionsProps {
 	readonly actions: ReadonlyArray<SuggestedActionRecord>;
 }
 
-const SEVERITY_COLOR: Record<ActionSeverity, string> = {
-	info: "blue",
-	warn: "yellow",
-	blocker: "red",
+const SEVERITY_TOKEN: Record<ActionSeverity, TokenName | Style> = {
+	info: Token.named("blue"),
+	warn: "warning",
+	blocker: "failure",
 };
 
 /**
@@ -36,7 +39,7 @@ export const SuggestedActions: FC<SuggestedActionsProps> = ({ actions }) => {
 			{actions.map((action, idx) => (
 				<Box key={`${action.severity}-${idx}-${action.title}`} flexDirection="column">
 					<Box>
-						<Text color={SEVERITY_COLOR[action.severity]} bold>
+						<Text {...inkStyle(SEVERITY_TOKEN[action.severity])} bold>
 							{`  ${action.severity}: `}
 						</Text>
 						<Text>{action.title}</Text>

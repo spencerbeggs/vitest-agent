@@ -1,0 +1,1 @@
+src/math.test.ts: 3 tests passed (50ms)

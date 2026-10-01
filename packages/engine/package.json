@@ -34,8 +34,10 @@
 	"dependencies": {
 		"@effect/platform-node": "catalog:effect",
 		"@effect/sql-sqlite-node": "catalog:effect",
+		"@effected/cli": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
 		"@effected/engine": "catalog:effected",
+		"@effected/env": "^0.1.0",
 		"@effected/glob": "catalog:effected",
 		"@effected/jsonc": "catalog:effected",
 		"@effected/toml": "catalog:effected",
@@ -44,8 +46,7 @@
 		"@effected/xdg": "catalog:effected",
 		"@effected/yaml": "catalog:effected",
 		"@vitest-agent/sdk": "workspace:*",
-		"effect": "catalog:effect",
-		"std-env": "^4.2.0"
+		"effect": "catalog:effect"
 	},
 	"devDependencies": {
 		"@effected/memfs": "catalog:effected",

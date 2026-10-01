@@ -87,6 +87,15 @@ export interface PlatformOptions {
 	readonly logLevel?: LogLevel.LogLevel | undefined;
 	/** Optional path for structured NDJSON log output. */
 	readonly logFile?: string | undefined;
+	/**
+	 * Whether `PlatformLive` installs its own logger set (`LoggerLive`, from
+	 * `logLevel` / `logFile`). Defaults to `true`. Pass `false` when the caller
+	 * already owns the logger set (for example `@effected/cli`'s `CliLog`
+	 * installed by `CliRuntime.main`'s `env.log`): `LoggerLive` replaces the
+	 * installed loggers, so leaving it in would silence the caller's set.
+	 * `logLevel` and `logFile` are ignored when this is `false`.
+	 */
+	readonly logger?: boolean | undefined;
 }
 
 /**
@@ -123,12 +132,14 @@ export type PlatformServices =
 export const PlatformLive = (options: PlatformOptions): Layer.Layer<PlatformServices, MigrationError | SqlError> => {
 	const { SqliteLayer, MigratorLayer } = makeSqliteStack(options.dbPath);
 
-	return Layer.mergeAll(ProjectDiscoveryLive, HistoryTrackerLive, OutputPipelineLive(options.env)).pipe(
+	const platform = Layer.mergeAll(ProjectDiscoveryLive, HistoryTrackerLive, OutputPipelineLive(options.env)).pipe(
 		Layer.provideMerge(DataReaderLive),
 		Layer.provideMerge(DataStoreLive),
 		Layer.provideMerge(MigratorLayer),
 		Layer.provideMerge(SqliteLayer),
 		Layer.provideMerge(NodePlatformLayer),
-		Layer.provideMerge(LoggerLive(options.logLevel, options.logFile)),
 	);
+	return options.logger === false
+		? platform
+		: platform.pipe(Layer.provideMerge(LoggerLive(options.logLevel, options.logFile)));
 };

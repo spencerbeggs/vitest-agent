@@ -73,6 +73,15 @@ export {
 	synthesizeFromAgentReport,
 	synthesizeRunEvents,
 } from "./synthesize.js";
+export {
+	type InkTextStyle,
+	VitestAgentStatus,
+	type VitestAgentStatusName,
+	VitestAgentTokens,
+	inkStyle,
+	statusGlyph,
+	statusInkStyle,
+} from "./theme.js";
 
 // --- Package version constant ---
 /**

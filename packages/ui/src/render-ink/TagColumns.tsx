@@ -8,6 +8,7 @@
 
 import { Text } from "ink";
 import type { FC } from "react";
+import { VitestAgentTokens, inkStyle } from "../theme.js";
 
 /**
  * Compute the view-level tag union: the alphabetically sorted set of tag
@@ -51,7 +52,7 @@ export const TagColumns: FC<TagColumnsProps> = ({ tags, counts }) => {
 			{tags.map((tag, i) => {
 				const count = counts?.[tag] ?? 0;
 				return (
-					<Text key={tag} color={count > 0 ? "cyan" : "gray"}>
+					<Text key={tag} {...inkStyle(count > 0 ? VitestAgentTokens.tag : VitestAgentTokens.zero)}>
 						{i > 0 ? "  " : ""}
 						{tag}:{String(count).padStart(4)}
 					</Text>

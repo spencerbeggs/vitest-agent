@@ -43,6 +43,7 @@ import {
 	classifyRunShape,
 	dispatch,
 	dispatcherTable,
+	formatDisplayDuration,
 	reduceRenderStateAll,
 	synthesizeFromAgentReport,
 } from "@vitest-agent/ui";
@@ -280,8 +281,8 @@ const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): 
 	return lines.join("\n");
 };
 
-const formatSummaryDuration = (ms: number): string =>
-	ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+/** The shared kit duration (`Fmt.duration` via `@vitest-agent/ui`), so the table matches the console. */
+const formatSummaryDuration = formatDisplayDuration;
 
 /**
  * Per-project pass/fail/timeout/skip/duration table — the unconditional

@@ -11,6 +11,7 @@
 import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
+import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
 
 /**
  * Props for the `FailuresSection` component.
@@ -28,6 +29,8 @@ const pathOf = (f: FailureRecord): string => {
 	const segments = [f.modulePath, ...f.suitePath, f.testName];
 	return segments.join(" › ");
 };
+
+const failureStatus = (f: FailureRecord) => (f.timedOut === true ? "timeout" : "failure");
 
 const firstLine = (message: string): string => message.split("\n", 1)[0] ?? "";
 
@@ -49,8 +52,10 @@ export const FailuresSection: FC<FailuresSectionProps> = ({ failures, limit }) =
 				<Box key={`${f.modulePath}:${f.testName}:${i}`} flexDirection="column">
 					<Text>
 						{"  "}
-						<Text color={f.timedOut === true ? "#e09a4e" : "red"}>{f.timedOut === true ? "⧖" : "✗"}</Text> {pathOf(f)}
-						{f.classification !== null ? <Text color="#c98ae0"> [{f.classification}]</Text> : null}
+						<Text {...statusInkStyle(failureStatus(f))}>{statusGlyph(failureStatus(f))}</Text> {pathOf(f)}
+						{f.classification !== null ? (
+							<Text {...inkStyle(VitestAgentTokens.classification)}> [{f.classification}]</Text>
+						) : null}
 					</Text>
 					{f.error?.message !== undefined ? (
 						<Text dimColor>

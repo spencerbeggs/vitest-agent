@@ -10,6 +10,7 @@
  * @packageDocumentation
  */
 
+import { Fmt } from "@effected/cli";
 import type {
 	FailureRecord,
 	FileCoverageReport,
@@ -19,27 +20,22 @@ import type {
 	TrendSummary,
 } from "@vitest-agent/sdk";
 import { formatDisplayDuration } from "../format-duration.js";
+import { statusGlyph } from "../theme.js";
 
 export { formatDisplayDuration } from "../format-duration.js";
 
 /**
- * Format a coverage percentage. Uses one decimal place for non-integer
- * values, no decimal for integers, with a trailing percent sign.
+ * Format a coverage percentage given on istanbul's 0–100 scale. One
+ * decimal place for non-integer values, none for integers, with a
+ * trailing percent sign (`Fmt.percent`, which takes a 0–1 ratio).
  */
-export const formatPercent = (n: number): string => {
-	const rounded = Math.round(n * 10) / 10;
-	return `${rounded}%`;
-};
+export const formatPercent = (n: number): string => Fmt.percent(n / 100);
 
 /**
- * Truncate a line to a maximum width with an ellipsis suffix.
+ * Truncate a line to a maximum display width with an ellipsis suffix
+ * (`Fmt.truncate`: grapheme- and East-Asian-width-aware).
  */
-export const truncate = (line: string, max: number): string => {
-	if (line.length <= max) return line;
-	const slice = max - 1;
-	if (slice <= 0) return "…";
-	return `${line.slice(0, slice)}…`;
-};
+export const truncate = (line: string, max: number): string => Fmt.truncate(line, max);
 
 /**
  * Format the `Tests:` header line —
@@ -122,12 +118,12 @@ export const formatCoverageJudgmentLine = (state: RenderState): string | null =>
 	const cov = state.coverage;
 	if (cov === null) return null;
 	if (cov.violations.length === 0) {
-		return "Coverage: ✓ all metrics meet thresholds";
+		return `Coverage: ${statusGlyph("success")} all metrics meet thresholds`;
 	}
+	// A threshold violation is a `failure` (✗); only a target shortfall is a warning.
 	const metrics = cov.violations.map((v) => v.metric).join(", ");
 	const fileCount = countLowCoverageFiles(cov.gaps);
-	const fileNoun = fileCount === 1 ? "file" : "files";
-	return `Coverage: ✗ ${fileCount} ${fileNoun} below minimum thresholds (${metrics})`;
+	return `Coverage: ${statusGlyph("failure")} ${Fmt.plural(fileCount, "file")} below minimum thresholds (${metrics})`;
 };
 
 const countLowCoverageFiles = (gaps: ReadonlyArray<{ readonly file: string }>): number => {
@@ -142,8 +138,7 @@ const countLowCoverageFiles = (gaps: ReadonlyArray<{ readonly file: string }>): 
  */
 export const formatTrendLine = (trend: TrendSummary | null): string | null => {
 	if (trend === null) return null;
-	const runs = trend.runCount === 1 ? "1 run" : `${trend.runCount} runs`;
-	return `Trend: ${trend.direction} (${runs})`;
+	return `Trend: ${trend.direction} (${Fmt.plural(trend.runCount, "run")})`;
 };
 
 /**
@@ -155,7 +150,7 @@ export const formatTrendLine = (trend: TrendSummary | null): string | null => {
 export const formatProjectRow = (project: ProjectSummary, nameWidth: number): string => {
 	const timeoutCount = project.timeoutCount ?? 0;
 	const total = project.passCount + project.failCount + project.skipCount + timeoutCount;
-	const glyph = project.failCount > 0 || timeoutCount > 0 ? "✗" : "✓";
+	const glyph = statusGlyph(project.failCount > 0 || timeoutCount > 0 ? "failure" : "success");
 	const countParts = [`${project.passCount}/${total} passed`];
 	if (project.failCount > 0) countParts.push(`${project.failCount} failed`);
 	if (timeoutCount > 0) countParts.push(`${timeoutCount} timed out`);

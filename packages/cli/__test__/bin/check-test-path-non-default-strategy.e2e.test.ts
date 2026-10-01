@@ -24,7 +24,8 @@ interface SpawnResult {
 const runBin = (args: string[], opts: { cwd: string }): SpawnResult => {
 	const result = spawnSync("node", [BIN, ...args], {
 		cwd: opts.cwd,
-		env: { ...process.env, VITEST_AGENT_PROJECT_DIR: opts.cwd },
+		// FORCE_COLOR=0: @effected/cli honours FORCE_COLOR, so pin a no-colour run on a pipe.
+		env: { ...process.env, FORCE_COLOR: "0", VITEST_AGENT_PROJECT_DIR: opts.cwd },
 		encoding: "utf-8",
 	});
 	return {
