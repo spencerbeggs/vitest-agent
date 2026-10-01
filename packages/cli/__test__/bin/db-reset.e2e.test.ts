@@ -11,7 +11,9 @@
  *
  * The interactive TTY path (gate 3) cannot be exercised without a pseudo-tty
  * and is not tested here. Gate 2 is `@effected/cli`'s `CliInteractive`: a
- * human audience with a terminal on stdin and stdout.
+ * human audience with a terminal on stdin and stdout. An audience flag
+ * recomputes it, so `--human` under `CLAUDECODE=1` on a pty reaches the
+ * prompt (verified by hand; there is no pty driver in this suite).
  */
 
 import { spawnSync } from "node:child_process";

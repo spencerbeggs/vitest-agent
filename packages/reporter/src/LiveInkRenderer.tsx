@@ -148,6 +148,11 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 	// the Ink mount degrades.
 	const targetStream: NodeJS.WriteStream = options.stream ?? process.stdout;
 
+	// Glyph selection: `Glyphs.select` (inside StreamApp) picks the ASCII set
+	// when TERM is `dumb` and Unicode otherwise. It is pure and never reads
+	// `process`, so the reporter passes TERM in. Read once per renderer.
+	const glyphs = { term: process.env.TERM };
+
 	// Constrain Ink's layout to one column narrower than the terminal so no
 	// rendered line ever exactly fills the width. Ink tracks frame height by
 	// counting the `\n`s in its own output and erases exactly that many lines
@@ -173,7 +178,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 		return createElement(
 			Box,
 			{ flexDirection: "column", width: frameWidth() },
-			createElement(StreamApp, { state, frameIndex: spinnerFrameForTime(now), nowMs: now }),
+			createElement(StreamApp, { state, frameIndex: spinnerFrameForTime(now), nowMs: now, glyphs }),
 		);
 	};
 
@@ -313,7 +318,7 @@ export const createLiveInk = (options: CreateLiveInkOptions = {}): LiveInkRender
 				} else {
 					const now = Date.now();
 					const finalFrameText = renderToString(
-						createElement(StreamApp, { state, frameIndex: spinnerFrameForTime(now), nowMs: now }),
+						createElement(StreamApp, { state, frameIndex: spinnerFrameForTime(now), nowMs: now, glyphs }),
 					);
 					targetStream.write(`${finalFrameText}\n`);
 				}

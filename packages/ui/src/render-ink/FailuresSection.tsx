@@ -12,6 +12,7 @@ import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import { useGlyphs } from "./glyphs.js";
 
 /**
  * Props for the `FailuresSection` component.
@@ -45,6 +46,7 @@ const FAILURE_VALUE_LIMIT = 200;
 export const FailuresSection: FC<FailuresSectionProps> = ({ failures, limit }) => {
 	const shown = failures.slice(0, limit);
 	const overflow = failures.length - shown.length;
+	const glyphs = useGlyphs();
 	return (
 		<Box flexDirection="column">
 			<Text bold>Failures ({failures.length}):</Text>
@@ -52,7 +54,7 @@ export const FailuresSection: FC<FailuresSectionProps> = ({ failures, limit }) =
 				<Box key={`${f.modulePath}:${f.testName}:${i}`} flexDirection="column">
 					<Text>
 						{"  "}
-						<Text {...statusInkStyle(failureStatus(f))}>{statusGlyph(failureStatus(f))}</Text> {pathOf(f)}
+						<Text {...statusInkStyle(failureStatus(f))}>{statusGlyph(failureStatus(f), glyphs)}</Text> {pathOf(f)}
 						{f.classification !== null ? (
 							<Text {...inkStyle(VitestAgentTokens.classification)}> [{f.classification}]</Text>
 						) : null}

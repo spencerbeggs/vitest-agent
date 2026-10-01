@@ -9,11 +9,28 @@
  * fields already on `ReporterRenderInput` / `ReporterKit` — no new
  * plumbing. No ANSI escapes: GitHub renders raw log text.
  *
+ * Built as an `@effected/cli` `Doc` (a top-level collapsible is a
+ * `::group::`) and rendered with `Render.githubLog`, which also neutralizes
+ * any workflow command a project name or path could otherwise inject.
+ *
+ * Known inconsistency, kept deliberately for now: the per-project line counts
+ * a timed-out test as `failed` (it reads `report.summary.failed`), while the
+ * step-summary totals table splits timeouts into their own column.
+ *
  * @internal
  */
 
 import { relative } from "node:path";
-import type { RenderedOutput, ReporterKit, ReporterRenderInput, TestClassification } from "@vitest-agent/sdk";
+import type { Block } from "@effected/cli";
+import { Doc, Render, Status } from "@effected/cli";
+import type {
+	AgentReport,
+	RenderedOutput,
+	ReporterKit,
+	ReporterRenderInput,
+	TestClassification,
+} from "@vitest-agent/sdk";
+import { reporterRenderContext } from "./renderContext.js";
 
 const MAX_NAMED_FILES = 3;
 
@@ -38,21 +55,29 @@ const NON_STABLE_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
 	"recovered",
 ];
 
-export function renderGithubLog(input: ReporterRenderInput, kit: ReporterKit): RenderedOutput {
-	const lines: string[] = ["::group::vitest-agent"];
+/** `<project>: <passed>/<total> passed, <failed> failed, <skipped> skipped` — every counter shown, zeros included. */
+const projectCounts = (report: AgentReport): Block => {
+	const { passed, failed, skipped, total } = report.summary;
+	return Doc.counts({
+		label: report.project ?? "default",
+		layout: "inline",
+		total: () => total,
+		counters: [
+			Doc.counter(Status.core, "success", { key: "passed", label: "passed", n: passed, showZero: true }),
+			Doc.counter(Status.core, "failure", { key: "failed", label: "failed", n: failed, showZero: true }),
+			Doc.counter(Status.core, "skip", { key: "skipped", label: "skipped", n: skipped, showZero: true }),
+		],
+	});
+};
 
-	for (const report of input.reports) {
-		const name = report.project ?? "default";
-		lines.push(
-			`${name}: ${report.summary.passed}/${report.summary.total} passed, ${report.summary.failed} failed, ${report.summary.skipped} skipped`,
-		);
-	}
+export function renderGithubLog(input: ReporterRenderInput, kit: ReporterKit): RenderedOutput {
+	const body: Block[] = input.reports.map(projectCounts);
 
 	const belowTarget = input.reports.flatMap((r) => r.coverage?.belowTarget ?? []);
 	if (belowTarget.length > 0) {
 		const names = belowTarget.slice(0, MAX_NAMED_FILES).map((f) => toDisplayPath(f.file));
 		const suffix = belowTarget.length > MAX_NAMED_FILES ? `, +${belowTarget.length - MAX_NAMED_FILES} more` : "";
-		lines.push(`coverage: ${belowTarget.length} file(s) below target (${names.join(", ")}${suffix})`);
+		body.push(Doc.paragraph(`coverage: ${belowTarget.length} file(s) below target (${names.join(", ")}${suffix})`));
 	}
 
 	const classificationCounts = new Map<TestClassification, number>();
@@ -63,14 +88,14 @@ export function renderGithubLog(input: ReporterRenderInput, kit: ReporterKit): R
 		(kind) => (classificationCounts.get(kind) ?? 0) > 0,
 	).map((kind) => `${kind}: ${classificationCounts.get(kind)}`);
 	if (classificationParts.length > 0) {
-		lines.push(`classifications: ${classificationParts.join(", ")}`);
+		body.push(Doc.paragraph(`classifications: ${classificationParts.join(", ")}`));
 	}
 
 	if (kit.config.dbPath !== undefined) {
-		lines.push(`db: ${kit.config.dbPath}`);
+		body.push(Doc.paragraph(`db: ${kit.config.dbPath}`));
 	}
 
-	lines.push("::endgroup::");
-
-	return { target: "stdout", content: lines.join("\n"), contentType: "text/plain" };
+	const ctx = reporterRenderContext({ displayPath: toDisplayPath, neutralizeWorkflowCommands: true });
+	const content = Render.githubLog([Doc.collapsible("vitest-agent", body)], ctx);
+	return { target: "stdout", content, contentType: "text/plain" };
 }

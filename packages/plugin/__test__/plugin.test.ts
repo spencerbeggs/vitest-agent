@@ -775,7 +775,7 @@ describe("AgentPlugin", () => {
 
 			expect(lines).toHaveLength(1);
 			expect(lines[0]).toMatch(/^\[vitest-agent:plugin\] /);
-			expect(lines[0]).toContain("ignoring it");
+			expect(lines[0]).toContain("ignoring VITEST_AGENT_CONSOLE=bogus: not accepted for the human audience");
 		});
 	});
 });

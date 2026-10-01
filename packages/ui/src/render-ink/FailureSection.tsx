@@ -7,6 +7,7 @@ import type { FailureRecord } from "@vitest-agent/sdk";
 import { Box, Text } from "ink";
 import type { FC } from "react";
 import { inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import { useGlyphs } from "./glyphs.js";
 
 /**
  * Props for the `FailureSection` component.
@@ -23,12 +24,13 @@ export interface FailureSectionProps {
 const FailureRow: FC<{ failure: FailureRecord; includeStack: boolean }> = ({ failure, includeStack }) => {
 	const suite = failure.suitePath.length > 0 ? `${failure.suitePath.join(" > ")} > ` : "";
 	const classification = failure.classification !== null ? ` [${failure.classification}]` : "";
+	const glyphs = useGlyphs();
 
 	return (
 		<Box flexDirection="column">
 			<Box>
 				<Text>
-					<Text {...statusInkStyle("failure")}>{statusGlyph("failure")}</Text>
+					<Text {...statusInkStyle("failure")}>{statusGlyph("failure", glyphs)}</Text>
 					{` ${failure.modulePath} > ${suite}${failure.testName}`}
 					{failure.classification !== null ? <Text color="yellow">{classification}</Text> : null}
 				</Text>

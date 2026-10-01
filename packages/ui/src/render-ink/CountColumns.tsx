@@ -4,10 +4,12 @@
  * is dimmed, never omitted — so the columns line up across rows.
  */
 
+import type { GlyphSet } from "@effected/cli";
 import { Text } from "ink";
 import type { FC } from "react";
 import type { VitestAgentStatusName } from "../theme.js";
 import { VitestAgentTokens, inkStyle, statusGlyph, statusInkStyle } from "../theme.js";
+import { useGlyphs } from "./glyphs.js";
 
 /**
  * Props for the `CountColumns` component.
@@ -34,10 +36,10 @@ export interface CountColumnsProps {
  */
 export const DURATION_CELL_WIDTH = 7;
 
-const cell = (count: number, status: VitestAgentStatusName) => (
+const cell = (count: number, status: VitestAgentStatusName, glyphs: GlyphSet) => (
 	<Text {...(count > 0 ? statusInkStyle(status) : inkStyle(VitestAgentTokens.zero))}>
 		{String(count).padStart(4)}
-		{statusGlyph(status)}
+		{statusGlyph(status, glyphs)}
 	</Text>
 );
 
@@ -50,14 +52,17 @@ const cell = (count: number, status: VitestAgentStatusName) => (
  *
  * @public
  */
-export const CountColumns: FC<CountColumnsProps> = ({ passCount, failCount, skipCount, timeoutCount }) => (
-	<Text>
-		{cell(passCount, "success")}
-		{"  "}
-		{cell(failCount, "failure")}
-		{"  "}
-		{cell(skipCount, "skip")}
-		{"  "}
-		{cell(timeoutCount, "timeout")}
-	</Text>
-);
+export const CountColumns: FC<CountColumnsProps> = ({ passCount, failCount, skipCount, timeoutCount }) => {
+	const glyphs = useGlyphs();
+	return (
+		<Text>
+			{cell(passCount, "success", glyphs)}
+			{"  "}
+			{cell(failCount, "failure", glyphs)}
+			{"  "}
+			{cell(skipCount, "skip", glyphs)}
+			{"  "}
+			{cell(timeoutCount, "timeout", glyphs)}
+		</Text>
+	);
+};

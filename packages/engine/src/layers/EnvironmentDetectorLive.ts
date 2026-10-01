@@ -1,8 +1,14 @@
-import type { RuntimeEnv } from "@effected/env";
+import type { CiName, RuntimeEnv } from "@effected/env";
 import { Audience, CurrentRuntimeEnv } from "@effected/env";
 import type { Environment } from "@vitest-agent/sdk";
-import { ConfigProvider, Effect, Layer, Option } from "effect";
+import { Effect, Layer, Option } from "effect";
 import { EnvironmentDetector } from "../services/EnvironmentDetector.js";
+
+/** The engine environment for each CI `@effected/env` names; exhaustive over `CiName`. */
+const CI_ENVIRONMENT: Record<CiName, Environment> = {
+	"github-actions": "ci-github",
+	generic: "ci-generic",
+};
 
 /**
  * Pure classification behind {@link EnvironmentDetectorLive}: an agent shell
@@ -21,7 +27,7 @@ export const classifyEnvironment = (runtime: RuntimeEnv): Environment => {
 		case "agent":
 			return "agent-shell";
 		case "ci":
-			return Option.contains(runtime.ci, "github-actions") ? "ci-github" : "ci-generic";
+			return Option.match(runtime.ci, { onNone: () => "ci-generic", onSome: (ci) => CI_ENVIRONMENT[ci] });
 		case "human":
 			return "terminal";
 	}
@@ -33,10 +39,9 @@ export const classifyEnvironment = (runtime: RuntimeEnv): Environment => {
  * detection all come from `env`, never from the ambient process.
  *
  * @remarks
- * The snapshot is taken once, when the layer is built. `CurrentRuntimeEnv.layer`
- * is a single static layer, so it is wrapped in `Layer.fresh`: without it two
- * detectors built over different maps in one layer graph would share the first
- * one's snapshot.
+ * The snapshot is taken once, when the layer is built, through
+ * `CurrentRuntimeEnv.layerFrom(env)`: a fresh layer per call and per use, so two
+ * detectors built over different maps in one layer graph each see their own.
  *
  * @param env - the environment map to consult (the front end passes `process.env`)
  * @public
@@ -52,7 +57,4 @@ export const EnvironmentDetectorLive = (env: Record<string, string | undefined>)
 				agentName: Effect.succeed(Option.getOrUndefined(runtime.agent)),
 			};
 		}),
-	).pipe(
-		Layer.provide(Layer.fresh(CurrentRuntimeEnv.layer)),
-		Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env))),
-	);
+	).pipe(Layer.provide(CurrentRuntimeEnv.layerFrom(env)));

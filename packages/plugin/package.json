@@ -39,6 +39,7 @@
 		"@effected/cli": "catalog:effected",
 		"@effected/env": "^0.1.0",
 		"@effected/glob": "catalog:effected",
+		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
 		"@vitest-agent/cli": "workspace:*",
 		"@vitest-agent/engine": "workspace:*",

@@ -1,5 +1,7 @@
 import { Writable } from "node:stream";
+import { Glyphs } from "@effected/cli";
 import type { RunEvent } from "@vitest-agent/sdk";
+import { statusGlyph } from "@vitest-agent/ui";
 import { describe, expect, it, vi } from "vitest";
 import { createLiveInk } from "../src/LiveInkRenderer.js";
 
@@ -250,6 +252,48 @@ describe("createLiveInk — terminal event writes plain-text final frame", () =>
 		// No Ink mount occurred (degraded), but the plain-text write still
 		// happened.
 		live.unmount();
+	});
+
+	it.each([
+		{ term: "dumb", shown: statusGlyph("success", Glyphs.ascii), hidden: statusGlyph("success", Glyphs.unicode) },
+		{
+			term: "xterm-256color",
+			shown: statusGlyph("success", Glyphs.unicode),
+			hidden: statusGlyph("success", Glyphs.ascii),
+		},
+	])("picks the glyph set from TERM=$term for the final frame", ({ term, shown, hidden }) => {
+		vi.stubEnv("TERM", term);
+		try {
+			const { stream, output } = captureStream();
+			// TERM is read when the renderer is created.
+			const live = createLiveInk({ stream });
+			muteStderr(() => {
+				live.event({ _tag: "RunStarted", runId: "r1", startedAt: "T0", configHash: "h" });
+				live.event({ _tag: "ModuleStarted", modulePath: "a.test.ts", startedAt: "T0" });
+				live.event({
+					_tag: "ModuleFinished",
+					modulePath: "a.test.ts",
+					passCount: 3,
+					failCount: 0,
+					skipCount: 0,
+					durationMs: 10,
+				});
+				live.event({
+					_tag: "RunFinished",
+					runId: "r1",
+					finishedAt: "T1",
+					passCount: 3,
+					failCount: 0,
+					skipCount: 0,
+					durationMs: 10,
+				});
+			});
+			expect(output()).toContain(shown);
+			expect(output()).not.toContain(hidden);
+			live.unmount();
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it("writes a plain-text final frame on RunTimedOut", () => {

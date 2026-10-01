@@ -9,6 +9,7 @@ import { Text } from "ink";
 import type { FC } from "react";
 import type { VitestAgentStatusName } from "../theme.js";
 import { statusGlyph, statusInkStyle } from "../theme.js";
+import { useGlyphs } from "./glyphs.js";
 
 /**
  * The set of named statuses a `StatusIcon` can render.
@@ -58,6 +59,7 @@ const STATUS: Record<StatusIconKind, VitestAgentStatusName> = {
  *
  * @public
  */
-export const StatusIcon: FC<StatusIconProps> = ({ status }) => (
-	<Text {...statusInkStyle(STATUS[status])}>{statusGlyph(STATUS[status])}</Text>
-);
+export const StatusIcon: FC<StatusIconProps> = ({ status }) => {
+	const glyphs = useGlyphs();
+	return <Text {...statusInkStyle(STATUS[status])}>{statusGlyph(STATUS[status], glyphs)}</Text>;
+};

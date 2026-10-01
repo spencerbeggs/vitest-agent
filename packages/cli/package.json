@@ -41,6 +41,7 @@
 		"@effected/config-file": "catalog:effected",
 		"@effected/engine": "catalog:effected",
 		"@effected/env": "^0.1.0",
+		"@effected/glob": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
 		"@vitest-agent/engine": "workspace:*",

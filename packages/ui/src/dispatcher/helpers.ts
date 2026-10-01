@@ -27,9 +27,9 @@ export { formatDisplayDuration } from "../format-duration.js";
 /**
  * Format a coverage percentage given on istanbul's 0–100 scale. One
  * decimal place for non-integer values, none for integers, with a
- * trailing percent sign (`Fmt.percent`, which takes a 0–1 ratio).
+ * trailing percent sign (`Fmt.percent` with `scale: 100`).
  */
-export const formatPercent = (n: number): string => Fmt.percent(n / 100);
+export const formatPercent = (n: number): string => Fmt.percent(n, { scale: 100 });
 
 /**
  * Truncate a line to a maximum display width with an ellipsis suffix

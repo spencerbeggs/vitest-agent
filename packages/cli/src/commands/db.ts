@@ -62,6 +62,8 @@ const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 		// Gate 2: a run that may not prompt a person needs --yes. `CliInteractive`
 		// is the kit's one decision: a human audience (no --agent / --ci /
 		// VITEST_AGENT_AUDIENCE=agent|ci) with a terminal on stdin AND stdout.
+		// An audience flag recomputes it from the TTY facts, so `--human` at a
+		// real terminal in an agent-detected shell (Claude Code's) prompts.
 		if (!yes && !(yield* CliInteractive)) {
 			yield* Console.error(
 				"db reset requires --yes when the run is not interactive (stdout or stdin is not a TTY, or the audience is not human)",

@@ -1,59 +1,36 @@
 /**
- * The Ink bridge in `src/theme.ts`: the mirrored token defaults must match
- * the kit's own `CliTheme`, and a `Style` must map onto Ink's `<Text>` props.
+ * The Ink bridge in `src/theme.ts`: a token resolves through the kit's pure
+ * `Token.resolve`, and the resolved `Style` maps onto Ink's `<Text>` props.
  */
 
-import type { TokenName } from "@effected/cli";
-import { CliTheme, Token } from "@effected/cli";
-import { Effect } from "effect";
+import { Glyphs, Token } from "@effected/cli";
 import { describe, expect, it } from "vitest";
-import { TOKEN_STYLES, VitestAgentStatus, inkStyle, statusGlyph, statusInkStyle } from "../src/theme.js";
-
-const TOKENS: ReadonlyArray<TokenName> = [
-	"success",
-	"failure",
-	"warning",
-	"info",
-	"error",
-	"muted",
-	"accent",
-	"emphasis",
-];
-
-const theme = Effect.runSync(Effect.provide(CliTheme, CliTheme.layerTest({ color: "truecolor" })));
-
-describe("theme — token mirror", () => {
-	for (const name of TOKENS) {
-		it(`TOKEN_STYLES.${name} paints exactly as the kit's ${name} token`, () => {
-			expect(theme.sgr(TOKEN_STYLES[name])).toBe(theme.sgr(name));
-		});
-	}
-
-	it("detects a drifted mirror (control)", () => {
-		expect(theme.sgr({ fg: "magenta" })).not.toBe(theme.sgr("failure"));
-	});
-});
+import { VitestAgentStatus, inkStyle, statusGlyph, statusInkStyle } from "../src/theme.js";
 
 describe("theme — inkStyle", () => {
-	it("maps a named token to Ink's color prop", () => {
+	it("maps every kit token default onto Ink props", () => {
+		expect(inkStyle("success")).toEqual({ color: "green" });
 		expect(inkStyle("failure")).toEqual({ color: "red" });
-	});
-
-	it("maps muted to dimColor, not a colour", () => {
-		expect(inkStyle("muted")).toEqual({ dimColor: true });
-	});
-
-	it("maps error to a bold red", () => {
 		expect(inkStyle("error")).toEqual({ color: "red", bold: true });
+		expect(inkStyle("warning")).toEqual({ color: "yellow" });
+		expect(inkStyle("info")).toEqual({ color: "cyan" });
+		expect(inkStyle("muted")).toEqual({ dimColor: true });
+		expect(inkStyle("accent")).toEqual({ color: "cyan" });
+		expect(inkStyle("emphasis")).toEqual({ bold: true });
+	});
+
+	it("maps italic and underline", () => {
+		expect(inkStyle(Token.style({ italic: true, underline: true }))).toEqual({ italic: true, underline: true });
 	});
 
 	it("passes a hex foreground through", () => {
 		expect(inkStyle(Token.hex("#e09a4e"))).toEqual({ color: "#e09a4e" });
 	});
 
-	it("renames the kit's bright colours to chalk's form", () => {
-		expect(inkStyle(Token.named("brightBlack"))).toEqual({ color: "blackBright" });
-		expect(inkStyle(Token.named("brightMagenta"))).toEqual({ color: "magentaBright" });
+	it("passes the kit's chalk-spelled bright colours through unchanged", () => {
+		expect(inkStyle(Token.named("blackBright"))).toEqual({ color: "blackBright" });
+		expect(inkStyle(Token.named("magentaBright"))).toEqual({ color: "magentaBright" });
+		expect(inkStyle(Token.named("gray"))).toEqual({ color: "gray" });
 	});
 });
 
@@ -63,6 +40,17 @@ describe("theme — VitestAgentStatus", () => {
 		expect(statusGlyph("running")).toBe("…");
 		expect(statusGlyph("queued")).toBe("·");
 		expect(statusInkStyle("timeout")).toEqual({ color: "#e09a4e" });
+		expect(statusInkStyle("queued")).toEqual({ color: "blackBright" });
+	});
+
+	it("draws the ASCII fallback from an ASCII glyph set", () => {
+		const ascii = Glyphs.select({ ascii: true });
+		expect(statusGlyph("timeout", ascii)).toBe("[time]");
+		expect(statusGlyph("queued", ascii)).toBe("[.]");
+		expect(statusGlyph("failure", ascii)).toBe(VitestAgentStatus.def("failure").ascii);
+		expect(statusGlyph("failure", ascii)).not.toBe(statusGlyph("failure"));
+		expect(statusGlyph("failure", Glyphs.select({ term: "dumb" }))).toBe(statusGlyph("failure", ascii));
+		expect(statusGlyph("failure", Glyphs.select({ term: "xterm-256color" }))).toBe(statusGlyph("failure"));
 	});
 
 	it("applies the kit's skip decision: muted", () => {

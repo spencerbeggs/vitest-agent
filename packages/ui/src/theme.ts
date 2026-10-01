@@ -10,17 +10,18 @@
  * construction: skip is `muted`, a regressing trend is `warning`, a coverage
  * threshold failure is `failure` and a target shortfall is `warning`.
  *
- * Ink takes colour as `<Text>` props, not ANSI, and `CliTheme` answers only
- * painted strings (`paint`) or raw SGR (`sgr`), so {@link inkStyle}
- * resolves a token to a `Style` and maps it onto Ink's props. The token
- * defaults are mirrored in {@link TOKEN_STYLES}; a unit test holds the
- * mirror to the kit's own `CliTheme.sgr` output.
+ * Ink takes colour as `<Text>` props, not ANSI, so {@link inkStyle}
+ * resolves a token through the kit's pure `Token.resolve` (the same
+ * resolution `CliTheme.paint` and `StreamTheme.style` apply) and maps the
+ * resulting `Style` onto Ink's props. Glyphs follow a `GlyphSet` passed in
+ * (`Glyphs.select`), never `process`: Unicode unless a caller asks for the
+ * ASCII fallback.
  *
  * @packageDocumentation
  */
 
-import type { CoreStatusName, NamedColor, Style, TokenName } from "@effected/cli";
-import { Status, Token } from "@effected/cli";
+import type { CoreStatusName, GlyphSet, Style, TokenName } from "@effected/cli";
+import { Glyphs, Status, Token } from "@effected/cli";
 
 /**
  * The status vocabulary every vitest-agent render path draws from.
@@ -36,7 +37,7 @@ import { Status, Token } from "@effected/cli";
 export const VitestAgentStatus: Status<VitestAgentStatusName> = Status.extend({
 	timeout: { glyph: "⧖", ascii: "[time]", token: Token.hex("#e09a4e"), rank: 85 },
 	running: { glyph: "…", ascii: "[..]", token: Token.named("yellow"), rank: 35 },
-	queued: { glyph: "·", ascii: "[.]", token: Token.named("brightBlack"), rank: 25 },
+	queued: { glyph: "·", ascii: "[.]", token: Token.named("blackBright"), rank: 25 },
 });
 
 /**
@@ -55,32 +56,12 @@ export const VitestAgentTokens = {
 	/** The `[flaky]` / `[new-failure]` classification tag on a failure line. */
 	classification: Token.hex("#c98ae0"),
 	/** A zero in a count column: present for alignment, not signal. */
-	zero: Token.named("brightBlack"),
+	zero: Token.named("blackBright"),
 	/** The `stable` trend direction. */
-	stable: Token.named("brightBlack"),
+	stable: Token.named("blackBright"),
 	/** A non-zero tag count. */
 	tag: Token.named("cyan"),
 } as const;
-
-/**
- * The kit's default style for every semantic token.
- *
- * @remarks
- * Mirrors `@effected/cli`'s `CliTheme` defaults, which the kit does not
- * export; `__test__/theme.test.ts` fails if the two drift.
- *
- * @internal
- */
-export const TOKEN_STYLES: Readonly<Record<TokenName, Style>> = {
-	success: { fg: "green" },
-	failure: { fg: "red" },
-	error: { fg: "red", bold: true },
-	warning: { fg: "yellow" },
-	info: { fg: "cyan" },
-	muted: { dim: true },
-	accent: { fg: "cyan" },
-	emphasis: { bold: true },
-};
 
 /**
  * The subset of Ink's `<Text>` props a `Style` maps onto.
@@ -95,20 +76,20 @@ export interface InkTextStyle {
 	readonly underline?: boolean;
 }
 
-/** `brightRed` (kit) → `redBright` (chalk, which Ink's `color` prop takes). */
-const inkColor = (fg: NamedColor | `#${string}`): string =>
-	fg.startsWith("bright") ? `${fg.charAt(6).toLowerCase()}${fg.slice(7)}Bright` : fg;
-
 /**
  * Ink `<Text>` props for a semantic token or an explicit style.
+ *
+ * @remarks
+ * The kit spells `NamedColor` the way chalk (and so Ink's `color` prop)
+ * does, so a resolved foreground passes straight through.
  *
  * @param token - a token name or a `Style`
  * @public
  */
 export const inkStyle = (token: TokenName | Style): InkTextStyle => {
-	const style = typeof token === "string" ? TOKEN_STYLES[token] : token;
+	const style = Token.resolve(token);
 	return {
-		...(style.fg !== undefined ? { color: inkColor(style.fg) } : {}),
+		...(style.fg !== undefined ? { color: style.fg } : {}),
 		...(style.bold === true ? { bold: true } : {}),
 		...(style.dim === true ? { dimColor: true } : {}),
 		...(style.italic === true ? { italic: true } : {}),
@@ -117,12 +98,17 @@ export const inkStyle = (token: TokenName | Style): InkTextStyle => {
 };
 
 /**
- * The Unicode glyph of a status.
+ * The glyph of a status in a glyph set: its Unicode glyph, or its ASCII
+ * fallback when `glyphs` is the kit's ASCII set.
  *
  * @param name - a status in {@link VitestAgentStatus}
+ * @param glyphs - the glyph set, from `Glyphs.select`; Unicode by default
  * @public
  */
-export const statusGlyph = (name: VitestAgentStatusName): string => VitestAgentStatus.def(name).glyph;
+export const statusGlyph = (name: VitestAgentStatusName, glyphs: GlyphSet = Glyphs.unicode): string => {
+	const def = VitestAgentStatus.def(name);
+	return glyphs.kind === "ascii" ? def.ascii : def.glyph;
+};
 
 /**
  * Ink `<Text>` props for a status's glyph.

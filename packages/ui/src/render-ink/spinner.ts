@@ -1,29 +1,34 @@
 /**
- * Hand-rolled Braille spinner for the `stream` live renderer.
+ * Spinner frames for the `stream` live renderer, drawn from
+ * `@effected/cli`'s glyph sets (the Braille frames in `Glyphs.unicode`,
+ * a plain-ASCII fallback in `Glyphs.ascii`).
  *
- * No `ink-spinner` dependency — that package is a thin wrapper over the
- * same ten Braille characters plus a timer. The `stream` renderer
- * already needs a frame clock for the ticking elapsed column, so the
- * timer is shared and only the frame array lives here.
+ * No `ink-spinner` dependency. The `stream` renderer already needs a
+ * frame clock for the ticking elapsed column, so the timer is shared and
+ * only the frame lookup lives here.
  *
  * The frame index is presentation state: it is derived from wall-clock
  * time by `createLiveInk` and passed to `StreamApp` as a prop. It never
  * enters the event-sourced `RenderState`.
  */
 
-/**
- * The ten Braille spinner frames, in animation order.
- *
- * @public
- */
-export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
+import type { GlyphSet } from "@effected/cli";
+import { Glyphs } from "@effected/cli";
 
 /**
- * How long each spinner frame is held, in milliseconds.
+ * The Unicode spinner frames, in animation order (`Glyphs.unicode.spinner`).
  *
  * @public
  */
-export const SPINNER_FRAME_MS = 80;
+export const SPINNER_FRAMES: ReadonlyArray<string> = Glyphs.unicode.spinner;
+
+/**
+ * How long each spinner frame is held, in milliseconds
+ * (`Glyphs.unicode.spinnerIntervalMs`).
+ *
+ * @public
+ */
+export const SPINNER_FRAME_MS: number = Glyphs.unicode.spinnerIntervalMs;
 
 /**
  * Resolve the spinner glyph for a frame index. The index wraps modulo
@@ -31,13 +36,15 @@ export const SPINNER_FRAME_MS = 80;
  * index is always valid.
  *
  * @param index - the frame index (wraps modulo frame count)
- * @returns the Braille glyph for the given frame
+ * @param glyphs - the glyph set whose frames to draw; Unicode by default
+ * @returns the spinner glyph for the given frame
  * @public
  */
-export const spinnerFrame = (index: number): string => {
-	const count = SPINNER_FRAMES.length;
+export const spinnerFrame = (index: number, glyphs: GlyphSet = Glyphs.unicode): string => {
+	const frames = glyphs.spinner;
+	const count = frames.length;
 	const wrapped = ((Math.trunc(index) % count) + count) % count;
-	return SPINNER_FRAMES[wrapped];
+	return frames[wrapped] ?? "";
 };
 
 /**

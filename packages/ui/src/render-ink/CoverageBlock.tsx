@@ -22,8 +22,8 @@ export interface CoverageBlockProps {
 
 const METRIC_ORDER = ["lines", "branches", "functions", "statements"] as const;
 
-/** Coverage metrics arrive on istanbul's 0–100 scale; `Fmt.percent` takes a 0–1 ratio. */
-const formatPercent = (n: number): string => Fmt.percent(n / 100);
+/** Coverage metrics arrive on istanbul's 0–100 scale. */
+const formatPercent = (n: number): string => Fmt.percent(n, { scale: 100 });
 
 /** A metric below its threshold is a coverage threshold failure: the kit's `failure` token. */
 const FAILURE = inkStyle("failure");

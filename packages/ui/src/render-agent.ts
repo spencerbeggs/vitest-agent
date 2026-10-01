@@ -171,8 +171,8 @@ const formatUnhandledErrorsSection = (state: RenderState, width: number, include
 	return lines.join("\n");
 };
 
-/** Coverage metrics arrive on istanbul's 0–100 scale; `Fmt.percent` takes a 0–1 ratio. */
-const formatPercent = (n: number): string => Fmt.percent(n / 100);
+/** Coverage metrics arrive on istanbul's 0–100 scale. */
+const formatPercent = (n: number): string => Fmt.percent(n, { scale: 100 });
 
 const formatCoverageSection = (state: RenderState, maxGaps: number): string | null => {
 	const cov = state.coverage;

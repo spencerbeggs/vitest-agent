@@ -937,3 +937,56 @@ describe("StreamApp — fixed-column alignment", () => {
 		cleanup();
 	});
 });
+
+describe("StreamApp — glyph set", () => {
+	const state = run([
+		{ _tag: "RunStarted", runId: "r", startedAt: STARTED, configHash: "h" },
+		{ _tag: "ModuleStarted", modulePath: "a.test.ts", startedAt: STARTED, projectName: "p" },
+		{
+			_tag: "ModuleFinished",
+			modulePath: "a.test.ts",
+			passCount: 2,
+			failCount: 1,
+			skipCount: 0,
+			timeoutCount: 0,
+			durationMs: 10,
+			projectName: "p",
+		},
+		{
+			_tag: "RunFinished",
+			runId: "r",
+			finishedAt: STARTED,
+			passCount: 2,
+			failCount: 1,
+			skipCount: 0,
+			timeoutCount: 0,
+			durationMs: 10,
+		},
+	]);
+
+	it("draws Unicode glyphs by default", () => {
+		const { frame, cleanup } = renderInk(<StreamApp state={state} frameIndex={0} nowMs={NOW} />, 80);
+		expect(frame).toContain("2✓");
+		expect(frame).toContain("1✗");
+		cleanup();
+	});
+
+	it("draws the kit's ASCII fallback when asked, with no Unicode status glyph left", () => {
+		const { frame, cleanup } = renderInk(
+			<StreamApp state={state} frameIndex={0} nowMs={NOW} glyphs={{ ascii: true }} />,
+			80,
+		);
+		expect(frame).not.toMatch(/[✓✗↷⧖]/);
+		expect(frame).toContain("[FAIL]");
+		cleanup();
+	});
+
+	it("selects ASCII for TERM=dumb passed in as a prop", () => {
+		const { frame, cleanup } = renderInk(
+			<StreamApp state={state} frameIndex={0} nowMs={NOW} glyphs={{ term: "dumb" }} />,
+			80,
+		);
+		expect(frame).not.toMatch(/[✓✗↷⧖]/);
+		cleanup();
+	});
+});

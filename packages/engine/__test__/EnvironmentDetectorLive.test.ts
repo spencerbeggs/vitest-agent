@@ -1,3 +1,4 @@
+import type { CiName } from "@effected/env";
 import { RuntimeEnv } from "@effected/env";
 import type { Environment } from "@vitest-agent/sdk";
 import { Context, Effect, Layer, Option } from "effect";
@@ -19,7 +20,7 @@ const probe = (env: Env) =>
 		}).pipe(Effect.provide(EnvironmentDetectorLive(env))),
 	);
 
-const runtime = (fields: { agent?: string; ci?: string }) =>
+const runtime = (fields: { agent?: string; ci?: CiName }) =>
 	RuntimeEnv.make({
 		agent: Option.fromNullishOr(fields.agent),
 		ci: Option.fromNullishOr(fields.ci),
@@ -65,7 +66,8 @@ describe("EnvironmentDetectorLive (reads only the injected env)", () => {
 
 	it("two detectors over different maps in one layer graph do not share a snapshot", async () => {
 		// `CurrentRuntimeEnv.layer` is one static (memoized) layer; the detector
-		// wraps it in `Layer.fresh`, so each map is read on its own.
+		// uses `CurrentRuntimeEnv.layerFrom(env)`, fresh per call and per use, so
+		// each map is read on its own.
 		class Other extends Context.Service<Other, Environment>()("test/OtherEnvironment") {}
 		const other = Layer.effect(
 			Other,

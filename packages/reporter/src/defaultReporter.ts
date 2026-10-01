@@ -18,6 +18,7 @@
  *   per-event during the run.
  */
 
+import { Doc, Render } from "@effected/cli";
 import type {
 	AgentReport,
 	CellOptions,
@@ -50,6 +51,7 @@ import {
 import { Effect, PubSub } from "effect";
 import { renderGithubLog, toDisplayPath } from "./githubLog.js";
 import { createLiveInk } from "./LiveInkRenderer.js";
+import { reporterRenderContext } from "./renderContext.js";
 
 const countTimeouts = (report: AgentReport): number => {
 	let timeoutCount = 0;
@@ -235,16 +237,26 @@ const NON_STABLE_SUMMARY_CLASSIFICATIONS: ReadonlyArray<TestClassification> = [
 
 const MAX_SUMMARY_COVERAGE_ROWS = 10;
 
+/**
+ * The step summary and `summary.md` are files, not log lines, so their
+ * markdown context does not neutralize workflow commands.
+ */
+const summaryRenderContext = reporterRenderContext({ displayPath: toDisplayPath, neutralizeWorkflowCommands: false });
+
 const renderClassificationsSection = (classifications: ReporterRenderInput["classifications"]): string | null => {
 	const counts = new Map<TestClassification, number>();
 	for (const classification of classifications.values()) {
 		counts.set(classification, (counts.get(classification) ?? 0) + 1);
 	}
-	const rows = NON_STABLE_SUMMARY_CLASSIFICATIONS.filter((kind) => (counts.get(kind) ?? 0) > 0).map(
-		(kind) => `| ${kind} | ${counts.get(kind)} |`,
-	);
+	const rows = NON_STABLE_SUMMARY_CLASSIFICATIONS.filter((kind) => (counts.get(kind) ?? 0) > 0).map((kind) => [
+		kind,
+		String(counts.get(kind)),
+	]);
 	if (rows.length === 0) return null;
-	return ["### Classifications", "", "| Classification | Count |", "| --- | --- |", ...rows].join("\n");
+	return Render.markdown(
+		[Doc.heading(3, "Classifications"), Doc.table([{ header: "Classification" }, { header: "Count" }], rows)],
+		summaryRenderContext,
+	);
 };
 
 const formatCoveragePercent = (totals: FileCoverageReport["summary"]): string =>
@@ -253,23 +265,28 @@ const formatCoveragePercent = (totals: FileCoverageReport["summary"]): string =>
 const renderCoverageSection = (reports: ReporterRenderInput["reports"]): string | null => {
 	const belowTarget = reports.flatMap((r) => r.coverage?.belowTarget ?? []);
 	if (belowTarget.length === 0) return null;
-	const shown = belowTarget.slice(0, MAX_SUMMARY_COVERAGE_ROWS);
-	const rows = shown.map((f) => `| ${toDisplayPath(f.file)} | ${formatCoveragePercent(f.summary)} |`);
-	const lines = [
-		"### Coverage",
-		"",
-		`${belowTarget.length} file(s) below target.`,
-		"",
-		"| File | Coverage |",
-		"| --- | --- |",
-		...rows,
-	];
-	if (belowTarget.length > MAX_SUMMARY_COVERAGE_ROWS) {
-		lines.push("", `(+${belowTarget.length - MAX_SUMMARY_COVERAGE_ROWS} more not shown)`);
-	}
-	return lines.join("\n");
+	// The path cell is plain text run through toDisplayPath here: the kit's
+	// `displayPath` applies only to Link targets, and a markdown file link is a
+	// `file://` URL a step-summary reader cannot open (dogfood finding G3).
+	const rows = belowTarget.map((f) => [toDisplayPath(f.file), formatCoveragePercent(f.summary)]);
+	return Render.markdown(
+		[
+			Doc.heading(3, "Coverage"),
+			Doc.paragraph(`${belowTarget.length} file(s) below target.`),
+			Doc.table([{ header: "File" }, { header: "Coverage" }], rows, {
+				cap: MAX_SUMMARY_COVERAGE_ROWS,
+				overflow: (hidden) => `(+${hidden} more not shown)`,
+			}),
+		],
+		summaryRenderContext,
+	);
 };
 
+/*
+ * Kept on the hand-built string path: the trend is consecutive lines joined by
+ * single newlines, and the kit IR has no line-group block, only blank-line
+ * separated paragraphs or a trailing-backslash hard break (dogfood finding G2).
+ */
 const renderTrendSection = (trendSummary: ReporterRenderInput["trendSummary"]): string | null => {
 	if (trendSummary === undefined) return null;
 	const lines = ["### Trend", "", `Direction: ${trendSummary.direction}`, `Run count: ${trendSummary.runCount}`];
@@ -302,6 +319,11 @@ const formatSummaryDuration = formatDisplayDuration;
  * in their own column. Recomputing from `report.summary.failed` here
  * would show a timed-out test as `Failed: 1` while every console surface
  * says `0 failed, 1 timed out`.
+ *
+ * Kept on the hand-built string path: the `**Total**` row needs bold, and the
+ * kit IR has no strong inline (`Render.markdown` drops tokens and escapes a
+ * literal `**`; dogfood finding G1). Its multi-row counts-with-total-row
+ * shape has no IR block either (finding G4).
  *
  * @internal
  */

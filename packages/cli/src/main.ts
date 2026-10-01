@@ -13,18 +13,17 @@
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import type { FailureDetails } from "@effected/cli";
-import { Cancelled, CliAudience, CliRuntime } from "@effected/cli";
+import { CliAudience, CliRuntime } from "@effected/cli";
 import type { Distribution } from "@effected/engine";
 import { CurrentDistribution } from "@effected/engine";
 import { PathResolutionLive, PlatformLive, resolveDataPath, resolveProjectDir } from "@vitest-agent/engine";
-import { formatFatalError } from "@vitest-agent/sdk";
 import { Effect, Layer, Option } from "effect";
 import { Command } from "effect/cli";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
-import { withCarrierVersion } from "./lib/version-formatter.js";
+import { renderFailure } from "./lib/render-failure.js";
+import { carrierVersionFormatter } from "./lib/version-formatter.js";
 import { CURRENT_CLI_VERSION } from "./version.js";
 
 /**
@@ -57,37 +56,6 @@ export interface MainOptions {
 }
 
 /**
- * The one-line name of a typed failure: its `_tag` when it carries one (a
- * `PlatformError`, `SqlError`, `MigrationError`), else its `Error` name.
- */
-const failureName = (error: unknown): string => {
-	if (typeof error === "object" && error !== null && "_tag" in error && typeof error._tag === "string") {
-		return error._tag;
-	}
-	return error instanceof Error ? error.name : "Error";
-};
-
-/**
- * One rendering for every failure `CliRuntime.main` reports. The kit says
- * which kind it is (`details.isDefect`, exact: the cause carries no typed
- * failure): a typed failure from the error channel is one line, a defect
- * keeps the issue-report rendering `formatFatalError` gives it. `ShowHelp`
- * and runWith-rendered `UserError`s never reach here (the kit skips them).
- */
-const renderFailure = (error: unknown, details: FailureDetails): string => {
-	// A custom `render` replaces the kit's default rendering wholesale,
-	// including its fixed `Cancelled` line, so keep that line here.
-	if (error instanceof Cancelled) {
-		return "vitest-agent: cancelled; nothing written";
-	}
-	if (details.isDefect) {
-		return `vitest-agent: ${formatFatalError(error)}`;
-	}
-	const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
-	return `vitest-agent: ${failureName(error)}${message ? `: ${message}` : ""}`;
-};
-
-/**
  * Assembles and runs the CLI program, taking over the process. Not
  * re-exported from `index.ts` — a library consumer's import graph must not
  * pull in the process-owning module.
@@ -98,6 +66,12 @@ const renderFailure = (error: unknown, details: FailureDetails): string => {
  * `@effected/env` services (`Audience` with the `VITEST_AGENT_AUDIENCE`
  * override, `TerminalEnv`, `CliTheme`, `CliInteractive`, the gated `Terminal`)
  * plus the kit's colour-decided help formatter, inside failure reporting.
+ * `env.formatter` replaces only that formatter's `formatVersion`, so
+ * `--version` names the carrier (`via @vitest-agent/plugin <version>`) when
+ * `options.distribution` is given; the same value is provided as
+ * `CurrentDistribution`. An audience flag recomputes `CliInteractive` from the
+ * TTY facts, so `--human` in an agent-detected shell (Claude Code's terminal)
+ * at a real terminal may prompt.
  *
  * Output routing (hooks parse `agent *` stdout with jq, so stdout carries
  * only what a command writes as its result):
@@ -109,7 +83,10 @@ const renderFailure = (error: unknown, details: FailureDetails): string => {
  *   async NDJSON file when `VITEST_REPORTER_LOG_FILE` is set. The platform
  *   therefore installs no logger of its own (`PlatformLive`'s `logger: false`:
  *   the engine's `LoggerLive` would otherwise replace this set inside the
- *   program).
+ *   program). The platform is built under that logger, so what it logs
+ *   while building (the engine's migration records) reaches the same sink.
+ * - Failures render through `renderFailure` on stderr, first line led by
+ *   `vitest-agent: `.
  * - An explicit `--help` (or a bare group invocation) prints help on
  *   stdout. A usage error (unknown flag, bad value, unknown subcommand,
  *   conflicting audience flags) prints help AND the parse errors on stderr
@@ -153,19 +130,19 @@ export const main = (options: MainOptions = {}): void => {
 		Layer.provideMerge(NodeServices.layer),
 	);
 
-	const program = CliRuntime.main(withCarrierVersion(CliAudience.run(rootCommand, { version: CURRENT_CLI_VERSION })), {
+	const distribution = Option.fromNullishOr(options.distribution);
+
+	const program = CliRuntime.main(CliAudience.run(rootCommand, { version: CURRENT_CLI_VERSION }), {
 		platform,
 		render: renderFailure,
 		helpOnUsageError: "stderr",
 		env: {
 			audienceEnvVar: AUDIENCE_ENV_VAR,
+			// `--version` names the carrier the bin was launched through.
+			formatter: carrierVersionFormatter(distribution),
 			log: { envVar: "VITEST_REPORTER_LOG_LEVEL", file: { envVar: "VITEST_REPORTER_LOG_FILE" } },
 		},
-	}).pipe(
-		// Outermost, so `withCarrierVersion` sees the carrier's identity rather
-		// than the reference's `Option.none()` default.
-		Effect.provideService(CurrentDistribution, Option.fromNullishOr(options.distribution)),
-	);
+	}).pipe(Effect.provideService(CurrentDistribution, distribution));
 
 	NodeRuntime.runMain(program);
 };

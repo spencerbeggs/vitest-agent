@@ -1,6 +1,6 @@
 import { Audience } from "@effected/env";
 import { AgentConsoleMode, CiConsoleMode, HumanConsoleMode } from "@vitest-agent/sdk";
-import { ConfigProvider, Effect, Logger, Option } from "effect";
+import { ConfigProvider, Effect, Option } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readConsoleOverride, resolveConsoleMode } from "../src/plugin.js";
 
@@ -86,33 +86,31 @@ describe("resolveConsoleMode VITEST_AGENT_CONSOLE override", () => {
 });
 
 describe("readConsoleOverride", () => {
-	const run = (kind: "human" | "agent" | "ci", env: Record<string, string>) => {
-		const warnings: Array<unknown> = [];
-		const result = Effect.runSync(
+	const run = (kind: "human" | "agent" | "ci", env: Record<string, string>) =>
+		Effect.runSync(
 			readConsoleOverride.pipe(
 				Effect.provide(Audience.layerTest(kind)),
 				Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env))),
-				Effect.provide(Logger.layer([Logger.make(({ message }) => warnings.push(message))])),
 			),
 		);
-		return { result, warnings };
-	};
 
 	it("accepts a literal only for the audience that lists it", () => {
-		expect(run("human", { [ENV]: "stream" }).result).toEqual(Option.some("stream"));
+		expect(run("human", { [ENV]: "stream" }).accepted).toEqual(Option.some("stream"));
 		const agent = run("agent", { [ENV]: "stream" });
-		expect(agent.result).toEqual(Option.none());
-		expect(agent.warnings).toHaveLength(1);
+		expect(agent.accepted).toEqual(Option.none());
+		expect(agent.rejected).toEqual(
+			Option.some({ value: "stream", audience: "agent", accepts: AgentConsoleMode.literals }),
+		);
 	});
 
-	it("is None without a warning when the variable is absent", () => {
-		const { result, warnings } = run("ci", {});
-		expect(result).toEqual(Option.none());
-		expect(warnings).toHaveLength(0);
+	it("is None on both sides when the variable is absent", () => {
+		const { accepted, rejected } = run("ci", {});
+		expect(accepted).toEqual(Option.none());
+		expect(rejected).toEqual(Option.none());
 	});
 
 	it("accepts ci-annotations only for the ci audience", () => {
-		expect(run("ci", { [ENV]: "ci-annotations" }).result).toEqual(Option.some("ci-annotations"));
-		expect(run("human", { [ENV]: "ci-annotations" }).result).toEqual(Option.none());
+		expect(run("ci", { [ENV]: "ci-annotations" }).accepted).toEqual(Option.some("ci-annotations"));
+		expect(run("human", { [ENV]: "ci-annotations" }).accepted).toEqual(Option.none());
 	});
 });
