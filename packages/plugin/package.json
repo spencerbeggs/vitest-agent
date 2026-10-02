@@ -52,7 +52,7 @@
 	"devDependencies": {
 		"@effected/mcp": "catalog:effected",
 		"@effected/memfs": "catalog:effected",
-		"@savvy-web/bundler": "^2.4.18",
+		"@savvy-web/bundler": "^2.4.20",
 		"@types/node": "catalog:build",
 		"@vitest/coverage-istanbul": "catalog:test",
 		"@vitest/coverage-v8": "catalog:test",
