@@ -57,7 +57,7 @@ src/
   programs/           -- hook-driven bodies: hook-paths.ts
                          (resolveHookPaths({ env, projectKey }),
                          resolveSessionMapPath(env), *_DB_FILENAME,
-                         REGISTRY_STORE_OPTIONS, hookAppDirs(env)),
+                         REGISTRY_STORE_OPTIONS),
                          register-agent.ts, end-agent.ts, record-session.ts,
                          record-tdd-artifact.ts, record-turn.ts,
                          record-workspace-changes.ts,
@@ -96,13 +96,18 @@ src/
   `SqliteClient.layer`), used by `PlatformLive`, `ensureMigrated`,
   `testing/layers.ts`, and `SidecarPlatformLive`'s project store.
   `sessions.db` (`Store.layerSqliteAs(SessionMapStore, …)`) and `registry.db`
-  (`AppStore.layerAs(RegistryStore, REGISTRY_STORE_OPTIONS)`) are keyed
-  stores opened only in `SidecarPlatformLive`; their Live layers get the bare
-  `SqlClient` from `Store.sqlClient(tag)`. Never hand-roll a `SqliteMigrator`,
-  and never open a store without `LEDGER_OPTIONS` (adopt + mirror
-  `effect_sql_migrations`): older installs share these files and need the
-  mirrored ledger. `PlatformLiveError` is the public error alias; dependents
-  name it instead of importing `@effected/store`.
+  (`Store.layerSqliteAs(RegistryStore, { filename: paths.registryDbPath,
+  migrations: REGISTRY_STORE_OPTIONS.migrations, … })`) are keyed stores
+  opened only in `SidecarPlatformLive`, each at the path it is given; their
+  Live layers get the bare `SqlClient` from `Store.sqlClient(tag)`.
+  `@effected/app` is used only for `AppStore.location` in `hook-paths.ts`,
+  which derives `registryDbPath`. Never hand-roll a `SqliteMigrator`, and
+  never open a store without `LEDGER_OPTIONS` (adopt a 2.x
+  `effect_sql_migrations` ledger once): skipping it re-runs every migration
+  on an upgraded file. There is no mirror back into `effect_sql_migrations`,
+  and an older vitest-agent opening a file this version created is not
+  supported. `PlatformLiveError` is the public error alias; dependents name
+  it instead of importing `@effected/store`.
 - **Migrations are append-only post-2.0.** New files register in
   `migrations/index.ts`'s `PROJECT_MIGRATIONS` (or the session-map /
   registry record), keyed `NNNN_name`; never rename a shipped key and never
@@ -164,7 +169,8 @@ there.
   [`../../okf/decisions/d10-stable-failure-signatures-via-ast-function-boundary.md`](../../okf/decisions/d10-stable-failure-signatures-via-ast-function-boundary.md)
   Load for `ensureMigrated`, path resolution, migration policy, and failure
   signatures respectively.
-- [`../../okf/decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md`](../../okf/decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md)
+- [`../../okf/decisions/76-adopt-effected-store-with-an-adopt-only-ledger.md`](../../okf/decisions/76-adopt-effected-store-with-an-adopt-only-ledger.md),
+  [`../../okf/limitations/older-installs-cannot-open-newer-databases.md`](../../okf/limitations/older-installs-cannot-open-newer-databases.md)
   Load before touching store assembly, `LEDGER_OPTIONS`, or
   `toStoreMigrations`.
 - [`../../okf/runbooks/add-a-migration.md`](../../okf/runbooks/add-a-migration.md)

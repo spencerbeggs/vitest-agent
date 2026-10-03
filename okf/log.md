@@ -9,6 +9,11 @@
 * Updated Effect Services over Plain Functions
 * Updated Output Pipeline Architecture
 * Updated Package Split
+* Updated @vitest-agent/reporter
+* Added Adopt @effected/store with Ledger Adopt and Mirror
+* Added Concurrent first open of a new database can die at the WAL switch
+* Updated Keep ensureMigrated Instead of the Kit's SQLite-State Layer
+* Updated Only stream mode renders progressively; every other console mode paints once at run end
 
 ## 2026-10-01
 

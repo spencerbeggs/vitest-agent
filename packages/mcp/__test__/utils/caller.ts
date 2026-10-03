@@ -48,7 +48,7 @@ export type ToolCaller<R> = <Name extends CallableTools<R>>(
 
 /**
  * `ER` is the runtime's own build error (the engine test layer carries
- * `MigrationError | SqlError`), which never reaches a handler.
+ * `PlatformLiveError`), which never reaches a handler.
  */
 export const makeCaller = <R, ER>(
 	runtime: ManagedRuntime.ManagedRuntime<R, ER>,

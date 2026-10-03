@@ -29,8 +29,8 @@ sources:
     title: toStoreMigrations and LEDGER_OPTIONS
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
-  body_sha256: ed61036214b0109ce898f66753efa2350d3d769ae1fba3108664c6dee46ddf86
+  at: 2026-10-03T18:15:58Z
+  body_sha256: 9723dff25c45b1ca8e0a08e93ba590fdfa06b06bf47fe6382c78f68f336b344c
 ---
 
 # Schema migrations — append-only, one registry, never edit 0001
@@ -65,12 +65,13 @@ The parsed id and name are what ledger adoption matches against the
 `effect_sql_migrations` rows a 2.x install already wrote, so never rename a
 shipped key and never introduce a key outside that shape. Open any new
 store — or any new call site for an existing database — with the shared
-`LEDGER_OPTIONS` (`adoptMigratorLedger` and `mirrorMigratorLedger`), and
-never hand-roll a `SqliteMigrator` or a bare `Store.layer` without them: a
-store that does not mirror leaves `effect_sql_migrations` behind, and an
-older vitest-agent opening the same file would then try to re-run
-migrations that already ran. See
-[Decision 75](../decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md).
+`LEDGER_OPTIONS` (`adoptMigratorLedger`), and never hand-roll a
+`SqliteMigrator` or a bare `Store.layer` without it: a store that skips
+adoption finds an empty `_store_migrations` on an upgraded 2.x file and
+re-runs migrations that already ran. Do not add a mirror back into
+`effect_sql_migrations`; an older vitest-agent opening a newer file is not
+supported. See
+[Decision 76](../decisions/76-adopt-effected-store-with-an-adopt-only-ledger.md).
 
 ## Never edit `0001_initial.ts`, or any already-shipped migration, in place
 

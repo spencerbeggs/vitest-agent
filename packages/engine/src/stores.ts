@@ -8,11 +8,9 @@
  * Every store opens with {@link LEDGER_OPTIONS}: `adoptMigratorLedger`, so a
  * database that a 2.x `SqliteMigrator` already migrated keeps its history
  * (the effect/sql `effect_sql_migrations` rows are copied into
- * `_store_migrations` once, on the first open, and nothing re-runs), and
- * `mirrorMigratorLedger`, so `effect_sql_migrations` stays current. The mirror
- * is what lets an older vitest-agent open a file this version created or
- * migrated: `registry.db` is shared by every install on the machine, and
- * `sessions.db` / `data.db` by every version a host or project runs.
+ * `_store_migrations` once, on the first open, and nothing re-runs). The
+ * ledger is not mirrored back: an older vitest-agent opening a file this
+ * version created is not supported.
  */
 
 import type { StoreMigration, StoreShape } from "@effected/store";
@@ -30,11 +28,11 @@ export type MigrationRecord = Record<string, Effect.Effect<void, SqlError, SqlCl
 
 /**
  * The ledger options every store opens with: adopt a 2.x effect/sql ledger
- * once, and keep mirroring into it so older versions still read it.
+ * once, on the first open.
  *
  * @internal
  */
-export const LEDGER_OPTIONS = { adoptMigratorLedger: true, mirrorMigratorLedger: true } as const;
+export const LEDGER_OPTIONS = { adoptMigratorLedger: true } as const;
 
 /**
  * Convert a {@link MigrationRecord} to the `StoreMigration` list `Store` runs,

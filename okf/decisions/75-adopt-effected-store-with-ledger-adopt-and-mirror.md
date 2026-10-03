@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: stable
+status: deprecated
 supersedes: 32-keep-ensuremigrated-instead-of-the-kit-s-sqlite-state-layer.md
 title: Adopt @effected/store with Ledger Adopt and Mirror
 description: "All three SQLite databases open as @effected/store stores (data.db through makeSqliteStack's Store.layer, sessions.db and registry.db as keyed stores), every one with adoptMigratorLedger and mirrorMigratorLedger, so 2.x ledgers carry forward and older vitest-agent versions can still open files this version wrote."

@@ -6,8 +6,8 @@ resource: ../../packages/engine/src/migrations/index.ts
 tags: [architecture, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
-  body_sha256: 4f151c58714fffa8f802c9f802ca199b17ac8efa11574ec9dcb05741179233de
+  at: 2026-10-03T18:15:58Z
+  body_sha256: 82a481892f2261d9b6332d0879ba31b0f583a1d36e5dea2fbd847a23a09956bf
 sources:
   - id: migrations-index
     resource: ../../packages/engine/src/migrations/index.ts
@@ -64,9 +64,8 @@ shipped.[^migration-0001]
    `toStoreMigrations` parses it with effect/sql's `fromRecord` pattern
    (`/^(\d+)_(.+)$/`, so `0003_foo` is id 3, name `foo`), and a key that does
    not match is silently skipped.[^engine-stores] `@effected/store` records
-   the applied migration in `_store_migrations` and mirrors it into
-   `effect_sql_migrations`, so an older vitest-agent opening the same file
-   sees it as applied. This one record is the single source of
+   the applied migration only in `_store_migrations`; nothing writes
+   `effect_sql_migrations` any more. This one record is the single source of
    truth every migration-consuming call site defaults to:
    `makeSqliteStack(filename, migrations = PROJECT_MIGRATIONS)` in
    `platform.ts`,[^engine-platform] `ensureMigrated`'s call to
@@ -101,8 +100,9 @@ shipped.[^migration-0001]
 The new migration file is registered under its key in `PROJECT_MIGRATIONS`,
 `pnpm build` completes, a fresh `data.db` created after `db reset` (or the
 first process to touch a missing `data.db`) ends up on the new schema
-version with the migration's row present in both `_store_migrations` and
-`effect_sql_migrations`, and `pnpm vitest run packages/engine` passes including any new
+version with the migration's row present in `_store_migrations` (and no
+new row in any `effect_sql_migrations` table), and
+`pnpm vitest run packages/engine` passes including any new
 migration-shape assertions.
 
 ## Related
@@ -120,4 +120,4 @@ migration-shape assertions.
 [^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:44`
 [^testing-layers]: `../../packages/engine/src/testing/layers.ts:7`
 [^migration-0002-test]: `../../packages/engine/__test__/migration-0002.test.ts`
-[^engine-stores]: `../../packages/engine/src/stores.ts:48`
+[^engine-stores]: `../../packages/engine/src/stores.ts:46`

@@ -56,9 +56,9 @@ export const REGISTRY_DB_FILENAME = "registry.db";
 
 /**
  * The global discovery registry's store options: `registry.db` at the app's
- * XDG data root. The one value both `resolveHookPaths` (through
- * `AppStore.location`) and `SidecarPlatformLive` (through `AppStore.layerAs`)
- * read, so the reported path and the opened file cannot disagree.
+ * XDG data root. `resolveHookPaths` resolves `registryDbPath` from them with
+ * `AppStore.location`; `SidecarPlatformLive` opens that path with their
+ * migrations.
  *
  * @internal
  */
@@ -120,9 +120,8 @@ const nonEmpty = (value: string | undefined): string | undefined =>
  * `process.env` read. `USERPROFILE` stands in for `HOME` when the latter is
  * unset (Windows), matching the session-map fallback order below.
  *
- * @internal
  */
-export const hookAppDirs = (env: HookEnv) => {
+const hookAppDirs = (env: HookEnv) => {
 	const home = nonEmpty(env.HOME) ?? nonEmpty(env.USERPROFILE);
 	const provider = ConfigProvider.fromEnvRecord({ ...env, ...(home !== undefined && { HOME: home }) });
 	const XdgLive = Xdg.layer.pipe(Layer.provide(ConfigProvider.layer(provider)));

@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
-  body_sha256: a9180d362b241a66ea58e4dd15c158fece1c41b903bfa087821e4ee835cb595e
+  at: 2026-10-03T18:15:58Z
+  body_sha256: b7ba54a1a2396209ac4c4a36071afd829cb74034719af0f2105d1e1754b4f742
 ---
 
 # @vitest-agent/engine
@@ -146,17 +146,19 @@ each front end resolves its path early and displays or persists it, a user
 provides `SqliteClient | SqlClient`.
 
 The two auxiliary databases are keyed stores, opened only by
-`SidecarPlatformLive`[^platform-sidecar]: `sessions.db` through
-`Store.layerSqliteAs(SessionMapStore, { filename, … })` at the absolute,
-host-chosen path, and `registry.db` through `@effected/app`'s
-`AppStore.layerAs(RegistryStore, REGISTRY_STORE_OPTIONS)` at the XDG data
-root (`directory: "data"`), provided with `hookAppDirs(env)`. Their Live
-layers still read the bare `SqlClient`, supplied per database by
-`Store.sqlClient(tag)` scoped with `Layer.provide`. Every store, all three,
-opens with `LEDGER_OPTIONS` (adopt and mirror effect/sql's
-`effect_sql_migrations` ledger); see
-[Decision 75](../decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md)
-for why. The driver sets a 5 s busy timeout and WAL journal mode per
+`SidecarPlatformLive`[^platform-sidecar], both through `Store.layerSqliteAs`
+at the path in `SidecarPaths` it is given: `sessions.db` as
+`SessionMapStore` at the absolute, host-chosen path, and `registry.db` as
+`RegistryStore` at `paths.registryDbPath` with
+`REGISTRY_STORE_OPTIONS.migrations`. Their Live layers still read the bare
+`SqlClient`, supplied per database by `Store.sqlClient(tag)` scoped with
+`Layer.provide`. Every store, all three, opens with `LEDGER_OPTIONS`
+(adopt effect/sql's `effect_sql_migrations` ledger once; no mirror back),
+so an older vitest-agent cannot open a file this version created; see
+[Decision 76](../decisions/76-adopt-effected-store-with-an-adopt-only-ledger.md)
+for why and
+[Limitation: older installs cannot open newer databases](../limitations/older-installs-cannot-open-newer-databases.md)
+for the symptom. The driver sets a 5 s busy timeout and WAL journal mode per
 connection, and `node:sqlite` enables foreign keys by default;
 `DataStoreLive` still issues its own per-connection `PRAGMA
 foreign_keys=ON` as defense in depth.
@@ -337,10 +339,11 @@ but both it and `PathResolutionLive` pass the one exported
 `DATA_FALLBACK_DIR` (`.local/share/vitest-agent`)[^hook-paths], so with
 `XDG_DATA_HOME` unset the reporter/MCP data path and the hook-driven sidecar
 path agree on `~/.local/share/vitest-agent/<workspaceKey>/`.
-`resolveHookPaths` reports `registryDbPath` through
-`AppStore.location(REGISTRY_STORE_OPTIONS)`, the same constant
-`SidecarPlatformLive` hands to `AppStore.layerAs`, so the reported path and
-the opened file cannot disagree[^hook-paths]. Databases older
+`resolveHookPaths` derives `registryDbPath` with `@effected/app`'s
+`AppStore.location(REGISTRY_STORE_OPTIONS)` (the XDG data root,
+`directory: "data"`), and `SidecarPlatformLive` opens that path as
+given[^hook-paths]; `AppStore.location` is the package's only
+`@effected/app` call. Databases older
 reporter/MCP versions wrote under `~/.vitest-agent/<workspaceKey>/` are left
 in place and not read; see
 [Gotcha: legacy reporter data root](../gotchas/legacy-reporter-data-root.md).
@@ -416,8 +419,9 @@ callers await the returned promise and handle rejection themselves.
 `fromRecord` pattern (`/^(\d+)_(.+)$/`, so `0001_initial` is id 1, name
 `initial`), which keeps ids and names identical to the rows a 2.x
 `effect_sql_migrations` ledger already holds. Store records applied
-migrations in its own `_store_migrations` table and, under
-`LEDGER_OPTIONS`, mirrors them into `effect_sql_migrations`[^stores-ts].
+migrations only in its own `_store_migrations` table; under
+`LEDGER_OPTIONS` it reads an existing `effect_sql_migrations` once, to
+adopt it, and never writes it[^stores-ts].
 `makeSqliteStack` defaults its `migrations` argument to
 `PROJECT_MIGRATIONS`, and `PlatformLive`, `ensureMigrated`, and the testing
 layer all build through it, so a migration added to `migrations/index.ts`
@@ -528,8 +532,8 @@ against a target that no longer applies.
 
 [^boundaries-test]: `../../packages/engine/__test__/boundaries.test.ts`
 [^platform-ts]: `../../packages/engine/src/platform.ts:54` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:67` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:82` (`PlatformLiveError`), `../../packages/engine/src/platform.ts:98` (`logger`), `../../packages/engine/src/platform.ts:138` (`PlatformLive`)
-[^stores-ts]: `../../packages/engine/src/stores.ts:37` (`LEDGER_OPTIONS`), `../../packages/engine/src/stores.ts:48` (`toStoreMigrations`)
-[^platform-sidecar]: `../../packages/engine/src/programs/platform-sidecar.ts:68` (`SidecarPlatformLive`)
+[^stores-ts]: `../../packages/engine/src/stores.ts:35` (`LEDGER_OPTIONS`), `../../packages/engine/src/stores.ts:46` (`toStoreMigrations`)
+[^platform-sidecar]: `../../packages/engine/src/programs/platform-sidecar.ts:67` (`SidecarPlatformLive`)
 [^env-detector]: `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:25` (`classifyEnvironment`), `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:49` (`EnvironmentDetectorLive`)
 [^logger-live]: `../../packages/engine/src/layers/LoggerLive.ts:26`
 [^project-dir-ts]: `../../packages/engine/src/project-dir.ts:23`
@@ -537,6 +541,6 @@ against a target that no longer applies.
 [^migration-behavior-id]: `../../packages/engine/src/migrations/0001_initial.ts:743`
 [^resolve-data-path]: `../../packages/engine/src/utils/resolve-data-path.ts:38`
 [^path-resolution-live]: `../../packages/engine/src/layers/PathResolutionLive.ts:11`
-[^hook-paths]: `../../packages/engine/src/programs/hook-paths.ts:65` (`REGISTRY_STORE_OPTIONS`), `../../packages/engine/src/programs/hook-paths.ts:125` (`hookAppDirs`), `../../packages/engine/src/programs/hook-paths.ts:196` (`registryDbPath`)
+[^hook-paths]: `../../packages/engine/src/programs/hook-paths.ts:65` (`REGISTRY_STORE_OPTIONS`), `../../packages/engine/src/programs/hook-paths.ts:124` (`hookAppDirs`, module-private), `../../packages/engine/src/programs/hook-paths.ts:195` (`registryDbPath`)
 [^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:7`
 [^migrations-index]: `../../packages/engine/src/migrations/index.ts:21`

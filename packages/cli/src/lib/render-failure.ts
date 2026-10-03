@@ -4,7 +4,7 @@ import { Schema } from "effect";
 
 /**
  * The one-line name of a typed failure: its `_tag` when it carries one (a
- * `PlatformError`, `SqlError`, `MigrationError`), else its `Error` name.
+ * `PlatformError`, `SqlError`, `StoreError`), else its `Error` name.
  */
 const failureName = (error: unknown): string => {
 	if (typeof error === "object" && error !== null && "_tag" in error && typeof error._tag === "string") {
@@ -36,7 +36,7 @@ const oneLine = (text: string): string =>
  * (`details.isDefect`, exact: the cause carries no typed failure).
  *
  * - A typed failure from the error channel (a `PlatformError`, `SqlError`,
- *   `MigrationError`) is the one line we own: `vitest-agent: <Tag>: <message>`,
+ *   `StoreError`) is the one line we own: `vitest-agent: <Tag>: <message>`,
  *   the message passed through `Fmt.sanitize` (it can carry a path or SQL text).
  * - Everything else is delegated to `details.lines({ status: false })`, the
  *   kit's report for this run (its colour, links, and `displayPath`) with the

@@ -13,8 +13,8 @@
  *   - per-client sessions.db — PerClientSessionMapWriter (also
  *     satisfies PerClientSessionMapReader); an absolute, host-chosen
  *     path, so `Store.layerSqliteAs`
- *   - global registry.db — DiscoveryRegistry; the XDG data root, so
- *     `@effected/app`'s `AppStore.layerAs` (`directory: "data"`)
+ *   - global registry.db — DiscoveryRegistry; `Store.layerSqliteAs` at
+ *     the given path (`resolveHookPaths` derives it with `AppStore.location`)
  *
  * Each handle is short-lived: the sidecar process exits immediately
  * after the subcommand returns. WAL mode plus a 5 s busy timeout (the
@@ -22,7 +22,6 @@
  * sidecar processes from parallel hooks.
  */
 
-import { AppStore } from "@effected/app";
 import { Store } from "@effected/store";
 import { Layer } from "effect";
 import { DataReaderLive } from "../layers/DataReaderLive.js";
@@ -34,7 +33,7 @@ import { RunContextLive } from "../layers/RunContextLive.js";
 import sessionMapMigration0001 from "../migrations/session_map_0001_initial.js";
 import { NodePlatformLayer, makeSqliteStack } from "../platform.js";
 import { LEDGER_OPTIONS, RegistryStore, SessionMapStore, toStoreMigrations } from "../stores.js";
-import { REGISTRY_STORE_OPTIONS, hookAppDirs } from "./hook-paths.js";
+import { REGISTRY_STORE_OPTIONS } from "./hook-paths.js";
 
 /**
  * SQLite database paths consumed by {@link SidecarPlatformLive}.
@@ -55,10 +54,10 @@ export interface SidecarPaths {
 /**
  * Build the sidecar Live layer for the supplied SQLite paths.
  *
- * Each store gets its own `SqlClient` connection (separate scopes,
- * independent migrators, all built through the engine's shared
- * `makeSqliteStack`) so concurrent operations on the three stores
- * don't share lock state.
+ * Each store gets its own `SqlClient` connection and its own migration
+ * ledger (`makeSqliteStack` for `data.db`, `Store.layerSqliteAs` for the
+ * session map and the registry), so concurrent operations on the three
+ * stores don't share lock state. Every path in `paths` is opened as given.
  *
  * @param paths - the three SQLite database paths to open
  * @param env - the environment map `RunContextLive` probes for host
@@ -86,14 +85,18 @@ export const SidecarPlatformLive = (paths: SidecarPaths, env: Record<string, str
 		),
 	);
 
-	// Global discovery registry, at the app's XDG data root. The options are
-	// the ones `resolveHookPaths` resolves `registryDbPath` from (through
-	// `AppStore.location`), so this opens exactly the file it reports.
+	// Global discovery registry, opened at the path it was given.
+	// `resolveHookPaths` derives `registryDbPath` with `AppStore.location`
+	// from `REGISTRY_STORE_OPTIONS`, so the CLI's path is the XDG data root.
 	const RegistryLayer = DiscoveryRegistryLive.pipe(
 		Layer.provide(Store.sqlClient(RegistryStore)),
-		Layer.provide(AppStore.layerAs(RegistryStore, REGISTRY_STORE_OPTIONS)),
-		Layer.provide(hookAppDirs(env)),
-		Layer.provide(NodePlatformLayer),
+		Layer.provide(
+			Store.layerSqliteAs(RegistryStore, {
+				filename: paths.registryDbPath,
+				migrations: REGISTRY_STORE_OPTIONS.migrations,
+				...LEDGER_OPTIONS,
+			}),
+		),
 	);
 
 	return Layer.mergeAll(ProjectStoreLayer, SessionMapLayer, RegistryLayer, RunContextLive(env)).pipe(

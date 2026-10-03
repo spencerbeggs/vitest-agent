@@ -10,8 +10,8 @@ tags:
   - tdd
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
-  body_sha256: a7dd20162786b7c021fb9d8f892e9458e86f991d7faf7a8d3ea70f3bda7b0cef
+  at: 2026-10-03T18:15:58Z
+  body_sha256: 6f892a665ebfd553c726fd3f7f0312c4840000c86a52823619e00a924e5a30b8
 ---
 
 # SQLite Schema
@@ -208,8 +208,9 @@ native-id keys.
 ## The discovery registry database
 
 `registry_0001_initial.ts` — one `STRICT` table, `known_projects`, at
-`$XDG_DATA_HOME/vitest-agent/registry.db`[^registry] (opened by
-`AppStore.layerAs` with `directory: "data"`), keyed by
+`$XDG_DATA_HOME/vitest-agent/registry.db`[^registry] (the path
+`resolveHookPaths` derives with `AppStore.location`, `directory: "data"`,
+and `SidecarPlatformLive` opens as given with `Store.layerSqliteAs`), keyed by
 `project_key` (the filesystem-safe form `ProjectIdentity` produces).
 Tooling that needs to enumerate every vitest-agent project a machine has
 ever run on (an MCP dashboard, a cross-project query) reads this table
@@ -240,25 +241,25 @@ single-canonical-migration-then-incremental policy in
 
 ## Migration ledgers
 
-Each database carries two ledger tables, and both must stay correct. Store
-records applied migrations in `_store_migrations` (plus a `_store_meta`
-table for its own markers). Every store opens with `LEDGER_OPTIONS =
-{ adoptMigratorLedger: true, mirrorMigratorLedger: true }`[^stores]:
-
-- **Adopt.** On the first open of a database that a 2.x `SqliteMigrator`
-  migrated, Store copies its `effect_sql_migrations` rows into
-  `_store_migrations` once (a one-shot marker in `_store_meta`), so nothing
-  re-runs.
-- **Mirror.** Store keeps `effect_sql_migrations` current, two-way for
-  matching rows, so an older vitest-agent that still runs `SqliteMigrator`
-  can open a file this version created or migrated.
+Store records applied migrations in `_store_migrations` (plus a
+`_store_meta` table for its own markers), and that is the only live
+ledger. Every store opens with `LEDGER_OPTIONS = { adoptMigratorLedger:
+true }`[^stores]: on the first open of a database that a 2.x
+`SqliteMigrator` migrated, Store copies its `effect_sql_migrations` rows
+into `_store_migrations` once (a one-shot marker in `_store_meta`), so
+nothing re-runs. Store never writes `effect_sql_migrations`: on an upgraded
+database the table stays behind, frozen at the point of adoption, and on a
+database this version created it never exists. An older vitest-agent that
+still runs `SqliteMigrator` therefore cannot open a file this version
+created; see
+[Limitation: older installs cannot open newer databases](../limitations/older-installs-cannot-open-newer-databases.md).
 
 Adoption only matches when ids and names agree, which is why every record
 stays keyed `NNNN_name` and `toStoreMigrations` parses the keys with
 effect/sql's own `fromRecord` pattern (`0001_initial` → id 1, name
 `initial`). Renaming a shipped key would make adoption miss it and re-run
 the migration. The rationale is
-[Decision 75](../decisions/75-adopt-effected-store-with-ledger-adopt-and-mirror.md).
+[Decision 76](../decisions/76-adopt-effected-store-with-an-adopt-only-ledger.md).
 
 The connection settings come from the driver, not the schema: a 5 s busy
 timeout and WAL journal mode per connection, with foreign keys on by
