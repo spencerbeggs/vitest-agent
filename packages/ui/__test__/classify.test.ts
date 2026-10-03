@@ -186,4 +186,48 @@ describe("classifyOutcome", () => {
 		};
 		expect(classifyOutcome(state)).toBe("all-pass");
 	});
+
+	it("returns threshold-violation when only a glob aggregate shortfall exists", () => {
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 50 },
+			coverage: {
+				metrics: { lines: 95, branches: 90, functions: 100, statements: 95 },
+				thresholds: {},
+				gaps: [],
+				violations: [],
+				globShortfalls: [
+					{
+						pattern: "src/core/**",
+						thresholds: { lines: 90 },
+						summary: { lines: 60, branches: 55, functions: 70, statements: 60 },
+					},
+				],
+			},
+		};
+		expect(classifyOutcome(state)).toBe("threshold-violation");
+	});
+
+	it("some-fail wins over a glob aggregate shortfall", () => {
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 4, failCount: 1, skipCount: 0, timeoutCount: 0, durationMs: 50 },
+			coverage: {
+				metrics: { lines: 95, branches: 90, functions: 100, statements: 95 },
+				thresholds: {},
+				gaps: [],
+				violations: [],
+				globShortfalls: [
+					{
+						pattern: "src/core/**",
+						thresholds: { lines: 90 },
+						summary: { lines: 60, branches: 55, functions: 70, statements: 60 },
+					},
+				],
+			},
+		};
+		expect(classifyOutcome(state)).toBe("some-fail");
+	});
 });

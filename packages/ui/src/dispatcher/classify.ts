@@ -82,8 +82,13 @@ export const classifyOutcome = (state: RenderState): RunOutcome => {
 	if (state.totals.timeoutCount > 0) {
 		return "some-fail";
 	}
-	if (state.coverage !== null && state.coverage.violations.length > 0) {
-		return "threshold-violation";
+	if (state.coverage !== null) {
+		// A glob aggregate shortfall fails Vitest's native threshold check
+		// even when every per-file number passes, so it is a threshold
+		// outcome on its own (the analyzer never emits one on scoped runs).
+		if (state.coverage.violations.length > 0 || (state.coverage.globShortfalls?.length ?? 0) > 0) {
+			return "threshold-violation";
+		}
 	}
 	return "all-pass";
 };
