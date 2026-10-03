@@ -27,6 +27,26 @@ export const FileCoverageReport = Schema.Struct({
 export type FileCoverageReport = typeof FileCoverageReport.Type;
 
 /**
+ * A threshold glob whose AGGREGATE coverage (summed covered/total across
+ * every file the glob matches, the same way Vitest evaluates a glob
+ * threshold) is below at least one of the glob's metric numbers.
+ *
+ * This is independent of the per-file lists: with an object `perFile` every
+ * matched file can pass while the glob as a whole still fails.
+ * @public
+ */
+export const GlobShortfall = Schema.Struct({
+	/** The threshold glob pattern as configured. */
+	pattern: Schema.String,
+	/** Aggregate coverage percentages over the files the glob matches. */
+	summary: CoverageTotals,
+	/** The glob's own metric numbers that were set (`perFile` excluded). */
+	thresholds: MetricThresholds,
+}).annotate({ identifier: "GlobShortfall" });
+/** @public */
+export type GlobShortfall = typeof GlobShortfall.Type;
+
+/**
  * Complete coverage report attached to an AgentReport.
  * @public
  */
@@ -60,6 +80,10 @@ export const CoverageReport = Schema.Struct({
 	lowCoverageFiles: Schema.Array(Schema.String),
 	belowTarget: Schema.optional(Schema.Array(FileCoverageReport)),
 	belowTargetFiles: Schema.optional(Schema.Array(Schema.String)),
+	// Issue #391: threshold globs whose aggregate is below their numbers.
+	// Absent when none fall short (and on scoped runs, where a partial
+	// coverage map says nothing about a glob's aggregate).
+	globShortfalls: Schema.optional(Schema.Array(GlobShortfall)),
 }).annotate({ identifier: "CoverageReport" });
 /** @public */
 export type CoverageReport = typeof CoverageReport.Type;

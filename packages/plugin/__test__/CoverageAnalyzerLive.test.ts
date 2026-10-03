@@ -1023,3 +1023,77 @@ describe("per-pattern perFile on coverageTargets (issue #390)", () => {
 		expect(report.belowTargetFiles).toEqual(["/repo/src/a.ts"]);
 	});
 });
+
+/**
+ * Istanbul-shaped map that also carries covered/total counts, which glob
+ * aggregates need (the aggregate is sum(covered)/sum(total), not a mean of
+ * per-file percentages).
+ */
+interface Counts {
+	covered: number;
+	total: number;
+}
+function countsMap(files: Record<string, { lines: Counts; uncoveredLines?: number[] }>): unknown {
+	const pct = ({ covered, total }: Counts) => (total > 0 ? Math.floor((10000 * covered) / total) / 100 : 100);
+	const metric = (c: Counts) => ({ pct: pct(c), covered: c.covered, total: c.total });
+	return {
+		getCoverageSummary: () => ({
+			statements: { pct: 50 },
+			branches: { pct: 50 },
+			functions: { pct: 50 },
+			lines: { pct: 50 },
+		}),
+		files: () => Object.keys(files),
+		fileCoverageFor: (path: string) => ({
+			toSummary: () => ({
+				statements: metric(files[path].lines),
+				branches: metric(files[path].lines),
+				functions: metric(files[path].lines),
+				lines: metric(files[path].lines),
+			}),
+			getUncoveredLines: () => files[path].uncoveredLines ?? [],
+		}),
+	};
+}
+
+describe("glob aggregate shortfalls (issue #391)", () => {
+	const processWith = (
+		map: unknown,
+		patterns: ResolvedThresholdsPatterns,
+		extra: { scopedTo?: string[]; includeBareZero?: boolean } = {},
+	) =>
+		run(
+			Effect.flatMap(CoverageAnalyzer, (ca) => {
+				const options = {
+					thresholds: { global: {}, perFile: false as const, patterns },
+					includeBareZero: extra.includeBareZero ?? false,
+				};
+				return extra.scopedTo ? ca.processScoped(map, options, extra.scopedTo) : ca.process(map, options);
+			}),
+		);
+	type ResolvedThresholdsPatterns = ReadonlyArray<
+		readonly [string, { lines?: number; perFile?: boolean | { lines?: number } }]
+	>;
+
+	it("reports a glob whose aggregate is below its numbers while every file passes its object perFile", async () => {
+		// Both files sit at 60% lines, clearing perFile { lines: 50 }, but the
+		// glob's own aggregate requirement is 90% -> 12/20 = 60%.
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 6, total: 10 } },
+			"/repo/src/b.ts": { lines: { covered: 6, total: 10 } },
+		});
+
+		const report = Option.getOrThrow(
+			await processWith(map, [["/repo/src/*.ts", { lines: 90, perFile: { lines: 50 } }]]),
+		);
+
+		expect(report.lowCoverageFiles).toEqual([]);
+		expect(report.globShortfalls).toEqual([
+			{
+				pattern: "/repo/src/*.ts",
+				summary: { statements: 60, branches: 60, functions: 60, lines: 60 },
+				thresholds: { lines: 90 },
+			},
+		]);
+	});
+});
