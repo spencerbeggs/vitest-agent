@@ -1,7 +1,7 @@
 ---
 type: Module
 title: "@vitest-agent/engine"
-description: "The platform half of the sdk/engine split: Effect services and Live/Test layers, the SQLite client and migrator stack, XDG path resolution, hook-driven programs, and the one PlatformLive layer both front ends provide."
+description: "The platform half of the sdk/engine split: Effect services and Live/Test layers, the SQLite databases assembled on @effected/store, XDG path resolution, hook-driven programs, and the one PlatformLive layer both front ends provide."
 kind: package
 layer: L3
 resource: ../../packages/engine
@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:28:13Z
-  body_sha256: e25fbec0c75b4ee13977bc61e9825fc658cd055ac60218528b36edc5c46b63c3
+  at: 2026-10-03T18:15:58Z
+  body_sha256: b7ba54a1a2396209ac4c4a36071afd829cb74034719af0f2105d1e1754b4f742
 ---
 
 # @vitest-agent/engine
@@ -23,7 +23,8 @@ generated:
 `@vitest-agent/engine` is the platform half of the former `@vitest-agent/sdk`:
 everything that touches a filesystem, SQLite, or an environment map. It owns
 the Effect services and their Live/Test layers, the data layer (`DataStore` /
-`DataReader`), the SQLite client and migrator stack plus the migrations, the
+`DataReader`), the three SQLite databases (opened as `@effected/store`
+stores) plus the migrations, the
 XDG path-resolution stack, the one platform composite (`PlatformLive`), the
 one project-directory resolver (`resolveProjectDir`), the hook-driven
 programs the CLI commands wrap and the MCP server calls, and the `./testing`
@@ -75,7 +76,11 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
 ## Key files
 
 - `src/platform.ts` — `makeSqliteStack(filename, migrations?)`,
-  `NodePlatformLayer`, `PlatformLive(options)`[^platform-ts].
+  `NodePlatformLayer`, `PlatformLive(options)`, and the public
+  `PlatformLiveError` alias[^platform-ts].
+- `src/stores.ts` — internal: the `MigrationRecord` type (re-exported
+  through `platform.ts`), `toStoreMigrations`, `LEDGER_OPTIONS`, and the
+  keyed store tags `RegistryStore` / `SessionMapStore`[^stores-ts].
 - `src/project-dir.ts` — `resolveProjectDir({ env, cwd })`[^project-dir-ts].
 - `src/services/` — fourteen `Context.Service` tags plus `idempotency.ts`.
 - `src/layers/` — one Live/Test pair per service, plus `PathResolutionLive`,
@@ -101,7 +106,7 @@ migration record, and utility, plus `CURRENT_ENGINE_VERSION`) and
 composites and the plugin's inline SQLite assembly. `PlatformLive` is a
 factory taking `PlatformOptions` (`{ dbPath, env, logLevel?, logFile?,
 logger? }`) and
-returning a `Layer.Layer<PlatformServices, MigrationError | SqlError>`
+returning a `Layer.Layer<PlatformServices, PlatformLiveError>`
 merging `ProjectDiscoveryLive`, `HistoryTrackerLive`, and
 `OutputPipelineLive(options.env)`, then provide-merging `DataReaderLive`,
 `DataStoreLive`, the migrator layer, the SQLite layer, `NodePlatformLayer`,
@@ -119,12 +124,44 @@ and the plugin all rely on the four output-pipeline services. Being a factory, e
 the CLI's `main.ts`, the MCP `main.ts`, and the plugin's `ReporterLive` each
 call it exactly once per process.
 
-`makeSqliteStack(filename, migrations = PROJECT_MIGRATIONS)` is the shared
-builder underneath: it returns `{ SqliteLayer, MigratorLayer }`, the migrator
-already fed its `SqlClient` and the Node platform services. Its callers are
-`PlatformLive`, `ensureMigrated`, `testing/layers.ts#makeTestLayer`, and
-`programs/platform-sidecar.ts` (three separate stacks — project,
-session-map, registry — each with its own migration record).
+`PlatformLiveError` is `StoreError | StoreMigrationError` from
+`@effected/store`: a store setup or ledger-adoption failure, or a failing
+migration. It is exported from the barrel and from
+`@vitest-agent/engine/testing` so a dependent's emitted declarations can name
+the error without depending on `@effected/store` itself; the plugin's
+`ReporterLive` spells its return type with it for exactly that
+reason[^platform-ts].
+
+`makeSqliteStack(filename, migrations = PROJECT_MIGRATIONS)` is the builder
+for the per-project `data.db`: it returns `{ SqliteLayer, MigratorLayer }`,
+where `SqliteLayer` is this package's own `SqliteClient.layer({ filename })`
+and `MigratorLayer` is `@effected/store`'s `Store.layer` over it, with the
+record converted by `toStoreMigrations` and the shared `LEDGER_OPTIONS`.
+`MigratorLayer` provides nothing; it migrates as a side effect of layer
+acquisition. Its callers are `PlatformLive`, `ensureMigrated`,
+`testing/layers.ts#makeTestLayer`, and `SidecarPlatformLive`'s project
+store. `data.db` stays on this builder rather than a keyed store because
+each front end resolves its path early and displays or persists it, a user
+`cacheDir` can be any absolute directory, and `PlatformLive` publicly
+provides `SqliteClient | SqlClient`.
+
+The two auxiliary databases are keyed stores, opened only by
+`SidecarPlatformLive`[^platform-sidecar], both through `Store.layerSqliteAs`
+at the path in `SidecarPaths` it is given: `sessions.db` as
+`SessionMapStore` at the absolute, host-chosen path, and `registry.db` as
+`RegistryStore` at `paths.registryDbPath` with
+`REGISTRY_STORE_OPTIONS.migrations`. Their Live layers still read the bare
+`SqlClient`, supplied per database by `Store.sqlClient(tag)` scoped with
+`Layer.provide`. Every store, all three, opens with `LEDGER_OPTIONS`
+(adopt effect/sql's `effect_sql_migrations` ledger once; no mirror back),
+so an older vitest-agent cannot open a file this version created; see
+[Decision 76](../decisions/76-adopt-effected-store-with-an-adopt-only-ledger.md)
+for why and
+[Limitation: older installs cannot open newer databases](../limitations/older-installs-cannot-open-newer-databases.md)
+for the symptom. The driver sets a 5 s busy timeout and WAL journal mode per
+connection, and `node:sqlite` enables foreign keys by default;
+`DataStoreLive` still issues its own per-connection `PRAGMA
+foreign_keys=ON` as defense in depth.
 `NodePlatformLayer` is `NodeServices.layer`. The plugin's
 `ReporterLive(options)` is `CoverageAnalyzerLive.pipe(Layer.provideMerge(PlatformLive(options)))`
 — `CoverageAnalyzer` is the one service that lives outside this package,
@@ -301,7 +338,12 @@ in one shot; callers still supply `FileSystem` and `Path`, typically via
 but both it and `PathResolutionLive` pass the one exported
 `DATA_FALLBACK_DIR` (`.local/share/vitest-agent`)[^hook-paths], so with
 `XDG_DATA_HOME` unset the reporter/MCP data path and the hook-driven sidecar
-path agree on `~/.local/share/vitest-agent/<workspaceKey>/`. Databases older
+path agree on `~/.local/share/vitest-agent/<workspaceKey>/`.
+`resolveHookPaths` derives `registryDbPath` with `@effected/app`'s
+`AppStore.location(REGISTRY_STORE_OPTIONS)` (the XDG data root,
+`directory: "data"`), and `SidecarPlatformLive` opens that path as
+given[^hook-paths]; `AppStore.location` is the package's only
+`@effected/app` call. Databases older
 reporter/MCP versions wrote under `~/.vitest-agent/<workspaceKey>/` are left
 in place and not read; see
 [Gotcha: legacy reporter data root](../gotchas/legacy-reporter-data-root.md).
@@ -372,13 +414,23 @@ callers await the returned promise and handle rejection themselves.
 ## Migrations and SQL helpers
 
 `packages/engine/src/migrations/`. `PROJECT_MIGRATIONS` is the record
-`makeSqliteStack` feeds to the SQLite migrator (WAL journal mode, foreign
-keys enabled)[^migrations-index]. `makeSqliteStack` defaults its
-`migrations` argument to `PROJECT_MIGRATIONS`, and `PlatformLive`,
-`ensureMigrated`, and the testing layer all build through it, so a migration
-added to `migrations/index.ts` reaches every consumer at once. The
-session-map and registry stacks in `programs/platform-sidecar.ts` pass their
-own separate records.
+`makeSqliteStack` runs through `@effected/store`[^migrations-index]: each
+`NNNN_name` key is parsed by `toStoreMigrations` with effect/sql's own
+`fromRecord` pattern (`/^(\d+)_(.+)$/`, so `0001_initial` is id 1, name
+`initial`), which keeps ids and names identical to the rows a 2.x
+`effect_sql_migrations` ledger already holds. Store records applied
+migrations only in its own `_store_migrations` table; under
+`LEDGER_OPTIONS` it reads an existing `effect_sql_migrations` once, to
+adopt it, and never writes it[^stores-ts].
+`makeSqliteStack` defaults its `migrations` argument to
+`PROJECT_MIGRATIONS`, and `PlatformLive`, `ensureMigrated`, and the testing
+layer all build through it, so a migration added to `migrations/index.ts`
+reaches every consumer at once. The session-map record lives inline in
+`programs/platform-sidecar.ts` and the registry record in
+`REGISTRY_STORE_OPTIONS` (`programs/hook-paths.ts`). The `Running
+migration` / `Migrations complete` debug records now come from
+`@effected/store` itself, in the effect/sql shape the CLI's log-routing
+e2e tests match on.
 
 Migration files are append-only post-2.0: never edit `0001_initial.ts` in
 place; a table with data is ALTERed and backfilled in a new
@@ -479,7 +531,9 @@ differs from the prior entry, trend history resets rather than comparing
 against a target that no longer applies.
 
 [^boundaries-test]: `../../packages/engine/__test__/boundaries.test.ts`
-[^platform-ts]: `../../packages/engine/src/platform.ts:56` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:69` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:98` (`logger`), `../../packages/engine/src/platform.ts:132` (`PlatformLive`)
+[^platform-ts]: `../../packages/engine/src/platform.ts:54` (`NodePlatformLayer`), `../../packages/engine/src/platform.ts:67` (`makeSqliteStack`), `../../packages/engine/src/platform.ts:82` (`PlatformLiveError`), `../../packages/engine/src/platform.ts:98` (`logger`), `../../packages/engine/src/platform.ts:138` (`PlatformLive`)
+[^stores-ts]: `../../packages/engine/src/stores.ts:35` (`LEDGER_OPTIONS`), `../../packages/engine/src/stores.ts:46` (`toStoreMigrations`)
+[^platform-sidecar]: `../../packages/engine/src/programs/platform-sidecar.ts:67` (`SidecarPlatformLive`)
 [^env-detector]: `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:25` (`classifyEnvironment`), `../../packages/engine/src/layers/EnvironmentDetectorLive.ts:49` (`EnvironmentDetectorLive`)
 [^logger-live]: `../../packages/engine/src/layers/LoggerLive.ts:26`
 [^project-dir-ts]: `../../packages/engine/src/project-dir.ts:23`
@@ -487,6 +541,6 @@ against a target that no longer applies.
 [^migration-behavior-id]: `../../packages/engine/src/migrations/0001_initial.ts:743`
 [^resolve-data-path]: `../../packages/engine/src/utils/resolve-data-path.ts:38`
 [^path-resolution-live]: `../../packages/engine/src/layers/PathResolutionLive.ts:11`
-[^hook-paths]: `../../packages/engine/src/programs/hook-paths.ts:108`
+[^hook-paths]: `../../packages/engine/src/programs/hook-paths.ts:65` (`REGISTRY_STORE_OPTIONS`), `../../packages/engine/src/programs/hook-paths.ts:124` (`hookAppDirs`, module-private), `../../packages/engine/src/programs/hook-paths.ts:195` (`registryDbPath`)
 [^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:7`
-[^migrations-index]: `../../packages/engine/src/migrations/index.ts:20`
+[^migrations-index]: `../../packages/engine/src/migrations/index.ts:21`

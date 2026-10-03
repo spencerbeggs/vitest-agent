@@ -1,8 +1,6 @@
-import type { PlatformOptions, PlatformServices } from "@vitest-agent/engine";
+import type { PlatformLiveError, PlatformOptions, PlatformServices } from "@vitest-agent/engine";
 import { PlatformLive } from "@vitest-agent/engine";
 import { Layer } from "effect";
-import type { MigrationError } from "effect/sql/Migrator";
-import type { SqlError } from "effect/sql/SqlError";
 import type { CoverageAnalyzer } from "../services/CoverageAnalyzer.js";
 import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";
 
@@ -11,11 +9,10 @@ import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";
  * `PlatformLive` (SQLite, migrations, Node platform services, logger and
  * the shared service layers) plus the plugin-only `CoverageAnalyzer`.
  *
- * The return type is spelled out so the emitted declaration names
- * `MigrationError` through `effect/sql/Migrator`; left to
- * inference it is emitted via `@effect/sql-sqlite-node/SqliteMigrator`,
- * which this package does not depend on and a root typecheck cannot
- * resolve.
+ * The return type is spelled out so the emitted declaration names the
+ * error through the engine's `PlatformLiveError` alias; left to inference
+ * it is emitted via `@effected/store`, which this package does not depend
+ * on and a root typecheck cannot resolve.
  *
  * @param options - forwarded to `PlatformLive`; the reporter passes
  *   `process.env` as `env`
@@ -23,5 +20,5 @@ import { CoverageAnalyzerLive } from "./CoverageAnalyzerLive.js";
  */
 export const ReporterLive = (
 	options: PlatformOptions,
-): Layer.Layer<CoverageAnalyzer | PlatformServices, MigrationError | SqlError> =>
+): Layer.Layer<CoverageAnalyzer | PlatformServices, PlatformLiveError> =>
 	CoverageAnalyzerLive.pipe(Layer.provideMerge(PlatformLive(options)));

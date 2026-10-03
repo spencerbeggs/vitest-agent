@@ -159,6 +159,24 @@ describe("live view — CliUiTest.live over liveViewOptions", () => {
 		expect(occurrences(out.transcript, "adds")).toBe(1);
 		expect(out.frames).toEqual([]);
 	});
+
+	it("not interactive, watch mode: one plain `final` report per run, never an Ink frame", async () => {
+		const out = await run(
+			Effect.gen(function* () {
+				const view = yield* CliUiTest.live({ ...liveViewOptions, columns: 80, rows: 30, interactive: false });
+				for (const event of runEvents("r1", "adds", "failed")) yield* view.publish(event);
+				for (const event of postRunEvents) yield* view.publish(event);
+				for (const event of runEvents("r2", "adds", "passed")) yield* view.publish(event);
+				yield* view.end;
+				return { transcript: yield* view.transcript, frames: yield* view.frames };
+			}),
+		);
+		// `renderAgent`'s header line, once per run: the failing run, then the passing one.
+		expect(occurrences(out.transcript, "Tests: 0/1 passed, 1 failed")).toBe(1);
+		expect(occurrences(out.transcript, "Tests: 1/1 passed")).toBe(1);
+		expect(out.transcript).toContain("expected 1 to be 2");
+		expect(out.frames).toEqual([]);
+	});
 });
 
 describe("live view — LiveViewEnv", () => {

@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:23:18Z
-  body_sha256: 92c5f1a2e8d6e23639146f5bcc65f41e671d948178fdc28b826198e69eeb26d5
+  at: 2026-10-03T18:02:06Z
+  body_sha256: cb6ded5665f9277e4c878593c64baa645b95d75026ddc5bf465efdc456d46dca
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -146,7 +146,9 @@ unhandled-errors counter — is one `formatTotalsLine` call
 (`src/counts.ts`)[^ui-counts]: a kit `Doc.counts` block (inline layout,
 an optional suffix such as `across 3 files`) rendered with `Render.plain`
 under `Render.contextOf({ audience: "agent" })`. Its total folds timed-out
-tests in but never the unhandled-error count. `formatFailure`
+tests in but never the unhandled-error count, and that counter's label is
+the kit's plural form, `{ one: "unhandled error", other: "unhandled errors"
+}`, rather than a local ternary. `formatFailure`
 (`dispatcher/helpers.ts`) is a kit document too: one compact `Doc.list`
 item whose title is a `Doc.verbatim` (never wrapped), whose first message
 line is a `Doc.line` with `truncate`, and whose diff is a `Doc.diffText`

@@ -22,12 +22,16 @@
  * former `mkdirSync(..., { recursive: true })` calls did.
  */
 
+import type { AppStoreOptions } from "@effected/app";
+import { AppStore } from "@effected/app";
 import type { AppDirsError, XdgEnvError } from "@effected/xdg";
 import { AppDirs, Xdg } from "@effected/xdg";
 import { ProjectIdentityNotResolvableError } from "@vitest-agent/sdk";
 import { ConfigProvider, Effect, FileSystem, Layer, Path } from "effect";
 import type { PlatformError } from "effect/PlatformError";
 import { APP_NAMESPACE, DATA_FALLBACK_DIR } from "../layers/PathResolutionLive.js";
+import registryMigration0001 from "../migrations/registry_0001_initial.js";
+import { LEDGER_OPTIONS, toStoreMigrations } from "../stores.js";
 
 /**
  * Filename of the per-project test-data SQLite database.
@@ -49,6 +53,21 @@ export const SESSIONS_DB_FILENAME = "sessions.db";
  * @public
  */
 export const REGISTRY_DB_FILENAME = "registry.db";
+
+/**
+ * The global discovery registry's store options: `registry.db` at the app's
+ * XDG data root. `resolveHookPaths` resolves `registryDbPath` from them with
+ * `AppStore.location`; `SidecarPlatformLive` opens that path with their
+ * migrations.
+ *
+ * @internal
+ */
+export const REGISTRY_STORE_OPTIONS = {
+	filename: REGISTRY_DB_FILENAME,
+	directory: "data",
+	migrations: toStoreMigrations({ "0001_initial": registryMigration0001 }),
+	...LEDGER_OPTIONS,
+} as const satisfies AppStoreOptions & { readonly filename: string };
 
 /** Directory under the home dir that holds the per-client `sessions.db` fallback. */
 const SESSION_MAP_HOME_DIR = `.${APP_NAMESPACE}`;
@@ -100,6 +119,7 @@ const nonEmpty = (value: string | undefined): string | undefined =>
  * `ConfigProvider`, so the env map is installed as that provider — no
  * `process.env` read. `USERPROFILE` stands in for `HOME` when the latter is
  * unset (Windows), matching the session-map fallback order below.
+ *
  */
 const hookAppDirs = (env: HookEnv) => {
 	const home = nonEmpty(env.HOME) ?? nonEmpty(env.USERPROFILE);
@@ -172,7 +192,7 @@ export const resolveHookPaths = (input: {
 			dataRoot,
 			projectDataDir,
 			perProjectDbPath: path.join(projectDataDir, DATA_DB_FILENAME),
-			registryDbPath: path.join(dataRoot, REGISTRY_DB_FILENAME),
+			registryDbPath: yield* AppStore.location(REGISTRY_STORE_OPTIONS),
 			sessionMapDbPath,
 		};
 	}).pipe(Effect.provide(hookAppDirs(input.env)));

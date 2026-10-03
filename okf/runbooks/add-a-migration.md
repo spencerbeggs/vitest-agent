@@ -6,8 +6,8 @@ resource: ../../packages/engine/src/migrations/index.ts
 tags: [architecture, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: dcc3f57bc6bf379d0e4e3fffb0f02c62fcc6c530fefef8469a396195355bcf78
+  at: 2026-10-03T18:15:58Z
+  body_sha256: 82a481892f2261d9b6332d0879ba31b0f583a1d36e5dea2fbd847a23a09956bf
 sources:
   - id: migrations-index
     resource: ../../packages/engine/src/migrations/index.ts
@@ -23,6 +23,8 @@ sources:
     resource: ../../packages/engine/src/testing/layers.ts
   - id: migration-0002-test
     resource: ../../packages/engine/__test__/migration-0002.test.ts
+  - id: engine-stores
+    resource: ../../packages/engine/src/stores.ts
 ---
 
 # Add a schema migration to the project database
@@ -52,19 +54,30 @@ shipped.[^migration-0001]
 2. **Create `packages/engine/src/migrations/000N_<name>.ts`**, the next
    sequential number after the highest existing file. Export an
    `Effect.gen` migration body that runs SQL through the ambient
-   `SqlClient`, following `0002_test_artifacts.ts` as the worked
-   example.[^migration-0002]
+   `SqlClient` and fails only with `SqlError` (the `MigrationRecord` value
+   type is `Effect<void, SqlError, SqlClient>`), following
+   `0002_test_artifacts.ts` as the worked example.[^migration-0002]
 3. **Register the migration in `PROJECT_MIGRATIONS`.**
    `packages/engine/src/migrations/index.ts` imports each migration module
-   and lists it under its filename-derived key, in application
-   order.[^migrations-index] This one record is the single source of
+   and lists it under its filename-derived key, `NNNN_name`, in
+   application order.[^migrations-index] The key is load-bearing:
+   `toStoreMigrations` parses it with effect/sql's `fromRecord` pattern
+   (`/^(\d+)_(.+)$/`, so `0003_foo` is id 3, name `foo`), and a key that does
+   not match is silently skipped.[^engine-stores] `@effected/store` records
+   the applied migration only in `_store_migrations`; nothing writes
+   `effect_sql_migrations` any more. This one record is the single source of
    truth every migration-consuming call site defaults to:
    `makeSqliteStack(filename, migrations = PROJECT_MIGRATIONS)` in
    `platform.ts`,[^engine-platform] `ensureMigrated`'s call to
    `makeSqliteStack(dbPath)`,[^ensure-migrated] and the engine's
    `testing/layers.ts` test-layer factory[^testing-layers] all resolve the
    same migration set through that one default — there is one registry to
-   update, not three call sites to keep in sync.
+   update, not three call sites to keep in sync. A migration for
+   `sessions.db` or `registry.db` instead goes in that database's own
+   record: the inline `{ "0001_initial": … }` in
+   `programs/platform-sidecar.ts` for the session map, or
+   `REGISTRY_STORE_OPTIONS.migrations` in `programs/hook-paths.ts` for the
+   registry, keyed the same way.
 4. **Never edit `0001_initial.ts`.** It is the record of what already ran
    on every existing install; a schema fix always ships as a new
    `000N_*.ts` file, even when the fix targets a table `0001_initial`
@@ -87,7 +100,9 @@ shipped.[^migration-0001]
 The new migration file is registered under its key in `PROJECT_MIGRATIONS`,
 `pnpm build` completes, a fresh `data.db` created after `db reset` (or the
 first process to touch a missing `data.db`) ends up on the new schema
-version, and `pnpm vitest run packages/engine` passes including any new
+version with the migration's row present in `_store_migrations` (and no
+new row in any `effect_sql_migrations` table), and
+`pnpm vitest run packages/engine` passes including any new
 migration-shape assertions.
 
 ## Related
@@ -100,8 +115,9 @@ migration-shape assertions.
 
 [^migration-0001]: `../../packages/engine/src/migrations/0001_initial.ts:33-90`
 [^migration-0002]: `../../packages/engine/src/migrations/0002_test_artifacts.ts:1-58`
-[^migrations-index]: `../../packages/engine/src/migrations/index.ts:1-23`
-[^engine-platform]: `../../packages/engine/src/platform.ts:69`
-[^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:33`
+[^migrations-index]: `../../packages/engine/src/migrations/index.ts:1-24`
+[^engine-platform]: `../../packages/engine/src/platform.ts:67`
+[^ensure-migrated]: `../../packages/engine/src/utils/ensure-migrated.ts:44`
 [^testing-layers]: `../../packages/engine/src/testing/layers.ts:7`
 [^migration-0002-test]: `../../packages/engine/__test__/migration-0002.test.ts`
+[^engine-stores]: `../../packages/engine/src/stores.ts:46`
