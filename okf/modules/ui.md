@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T13:07:49Z
-  body_sha256: 0fb164c73f9b99ccbdff379bd976def57ef78f17d1cc9e90a2af6da459210863
+  at: 2026-10-03T03:23:18Z
+  body_sha256: 92c5f1a2e8d6e23639146f5bcc65f41e671d948178fdc28b826198e69eeb26d5
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -29,8 +29,6 @@ sources:
     resource: ../../packages/ui/src/dispatcher/footer.ts
   - id: ui-synthesize
     resource: ../../packages/ui/src/synthesize.ts
-  - id: ui-pubsub-channel
-    resource: ../../packages/ui/src/pubsub/Channel.ts
   - id: ui-theme
     resource: ../../packages/ui/src/theme.ts
   - id: ui-counts
@@ -47,9 +45,8 @@ internal event stream feeds a shape-tailored 4 × 3 dispatcher matrix. It
 does not ship a reporter, a live view, or the dispatch-input
 assembly helpers — those live one layer up in `@vitest-agent/reporter` (see
 [Module: reporter](./reporter.md)). What this package exposes are the
-dispatcher primitives, the `RunEvent` reducer, the synthesizers, and the
-`RunEventChannel` PubSub: the primitives a reporter is assembled *from*. It
-knows nothing about the reporter lifecycle.
+dispatcher primitives, the `RunEvent` reducer, and the synthesizers: the
+primitives a reporter is assembled *from*. It knows nothing about the reporter lifecycle.
 
 `react` and `ink` are peer dependencies, not full dependencies: this
 package renders *with* React/Ink but does not own the instance. Its one
@@ -72,7 +69,7 @@ The Vitest reporter lifecycle (managed by `@vitest-agent/plugin`) emits one
 `RunEvent` per callback from `AgentReporter`. Those events publish onto
 `kit.runEvents` (an Effect `PubSub<RunEvent>`) and to any user-supplied
 `onRunEvent` tap. `DefaultVitestAgentReporter` (in
-`@vitest-agent/reporter`) subscribes to the channel and, in `stream`
+`@vitest-agent/reporter`) subscribes to that `PubSub` and, in `stream`
 mode, hands it to the kit's `CliUi.live`, which folds each event through
 this package's reducer to update `RenderState` and redraws `StreamApp`. At the
 end of a run, the same reducer fold runs once more over a synthesized
@@ -92,7 +89,7 @@ internal barrel: the reducer (`reduceRenderState`, `reduceRenderStateAll`),
 the dispatcher (`dispatch`, `dispatchInk`, `dispatcherTable`,
 `classifyRunShape`, `classifyOutcome`, `buildFooter`,
 `dominantClassification`), the agent and Ink render paths, the
-synthesizers, the PubSub channel, the theme (`VitestAgentStatus`,
+synthesizers, the theme (`VitestAgentStatus`,
 `VitestAgentStatusName`, `VitestAgentTokens`, `inkStyle`, `statusGlyph`,
 `statusInkStyle`, `InkTextStyle`), and `formatDisplayDuration`.[^ui-src]
 Internal code imports
@@ -355,18 +352,6 @@ library that a future non-reporter consumer — the planned MCP
 triage-dashboard app is the anticipated second consumer today — could
 depend on without pulling in the reporter's live-view lifetime.
 
-### PubSub channel and Effect transport
-
-`src/pubsub/` ships an Effect `PubSub<RunEvent>` channel plus a
-`RunEventChannel` tag and subscriber helpers.[^ui-pubsub-channel] In
-production, the plugin's `AgentReporter` creates an unbounded `PubSub` per
-run, threads it onto `ReporterKit.runEvents`, and publishes one event per
-Vitest streaming callback; `DefaultVitestAgentReporter` subscribes to it
-for live Ink painting. The `RunEventChannel` Effect service tag and the
-`Subscriber.ts` helpers (`accumulateUntilFinished`, `forEachRenderState`,
-`renderStateStream`) exist for tests, Layer-based wiring, and future
-remote consumers beyond the one production wiring above.
-
 ### Synthesizers
 
 Two converters in `src/synthesize.ts` bridge into the `RunEvent`
@@ -473,4 +458,3 @@ see [Module: reporter](./reporter.md).
 [^ui-dispatch]: `../../packages/ui/src/dispatcher/dispatch.ts`
 [^ui-footer]: `../../packages/ui/src/dispatcher/footer.ts`
 [^ui-synthesize]: `../../packages/ui/src/synthesize.ts`
-[^ui-pubsub-channel]: `../../packages/ui/src/pubsub/Channel.ts`

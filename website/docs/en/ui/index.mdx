@@ -14,7 +14,6 @@ This package arrives automatically via `@vitest-agent/reporter`. Install it dire
 - **Reducer** — pure `(state, event) => state` fold over the `RunEvent` discriminated union; `reduceRenderStateAll` for one-shot replay
 - **Dispatcher matrix** — `dispatch` and `dispatchInk` route a `DispatchInputs` to the matching `(RunShape, RunOutcome)` cell; `classifyRunShape` and `classifyOutcome` derive the coordinates
 - **Ink components** — `StreamApp` and supporting primitives (`ModuleHeader`, `TestRow`, `CoverageBlock`, `TrendLine`, `FailureSection`, and more) for live `stream`-mode frames
-- **PubSub channel** — `RunEventChannel` Effect tag and helpers (`accumulateUntilFinished`, `forEachRenderState`, `renderStateStream`) for live event transport
 - **Synthesizers** — `synthesizeRunEvents` from live Vitest modules; `synthesizeFromAgentReport` from a stored `AgentReport`
 - **Footer builder** — `buildFooter` assembles the L1 MCP-tool-pointer footer; `dominantClassification` picks the most actionable failure class
 
@@ -73,31 +72,6 @@ let state = initialRenderState();
 for (const event of events) {
   state = reduce(state, event);
 }
-```
-
-## PubSub channel
-
-The `RunEventChannel` is an Effect PubSub that carries live events from the plugin's reporter callbacks to any subscriber. `DefaultVitestAgentReporter` uses it to drive the `stream`-mode live view:
-
-```ts with-api
-import {
-  RunEventChannel,
-  accumulateUntilFinished,
-  forEachRenderState,
-} from "@vitest-agent/ui";
-
-// Accumulate all events until RunFinished, then return the final state
-const state = await Effect.runPromise(
-  Effect.provide(accumulateUntilFinished, RunEventChannel.Live)
-);
-
-// Drive a live callback for each reduced state as events arrive
-await Effect.runPromise(
-  Effect.provide(
-    forEachRenderState((state) => render(state)),
-    RunEventChannel.Live
-  )
-);
 ```
 
 ## Synthesizers

@@ -59,8 +59,6 @@ export { dispatch, dispatchInk, dispatcherTable } from "./dispatcher/dispatch.js
 export { buildFooter, dominantClassification } from "./dispatcher/footer.js";
 // Shared display formatter (duration rounding).
 export { formatDisplayDuration } from "./format-duration.js";
-// PubSub channel (live-event transport).
-export * from "./pubsub/index.js";
 // Reducer + agent renderer + Ink components + synthesizers.
 export { reduceRenderState, reduceRenderStateAll } from "./reducer.js";
 export { type RenderAgentOptions, renderAgent } from "./render-agent.js";

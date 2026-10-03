@@ -35,11 +35,6 @@ src/
     ProjectRow.tsx, CountColumns.tsx, TagColumns.tsx, CoverageBlock.tsx,
     TrendLine.tsx, FailureSection.tsx, FailuresSection.tsx,
     SuggestedActions.tsx, spinner.ts
-  pubsub/                       -- Effect PubSub channel
-    Channel.ts                  -- RunEventChannel tag + Live layer
-    Publisher.ts                -- publish / publishAll helpers
-    Subscriber.ts               -- accumulateUntilFinished,
-                                   forEachRenderState, renderStateStream
 
 __test__/
   reducer.test.ts                                 -- event-by-event coverage
@@ -49,7 +44,6 @@ __test__/
   footer.test.ts                                  -- footer assembly
   dispatcher/                                     -- per-cell tests
   render-ink/*.test.tsx                           -- per-component frames
-  pubsub.test.ts                                  -- roundtrip + fan-out
   synthesize*.test.ts                             -- both synthesizer paths
   utils/events.ts + workspace.ts                  -- canonical event + workspace fixtures
   snapshots/                                      -- file-based goldens
@@ -74,8 +68,6 @@ __test__/
 | `dispatcher/footer.ts` | `buildFooter` assembles the L1 MCP-tool-pointer footer; `dominantClassification` picks the most actionable failure class to point at |
 | `dispatcher/helpers.ts` + `ink-helpers.tsx` | Shared formatting primitives used by every cell so cells stay focused on shape-specific copy |
 | `dispatcher/cells/*` | Twelve cells, one per `(shape, outcome)` pair. Each exports an agent-string renderer and an Ink-half renderer |
-| `pubsub/Channel.ts` | `RunEventChannel` Effect tag plus the scoped `RunEventChannelLive` layer providing `PubSub.unbounded<RunEvent>` |
-| `pubsub/Subscriber.ts` | `accumulateUntilFinished` (one-shot agent path), `forEachRenderState` (live callback driving), `renderStateStream` (Stream composition entry) |
 
 ## Conventions
 

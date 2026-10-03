@@ -51,7 +51,6 @@ vitest-agent/
 │   │       ├── reducer.ts          # Pure (state, event) => state
 │   │       ├── render-agent.ts     # Markdown-flavored final-frame string
 │   │       ├── render-ink/         # React Ink components
-│   │       ├── pubsub/             # RunEvent PubSub channel
 │   │       └── factory/            # EventSourcedReporterFactory, LiveInkRenderer
 │   ├── sdk/                    # @vitest-agent/sdk (platform-free core)
 │   │   └── src/

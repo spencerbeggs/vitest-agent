@@ -10,8 +10,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T13:07:49Z
-  body_sha256: 65d9fb444dc574d0e646f1283fab25fb692226ae7bb5f476e697bfadd5af63cd
+  at: 2026-10-03T03:23:18Z
+  body_sha256: 39304d0b729d0ff66482005fd6541ed4b7e40029dc76e05f0cf1fe048da52f23
 ---
 
 # RunEvent and RenderState
@@ -132,7 +132,7 @@ per-`Match.tag` chaining because the 23-variant union blows past `pipe`'s
   receive them, but neither shipped renderer folds them into
   `RenderState`. A future consumer (a planned MCP dashboard, an analytics
   tap) opts in without any plugin change, because the events already flow
-  through the channel.
+  through the `PubSub`.
 
 `RenderState` itself carries `phase` (`idle` / `running` / `finished` /
 `timed-out` — the layout discriminator agent mode uses to know when to emit
@@ -147,24 +147,19 @@ report replay (which only synthesizes events for *failing* modules) does
 not undercount a fully green run to zero modules, and so a process-level
 unhandled error can never be hidden behind an all-pass summary.
 
-## The PubSub channel
+## The run-event PubSub
 
-`packages/ui/src/pubsub/Channel.ts` defines `RunEventChannel`, a
-`Context.Service` tag over `PubSub.PubSub<RunEvent>`, and
-`RunEventChannelLive`, a scoped `Layer.effect` building an *unbounded*
-`PubSub`[^channel]. Unbounded is deliberate: events can arrive faster than a
-slow renderer drains them (several `TestFinished` per millisecond during a
-large suite), and dropping an event would leave `RenderState` permanently
-inconsistent with the runner's actual outcome — there is no way to later
-reconcile a dropped `TestFinished` into `totals`. A call site under memory
-pressure swaps in `PubSub.sliding` with a tuned capacity instead of changing
-the default. `packages/ui/src/pubsub/Subscriber.ts` builds three consumption
-patterns on top of the same channel: `accumulateUntilFinished` (the
-one-shot agent-mode path — fold every event, render once at the end),
-`forEachRenderState` (a live callback invoked per state transition, driving
-the Ink tree), and `renderStateStream` (an Effect `Stream` composition
-entry point for a future consumer that wants the raw stream of states
-rather than a callback).
+Run events travel on a plain Effect `PubSub<RunEvent>` that the plugin owns:
+`AgentReporter` creates an *unbounded* `PubSub` per run and threads it onto
+`ReporterKit.runEvents`. The reporter's `stream` live view consumes it
+directly through `@effected/cli`'s `CliUi.live`. `@vitest-agent/ui` ships no
+channel service or subscriber helpers. Unbounded is deliberate: events can
+arrive faster than a slow renderer drains them (several `TestFinished` per
+millisecond during a large suite), and dropping an event would leave
+`RenderState` permanently inconsistent with the runner's actual outcome —
+there is no way to later reconcile a dropped `TestFinished` into `totals`. A
+call site under memory pressure swaps in `PubSub.sliding` with a tuned
+capacity instead of changing the default.
 
 ## What breaks when a variant is added without a reducer case
 
@@ -188,4 +183,3 @@ missed; only a missing-event test would catch it.
 [^run-event]: `../../packages/sdk/src/schemas/RunEvent.ts:80`
 [^run-event-bytag]: `../../packages/sdk/src/schemas/RunEvent.ts:250`
 [^reducer]: `../../packages/ui/src/reducer.ts:117`
-[^channel]: `../../packages/ui/src/pubsub/Channel.ts:18`

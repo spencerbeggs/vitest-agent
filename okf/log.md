@@ -14,6 +14,12 @@
 * Updated @vitest-agent/cli
 * Updated Claude Code hook environment contract
 * Updated The `vitest-agent` CLI command tree
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated Only stream mode renders progressively; every other console mode paints once at run end
+* Updated Reporter
+* Updated Reporter contract
+* Updated There is no standalone reporter usage outside the plugin
 
 ## 2026-09-30
 

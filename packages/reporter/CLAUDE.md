@@ -32,7 +32,7 @@ __test__/
 - **This package owns the React instance.** `react` and `ink` are full `dependencies` here because `@vitest-agent/reporter` is the concrete consumer of `@vitest-agent/ui`'s peer-declared react/ink. The package has no `.tsx` source (`liveView.ts` builds `StreamApp` with `createElement`), so `tsconfig.json` sets no `jsx` option; add `"jsx": "react-jsx"` there if JSX is ever reintroduced.
 - **Reference package for custom reporters.** Users who want different output write their own `VitestAgentReporterFactory` and pass it as the `reporter` option to `AgentPlugin()`. They depend on `@vitest-agent/reporter` to pull the contract types, the dispatch helpers, and `DefaultVitestAgentReporter` as a worked example from one package.
 - **Contract types live in the SDK.** `ReporterKit`, `VitestAgentReporterFactory`, `ReporterRenderInput`, and `RenderedOutput` are defined in `packages/sdk/src/contracts/reporter.ts`. This package re-exports them as a convenience; do not redeclare them here.
-- **Dispatcher primitives live in the UI.** The reducer, dispatcher matrix, cells, render paths, and the `RunEventChannel` PubSub live in `@vitest-agent/ui`. `DefaultVitestAgentReporter` consumes them; do not duplicate them here.
+- **Dispatcher primitives live in the UI.** The reducer, dispatcher matrix, cells, and render paths live in `@vitest-agent/ui`. `DefaultVitestAgentReporter` consumes them; do not duplicate them here.
 
 ## When working in this package
 
