@@ -987,3 +987,39 @@ describe("per-pattern perFile", () => {
 		expect(report.lowCoverage.map((f) => f.file)).toEqual(["/repo/src/a.ts"]);
 	});
 });
+
+describe("per-pattern perFile on coverageTargets (issue #390)", () => {
+	// A glob target's object perFile replaces its metric numbers for the
+	// belowTarget check, mirroring the thresholds path.
+	const runTargets = (lines: number) => {
+		const map = mockCoverageMap({
+			"/repo/src/a.ts": {
+				summary: { statements: lines, branches: lines, functions: lines, lines },
+				uncoveredLines: [1],
+			},
+		});
+		return run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(map, {
+					thresholds: { global: { lines: 10 }, perFile: false, patterns: [] },
+					targets: {
+						global: {},
+						perFile: false,
+						patterns: [["/repo/src/*.ts", { lines: 90, perFile: { lines: 50 } }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+	};
+
+	it("does not flag a file above the glob target perFile numbers as belowTarget", async () => {
+		const report = Option.getOrThrow(await runTargets(60));
+		expect(report.belowTargetFiles).toEqual([]);
+	});
+
+	it("flags a file below the glob target perFile numbers as belowTarget", async () => {
+		const report = Option.getOrThrow(await runTargets(40));
+		expect(report.belowTargetFiles).toEqual(["/repo/src/a.ts"]);
+	});
+});

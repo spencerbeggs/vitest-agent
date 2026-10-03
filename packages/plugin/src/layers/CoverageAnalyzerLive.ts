@@ -223,7 +223,11 @@ function processCoverageInternal(
 
 		// Check if the file is above threshold but below target
 		if (options.targets) {
-			const effectiveTargets = resolveEffectiveThresholds(matchPath, options.targets);
+			// Same precedence as the thresholds path: a glob target's object
+			// `perFile` replaces its metric numbers for the per-file check (#390).
+			const effectiveTargets =
+				resolveEffectivePerFileThresholds(matchPath, options.targets) ??
+				resolveEffectiveThresholds(matchPath, options.targets);
 			const isBelowTargetMetrics = isBelowMetricThresholds(fileStats, effectiveTargets);
 			if (isBelowTargetMetrics) {
 				const uncoveredLines = compressLines(fileCoverage.getUncoveredLines());
