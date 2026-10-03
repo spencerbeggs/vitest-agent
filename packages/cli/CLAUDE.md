@@ -125,7 +125,9 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 - This package depends on `@vitest-agent/sidecar` (not the reverse). `resolveSidecarBinaryPath` is imported from `@vitest-agent/sidecar` to back the `agent sidecar-path` subcommand. The per-platform sidecar children no longer import the CLI — they bundle `dispatch` from `@vitest-agent/sdk/dispatch`. The old `cli → sidecar → sidecar-<platform> → cli` cycle is gone.
 - Adding a subcommand: create or extend the `commands/<group>.ts`
   `effect/cli` glue and wire it into the relevant parent's
-  `withSubcommands` (`db`, `agent`, or the root in `main.ts`). Only add
+  `withSubcommands` (`db`, `agent`, or the root in `main.ts`). A command
+  that uses the engine's data services needs `Command.provide(ProjectDataLive)`
+  — the root platform opens no database. Only add
   a `lib/format-<name>.ts` + `.test.ts` pair when the command produces
   non-trivial structured output worth testing as a pure function;
   plain-text utility commands do not need a formatter.
@@ -179,6 +181,9 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
 - [`../../okf/limitations/spawn-sync-e2e-gap.md`](../../okf/limitations/spawn-sync-e2e-gap.md)
   Load when working on the `agent record session-start/turn/session-end`
   path.
+- [`../../okf/gotchas/effect-provide-inherits-memo-map.md`](../../okf/gotchas/effect-provide-inherits-memo-map.md)
+  Load before providing a layer inside a command handler (why
+  `register-agent` / `end-agent` use `Effect.provide(..., { local: true })`).
 - [`../../okf/models/sqlite-schema.md`](../../okf/models/sqlite-schema.md)
   Load when adding a new `DataReader` query or working with output
   formatter types.

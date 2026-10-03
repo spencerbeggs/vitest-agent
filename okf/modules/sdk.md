@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:28:13Z
-  body_sha256: 9adb0a3018a61758a8e42b70744a8670085ad90deb4e8349fad7674db760d24f
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 8ca1de318836c3577fd2019b533685b9d2aac8bdec6fa69236d7e8cb30fcc9e1
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -250,7 +250,15 @@ for JSON encode/decode.[^sdk-index] Notable members:
 - `AgentReport.ts` — the test-run report shape and its constituents.
 - `Coverage.ts` — coverage report shapes; `CoverageReport` carries three
   distinct policy facets (`thresholds`/`targets`/`baselines`) plus an
-  optional `totalFiles` a scoped run's note renders as "N of M".
+  optional `totalFiles` a scoped run's note renders as "N of M", and an
+  optional `globShortfalls: GlobShortfall[]` — each threshold glob
+  (`pattern`) whose aggregate coverage over its matched files (`summary`,
+  a `CoverageTotals`) is below one of the glob's own metric numbers
+  (`thresholds`, a `MetricThresholds`, `perFile` excluded). The same
+  optional field rides `RunEvent`'s `CoverageReady` and
+  `CoverageRenderState`, and the published run-report JSON Schema
+  (`schemas/5.0/run.json`) carries it; it is not persisted to SQLite.
+  The plugin computes it (see [the plugin module](plugin.md)).
 - `RunReportFile.ts` — the `.vitest/<scope>/run.json` envelope
   (`$schema`, `schemaVersion`, `generatedAt`, `reports[]`) plus
   `RUN_REPORT_FILE_SCHEMA_URL`, a versioned public contract published as a

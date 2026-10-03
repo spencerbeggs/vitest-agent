@@ -37,6 +37,8 @@ sources:
     resource: ../../plugins/claude-code/hooks/pre-tool-use/bash.sh
   - id: bash-tdd-sh
     resource: ../../plugins/claude-code/hooks/pre-tool-use/bash-tdd.sh
+  - id: mcp-hook-sh
+    resource: ../../plugins/claude-code/hooks/pre-tool-use/mcp.sh
   - id: test-location-sh
     resource: ../../plugins/claude-code/hooks/pre-tool-use/test-location.sh
   - id: tdd-artifact-sh
@@ -49,8 +51,8 @@ sources:
     resource: ../../plugins/claude-code/package.json
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T17:01:39Z
-  body_sha256: 26fc85fa0facb587900020380f52e11c52511e6be81b83bc88fec0cf66f8c966
+  at: 2026-10-03T19:28:10Z
+  body_sha256: fced83e0329602872c1c58ceb901269874d3a3aa821ee3bf4a468819c75e371e
 ---
 
 # vitest-agent (Claude Code plugin)
@@ -183,12 +185,15 @@ to Claude Code via stdout:
   because Claude Code's hook schema only allows `additionalContext` on a
   subset of events.
 - **Permission hooks** — `pre-tool-use/mcp.sh` reads `tool_name` against
-  `hooks/lib/safe-mcp-vitest-agent-ops.txt` and auto-allows non-destructive
-  MCP tools so the agent isn't prompted for every read. Destructive
-  actions inside consolidated tools (`tdd_goal({ action: "delete" })`,
-  `tdd_behavior({ action: "delete" })`) are gated separately, by presence
-  on the allowlist plus a rejected `action` value at hook time rather than
-  by allowlist absence.
+  `hooks/lib/safe-mcp-vitest-agent-ops.txt` and auto-allows the listed MCP
+  tools so the agent isn't prompted for every read[^mcp-hook-sh]. The list
+  is keyed by tool name, so the consolidated tools it names (`tdd_goal`,
+  `tdd_behavior`, `note`) would otherwise auto-allow their `delete` action
+  too; instead the hook reads `tool_input.action` first and returns no
+  decision when it is `delete`, so every main-agent delete reaches Claude
+  Code's permission prompt ([Decision
+  D13](../decisions/d13-mcp-permits-agent-restricts.md)). The bats suite
+  `__test__/mcp-allowlist.bats` pins that fall-through.
 - **TDD orchestrator gates** fire only when the `tdd-task` subagent is
   active, matched through `hooks/lib/match-tdd-agent.sh`'s `is_tdd_agent`
   function — the single place that checks Claude Code's hook-payload
@@ -530,6 +535,7 @@ D23](../decisions/d23-fence-hook-stdout-at-the-library-not-the-call-site.md).
 [^start-tdd-sh]: `plugins/claude-code/hooks/subagent/start-tdd.sh:136` (state-file write)
 [^stop-tdd-sh]: `plugins/claude-code/hooks/subagent/stop-tdd.sh:43` (state-file pairing)
 [^bash-hook-sh]: `plugins/claude-code/hooks/pre-tool-use/bash.sh`
+[^mcp-hook-sh]: `plugins/claude-code/hooks/pre-tool-use/mcp.sh`
 [^bash-tdd-sh]: `plugins/claude-code/hooks/pre-tool-use/bash-tdd.sh`
 [^test-location-sh]: `plugins/claude-code/hooks/pre-tool-use/test-location.sh`
 [^tdd-artifact-sh]: `plugins/claude-code/hooks/post-tool-use/tdd-artifact.sh`

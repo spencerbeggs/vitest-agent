@@ -6,8 +6,8 @@ resource: ../../packages/cli/src/commands/db.ts
 tags: [dx, architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T00:18:42Z
-  body_sha256: b1d01e0329c4dd117d397a1be8f1d183325b26c1eb6fd3fd2c8587f48c47ec36
+  at: 2026-10-03T19:28:10Z
+  body_sha256: ea866044b7cdc96c88f8ba59a09ac11956c466ecaaef5c84d42d23c0aad94caf
 sources:
   - id: db-ts
     resource: ../../packages/cli/src/commands/db.ts
@@ -39,6 +39,11 @@ Any of:
    `resolveDataPath` precedence: a programmatic `cacheDir`, then
    `vitest-agent.config.toml`'s `cacheDir`, then its `projectKey`, then the
    normalized workspace `name`), not of file presence.[^resolve-data-path]
+   The workspace is the project directory every CLI command resolves
+   (`VITEST_AGENT_PROJECT_DIR`, `VITEST_AGENT_REPORTER_PROJECT_DIR`,
+   `CLAUDE_PROJECT_DIR`, then the cwd), so inside a Claude Code session
+   `db path` and `db reset` name the database hooks write to even from a
+   sub-package cwd. Neither command opens the database itself.[^db-ts]
 3. **Reset via the CLI, when running from a human terminal.**
    `vitest-agent db reset [--yes]` wipes `data.db` and its `-wal`/`-shm`
    companions.[^db-ts] Its confirmation gates run in this exact order:

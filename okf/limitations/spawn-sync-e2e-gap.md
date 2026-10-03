@@ -6,8 +6,8 @@ bounds: ../modules/cli.md
 tags: [testing, ci]
 generated:
   by: okfit/claude-code
-  at: 2026-09-28T18:57:48Z
-  body_sha256: d708be4a22d81799e34fba2afc8aa010e97d3f962735dae666ba088f718c1809
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 6f4c15af78a57aa80f3a6e1a673c6a9b867516229958f1f840b4a5e3577202f8
 sources:
   - id: record-command
     resource: ../../packages/cli/src/commands/record.ts
@@ -25,8 +25,9 @@ exercised at the program level, against an in-memory `SqliteClient`, by
 `packages/engine/__test__/record-session.test.ts` and
 `record-turn.test.ts`. Nothing builds `packages/cli`'s bin to disk and
 spawns it via `spawnSync` to prove the CLI wiring around them — flag
-parsing, `dbPath` resolution, `PlatformLive` construction, and the
-`Command.run` dispatch in `main.ts` — actually reaches those programs and
+parsing, `dbPath` resolution, the `ProjectDataLive` layer the `record`
+group is given through `Command.provide` (which builds `PlatformLive`), and
+the command dispatch in `main.ts` — actually reaches those programs and
 writes to a real, on-disk database the way the Claude Code plugin's
 SessionStart/SessionEnd/PostToolUse hooks do in production.
 
@@ -45,7 +46,10 @@ One narrow counter-example already exists in this area:
 spawn it via `spawnSync`, but only to assert that `agent record
 tdd-artifact --help` advertises a `--suite` flag — it does not exercise
 `session-start`, `session-end`, or `turn`, and it never opens a real
-database.[^suite-flag-e2e]
+database.[^suite-flag-e2e] `agent-project-key.e2e.test.ts` and
+`lazy-data-platform.e2e.test.ts` do spawn the bin against real on-disk
+databases, but for `register-agent`, `end-agent`, `doctor`, `db path`,
+and the hook hot-path commands, never the three `record` actions.
 
 **Why this is acceptable.** A build-and-spawn suite over every `agent
 record` subcommand would add the production build to the critical path

@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
-  body_sha256: cb6ded5665f9277e4c878593c64baa645b95d75026ddc5bf465efdc456d46dca
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 0b26c189a783a5ad51982ecc54855da69e517812bbfca8363702f2c0cd808889
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -89,7 +89,9 @@ internal barrel: the reducer (`reduceRenderState`, `reduceRenderStateAll`),
 the dispatcher (`dispatch`, `dispatchInk`, `dispatcherTable`,
 `classifyRunShape`, `classifyOutcome`, `buildFooter`,
 `dominantClassification`), the agent and Ink render paths, the
-synthesizers, the theme (`VitestAgentStatus`,
+synthesizers and their two synthetic test names (`SUITE_LOAD_FAILURE_LABEL`,
+`SUITE_FAILURE_LABEL`), SDK type re-exports such as `CoverageTotals`,
+`GlobShortfall`, and `MetricThresholds`, the theme (`VitestAgentStatus`,
 `VitestAgentStatusName`, `VitestAgentTokens`, `inkStyle`, `statusGlyph`,
 `statusInkStyle`, `InkTextStyle`), and `formatDisplayDuration`.[^ui-src]
 Internal code imports
@@ -201,6 +203,13 @@ classification). A few load-bearing behaviors:
   older `RunFinished` events leave the list empty rather than undefined.
   Before this fold, the event-sourced render path had no way to see these
   errors at all, so an unhandled-error-only run rendered green.
+- `CoverageReady` folds its optional `globShortfalls` (threshold globs
+  whose aggregate coverage is below their numbers; see [the plugin
+  module](plugin.md)) onto `RenderState.coverage` when present, and
+  `renderAgent`'s coverage section lists each one under `Glob aggregates
+  below threshold:` as `- <pattern>: <metric> <actual> < <threshold>`,
+  naming only the metrics that fall short. Both synthesizers thread the
+  field through.[^ui-reducer]
 - `CoverageReady` folds its optional `scoped`/`scopedFiles`/`totalFiles`
   triple onto `RenderState.coverage` only when the event carries it, so an
   older emitter's event leaves the fields absent and the dispatcher treats
@@ -244,7 +253,12 @@ a default fallback.
 distinct-project count, and test count inside the module(s):
 `single-test` (one module, one test), `single-file` (one module, more than
 one test), `single-project` (one project, more than one module), and
-`workspace` (more than one project).[^ui-classify] `classifyOutcome(state)`
+`workspace` (more than one project).[^ui-classify] The module count is
+`state.collectedModules` when it is known and greater than one, checked
+before the `state.modules` map: on the report-replay path that map holds
+only the modules that produced events (the failing ones), so a project run
+with one failing file would otherwise classify `single-file` and render
+that file's path over the project-wide totals. `classifyOutcome(state)`
 derives the `RunOutcome` with a fixed precedence: real failures decide
 first, then unhandled errors, then timeouts, then threshold violations,
 with `all-pass` as the fallback — the first three collapse to the same
@@ -378,13 +392,18 @@ project, so recomputing violations from thresholds vs. totals during
 replay would reintroduce exactly the false verdict the live reporter
 suppresses.
 
-**Suite-load failures synthesize a failing cell.** A module that failed to
-collect or import produces zero test cases, so `summary` alone would
-render it green. For such a module, `synthesizeFromAgentReport` emits a
-`ModuleFinished` with `failCount: 1` plus a synthetic `TestStarted`/
-`TestFinished` pair labeled with the exported `SUITE_LOAD_FAILURE_LABEL`
-(`"test suite failed to load"`) carrying the module's import error, and
-`RunFinished.failCount` includes suite failures. Because the reducer
+**Suite-level failures synthesize a failing cell.** A module in
+`report.failed` with no failed test case and no timeout failed at the
+suite level, which `summary` alone would render green. For such a module,
+`synthesizeFromAgentReport` emits a `ModuleFinished` with `failCount: 1`
+plus a synthetic `TestStarted`/`TestFinished` pair carrying the module's
+first error, and `RunFinished.failCount` includes suite failures. The
+pair's test name depends on whether the module collected tests: none (an
+import error or top-level throw) is labeled with the exported
+`SUITE_LOAD_FAILURE_LABEL` (`"test suite failed to load"`); one or more
+(the file loaded, but a `beforeAll` / `afterAll` hook threw) is labeled
+with the exported `SUITE_FAILURE_LABEL` (`"test suite failed"`), so a
+hook failure is never reported as a load failure.[^ui-synthesize] Because the reducer
 treats `RunFinished.failCount` as the authoritative run total, this routes
 the run to a some-fail cell rather than all-pass — this is the
 synthesizer-side half of the anti-false-green design this package shares

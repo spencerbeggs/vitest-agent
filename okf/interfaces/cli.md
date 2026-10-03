@@ -23,8 +23,8 @@ sources:
     resource: ../../packages/cli/src/main.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T08:22:45Z
-  body_sha256: 198fc26bb1ea1dbf980972dc664b4f07c70033b0ad420dc961bd55c9f375b3ca
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 24dff51e72141233da334645b46892d06675ae9d9b6a633e612aab477a79b266
 ---
 
 # The `vitest-agent` CLI command tree
@@ -92,8 +92,9 @@ CI, which beats a human). The audience decides whether the run is
 interactive — see `db reset` below. It also decides the diagnostics
 format: with `VITEST_REPORTER_LOG_LEVEL` set, an agent or a CI audience
 (detected or flagged) gets one NDJSON line per stderr record, the
-migrator's build-time records (`Running migration`, `Migrations
-complete`) included, and `--human` or a detected person gets plain
+migrator's records (`Running migration`, `Migrations complete`, emitted
+only by a command that opens the project database) included, and
+`--human` or a detected person gets plain `HH:MM:SS.mmm DEBUG <message>`
 lines[^main-ts]. One edge is the kit's, not a contract: a person with
 stderr piped can see plain build-time lines followed by NDJSON runtime
 lines. Logging stays opt-in through
@@ -203,6 +204,21 @@ after still printing the full formatted report.
 - `db path` prints the resolved absolute path with a trailing newline and
   always exits `0`, even when no `data.db` has been written yet — the path
   is a function of identity, not artifact presence.
+
+## Which commands open the project database
+
+Every command resolves the project directory the same way —
+`VITEST_AGENT_PROJECT_DIR`, then `VITEST_AGENT_REPORTER_PROJECT_DIR`, then
+`CLAUDE_PROJECT_DIR`, then the cwd — so `db path`, `db reset`, `db query`,
+and `doctor` name the same `data.db` hook-driven recording writes
+to[^main-ts]. Only `doctor`, `db prune`, `agent triage`, `agent wrapup`,
+and the `agent record` group open (and, on first use, create and migrate)
+that database; `db path`, `db reset`, `db query`, and the hook hot-path
+commands (`inject-env`, `check-test-path`, `sidecar-path`) never do, and
+`register-agent` / `end-agent` open only the stores `--project-key` and
+the hook env name[^db-ts][^agent-ts]. A consumer may therefore call a
+hook hot-path command, or `db reset`, without the CLI holding the project
+database open.
 
 ## What stays stable vs. what a major may change
 

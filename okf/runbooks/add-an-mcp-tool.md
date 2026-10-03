@@ -6,8 +6,8 @@ resource: ../../packages/mcp/src/toolkit.ts
 tags: [mcp, dx]
 generated:
   by: okfit/claude-code
-  at: 2026-09-25T23:18:00Z
-  body_sha256: 01d18db34db150ea02345ca98aa54de4c65ce44585694a42dce39791e2469db1
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 12367df2eee8edd69686e1f9c9f3c01d32b49585348b386f42a7a559a5970d53
 sources:
   - id: toolkit
     resource: ../../packages/mcp/src/toolkit.ts
@@ -111,8 +111,11 @@ tool's discriminant covers it.
    listing.[^help-tool]
 8. **Update the Claude Code plugin's tool allowlist**, only if the tool
    should auto-run without a permission prompt: add its name to
-   `plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`. Omit a
-   destructive tool from this list so it always prompts.[^allowlist]
+   `plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`. A listed
+   action-keyed tool still prompts for `action: "delete"`, because
+   `pre-tool-use/mcp.sh` never auto-allows a delete, so spell a destructive
+   operation as that action; omit a standalone destructive tool from this
+   list so it always prompts.[^allowlist]
 
 ## Observable end state
 
