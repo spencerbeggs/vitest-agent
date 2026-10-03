@@ -15,7 +15,7 @@ The vitest-agent ecosystem is split across eight npm packages. Most users instal
 | [@vitest-agent/sdk](/sdk) | Platform-free core — Effect Schemas, reporter/dispatcher contracts, tagged errors, pure utilities, the pure `dispatch` entry, published JSON schemas |
 | [@vitest-agent/engine](/engine) | Platform half — Effect services and live layers, SQLite data layer and migrations, `PlatformLive`, project-directory and XDG path resolution, hook programs, session recovery, testing utilities |
 | [@vitest-agent/reporter](/reporter) | Default reporter — `DefaultVitestAgentReporter`, Ink live-mount lifecycle, contract re-exports, dispatch helpers |
-| [@vitest-agent/ui](/ui) | Rendering primitives — `RunEvent` reducer, 12-cell dispatcher matrix, Ink components, PubSub channel, synthesizers |
+| [@vitest-agent/ui](/ui) | Rendering primitives — `RunEvent` reducer, 12-cell dispatcher matrix, Ink components, synthesizers |
 | [@vitest-agent/cli](/cli) | CLI bin — `doctor`, `db`, `agent` namespace for database management and hook plumbing |
 | [@vitest-agent/mcp](/mcp) | MCP server bin — 30 action-keyed tools and six prompts over stdio, built on Effect's native `McpServer` |
 | [@vitest-agent/sidecar](/sidecar) | Native SEA binary — fast-path `inject-env` for the Claude Code plugin's PreToolUse hook |

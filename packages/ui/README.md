@@ -6,7 +6,7 @@
 
 > **Part of the [vitest-agent](https://vitest-agent.dev) ecosystem.** Most users want **[@vitest-agent/plugin](https://www.npmjs.com/package/@vitest-agent/plugin)**, which pulls this package in automatically. Install `@vitest-agent/ui` directly only if you build custom rendering on the primitives.
 
-Pure rendering primitives for vitest-agent. Owns the `RunEvent` reducer, the shape-tailored 12-cell dispatcher matrix, two render paths (agent string and React Ink tree), a PubSub channel for live event transport, and the synthesizers that bridge live Vitest data and stored reports into the event taxonomy. React and Ink are required peer dependencies.
+Pure rendering primitives for vitest-agent. Owns the `RunEvent` reducer, the shape-tailored 12-cell dispatcher matrix, two render paths (agent string and React Ink tree), and the synthesizers that bridge live Vitest data and stored reports into the event taxonomy. React and Ink are required peer dependencies.
 
 ## Features
 

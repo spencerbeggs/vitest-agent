@@ -6,8 +6,8 @@ description: Eight ranked workspaces under packages/ split platform-free core fr
 tags: [architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:28:13Z
-  body_sha256: 7810baa938e46def5b9c114cd666d3e3f34827736522e9afbc9030ebcb3c9e1c
+  at: 2026-10-03T03:37:35Z
+  body_sha256: b9bc331c42c316b7c2d0de11145f90fce484af6ba49451a4a7f404974bacf00b
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -38,7 +38,7 @@ Eight workspaces live under `packages/`:
 | `@vitest-agent/engine` | platform half: services, Live layers, SQLite stack and migrations, `PlatformLive`, `resolveProjectDir`, hook programs, session recovery, `./testing`; depends on sdk |
 | `@vitest-agent/plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; the carrier — declares the `vitest-agent` and `vitest-agent-mcp` bins as shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main`; depends on cli, mcp, reporter, engine and sdk, not ui |
 | `@vitest-agent/reporter` | the default reporter package: `DefaultVitestAgentReporter` (owns the Ink live mount), contract re-exports, dispatch helpers; declares `react` and `ink` as full `dependencies`; depends on ui and sdk |
-| `@vitest-agent/ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers, the `RunEvent` `PubSub` channel); depends on sdk; `ink`/`react` are `peerDependencies` |
+| `@vitest-agent/ui` | pure rendering-primitives library (reducer, shape-tailored dispatcher matrix, synthesizers); depends on sdk; `ink`/`react` are `peerDependencies` |
 | `@vitest-agent/cli` | `vitest-agent` bin; depends on engine, sdk, and sidecar |
 | `@vitest-agent/mcp` | `vitest-agent-mcp` bin; depends on engine and sdk |
 | `@vitest-agent/sidecar` | per-Bash `inject-env` fast-path native binary resolver; the four `sidecar-*` platform children are its `optionalDependencies`; a regular `dependency` of `@vitest-agent/cli` |
