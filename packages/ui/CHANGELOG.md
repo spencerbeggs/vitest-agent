@@ -1,5 +1,30 @@
 # @vitest-agent/ui
 
+## 4.1.0
+
+### Features
+
+- The coverage report gains an optional `globShortfalls` field listing each threshold glob whose aggregate coverage (summed covered over total across the files it matches, as Vitest evaluates it) is below its metric numbers, even when every matched file passes an object `perFile`. The agent view lists each shortfall under "Glob aggregates below threshold". The default agent console output (the dispatcher threshold cells) also lists glob aggregate shortfalls and treats them as a threshold outcome, so a run whose only problem is a glob shortfall no longer renders as all-passing. Shortfalls are not persisted to SQLite and are never reported on scoped runs. [#565][#565]
+
+* Added the `SUITE_FAILURE_LABEL` export, the synthetic test name used for a suite-level failure in a module that collected tests. `SUITE_LOAD_FAILURE_LABEL` is unchanged. [#565][#565]
+
+### Bug Fixes
+
+- A project run is no longer mislabeled as a single file. The run shape is now classified on the number of modules that ran (`collectedModules`) rather than the modules that produced events, so a project run where one file fails renders the project headline with `across N files` instead of one file's path carrying the project-wide totals.
+- A failing `beforeAll` or `afterAll` hook in a file that loaded and collected tests is no longer reported as "test suite failed to load". It is labeled "test suite failed"; the load label is kept for files that collected nothing (import errors, top-level throws).
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 6.0.0 | 6.1.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#565]: https://github.com/spencerbeggs/vitest-agent/pull/565
+
 ## 4.0.1
 
 ### Dependencies

@@ -1,5 +1,17 @@
 # @vitest-agent/claude-code-plugin
 
+## 2.7.1
+
+### Bug Fixes
+
+- The MCP PreToolUse hook no longer auto-allows a `delete` action on the consolidated `tdd_goal`, `tdd_behavior` and `note` tools. A main-agent delete now reaches Claude Code's standard permission prompt, as Decision d13 promises. Goal and behavior deletes cascade to phase and artifact history. [#565][#565]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#565]: https://github.com/spencerbeggs/vitest-agent/pull/565
+
 ## 2.7.0
 
 ### Features

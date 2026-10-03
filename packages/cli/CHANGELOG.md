@@ -1,5 +1,28 @@
 # @vitest-agent/cli
 
+## 4.0.3
+
+### Bug Fixes
+
+- The CLI now opens the project database only for commands that read or write it. Hook commands such as `agent inject-env`, `agent check-test-path`, `agent register-agent` and `agent end-agent` no longer open and migrate a second cwd-derived `data.db` on every call, and `db reset` no longer deletes a database the process holds open.
+- `db path`, `db reset` and `db query` resolve the project directory the same way as every other command, honoring `CLAUDE_PROJECT_DIR`. [#565][#565]
+
+* `agent register-agent` and `agent end-agent` now write to the `--project-key` database. They previously reused the cwd-derived data store through Effect's shared layer memo map. [#565][#565]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/engine | dependency | updated | 0.6.0 | 0.6.1 |
+| @vitest-agent/sdk | dependency | updated | 6.0.0 | 6.1.0 |
+| @vitest-agent/sidecar | dependency | updated | 2.2.5 | 2.2.6 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#565]: https://github.com/spencerbeggs/vitest-agent/pull/565
+
 ## 4.0.2
 
 ### Dependencies

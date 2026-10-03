@@ -1,5 +1,31 @@
 # @vitest-agent/plugin
 
+## 5.3.0
+
+### Features
+
+- The coverage report gains an optional `globShortfalls` field listing each threshold glob whose aggregate coverage (summed covered over total across the files it matches, as Vitest evaluates it) is below its metric numbers, even when every matched file passes an object `perFile`. The agent view lists each shortfall under "Glob aggregates below threshold". The default agent console output (the dispatcher threshold cells) also lists glob aggregate shortfalls and treats them as a threshold outcome, so a run whose only problem is a glob shortfall no longer renders as all-passing. Shortfalls are not persisted to SQLite and are never reported on scoped runs. [#565][#565]
+
+### Bug Fixes
+
+- A file matched by a `coverageTargets` glob entry with an object `perFile` is now checked against the `perFile` numbers when deciding `belowTarget`, the same precedence the threshold check already used. Previously the glob's aggregate metric numbers were applied to every matched file and `perFile` was ignored. [#565][#565]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 4.0.2 | 4.0.3 |
+| @vitest-agent/engine | dependency | updated | 0.6.0 | 0.6.1 |
+| @vitest-agent/mcp | dependency | updated | 5.1.8 | 5.1.9 |
+| @vitest-agent/reporter | dependency | updated | 4.1.0 | 4.1.1 |
+| @vitest-agent/sdk | dependency | updated | 6.0.0 | 6.1.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#565]: https://github.com/spencerbeggs/vitest-agent/pull/565
+
 ## 5.2.2
 
 ### Dependencies
