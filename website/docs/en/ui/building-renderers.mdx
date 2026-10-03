@@ -1,20 +1,20 @@
 ---
 title: "Building renderers"
-description: How to build a custom renderer on the @vitest-agent/ui primitives — consuming RenderState, using the dispatcher to select a cell, wiring both render paths, and subscribing to the RunEvent PubSub for live rendering.
+description: How to build a custom renderer on the @vitest-agent/ui primitives — consuming RenderState, using the dispatcher to select a cell, wiring both render paths, and subscribing to ReporterKit.runEvents for live rendering.
 ---
 
 # Building renderers
 
 Not to be confused with `AgentReporter` from `vitest/node`, which Vitest 5 exports as an alias of its own built-in `MinimalReporter`. The class documented here is the one exported by `@vitest-agent/plugin`.
 
-`@vitest-agent/ui` is a toolkit of rendering primitives, not a renderer itself. The default reporter in `@vitest-agent/reporter` is built from these primitives; you can build your own renderer — or a thin rendering layer on top of an existing one — using the same pieces. This page walks through the four building blocks you will use: the projected state, the dispatcher, the two render paths, and the PubSub channel for live delivery.
+`@vitest-agent/ui` is a toolkit of rendering primitives, not a renderer itself. The default reporter in `@vitest-agent/reporter` is built from these primitives; you can build your own renderer — or a thin rendering layer on top of an existing one — using the same pieces. This page walks through the four building blocks you will use: the projected state, the dispatcher, the two render paths, and the plugin's `ReporterKit.runEvents` stream for live delivery.
 
 The distinction from writing a full reporter is worth stating up front. A **reporter** wraps rendering in the plugin's lifecycle contract (`VitestAgentReporterFactory`) and, in the default reporter, owns the `stream` live view's lifetime (drawn by `@effected/cli`'s `CliUi.live`). A **renderer** consumes `RenderState` and calls `dispatch` or `dispatchInk` — it knows nothing about the reporter lifecycle. If you want to replace the default output format, you likely want [a custom reporter](/reporter/custom-reporter). If you want to understand or reuse the rendering layer underneath, this page is the right starting point.
 
 ## The building blocks at a glance
 
 ```
-RunEvent stream (from PubSub or batch)
+RunEvent stream (from ReporterKit.runEvents or batch)
       │
       ▼ reduceRenderState / reduceRenderStateAll
   RenderState           ← the projected state both render paths read
@@ -131,47 +131,17 @@ The Ink path requires `react` and `ink` as installed peers. Both are declared as
 
 When a cell's Ink output would duplicate its agent string exactly, the cell's `ink` half calls `renderAgentStringAsInk` from `packages/ui/src/dispatcher/ink-helpers.tsx`, which wraps the agent string in Ink `<Text>` rows. This means custom cell implementations can share a single formatting function for both halves when the content is identical.
 
-## Subscribing to the PubSub for live rendering
+## Subscribing to run events for live rendering
 
-For live rendering during a test run, `@vitest-agent/ui` ships an Effect `PubSub<RunEvent>` channel — `RunEventChannel` — plus subscriber helpers. The plugin's `AgentReporter` creates an unbounded `PubSub` per run and threads it onto `ReporterKit.runEvents`; `DefaultVitestAgentReporter` subscribes to drive the `stream` live view. The same channel is available for your own subscribers.
+The plugin's `AgentReporter` creates an unbounded Effect `PubSub<RunEvent>` per run and threads it onto `ReporterKit.runEvents`. A custom reporter subscribes to that `PubSub` directly (`PubSub.subscribe`) and folds each event with `reduceRenderState` to get the incrementally reduced `RenderState`.
 
-The three subscriber helpers:
-
-```ts with-api
-import {
-  RunEventChannel,
-  accumulateUntilFinished,
-  forEachRenderState,
-  renderStateStream,
-} from "@vitest-agent/ui";
-import { Effect } from "effect";
-
-// Accumulate all events until RunFinished, return the final RenderState
-const finalState = await Effect.runPromise(
-  Effect.provide(accumulateUntilFinished, RunEventChannel.Live)
-);
-
-// Drive a live callback on every RenderState as events arrive
-await Effect.runPromise(
-  Effect.provide(
-    forEachRenderState((state) => Effect.sync(() => render(state))),
-    RunEventChannel.Live
-  )
-);
-
-// Stream RenderState values as an Effect Stream
-const stream = renderStateStream;
-```
-
-`forEachRenderState` is the typical entry point for a live renderer: it calls your callback with the incrementally reduced `RenderState` after each event, continuing until `RunFinished` (or `RunTimedOut`).
-
-If you are mounting an Ink component, call `ink.rerender(element)` inside the callback with the element produced by `dispatchInk`. The components read their glyphs from `@effected/cli/ui`'s `useGlyphs()`, so a tree you mount yourself must be wrapped in `<UiProvider value={context}>`, where `context` comes from `CliUi.context`. The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` hands the channel to the kit's `CliUi.live` instead — see [the reporter docs](/reporter/custom-reporter) for the full lifecycle.
+If you are mounting an Ink component, re-render with the element produced by `dispatchInk` after each fold. The components read their glyphs from `@effected/cli/ui`'s `useGlyphs()`, so a tree you mount yourself must be wrapped in `<UiProvider value={context}>`, where `context` comes from `CliUi.context`. The `DefaultVitestAgentReporter` in `@vitest-agent/reporter` hands the subscription to the kit's `CliUi.live` instead — see [the reporter docs](/reporter/custom-reporter) for the full lifecycle.
 
 ## Both paths share one state
 
 A point worth repeating: the agent string path and the Ink path read the same `RenderState` from the same reduction. There is no separate state shape for live versus report-time rendering. `DefaultVitestAgentReporter` subscribes to `ReporterKit.runEvents`, folds events as they arrive to drive the `stream` live view, then at run end folds the final sequence via `reduceRenderStateAll` and calls `dispatch` for the agent string. The dispatcher sees identical state in both cases.
 
-This means a custom renderer that subscribes to the PubSub for live frames will produce the same output as a batch renderer that folds the full event sequence at run end — given the same input events.
+This means a custom renderer that subscribes to `ReporterKit.runEvents` for live frames will produce the same output as a batch renderer that folds the full event sequence at run end — given the same input events.
 
 ## CLI replay path
 

@@ -21,7 +21,6 @@ import type { EnvironmentDetector } from "./services/EnvironmentDetector.js";
 import type { ExecutorResolver } from "./services/ExecutorResolver.js";
 import type { FormatSelector } from "./services/FormatSelector.js";
 import type { HistoryTracker } from "./services/HistoryTracker.js";
-import type { OutputRenderer } from "./services/OutputRenderer.js";
 import type { ProjectDiscovery } from "./services/ProjectDiscovery.js";
 
 /**
@@ -111,7 +110,6 @@ export type PlatformServices =
 	| ExecutorResolver
 	| FormatSelector
 	| DetailResolver
-	| OutputRenderer
 	| NodeServices.NodeServices
 	| SqliteClient
 	| SqlClient;
@@ -121,7 +119,7 @@ export type PlatformServices =
  * plugin: SQLite + migrator + Node platform services + Logger, with
  * `DataReader`, `DataStore`, `ProjectDiscovery`, `HistoryTracker` and the
  * output pipeline (`EnvironmentDetector`, `ExecutorResolver`,
- * `FormatSelector`, `DetailResolver`, `OutputRenderer`) built over them.
+ * `FormatSelector`, `DetailResolver`) built over them.
  *
  * Every env read goes through `options.env`; the engine never touches
  * `process` itself.

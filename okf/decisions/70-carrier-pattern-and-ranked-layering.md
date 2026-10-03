@@ -9,8 +9,8 @@ tags:
   - release
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 70c7bfd99a1f74eca0bfe53ea7718cd3be11f12073f4a853a87315eacd9e4eb3
+  at: 2026-10-03T03:28:13Z
+  body_sha256: 2e25fe77b25870c352720d58dc6d6e94411cb1b45a5d0c1f4219524db350672e
 sources:
   - id: plugin-package-json
     resource: ../../packages/plugin/package.json
@@ -226,8 +226,7 @@ not-installed message.
 ## Consequences
 
 `@vitest-agent/sdk` took a major version bump for the removed data-layer
-exports and the `dispatch(argv, io)` / `FormatterContext.cwd` signature
-changes; `@vitest-agent/engine` is new; `@vitest-agent/cli` and
+exports and the `dispatch(argv, io)` signature change; `@vitest-agent/engine` is new; `@vitest-agent/cli` and
 `@vitest-agent/mcp` lost the re-exports that moved into engine and gained
 a `./main` subpath; `@vitest-agent/plugin` gained two bins it did not
 carry before. The engine's project-dir and path-resolution programs

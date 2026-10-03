@@ -12,7 +12,7 @@ The seven publishable packages live under `packages/`. `@vitest-agent/sdk` has n
 | --- | --- | --- |
 | `@vitest-agent/plugin` | [packages/plugin](./packages/plugin/) | Vitest plugin (`AgentPlugin`), internal reporter, `CoverageAnalyzer`, `ConfigValidation` |
 | `@vitest-agent/reporter` | [packages/reporter](./packages/reporter/) | Default reporter (`DefaultVitestAgentReporter`) and the Ink live-mount lifecycle; reference for custom-reporter authors |
-| `@vitest-agent/ui` | [packages/ui](./packages/ui/) | Rendering primitives: the shape-tailored dispatcher matrix, reducer, agent and Ink render paths, `RunEvent` PubSub channel |
+| `@vitest-agent/ui` | [packages/ui](./packages/ui/) | Rendering primitives: the shape-tailored dispatcher matrix, reducer, agent and Ink render paths, synthesizers |
 | `@vitest-agent/sdk` | [packages/sdk](./packages/sdk/) | Shared schemas, data layer, services, formatters, utilities and the public reporter contracts |
 | `@vitest-agent/cli` | [packages/cli](./packages/cli/) | `vitest-agent` CLI bin |
 | `@vitest-agent/mcp` | [packages/mcp](./packages/mcp/) | `vitest-agent-mcp` MCP server bin |

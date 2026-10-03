@@ -32,7 +32,6 @@ export default async () => {
 					"**/plugin/src/index.ts",
 					"**/cli/src/commands/**",
 					"**/cli/src/layers/**",
-					"**/sdk/src/formatters/silent.ts",
 					"**/engine/src/services/*.ts",
 					"**/engine/src/migrations/**",
 					"**/engine/src/layers/OutputPipelineLive.ts",

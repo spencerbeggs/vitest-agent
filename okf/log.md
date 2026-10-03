@@ -1,5 +1,10 @@
 # Log
 
+## 2026-10-03
+
+* Updated @vitest-agent/ui
+* Updated RunEvent and RenderState
+
 ## 2026-10-01
 
 * Updated AgentPlugin.discover() / DiscoverStrategy
@@ -14,6 +19,12 @@
 * Updated @vitest-agent/cli
 * Updated Claude Code hook environment contract
 * Updated The `vitest-agent` CLI command tree
+* Updated @vitest-agent/reporter
+* Updated @vitest-agent/sdk
+* Updated Only stream mode renders progressively; every other console mode paints once at run end
+* Updated Reporter
+* Updated Reporter contract
+* Updated There is no standalone reporter usage outside the plugin
 
 ## 2026-09-30
 

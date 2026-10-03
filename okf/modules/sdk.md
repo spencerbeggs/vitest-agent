@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T13:07:49Z
-  body_sha256: be02d26482bdc6055f61a081974aae137f43872037c4520043c18dd4fceae014
+  at: 2026-10-03T03:28:13Z
+  body_sha256: 9adb0a3018a61758a8e42b70744a8670085ad90deb4e8349fad7674db760d24f
 sources:
   - id: sdk-index
     resource: ../../packages/sdk/src/index.ts
@@ -50,7 +50,7 @@ all of them.[^sdk-package-json] It owns the Effect Schema definitions that
 are the single source of truth for every data structure in the family, the
 public reporter and dispatcher contract types shared between the plugin,
 reporter, and ui packages, the tagged error types for Effect failure
-channels, the pure formatters, and a set of pure utility functions. Its
+channels, and a set of pure utility functions. Its
 runtime dependencies are `effect` (v4, `catalog:effect`) and
 `acorn`/`acorn-typescript` — nothing else.[^sdk-package-json]
 
@@ -74,8 +74,8 @@ on purpose: it is the package that ships `./schemas/*.json` and
 Consequences of holding this line: path handling goes through the pure
 `utils/posix-path.ts` helpers instead of `node:path`, so every path-taking
 function accepts a required `cwd` parameter rather than reading an ambient
-working directory — `FormatterContext.cwd`, `relativePath(filePath, cwd)`,
-and `DispatchIo.cwd` all take it explicitly. Anything that needed
+working directory — `relativePath(filePath, cwd)` and `DispatchIo.cwd`
+both take it explicitly. Anything that needed
 `node:crypto` (the idempotency cache key, the failure-signature hash) moved
 to `@vitest-agent/engine` instead. The package may not import
 `@vitest-agent/engine`, `plugin`, `reporter`, `cli`, `mcp`, or `ui` — the
@@ -311,26 +311,11 @@ consumer-facing promise.
 `{ content, contentType }`, and the `report` member adds a flat `filename`
 for Vitest 5's `.vitest/<scope>/` report directory.
 
-### Formatters (`src/formatters/`)
-
-Pluggable output formatters implementing a `Formatter` interface
-(`{ format, render(reports, context) }`), each producing `RenderedOutput[]`.
-The set covers structured console markdown, GFM for
-`GITHUB_STEP_SUMMARY`, raw JSON, silent (no output), terminal (plain text
-plus optional ANSI/OSC-8), and `ci-annotations` (GitHub Actions workflow
-commands, auto-selected when `environment === "ci-github"` and
-`executor === "ci"`). Every formatter is pure: paths are relativized
-against the required `FormatterContext.cwd` — never against an ambient
-working directory — and the markdown formatter's OSC-8 hyperlinks are
-gated on `target === "stdout"` and `!ctx.noColor`, so MCP responses never
-receive terminal escape codes.
-
 `utils/format-scoped-coverage-note.ts` exports the pure
 `formatScopedCoverageNote(testedFileCount, totalFileCount?)`, producing
 `"Coverage thresholds skipped: partial run (N of M test files)"` (or
 `"(N test files)"` when the total is unknown). It is the single source of
-that sentence across every surface that needs it: the terminal formatter's
-coverage section, the console/markdown formatter, the MCP `run_tests`
+that sentence across every surface that needs it: the MCP `run_tests`
 result's structured `scopedNote` field, and both `@vitest-agent/ui`
 dispatch entry points.
 

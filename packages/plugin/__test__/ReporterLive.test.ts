@@ -1,4 +1,4 @@
-import { DataStore, HistoryTracker, OutputRenderer } from "@vitest-agent/engine";
+import { DataStore, HistoryTracker } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { ReporterLive } from "../src/layers/ReporterLive.js";
@@ -34,15 +34,5 @@ describe("ReporterLive", () => {
 		);
 		expect(result).toBeDefined();
 		expect(result.classify).toBeTypeOf("function");
-	});
-
-	it("provides OutputRenderer", async () => {
-		const result = await Effect.runPromise(
-			Effect.provide(
-				Effect.flatMap(OutputRenderer, () => Effect.succeed("ok")),
-				ReporterLive({ dbPath: ":memory:", env: {} }),
-			),
-		);
-		expect(result).toBe("ok");
 	});
 });

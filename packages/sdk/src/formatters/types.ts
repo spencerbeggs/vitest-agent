@@ -1,6 +1,3 @@
-import type { AgentReport } from "../schemas/AgentReport.js";
-import type { DetailLevel } from "../schemas/Common.js";
-
 /**
  * One unit of rendered reporter output, tagged by where it goes.
  *
@@ -22,35 +19,3 @@ export type RenderedOutput =
 			readonly content: string;
 			readonly contentType: string;
 	  };
-
-/** @public */
-export interface FormatterContext {
-	readonly detail: DetailLevel;
-	/**
-	 * Absolute project root the run executed from. Formatters strip it from
-	 * absolute file paths for display and resolve relative paths back against
-	 * it for `file://` hyperlinks — the core never reads `process.cwd()`.
-	 */
-	readonly cwd: string;
-	readonly noColor: boolean;
-	readonly coverageConsoleLimit: number;
-	readonly trendSummary?: {
-		direction: "improving" | "regressing" | "stable";
-		runCount: number;
-		firstMetric?: {
-			name: string;
-			from: number;
-			to: number;
-			target?: number;
-		};
-	};
-	readonly runCommand?: string;
-	readonly githubSummaryFile?: string;
-	readonly mcp?: boolean;
-}
-
-/** @public */
-export interface Formatter {
-	readonly format: string;
-	readonly render: (reports: ReadonlyArray<AgentReport>, context: FormatterContext) => ReadonlyArray<RenderedOutput>;
-}

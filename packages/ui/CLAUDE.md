@@ -1,6 +1,6 @@
 # @vitest-agent/ui
 
-The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent` taxonomy re-export, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix introduced by the T6 rewrite, an Effect `PubSub` channel for live event transport, and the synthesizers. Declares React and Ink as peer dependencies (it renders *with* react/ink but does not own the instance); `@vitest-agent/reporter` is the concrete consumer that provides them. `@effected/cli` and `@effected/env` are peer + dev dependencies too, because the exported `VitestAgentStatus` is typed as the kit's nominal `Status`, plus `@effected/walker` and `@effected/glob`, which `@effected/cli` requires as peers (the reporter declares the same four as peers; the carrier `@vitest-agent/plugin` declares all four as regular deps). Dependency flow: `plugin → reporter → ui → sdk`.
+The pure rendering-primitives library for `vitest-agent`. Owns the `RunEvent` taxonomy re-export, the pure reducer, two render paths (a markdown-flavored agent string and a React Ink tree), the shape-tailored dispatcher matrix introduced by the T6 rewrite, and the synthesizers. Declares React and Ink as peer dependencies (it renders *with* react/ink but does not own the instance); `@vitest-agent/reporter` is the concrete consumer that provides them. `@effected/cli` and `@effected/env` are peer + dev dependencies too, because the exported `VitestAgentStatus` is typed as the kit's nominal `Status`, plus `@effected/walker` and `@effected/glob`, which `@effected/cli` requires as peers (the reporter declares the same four as peers; the carrier `@vitest-agent/plugin` declares all four as regular deps). Dependency flow: `plugin → reporter → ui → sdk`.
 
 ## Layout
 
@@ -35,11 +35,6 @@ src/
     ProjectRow.tsx, CountColumns.tsx, TagColumns.tsx, CoverageBlock.tsx,
     TrendLine.tsx, FailureSection.tsx, FailuresSection.tsx,
     SuggestedActions.tsx, spinner.ts
-  pubsub/                       -- Effect PubSub channel
-    Channel.ts                  -- RunEventChannel tag + Live layer
-    Publisher.ts                -- publish / publishAll helpers
-    Subscriber.ts               -- accumulateUntilFinished,
-                                   forEachRenderState, renderStateStream
 
 __test__/
   reducer.test.ts                                 -- event-by-event coverage
@@ -49,7 +44,6 @@ __test__/
   footer.test.ts                                  -- footer assembly
   dispatcher/                                     -- per-cell tests
   render-ink/*.test.tsx                           -- per-component frames
-  pubsub.test.ts                                  -- roundtrip + fan-out
   synthesize*.test.ts                             -- both synthesizer paths
   utils/events.ts + workspace.ts                  -- canonical event + workspace fixtures
   snapshots/                                      -- file-based goldens
@@ -74,12 +68,10 @@ __test__/
 | `dispatcher/footer.ts` | `buildFooter` assembles the L1 MCP-tool-pointer footer; `dominantClassification` picks the most actionable failure class to point at |
 | `dispatcher/helpers.ts` + `ink-helpers.tsx` | Shared formatting primitives used by every cell so cells stay focused on shape-specific copy |
 | `dispatcher/cells/*` | Twelve cells, one per `(shape, outcome)` pair. Each exports an agent-string renderer and an Ink-half renderer |
-| `pubsub/Channel.ts` | `RunEventChannel` Effect tag plus the scoped `RunEventChannelLive` layer providing `PubSub.unbounded<RunEvent>` |
-| `pubsub/Subscriber.ts` | `accumulateUntilFinished` (one-shot agent path), `forEachRenderState` (live callback driving), `renderStateStream` (Stream composition entry) |
 
 ## Conventions
 
-- **Effect-fluent**: every transport-level abstraction lives in `effect`'s vocabulary (Schema, PubSub, Layer). The reducer itself is synchronous because it has to be cheap to call from React; everything upstream (publisher, subscriber, channel) is Effect-typed.
+- **Effect-fluent**: every transport-level abstraction lives in `effect`'s vocabulary (Schema, Layer). The reducer itself is synchronous because it has to be cheap to call from React.
 - **Shape-tailored cells**: the dispatcher routes by `(RunShape, RunOutcome)`. Cells receive a fully-built `DispatchInputs` plus `CellOptions` from the SDK contract and never re-derive shape, outcome, project aggregates, trend, or below-target listings. Pre-compute in `buildDispatchInputs`, not inside cells.
 - **Two synthesizers**: one for live Vitest data (`VitestTestModule` duck types), one for the persisted `AgentReport`. They are NOT interchangeable — the live shape carries per-test detail the report schema flattens. CLI replay uses the report path; the plugin's streaming callbacks publish events derived from live modules.
 - **Glyphs and colours come from `theme.ts` only.** No hex literal or named colour in a component, helper, or cell: take a status's glyph and style from `VitestAgentStatus` (`statusGlyph` / `statusInkStyle`) and an accent from `VitestAgentTokens` via `inkStyle`. Duration, percent, truncation, and plurals go through `Fmt` (`formatDisplayDuration` for durations). A colour change shows up in the colour snapshot goldens. Glyph sets come from the kit's `useGlyphs()` (`@effected/cli/ui`), so every Ink tree must render inside the kit's providers: a `CliUi.live` / `CliUi.run` screen, or `<UiProvider value={yield* CliUi.context}>` for a tree you mount yourself (tests: `renderInk` in `__test__/utils/render-ink.tsx` wraps one; pass `{ glyphs: Glyphs.ascii }` for ASCII). The kit hook throws outside a provider. Never read `TERM` or `process` here — the host's `CliTheme` decides.

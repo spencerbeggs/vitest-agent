@@ -61,6 +61,7 @@ import { isPartialRun } from "./utils/is-partial-run.js";
 import { processFailure } from "./utils/process-failure.js";
 import type { ReportWriter } from "./utils/report-writer.js";
 import { assertReportCapable, createReportWriter } from "./utils/report-writer.js";
+import { resolveNoColor } from "./utils/resolve-no-color.js";
 import { resolveThresholds } from "./utils/resolve-thresholds.js";
 import { routeRenderedOutput } from "./utils/route-rendered-output.js";
 import { stringifyFailureValue } from "./utils/stringify-failure-value.js";
@@ -871,9 +872,10 @@ export class AgentReporter {
 					{ hasFailures: false, belowTargets: false, hasTargets: !!opts.coverageTargets },
 					opts.detail,
 				);
-				return { env, executor, format, detail };
+				const noColor = yield* resolveNoColor;
+				return { env, executor, format, detail, noColor };
 			});
-			const { env, executor, format, detail } = await Effect.runPromise(
+			const { env, executor, format, detail, noColor } = await Effect.runPromise(
 				initProgram.pipe(Effect.provide(OutputPipelineLive(process.env)), Effect.provide(NodeServices.layer)),
 			);
 			const kit = buildReporterKit({
@@ -881,7 +883,7 @@ export class AgentReporter {
 				executor,
 				format,
 				detail,
-				noColor: !!process.env.NO_COLOR,
+				noColor,
 				consoleMode: opts.consoleMode ?? "passthrough",
 				mcp: opts.mcp ?? false,
 				githubActions: opts.githubActions,
@@ -1808,7 +1810,7 @@ export class AgentReporter {
 					executor,
 					format,
 					detail,
-					noColor: !!process.env.NO_COLOR,
+					noColor: yield* resolveNoColor,
 					consoleMode: opts.consoleMode ?? "passthrough",
 					mcp: opts.mcp ?? false,
 					githubActions: opts.githubActions,
@@ -2643,7 +2645,7 @@ export class AgentReporter {
 				executor,
 				format,
 				detail,
-				noColor: !!process.env.NO_COLOR,
+				noColor: yield* resolveNoColor,
 				consoleMode: opts.consoleMode ?? "passthrough",
 				mcp: opts.mcp ?? false,
 				githubActions: opts.githubActions,
