@@ -37,8 +37,8 @@ const isJson = (line: string): boolean => {
  * migration records. The sandbox inherits nothing from the host, so the
  * runner's own CLAUDECODE / AI_AGENT never leak into a case.
  */
-const runMigratingDbPath = (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
-	runCli([...args, "db", "path"], {
+const runMigratingDbCommand = (args: ReadonlyArray<string>, env: Readonly<Record<string, string>> = {}) =>
+	runCli([...args, "db", "prune"], {
 		setup: (sandbox) => {
 			writeFileSync(join(sandbox.root, "package.json"), JSON.stringify({ name: "log-format-fixture" }));
 			return undefined;
@@ -137,7 +137,7 @@ describe("vitest-agent CLI surface", () => {
 
 	describe("build-time log format follows the audience (format auto + argv)", () => {
 		it("is all NDJSON, migration records included, for an agent detected from the environment", async () => {
-			const result = await runMigratingDbPath([], { AI_AGENT: "claude-code" });
+			const result = await runMigratingDbCommand([], { AI_AGENT: "claude-code" });
 
 			expect(result.exitCode).toBe(0);
 			const lines = stderrLines(result.stderr);
@@ -149,7 +149,7 @@ describe("vitest-agent CLI surface", () => {
 		});
 
 		it("is all NDJSON, migration records included, under --agent with no agent detected", async () => {
-			const result = await runMigratingDbPath(["--agent"]);
+			const result = await runMigratingDbCommand(["--agent"]);
 
 			expect(result.exitCode).toBe(0);
 			const lines = stderrLines(result.stderr);
@@ -161,11 +161,13 @@ describe("vitest-agent CLI surface", () => {
 		});
 
 		it("carries no NDJSON under --human, even in a detected agent shell", async () => {
-			const result = await runMigratingDbPath(["--human"], { AI_AGENT: "claude-code", CLAUDECODE: "1" });
+			const result = await runMigratingDbCommand(["--human"], { AI_AGENT: "claude-code", CLAUDECODE: "1" });
 
 			expect(result.exitCode).toBe(0);
 			const lines = stderrLines(result.stderr);
-			expect(lines).toContain("Migrations complete");
+			// Plain lines: `HH:MM:SS.mmm DEBUG <message>` (the diagnostics sink, now that the
+			// platform builds inside the command handler rather than around the program).
+			expect(lines.some((line) => /^\d\d:\d\d:\d\d\.\d+ DEBUG Migrations complete$/.test(line))).toBe(true);
 			expect(lines.some(isJson)).toBe(false);
 		});
 	});

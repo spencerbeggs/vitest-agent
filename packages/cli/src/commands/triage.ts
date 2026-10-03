@@ -7,6 +7,7 @@
 import { formatTriageEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { Command, Flag } from "effect/cli";
+import { ProjectDataLive } from "../layers/project-data.js";
 
 const formatOption = Flag.withDefault(Flag.Literals("format", ["markdown", "json", "silent"]), "markdown");
 const projectOption = Flag.optional(Flag.String("project"));
@@ -31,4 +32,7 @@ export const triageCommand = Command.make(
 
 			yield* Effect.sync(() => process.stdout.write(md.length > 0 ? `${md}\n` : ""));
 		}),
-).pipe(Command.withDescription("Emit the W3 orientation triage brief for SessionStart"));
+).pipe(
+	Command.withDescription("Emit the W3 orientation triage brief for SessionStart"),
+	Command.provide(ProjectDataLive),
+);

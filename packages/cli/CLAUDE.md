@@ -10,8 +10,8 @@ src/
   main.ts             -- OWNS the process (published at `./main`):
                          main({ distribution? }) ->
                          resolveProjectDir({ env, cwd: process.cwd() }),
-                         resolveDataPath -> PlatformLive({ dbPath, env,
-                         logger: false }) as CliRuntime.main's `platform`
+                         ProjectDir + PathResolutionLive + NodeServices (NO
+                         database) as CliRuntime.main's `platform`
                          around CliAudience.run(rootCommand, { version }),
                          with `render: renderFailure` and CliRuntime.main's
                          `env` option (audience override VITEST_AGENT_AUDIENCE;
@@ -36,6 +36,13 @@ src/
                           sidecar-path, check-test-path
     record.ts triage.ts wrapup.ts
                        -- subcommand bodies composed under `agent`
+  layers/
+    project-data.ts    -- ProjectDir service (resolved dir + env) and
+                          ProjectDataLive (resolveDataPath -> PlatformLive
+                          with logger: false), attached via Command.provide
+                          to only db prune, doctor, agent triage / wrapup /
+                          record; db path / reset / query read ProjectDir
+                          and open no platform
   lib/                -- pure formatting functions (where tests live)
     format-doctor.ts format-db-query.ts
     version-formatter.ts -- carrierVersionFormatter(distribution): the
@@ -50,8 +57,8 @@ src/
                             stack + issues link); messages Fmt.sanitize'd
 ```
 
-There is no `layers/` and no `lib/internal-*.ts` / `record-*.ts` /
-`sidecar-paths.ts`: the runtime layer is the engine's `PlatformLive`, the
+There is no `lib/internal-*.ts` / `record-*.ts` /
+`sidecar-paths.ts`: the data layer is the engine's `PlatformLive` (built lazily by `ProjectDataLive`), the
 sidecar layer is the engine's `SidecarPlatformLive(paths, env)`, and the hook
 programs (`registerAgentEffect`, `endAgentEffect`, `record*`,
 `resolveHookPaths`) live in `@vitest-agent/engine`'s `programs/`. Commands are
@@ -96,8 +103,9 @@ thin wrappers that pass `process.env` / `process.cwd()` into them.
   the parse errors on stderr on a usage error (stdout empty, exit 64 —
   hooks pipe `agent *` stdout into jq); an explicit `--help` stays on
   stdout. Keep the
-  platform layer inside `CliRuntime.main`'s `platform` (so its failures
-  are reported, not dumped by `runMain`), and don't swap to
+  root platform inside `CliRuntime.main`'s `platform`, and the database
+  layer on `Command.provide` (still inside it, so its failures are
+  reported, not dumped by `runMain`), and don't swap to
   `Effect.runPromise` at the top level.
 - **Bin name vs package name.** Package `@vitest-agent/cli` publishes
   the bin `vitest-agent` (no `-cli` suffix). The plugin's "Next steps"

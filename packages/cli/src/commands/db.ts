@@ -6,15 +6,16 @@ import { DataStore, resolveDataPath } from "@vitest-agent/engine";
 import { Console, Effect, FileSystem } from "effect";
 import { Argument, Command, Flag, Prompt } from "effect/cli";
 import { SqlClient } from "effect/sql/SqlClient";
+import { ProjectDataLive, ProjectDir } from "../layers/project-data.js";
 import { formatDbQuery } from "../lib/format-db-query.js";
 
 const pathCommand = Command.make("path", {}, () =>
 	Effect.gen(function* () {
-		// Honor the VITEST_AGENT_PROJECT_DIR override before cwd so the `db`
-		// commands resolve the SAME database as hook-driven recording (see
-		// bin.ts) — otherwise `db path` would report a different file than the
-		// one a sub-package-cwd hook actually writes to.
-		const dbPath = yield* resolveDataPath(process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd());
+		// The project directory comes from the `ProjectDir` service (main.ts's
+		// `resolveProjectDir`), so `db path` reports the file hook-driven
+		// recording writes to. No database is opened.
+		const { dir } = yield* ProjectDir;
+		const dbPath = yield* resolveDataPath(dir);
 		yield* Effect.sync(() => process.stdout.write(`${dbPath}\n`));
 	}),
 ).pipe(Command.withDescription("Print the resolved database path"));
@@ -35,7 +36,10 @@ const pruneCommand = Command.make("prune", { keepRecent: keepRecentOption }, ({ 
 			),
 		);
 	}),
-).pipe(Command.withDescription("Drop old sessions' turn history (W1 retention; keeps the last N in full)"));
+).pipe(
+	Command.withDescription("Drop old sessions' turn history (W1 retention; keeps the last N in full)"),
+	Command.provide(ProjectDataLive),
+);
 
 // reset -----------------------------------------------------------------------
 
@@ -53,11 +57,9 @@ const resetCommand = Command.make("reset", { yes: yesOption }, ({ yes }) =>
 			return yield* CliExit.set(4);
 		}
 
-		// Honor the VITEST_AGENT_PROJECT_DIR override before cwd so the `db`
-		// commands resolve the SAME database as hook-driven recording (see
-		// bin.ts) — otherwise `db path` would report a different file than the
-		// one a sub-package-cwd hook actually writes to.
-		const dbPath = yield* resolveDataPath(process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd());
+		// Same project directory as every other command (see `db path`).
+		const { dir } = yield* ProjectDir;
+		const dbPath = yield* resolveDataPath(dir);
 
 		// Gate 2: a run that may not prompt a person needs --yes. `CliInteractive`
 		// is the kit's one decision: a human audience (no --agent / --ci /
@@ -142,11 +144,9 @@ const queryCommand = Command.make("query", { sql: sqlArg, format: queryFormatOpt
 			return;
 		}
 
-		// Honor the VITEST_AGENT_PROJECT_DIR override before cwd so the `db`
-		// commands resolve the SAME database as hook-driven recording (see
-		// bin.ts) — otherwise `db path` would report a different file than the
-		// one a sub-package-cwd hook actually writes to.
-		const dbPath = yield* resolveDataPath(process.env.VITEST_AGENT_PROJECT_DIR ?? process.cwd());
+		// Same project directory as every other command (see `db path`).
+		const { dir } = yield* ProjectDir;
+		const dbPath = yield* resolveDataPath(dir);
 
 		// The connection is opened read-only; SQLite enforces the
 		// invariant, so any mutation surfaces as a driver error rather
