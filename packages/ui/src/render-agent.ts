@@ -19,6 +19,7 @@ import type {
 	SuggestedActionRecord,
 } from "@vitest-agent/sdk";
 import { formatTotalsLine } from "./counts.js";
+import { formatFailure as formatFailureLines } from "./dispatcher/helpers.js";
 
 /**
  * Options controlling agent-mode output. All fields optional; defaults
@@ -111,19 +112,7 @@ const formatModulesSection = (state: RenderState): string | null => {
 const truncate = (line: string, max: number): string => Fmt.truncate(line, max);
 
 const formatFailure = (f: FailureRecord, width: number, includeStack: boolean): string => {
-	const suite = f.suitePath.length > 0 ? `${f.suitePath.join(" > ")} > ` : "";
-	const classification = f.classification !== null ? ` [${f.classification}]` : "";
-	const header = `- ${f.modulePath} > ${suite}${f.testName}${classification}`;
-	const lines: string[] = [header];
-	if (f.error?.message !== undefined) {
-		const firstLine = f.error.message.split("\n", 1)[0] ?? "";
-		lines.push(`  ${truncate(firstLine, Math.max(20, width - 2))}`);
-	}
-	if (f.error?.diff !== undefined) {
-		for (const diffLine of f.error.diff.split("\n")) {
-			lines.push(`  ${truncate(diffLine, Math.max(20, width - 2))}`);
-		}
-	}
+	const lines = [...formatFailureLines(f, width)];
 	if (includeStack && f.error?.stack !== undefined) {
 		for (const stackLine of f.error.stack.split("\n")) {
 			lines.push(`  ${truncate(stackLine, Math.max(20, width - 2))}`);
