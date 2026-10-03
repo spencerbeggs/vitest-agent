@@ -1,5 +1,42 @@
 # @vitest-agent/engine
 
+## 0.6.0
+
+### Features
+
+#### SQLite assembly on `@effected/store`
+
+- All three databases (`data.db`, `sessions.db`, `registry.db`) now open through `@effected/store`, which adopts effect/sql's existing `effect_sql_migrations` ledger on first open.
+
+- Existing 2.x databases keep their migration history and nothing is re-run.
+
+- The ledger is not mirrored back, so an older vitest-agent opening a database this version created is not supported.
+
+- New public type alias `PlatformLiveError` (`StoreError | StoreMigrationError`) is now the error type of `PlatformLive` and of `makeSqliteStack`'s `MigratorLayer`. It is exported from the package barrel and from `./testing`.
+
+- `resolveHookPaths` now derives `registryDbPath` with `@effected/app`'s `AppStore.location`, and `SidecarPlatformLive` opens every path in `SidecarPaths` as given.
+
+- `MigrationRecord` now types each migration's error as `SqlError` (previously `unknown`). A custom record passed to `makeSqliteStack` whose migrations fail with another error type no longer typechecks.
+
+- Migration debug records now come from the store. [#563][#563]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | updated | ^0.11.0 | ^0.12.0 |
+| @effected/config-file | dependency | updated | ^0.14.0 | ^0.14.2 |
+| @effected/app | dependency | added | — | ^0.21.1 |
+| @effected/store | dependency | added | — | ^0.13.0 |
+
+[#563][#563]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#563]: https://github.com/spencerbeggs/vitest-agent/pull/563
+
 ## 0.5.0
 
 ### Breaking Changes
