@@ -12,8 +12,8 @@ tags:
 status: draft
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 0b26c189a783a5ad51982ecc54855da69e517812bbfca8363702f2c0cd808889
+  at: 2026-10-03T20:03:36Z
+  body_sha256: cbc7131b62cbbddd3ee9cb6100c256863f74852eb74ff3c80dbe78db59ff5fd5
 sources:
   - id: ui-src
     resource: ../../packages/ui/src/index.ts
@@ -205,11 +205,17 @@ classification). A few load-bearing behaviors:
   errors at all, so an unhandled-error-only run rendered green.
 - `CoverageReady` folds its optional `globShortfalls` (threshold globs
   whose aggregate coverage is below their numbers; see [the plugin
-  module](plugin.md)) onto `RenderState.coverage` when present, and
-  `renderAgent`'s coverage section lists each one under `Glob aggregates
-  below threshold:` as `- <pattern>: <metric> <actual> < <threshold>`,
-  naming only the metrics that fall short. Both synthesizers thread the
-  field through.[^ui-reducer]
+  module](plugin.md)) onto `RenderState.coverage` when present. A
+  non-empty list classifies the run `threshold-violation` (see
+  Classification below), and both agent surfaces — the dispatcher's
+  threshold cells and `renderAgent`'s coverage section — list each one
+  under `Glob aggregates below threshold:` as `- <pattern>: <metric>
+  <actual> < <threshold>`, naming only the metrics that fall short,
+  through the shared `formatGlobShortfallLines` /
+  `formatCoverageSummaryLines` helpers in `src/dispatcher/helpers.ts`.
+  When shortfalls are the only coverage failure, the judgment line reads
+  `Coverage: ✗ N glob aggregates below threshold`. Both synthesizers
+  thread the field through.[^ui-reducer]
 - `CoverageReady` folds its optional `scoped`/`scopedFiles`/`totalFiles`
   triple onto `RenderState.coverage` only when the event carries it, so an
   older emitter's event leaves the fields absent and the dispatcher treats
@@ -260,7 +266,8 @@ only the modules that produced events (the failing ones), so a project run
 with one failing file would otherwise classify `single-file` and render
 that file's path over the project-wide totals. `classifyOutcome(state)`
 derives the `RunOutcome` with a fixed precedence: real failures decide
-first, then unhandled errors, then timeouts, then threshold violations,
+first, then unhandled errors, then timeouts, then threshold violations
+(per-file `coverage.violations` or any `coverage.globShortfalls` entry),
 with `all-pass` as the fallback — the first three collapse to the same
 `some-fail` cell, so a run carrying more than one non-passing signal still
 reads as a failure run. Two consequences of the reducer's timeout split

@@ -9,8 +9,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:28:10Z
-  body_sha256: 237216360f0df5850b518c347fe852fd1e014bdd60767f73cde50571599a817d
+  at: 2026-10-03T20:03:36Z
+  body_sha256: b8961dcb790c2b79ad9027e7e4e4f5897c65212c85cef9b05b408ac3fec64a81
 ---
 
 # Dispatcher Matrix
@@ -55,7 +55,13 @@ shape change would be jarring)[^classify].
    > 0` with `failCount === 0` (issue #224 — a timed-out test is not a
    pass).
 2. `threshold-violation` — no failures/timeouts/unhandled errors, but
-   `coverage.violations.length > 0`.
+   `coverage.violations.length > 0` or a non-empty
+   `coverage.globShortfalls` (a glob aggregate below its threshold fails
+   Vitest's native check even when every per-file number passes). The
+   `single-file`, `single-project`, and `workspace` threshold cells list
+   the shortfalls under `Glob aggregates below threshold:` via the shared
+   `formatCoverageSummaryLines` helper; `some-fail` cells carry no
+   coverage section.
 3. `all-pass` — otherwise.
 
 **What breaks if this precedence is wrong:** because failures, timeouts,
