@@ -122,9 +122,10 @@ export const registerAgentSubcommand = Command.make(
 				...(Option.isSome(opts.clientNonce) && { clientNonce: opts.clientNonce.value }),
 			});
 
-			// local: true -- without it Effect.provide reuses the fiber's inherited layer
-			// memo map, so the root platform's cwd-derived DataStore (same module-level
-			// layer constants) is a memo hit and --project-key's db is never written (#561).
+			// local: true -- a guard against any ambient data layer. A plain Effect.provide
+			// reuses the fiber's inherited layer memo map, so if an outer layer had already
+			// built the module-level DataStoreLive / DataReaderLive constants, the sidecar
+			// would get that store and --project-key's db would never be written (#561).
 			const result = yield* program.pipe(Effect.provide(sidecar, { local: true }), Effect.catchCause(mapDefectToExit));
 
 			yield* writeStdout(
@@ -172,9 +173,10 @@ export const endAgentSubcommand = Command.make(
 
 			const endedAt = Option.isSome(opts.endedAt) ? opts.endedAt.value : Math.floor(Date.now() / 1000);
 
-			// local: true -- without it Effect.provide reuses the fiber's inherited layer
-			// memo map, so the root platform's cwd-derived DataStore (same module-level
-			// layer constants) is a memo hit and --project-key's db is never written (#561).
+			// local: true -- a guard against any ambient data layer. A plain Effect.provide
+			// reuses the fiber's inherited layer memo map, so if an outer layer had already
+			// built the module-level DataStoreLive / DataReaderLive constants, the sidecar
+			// would get that store and --project-key's db would never be written (#561).
 			yield* endAgentEffect({
 				agentId: opts.agentId,
 				endedAt,
