@@ -1,6 +1,6 @@
 ---
 type: Decision
-status: draft
+status: stable
 supersedes: 75-adopt-effected-store-with-ledger-adopt-and-mirror.md
 title: Adopt @effected/store with an Adopt-Only Ledger
 description: "All three SQLite databases open as @effected/store stores with adoptMigratorLedger only: a 2.x effect_sql_migrations ledger is copied forward once and never written again, so an older vitest-agent opening a file this version created is not supported."
@@ -38,6 +38,9 @@ sources:
   - id: dogfood-old-install
     resource: "feat/effected-app-layers dogfood loop: a released 5.x install opening a file this version created, checked by hand"
     last_modified: 2026-10-03T00:00:00Z
+verified:
+  - by: human:spencer
+    at: 2026-10-03T18:21:23Z
 ---
 
 # Adopt @effected/store with an Adopt-Only Ledger
