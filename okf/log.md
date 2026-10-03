@@ -20,6 +20,18 @@
 * Added Older installs cannot open databases this version created
 * Updated SQLite Schema
 * Updated Schema migrations — append-only, one registry, never edit 0001
+* Updated @vitest-agent/cli
+* Updated @vitest-agent/plugin
+* Updated Add an MCP tool
+* Updated AgentPluginOptions
+* Updated Claude Code hook environment contract
+* Added Effect.provide reuses the inherited layer memo map
+* Updated MCP Permits, Agent Restricts (Capability vs Scoping)
+* Updated Reset the local vitest-agent database
+* Updated The `vitest-agent` CLI command tree
+* Updated The record hook subcommands have no built-and-spawned end-to-end test
+* Updated vitest-agent (Claude Code plugin)
+* Updated Dispatcher Matrix
 
 ## 2026-10-01
 

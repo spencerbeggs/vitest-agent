@@ -13,8 +13,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T13:07:49Z
-  body_sha256: c219420ffcec632e08e217023e7dca924d7a7add7d42887c48d6349ffe823615
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 81d0c817ea441e26eb96e427e64854da4aca3ae071d6ec4b12fc1f2024932e76
 ---
 
 # @vitest-agent/plugin
@@ -370,6 +370,38 @@ carries an optional `totalFiles`, meaningful only on `processScoped`,
 threaded verbatim onto `CoverageReport.totalFiles` so the scoped-coverage
 note can render "N of M test files" — the analyzer cannot derive it,
 only the reporter has the project-wide spec count.
+
+**Per-file checks.** `lowCoverage` and `belowTarget` are both per-file
+lists, and both resolve a file's bar with the same precedence: when the
+file matches a glob entry that carries an object `perFile`, those
+`perFile` numbers are the bar; otherwise the glob's (or the top level's)
+metric numbers are. `coverageTargets` follows the thresholds path here
+(`resolveEffectivePerFileThresholds` first, then
+`resolveEffectiveThresholds`, in
+`packages/plugin/src/layers/CoverageAnalyzerLive.ts`).
+
+**Glob aggregates (`globShortfalls`).** Vitest 5 enforces a threshold glob
+twice: per file against an object `perFile`, and as an aggregate over
+every file the glob matches. The per-file lists cannot show the second,
+so with an object `perFile` every matched file can pass while the glob
+still fails the run. `CoverageAnalyzerLive` therefore computes, for each
+`coverage.thresholds` glob, the aggregate the way Vitest does — summed
+`covered` over summed `total` per metric across the matched files (not a
+mean of per-file percentages), floored to two decimals, with an empty
+metric counting as 100 — and adds a `GlobShortfall` (`pattern`, aggregate
+`summary`, the glob's own metric `thresholds`) to the optional
+`CoverageReport.globShortfalls` when any set metric falls below its
+number. Files are counted before the bare-zero and scoped skips, so a
+bare-zero file always counts toward the aggregate whatever
+`includeBareZero` says. Not evaluated: scoped (`processScoped`) runs,
+since a partial map says nothing about a glob's full aggregate; a glob
+with `perFile: true`, which has no aggregate; negative (max-uncovered)
+numbers; and a glob whose matched summaries lack `covered` / `total`
+counts. The field is absent when nothing falls short. It rides
+`CoverageReady.globShortfalls` into the render state and the agent view
+(see [the ui module](ui.md)) but is **not** persisted to SQLite, so the
+MCP coverage tools do not see it. The analysis covers threshold globs
+only, not `coverageTargets` globs.
 
 ## DiscoverStrategy + discoverProjects
 

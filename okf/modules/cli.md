@@ -32,10 +32,12 @@ sources:
     resource: ../../packages/cli/src/lib/version-formatter.ts
   - id: render-failure
     resource: ../../packages/cli/src/lib/render-failure.ts
+  - id: project-data-ts
+    resource: ../../packages/cli/src/layers/project-data.ts
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T08:22:45Z
-  body_sha256: 76c8633ce4cbb091d9657b18914fd0253475d43bfa9551817060045b159f4ed0
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 0c22a71ec5c703613ff145fde17e17d8429cd3aa62c60077178417d15c34e371
 ---
 
 # @vitest-agent/cli
@@ -104,9 +106,9 @@ Follows the
   `VITEST_AGENT_PROJECT_DIR` → `VITEST_AGENT_REPORTER_PROJECT_DIR` →
   `CLAUDE_PROJECT_DIR` → cwd — so a hook-driven invocation from a
   sub-package cwd resolves the SAME `data.db` the MCP server
-  uses)[^main-ts], then runs `resolveDataPath(projectDir)` under
-  `PathResolutionLive(projectDir) + NodeServices.layer` and provides the
-  engine's `PlatformLive({ dbPath, env, logger: false })` as the
+  uses)[^main-ts], then provides a root platform that opens **no
+  database** — the CLI's `ProjectDir` service (`{ dir: projectDir, env }`),
+  `PathResolutionLive(projectDir)`, and `NodeServices.layer` — as the
   `platform` of `@effected/cli`'s `CliRuntime.main`, around
   `CliAudience.run` over the root command (built from
   `Command.make("vitest-agent")` +
@@ -122,19 +124,20 @@ Follows the
   failure reports on stderr, plus a diagnostics sink silent unless
   `VITEST_REPORTER_LOG_LEVEL` is set (`env.log.format: "auto"`: NDJSON
   on stderr for an agent or a CI, plain lines for a person; `env.log.argv`
-  is `process.argv.slice(2)` so the engine's build-time migration
-  records, logged before the audience is resolved, still honour
-  `--agent` / `--human` / `--ci` — though a person with stderr piped can
-  get plain build-time lines then NDJSON runtime lines, a kit gap) and an
+  is `process.argv.slice(2)` so build-time records honour `--agent` /
+  `--human` / `--ci`; the engine's migration records, logged while a
+  database command's `ProjectDataLive` builds inside its handler, reach
+  the diagnostics sink as NDJSON for an agent or CI and as
+  `HH:MM:SS.mmm DEBUG <message>` lines for a person) and an
   async NDJSON file under `VITEST_REPORTER_LOG_FILE`. `env.displayPath`
   shows a defect's stack-frame paths relative to the project directory
   (absolute when outside it).
-  That is why the platform passes `logger: false`: the engine's
-  `LoggerLive` would otherwise replace the `CliLog` set inside the
-  program. Because the platform is inside failure
-  reporting, a failure resolving the data path, opening SQLite or
-  running migrations prints one line on stderr instead of a runtime
-  report. `renderFailure` (`lib/render-failure.ts`) keys off the kit's
+  That is why `ProjectDataLive` passes `logger: false` to `PlatformLive`:
+  the engine's `LoggerLive` would otherwise replace the `CliLog` set
+  inside the program. Because the database layer is built inside a
+  command handler, still inside `CliRuntime.main`'s failure reporting, a
+  failure resolving the data path, opening SQLite or running migrations
+  prints one line on stderr instead of a runtime report. `renderFailure` (`lib/render-failure.ts`) keys off the kit's
   `details.isDefect`: a typed failure from the error channel prints as
   `vitest-agent: <Tag>: <message>`, the message passed through the kit's
   `Fmt.sanitize` and folded to one line; a `Cancelled`, a
@@ -185,7 +188,7 @@ subcommands[^db-ts]:
 
 - `path` — prints the resolved XDG `data.db` path. The path is a function of
   identity, not artifact presence — it prints even when no DB has been
-  written yet.
+  written yet, and `db path` opens no database to print it.
 - `prune --keep-recent N` — turn-history retention (default `N=30`). Calls
   `DataStore.pruneSessions(n)`: finds the cutoff at the `(n+1)`-th most
   recent session by `started_at` and deletes turn rows for older sessions.
@@ -194,6 +197,14 @@ subcommands[^db-ts]:
 - `reset` — wipes `data.db` plus its `-shm` / `-wal` companions; human-only,
   agent-blocked.
 - `query <sql>` — a single read-only SQL statement.
+
+`path`, `reset`, and `query` read the project directory from the
+`ProjectDir` service, so they resolve the same `data.db` as every other
+command and as hook-driven recording (honouring `VITEST_AGENT_PROJECT_DIR`,
+`VITEST_AGENT_REPORTER_PROJECT_DIR`, and `CLAUDE_PROJECT_DIR`), and none of
+the three is given the project database layer: `reset` deletes a file the
+process does not hold open, and `query` opens its own read-only
+connection. Only `prune` is given `ProjectDataLive`[^db-ts].
 
 `db reset` enforces a refusal gate, evaluated in order: (1)
 `VITEST_AGENT_AGENT_ID` set in the environment → refuse, exit code 4
@@ -297,7 +308,11 @@ core's `exitCodeForTag`). Both `register-agent` and `end-agent` call the
 engine's `resolveHookPaths({ env: process.env, projectKey })` — which
 resolves all three SQLite store paths (per-project `data.db`, per-client
 `sessions.db`, registry `registry.db`) from the injected env and creates
-every parent dir — and provide `SidecarPlatformLive(paths, process.env)`.
+every parent dir — and provide `SidecarPlatformLive(paths, process.env)`
+with `Effect.provide(sidecar, { local: true })`, so the `--project-key`
+database is built fresh rather than taken from a layer memo map the
+handler's fiber inherits (see [Gotcha: Effect.provide reuses the
+inherited layer memo map](../gotchas/effect-provide-inherits-memo-map.md))[^agent-ts].
 Path resolution does not depend on workspace discovery, so the sidecar works
 in non-pnpm-workspace project shapes.
 
@@ -361,14 +376,24 @@ tdd-artifact`, capture the returned `latestTestCaseId`, and pass it as
 
 ## Platform layers
 
-The CLI composes no layers of its own. `main.ts` provides the engine's
-`PlatformLive({ dbPath, env, logger: false })` — SQLite + migrator +
-Node platform services, with no logger of its own (the kit's `CliLog`
-owns logging), plus `DataReader`, `DataStore`,
-`ProjectDiscovery`, `HistoryTracker` and the output pipeline over them —
-which backs `doctor`, `triage`, `wrapup`, `db` and the `record` group. The
-sidecar subcommands provide the engine's `SidecarPlatformLive(paths, env)` —
-three SQLite scopes on three uniquely-tagged clients so the databases do not
+The CLI's one layer module is `src/layers/project-data.ts`[^project-data-ts].
+It defines `ProjectDir` (the resolved project directory and the env it was
+resolved from, provided once by `main.ts`) and `ProjectDataLive`, which
+reads `ProjectDir`, resolves the `data.db` path, and builds the engine's
+`PlatformLive({ dbPath, env, logger: false })` — SQLite + migrator + Node
+platform services, with no logger of its own (the kit's `CliLog` owns
+logging), plus `DataReader`, `DataStore`, `ProjectDiscovery`,
+`HistoryTracker` and the output pipeline over them.
+
+The root platform in `main.ts` carries no database. `ProjectDataLive` is
+attached with `effect/cli`'s `Command.provide` to exactly the commands
+that use the engine's data services: `doctor`, `db prune`, `agent triage`,
+`agent wrapup`, and the `agent record` group. Every other command — `db
+path` / `reset` / `query` and the hook hot-path commands (`inject-env`,
+`check-test-path`, `sidecar-path`, `register-agent`, `end-agent`) — opens
+and migrates no project `data.db` of its own. The sidecar subcommands
+provide the engine's `SidecarPlatformLive(paths, env)` locally — three
+SQLite scopes on three uniquely-tagged clients so the databases do not
 contend on one connection. See [the engine module](engine.md).
 
 ## Hook-driven recording: `resolveSessionForRecording`
@@ -414,6 +439,7 @@ CLI-first split, leaving the CLI utility-only as described above.
 [^boundaries-test]: `../../packages/cli/__test__/boundaries.test.ts`
 [^version-formatter]: `../../packages/cli/src/lib/version-formatter.ts`
 [^render-failure]: `../../packages/cli/src/lib/render-failure.ts`
+[^project-data-ts]: `../../packages/cli/src/layers/project-data.ts`
 [^main-ts]: `../../packages/cli/src/main.ts:103` (`main`), `../../packages/cli/src/main.ts:116` (`projectDir`), `../../packages/cli/src/main.ts:39` (`rootCommand`)
 [^bin-ts]: `../../packages/cli/src/bin.ts:10`
 [^index-ts]: `../../packages/cli/src/index.ts:21`

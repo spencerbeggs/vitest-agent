@@ -11,8 +11,8 @@ tags:
   - testing
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T02:30:42Z
-  body_sha256: bba1375ad6ac5f5795b9c61b359c4a61eb09e1c8735d97ef02e99df01471bcea
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 8844f7758b8b5ff89ecef0cc313bed696633c12d8857e6d955bfba39ed642522
 ---
 
 # AgentPluginOptions
@@ -83,7 +83,13 @@ statements?, 100?: true, perFile? }` object for a glob entry. Negatives and
 zeros are rejected at decode time; `perFile` at the top level is rejected
 (set it on Vitest's own `coverage.thresholds.perFile`, or on the matching
 glob entry, since Vitest 5 glob-pattern thresholds do not inherit the
-top-level setting). This is one of three distinct coverage facets: Vitest's
+top-level setting). When a glob entry carries an object `perFile`, a file
+it matches is reported below target by the `perFile` numbers, not the
+entry's own metric numbers — the same precedence the threshold check
+applies. Glob aggregate shortfalls (a glob whose summed coverage misses
+its numbers while every file passes) are reported for Vitest's native
+threshold globs only, as the coverage report's `globShortfalls`, never for
+`coverageTargets` globs. This is one of three distinct coverage facets: Vitest's
 native `coverage.thresholds` enforces a build failure, `coverageTargets`
 tracks an aspirational goal, and `coverage_baselines` auto-ratchets a
 high-water mark — a project can carry "must not regress" and "still

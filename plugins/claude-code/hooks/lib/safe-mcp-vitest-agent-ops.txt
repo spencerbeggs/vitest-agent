@@ -2,13 +2,12 @@
 # (mcp__vitest-agent_mcp__<op>).
 #
 # Phase 3 of the agent-agnostic taxonomy collapsed the per-CRUD
-# tools into action-keyed consolidated tools. The destructive variants
-# (tdd_goal action=delete, tdd_behavior action=delete) live behind the
-# consolidated names and are NOT prevented at the allowlist layer; the
-# orchestrator restriction in pre-tool-use-tdd-restricted.sh blocks the
-# tdd-task subagent from calling them, while main-agent calls fall
-# through to the standard permission prompt because the consolidated
-# tool name is allow-listed below.
+# tools into action-keyed consolidated tools. Listing a consolidated
+# name here auto-allows every action EXCEPT action=delete:
+# pre-tool-use/mcp.sh checks tool_input.action and lets a delete fall
+# through to the standard permission prompt. The tdd-task subagent is
+# additionally blocked from goal/behavior deletes by
+# pre-tool-use-tdd-restricted.sh.
 
 # === Meta ===
 help
@@ -61,8 +60,8 @@ tdd_task
 tdd_phase_transition_request
 
 # === Phase 3: consolidated TDD goal/behavior CRUD ===
-# Both tools include action=delete, which cascades; main-agent calls
-# fall through to the standard permission prompt for those actions.
+# Both tools include action=delete, which cascades; mcp.sh lets
+# main-agent delete calls fall through to the standard permission prompt.
 # The tdd-task subagent is blocked from delete actions at the
 # pre-tool-use-tdd-restricted.sh hook layer.
 tdd_goal

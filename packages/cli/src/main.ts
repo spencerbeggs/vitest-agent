@@ -1,6 +1,6 @@
 /**
- * Assembled CLI program. Owns the process: resolves the data path, wires the
- * engine's platform layers, and runs the root command through
+ * Assembled CLI program. Owns the process: resolves the project directory, wires the
+ * root platform (no database), and runs the root command through
  * `@effected/cli`'s `CliRuntime.main` under `NodeRuntime.runMain`.
  *
  * `bin.ts` is the published bin shim (`#!/usr/bin/env node` +
@@ -17,12 +17,13 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { CliAudience, CliRuntime } from "@effected/cli";
 import type { Distribution } from "@effected/engine";
 import { CurrentDistribution } from "@effected/engine";
-import { PathResolutionLive, PlatformLive, resolveDataPath, resolveProjectDir } from "@vitest-agent/engine";
+import { PathResolutionLive, resolveProjectDir } from "@vitest-agent/engine";
 import { Effect, Layer, Option } from "effect";
 import { Command } from "effect/cli";
 import { agentCommand } from "./commands/agent.js";
 import { dbCommand } from "./commands/db.js";
 import { doctorCommand } from "./commands/doctor.js";
+import { ProjectDir } from "./layers/project-data.js";
 import { renderFailure } from "./lib/render-failure.js";
 import { carrierVersionFormatter } from "./lib/version-formatter.js";
 import { CURRENT_CLI_VERSION } from "./version.js";
@@ -82,10 +83,11 @@ export interface MainOptions {
  *   sink that is silent unless `VITEST_REPORTER_LOG_LEVEL` is set (then
  *   NDJSON on stderr for every audience), plus an
  *   async NDJSON file when `VITEST_REPORTER_LOG_FILE` is set. The platform
- *   therefore installs no logger of its own (`PlatformLive`'s `logger: false`:
- *   the engine's `LoggerLive` would otherwise replace this set inside the
- *   program). The platform is built under that logger, so what it logs
- *   while building (the engine's migration records) reaches the same sink.
+ *   therefore installs no logger of its own (`ProjectDataLive` builds
+ *   `PlatformLive` with `logger: false`: the engine's `LoggerLive` would
+ *   otherwise replace this set inside the program). The project database
+ *   layer is built under that logger, so what it logs while building (the
+ *   engine's migration records) reaches the same sink.
  *   `format: "auto"`: NDJSON for an agent or a CI, plain lines for a person.
  *   `argv` (`process.argv.slice(2)`) lets the build-time records follow the
  *   audience flags too, so `--agent` with no agent detected is all NDJSON and
@@ -121,20 +123,19 @@ export const main = (options: MainOptions = {}): void => {
 	// lib exports `VITEST_AGENT_PROJECT_DIR` from `CLAUDE_PROJECT_DIR`.
 	const projectDir = resolveProjectDir({ env, cwd: process.cwd() });
 
-	const dataLayer = Layer.unwrap(
-		Effect.map(resolveDataPath(projectDir), (dbPath) => PlatformLive({ dbPath, env, logger: false })),
-	);
-
-	// Provided through `CliRuntime.main`'s `platform`, i.e. INSIDE failure
-	// reporting: a failure resolving the data path, opening SQLite, or running
-	// migrations renders as a line on stderr and exits non-zero instead of
-	// escaping to `runMain`'s default report. It also supplies the `Stdio` and
-	// `Terminal` the env layer reads, and the `FileSystem` / `Path` the log file
-	// sink needs.
-	const platform = dataLayer.pipe(
-		Layer.provideMerge(PathResolutionLive(projectDir)),
-		Layer.provideMerge(NodeServices.layer),
-	);
+	// The root platform opens NO database: it supplies `ProjectDir` (the
+	// resolved project directory every command reads), the path-resolution
+	// services, and the Node services (`Stdio` / `Terminal` for the env layer,
+	// `FileSystem` / `Path` for the log file sink). The project `data.db`
+	// (`ProjectDataLive`) is attached with `Command.provide` to only the
+	// commands that use it, so a hook command like `agent inject-env` never
+	// opens or migrates SQLite. A failure building that layer happens inside the
+	// command's handler, still inside `CliRuntime.main`, so it still renders
+	// through `renderFailure`.
+	const platform = Layer.mergeAll(
+		Layer.succeed(ProjectDir, { dir: projectDir, env }),
+		PathResolutionLive(projectDir),
+	).pipe(Layer.provideMerge(NodeServices.layer));
 
 	const distribution = Option.fromNullishOr(options.distribution);
 

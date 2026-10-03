@@ -17,6 +17,7 @@ import {
 import type { ArtifactKind, ArtifactSuite } from "@vitest-agent/sdk";
 import { Effect, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
+import { ProjectDataLive } from "../layers/project-data.js";
 
 const chatId = Flag.String("chat-id").pipe(
 	Flag.withDescription("Host chat id (`session_id` in the Claude Code hook envelope; equivalent in other clients)"),
@@ -309,4 +310,5 @@ export const recordCommand = Command.make("record").pipe(
 	Command.withDescription(
 		"Hook write surface (Decision D3): turn, session-start, session-end, tdd-artifact, run-workspace-changes",
 	),
+	Command.provide(ProjectDataLive),
 );

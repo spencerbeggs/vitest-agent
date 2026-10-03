@@ -20,6 +20,8 @@ import type { ProjectSummary, RenderState, RunOutcome, RunShape } from "@vitest-
  * UI rewrite spec §7 open question 1:
  *
  * 1. More than one project → `workspace`.
+ * 1b. `collectedModules` greater than one → `single-project` (the reduced
+ *    `modules` map may hold only the failing modules of a larger run).
  * 2. One module with exactly one test → `single-test`.
  * 3. One module with more than one test → `single-file`.
  * 4. Otherwise → `single-project`.
@@ -32,6 +34,12 @@ import type { ProjectSummary, RenderState, RunOutcome, RunShape } from "@vitest-
 export const classifyRunShape = (state: RenderState, projects: ReadonlyArray<ProjectSummary>): RunShape => {
 	if (projects.length > 1) {
 		return "workspace";
+	}
+	// `state.modules` only holds modules that produced events (a report replay
+	// queues just the failing ones), so it can undercount the modules that
+	// ran. `collectedModules` is the true count when known.
+	if (state.collectedModules !== undefined && state.collectedModules > 1) {
+		return "single-project";
 	}
 	const moduleEntries = Object.values(state.modules);
 	if (moduleEntries.length === 1) {
@@ -74,8 +82,13 @@ export const classifyOutcome = (state: RenderState): RunOutcome => {
 	if (state.totals.timeoutCount > 0) {
 		return "some-fail";
 	}
-	if (state.coverage !== null && state.coverage.violations.length > 0) {
-		return "threshold-violation";
+	if (state.coverage !== null) {
+		// A glob aggregate shortfall fails Vitest's native threshold check
+		// even when every per-file number passes, so it is a threshold
+		// outcome on its own (the analyzer never emits one on scoped runs).
+		if (state.coverage.violations.length > 0 || (state.coverage.globShortfalls?.length ?? 0) > 0) {
+			return "threshold-violation";
+		}
 	}
 	return "all-pass";
 };

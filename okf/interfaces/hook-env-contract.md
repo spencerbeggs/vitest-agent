@@ -30,8 +30,8 @@ sources:
     resource: ../../plugins/claude-code/hooks/session/end-record-worker.sh
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T08:22:45Z
-  body_sha256: fc3c2b252ceaa981221abe4b1c05ee2d6b46c0e00eed8b5bf720491e560178d7
+  at: 2026-10-03T19:28:10Z
+  body_sha256: b33b1026b22fe8253a9dd1d5a207dbaf8bdec7a14e78877be8ec0aa49a3a6db5
 ---
 
 # Claude Code hook environment contract
@@ -167,14 +167,19 @@ blank lines and `#`-prefixed comments stripped before an exact-match
 lookup. The action-keyed consolidated tools (`tdd_task`, `tdd_goal`,
 `tdd_behavior`, `note`, `hypothesis`, `inventory`, `test`) are listed
 alongside `register_agent` and `tdd_artifact_list`. Listing a consolidated
-tool name here does **not** allow every action inside it unconditionally —
-`pre-tool-use/tdd-restricted.sh` separately inspects `tool_input.action`
-on `tdd_goal`/`tdd_behavior` and denies `delete` regardless of allowlist
-presence[^pre-tool-use-mcp-sh]. A caller must not infer "this tool is
-listed, therefore every action on it is permission-free"; the allowlist
-only ever widens which *tool names* skip the prompt, never which actions.
-A newly deployed non-destructive MCP tool must be added here to get the
-same treatment; a delete-capable tool must stay absent.
+tool name here does **not** allow every action inside it: before the
+lookup, `pre-tool-use/mcp.sh` reads `tool_input.action` and returns no
+permission decision when it is `delete`, on any tool, so a main-agent
+`tdd_goal` / `tdd_behavior` / `note` delete always reaches Claude Code's
+standard permission prompt[^pre-tool-use-mcp-sh]. Inside the `tdd-task`
+subagent, `pre-tool-use/tdd-restricted.sh` goes further and denies a
+`tdd_goal` / `tdd_behavior` delete outright ([Decision
+D13](../decisions/d13-mcp-permits-agent-restricts.md)). A caller must not
+infer "this tool is listed, therefore every action on it is
+permission-free". A newly deployed MCP tool is added here to skip the
+prompt; a destructive operation must be spelled `action: "delete"` on a
+consolidated tool to keep its prompt, and a standalone destructive tool
+must stay absent from the list.
 
 ## State-file pairing for SubagentStop
 
@@ -239,8 +244,10 @@ written by a hook; a human (or a hook author debugging) sets them:
   open) never changes without every
   call site being updated in the same change — a hook must not special-case
   its own resolution.
-- The allowlist grants tool-name-level auto-permission only; action-level
-  gating is a separate, independently-checked hook.
+- The allowlist grants tool-name-level auto-permission for every action
+  except `delete`, which `mcp.sh` always leaves to the permission prompt;
+  the subagent's outright delete denial is a separate,
+  independently-checked hook.
 - A `SubagentStart` state file exists for the lifetime of its dispatch and
   is guaranteed removed by session end, whether or not its matching
   `SubagentStop` ever fires cleanly.

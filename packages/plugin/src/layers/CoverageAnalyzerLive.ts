@@ -1,6 +1,12 @@
 import { relative } from "node:path";
 import { GlobPattern } from "@effected/glob";
-import type { CoverageReport, FileCoverageReport, MetricThresholds, ResolvedThresholds } from "@vitest-agent/sdk";
+import type {
+	CoverageReport,
+	FileCoverageReport,
+	GlobShortfall,
+	MetricThresholds,
+	ResolvedThresholds,
+} from "@vitest-agent/sdk";
 import { compressLines } from "@vitest-agent/sdk";
 import { Effect, Layer, Option, Result } from "effect";
 import type { CoverageOptions } from "../services/CoverageAnalyzer.js";
@@ -9,11 +15,18 @@ import { toPosixPath } from "../utils/to-posix-path.js";
 
 // --- Istanbul duck-type interfaces (local, not Effect Schemas) ---
 
+interface IstanbulMetric {
+	pct: number;
+	/** Present on real istanbul summaries; optional so pct-only duck-types still work. */
+	covered?: number;
+	total?: number;
+}
+
 interface IstanbulSummary {
-	statements: { pct: number };
-	branches: { pct: number };
-	functions: { pct: number };
-	lines: { pct: number };
+	statements: IstanbulMetric;
+	branches: IstanbulMetric;
+	functions: IstanbulMetric;
+	lines: IstanbulMetric;
 }
 
 interface IstanbulFileCoverage {
@@ -40,6 +53,50 @@ function isBelowMetricThresholds(
 	if (thresholds.branches !== undefined && stats.branches < thresholds.branches) return true;
 	if (thresholds.statements !== undefined && stats.statements < thresholds.statements) return true;
 	return false;
+}
+
+type MetricName = "statements" | "branches" | "functions" | "lines";
+const METRICS: ReadonlyArray<MetricName> = ["statements", "branches", "functions", "lines"];
+
+/**
+ * Istanbul's own percentage: `covered / total` floored to two decimals, and
+ * 100 for an empty (`total === 0`) metric. Mirrors `istanbul-lib-coverage`'s
+ * `percent()` so an aggregate computed here equals what Vitest compares.
+ */
+function istanbulPercent(covered: number, total: number): number {
+	return total > 0 ? Math.floor((10000 * covered) / total) / 100 : 100;
+}
+
+/**
+ * Aggregate a glob's matched files the way Vitest builds a glob coverage map:
+ * sum `covered` and `total` per metric across the files' summaries, then take
+ * the percentage of the sums (NOT a mean of per-file percentages). Returns
+ * `undefined` when any file's summary lacks counts, since no honest aggregate
+ * exists then.
+ */
+function aggregateSummaries(
+	summaries: ReadonlyArray<IstanbulSummary>,
+): { statements: number; branches: number; functions: number; lines: number } | undefined {
+	const sums = {
+		statements: { covered: 0, total: 0 },
+		branches: { covered: 0, total: 0 },
+		functions: { covered: 0, total: 0 },
+		lines: { covered: 0, total: 0 },
+	};
+	for (const s of summaries) {
+		for (const m of METRICS) {
+			const { covered, total } = s[m];
+			if (typeof covered !== "number" || typeof total !== "number") return undefined;
+			sums[m].covered += covered;
+			sums[m].total += total;
+		}
+	}
+	return {
+		statements: istanbulPercent(sums.statements.covered, sums.statements.total),
+		branches: istanbulPercent(sums.branches.covered, sums.branches.total),
+		functions: istanbulPercent(sums.functions.covered, sums.functions.total),
+		lines: istanbulPercent(sums.lines.covered, sums.lines.total),
+	};
 }
 
 /**
@@ -133,6 +190,54 @@ function resolveEffectivePerFileThresholds(filePath: string, resolved: ResolvedT
 }
 
 /**
+ * Find the threshold globs whose aggregate coverage is below their own metric
+ * numbers (issue #391), matching Vitest 5: a glob's coverage map holds every
+ * file in the run that matches it (a file may belong to several globs), the
+ * aggregate is `sum(covered) / sum(total)` per metric, and it is enforced in
+ * addition to any object `perFile`. A glob with `perFile: true` is checked per
+ * file only, so it has no aggregate to fail.
+ *
+ * Choices (document before changing):
+ * - Bare-zero files COUNT toward the aggregate, regardless of
+ *   `includeBareZero`. That option only decides whether such files are listed
+ *   per file; Vitest's aggregate includes them, and dropping them would hide
+ *   exactly the shortfall they cause.
+ * - Scoped runs never produce shortfalls (the caller skips this): a partial
+ *   coverage map says nothing about a glob's full aggregate, mirroring how
+ *   scoped runs never flag threshold violations.
+ * - Only non-negative numbers are compared (minimum percentages). Vitest's
+ *   negative "max uncovered count" form is not evaluated here.
+ * - A glob that matches no file, or whose matched summaries lack
+ *   covered/total counts, yields nothing.
+ */
+function computeGlobShortfalls(
+	files: ReadonlyArray<{ matchPath: string; summary: IstanbulSummary }>,
+	resolved: ResolvedThresholds,
+): GlobShortfall[] {
+	const shortfalls: GlobShortfall[] = [];
+	for (const [pattern, metrics] of resolved.patterns ?? []) {
+		if (metrics.perFile === true) continue;
+		const thresholds: MetricThresholds = {
+			...(metrics.lines !== undefined ? { lines: metrics.lines } : {}),
+			...(metrics.functions !== undefined ? { functions: metrics.functions } : {}),
+			...(metrics.branches !== undefined ? { branches: metrics.branches } : {}),
+			...(metrics.statements !== undefined ? { statements: metrics.statements } : {}),
+		};
+		if (METRICS.every((m) => thresholds[m] === undefined)) continue;
+		const matched = files.filter((f) => matchGlob(f.matchPath, pattern));
+		if (matched.length === 0) continue;
+		const aggregate = aggregateSummaries(matched.map((f) => f.summary));
+		if (aggregate === undefined) continue;
+		const short = METRICS.some((m) => {
+			const min = thresholds[m];
+			return min !== undefined && min >= 0 && aggregate[m] < min;
+		});
+		if (short) shortfalls.push({ pattern, summary: aggregate, thresholds });
+	}
+	return shortfalls;
+}
+
+/**
  * Internal coverage processing logic. Shared by both `process` and `processScoped`.
  *
  * @param coverageMap - The value received by `onCoverage`; duck-typed at runtime
@@ -179,10 +284,16 @@ function processCoverageInternal(
 	const { root } = options;
 	const matchKey = (filePath: string): string => toPosixPath(root === undefined ? filePath : relative(root, filePath));
 
+	// Every file's summary, collected BEFORE the bare-zero / scoped skips below:
+	// a glob aggregate is evaluated over all files the glob matches, exactly as
+	// Vitest builds its per-glob coverage map.
+	const mapSummaries: Array<{ matchPath: string; summary: IstanbulSummary }> = [];
+
 	for (const filePath of coverageMap.files()) {
 		const matchPath = matchKey(filePath);
 		const fileCoverage = coverageMap.fileCoverageFor(filePath);
 		const fileSummary = fileCoverage.toSummary();
+		mapSummaries.push({ matchPath, summary: fileSummary });
 
 		const fileStats = {
 			statements: fileSummary.statements.pct,
@@ -223,7 +334,11 @@ function processCoverageInternal(
 
 		// Check if the file is above threshold but below target
 		if (options.targets) {
-			const effectiveTargets = resolveEffectiveThresholds(matchPath, options.targets);
+			// Same precedence as the thresholds path: a glob target's object
+			// `perFile` replaces its metric numbers for the per-file check (#390).
+			const effectiveTargets =
+				resolveEffectivePerFileThresholds(matchPath, options.targets) ??
+				resolveEffectiveThresholds(matchPath, options.targets);
 			const isBelowTargetMetrics = isBelowMetricThresholds(fileStats, effectiveTargets);
 			if (isBelowTargetMetrics) {
 				const uncoveredLines = compressLines(fileCoverage.getUncoveredLines());
@@ -235,6 +350,8 @@ function processCoverageInternal(
 			}
 		}
 	}
+
+	const globShortfalls = scoped ? [] : computeGlobShortfalls(mapSummaries, options.thresholds);
 
 	// Sort worst-first by lines percentage ascending
 	lowCoverage.sort((a, b) => a.summary.lines - b.summary.lines);
@@ -267,6 +384,7 @@ function processCoverageInternal(
 		...(scoped && options.totalFiles !== undefined ? { totalFiles: options.totalFiles } : {}),
 		lowCoverage,
 		lowCoverageFiles: lowCoverage.map((f) => f.file),
+		...(globShortfalls.length > 0 ? { globShortfalls } : {}),
 		...(options.targets
 			? {
 					belowTarget,

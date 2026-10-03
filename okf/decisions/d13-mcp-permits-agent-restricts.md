@@ -9,8 +9,8 @@ tags:
   - security
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 1f8b0ac8a1762b2b9791c250e290213fc75c9ee01a4d69f0e9d4be8bb08ea36a
+  at: 2026-10-03T19:28:10Z
+  body_sha256: 50f026f0a4073970ec2624ef5d7d6ea9bb94331426a28c915e0c2b01415f04e1
 sources:
   - id: tdd-restricted-hook
     resource: ../../plugins/claude-code/hooks/pre-tool-use/tdd-restricted.sh
@@ -20,6 +20,10 @@ sources:
     resource: ../../plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt
   - id: tdd-task-agent
     resource: ../../plugins/claude-code/agents/tdd-task.md
+  - id: mcp-hook
+    resource: ../../plugins/claude-code/hooks/pre-tool-use/mcp.sh
+  - id: mcp-allowlist-bats
+    resource: ../../plugins/claude-code/__test__/mcp-allowlist.bats
 ---
 
 # MCP Permits, Agent Restricts (Capability vs Scoping)
@@ -54,14 +58,17 @@ and hook layer, in three parts:
    action is `delete`. The same hook also denies
    `tdd_artifact_record` outright for defense-in-depth, since that tool is
    reserved for hooks and the CLI, never the agent.[^tdd-restricted-hook]
-3. `hooks/lib/safe-mcp-vitest-agent-ops.txt`, the main agent's `PreToolUse`
-   auto-allow list, omits any reference that would auto-allow a delete
-   action; a main-agent call to `tdd_goal`/`tdd_behavior` with
-   `action: "delete"` therefore falls through to Claude Code's standard
-   permission prompt, so a human sees a confirmation dialog before any
-   cascade. The current allowlist auto-allows both tool names, so this
-   leg is not in force today; the open code fix is tracked as
-   spencerbeggs/vitest-agent issue #526.[^safe-mcp-allowlist]
+3. The main agent's `PreToolUse` auto-allow hook, `pre-tool-use/mcp.sh`,
+   never auto-allows a delete. Its allowlist,
+   `hooks/lib/safe-mcp-vitest-agent-ops.txt`, is keyed by tool name and
+   lists `tdd_goal`, `tdd_behavior`, and `note`[^safe-mcp-allowlist], so
+   the hook reads `tool_input.action` before consulting the list and
+   returns no permission decision when it is `delete`[^mcp-hook]. A
+   main-agent call with `action: "delete"` on any listed tool therefore
+   falls through to Claude Code's standard permission prompt, so a human
+   sees a confirmation dialog before any cascade. A bats suite pins the
+   delete fall-through for all three tools and the auto-allow for
+   `tdd_goal` and `tdd_behavior`'s other actions[^mcp-allowlist-bats].
 
 The split exists because the MCP server has no agent identity — it sees
 stdio bytes, not "main agent" versus "orchestrator subagent". That identity
@@ -114,3 +121,5 @@ destructive TDD operations.
 [^match-tdd-agent]: `../../plugins/claude-code/hooks/lib/match-tdd-agent.sh`
 [^safe-mcp-allowlist]: `../../plugins/claude-code/hooks/lib/safe-mcp-vitest-agent-ops.txt`
 [^tdd-task-agent]: `../../plugins/claude-code/agents/tdd-task.md`
+[^mcp-hook]: `../../plugins/claude-code/hooks/pre-tool-use/mcp.sh`
+[^mcp-allowlist-bats]: `../../plugins/claude-code/__test__/mcp-allowlist.bats`

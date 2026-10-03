@@ -122,7 +122,11 @@ export const registerAgentSubcommand = Command.make(
 				...(Option.isSome(opts.clientNonce) && { clientNonce: opts.clientNonce.value }),
 			});
 
-			const result = yield* program.pipe(Effect.provide(sidecar), Effect.catchCause(mapDefectToExit));
+			// local: true -- a guard against any ambient data layer. A plain Effect.provide
+			// reuses the fiber's inherited layer memo map, so if an outer layer had already
+			// built the module-level DataStoreLive / DataReaderLive constants, the sidecar
+			// would get that store and --project-key's db would never be written (#561).
+			const result = yield* program.pipe(Effect.provide(sidecar, { local: true }), Effect.catchCause(mapDefectToExit));
 
 			yield* writeStdout(
 				JSON.stringify({
@@ -169,11 +173,15 @@ export const endAgentSubcommand = Command.make(
 
 			const endedAt = Option.isSome(opts.endedAt) ? opts.endedAt.value : Math.floor(Date.now() / 1000);
 
+			// local: true -- a guard against any ambient data layer. A plain Effect.provide
+			// reuses the fiber's inherited layer memo map, so if an outer layer had already
+			// built the module-level DataStoreLive / DataReaderLive constants, the sidecar
+			// would get that store and --project-key's db would never be written (#561).
 			yield* endAgentEffect({
 				agentId: opts.agentId,
 				endedAt,
 				...(Option.isSome(opts.hostSessionId) && { hostSessionId: opts.hostSessionId.value }),
-			}).pipe(Effect.provide(sidecar), Effect.catchCause(mapDefectToExit));
+			}).pipe(Effect.provide(sidecar, { local: true }), Effect.catchCause(mapDefectToExit));
 		}).pipe(Effect.provide(NodeServices.layer)),
 ).pipe(Command.withDescription("Mark an agent (and optionally its session) as ended"));
 

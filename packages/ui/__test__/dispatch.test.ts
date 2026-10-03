@@ -80,6 +80,55 @@ describe("dispatcher — routing", () => {
 	});
 });
 
+describe("dispatcher — glob aggregate shortfalls (PR #565 review)", () => {
+	const shortfalls = [
+		{
+			pattern: "src/core/**",
+			thresholds: { lines: 90, branches: 80 },
+			summary: { lines: 60, branches: 55, functions: 70, statements: 60 },
+		},
+		{
+			pattern: "src/io/**",
+			thresholds: { functions: 75 },
+			summary: { lines: 90, branches: 90, functions: 50, statements: 90 },
+		},
+	];
+	const shortfallInputs = (
+		shape: RunShape,
+		violations: ReadonlyArray<{ metric: "lines"; expected: number; actual: number }> = [],
+	): DispatchInputs => ({
+		...buildInputs(shape, "threshold-violation"),
+		state: {
+			...initialRenderState,
+			moduleOrder: ["src/a.test.ts"],
+			totals: { passCount: 3, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 20 },
+			coverage: {
+				metrics: { lines: 95, branches: 90, functions: 100, statements: 95 },
+				thresholds: {},
+				gaps: [],
+				violations: [...violations],
+				globShortfalls: shortfalls,
+			},
+		},
+	});
+
+	it.each(["single-file", "single-project", "workspace"] as const)(
+		"%s threshold cell lists each shortfall and drops the all-metrics-meet line",
+		(shape) => {
+			const out = dispatch(shortfallInputs(shape), opts);
+			expect(out).toContain("- src/core/**: lines 60% < 90%, branches 55% < 80%");
+			expect(out).toContain("- src/io/**: functions 50% < 75%");
+			expect(out).not.toContain("all metrics meet thresholds");
+		},
+	);
+
+	it("lists both per-file violations and glob shortfalls when both exist", () => {
+		const out = dispatch(shortfallInputs("single-project", [{ metric: "lines", expected: 80, actual: 50 }]), opts);
+		expect(out).toContain("below minimum thresholds (lines)");
+		expect(out).toContain("- src/core/**: lines 60% < 90%, branches 55% < 80%");
+	});
+});
+
 describe("dispatcher — scoped-coverage note (issue #160 gap 1)", () => {
 	const scopedInputs = (shape: RunShape, outcome: RunOutcome): DispatchInputs => ({
 		...buildInputs(shape, outcome),

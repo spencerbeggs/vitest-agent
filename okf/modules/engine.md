@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:15:58Z
-  body_sha256: b7ba54a1a2396209ac4c4a36071afd829cb74034719af0f2105d1e1754b4f742
+  at: 2026-10-03T19:28:10Z
+  body_sha256: d3318587529f91a6252513812bfdd4f979228cf1aa2413aebdfa6e34b0220006
 ---
 
 # @vitest-agent/engine
@@ -121,8 +121,15 @@ DataStore | ProjectDiscovery | HistoryTracker | EnvironmentDetector |
 ExecutorResolver | FormatSelector | DetailResolver |
 NodeServices | SqliteClient | SqlClient` — because the CLI, the MCP server,
 and the plugin all rely on the four output-pipeline services. Being a factory, each call mints a fresh layer reference;
-the CLI's `main.ts`, the MCP `main.ts`, and the plugin's `ReporterLive` each
-call it exactly once per process.
+the MCP `main.ts` and the plugin's `ReporterLive` each call it exactly once
+per process. The CLI calls it at most once, from its `ProjectDataLive`
+layer, which is attached only to the commands that read or write the
+project database, so a hook hot-path CLI invocation never builds it (see
+[the CLI module](cli.md)). The factory's fresh outer reference does not
+make the services inside it fresh: `DataStoreLive` and its siblings are
+module-level constants, memoised by identity across any layer built
+under the same memo map (see [Gotcha: Effect.provide reuses the inherited
+layer memo map](../gotchas/effect-provide-inherits-memo-map.md)).
 
 `PlatformLiveError` is `StoreError | StoreMigrationError` from
 `@effected/store`: a store setup or ledger-adoption failure, or a failing

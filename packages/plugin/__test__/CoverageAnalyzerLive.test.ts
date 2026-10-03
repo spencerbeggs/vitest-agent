@@ -987,3 +987,164 @@ describe("per-pattern perFile", () => {
 		expect(report.lowCoverage.map((f) => f.file)).toEqual(["/repo/src/a.ts"]);
 	});
 });
+
+describe("per-pattern perFile on coverageTargets (issue #390)", () => {
+	// A glob target's object perFile replaces its metric numbers for the
+	// belowTarget check, mirroring the thresholds path.
+	const runTargets = (lines: number) => {
+		const map = mockCoverageMap({
+			"/repo/src/a.ts": {
+				summary: { statements: lines, branches: lines, functions: lines, lines },
+				uncoveredLines: [1],
+			},
+		});
+		return run(
+			Effect.flatMap(CoverageAnalyzer, (ca) =>
+				ca.process(map, {
+					thresholds: { global: { lines: 10 }, perFile: false, patterns: [] },
+					targets: {
+						global: {},
+						perFile: false,
+						patterns: [["/repo/src/*.ts", { lines: 90, perFile: { lines: 50 } }]],
+					},
+					includeBareZero: false,
+				}),
+			),
+		);
+	};
+
+	it("does not flag a file above the glob target perFile numbers as belowTarget", async () => {
+		const report = Option.getOrThrow(await runTargets(60));
+		expect(report.belowTargetFiles).toEqual([]);
+	});
+
+	it("flags a file below the glob target perFile numbers as belowTarget", async () => {
+		const report = Option.getOrThrow(await runTargets(40));
+		expect(report.belowTargetFiles).toEqual(["/repo/src/a.ts"]);
+	});
+});
+
+/**
+ * Istanbul-shaped map that also carries covered/total counts, which glob
+ * aggregates need (the aggregate is sum(covered)/sum(total), not a mean of
+ * per-file percentages).
+ */
+interface Counts {
+	covered: number;
+	total: number;
+}
+function countsMap(files: Record<string, { lines: Counts; uncoveredLines?: number[] }>): unknown {
+	const pct = ({ covered, total }: Counts) => (total > 0 ? Math.floor((10000 * covered) / total) / 100 : 100);
+	const metric = (c: Counts) => ({ pct: pct(c), covered: c.covered, total: c.total });
+	return {
+		getCoverageSummary: () => ({
+			statements: { pct: 50 },
+			branches: { pct: 50 },
+			functions: { pct: 50 },
+			lines: { pct: 50 },
+		}),
+		files: () => Object.keys(files),
+		fileCoverageFor: (path: string) => ({
+			toSummary: () => ({
+				statements: metric(files[path].lines),
+				branches: metric(files[path].lines),
+				functions: metric(files[path].lines),
+				lines: metric(files[path].lines),
+			}),
+			getUncoveredLines: () => files[path].uncoveredLines ?? [],
+		}),
+	};
+}
+
+describe("glob aggregate shortfalls (issue #391)", () => {
+	const processWith = (
+		map: unknown,
+		patterns: ResolvedThresholdsPatterns,
+		extra: { scopedTo?: string[]; includeBareZero?: boolean } = {},
+	) =>
+		run(
+			Effect.flatMap(CoverageAnalyzer, (ca) => {
+				const options = {
+					thresholds: { global: {}, perFile: false as const, patterns },
+					includeBareZero: extra.includeBareZero ?? false,
+				};
+				return extra.scopedTo ? ca.processScoped(map, options, extra.scopedTo) : ca.process(map, options);
+			}),
+		);
+	type ResolvedThresholdsPatterns = ReadonlyArray<
+		readonly [string, { lines?: number; perFile?: boolean | { lines?: number } }]
+	>;
+
+	it("reports a glob whose aggregate is below its numbers while every file passes its object perFile", async () => {
+		// Both files sit at 60% lines, clearing perFile { lines: 50 }, but the
+		// glob's own aggregate requirement is 90% -> 12/20 = 60%.
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 6, total: 10 } },
+			"/repo/src/b.ts": { lines: { covered: 6, total: 10 } },
+		});
+
+		const report = Option.getOrThrow(
+			await processWith(map, [["/repo/src/*.ts", { lines: 90, perFile: { lines: 50 } }]]),
+		);
+
+		expect(report.lowCoverageFiles).toEqual([]);
+		expect(report.globShortfalls).toEqual([
+			{
+				pattern: "/repo/src/*.ts",
+				summary: { statements: 60, branches: 60, functions: 60, lines: 60 },
+				thresholds: { lines: 90 },
+			},
+		]);
+	});
+
+	it("sums covered over total rather than averaging per-file percentages", async () => {
+		// a: 1/1 = 100%, b: 0/9 = 0% -> mean 50%, but the aggregate is 1/10 = 10%.
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 1, total: 1 } },
+			"/repo/src/b.ts": { lines: { covered: 0, total: 9 } },
+		});
+		const report = Option.getOrThrow(await processWith(map, [["/repo/src/*.ts", { lines: 20 }]]));
+		expect(report.globShortfalls?.map((s) => s.summary.lines)).toEqual([10]);
+	});
+
+	it("reports no shortfall when the aggregate meets the glob numbers", async () => {
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 9, total: 10 } },
+			"/repo/src/b.ts": { lines: { covered: 9, total: 10 } },
+		});
+		const report = Option.getOrThrow(
+			await processWith(map, [["/repo/src/*.ts", { lines: 90, perFile: { lines: 50 } }]]),
+		);
+		expect(report.globShortfalls).toBeUndefined();
+	});
+
+	it("does not evaluate an aggregate for a glob with perFile true", async () => {
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 6, total: 10 } },
+		});
+		const report = Option.getOrThrow(await processWith(map, [["/repo/src/*.ts", { lines: 90, perFile: true }]]));
+		expect(report.globShortfalls).toBeUndefined();
+	});
+
+	it("reports no shortfalls on a scoped run", async () => {
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 6, total: 10 } },
+		});
+		const report = Option.getOrThrow(
+			await processWith(map, [["/repo/src/*.ts", { lines: 90 }]], { scopedTo: ["/repo/src/a.ts"] }),
+		);
+		expect(report.globShortfalls).toBeUndefined();
+	});
+
+	it("counts bare-zero files toward the aggregate even when they are not listed", async () => {
+		// b is bare-zero (0/10 on every metric, skipped per file), but Vitest's
+		// glob map still holds it: 10/20 = 50% < 90.
+		const map = countsMap({
+			"/repo/src/a.ts": { lines: { covered: 10, total: 10 } },
+			"/repo/src/b.ts": { lines: { covered: 0, total: 10 } },
+		});
+		const report = Option.getOrThrow(await processWith(map, [["/repo/src/*.ts", { lines: 90 }]]));
+		expect(report.globShortfalls?.map((s) => s.summary.lines)).toEqual([50]);
+		expect(report.lowCoverageFiles).toEqual([]);
+	});
+});

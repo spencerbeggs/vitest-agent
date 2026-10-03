@@ -197,6 +197,7 @@ export const reduceRenderState = (state: RenderState, event: RunEvent): RenderSt
 					...(e.scoped !== undefined ? { scoped: e.scoped } : {}),
 					...(e.scopedFiles !== undefined ? { scopedFiles: e.scopedFiles } : {}),
 					...(e.totalFiles !== undefined ? { totalFiles: e.totalFiles } : {}),
+					...(e.globShortfalls !== undefined ? { globShortfalls: e.globShortfalls } : {}),
 				},
 			}),
 			ThresholdViolation: (e) => {

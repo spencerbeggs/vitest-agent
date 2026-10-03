@@ -40,6 +40,20 @@ describe("classifyRunShape", () => {
 		expect(classifyRunShape(state, [])).toBe("single-project");
 	});
 
+	it("returns single-project when one failing module is reduced but several modules ran", () => {
+		// The synthesizer replays only failing modules, so state.modules holds
+		// one entry while collectedModules carries the true count (6).
+		// Given: a reduced state with a single module entry but collectedModules 6.
+		const state: RenderState = { ...reduceRenderStateAll(singleFileMultiTestPassEvents), collectedModules: 6 };
+		expect(Object.keys(state.modules)).toHaveLength(1);
+		expect(classifyRunShape(state, [])).toBe("single-project");
+	});
+
+	it("still returns single-file when collectedModules is 1", () => {
+		const state: RenderState = { ...reduceRenderStateAll(singleFileMultiTestPassEvents), collectedModules: 1 };
+		expect(classifyRunShape(state, [])).toBe("single-file");
+	});
+
 	it("returns workspace when more than one project summary is supplied", () => {
 		const state = reduceRenderStateAll(singleProjectAllPassEvents);
 		expect(classifyRunShape(state, workspacePassProjects)).toBe("workspace");
@@ -171,5 +185,49 @@ describe("classifyOutcome", () => {
 			},
 		};
 		expect(classifyOutcome(state)).toBe("all-pass");
+	});
+
+	it("returns threshold-violation when only a glob aggregate shortfall exists", () => {
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 5, failCount: 0, skipCount: 0, timeoutCount: 0, durationMs: 50 },
+			coverage: {
+				metrics: { lines: 95, branches: 90, functions: 100, statements: 95 },
+				thresholds: {},
+				gaps: [],
+				violations: [],
+				globShortfalls: [
+					{
+						pattern: "src/core/**",
+						thresholds: { lines: 90 },
+						summary: { lines: 60, branches: 55, functions: 70, statements: 60 },
+					},
+				],
+			},
+		};
+		expect(classifyOutcome(state)).toBe("threshold-violation");
+	});
+
+	it("some-fail wins over a glob aggregate shortfall", () => {
+		const state: RenderState = {
+			...initialRenderState,
+			phase: "finished",
+			totals: { passCount: 4, failCount: 1, skipCount: 0, timeoutCount: 0, durationMs: 50 },
+			coverage: {
+				metrics: { lines: 95, branches: 90, functions: 100, statements: 95 },
+				thresholds: {},
+				gaps: [],
+				violations: [],
+				globShortfalls: [
+					{
+						pattern: "src/core/**",
+						thresholds: { lines: 90 },
+						summary: { lines: 60, branches: 55, functions: 70, statements: 60 },
+					},
+				],
+			},
+		};
+		expect(classifyOutcome(state)).toBe("some-fail");
 	});
 });

@@ -8,6 +8,7 @@
 import { formatWrapupEffect } from "@vitest-agent/engine";
 import { Effect } from "effect";
 import { Command, Flag } from "effect/cli";
+import { ProjectDataLive } from "../layers/project-data.js";
 
 const rowIdOption = Flag.optional(Flag.Int("row-id"));
 const chatIdOption = Flag.optional(Flag.String("chat-id"));
@@ -43,4 +44,4 @@ export const wrapupCommand = Command.make(
 
 			yield* Effect.sync(() => process.stdout.write(md.length > 0 ? `${md}\n` : ""));
 		}),
-).pipe(Command.withDescription("Emit the W5 wrap-up prompt for a session"));
+).pipe(Command.withDescription("Emit the W5 wrap-up prompt for a session"), Command.provide(ProjectDataLive));

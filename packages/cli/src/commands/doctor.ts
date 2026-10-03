@@ -3,6 +3,7 @@
 import { DataReader, resolveDataPath } from "@vitest-agent/engine";
 import { Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
+import { ProjectDataLive, ProjectDir } from "../layers/project-data.js";
 import type { CheckResult } from "../lib/format-doctor.js";
 import { formatDoctor } from "../lib/format-doctor.js";
 
@@ -23,7 +24,7 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 		const results: CheckResult[] = [];
 
 		// Check 1: Database path resolves (a function of workspace identity, not file existence)
-		const dbPath = yield* resolveDataPath(process.cwd());
+		const dbPath = yield* resolveDataPath((yield* ProjectDir).dir);
 		results.push({
 			name: "Database path",
 			passed: true,
@@ -150,4 +151,4 @@ export const doctorCommand = Command.make("doctor", { format: formatOption }, ({
 			yield* Effect.sync(() => process.exit(1));
 		}
 	}),
-);
+).pipe(Command.provide(ProjectDataLive));

@@ -9,8 +9,8 @@ tags:
   - dx
 generated:
   by: okfit/claude-code
-  at: 2026-09-14T02:24:39Z
-  body_sha256: 41f0240e4d86545a6606b0cd1eef621d7941bbf26ae830dd6290ca910a154fa4
+  at: 2026-10-03T20:03:36Z
+  body_sha256: b8961dcb790c2b79ad9027e7e4e4f5897c65212c85cef9b05b408ac3fec64a81
 ---
 
 # Dispatcher Matrix
@@ -36,12 +36,16 @@ fully-reduced `RenderState`, run once at end-of-run (or once on
 `RunFinished` in Ink mode, then reused for the rest of the run — a mid-run
 shape change would be jarring)[^classify].
 
-**`RunShape`** — four values, precedence top-to-bottom:
+**`RunShape`** — four values, decided by these rules top-to-bottom:
 
 1. `workspace` — `projects.length > 1`.
-2. `single-test` — exactly one module with exactly one test.
-3. `single-file` — exactly one module with more than one test.
-4. `single-project` — otherwise (one project, more than one module).
+2. `single-project` — `state.collectedModules` is known and greater than
+   one. Checked before the `modules` map, because a report replay reduces
+   only the failing modules into that map, so a project run with one
+   failing file would otherwise read as `single-file`.
+3. `single-test` — exactly one module with exactly one test.
+4. `single-file` — exactly one module with more than one test.
+5. `single-project` — otherwise (one project, more than one module).
 
 **`RunOutcome`** — three values, precedence top-to-bottom:
 
@@ -51,7 +55,13 @@ shape change would be jarring)[^classify].
    > 0` with `failCount === 0` (issue #224 — a timed-out test is not a
    pass).
 2. `threshold-violation` — no failures/timeouts/unhandled errors, but
-   `coverage.violations.length > 0`.
+   `coverage.violations.length > 0` or a non-empty
+   `coverage.globShortfalls` (a glob aggregate below its threshold fails
+   Vitest's native check even when every per-file number passes). The
+   `single-file`, `single-project`, and `workspace` threshold cells list
+   the shortfalls under `Glob aggregates below threshold:` via the shared
+   `formatCoverageSummaryLines` helper; `some-fail` cells carry no
+   coverage section.
 3. `all-pass` — otherwise.
 
 **What breaks if this precedence is wrong:** because failures, timeouts,
@@ -178,7 +188,7 @@ the same slot (the identity check `toBe(expected)`, not just
 immediately.
 
 [^dispatch]: `../../packages/ui/src/dispatcher/dispatch.ts:42`
-[^classify]: `../../packages/ui/src/dispatcher/classify.ts:32` (`classifyRunShape`), `../../packages/ui/src/dispatcher/classify.ts:67` (`classifyOutcome`)
+[^classify]: `../../packages/ui/src/dispatcher/classify.ts:34` (`classifyRunShape`), `../../packages/ui/src/dispatcher/classify.ts:75` (`classifyOutcome`)
 [^cell-types]: `../../packages/ui/src/dispatcher/cell-types.ts:42`
 [^footer]: `../../packages/ui/src/dispatcher/footer.ts:64`
 [^dispatch-test]: `../../packages/ui/__test__/dispatch.test.ts:55`

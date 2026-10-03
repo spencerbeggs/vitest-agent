@@ -1,6 +1,7 @@
 import type { AgentReport } from "@vitest-agent/sdk";
 import { describe, expect, it } from "vitest";
 import {
+	SUITE_FAILURE_LABEL,
 	SUITE_LOAD_FAILURE_LABEL,
 	reduceRenderStateAll,
 	renderAgent,
@@ -450,5 +451,40 @@ describe("synthesizeFromAgentReport — suite-level (collection/load) failures",
 		expect(out).toContain("src/broken.test.ts");
 		expect(out).toContain(SUITE_LOAD_FAILURE_LABEL);
 		expect(out).toContain("Cannot find package 'better-sqlite3'");
+	});
+});
+
+describe("synthesizeFromAgentReport — hook failures in a loaded suite", () => {
+	const hookFailureReport = (): AgentReport =>
+		baseReport({
+			reason: "failed",
+			summary: { total: 2, passed: 0, failed: 0, skipped: 2, duration: 0 },
+			failed: [
+				{
+					file: "src/hook.test.ts",
+					state: "failed",
+					duration: 0,
+					tests: [
+						{ name: "one", fullName: "suite one", state: "skipped" },
+						{ name: "two", fullName: "suite two", state: "skipped" },
+					],
+					errors: [{ message: "boom" }],
+				},
+			],
+			failedFiles: ["src/hook.test.ts"],
+		});
+
+	it("labels a module that collected tests with SUITE_FAILURE_LABEL, not the load label", () => {
+		const events = synthesizeFromAgentReport(hookFailureReport());
+		const failedFinish = events.filter((e) => e._tag === "TestFinished" && e.status === "failed");
+		expect(failedFinish).toHaveLength(1);
+		const tf = failedFinish[0] as Extract<(typeof events)[number], { _tag: "TestFinished" }>;
+		expect(SUITE_FAILURE_LABEL).toBe("test suite failed");
+		expect(tf.testName).toBe(SUITE_FAILURE_LABEL);
+		expect(tf.error?.message).toBe("boom");
+	});
+
+	it("keeps SUITE_LOAD_FAILURE_LABEL unchanged for the zero-collected case", () => {
+		expect(SUITE_LOAD_FAILURE_LABEL).toBe("test suite failed to load");
 	});
 });

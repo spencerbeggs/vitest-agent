@@ -19,7 +19,7 @@ import type {
 	SuggestedActionRecord,
 } from "@vitest-agent/sdk";
 import { formatTotalsLine } from "./counts.js";
-import { formatFailure as formatFailureLines } from "./dispatcher/helpers.js";
+import { formatFailure as formatFailureLines, formatGlobShortfallLines } from "./dispatcher/helpers.js";
 
 /**
  * Options controlling agent-mode output. All fields optional; defaults
@@ -172,6 +172,8 @@ const formatCoverageSection = (state: RenderState, maxGaps: number): string | nu
 			lines.push(`- ${v.metric}: ${formatPercent(v.actual)} < ${formatPercent(v.expected)}`);
 		}
 	}
+
+	lines.push(...formatGlobShortfallLines(cov.globShortfalls));
 
 	if (maxGaps > 0 && cov.gaps.length > 0) {
 		const sorted = [...cov.gaps].sort((a, b) => b.missing.lines - a.missing.lines);

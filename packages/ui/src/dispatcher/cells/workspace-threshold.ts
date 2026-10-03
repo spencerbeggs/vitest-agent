@@ -3,7 +3,7 @@ import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
 import {
 	formatBelowTargetTable,
-	formatCoverageJudgmentLine,
+	formatCoverageSummaryLines,
 	formatProjectsTable,
 	formatTrendLine,
 	formatWorkspaceTotal,
@@ -17,8 +17,8 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	const projects = formatProjectsTable(inputs.projects);
 	if (projects.length > 0) sections.push([...projects]);
 	const summaryLines: string[] = [];
-	const coverage = formatCoverageJudgmentLine(inputs.state);
-	if (coverage !== null) summaryLines.push(coverage);
+	const coverage = formatCoverageSummaryLines(inputs.state);
+	summaryLines.push(...coverage);
 	const trend = formatTrendLine(inputs.trend);
 	if (trend !== null) summaryLines.push(trend);
 	if (summaryLines.length > 0) sections.push(summaryLines);

@@ -338,6 +338,27 @@ describe("renderAgent — coverage block", () => {
 		`);
 	});
 
+	it("lists each glob aggregate shortfall as a compact line", () => {
+		const state = baseState({
+			coverage: {
+				metrics: { lines: 90, branches: 90, functions: 90, statements: 90 },
+				thresholds: {},
+				violations: [],
+				gaps: [],
+				globShortfalls: [
+					{
+						pattern: "src/core/**",
+						summary: { lines: 60, branches: 55, functions: 70, statements: 60 },
+						thresholds: { lines: 90, branches: 80 },
+					},
+				],
+			},
+		});
+		const output = renderAgent(state);
+		expect(output).toContain("Glob aggregates below threshold:");
+		expect(output).toContain("- src/core/**: lines 60% < 90%, branches 55% < 80%");
+	});
+
 	it("caps gaps at maxCoverageGaps and notes how many were elided", () => {
 		const state = baseState({
 			coverage: {

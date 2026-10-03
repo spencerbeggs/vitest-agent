@@ -17,6 +17,7 @@ import type {
 	CoverageGap,
 	CoverageMetric,
 	CoverageTotals,
+	GlobShortfall,
 	MetricThresholds,
 	ReportError,
 	RunEvent,
@@ -37,6 +38,17 @@ import { isTimeoutError } from "@vitest-agent/sdk";
  * @public
  */
 export const SUITE_LOAD_FAILURE_LABEL = "test suite failed to load";
+
+/**
+ * Synthetic test name for a suite-level failure in a module that loaded
+ * and collected one or more test cases — a failing `beforeAll` or
+ * `afterAll` hook, for example. The file imported fine, so
+ * {@link SUITE_LOAD_FAILURE_LABEL} would mislead; this label is used
+ * instead when the module has collected tests.
+ *
+ * @public
+ */
+export const SUITE_FAILURE_LABEL = "test suite failed";
 
 /**
  * Optional metadata threaded through the synthesized event stream.
@@ -82,6 +94,8 @@ export interface SynthesizedCoverage {
 	readonly scopedFiles?: number;
 	/** Total test-file count for the project, when known. */
 	readonly totalFiles?: number;
+	/** Threshold globs whose aggregate coverage is below their numbers (issue #391). */
+	readonly globShortfalls?: ReadonlyArray<GlobShortfall>;
 }
 
 const ISO_ZERO = "1970-01-01T00:00:00.000Z";
@@ -261,6 +275,7 @@ export const synthesizeRunEvents = (
 			...(cov.scoped !== undefined ? { scoped: cov.scoped } : {}),
 			...(cov.scopedFiles !== undefined ? { scopedFiles: cov.scopedFiles } : {}),
 			...(cov.totalFiles !== undefined ? { totalFiles: cov.totalFiles } : {}),
+			...(cov.globShortfalls !== undefined ? { globShortfalls: cov.globShortfalls } : {}),
 		});
 		if (cov.violations !== undefined) {
 			for (const v of cov.violations) {
@@ -360,6 +375,7 @@ const coverageReportToBlock = (report: AgentReport): SynthesizedCoverage | undef
 		...(cov.scoped ? { scoped: cov.scoped } : {}),
 		...(cov.scopedFiles !== undefined ? { scopedFiles: cov.scopedFiles.length } : {}),
 		...(cov.totalFiles !== undefined ? { totalFiles: cov.totalFiles } : {}),
+		...(cov.globShortfalls !== undefined ? { globShortfalls: cov.globShortfalls } : {}),
 	};
 };
 
@@ -470,8 +486,11 @@ export const synthesizeFromAgentReport = (
 		}
 
 		// A module that landed in `report.failed` with no failed test case and
-		// no timeout is a suite-level (collection/load) failure — an import
-		// error or top-level throw. It contributes nothing to `summary.failed`
+		// no timeout is a suite-level failure: either a load failure (an import
+		// error or top-level throw, nothing collected, labelled
+		// SUITE_LOAD_FAILURE_LABEL) or a hook failure (beforeAll/afterAll) in a
+		// suite that did load and collect tests (labelled SUITE_FAILURE_LABEL).
+		// It contributes nothing to `summary.failed`
 		// (which stays tied to test cases), so surface it here: count it as one
 		// failed unit AND emit a synthetic failed "test" carrying the module
 		// error, so the file and its import error show up in the Failures
@@ -481,11 +500,13 @@ export const synthesizeFromAgentReport = (
 			fail = 1;
 			suiteFailureCount++;
 			const moduleError = mod.errors?.[0];
-			events.push({ _tag: "TestStarted", modulePath: mod.file, testName: SUITE_LOAD_FAILURE_LABEL, suitePath: [] });
+			// A module that collected tests loaded fine: a hook failed, not the import.
+			const suiteLabel = mod.tests.length > 0 ? SUITE_FAILURE_LABEL : SUITE_LOAD_FAILURE_LABEL;
+			events.push({ _tag: "TestStarted", modulePath: mod.file, testName: suiteLabel, suitePath: [] });
 			events.push({
 				_tag: "TestFinished",
 				modulePath: mod.file,
-				testName: SUITE_LOAD_FAILURE_LABEL,
+				testName: suiteLabel,
 				suitePath: [],
 				status: "failed",
 				durationMs: 0,
@@ -533,6 +554,7 @@ export const synthesizeFromAgentReport = (
 			...(coverage.scoped !== undefined ? { scoped: coverage.scoped } : {}),
 			...(coverage.scopedFiles !== undefined ? { scopedFiles: coverage.scopedFiles } : {}),
 			...(coverage.totalFiles !== undefined ? { totalFiles: coverage.totalFiles } : {}),
+			...(coverage.globShortfalls !== undefined ? { globShortfalls: coverage.globShortfalls } : {}),
 		});
 		if (coverage.violations !== undefined) {
 			for (const v of coverage.violations) {
