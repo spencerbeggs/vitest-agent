@@ -15,6 +15,7 @@ import { Doc, Fmt, Render } from "@effected/cli";
 import type {
 	FailureRecord,
 	FileCoverageReport,
+	GlobShortfall,
 	ProjectSummary,
 	RenderState,
 	TestRecord,
@@ -115,20 +116,62 @@ export const formatFailure = (f: FailureRecord, width: number): ReadonlyArray<st
 };
 
 /**
+ * The `Glob aggregates below threshold:` block — one
+ * `- <pattern>: lines 60% < 90%, branches 55% < 80%` line per shortfall,
+ * listing only the metrics that miss their minimum. Returns an empty array
+ * when there are no shortfalls. Shared by the dispatcher cells and
+ * `renderAgent` so both agent surfaces use one line format.
+ */
+export const formatGlobShortfallLines = (
+	shortfalls: ReadonlyArray<GlobShortfall> | undefined,
+): ReadonlyArray<string> => {
+	if (shortfalls === undefined || shortfalls.length === 0) return [];
+	const metricOrder = ["lines", "branches", "functions", "statements"] as const;
+	const lines = ["Glob aggregates below threshold:"];
+	for (const g of shortfalls) {
+		const parts: string[] = [];
+		for (const m of metricOrder) {
+			const min = g.thresholds[m];
+			const actual = g.summary[m];
+			if (min !== undefined && actual < min) parts.push(`${m} ${formatPercent(actual)} < ${formatPercent(min)}`);
+		}
+		lines.push(`- ${g.pattern}: ${parts.join(", ")}`);
+	}
+	return lines;
+};
+
+/**
  * One coverage judgment line — `Coverage: ✓ all metrics meet thresholds`
  * for a clean run, `Coverage: ✗ <N> files below minimum thresholds (...)`
- * for a violation. Returns `null` when the run carries no coverage block.
+ * for a per-file violation, `Coverage: ✗ <N> glob aggregates below
+ * threshold` when only glob aggregate shortfalls exist. Returns `null`
+ * when the run carries no coverage block.
  */
 export const formatCoverageJudgmentLine = (state: RenderState): string | null => {
 	const cov = state.coverage;
 	if (cov === null) return null;
+	const shortfallCount = cov.globShortfalls?.length ?? 0;
 	if (cov.violations.length === 0) {
+		if (shortfallCount > 0) {
+			return `Coverage: ${statusGlyph("failure")} ${Fmt.plural(shortfallCount, "glob aggregate")} below threshold`;
+		}
 		return `Coverage: ${statusGlyph("success")} all metrics meet thresholds`;
 	}
 	// A threshold violation is a `failure` (✗); only a target shortfall is a warning.
 	const metrics = cov.violations.map((v) => v.metric).join(", ");
 	const fileCount = countLowCoverageFiles(cov.gaps);
 	return `Coverage: ${statusGlyph("failure")} ${Fmt.plural(fileCount, "file")} below minimum thresholds (${metrics})`;
+};
+
+/**
+ * The coverage judgment line followed by the glob aggregate shortfall
+ * block, as the lines a threshold cell appends to its summary. Empty when
+ * the run carries no coverage block.
+ */
+export const formatCoverageSummaryLines = (state: RenderState): ReadonlyArray<string> => {
+	const judgment = formatCoverageJudgmentLine(state);
+	if (judgment === null) return [];
+	return [judgment, ...formatGlobShortfallLines(state.coverage?.globShortfalls)];
 };
 
 const countLowCoverageFiles = (gaps: ReadonlyArray<{ readonly file: string }>): number => {

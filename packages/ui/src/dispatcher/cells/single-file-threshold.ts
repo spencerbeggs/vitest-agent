@@ -2,7 +2,7 @@ import { Fmt } from "@effected/cli";
 import type { DispatchInputs } from "@vitest-agent/sdk";
 import type { Cell } from "../cell-types.js";
 import { buildFooter } from "../footer.js";
-import { formatCoverageJudgmentLine, formatDisplayDuration, soleModulePath } from "../helpers.js";
+import { formatCoverageSummaryLines, formatDisplayDuration, soleModulePath } from "../helpers.js";
 import { renderAgentStringAsInk } from "../ink-helpers.js";
 
 const renderAgent = (inputs: DispatchInputs): string => {
@@ -10,7 +10,7 @@ const renderAgent = (inputs: DispatchInputs): string => {
 	if (modulePath === undefined) return "";
 	const { passCount, durationMs } = inputs.state.totals;
 	const lines = [`${modulePath}: ${Fmt.plural(passCount, "test")} passed (${formatDisplayDuration(durationMs)})`];
-	const coverage = formatCoverageJudgmentLine(inputs.state);
+	const coverage = formatCoverageSummaryLines(inputs.state);
 	if (coverage !== null) {
 		lines.push(coverage);
 	}
