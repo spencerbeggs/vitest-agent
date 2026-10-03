@@ -33,7 +33,7 @@ src/
                          ProjectDiscovery, HistoryTracker, RunContext,
                          ProjectIdentity, PerClientSessionMap, DiscoveryRegistry,
                          EnvironmentDetector, ExecutorResolver, FormatSelector,
-                         DetailResolver, OutputRenderer, Config) + idempotency.ts
+                         DetailResolver, Config) + idempotency.ts
   layers/             -- *Live.ts / *Test.ts per service; PathResolutionLive
                          (XDG + config + workspaces; exports APP_NAMESPACE),
                          OutputPipelineLive(env), EnvironmentDetectorLive(env)

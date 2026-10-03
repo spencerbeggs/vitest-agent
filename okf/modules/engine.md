@@ -12,8 +12,8 @@ tags:
   - observability
 generated:
   by: okfit/claude-code
-  at: 2026-10-01T07:18:02Z
-  body_sha256: 452c745079a79c0f596cf5f578d495f849ebab3a9ced52e63c8c9283d4821a33
+  at: 2026-10-03T03:28:13Z
+  body_sha256: e25fbec0c75b4ee13977bc61e9825fc658cd055ac60218528b36edc5c46b63c3
 ---
 
 # @vitest-agent/engine
@@ -28,7 +28,7 @@ XDG path-resolution stack, the one platform composite (`PlatformLive`), the
 one project-directory resolver (`resolveProjectDir`), the hook-driven
 programs the CLI commands wrap and the MCP server calls, and the `./testing`
 presets. The platform-free core it sits on — schemas, contracts, errors,
-pure formatters and utils — stays in `@vitest-agent/sdk`.
+pure utils — stays in `@vitest-agent/sdk`.
 
 ## Boundary
 
@@ -113,10 +113,9 @@ by `CliRuntime.main`'s `env.log`, owns its logging, and `LoggerLive` would
 otherwise replace that set inside the program.
 `PlatformServices` is the full union the merge provides — `DataReader |
 DataStore | ProjectDiscovery | HistoryTracker | EnvironmentDetector |
-ExecutorResolver | FormatSelector | DetailResolver | OutputRenderer |
+ExecutorResolver | FormatSelector | DetailResolver |
 NodeServices | SqliteClient | SqlClient` — because the CLI, the MCP server,
-and the plugin all rely on the five output-pipeline services, not only
-`OutputRenderer`. Being a factory, each call mints a fresh layer reference;
+and the plugin all rely on the four output-pipeline services. Being a factory, each call mints a fresh layer reference;
 the CLI's `main.ts`, the MCP `main.ts`, and the plugin's `ReporterLive` each
 call it exactly once per process.
 
@@ -176,8 +175,6 @@ come from `@vitest-agent/sdk`.
   explicit override.
 - **DetailResolver** — determines output detail level from executor role and
   run health.
-- **OutputRenderer** — renders `AgentReport` arrays through the selected
-  formatter.
 - **ProjectDiscovery** — glob-based test file discovery, no SQLite
   dependency.
 - **HistoryTracker** — classifies test outcomes against stored history.
@@ -195,7 +192,7 @@ env-reading ones are factories: `EnvironmentDetectorLive(env)`,
 `RunContextLive(env)`), plus three composites of its own:
 `LoggerLive(logLevel?, logFile?, env?)`, `OutputPipelineLive(env)` (composing
 `EnvironmentDetectorLive` + `ExecutorResolverLive` + `FormatSelectorLive` +
-`DetailResolverLive` + `OutputRendererLive` into the pipeline `PlatformLive`
+`DetailResolverLive` into the pipeline `PlatformLive`
 includes), and `PathResolutionLive(projectDir)` (composing the XDG/config
 layer with `WorkspaceDiscovery` / `WorkspaceRoot`; see *XDG path resolution*
 below). Test layers exist for `DataStore`, `EnvironmentDetector`,
@@ -410,11 +407,10 @@ seeding data via `Layer.effectDiscard`.
 ## Output pipeline
 
 `packages/engine/src/layers/OutputPipelineLive.ts`. `OutputPipelineLive(env)`
-merges the five output services (`EnvironmentDetectorLive(env)`,
-`ExecutorResolverLive`, `FormatSelectorLive`, `DetailResolverLive`,
-`OutputRendererLive`) into the one composite `PlatformLive` includes: a
-pipeline of detect → resolve executor → select format → resolve detail →
-render, where each stage is independently testable and an explicit override
+merges the four output services (`EnvironmentDetectorLive(env)`,
+`ExecutorResolverLive`, `FormatSelectorLive`, `DetailResolverLive`) into the one composite `PlatformLive` includes: a
+pipeline of detect → resolve executor → select format → resolve detail,
+where each stage is independently testable and an explicit override
 can short-circuit automatic selection at any stage.
 
 ## Choices absorbed here

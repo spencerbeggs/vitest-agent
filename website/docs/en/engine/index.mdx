@@ -11,7 +11,7 @@ Install `@vitest-agent/plugin` for normal use; install `@vitest-agent/engine` di
 
 ## Features
 
-- **Effect services and live layers** — `DataStore`, `DataReader`, `Config`, `ProjectIdentity`, `ProjectDiscovery`, `EnvironmentDetector`, `HistoryTracker`, `OutputRenderer`, and friends, each a `Context.Service` with a `*Live` layer (and `*Test` layers where a deterministic stand-in matters)
+- **Effect services and live layers** — `DataStore`, `DataReader`, `Config`, `ProjectIdentity`, `ProjectDiscovery`, `EnvironmentDetector`, `HistoryTracker`, and friends, each a `Context.Service` with a `*Live` layer (and `*Test` layers where a deterministic stand-in matters)
 - **SQLite data layer** — the client and migrator behind `DataStore` / `DataReader`, the ordered `PROJECT_MIGRATIONS` chain, and `ensureMigrated` for safe multi-worker setups
 - **`PlatformLive`** — the single layer both front ends provide; takes `{ dbPath, env, logLevel?, logFile? }` and yields every platform service the CLI and MCP server need
 - **Platform resolution** — `resolveProjectDir({ env, cwd })` and `resolveDataPath(projectDir)` turn an environment map and a working directory into the right `data.db`

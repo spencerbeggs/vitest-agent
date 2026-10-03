@@ -57,7 +57,7 @@ vitest-agent/
 │   │       ├── schemas/            # Effect Schema definitions (RunEvent, RenderState, ...)
 │   │       ├── contracts/          # Public reporter + dispatcher contract types
 │   │       ├── errors/             # Tagged error types
-│   │       ├── formatters/         # terminal, markdown, gfm, json, silent, ci-annotations
+│   │       ├── formatters/         # RenderedOutput type
 │   │       ├── dispatch.ts         # Pure sidecar dispatch entry (./dispatch)
 │   │       └── utils/              # Pure utilities
 │   ├── engine/                 # @vitest-agent/engine (services + data layer)
@@ -138,9 +138,8 @@ managed runtime lifecycle concerns.
 
 ### Pure Functions
 
-Formatters (`packages/sdk/src/formatters/`) and small utilities
-(`packages/sdk/src/utils/`) are plain functions, not Effect services.
-They are trivially testable without layers.
+Small utilities (`packages/sdk/src/utils/`) are plain functions, not
+Effect services. They are trivially testable without layers.
 
 ## Available Scripts
 

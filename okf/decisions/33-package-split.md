@@ -6,8 +6,8 @@ description: Eight ranked workspaces under packages/ split platform-free core fr
 tags: [architecture]
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 5df4befdd3a69fa384128231fe1fdd1b439c3d9376ea0849b690d525b153ef3b
+  at: 2026-10-03T03:28:13Z
+  body_sha256: 7810baa938e46def5b9c114cd666d3e3f34827736522e9afbc9030ebcb3c9e1c
 verified:
   - by: human:spencer
     at: 2026-09-29T00:00:00Z
@@ -34,7 +34,7 @@ Eight workspaces live under `packages/`:
 
 | Package | Role |
 | --- | --- |
-| `@vitest-agent/sdk` | platform-free core: schemas, contracts, errors, pure formatters/utils, the pure `./dispatch` entry, `./schemas/*.json` — no internal workspace deps, no `node:` imports |
+| `@vitest-agent/sdk` | platform-free core: schemas, contracts, errors, pure utils, the pure `./dispatch` entry, `./schemas/*.json` — no internal workspace deps, no `node:` imports |
 | `@vitest-agent/engine` | platform half: services, Live layers, SQLite stack and migrations, `PlatformLive`, `resolveProjectDir`, hook programs, session recovery, `./testing`; depends on sdk |
 | `@vitest-agent/plugin` | `AgentPlugin`, internal `AgentReporter`, `ReporterLive`, `CoverageAnalyzer`; the carrier — declares the `vitest-agent` and `vitest-agent-mcp` bins as shims over `@vitest-agent/cli/main` and `@vitest-agent/mcp/main`; depends on cli, mcp, reporter, engine and sdk, not ui |
 | `@vitest-agent/reporter` | the default reporter package: `DefaultVitestAgentReporter` (owns the Ink live mount), contract re-exports, dispatch helpers; declares `react` and `ink` as full `dependencies`; depends on ui and sdk |

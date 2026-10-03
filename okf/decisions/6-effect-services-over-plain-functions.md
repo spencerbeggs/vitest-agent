@@ -8,8 +8,8 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-09-29T20:39:41Z
-  body_sha256: 844a65e4aa85984cfd1a763400d99a3117982a7e19601f7670d0db6790815739
+  at: 2026-10-03T03:28:13Z
+  body_sha256: 973d71783ce99ce10e623b9cdee850befa12e50d1b072db47e4962ae01da07a6
 sources:
   - id: engine-data-store
     resource: ../../packages/engine/src/services/DataStore.ts
@@ -60,13 +60,12 @@ only `DataReaderLive`, rather than every consumer depending on a single
 service that can do both.[^engine-data-store][^engine-data-reader]
 
 The output pipeline needed distinct, individually testable stages, so it
-is five separate services rather than one function with five internal
+is four separate services rather than one function with four internal
 steps: `EnvironmentDetector` (what environment is this?),
 `ExecutorResolver` (what role does that environment imply?),
 `FormatSelector` (what output format follows from that role, with an
 explicit override able to short-circuit it), `DetailResolver` (how much
-detail, given run health), and `OutputRenderer` (render through the
-selected formatter). `OutputPipelineLive(env)` merges the five Live
+detail, given run health). `OutputPipelineLive(env)` merges the four Live
 layers into one composite; `PlatformLive`, the one platform assembly the
 CLI, MCP server, and plugin all provide, folds that composite in
 alongside the data layer and the SQLite stack.[^engine-output-pipeline-live][^engine-platform]
@@ -106,8 +105,8 @@ widening each package's effective dependency surface for no benefit.
 
 **A single monolithic output-formatting function.** Would have been
 harder to test in isolation — asserting "given this environment, the
-detail level is X" would require also exercising format selection and
-rendering in the same test — and would not support an explicit
+detail level is X" would require also exercising format selection
+in the same test — and would not support an explicit
 mid-pipeline override (such as a `--format` flag) without ad hoc branching
 inside the one function.
 

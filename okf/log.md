@@ -1,5 +1,10 @@
 # Log
 
+## 2026-10-03
+
+* Updated @vitest-agent/ui
+* Updated RunEvent and RenderState
+
 ## 2026-10-01
 
 * Updated AgentPlugin.discover() / DiscoverStrategy

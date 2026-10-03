@@ -13,7 +13,7 @@ dedicated reference for deeper treatment.
 
 | Package | Role |
 | --- | --- |
-| `@vitest-agent/sdk` | Platform-free core: Effect schemas, public reporter and dispatcher contract types, tagged errors, pure formatters and utilities, and the pure `dispatch` entry. No internal dependencies, no `node:` imports. |
+| `@vitest-agent/sdk` | Platform-free core: Effect schemas, public reporter and dispatcher contract types, tagged errors, pure utilities, and the pure `dispatch` entry. No internal dependencies, no `node:` imports. |
 | `@vitest-agent/engine` | The platform half: Effect services and live layers, the SQLite data layer and migrations, `PlatformLive`, project-directory and XDG path resolution, the hook programs, and session recovery. |
 | `@vitest-agent/plugin` | The Vitest plugin (`AgentPlugin`). Handles environment detection, reporter injection, coverage config validation, failure persistence, and baselines/trends. Also the carrier that declares the `vitest-agent` and `vitest-agent-mcp` bins. |
 | `@vitest-agent/reporter` | The default reporter package. Ships `DefaultVitestAgentReporter`, owns the Ink live-mount lifecycle, and re-exports the `VitestAgentReporterFactory` contract types. |

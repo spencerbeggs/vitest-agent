@@ -86,6 +86,8 @@ const context: FormatterContext = {
 };
 ```
 
+The formatters and `FormatterContext` shown above were later removed from the SDK as dead code; the `cwd` rule survives in the helper below.
+
 The standalone helper follows the same rule: `relativePath(filePath)` is now
 `relativePath(filePath, cwd)`.
 

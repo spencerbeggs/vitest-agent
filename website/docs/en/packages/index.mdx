@@ -12,7 +12,7 @@ The vitest-agent ecosystem is split across eight npm packages. Most users instal
 | Package | Role |
 |---------|------|
 | [@vitest-agent/plugin](/plugin) | Vitest plugin — `AgentPlugin()`, project discovery, coverage policy, failure classification, reporter chain; the carrier that declares the `vitest-agent` and `vitest-agent-mcp` bins |
-| [@vitest-agent/sdk](/sdk) | Platform-free core — Effect Schemas, reporter/dispatcher contracts, tagged errors, pure formatters and utilities, the pure `dispatch` entry, published JSON schemas |
+| [@vitest-agent/sdk](/sdk) | Platform-free core — Effect Schemas, reporter/dispatcher contracts, tagged errors, pure utilities, the pure `dispatch` entry, published JSON schemas |
 | [@vitest-agent/engine](/engine) | Platform half — Effect services and live layers, SQLite data layer and migrations, `PlatformLive`, project-directory and XDG path resolution, hook programs, session recovery, testing utilities |
 | [@vitest-agent/reporter](/reporter) | Default reporter — `DefaultVitestAgentReporter`, Ink live-mount lifecycle, contract re-exports, dispatch helpers |
 | [@vitest-agent/ui](/ui) | Rendering primitives — `RunEvent` reducer, 12-cell dispatcher matrix, Ink components, PubSub channel, synthesizers |
