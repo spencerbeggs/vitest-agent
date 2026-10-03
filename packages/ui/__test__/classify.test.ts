@@ -40,6 +40,20 @@ describe("classifyRunShape", () => {
 		expect(classifyRunShape(state, [])).toBe("single-project");
 	});
 
+	it("returns single-project when one failing module is reduced but several modules ran", () => {
+		// The synthesizer replays only failing modules, so state.modules holds
+		// one entry while collectedModules carries the true count (6).
+		// Given: a reduced state with a single module entry but collectedModules 6.
+		const state: RenderState = { ...reduceRenderStateAll(singleFileMultiTestPassEvents), collectedModules: 6 };
+		expect(Object.keys(state.modules)).toHaveLength(1);
+		expect(classifyRunShape(state, [])).toBe("single-project");
+	});
+
+	it("still returns single-file when collectedModules is 1", () => {
+		const state: RenderState = { ...reduceRenderStateAll(singleFileMultiTestPassEvents), collectedModules: 1 };
+		expect(classifyRunShape(state, [])).toBe("single-file");
+	});
+
 	it("returns workspace when more than one project summary is supplied", () => {
 		const state = reduceRenderStateAll(singleProjectAllPassEvents);
 		expect(classifyRunShape(state, workspacePassProjects)).toBe("workspace");
