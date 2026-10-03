@@ -6,7 +6,7 @@ packages:
 autoInstallPeers: true
 configDependencies:
   "@effected/pnpm-plugin-effect": 0.13.2
-  "@savvy-web/pnpm-plugin-silk": 0.46.0
+  "@savvy-web/pnpm-plugin-silk": 0.47.0
 linkWorkspacePackages: deep
 peerDependencyRules:
   ignoreMissing:
