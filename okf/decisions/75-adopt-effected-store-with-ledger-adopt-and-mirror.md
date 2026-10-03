@@ -11,8 +11,8 @@ tags:
   - deps
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
-  body_sha256: 99308efc87b183402d8dcdc42ecdb993746e963ec6e7792004ba8cc9e034d282
+  at: 2026-10-03T18:22:54Z
+  body_sha256: 2200babdb747171e13aebe5f1560bd32fece4304841b328110b5a42ef08d64e7
 sources:
   - id: engine-stores
     resource: ../../packages/engine/src/stores.ts
@@ -38,6 +38,11 @@ verified:
 ---
 
 # Adopt @effected/store with Ledger Adopt and Mirror
+
+> **Superseded by [Decision 76](76-adopt-effected-store-with-an-adopt-only-ledger.md).**
+> The ledger mirror described below was dropped: every store adopts the
+> 2.x ledger once, and older installs opening newer databases is not a
+> goal.
 
 ## Context
 

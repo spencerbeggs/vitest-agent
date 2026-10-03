@@ -8,8 +8,8 @@ tags:
   - effect
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T18:02:06Z
-  body_sha256: 0b87c01d2faa6a63b8d3085882f50d262b59703d7811610135d25c8fff120354
+  at: 2026-10-03T18:22:54Z
+  body_sha256: f1b1b6f1a02784eed9bb3aa7df9e0b6623423a55d12d6b7c874d253e9e289550
 sources:
   - id: engine-ensure-migrated
     resource: ../../packages/engine/src/utils/ensure-migrated.ts
@@ -20,10 +20,11 @@ verified:
 
 # Keep ensureMigrated Instead of the Kit's SQLite-State Layer
 
-> **Superseded by [Decision 75](75-adopt-effected-store-with-ledger-adopt-and-mirror.md).**
-> All three databases now open as `@effected/store` stores. Ledger
-> adoption and mirroring removed the tracking-table mismatch described
-> below. `ensureMigrated` and its `globalThis` cache still coordinate
+> **Superseded by [Decision 76](76-adopt-effected-store-with-an-adopt-only-ledger.md)**
+> (via [Decision 75](75-adopt-effected-store-with-ledger-adopt-and-mirror.md),
+> itself superseded). All three databases now open as `@effected/store`
+> stores. Adopting the 2.x ledger alone removed the tracking-table
+> mismatch described below. `ensureMigrated` and its `globalThis` cache still coordinate
 > `data.db`.
 
 ## Context

@@ -14,6 +14,12 @@
 * Added Concurrent first open of a new database can die at the WAL switch
 * Updated Keep ensureMigrated Instead of the Kit's SQLite-State Layer
 * Updated Only stream mode renders progressively; every other console mode paints once at run end
+* Updated @vitest-agent/engine
+* Updated Add a schema migration to the project database
+* Added Adopt @effected/store with an Adopt-Only Ledger
+* Added Older installs cannot open databases this version created
+* Updated SQLite Schema
+* Updated Schema migrations — append-only, one registry, never edit 0001
 
 ## 2026-10-01
 
