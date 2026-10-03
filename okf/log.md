@@ -31,6 +31,7 @@
 * Updated The `vitest-agent` CLI command tree
 * Updated The record hook subcommands have no built-and-spawned end-to-end test
 * Updated vitest-agent (Claude Code plugin)
+* Updated Dispatcher Matrix
 
 ## 2026-10-01
 
