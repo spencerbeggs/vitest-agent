@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
-import { CoverageTotals, FileCoverageReport } from "./Coverage.js";
+import { CoverageTotals, FileCoverageReport, GlobShortfall } from "./Coverage.js";
 import { TestArtifactLocation, TestAttachment } from "./TestArtifacts.js";
 import { MetricThresholds } from "./Thresholds.js";
 
@@ -195,6 +195,8 @@ export const RunEvent = Schema.Union([
 		scoped: Schema.optional(Schema.Boolean),
 		scopedFiles: Schema.optional(Schema.Number),
 		totalFiles: Schema.optional(Schema.Number),
+		// Issue #391: threshold globs whose aggregate is below their numbers.
+		globShortfalls: Schema.optional(Schema.Array(GlobShortfall)),
 	}),
 	Schema.TaggedStruct("ThresholdViolation", {
 		metric: CoverageMetric,

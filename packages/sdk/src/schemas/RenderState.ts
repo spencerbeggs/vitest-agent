@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { ReportError, TestClassification, TestState } from "./Common.js";
-import { CoverageTotals } from "./Coverage.js";
+import { CoverageTotals, GlobShortfall } from "./Coverage.js";
 import { ActionSeverity, CoverageGap, CoverageMetric } from "./RunEvent.js";
 import { MetricThresholds } from "./Thresholds.js";
 
@@ -88,6 +88,8 @@ export const CoverageRenderState = Schema.Struct({
 	scoped: Schema.optional(Schema.Boolean),
 	scopedFiles: Schema.optional(Schema.Number),
 	totalFiles: Schema.optional(Schema.Number),
+	// Issue #391: folded from `CoverageReady.globShortfalls`.
+	globShortfalls: Schema.optional(Schema.Array(GlobShortfall)),
 }).annotate({ identifier: "CoverageRenderState" });
 /** @public */
 export type CoverageRenderState = typeof CoverageRenderState.Type;

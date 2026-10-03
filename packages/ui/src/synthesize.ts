@@ -17,6 +17,7 @@ import type {
 	CoverageGap,
 	CoverageMetric,
 	CoverageTotals,
+	GlobShortfall,
 	MetricThresholds,
 	ReportError,
 	RunEvent,
@@ -82,6 +83,8 @@ export interface SynthesizedCoverage {
 	readonly scopedFiles?: number;
 	/** Total test-file count for the project, when known. */
 	readonly totalFiles?: number;
+	/** Threshold globs whose aggregate coverage is below their numbers (issue #391). */
+	readonly globShortfalls?: ReadonlyArray<GlobShortfall>;
 }
 
 const ISO_ZERO = "1970-01-01T00:00:00.000Z";
@@ -261,6 +264,7 @@ export const synthesizeRunEvents = (
 			...(cov.scoped !== undefined ? { scoped: cov.scoped } : {}),
 			...(cov.scopedFiles !== undefined ? { scopedFiles: cov.scopedFiles } : {}),
 			...(cov.totalFiles !== undefined ? { totalFiles: cov.totalFiles } : {}),
+			...(cov.globShortfalls !== undefined ? { globShortfalls: cov.globShortfalls } : {}),
 		});
 		if (cov.violations !== undefined) {
 			for (const v of cov.violations) {
@@ -360,6 +364,7 @@ const coverageReportToBlock = (report: AgentReport): SynthesizedCoverage | undef
 		...(cov.scoped ? { scoped: cov.scoped } : {}),
 		...(cov.scopedFiles !== undefined ? { scopedFiles: cov.scopedFiles.length } : {}),
 		...(cov.totalFiles !== undefined ? { totalFiles: cov.totalFiles } : {}),
+		...(cov.globShortfalls !== undefined ? { globShortfalls: cov.globShortfalls } : {}),
 	};
 };
 
@@ -533,6 +538,7 @@ export const synthesizeFromAgentReport = (
 			...(coverage.scoped !== undefined ? { scoped: coverage.scoped } : {}),
 			...(coverage.scopedFiles !== undefined ? { scopedFiles: coverage.scopedFiles } : {}),
 			...(coverage.totalFiles !== undefined ? { totalFiles: coverage.totalFiles } : {}),
+			...(coverage.globShortfalls !== undefined ? { globShortfalls: coverage.globShortfalls } : {}),
 		});
 		if (coverage.violations !== undefined) {
 			for (const v of coverage.violations) {

@@ -173,6 +173,19 @@ const formatCoverageSection = (state: RenderState, maxGaps: number): string | nu
 		}
 	}
 
+	if (cov.globShortfalls !== undefined && cov.globShortfalls.length > 0) {
+		lines.push("Glob aggregates below threshold:");
+		for (const g of cov.globShortfalls) {
+			const parts: string[] = [];
+			for (const m of metricOrder) {
+				const min = g.thresholds[m];
+				const actual = g.summary[m];
+				if (min !== undefined && actual < min) parts.push(`${m} ${formatPercent(actual)} < ${formatPercent(min)}`);
+			}
+			lines.push(`- ${g.pattern}: ${parts.join(", ")}`);
+		}
+	}
+
 	if (maxGaps > 0 && cov.gaps.length > 0) {
 		const sorted = [...cov.gaps].sort((a, b) => b.missing.lines - a.missing.lines);
 		const topN = sorted.slice(0, maxGaps);

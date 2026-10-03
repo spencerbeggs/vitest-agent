@@ -526,6 +526,22 @@
 			"required": ["file", "summary", "uncoveredLines"],
 			"additionalProperties": true
 		},
+		"GlobShortfall": {
+			"type": "object",
+			"properties": {
+				"pattern": {
+					"type": "string"
+				},
+				"summary": {
+					"$ref": "#/$defs/CoverageTotals"
+				},
+				"thresholds": {
+					"$ref": "#/$defs/MetricThresholds"
+				}
+			},
+			"required": ["pattern", "summary", "thresholds"],
+			"additionalProperties": true
+		},
 		"CoverageReport": {
 			"type": "object",
 			"properties": {
@@ -659,6 +675,19 @@
 							"type": "array",
 							"items": {
 								"type": "string"
+							}
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"globShortfalls": {
+					"anyOf": [
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/GlobShortfall"
 							}
 						},
 						{
