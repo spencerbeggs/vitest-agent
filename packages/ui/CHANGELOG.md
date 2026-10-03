@@ -1,5 +1,27 @@
 # @vitest-agent/ui
 
+## 4.0.0
+
+### Breaking Changes
+
+- Removed the unused `RunEventChannel` PubSub module from `@vitest-agent/ui`: `RunEventChannel`, `RunEventChannelLive`, `publish`, `publishAll`, `subscribeRaw`, `accumulateUntilFinished`, `forEachRenderState` and `renderStateStream`. Nothing in the family called them. The plugin owns the run-event `PubSub` on `ReporterKit.runEvents`, and the `stream` live view subscribes to it through `CliUi.live`. A custom reporter subscribes to `ReporterKit.runEvents` directly and folds events with `reduceRenderState`. [#557][#557]
+
+### Refactoring
+
+- `renderAgent` now formats each failure through the dispatcher's shared `formatFailure` helper instead of its own copy. Output is unchanged. [#557][#557]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 5.2.0 | 6.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#557]: https://github.com/spencerbeggs/vitest-agent/pull/557
+
 ## 3.0.0
 
 ### Breaking Changes

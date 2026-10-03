@@ -1,5 +1,17 @@
 # @vitest-agent/sdk
 
+## 6.0.0
+
+### Breaking Changes
+
+- Removed the unused pure formatters `TerminalFormatter`, `GfmFormatter`, `JsonFormatter`, `MarkdownFormatter`, `SilentFormatter` and `ciAnnotationsFormatter`, along with the `Formatter` and `FormatterContext` types. Their only caller was the engine's `OutputRenderer`, which nothing in production used. Reporter output is rendered by `@vitest-agent/ui` and `@effected/cli`. `RenderedOutput` is unchanged. [#557][#557]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#557]: https://github.com/spencerbeggs/vitest-agent/pull/557
+
 ## 5.2.0
 
 ### Features

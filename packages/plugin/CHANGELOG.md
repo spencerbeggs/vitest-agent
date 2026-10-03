@@ -1,5 +1,27 @@
 # @vitest-agent/plugin
 
+## 5.2.1
+
+### Bug Fixes
+
+- The reporter now decides colour from `@effected/env`'s terminal rule instead of `NO_COLOR` alone, so `FORCE_COLOR`, `NODE_DISABLE_COLORS`, `TERM=dumb` and a non-TTY stdout are honoured the same way the CLI honours them. [#557][#557]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/cli | dependency | updated | 4.0.0 | 4.0.1 |
+| @vitest-agent/engine | dependency | updated | 0.4.0 | 0.5.0 |
+| @vitest-agent/mcp | dependency | updated | 5.1.6 | 5.1.7 |
+| @vitest-agent/reporter | dependency | updated | 4.0.0 | 4.0.1 |
+| @vitest-agent/sdk | dependency | updated | 5.2.0 | 6.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#557]: https://github.com/spencerbeggs/vitest-agent/pull/557
+
 ## 5.2.0
 
 ### Features

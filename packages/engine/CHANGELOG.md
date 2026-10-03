@@ -1,5 +1,23 @@
 # @vitest-agent/engine
 
+## 0.5.0
+
+### Breaking Changes
+
+- Removed the unused `OutputRenderer` service and `OutputRendererLive` layer. `OutputPipelineLive` and `PlatformLive` no longer provide `OutputRenderer`. [#557][#557]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @vitest-agent/sdk | dependency | updated | 5.2.0 | 6.0.0 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#557]: https://github.com/spencerbeggs/vitest-agent/pull/557
+
 ## 0.4.0
 
 ### Breaking Changes
